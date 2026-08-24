@@ -36,58 +36,22 @@ const STATUS_STYLE: Record<string, { bg: string; color: string; label: string }>
 
 const FLOW_STEPS = [
   {
-    step: "1",
-    title: "Descobrir produtos",
-    endpoint: "POST /m2m/discover",
-    code: `{
-  "query": { "category": "eletronicos" }
-}`,
-    response: `items: [{ sku, name, price, imageUrl }]`,
-  },
-  {
-    step: "2",
-    title: "Negociar desconto",
-    endpoint: "POST /m2m/negotiate",
-    code: `{
-  "cart": {
-    "items": [{ "sku": "SKU-001", "price": 199.90, "quantity": 1 }],
-    "total": 199.90
-  },
-  "preferences": {
-    "target_discount": 15,
-    "auto_accept": true
-  }
-}`,
-    response: `agreement: true, selectedDiscountPercent: 10`,
-  },
-  {
-    step: "3",
-    title: "Calcular frete",
-    endpoint: "POST /m2m/quote",
-    note: "CEP obrigatório para calcular opções de envio",
-    code: `{
-  "cart": {
-    "items": [{ "sku": "SKU-001", "price": 199.90, "quantity": 1 }],
-    "total": 199.90
-  },
-  "discountPercent": 10,
-  "shipping_address": { "cep": "01310100" }
-}`,
-    response: `shippingOptions: [{ carrier, price, days }], totalCents`,
-  },
-  {
-    step: "4",
-    title: "Finalizar checkout",
+    step: "★",
+    title: "Comprar (single-call)",
     endpoint: "POST /m2m/checkout",
-    note: "buyer_info completo + payment_method obrigatórios",
+    note: "Única chamada necessária. Retorna link de pagamento (PIX QR code ou Card clientSecret). Padrão Stripe Checkout Sessions.",
+    required: true,
     code: `{
-  "cart": { ... },
+  "cart": {
+    "items": [{ "sku": "SKU-001", "name": "Tênis", "price": 199.90, "quantity": 1 }],
+    "total": 199.90
+  },
   "payment_method": "pix",
   "buyer_info": {
     "name": "Corp Bot",
     "email": "bot@corp.com",
-    "cpf": "000.000.000-00",
-    "phone": "11999999999",
+    "cpf": "12345678909",
+    "phone": "11999887766",
     "address": {
       "cep": "01310100",
       "street": "Av Paulista",
@@ -96,12 +60,39 @@ const FLOW_STEPS = [
       "state": "SP"
     }
   },
-  "selected_shipping": {
-    "carrier": "PAC",
-    "priceInCents": 1590
-  }
+  "selected_shipping": { "carrier": "PAC", "priceInCents": 1590 }
 }`,
-    response: `PIX → qrCode + qrCodeImage | Card → clientSecret`,
+    response: `{ sessionId, payment: { method: "pix", qrCode, qrCodeImage, expiresAt } }`,
+  },
+  {
+    step: "①",
+    title: "Descobrir produtos (opcional)",
+    endpoint: "POST /m2m/discover",
+    code: `{ "query": { "category": "eletronicos" } }`,
+    response: `items: [{ sku, name, price, imageUrl }]`,
+  },
+  {
+    step: "②",
+    title: "Negociar desconto (opcional)",
+    endpoint: "POST /m2m/negotiate",
+    code: `{
+  "cart": {
+    "items": [{ "sku": "SKU-001", "price": 199.90, "quantity": 1 }],
+    "total": 199.90
+  },
+  "preferences": { "target_discount": 15, "auto_accept": true }
+}`,
+    response: `{ agreement: true, selectedDiscountPercent: 10 }`,
+  },
+  {
+    step: "③",
+    title: "Calcular frete (opcional)",
+    endpoint: "POST /m2m/quote",
+    code: `{
+  "cart": { "items": [...], "total": 199.90 },
+  "shipping_address": { "cep": "01310100" }
+}`,
+    response: `{ shippingOptions: [{ carrier, price, days }], totalCents }`,
   },
 ];
 
@@ -200,22 +191,25 @@ export function AgentsTab({ agents, loading, saving, onCreate, onSuspend }: Agen
 
       {/* Payload Reference */}
       <div className="panel" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <SectionHeader variant="secondary" title="Fluxo de Integração M2M" />
+        <SectionHeader variant="secondary" title="API Reference" />
         <p style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", margin: "0 0 4px", lineHeight: 1.5 }}>
-          Para completar uma compra via M2M, o agente precisa seguir os 4 passos abaixo em ordem.
-          Campos obrigatórios: <strong>SKU + CEP + buyer_info (nome, email, CPF, phone) + payment_method</strong>.
+          <strong style={{ color: "var(--color-text)" }}>Uma chamada = uma compra.</strong> O endpoint <code style={{ font: "12px var(--font-mono)", color: "var(--color-brand)" }}>POST /m2m/checkout</code> recebe
+          item + dados do comprador + método de pagamento e retorna o link de pagamento (QR code PIX ou clientSecret para cartão).
+          Os endpoints opcionais servem para enriquecer a jornada: buscar catálogo, negociar desconto, calcular frete.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {FLOW_STEPS.map((s) => (
-            <div key={s.step} style={{ background: "var(--surface-1)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", overflow: "hidden" }}>
-              <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--color-border)", display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ width: 22, height: 22, borderRadius: "50%", background: "var(--color-brand)", color: "#fff", font: "700 11px var(--font-mono)", display: "grid", placeItems: "center", flexShrink: 0 }}>{s.step}</span>
+          {FLOW_STEPS.map((s) => {
+            const isRequired = (s as any).required;
+            return (
+            <div key={s.step} style={{ background: "var(--surface-1)", border: `1px solid ${isRequired ? "var(--color-brand)" : "var(--color-border)"}`, borderRadius: "var(--radius-sm)", overflow: "hidden" }}>
+              <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--color-border)", display: "flex", alignItems: "center", gap: 10, background: isRequired ? "color-mix(in srgb, var(--color-brand) 6%, transparent)" : undefined }}>
+                <span style={{ width: 22, height: 22, borderRadius: "50%", background: isRequired ? "var(--color-brand)" : "var(--color-text-faint)", color: "#fff", font: "700 11px var(--font-mono)", display: "grid", placeItems: "center", flexShrink: 0 }}>{s.step}</span>
                 <span style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>{s.title}</span>
                 <code style={{ marginLeft: "auto", font: "11px var(--font-mono)", color: "var(--color-brand)" }}>{s.endpoint}</code>
               </div>
               {s.note && (
-                <div style={{ padding: "6px 14px", background: "color-mix(in srgb, var(--color-warning) 8%, transparent)", font: "11px var(--font-sans)", color: "var(--color-warning)" }}>
-                  ⚠ {s.note}
+                <div style={{ padding: "6px 14px", background: isRequired ? "color-mix(in srgb, var(--color-brand) 6%, transparent)" : "color-mix(in srgb, var(--color-warning) 8%, transparent)", font: "11px var(--font-sans)", color: isRequired ? "var(--color-brand)" : "var(--color-warning)" }}>
+                  {isRequired ? "✓" : "⚠"} {s.note}
                 </div>
               )}
               <pre style={{ margin: 0, padding: "12px 14px", font: "11px/1.6 var(--font-mono)", color: "var(--color-text-muted)", overflowX: "auto", whiteSpace: "pre" }}>{s.code}</pre>
@@ -223,7 +217,8 @@ export function AgentsTab({ agents, loading, saving, onCreate, onSuspend }: Agen
                 → {s.response}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
