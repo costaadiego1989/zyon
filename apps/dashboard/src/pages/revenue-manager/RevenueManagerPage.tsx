@@ -109,12 +109,10 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
 
       {/* Sugestões */}
       {tab === "hypotheses" && (
-        <div className="panel" style={{ overflow: "hidden" }}>
-          <div style={{ padding: "16px 20px 0" }}>
-            <SectionHeader variant="secondary" title="Sugestões de melhoria" />
-          </div>
+        <div className="panel" style={{ overflow: "hidden", padding: "20px 20px 0" }}>
+          <SectionHeader variant="secondary" title="Sugestões de melhoria" />
           {vm.hypotheses.length === 0 ? (
-            <div style={{ padding: "0 20px 20px" }}>
+            <div style={{ paddingBottom: 20 }}>
               <EmptyState icon={Lightbulb} title="Nenhuma sugestão ainda" description="Sugestões são geradas automaticamente a cada dia com base nos dados do seu checkout." />
             </div>
           ) : (
@@ -160,12 +158,10 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
 
       {/* Observações */}
       {tab === "observations" && (
-        <div className="panel" style={{ overflow: "hidden" }}>
-          <div style={{ padding: "16px 20px 0" }}>
-            <SectionHeader variant="secondary" title="Análises diárias" />
-          </div>
+        <div className="panel" style={{ overflow: "hidden", padding: "20px 20px 0" }}>
+          <SectionHeader variant="secondary" title="Análises diárias" />
           {vm.observations.length === 0 ? (
-            <div style={{ padding: "0 20px 20px" }}>
+            <div style={{ paddingBottom: 20 }}>
               <EmptyState icon={Eye} title="Nenhuma análise registrada" description="A IA analisa o checkout diariamente. Quando houver dados suficientes, as análises aparecerão aqui." />
             </div>
           ) : (
@@ -202,12 +198,10 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
 
       {/* Aprendizados */}
       {tab === "lessons" && (
-        <div className="panel" style={{ overflow: "hidden" }}>
-          <div style={{ padding: "16px 20px 0" }}>
-            <SectionHeader variant="secondary" title="O que a IA aprendeu" />
-          </div>
+        <div className="panel" style={{ overflow: "hidden", padding: "20px 20px 0" }}>
+          <SectionHeader variant="secondary" title="O que a IA aprendeu" />
           {vm.lessons.length === 0 ? (
-            <div style={{ padding: "0 20px 20px" }}>
+            <div style={{ paddingBottom: 20 }}>
               <EmptyState icon={BookOpen} title="Nenhum aprendizado ainda" description="Após experimentos concluírem, a IA registra o que funcionou e usa para melhorar as próximas sugestões." />
             </div>
           ) : (
