@@ -100,6 +100,33 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     socket.clearNewTickets();
   }, [socket.newTickets]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Poll for return/chargeback notifications every 30s
+  React.useEffect(() => {
+    let lastCheck = new Date().toISOString();
+    const poll = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/merchants/${me.id}/notifications?since=${encodeURIComponent(lastCheck)}`, {
+          credentials: "include",
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.items) && data.items.length > 0) {
+            const newNotifs: NotificationItem[] = data.items.map((item: any) => ({
+              id: item.id,
+              type: item.type,
+              title: item.title,
+              createdAt: item.createdAt,
+            }));
+            setNotifications((prev) => [...newNotifs, ...prev]);
+          }
+        }
+        lastCheck = new Date().toISOString();
+      } catch { /* non-blocking */ }
+    };
+    const timer = setInterval(poll, 30_000);
+    return () => clearInterval(timer);
+  }, [me.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const visibleNavItems = useMemo(
     () => hideOnboarding ? NAV_ITEMS.filter((item) => item.key !== "onboarding") : NAV_ITEMS,
     [hideOnboarding]

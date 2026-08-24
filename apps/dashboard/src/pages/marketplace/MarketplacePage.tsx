@@ -6,6 +6,7 @@ import { TabBar } from "../../components/TabBar.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
 import { PageLoader } from "../../components/PageLoader.js";
+import { DataPanel } from "../../components/DataPanel.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { useMarketplacePage } from "./useMarketplacePage.js";
 import { OrderRow } from "./components/OrderRow.js";
@@ -82,11 +83,12 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
           { key: "stores", label: "Lojas" },
           { key: "orders", label: "Pedidos" },
           { key: "settlements", label: "Repasses" },
+          { key: "returns", label: "Devoluções" },
           { key: "chargebacks", label: "Chargebacks" },
           { key: "settings", label: "Configurações" },
         ]}
         activeTab={tab}
-        onTabChange={(key) => setTab(key as "stores" | "orders" | "settlements" | "chargebacks" | "settings")}
+        onTabChange={(key) => setTab(key as any)}
       />
 
       {tab === "stores" && (
@@ -400,6 +402,16 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
           )}
         </div>
         </SectionErrorBoundary>
+      )}
+
+      {tab === "returns" && (
+        <DataPanel
+          title="Devoluções de Marketplace"
+          isEmpty={true}
+          empty={{ icon: Store, title: "Nenhuma devolução de marketplace", description: "Quando compradores de pedidos cross-store solicitarem devoluções, elas aparecerão aqui." }}
+        >
+          {null}
+        </DataPanel>
       )}
 
       {tab === "chargebacks" && (

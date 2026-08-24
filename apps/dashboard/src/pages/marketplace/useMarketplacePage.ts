@@ -6,7 +6,7 @@ import type { MerchantProfile } from "../../api-client.js";
 import type { MarketplaceConfig, MarketplaceOrder, MarketplaceStats } from "./types.js";
 import type { MarketplaceSettlement, MarketplaceSellerDebt } from "../../api/endpoints/marketplace-v2.js";
 
-export type MarketplaceTab = "stores" | "settings" | "orders" | "settlements" | "chargebacks";
+export type MarketplaceTab = "stores" | "settings" | "orders" | "settlements" | "returns" | "chargebacks";
 
 export interface ChargebackEntry {
   settlement: MarketplaceSettlement;
