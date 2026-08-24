@@ -12,6 +12,7 @@ import {
   Body,
   UseGuards,
 } from "@nestjs/common";
+import { AuthGuard } from "../../../../modules/auth/presentation/auth.guard.js";
 import { TenantRoleGuard } from "../../../../modules/auth/presentation/tenant-role.guard.js";
 import { RequireTenantRoles } from "../../../../modules/auth/presentation/tenant-role.decorator.js";
 import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
@@ -24,7 +25,7 @@ import { UpdateRoleUseCase } from "../../application/use-cases/update-role.use-c
 import { RemoveMemberUseCase } from "../../application/use-cases/remove-member.use-case.js";
 
 @Controller("merchants/:merchantId/team")
-@UseGuards(TenantRoleGuard)
+@UseGuards(AuthGuard, TenantRoleGuard)
 export class TeamController {
   constructor(
     private readonly inviteMemberUseCase: InviteMemberUseCase,

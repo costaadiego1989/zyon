@@ -182,10 +182,7 @@ export class CartRecoveryController {
     },
   ) {
     const user = currentUser(req);
-    const recoveryLink = buildRecoveryLink(
-      user.merchantCheckoutReturnUrl ?? user.checkoutReturnUrl,
-      body.session_id,
-    );
+    const recoveryLink = buildRecoveryLink(null, body.session_id);
 
     const templateFn = TEMPLATES[body.strategy] ?? TEMPLATES.offer_coupon;
     const message = templateFn({

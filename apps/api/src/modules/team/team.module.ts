@@ -7,9 +7,10 @@ import { UpdateRoleUseCase } from "./application/use-cases/update-role.use-case.
 import { RemoveMemberUseCase } from "./application/use-cases/remove-member.use-case.js";
 import { TeamController } from "./presentation/http/team.controller.js";
 import { NotificationsModule } from "../notifications/notifications.module.js";
+import { AuthModule } from "../auth/auth.module.js";
 
 @Module({
-  imports: [PersistenceModule, NotificationsModule],
+  imports: [PersistenceModule, NotificationsModule, AuthModule],
   controllers: [TeamController],
   providers: [
     InviteMemberUseCase,
