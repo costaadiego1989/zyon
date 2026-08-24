@@ -22,7 +22,8 @@ export type CheckoutEventName =
   | "auth_phone_submitted"
   | "auth_phone_verified"
   | "auth_identity_confirmed"
-  | "auth_registration_completed";
+  | "auth_registration_completed"
+  | "login_completed";
 
 export interface CartItem {
   sku: string;
