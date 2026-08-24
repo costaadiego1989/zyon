@@ -47,6 +47,10 @@ export class EvmCryptoPaymentAdapter implements PaymentProviderPort {
       buyerFacingPayload: quote
     };
   }
+
+  async refundPayment(_input: { merchantId: string; providerPaymentId: string; amountCents: number; reason?: string }) {
+    return { refundId: "manual", status: "manual_required" as const };
+  }
 }
 
 export function buildCryptoQuote(

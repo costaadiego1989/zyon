@@ -84,6 +84,18 @@ export type FetchPaymentStatusOutput = {
   approvedAmountCents?: number;
 };
 
+export type RefundPaymentInput = {
+  merchantId: string;
+  providerPaymentId: string;
+  amountCents: number;
+  reason?: string;
+};
+
+export type RefundPaymentOutput = {
+  refundId: string;
+  status: "succeeded" | "pending" | "failed" | "manual_required";
+};
+
 export interface PaymentProviderPort {
   createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput>;
   createCustomer?(input: {
@@ -98,4 +110,9 @@ export interface PaymentProviderPort {
    * for optimistic confirmation — only to drive the same transitions a webhook would.
    */
   fetchPaymentStatus?(input: FetchPaymentStatusInput): Promise<FetchPaymentStatusOutput>;
+  /**
+   * Refund a previously approved payment. Returns refund ID and status.
+   * Crypto payments return status: "manual_required" (no automated refund).
+   */
+  refundPayment?(input: RefundPaymentInput): Promise<RefundPaymentOutput>;
 }

@@ -233,4 +233,19 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
       buyerFacingPayload
     };
   }
+
+  async refundPayment(input: { merchantId: string; providerPaymentId: string; amountCents: number; reason?: string }) {
+    const base = this.apiBaseUrl.replace(/\/+$/, "");
+    const res = await this.fetchImpl(`${base}/v3/payments/${encodeURIComponent(input.providerPaymentId)}/refund`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", access_token: this.apiKey },
+      body: JSON.stringify({ value: input.amountCents / 100, description: input.reason ?? "Customer requested refund" }),
+    });
+    if (!res.ok) {
+      const err = await res.text().catch(() => "");
+      throw new Error(`asaas_refund_failed: ${res.status} ${err}`);
+    }
+    const data = await res.json();
+    return { refundId: data.id ?? input.providerPaymentId, status: "succeeded" as const };
+  }
 }

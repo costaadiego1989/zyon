@@ -93,4 +93,14 @@ export class StripePaymentAdapter implements PaymentProviderPort {
     if (!this.publishableKey) throw new Error("stripe_publishable_key_missing");
     return this.publishableKey;
   }
+
+  async refundPayment(input: { merchantId: string; providerPaymentId: string; amountCents: number; reason?: string }) {
+    const stripe = this.requireStripe();
+    const refund = await stripe.refunds.create({
+      payment_intent: input.providerPaymentId,
+      amount: input.amountCents,
+      reason: "requested_by_customer",
+    });
+    return { refundId: refund.id, status: refund.status === "succeeded" ? "succeeded" as const : "pending" as const };
+  }
 }
