@@ -15,20 +15,34 @@ import {
 } from "./application/buyer-agent-preferences.use-cases.js";
 import { RecordNegotiationSessionUseCase } from "./application/record-negotiation-session.use-case.js";
 import { ApplyNegotiationAgreementToCheckoutUseCase } from "./application/apply-negotiation-agreement-to-checkout.use-case.js";
+import {
+  ListM2MAgentsUseCase,
+  CreateM2MAgentUseCase,
+  SuspendM2MAgentUseCase,
+  GetProtocolConfigUseCase,
+  UpsertProtocolConfigUseCase,
+  M2M_MANAGEMENT_STORE,
+} from "./application/m2m-management.use-cases.js";
 import { NEGOTIATION_STORE } from "./domain/ports/negotiation-store.port.js";
 import { PrismaNegotiationStore } from "./infrastructure/prisma-negotiation.store.js";
+import { PrismaM2MManagementStore } from "./infrastructure/prisma-m2m-management.store.js";
+import { M2MWebhookDispatcherService } from "./infrastructure/m2m-webhook-dispatcher.service.js";
 import { NegotiationController } from "./presentation/http/negotiation.controller.js";
 import { MerchantNegotiationPolicyController } from "./presentation/http/merchant-negotiation-policy.controller.js";
 import { BuyerAgentNegotiationPreferencesController } from "./presentation/http/buyer-agent-negotiation-preferences.controller.js";
 import { M2mController } from "./presentation/http/m2m.controller.js";
+import { M2MManagementController } from "./presentation/http/m2m-management.controller.js";
+import { ShippingModule } from "../shipping/shipping.module.js";
+import { PaymentModule } from "../payment/payment.module.js";
 
 @Module({
-  imports: [AuthModule, CheckoutModule, MerchantModule],
+  imports: [AuthModule, CheckoutModule, MerchantModule, ShippingModule, PaymentModule],
   controllers: [
     NegotiationController,
     MerchantNegotiationPolicyController,
     BuyerAgentNegotiationPreferencesController,
     M2mController,
+    M2MManagementController,
   ],
   providers: [
     EvaluateNegotiationUseCase,
@@ -38,11 +52,22 @@ import { M2mController } from "./presentation/http/m2m.controller.js";
     UpsertBuyerAgentPreferencesUseCase,
     RecordNegotiationSessionUseCase,
     ApplyNegotiationAgreementToCheckoutUseCase,
+    ListM2MAgentsUseCase,
+    CreateM2MAgentUseCase,
+    SuspendM2MAgentUseCase,
+    GetProtocolConfigUseCase,
+    UpsertProtocolConfigUseCase,
+    M2MWebhookDispatcherService,
     {
       provide: NEGOTIATION_STORE,
       useFactory: (prisma: PrismaClient) => new PrismaNegotiationStore(prisma),
       inject: [PRISMA_CLIENT]
-    }
+    },
+    {
+      provide: M2M_MANAGEMENT_STORE,
+      useFactory: (prisma: PrismaClient) => new PrismaM2MManagementStore(prisma),
+      inject: [PRISMA_CLIENT]
+    },
   ]
 })
 export class NegotiationModule {}

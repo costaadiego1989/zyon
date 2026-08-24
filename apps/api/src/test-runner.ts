@@ -95,6 +95,8 @@ import "./modules/negotiation/__tests__/m2m-security.spec.js";
 import "./modules/negotiation/__tests__/m2m.e2e-spec.js";
 import "./modules/negotiation/__tests__/negotiation-attempt.int-spec.js";
 import "./modules/negotiation/__tests__/m2m-session.int-spec.js";
+import "./modules/negotiation/__tests__/m2m-management.use-case.spec.js";
+import "./modules/negotiation/__tests__/m2m-webhook-dispatcher.spec.js";
 import "./modules/embed/domain/embed-token.service.spec.js";
 import "./modules/embed/presentation/http/embed-sessions.controller.spec.js";
 import "./modules/embed/presentation/http/embed-checkout.controller.spec.js";

@@ -646,6 +646,50 @@ model NegotiationCostLedgerEntry {
   @@map("negotiation_cost_ledger_entries")
 }
 
+model BuyerAgent {
+  id             String   @id @default(cuid())
+  merchantId     String   @map("merchant_id")
+  globalUserId   String   @map("global_user_id")
+  displayName    String   @map("display_name")
+  status         String   @default("active") // active | suspended
+  m2mSecretHash  String?  @map("m2m_secret_hash")
+  scopes         String[] @default(["read", "negotiate"])
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  reputation     AgentReputation?
+
+  @@unique([merchantId, globalUserId])
+  @@index([merchantId, status])
+  @@map("buyer_agents")
+}
+
+model AgentReputation {
+  id               String   @id @default(cuid())
+  agentId          String   @unique @map("agent_id")
+  transactionCount Int      @default(0) @map("transaction_count")
+  disputeCount     Int      @default(0) @map("dispute_count")
+  reputationScore  Int      @default(100) @map("reputation_score")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  agent BuyerAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@map("agent_reputations")
+}
+
+model M2MProtocolConfig {
+  id                   String   @id @default(cuid())
+  merchantId           String   @unique @map("merchant_id")
+  enabled              Boolean  @default(false)
+  webhookUrl           String?  @map("webhook_url")
+  webhookEndpointId    String?  @map("webhook_endpoint_id")
+  maxSessionTtlMinutes Int      @default(30) @map("max_session_ttl_minutes")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@map("m2m_protocol_configs")
+}
+
 model OutboxMessage {
   eventId       String    @id @map("event_id")
   eventType     String    @map("event_type")

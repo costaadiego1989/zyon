@@ -25,6 +25,12 @@ import { StartCheckoutUseCase } from "../../../checkout/application/use-cases/st
 import { CompleteOrderUseCase } from "../../../checkout/application/use-cases/complete-order.use-case.js";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../../buyer-account/domain/ports/buyer-account-repository.port.js";
 import { randomUUID } from "node:crypto";
+import { QuoteShippingUseCase } from "../../../shipping/application/use-cases/quote-shipping.use-case.js";
+import { CreatePaymentIntentUseCase, type CreatePaymentIntentRequest } from "../../../payment/application/create-payment-intent.use-case.js";
+import { CheckoutCustomerService } from "../../../checkout/application/services/checkout-customer.service.js";
+import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../../checkout/domain/ports/checkout-session.repository.port.js";
+import type { ShippingQuote } from "@zyon/shared-types";
+import { M2MWebhookDispatcherService } from "../../infrastructure/m2m-webhook-dispatcher.service.js";
 
 @ApiTags("M2M - Machine-to-Machine Protocol")
 @Controller("m2m")
@@ -40,6 +46,11 @@ export class M2mController {
     @Optional() private readonly startCheckout?: StartCheckoutUseCase,
     @Optional() private readonly completeOrder?: CompleteOrderUseCase,
     @Optional() @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly buyerAccounts?: BuyerAccountRepository,
+    @Optional() private readonly quoteShipping?: QuoteShippingUseCase,
+    @Optional() private readonly createPaymentIntent?: CreatePaymentIntentUseCase,
+    @Optional() private readonly checkoutCustomerService?: CheckoutCustomerService,
+    @Optional() @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly checkoutSession?: CheckoutSessionRepository,
+    @Optional() private readonly webhookDispatcher?: M2MWebhookDispatcherService,
   ) {}
 
   @Post("register")
@@ -68,12 +79,16 @@ export class M2mController {
     const updatedAgent = agent.withM2mEnabled(secretHash);
     await this.buyerAccounts.saveAgent(updatedAgent);
 
-    return {
+    const result = {
       agent_id: body.agentId,
       secret: `m2m_${secret}`,
       globalUserId: body.globalUserId,
       createdAt: new Date().toISOString(),
     };
+
+    void this.webhookDispatcher?.dispatch(user.merchantId, "m2m.agent.registered", { agent_id: body.agentId, global_user_id: body.globalUserId });
+
+    return result;
   }
 
   @Post("discover")
@@ -153,6 +168,12 @@ export class M2mController {
         buyerPreferences: preferencesResolved,
       });
 
+      void this.webhookDispatcher?.dispatch(user.merchantId, "m2m.negotiation.completed", {
+        agreement: result.agreement,
+        selected_discount_percent: result.selectedDiscountPercent,
+        denial_reason: result.denialReason,
+      });
+
       return {
         merchantId: body.merchantId,
         agreement: result.agreement,
@@ -175,17 +196,53 @@ export class M2mController {
       merchantId: string;
       cart: { total: number; items: Array<{ sku: string; price: number; quantity: number }> };
       discountPercent?: number;
-      shippingCents?: number;
+      shipping_address?: { cep: string };
     },
   ) {
     const user = currentUser(req);
-
     const subtotalCents = Math.round(body.cart.total * 100);
     const discountPercent = body.discountPercent ?? 0;
     const discountCents = Math.round(subtotalCents * (discountPercent / 100));
-    const shippingCents = body.shippingCents ?? 0;
+    const totalWithoutShippingCents = subtotalCents - discountCents;
 
-    const totalCents = subtotalCents - discountCents + shippingCents;
+    let shippingOptions: ShippingQuote[] = [];
+
+    // If CEP provided, fetch real shipping quotes
+    if (body.shipping_address?.cep && this.quoteShipping) {
+      try {
+        const cep = body.shipping_address.cep.replace(/\D/g, "");
+        if (cep.length === 8) {
+          const sessionId = `m2m_${randomUUID()}`;
+          const quoteSnapshot = await this.quoteShipping.execute({
+            session_id: sessionId,
+            merchant_id: body.merchantId,
+            destination_zip: cep,
+            cart_total: body.cart.total,
+            packages: body.cart.items.map((item) => ({
+              weightKg: 0.3,
+              heightCm: 10,
+              widthCm: 15,
+              lengthCm: 20,
+              quantity: item.quantity ?? 1,
+            })),
+          });
+          shippingOptions = quoteSnapshot.results.map((r) => ({
+            customerPrice: r.price / 100,
+            realCost: r.is_free ? 0 : r.price / 100,
+            carrier: r.label,
+            method: r.label,
+            deliveryDays: r.eta_days,
+            destinationZip: cep,
+          }));
+        }
+      } catch (err) {
+        // Fall back to empty shipping options if quote fails
+      }
+    }
+
+    // Calculate total with first available shipping option (or use 0 if none)
+    const shippingCents = shippingOptions.length > 0 ? Math.round(shippingOptions[0].customerPrice * 100) : 0;
+    const totalCents = totalWithoutShippingCents + shippingCents;
 
     return {
       merchantId: body.merchantId,
@@ -193,8 +250,10 @@ export class M2mController {
       discountCents,
       discountPercent,
       shippingCents,
+      shippingOptions,
       totalCents,
       currency: "BRL",
+      paymentMethods: ["pix", "credit_card"],
     };
   }
 
@@ -209,6 +268,23 @@ export class M2mController {
       sessionId?: string;
       cart: { total: number; items: Array<{ sku: string; name: string; price: number; quantity: number }> };
       customer?: { email?: string; phone?: string };
+      payment_method?: "pix" | "credit_card";
+      buyer_info?: {
+        name: string;
+        email: string;
+        cpf: string;
+        phone: string;
+        address?: {
+          cep: string;
+          street: string;
+          number: string;
+          complement?: string;
+          neighborhood?: string;
+          city: string;
+          state: string;
+        };
+      };
+      selected_shipping?: { carrier: string; priceInCents: number };
     },
   ) {
     const user = currentUser(req);
@@ -218,6 +294,8 @@ export class M2mController {
 
     try {
       const sessionId = body.sessionId || `m2m_${randomUUID()}`;
+
+      // 1. Create checkout session
       const response = await this.startCheckout.execute({
         session_id: sessionId,
         merchant_id: body.merchantId,
@@ -227,6 +305,80 @@ export class M2mController {
           currency: "BRL",
         },
       });
+
+      const session = await this.checkoutSession?.getSession(body.merchantId, sessionId);
+      if (!session) {
+        throw new NotFoundException("checkout_session_not_found");
+      }
+
+      // 2. Update session with buyer info and address
+      if (body.buyer_info && this.checkoutCustomerService) {
+        const updatedSession = this.checkoutCustomerService.mergeCustomers(session, {
+          fullName: body.buyer_info.name,
+          email: body.buyer_info.email,
+          cpf: body.buyer_info.cpf,
+          phone: body.buyer_info.phone,
+          address: body.buyer_info.address ? {
+            zip: body.buyer_info.address.cep,
+            street: body.buyer_info.address.street,
+            number: body.buyer_info.address.number,
+            complement: body.buyer_info.address.complement || "",
+            neighborhood: body.buyer_info.address.neighborhood || "",
+            city: body.buyer_info.address.city,
+            state: body.buyer_info.address.state,
+          } : undefined,
+        });
+
+        await this.checkoutSession?.saveSession(updatedSession);
+      }
+
+      // 3. Add shipping selection if provided
+      if (body.selected_shipping && this.checkoutSession) {
+        const updatedSession = await this.checkoutSession.getSession(body.merchantId, sessionId);
+        if (updatedSession) {
+          updatedSession.shipping = {
+            customerPrice: body.selected_shipping.priceInCents / 100,
+            realCost: body.selected_shipping.priceInCents / 100,
+            carrier: body.selected_shipping.carrier,
+            method: body.selected_shipping.carrier,
+            deliveryDays: 5, // Estimated
+            destinationZip: body.buyer_info?.address?.cep || "",
+          };
+          await this.checkoutSession.saveSession(updatedSession);
+        }
+      }
+
+      // 4. Create payment intent
+      const paymentMethod = body.payment_method || "pix";
+      const idempotencyKey = `${sessionId}_${paymentMethod}`;
+
+      if (this.createPaymentIntent) {
+        const paymentIntentRequest: CreatePaymentIntentRequest = {
+          merchant_id: body.merchantId,
+          session_id: sessionId,
+          idempotency_key: idempotencyKey,
+          method: paymentMethod === "credit_card" ? "card" : "pix",
+          remote_ip: req.ip,
+        };
+
+        const paymentIntent = await this.createPaymentIntent.execute(paymentIntentRequest);
+
+        return {
+          merchantId: body.merchantId,
+          sessionId: response.session_id,
+          status: "payment_intent_created",
+          paymentIntentId: paymentIntent.id,
+          payment: {
+            method: paymentMethod,
+            status: paymentIntent.status,
+            qrCode: paymentIntent.buyerFacing?.qrCodeCopyPaste,
+            qrCodeImage: paymentIntent.buyerFacing?.encodedQrImage,
+            clientSecret: paymentIntent.buyerFacing?.clientSecret, // for Stripe
+            expiresAt: paymentIntent.buyerFacing?.quoteExpiresAt,
+          },
+          cartTotal: body.cart.total,
+        };
+      }
 
       return {
         merchantId: body.merchantId,
