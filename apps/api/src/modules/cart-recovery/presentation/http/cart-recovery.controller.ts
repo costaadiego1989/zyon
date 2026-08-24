@@ -22,12 +22,74 @@ import { UpdateStrategyPreferencesUseCase } from "../../application/use-cases/up
 import { WHATSAPP_SENDER_PORT } from "../../../notifications/domain/ports/whatsapp-sender.port.js";
 import type { WhatsAppSenderPort } from "../../../notifications/domain/ports/whatsapp-sender.port.js";
 
-const TEMPLATES: Record<string, (cfg: { coupon_code?: string; rule_id?: string }) => string> = {
-  offer_free_shipping: () => `🚚 *Frete Grátis Pra Você!*\n\nSeu carrinho está te esperando! 👜\n\nVoltou interesse? Ótima notícia: hoje temos *FRETE GRÁTIS* em tudo que você deixou guardado.\n\n⏰ Oferta válida por 48 horas\n🎁 Aproveita que é grátis!`,
-  personalized_cross_sell: () => `🛒 *Esqueceu Algo?*\n\nOi! Vimos que você deixou alguns itens incríveis no carrinho. 👀\n\nPreparamos sugestões especiais baseadas no que você escolheu. Quer ver?\n\n💭 Volte ao carrinho e descubra!`,
-  offer_coupon: (cfg) => `🎉 *Cupom Exclusivo Pra Você!*\n\nSua compra merecia descontão! 🤑\n\nUse o código *${cfg.coupon_code || "VOLTA10"}* na hora de finalizar o pedido.\n\n⏰ Código válido por 3 dias\n🔐 Só pra você!`,
-  advanced_rule: (cfg) => `✨ *Oferta Personalizada Esperando!*\n\nPreparamos uma condição especial só pra você! 🎯\n\n💳 Opções de parcelamento melhoradas\n⏱️ Frete com custo reduzido\n🎁 Brinde + cashback em selecionados\n\nEssa proposta é válida *até amanhã*. Bora? 🚀`,
+interface TemplateConfig {
+  coupon_code?: string;
+  rule_id?: string;
+  recovery_link?: string;
+}
+
+const TEMPLATES: Record<string, (cfg: TemplateConfig) => string> = {
+  offer_free_shipping: (cfg) => `🚚 *Frete Grátis Pra Você!*
+
+Seu carrinho está te esperando! 👜
+
+Voltou interesse? Ótima notícia: hoje temos *FRETE GRÁTIS* em tudo que você deixou guardado.
+
+👉 *Voltar pro carrinho:* ${cfg.recovery_link ?? "[link do carrinho]"}
+
+⏰ Oferta válida por 48 horas
+🎁 Aproveita que é grátis!`,
+
+  personalized_cross_sell: (cfg) => `🛒 *Esqueceu Algo no Carrinho?*
+
+Oi! Vimos que você deixou alguns itens incríveis esperando. 👀
+
+Preparamos sugestões especiais baseadas no que você escolheu:
+• Produto complementar 1
+• Produto complementar 2
+• Produto complementar 3
+
+Quer ver? É só voltar pro carrinho!
+
+👉 *Acessar carrinho:* ${cfg.recovery_link ?? "[link do carrinho]"}
+
+💭 Dúvidas? É só chamar aqui!`,
+
+  offer_coupon: (cfg) => `🎉 *Cupom Exclusivo Pra Você!*
+
+Sua compra merecia um descontão! 🤑
+
+Use o código *${cfg.coupon_code || "VOLTA10"}* na hora de finalizar o pedido.
+
+👉 *Voltar e aplicar:* ${cfg.recovery_link ?? "[link do carrinho]"}
+
+⏰ Código válido por 3 dias
+🔐 Exclusivo — só pra você!
+
+Bora fechar? 🛍️`,
+
+  advanced_rule: (cfg) => `✨ *Oferta Personalizada Esperando!*
+
+Olha só que legal: preparamos uma condição especial só pra você! 🎯
+
+Com base no que você deixou no carrinho, temos:
+💳 Parcelamento em até 12x sem juros
+⏱️ Frete com desconto de 40%
+🎁 Brinde exclusivo em compras acima de R$ 150
+
+👉 *Conferir oferta:* ${cfg.recovery_link ?? "[link do carrinho]"}
+
+Essa proposta é válida *até amanhã* — depois muda!
+
+Bora finalizar? 🚀`,
 };
+
+function buildRecoveryLink(checkoutReturnUrl?: string | null, sessionId?: string): string {
+  const base = checkoutReturnUrl || process.env.PUBLIC_WIDGET_URL || "https://widget.aacp.com/checkout";
+  if (!sessionId) return base;
+  const params = new URLSearchParams({ sessionId });
+  return `${base}?${params.toString()}`;
+}
 
 @ApiTags("Cart Recovery")
 @Controller("cart-recovery")
@@ -110,16 +172,36 @@ export class CartRecoveryController {
   @ApiOkResponse({ description: "Test message sent" })
   async testSend(
     @Req() req: any,
-    @Body() body: { phone: string; strategy: string; coupon_code?: string; rule_id?: string },
+    @Body() body: {
+      phone: string;
+      strategy: string;
+      coupon_code?: string;
+      rule_id?: string;
+      session_id?: string;
+      cart_ref?: string;
+    },
   ) {
-    const templateFn = TEMPLATES[body.strategy] ?? TEMPLATES.offer_coupon;
-    const message = templateFn({ coupon_code: body.coupon_code, rule_id: body.rule_id });
+    const user = currentUser(req);
+    const recoveryLink = buildRecoveryLink(
+      user.merchantCheckoutReturnUrl ?? user.checkoutReturnUrl,
+      body.session_id,
+    );
 
-    await this.whatsappSender.send({
-      phone: body.phone,
-      message,
+    const templateFn = TEMPLATES[body.strategy] ?? TEMPLATES.offer_coupon;
+    const message = templateFn({
+      coupon_code: body.coupon_code,
+      rule_id: body.rule_id,
+      recovery_link: recoveryLink,
     });
 
-    return { sent: true, phone: body.phone, strategy: body.strategy };
+    await this.whatsappSender.send({ phone: body.phone, message });
+
+    return {
+      sent: true,
+      phone: body.phone,
+      strategy: body.strategy,
+      recovery_link: recoveryLink,
+      message_preview: message,
+    };
   }
 }

@@ -37,55 +37,53 @@ Seu carrinho está te esperando! 👜
 
 Voltou interesse? Ótima notícia: hoje temos *FRETE GRÁTIS* em tudo que você deixou guardado.
 
-*Clique aqui para voltar:*
-[link do carrinho]
+👉 *Voltar pro carrinho:* [link gerado automaticamente]
 
 ⏰ Oferta válida por 48 horas
 🎁 Aproveita que é grátis!`,
 
-  personalized_cross_sell: () => `🛒 *Esqueceu Algo?*
+  personalized_cross_sell: () => `🛒 *Esqueceu Algo no Carrinho?*
 
-Oi! Vimos que você deixou alguns itens incríveis no carrinho. 👀
+Oi! Vimos que você deixou alguns itens incríveis esperando. 👀
 
-Preparamos uma sugestão especial baseada no que você escolheu:
-• [Produto 1]
-• [Produto 2]
-• [Produto 3]
+Preparamos sugestões especiais baseadas no que você escolheu:
+• Produto complementar 1
+• Produto complementar 2
+• Produto complementar 3
 
-Quer ver? Volte pro carrinho e descobre as opções que podem combinar com sua compra.
+Quer ver? É só voltar pro carrinho!
 
-*[Voltar ao carrinho →]*
+👉 *Acessar carrinho:* [link gerado automaticamente]
 
-💭 Dúvidas? É só chamar!`,
+💭 Dúvidas? É só chamar aqui!`,
 
   offer_coupon: (cfg) => `🎉 *Cupom Exclusivo Pra Você!*
 
-Sua compra merecia descontão! 🤑
+Sua compra merecia um descontão! 🤑
 
-Use o código *${cfg.coupon_code || "VOLTA10"}* na hora de finalizar o pedido.
+Use o código *${cfg.coupon_code || "—"}* na hora de finalizar o pedido.
 
-*Quanto economiza?*
-Depende do que você escolheu, mas a economia é garantida! 💰
-
-*[Voltar e aproveitar →]*
+👉 *Voltar e aplicar:* [link gerado automaticamente]
 
 ⏰ Código válido por 3 dias
-🔐 Só pra você!`,
+🔐 Exclusivo — só pra você!
 
-  advanced_rule: (cfg) => `✨ *Oferta Personalizada Esperando!*
+Bora fechar? 🛍️`,
+
+  advanced_rule: () => `✨ *Oferta Personalizada Esperando!*
 
 Olha só que legal: preparamos uma condição especial só pra você! 🎯
 
 Com base no que você deixou no carrinho, temos:
-💳 Opções de parcelamento melhoradas
-⏱️ Frete com custo reduzido
-🎁 Brinde + cashback em selecionados
+💳 Parcelamento em até 12x sem juros
+⏱️ Frete com desconto de 40%
+🎁 Brinde exclusivo em compras acima de R$ 150
 
-*[Voltar e conferir a oferta →]*
+👉 *Conferir oferta:* [link gerado automaticamente]
 
 Essa proposta é válida *até amanhã* — depois muda!
 
-Bora? 🚀`,
+Bora finalizar? 🚀`,
 };
 
 const PAGE_SIZE = 10;
@@ -178,10 +176,15 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
           strategy: activeKey,
           coupon_code: config.coupon_code,
           rule_id: config.rule_id,
+          session_id: "test_session_demo",
         }),
       });
       if (response.ok) {
-        showToast("success", "Mensagem enviada pra 21 99300-1883! Confirma se chegou? 📱");
+        const data = await response.json();
+        showToast("success", "Mensagem enviada pra 21 99300-1883 com link! Confirma se chegou? 📱");
+        if (data.recovery_link) {
+          console.log("Recovery link:", data.recovery_link);
+        }
       } else {
         const err = await response.text();
         showToast("error", `Erro ao enviar: ${err}`);
