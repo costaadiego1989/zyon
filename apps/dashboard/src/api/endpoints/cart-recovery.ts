@@ -18,6 +18,12 @@ export type CartRecoveryStrategyKey =
 
 export type CartRecoveryStrategyPreferences = Record<CartRecoveryStrategyKey, boolean>;
 
+export interface CartRecoveryStrategyConfig {
+  active_strategy: CartRecoveryStrategyKey;
+  coupon_code?: string;
+  rule_id?: string;
+}
+
 export interface CartRecoveryAttempt {
   id: string;
   session_id: string;
@@ -62,5 +68,25 @@ export function cartRecoveryEndpoints(base: string, f: typeof fetch) {
       );
       return res.strategies;
     },
+
+    async getCartRecoveryConfig(): Promise<CartRecoveryStrategyConfig> {
+      const res = await dashboardJson<{ config: CartRecoveryStrategyConfig }>(
+        base, `${PREFIX}/config`, { method: "GET" }, f
+      );
+      return res.config;
+    },
+
+    async patchCartRecoveryConfig(
+      cfg: Partial<CartRecoveryStrategyConfig>,
+    ): Promise<CartRecoveryStrategyConfig> {
+      const res = await dashboardJson<{ config: CartRecoveryStrategyConfig }>(
+        base, `${PREFIX}/config`, {
+          method: "PATCH",
+          jsonBody: cfg,
+        }, f
+      );
+      return res.config;
+    },
   };
 }
+

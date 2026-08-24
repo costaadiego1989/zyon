@@ -6,6 +6,8 @@ import { TrackRecoveryOutcomeUseCase } from "./application/use-cases/track-recov
 import { GetRecoveryMetricsUseCase } from "./application/use-cases/get-recovery-metrics.use-case.js";
 import { GetStrategyPreferencesUseCase } from "./application/use-cases/get-strategy-preferences.use-case.js";
 import { UpdateStrategyPreferencesUseCase } from "./application/use-cases/update-strategy-preferences.use-case.js";
+import { GetStrategyConfigUseCase } from "./application/use-cases/get-strategy-config.use-case.js";
+import { UpdateStrategyConfigUseCase } from "./application/use-cases/update-strategy-config.use-case.js";
 import { RECOVERY_ATTEMPT_REPOSITORY } from "./domain/ports/recovery-attempt-repository.port.js";
 import { STRATEGY_PREFERENCES_REPOSITORY } from "./domain/ports/strategy-preferences-repository.port.js";
 import { InMemoryRecoveryAttemptRepository } from "./infrastructure/repositories/in-memory-recovery-attempt.repository.js";
@@ -14,13 +16,18 @@ import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
+import { NotificationsModule } from "../notifications/notifications.module.js";
 import { CartRecoveryController } from "./presentation/http/cart-recovery.controller.js";
+import { CartRecoveryDashboardController } from "./presentation/http/cart-recovery-dashboard.controller.js";
+import { WHATSAPP_SENDER_PORT } from "../notifications/domain/ports/whatsapp-sender.port.js";
 
 export const ATTEMPT_CART_RECOVERY_USE_CASE = Symbol("ATTEMPT_CART_RECOVERY_USE_CASE");
 export const TRACK_RECOVERY_OUTCOME_USE_CASE = Symbol("TRACK_RECOVERY_OUTCOME_USE_CASE");
 export const GET_RECOVERY_METRICS_USE_CASE = Symbol("GET_RECOVERY_METRICS_USE_CASE");
 export const GET_STRATEGY_PREFERENCES_USE_CASE = Symbol("GET_STRATEGY_PREFERENCES_USE_CASE");
 export const UPDATE_STRATEGY_PREFERENCES_USE_CASE = Symbol("UPDATE_STRATEGY_PREFERENCES_USE_CASE");
+export const GET_STRATEGY_CONFIG_USE_CASE = Symbol("GET_STRATEGY_CONFIG_USE_CASE");
+export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_USE_CASE");
 
 /**
  * CartRecoveryModule — Background scanner that detects abandoned sessions
@@ -33,8 +40,9 @@ export const UPDATE_STRATEGY_PREFERENCES_USE_CASE = Symbol("UPDATE_STRATEGY_PREF
     forwardRef(() => CheckoutModule),
     MerchantModule,
     BuyerPurchaseHistoryModule,
+    NotificationsModule,
   ],
-  controllers: [CartRecoveryController],
+  controllers: [CartRecoveryController, CartRecoveryDashboardController],
   providers: [
     {
       provide: RECOVERY_ATTEMPT_REPOSITORY,
@@ -52,8 +60,8 @@ export const UPDATE_STRATEGY_PREFERENCES_USE_CASE = Symbol("UPDATE_STRATEGY_PREF
     RecoveryScannerJob,
     {
       provide: ATTEMPT_CART_RECOVERY_USE_CASE,
-      useFactory: (repo) => new AttemptCartRecoveryUseCase(repo),
-      inject: [RECOVERY_ATTEMPT_REPOSITORY],
+      useFactory: (repo: any, whatsapp: any) => new AttemptCartRecoveryUseCase(repo, undefined, whatsapp),
+      inject: [RECOVERY_ATTEMPT_REPOSITORY, WHATSAPP_SENDER_PORT],
     },
     {
       provide: TRACK_RECOVERY_OUTCOME_USE_CASE,
@@ -90,6 +98,26 @@ export const UPDATE_STRATEGY_PREFERENCES_USE_CASE = Symbol("UPDATE_STRATEGY_PREF
       useFactory: (repo) => new UpdateStrategyPreferencesUseCase(repo),
       inject: [STRATEGY_PREFERENCES_REPOSITORY],
     },
+    {
+      provide: GET_STRATEGY_CONFIG_USE_CASE,
+      useFactory: (repo) => new GetStrategyConfigUseCase(repo),
+      inject: [STRATEGY_PREFERENCES_REPOSITORY],
+    },
+    {
+      provide: GetStrategyConfigUseCase,
+      useFactory: (repo) => new GetStrategyConfigUseCase(repo),
+      inject: [STRATEGY_PREFERENCES_REPOSITORY],
+    },
+    {
+      provide: UPDATE_STRATEGY_CONFIG_USE_CASE,
+      useFactory: (repo) => new UpdateStrategyConfigUseCase(repo),
+      inject: [STRATEGY_PREFERENCES_REPOSITORY],
+    },
+    {
+      provide: UpdateStrategyConfigUseCase,
+      useFactory: (repo) => new UpdateStrategyConfigUseCase(repo),
+      inject: [STRATEGY_PREFERENCES_REPOSITORY],
+    },
   ],
   exports: [
     RECOVERY_ATTEMPT_REPOSITORY,
@@ -100,9 +128,13 @@ export const UPDATE_STRATEGY_PREFERENCES_USE_CASE = Symbol("UPDATE_STRATEGY_PREF
     GET_RECOVERY_METRICS_USE_CASE,
     GET_STRATEGY_PREFERENCES_USE_CASE,
     UPDATE_STRATEGY_PREFERENCES_USE_CASE,
+    GET_STRATEGY_CONFIG_USE_CASE,
+    UPDATE_STRATEGY_CONFIG_USE_CASE,
     GetRecoveryMetricsUseCase,
     GetStrategyPreferencesUseCase,
     UpdateStrategyPreferencesUseCase,
+    GetStrategyConfigUseCase,
+    UpdateStrategyConfigUseCase,
   ]
 })
 export class CartRecoveryModule {}

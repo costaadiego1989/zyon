@@ -1,9 +1,11 @@
 import React, { useState } from "react";
-import { ShoppingCart, Activity, CheckCircle, DollarSign, Clock, XCircle, RefreshCw } from "lucide-react";
+import { ShoppingCart, Activity, CheckCircle, DollarSign, Clock, XCircle, RefreshCw, Edit } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
 import { DataPanel } from "../../components/DataPanel.js";
+import { SidePanel } from "../../components/SidePanel.js";
+import { Button } from "../../components/Button.js";
 import { useCartRecoveryPage } from "./useCartRecoveryPage.js";
 import type { CartRecoveryStrategyKey } from "../../api/endpoints/cart-recovery.js";
 
@@ -16,14 +18,23 @@ interface StrategyOption {
   key: CartRecoveryStrategyKey;
   label: string;
   description: string;
+  needsConfig: boolean;
+  configLabel?: string;
 }
 
 const STRATEGY_OPTIONS: StrategyOption[] = [
-  { key: "offer_free_shipping", label: "Frete Grátis", description: "Oferecer frete grátis como incentivo para fechar a compra" },
-  { key: "personalized_cross_sell", label: "Cross-sell", description: "Sugerir produtos complementares baseados no histórico do comprador" },
-  { key: "offer_coupon", label: "Cupom de Desconto", description: "Enviar cupom de desconto via WhatsApp para incentivar a conversão" },
-  { key: "advanced_rule", label: "Regra Avançada", description: "Usar regras do engine de negociação (desconto progressivo, objeção, timing)" },
+  { key: "offer_free_shipping", label: "Frete Grátis", description: "Oferecer frete grátis como incentivo para fechar a compra", needsConfig: false },
+  { key: "personalized_cross_sell", label: "Cross-sell", description: "Sugerir produtos complementares baseados no histórico do comprador", needsConfig: false },
+  { key: "offer_coupon", label: "Cupom de Desconto", description: "Enviar cupom de desconto via WhatsApp para incentivar a conversão", needsConfig: true, configLabel: "Selecionar cupom" },
+  { key: "advanced_rule", label: "Regra Avançada", description: "Usar regras do engine de negociação (desconto progressivo, objeção, timing)", needsConfig: true, configLabel: "Selecionar regra" },
 ];
+
+const WHATSAPP_TEMPLATES: Record<CartRecoveryStrategyKey, (config: { coupon_code?: string; rule_id?: string }) => string> = {
+  offer_free_shipping: () => "🚚 *Frete grátis pra você!*\n\nSeu carrinho está esperando. Volte agora e ganhe frete grátis em todos os itens! Oferta por tempo limitado.",
+  personalized_cross_sell: () => "🛒 *Esqueceu algo no carrinho?*\n\nVocê deixou itens incríveis esperando. Volte e descubra produtos que combinam com o que você escolheu!",
+  offer_coupon: (cfg) => `🎫 *Cupom exclusivo pra você!*\n\nUse o código *${cfg.coupon_code || "VOLTA10"}* e ganhe desconto especial na sua compra. Corre que é por tempo limitado!`,
+  advanced_rule: (cfg) => `💡 *Oferta personalizada!*\n\nPreparamos uma condição especial pra você finalizar sua compra. Volte ao carrinho e confira!${cfg.rule_id ? `\n\n_Regra: ${cfg.rule_id}_` : ""}`,
+};
 
 const PAGE_SIZE = 10;
 
@@ -32,12 +43,17 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
     metrics,
     attempts,
     strategies,
+    config,
     savingKey,
     loading,
     selectStrategy,
+    saveConfig,
   } = useCartRecoveryPage();
 
   const [page, setPage] = useState(1);
+  const [panelOpen, setPanelOpen] = useState<"coupon" | "rule" | null>(null);
+  const [editCouponCode, setEditCouponCode] = useState("");
+  const [editRuleId, setEditRuleId] = useState("");
 
   if (!props.me) {
     return (
@@ -97,6 +113,26 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
   const startIdx = (page - 1) * PAGE_SIZE;
   const paginatedAttempts = attempts.slice(startIdx, startIdx + PAGE_SIZE);
   const activeKey = (Object.entries(strategies).find(([, v]) => v)?.[0] ?? "offer_coupon") as CartRecoveryStrategyKey;
+
+  const openCouponPanel = () => {
+    setEditCouponCode(config.coupon_code ?? "");
+    setPanelOpen("coupon");
+  };
+
+  const openRulePanel = () => {
+    setEditRuleId(config.rule_id ?? "");
+    setPanelOpen("rule");
+  };
+
+  const handleSaveCoupon = () => {
+    saveConfig({ coupon_code: editCouponCode });
+    setPanelOpen(null);
+  };
+
+  const handleSaveRule = () => {
+    saveConfig({ rule_id: editRuleId });
+    setPanelOpen(null);
+  };
 
   return (
     <div className="page-container">
@@ -178,6 +214,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
                   if (!isSaving && !isActive) selectStrategy(opt.key);
                 }}
               >
+                {/* Radio dot */}
                 <span style={{
                   width: 18,
                   height: 18,
@@ -197,21 +234,69 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
                     }} />
                   )}
                 </span>
+
+                {/* Label + description */}
                 <div style={{ flex: 1 }}>
-                  <div style={{ font: "500 13px var(--font-sans)", color: isActive ? "var(--color-brand)" : "var(--color-text)" }}>
-                    {opt.label}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ font: "500 13px var(--font-sans)", color: isActive ? "var(--color-brand)" : "var(--color-text)" }}>
+                      {opt.label}
+                    </span>
+                    {/* Config indicator for coupon/rule */}
+                    {isActive && opt.key === "offer_coupon" && config.coupon_code && (
+                      <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: "var(--surface-2)", color: "var(--color-text-muted)" }}>
+                        {config.coupon_code}
+                      </span>
+                    )}
+                    {isActive && opt.key === "advanced_rule" && config.rule_id && (
+                      <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: "var(--surface-2)", color: "var(--color-text-muted)" }}>
+                        {config.rule_id}
+                      </span>
+                    )}
                   </div>
                   <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 2 }}>
                     {opt.description}
                   </div>
                 </div>
-                {isActive && (
+
+                {/* Edit button (pen icon) for coupon/rule when active */}
+                {isActive && opt.needsConfig && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (opt.key === "offer_coupon") openCouponPanel();
+                      else openRulePanel();
+                    }}
+                    style={{
+                      border: "1px solid var(--color-border)",
+                      background: "var(--surface-1)",
+                      cursor: "pointer",
+                      padding: "6px 10px",
+                      borderRadius: "var(--radius-sm)",
+                      color: "var(--color-brand)",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      font: "12px var(--font-sans)",
+                      flexShrink: 0,
+                    }}
+                    title={opt.configLabel}
+                  >
+                    <Edit size={14} />
+                    Configurar
+                  </button>
+                )}
+
+                {/* Active badge */}
+                {isActive && !opt.needsConfig && (
                   <span style={{
                     padding: "2px 8px",
                     borderRadius: "var(--radius-full)",
                     font: "600 10px var(--font-mono)",
                     background: "var(--color-success-bg)",
                     color: "var(--color-success)",
+                    flexShrink: 0,
                   }}>
                     Ativa
                   </span>
@@ -219,6 +304,23 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
               </label>
             );
           })}
+        </div>
+      </div>
+
+      {/* WhatsApp template preview */}
+      <div className="panel" style={{ padding: "20px 24px" }}>
+        <SectionHeader title="Preview da mensagem WhatsApp" subtitle="Mensagem que será enviada ao comprador quando o carrinho for abandonado." variant="secondary" />
+        <div style={{
+          padding: "16px 18px",
+          borderRadius: "var(--radius-sm)",
+          background: "var(--surface-0)",
+          border: "1px solid var(--color-border)",
+          font: "13px var(--font-sans)",
+          color: "var(--color-text)",
+          lineHeight: 1.6,
+          whiteSpace: "pre-wrap",
+        }}>
+          {WHATSAPP_TEMPLATES[activeKey](config)}
         </div>
       </div>
 
@@ -262,6 +364,138 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
           </table>
         </div>
       </DataPanel>
+
+      {/* Side Panel — Coupon Config */}
+      <SidePanel
+        isOpen={panelOpen === "coupon"}
+        title="Configurar Cupom"
+        onClose={() => setPanelOpen(null)}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <div style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.6 }}>
+            Selecione o código do cupom que será enviado na mensagem WhatsApp quando o carrinho for abandonado.
+          </div>
+
+          <div>
+            <label style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 8 }}>
+              Código do cupom
+            </label>
+            <input
+              type="text"
+              value={editCouponCode}
+              onChange={(e) => setEditCouponCode(e.target.value.toUpperCase())}
+              placeholder="Ex: VOLTA10"
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--color-border)",
+                background: "var(--surface-0)",
+                font: "14px var(--font-mono)",
+                color: "var(--color-text)",
+                outline: "none",
+              }}
+            />
+            <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 6 }}>
+              Deve ser um cupom ativo cadastrado na aba Cupons
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div>
+            <label style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 8 }}>
+              Preview da mensagem
+            </label>
+            <div style={{
+              padding: "14px 16px",
+              borderRadius: "var(--radius-sm)",
+              background: "var(--surface-0)",
+              border: "1px solid var(--color-border)",
+              font: "12px var(--font-sans)",
+              color: "var(--color-text-muted)",
+              lineHeight: 1.6,
+              whiteSpace: "pre-wrap",
+            }}>
+              {WHATSAPP_TEMPLATES.offer_coupon({ coupon_code: editCouponCode || "VOLTA10" })}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+            <Button variant="primary" size="sm" onClick={handleSaveCoupon} disabled={!editCouponCode.trim()}>
+              Salvar cupom
+            </Button>
+            <Button size="sm" onClick={() => setPanelOpen(null)}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      </SidePanel>
+
+      {/* Side Panel — Rule Config */}
+      <SidePanel
+        isOpen={panelOpen === "rule"}
+        title="Configurar Regra Avançada"
+        onClose={() => setPanelOpen(null)}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <div style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.6 }}>
+            Selecione a regra do engine de negociação que será aplicada na recuperação. A regra define desconto progressivo, tratamento de objeções ou timing de envio.
+          </div>
+
+          <div>
+            <label style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 8 }}>
+              ID da regra
+            </label>
+            <input
+              type="text"
+              value={editRuleId}
+              onChange={(e) => setEditRuleId(e.target.value)}
+              placeholder="Ex: progressive_discount_10"
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--color-border)",
+                background: "var(--surface-0)",
+                font: "14px var(--font-mono)",
+                color: "var(--color-text)",
+                outline: "none",
+              }}
+            />
+            <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 6 }}>
+              Deve corresponder a uma regra configurada em Configurações de IA
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div>
+            <label style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 8 }}>
+              Preview da mensagem
+            </label>
+            <div style={{
+              padding: "14px 16px",
+              borderRadius: "var(--radius-sm)",
+              background: "var(--surface-0)",
+              border: "1px solid var(--color-border)",
+              font: "12px var(--font-sans)",
+              color: "var(--color-text-muted)",
+              lineHeight: 1.6,
+              whiteSpace: "pre-wrap",
+            }}>
+              {WHATSAPP_TEMPLATES.advanced_rule({ rule_id: editRuleId || "progressive_discount" })}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+            <Button variant="primary" size="sm" onClick={handleSaveRule} disabled={!editRuleId.trim()}>
+              Salvar regra
+            </Button>
+            <Button size="sm" onClick={() => setPanelOpen(null)}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      </SidePanel>
     </div>
   );
 }

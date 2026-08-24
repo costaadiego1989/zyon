@@ -51,6 +51,7 @@ model Merchant {
   budgetRequests         BudgetRequest[]
   whatsappChannelConfig  WhatsAppChannelConfig?
   marketplaceConfig      MarketplaceConfig?
+  cartRecoveryStrategyPref CartRecoveryStrategyPref? @relation("CartRecoveryStrategyPref")
 
   @@map("merchants")
 }
@@ -2109,8 +2110,11 @@ model CartRecoveryStrategyPref {
   id         String   @id @default(cuid())
   merchantId String   @unique @map("merchant_id")
   strategies Json     @default("{}")
+  config     Json?    @default("{\"active_strategy\":\"offer_coupon\"}")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
+
+  merchant Merchant @relation("CartRecoveryStrategyPref", fields: [merchantId], references: [id], onDelete: Cascade)
 
   @@index([merchantId])
   @@map("cart_recovery_strategy_prefs")

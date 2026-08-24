@@ -6,13 +6,22 @@ export type RecoveryStrategy =
   | { type: "offer_free_shipping"; condition: "merchant_allows_free_shipping" }
   | { type: "escalate_discount"; value_percent: number; cap: number }
   | { type: "personalized_cross_sell"; suggested_skus: string[] }
-  | { type: "offer_coupon"; coupon_percent: number }
-  | { type: "advanced_rule"; rule_id: string; description: string }
+  | { type: "offer_coupon"; coupon_code?: string; coupon_percent?: number }
+  | { type: "advanced_rule"; rule_id?: string; description?: string }
   | { type: "address_objection"; objection: string; response_template: string }
   | { type: "wait_and_retry"; delay_minutes: number }
   | { type: "no_action"; reason: string };
 
 export type RecoveryStrategyType = RecoveryStrategy["type"];
+
+/**
+ * Dashboard config — which strategy is active + its config (coupon code, rule ID).
+ */
+export interface StrategyConfig {
+  active_strategy: "offer_free_shipping" | "personalized_cross_sell" | "offer_coupon" | "advanced_rule";
+  coupon_code?: string;
+  rule_id?: string;
+}
 
 /**
  * Toggleable strategy preferences per merchant.
