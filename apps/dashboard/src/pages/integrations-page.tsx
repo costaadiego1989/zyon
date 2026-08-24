@@ -150,10 +150,12 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
       <div className="ops-grid">
         <section className="panel stacked">
           <SectionHeader title="Chaves de acesso" subtitle="Autentique chamadas à API do Zyon" />
-          <div className="form-grid two">
-            <FormField label="Nome" value={newKeyName} onChange={setNewKeyName} />
-            <button type="button" disabled={busy || selectedScopes.length === 0} onClick={() => void createKey()}>
-              <KeyRound size={16} />
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
+            <div style={{ flex: 1 }}>
+              <FormField label="Nome" value={newKeyName} onChange={setNewKeyName} placeholder="Ex: Backend principal" />
+            </div>
+            <button type="button" disabled={busy || selectedScopes.length === 0} onClick={() => void createKey()} className="zyn-btn zyn-btn--primary zyn-btn--md" style={{ flexShrink: 0, height: 40 }}>
+              <KeyRound size={14} />
               Gerar nova chave
             </button>
           </div>
