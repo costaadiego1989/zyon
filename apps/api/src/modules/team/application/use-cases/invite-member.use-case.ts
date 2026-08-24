@@ -7,11 +7,12 @@
 
 import { Injectable, Inject, BadRequestException, NotFoundException, Logger } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
-import type { EmailSenderPort } from "../../../notifications/domain/ports/email-sender.port.js";
+import { EMAIL_SENDER_PORT, type EmailSenderPort } from "../../../notifications/domain/ports/email-sender.port.js";
+import { PasswordHasher } from "../../../auth/domain/services/password-hasher.service.js";
 
-export const EMAIL_SENDER_PORT = Symbol("EmailSenderPort");
+export { EMAIL_SENDER_PORT };
 
 export interface InviteMemberInput {
   merchant_id: string;
@@ -33,13 +34,10 @@ function generatePassword(): string {
   return randomBytes(4).toString("hex") + "A1!";
 }
 
-function hashPassword(password: string): string {
-  return createHash("sha256").update(password).digest("hex");
-}
-
 @Injectable()
 export class InviteMemberUseCase {
   private readonly logger = new Logger(InviteMemberUseCase.name);
+  private readonly passwordHasher = new PasswordHasher();
 
   constructor(
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
@@ -47,13 +45,11 @@ export class InviteMemberUseCase {
   ) {}
 
   async execute(input: InviteMemberInput): Promise<InviteMemberOutput> {
-    // Verify merchant exists
     const merchant = await this.prisma.merchant.findUnique({
       where: { id: input.merchant_id },
     });
     if (!merchant) throw new NotFoundException("merchant_not_found");
 
-    // Check if user already exists as member
     const existing = await this.prisma.merchantUser.findUnique({
       where: { email: input.email },
     });
@@ -61,11 +57,9 @@ export class InviteMemberUseCase {
       throw new BadRequestException("user_already_member");
     }
 
-    // Generate provisional password
     const provisionalPassword = generatePassword();
-    const passwordHash = hashPassword(provisionalPassword);
+    const passwordHash = await this.passwordHasher.hash(provisionalPassword);
 
-    // Create invite (expires in 7 days)
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const invite = await this.prisma.merchantInvite.create({
       data: {
@@ -78,7 +72,6 @@ export class InviteMemberUseCase {
       },
     });
 
-    // Create user + team member immediately (password is provisional)
     let user = existing;
     if (!user) {
       user = await this.prisma.merchantUser.create({
@@ -91,7 +84,6 @@ export class InviteMemberUseCase {
       });
     }
 
-    // Create team membership
     await this.prisma.merchantTeamMember.upsert({
       where: { merchantId_userId: { merchantId: input.merchant_id, userId: user.id } },
       create: {
@@ -103,14 +95,12 @@ export class InviteMemberUseCase {
       update: { role: input.role },
     });
 
-    // Mark invite as accepted (user is auto-created)
     await this.prisma.merchantInvite.update({
       where: { id: invite.id },
       data: { status: "ACCEPTED" },
     });
 
-    // Send welcome email with provisional password
-    const dashboardUrl = process.env.DASHBOARD_URL || "http://localhost:5173";
+    const dashboardUrl = process.env.DASHBOARD_URL || "http://localhost:5175";
     void this.sendWelcomeEmail(input.email, input.name || input.email, merchant.name, provisionalPassword, input.role, dashboardUrl);
 
     return {
