@@ -82,8 +82,8 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
       <header className="page-head">
         <div>
           <span className="eyebrow">Inteligência IA</span>
-          <h1>Intent Memory</h1>
-          <p className="page-lead">Identifique o perfil de intenção de cada comprador e personalize a conversa para aumentar conversão.</p>
+          <h1 style={{ color: "var(--color-brand)" }}>Intent Memory</h1>
+          <p className="page-lead">Memória comercial dos seus compradores. Após a primeira compra, o sistema classifica intenção, urgência e orçamento de cada buyer para personalizar abordagens futuras.</p>
         </div>
       </header>
 
@@ -98,10 +98,7 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
         lineHeight: 1.65,
       }}>
         <strong style={{ color: "var(--color-text)" }}>O que é Intent Memory?</strong>{" "}
-        Cada comprador revela sinais da sua intenção de compra — preço, qualidade, velocidade ou sustentabilidade —
-        antes mesmo de perguntar. O Intent Memory classifica esses sinais a partir das ações no checkout
-        (filtros, tempo na página, cliques, mensagens) e devolve ao agente a melhor abordagem para aquele perfil,
-        em tempo real.
+        Memória comercial dos seus compradores. Após a primeira compra, o sistema classifica intenção, urgência e orçamento de cada buyer para personalizar abordagens futuras.
         <div style={{ marginTop: 10 }}>
           <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong>
           <ol style={{ margin: "6px 0 0 18px", padding: 0, lineHeight: 1.6 }}>
