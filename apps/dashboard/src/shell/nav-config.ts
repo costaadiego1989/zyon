@@ -56,7 +56,6 @@ export type TabKey =
   | "billing-plans"
   | "payment-connections"
   | "audit-log"
-  | "commerce-connections"
   | "catalog"
   | "product-detail"
   | "categories"
@@ -120,7 +119,6 @@ export const NAV_ITEMS: Array<{
 
   // ─── Integrações ───
   { key: "integrations", label: "API & Webhooks", section: "Integrações", icon: Webhook },
-  { key: "commerce-connections", label: "Commerce", section: "Integrações", icon: Store },
   { key: "payment-connections", label: "Pagamentos", section: "Integrações", icon: Zap },
   { key: "marketplace", label: "Marketplace", section: "Integrações", icon: ShoppingBag },
   { key: "whatsapp-seller", label: "WhatsApp Seller", section: "Integrações", icon: Smartphone },

@@ -38,7 +38,6 @@ const CheckoutPreviewPage = lazy(() => import("../pages/preview-page.js").then(m
 const BillingPage = lazy(() => import("../pages/billing-page.js").then(m => ({ default: m.BillingPage })));
 const PaymentConnectionsPage = lazy(() => import("../pages/payment-connections/index.js").then(m => ({ default: m.PaymentConnectionsPage })));
 const AuditLogPage = lazy(() => import("../pages/audit-log-page.js").then(m => ({ default: m.AuditLogPage })));
-const CommerceConnectionsPage = lazy(() => import("../pages/commerce-connections-page.js").then(m => ({ default: m.CommerceConnectionsPage })));
 const CatalogPage = lazy(() => import("../pages/catalog-page.js").then(m => ({ default: m.CatalogPage })));
 const ProductDetailPage = lazy(() => import("../pages/product-detail-page.js").then(m => ({ default: m.ProductDetailPage })));
 const CategoriesPage = lazy(() => import("../pages/categories/index.js"));
@@ -238,7 +237,6 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "billing-plans" ? <BillingPlansPage /> : null}
             {tab === "payment-connections" ? <PaymentConnectionsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "audit-log" ? <AuditLogPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "commerce-connections" ? <CommerceConnectionsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "catalog" ? (
               <CatalogPage
                 apiBaseUrl={API_BASE_URL}
