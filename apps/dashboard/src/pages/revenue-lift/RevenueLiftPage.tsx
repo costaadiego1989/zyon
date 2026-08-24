@@ -5,6 +5,7 @@ import { StatCard } from "../overview/components/StatCard.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { PageLoader } from "../../components/PageLoader.js";
+import { Pagination } from "../../components/Pagination.js";
 import { useRevenueLiftPage } from "./useRevenueLiftPage.js";
 
 export interface RevenueLiftPageProps {
@@ -216,28 +217,13 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
               </div>
 
               {/* Paginação */}
-              {trendPages > 1 && (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "12px 20px", borderTop: "1px solid var(--color-border)" }}>
-                  <button
-                    type="button"
-                    disabled={trendPage === 0}
-                    onClick={() => setTrendPage((p) => p - 1)}
-                    style={{ padding: "5px 12px", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", background: "var(--surface-2)", color: "var(--color-text-muted)", font: "500 11px var(--font-sans)", cursor: "pointer", opacity: trendPage === 0 ? 0.4 : 1 }}
-                  >
-                    ← Anterior
-                  </button>
-                  <span style={{ font: "600 11px var(--font-data)", color: "var(--color-text-faint)" }}>
-                    {trendPage + 1} / {trendPages}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={trendPage >= trendPages - 1}
-                    onClick={() => setTrendPage((p) => p + 1)}
-                    style={{ padding: "5px 12px", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", background: "var(--surface-2)", color: "var(--color-text-muted)", font: "500 11px var(--font-sans)", cursor: "pointer", opacity: trendPage >= trendPages - 1 ? 0.4 : 1 }}
-                  >
-                    Próxima →
-                  </button>
-                </div>
+              {trendTotal > PAGE_SIZE && (
+                <Pagination
+                  page={trendPage + 1}
+                  pageSize={PAGE_SIZE}
+                  total={trendTotal}
+                  onChange={(p) => setTrendPage(p - 1)}
+                />
               )}
             </div>
           )}
