@@ -1,19 +1,17 @@
 import React, { useState } from "react";
 import {
-  AlertTriangle,
   Ticket,
   Clock,
   MessageSquare,
-  Filter,
-  ChevronDown,
+  CheckCircle,
+  XCircle,
+  User,
 } from "lucide-react";
 import { StatCard } from "../../overview/components/StatCard.js";
-import { SectionHeader } from "../../../components/SectionHeader.js";
 import { EmptyState } from "../../../components/EmptyState.js";
-import { Pagination } from "../../../components/Pagination.js";
 import { SupportChatDrawer } from "../components/SupportChatDrawer.js";
 import { useSupportTickets } from "../hooks/useSupportTickets.js";
-import { TicketStatusBadge } from "../components/TicketStatusBadge.js";
+import { showToast } from "../../../components/Toast.js";
 import type { SupportTicketStatus } from "@zyon/shared-types";
 import { createDashboardApi } from "../../../api-client.js";
 import { useSupportSocket } from "../../../hooks/useSupportSocket.js";
@@ -25,253 +23,235 @@ interface Props {
   socket: ReturnType<typeof useSupportSocket>;
 }
 
-const SUPPORT_STATUS_LABELS: Record<SupportTicketStatus, string> = {
-  open: "Aberto",
-  in_progress: "Em atendimento",
-  resolved: "Resolvido",
-  closed: "Fechado"
-};
+interface KanbanColumn {
+  id: SupportTicketStatus;
+  label: string;
+  color: string;
+  icon: React.ReactNode;
+  acceptsFrom: SupportTicketStatus[];
+}
 
-const SUPPORT_STATUSES = Object.keys(SUPPORT_STATUS_LABELS) as SupportTicketStatus[];
+const COLUMNS: KanbanColumn[] = [
+  { id: "open", label: "Abertos", color: "var(--color-warning)", icon: <Clock size={14} />, acceptsFrom: [] },
+  { id: "in_progress", label: "Em atendimento", color: "var(--color-brand)", icon: <MessageSquare size={14} />, acceptsFrom: ["open"] },
+  { id: "resolved", label: "Resolvidos", color: "var(--color-success)", icon: <CheckCircle size={14} />, acceptsFrom: ["open", "in_progress"] },
+  { id: "closed", label: "Fechados", color: "var(--color-text-faint)", icon: <XCircle size={14} />, acceptsFrom: ["open", "in_progress", "resolved"] },
+];
+
+function canDrop(fromStatus: SupportTicketStatus, toColumn: SupportTicketStatus): boolean {
+  if (fromStatus === toColumn) return false;
+  const col = COLUMNS.find((c) => c.id === toColumn);
+  return col ? col.acceptsFrom.includes(fromStatus) : false;
+}
 
 export function SupportTicketsTab(props: Props) {
   const {
     tickets,
     loading,
-    ticketStatusFilter,
-    setTicketStatusFilter,
     openTicketId,
     setOpenTicketId,
-    ticketPage,
-    setTicketPage,
     updateTicketStatus,
     ticketBusy,
   } = useSupportTickets(props.api);
 
-  const ticketPageSize = 10;
-  const openCount = tickets.filter((t) => t.status === "open").length;
-  const inProgressCount = tickets.filter((t) => t.status === "in_progress").length;
+  const [draggedTicket, setDraggedTicket] = useState<(typeof tickets)[0] | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
 
-  const paginatedTickets = tickets.slice((ticketPage - 1) * ticketPageSize, ticketPage * ticketPageSize);
   const selectedTicket = tickets.find((t) => t.id === openTicketId);
 
+  const openCount = tickets.filter((t) => t.status === "open").length;
+  const inProgressCount = tickets.filter((t) => t.status === "in_progress").length;
+  const resolvedCount = tickets.filter((t) => t.status === "resolved").length;
+
+  function handleDragStart(e: React.DragEvent, ticket: (typeof tickets)[0]) {
+    setDraggedTicket(ticket);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", ticket.id);
+  }
+
+  function handleDragEnd() {
+    setDraggedTicket(null);
+    setDropTarget(null);
+  }
+
+  function handleDragOver(e: React.DragEvent, columnId: SupportTicketStatus) {
+    if (!draggedTicket) return;
+    if (!canDrop(draggedTicket.status, columnId)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDropTarget(columnId);
+  }
+
+  function handleDragLeave() {
+    setDropTarget(null);
+  }
+
+  function handleDrop(e: React.DragEvent, columnId: SupportTicketStatus) {
+    e.preventDefault();
+    setDropTarget(null);
+    if (!draggedTicket) return;
+    if (!canDrop(draggedTicket.status, columnId)) return;
+
+    const col = COLUMNS.find((c) => c.id === columnId);
+    void updateTicketStatus(draggedTicket.id, columnId);
+    showToast("success", `Chamado → ${col?.label ?? columnId}`);
+    setDraggedTicket(null);
+  }
+
+  if (loading && tickets.length === 0) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="skeleton" style={{ height: 52, borderRadius: "var(--radius-md)" }} />
+        <div className="skeleton" style={{ height: 300, borderRadius: "var(--radius-md)" }} />
+      </div>
+    );
+  }
+
+  if (tickets.length === 0) {
+    return (
+      <EmptyState
+        icon={Ticket}
+        title="Nenhum chamado"
+        description="Chamados aparecem quando o agente IA encaminha uma conversa para atendimento humano."
+      />
+    );
+  }
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
-      {/* ── Ticket summary strip ── */}
-      {!loading && tickets.length > 0 ? (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 14,
-            marginBottom: "var(--space-3)",
-          }}
-        >
-          <StatCard
-            label="Total de chamados"
-            value={tickets.length}
-            icon={<Ticket size={16} />}
-          />
-          <StatCard
-            label="Em aberto"
-            value={openCount}
-            icon={<Clock size={16} />}
-            accent={openCount > 0 ? "var(--color-warning)" : undefined}
-          />
-          <StatCard
-            label="Em atendimento"
-            value={inProgressCount}
-            icon={<MessageSquare size={16} />}
-            accent={inProgressCount > 0 ? "var(--color-brand)" : undefined}
-          />
-        </div>
-      ) : null}
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* KPIs */}
+      <div className="grid-4" style={{ gap: 14 }}>
+        <StatCard label="Total" value={tickets.length} icon={<Ticket size={16} />} />
+        <StatCard label="Abertos" value={openCount} icon={<Clock size={16} />} accent={openCount > 0 ? "var(--color-warning)" : undefined} />
+        <StatCard label="Em atendimento" value={inProgressCount} icon={<MessageSquare size={16} />} accent={inProgressCount > 0 ? "var(--color-brand)" : undefined} />
+        <StatCard label="Resolvidos" value={resolvedCount} icon={<CheckCircle size={16} />} accent="var(--color-success)" />
+      </div>
 
-      {/* ── Loading skeleton ── */}
-      {loading && tickets.length === 0 ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-          <div className="skeleton" style={{ height: 52, borderRadius: "var(--radius-md)" }} />
-          <div className="skeleton" style={{ height: 280, borderRadius: "var(--radius-md)" }} />
-        </div>
-      ) : null}
+      {/* Kanban instruction */}
+      <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)", textAlign: "center" }}>
+        Arraste os cards entre colunas para atualizar o status do chamado
+      </div>
 
-      {/* ── Tickets Section ── */}
-      {!loading || tickets.length > 0 ? (
-        <section className="panel stacked">
-          <SectionHeader
-            title="Escalonamento"
-            subtitle="Encaminhe conversas para seu time quando necessário"
-            trailing={<span className="badge muted" style={{ fontFamily: "var(--font-data)", fontSize: 11 }}>{tickets.length}</span>}
-          />
+      {/* Kanban Board */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${COLUMNS.length}, 1fr)`,
+          gap: 12,
+          minHeight: 400,
+        }}
+        onDragEnd={handleDragEnd}
+      >
+        {COLUMNS.map((col) => {
+          const colTickets = tickets.filter((t) => t.status === col.id);
+          const isHovering = dropTarget === col.id;
+          const isValidTarget = draggedTicket ? canDrop(draggedTicket.status, col.id) : false;
 
-          {/* Status filter */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "var(--space-2)",
-              marginBottom: "var(--space-3)",
-            }}
-          >
-            <Filter size={13} style={{ color: "var(--color-text-muted)", flexShrink: 0 }} />
-            <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
-              <select
-                value={ticketStatusFilter}
-                onChange={(e) => setTicketStatusFilter(e.target.value as SupportTicketStatus | "all")}
-                style={{
-                  minHeight: 32,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  paddingRight: 28,
-                  appearance: "none",
-                  WebkitAppearance: "none",
-                  cursor: "pointer",
-                }}
-              >
-                <option value="all">Todos os status</option>
-                {SUPPORT_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {SUPPORT_STATUS_LABELS[status]}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                size={13}
-                style={{
-                  position: "absolute",
-                  right: 8,
-                  pointerEvents: "none",
+          return (
+            <div
+              key={col.id}
+              onDragOver={(e) => handleDragOver(e, col.id)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, col.id)}
+              style={{
+                border: `1px solid ${isHovering ? col.color : isValidTarget && draggedTicket ? "var(--color-border)" : "var(--color-border)"}`,
+                borderRadius: "var(--radius-md)",
+                background: isHovering ? `color-mix(in srgb, ${col.color} 5%, transparent)` : "var(--surface-1)",
+                display: "flex",
+                flexDirection: "column",
+                transition: "border-color 0.15s, background 0.15s",
+                overflow: "hidden",
+              }}
+            >
+              {/* Column header */}
+              <div style={{
+                padding: "12px 14px",
+                borderBottom: `2px solid ${col.color}`,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}>
+                <span style={{ color: col.color }}>{col.icon}</span>
+                <span style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>
+                  {col.label}
+                </span>
+                <span style={{
+                  marginLeft: "auto",
+                  padding: "1px 6px",
+                  borderRadius: "var(--radius-full)",
+                  font: "600 10px var(--font-mono)",
+                  background: "var(--surface-2)",
                   color: "var(--color-text-muted)",
-                }}
-              />
-            </div>
-          </div>
+                }}>
+                  {colTickets.length}
+                </span>
+              </div>
 
-          {tickets.length === 0 ? (
-            <EmptyState
-              icon={Ticket}
-              title="Nenhum chamado"
-              description={ticketStatusFilter === "all"
-                ? "Nenhum chamado de suporte criado por handoff até o momento."
-                : `Nenhum chamado com status "${SUPPORT_STATUS_LABELS[ticketStatusFilter as SupportTicketStatus]}".`}
-            />
-          ) : (
-            <>
-              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-                {paginatedTickets.map((ticket) => (
-                  <article
+              {/* Cards */}
+              <div style={{ flex: 1, padding: 8, display: "flex", flexDirection: "column", gap: 8, overflowY: "auto" }}>
+                {colTickets.length === 0 && (
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>
+                    {draggedTicket && isValidTarget ? "Solte aqui" : "—"}
+                  </div>
+                )}
+                {colTickets.map((ticket) => (
+                  <div
                     key={ticket.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, ticket)}
                     onClick={() => setOpenTicketId(ticket.id)}
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: "minmax(0, 1fr) auto",
-                      gap: "var(--space-4)",
-                      alignItems: "start",
-                      padding: "var(--space-4)",
-                      border: "1px solid var(--color-border)",
+                      padding: "10px 12px",
                       borderRadius: "var(--radius-sm)",
-                      background: "var(--color-surface)",
-                      transition: "border-color 150ms",
-                      cursor: "pointer",
+                      border: "1px solid var(--color-border)",
+                      background: draggedTicket?.id === ticket.id ? "var(--surface-2)" : "var(--surface-0)",
+                      cursor: "grab",
+                      opacity: draggedTicket?.id === ticket.id ? 0.5 : 1,
+                      transition: "opacity 0.15s, box-shadow 0.15s",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 6,
                     }}
                   >
-                    {/* Ticket info */}
-                    <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", flexWrap: "wrap" }}>
-                        <TicketStatusBadge status={ticket.status} />
-                        <code
-                          style={{
-                            fontFamily: "var(--font-data)",
-                            fontSize: 11,
-                            color: "var(--color-text-faint)",
-                          }}
-                        >
-                          #{ticket.id.slice(0, 12)}
-                        </code>
-                      </div>
-
-                      <p
-                        style={{
-                          fontSize: 13,
-                          color: "var(--color-text)",
-                          margin: 0,
-                          lineHeight: 1.5,
-                        }}
-                      >
-                        {ticket.buyerMessage}
-                      </p>
-
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "var(--space-2)",
-                          color: "var(--color-text-faint)",
-                          fontSize: 11,
-                          fontFamily: "var(--font-data)",
-                        }}
-                      >
-                        <Clock size={11} />
-                        {ticket.sessionId ? (
-                          <>
-                            Sessão{" "}
-                            <code style={{ fontFamily: "var(--font-data)", fontSize: 11 }}>
-                              {ticket.sessionId.slice(0, 8)}…
-                            </code>
-                            {" · "}
-                          </>
-                        ) : null}
-                        {new Date(ticket.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }) +
-                         " " + new Date(ticket.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                      </div>
+                    {/* Buyer info */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <User size={12} color="var(--color-text-muted)" />
+                      <span style={{ font: "500 11px var(--font-sans)", color: "var(--color-text)" }}>
+                        {ticket.sessionId ? `Sessão ${ticket.sessionId.slice(0, 8)}…` : "Comprador"}
+                      </span>
                     </div>
 
-                    {/* Status change */}
-                    <div style={{ flexShrink: 0 }}>
-                      <label
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color: "var(--color-text-muted)",
-                          letterSpacing: "0.04em",
-                          textTransform: "uppercase",
-                          display: "block",
-                          marginBottom: "var(--space-1)",
-                        }}
-                      >
-                        Status
-                      </label>
-                      <select
-                        value={ticket.status}
-                        disabled={ticketBusy === ticket.id}
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) =>
-                          void updateTicketStatus(ticket.id, e.target.value as SupportTicketStatus)
-                        }
-                        style={{ minHeight: 32, fontSize: 12 }}
-                      >
-                        {SUPPORT_STATUSES.map((status) => (
-                          <option key={status} value={status}>
-                            {SUPPORT_STATUS_LABELS[status]}
-                          </option>
-                        ))}
-                      </select>
+                    {/* Message preview */}
+                    <p style={{
+                      margin: 0,
+                      font: "12px var(--font-sans)",
+                      color: "var(--color-text-muted)",
+                      lineHeight: 1.4,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                    }}>
+                      {ticket.buyerMessage}
+                    </p>
+
+                    {/* Footer */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ font: "10px var(--font-mono)", color: "var(--color-text-faint)" }}>
+                        #{ticket.id.slice(0, 8)}
+                      </span>
+                      <span style={{ font: "10px var(--font-mono)", color: "var(--color-text-faint)" }}>
+                        {new Date(ticket.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+                      </span>
                     </div>
-                  </article>
+                  </div>
                 ))}
               </div>
-              {tickets.length > ticketPageSize ? (
-                <Pagination
-                  page={ticketPage}
-                  pageSize={ticketPageSize}
-                  total={tickets.length}
-                  onChange={setTicketPage}
-                />
-              ) : null}
-            </>
-          )}
-        </section>
-      ) : null}
+            </div>
+          );
+        })}
+      </div>
 
       {/* Support Chat Drawer */}
       {openTicketId && selectedTicket ? (

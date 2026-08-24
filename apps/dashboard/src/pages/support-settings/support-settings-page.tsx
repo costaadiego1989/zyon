@@ -14,7 +14,7 @@ type Tab = "faq" | "tickets";
 
 const TABS = [
   { key: "faq" as const, label: "FAQ automático" },
-  { key: "tickets" as const, label: "Escalonamento" },
+  { key: "tickets" as const, label: "Chamados" },
 ];
 
 export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeProfile | null }) {
@@ -41,7 +41,7 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
         <div>
           <span className="eyebrow">Atendimento</span>
           <h1>Atendimento ao Comprador</h1>
-          <p className="page-lead">Configure o atendimento ao comprador durante o checkout.</p>
+          <p className="page-lead">Configure e acompanhe o atendimento ao comprador</p>
         </div>
       </header>
 
