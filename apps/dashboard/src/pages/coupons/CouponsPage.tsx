@@ -138,9 +138,12 @@ function MultiSearchSelect({ label, placeholder, selected, onChange, type, merch
 const FIELD_STYLES = `
 .field-label { font: 600 11px var(--font-sans); color: var(--color-text); display: block; margin-bottom: 6px; }
 .field-hint { font: 11px var(--font-sans); color: var(--color-text-faint); margin-top: 4px; display: block; }
-.field-input { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--color-border); background: var(--surface-1); color: var(--color-text); font: 13px var(--font-sans); outline: none; transition: border-color 0.15s; box-sizing: border-box; }
-.field-input:focus { border-color: var(--color-brand); }
-.field-btn-icon { padding: 10px 14px; border-radius: 8px; border: 1px solid var(--color-border); background: var(--surface-1); color: var(--color-brand); cursor: pointer; display: flex; align-items: center; gap: 5px; font: 500 11px var(--font-sans); white-space: nowrap; transition: border-color 0.15s; box-sizing: border-box; }
+.field-input { width: 100%; height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--color-border); background: var(--surface-2); color: var(--color-text); font: 13px var(--font-sans); outline: none; transition: border-color 0.15s; box-sizing: border-box; }
+.field-input:focus { border-color: var(--color-brand); box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-brand-ring); }
+.field-input:hover { border-color: var(--color-border-strong); }
+select.field-input { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+input[type="date"].field-input { color-scheme: dark; }
+.field-btn-icon { height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--color-border); background: var(--surface-2); color: var(--color-brand); cursor: pointer; display: flex; align-items: center; gap: 5px; font: 500 11px var(--font-sans); white-space: nowrap; transition: border-color 0.15s; box-sizing: border-box; }
 .field-btn-icon:hover { border-color: var(--color-brand); }
 `;
 
