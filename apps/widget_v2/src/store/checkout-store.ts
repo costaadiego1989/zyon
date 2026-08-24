@@ -100,7 +100,7 @@ interface CheckoutState {
   activeRuleActions: RuleAction[];
 
   // Actions
-  init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string }) => Promise<void>;
+  init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; globalUserId?: string }) => Promise<void>;
   selectChannel: (channel: "chat" | "voice") => void;
   sendMessage: (text: string) => Promise<void>;
   updateQty: (sku: string, quantity: number) => Promise<void>;
@@ -134,9 +134,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   advancedRules: [],
   activeRuleActions: [],
 
-  init: async ({ embedToken, merchantId, cartRef, apiBaseUrl }) => {
+  init: async ({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId }) => {
     try {
-      const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl });
+      const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId });
       set({ api, status: "loading" });
 
       const response = await api.start();
@@ -470,9 +470,22 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   },
 
   pay: async (method, installments) => {
-    const { api, messages } = get();
+    const { api, messages, buyer } = get();
     if (!api) return;
     try {
+      // Sync buyer data to checkout session before payment — Asaas requires
+      // fullName, email, and cpf on the session to create a customer.
+      if (buyer.name || buyer.email || buyer.cpf) {
+        await api.updateCustomer({
+          customer: {
+            fullName: buyer.name,
+            email: buyer.email,
+            cpf: buyer.cpf,
+            phone: buyer.phone,
+          },
+        }).catch(() => {});
+      }
+
       const intent = await api.createPaymentIntent(method, installments);
       void trackEvent("payment_method_selected", { method });
       void trackEvent("payment_intent_created", { intent_id: intent.intent_id });

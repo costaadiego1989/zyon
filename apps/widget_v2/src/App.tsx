@@ -18,11 +18,12 @@ function readUrlParams() {
   let merchantId = params.get("merchantId") || params.get("merchant_id") || "";
   let cartRef = params.get("cartId") || params.get("cartRef") || params.get("cart_ref") || undefined;
   let apiBaseUrl = params.get("apiBaseUrl") || params.get("api_base_url") || DEFAULT_API_BASE;
+  let globalUserId = params.get("globalUserId") || params.get("global_user_id") || undefined;
 
   // If URL has params, persist to sessionStorage for refresh resilience
   if (embedToken && merchantId) {
     try {
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ embedToken, merchantId, cartRef, apiBaseUrl }));
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId }));
     } catch { /* quota */ }
   } else {
     // No URL params — try to recover from sessionStorage (page refresh)
@@ -34,6 +35,7 @@ function readUrlParams() {
         merchantId = parsed.merchantId || "";
         cartRef = parsed.cartRef || undefined;
         apiBaseUrl = parsed.apiBaseUrl || DEFAULT_API_BASE;
+        globalUserId = parsed.globalUserId || undefined;
       }
     } catch { /* corrupted */ }
   }
@@ -53,7 +55,7 @@ function readUrlParams() {
     window.history.replaceState(null, "", newUrl);
   }
 
-  return { embedToken, merchantId, cartRef, apiBaseUrl };
+  return { embedToken, merchantId, cartRef, apiBaseUrl, globalUserId };
 }
 
 export function App() {
@@ -104,7 +106,7 @@ export function App() {
   }, [status]);
 
   useEffect(() => {
-    const { embedToken, merchantId, cartRef, apiBaseUrl } = readUrlParams();
+    const { embedToken, merchantId, cartRef, apiBaseUrl, globalUserId } = readUrlParams();
     if (!embedToken || !merchantId) {
       // Dev fallback: if on localhost and only cartId present, show helpful message
       const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
@@ -121,7 +123,7 @@ export function App() {
       }
       return;
     }
-    void init({ embedToken, merchantId, cartRef, apiBaseUrl });
+    void init({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId });
   }, [init]);
 
   // Issue #1: Set page title with store name
