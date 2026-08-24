@@ -118,7 +118,6 @@ export function useCouponsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm("Excluir este cupom permanentemente?")) return;
     try {
       await api.deleteCoupon(id);
       showToast("success", "Cupom excluído");
