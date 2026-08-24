@@ -2188,3 +2188,21 @@ model WhatsAppSession {
   @@index([lastActivityAt])
   @@map("whatsapp_sessions")
 }
+
+model PaymentHold {
+  id               String    @id @default(cuid())
+  merchantId       String    @map("merchant_id")
+  paymentIntentId  String    @unique @map("payment_intent_id")
+  orderId          String?   @map("order_id")
+  totalAmountCents Int       @map("total_amount_cents")
+  platformFeeCents Int       @map("platform_fee_cents")
+  merchantNetCents Int       @map("merchant_net_cents")
+  status           String    @default("held") // held | released | refunded | chargebacked
+  holdUntil        DateTime  @map("hold_until")
+  releasedAt       DateTime? @map("released_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@index([merchantId, status])
+  @@index([status, holdUntil])
+  @@map("payment_holds")
+}
