@@ -33,40 +33,34 @@ export default function BuyerLoginForm({ merchantId, onComplete, onCancel }: Pro
     try {
       if (step === 1) {
         // Send OTP
-        const res = await fetch(`${API_BASE}/storefront/buyer/send-otp`, {
+        const res = await fetch(`${API_BASE}/buyer/phone/send`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: phoneDigits, channel: "sms" }),
+          body: JSON.stringify({ phone: phoneDigits }),
         });
-        if (!res.ok && res.status !== 404) {
+        if (!res.ok) {
           const errData = await res.json().catch(() => null);
           throw new Error(errData?.message ?? "Erro ao enviar código");
-        }
-        if (res.status === 404) {
-          console.warn("[BuyerLoginForm] send-otp endpoint not found (404), skipping for dev");
         }
         setStep(2);
       } else {
         // Verify OTP
-        const res = await fetch(`${API_BASE}/storefront/buyer/verify-otp`, {
+        const res = await fetch(`${API_BASE}/buyer/phone/verify`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ phone: phoneDigits, code: otp }),
         });
 
-        let globalUserId = "returning-buyer";
-        if (res.ok) {
-          const data = await res.json();
-          if (data.token) {
-            localStorage.setItem("zyon_buyer_token", data.token);
-          }
-          globalUserId = data.global_user_id ?? globalUserId;
-        } else if (res.status === 404) {
-          console.warn("[BuyerLoginForm] verify-otp endpoint not found (404), using mock token for dev");
-          localStorage.setItem("zyon_buyer_token", "dev-mock-token");
-        } else {
+        if (!res.ok) {
           const errData = await res.json().catch(() => null);
           throw new Error(errData?.message ?? "Código inválido");
+        }
+
+        const data = await res.json();
+        let globalUserId = data.global_user_id ?? data.globalUserId ?? "returning-buyer";
+        if (data.token) {
+          localStorage.setItem("zyon_buyer_token", data.token);
+          localStorage.setItem("zyon_buyer_session", JSON.stringify({ globalUserId, token: data.token }));
         }
 
         await onComplete(globalUserId);
