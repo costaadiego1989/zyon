@@ -63,12 +63,10 @@ const IntentMemoryPage = lazy(() => import("../pages/intent-memory/IntentMemoryP
 const NegotiationPolicyPage = lazy(() => import("../pages/negotiation-policy/NegotiationPolicyPage.js").then(m => ({ default: m.NegotiationPolicyPage })));
 const ChargebacksPage = lazy(() => import("../pages/chargebacks/ChargebacksPage.js").then(m => ({ default: m.ChargebacksPage })));
 
+import { PageLoader } from "../components/PageLoader.js";
+
 function LoadingFallback() {
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200, font: "13px var(--font-sans)", color: "var(--color-text-faint)" }}>
-      Carregando...
-    </div>
-  );
+  return <PageLoader />;
 }
 
 export interface DashboardShellProps {
