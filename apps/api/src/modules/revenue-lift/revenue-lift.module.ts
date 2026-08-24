@@ -3,6 +3,8 @@ import { PersistenceModule } from "../../shared/persistence/persistence.module.j
 import { HoldoutGroupService } from "./domain/services/holdout-group.service.js";
 import { AttributionTaggerService } from "./domain/services/attribution-tagger.service.js";
 import { RevenueLiftCalculatorService } from "./domain/services/revenue-lift-calculator.service.js";
+import { RevenueLiftRepository } from "./infrastructure/revenue-lift.repository.js";
+import { GetRevenueLiftUseCase, GetRevenueLiftTrendUseCase } from "./application/use-cases/get-revenue-lift.use-case.js";
 import { RevenueLiftController } from "./presentation/http/revenue-lift.controller.js";
 
 @Module({
@@ -11,12 +13,15 @@ import { RevenueLiftController } from "./presentation/http/revenue-lift.controll
   providers: [
     HoldoutGroupService,
     AttributionTaggerService,
-    RevenueLiftCalculatorService
+    RevenueLiftCalculatorService,
+    RevenueLiftRepository,
+    GetRevenueLiftUseCase,
+    GetRevenueLiftTrendUseCase,
   ],
   exports: [
     HoldoutGroupService,
     AttributionTaggerService,
-    RevenueLiftCalculatorService
+    RevenueLiftCalculatorService,
   ]
 })
 export class RevenueLiftModule {}
