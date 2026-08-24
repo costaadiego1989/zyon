@@ -387,7 +387,13 @@ export class StorefrontLangGraphAgent {
               inStock: p.inStock ?? true,
               rating: p.rating,
               reviewCount: p.reviewCount,
-              variants: p.variants,
+              variants: p.variants?.map((v: any) => {
+                const ATTR_LABELS: Record<string, string> = { color: "Cor", size: "Tamanho", material: "Material", weight: "Peso", style: "Estilo", flavor: "Sabor", voltage: "Voltagem", capacity: "Capacidade", model: "Modelo", edition: "Edição", pack: "Pacote", type: "Tipo", format: "Formato" };
+                const rawName = Object.keys(v.attributes ?? {})[0] ?? "SKU";
+                const name = ATTR_LABELS[rawName.toLowerCase()] ?? rawName;
+                const value = Object.values(v.attributes ?? {})[0] as string ?? v.sku ?? v.id;
+                return { id: v.id ?? v.sku, name, value, price: v.basePriceInCents ?? v.price ?? undefined };
+              }),
               source: p.source ?? (isMarketplaceSource ? "marketplace" : "local"),
               sellerName: p.sellerName ?? undefined,
               sellerMerchantId: p.sellerMerchantId,
@@ -421,7 +427,13 @@ export class StorefrontLangGraphAgent {
             inStock: p.type === "digital" || p.type === "service" || (p.stock ?? 0) > 0,
             rating: p.rating ?? 4.3,
             reviewCount: p.reviewCount ?? 0,
-            variants: p.variants?.map((v: any) => ({ id: v.id ?? v.sku, name: Object.keys(v.attributes ?? {})[0] ?? "SKU", value: Object.values(v.attributes ?? {})[0] ?? v.sku, price: v.basePriceInCents ?? undefined, priceFormatted: v.basePriceInCents ? formatPrice(v.basePriceInCents) : undefined })),
+            variants: p.variants?.map((v: any) => {
+              const ATTR_LABELS: Record<string, string> = { color: "Cor", size: "Tamanho", material: "Material", weight: "Peso", style: "Estilo", flavor: "Sabor", voltage: "Voltagem", capacity: "Capacidade", model: "Modelo", edition: "Edição", pack: "Pacote", type: "Tipo", format: "Formato", length: "Comprimento", width: "Largura", height: "Altura" };
+              const rawName = Object.keys(v.attributes ?? {})[0] ?? "SKU";
+              const name = ATTR_LABELS[rawName.toLowerCase()] ?? rawName;
+              const value = Object.values(v.attributes ?? {})[0] as string ?? v.sku;
+              return { id: v.id ?? v.sku, name, value, price: v.basePriceInCents ?? undefined, priceFormatted: v.basePriceInCents ? formatPrice(v.basePriceInCents) : undefined };
+            }),
           }
         });
       } else {
