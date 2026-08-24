@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import { ShoppingCart, Activity, CheckCircle, DollarSign, Clock, XCircle, RefreshCw, Edit } from "lucide-react";
+import { ShoppingCart, Activity, CheckCircle, DollarSign, Clock, XCircle, RefreshCw, Edit, Send } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
 import { DataPanel } from "../../components/DataPanel.js";
 import { SidePanel } from "../../components/SidePanel.js";
 import { Button } from "../../components/Button.js";
+import { showToast } from "../../components/Toast.js";
 import { useCartRecoveryPage } from "./useCartRecoveryPage.js";
 import type { CartRecoveryStrategyKey } from "../../api/endpoints/cart-recovery.js";
 
@@ -30,10 +31,61 @@ const STRATEGY_OPTIONS: StrategyOption[] = [
 ];
 
 const WHATSAPP_TEMPLATES: Record<CartRecoveryStrategyKey, (config: { coupon_code?: string; rule_id?: string }) => string> = {
-  offer_free_shipping: () => "🚚 *Frete grátis pra você!*\n\nSeu carrinho está esperando. Volte agora e ganhe frete grátis em todos os itens! Oferta por tempo limitado.",
-  personalized_cross_sell: () => "🛒 *Esqueceu algo no carrinho?*\n\nVocê deixou itens incríveis esperando. Volte e descubra produtos que combinam com o que você escolheu!",
-  offer_coupon: (cfg) => `🎫 *Cupom exclusivo pra você!*\n\nUse o código *${cfg.coupon_code || "—"}* e ganhe desconto especial na sua compra. Corre que é por tempo limitado!`,
-  advanced_rule: (cfg) => `💡 *Oferta personalizada!*\n\nPreparamos uma condição especial pra você finalizar sua compra. Volte ao carrinho e confira!${cfg.rule_id ? `\n\n_Regra: ${cfg.rule_id}_` : ""}`,
+  offer_free_shipping: () => `🚚 *Frete Grátis Pra Você!*
+
+Seu carrinho está te esperando! 👜
+
+Voltou interesse? Ótima notícia: hoje temos *FRETE GRÁTIS* em tudo que você deixou guardado.
+
+*Clique aqui para voltar:*
+[link do carrinho]
+
+⏰ Oferta válida por 48 horas
+🎁 Aproveita que é grátis!`,
+
+  personalized_cross_sell: () => `🛒 *Esqueceu Algo?*
+
+Oi! Vimos que você deixou alguns itens incríveis no carrinho. 👀
+
+Preparamos uma sugestão especial baseada no que você escolheu:
+• [Produto 1]
+• [Produto 2]
+• [Produto 3]
+
+Quer ver? Volte pro carrinho e descobre as opções que podem combinar com sua compra.
+
+*[Voltar ao carrinho →]*
+
+💭 Dúvidas? É só chamar!`,
+
+  offer_coupon: (cfg) => `🎉 *Cupom Exclusivo Pra Você!*
+
+Sua compra merecia descontão! 🤑
+
+Use o código *${cfg.coupon_code || "VOLTA10"}* na hora de finalizar o pedido.
+
+*Quanto economiza?*
+Depende do que você escolheu, mas a economia é garantida! 💰
+
+*[Voltar e aproveitar →]*
+
+⏰ Código válido por 3 dias
+🔐 Só pra você!`,
+
+  advanced_rule: (cfg) => `✨ *Oferta Personalizada Esperando!*
+
+Olha só que legal: preparamos uma condição especial só pra você! 🎯
+
+Com base no que você deixou no carrinho, temos:
+💳 Opções de parcelamento melhoradas
+⏱️ Frete com custo reduzido
+🎁 Brinde + cashback em selecionados
+
+*[Voltar e conferir a oferta →]*
+
+Essa proposta é válida *até amanhã* — depois muda!
+
+Bora? 🚀`,
 };
 
 const PAGE_SIZE = 10;
@@ -54,6 +106,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
 
   const [page, setPage] = useState(1);
   const [panelOpen, setPanelOpen] = useState<"coupon" | "rule" | null>(null);
+  const [testSending, setTestSending] = useState(false);
 
   if (!props.me) {
     return (
@@ -113,6 +166,32 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
   const startIdx = (page - 1) * PAGE_SIZE;
   const paginatedAttempts = attempts.slice(startIdx, startIdx + PAGE_SIZE);
   const activeKey = (Object.entries(strategies).find(([, v]) => v)?.[0] ?? "offer_coupon") as CartRecoveryStrategyKey;
+
+  const handleSendTest = async () => {
+    setTestSending(true);
+    try {
+      const response = await fetch(`${props.apiBaseUrl}/cart-recovery/test-send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone: "21993001883",
+          strategy: activeKey,
+          coupon_code: config.coupon_code,
+          rule_id: config.rule_id,
+        }),
+      });
+      if (response.ok) {
+        showToast("success", "Mensagem enviada pra 21 99300-1883! Confirma se chegou? 📱");
+      } else {
+        const err = await response.text();
+        showToast("error", `Erro ao enviar: ${err}`);
+      }
+    } catch (e) {
+      showToast("error", `Erro: ${e instanceof Error ? e.message : "desconhecido"}`);
+    } finally {
+      setTestSending(false);
+    }
+  };
 
   return (
     <div className="page-container">
@@ -259,7 +338,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
                       font: "12px var(--font-sans)",
                       flexShrink: 0,
                     }}
-                    title={opt.configLabel}
+                    title="Vincular cupom ou regra"
                   >
                     <Edit size={14} />
                     Vincular
@@ -286,7 +365,19 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
 
       {/* WhatsApp template preview */}
       <div className="panel" style={{ padding: "20px 24px" }}>
-        <SectionHeader title="Preview da mensagem WhatsApp" subtitle="Mensagem que será enviada ao comprador quando o carrinho for abandonado." variant="secondary" />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <SectionHeader title="Preview da mensagem WhatsApp" subtitle="Mensagem que será enviada ao comprador quando o carrinho for abandonado." variant="secondary" />
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleSendTest}
+            disabled={testSending}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+          >
+            <Send size={14} />
+            {testSending ? "Enviando..." : "Testar Envio"}
+          </Button>
+        </div>
         <div style={{
           padding: "16px 18px",
           borderRadius: "var(--radius-sm)",
@@ -296,8 +387,36 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
           color: "var(--color-text)",
           lineHeight: 1.6,
           whiteSpace: "pre-wrap",
+          fontFamily: "var(--font-sans)",
+          maxHeight: "400px",
+          overflowY: "auto",
         }}>
           {WHATSAPP_TEMPLATES[activeKey](config)}
+        </div>
+      </div>
+
+      {/* How it works */}
+      <div className="panel" style={{ padding: "20px 24px" }}>
+        <SectionHeader title="Como a IA identifica Cart Recovery" subtitle="Sistema automático de detecção e decisão." variant="secondary" />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div>
+            <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)", marginBottom: 8 }}>📊 Detecção Automática</div>
+            <ul style={{ margin: 0, paddingLeft: 16, color: "var(--color-text-muted)", font: "12px var(--font-sans)", lineHeight: 1.8 }}>
+              <li>Scanner roda a cada 15 minutos</li>
+              <li>Identifica sessões com <code style={{ background: "var(--surface-1)", padding: "2px 4px", borderRadius: 2 }}>triggerAgent=true</code></li>
+              <li>Score abandono ≥ 0.55</li>
+              <li>Não duplica: 1 tentativa/sessão</li>
+            </ul>
+          </div>
+          <div>
+            <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)", marginBottom: 8 }}>🎯 Decisão por Estratégia</div>
+            <ul style={{ margin: 0, paddingLeft: 16, color: "var(--color-text-muted)", font: "12px var(--font-sans)", lineHeight: 1.8 }}>
+              <li>Classifica razão: preço, frete, confiança...</li>
+              <li>Ranking (prioridade alta→baixa)</li>
+              <li>Seleciona melhor fit</li>
+              <li>Envia via WhatsApp (BubbleWhats)</li>
+            </ul>
+          </div>
         </div>
       </div>
 

@@ -2,7 +2,9 @@ import {
   Body,
   Controller,
   Get,
+  Inject,
   Patch,
+  Post,
   Query,
   Req,
   UseGuards,
@@ -17,6 +19,15 @@ import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js
 import { GetRecoveryMetricsUseCase } from "../../application/use-cases/get-recovery-metrics.use-case.js";
 import { GetStrategyPreferencesUseCase } from "../../application/use-cases/get-strategy-preferences.use-case.js";
 import { UpdateStrategyPreferencesUseCase } from "../../application/use-cases/update-strategy-preferences.use-case.js";
+import { WHATSAPP_SENDER_PORT } from "../../../notifications/domain/ports/whatsapp-sender.port.js";
+import type { WhatsAppSenderPort } from "../../../notifications/domain/ports/whatsapp-sender.port.js";
+
+const TEMPLATES: Record<string, (cfg: { coupon_code?: string; rule_id?: string }) => string> = {
+  offer_free_shipping: () => `🚚 *Frete Grátis Pra Você!*\n\nSeu carrinho está te esperando! 👜\n\nVoltou interesse? Ótima notícia: hoje temos *FRETE GRÁTIS* em tudo que você deixou guardado.\n\n⏰ Oferta válida por 48 horas\n🎁 Aproveita que é grátis!`,
+  personalized_cross_sell: () => `🛒 *Esqueceu Algo?*\n\nOi! Vimos que você deixou alguns itens incríveis no carrinho. 👀\n\nPreparamos sugestões especiais baseadas no que você escolheu. Quer ver?\n\n💭 Volte ao carrinho e descubra!`,
+  offer_coupon: (cfg) => `🎉 *Cupom Exclusivo Pra Você!*\n\nSua compra merecia descontão! 🤑\n\nUse o código *${cfg.coupon_code || "VOLTA10"}* na hora de finalizar o pedido.\n\n⏰ Código válido por 3 dias\n🔐 Só pra você!`,
+  advanced_rule: (cfg) => `✨ *Oferta Personalizada Esperando!*\n\nPreparamos uma condição especial só pra você! 🎯\n\n💳 Opções de parcelamento melhoradas\n⏱️ Frete com custo reduzido\n🎁 Brinde + cashback em selecionados\n\nEssa proposta é válida *até amanhã*. Bora? 🚀`,
+};
 
 @ApiTags("Cart Recovery")
 @Controller("cart-recovery")
@@ -27,6 +38,7 @@ export class CartRecoveryController {
     private readonly getRecoveryMetrics: GetRecoveryMetricsUseCase,
     private readonly getStrategyPreferences: GetStrategyPreferencesUseCase,
     private readonly updateStrategyPreferences: UpdateStrategyPreferencesUseCase,
+    @Inject(WHATSAPP_SENDER_PORT) private readonly whatsappSender: WhatsAppSenderPort,
   ) {}
 
   @Get("metrics")
@@ -91,5 +103,23 @@ export class CartRecoveryController {
       strategies: body?.strategies ?? {},
     });
     return { strategies };
+  }
+
+  @Post("test-send")
+  @ApiOperation({ summary: "Send a test WhatsApp recovery message" })
+  @ApiOkResponse({ description: "Test message sent" })
+  async testSend(
+    @Req() req: any,
+    @Body() body: { phone: string; strategy: string; coupon_code?: string; rule_id?: string },
+  ) {
+    const templateFn = TEMPLATES[body.strategy] ?? TEMPLATES.offer_coupon;
+    const message = templateFn({ coupon_code: body.coupon_code, rule_id: body.rule_id });
+
+    await this.whatsappSender.send({
+      phone: body.phone,
+      message,
+    });
+
+    return { sent: true, phone: body.phone, strategy: body.strategy };
   }
 }
