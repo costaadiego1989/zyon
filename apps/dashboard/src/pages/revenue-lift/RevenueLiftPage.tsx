@@ -1,77 +1,32 @@
 import React from "react";
-import { TrendingUp, DollarSign, Beaker } from "lucide-react";
+import { TrendingUp, Users, DollarSign, Zap, BarChart3 } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
-import { StatCard, StatCardGrid } from "../../components/stat-card.js";
+import { StatCard } from "../overview/components/StatCard.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
 import { EmptyState } from "../../components/EmptyState.js";
+import { PageLoader } from "../../components/PageLoader.js";
 import { useRevenueLiftPage } from "./useRevenueLiftPage.js";
 
 export interface RevenueLiftPageProps {
   apiBaseUrl: string;
-  me: MerchantProfile | null;
+  me: MerchantProfile;
 }
 
-const CARD: React.CSSProperties = {
-  background: "var(--surface-2)",
-  border: "1px solid var(--color-border)",
-  borderRadius: "var(--radius-md)",
-  padding: "24px 28px",
+const FEATURE_LABELS: Record<string, string> = {
+  negotiation: "Negociação M2M",
+  cross_sell: "Cross-sell",
+  progressive_discount: "Desconto Progressivo",
+  cart_recovery: "Cart Recovery",
+  intent_personalization: "Intent Memory",
+  baseline: "Baseline (sem IA)",
 };
 
-const BADGE: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 5,
-  padding: "4px 10px",
-  borderRadius: 20,
-  font: "600 11px var(--font-mono)",
-  letterSpacing: "0.02em",
-};
+function formatBRL(cents: number): string {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+}
 
-export function RevenueLiftPage(props: RevenueLiftPageProps) {
-  const { summary, trend, loading, error, isDemo } = useRevenueLiftPage();
-
-  if (!props.me) {
-    return (
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Inteligência IA</span>
-          <h1>Revenue Lift</h1>
-          <p className="page-lead">Login necessário</p>
-        </div>
-      </header>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="panel" style={{ padding: "60px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>
-        Carregando dados de revenue lift...
-      </div>
-    );
-  }
-
-  if (!summary) {
-    return (
-      <div className="page-container">
-        <header className="page-head">
-          <div>
-            <span className="eyebrow">Inteligência IA</span>
-            <h1>Revenue Lift</h1>
-            <p className="page-lead">Quanto a IA gerou de receita a mais para sua loja</p>
-          </div>
-        </header>
-        <EmptyState
-          icon={TrendingUp}
-          title="Configuração pendente"
-          description="Os dados de revenue lift aparecerão aqui após a configuração do experimento."
-        />
-      </div>
-    );
-  }
-
-  const confidenceColor = summary.confidence === "significant" ? "var(--color-success)" : "var(--color-warning)";
-  const confidenceLabel = summary.confidence === "significant" ? "Significante" : "Amostra insuficiente";
+export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
+  const vm = useRevenueLiftPage();
 
   return (
     <div className="page-container">
@@ -79,97 +34,152 @@ export function RevenueLiftPage(props: RevenueLiftPageProps) {
         <div>
           <span className="eyebrow">Inteligência IA</span>
           <h1>Revenue Lift</h1>
-          <p className="page-lead">Quanto a IA gerou de receita a mais para sua loja — comparação entre vendas com IA vs sem IA em períodos equivalentes. ROI = receita adicional / custo do plano.</p>
+          <p className="page-lead">
+            Mede o impacto real da IA nas suas vendas comparando grupo de tratamento (95% dos compradores com IA ativa) vs grupo holdout (5% sem IA).
+          </p>
         </div>
-        {isDemo ? (
-          <span style={{ ...BADGE, background: "var(--warn-soft)", color: "var(--color-warning)" }}>
-            <Beaker size={12} aria-hidden /> Dados de demonstração
-          </span>
-        ) : null}
-      </header>
-
-      {error && (
-        <div style={{ ...BADGE, background: "var(--warn-soft)", color: "var(--color-warning)" }}>
-          ⚠ {error}
-        </div>
-      )}
-
-      <StatCardGrid>
-        <StatCard
-          icon={TrendingUp}
-          value={`+${summary.lift_percent.toFixed(1)}%`}
-          label="Revenue Lift"
-          trend={{
-            direction: summary.confidence === "significant" ? "up" : "flat",
-            text: confidenceLabel,
-          }}
-          hero
-        />
-        <StatCard
-          icon={DollarSign}
-          value={`R$ ${summary.net_lift_brl.toLocaleString("pt-BR")}`}
-          label="Lift líquido"
-        />
-        <StatCard
-          icon={DollarSign}
-          value={`${summary.roi_percent.toLocaleString("pt-BR")}%`}
-          label="ROI"
-        />
-        <StatCard
-          icon={DollarSign}
-          value={`R$ ${summary.ai_cost_brl.toLocaleString("pt-BR")}`}
-          label="Custo da IA"
-        />
-      </StatCardGrid>
-
-      <div style={CARD}>
-        <SectionHeader
-          title="Contribuição por Feature"
-          subtitle="Cada IA autônoma contribui com uma fatia do lift total. Use para priorizar o que está gerando mais resultado."
-          variant="secondary"
-        />
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {summary.feature_breakout.map((f) => (
-            <div key={f.feature} style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ flex: 1, font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>{f.feature}</div>
-              <div style={{ width: 180, height: 8, borderRadius: 4, background: "var(--color-border)", overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${f.contribution_percent}%`, background: "var(--color-brand)", borderRadius: 4, transition: "width 0.3s" }} />
-              </div>
-              <div style={{ width: 40, textAlign: "right", font: "600 12px var(--font-mono)", color: "var(--color-text)" }}>{f.contribution_percent}%</div>
-            </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          {[7, 30, 90].map((d) => (
+            <button
+              key={d}
+              type="button"
+              className={`fnl-period-btn${vm.periodDays === d ? " active" : ""}`}
+              onClick={() => vm.setPeriodDays(d)}
+            >
+              {d}d
+            </button>
           ))}
         </div>
-      </div>
+      </header>
 
-      <div style={CARD}>
-        <SectionHeader
-          title="Tendência Diária"
-          subtitle="Comparação dia a dia entre grupo controle (sem IA) e tratamento (com IA). Mantido enquanto o motor holdout roda em background."
-          variant="secondary"
+      {vm.loading ? (
+        <PageLoader />
+      ) : !vm.summary ? (
+        <EmptyState
+          icon={BarChart3}
+          title="Sem dados de Revenue Lift"
+          description="Revenue Lift é calculado automaticamente a partir dos pedidos. Quando houver vendas suficientes, os dados aparecerão aqui."
         />
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", font: "12px var(--font-sans)" }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--color-border)" }}>
-                <th style={{ textAlign: "left", padding: "8px 12px", color: "var(--color-text-faint)", fontWeight: 600, font: "11px var(--font-mono)" }}>Data</th>
-                <th style={{ textAlign: "right", padding: "8px 12px", color: "var(--color-text-faint)", fontWeight: 600, font: "11px var(--font-mono)" }}>Lift</th>
-                <th style={{ textAlign: "right", padding: "8px 12px", color: "var(--color-text-faint)", fontWeight: 600, font: "11px var(--font-mono)" }}>Controle (R$)</th>
-                <th style={{ textAlign: "right", padding: "8px 12px", color: "var(--color-text-faint)", fontWeight: 600, font: "11px var(--font-mono)" }}>Tratamento (R$)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {trend.map((row) => (
-                <tr key={row.date} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                  <td style={{ padding: "8px 12px", color: "var(--color-text-muted)" }}>{row.date}</td>
-                  <td style={{ padding: "8px 12px", textAlign: "right", color: "var(--color-brand)", fontWeight: 600 }}>+{row.lift_percent.toFixed(1)}%</td>
-                  <td style={{ padding: "8px 12px", textAlign: "right", color: "var(--color-text-muted)" }}>{row.revenue_control_brl.toLocaleString("pt-BR")}</td>
-                  <td style={{ padding: "8px 12px", textAlign: "right", color: "var(--color-text)" }}>{row.revenue_treatment_brl.toLocaleString("pt-BR")}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      ) : (
+        <>
+          {/* KPIs */}
+          <div className="grid-4" style={{ gap: 14 }}>
+            <StatCard
+              label="Lift"
+              value={vm.summary.lift.grossLiftPercent != null ? `${vm.summary.lift.grossLiftPercent.toFixed(1)}%` : "—"}
+              icon={<TrendingUp size={16} />}
+              accent={vm.summary.lift.grossLiftPercent != null && vm.summary.lift.grossLiftPercent > 0 ? "var(--color-success)" : "var(--color-error)"}
+            />
+            <StatCard
+              label="Receita Incremental"
+              value={vm.summary.lift.netLiftCents != null ? formatBRL(vm.summary.lift.netLiftCents) : "—"}
+              icon={<DollarSign size={16} />}
+              accent="var(--color-brand)"
+            />
+            <StatCard
+              label="ROI da IA"
+              value={vm.summary.lift.roiPercent != null ? `${vm.summary.lift.roiPercent.toFixed(0)}%` : "—"}
+              icon={<Zap size={16} />}
+              accent="var(--color-brand)"
+            />
+            <StatCard
+              label="Custo IA"
+              value={formatBRL(vm.summary.aiCostCents)}
+              icon={<DollarSign size={16} />}
+            />
+          </div>
+
+          {/* Cohort Comparison */}
+          <div className="grid-2" style={{ gap: 14 }}>
+            <div className="panel" style={{ padding: "18px 20px" }}>
+              <SectionHeader variant="secondary" title="Tratamento (95%)" />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <div style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Sessões</div>
+                  <div style={{ font: "700 20px var(--font-data)", color: "var(--color-text)", marginTop: 4 }}>{vm.summary.treatment.sessions.toLocaleString("pt-BR")}</div>
+                </div>
+                <div>
+                  <div style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Receita</div>
+                  <div style={{ font: "700 20px var(--font-data)", color: "var(--color-brand)", marginTop: 4 }}>{formatBRL(vm.summary.treatment.revenueCents)}</div>
+                </div>
+              </div>
+            </div>
+            <div className="panel" style={{ padding: "18px 20px" }}>
+              <SectionHeader variant="secondary" title="Holdout (5%)" />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <div style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Sessões</div>
+                  <div style={{ font: "700 20px var(--font-data)", color: "var(--color-text)", marginTop: 4 }}>{vm.summary.holdout.sessions.toLocaleString("pt-BR")}</div>
+                </div>
+                <div>
+                  <div style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Receita</div>
+                  <div style={{ font: "700 20px var(--font-data)", color: "var(--color-text-muted)", marginTop: 4 }}>{formatBRL(vm.summary.holdout.revenueCents)}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Feature Breakout */}
+          {vm.summary.featureBreakout.length > 0 && (
+            <div className="panel" style={{ padding: "18px 20px" }}>
+              <SectionHeader variant="secondary" title="Contribuição por Feature" />
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {vm.summary.featureBreakout.map((f) => {
+                  const maxRevenue = Math.max(...vm.summary!.featureBreakout.map((x) => x.revenueCents), 1);
+                  const pct = (f.revenueCents / maxRevenue) * 100;
+                  return (
+                    <div key={f.feature} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <span style={{ font: "500 12px var(--font-sans)", color: "var(--color-text)", minWidth: 160 }}>
+                        {FEATURE_LABELS[f.feature] ?? f.feature}
+                      </span>
+                      <div style={{ flex: 1, height: 8, background: "var(--surface-2)", borderRadius: 4, overflow: "hidden" }}>
+                        <div style={{ width: `${pct}%`, height: "100%", background: "var(--color-brand)", borderRadius: 4 }} />
+                      </div>
+                      <span style={{ font: "600 11px var(--font-data)", color: "var(--color-text-muted)", minWidth: 80, textAlign: "right" }}>
+                        {formatBRL(f.revenueCents)}
+                      </span>
+                      <span style={{ font: "500 11px var(--font-data)", color: "var(--color-text-faint)", minWidth: 50, textAlign: "right" }}>
+                        {f.orders} ped.
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Trend */}
+          {vm.trend && vm.trend.trend.length > 0 && (
+            <div className="panel" style={{ padding: "18px 20px" }}>
+              <SectionHeader variant="secondary" title="Tendência Diária" />
+              <div style={{ overflowX: "auto" }}>
+                <table className="fnl-sessions-table">
+                  <thead>
+                    <tr>
+                      <th>Data</th>
+                      <th>Lift</th>
+                      <th>Tratamento</th>
+                      <th>Holdout</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vm.trend.trend.slice(-14).map((d) => (
+                      <tr key={d.date}>
+                        <td style={{ font: "12px var(--font-data)" }}>{new Date(d.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}</td>
+                        <td style={{ font: "600 12px var(--font-data)", color: d.liftPercent != null && d.liftPercent > 0 ? "var(--color-success)" : "var(--color-error)" }}>
+                          {d.liftPercent != null ? `${d.liftPercent.toFixed(1)}%` : "—"}
+                        </td>
+                        <td style={{ font: "12px var(--font-data)", color: "var(--color-brand)" }}>{formatBRL(d.treatmentRevenueCents)}</td>
+                        <td style={{ font: "12px var(--font-data)", color: "var(--color-text-muted)" }}>{formatBRL(d.holdoutRevenueCents)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

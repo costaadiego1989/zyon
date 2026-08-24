@@ -1,48 +1,47 @@
 import { dashboardJson } from "../http/client.js";
 
-const PREFIX = "/dashboard/analytics/revenue-lift";
+const PREFIX = "/analytics/revenue-lift";
 
 export interface RevenueLiftSummary {
-  lift_percent: number;
-  confidence: "significant" | "insufficient_sample";
-  ai_cost_brl: number;
-  net_lift_brl: number;
-  roi_percent: number;
-  feature_breakout: Array<{ feature: string; contribution_percent: number }>;
+  periodDays: number;
+  holdout: { sessions: number; orders: number; revenueCents: number; avgRevenueCents: number | null };
+  treatment: { sessions: number; orders: number; revenueCents: number; avgRevenueCents: number | null };
+  lift: {
+    grossLiftPercent: number | null;
+    netLiftCents: number | null;
+    roiPercent: number | null;
+    holdoutProjectedCents: number | null;
+    holdoutAvgRevenueCents: number | null;
+    treatmentAvgRevenueCents: number | null;
+  };
+  aiCostCents: number;
+  featureBreakout: Array<{ feature: string; orders: number; revenueCents: number }>;
 }
 
-export interface RevenueLiftCohort {
-  cohort: string;
-  sessions: number;
-  revenue_brl: number;
-  conversion_rate: number;
-}
-
-export interface RevenueLiftTrend {
+export interface RevenueLiftTrendPoint {
   date: string;
-  lift_percent: number;
-  revenue_control_brl: number;
-  revenue_treatment_brl: number;
+  holdoutRevenueCents: number;
+  treatmentRevenueCents: number;
+  holdoutSessions: number;
+  treatmentSessions: number;
+  liftPercent: number | null;
+}
+
+export interface RevenueLiftTrendResponse {
+  periodDays: number;
+  trend: RevenueLiftTrendPoint[];
 }
 
 export function revenueLiftEndpoints(base: string, f: typeof fetch) {
   return {
-    async getRevenueLift(): Promise<RevenueLiftSummary> {
-      return dashboardJson<RevenueLiftSummary>(base, PREFIX, { method: "GET" }, f);
+    async getRevenueLift(periodDays?: number): Promise<RevenueLiftSummary> {
+      const qs = periodDays ? `?periodDays=${periodDays}` : "";
+      return dashboardJson<RevenueLiftSummary>(base, `${PREFIX}${qs}`, { method: "GET" }, f);
     },
 
-    async getRevenueLiftCohorts(): Promise<RevenueLiftCohort[]> {
-      const res = await dashboardJson<{ data: RevenueLiftCohort[] } | RevenueLiftCohort[]>(
-        base, `${PREFIX}/cohorts`, { method: "GET" }, f
-      );
-      return Array.isArray(res) ? res : res.data;
-    },
-
-    async getRevenueLiftTrend(): Promise<RevenueLiftTrend[]> {
-      const res = await dashboardJson<{ data: RevenueLiftTrend[] } | RevenueLiftTrend[]>(
-        base, `${PREFIX}/trend`, { method: "GET" }, f
-      );
-      return Array.isArray(res) ? res : res.data;
+    async getRevenueLiftTrend(days?: number): Promise<RevenueLiftTrendResponse> {
+      const qs = days ? `?days=${days}` : "";
+      return dashboardJson<RevenueLiftTrendResponse>(base, `${PREFIX}/trend${qs}`, { method: "GET" }, f);
     },
   };
 }
