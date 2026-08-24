@@ -46,19 +46,31 @@
   gap: var(--space-3);
   flex-wrap: wrap;
 }
+.fnl-filters-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
 .fnl-select {
-  padding: 6px 12px;
+  padding: 6px 28px 6px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--card);
   color: var(--ink);
   font: 500 12px var(--font-sans);
   cursor: pointer;
+  white-space: nowrap;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b8b95' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
 }
 .fnl-export-btn {
   width: 32px;
   height: 32px;
+  min-width: 32px;
   min-height: 32px;
+  flex-shrink: 0;
   display: grid;
   place-items: center;
   border: 1px solid var(--border);
@@ -83,6 +95,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-full);
   padding: 3px;
+  flex-shrink: 0;
 }
 .fnl-period-btn {
   padding: 6px 14px;
@@ -92,6 +105,7 @@
   color: var(--muted);
   font: 600 12px var(--font-sans);
   cursor: pointer;
+  white-space: nowrap;
   transition: all var(--duration-base) var(--ease);
 }
 .fnl-period-btn:hover { color: var(--ink); }
@@ -356,6 +370,10 @@
   border-radius: var(--radius-md);
   overflow: hidden;
 }
+.fnl-sessions-card > div:first-child {
+  padding: var(--space-4) var(--space-5) 0;
+  margin-bottom: 0;
+}
 .fnl-sessions-head {
   display: flex;
   align-items: center;
@@ -469,6 +487,7 @@
   .fnl-metrics { grid-template-columns: 1fr; }
   .fnl-head { flex-direction: column; }
   .fnl-head-right { width: 100%; justify-content: flex-end; }
+  .fnl-filters-row { flex-wrap: wrap; justify-content: flex-end; }
   .fnl-controls { flex-direction: column; align-items: stretch; }
   .fnl-export-btn { margin-left: 0; }
 }

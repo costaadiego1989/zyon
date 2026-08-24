@@ -1,4 +1,6 @@
 import React from "react";
+import { TrendingUp, Users, AlertTriangle, Clock } from "lucide-react";
+import { StatCard } from "../../overview/components/StatCard.js";
 import type { FunnelData } from "../useFunnelPage.js";
 
 interface FunnelMetricsProps {
@@ -23,42 +25,40 @@ export function FunnelMetrics({ data }: FunnelMetricsProps): React.ReactElement 
     ? `${Math.floor(totalTimeSeconds / 60)}m ${Math.round(totalTimeSeconds % 60)}s`
     : "—";
 
-  function trend(current: number, prev?: number) {
-    if (prev === undefined || prev === 0) return null;
-    const diff = current - prev;
-    const isUp = diff > 0;
-    return (
-      <span className={`fnl-metric-trend ${isUp ? "up" : "down"}`}>
-        {isUp ? "↑" : "↓"} {Math.abs(diff).toFixed(1)}%
-      </span>
-    );
-  }
+  const convTrend = previous && previous.overallConversion > 0
+    ? overallConversion - previous.overallConversion
+    : undefined;
+  const sessionsTrend = previous && previous.totalSessions > 0
+    ? ((totalSessions - previous.totalSessions) / previous.totalSessions) * 100
+    : undefined;
 
   return (
     <div className="fnl-metrics">
-      <div className="fnl-metric">
-        <span className="fnl-metric-label">Conversão</span>
-        <span className="fnl-metric-value">{overallConversion.toFixed(1)}<small style={{ fontSize: "60%", opacity: 0.7 }}>%</small></span>
-        {previous ? trend(overallConversion, previous.overallConversion) : <span className="fnl-metric-trend up">↑ 0.0%</span>}
-      </div>
-
-      <div className="fnl-metric">
-        <span className="fnl-metric-label">Sessões</span>
-        <span className="fnl-metric-value neutral">{totalSessions.toLocaleString("pt-BR")}</span>
-        {previous ? trend(totalSessions, previous.totalSessions) : <span className="fnl-metric-trend up">↑ 0.0%</span>}
-      </div>
-
-      <div className="fnl-metric">
-        <span className="fnl-metric-label">Maior Drop-off</span>
-        <span className={`fnl-metric-value${biggestDropOff > 50 ? " danger" : ""}`}>{biggestDropOff.toFixed(0)}<small style={{ fontSize: "60%", opacity: 0.7 }}>%</small></span>
-        <span className="fnl-metric-secondary">{dropOffLabel}</span>
-      </div>
-
-      <div className="fnl-metric">
-        <span className="fnl-metric-label">Tempo Médio</span>
-        <span className="fnl-metric-value neutral">{avgTimeStr}</span>
-        <span className="fnl-metric-secondary">checkout completo</span>
-      </div>
+      <StatCard
+        label="Conversão"
+        value={`${overallConversion.toFixed(1)}`}
+        suffix="%"
+        trend={convTrend ?? 0}
+        icon={<TrendingUp size={16} />}
+        accent="var(--color-brand)"
+      />
+      <StatCard
+        label="Sessões"
+        value={totalSessions}
+        trend={sessionsTrend ?? 0}
+        icon={<Users size={16} />}
+      />
+      <StatCard
+        label="Maior Drop-off"
+        value={`${biggestDropOff.toFixed(0)}%`}
+        icon={<AlertTriangle size={16} />}
+        accent={biggestDropOff > 50 ? "var(--color-error)" : undefined}
+      />
+      <StatCard
+        label="Tempo Médio"
+        value={avgTimeStr}
+        icon={<Clock size={16} />}
+      />
     </div>
   );
 }

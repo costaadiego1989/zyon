@@ -30,37 +30,39 @@ export function FunnelPage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Merchan
           <p className="page-lead">Métricas de progresso dos visitantes em cada etapa</p>
         </div>
         <div className="fnl-head-right">
-          <select
-            value={vm.breakdown}
-            onChange={(e) => vm.setBreakdown(e.target.value as any)}
-            className="fnl-select"
-          >
-            <option value="none">Sem segmentação</option>
-            <option value="device">Dispositivo</option>
-            <option value="buyer_type">Tipo comprador</option>
-            <option value="payment_method">Pagamento</option>
-          </select>
-          <div className="fnl-period-bar">
-            {PERIODS.map(({ key, label }) => (
-              <button
-                key={key}
-                type="button"
-                className={`fnl-period-btn${vm.period === key ? " active" : ""}`}
-                onClick={() => vm.setPeriod(key)}
-              >
-                {label}
-              </button>
-            ))}
+          <div className="fnl-filters-row">
+            <div className="fnl-period-bar">
+              {PERIODS.map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`fnl-period-btn${vm.period === key ? " active" : ""}`}
+                  onClick={() => vm.setPeriod(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <select
+              value={vm.breakdown}
+              onChange={(e) => vm.setBreakdown(e.target.value as any)}
+              className="fnl-select"
+            >
+              <option value="none">Sem segmentação</option>
+              <option value="device">Dispositivo</option>
+              <option value="buyer_type">Tipo comprador</option>
+              <option value="payment_method">Pagamento</option>
+            </select>
+            <button
+              type="button"
+              className="fnl-export-btn"
+              onClick={vm.exportCsv}
+              disabled={!vm.data}
+              title="Exportar CSV"
+            >
+              <Download size={13} />
+            </button>
           </div>
-          <button
-            type="button"
-            className="fnl-export-btn"
-            onClick={vm.exportCsv}
-            disabled={!vm.data}
-            title="Exportar CSV"
-          >
-            <Download size={13} />
-          </button>
         </div>
       </header>
 
@@ -68,8 +70,8 @@ export function FunnelPage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Merchan
       {vm.showSourceTabs && (
         <TabBar
           tabs={[
-            { key: "storefront", label: "Jornada completa" },
-            { key: "checkout", label: "Widget Checkout" },
+            { key: "storefront", label: "Jornada da Loja" },
+            { key: "checkout", label: "Jornada do Checkout" },
           ]}
           activeTab={vm.funnelSource}
           onTabChange={(k) => vm.setFunnelSource(k as "storefront" | "checkout")}
