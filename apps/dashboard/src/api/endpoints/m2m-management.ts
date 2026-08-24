@@ -7,6 +7,7 @@ export interface M2MAgentResponse {
   displayName: string;
   status: "active" | "suspended";
   scopes: string[];
+  expiresAt: string | null;
   createdAt: string;
   updatedAt: string;
   reputation: { transactionCount: number; disputeCount: number; reputationScore: number } | null;
@@ -26,7 +27,7 @@ export function m2mManagementEndpoints(base: string, f: typeof fetch) {
       return dashboardJson(base, "/m2m/agents", { method: "GET" }, f);
     },
 
-    async createM2MAgent(data: { displayName: string; globalUserId: string; scopes?: string[] }): Promise<M2MAgentResponse> {
+    async createM2MAgent(data: { displayName: string; globalUserId: string; scopes?: string[]; expiresInDays?: number }): Promise<M2MAgentResponse> {
       return dashboardJson(base, "/m2m/agents", { method: "POST", jsonBody: data }, f);
     },
 

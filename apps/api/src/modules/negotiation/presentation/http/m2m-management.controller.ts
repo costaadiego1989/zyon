@@ -27,7 +27,7 @@ export class M2MManagementController {
   }
 
   @Post("agents")
-  async registerAgent(@Req() req: any, @Body() body: { displayName: string; globalUserId: string; scopes?: string[] }) {
+  async registerAgent(@Req() req: any, @Body() body: { displayName: string; globalUserId: string; scopes?: string[]; expiresInDays?: number }) {
     const merchantId = req.user?.merchantId;
     const agent = await this.createAgent.execute(merchantId, body);
     return agent;

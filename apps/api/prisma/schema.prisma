@@ -647,15 +647,16 @@ model NegotiationCostLedgerEntry {
 }
 
 model BuyerAgent {
-  id             String   @id @default(cuid())
-  merchantId     String   @map("merchant_id")
-  globalUserId   String   @map("global_user_id")
-  displayName    String   @map("display_name")
-  status         String   @default("active") // active | suspended
-  m2mSecretHash  String?  @map("m2m_secret_hash")
-  scopes         String[] @default(["read", "negotiate"])
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id             String    @id @default(cuid())
+  merchantId     String    @map("merchant_id")
+  globalUserId   String    @map("global_user_id")
+  displayName    String    @map("display_name")
+  status         String    @default("active") // active | suspended
+  m2mSecretHash  String?   @map("m2m_secret_hash")
+  scopes         String[]  @default(["read", "negotiate"])
+  expiresAt      DateTime? @map("expires_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   reputation     AgentReputation?
 

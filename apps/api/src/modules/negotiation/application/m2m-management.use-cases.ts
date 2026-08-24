@@ -12,6 +12,7 @@ export interface BuyerAgentRow {
   status: "active" | "suspended";
   m2mSecretHash: string | null;
   scopes: string[];
+  expiresAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   reputation: { transactionCount: number; disputeCount: number; reputationScore: number } | null;
@@ -51,10 +52,13 @@ export class CreateM2MAgentUseCase {
 
   constructor(@Inject(M2M_MANAGEMENT_STORE) private readonly store: M2MManagementStore) {}
 
-  async execute(merchantId: string, input: { displayName: string; globalUserId: string; scopes?: string[] }): Promise<BuyerAgentRow> {
+  async execute(merchantId: string, input: { displayName: string; globalUserId: string; scopes?: string[]; expiresInDays?: number }): Promise<BuyerAgentRow> {
     if (!input.displayName.trim()) throw new Error("display_name_required");
     if (!input.globalUserId.trim()) throw new Error("global_user_id_required");
     const secretHash = `hmac_${crypto.randomUUID().replace(/-/g, "").slice(0, 32)}`;
+    const expiresAt = input.expiresInDays
+      ? new Date(Date.now() + input.expiresInDays * 86_400_000)
+      : null;
     return this.store.createAgent({
       merchantId,
       globalUserId: input.globalUserId.trim(),
@@ -62,6 +66,7 @@ export class CreateM2MAgentUseCase {
       status: "active",
       m2mSecretHash: secretHash,
       scopes: input.scopes ?? ["read", "negotiate"],
+      expiresAt,
     });
   }
 }
