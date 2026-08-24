@@ -15,51 +15,13 @@ const DEFAULT_STRATEGIES: CartRecoveryStrategyPreferences = {
   offer_coupon: true,
 };
 
-const MOCK_METRICS: CartRecoveryMetrics = {
-  total_abandoned: 2847,
-  total_attempts: 1923,
-  total_recovered: 486,
-  recovery_rate_percent: 25.3,
-  revenue_recovered_brl: 38427,
+const EMPTY_METRICS: CartRecoveryMetrics = {
+  total_abandoned: 0,
+  total_attempts: 0,
+  total_recovered: 0,
+  recovery_rate_percent: 0,
+  revenue_recovered_brl: 0,
 };
-
-const MOCK_ATTEMPTS: CartRecoveryAttempt[] = [
-  {
-    id: "att-001",
-    session_id: "sess-12345abcdef0",
-    strategy: "free_shipping",
-    status: "recovered",
-    created_at: "2026-08-20T14:22:00Z",
-  },
-  {
-    id: "att-002",
-    session_id: "sess-12346abcdef1",
-    strategy: "coupon",
-    status: "sent",
-    created_at: "2026-08-20T13:55:00Z",
-  },
-  {
-    id: "att-003",
-    session_id: "sess-12347abcdef2",
-    strategy: "cross_sell",
-    status: "failed",
-    created_at: "2026-08-20T12:30:00Z",
-  },
-  {
-    id: "att-004",
-    session_id: "sess-12348abcdef3",
-    strategy: "free_shipping",
-    status: "recovered",
-    created_at: "2026-08-20T11:15:00Z",
-  },
-  {
-    id: "att-005",
-    session_id: "sess-12349abcdef4",
-    strategy: "cross_sell",
-    status: "pending",
-    created_at: "2026-08-20T10:00:00Z",
-  },
-];
 
 export function useCartRecoveryPage() {
   const api = useApi();
@@ -81,8 +43,8 @@ export function useCartRecoveryPage() {
           api.getCartRecoveryStrategies?.().catch(() => null),
         ]);
         if (cancelled) return;
-        setMetrics(metData ?? MOCK_METRICS);
-        setAttempts(attData ?? MOCK_ATTEMPTS);
+        setMetrics(metData ?? EMPTY_METRICS);
+        setAttempts(attData ?? []);
         if (stratData) {
           setStrategies({ ...DEFAULT_STRATEGIES, ...stratData });
           setStrategiesLoaded(true);
@@ -90,8 +52,8 @@ export function useCartRecoveryPage() {
       } catch (e) {
         reportError({ source: "cart-recovery.load", error: e });
         if (!cancelled) {
-          setMetrics(MOCK_METRICS);
-          setAttempts(MOCK_ATTEMPTS);
+          setMetrics(EMPTY_METRICS);
+          setAttempts([]);
         }
       } finally {
         if (!cancelled) {
