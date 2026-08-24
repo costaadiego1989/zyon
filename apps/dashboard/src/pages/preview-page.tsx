@@ -49,8 +49,8 @@ export function useAutoRenewal(expiresAtUnix: number | null, reload: () => void)
 }
 
 function pickInitialMode(plan: MerchantProfile["plan"] | undefined): PreviewMode {
-  if (plan === "STORE_ONLY") return "storefront";
-  return "checkout";
+  if (plan === "CHECKOUT_ONLY") return "checkout";
+  return "storefront";
 }
 
 export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantProfile }) {
@@ -229,8 +229,8 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
         <div style={{ display: "flex", gap: 4, background: "var(--surface-1)", borderRadius: 10, padding: 4, marginBottom: 12, width: "fit-content" }}>
           {(
             [
-              { id: "checkout" as const, label: "Widget Checkout", Icon: ShoppingCart },
               { id: "storefront" as const, label: "Loja (Storefront)", Icon: Store },
+              { id: "checkout" as const, label: "Widget Checkout", Icon: ShoppingCart },
             ]
           ).map(({ id, label, Icon }) => {
             const active = previewMode === id;
