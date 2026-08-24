@@ -58,7 +58,7 @@ export function AccountSettingsPage(props: { apiBaseUrl: string; me: MerchantPro
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <FormField label="Senha atual" type="password" placeholder="••••••••" value={vm.passwordForm.currentPassword} onChange={(v) => vm.setPasswordForm((f) => ({ ...f, currentPassword: v }))} />
-          <FormField label="Nova senha" type="password" placeholder="Mínimo 6 caracteres" value={vm.passwordForm.newPassword} onChange={(v) => vm.setPasswordForm((f) => ({ ...f, newPassword: v }))} />
+          <FormField label="Nova senha" type="password" placeholder="Mínimo 8 caracteres" value={vm.passwordForm.newPassword} onChange={(v) => vm.setPasswordForm((f) => ({ ...f, newPassword: v }))} />
           <FormField label="Confirmar nova senha" type="password" placeholder="Repita a nova senha" value={vm.passwordForm.confirmPassword} onChange={(v) => vm.setPasswordForm((f) => ({ ...f, confirmPassword: v }))} />
         </div>
 
