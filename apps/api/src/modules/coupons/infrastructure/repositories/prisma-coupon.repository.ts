@@ -33,7 +33,7 @@ export class PrismaCouponRepository implements CouponRepository {
 
   async findAllByMerchant(merchantId: string): Promise<CouponEntity[]> {
     const rows = await this.prisma.coupon.findMany({
-      where: { merchantId },
+      where: { merchantId, status: { not: "archived" } },
       orderBy: { createdAt: "desc" }
     });
     return rows.map(toCouponEntity);
