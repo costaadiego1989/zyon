@@ -12,8 +12,7 @@ import type {
 const DEFAULT_STRATEGIES: CartRecoveryStrategyPreferences = {
   offer_free_shipping: true,
   personalized_cross_sell: true,
-  address_objection: true,
-  wait_and_retry: true,
+  offer_coupon: true,
 };
 
 const MOCK_METRICS: CartRecoveryMetrics = {
@@ -27,36 +26,36 @@ const MOCK_METRICS: CartRecoveryMetrics = {
 const MOCK_ATTEMPTS: CartRecoveryAttempt[] = [
   {
     id: "att-001",
-    session_id: "sess-12345",
+    session_id: "sess-12345abcdef0",
     strategy: "free_shipping",
     status: "recovered",
     created_at: "2026-08-20T14:22:00Z",
   },
   {
     id: "att-002",
-    session_id: "sess-12346",
-    strategy: "escalate_discount",
+    session_id: "sess-12346abcdef1",
+    strategy: "coupon",
     status: "sent",
     created_at: "2026-08-20T13:55:00Z",
   },
   {
     id: "att-003",
-    session_id: "sess-12347",
+    session_id: "sess-12347abcdef2",
     strategy: "cross_sell",
     status: "failed",
     created_at: "2026-08-20T12:30:00Z",
   },
   {
     id: "att-004",
-    session_id: "sess-12348",
-    strategy: "address_objection",
+    session_id: "sess-12348abcdef3",
+    strategy: "free_shipping",
     status: "recovered",
     created_at: "2026-08-20T11:15:00Z",
   },
   {
     id: "att-005",
-    session_id: "sess-12349",
-    strategy: "wait",
+    session_id: "sess-12349abcdef4",
+    strategy: "cross_sell",
     status: "pending",
     created_at: "2026-08-20T10:00:00Z",
   },
@@ -107,7 +106,6 @@ export function useCartRecoveryPage() {
   const toggleStrategy = useCallback(async (key: CartRecoveryStrategyKey) => {
     const previous = strategies[key];
     const next = !previous;
-    // Optimistic update — flip locally so the toggle feels instant.
     setStrategies((prev) => ({ ...prev, [key]: next }));
     setSavingKey(key);
     try {
@@ -115,7 +113,6 @@ export function useCartRecoveryPage() {
       setStrategies((prev) => ({ ...prev, ...saved }));
       showToast("success", next ? "Estratégia ativada" : "Estratégia desativada");
     } catch (e) {
-      // Rollback on failure.
       setStrategies((prev) => ({ ...prev, [key]: previous }));
       reportError({ source: "cart-recovery.toggle", error: e });
       showToast("error", e instanceof Error ? e.message : "Erro ao salvar estratégia");
