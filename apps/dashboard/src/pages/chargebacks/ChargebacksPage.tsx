@@ -71,9 +71,9 @@ export function ChargebacksPage(props: { apiBaseUrl: string; me: MerchantMeProfi
       {/* ── Page Head ── */}
       <header className="page-head">
         <div>
-          <span className="eyebrow">Pagamentos</span>
-          <h1>Disputed Chargebacks</h1>
-          <p className="page-lead">Manage chargeback disputes and submit evidence.</p>
+          <span className="eyebrow">Conta</span>
+          <h1>Chargebacks</h1>
+          <p className="page-lead">Disputas de cartão abertas pelo comprador no banco. Você é notificado via WhatsApp quando uma nova disputa é aberta.</p>
         </div>
       </header>
 
