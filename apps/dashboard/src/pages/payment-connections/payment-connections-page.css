@@ -64,7 +64,7 @@
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--space-4);
-  align-items: start;
+  align-items: stretch;
 }
 .payment-connections-page__grid--nested {
   align-items: start;
@@ -306,35 +306,39 @@
   border-top: 1px solid var(--border);
 }
 .wallet-section__grid {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
+  display: flex;
   gap: var(--space-3);
+  align-items: flex-end;
 }
 .wallet-section__form-group {
   display: flex;
   flex-direction: column;
   gap: 5px;
 }
+.wallet-section__form-group:last-of-type {
+  flex: 1;
+}
 .wallet-section__label {
   font: 600 10px var(--font-mono);
   letter-spacing: 0.04em;
-  color: var(--faint);
+  color: var(--color-text-faint);
   text-transform: uppercase;
 }
 .wallet-section__input,
 .wallet-section__select {
-  padding: 9px 12px;
+  height: 40px;
+  padding: 0 12px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--color-surface-alt);
-  font: 400 12px var(--font-data);
-  color: var(--ink);
+  border: 1px solid var(--color-border);
+  background: var(--surface-2);
+  font: 400 12px var(--font-mono);
+  color: var(--color-text);
   outline: none;
   transition: border-color var(--duration-fast) var(--ease);
 }
 .wallet-section__input:focus,
 .wallet-section__select:focus {
-  border-color: var(--accent);
+  border-color: var(--color-brand);
   box-shadow: 0 0 0 3px var(--color-brand-ring);
 }
 .wallet-section__footer {
