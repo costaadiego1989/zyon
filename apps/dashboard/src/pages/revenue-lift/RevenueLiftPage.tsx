@@ -5,7 +5,7 @@ import { StatCard } from "../overview/components/StatCard.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { PageLoader } from "../../components/PageLoader.js";
-import { Pagination } from "../../components/Pagination.js";
+import { DataPanel } from "../../components/DataPanel.js";
 import { useRevenueLiftPage } from "./useRevenueLiftPage.js";
 
 export interface RevenueLiftPageProps {
@@ -175,8 +175,13 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
 
           {/* Evolução diária */}
           {trendTotal > 0 && (
-            <div className="panel" style={{ overflow: "hidden", padding: "20px 24px 0" }}>
-              <SectionHeader variant="secondary" title="Evolução diária" />
+            <DataPanel
+              title="Evolução diária"
+              page={trendPage + 1}
+              pageSize={PAGE_SIZE}
+              total={trendTotal}
+              onPageChange={(p) => setTrendPage(p - 1)}
+            >
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
@@ -220,19 +225,7 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
                   </tbody>
                 </table>
               </div>
-
-              {/* Paginação */}
-              {trendTotal > PAGE_SIZE && (
-                <div style={{ padding: "0 0 20px" }}>
-                  <Pagination
-                    page={trendPage + 1}
-                    pageSize={PAGE_SIZE}
-                    total={trendTotal}
-                    onChange={(p) => setTrendPage(p - 1)}
-                  />
-                </div>
-              )}
-            </div>
+            </DataPanel>
           )}
         </>
       )}

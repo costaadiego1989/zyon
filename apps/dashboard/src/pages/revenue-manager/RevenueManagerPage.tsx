@@ -1,12 +1,10 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { Lightbulb, TrendingUp, Eye, BookOpen, Brain } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { TabBar } from "../../components/TabBar.js";
-import { SectionHeader } from "../../components/SectionHeader.js";
-import { Pagination } from "../../components/Pagination.js";
-import { EmptyState } from "../../components/EmptyState.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { PageLoader } from "../../components/PageLoader.js";
+import { DataPanel } from "../../components/DataPanel.js";
 import { useRevenueManagerPage } from "./useRevenueManagerPage.js";
 
 export interface RevenueManagerPageProps {
@@ -109,124 +107,112 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
 
       {/* Sugestões */}
       {tab === "hypotheses" && (
-        <div className="panel" style={{ overflow: "hidden", padding: "20px 20px 0" }}>
-          <SectionHeader variant="secondary" title="Sugestões de melhoria" />
-          {vm.hypotheses.length === 0 ? (
-            <div style={{ paddingBottom: 20 }}>
-              <EmptyState icon={Lightbulb} title="Nenhuma sugestão ainda" description="Sugestões são geradas automaticamente a cada dia com base nos dados do seu checkout." />
-            </div>
-          ) : (
-            <>
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                {hypSlice.map((h, i) => {
-                  const risk = RISK_COLORS[h.risk_level] ?? RISK_COLORS.medium;
-                  const status = STATUS_COLORS[h.status] ?? STATUS_COLORS.pending_review;
-                  return (
-                    <div key={h.id} style={{ padding: "16px 20px", borderBottom: i < hypSlice.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined, display: "flex", flexDirection: "column", gap: 8 }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                        <span style={{ font: "500 13px var(--font-sans)", color: "var(--color-text)", flex: 1 }}>{h.hypothesis_text}</span>
-                        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                          <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: risk.bg, color: risk.color }}>{risk.label}</span>
-                          <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: status.bg, color: status.color }}>{status.label}</span>
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 16, font: "12px var(--font-sans)", color: "var(--color-text-faint)" }}>
-                        <span>Impacto estimado: <strong style={{ color: "var(--color-brand)" }}>+{h.expected_lift_percent.toFixed(1)}%</strong></span>
-                        <span>{new Date(h.created_at).toLocaleDateString("pt-BR")}</span>
-                        {h.status === "pending_review" && (
-                          <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-                            <button type="button" className="zyn-btn zyn-btn--primary" style={{ fontSize: 11, padding: "4px 12px" }} onClick={() => vm.approveHypothesis(h.id)} disabled={vm.approving.has(h.id)}>
-                              Aprovar
-                            </button>
-                            <button type="button" style={{ fontSize: 11, padding: "4px 12px", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", background: "transparent", color: "var(--color-text-muted)", cursor: "pointer" }} onClick={() => vm.rejectHypothesis(h.id, "Não relevante")} disabled={vm.approving.has(h.id)}>
-                              Rejeitar
-                            </button>
-                          </div>
-                        )}
-                      </div>
+        <DataPanel
+          title="Sugestões de melhoria"
+          page={hypPage}
+          pageSize={PAGE_SIZE}
+          total={vm.hypotheses.length}
+          onPageChange={setHypPage}
+          isEmpty={vm.hypotheses.length === 0}
+          empty={{ icon: Lightbulb, title: "Nenhuma sugestão ainda", description: "Sugestões são geradas automaticamente a cada dia com base nos dados do seu checkout." }}
+        >
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {hypSlice.map((h, i) => {
+              const risk = RISK_COLORS[h.risk_level] ?? RISK_COLORS.medium;
+              const status = STATUS_COLORS[h.status] ?? STATUS_COLORS.pending_review;
+              return (
+                <div key={h.id} style={{ padding: "16px 20px", borderBottom: i < hypSlice.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                    <span style={{ font: "500 13px var(--font-sans)", color: "var(--color-text)", flex: 1 }}>{h.hypothesis_text}</span>
+                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                      <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: risk.bg, color: risk.color }}>{risk.label}</span>
+                      <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: status.bg, color: status.color }}>{status.label}</span>
                     </div>
-                  );
-                })}
-              </div>
-              {vm.hypotheses.length > PAGE_SIZE && (
-                <Pagination page={hypPage} pageSize={PAGE_SIZE} total={vm.hypotheses.length} onChange={setHypPage} />
-              )}
-            </>
-          )}
-        </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 16, font: "12px var(--font-sans)", color: "var(--color-text-faint)" }}>
+                    <span>Impacto estimado: <strong style={{ color: "var(--color-brand)" }}>+{h.expected_lift_percent.toFixed(1)}%</strong></span>
+                    <span>{new Date(h.created_at).toLocaleDateString("pt-BR")}</span>
+                    {h.status === "pending_review" && (
+                      <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+                        <button type="button" className="zyn-btn zyn-btn--primary" style={{ fontSize: 11, padding: "4px 12px" }} onClick={() => vm.approveHypothesis(h.id)} disabled={vm.approving.has(h.id)}>
+                          Aprovar
+                        </button>
+                        <button type="button" style={{ fontSize: 11, padding: "4px 12px", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", background: "transparent", color: "var(--color-text-muted)", cursor: "pointer" }} onClick={() => vm.rejectHypothesis(h.id, "Não relevante")} disabled={vm.approving.has(h.id)}>
+                          Rejeitar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </DataPanel>
       )}
 
       {/* Observações */}
       {tab === "observations" && (
-        <div className="panel" style={{ overflow: "hidden", padding: "20px 20px 0" }}>
-          <SectionHeader variant="secondary" title="Análises diárias" />
-          {vm.observations.length === 0 ? (
-            <div style={{ paddingBottom: 20 }}>
-              <EmptyState icon={Eye} title="Nenhuma análise registrada" description="A IA analisa o checkout diariamente. Quando houver dados suficientes, as análises aparecerão aqui." />
-            </div>
-          ) : (
-            <>
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr>
-                      <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Data</th>
-                      <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Conversão</th>
-                      <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Principal objeção</th>
-                      <th style={{ textAlign: "right", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Sessões</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {obsSlice.map((o, i) => (
-                      <tr key={o.date} style={{ borderBottom: i < obsSlice.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined }}>
-                        <td style={{ padding: "12px 20px", font: "500 13px var(--font-sans)", color: "var(--color-text)" }}>{new Date(o.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}</td>
-                        <td style={{ padding: "12px 20px", font: "600 13px var(--font-data)", color: "var(--color-brand)" }}>{o.conversion_rate.toFixed(1)}%</td>
-                        <td style={{ padding: "12px 20px", font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>{o.top_objection}</td>
-                        <td style={{ padding: "12px 20px", font: "13px var(--font-data)", color: "var(--color-text-faint)", textAlign: "right" }}>{o.sessions_count.toLocaleString("pt-BR")}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {vm.observations.length > PAGE_SIZE && (
-                <Pagination page={obsPage} pageSize={PAGE_SIZE} total={vm.observations.length} onChange={setObsPage} />
-              )}
-            </>
-          )}
-        </div>
+        <DataPanel
+          title="Análises diárias"
+          page={obsPage}
+          pageSize={PAGE_SIZE}
+          total={vm.observations.length}
+          onPageChange={setObsPage}
+          isEmpty={vm.observations.length === 0}
+          empty={{ icon: Eye, title: "Nenhuma análise registrada", description: "A IA analisa o checkout diariamente. Quando houver dados suficientes, as análises aparecerão aqui." }}
+        >
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Data</th>
+                  <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Conversão</th>
+                  <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Principal objeção</th>
+                  <th style={{ textAlign: "right", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Sessões</th>
+                </tr>
+              </thead>
+              <tbody>
+                {obsSlice.map((o, i) => (
+                  <tr key={o.date} style={{ borderBottom: i < obsSlice.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined }}>
+                    <td style={{ padding: "12px 20px", font: "500 13px var(--font-sans)", color: "var(--color-text)" }}>{new Date(o.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}</td>
+                    <td style={{ padding: "12px 20px", font: "600 13px var(--font-data)", color: "var(--color-brand)" }}>{o.conversion_rate.toFixed(1)}%</td>
+                    <td style={{ padding: "12px 20px", font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>{o.top_objection}</td>
+                    <td style={{ padding: "12px 20px", font: "13px var(--font-data)", color: "var(--color-text-faint)", textAlign: "right" }}>{o.sessions_count.toLocaleString("pt-BR")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </DataPanel>
       )}
 
       {/* Aprendizados */}
       {tab === "lessons" && (
-        <div className="panel" style={{ overflow: "hidden", padding: "20px 20px 0" }}>
-          <SectionHeader variant="secondary" title="O que a IA aprendeu" />
-          {vm.lessons.length === 0 ? (
-            <div style={{ paddingBottom: 20 }}>
-              <EmptyState icon={BookOpen} title="Nenhum aprendizado ainda" description="Após experimentos concluírem, a IA registra o que funcionou e usa para melhorar as próximas sugestões." />
-            </div>
-          ) : (
-            <>
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                {lessonSlice.map((l, i) => (
-                  <div key={l.experiment_id} style={{ padding: "16px 20px", borderBottom: i < lessonSlice.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined, display: "flex", flexDirection: "column", gap: 6 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: "var(--color-success-bg)", color: "var(--color-success)" }}>
-                        +{l.lift_percent.toFixed(1)}%
-                      </span>
-                      <span style={{ font: "500 13px var(--font-sans)", color: "var(--color-text)" }}>{l.lesson}</span>
-                    </div>
-                    <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)" }}>
-                      Variante vencedora: <strong style={{ color: "var(--color-text-muted)" }}>{l.actual_winner}</strong> · {new Date(l.learned_at).toLocaleDateString("pt-BR")}
-                    </div>
-                  </div>
-                ))}
+        <DataPanel
+          title="O que a IA aprendeu"
+          page={lessonPage}
+          pageSize={PAGE_SIZE}
+          total={vm.lessons.length}
+          onPageChange={setLessonPage}
+          isEmpty={vm.lessons.length === 0}
+          empty={{ icon: BookOpen, title: "Nenhum aprendizado ainda", description: "Após experimentos concluírem, a IA registra o que funcionou e usa para melhorar as próximas sugestões." }}
+        >
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {lessonSlice.map((l, i) => (
+              <div key={l.experiment_id} style={{ padding: "16px 20px", borderBottom: i < lessonSlice.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined, display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: "var(--color-success-bg)", color: "var(--color-success)" }}>
+                    +{l.lift_percent.toFixed(1)}%
+                  </span>
+                  <span style={{ font: "500 13px var(--font-sans)", color: "var(--color-text)" }}>{l.lesson}</span>
+                </div>
+                <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)" }}>
+                  Variante vencedora: <strong style={{ color: "var(--color-text-muted)" }}>{l.actual_winner}</strong> · {new Date(l.learned_at).toLocaleDateString("pt-BR")}
+                </div>
               </div>
-              {vm.lessons.length > PAGE_SIZE && (
-                <Pagination page={lessonPage} pageSize={PAGE_SIZE} total={vm.lessons.length} onChange={setLessonPage} />
-              )}
-            </>
-          )}
-        </div>
+            ))}
+          </div>
+        </DataPanel>
       )}
     </div>
   );
