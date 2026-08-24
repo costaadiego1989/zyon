@@ -5,9 +5,7 @@ import { resolve } from "path";
 // Load .env from apps/api
 config({ path: resolve(import.meta.dirname ?? __dirname, "../.env") });
 
-const prisma = new PrismaClient({
-  datasources: { db: { url: process.env.DATABASE_URL } },
-});
+const prisma = new PrismaClient();
 
 // Simple UUID-like ID generator
 const generateId = () => `buyer_${Math.random().toString(36).substr(2, 9)}`;
