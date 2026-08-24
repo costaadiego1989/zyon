@@ -1,7 +1,9 @@
 import { Module, forwardRef, Logger } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
+import type { Redis } from "ioredis";
 import { PasswordHasher } from "../auth/domain/services/password-hasher.service.js";
 import { SMS_PROVIDER } from "./domain/ports/sms.port.js";
+import { REDIS_CLIENT_TOKEN } from "../../shared/cache/redis.module.js";
 import { SendBuyerEmailCodeUseCase } from "./application/use-cases/send-buyer-email-code.use-case.js";
 import { VerifyBuyerEmailCodeUseCase } from "./application/use-cases/verify-buyer-email-code.use-case.js";
 import { RegisterBuyerUseCase } from "./application/use-cases/register-buyer.use-case.js";
@@ -43,6 +45,7 @@ import { OTP_STORE } from "./domain/ports/otp-store.port.js";
 import { WEBAUTHN_CREDENTIAL_STORE } from "./domain/ports/webauthn-credential.port.js";
 import { BUYER_ACCOUNT_PRISMA_CLIENT } from "./buyer-account.tokens.js";
 import { PrismaOtpStore } from "./infrastructure/prisma-otp-store.js";
+import { RedisOtpStore } from "./infrastructure/redis-otp-store.js";
 import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-webauthn-credential.repository.js";
 
 @Module({
@@ -109,8 +112,16 @@ import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-weba
     PasswordHasher,
     {
       provide: OTP_STORE,
-      useFactory: (prisma: PrismaClient) => new PrismaOtpStore(prisma),
-      inject: [BUYER_ACCOUNT_PRISMA_CLIENT],
+      useFactory: (redis: Redis | null, prisma: PrismaClient) => {
+        if (redis) {
+          return new RedisOtpStore(redis);
+        }
+        // Fallback to Prisma if Redis is not available (tests / dev without Redis)
+        const logger = new Logger("OtpStoreFactory");
+        logger.warn("Redis not available for OTP store; falling back to Prisma");
+        return new PrismaOtpStore(prisma);
+      },
+      inject: [REDIS_CLIENT_TOKEN, BUYER_ACCOUNT_PRISMA_CLIENT],
     },
     {
       provide: WEBAUTHN_CREDENTIAL_STORE,
