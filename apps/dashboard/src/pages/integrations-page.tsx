@@ -41,7 +41,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
       <header className="page-head">
         <div>
           <span className="eyebrow">Integrações</span>
-          <h1>Desenvolvedores</h1>
+          <h1>API & Webhooks</h1>
           <p className="page-lead">Login necessário</p>
         </div>
       </header>
@@ -52,10 +52,10 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
     <>
       <header className="page-head">
         <div>
-          <p className="eyebrow">Integration API V1</p>
-          <h1>Desenvolvedores</h1>
+          <p className="eyebrow">Headless Commerce API</p>
+          <h1>API & Webhooks</h1>
           <p className="page-lead">
-            Conecte sua plataforma ao Zyon via API, webhooks e tokens de sessão.
+            Gerencie suas API Keys, configure webhooks e acesse a documentação da API headless. ERPs e CRMs consomem seus dados de checkout, catálogo e pedidos por aqui.
           </p>
         </div>
         <div className="developer-actions">

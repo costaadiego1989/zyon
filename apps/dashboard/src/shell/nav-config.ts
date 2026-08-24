@@ -120,7 +120,7 @@ export const NAV_ITEMS: Array<{
   { key: "coupons", label: "Cupons", section: "Checkout", icon: Tag, requiredPlan: ["STORE_ONLY", "BOTH"] },
 
   // ─── Integrações ───
-  { key: "integrations", label: "Desenvolvedores", section: "Integrações", icon: Webhook },
+  { key: "integrations", label: "API & Webhooks", section: "Integrações", icon: Webhook },
   { key: "commerce-connections", label: "Commerce", section: "Integrações", icon: Store },
   { key: "payment-connections", label: "Pagamentos", section: "Integrações", icon: Zap },
   { key: "marketplace", label: "Marketplace", section: "Integrações", icon: ShoppingBag },
