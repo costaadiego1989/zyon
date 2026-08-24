@@ -448,7 +448,18 @@ export default function ConversationShell({
               setShowBuyerAuth(true);
               return;
             }
-            await redirectToCheckout({ merchantId, cartId: cart.cartId ?? undefined });
+            // Extract globalUserId from stored buyer session
+            let globalUserId: string | undefined;
+            try {
+              const session = JSON.parse(localStorage.getItem("zyon_buyer_session") || "{}");
+              globalUserId = session.globalUserId || session.global_user_id;
+              if (!globalUserId) {
+                // Try decoding JWT payload
+                const payload = JSON.parse(atob(buyerToken.split(".")[1]));
+                globalUserId = payload.sub || payload.globalUserId;
+              }
+            } catch {}
+            await redirectToCheckout({ merchantId, cartId: cart.cartId ?? undefined, globalUserId });
           }}
           onViewCart={() => setCartDrawerForceOpen(true)}
           onUpdateQty={handleUpdateQuantity}
@@ -464,9 +475,18 @@ export default function ConversationShell({
       {showBuyerAuth && (
         <BuyerAuthGate
           merchantId={merchantId}
-          onComplete={async () => {
+          onComplete={async (globalUserId) => {
             setShowBuyerAuth(false);
-            await redirectToCheckout({ merchantId, cartId: cart.cartId ?? undefined });
+            // Track login_completed funnel event
+            if (merchantId && conversationId) {
+              const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
+              fetch(`${API_BASE}/v1/storefront/conversations/${encodeURIComponent(conversationId)}/events`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ merchant_id: merchantId, event: "login_completed", metadata: { timestamp: new Date().toISOString() } }),
+              }).catch(() => {});
+            }
+            await redirectToCheckout({ merchantId, cartId: cart.cartId ?? undefined, globalUserId });
           }}
           onCancel={() => setShowBuyerAuth(false)}
         />
