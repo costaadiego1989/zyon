@@ -105,7 +105,15 @@ export function PixPayment() {
             ⏳ Aguardando pagamento · expira em {formatTime(timeLeft)}
           </span>
         ) : timeLeft === 0 ? (
-          <span className="pix-payment__expired">⚠️ Código expirado. Gere um novo.</span>
+          <>
+            <span className="pix-payment__expired">⚠️ Código expirado.</span>
+            <button
+              className="pix-payment__regenerate-btn"
+              onClick={() => useCheckoutStore.getState().pay('pix')}
+            >
+              Gerar novo Pix
+            </button>
+          </>
         ) : (
           <span className="pix-payment__waiting">Aguardando pagamento...</span>
         )}

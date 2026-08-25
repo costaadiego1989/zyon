@@ -114,6 +114,7 @@ interface CheckoutState {
 }
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+const MAX_POLL_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 
 export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   status: "loading",
@@ -531,8 +532,14 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     const { api, paymentIntent } = get();
     if (!api || !paymentIntent) return;
     set({ paymentPolling: true });
+    const pollStartTime = Date.now();
 
     pollTimer = setInterval(async () => {
+      if (Date.now() - pollStartTime > MAX_POLL_DURATION_MS) {
+        get().stopPolling();
+        set({ status: "error", error: "payment_expired" });
+        return;
+      }
       try {
         const status = await api.getPaymentStatus(paymentIntent.intent_id);
         if (status.status === "paid" || status.status === "confirmed") {

@@ -242,7 +242,7 @@ export class CheckoutSession {
     this.assertSession();
     // API expects: method = "pix" | "card" | "boleto" | "crypto"
     const apiMethod = method === "credito" || method === "debito" ? "card" : method;
-    const idempotencyKey = `pay_${this.sessionId}_${apiMethod}_${Date.now()}`;
+    const idempotencyKey = `pay_${this.sessionId}_${apiMethod}`;
     const res = await fetch(`${this.baseUrl}/embed/payment/intents`, {
       method: "POST",
       headers: this.headers(),
