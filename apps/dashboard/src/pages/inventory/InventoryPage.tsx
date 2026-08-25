@@ -332,25 +332,7 @@ export function InventoryPage(props: InventoryPageProps) {
       {/* Tab: Conectores ERP */}
       {tab === "erp" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          {/* Section 1: Como funciona */}
-          <div style={{
-            padding: "16px 20px",
-            borderRadius: "var(--radius-md)",
-            background: "var(--accent-soft)",
-            border: "1px solid var(--accent-line)",
-            font: "13px var(--font-sans)",
-            color: "var(--color-brand)",
-            lineHeight: 1.65,
-          }}>
-            <strong style={{ color: "var(--color-text)" }}>Como funciona a sincronização:</strong>{" "}
-            Quando uma venda é confirmada, o sistema automaticamente:{" "}
-            <span style={{ fontWeight: 600 }}>①</span> Decrementa o estoque do item vendido{" "}
-            <span style={{ fontWeight: 600 }}>②</span> Envia atualização pro ERP conectado{" "}
-            <span style={{ fontWeight: 600 }}>③</span> Emite webhook <code style={{ font: "12px var(--font-mono)", background: "var(--surface-2)", padding: "1px 4px", borderRadius: 3 }}>inventory.item.decremented</code>{" "}
-            <span style={{ fontWeight: 600 }}>④</span> Sincroniza contato/deal no CRM.{" "}
-            Conecte seu ERP abaixo para manter tudo em sync.
-          </div>
-
+          
           {/* Section 2: Conectar ERP */}
           <div className="panel" style={{ padding: "20px 24px" }}>
             <SectionHeader icon={<Package size={16} />} title="Conectar ERP" subtitle="Integre seu sistema de gestão para sincronização automática de estoque" />
@@ -605,66 +587,6 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-interface CrmProviderCardProps {
-  name: string;
-  description: string;
-  connection?: { id: string; provider: string; status: string; lastSyncAt?: string | null } | null;
-  onConnect?: () => void;
-  onDisconnect?: (id: string) => void;
-}
-
-function CrmProviderCard({ name, description, connection, onConnect, onDisconnect }: CrmProviderCardProps) {
-  const isConnected = connection?.status === "connected";
-  return (
-    <div style={{
-      border: `1px solid ${isConnected ? "var(--color-success)" : "var(--color-border)"}`,
-      borderRadius: "var(--radius-md)",
-      padding: 20,
-      background: "var(--surface-1)",
-      display: "flex",
-      flexDirection: "column",
-      gap: 12,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 32, height: 32, borderRadius: "var(--radius-sm)", background: isConnected ? "var(--color-success-bg)" : "var(--surface-2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <ExternalLink size={16} style={{ color: isConnected ? "var(--color-success)" : "var(--color-text-muted)" }} />
-          </div>
-          <span style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)" }}>{name}</span>
-        </div>
-        <span style={{
-          padding: "2px 8px",
-          borderRadius: "var(--radius-full)",
-          font: "600 10px var(--font-mono)",
-          background: isConnected ? "var(--color-success-bg)" : "var(--surface-2)",
-          color: isConnected ? "var(--color-success)" : "var(--color-text-faint)",
-        }}>
-          {isConnected ? "Conectado" : "Não conectado"}
-        </span>
-      </div>
-      <p style={{ margin: 0, font: "13px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.5 }}>
-        {description}
-      </p>
-      {connection?.lastSyncAt && (
-        <div style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)" }}>
-          Último sync: {new Date(connection.lastSyncAt).toLocaleString("pt-BR")}
-        </div>
-      )}
-      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-        {isConnected ? (
-          <Button size="sm" onClick={() => onDisconnect?.(connection!.id)}>
-            <Unplug size={12} /> Desconectar
-          </Button>
-        ) : (
-          <Button variant="primary" size="sm" onClick={() => onConnect?.()}>
-            <Plug size={12} /> Conectar
-          </Button>
-        )}
-      </div>
     </div>
   );
 }
