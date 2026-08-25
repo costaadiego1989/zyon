@@ -3,6 +3,26 @@
  * ViaCEP is free (no key required).
  * Falls back from street-level to city-level if exact address not found.
  */
+// Nominatim usage policy requires an identifying User-Agent; server-side
+// fetch sends none by default and gets 403. Identify the app + contact.
+const NOMINATIM_HEADERS = {
+  "User-Agent": "ZyonCheckout/1.0 (delivery radius quoting; contact@zyon.app)",
+  "Accept-Language": "pt-BR",
+};
+
+async function nominatimSearch(query: string): Promise<{ lat: number; lng: number } | null> {
+  const resp = await fetch(
+    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&countrycodes=br`,
+    { headers: NOMINATIM_HEADERS }
+  );
+  if (!resp.ok) return null;
+  const data = await resp.json();
+  if (Array.isArray(data) && data.length > 0) {
+    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+  }
+  return null;
+}
+
 export async function geocodeBrazilianCep(cep: string): Promise<{ lat: number; lng: number } | null> {
   try {
     const cleaned = cep.replace(/\D/g, "");
@@ -13,25 +33,17 @@ export async function geocodeBrazilianCep(cep: string): Promise<{ lat: number; l
     const viacepData = await viacepResp.json();
     if (viacepData.erro) return null;
 
-    // Try Nominatim with full address
+    // Try street-level first (most accurate), then city, then raw postcode
     const fullAddr = `${viacepData.logradouro}, ${viacepData.bairro}, ${viacepData.localidade}, ${viacepData.uf}, Brazil`;
-    const nomResp = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddr)}&limit=1`
-    );
-    const nomData = await nomResp.json();
-    if (nomData.length > 0) {
-      return { lat: parseFloat(nomData[0].lat), lng: parseFloat(nomData[0].lon) };
-    }
+    const byStreet = await nominatimSearch(fullAddr);
+    if (byStreet) return byStreet;
 
-    // Fallback: city-level
     const cityAddr = `${viacepData.localidade}, ${viacepData.uf}, Brazil`;
-    const cityResp = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cityAddr)}&limit=1`
-    );
-    const cityData = await cityResp.json();
-    if (cityData.length > 0) {
-      return { lat: parseFloat(cityData[0].lat), lng: parseFloat(cityData[0].lon) };
-    }
+    const byCity = await nominatimSearch(cityAddr);
+    if (byCity) return byCity;
+
+    const byPostcode = await nominatimSearch(`${cleaned}, Brazil`);
+    if (byPostcode) return byPostcode;
 
     return null;
   } catch {
