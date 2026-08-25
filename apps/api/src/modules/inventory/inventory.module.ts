@@ -10,14 +10,22 @@ import { ListAlertsUseCase } from "./application/use-cases/list-alerts.use-case.
 import { AcknowledgeAlertUseCase } from "./application/use-cases/acknowledge-alert.use-case.js";
 import { ListLocationsUseCase } from "./application/use-cases/list-locations.use-case.js";
 import { CreateLocationUseCase } from "./application/use-cases/create-location.use-case.js";
+import { HandleSaleCompletedUseCase } from "./application/use-cases/handle-sale-completed.use-case.js";
 import { INVENTORY_REPOSITORY } from "./domain/ports/inventory-repository.port.js";
 import { INVENTORY_MOVEMENT_REPOSITORY } from "./domain/ports/inventory-movement-repository.port.js";
 import { INVENTORY_ALERT_REPOSITORY } from "./domain/ports/inventory-alert-repository.port.js";
 import { INVENTORY_LOCATION_REPOSITORY } from "./domain/ports/inventory-location-repository.port.js";
+import { CRM_PROVIDER_PORT } from "./domain/ports/crm-provider.port.js";
 import { PrismaInventoryRepository } from "./infrastructure/repositories/prisma-inventory.repository.js";
 import { PrismaInventoryMovementRepository } from "./infrastructure/repositories/prisma-inventory-movement.repository.js";
 import { PrismaInventoryAlertRepository } from "./infrastructure/repositories/prisma-inventory-alert.repository.js";
 import { PrismaInventoryLocationRepository } from "./infrastructure/repositories/prisma-inventory-location.repository.js";
+import { NoopCrmAdapter } from "./infrastructure/adapters/noop-crm.adapter.js";
+import { OnSaleCompletedHandler } from "./infrastructure/event-handlers/on-sale-completed.handler.js";
+import { InventoryOnOrderCompletedHandler } from "./infrastructure/event-handlers/on-order-completed.handler.js";
+import { ErpStockPushService } from "./application/services/erp-stock-push.service.js";
+import { InventoryWebhookEmitterService } from "./application/services/inventory-webhook-emitter.service.js";
+import { CrmSyncService } from "./application/services/crm-sync.service.js";
 import { InventoryDashboardController } from "./presentation/http/inventory-dashboard.controller.js";
 
 @Module({
@@ -43,6 +51,10 @@ import { InventoryDashboardController } from "./presentation/http/inventory-dash
       useFactory: (prisma: PrismaClient) => new PrismaInventoryLocationRepository(prisma),
       inject: [PRISMA_CLIENT],
     },
+    {
+      provide: CRM_PROVIDER_PORT,
+      useClass: NoopCrmAdapter,
+    },
     ListInventoryUseCase,
     RecordMovementUseCase,
     TransferStockUseCase,
@@ -52,12 +64,19 @@ import { InventoryDashboardController } from "./presentation/http/inventory-dash
     AcknowledgeAlertUseCase,
     ListLocationsUseCase,
     CreateLocationUseCase,
+    OnSaleCompletedHandler,
+    ErpStockPushService,
+    InventoryWebhookEmitterService,
+    CrmSyncService,
+    HandleSaleCompletedUseCase,
+    InventoryOnOrderCompletedHandler,
   ],
   exports: [
     INVENTORY_REPOSITORY,
     INVENTORY_MOVEMENT_REPOSITORY,
     INVENTORY_ALERT_REPOSITORY,
     INVENTORY_LOCATION_REPOSITORY,
+    HandleSaleCompletedUseCase,
   ],
 })
 export class InventoryModule {}
