@@ -26,10 +26,11 @@ export interface DeliveryConfig {
 
 export interface Shipment {
   id: string;
-  orderId: string;
+  externalOrderId?: string;
+  orderId?: string;
   carrier: string;
   trackingCode: string | null;
-  status: "created" | "sent" | "in_transit" | "delivered";
+  status: string;
   labelUrl: string | null;
   createdAt: string;
   updatedAt: string;
@@ -102,7 +103,7 @@ export function deliveryEndpoints(base: string, f: typeof fetch) {
       const query = params.toString() ? `?${params.toString()}` : "";
       return dashboardJson<ShipmentsPage>(
         base,
-        `/merchants/me/shipments${query}`,
+        `/merchants/me/delivery/shipments${query}`,
         { method: "GET" },
         f
       );
@@ -111,8 +112,8 @@ export function deliveryEndpoints(base: string, f: typeof fetch) {
     async buyShippingLabel(shipmentId: string): Promise<{ labelUrl: string }> {
       return dashboardJson<{ labelUrl: string }>(
         base,
-        `/merchants/me/shipments/${encodeURIComponent(shipmentId)}/label`,
-        { method: "POST" },
+        `/merchants/me/delivery/shipments/${encodeURIComponent(shipmentId)}/label`,
+        { method: "PUT" },
         f
       );
     },

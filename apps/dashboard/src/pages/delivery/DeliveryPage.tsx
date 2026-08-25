@@ -113,7 +113,7 @@ export function DeliveryPage(props: DeliveryPageProps) {
           <tbody>
             {vm.shipments.map((s) => (
               <tr key={s.id} style={{ borderBottom: "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" }}>
-                <td style={{ padding: "12px 16px", font: "12px var(--font-mono)", color: "var(--color-text-muted)" }}>#{s.orderId.slice(0, 8)}</td>
+                <td style={{ padding: "12px 16px", font: "12px var(--font-mono)", color: "var(--color-text-muted)" }}>#{(s.orderId ?? s.externalOrderId ?? s.id).slice(0, 8)}</td>
                 <td style={{ padding: "12px 16px", font: "13px var(--font-sans)", color: "var(--color-text)" }}>{s.carrier || "—"}</td>
                 <td style={{ padding: "12px 16px", font: "12px var(--font-mono)", color: "var(--color-text-muted)" }}>{s.trackingCode || "—"}</td>
                 <td style={{ padding: "12px 16px" }}>

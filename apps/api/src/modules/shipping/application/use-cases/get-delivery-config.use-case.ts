@@ -30,6 +30,7 @@ export class GetDeliveryConfigUseCase {
         flatPriceCents: null,
         freeAboveCents: null,
         neighborhoods: null,
+        radiusZones: null,
         estimatedValue: 60,
         estimatedUnit: "minutes" as const
       }

@@ -188,7 +188,7 @@ export class DeliveryConfigController {
   })
   @Post("quote-radius")
   @RequireTenantAccess({ serviceScopes: ["orders:read"] })
-  async quoteRadiusDelivery(@Req() request: unknown, @Body() body: QuoteRadiusDeliveryDto) {
+  async quoteRadius(@Req() request: unknown, @Body() body: QuoteRadiusDeliveryDto) {
     return this.quoteRadiusDelivery.execute({
       merchantId: tenantId(request),
       destinationCep: body.destination_cep,
