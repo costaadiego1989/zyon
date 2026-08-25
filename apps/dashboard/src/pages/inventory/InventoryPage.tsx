@@ -190,19 +190,6 @@ export function InventoryPage(props: InventoryPageProps) {
       {/* Tab: Visão Geral */}
       {tab === "overview" && (
         <>
-          <FilterToolbar
-            tabs={[
-              { key: "all", label: "Todos" },
-              { key: "in_stock", label: "Em estoque" },
-              { key: "low_stock", label: "Estoque baixo" },
-              { key: "out_of_stock", label: "Sem estoque" },
-            ]}
-            activeTab={statusFilter}
-            onTabChange={(k) => { setStatusFilter(k as any); setItemPage(1); }}
-            search={searchQuery}
-            onSearchChange={(v) => { setSearchQuery(v); setItemPage(1); }}
-            searchPlaceholder="Buscar por SKU ou nome..."
-          />
           <DataPanel
             title="Produtos em estoque"
             page={itemPage}
@@ -216,7 +203,20 @@ export function InventoryPage(props: InventoryPageProps) {
               description: "Comece a adicionar SKUs ao seu catálogo de estoque.",
             }}
           >
-            {vm.items.length > 0 && (
+            <FilterToolbar
+              tabs={[
+                { key: "all", label: "Todos" },
+                { key: "in_stock", label: "Em estoque" },
+                { key: "low_stock", label: "Estoque baixo" },
+                { key: "out_of_stock", label: "Sem estoque" },
+              ]}
+              activeTab={statusFilter}
+              onTabChange={(k) => { setStatusFilter(k as any); setItemPage(1); }}
+              search={searchQuery}
+              onSearchChange={(v) => { setSearchQuery(v); setItemPage(1); }}
+              searchPlaceholder="Buscar por SKU ou nome..."
+            />
+            {filteredItems.length > 0 && (
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
