@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, UseGuards, Inject, BadRequestException } from "@nestjs/common";
+import { Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, UseGuards, Inject, Optional, BadRequestException } from "@nestjs/common";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { RequirePlan } from "../../../../shared/guards/require-plan.decorator.js";
 import { RequirePlanGuard } from "../../../../shared/guards/require-plan.guard.js";
+import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../../../shared/events/domain-event-bus.port.js";
 import { S3UploadService } from "../../../../shared/storage/s3-upload.service.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
@@ -38,6 +39,7 @@ export class StoreBuilderCatalogController {
     private readonly generateProductSeo: GenerateProductSeoUseCase,
     private readonly s3: S3UploadService,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    @Optional() @Inject(DOMAIN_EVENT_BUS) private readonly eventBus?: DomainEventBus,
   ) {}
 
   @Post(":mid/products")
@@ -195,6 +197,19 @@ export class StoreBuilderCatalogController {
         data: { quantity: body.stockQuantity },
       });
     }
+
+    // Emit product.upserted so inventory module re-syncs the snapshot
+    if (this.eventBus) {
+      const prod = await this.prisma.product.findUnique({ where: { id: _productId }, select: { id: true, name: true } });
+      if (prod) {
+        void this.eventBus.publish({
+          eventType: "product.upserted",
+          merchantId,
+          payload: { id: prod.id, name: prod.name },
+        });
+      }
+    }
+
     return { updated: true };
   }
 
