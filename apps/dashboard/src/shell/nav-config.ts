@@ -12,6 +12,7 @@ import {
   Globe,
   Handshake,
   MessageSquare,
+  Package,
   PackageSearch,
   Palette,
   Plug,
@@ -81,6 +82,7 @@ export type TabKey =
   | "revenue-lift"
   | "revenue-manager"
   | "cart-recovery"
+  | "inventory"
   | "chargebacks";
 
 export const NAV_ITEMS: Array<{
@@ -97,6 +99,7 @@ export const NAV_ITEMS: Array<{
   // ─── Loja (Storefront) ───
   { key: "catalog", label: "Catálogo", section: "Loja", icon: ShoppingBag, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "categories", label: "Categorias", section: "Loja", icon: FolderTree, requiredPlan: ["STORE_ONLY", "BOTH"] },
+  { key: "inventory", label: "Estoque", section: "Loja", icon: Package, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "stories", label: "Stories", section: "Loja", icon: CircleDashed, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "shipments", label: "Pedidos e envios", section: "Loja", icon: PackageSearch, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "returns", label: "Trocas e Devoluções", section: "Loja", icon: PackageSearch, requiredPlan: ["STORE_ONLY", "BOTH"] },

@@ -52,6 +52,11 @@ model Merchant {
   whatsappChannelConfig  WhatsAppChannelConfig?
   marketplaceConfig      MarketplaceConfig?
   cartRecoveryStrategyPref CartRecoveryStrategyPref? @relation("CartRecoveryStrategyPref")
+  inventoryLocations   InventoryLocation[] @relation("InventoryLocations")
+  inventoryItems       InventoryItem[]     @relation("InventoryItems")
+  inventoryMovements   InventoryMovement[] @relation("InventoryMovements")
+  inventoryAlerts      InventoryAlert[]    @relation("InventoryAlerts")
+  erpConnections       ErpConnection[]     @relation("ErpConnections")
 
   @@map("merchants")
 }
@@ -2205,4 +2210,120 @@ model PaymentHold {
   @@index([merchantId, status])
   @@index([status, holdUntil])
   @@map("payment_holds")
+}
+
+// ─── Inventory Management ────────────────────────────────────────────────────
+
+enum InventoryMovementKind {
+  ENTRY
+  EXIT
+  ADJUSTMENT
+  RESERVATION
+  RELEASE
+  TRANSFER_IN
+  TRANSFER_OUT
+}
+
+model InventoryLocation {
+  id         String   @id @default(cuid())
+  merchantId String   @map("merchant_id")
+  name       String
+  kind       String   @default("warehouse")
+  isDefault  Boolean  @default(false) @map("is_default")
+  isActive   Boolean  @default(true)  @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt      @map("updated_at")
+
+  merchant Merchant          @relation("InventoryLocations", fields: [merchantId], references: [id], onDelete: Cascade)
+  items    InventoryItem[]
+
+  @@unique([merchantId, name])
+  @@index([merchantId, isActive])
+  @@map("inventory_locations")
+}
+
+model InventoryItem {
+  id                String   @id @default(cuid())
+  merchantId        String   @map("merchant_id")
+  sku               String
+  productName       String   @map("product_name")
+  variantName       String?  @map("variant_name")
+  locationId        String   @map("location_id")
+  quantity          Int      @default(0)
+  reserved          Int      @default(0)
+  reorderPoint      Int?     @map("reorder_point")
+  lowStockThreshold Int?     @map("low_stock_threshold")
+  avgCostCents      Int?     @map("avg_cost_cents")
+  lastCountedAt     DateTime? @map("last_counted_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt      @map("updated_at")
+
+  merchant   Merchant          @relation("InventoryItems", fields: [merchantId], references: [id], onDelete: Cascade)
+  location   InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  movements  InventoryMovement[]
+  alerts     InventoryAlert[]
+
+  @@unique([merchantId, sku, locationId])
+  @@index([merchantId, locationId])
+  @@index([merchantId, sku])
+  @@map("inventory_items")
+}
+
+model InventoryMovement {
+  id          String                 @id @default(cuid())
+  merchantId  String                 @map("merchant_id")
+  itemId      String                 @map("item_id")
+  kind        InventoryMovementKind
+  quantity    Int
+  reason      String?
+  externalRef String?                @map("external_ref")
+  source      String                 @default("native")
+  actorUserId String?                @map("actor_user_id")
+  createdAt   DateTime               @default(now()) @map("created_at")
+
+  merchant Merchant      @relation("InventoryMovements", fields: [merchantId], references: [id], onDelete: Cascade)
+  item     InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, itemId, createdAt])
+  @@index([merchantId, kind, createdAt])
+  @@map("inventory_movements")
+}
+
+model InventoryAlert {
+  id             String    @id @default(cuid())
+  merchantId     String    @map("merchant_id")
+  itemId         String    @map("item_id")
+  severity       String
+  message        String
+  acknowledged   Boolean   @default(false)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  acknowledgedAt DateTime? @map("acknowledged_at")
+
+  merchant Merchant      @relation("InventoryAlerts", fields: [merchantId], references: [id], onDelete: Cascade)
+  item     InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, acknowledged, createdAt])
+  @@map("inventory_alerts")
+}
+
+model ErpConnection {
+  id                 String   @id @default(cuid())
+  merchantId         String   @map("merchant_id")
+  provider           String
+  status             String   @default("pending")
+  directionMode      String   @default("erp_source_of_truth") @map("direction_mode")
+  accessTokenCipher  String?  @map("access_token_cipher")
+  refreshTokenCipher String?  @map("refresh_token_cipher")
+  tokenExpiresAt     DateTime? @map("token_expires_at")
+  lastSyncAt         DateTime? @map("last_sync_at")
+  lastErrorCode      String?  @map("last_error_code")
+  config             Json?
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt      @map("updated_at")
+
+  merchant Merchant @relation("ErpConnections", fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, provider])
+  @@index([merchantId, status])
+  @@map("erp_connections")
 }

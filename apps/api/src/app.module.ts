@@ -43,6 +43,7 @@ import { CartRecoveryModule } from "./modules/cart-recovery/cart-recovery.module
 import { IntentMemoryModule } from "./modules/intent-memory/intent-memory.module.js";
 import { CouponsModule } from "./modules/coupons/coupons.module.js";
 import { WhatsAppChannelModule } from "./modules/whatsapp-channel/whatsapp-channel.module.js";
+import { InventoryModule } from "./modules/inventory/inventory.module.js";
 // import { PublicApiModule } from "./modules/public-api/public-api.module.js"; // TODO: fix DI (AuthenticateMerchantApiKeyService)
 
 const REDACTED_LOG_PATHS = [
@@ -135,6 +136,7 @@ const REDACTED_LOG_PATHS = [
     IntentMemoryModule,
     CouponsModule,
     WhatsAppChannelModule,
+    InventoryModule,
     // PublicApiModule, // TODO: fix DI (CommerceV1Controller, InstallationsModule)
   ]
 })
