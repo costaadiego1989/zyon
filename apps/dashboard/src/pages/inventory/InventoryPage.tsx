@@ -576,32 +576,49 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
             maxWidth: "400px",
             boxShadow: "0 20px 40px rgba(0,0,0,0.1)",
           }}>
-            <h2 style={{ font: "600 16px var(--font-sans)", marginBottom: 16, color: "var(--color-text)" }}>
+            <h2 style={{ font: "600 16px var(--font-sans)", marginBottom: 6, color: "var(--color-text)" }}>
               Conectar Omie
             </h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
+            <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.5, marginBottom: 12 }}>
+              Cole as chaves do seu aplicativo Omie. Não tem?{" "}
+              <a
+                href="https://developer.omie.com.br/my-apps/"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "var(--color-brand)", textDecoration: "underline" }}
+              >
+                Gerar chaves no portal Omie →
+              </a>
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 16 }}>
+              <label style={{ font: "600 11px var(--font-sans)", color: "var(--color-text-muted)" }}>App Key</label>
               <input
                 type="text"
-                placeholder="App Key"
+                placeholder="Ex: 8070492596166"
                 value={omieAppKey}
                 onChange={(e) => setOmieAppKey(e.target.value)}
                 style={{
                   padding: "8px 12px",
                   border: "1px solid var(--color-border)",
                   borderRadius: "var(--radius-sm)",
-                  font: "13px var(--font-sans)",
+                  font: "13px var(--font-mono)",
+                  background: "var(--surface-0)",
+                  color: "var(--color-text)",
                 }}
               />
+              <label style={{ font: "600 11px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 8 }}>App Secret</label>
               <input
                 type="password"
-                placeholder="App Secret"
+                placeholder="Ex: 1d460e07841d8af88a9b5e43aee13c5f"
                 value={omieAppSecret}
                 onChange={(e) => setOmieAppSecret(e.target.value)}
                 style={{
                   padding: "8px 12px",
                   border: "1px solid var(--color-border)",
                   borderRadius: "var(--radius-sm)",
-                  font: "13px var(--font-sans)",
+                  font: "13px var(--font-mono)",
+                  background: "var(--surface-0)",
+                  color: "var(--color-text)",
                 }}
               />
             </div>

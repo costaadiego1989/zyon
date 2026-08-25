@@ -182,19 +182,26 @@ export class InventoryDashboardController {
     return this.listErpConnections.execute(user.merchantId);
   }
 
-  @Post("erp-connections/:provider/connect/omie")
-  @ApiOperation({ summary: "Connect Omie via API keys" })
-  @ApiOkResponse({ description: "Omie connected" })
-  async connectOmieProvider(
+  @Post("erp-connections/:provider/connect")
+  @ApiOperation({ summary: "Connect an ERP provider (Omie via API keys; Bling/Tiny use OAuth)" })
+  @ApiOkResponse({ description: "ERP connected" })
+  async connectErpProvider(
     @Req() req: any,
-    @Body() body: { appKey: string; appSecret: string },
+    @Param("provider") provider: string,
+    @Body() body: { appKey?: string; appSecret?: string; app_key?: string; app_secret?: string },
   ) {
     const user = currentUser(req);
-    return this.connectOmie.execute({
-      merchantId: user.merchantId,
-      appKey: body.appKey,
-      appSecret: body.appSecret,
-    });
+    if (provider === "omie") {
+      const appKey = body.appKey ?? body.app_key ?? "";
+      const appSecret = body.appSecret ?? body.app_secret ?? "";
+      return this.connectOmie.execute({
+        merchantId: user.merchantId,
+        appKey,
+        appSecret,
+      });
+    }
+    // Bling/Tiny use the OAuth flow via /inventory/erp/oauth/:provider/authorize
+    return { requiresOAuth: true, provider, message: "Use o fluxo OAuth para conectar este provedor" };
   }
 
   @Post("erp-connections/:id/disconnect")
