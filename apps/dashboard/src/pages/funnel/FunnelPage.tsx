@@ -1,7 +1,9 @@
 import React from "react";
-import { Download } from "lucide-react";
+import { Download, AlertTriangle } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { TabBar } from "../../components/TabBar.js";
+import { EmptyState } from "../../components/EmptyState.js";
+import { Button } from "../../components/Button.js";
 import { useFunnelPage } from "./useFunnelPage.js";
 import { FunnelChart } from "./components/FunnelChart.js";
 import { FunnelMetrics } from "./components/FunnelMetrics.js";
@@ -22,6 +24,18 @@ export function FunnelPage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Merchan
 
   return (
     <div className="dashboard-content funnel-page">
+      {/* ── Error State ── */}
+      {vm.error && (
+        <div style={{ padding: "48px 32px" }}>
+          <EmptyState
+            icon={AlertTriangle}
+            title="Erro ao carregar funil"
+            description={vm.error}
+            action={<Button size="sm" onClick={vm.refresh}>Tentar novamente</Button>}
+          />
+        </div>
+      )}
+
       {/* ── Header ── */}
       <header className="fnl-head">
         <div className="fnl-head-left">

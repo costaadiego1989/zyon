@@ -40,6 +40,7 @@ const FILTER_CHIP_ACTIVE: React.CSSProperties = {
 
 export function ExperimentsPage(props: ExperimentsPageProps) {
   const vm = useExperimentsPage({ me: props.me });
+  // TODO: wire to API endpoint for auto-enable persistence (when backend supports it)
   const [autoEnabled, setAutoEnabled] = React.useState(true);
 
   if (!props.me) {
