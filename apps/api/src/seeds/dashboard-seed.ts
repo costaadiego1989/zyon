@@ -137,7 +137,12 @@ function buildCartItems(rand: () => number): Array<{
 // ─── Main Seed Function ─────────────────────────────────────────────────────
 
 export async function seedDashboardData(prisma: PrismaClient, merchantId: string): Promise<void> {
-  const SEED = 42_7331; // deterministic
+  // Derive seed from merchantId so each merchant gets unique IDs
+  let hash = 0;
+  for (let i = 0; i < merchantId.length; i++) {
+    hash = ((hash << 5) - hash + merchantId.charCodeAt(i)) | 0;
+  }
+  const SEED = Math.abs(hash) || 42_7331;
   const rand = mulberry32(SEED);
 
   const DAYS = 60;
