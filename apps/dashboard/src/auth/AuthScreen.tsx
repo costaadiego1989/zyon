@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { KeyRound, UserPlus, Github, Code2, Eye, EyeOff } from "lucide-react";
 import { SignupWizard } from "./SignupWizard.js";
-import { ASMRBackground } from "./ASMRBackground.js";
+import { WavesBackground } from "./WavesBackground.js";
 import { useApi } from "../hooks/useApi.js";
 import { readError } from "../utils/read-error.js";
 import { DashboardHttpError } from "../api-client.js";
@@ -57,9 +57,9 @@ export function AuthScreen(props: AuthScreenProps) {
   const isSignup = mode === "signup";
   return (
     <main className="auth-shell">
-      {/* ASMR particle background — full screen behind everything */}
+      {/* Waves background — full screen behind everything */}
       <div style={{ position: "absolute", inset: 0, zIndex: 0, overflow: "hidden" }}>
-        <ASMRBackground />
+        <WavesBackground strokeColor="rgba(255,255,255,0.10)" backgroundColor="transparent" />
       </div>
 
       {/* Left: Form */}
