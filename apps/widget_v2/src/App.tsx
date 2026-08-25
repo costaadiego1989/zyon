@@ -20,6 +20,14 @@ function readUrlParams() {
   let apiBaseUrl = params.get("apiBaseUrl") || params.get("api_base_url") || DEFAULT_API_BASE;
   let globalUserId = params.get("globalUserId") || params.get("global_user_id") || undefined;
 
+  // SECURITY (W2-016): Enforce HTTPS in production.
+  // Allow http only on localhost (development). On any other domain, enforce https
+  // to prevent tokens being sent over plaintext.
+  const isLocalhost = apiBaseUrl.includes("localhost") || apiBaseUrl.includes("127.0.0.1");
+  if (!isLocalhost && apiBaseUrl.startsWith("http://")) {
+    apiBaseUrl = apiBaseUrl.replace("http://", "https://");
+  }
+
   // If URL has params, persist to sessionStorage for refresh resilience
   if (embedToken && merchantId) {
     try {

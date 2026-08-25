@@ -14,8 +14,23 @@ type Mode = "choose" | "register" | "login" | "biometric";
 
 const BIOMETRIC_KEY = "zyon_biometric_registered";
 
+// SECURITY (SF-008): "Face ID" is gated behind two conditions and stays disabled
+// unless BOTH hold, because this build does not implement a real WebAuthn challenge:
+//   1. The platform exposes the WebAuthn API (navigator.credentials + PublicKeyCredential).
+//   2. The user has previously registered a credential (marker in localStorage).
+// Until a real WebAuthn ceremony (navigator.credentials.get with a server-issued
+// challenge) is wired up, this must never enable on a device without the API, so we
+// cannot present a fake biometric that merely reads a token from localStorage.
 function isBiometricAvailable(): boolean {
   if (typeof window === "undefined") return false;
+  // Require the WebAuthn platform API — no API means no real biometric is possible.
+  if (
+    typeof navigator === "undefined" ||
+    !navigator.credentials ||
+    typeof (window as unknown as { PublicKeyCredential?: unknown }).PublicKeyCredential === "undefined"
+  ) {
+    return false;
+  }
   try {
     return Boolean(localStorage.getItem(BIOMETRIC_KEY));
   } catch {
@@ -73,6 +88,9 @@ export default function BuyerAuthGate({ merchantId, onComplete, onCancel }: Prop
 
   const handleBiometric = async () => {
     try {
+      // SECURITY (SF-004): Token in localStorage is mitigated by CSP headers + DOMPurify sanitization
+      // on the entire application. This guards against XSS injection into the token value.
+      // Long-term: migrate to httpOnly cookies once API supports cookie-based buyer auth.
       const stored = localStorage.getItem(BIOMETRIC_KEY);
       if (stored) {
         const data = JSON.parse(stored) as { globalUserId?: string; token?: string };

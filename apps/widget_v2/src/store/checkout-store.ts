@@ -146,6 +146,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       // Fetch real cart items from storefront cart endpoint (not from embed/start)
       const cartData = await api.fetchCart();
       const items = cartData.items;
+      // W2-006: Server total is authoritative; client-side reduce is a display-only fallback.
+      // Payment intent is computed server-side from the session — see createPaymentIntent() which
+      // sends only session_id, never a client-computed amount.
       const total = cartData.total || items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
       // Buyer data comes pre-resolved from API (via global_user_id in token)
