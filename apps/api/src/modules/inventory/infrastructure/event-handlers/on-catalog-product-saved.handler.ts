@@ -65,6 +65,7 @@ export class OnCatalogProductSavedHandler implements OnModuleInit {
         const stockRow = variant.stock?.[0];
         const newQty = stockRow?.quantity ?? 0;
         const costInCents = variant.price?.costInCents ?? undefined;
+        const salePriceCents = variant.price?.basePriceInCents ?? undefined;
         const variantName = (variant.attributes as Record<string, string>)?.size || (variant.attributes as Record<string, string>)?.color || undefined;
 
         const existing = await this.inventoryRepo.findBySku(merchantId, variant.sku, defaultLoc.id);
@@ -77,6 +78,7 @@ export class OnCatalogProductSavedHandler implements OnModuleInit {
           locationId: defaultLoc.id,
           quantity: newQty,
           avgCostCents: costInCents,
+          salePriceCents,
         });
 
         // Record movement if qty changed

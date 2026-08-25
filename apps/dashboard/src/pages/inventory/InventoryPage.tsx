@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Package, AlertTriangle, DollarSign, Boxes, AlertCircle, RefreshCw, Plug, Unplug, ExternalLink, Plus } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { Package, AlertTriangle, DollarSign, Boxes, AlertCircle, RefreshCw, Plug, Unplug, ExternalLink } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import type { ErpConnectionDTO } from "../../api/endpoints/inventory.js";
 import { TabBar } from "../../components/TabBar.js";
@@ -9,6 +9,7 @@ import { EmptyState } from "../../components/EmptyState.js";
 import { Button } from "../../components/Button.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
 import { SidePanel } from "../../components/SidePanel.js";
+import { FilterToolbar } from "../../components/FilterToolbar.js";
 import { useInventoryPage } from "./useInventoryPage.js";
 
 export interface InventoryPageProps {
@@ -54,6 +55,8 @@ export function InventoryPage(props: InventoryPageProps) {
   const [tab, setTab] = useState<InventoryTab>("overview");
   const [itemPage, setItemPage] = useState(1);
   const [movementPage, setMovementPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<"all" | "in_stock" | "low_stock" | "out_of_stock">("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
   const [productDetail, setProductDetail] = useState<any | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -87,8 +90,24 @@ export function InventoryPage(props: InventoryPageProps) {
   const outOfStockCount = summary.outOfStockCount ?? summary.out_of_stock_count ?? 0;
   const totalInventoryValue = summary.totalValueCents ?? summary.total_inventory_value_cents ?? 0;
 
+  const filteredItems = useMemo(() => {
+    return vm.items.filter((item: any) => {
+      const available = (item.quantity ?? 0) - (item.reserved ?? 0);
+      const threshold = item.lowStockThreshold ?? item.low_stock_threshold ?? 0;
+      const itemStatus = available <= 0 ? "out_of_stock" : (threshold > 0 && available <= threshold ? "low_stock" : "in_stock");
+      if (statusFilter !== "all" && itemStatus !== statusFilter) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const name = (item.productName ?? item.product_name ?? "").toLowerCase();
+        const sku = (item.sku ?? "").toLowerCase();
+        if (!name.includes(q) && !sku.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [vm.items, statusFilter, searchQuery]);
+
   const itemStartIdx = (itemPage - 1) * PAGE_SIZE;
-  const paginatedItems = vm.items.slice(itemStartIdx, itemStartIdx + PAGE_SIZE);
+  const paginatedItems = filteredItems.slice(itemStartIdx, itemStartIdx + PAGE_SIZE);
 
   const movementStartIdx = (movementPage - 1) * PAGE_SIZE;
   const paginatedMovements = vm.movements.slice(movementStartIdx, movementStartIdx + PAGE_SIZE);
@@ -171,13 +190,26 @@ export function InventoryPage(props: InventoryPageProps) {
       {/* Tab: Visão Geral */}
       {tab === "overview" && (
         <>
+          <FilterToolbar
+            tabs={[
+              { key: "all", label: "Todos" },
+              { key: "in_stock", label: "Em estoque" },
+              { key: "low_stock", label: "Estoque baixo" },
+              { key: "out_of_stock", label: "Sem estoque" },
+            ]}
+            activeTab={statusFilter}
+            onTabChange={(k) => { setStatusFilter(k as any); setItemPage(1); }}
+            search={searchQuery}
+            onSearchChange={(v) => { setSearchQuery(v); setItemPage(1); }}
+            searchPlaceholder="Buscar por SKU ou nome..."
+          />
           <DataPanel
             title="Produtos em estoque"
             page={itemPage}
             pageSize={PAGE_SIZE}
-            total={vm.items.length}
+            total={filteredItems.length}
             onPageChange={setItemPage}
-            isEmpty={vm.items.length === 0}
+            isEmpty={filteredItems.length === 0}
             empty={{
               icon: Package,
               title: "Nenhum produto registrado",
@@ -195,19 +227,21 @@ export function InventoryPage(props: InventoryPageProps) {
                       <th style={{ textAlign: "right", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Disponível</th>
                       <th style={{ textAlign: "right", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Reservado</th>
                       <th style={{ textAlign: "center", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Status</th>
-                      <th style={{ textAlign: "right", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Custo médio</th>
+                      <th style={{ textAlign: "right", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Valor</th>
                     </tr>
                   </thead>
                   <tbody>
                     {paginatedItems.map((item, i) => {
-                      const status = getItemStatus(item.available ?? 0, item.reserved ?? 0, item.low_stock_threshold ?? 10);
+                      const available = (item.quantity ?? 0) - (item.reserved ?? 0);
+                      const threshold = item.lowStockThreshold ?? item.low_stock_threshold ?? 0;
+                      const status = getItemStatus(available, 0, threshold);
                       const statusInfo = STOCK_STATUS_COLORS[status] ?? STOCK_STATUS_COLORS.in_stock;
                       return (
                         <tr key={item.id} onClick={() => openItemDetail(item)} style={{ borderBottom: i < paginatedItems.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined, cursor: "pointer", transition: "background 0.1s" }} onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-2)"} onMouseLeave={(e) => e.currentTarget.style.background = ""}>
                           <td style={{ padding: "12px 20px", font: "600 12px var(--font-mono)", color: "var(--color-text)" }}>{item.sku ?? "—"}</td>
                           <td style={{ padding: "12px 20px", font: "500 13px var(--font-sans)", color: "var(--color-text)" }}>{item.productName ?? item.product_name ?? "—"}</td>
                           <td style={{ padding: "12px 20px", font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>{item.locationName ?? item.location_name ?? "—"}</td>
-                          <td style={{ padding: "12px 20px", font: "600 13px var(--font-data)", color: "var(--color-text)", textAlign: "right" }}>{(item.quantity ?? 0) - (item.reserved ?? 0)}</td>
+                          <td style={{ padding: "12px 20px", font: "600 13px var(--font-data)", color: "var(--color-text)", textAlign: "right" }}>{available}</td>
                           <td style={{ padding: "12px 20px", font: "13px var(--font-data)", color: "var(--color-text-muted)", textAlign: "right" }}>{item.reserved ?? 0}</td>
                           <td style={{ padding: "12px 20px", textAlign: "center" }}>
                             <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: statusInfo.bg, color: statusInfo.color }}>
@@ -215,7 +249,7 @@ export function InventoryPage(props: InventoryPageProps) {
                             </span>
                           </td>
                           <td style={{ padding: "12px 20px", font: "12px var(--font-data)", color: "var(--color-text-muted)", textAlign: "right" }}>
-                            {formatCurrency(item.average_cost_cents ?? 0)}
+                            {formatCurrency(item.salePriceCents ?? item.sale_price_cents ?? item.avgCostCents ?? item.avg_cost_cents ?? 0)}
                           </td>
                         </tr>
                       );

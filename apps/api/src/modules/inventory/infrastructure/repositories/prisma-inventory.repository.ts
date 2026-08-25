@@ -43,6 +43,7 @@ export class PrismaInventoryRepository implements InventoryRepositoryPort {
         reorderPoint: item.reorderPoint,
         lowStockThreshold: item.lowStockThreshold,
         avgCostCents: item.avgCostCents,
+        salePriceCents: (item as any).salePriceCents ?? null,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
       }))
@@ -74,6 +75,7 @@ export class PrismaInventoryRepository implements InventoryRepositoryPort {
       reorderPoint: item.reorderPoint,
       lowStockThreshold: item.lowStockThreshold,
       avgCostCents: item.avgCostCents,
+        salePriceCents: (item as any).salePriceCents ?? null,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     };
@@ -98,6 +100,7 @@ export class PrismaInventoryRepository implements InventoryRepositoryPort {
       reorderPoint: item.reorderPoint,
       lowStockThreshold: item.lowStockThreshold,
       avgCostCents: item.avgCostCents,
+        salePriceCents: (item as any).salePriceCents ?? null,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     };
@@ -112,11 +115,12 @@ export class PrismaInventoryRepository implements InventoryRepositoryPort {
       locationId: string;
       quantity: number;
       avgCostCents?: number;
+      salePriceCents?: number;
     },
   ): Promise<InventoryItemRow> {
     const item = await this.prisma.inventoryItem.upsert({
       where: { merchantId_sku_locationId: { merchantId, sku: data.sku, locationId: data.locationId } },
-      update: { quantity: data.quantity, avgCostCents: data.avgCostCents },
+      update: { quantity: data.quantity, productName: data.productName, variantName: data.variantName, avgCostCents: data.avgCostCents, salePriceCents: data.salePriceCents },
       create: {
         merchantId,
         sku: data.sku,
@@ -125,6 +129,7 @@ export class PrismaInventoryRepository implements InventoryRepositoryPort {
         locationId: data.locationId,
         quantity: data.quantity,
         avgCostCents: data.avgCostCents,
+        salePriceCents: data.salePriceCents,
       },
       include: { location: true },
     });
@@ -141,6 +146,7 @@ export class PrismaInventoryRepository implements InventoryRepositoryPort {
       reorderPoint: item.reorderPoint,
       lowStockThreshold: item.lowStockThreshold,
       avgCostCents: item.avgCostCents,
+        salePriceCents: (item as any).salePriceCents ?? null,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     };
@@ -172,6 +178,7 @@ export class PrismaInventoryRepository implements InventoryRepositoryPort {
       reorderPoint: updated.reorderPoint,
       lowStockThreshold: updated.lowStockThreshold,
       avgCostCents: updated.avgCostCents,
+      salePriceCents: (updated as any).salePriceCents ?? null,
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
     };
@@ -203,6 +210,7 @@ export class PrismaInventoryRepository implements InventoryRepositoryPort {
       reorderPoint: updated.reorderPoint,
       lowStockThreshold: updated.lowStockThreshold,
       avgCostCents: updated.avgCostCents,
+      salePriceCents: (updated as any).salePriceCents ?? null,
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
     };
@@ -235,8 +243,8 @@ export class PrismaInventoryRepository implements InventoryRepositoryPort {
     const outOfStockCount = items.filter((item) => item.quantity - item.reserved <= 0).length;
 
     const totalValueCents = items.reduce((sum, item) => {
-      const cost = item.avgCostCents ?? 0;
-      return sum + cost * item.quantity;
+      const price = (item as any).salePriceCents ?? item.avgCostCents ?? 0;
+      return sum + price * item.quantity;
     }, 0);
 
     return {
@@ -271,6 +279,7 @@ export class PrismaInventoryRepository implements InventoryRepositoryPort {
         reorderPoint: item.reorderPoint,
         lowStockThreshold: item.lowStockThreshold,
         avgCostCents: item.avgCostCents,
+        salePriceCents: (item as any).salePriceCents ?? null,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
       }));

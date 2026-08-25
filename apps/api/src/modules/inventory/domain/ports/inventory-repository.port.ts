@@ -13,6 +13,7 @@ export interface InventoryItemRow {
   reorderPoint: number | null;
   lowStockThreshold: number | null;
   avgCostCents: number | null;
+  salePriceCents: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,6 +47,7 @@ export interface InventoryRepositoryPort {
       locationId: string;
       quantity: number;
       avgCostCents?: number;
+      salePriceCents?: number;
     },
   ): Promise<InventoryItemRow>;
   adjustQuantity(merchantId: string, itemId: string, delta: number): Promise<InventoryItemRow>;

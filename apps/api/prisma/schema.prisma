@@ -2257,6 +2257,7 @@ model InventoryItem {
   reorderPoint      Int?      @map("reorder_point")
   lowStockThreshold Int?      @map("low_stock_threshold")
   avgCostCents      Int?      @map("avg_cost_cents")
+  salePriceCents    Int?      @map("sale_price_cents")
   lastCountedAt     DateTime? @map("last_counted_at")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")

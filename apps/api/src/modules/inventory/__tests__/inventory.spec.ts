@@ -70,6 +70,7 @@ class InMemoryInventoryRepository implements InventoryRepositoryPort {
       reorderPoint: null,
       lowStockThreshold: null,
       avgCostCents: data.avgCostCents ?? null,
+      salePriceCents: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
