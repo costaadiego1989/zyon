@@ -55,3 +55,5 @@ apps/widget/cart-*.png
 *.tsbuildinfo
 .audit/
 nul
+.vercel
+.env*
