@@ -68,7 +68,15 @@ export async function dashboardFetch(
       credentials: "include"
     });
 
-  const res = await doFetch();
+  let res: Response;
+  try {
+    res = await doFetch();
+  } catch {
+    // Network error (API down, DNS failure, CORS block) — not a 401.
+    // Surface as status 0 so callers can show "servidor indisponível"
+    // instead of silently rendering an empty page.
+    throw new DashboardHttpError(0, "network_error: API unreachable");
+  }
 
   if (res.status === 401 && !path.includes("/auth/")) {
     const refreshed = await silentRefresh(apiBaseUrl, fetchImpl);
