@@ -304,6 +304,15 @@ export class CreatePaymentIntentUseCase {
       ...(created.buyerFacingPayload ?? {})
     });
 
+    this.logger.log({
+      event: "payment_intent.created",
+      merchantId,
+      sessionId,
+      method,
+      amountCents,
+      intentId: intent.id,
+    });
+
     await this.payments.saveIntentWithOutbox(
       { intent },
       createCheckoutEventEnvelope({

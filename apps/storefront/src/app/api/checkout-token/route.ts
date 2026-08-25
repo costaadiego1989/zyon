@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "service_not_configured" }, { status: 500 });
     }
 
-    const url = `http://127.0.0.1:3009/embed-sessions`;
+    const url = `${API_BASE}/embed-sessions`;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,

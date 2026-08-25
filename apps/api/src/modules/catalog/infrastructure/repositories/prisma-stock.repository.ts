@@ -47,10 +47,18 @@ export class PrismaStockRepository implements StockRepositoryPort {
         },
       });
 
-      await tx.productStock.update({
-        where: { id: stock.id },
+      // Atomic: only reserve if available > 0 (prevents TOCTOU race)
+      const updated = await tx.productStock.updateMany({
+        where: {
+          id: stock.id,
+          quantity: { gte: stock.reserved + input.quantity }
+        },
         data: { reserved: { increment: input.quantity } },
       });
+
+      if (updated.count === 0) {
+        throw new Error("stock_insufficient");
+      }
 
       return reservation;
     });

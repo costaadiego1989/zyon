@@ -57,8 +57,13 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
   /**
    * Main scan loop. Called by job scheduler (every 15 min).
    * Isolated: each session is processed independently; failures are logged, not fatal.
+   * Multi-instance safety: use random jitter (0-30s) to minimize collision probability.
    */
   async scan(): Promise<{ scanned: number; attempted: number; errors: number }> {
+    // Apply random jitter to minimize multi-instance collisions
+    const jitter = Math.random() * 30 * 1000; // 0-30s
+    await new Promise(resolve => setTimeout(resolve, jitter));
+
     const stats = { scanned: 0, attempted: 0, errors: 0 };
 
     try {
