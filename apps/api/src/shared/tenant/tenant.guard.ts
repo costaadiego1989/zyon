@@ -106,6 +106,10 @@ function merchantIdsFrom(value: unknown): unknown[] {
   if (hasOwn(value, "merchant_id")) {
     candidates.push(...flattenValue(value.merchant_id));
   }
+  // R2P-CAT01 (P0): Routes using :mid param (catalog, returns) were unprotected.
+  if (hasOwn(value, "mid")) {
+    candidates.push(...flattenValue(value.mid));
+  }
   return candidates;
 }
 

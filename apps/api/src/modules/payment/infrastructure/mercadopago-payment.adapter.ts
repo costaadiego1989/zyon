@@ -58,7 +58,8 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
       headers: {
         Authorization: `Bearer ${this.accessToken}`,
         accept: "application/json"
-      }
+      },
+      signal: AbortSignal.timeout(15_000)
     });
 
     if (!res.ok) {
@@ -113,7 +114,8 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
         "content-type": "application/json",
         accept: "application/json"
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15_000)
     });
 
     if (!res.ok) {
@@ -159,6 +161,7 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.accessToken}` },
       body: JSON.stringify({ amount: input.amountCents / 100 }),
+      signal: AbortSignal.timeout(15_000)
     });
     if (!res.ok) {
       const err = await res.text().catch(() => "");

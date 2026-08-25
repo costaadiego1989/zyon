@@ -66,7 +66,8 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
       headers: {
         accept: "application/json",
         access_token: this.apiKey
-      }
+      },
+      signal: AbortSignal.timeout(15_000)
     });
     if (!res.ok) {
       const errorText = await res.text().catch(() => "");
@@ -103,7 +104,8 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
         "content-type": "application/json",
         access_token: this.apiKey
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15_000)
     });
 
     if (!res.ok) {
@@ -148,7 +150,8 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
         "content-type": "application/json",
         access_token: this.apiKey
       },
-      body: JSON.stringify(tokenizeBody)
+      body: JSON.stringify(tokenizeBody),
+      signal: AbortSignal.timeout(15_000)
     });
 
     if (!res.ok) {
@@ -188,7 +191,8 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
         "content-type": "application/json",
         access_token: this.apiKey
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15_000)
     });
 
     if (!res.ok) {
@@ -209,7 +213,8 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
         headers: {
           accept: "application/json",
           access_token: this.apiKey
-        }
+        },
+        signal: AbortSignal.timeout(15_000)
       });
       if (qr.ok) {
         const pj = (await qr.json()) as { payload?: string; encodedImage?: string; expirationDate?: string };
@@ -240,6 +245,7 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
       method: "POST",
       headers: { "Content-Type": "application/json", access_token: this.apiKey },
       body: JSON.stringify({ value: input.amountCents / 100, description: input.reason ?? "Customer requested refund" }),
+      signal: AbortSignal.timeout(15_000)
     });
     if (!res.ok) {
       const err = await res.text().catch(() => "");

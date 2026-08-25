@@ -79,10 +79,13 @@ export class TenantCommerceAdapterFactory
     const now = Date.now();
     const cached = this.adapterCache.get(key);
     if (cached && cached.expiresAt > now) {
+      // Promote to MRU: delete + re-insert moves key to end of insertion order
+      this.adapterCache.delete(key);
+      this.adapterCache.set(key, cached);
       return cached.adapter;
     }
     const adapter = await this.resolveFromSource(key);
-    // Evict oldest entries when cache is full.
+    // Evict LRU (first key in Map insertion order) when cache is full.
     if (this.adapterCache.size >= ADAPTER_CACHE_MAX_SIZE) {
       const oldest = this.adapterCache.keys().next().value;
       if (oldest) this.adapterCache.delete(oldest);

@@ -4,6 +4,7 @@ import type { PrismaClient } from "@prisma/client";
 import { createHmac, randomBytes } from "node:crypto";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { encryptCommerceSecret } from "../../../commerce/infrastructure/commerce-secret-cipher.js";
 
 function env(key: string, fallback = ""): string {
   return process.env[key] ?? fallback;
@@ -96,13 +97,15 @@ export class MelhorEnvioOAuthController {
 
     const tokenData = await tokenRes.json();
 
-    // Persist tokens to merchant record
+    // Persist tokens to merchant record — encrypt before storing
     const expiresAt = new Date(Date.now() + (tokenData.expires_in ?? 2592000) * 1000);
+    const encryptedAccessToken = encryptCommerceSecret(tokenData.access_token);
+    const encryptedRefreshToken = encryptCommerceSecret(tokenData.refresh_token);
     await this.prisma.merchant.update({
       where: { id: merchantId },
       data: {
-        melhorEnvioAccessToken: tokenData.access_token,
-        melhorEnvioRefreshToken: tokenData.refresh_token,
+        melhorEnvioAccessToken: encryptedAccessToken,
+        melhorEnvioRefreshToken: encryptedRefreshToken,
         melhorEnvioExpiresAt: expiresAt,
       },
     });
