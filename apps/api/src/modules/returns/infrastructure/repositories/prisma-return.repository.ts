@@ -61,6 +61,16 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
     return rows.map((r) => this.toEntity(r));
   }
 
+  async findByBuyerId(buyerId: string): Promise<ReturnEntity[]> {
+    const rows = await this.prisma.return.findMany({
+      where: { buyerId },
+      include: { items: true, label: true, inspection: true, refund: true },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    });
+    return rows.map((r) => this.toEntity(r));
+  }
+
   async list(input: ListReturnsInput): Promise<ListReturnsResult> {
     const limit = input.limit ?? 20;
     const where: any = { merchantId: input.merchantId };
