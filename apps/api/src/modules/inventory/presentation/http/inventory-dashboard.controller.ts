@@ -18,6 +18,9 @@ import { CreateLocationUseCase } from "../../application/use-cases/create-locati
 import { ListCrmConnectionsUseCase } from "../../application/use-cases/list-crm-connections.use-case.js";
 import { ConnectCrmUseCase } from "../../application/use-cases/connect-crm.use-case.js";
 import { DisconnectCrmUseCase } from "../../application/use-cases/disconnect-crm.use-case.js";
+import { ListErpConnectionsUseCase } from "../../application/use-cases/list-erp-connections.use-case.js";
+import { ConnectOmieUseCase } from "../../application/use-cases/connect-omie.use-case.js";
+import { DisconnectErpUseCase } from "../../application/use-cases/disconnect-erp.use-case.js";
 
 @ApiTags("Dashboard / Inventory")
 @Controller("dashboard/inventory")
@@ -37,6 +40,9 @@ export class InventoryDashboardController {
     private readonly listCrmConnections: ListCrmConnectionsUseCase,
     private readonly connectCrm: ConnectCrmUseCase,
     private readonly disconnectCrm: DisconnectCrmUseCase,
+    private readonly listErpConnections: ListErpConnectionsUseCase,
+    private readonly connectOmie: ConnectOmieUseCase,
+    private readonly disconnectErp: DisconnectErpUseCase,
   ) {}
 
   @Get("summary")
@@ -173,23 +179,21 @@ export class InventoryDashboardController {
   @ApiOkResponse({ description: "ERP connections" })
   async listErpConnectionsAction(@Req() req: any) {
     const user = currentUser(req);
-    return this.listCrmConnections.execute(user.merchantId);
+    return this.listErpConnections.execute(user.merchantId);
   }
 
-  @Post("erp-connections/:provider/connect")
-  @ApiOperation({ summary: "Connect an ERP provider" })
-  @ApiOkResponse({ description: "ERP provider connected" })
-  async connectErpProvider(
+  @Post("erp-connections/:provider/connect/omie")
+  @ApiOperation({ summary: "Connect Omie via API keys" })
+  @ApiOkResponse({ description: "Omie connected" })
+  async connectOmieProvider(
     @Req() req: any,
-    @Param("provider") provider: string,
-    @Body() body: { accessToken?: string; config?: Record<string, unknown> },
+    @Body() body: { appKey: string; appSecret: string },
   ) {
     const user = currentUser(req);
-    return this.connectCrm.execute({
+    return this.connectOmie.execute({
       merchantId: user.merchantId,
-      provider,
-      accessToken: body.accessToken ?? "",
-      config: body.config,
+      appKey: body.appKey,
+      appSecret: body.appSecret,
     });
   }
 
@@ -201,7 +205,7 @@ export class InventoryDashboardController {
     @Param("id") id: string,
   ) {
     const user = currentUser(req);
-    return this.disconnectCrm.execute(user.merchantId, id);
+    return this.disconnectErp.execute(user.merchantId, id);
   }
 
   @Post("erp-connections/:id/sync")

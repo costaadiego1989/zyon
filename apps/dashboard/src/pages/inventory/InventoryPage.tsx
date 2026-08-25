@@ -360,7 +360,7 @@ export function InventoryPage(props: InventoryPageProps) {
                 name="Bling"
                 description="ERP brasileiro líder em PMEs. Produtos, estoque e NF-e."
                 connection={vm.erpConnections.find((c) => c.provider === "bling")}
-                onConnect={() => vm.connectErp("bling")}
+                onConnect={(creds) => vm.connectErp("bling", creds)}
                 onDisconnect={(id) => vm.disconnectErp(id)}
                 onSync={(id) => vm.syncErp(id)}
               />
@@ -369,7 +369,7 @@ export function InventoryPage(props: InventoryPageProps) {
                 name="Tiny"
                 description="ERP by Olist. Gestão de estoque multi-depósito."
                 connection={vm.erpConnections.find((c) => c.provider === "tiny")}
-                onConnect={() => vm.connectErp("tiny")}
+                onConnect={(creds) => vm.connectErp("tiny", creds)}
                 onDisconnect={(id) => vm.disconnectErp(id)}
                 onSync={(id) => vm.syncErp(id)}
               />
@@ -378,7 +378,7 @@ export function InventoryPage(props: InventoryPageProps) {
                 name="Omie"
                 description="ERP em nuvem. Financeiro + estoque integrado."
                 connection={vm.erpConnections.find((c) => c.provider === "omie")}
-                onConnect={() => vm.connectErp("omie")}
+                onConnect={(creds) => vm.connectErp("omie", creds)}
                 onDisconnect={(id) => vm.disconnectErp(id)}
                 onSync={(id) => vm.syncErp(id)}
               />
@@ -451,7 +451,7 @@ interface ErpProviderCardProps {
   name: string;
   description: string;
   connection?: ErpConnectionDTO;
-  onConnect: () => void;
+  onConnect: (credentials?: Record<string, string>) => void | Promise<void>;
   onDisconnect: (id: string) => void;
   onSync: (id: string) => void;
 }
@@ -464,6 +464,30 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
     error: { bg: "var(--color-error-bg)", color: "var(--color-error)", label: "Erro" },
   };
   const statusInfo = statusConfig[status] ?? statusConfig.disconnected;
+  const [showOmieModal, setShowOmieModal] = React.useState(false);
+  const [omieAppKey, setOmieAppKey] = React.useState("");
+  const [omieAppSecret, setOmieAppSecret] = React.useState("");
+  const [omieLoading, setOmieLoading] = React.useState(false);
+
+  const handleOmieConnect = async () => {
+    if (!omieAppKey || !omieAppSecret) {
+      alert("Por favor preencha App Key e App Secret");
+      return;
+    }
+    setOmieLoading(true);
+    try {
+      await onConnect({ appKey: omieAppKey, appSecret: omieAppSecret });
+      setShowOmieModal(false);
+      setOmieAppKey("");
+      setOmieAppSecret("");
+    } finally {
+      setOmieLoading(false);
+    }
+  };
+
+  const handleOAuthConnect = () => {
+    onConnect();
+  };
 
   return (
     <div style={{
@@ -509,9 +533,17 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
       {/* Actions */}
       <div style={{ display: "flex", gap: 8, marginTop: "auto" }}>
         {status === "disconnected" || status === "error" ? (
-          <Button variant="primary" size="sm" onClick={onConnect}>
-            <Plug size={12} style={{ marginRight: 4 }} /> Conectar
-          </Button>
+          <>
+            {provider === "omie" ? (
+              <Button variant="primary" size="sm" onClick={() => setShowOmieModal(true)}>
+                <Plug size={12} style={{ marginRight: 4 }} /> Conectar
+              </Button>
+            ) : (
+              <Button variant="primary" size="sm" onClick={handleOAuthConnect}>
+                <Plug size={12} style={{ marginRight: 4 }} /> Conectar
+              </Button>
+            )}
+          </>
         ) : (
           <>
             <Button variant="outline" size="sm" onClick={() => onSync(connection!.id)}>
@@ -523,6 +555,67 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
           </>
         )}
       </div>
+
+      {/* Omie Modal */}
+      {provider === "omie" && showOmieModal && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.3)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: "var(--surface-1)",
+            border: "1px solid var(--color-border)",
+            borderRadius: "var(--radius-lg)",
+            padding: "24px",
+            width: "100%",
+            maxWidth: "400px",
+            boxShadow: "0 20px 40px rgba(0,0,0,0.1)",
+          }}>
+            <h2 style={{ font: "600 16px var(--font-sans)", marginBottom: 16, color: "var(--color-text)" }}>
+              Conectar Omie
+            </h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
+              <input
+                type="text"
+                placeholder="App Key"
+                value={omieAppKey}
+                onChange={(e) => setOmieAppKey(e.target.value)}
+                style={{
+                  padding: "8px 12px",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "var(--radius-sm)",
+                  font: "13px var(--font-sans)",
+                }}
+              />
+              <input
+                type="password"
+                placeholder="App Secret"
+                value={omieAppSecret}
+                onChange={(e) => setOmieAppSecret(e.target.value)}
+                style={{
+                  padding: "8px 12px",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "var(--radius-sm)",
+                  font: "13px var(--font-sans)",
+                }}
+              />
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Button variant="ghost" size="sm" onClick={() => setShowOmieModal(false)} style={{ flex: 1 }}>
+                Cancelar
+              </Button>
+              <Button variant="primary" size="sm" onClick={handleOmieConnect} disabled={omieLoading} style={{ flex: 1 }}>
+                {omieLoading ? "Validando..." : "Conectar"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

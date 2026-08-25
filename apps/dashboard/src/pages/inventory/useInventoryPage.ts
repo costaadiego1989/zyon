@@ -58,6 +58,16 @@ export function useInventoryPage(options: {
 
   useEffect(() => {
     loadData();
+
+    // Detect OAuth callback from ERP providers
+    const params = new URLSearchParams(window.location.search);
+    const erpConnected = params.get("erp_connected");
+    if (erpConnected) {
+      showToast("success", `${erpConnected} conectado com sucesso`);
+      loadData(); // Reload to fetch updated connections
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   }, [loadData]);
 
   const acknowledgeAlert = useCallback(async (alertId: string) => {
@@ -98,9 +108,19 @@ export function useInventoryPage(options: {
   const connectErp = useCallback(async (provider: string, credentials?: Record<string, string>) => {
     if (!options.me) return;
     try {
-      const conn = await api.connectErp(options.me.id, provider, credentials);
-      setErpConnections((prev) => [...prev.filter((c) => c.provider !== provider), conn]);
-      showToast("success", `${provider} conectado com sucesso`);
+      if (provider === "omie") {
+        // Omie: direct API key connect via POST
+        const conn = await api.connectErp(options.me.id, "omie", credentials);
+        setErpConnections((prev) => [...prev.filter((c) => c.provider !== "omie"), conn]);
+        showToast("success", "Omie conectado com sucesso");
+      } else {
+        // Bling/Tiny: OAuth flow
+        const response = await fetch(`/api/v1/inventory/erp/oauth/${provider}/authorize`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
+        });
+        const { url } = await response.json();
+        window.open(url, "_blank", "width=600,height=700");
+      }
     } catch (err) {
       showToast("error", err instanceof Error ? err.message : `Erro ao conectar ${provider}`);
     }
