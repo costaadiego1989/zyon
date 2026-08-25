@@ -35,6 +35,7 @@ import { revenueManagerEndpoints } from "./endpoints/revenue-manager.js";
 import { cartRecoveryEndpoints } from "./endpoints/cart-recovery.js";
 import { returnsEndpoints } from "./endpoints/returns.js";
 import { inventoryEndpoints } from "./endpoints/inventory.js";
+import { deliveryEndpoints } from "./endpoints/delivery.js";
 
 export * from "./http/index.js";
 export * from "./types.js";
@@ -85,6 +86,7 @@ export function createDashboardApi(options: {
     ...cartRecoveryEndpoints(base, f),
     ...returnsEndpoints(base, f),
     ...inventoryEndpoints(base, f),
+    ...deliveryEndpoints(base, f),
     ...otherEndpoints(base, f),
   };
 }

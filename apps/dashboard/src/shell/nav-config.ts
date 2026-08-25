@@ -42,6 +42,7 @@ export type TabKey =
   | "onboarding"
   | "overview"
   | "integrations"
+  | "integrations-api"
   | "crm-integrations"
   | "shipments"
   | "customers"
@@ -83,7 +84,8 @@ export type TabKey =
   | "revenue-manager"
   | "cart-recovery"
   | "inventory"
-  | "chargebacks";
+  | "chargebacks"
+  | "delivery";
 
 /**
  * Section metadata drives the collapsible sidebar.
@@ -147,6 +149,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "catalog", label: "Produtos", section: "catalog", icon: ShoppingBag, requiredPlan: STORE, keywords: ["produtos", "products", "catálogo", "catalog", "itens"] },
   { key: "categories", label: "Categorias", section: "catalog", icon: FolderTree, requiredPlan: STORE, keywords: ["categorias", "categories", "coleções"] },
   { key: "inventory", label: "Estoque", section: "catalog", icon: Package, requiredPlan: STORE, keywords: ["estoque", "inventory", "inventário", "quantidade"] },
+  { key: "delivery", label: "Frete & Entregas", section: "catalog", icon: PackageSearch, requiredPlan: STORE, keywords: ["frete", "entrega", "delivery", "shipping", "melhor envio", "etiqueta", "rastreio"] },
   { key: "stories", label: "Stories", section: "catalog", icon: CircleDashed, requiredPlan: STORE, keywords: ["stories", "histórias", "destaques"] },
 
   // ─── CANAIS ─── multi-channel + aparência

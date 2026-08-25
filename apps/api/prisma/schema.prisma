@@ -23,6 +23,7 @@ model Merchant {
   melhorEnvioAccessToken  String?      @map("melhor_envio_access_token")
   melhorEnvioRefreshToken String?      @map("melhor_envio_refresh_token")
   melhorEnvioExpiresAt    DateTime?    @map("melhor_envio_expires_at")
+  melhorEnvioEnabled      Boolean      @default(true) @map("melhor_envio_enabled")
   budgetModeEnabled       Boolean      @default(false) @map("budget_mode_enabled")
   budgetEmail             String?      @map("budget_email")
   budgetWhatsapp          String?      @map("budget_whatsapp")
@@ -33,31 +34,32 @@ model Merchant {
   createdAt               DateTime     @default(now()) @map("created_at")
   updatedAt               DateTime     @updatedAt @map("updated_at")
 
-  users                  MerchantUser[]
-  apiKeys                MerchantApiKey[]
-  webhookEndpoints       MerchantWebhookEndpoint[]
-  webhookDeliveries      MerchantWebhookDelivery[]
-  shipments              Shipment[]
-  commerceConnection     MerchantCommerceConnection?
-  commercePendingOrders  CommercePendingOrder[]
-  commercePaidEvents     CommercePaidEvent[]
-  httpIdempotencyRecords HttpIdempotencyRecord[]
-  paymentConnections     MerchantPaymentConnection[]
-  billingSubscription    MerchantBillingSubscription?
-  onboardingState        MerchantOnboardingState?
-  installations          MerchantInstallation[]
-  auditEvents            MerchantAuditEvent[]
-  storyCategories        StoryCategory[]
-  budgetRequests         BudgetRequest[]
-  whatsappChannelConfig  WhatsAppChannelConfig?
-  marketplaceConfig      MarketplaceConfig?
-  cartRecoveryStrategyPref CartRecoveryStrategyPref? @relation("CartRecoveryStrategyPref")
-  inventoryLocations   InventoryLocation[] @relation("InventoryLocations")
-  inventoryItems       InventoryItem[]     @relation("InventoryItems")
-  inventoryMovements   InventoryMovement[] @relation("InventoryMovements")
-  inventoryAlerts      InventoryAlert[]    @relation("InventoryAlerts")
-  erpConnections       ErpConnection[]     @relation("ErpConnections")
-  crmConnections       CrmConnection[]     @relation("CrmConnections")
+  users                    MerchantUser[]
+  apiKeys                  MerchantApiKey[]
+  webhookEndpoints         MerchantWebhookEndpoint[]
+  webhookDeliveries        MerchantWebhookDelivery[]
+  shipments                Shipment[]
+  commerceConnection       MerchantCommerceConnection?
+  commercePendingOrders    CommercePendingOrder[]
+  commercePaidEvents       CommercePaidEvent[]
+  httpIdempotencyRecords   HttpIdempotencyRecord[]
+  paymentConnections       MerchantPaymentConnection[]
+  billingSubscription      MerchantBillingSubscription?
+  onboardingState          MerchantOnboardingState?
+  installations            MerchantInstallation[]
+  auditEvents              MerchantAuditEvent[]
+  storyCategories          StoryCategory[]
+  budgetRequests           BudgetRequest[]
+  whatsappChannelConfig    WhatsAppChannelConfig?
+  marketplaceConfig        MarketplaceConfig?
+  cartRecoveryStrategyPref CartRecoveryStrategyPref?    @relation("CartRecoveryStrategyPref")
+  inventoryLocations       InventoryLocation[]          @relation("InventoryLocations")
+  inventoryItems           InventoryItem[]              @relation("InventoryItems")
+  inventoryMovements       InventoryMovement[]          @relation("InventoryMovements")
+  inventoryAlerts          InventoryAlert[]             @relation("InventoryAlerts")
+  erpConnections           ErpConnection[]              @relation("ErpConnections")
+  crmConnections           CrmConnection[]              @relation("CrmConnections")
+  ownDeliveryConfig        OwnDeliveryConfig?           @relation("OwnDeliveryConfig")
 
   @@map("merchants")
 }
@@ -654,18 +656,18 @@ model NegotiationCostLedgerEntry {
 }
 
 model BuyerAgent {
-  id             String    @id @default(cuid())
-  merchantId     String    @map("merchant_id")
-  globalUserId   String    @map("global_user_id")
-  displayName    String    @map("display_name")
-  status         String    @default("active") // active | suspended
-  m2mSecretHash  String?   @map("m2m_secret_hash")
-  scopes         String[]  @default(["read", "negotiate"])
-  expiresAt      DateTime? @map("expires_at")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  id            String    @id @default(cuid())
+  merchantId    String    @map("merchant_id")
+  globalUserId  String    @map("global_user_id")
+  displayName   String    @map("display_name")
+  status        String    @default("active") // active | suspended
+  m2mSecretHash String?   @map("m2m_secret_hash")
+  scopes        String[]  @default(["read", "negotiate"])
+  expiresAt     DateTime? @map("expires_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  reputation     AgentReputation?
+  reputation AgentReputation?
 
   @@unique([merchantId, globalUserId])
   @@index([merchantId, status])
@@ -1748,18 +1750,18 @@ model PromptVariantResult {
   durationSeconds Int?     @map("duration_seconds")
 
   // Funnel stages
-  conversationStarted  Boolean   @default(true) @map("conversation_started")
-  cartViewed           Boolean   @default(false) @map("cart_viewed")
-  cartItemsAdded       Int       @default(0) @map("cart_items_added")
-  checkoutStarted      Boolean   @default(false) @map("checkout_started")
-  checkoutCompleted    Boolean   @default(false) @map("checkout_completed")
+  conversationStarted Boolean @default(true) @map("conversation_started")
+  cartViewed          Boolean @default(false) @map("cart_viewed")
+  cartItemsAdded      Int     @default(0) @map("cart_items_added")
+  checkoutStarted     Boolean @default(false) @map("checkout_started")
+  checkoutCompleted   Boolean @default(false) @map("checkout_completed")
 
   // Stage timing (seconds from session start)
-  timeToCart           Int?      @map("time_to_cart")
-  timeToCheckout       Int?      @map("time_to_checkout")
-  timeToConversion     Int?      @map("time_to_conversion")
+  timeToCart       Int? @map("time_to_cart")
+  timeToCheckout   Int? @map("time_to_checkout")
+  timeToConversion Int? @map("time_to_conversion")
 
-  createdAt       DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
   variant PromptVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
 
@@ -1770,17 +1772,17 @@ model PromptVariantResult {
 }
 
 model MarketplaceConfig {
-  id                    String   @id @default(cuid())
-  merchantId            String   @unique @map("merchant_id")
-  enabled               Boolean  @default(false)
-  commissionRateBps     Int      @default(1500) @map("commission_rate_bps")
-  returnWindowDays      Int      @default(7) @map("return_window_days")
-  payoutDelayDays       Int      @default(14) @map("payout_delay_days")
-  chargebackWindowDays  Int      @default(30) @map("chargeback_window_days")
-  allowedCategories     String[] @map("allowed_categories")
-  blockedMerchants      String[] @map("blocked_merchants")
-  createdAt             DateTime @default(now()) @map("created_at")
-  updatedAt             DateTime @updatedAt @map("updated_at")
+  id                   String   @id @default(cuid())
+  merchantId           String   @unique @map("merchant_id")
+  enabled              Boolean  @default(false)
+  commissionRateBps    Int      @default(1500) @map("commission_rate_bps")
+  returnWindowDays     Int      @default(7) @map("return_window_days")
+  payoutDelayDays      Int      @default(14) @map("payout_delay_days")
+  chargebackWindowDays Int      @default(30) @map("chargeback_window_days")
+  allowedCategories    String[] @map("allowed_categories")
+  blockedMerchants     String[] @map("blocked_merchants")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
 
   merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 
@@ -1788,11 +1790,11 @@ model MarketplaceConfig {
 }
 
 model MarketplaceConnection {
-  id                String   @id @default(cuid())
-  buyerMerchantId   String   @map("buyer_merchant_id")
-  sellerMerchantId  String   @map("seller_merchant_id")
-  status            String   @default("active")
-  createdAt         DateTime @default(now()) @map("created_at")
+  id               String   @id @default(cuid())
+  buyerMerchantId  String   @map("buyer_merchant_id")
+  sellerMerchantId String   @map("seller_merchant_id")
+  status           String   @default("active")
+  createdAt        DateTime @default(now()) @map("created_at")
 
   @@unique([buyerMerchantId, sellerMerchantId])
   @@index([buyerMerchantId, status])
@@ -1800,19 +1802,19 @@ model MarketplaceConnection {
 }
 
 model FederatedProduct {
-  id                String   @id @default(cuid())
-  sourceMerchantId  String   @map("source_merchant_id")
-  sourceProductId   String   @map("source_product_id")
-  name              String
-  description       String?
-  category          String?
-  priceCents        Int      @map("price_cents")
-  currency          String   @default("BRL")
-  stockAvailable    Boolean  @default(true) @map("stock_available")
-  imageUrl          String?  @map("image_url")
-  searchableText    String   @map("searchable_text")
-  createdAt         DateTime @default(now()) @map("created_at")
-  syncedAt          DateTime @default(now()) @map("synced_at")
+  id               String   @id @default(cuid())
+  sourceMerchantId String   @map("source_merchant_id")
+  sourceProductId  String   @map("source_product_id")
+  name             String
+  description      String?
+  category         String?
+  priceCents       Int      @map("price_cents")
+  currency         String   @default("BRL")
+  stockAvailable   Boolean  @default(true) @map("stock_available")
+  imageUrl         String?  @map("image_url")
+  searchableText   String   @map("searchable_text")
+  createdAt        DateTime @default(now()) @map("created_at")
+  syncedAt         DateTime @default(now()) @map("synced_at")
 
   @@unique([sourceMerchantId, sourceProductId])
   @@index([category])
@@ -1821,21 +1823,21 @@ model FederatedProduct {
 }
 
 model CrossStoreLineItem {
-  id                  String   @id @default(cuid())
-  checkoutSessionId   String   @map("checkout_session_id")
-  orderId             String?  @map("order_id")
-  hostMerchantId      String   @map("host_merchant_id")
-  sellerMerchantId    String   @map("seller_merchant_id")
-  federatedProductId  String   @map("federated_product_id")
-  quantity            Int
-  unitPriceCents      Int      @map("unit_price_cents")
-  commissionRateBps   Int      @map("commission_rate_bps")
-  commissionCents     Int      @map("commission_cents")
-  sellerNetCents      Int      @map("seller_net_cents")
-  fulfillmentStatus   String   @default("pending") @map("fulfillment_status")
-  fulfillmentReference String? @map("fulfillment_reference")
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
+  id                   String   @id @default(cuid())
+  checkoutSessionId    String   @map("checkout_session_id")
+  orderId              String?  @map("order_id")
+  hostMerchantId       String   @map("host_merchant_id")
+  sellerMerchantId     String   @map("seller_merchant_id")
+  federatedProductId   String   @map("federated_product_id")
+  quantity             Int
+  unitPriceCents       Int      @map("unit_price_cents")
+  commissionRateBps    Int      @map("commission_rate_bps")
+  commissionCents      Int      @map("commission_cents")
+  sellerNetCents       Int      @map("seller_net_cents")
+  fulfillmentStatus    String   @default("pending") @map("fulfillment_status")
+  fulfillmentReference String?  @map("fulfillment_reference")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
 
   @@index([hostMerchantId])
   @@index([sellerMerchantId])
@@ -1844,25 +1846,25 @@ model CrossStoreLineItem {
 }
 
 model MarketplaceSettlement {
-  id                    String   @id @default(cuid())
-  hostMerchantId        String   @map("host_merchant_id")
-  sellerMerchantId      String   @map("seller_merchant_id")
-  orderId               String   @map("order_id")
-  lineItemId            String   @map("line_item_id")
-  totalAmountCents      Int      @map("total_amount_cents")
-  commissionCents       Int      @map("commission_cents")
-  sellerNetCents        Int      @map("seller_net_cents")
-  status                String   @default("awaiting_return_window")
-  returnWindowUntil     DateTime @map("return_window_until")
+  id                    String    @id @default(cuid())
+  hostMerchantId        String    @map("host_merchant_id")
+  sellerMerchantId      String    @map("seller_merchant_id")
+  orderId               String    @map("order_id")
+  lineItemId            String    @map("line_item_id")
+  totalAmountCents      Int       @map("total_amount_cents")
+  commissionCents       Int       @map("commission_cents")
+  sellerNetCents        Int       @map("seller_net_cents")
+  status                String    @default("awaiting_return_window")
+  returnWindowUntil     DateTime  @map("return_window_until")
   transferScheduledAt   DateTime? @map("transfer_scheduled_at")
-  chargebackWindowUntil DateTime @map("chargeback_window_until")
+  chargebackWindowUntil DateTime  @map("chargeback_window_until")
   transferredAt         DateTime? @map("transferred_at")
   finalizedAt           DateTime? @map("finalized_at")
   chargebackAt          DateTime? @map("chargeback_at")
   returnAt              DateTime? @map("return_at")
-  providerTransferId    String?  @map("provider_transfer_id")
-  createdAt             DateTime @default(now()) @map("created_at")
-  updatedAt             DateTime @updatedAt @map("updated_at")
+  providerTransferId    String?   @map("provider_transfer_id")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
 
   @@index([hostMerchantId])
   @@index([sellerMerchantId])
@@ -1872,14 +1874,14 @@ model MarketplaceSettlement {
 }
 
 model MarketplaceSellerDebt {
-  id                        String   @id @default(cuid())
-  sellerMerchantId          String   @map("seller_merchant_id")
-  settlementId              String   @map("settlement_id")
-  amountCents               Int      @map("amount_cents")
-  status                    String   @default("outstanding")
-  deductedFromSettlementId  String?  @map("deducted_from_settlement_id")
-  createdAt                 DateTime @default(now()) @map("created_at")
-  resolvedAt                DateTime? @map("resolved_at")
+  id                       String    @id @default(cuid())
+  sellerMerchantId         String    @map("seller_merchant_id")
+  settlementId             String    @map("settlement_id")
+  amountCents              Int       @map("amount_cents")
+  status                   String    @default("outstanding")
+  deductedFromSettlementId String?   @map("deducted_from_settlement_id")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  resolvedAt               DateTime? @map("resolved_at")
 
   @@index([sellerMerchantId])
   @@index([status])
@@ -1891,24 +1893,24 @@ model MarketplaceSellerDebt {
 // ============================================================================
 
 model RevenueManagerObservation {
-  id                        String   @id @default(cuid())
-  merchantId                String   @map("merchant_id")
-  observationWindowStart    DateTime @map("observation_window_start")
-  observationWindowEnd      DateTime @map("observation_window_end")
+  id                     String   @id @default(cuid())
+  merchantId             String   @map("merchant_id")
+  observationWindowStart DateTime @map("observation_window_start")
+  observationWindowEnd   DateTime @map("observation_window_end")
 
-  funnelJson                Json     @map("funnel_json")
-  abandonmentJson           Json     @map("abandonment_json")
-  objectionsJson            Json     @map("objections_json")
-  crossSellJson             Json     @map("cross_sell_json")
-  currentExperimentJson     Json?    @map("current_experiment_json")
-  cohortsJson               Json     @map("cohorts_json")
-  revenueJson               Json     @map("revenue_json")
-  aiCostsCents              Int      @map("ai_costs_cents")
+  funnelJson            Json  @map("funnel_json")
+  abandonmentJson       Json  @map("abandonment_json")
+  objectionsJson        Json  @map("objections_json")
+  crossSellJson         Json  @map("cross_sell_json")
+  currentExperimentJson Json? @map("current_experiment_json")
+  cohortsJson           Json  @map("cohorts_json")
+  revenueJson           Json  @map("revenue_json")
+  aiCostsCents          Int   @map("ai_costs_cents")
 
-  fingerprint               String   @unique
-  createdAt                 DateTime @default(now()) @map("created_at")
+  fingerprint String   @unique
+  createdAt   DateTime @default(now()) @map("created_at")
 
-  hypotheses                RevenueManagerHypothesis[]
+  hypotheses RevenueManagerHypothesis[]
 
   @@index([merchantId, createdAt])
   @@index([merchantId, observationWindowStart])
@@ -1916,32 +1918,32 @@ model RevenueManagerObservation {
 }
 
 model RevenueManagerHypothesis {
-  id                        String   @id @default(cuid())
-  merchantId                String   @map("merchant_id")
-  observationId             String   @map("observation_id")
+  id            String @id @default(cuid())
+  merchantId    String @map("merchant_id")
+  observationId String @map("observation_id")
 
-  hypothesisText            String   @map("hypothesis_text") @db.Text
-  reasoning                 String   @db.Text
-  expectedLiftPercent       Decimal  @map("expected_lift_percent") @db.Decimal(10, 2)
-  riskLevel                 String   @map("risk_level")
+  hypothesisText      String  @map("hypothesis_text") @db.Text
+  reasoning           String  @db.Text
+  expectedLiftPercent Decimal @map("expected_lift_percent") @db.Decimal(10, 2)
+  riskLevel           String  @map("risk_level")
 
-  templateJson              Json     @map("template_json")
+  templateJson Json @map("template_json")
 
-  status                    String   @default("pending_review")
-  approvalStrategy          String   @map("approval_strategy")
-  merchantApprovedAt        DateTime? @map("merchant_approved_at")
-  merchantApprovedBy        String?  @map("merchant_approved_by")
-  merchantApprovalReason    String?  @map("merchant_approval_reason")
-  rejectionReason           String?  @map("rejection_reason")
+  status                 String    @default("pending_review")
+  approvalStrategy       String    @map("approval_strategy")
+  merchantApprovedAt     DateTime? @map("merchant_approved_at")
+  merchantApprovedBy     String?   @map("merchant_approved_by")
+  merchantApprovalReason String?   @map("merchant_approval_reason")
+  rejectionReason        String?   @map("rejection_reason")
 
-  createdExperimentId       String?  @map("created_experiment_id")
-  experimentCreationError   String?  @map("experiment_creation_error")
+  createdExperimentId     String? @map("created_experiment_id")
+  experimentCreationError String? @map("experiment_creation_error")
 
-  createdAt                 DateTime @default(now()) @map("created_at")
-  updatedAt                 DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  observation               RevenueManagerObservation @relation(fields: [observationId], references: [id], onDelete: Cascade)
-  lessons                   RevenueManagerStrategyLesson[]
+  observation RevenueManagerObservation      @relation(fields: [observationId], references: [id], onDelete: Cascade)
+  lessons     RevenueManagerStrategyLesson[]
 
   @@index([merchantId, status])
   @@index([merchantId, createdAt])
@@ -1949,27 +1951,27 @@ model RevenueManagerHypothesis {
 }
 
 model RevenueManagerStrategyLesson {
-  id                        String   @id @default(cuid())
-  merchantId                String   @map("merchant_id")
-  experimentId              String   @map("experiment_id")
-  hypothesisId              String   @map("hypothesis_id")
+  id           String @id @default(cuid())
+  merchantId   String @map("merchant_id")
+  experimentId String @map("experiment_id")
+  hypothesisId String @map("hypothesis_id")
 
-  hypothesisText            String   @map("hypothesis_text") @db.Text
-  actualWinner              String   @map("actual_winner")
-  hypothesisWasCorrect      Boolean  @map("hypothesis_was_correct")
+  hypothesisText       String  @map("hypothesis_text") @db.Text
+  actualWinner         String  @map("actual_winner")
+  hypothesisWasCorrect Boolean @map("hypothesis_was_correct")
 
-  controlConversionRate     Decimal  @map("control_conversion_rate") @db.Decimal(10, 4)
-  challengerConversionRate  Decimal  @map("challenger_conversion_rate") @db.Decimal(10, 4)
-  conversionLiftPercent     Decimal  @map("conversion_lift_percent") @db.Decimal(10, 2)
-  sessionsPerVariant        Int      @map("sessions_per_variant")
-  statisticalConfidence     Decimal  @map("statistical_confidence") @db.Decimal(10, 4)
+  controlConversionRate    Decimal @map("control_conversion_rate") @db.Decimal(10, 4)
+  challengerConversionRate Decimal @map("challenger_conversion_rate") @db.Decimal(10, 4)
+  conversionLiftPercent    Decimal @map("conversion_lift_percent") @db.Decimal(10, 2)
+  sessionsPerVariant       Int     @map("sessions_per_variant")
+  statisticalConfidence    Decimal @map("statistical_confidence") @db.Decimal(10, 4)
 
-  insightsJson              Json     @map("insights_json")
-  generatorFeedback         String   @map("generator_feedback") @db.Text
+  insightsJson      Json   @map("insights_json")
+  generatorFeedback String @map("generator_feedback") @db.Text
 
-  recordedAt                DateTime @default(now()) @map("recorded_at")
+  recordedAt DateTime @default(now()) @map("recorded_at")
 
-  hypothesis                RevenueManagerHypothesis @relation(fields: [hypothesisId], references: [id], onDelete: Cascade)
+  hypothesis RevenueManagerHypothesis @relation(fields: [hypothesisId], references: [id], onDelete: Cascade)
 
   @@index([merchantId, recordedAt])
   @@index([experimentId])
@@ -1977,16 +1979,16 @@ model RevenueManagerStrategyLesson {
 }
 
 model ProtocolSession {
-  id                        String   @id
-  merchantId                String   @map("merchant_id")
-  agentId                   String   @map("agent_id")
-  currentState              String   @map("current_state")
-  stateHistory              Json     @map("state_history")
-  sessionData               Json     @map("session_data")
-  tokenHash                 String   @map("token_hash")
-  expiresAt                 DateTime @map("expires_at")
-  createdAt                 DateTime @default(now()) @map("created_at")
-  updatedAt                 DateTime @updatedAt @map("updated_at")
+  id           String   @id
+  merchantId   String   @map("merchant_id")
+  agentId      String   @map("agent_id")
+  currentState String   @map("current_state")
+  stateHistory Json     @map("state_history")
+  sessionData  Json     @map("session_data")
+  tokenHash    String   @map("token_hash")
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@index([merchantId, expiresAt])
   @@index([merchantId, currentState])
@@ -1994,19 +1996,19 @@ model ProtocolSession {
 }
 
 model RecoveryAttempt {
-  id                  String   @id @default(cuid())
-  merchantId          String   @map("merchant_id")
-  sessionId           String   @map("session_id")
-  globalUserId        String   @map("global_user_id")
-  abandonmentReason   String   @map("abandonment_reason")
-  abandonmentScore    Float    @map("abandonment_score")
-  strategyJson        Json     @map("strategy_json")
-  channel             String   @default("in_session")
-  sentAt              DateTime? @map("sent_at")
-  status              String   @default("pending")
-  recoveredAt         DateTime? @map("recovered_at")
-  recoveredOrderId    String?  @map("recovered_order_id")
-  createdAt           DateTime @default(now()) @map("created_at")
+  id                String    @id @default(cuid())
+  merchantId        String    @map("merchant_id")
+  sessionId         String    @map("session_id")
+  globalUserId      String    @map("global_user_id")
+  abandonmentReason String    @map("abandonment_reason")
+  abandonmentScore  Float     @map("abandonment_score")
+  strategyJson      Json      @map("strategy_json")
+  channel           String    @default("in_session")
+  sentAt            DateTime? @map("sent_at")
+  status            String    @default("pending")
+  recoveredAt       DateTime? @map("recovered_at")
+  recoveredOrderId  String?   @map("recovered_order_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
 
   @@index([merchantId, status])
   @@index([merchantId, createdAt])
@@ -2015,28 +2017,28 @@ model RecoveryAttempt {
 }
 
 model BuyerIntentMemoryConsent {
-  merchantId    String   @map("merchant_id")
-  globalUserId  String   @map("global_user_id")
-  optedIn       Boolean  @map("opted_in")
-  expiresAt     DateTime @map("expires_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  merchantId   String   @map("merchant_id")
+  globalUserId String   @map("global_user_id")
+  optedIn      Boolean  @map("opted_in")
+  expiresAt    DateTime @map("expires_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@id([merchantId, globalUserId])
   @@map("buyer_intent_memory_consents")
 }
 
 model CustomerIntentRecord {
-  id                        String   @id @default(cuid())
-  merchantId                String   @map("merchant_id")
-  globalUserId              String   @map("global_user_id")
-  primaryIntent             String   @map("primary_intent")
-  urgency                   String
-  budgetTier                String   @map("budget_tier")
-  categoryFocus             String[] @map("category_focus")
-  painPoints                String[] @map("pain_points")
-  conversionLikelihoodPct   Int      @map("conversion_likelihood_pct")
-  behavioralSignalsJson     Json     @map("behavioral_signals_json")
-  generatedAt               DateTime @map("generated_at")
+  id                      String   @id @default(cuid())
+  merchantId              String   @map("merchant_id")
+  globalUserId            String   @map("global_user_id")
+  primaryIntent           String   @map("primary_intent")
+  urgency                 String
+  budgetTier              String   @map("budget_tier")
+  categoryFocus           String[] @map("category_focus")
+  painPoints              String[] @map("pain_points")
+  conversionLikelihoodPct Int      @map("conversion_likelihood_pct")
+  behavioralSignalsJson   Json     @map("behavioral_signals_json")
+  generatedAt             DateTime @map("generated_at")
 
   @@index([merchantId, globalUserId])
   @@index([merchantId, generatedAt])
@@ -2044,10 +2046,10 @@ model CustomerIntentRecord {
 }
 
 model HoldoutGroupAssignment {
-  globalUserId    String   @map("global_user_id")
-  merchantId      String   @map("merchant_id")
-  cohort          String
-  assignedAt      DateTime @default(now()) @map("assigned_at")
+  globalUserId String   @map("global_user_id")
+  merchantId   String   @map("merchant_id")
+  cohort       String
+  assignedAt   DateTime @default(now()) @map("assigned_at")
 
   @@id([globalUserId, merchantId])
   @@index([merchantId, cohort])
@@ -2055,23 +2057,23 @@ model HoldoutGroupAssignment {
 }
 
 model AttributionTag {
-  id                              String   @id @default(cuid())
-  merchantId                      String   @map("merchant_id")
-  orderId                         String   @map("order_id")
-  sessionId                       String   @map("session_id")
-  globalUserId                    String   @map("global_user_id")
-  cohort                          String
-  negotiationApplied              Boolean  @default(false) @map("negotiation_applied")
-  crossSellApplied                Boolean  @default(false) @map("cross_sell_applied")
-  progressiveDiscountApplied      Boolean  @default(false) @map("progressive_discount_applied")
-  cartRecoveryApplied             Boolean  @default(false) @map("cart_recovery_applied")
-  intentPersonalizationApplied    Boolean  @default(false) @map("intent_personalization_applied")
-  experimentVariantId             String?  @map("experiment_variant_id")
-  orderValueCents                 Int      @map("order_value_cents")
-  discountGivenCents              Int      @default(0) @map("discount_given_cents")
-  shippingSubsidyCents            Int      @default(0) @map("shipping_subsidy_cents")
-  aiCostCents                     Int      @default(0) @map("ai_cost_cents")
-  createdAt                       DateTime @default(now()) @map("created_at")
+  id                           String   @id @default(cuid())
+  merchantId                   String   @map("merchant_id")
+  orderId                      String   @map("order_id")
+  sessionId                    String   @map("session_id")
+  globalUserId                 String   @map("global_user_id")
+  cohort                       String
+  negotiationApplied           Boolean  @default(false) @map("negotiation_applied")
+  crossSellApplied             Boolean  @default(false) @map("cross_sell_applied")
+  progressiveDiscountApplied   Boolean  @default(false) @map("progressive_discount_applied")
+  cartRecoveryApplied          Boolean  @default(false) @map("cart_recovery_applied")
+  intentPersonalizationApplied Boolean  @default(false) @map("intent_personalization_applied")
+  experimentVariantId          String?  @map("experiment_variant_id")
+  orderValueCents              Int      @map("order_value_cents")
+  discountGivenCents           Int      @default(0) @map("discount_given_cents")
+  shippingSubsidyCents         Int      @default(0) @map("shipping_subsidy_cents")
+  aiCostCents                  Int      @default(0) @map("ai_cost_cents")
+  createdAt                    DateTime @default(now()) @map("created_at")
 
   @@unique([merchantId, orderId])
   @@index([merchantId, cohort, createdAt])
@@ -2079,16 +2081,16 @@ model AttributionTag {
 }
 
 model RevenueLiftSnapshot {
-  id              String   @id @default(cuid())
-  merchantId      String   @map("merchant_id")
-  periodFrom      DateTime @map("period_from")
-  periodTo        DateTime @map("period_to")
-  holdoutJson     Json     @map("holdout_json")
-  treatmentJson   Json     @map("treatment_json")
-  liftJson        Json     @map("lift_json")
-  breakoutJson    Json     @map("breakout_json")
-  confidenceJson  Json     @map("confidence_json")
-  calculatedAt    DateTime @default(now()) @map("calculated_at")
+  id             String   @id @default(cuid())
+  merchantId     String   @map("merchant_id")
+  periodFrom     DateTime @map("period_from")
+  periodTo       DateTime @map("period_to")
+  holdoutJson    Json     @map("holdout_json")
+  treatmentJson  Json     @map("treatment_json")
+  liftJson       Json     @map("lift_json")
+  breakoutJson   Json     @map("breakout_json")
+  confidenceJson Json     @map("confidence_json")
+  calculatedAt   DateTime @default(now()) @map("calculated_at")
 
   @@index([merchantId, calculatedAt])
   @@map("revenue_lift_snapshots")
@@ -2129,15 +2131,15 @@ model CartRecoveryStrategyPref {
 // ─── Cross-Sell Context: Global Buyer Profile ─────────────────────────────────
 
 model BuyerGlobalProfile {
-  globalUserId        String   @id @map("global_user_id")
-  topCategories       String[] @map("top_categories")
-  recentSkus          String[] @map("recent_skus")
-  preferredBrands     String[] @map("preferred_brands")
-  avgOrderValueCents  Int      @map("avg_order_value_cents")
-  totalOrders         Int      @map("total_orders")
-  discountSensitivity String   @map("discount_sensitivity")
+  globalUserId        String    @id @map("global_user_id")
+  topCategories       String[]  @map("top_categories")
+  recentSkus          String[]  @map("recent_skus")
+  preferredBrands     String[]  @map("preferred_brands")
+  avgOrderValueCents  Int       @map("avg_order_value_cents")
+  totalOrders         Int       @map("total_orders")
+  discountSensitivity String    @map("discount_sensitivity")
   lastPurchaseAt      DateTime? @map("last_purchase_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
   @@map("buyer_global_profiles")
 }
@@ -2145,28 +2147,28 @@ model BuyerGlobalProfile {
 // ─── WhatsApp Commerce Channel ─────────────────────────────────────────────
 
 model WhatsAppChannelConfig {
-  id              String   @id @default(uuid())
-  merchantId      String   @unique @map("merchant_id")
-  enabled         Boolean  @default(false)
-  provider        String   @default("BUBBLEWHATS") @map("provider") // TWILIO | BUBBLEWHATS | META_CLOUD
+  id         String  @id @default(uuid())
+  merchantId String  @unique @map("merchant_id")
+  enabled    Boolean @default(false)
+  provider   String  @default("BUBBLEWHATS") @map("provider") // TWILIO | BUBBLEWHATS | META_CLOUD
 
   // Provider credentials (encrypted JSON)
-  credentials     Json     @default("{}") @map("credentials")
+  credentials Json @default("{}") @map("credentials")
 
   // WhatsApp number (E.164 format, used for webhook routing)
-  whatsappNumber  String?  @map("whatsapp_number")
+  whatsappNumber String? @map("whatsapp_number")
 
   // Connection status
-  status          String   @default("DISCONNECTED") @map("status") // DISCONNECTED | PENDING_VERIFICATION | ACTIVE | INACTIVE
+  status String @default("DISCONNECTED") @map("status") // DISCONNECTED | PENDING_VERIFICATION | ACTIVE | INACTIVE
 
   // Legacy BubbleWhats fields (kept for backward compat)
-  deviceId        String?  @map("device_id")
-  phoneNumber     String?  @map("phone_number")
-  webhookSecret   String?  @map("webhook_secret")
+  deviceId      String? @map("device_id")
+  phoneNumber   String? @map("phone_number")
+  webhookSecret String? @map("webhook_secret")
 
-  connectedAt     DateTime? @map("connected_at")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  connectedAt DateTime? @map("connected_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 
@@ -2231,11 +2233,11 @@ model InventoryLocation {
   name       String
   kind       String   @default("warehouse")
   isDefault  Boolean  @default(false) @map("is_default")
-  isActive   Boolean  @default(true)  @map("is_active")
+  isActive   Boolean  @default(true) @map("is_active")
   createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt      @map("updated_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
-  merchant Merchant          @relation("InventoryLocations", fields: [merchantId], references: [id], onDelete: Cascade)
+  merchant Merchant        @relation("InventoryLocations", fields: [merchantId], references: [id], onDelete: Cascade)
   items    InventoryItem[]
 
   @@unique([merchantId, name])
@@ -2244,25 +2246,25 @@ model InventoryLocation {
 }
 
 model InventoryItem {
-  id                String   @id @default(cuid())
-  merchantId        String   @map("merchant_id")
+  id                String    @id @default(cuid())
+  merchantId        String    @map("merchant_id")
   sku               String
-  productName       String   @map("product_name")
-  variantName       String?  @map("variant_name")
-  locationId        String   @map("location_id")
-  quantity          Int      @default(0)
-  reserved          Int      @default(0)
-  reorderPoint      Int?     @map("reorder_point")
-  lowStockThreshold Int?     @map("low_stock_threshold")
-  avgCostCents      Int?     @map("avg_cost_cents")
+  productName       String    @map("product_name")
+  variantName       String?   @map("variant_name")
+  locationId        String    @map("location_id")
+  quantity          Int       @default(0)
+  reserved          Int       @default(0)
+  reorderPoint      Int?      @map("reorder_point")
+  lowStockThreshold Int?      @map("low_stock_threshold")
+  avgCostCents      Int?      @map("avg_cost_cents")
   lastCountedAt     DateTime? @map("last_counted_at")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt      @map("updated_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
-  merchant   Merchant          @relation("InventoryItems", fields: [merchantId], references: [id], onDelete: Cascade)
-  location   InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  movements  InventoryMovement[]
-  alerts     InventoryAlert[]
+  merchant  Merchant            @relation("InventoryItems", fields: [merchantId], references: [id], onDelete: Cascade)
+  location  InventoryLocation   @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  movements InventoryMovement[]
+  alerts    InventoryAlert[]
 
   @@unique([merchantId, sku, locationId])
   @@index([merchantId, locationId])
@@ -2271,16 +2273,16 @@ model InventoryItem {
 }
 
 model InventoryMovement {
-  id          String                 @id @default(cuid())
-  merchantId  String                 @map("merchant_id")
-  itemId      String                 @map("item_id")
+  id          String                @id @default(cuid())
+  merchantId  String                @map("merchant_id")
+  itemId      String                @map("item_id")
   kind        InventoryMovementKind
   quantity    Int
   reason      String?
-  externalRef String?                @map("external_ref")
-  source      String                 @default("native")
-  actorUserId String?                @map("actor_user_id")
-  createdAt   DateTime               @default(now()) @map("created_at")
+  externalRef String?               @map("external_ref")
+  source      String                @default("native")
+  actorUserId String?               @map("actor_user_id")
+  createdAt   DateTime              @default(now()) @map("created_at")
 
   merchant Merchant      @relation("InventoryMovements", fields: [merchantId], references: [id], onDelete: Cascade)
   item     InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
@@ -2308,19 +2310,19 @@ model InventoryAlert {
 }
 
 model ErpConnection {
-  id                 String   @id @default(cuid())
-  merchantId         String   @map("merchant_id")
+  id                 String    @id @default(cuid())
+  merchantId         String    @map("merchant_id")
   provider           String
-  status             String   @default("pending")
-  directionMode      String   @default("erp_source_of_truth") @map("direction_mode")
-  accessTokenCipher  String?  @map("access_token_cipher")
-  refreshTokenCipher String?  @map("refresh_token_cipher")
+  status             String    @default("pending")
+  directionMode      String    @default("erp_source_of_truth") @map("direction_mode")
+  accessTokenCipher  String?   @map("access_token_cipher")
+  refreshTokenCipher String?   @map("refresh_token_cipher")
   tokenExpiresAt     DateTime? @map("token_expires_at")
   lastSyncAt         DateTime? @map("last_sync_at")
-  lastErrorCode      String?  @map("last_error_code")
+  lastErrorCode      String?   @map("last_error_code")
   config             Json?
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt      @map("updated_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   merchant Merchant @relation("ErpConnections", fields: [merchantId], references: [id], onDelete: Cascade)
 
@@ -2332,8 +2334,8 @@ model ErpConnection {
 model CrmConnection {
   id                 String    @id @default(cuid())
   merchantId         String    @map("merchant_id")
-  provider           String                                  // hubspot | pipedrive | rdstation
-  status             String    @default("pending")           // pending | connected | error
+  provider           String // hubspot | pipedrive | rdstation
+  status             String    @default("pending") // pending | connected | error
   accessTokenCipher  String?   @map("access_token_cipher")
   refreshTokenCipher String?   @map("refresh_token_cipher")
   tokenExpiresAt     DateTime? @map("token_expires_at")
@@ -2341,11 +2343,29 @@ model CrmConnection {
   lastErrorCode      String?   @map("last_error_code")
   config             Json?
   createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt      @map("updated_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   merchant Merchant @relation("CrmConnections", fields: [merchantId], references: [id], onDelete: Cascade)
 
   @@unique([merchantId, provider])
   @@index([merchantId, status])
   @@map("crm_connections")
+}
+
+model OwnDeliveryConfig {
+  id             String   @id @default(cuid())
+  merchantId     String   @unique @map("merchant_id")
+  enabled        Boolean  @default(false)
+  mode           String   @default("flat")
+  flatPriceCents Int?     @map("flat_price_cents")
+  freeAboveCents Int?     @map("free_above_cents")
+  neighborhoods  Json?
+  estimatedDays  Int      @default(3) @map("estimated_days")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  merchant Merchant @relation("OwnDeliveryConfig", fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId])
+  @@map("own_delivery_configs")
 }

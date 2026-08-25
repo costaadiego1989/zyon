@@ -4,6 +4,7 @@ import { WidgetShippingController } from "./presentation/http/widget-shipping.co
 import { EmbedShippingController } from "./presentation/http/embed-shipping.controller.js";
 import { ShippingLabelController } from "./presentation/http/shipping-label.controller.js";
 import { MelhorEnvioOAuthController } from "./presentation/http/melhor-envio-oauth.controller.js";
+import { DeliveryConfigController } from "./presentation/http/delivery-config.controller.js";
 import { EmbedAuthGuard } from "../embed/presentation/http/embed-auth.guard.js";
 import { EmbedTokenService } from "../embed/domain/embed-token.service.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
@@ -16,10 +17,16 @@ import { ORDER_TRACKING_UPDATER } from "./domain/ports/order-tracking-updater.po
 import { SHIPPING_CARRIER_ADAPTER } from "./domain/ports/shipping-carrier.port.js";
 import { UpdateTenantOrderTrackingUseCase } from "../integrations/application/integrations.use-cases.js";
 import { MelhorEnvioCarrierAdapter } from "./infrastructure/adapters/melhor-envio.carrier.js";
+import { GetDeliveryConfigUseCase } from "./application/use-cases/get-delivery-config.use-case.js";
+import { UpdateDeliveryConfigUseCase } from "./application/use-cases/update-delivery-config.use-case.js";
+import { ListMerchantShipmentsUseCase } from "./application/use-cases/list-merchant-shipments.use-case.js";
+import { PrismaOwnDeliveryConfigRepository } from "./infrastructure/repositories/prisma-own-delivery-config.repository.js";
+import { OWN_DELIVERY_CONFIG_REPOSITORY } from "./domain/ports/own-delivery-config.port.js";
+import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 
 @Module({
   imports: [MerchantModule, FulfillmentModule, IntegrationsModule, CheckoutPersistenceModule, ShippingQuotesModule],
-  controllers: [WidgetShippingController, EmbedShippingController, ShippingLabelController, MelhorEnvioOAuthController],
+  controllers: [WidgetShippingController, EmbedShippingController, ShippingLabelController, MelhorEnvioOAuthController, DeliveryConfigController],
   providers: [
     EmbedTokenService,
     EmbedAuthGuard,
@@ -28,7 +35,15 @@ import { MelhorEnvioCarrierAdapter } from "./infrastructure/adapters/melhor-envi
     { provide: SHIPPING_CARRIER_ADAPTER, useClass: MelhorEnvioCarrierAdapter },
     PurchaseShippingLabelUseCase,
     GetShippingTrackingUseCase,
+    GetDeliveryConfigUseCase,
+    UpdateDeliveryConfigUseCase,
+    ListMerchantShipmentsUseCase,
+    {
+      provide: OWN_DELIVERY_CONFIG_REPOSITORY,
+      useFactory: (prisma: any) => new PrismaOwnDeliveryConfigRepository(prisma),
+      inject: [PRISMA_CLIENT]
+    }
   ],
-  exports: [ShippingQuotesModule]
+  exports: [ShippingQuotesModule, OWN_DELIVERY_CONFIG_REPOSITORY]
 })
 export class ShippingModule {}

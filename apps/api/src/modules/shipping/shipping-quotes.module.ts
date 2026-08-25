@@ -4,10 +4,12 @@ import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { CARRIER_ADAPTERS } from "./domain/ports/carrier.port.js";
 import { SHIPPING_QUOTE_REPOSITORY } from "./domain/ports/shipping-quote-repository.port.js";
+import { OWN_DELIVERY_CONFIG_REPOSITORY } from "./domain/ports/own-delivery-config.port.js";
 import { QuoteShippingUseCase } from "./application/use-cases/quote-shipping.use-case.js";
 import { FlatRateCarrierAdapter } from "./infrastructure/adapters/flat-rate.carrier.js";
 import { MelhorEnvioCarrierAdapter } from "./infrastructure/adapters/melhor-envio.carrier.js";
 import { PrismaShippingQuoteRepository } from "./infrastructure/repositories/prisma-shipping-quote.repository.js";
+import { PrismaOwnDeliveryConfigRepository } from "./infrastructure/repositories/prisma-own-delivery-config.repository.js";
 
 @Module({
   imports: [MerchantModule],
@@ -29,6 +31,11 @@ import { PrismaShippingQuoteRepository } from "./infrastructure/repositories/pri
       inject: [PRISMA_CLIENT]
     },
     {
+      provide: OWN_DELIVERY_CONFIG_REPOSITORY,
+      useFactory: (prisma: PrismaClient) => new PrismaOwnDeliveryConfigRepository(prisma),
+      inject: [PRISMA_CLIENT]
+    },
+    {
       provide: CARRIER_ADAPTERS,
       useFactory: (flat: FlatRateCarrierAdapter, melhorEnvio: MelhorEnvioCarrierAdapter) => [melhorEnvio, flat],
       inject: [FlatRateCarrierAdapter, MelhorEnvioCarrierAdapter]
@@ -37,6 +44,7 @@ import { PrismaShippingQuoteRepository } from "./infrastructure/repositories/pri
   ],
   exports: [
     SHIPPING_QUOTE_REPOSITORY,
+    OWN_DELIVERY_CONFIG_REPOSITORY,
     MelhorEnvioCarrierAdapter,
     QuoteShippingUseCase
   ]

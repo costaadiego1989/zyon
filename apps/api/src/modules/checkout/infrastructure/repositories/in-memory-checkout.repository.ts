@@ -97,6 +97,12 @@ export class InMemoryCheckoutRepository
 
   async updateStoreSettings(_merchantId: string, settings: any): Promise<any> { return settings; }
 
+  async getById(merchantId: string): Promise<any | null> {
+    return { id: merchantId, name: "test", melhorEnvioEnabled: true, melhorEnvioAccessToken: null, melhorEnvioRefreshToken: null };
+  }
+
+  async updateMelhorEnvioEnabled(_merchantId: string, _enabled: boolean): Promise<void> {}
+
   resolveGlobalUserId(merchantId: string, customer?: CustomerHints): string {
     const identityKey = CheckoutIdentityService.identityKey(merchantId, customer);
     if (!identityKey) return `usr_${crypto.randomUUID()}`;

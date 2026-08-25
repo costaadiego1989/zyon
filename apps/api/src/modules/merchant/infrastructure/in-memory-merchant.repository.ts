@@ -73,4 +73,12 @@ export class InMemoryMerchantRepository implements MerchantRepository, MerchantR
   async updateStoreSettings(_merchantId: string, settings: import("../domain/merchant.types.js").MerchantStoreSettings): Promise<import("../domain/merchant.types.js").MerchantStoreSettings> {
     return settings;
   }
+
+  async getById(merchantId: string): Promise<any | null> {
+    const profile = this.profiles.get(merchantId);
+    if (!profile) return null;
+    return { ...profile, melhorEnvioEnabled: true, melhorEnvioAccessToken: null, melhorEnvioRefreshToken: null };
+  }
+
+  async updateMelhorEnvioEnabled(_merchantId: string, _enabled: boolean): Promise<void> {}
 }

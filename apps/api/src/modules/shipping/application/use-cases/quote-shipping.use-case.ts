@@ -3,6 +3,7 @@ import { buildQuoteKey } from "@zyon/shipping-engine";
 import { ShippingQuoteEntity, type ShippingQuoteResult } from "../../domain/entities/shipping-quote.entity.js";
 import { SHIPPING_QUOTE_REPOSITORY, type ShippingQuoteRepository } from "../../domain/ports/shipping-quote-repository.port.js";
 import { CARRIER_ADAPTERS, type CarrierPort } from "../../domain/ports/carrier.port.js";
+import { OWN_DELIVERY_CONFIG_REPOSITORY, type OwnDeliveryConfigRepository } from "../../domain/ports/own-delivery-config.port.js";
 import { applyFreeShippingPolicy } from "../../domain/policies/free-shipping.policy.js";
 import type { PackageDimensions } from "@zyon/shared-types";
 import {
@@ -39,7 +40,10 @@ export class QuoteShippingUseCase {
     // still compile; when absent, free-shipping policy is effectively disabled
     // (threshold = Infinity), which is the safe/conservative default.
     @Optional() @Inject(MERCHANT_RULES_REPOSITORY)
-    private readonly merchantRules?: MerchantRulesRepository
+    private readonly merchantRules?: MerchantRulesRepository,
+    // Own delivery config — optional for backward compat with tests
+    @Optional() @Inject(OWN_DELIVERY_CONFIG_REPOSITORY)
+    private readonly ownDeliveryConfig?: OwnDeliveryConfigRepository
   ) {}
 
   async execute(input: QuoteShippingInput) {
@@ -141,16 +145,70 @@ export class QuoteShippingUseCase {
         )
       : currentResults;
 
+    // Add own-delivery options if enabled
+    const resultsWithOwnDelivery = await this.appendOwnDeliveryOptions(finalResults, input);
+
     const withFreeShipping = ShippingQuoteEntity.create({
       session_id: input.session_id,
       merchant_id: input.merchant_id,
       destination_zip: input.destination_zip,
       quote_key: quoteKey
-    }).addResults(finalResults);
+    }).addResults(resultsWithOwnDelivery);
 
     const finalQuote = withFreeShipping.recordCreated();
     await this.quotes.saveWithEvents(finalQuote);
     return finalQuote.snapshot();
+  }
+
+  private async appendOwnDeliveryOptions(
+    currentResults: ShippingQuoteResult[],
+    input: QuoteShippingInput
+  ): Promise<ShippingQuoteResult[]> {
+    if (!this.ownDeliveryConfig) return currentResults;
+
+    try {
+      const config = await this.ownDeliveryConfig.getByMerchantId(input.merchant_id);
+      if (!config?.enabled) return currentResults;
+
+      const ownDeliveryOptions: ShippingQuoteResult[] = [];
+
+      if (config.mode === "flat" && config.flatPriceCents !== null) {
+        const cartTotalCents = Math.round(input.cart_total * 100);
+        const isFree = config.freeAboveCents !== null && cartTotalCents >= config.freeAboveCents;
+
+        ownDeliveryOptions.push({
+          carrier_key: "own_delivery_flat",
+          label: "Entrega própria",
+          price: isFree ? 0 : config.flatPriceCents,
+          eta_days: config.estimatedDays,
+          is_free: isFree
+        });
+      } else if (config.mode === "neighborhood" && config.neighborhoods && config.neighborhoods.length > 0) {
+        // Look up destination neighborhood from ZIP (ViaCEP or from session address)
+        // For MVP, we'll just add all neighborhood options; in production, filter by destination ZIP
+        const cartTotalCents = Math.round(input.cart_total * 100);
+
+        for (const neighborhood of config.neighborhoods) {
+          const isFree = config.freeAboveCents !== null && cartTotalCents >= config.freeAboveCents;
+
+          ownDeliveryOptions.push({
+            carrier_key: `own_delivery_neighborhood_${neighborhood.name.toLowerCase().replace(/\s+/g, "_")}`,
+            label: `Entrega própria - ${neighborhood.name}`,
+            price: isFree ? 0 : neighborhood.priceCents,
+            eta_days: config.estimatedDays,
+            is_free: isFree
+          });
+        }
+      }
+
+      return [...currentResults, ...ownDeliveryOptions];
+    } catch (err) {
+      this.logger.warn("own-delivery.append.failed", {
+        merchantId: input.merchant_id,
+        error: err instanceof Error ? err.message : String(err)
+      });
+      return currentResults; // Fail gracefully; return carrier quotes only
+    }
   }
 }
 

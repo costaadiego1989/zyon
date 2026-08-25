@@ -24,6 +24,10 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
     };
   }
 
+  async getById(merchantId: string): Promise<any | null> {
+    return this.prisma.merchant.findUnique({ where: { id: merchantId } });
+  }
+
   async getStripeConnectAccountId(merchantId: string): Promise<string | undefined> {
     const row = await this.prisma.merchant.findUnique({
       where: { id: merchantId },
@@ -107,6 +111,13 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
       update: toUpdate(next)
     });
     return toRules(row);
+  }
+
+  async updateMelhorEnvioEnabled(merchantId: string, enabled: boolean): Promise<void> {
+    await (this.prisma.merchant.update as any)({
+      where: { id: merchantId },
+      data: { melhorEnvioEnabled: enabled }
+    });
   }
 }
 

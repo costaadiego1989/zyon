@@ -65,6 +65,7 @@ const InventoryPage = lazy(() => import("../pages/inventory/index.js").then(m =>
 const NegotiationPolicyPage = lazy(() => import("../pages/negotiation-policy/NegotiationPolicyPage.js").then(m => ({ default: m.NegotiationPolicyPage })));
 const ChargebacksPage = lazy(() => import("../pages/chargebacks/ChargebacksPage.js").then(m => ({ default: m.ChargebacksPage })));
 const ReturnExchangesPage = lazy(() => import("../pages/returns/ReturnExchangesPage.js").then(m => ({ default: m.ReturnExchangesPage })));
+const DeliveryPage = lazy(() => import("../pages/delivery/index.js").then(m => ({ default: m.DeliveryPage })));
 
 import { PageLoader } from "../components/PageLoader.js";
 
@@ -547,6 +548,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "negotiation-policy" ? <NegotiationPolicyPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "chargebacks" ? <ChargebacksPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "returns" ? <ReturnExchangesPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "delivery" ? <DeliveryPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             </Suspense>
           </PageErrorBoundary>
         </section>
