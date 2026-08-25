@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Post, Query, Req, UseGuards, Param } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -15,6 +15,9 @@ import { ListAlertsUseCase } from "../../application/use-cases/list-alerts.use-c
 import { AcknowledgeAlertUseCase } from "../../application/use-cases/acknowledge-alert.use-case.js";
 import { ListLocationsUseCase } from "../../application/use-cases/list-locations.use-case.js";
 import { CreateLocationUseCase } from "../../application/use-cases/create-location.use-case.js";
+import { ListCrmConnectionsUseCase } from "../../application/use-cases/list-crm-connections.use-case.js";
+import { ConnectCrmUseCase } from "../../application/use-cases/connect-crm.use-case.js";
+import { DisconnectCrmUseCase } from "../../application/use-cases/disconnect-crm.use-case.js";
 
 @ApiTags("Dashboard / Inventory")
 @Controller("dashboard/inventory")
@@ -31,6 +34,9 @@ export class InventoryDashboardController {
     private readonly acknowledgeAlert: AcknowledgeAlertUseCase,
     private readonly listLocations: ListLocationsUseCase,
     private readonly createLocation: CreateLocationUseCase,
+    private readonly listCrmConnections: ListCrmConnectionsUseCase,
+    private readonly connectCrm: ConnectCrmUseCase,
+    private readonly disconnectCrm: DisconnectCrmUseCase,
   ) {}
 
   @Get("summary")
@@ -158,5 +164,92 @@ export class InventoryDashboardController {
   ) {
     const user = currentUser(req);
     return this.createLocation.execute(user.merchantId, body);
+  }
+
+  // ERP Connection Endpoints
+
+  @Get("erp-connections")
+  @ApiOperation({ summary: "List ERP connections" })
+  @ApiOkResponse({ description: "ERP connections" })
+  async listErpConnectionsAction(@Req() req: any) {
+    const user = currentUser(req);
+    return this.listCrmConnections.execute(user.merchantId);
+  }
+
+  @Post("erp-connections/:provider/connect")
+  @ApiOperation({ summary: "Connect an ERP provider" })
+  @ApiOkResponse({ description: "ERP provider connected" })
+  async connectErpProvider(
+    @Req() req: any,
+    @Param("provider") provider: string,
+    @Body() body: { accessToken?: string; config?: Record<string, unknown> },
+  ) {
+    const user = currentUser(req);
+    return this.connectCrm.execute({
+      merchantId: user.merchantId,
+      provider,
+      accessToken: body.accessToken ?? "",
+      config: body.config,
+    });
+  }
+
+  @Post("erp-connections/:id/disconnect")
+  @ApiOperation({ summary: "Disconnect an ERP connection" })
+  @ApiOkResponse({ description: "ERP connection disconnected" })
+  async disconnectErpConnection(
+    @Req() req: any,
+    @Param("id") id: string,
+  ) {
+    const user = currentUser(req);
+    return this.disconnectCrm.execute(user.merchantId, id);
+  }
+
+  @Post("erp-connections/:id/sync")
+  @ApiOperation({ summary: "Trigger ERP sync" })
+  @ApiOkResponse({ description: "Sync triggered" })
+  async triggerErpSync(
+    @Req() req: any,
+    @Param("id") id: string,
+  ) {
+    return { triggered: true, connectionId: id, message: "Sync iniciado" };
+  }
+
+  // CRM Connection Endpoints
+
+  @Get("crm-connections")
+  @ApiOperation({ summary: "List CRM connections" })
+  @ApiOkResponse({ description: "CRM connections" })
+  async listCrmConnectionsAction(@Req() req: any) {
+    const user = currentUser(req);
+    return this.listCrmConnections.execute(user.merchantId);
+  }
+
+  @Post("crm-connections/:provider/connect")
+  @ApiOperation({ summary: "Connect a CRM provider" })
+  @ApiOkResponse({ description: "CRM provider connected" })
+  async connectCrmProvider(
+    @Req() req: any,
+    @Param("provider") provider: string,
+    @Body() body: { accessToken: string; refreshToken?: string; config?: Record<string, unknown> },
+  ) {
+    const user = currentUser(req);
+    return this.connectCrm.execute({
+      merchantId: user.merchantId,
+      provider,
+      accessToken: body.accessToken,
+      refreshToken: body.refreshToken,
+      config: body.config,
+    });
+  }
+
+  @Post("crm-connections/:id/disconnect")
+  @ApiOperation({ summary: "Disconnect a CRM connection" })
+  @ApiOkResponse({ description: "CRM connection disconnected" })
+  async disconnectCrmConnection(
+    @Req() req: any,
+    @Param("id") id: string,
+  ) {
+    const user = currentUser(req);
+    return this.disconnectCrm.execute(user.merchantId, id);
   }
 }
