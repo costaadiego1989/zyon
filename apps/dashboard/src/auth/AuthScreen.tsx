@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { KeyRound, UserPlus, Github, Code2, Eye, EyeOff } from "lucide-react";
 import { SignupWizard } from "./SignupWizard.js";
+import { ASMRBackground } from "./ASMRBackground.js";
 import { useApi } from "../hooks/useApi.js";
 import { readError } from "../utils/read-error.js";
 import { DashboardHttpError } from "../api-client.js";
@@ -56,8 +57,13 @@ export function AuthScreen(props: AuthScreenProps) {
   const isSignup = mode === "signup";
   return (
     <main className="auth-shell">
+      {/* ASMR particle background — full screen behind everything */}
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, overflow: "hidden" }}>
+        <ASMRBackground />
+      </div>
+
       {/* Left: Form */}
-      <section className="auth-form-panel">
+      <section className="auth-form-panel" style={{ position: "relative", zIndex: 1 }}>
         <header className="auth-header">
           <img src="/logo-zyon.png" alt="Zyon" className="auth-header__logo" />
           <div className="auth-header__sep" />
@@ -98,11 +104,8 @@ export function AuthScreen(props: AuthScreenProps) {
         </div>
       </section>
 
-      {/* Right: Hero */}
-      <section className="auth-hero" aria-label="Zyon Platform">
-        <div className="auth-hero__glow auth-hero__glow--top" />
-        <div className="auth-hero__glow auth-hero__glow--mid" />
-        <div className="auth-hero__glow auth-hero__glow--bottom" />
+      {/* Right: Hero with content overlay */}
+      <section className="auth-hero" aria-label="Zyon Platform" style={{ position: "relative", zIndex: 1 }}>
         <div className="auth-hero__content">
           <div className="auth-hero__logo-large">
             <img src="/logo-zyon.png" alt="Zyon" className="auth-hero__logo-img" />
