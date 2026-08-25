@@ -1,9 +1,13 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { CrmProviderPort, CrmContact, CrmDeal } from "../../domain/ports/crm-provider.port.js";
+import type { CrmProviderPort, CrmContact, CrmDeal } from "../../domain/ports/crm-provider.port.js";
 
 /**
  * HubSpot CRM adapter using API v3.
- * Fire-and-forget: errors logged, not thrown.
+ * Auth: Private App Token (Bearer).
+ * Docs: https://developers.hubspot.com/docs/api/crm/contacts
+ *
+ * upsertContact: PATCH by email (idProperty=email) — creates if not found, updates if found.
+ * createDeal: POST /crm/v3/objects/deals + associate to contact via v4 associations.
  */
 @Injectable()
 export class HubSpotCrmAdapter implements CrmProviderPort {
@@ -14,125 +18,111 @@ export class HubSpotCrmAdapter implements CrmProviderPort {
 
   async upsertContact(merchantId: string, contact: CrmContact): Promise<void> {
     try {
-      const response = await fetch(`${this.baseUrl}/crm/v3/objects/contacts`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${this.accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          properties: {
-            email: contact.email,
-            firstname: contact.name || "",
-            phone: contact.phone || "",
-            hs_lead_status: "NEW",
+      // Try to update by email first (idProperty=email)
+      const patchRes = await fetch(
+        `${this.baseUrl}/crm/v3/objects/contacts/${encodeURIComponent(contact.email)}?idProperty=email`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+            "Content-Type": "application/json",
           },
-        }),
-      });
+          body: JSON.stringify({
+            properties: {
+              firstname: contact.name?.split(" ")[0] || "",
+              lastname: contact.name?.split(" ").slice(1).join(" ") || "",
+              phone: contact.phone || "",
+            },
+          }),
+        },
+      );
 
-      if (!response.ok) {
-        const err = await response.text();
-        this.logger.warn(
-          `[HubSpot] upsertContact failed: ${response.status} - ${err}`,
-          { merchantId, email: contact.email }
-        );
+      if (patchRes.status === 404) {
+        // Contact doesn't exist — create
+        const createRes = await fetch(`${this.baseUrl}/crm/v3/objects/contacts`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            properties: {
+              email: contact.email,
+              firstname: contact.name?.split(" ")[0] || "",
+              lastname: contact.name?.split(" ").slice(1).join(" ") || "",
+              phone: contact.phone || "",
+              lifecyclestage: "customer",
+            },
+          }),
+        });
+
+        if (!createRes.ok) {
+          const err = await createRes.text();
+          this.logger.warn(`[HubSpot] createContact failed: ${createRes.status} — ${err.slice(0, 200)}`);
+        }
         return;
       }
 
-      this.logger.debug(`[HubSpot] Contact upserted: ${contact.email}`);
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`[HubSpot] upsertContact error: ${errorMsg}`, {
-        merchantId,
-        email: contact.email,
-      });
+      if (!patchRes.ok) {
+        const err = await patchRes.text();
+        this.logger.warn(`[HubSpot] upsertContact PATCH failed: ${patchRes.status} — ${err.slice(0, 200)}`);
+      }
+    } catch (err) {
+      this.logger.warn(`[HubSpot] upsertContact error: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
   async createDeal(merchantId: string, deal: CrmDeal): Promise<void> {
     try {
-      // Step 1: search for contact by email
-      const contactSearchResponse = await fetch(
-        `${this.baseUrl}/crm/v3/objects/contacts/search`,
-        {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${this.accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            filterGroups: [
-              {
-                filters: [
-                  {
-                    propertyName: "email",
-                    operator: "EQ",
-                    value: deal.contactEmail,
-                  },
-                ],
-              },
-            ],
-            limit: 1,
-          }),
-        }
-      );
-
-      if (!contactSearchResponse.ok) {
-        this.logger.warn(
-          `[HubSpot] Contact search failed: ${contactSearchResponse.status}`,
-          { merchantId, contactEmail: deal.contactEmail }
-        );
-        return;
-      }
-
-      const contactSearchData = (await contactSearchResponse.json()) as any;
-      const contactId = contactSearchData.results?.[0]?.id;
-
-      if (!contactId) {
-        this.logger.debug(
-          `[HubSpot] Contact not found for email: ${deal.contactEmail}`
-        );
-        return;
-      }
-
-      // Step 2: create deal
-      const dealResponse = await fetch(`${this.baseUrl}/crm/v3/objects/deals`, {
+      // Create deal
+      const dealRes = await fetch(`${this.baseUrl}/crm/v3/objects/deals`, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${this.accessToken}`,
+          Authorization: `Bearer ${this.accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           properties: {
             dealname: deal.title,
-            dealstage: deal.stage || "negotiation",
+            dealstage: deal.stage || "closedwon",
             amount: String((deal.valueCents / 100).toFixed(2)),
+            pipeline: "default",
           },
-          associations: [
-            {
-              types: [{ associationCategory: "HUBSPOT_DEFINED", associationType: "contact_to_deal" }],
-              id: contactId,
-            },
-          ],
         }),
       });
 
-      if (!dealResponse.ok) {
-        const err = await dealResponse.text();
-        this.logger.warn(`[HubSpot] createDeal failed: ${dealResponse.status} - ${err}`, {
-          merchantId,
-          dealTitle: deal.title,
-        });
+      if (!dealRes.ok) {
+        const err = await dealRes.text();
+        this.logger.warn(`[HubSpot] createDeal failed: ${dealRes.status} — ${err.slice(0, 200)}`);
         return;
       }
 
-      this.logger.debug(`[HubSpot] Deal created: ${deal.title} (${deal.valueCents / 100} BRL)`);
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`[HubSpot] createDeal error: ${errorMsg}`, {
-        merchantId,
-        dealTitle: deal.title,
-      });
+      const dealData = (await dealRes.json()) as { id: string };
+
+      // Associate deal → contact (associationTypeId 3 = deal_to_contact)
+      const contactLookup = await fetch(
+        `${this.baseUrl}/crm/v3/objects/contacts/${encodeURIComponent(deal.contactEmail)}?idProperty=email`,
+        { headers: { Authorization: `Bearer ${this.accessToken}` } },
+      );
+
+      if (contactLookup.ok) {
+        const contactData = (await contactLookup.json()) as { id: string };
+        await fetch(
+          `${this.baseUrl}/crm/v4/objects/deals/${dealData.id}/associations/contacts/${contactData.id}`,
+          {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${this.accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify([{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: 3 }]),
+          },
+        );
+      }
+
+      this.logger.debug(`[HubSpot] Deal created: ${deal.title}`);
+    } catch (err) {
+      this.logger.warn(`[HubSpot] createDeal error: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 }
