@@ -3,6 +3,8 @@ export interface OwnDeliveryNeighborhood {
   priceCents: number;
 }
 
+export type EstimatedUnit = "minutes" | "days";
+
 export interface OwnDeliveryConfig {
   id: string;
   merchantId: string;
@@ -11,7 +13,8 @@ export interface OwnDeliveryConfig {
   flatPriceCents: number | null;
   freeAboveCents: number | null;
   neighborhoods: OwnDeliveryNeighborhood[] | null;
-  estimatedDays: number;
+  estimatedValue: number;
+  estimatedUnit: EstimatedUnit;
 }
 
 export interface OwnDeliveryConfigRepository {

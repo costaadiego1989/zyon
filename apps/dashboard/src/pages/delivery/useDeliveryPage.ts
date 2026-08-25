@@ -1,15 +1,16 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import { reportError } from "../../hooks/useErrorReporter.js";
 import { showToast } from "../../components/Toast.js";
-import type { DeliveryConfig, OwnDeliveryConfig, Shipment, ShipmentsPage } from "../../api/endpoints/delivery.js";
+import type { DeliveryConfig, OwnDeliveryConfig, Shipment } from "../../api/endpoints/delivery.js";
 
 const DEFAULT_OWN_DELIVERY: OwnDeliveryConfig = {
   enabled: false,
   mode: "fixed",
   flatPriceCents: 800,
-  freeAboveCents: 5000,
-  estimatedDays: 1,
+  freeAboveCents: null,
+  estimatedValue: 60,
+  estimatedUnit: "minutes",
   neighborhoods: [],
 };
 
@@ -21,13 +22,34 @@ const DEFAULT_CONFIG: DeliveryConfig = {
   ownDelivery: DEFAULT_OWN_DELIVERY,
 };
 
+function normalizeConfig(raw: Partial<DeliveryConfig> | null | undefined): DeliveryConfig {
+  if (!raw) return DEFAULT_CONFIG;
+  return {
+    melhorEnvioEnabled: raw.melhorEnvioEnabled ?? false,
+    melhorEnvioConnected: raw.melhorEnvioConnected ?? false,
+    melhorEnvioExpiresAt: raw.melhorEnvioExpiresAt ?? null,
+    originZip: raw.originZip ?? "",
+    ownDelivery: {
+      enabled: raw.ownDelivery?.enabled ?? false,
+      mode: raw.ownDelivery?.mode ?? "fixed",
+      flatPriceCents: raw.ownDelivery?.flatPriceCents ?? 0,
+      freeAboveCents: raw.ownDelivery?.freeAboveCents ?? null,
+      estimatedValue: raw.ownDelivery?.estimatedValue ?? 60,
+      estimatedUnit: raw.ownDelivery?.estimatedUnit ?? "minutes",
+      neighborhoods: raw.ownDelivery?.neighborhoods ?? [],
+    },
+  };
+}
+
 export function useDeliveryPage() {
   const api = useApi();
   const [config, setConfig] = useState<DeliveryConfig>(DEFAULT_CONFIG);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [ownDeliveryPanelOpen, setOwnDeliveryPanelOpen] = useState(false);
+  const configRef = useRef(config);
+  configRef.current = config;
 
-  // Shipments state
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [shipmentsLoading, setShipmentsLoading] = useState(false);
   const [shipmentsFilter, setShipmentsFilter] = useState("all");
@@ -35,85 +57,106 @@ export function useDeliveryPage() {
   const [shipmentsTotal, setShipmentsTotal] = useState(0);
   const PAGE_SIZE = 20;
 
-  // Load config + shipments
+  // Initial load — once
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       try {
         const [cfgData, shipData] = await Promise.all([
-          api.getDeliveryConfig?.().catch((e) => {
-            reportError({ source: "delivery.config", error: e });
-            return null;
-          }),
-          api.getShipments?.().catch((e) => {
-            reportError({ source: "delivery.shipments", error: e });
-            return null;
-          }),
+          api.getDeliveryConfig?.().catch(() => null),
+          api.getShipments?.().catch(() => null),
         ]);
-
         if (cancelled) return;
-
-        if (cfgData) setConfig(cfgData);
+        if (cfgData) setConfig(normalizeConfig(cfgData));
         if (shipData) {
           setShipments(shipData.items ?? []);
           setShipmentsTotal(shipData.total ?? 0);
         }
-      } catch (e) {
-        reportError({ source: "delivery.load", error: e });
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      } catch { /* silently use defaults */ }
+      finally { if (!cancelled) setLoading(false); }
     })();
-
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const updateMelhorEnvio = useCallback(async (enabled: boolean) => {
-    setSaving(true);
-    const previous = { ...config };
-    setConfig((c) => ({ ...c, melhorEnvioEnabled: enabled }));
+  // Toggle Melhor Envio
+  const toggleMelhorEnvio = useCallback(async (enabled: boolean) => {
+    // Immediate optimistic update — NO revert
+    setConfig((c) => ({
+      ...c,
+      melhorEnvioEnabled: enabled,
+      ownDelivery: enabled ? { ...c.ownDelivery, enabled: false } : c.ownDelivery,
+    }));
 
+    setSaving(true);
     try {
-      const updated = await api.updateDeliveryConfig?.({
+      await api.updateDeliveryConfig?.({
         melhorEnvioEnabled: enabled,
+        ...(enabled ? { ownDelivery: { ...configRef.current.ownDelivery, enabled: false } } : {}),
       });
-      if (updated) setConfig(updated);
       showToast("success", enabled ? "Melhor Envio ativado" : "Melhor Envio desativado");
-    } catch (e) {
-      setConfig(previous);
-      reportError({ source: "delivery.melhor-envio", error: e });
-      showToast("error", e instanceof Error ? e.message : "Erro ao atualizar Melhor Envio");
+    } catch {
+      showToast("error", "Erro ao salvar — tente novamente");
     } finally {
       setSaving(false);
     }
-  }, [api, config]);
+  }, [api]);
 
-  const updateOwnDelivery = useCallback(async (patch: Partial<OwnDeliveryConfig>) => {
+  // Toggle own delivery
+  const toggleOwnDelivery = useCallback(async (enabled: boolean) => {
+    // Immediate optimistic update — NO revert
+    setConfig((c) => ({
+      ...c,
+      melhorEnvioEnabled: enabled ? false : c.melhorEnvioEnabled,
+      ownDelivery: { ...c.ownDelivery, enabled },
+    }));
+
+    if (enabled) setOwnDeliveryPanelOpen(true);
+
     setSaving(true);
-    const previous = { ...config };
-    const updated = { ...config.ownDelivery, ...patch };
+    try {
+      await api.updateDeliveryConfig?.({
+        ownDelivery: { ...configRef.current.ownDelivery, enabled },
+        ...(enabled ? { melhorEnvioEnabled: false } : {}),
+      });
+      showToast("success", enabled ? "Entrega própria ativada" : "Entrega própria desativada");
+    } catch {
+      showToast("error", "Erro ao salvar — tente novamente");
+    } finally {
+      setSaving(false);
+    }
+  }, [api]);
+
+  // Save own delivery config from SidePanel
+  const saveOwnDeliveryConfig = useCallback(async (patch: Partial<OwnDeliveryConfig>) => {
+    const updated = { ...configRef.current.ownDelivery, ...patch, enabled: true };
     setConfig((c) => ({ ...c, ownDelivery: updated }));
 
+    setSaving(true);
     try {
-      const result = await api.updateDeliveryConfig?.({
-        ownDelivery: updated,
-      });
-      if (result) setConfig(result);
-      showToast("success", "Entrega própria atualizada");
-    } catch (e) {
-      setConfig(previous);
-      reportError({ source: "delivery.own-delivery", error: e });
-      showToast("error", e instanceof Error ? e.message : "Erro ao atualizar entrega própria");
+      await api.updateDeliveryConfig?.({ ownDelivery: updated });
+      showToast("success", "Configuração salva");
+    } catch {
+      showToast("error", "Erro ao salvar configuração");
     } finally {
       setSaving(false);
     }
-  }, [api, config]);
+  }, [api]);
 
+  // Connect Melhor Envio — requires toggle active
+  const connectMelhorEnvio = useCallback(() => {
+    if (!configRef.current.melhorEnvioEnabled) {
+      showToast("error", "Ative o Melhor Envio primeiro");
+      return;
+    }
+    const url = api.getMelhorEnvioAuthorizeUrl?.();
+    if (url) window.open(url, "_blank", "width=600,height=700");
+  }, [api]);
+
+  // Shipments
   const loadMoreShipments = useCallback(async () => {
     if (shipmentsLoading) return;
     setShipmentsLoading(true);
-
     try {
       const status = shipmentsFilter !== "all" ? shipmentsFilter : undefined;
       const data = await api.getShipments?.(status, PAGE_SIZE, shipmentsOffset + PAGE_SIZE);
@@ -121,42 +164,22 @@ export function useDeliveryPage() {
         setShipments((prev) => [...prev, ...data.items]);
         setShipmentsOffset((prev) => prev + PAGE_SIZE);
       }
-    } catch (e) {
-      reportError({ source: "delivery.shipments.loadmore", error: e });
-      showToast("error", "Erro ao carregar mais entregas");
+    } catch {
+      showToast("error", "Erro ao carregar entregas");
     } finally {
       setShipmentsLoading(false);
     }
-  }, [api, shipmentsFilter, shipmentsOffset]);
+  }, [api, shipmentsFilter, shipmentsOffset, shipmentsLoading]);
 
   const buyLabel = useCallback(async (shipmentId: string) => {
     try {
       const result = await api.buyShippingLabel?.(shipmentId);
       if (result?.labelUrl) {
         window.open(result.labelUrl, "_blank");
-        showToast("success", "Etiqueta gerada com sucesso");
-        // Refresh shipments
-        const updated = await api.getShipments?.(
-          shipmentsFilter !== "all" ? shipmentsFilter : undefined,
-          PAGE_SIZE,
-          0
-        );
-        if (updated) {
-          setShipments(updated.items);
-          setShipmentsOffset(0);
-          setShipmentsTotal(updated.total);
-        }
+        showToast("success", "Etiqueta gerada");
       }
-    } catch (e) {
-      reportError({ source: "delivery.buy-label", error: e });
-      showToast("error", e instanceof Error ? e.message : "Erro ao gerar etiqueta");
-    }
-  }, [api, shipmentsFilter]);
-
-  const connectMelhorEnvio = useCallback(() => {
-    const authorizeUrl = api.getMelhorEnvioAuthorizeUrl?.();
-    if (authorizeUrl) {
-      window.open(authorizeUrl, "_blank", "width=600,height=700");
+    } catch {
+      showToast("error", "Erro ao gerar etiqueta");
     }
   }, [api]);
 
@@ -164,15 +187,12 @@ export function useDeliveryPage() {
     config,
     loading,
     saving,
-
-    // Melhor Envio
-    updateMelhorEnvio,
+    toggleMelhorEnvio,
+    toggleOwnDelivery,
     connectMelhorEnvio,
-
-    // Own Delivery
-    updateOwnDelivery,
-
-    // Shipments
+    ownDeliveryPanelOpen,
+    setOwnDeliveryPanelOpen,
+    saveOwnDeliveryConfig,
     shipments,
     shipmentsLoading,
     shipmentsFilter,

@@ -30,7 +30,8 @@ export class PrismaOwnDeliveryConfigRepository implements OwnDeliveryConfigRepos
         flatPriceCents: config.flatPriceCents,
         freeAboveCents: config.freeAboveCents,
         neighborhoods: config.neighborhoods,
-        estimatedDays: config.estimatedDays
+        estimatedValue: config.estimatedValue,
+        estimatedUnit: config.estimatedUnit
       },
       update: {
         enabled: config.enabled,
@@ -38,7 +39,8 @@ export class PrismaOwnDeliveryConfigRepository implements OwnDeliveryConfigRepos
         flatPriceCents: config.flatPriceCents,
         freeAboveCents: config.freeAboveCents,
         neighborhoods: config.neighborhoods,
-        estimatedDays: config.estimatedDays
+        estimatedValue: config.estimatedValue,
+        estimatedUnit: config.estimatedUnit
       }
     });
 
@@ -54,7 +56,8 @@ export class PrismaOwnDeliveryConfigRepository implements OwnDeliveryConfigRepos
       flatPriceCents: record.flatPriceCents,
       freeAboveCents: record.freeAboveCents,
       neighborhoods: record.neighborhoods,
-      estimatedDays: record.estimatedDays
+      estimatedValue: record.estimatedValue,
+      estimatedUnit: record.estimatedUnit
     };
   }
 }

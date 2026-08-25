@@ -45,7 +45,8 @@ export class DeliveryConfigController {
           flatPriceCents: null,
           freeAboveCents: null,
           neighborhoods: null,
-          estimatedDays: 3
+          estimatedValue: 60,
+          estimatedUnit: "minutes"
         }
       }
     }
@@ -79,7 +80,8 @@ export class DeliveryConfigController {
         flatPriceCents: body.own_delivery.flat_price_cents,
         freeAboveCents: body.own_delivery.free_above_cents,
         neighborhoods: body.own_delivery.neighborhoods,
-        estimatedDays: body.own_delivery.estimated_days
+        estimatedValue: body.own_delivery.estimated_value,
+        estimatedUnit: body.own_delivery.estimated_unit
       } : undefined
     });
   }
@@ -173,7 +175,8 @@ export type UpdateDeliveryConfigDto = {
     flat_price_cents?: number | null;
     free_above_cents?: number | null;
     neighborhoods?: Array<{ name: string; priceCents: number }> | null;
-    estimated_days?: number;
+    estimated_value?: number;
+    estimated_unit?: "minutes" | "days";
   };
 };
 

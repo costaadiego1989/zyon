@@ -12,7 +12,8 @@ export interface UpdateDeliveryConfigInput {
     flatPriceCents?: number | null;
     freeAboveCents?: number | null;
     neighborhoods?: OwnDeliveryNeighborhood[] | null;
-    estimatedDays?: number;
+    estimatedValue?: number;
+    estimatedUnit?: "minutes" | "days";
   };
 }
 
@@ -39,7 +40,7 @@ export class UpdateDeliveryConfigUseCase {
 
     // Update own delivery config if provided
     if (input.ownDelivery) {
-      const { mode, flatPriceCents, freeAboveCents, neighborhoods, estimatedDays = 3 } = input.ownDelivery;
+      const { mode, flatPriceCents, freeAboveCents, neighborhoods, estimatedValue = 60, estimatedUnit = "minutes" } = input.ownDelivery;
 
       // Validate based on mode
       if (mode === "flat" && (flatPriceCents === undefined || flatPriceCents === null)) {
@@ -48,6 +49,16 @@ export class UpdateDeliveryConfigUseCase {
 
       if (mode === "neighborhood" && (!neighborhoods || neighborhoods.length === 0)) {
         throw new BadRequestException("neighborhoods is required and cannot be empty when mode is 'neighborhood'");
+      }
+
+      // Validate estimatedValue is positive integer
+      if (typeof estimatedValue !== "number" || estimatedValue <= 0 || !Number.isInteger(estimatedValue)) {
+        throw new BadRequestException("estimatedValue must be a positive integer");
+      }
+
+      // Validate estimatedUnit
+      if (!["minutes", "days"].includes(estimatedUnit)) {
+        throw new BadRequestException("estimatedUnit must be 'minutes' or 'days'");
       }
 
       const existingConfig = await this.ownDeliveryRepo.getByMerchantId(input.merchantId);
@@ -60,7 +71,8 @@ export class UpdateDeliveryConfigUseCase {
         flatPriceCents: mode === "flat" ? (flatPriceCents ?? null) : null,
         freeAboveCents: freeAboveCents ?? null,
         neighborhoods: mode === "neighborhood" ? (neighborhoods ?? null) : null,
-        estimatedDays
+        estimatedValue,
+        estimatedUnit
       } as any;
 
       await this.ownDeliveryRepo.save(configToSave);

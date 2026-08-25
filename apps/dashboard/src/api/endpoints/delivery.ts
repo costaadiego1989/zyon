@@ -5,7 +5,8 @@ export interface OwnDeliveryConfig {
   mode: "fixed" | "by_neighborhood";
   flatPriceCents: number;
   freeAboveCents: number | null;
-  estimatedDays: number;
+  estimatedValue: number;
+  estimatedUnit: "minutes" | "days";
   neighborhoods: Array<{ name: string; priceCents: number }>;
 }
 

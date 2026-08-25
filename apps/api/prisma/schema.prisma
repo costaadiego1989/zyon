@@ -2360,7 +2360,8 @@ model OwnDeliveryConfig {
   flatPriceCents Int?     @map("flat_price_cents")
   freeAboveCents Int?     @map("free_above_cents")
   neighborhoods  Json?
-  estimatedDays  Int      @default(3) @map("estimated_days")
+  estimatedValue Int      @default(60) @map("estimated_value")
+  estimatedUnit  String   @default("minutes") @map("estimated_unit")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 

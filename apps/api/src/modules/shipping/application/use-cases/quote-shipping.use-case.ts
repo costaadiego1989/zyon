@@ -175,18 +175,20 @@ export class QuoteShippingUseCase {
       if (config.mode === "flat" && config.flatPriceCents !== null) {
         const cartTotalCents = Math.round(input.cart_total * 100);
         const isFree = config.freeAboveCents !== null && cartTotalCents >= config.freeAboveCents;
+        const etaDays = convertToEtaDays(config.estimatedValue, config.estimatedUnit);
 
         ownDeliveryOptions.push({
           carrier_key: "own_delivery_flat",
           label: "Entrega própria",
           price: isFree ? 0 : config.flatPriceCents,
-          eta_days: config.estimatedDays,
+          eta_days: etaDays,
           is_free: isFree
         });
       } else if (config.mode === "neighborhood" && config.neighborhoods && config.neighborhoods.length > 0) {
         // Look up destination neighborhood from ZIP (ViaCEP or from session address)
         // For MVP, we'll just add all neighborhood options; in production, filter by destination ZIP
         const cartTotalCents = Math.round(input.cart_total * 100);
+        const etaDays = convertToEtaDays(config.estimatedValue, config.estimatedUnit);
 
         for (const neighborhood of config.neighborhoods) {
           const isFree = config.freeAboveCents !== null && cartTotalCents >= config.freeAboveCents;
@@ -195,7 +197,7 @@ export class QuoteShippingUseCase {
             carrier_key: `own_delivery_neighborhood_${neighborhood.name.toLowerCase().replace(/\s+/g, "_")}`,
             label: `Entrega própria - ${neighborhood.name}`,
             price: isFree ? 0 : neighborhood.priceCents,
-            eta_days: config.estimatedDays,
+            eta_days: etaDays,
             is_free: isFree
           });
         }
@@ -210,6 +212,19 @@ export class QuoteShippingUseCase {
       return currentResults; // Fail gracefully; return carrier quotes only
     }
   }
+}
+
+/**
+ * Convert estimatedValue and estimatedUnit to eta_days.
+ * minutes → eta_days = Math.ceil(value / 1440)
+ * days → eta_days = value
+ */
+function convertToEtaDays(estimatedValue: number, estimatedUnit: "minutes" | "days"): number {
+  if (estimatedUnit === "days") {
+    return estimatedValue;
+  }
+  // minutes
+  return Math.ceil(estimatedValue / 1440);
 }
 
 /**
