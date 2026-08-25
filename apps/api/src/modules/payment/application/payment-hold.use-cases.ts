@@ -27,8 +27,9 @@ export class CreatePaymentHoldUseCase {
     const merchantNetCents = totalAmountCents - platformFeeCents;
     const holdUntil = new Date(Date.now() + HOLD_DAYS * 86_400_000);
 
-    const hold = await (this.prisma as any).paymentHold.create({
-      data: {
+    const hold = await (this.prisma as any).paymentHold.upsert({
+      where: { paymentIntentId },
+      create: {
         merchantId,
         paymentIntentId,
         orderId,
@@ -38,6 +39,7 @@ export class CreatePaymentHoldUseCase {
         status: "held",
         holdUntil,
       },
+      update: {},
     });
 
     this.logger.log(`Hold created: ${hold.id} for merchant ${merchantId}, release at ${holdUntil.toISOString()}`);
@@ -54,20 +56,14 @@ export class ReleasePaymentHoldsUseCase {
   async execute(): Promise<{ released: number }> {
     const now = new Date();
 
-    const dueHolds = await (this.prisma as any).paymentHold.findMany({
+    // Atomic: updateMany with WHERE status='held' AND holdUntil <= now
+    // Prevents race condition with concurrent workers releasing same hold
+    const result = await (this.prisma as any).paymentHold.updateMany({
       where: { status: "held", holdUntil: { lte: now } },
-      take: 100,
+      data: { status: "released", releasedAt: now },
     });
 
-    let released = 0;
-    for (const hold of dueHolds) {
-      await (this.prisma as any).paymentHold.update({
-        where: { id: hold.id },
-        data: { status: "released", releasedAt: now },
-      });
-      released++;
-    }
-
+    const released = result.count ?? 0;
     if (released > 0) {
       this.logger.log(`Released ${released} payment holds`);
     }
