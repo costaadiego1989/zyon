@@ -36,6 +36,7 @@ import { cartRecoveryEndpoints } from "./endpoints/cart-recovery.js";
 import { returnsEndpoints } from "./endpoints/returns.js";
 import { inventoryEndpoints } from "./endpoints/inventory.js";
 import { deliveryEndpoints } from "./endpoints/delivery.js";
+import { postSaleEndpoints } from "./endpoints/post-sale.js";
 
 export * from "./http/index.js";
 export * from "./types.js";
@@ -87,6 +88,7 @@ export function createDashboardApi(options: {
     ...returnsEndpoints(base, f),
     ...inventoryEndpoints(base, f),
     ...deliveryEndpoints(base, f),
+    ...postSaleEndpoints(base, f),
     ...otherEndpoints(base, f),
   };
 }

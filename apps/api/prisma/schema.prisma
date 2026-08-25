@@ -1341,21 +1341,28 @@ model StockReservation {
 }
 
 model ProductReview {
-  id        String   @id @default(cuid())
-  productId String   @map("product_id")
-  buyerId   String   @map("buyer_id")
-  rating    Int
-  title     String?
-  body      String?
-  approved  Boolean  @default(false)
-  createdAt DateTime @default(now()) @map("created_at")
+  id               String   @id @default(cuid())
+  merchantId       String?  @map("merchant_id")
+  productId        String   @map("product_id")
+  buyerId          String   @map("buyer_id")
+  orderId          String?  @map("order_id")
+  rating           Int
+  title            String?
+  body             String?
+  text             String?
+  approved         Boolean  @default(false)
+  verified         Boolean  @default(true)
+  moderationStatus String?  @map("moderation_status") // pending | approved | rejected | null (legacy)
+  createdAt        DateTime @default(now()) @map("created_at")
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId, approved])
   @@index([buyerId])
+  @@index([merchantId, moderationStatus])
   @@map("product_reviews")
 }
+
 
 model ProductCollection {
   id          String   @id @default(cuid())
@@ -2371,4 +2378,58 @@ model OwnDeliveryConfig {
 
   @@index([merchantId])
   @@map("own_delivery_configs")
+}
+
+// Post-Sale Module
+model PostSaleScheduledMessage {
+  id          String   @id @default(cuid())
+  merchantId  String   @map("merchant_id")
+  buyerId     String   @map("buyer_id")
+  orderId     String   @map("order_id")
+  type        String                          // follow_up | review_request | nps | cross_sell | win_back | loyalty | reorder
+  channel     String   @default("whatsapp")   // whatsapp | email
+  sendAt      DateTime @map("send_at")
+  status      String   @default("pending")    // pending | sent | failed | cancelled
+  sentAt      DateTime? @map("sent_at")
+  messageContent String? @map("message_content")
+  buyerPhone  String?  @map("buyer_phone")
+  buyerEmail  String?  @map("buyer_email")
+  buyerName   String?  @map("buyer_name")
+  productName String?  @map("product_name")
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([merchantId, status, sendAt])
+  @@index([merchantId, buyerId])
+  @@map("post_sale_scheduled_messages")
+}
+
+model NpsResponse {
+  id             String   @id @default(cuid())
+  merchantId     String   @map("merchant_id")
+  buyerId        String   @map("buyer_id")
+  orderId        String?  @map("order_id")
+  score          Int                            // 0-10
+  feedback       String?
+  classification String                        // promoter | passive | detractor
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([merchantId, createdAt])
+  @@map("nps_responses")
+}
+
+model BuyerLoyaltyTracker {
+  id              String    @id @default(cuid())
+  merchantId      String    @map("merchant_id")
+  buyerId         String    @map("buyer_id")
+  purchaseCount   Int       @default(0) @map("purchase_count")
+  totalSpentCents Int       @default(0) @map("total_spent_cents")
+  lastPurchaseAt  DateTime? @map("last_purchase_at")
+  lastWinBackAt   DateTime? @map("last_win_back_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([merchantId, buyerId])
+  @@index([merchantId, lastPurchaseAt])
+  @@map("buyer_loyalty_trackers")
 }
