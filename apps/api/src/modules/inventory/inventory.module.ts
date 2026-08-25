@@ -44,9 +44,10 @@ import { InventoryWebhookEmitterService } from "./application/services/inventory
 import { CrmSyncService } from "./application/services/crm-sync.service.js";
 import { InventoryDashboardController } from "./presentation/http/inventory-dashboard.controller.js";
 import { ErpOAuthController } from "./presentation/http/erp-oauth.controller.js";
+import { MarketplaceWebhookController } from "./presentation/http/marketplace-webhook.controller.js";
 
 @Module({
-  controllers: [InventoryDashboardController, ErpOAuthController],
+  controllers: [InventoryDashboardController, ErpOAuthController, MarketplaceWebhookController],
   providers: [
     {
       provide: INVENTORY_REPOSITORY,
