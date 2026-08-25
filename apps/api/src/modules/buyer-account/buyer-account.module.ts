@@ -7,6 +7,9 @@ import { REDIS_CLIENT_TOKEN } from "../../shared/cache/redis.module.js";
 import { SendBuyerEmailCodeUseCase } from "./application/use-cases/send-buyer-email-code.use-case.js";
 import { VerifyBuyerEmailCodeUseCase } from "./application/use-cases/verify-buyer-email-code.use-case.js";
 import { RegisterBuyerUseCase } from "./application/use-cases/register-buyer.use-case.js";
+import { RegisterBuyerWithRateLimitUseCase } from "./application/use-cases/register-buyer-with-rate-limit.use-case.js";
+import { BUYER_REGISTRATION_RATE_LIMITER } from "./domain/ports/buyer-registration-rate-limiter.port.js";
+import { BuyerRegistrationRateLimiter } from "./domain/services/buyer-registration-rate-limiter.service.js";
 import { LoginBuyerUseCase } from "./application/use-cases/login-buyer.use-case.js";
 import { LoginBuyerFromSessionUseCase } from "./application/use-cases/login-buyer-from-session.use-case.js";
 import { GetBuyerProfileUseCase } from "./application/use-cases/get-buyer-profile.use-case.js";
@@ -53,6 +56,11 @@ import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-weba
   controllers: [BuyerAccountController, BuyerAgentController, BuyerHubController, BuyerWebAuthnController],
   providers: [
     RegisterBuyerUseCase,
+    RegisterBuyerWithRateLimitUseCase,
+    {
+      provide: BUYER_REGISTRATION_RATE_LIMITER,
+      useFactory: () => new BuyerRegistrationRateLimiter(),
+    },
     LoginBuyerUseCase,
     LoginBuyerFromSessionUseCase,
     GetBuyerProfileUseCase,

@@ -118,7 +118,10 @@ export class ReturnEntity {
   }
 
   get canRefund(): boolean {
-    return this.status === "INSPECTED_PASS";
+    // REFUND_PROCESSING is allowed so a refund that failed mid-flight (payment
+    // provider error / crash) can be safely retried. The refund path is
+    // idempotent downstream, so re-running from REFUND_PROCESSING is safe.
+    return this.status === "INSPECTED_PASS" || this.status === "REFUND_PROCESSING";
   }
 
   get canRestock(): boolean {

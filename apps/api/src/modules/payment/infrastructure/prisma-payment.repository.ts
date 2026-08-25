@@ -179,6 +179,25 @@ export class PrismaPaymentRepository implements PaymentRepository {
     return rows.map((row) => PaymentIntentEntity.rehydrate(snapshotFromRecord(row)));
   }
 
+  /**
+   * R2P-P03: Approved intents idle since `olderThan`. A healthy approval flow
+   * finishes completeAfterApproval within seconds, so an intent left `approved`
+   * beyond the stale window signals a crash between markApproved and
+   * completion. Re-driving completeAfterApproval is safe (idempotent via
+   * CompleteOrderUseCase).
+   */
+  async listStaleApproved(query: StalePendingQuery): Promise<PaymentIntentEntity[]> {
+    const rows = await this.prisma.paymentIntent.findMany({
+      where: {
+        status: "approved",
+        updatedAt: { lt: query.olderThan }
+      },
+      orderBy: { updatedAt: "asc" },
+      take: query.limit
+    });
+    return rows.map((row) => PaymentIntentEntity.rehydrate(snapshotFromRecord(row)));
+  }
+
   async getByIdempotency(
     merchantId: string,
     sessionId: string,

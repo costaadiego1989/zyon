@@ -28,6 +28,8 @@ export interface NuvemshopCommerceCredentials {
   storeId: string;
   accessToken: string;
   userAgent?: string;
+  /** Optional HMAC secret for webhook signature validation (Linked Store apps). */
+  webhookSecret?: string;
 }
 
 /** @deprecated Excluded from product — no headless checkout support */
@@ -93,6 +95,8 @@ export interface SaveNuvemshopCommerceCredentialsInput {
   storeId: string;
   accessToken: string;
   userAgent?: string;
+  /** Optional HMAC secret for webhook signature validation (Linked Store apps). */
+  webhookSecret?: string;
 }
 
 /** @deprecated Excluded from product — no headless checkout support */

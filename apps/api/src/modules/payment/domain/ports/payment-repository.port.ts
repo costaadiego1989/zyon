@@ -65,6 +65,13 @@ export interface PaymentRepository {
   ): Promise<{ id: string; merchantId: string } | null>;
   /** Open intents (pending/requires_action) eligible for authoritative-state reconciliation. */
   listStalePending(query: StalePendingQuery): Promise<PaymentIntentEntity[]>;
+  /**
+   * Approved intents that have not been updated since `olderThan`. Used to
+   * recover from a crash between markApproved and completeAfterApproval
+   * (payment charged but checkout/order never completed). Optional: repos that
+   * cannot detect the "approved-but-incomplete" set may omit it.
+   */
+  listStaleApproved?(query: StalePendingQuery): Promise<PaymentIntentEntity[]>;
   hasProcessedProviderEvent(key: ProviderEventKey): Promise<boolean>;
   /**
    * Portão atômico de idempotência: INSERT do marcador, `true` se gravou,

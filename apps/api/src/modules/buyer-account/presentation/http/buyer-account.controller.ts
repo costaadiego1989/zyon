@@ -7,9 +7,11 @@ import {
   Query,
   Req,
   UseGuards,
+  Ip,
 } from "@nestjs/common";
 import type { CustomerAddress } from "@zyon/shared-types";
 import { RegisterBuyerUseCase } from "../../application/use-cases/register-buyer.use-case.js";
+import { RegisterBuyerWithRateLimitUseCase } from "../../application/use-cases/register-buyer-with-rate-limit.use-case.js";
 import { LoginBuyerUseCase } from "../../application/use-cases/login-buyer.use-case.js";
 import { LoginBuyerFromSessionUseCase } from "../../application/use-cases/login-buyer-from-session.use-case.js";
 import { GetBuyerProfileUseCase } from "../../application/use-cases/get-buyer-profile.use-case.js";
@@ -27,7 +29,7 @@ import { purchaseItems } from "./purchase.transformer.js";
 @Controller("buyer")
 export class BuyerAccountController {
   constructor(
-    private readonly registerBuyer: RegisterBuyerUseCase,
+    private readonly registerBuyerWithRateLimit: RegisterBuyerWithRateLimitUseCase,
     private readonly loginBuyer: LoginBuyerUseCase,
     private readonly loginFromSession: LoginBuyerFromSessionUseCase,
     private readonly getProfile: GetBuyerProfileUseCase,
@@ -43,9 +45,10 @@ export class BuyerAccountController {
 
   @Post("register")
   async register(
-    @Body() body: { email: string; password: string; displayName: string; phone?: string }
+    @Body() body: { email: string; password: string; displayName: string; phone?: string },
+    @Ip() ip: string
   ) {
-    return this.registerBuyer.execute(body);
+    return this.registerBuyerWithRateLimit.execute(body, ip || "unknown");
   }
 
   @Post("login")

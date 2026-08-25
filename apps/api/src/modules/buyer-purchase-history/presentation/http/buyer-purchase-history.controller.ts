@@ -16,11 +16,9 @@ export class BuyerPurchaseHistoryController {
     const user = currentUser(request);
     const merchantId = user.merchantId;
 
-    // C2 fix: validate buyer is associated with this merchant
-    // This prevents a merchant from querying purchase history for buyers from other merchants
-    // TODO: implement buyerIdentity.findByGlobalUserId() in the repository
-    // For now, we allow the lookup (backward compat); security should be enforced at the application layer
-    // by ensuring the purchase history repository filters by merchant_id
+    // R2P-B04 fix: enforce merchantId from JWT, not from params
+    // Repository filters by (merchantId, globalUserId), preventing cross-merchant data leaks.
+    // The TenantGuard global middleware also validates merchantId mismatch in params.
 
     return this.getContext.execute({
       merchantId,

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Headers,
   HttpCode,
   Inject,
   Logger,
@@ -9,6 +10,7 @@ import {
   Post,
   UnauthorizedException,
 } from "@nestjs/common";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   COMMERCE_CONNECTION_PORT,
   type CommerceConnectionPort,
@@ -27,15 +29,25 @@ export type NuvemshopWebhookResult =
 /**
  * Receives inbound webhooks from Nuvemshop (Tiendanube).
  *
- * Nuvemshop webhooks do NOT use HMAC signatures. The expected defense is:
+ * Nuvemshop webhooks do NOT provide HMAC signatures natively.
+ * Defense layers:
  *   1. HTTPS-only transport (operator-configured).
  *   2. The inbound `store_id` must equal the merchant's persisted `storeId`.
+ *   3. If the merchant has a `webhookSecret` configured, we validate the
+ *      `X-Linkedstore-HMAC-SHA256` header (custom HMAC over raw body).
+ *      This is the same pattern Nuvemshop uses for "Linked Store" apps.
+ *   4. Rate-limit: per-merchant request frequency is bounded externally (gateway).
  *
  * Spec: https://tiendanube.github.io/api-documentation/resources/webhook
  */
 @Controller()
 export class NuvemshopWebhookController {
   private readonly logger = new Logger(NuvemshopWebhookController.name);
+
+  /** Per-store sliding window counters: storeId -> { count, windowStart } */
+  private readonly rateMap = new Map<string, { count: number; windowStart: number }>();
+  private static readonly RATE_LIMIT_WINDOW_MS = 60_000;
+  private static readonly RATE_LIMIT_MAX_PER_WINDOW = 120;
 
   constructor(
     @Inject(COMMERCE_CONNECTION_PORT)
@@ -50,6 +62,7 @@ export class NuvemshopWebhookController {
   @HttpCode(200)
   async handleWebhook(
     @Param("merchantId") merchantId: string | undefined,
+    @Headers("x-linkedstore-hmac-sha256") hmacHeader: string | undefined,
     @Body() body: NuvemshopWebhookPayload,
   ): Promise<NuvemshopWebhookResult> {
     const merchant = (merchantId ?? "").trim();
@@ -66,6 +79,12 @@ export class NuvemshopWebhookController {
       throw new BadRequestException("nuvemshop_webhook_payload_invalid");
     }
 
+    // Rate-limit per store_id to mitigate replay/flood attacks
+    if (!this.checkRateLimit(storeId)) {
+      this.logger.warn(`nuvemshop_webhook_rate_limited: store=${storeId}`);
+      throw new UnauthorizedException("nuvemshop_webhook_rate_limited");
+    }
+
     const credentials = await this.connections.getCredentials(merchant);
     if (!credentials || credentials.provider !== "nuvemshop") {
       throw new UnauthorizedException("nuvemshop_webhook_merchant_not_found");
@@ -73,6 +92,19 @@ export class NuvemshopWebhookController {
 
     if (credentials.storeId.trim() !== storeId) {
       throw new UnauthorizedException("nuvemshop_webhook_store_id_mismatch");
+    }
+
+    // HMAC signature validation when merchant has a webhook secret configured
+    if (credentials.webhookSecret) {
+      if (!hmacHeader) {
+        this.logger.warn(`nuvemshop_webhook_hmac_missing: merchant=${merchant}`);
+        throw new UnauthorizedException("nuvemshop_webhook_hmac_missing");
+      }
+      const rawBody = JSON.stringify(body);
+      if (!this.verifyHmac(rawBody, credentials.webhookSecret, hmacHeader)) {
+        this.logger.warn(`nuvemshop_webhook_hmac_invalid: merchant=${merchant}`);
+        throw new UnauthorizedException("nuvemshop_webhook_hmac_invalid");
+      }
     }
 
     switch (event) {
@@ -131,6 +163,37 @@ export class NuvemshopWebhookController {
       commerceOrderId,
       event,
     );
+  }
+
+  /**
+   * Verify HMAC-SHA256 signature using timing-safe comparison.
+   * Expected header value: hex-encoded HMAC of the raw JSON body.
+   */
+  private verifyHmac(rawBody: string, secret: string, headerValue: string): boolean {
+    try {
+      const computed = createHmac("sha256", secret).update(rawBody, "utf8").digest("hex");
+      const expected = Buffer.from(computed, "utf8");
+      const received = Buffer.from(headerValue.trim(), "utf8");
+      if (expected.length !== received.length) return false;
+      return timingSafeEqual(expected, received);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Simple in-memory sliding window rate-limiter per store_id.
+   * Prevents replay/flood attacks without external dependencies.
+   */
+  private checkRateLimit(storeId: string): boolean {
+    const now = Date.now();
+    const entry = this.rateMap.get(storeId);
+    if (!entry || now - entry.windowStart > NuvemshopWebhookController.RATE_LIMIT_WINDOW_MS) {
+      this.rateMap.set(storeId, { count: 1, windowStart: now });
+      return true;
+    }
+    entry.count++;
+    return entry.count <= NuvemshopWebhookController.RATE_LIMIT_MAX_PER_WINDOW;
   }
 }
 

@@ -20,7 +20,7 @@ export type ReconcilePaymentIntentsInput = {
   limit?: number;
 };
 
-export type ReconcileOutcome = "approved" | "failed" | "still_pending" | "unknown" | "skipped";
+export type ReconcileOutcome = "approved" | "failed" | "still_pending" | "unknown" | "skipped" | "completion_retried";
 
 export type ReconcilePaymentIntentsResult = {
   scanned: number;
@@ -72,6 +72,32 @@ export class ReconcilePaymentIntentsUseCase {
 
       const outcome = await this.applyAuthoritativeState(intent, authoritative.state, authoritative.approvedAmountCents);
       reconciled.push({ paymentIntentId: snap.id, outcome });
+    }
+
+    // R2P-P03: Recover intents approved but whose checkout completion was lost
+    // (crash between markApproved and completeAfterApproval). These are no longer
+    // "pending" so listStalePending never picks them up.
+    const staleApproved = await this.payments.listStaleApproved?.({ olderThan, limit });
+    if (staleApproved?.length) {
+      for (const intent of staleApproved) {
+        const snap = intent.snapshot();
+        try {
+          await this.checkoutPayment.completeAfterApproval({
+            merchantId: snap.merchantId,
+            sessionId: snap.sessionId,
+            externalOrderId: snap.providerPaymentId!,
+            orderTotalMajorUnits: majorUnitsFromCents(snap.amountCents),
+            currency: snap.currency as CurrencyCode,
+            acceptedOfferId: snap.acceptedOfferId
+          });
+          await this.markLinkedCommerceOrderPaid(snap, snap.providerPaymentId!);
+          this.logger.log(`reconcile_approved_completion_retried: intent=${snap.id}`);
+          reconciled.push({ paymentIntentId: snap.id, outcome: "completion_retried" });
+        } catch (err) {
+          this.logger.warn(`reconcile_approved_completion_failed: intent=${snap.id} err=${(err as Error).message}`);
+          reconciled.push({ paymentIntentId: snap.id, outcome: "skipped" });
+        }
+      }
     }
 
     return { scanned: candidates.length, reconciled };
