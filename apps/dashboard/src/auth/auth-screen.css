@@ -18,8 +18,8 @@
   padding: 24px;
   min-height: 100vh;
   overflow: visible;
-  background: oklch(7% 0.005 150 / 0.4);
-  backdrop-filter: blur(4px);
+  background: oklch(7% 0.005 150 / 0.35);
+  backdrop-filter: blur(6px);
 }
 
 .auth-header {
@@ -144,7 +144,7 @@
   height: 44px;
   border-radius: 8px;
   border: 1px solid oklch(22% 0.006 145);
-  background: oklch(8% 0.004 145);
+  background: oklch(8% 0.004 145 / 0.5);
   font: 500 13px 'Manrope', sans-serif;
   color: oklch(88% 0.002 145);
   cursor: pointer;
@@ -293,7 +293,7 @@
   padding: 13px 16px;
   border-radius: 8px;
   border: 1px solid oklch(20% 0.006 150);
-  background: oklch(7% 0.004 150);
+  background: oklch(7% 0.004 150 / 0.6);
   font: 400 14px 'Manrope', sans-serif;
   color: oklch(96% 0.002 145);
   outline: none;
