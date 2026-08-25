@@ -11,6 +11,8 @@ import {
   type MerchantRulesRepository
 } from "../../../merchant/domain/ports/merchant-rules.repository.port.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
+import { geocodeBrazilianCep, haversineDistance, getPriceForDistance } from "../../domain/services/distance-calculator.service.js";
+import type { OwnDeliveryRadiusZone } from "../../domain/ports/own-delivery-config.port.js";
 
 export interface QuoteShippingInput {
   session_id: string;
@@ -201,16 +203,60 @@ export class QuoteShippingUseCase {
             is_free: isFree
           });
         }
+      } else if (config.mode === "radius" && config.radiusZones && config.radiusZones.length > 0) {
+        // Radius mode: compute distance (origin → destination CEP) and pick the
+        // matching zone price. Requires origin_zip + destination_zip to geocode.
+        const cartTotalCents = Math.round(input.cart_total * 100);
+        const etaDays = convertToEtaDays(config.estimatedValue, config.estimatedUnit);
+        const isFree = config.freeAboveCents !== null && cartTotalCents >= config.freeAboveCents;
+
+        const priceCents = await this.computeRadiusPrice(
+          input.origin_zip ?? "",
+          input.destination_zip,
+          config.radiusZones
+        );
+
+        if (priceCents !== null) {
+          ownDeliveryOptions.push({
+            carrier_key: "own_delivery_radius",
+            label: "Entrega própria",
+            price: isFree ? 0 : priceCents,
+            eta_days: etaDays,
+            is_free: isFree
+          });
+        }
+        // If priceCents is null, destination is out of delivery range — no option added
       }
 
-      return [...currentResults, ...ownDeliveryOptions];
+      // Mutual exclusivity: when own delivery is enabled, it is the ONLY
+      // fulfillment method (the dashboard enforces this on the config side).
+      // Return own-delivery options exclusively, discarding carrier quotes.
+      if (ownDeliveryOptions.length > 0) {
+        return ownDeliveryOptions;
+      }
+      return currentResults;
     } catch (err) {
       this.logger.warn("own-delivery.append.failed", {
         merchantId: input.merchant_id,
         error: err instanceof Error ? err.message : String(err)
       });
-      return currentResults; // Fail gracefully; return carrier quotes only
+      return currentResults;
     }
+  }
+
+  private async computeRadiusPrice(
+    originZip: string,
+    destinationZip: string,
+    zones: OwnDeliveryRadiusZone[]
+  ): Promise<number | null> {
+    const origin = await geocodeBrazilianCep(originZip);
+    const dest = await geocodeBrazilianCep(destinationZip);
+    if (!origin || !dest) {
+      this.logger.warn("radius.geocode.failed", { originZip, destinationZip });
+      return null;
+    }
+    const distanceKm = haversineDistance(origin.lat, origin.lng, dest.lat, dest.lng);
+    return getPriceForDistance(distanceKm, zones);
   }
 }
 
