@@ -5,25 +5,20 @@
   "description": "Zyon — AI-powered headless commerce platform",
   "scripts": {
     "build": "pnpm -r build",
-
     "infra:up": "docker compose -f docker-compose.monitoring.yml up -d && docker compose -f docker-compose.kong.yml up -d",
     "infra:down": "docker compose -f docker-compose.kong.yml down && docker compose -f docker-compose.monitoring.yml down",
     "infra:logs": "docker compose -f docker-compose.monitoring.yml logs -f",
-
     "db:up": "node scripts/docker-engine-ok.mjs && docker compose up -d postgres",
     "db:down": "docker compose down",
     "db:migrate": "pnpm --filter @zyon/api prisma:deploy",
-
     "dev": "pnpm dev:api & pnpm dev:storefront & pnpm dev:widget-v2",
     "dev:api": "pnpm --filter @zyon/api dev",
     "dev:storefront": "pnpm --filter @zyon/storefront dev",
     "dev:widget-v2": "pnpm --filter @zyon/widget-v2 dev",
     "dev:widget": "pnpm --filter @zyon/widget dev",
     "dev:dashboard": "pnpm --filter @zyon/dashboard dev",
-
     "start:api": "pnpm --filter @zyon/api build && node apps/api/dist/main.js",
     "start:storefront": "pnpm --filter @zyon/storefront build && pnpm --filter @zyon/storefront start",
-
     "test": "pnpm -r test",
     "test:prisma": "pnpm --filter @zyon/api test:prisma",
     "test:e2e:db": "pnpm db:up && pnpm db:migrate && pnpm test:prisma",
@@ -38,5 +33,8 @@
   "engines": {
     "node": ">=20.11.0",
     "pnpm": ">=9.0.0"
+  },
+  "dependencies": {
+    "simplex-noise": "^4.0.3"
   }
 }

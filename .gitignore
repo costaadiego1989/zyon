@@ -54,3 +54,4 @@ apps/widget/cart-*.png
 # Build artifacts
 *.tsbuildinfo
 .audit/
+nul
