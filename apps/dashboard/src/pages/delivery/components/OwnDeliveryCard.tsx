@@ -106,10 +106,22 @@ export function OwnDeliveryConfigPanel({ config, saving, onSave, onClose }: OwnD
   // Sync if config changes externally
   useEffect(() => {
     if (config) setLocal({ ...config, enabled: true });
-  }, [config?.mode]);
+  }, [config?.mode, config?.flatPriceCents, config?.neighborhoods?.length]);
 
   const formatPrice = (cents: number) => (cents / 100).toFixed(2).replace(".", ",");
   const parseCents = (str: string) => Math.round(parseFloat(str.replace(",", ".")) * 100 || 0);
+
+  // Máscara de Real: aceita input como "10" = R$ 10,00 (formato livre com vírgula)
+  // Usuário digita valor em reais (ex: "10", "10,50", "8,00")
+  const handlePriceInput = (raw: string, setter: (cents: number) => void) => {
+    // Permite apenas dígitos e vírgula
+    const cleaned = raw.replace(/[^\d,]/g, "");
+    setter(parseCents(cleaned));
+  };
+  const displayPrice = (cents: number): string => {
+    if (!cents) return "";
+    return formatPrice(cents);
+  };
 
   const handleSave = async () => {
     await onSave(local);
@@ -117,8 +129,10 @@ export function OwnDeliveryConfigPanel({ config, saving, onSave, onClose }: OwnD
   };
 
   const addNeighborhood = () => {
-    if (!newName.trim() || !newPrice.trim()) return;
-    setLocal({ ...local, neighborhoods: [...local.neighborhoods, { name: newName.trim(), priceCents: parseCents(newPrice) }] });
+    if (!newName.trim() || !newPrice) return;
+    const priceCents = parseCents(newPrice);
+    if (priceCents <= 0) return;
+    setLocal({ ...local, neighborhoods: [...local.neighborhoods, { name: newName.trim(), priceCents }] });
     setNewName("");
     setNewPrice("");
   };
@@ -177,8 +191,9 @@ export function OwnDeliveryConfigPanel({ config, saving, onSave, onClose }: OwnD
                 <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>R$</span>
                 <input
                   type="text"
-                  value={local.flatPriceCents ? formatPrice(local.flatPriceCents) : ""}
-                  onChange={(e) => setLocal({ ...local, flatPriceCents: parseCents(e.target.value) })}
+                  inputMode="numeric"
+                  value={displayPrice(local.flatPriceCents ?? 0)}
+                  onChange={(e) => handlePriceInput(e.target.value, (c) => setLocal({ ...local, flatPriceCents: c }))}
                   placeholder="8,00"
                   style={{ width: "100%", padding: "10px 12px 10px 36px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-1)", font: "13px var(--font-sans)", color: "var(--color-text)" }}
                 />
@@ -190,8 +205,9 @@ export function OwnDeliveryConfigPanel({ config, saving, onSave, onClose }: OwnD
                 <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>R$</span>
                 <input
                   type="text"
-                  value={local.freeAboveCents ? formatPrice(local.freeAboveCents) : ""}
-                  onChange={(e) => setLocal({ ...local, freeAboveCents: e.target.value ? parseCents(e.target.value) : null })}
+                  inputMode="numeric"
+                  value={local.freeAboveCents ? displayPrice(local.freeAboveCents) : ""}
+                  onChange={(e) => handlePriceInput(e.target.value, (c) => setLocal({ ...local, freeAboveCents: c || null }))}
                   placeholder="50,00"
                   style={{ width: "100%", padding: "10px 12px 10px 36px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-1)", font: "13px var(--font-sans)", color: "var(--color-text)" }}
                 />
@@ -209,7 +225,7 @@ export function OwnDeliveryConfigPanel({ config, saving, onSave, onClose }: OwnD
             {local.neighborhoods.map((n, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-1)" }}>
                 <span style={{ flex: 1, font: "13px var(--font-sans)", color: "var(--color-text)" }}>{n.name}</span>
-                <span style={{ font: "12px var(--font-mono)", color: "var(--color-text-muted)" }}>R$ {formatPrice(n.priceCents)}</span>
+                <span style={{ font: "12px var(--font-mono)", color: "var(--color-text-muted)" }}>R$ {displayPrice(n.priceCents)}</span>
                 <button type="button" onClick={() => removeNeighborhood(i)} style={{ border: "none", background: "transparent", cursor: "pointer", padding: 4 }}>
                   <Trash2 size={14} color="var(--danger)" />
                 </button>
@@ -217,7 +233,14 @@ export function OwnDeliveryConfigPanel({ config, saving, onSave, onClose }: OwnD
             ))}
             <div style={{ display: "flex", gap: 8 }}>
               <input type="text" placeholder="Bairro" value={newName} onChange={(e) => setNewName(e.target.value)} style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-1)", font: "13px var(--font-sans)", color: "var(--color-text)" }} />
-              <input type="text" placeholder="R$" value={newPrice} onChange={(e) => setNewPrice(e.target.value)} style={{ width: 80, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-1)", font: "13px var(--font-sans)", color: "var(--color-text)" }} />
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder="R$ 0,00"
+                value={newPrice}
+                onChange={(e) => setNewPrice(e.target.value.replace(/[^\d,]/g, ""))}
+                style={{ width: 90, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-1)", font: "13px var(--font-sans)", color: "var(--color-text)" }}
+              />
               <Button variant="outline" size="sm" onClick={addNeighborhood}><Plus size={14} /> Add</Button>
             </div>
           </div>
