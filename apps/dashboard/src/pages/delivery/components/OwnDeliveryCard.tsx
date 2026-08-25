@@ -30,6 +30,7 @@ export function OwnDeliveryCard({ config, saving, onToggle, onOpenConfig }: OwnD
   const estimatedValue = config?.estimatedValue ?? 60;
   const estimatedUnit = config?.estimatedUnit ?? "minutes";
   const neighborhoods = config?.neighborhoods ?? [];
+  const radiusZones = config?.radiusZones ?? [];
 
   return (
     <div style={{ padding: "20px 24px", borderRadius: 12, border: "1px solid var(--color-border)", background: "var(--surface-1)" }}>
@@ -49,14 +50,16 @@ export function OwnDeliveryCard({ config, saving, onToggle, onOpenConfig }: OwnD
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
               <div style={{ font: "13px var(--font-sans)", color: "var(--color-text)" }}>
-                Modo: <strong>{mode === "fixed" ? "Valor Fixo" : "Por Bairro"}</strong>
+                Modo: <strong>{mode === "fixed" ? "Valor Fixo" : mode === "by_neighborhood" ? "Por Bairro" : "Por Raio"}</strong>
               </div>
               <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>
                 {mode === "fixed" && flatPriceCents
                   ? `R$ ${(flatPriceCents / 100).toFixed(2)} • ${formatEstimate(estimatedValue, estimatedUnit)}`
                   : mode === "by_neighborhood"
                     ? `${neighborhoods.length} bairro(s) configurado(s)`
-                    : "Configure os valores"}
+                    : mode === "by_radius"
+                      ? `${radiusZones.filter(z => z.priceCents > 0).length} faixa(s) configurada(s)`
+                      : "Configure os valores"}
               </div>
             </div>
             <Button variant="outline" size="sm" onClick={onOpenConfig}>Configurar</Button>
