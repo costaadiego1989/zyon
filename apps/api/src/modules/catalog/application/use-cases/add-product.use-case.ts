@@ -28,6 +28,17 @@ export class AddProductUseCase {
       if (variant.basePriceInCents <= 0) throw new ConflictException("price_must_be_positive");
     }
 
+    // Physical products require dimensions for shipping calculation
+    const productType = input.type ?? "physical";
+    const requiresDimensions = productType === "physical";
+    if (requiresDimensions) {
+      for (const variant of input.variants) {
+        if (!variant.weightGrams || variant.weightGrams <= 0) {
+          throw new ConflictException("physical_product_requires_weight");
+        }
+      }
+    }
+
     const product = await this.productRepo.create(input);
 
     // Emit domain event for marketplace sync

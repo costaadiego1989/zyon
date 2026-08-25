@@ -6,7 +6,6 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
-import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { ListInventoryUseCase } from "../../application/use-cases/list-inventory.use-case.js";
 import { RecordMovementUseCase } from "../../application/use-cases/record-movement.use-case.js";
 import { TransferStockUseCase } from "../../application/use-cases/transfer-stock.use-case.js";
@@ -23,6 +22,7 @@ import { DisconnectCrmUseCase } from "../../application/use-cases/disconnect-crm
 import { ListErpConnectionsUseCase } from "../../application/use-cases/list-erp-connections.use-case.js";
 import { ConnectOmieUseCase } from "../../application/use-cases/connect-omie.use-case.js";
 import { DisconnectErpUseCase } from "../../application/use-cases/disconnect-erp.use-case.js";
+import { GetProductDetailBySkuUseCase } from "../../application/use-cases/get-product-detail-by-sku.use-case.js";
 
 @ApiTags("Dashboard / Inventory")
 @Controller("dashboard/inventory")
@@ -46,7 +46,7 @@ export class InventoryDashboardController {
     private readonly listErpConnections: ListErpConnectionsUseCase,
     private readonly connectOmie: ConnectOmieUseCase,
     private readonly disconnectErp: DisconnectErpUseCase,
-    @Inject(PRISMA_CLIENT) private readonly prisma: any,
+    private readonly getProductDetail: GetProductDetailBySkuUseCase,
   ) {}
 
   @Get("items/:sku/product-detail")
@@ -54,51 +54,7 @@ export class InventoryDashboardController {
   @ApiOkResponse({ description: "Product detail from catalog" })
   async getProductDetailBySku(@Req() req: any, @Param("sku") sku: string) {
     const user = currentUser(req);
-    const variant = await this.prisma.productVariant.findFirst({
-      where: { sku, product: { merchantId: user.merchantId } },
-      include: {
-        product: { include: { variants: { include: { stock: true, price: true, media: true } } } },
-        stock: true,
-        price: true,
-        media: true,
-      },
-    });
-    if (!variant) return { found: false };
-    const product = variant.product;
-    return {
-      found: true,
-      product: {
-        id: product.id,
-        name: product.name,
-        description: product.description,
-        type: product.type,
-        isActive: product.isActive,
-      },
-      variant: {
-        id: variant.id,
-        sku: variant.sku,
-        attributes: variant.attributes,
-        barcode: variant.barcode,
-        weightGrams: variant.weightGrams,
-        lengthCm: variant.lengthCm,
-        widthCm: variant.widthCm,
-        heightCm: variant.heightCm,
-        isActive: variant.isActive,
-        stock: variant.stock?.[0]?.quantity ?? 0,
-        reserved: variant.stock?.[0]?.reserved ?? 0,
-        price: variant.price?.basePriceInCents ?? 0,
-        cost: variant.price?.costInCents ?? null,
-        media: (variant.media ?? []).map((m: any) => ({ url: m.url, type: m.type, alt: m.alt })),
-      },
-      allVariants: product.variants.map((v: any) => ({
-        id: v.id,
-        sku: v.sku,
-        attributes: v.attributes,
-        stock: v.stock?.[0]?.quantity ?? 0,
-        price: v.price?.basePriceInCents ?? 0,
-        isActive: v.isActive,
-      })),
-    };
+    return this.getProductDetail.execute(user.merchantId, sku);
   }
 
   @Get("summary")
