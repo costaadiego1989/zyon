@@ -1,19 +1,21 @@
 import { Injectable, Inject, Logger, OnModuleInit } from "@nestjs/common";
+import type { PrismaClient } from "@prisma/client";
 import {
   DOMAIN_EVENT_BUS,
   type DomainEventBus,
   type DomainEvent,
 } from "../../../../shared/events/domain-event-bus.port.js";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { SchedulePostDeliveryFlowUseCase } from "../../application/use-cases/schedule-post-delivery-flow.use-case.js";
 
 export interface OrderDeliveredEvent {
   type: "ORDER_DELIVERED";
   merchantId: string;
   orderId: string;
-  buyerId: string;
   buyerEmail?: string;
   buyerName?: string;
   buyerPhone?: string;
+  globalUserId?: string;
 }
 
 @Injectable()
@@ -22,6 +24,7 @@ export class OnOrderDeliveredHandler implements OnModuleInit {
 
   constructor(
     @Inject(DOMAIN_EVENT_BUS) private readonly eventBus: DomainEventBus,
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     private readonly scheduleFlow: SchedulePostDeliveryFlowUseCase
   ) {}
 
@@ -38,13 +41,24 @@ export class OnOrderDeliveredHandler implements OnModuleInit {
     try {
       const payload = event.payload as OrderDeliveredEvent;
 
-      // Extract product name if available (simple fallback)
+      // Find buyer by globalUserId if available
+      let buyerId: string | undefined;
+      if (payload.globalUserId) {
+        const buyer = await this.prisma.buyerIdentity.findFirst({
+          where: {
+            merchantId: payload.merchantId,
+            globalUserId: payload.globalUserId,
+          },
+        });
+        buyerId = buyer?.id;
+      }
+
       const productName = "seu pedido";
 
       await this.scheduleFlow.execute({
         merchantId: payload.merchantId,
         orderId: payload.orderId,
-        buyerId: payload.buyerId,
+        buyerId: buyerId || "unknown",
         buyerEmail: payload.buyerEmail,
         buyerName: payload.buyerName,
         buyerPhone: payload.buyerPhone,
@@ -56,7 +70,7 @@ export class OnOrderDeliveredHandler implements OnModuleInit {
         {
           merchantId: payload.merchantId,
           orderId: payload.orderId,
-          buyerId: payload.buyerId,
+          buyerId: buyerId || "unknown",
         }
       );
     } catch (err) {

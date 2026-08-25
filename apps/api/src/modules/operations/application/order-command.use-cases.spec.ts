@@ -98,6 +98,11 @@ describe("UpdateOrderStatusUseCase", () => {
   it("updates order status through an allowed transition and publishes a webhook", async () => {
     const checkout = completedOrderRepository();
     const published: Array<Record<string, unknown>> = [];
+    const mockPrisma = {
+      checkoutSession: {
+        findUnique: async () => ({ globalUserId: "buyer_123" }),
+      },
+    } as any;
     const useCase = new UpdateOrderStatusUseCase(
       new StubOperationsRepository(),
       checkout,
@@ -108,6 +113,7 @@ describe("UpdateOrderStatusUseCase", () => {
         },
       } as unknown as TenantWebhookPublisher,
       { publish: async () => {}, subscribe: () => {}, handlersFor: () => [] } as any,
+      mockPrisma,
     );
 
     const result = await useCase.execute({
@@ -131,11 +137,17 @@ describe("UpdateOrderStatusUseCase", () => {
   });
 
   it("rejects illegal status transitions", async () => {
+    const mockPrisma = {
+      checkoutSession: {
+        findUnique: async () => ({ globalUserId: "buyer_123" }),
+      },
+    } as any;
     const useCase = new UpdateOrderStatusUseCase(
       new StaticStatusOperationsRepository("delivered"),
       completedOrderRepository(),
       { publish: async () => [] } as unknown as TenantWebhookPublisher,
       { publish: async () => {}, subscribe: () => {}, handlersFor: () => [] } as any,
+      mockPrisma,
     );
 
     await assert.rejects(
@@ -150,11 +162,17 @@ describe("UpdateOrderStatusUseCase", () => {
 
   it("does not expose or mutate an order from another tenant", async () => {
     const checkout = completedOrderRepository();
+    const mockPrisma = {
+      checkoutSession: {
+        findUnique: async () => ({ globalUserId: "buyer_123" }),
+      },
+    } as any;
     const useCase = new UpdateOrderStatusUseCase(
       new StubOperationsRepository(),
       checkout,
       { publish: async () => [] } as unknown as TenantWebhookPublisher,
       { publish: async () => {}, subscribe: () => {}, handlersFor: () => [] } as any,
+      mockPrisma,
     );
 
     await assert.rejects(

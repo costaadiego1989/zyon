@@ -6,6 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
+import type { PrismaClient } from "@prisma/client";
 import type { CompletedOrderStatus } from "@zyon/shared-types";
 import { CompleteOrderUseCase } from "../../checkout/application/use-cases/complete-order.use-case.js";
 import {
@@ -25,6 +26,7 @@ import {
   DOMAIN_EVENT_BUS,
   type DomainEventBus,
 } from "../../../shared/events/domain-event-bus.port.js";
+import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
 
 @Injectable()
 export class CancelOrderUseCase {
@@ -159,6 +161,8 @@ export class UpdateOrderStatusUseCase {
     private readonly webhooks: TenantWebhookPublisher,
     @Inject(DOMAIN_EVENT_BUS)
     private readonly eventBus: DomainEventBus,
+    @Inject(PRISMA_CLIENT)
+    private readonly prisma: PrismaClient,
   ) {}
 
   async execute(input: {
@@ -204,6 +208,18 @@ export class UpdateOrderStatusUseCase {
     const buyerName = customerData?.full_name;
     const buyerPhone = customerData?.phone;
 
+    // Get globalUserId from session
+    let globalUserId: string | undefined;
+    try {
+      const session = await this.prisma.checkoutSession.findUnique({
+        where: { merchantId_sessionId: { merchantId, sessionId: order.sessionId } },
+        select: { globalUserId: true },
+      });
+      globalUserId = session?.globalUserId;
+    } catch {
+      // silently fail, globalUserId is optional
+    }
+
     if (status === "shipped") {
       await this.eventBus.publish({
         eventType: "order.shipped",
@@ -229,6 +245,7 @@ export class UpdateOrderStatusUseCase {
           buyerEmail,
           buyerName,
           buyerPhone,
+          globalUserId,
         },
       });
     }
