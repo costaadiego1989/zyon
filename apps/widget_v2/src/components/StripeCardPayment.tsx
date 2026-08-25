@@ -4,7 +4,7 @@ import { Elements, CardElement, useStripe, useElements } from "@stripe/react-str
 import { useCheckoutStore } from "@/store/checkout-store";
 
 // Stripe publishable key from env or default test key
-const STRIPE_PK = (typeof window !== "undefined" && (window as any).__STRIPE_PK__)
+const STRIPE_PK = (typeof window !== "undefined" && window.__STRIPE_PK__)
   || import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
   || "pk_test_placeholder";
 

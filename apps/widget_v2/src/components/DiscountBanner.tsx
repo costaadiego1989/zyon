@@ -1,11 +1,13 @@
 import { useCheckoutStore } from "@/store/checkout-store";
 
+export type DiscountStage =
+  | "initial_coupon"
+  | "exit_intent"
+  | "abandoned_cart"
+  | "payment_nudge";
+
 interface DiscountBannerProps {
-  stage:
-    | "initial_coupon"
-    | "exit_intent"
-    | "abandoned_cart"
-    | "payment_nudge";
+  stage: DiscountStage;
   percent: number;
   onDismiss: () => void;
 }

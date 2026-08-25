@@ -69,10 +69,10 @@ function evaluateCondition(
 
 function getFieldValue(field: string, context: RuleContext): unknown {
   const parts = field.split(".");
-  let current: any = context;
+  let current: unknown = context;
   for (const part of parts) {
-    if (current == null) return undefined;
-    current = current[part];
+    if (current == null || typeof current !== "object") return undefined;
+    current = (current as Record<string, unknown>)[part];
   }
   return current;
 }

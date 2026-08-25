@@ -30,11 +30,67 @@ export interface BrandConfig {
   warningColor?: string;
   mode?: string;
   density?: string;
+  // Extended fields from API (snake_case variants + extras)
+  backgroundImageUrl?: string;
+  favicon?: string;
+  agentAvatarUrl?: string;
+  agentName?: string;
+  agentGreeting?: string;
+  stripeEnabled?: boolean;
+  cryptoPaymentsEnabled?: boolean;
+  cryptoPayments?: CryptoPaymentsConfig;
+  logo_url?: string;
+  accent_color?: string;
+  theme?: BrandTheme;
+}
+
+export interface CryptoPaymentsConfig {
+  token?: string;
+  chain?: string;
+  walletAddress?: string;
+}
+
+export interface BrandTheme {
+  name?: string;
+  logoUrl?: string;
+  accentColor?: string;
+  secondaryColor?: string;
+  backgroundColor?: string;
+  textColor?: string;
+  fontFamily?: string;
+  fontDisplay?: string;
+  borderColor?: string;
+  borderRadius?: number;
+  surfaceColor?: string;
+  surfaceElevatedColor?: string;
+  mutedTextColor?: string;
+  successColor?: string;
+  warningColor?: string;
+  mode?: string;
+  density?: string;
+  agentName?: string;
 }
 
 export interface AgentConfig {
   name?: string;
   greeting?: string;
+}
+
+export interface BuyerConfig {
+  name?: string;
+  email?: string;
+  phone?: string;
+  cpf?: string;
+  isReturning?: boolean;
+  purchaseCount?: number;
+  address?: {
+    street?: string;
+    number?: string;
+    complement?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+  };
 }
 
 export interface CartItem {
@@ -51,8 +107,12 @@ export interface CartItem {
 export interface Experience {
   brand?: BrandConfig;
   agent?: AgentConfig;
+  buyer?: BuyerConfig;
   cart?: { items: CartItem[] };
   stage?: string;
+  stripeEnabled?: boolean;
+  cryptoPaymentsEnabled?: boolean;
+  cryptoPayments?: CryptoPaymentsConfig;
 }
 
 export interface StartResponse {

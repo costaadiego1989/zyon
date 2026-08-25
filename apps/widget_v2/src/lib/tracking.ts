@@ -11,7 +11,13 @@ export type CheckoutEventName =
   | "payment_intent_created"
   | "payment_confirmed"
   | "order_completed"
-  | "checkout_abandoned";
+  | "checkout_abandoned"
+  // Behavioral triggers (also tracked as events)
+  | "idle_30_seconds"
+  | "exit_intent_detected"
+  | "shipping_objection_detected"
+  | "coupon_field_clicked"
+  | "payment_failed";
 
 let api: CheckoutSession | null = null;
 let sessionId: string | null = null;

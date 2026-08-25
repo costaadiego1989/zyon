@@ -4,6 +4,7 @@ import { CheckoutLayout } from "@/layouts/CheckoutLayout";
 import { setupAbandonmentTracking, trackEvent } from "@/lib/tracking";
 import { onOrderCompleted } from "@/lib/lifecycle";
 import { setupIdleTrigger, setupExitIntentTrigger, type TriggerName } from "@/lib/triggers";
+import type { DiscountStage } from "@/components/DiscountBanner";
 
 const DEFAULT_API_BASE = "http://localhost:3009";
 const SESSION_KEY = "aacp_checkout_session";
@@ -92,7 +93,7 @@ export function App() {
     const triggerConfig = useCheckoutStore.getState().triggerConfig;
     if (!triggerConfig) return;
 
-    const stageMap: Record<string, string> = {
+    const stageMap: Partial<Record<TriggerName, DiscountStage>> = {
       idle_30_seconds: "initial_coupon",
       exit_intent_detected: "exit_intent",
     };
@@ -173,12 +174,12 @@ export function App() {
     // Density
     if (brand.density) root.dataset.density = brand.density;
     // Background image
-    if ((brand as any).backgroundImageUrl) {
-      document.body.style.background = `url(${(brand as any).backgroundImageUrl}) center/cover no-repeat fixed`;
+    if (brand.backgroundImageUrl) {
+      document.body.style.background = `url(${brand.backgroundImageUrl}) center/cover no-repeat fixed`;
       document.body.style.backgroundColor = brand.backgroundColor || "";
     }
     // Favicon
-    const favicon = (brand as any).favicon || brand.logoUrl;
+    const favicon = brand.favicon || brand.logoUrl;
     if (favicon) {
       let link = document.querySelector("link[rel='icon']") as HTMLLinkElement;
       if (!link) {
@@ -189,7 +190,7 @@ export function App() {
       link.href = favicon;
     }
     // Density → max-width shell
-    const density = (brand as any).density;
+    const density = brand.density;
     if (density === "compact") root.style.setProperty("--aacp-shell-max-width", "480px");
     else if (density === "comfortable") root.style.setProperty("--aacp-shell-max-width", "680px");
     else root.style.setProperty("--aacp-shell-max-width", "100%");

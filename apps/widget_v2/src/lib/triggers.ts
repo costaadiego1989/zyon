@@ -33,7 +33,7 @@ function fireTrigger(
   if (!canFire(config)) return;
   interventionCount++;
   lastTriggerTime = Date.now();
-  void trackEvent(trigger as any, { trigger });
+  void trackEvent(trigger, { trigger });
   onTrigger(trigger);
 }
 

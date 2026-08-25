@@ -299,7 +299,7 @@ export function ChatPanel() {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Agent avatar: use brand avatar/logo if available
-  const avatarUrl = (brand as any).agentAvatarUrl || (brand as any).logoUrl || brand.logoUrl;
+  const avatarUrl = brand.agentAvatarUrl || brand.logoUrl;
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });

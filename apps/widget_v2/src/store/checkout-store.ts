@@ -6,15 +6,16 @@ import {
   type CartItem,
   type ChatBlock,
   type PaymentIntent,
+  type CryptoPaymentsConfig,
 } from "@/api/checkout-session";
 import {
   initTracking,
   trackEvent,
-  type CheckoutEventName,
 } from "@/lib/tracking";
 import type { TriggerConfig, TriggerName } from "@/lib/triggers";
 import type { AdvancedRule, RuleAction } from "@/lib/advanced-rules";
 import { evaluateRules } from "@/lib/advanced-rules";
+import type { DiscountStage } from "@/components/DiscountBanner";
 
 export type CheckoutStatus = "loading" | "channel_gate" | "active" | "error" | "completed";
 export type CartStatus = "awaiting" | "shipping_calculated" | "ready_to_pay" | "paid";
@@ -38,6 +39,8 @@ export interface BuyerData {
   email?: string;
   phone?: string;
   cpf?: string;
+  isReturning?: boolean;
+  purchaseCount?: number;
   address?: {
     street?: string;
     number?: string;
@@ -77,7 +80,7 @@ interface CheckoutState {
   // Merchant config (from API)
   brand: BrandConfig;
   agent: AgentConfig;
-  merchantPaymentConfig: { stripeEnabled?: boolean; cryptoPaymentsEnabled?: boolean; cryptoPayments?: Record<string, unknown> };
+  merchantPaymentConfig: { stripeEnabled?: boolean; cryptoPaymentsEnabled?: boolean; cryptoPayments?: CryptoPaymentsConfig };
 
   // Buyer (pre-authenticated via global_user_id)
   buyer: BuyerData;
@@ -95,7 +98,7 @@ interface CheckoutState {
 
   // Triggers & Interventions
   triggerConfig: TriggerConfig | null;
-  activeDiscount: { stage: string; percent: number } | null;
+  activeDiscount: { stage: DiscountStage; percent: number } | null;
   advancedRules: AdvancedRule[];
   activeRuleActions: RuleAction[];
 
@@ -108,7 +111,7 @@ interface CheckoutState {
   pay: (method: "pix" | "credito" | "debito" | "crypto", installments?: number) => Promise<void>;
   pollPayment: () => void;
   stopPolling: () => void;
-  setActiveDiscount: (stage: string, percent: number) => void;
+  setActiveDiscount: (stage: DiscountStage, percent: number) => void;
   dismissDiscount: () => void;
   evaluateAdvancedRules: () => void;
 }
@@ -152,16 +155,24 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       const total = cartData.total || items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
       // Buyer data comes pre-resolved from API (via global_user_id in token)
-      const buyer: BuyerData = (exp as any)?.buyer ?? {};
+      const buyer: BuyerData = {
+        name: exp?.buyer?.name,
+        email: exp?.buyer?.email,
+        phone: exp?.buyer?.phone,
+        cpf: exp?.buyer?.cpf,
+        isReturning: exp?.buyer?.isReturning,
+        purchaseCount: exp?.buyer?.purchaseCount,
+        address: exp?.buyer?.address,
+      };
 
       // Flatten brand: API returns brand at top level AND theme nested inside.
-      const rawBrand = (exp as any)?.brand ?? {};
-      const theme = (rawBrand as any)?.theme ?? {};
+      const rawBrand = exp?.brand ?? {};
+      const theme = rawBrand.theme ?? {};
       const brand: BrandConfig = {
         name: rawBrand.name ?? theme.name,
-        subtitle: (rawBrand as any).subtitle,
-        logoUrl: rawBrand.logoUrl ?? theme.logoUrl ?? (rawBrand as any).logo_url,
-        accentColor: rawBrand.accentColor ?? theme.accentColor ?? (rawBrand as any).accent_color,
+        subtitle: rawBrand.subtitle,
+        logoUrl: rawBrand.logoUrl ?? theme.logoUrl ?? rawBrand.logo_url,
+        accentColor: rawBrand.accentColor ?? theme.accentColor ?? rawBrand.accent_color,
         secondaryColor: theme.secondaryColor,
         backgroundColor: rawBrand.backgroundColor ?? theme.backgroundColor,
         textColor: rawBrand.textColor ?? theme.textColor,
@@ -176,11 +187,14 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         warningColor: theme.warningColor,
         mode: theme.mode,
         density: theme.density,
+        backgroundImageUrl: rawBrand.backgroundImageUrl,
+        favicon: rawBrand.favicon,
+        agentAvatarUrl: rawBrand.agentAvatarUrl,
       };
 
       const agent: AgentConfig = {
-        name: (exp as any)?.agent?.name ?? theme.agentName ?? (rawBrand as any).agentName,
-        greeting: (exp as any)?.agent?.greeting ?? (rawBrand as any).agentGreeting,
+        name: exp?.agent?.name ?? theme.agentName ?? rawBrand.agentName,
+        greeting: exp?.agent?.greeting ?? rawBrand.agentGreeting,
       };
 
       set({
@@ -189,9 +203,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         agent,
         buyer,
         merchantPaymentConfig: {
-          stripeEnabled: (exp as any)?.stripeEnabled ?? (rawBrand as any).stripeEnabled ?? true,
-          cryptoPaymentsEnabled: (exp as any)?.cryptoPaymentsEnabled ?? (rawBrand as any).cryptoPaymentsEnabled ?? false,
-          cryptoPayments: (exp as any)?.cryptoPayments ?? (rawBrand as any).cryptoPayments ?? undefined,
+          stripeEnabled: exp?.stripeEnabled ?? rawBrand.stripeEnabled ?? true,
+          cryptoPaymentsEnabled: exp?.cryptoPaymentsEnabled ?? rawBrand.cryptoPaymentsEnabled ?? false,
+          cryptoPayments: exp?.cryptoPayments ?? rawBrand.cryptoPayments,
         },
         cart: { items, total, discount: 0, status: "awaiting" },
         status: "channel_gate",
@@ -276,7 +290,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       // If API returns empty blocks for "Vamos prosseguir", provide shipping options
       if ((!res.blocks || res.blocks.length === 0) && text === "Vamos prosseguir") {
         // Buyer is pre-authenticated — skip data collection, go to shipping
-        const { buyer, cart } = get();
+        const { buyer } = get();
         const zip = buyer.address?.zipCode || "";
 
         // Try to fetch real shipping options
@@ -314,8 +328,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         methods.push({ key: "credito", label: "Cartão de crédito", sub: "Parcele em até 12x sem juros" });
         methods.push({ key: "debito", label: "Cartão de débito", sub: "Débito à vista" });
         if (merchantPaymentConfig.cryptoPaymentsEnabled) {
-          const token = (merchantPaymentConfig.cryptoPayments as any)?.token || "USDC";
-          const chain = (merchantPaymentConfig.cryptoPayments as any)?.chain || "polygon";
+          const token = merchantPaymentConfig.cryptoPayments?.token || "USDC";
+          const chain = merchantPaymentConfig.cryptoPayments?.chain || "polygon";
           methods.push({ key: "crypto", label: `Crypto · ${token}`, sub: `Liquida na ${chain} + cashback` });
         }
 
@@ -474,7 +488,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   },
 
   pay: async (method, installments) => {
-    const { api, messages, buyer } = get();
+    const { api, buyer } = get();
     if (!api) return;
     try {
       // Sync buyer data to checkout session before payment — Asaas requires
@@ -582,7 +596,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     if (!advancedRules.length) return;
     const context = {
       cart: { items: cart.items, total: cart.total },
-      buyer: { isReturning: (buyer as any).isReturning, purchaseCount: (buyer as any).purchaseCount },
+      buyer: { isReturning: buyer.isReturning, purchaseCount: buyer.purchaseCount },
       session: { stage: "active" },
     };
     const actions = evaluateRules(advancedRules, context);

@@ -220,7 +220,7 @@ export function CheckoutLayout() {
               >
                 {activeDiscount && (
                   <DiscountBanner
-                    stage={activeDiscount.stage as any}
+                    stage={activeDiscount.stage}
                     percent={activeDiscount.percent}
                     onDismiss={dismissDiscount}
                   />
