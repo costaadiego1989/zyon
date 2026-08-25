@@ -20,6 +20,7 @@ import { MelhorEnvioCarrierAdapter } from "./infrastructure/adapters/melhor-envi
 import { GetDeliveryConfigUseCase } from "./application/use-cases/get-delivery-config.use-case.js";
 import { UpdateDeliveryConfigUseCase } from "./application/use-cases/update-delivery-config.use-case.js";
 import { ListMerchantShipmentsUseCase } from "./application/use-cases/list-merchant-shipments.use-case.js";
+import { QuoteRadiusDeliveryUseCase } from "./application/use-cases/quote-radius-delivery.use-case.js";
 import { PrismaOwnDeliveryConfigRepository } from "./infrastructure/repositories/prisma-own-delivery-config.repository.js";
 import { OWN_DELIVERY_CONFIG_REPOSITORY } from "./domain/ports/own-delivery-config.port.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
@@ -38,6 +39,7 @@ import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
     GetDeliveryConfigUseCase,
     UpdateDeliveryConfigUseCase,
     ListMerchantShipmentsUseCase,
+    QuoteRadiusDeliveryUseCase,
     {
       provide: OWN_DELIVERY_CONFIG_REPOSITORY,
       useFactory: (prisma: any) => new PrismaOwnDeliveryConfigRepository(prisma),

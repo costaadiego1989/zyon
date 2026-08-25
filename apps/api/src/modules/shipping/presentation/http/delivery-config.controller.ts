@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put, Req, UseGuards, Param } from "@nestjs/common";
+import { Body, Controller, Get, Put, Req, UseGuards, Param, Post } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiCookieAuth,
@@ -14,6 +14,7 @@ import { GetDeliveryConfigUseCase } from "../../application/use-cases/get-delive
 import { UpdateDeliveryConfigUseCase } from "../../application/use-cases/update-delivery-config.use-case.js";
 import { ListMerchantShipmentsUseCase } from "../../application/use-cases/list-merchant-shipments.use-case.js";
 import { PurchaseShippingLabelUseCase } from "../../application/use-cases/shipping-label.use-cases.js";
+import { QuoteRadiusDeliveryUseCase } from "../../application/use-cases/quote-radius-delivery.use-case.js";
 
 @ApiTags("Delivery config")
 @ApiBearerAuth("service_api_key")
@@ -25,7 +26,8 @@ export class DeliveryConfigController {
     private readonly getDeliveryConfig: GetDeliveryConfigUseCase,
     private readonly updateDeliveryConfig: UpdateDeliveryConfigUseCase,
     private readonly listShipmentsUseCase: ListMerchantShipmentsUseCase,
-    private readonly purchaseLabelUseCase: PurchaseShippingLabelUseCase
+    private readonly purchaseLabelUseCase: PurchaseShippingLabelUseCase,
+    private readonly quoteRadiusDelivery: QuoteRadiusDeliveryUseCase
   ) {}
 
   @ApiOperation({
@@ -165,6 +167,34 @@ export class DeliveryConfigController {
       invoiceKey: body.invoice_key
     });
   }
+
+  @ApiOperation({
+    summary: "Quote radius delivery pricing",
+    description: "Calculate delivery price based on distance for radius-based pricing mode"
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Quote calculated",
+    schema: {
+      example: {
+        distanceKm: 5.2,
+        priceCents: 1500,
+        zone: {
+          maxKm: 5,
+          label: "Até 5 km"
+        }
+      }
+    }
+  })
+  @Post("quote-radius")
+  @RequireTenantAccess({ serviceScopes: ["orders:read"] })
+  async quoteRadiusDelivery(@Req() request: unknown, @Body() body: QuoteRadiusDeliveryDto) {
+    return this.quoteRadiusDelivery.execute({
+      merchantId: tenantId(request),
+      destinationCep: body.destination_cep,
+      originCep: body.origin_cep
+    });
+  }
 }
 
 function tenantId(request: unknown): string {
@@ -194,4 +224,9 @@ export type PurchaseLabelDto = {
   to_document: string;
   packages: Array<{ weightKg: number; widthCm: number; heightCm: number; lengthCm: number; quantity: number }>;
   invoice_key?: string;
+};
+
+export type QuoteRadiusDeliveryDto = {
+  destination_cep: string;
+  origin_cep: string;
 };
