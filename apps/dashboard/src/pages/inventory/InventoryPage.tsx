@@ -367,6 +367,40 @@ export function InventoryPage(props: InventoryPageProps) {
             </div>
           </div>
 
+          {/* Section: Marketplaces */}
+          <div className="panel" style={{ padding: "20px 24px" }}>
+            <SectionHeader icon={<Boxes size={16} />} title="Marketplaces" subtitle="Sincronize produtos e estoque com seus marketplaces" />
+            <div className="grid-3" style={{ gap: 14 }}>
+              <ErpProviderCard
+                provider="mercadolivre"
+                name="Mercado Livre"
+                description="Marketplace líder da América Latina. Sync de produtos e estoque."
+                connection={vm.erpConnections.find((c) => c.provider === "mercadolivre")}
+                onConnect={(creds) => vm.connectErp("mercadolivre", creds)}
+                onDisconnect={(id) => vm.disconnectErp(id)}
+                onSync={(id) => vm.syncErp(id)}
+              />
+              <ErpProviderCard
+                provider="shopee"
+                name="Shopee"
+                description="Marketplace em crescimento. Sync automático de catálogo."
+                connection={vm.erpConnections.find((c) => c.provider === "shopee")}
+                onConnect={(creds) => vm.connectErp("shopee", creds)}
+                onDisconnect={(id) => vm.disconnectErp(id)}
+                onSync={(id) => vm.syncErp(id)}
+              />
+              <ErpProviderCard
+                provider="tiktokshop"
+                name="TikTok Shop"
+                description="Social commerce. Venda direto do TikTok com sync de estoque."
+                connection={vm.erpConnections.find((c) => c.provider === "tiktokshop")}
+                onConnect={(creds) => vm.connectErp("tiktokshop", creds)}
+                onDisconnect={(id) => vm.disconnectErp(id)}
+                onSync={(id) => vm.syncErp(id)}
+              />
+            </div>
+          </div>
+
           {/* Section 3: Webhooks */}
           <div style={{
             padding: "14px 20px",

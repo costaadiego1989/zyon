@@ -53,6 +53,47 @@ export class ErpOAuthController {
       };
     }
 
+    if (provider_lower === "mercadolivre") {
+      const params = new URLSearchParams({
+        response_type: "code",
+        client_id: env("MERCADOLIVRE_APP_ID"),
+        redirect_uri: env("MERCADOLIVRE_REDIRECT_URI"),
+        state,
+      });
+      return {
+        url: `https://auth.mercadolivre.com.br/authorization?${params.toString()}`,
+      };
+    }
+
+    if (provider_lower === "shopee") {
+      const partnerId = env("SHOPEE_PARTNER_ID");
+      const partnerKey = env("SHOPEE_PARTNER_KEY");
+      const redirectUri = env("SHOPEE_REDIRECT_URI");
+      const timestamp = Math.floor(Date.now() / 1000);
+      const baseString = `${partnerId}/api/v2/shop/auth_partner${timestamp}`;
+      const sign = createHmac("sha256", partnerKey).update(baseString).digest("hex");
+      const params = new URLSearchParams({
+        partner_id: partnerId,
+        redirect: redirectUri,
+        sign,
+        timestamp: String(timestamp),
+        state,
+      });
+      return {
+        url: `https://partner.shopeemobile.com/api/v2/shop/auth_partner?${params.toString()}`,
+      };
+    }
+
+    if (provider_lower === "tiktokshop") {
+      const params = new URLSearchParams({
+        app_key: env("TIKTOKSHOP_APP_KEY"),
+        state,
+      });
+      return {
+        url: `https://services.tiktokshop.com/open/authorize?${params.toString()}`,
+      };
+    }
+
     throw new Error(`unsupported_erp_provider:${provider_lower}`);
   }
 
@@ -65,7 +106,8 @@ export class ErpOAuthController {
   async callback(
     @Query("code") code: string,
     @Query("state") state: string,
-    @Res() res: any
+    @Res() res: any,
+    @Query("shop_id") shopId?: string
   ) {
     if (!code || !state) {
       res.redirect(302, "/dashboard?error=erp_denied");
@@ -142,6 +184,81 @@ export class ErpOAuthController {
           return;
         }
         tokenData = await tokenRes.json();
+      } else if (provider === "mercadolivre") {
+        // Mercado Livre: JSON body, no Basic auth
+        const tokenRes = await fetch("https://api.mercadolibre.com/oauth/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({
+            grant_type: "authorization_code",
+            client_id: env("MERCADOLIVRE_APP_ID"),
+            client_secret: env("MERCADOLIVRE_CLIENT_SECRET"),
+            code,
+            redirect_uri: env("MERCADOLIVRE_REDIRECT_URI"),
+          }),
+        });
+        if (!tokenRes.ok) {
+          const err = await tokenRes.text();
+          this.logger.error("mercadolivre.token_exchange_failed", { status: tokenRes.status, error: err });
+          res.redirect(302, "/dashboard?error=erp_token_failed");
+          return;
+        }
+        tokenData = await tokenRes.json();
+      } else if (provider === "shopee") {
+        // Shopee: HMAC-signed token request
+        const partnerId = env("SHOPEE_PARTNER_ID");
+        const partnerKey = env("SHOPEE_PARTNER_KEY");
+        const timestamp = Math.floor(Date.now() / 1000);
+        const path = "/api/v2/auth/token/get";
+        const baseString = `${partnerId}${path}${timestamp}`;
+        const sign = createHmac("sha256", partnerKey).update(baseString).digest("hex");
+
+        const tokenRes = await fetch(`https://partner.shopeemobile.com${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            code,
+            shop_id: shopId ? Number(shopId) : undefined,
+            partner_id: Number(partnerId),
+          }),
+        });
+        if (!tokenRes.ok) {
+          const err = await tokenRes.text();
+          this.logger.error("shopee.token_exchange_failed", { status: tokenRes.status, error: err });
+          res.redirect(302, "/dashboard?error=erp_token_failed");
+          return;
+        }
+        const raw: any = await tokenRes.json();
+        // Shopee may return tokens flat or nested under `data`
+        tokenData = {
+          access_token: raw.access_token ?? raw.data?.access_token,
+          refresh_token: raw.refresh_token ?? raw.data?.refresh_token,
+          expires_in: raw.expire_in ?? raw.data?.expire_in ?? 14400,
+        };
+      } else if (provider === "tiktokshop") {
+        // TikTok Shop: standard POST with app_key/app_secret
+        const tokenRes = await fetch("https://auth.tiktok-shops.com/api/v2/token/get", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            app_key: env("TIKTOKSHOP_APP_KEY"),
+            app_secret: env("TIKTOKSHOP_APP_SECRET"),
+            auth_code: code,
+            grant_type: "authorized_code",
+          }),
+        });
+        if (!tokenRes.ok) {
+          const err = await tokenRes.text();
+          this.logger.error("tiktokshop.token_exchange_failed", { status: tokenRes.status, error: err });
+          res.redirect(302, "/dashboard?error=erp_token_failed");
+          return;
+        }
+        const raw: any = await tokenRes.json();
+        tokenData = {
+          access_token: raw.data?.access_token,
+          refresh_token: raw.data?.refresh_token,
+          expires_in: raw.data?.access_token_expire_in ?? 7200,
+        };
       }
 
       // Encrypt and store in ErpConnection

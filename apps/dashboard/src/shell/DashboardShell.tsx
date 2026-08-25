@@ -1,7 +1,7 @@
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { LogOut, ShieldCheck, ExternalLink } from "lucide-react";
+import { LogOut, ShieldCheck, ExternalLink, ChevronDown, Search, X } from "lucide-react";
 import { PageErrorBoundary } from "./PageErrorBoundary.js";
-import { NAV_ITEMS, type TabKey } from "./nav-config.js";
+import { NAV_ITEMS, NAV_SECTIONS, visibleItemsForPlan, type TabKey } from "./nav-config.js";
 import { resolveDashboardApiBaseUrl, type MerchantProfile as MerchantDashboardProfile } from "../api-client.js";
 import { ToastContainer } from "../components/Toast.js";
 import { FeatureGate, PlanProvider } from "../components/FeatureGate.js";
@@ -91,6 +91,24 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   const [hideOnboarding, setHideOnboarding] = useState(initialOnboardingCompleted !== false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
+  // Sidebar: collapsible sections state
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem("aacp_nav_collapsed");
+    if (saved) {
+      try {
+        return new Set(JSON.parse(saved));
+      } catch {
+        return new Set();
+      }
+    }
+    // Default: collapse sections with defaultOpen: false
+    return new Set(NAV_SECTIONS.filter((s) => !s.defaultOpen).map((s) => s.id));
+  });
+
+  // Sidebar: search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
+
   // Sync hash → tab on popstate / hashchange
   useEffect(() => {
     const onHashChange = () => {
@@ -101,10 +119,44 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
+  // Persist collapsed sections to localStorage
+  useEffect(() => {
+    localStorage.setItem("aacp_nav_collapsed", JSON.stringify(Array.from(collapsedSections)));
+  }, [collapsedSections]);
+
+  // Keyboard shortcut: Cmd+K or Ctrl+K focuses search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+      if (e.key === "Escape" && searchQuery) {
+        setSearchQuery("");
+        searchInputRef.current?.blur();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [searchQuery]);
+
   // changeTab: update state + hash in one call
   const changeTab = useCallback((next: TabKey) => {
     setTab(next);
     window.location.hash = next;
+  }, []);
+
+  // Toggle section collapse
+  const toggleSectionCollapse = useCallback((sectionId: string) => {
+    setCollapsedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) {
+        next.delete(sectionId);
+      } else {
+        next.add(sectionId);
+      }
+      return next;
+    });
   }, []);
 
   // Connect to support socket for real-time handoff notifications
@@ -152,11 +204,38 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   }, [me.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const visibleNavItems = useMemo(
-    () => hideOnboarding ? NAV_ITEMS.filter((item) => item.key !== "onboarding") : NAV_ITEMS,
-    [hideOnboarding]
+    () => {
+      let items = hideOnboarding ? NAV_ITEMS.filter((item) => item.key !== "onboarding") : NAV_ITEMS;
+      // Filter by plan
+      items = visibleItemsForPlan(items, me.plan);
+
+      // If searching, filter by label + keywords
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        items = items.filter((item) => {
+          const matches =
+            item.label.toLowerCase().includes(q) ||
+            (item.keywords?.some((kw) => kw.toLowerCase().includes(q)) ?? false);
+          return matches;
+        });
+      }
+      return items;
+    },
+    [hideOnboarding, me.plan, searchQuery]
   );
 
-  const groupedSections = useMemo(() => [...new Set(visibleNavItems.map((item) => item.section))], [visibleNavItems]);
+  // Collect sections that have at least one visible item
+  const visibleSectionIds = useMemo(
+    () => new Set(visibleNavItems.map((item) => item.section)),
+    [visibleNavItems]
+  );
+
+  // Sort sections by order
+  const orderedSections = useMemo(
+    () =>
+      NAV_SECTIONS.filter((s) => visibleSectionIds.has(s.id)).sort((a, b) => a.order - b.order),
+    [visibleSectionIds]
+  );
 
   const activeItem = visibleNavItems.find((item) => item.key === tab) ?? NAV_ITEMS[0]!;
   const ActiveIcon = activeItem.icon;
@@ -181,30 +260,167 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
           <span style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", padding: "3px 7px", borderRadius: 5, background: "var(--sidebar-active)", color: "var(--color-brand)" }}>PRODUÇÃO</span>
           <span style={{ font: "11px var(--font-mono)", color: "var(--sidebar-muted)" }}>v1.0</span>
         </div>
+
+        {/* Search input */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", marginBottom: 14, borderRadius: 9, background: "var(--sidebar-active)", border: "1px solid var(--sidebar-border)" }}>
+          <Search size={14} color="var(--sidebar-muted)" style={{ flex: "none" }} />
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Cmd+K"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              flex: 1,
+              background: "transparent",
+              border: "none",
+              font: "12px var(--font-sans)",
+              color: "var(--sidebar-text)",
+              outline: "none"
+            } as React.CSSProperties}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              style={{
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                padding: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
+              }}
+            >
+              <X size={14} color="var(--sidebar-muted)" />
+            </button>
+          )}
+        </div>
+
+        {/* Sections */}
         <nav style={{ flex: 1 }} aria-label="Módulos do painel">
-          {groupedSections.map((section) => (
-            <div key={section} style={{ marginBottom: 16 }}>
-              <div style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.08em", color: "var(--sidebar-muted)", padding: "0 10px 6px" }}>{section}</div>
-              {visibleNavItems.filter((item) => item.section === section).map((item) => {
-                const Icon = item.icon;
-                const active = tab === item.key;
-                return (
-                  <button
-                    key={item.key}
-                    type="button"
-                    onClick={() => changeTab(item.key)}
-                    style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, padding: "6px 8px", borderRadius: 9, cursor: "pointer", marginBottom: 1, background: active ? "var(--sidebar-active)" : "transparent", border: "none", textAlign: "left", font: "inherit" }}
+          {orderedSections.map((section) => {
+            const sectionItems = visibleNavItems.filter((item) => item.section === section.id);
+            const isCollapsed = collapsedSections.has(section.id);
+            const isSearchActive = searchQuery.trim().length > 0;
+            const SectionIcon = section.icon;
+
+            return (
+              <div key={section.id} style={{ marginBottom: 16 }}>
+                {/* Section header */}
+                <button
+                  type="button"
+                  onClick={() => toggleSectionCollapse(section.id)}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "0 10px 6px",
+                    font: "600 10px var(--font-mono)",
+                    letterSpacing: "0.08em",
+                    color: "var(--sidebar-muted)",
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    textAlign: "left"
+                  }}
+                >
+                  <SectionIcon size={11} style={{ flex: "none", opacity: 0.5 }} />
+                  <span>{section.label}</span>
+                  {!isSearchActive && (
+                    <>
+                      <span style={{ marginLeft: "auto" }}>
+                        ({sectionItems.length})
+                      </span>
+                      <ChevronDown
+                        size={12}
+                        style={{
+                          flex: "none",
+                          transition: "transform 0.2s",
+                          transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)"
+                        }}
+                      />
+                    </>
+                  )}
+                </button>
+
+                {/* Section items */}
+                {(isSearchActive || !isCollapsed) && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 1,
+                      maxHeight: isCollapsed && !isSearchActive ? 0 : "none",
+                      overflow: "hidden",
+                      transition: "max-height 0.2s ease-out"
+                    }}
                   >
-                    <div style={{ width: 24, height: 24, borderRadius: 7, background: active ? "oklch(30% 0.03 149)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
-                      <Icon size={14} color={active ? "var(--color-brand)" : "var(--sidebar-muted)"} />
-                    </div>
-                    <span style={{ font: "13px var(--font-sans)", color: active ? "var(--sidebar-text)" : "var(--sidebar-muted)", fontWeight: active ? 600 : 400, flex: 1 }}>{item.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+                    {sectionItems.map((item) => {
+                      const Icon = item.icon;
+                      const active = tab === item.key;
+
+                      return (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={() => changeTab(item.key)}
+                          style={{
+                            width: "100%",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 9,
+                            padding: "6px 8px",
+                            borderRadius: 9,
+                            cursor: "pointer",
+                            background: active ? "var(--sidebar-active)" : "transparent",
+                            border: "none",
+                            textAlign: "left",
+                            font: "inherit"
+                          }}
+                        >
+                          <div style={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: 7,
+                            background: active ? "oklch(30% 0.03 149)" : "transparent",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            flex: "none"
+                          }}>
+                            <Icon size={14} color={active ? "var(--color-brand)" : "var(--sidebar-muted)"} />
+                          </div>
+                          <span style={{
+                            font: "13px var(--font-sans)",
+                            color: active ? "var(--sidebar-text)" : "var(--sidebar-muted)",
+                            fontWeight: active ? 600 : 400,
+                            flex: 1
+                          }}>
+                            {item.label}
+                          </span>
+                          {item.badge && (
+                            <span style={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: "50%",
+                              background: "var(--good)",
+                              flex: "none"
+                            }} />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </nav>
+
+        {/* Logout button */}
         <div style={{ marginTop: "auto", paddingTop: 12, borderTop: "1px solid var(--sidebar-border)" }}>
           <button
             type="button"
@@ -276,7 +492,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "rules" ? <MerchantRulesAuthenticatedPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "settings" ? <CheckoutSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "support" ? <SupportSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "integrations" ? <IntegrationsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {(tab === "integrations" || tab === "integrations-api") ? <IntegrationsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "crm-integrations" ? <CrmIntegrationsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "shipments" ? <OrdersShipmentsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "customers" ? <CustomersPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
