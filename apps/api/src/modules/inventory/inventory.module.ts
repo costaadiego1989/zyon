@@ -20,6 +20,7 @@ import { ConnectOmieUseCase } from "./application/use-cases/connect-omie.use-cas
 import { DisconnectErpUseCase } from "./application/use-cases/disconnect-erp.use-case.js";
 import { TriggerMarketplaceSyncUseCase } from "./application/use-cases/trigger-marketplace-sync.use-case.js";
 import { MarketplaceStockPushService } from "./application/services/marketplace-stock-push.service.js";
+import { OnCatalogProductSavedHandler } from "./infrastructure/event-handlers/on-catalog-product-saved.handler.js";
 import { INVENTORY_REPOSITORY } from "./domain/ports/inventory-repository.port.js";
 import { INVENTORY_MOVEMENT_REPOSITORY } from "./domain/ports/inventory-movement-repository.port.js";
 import { INVENTORY_ALERT_REPOSITORY } from "./domain/ports/inventory-alert-repository.port.js";
@@ -98,6 +99,7 @@ import { ErpOAuthController } from "./presentation/http/erp-oauth.controller.js"
     DisconnectErpUseCase,
     TriggerMarketplaceSyncUseCase,
     MarketplaceStockPushService,
+    OnCatalogProductSavedHandler,
     OnSaleCompletedHandler,
     ErpStockPushService,
     InventoryWebhookEmitterService,
