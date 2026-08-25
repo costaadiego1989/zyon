@@ -55,6 +55,19 @@ export function InventoryPage(props: InventoryPageProps) {
   const [itemPage, setItemPage] = useState(1);
   const [movementPage, setMovementPage] = useState(1);
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [productDetail, setProductDetail] = useState<any | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+
+  const openItemDetail = async (item: any) => {
+    setSelectedItem(item);
+    setProductDetail(null);
+    setLoadingDetail(true);
+    try {
+      const detail = await vm.api?.getProductDetailBySku?.(props.me?.id ?? "", item.sku);
+      if (detail?.found) setProductDetail(detail);
+    } catch { /* non-fatal */ }
+    finally { setLoadingDetail(false); }
+  };
 
   if (!props.me) {
     return (
@@ -88,6 +101,7 @@ export function InventoryPage(props: InventoryPageProps) {
 
   const handleCloseDetail = () => {
     setSelectedItem(null);
+    setProductDetail(null);
   };
 
   return (
@@ -189,7 +203,7 @@ export function InventoryPage(props: InventoryPageProps) {
                       const status = getItemStatus(item.available ?? 0, item.reserved ?? 0, item.low_stock_threshold ?? 10);
                       const statusInfo = STOCK_STATUS_COLORS[status] ?? STOCK_STATUS_COLORS.in_stock;
                       return (
-                        <tr key={item.id} onClick={() => setSelectedItem(item)} style={{ borderBottom: i < paginatedItems.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined, cursor: "pointer", transition: "background 0.1s" }} onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-2)"} onMouseLeave={(e) => e.currentTarget.style.background = ""}>
+                        <tr key={item.id} onClick={() => openItemDetail(item)} style={{ borderBottom: i < paginatedItems.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined, cursor: "pointer", transition: "background 0.1s" }} onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-2)"} onMouseLeave={(e) => e.currentTarget.style.background = ""}>
                           <td style={{ padding: "12px 20px", font: "600 12px var(--font-mono)", color: "var(--color-text)" }}>{item.sku ?? "—"}</td>
                           <td style={{ padding: "12px 20px", font: "500 13px var(--font-sans)", color: "var(--color-text)" }}>{item.productName ?? item.product_name ?? "—"}</td>
                           <td style={{ padding: "12px 20px", font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>{item.locationName ?? item.location_name ?? "—"}</td>
@@ -445,6 +459,7 @@ export function InventoryPage(props: InventoryPageProps) {
       >
         {selectedItem && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Basic info */}
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div>
                 <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>SKU</label>
@@ -466,6 +481,7 @@ export function InventoryPage(props: InventoryPageProps) {
               </div>
             </div>
 
+            {/* Stock KPIs */}
             <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div style={{ padding: "12px 14px", borderRadius: "var(--radius-sm)", background: "var(--surface-2)" }}>
@@ -487,6 +503,72 @@ export function InventoryPage(props: InventoryPageProps) {
               </div>
             </div>
 
+            {/* Product detail from catalog (weight, dimensions, variants) */}
+            {loadingDetail && (
+              <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)", textAlign: "center", padding: 12 }}>Carregando dados do catálogo...</div>
+            )}
+            {productDetail && (
+              <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+                {/* Physical dimensions */}
+                {(productDetail.variant.weightGrams || productDetail.variant.lengthCm) && (
+                  <div>
+                    <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, display: "block" }}>Dimensões físicas</label>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
+                      {productDetail.variant.weightGrams && <span>Peso: <strong>{productDetail.variant.weightGrams}g</strong></span>}
+                      {productDetail.variant.lengthCm && <span>Compr.: <strong>{productDetail.variant.lengthCm}cm</strong></span>}
+                      {productDetail.variant.widthCm && <span>Larg.: <strong>{productDetail.variant.widthCm}cm</strong></span>}
+                      {productDetail.variant.heightCm && <span>Alt.: <strong>{productDetail.variant.heightCm}cm</strong></span>}
+                    </div>
+                  </div>
+                )}
+
+                {/* Price info */}
+                <div>
+                  <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, display: "block" }}>Preço</label>
+                  <div style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>
+                    Venda: <strong style={{ color: "var(--color-brand)" }}>{formatCurrency(productDetail.variant.price)}</strong>
+                    {productDetail.variant.cost != null && <> · Custo: <strong>{formatCurrency(productDetail.variant.cost)}</strong></>}
+                  </div>
+                </div>
+
+                {/* Barcode */}
+                {productDetail.variant.barcode && (
+                  <div>
+                    <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Código de barras</label>
+                    <div style={{ font: "13px var(--font-mono)", color: "var(--color-text-muted)", marginTop: 4 }}>{productDetail.variant.barcode}</div>
+                  </div>
+                )}
+
+                {/* All variants */}
+                {productDetail.allVariants.length > 1 && (
+                  <div>
+                    <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, display: "block" }}>Todas as variantes ({productDetail.allVariants.length})</label>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {productDetail.allVariants.map((v: any) => (
+                        <div key={v.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", borderRadius: "var(--radius-sm)", background: v.sku === selectedItem.sku ? "var(--accent-soft)" : "var(--surface-1)", border: "1px solid var(--color-border)" }}>
+                          <span style={{ font: "12px var(--font-mono)", color: "var(--color-text)" }}>{v.sku}</span>
+                          <span style={{ font: "600 12px var(--font-data)", color: v.stock > 0 ? "var(--color-success)" : "var(--color-error)" }}>{v.stock} un.</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Media */}
+                {productDetail.variant.media?.length > 0 && (
+                  <div>
+                    <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, display: "block" }}>Mídia</label>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {productDetail.variant.media.map((m: any, idx: number) => (
+                        <img key={idx} src={m.url} alt={m.alt || ""} style={{ width: 56, height: 56, borderRadius: "var(--radius-sm)", objectFit: "cover", border: "1px solid var(--color-border)" }} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Metadata */}
             <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16, font: "11px var(--font-mono)", color: "var(--color-text-faint)", display: "flex", flexDirection: "column", gap: 4 }}>
               <div>ID: {selectedItem.id}</div>
               <div>Criado: {selectedItem.createdAt ? new Date(selectedItem.createdAt).toLocaleString("pt-BR") : "—"}</div>

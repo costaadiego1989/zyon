@@ -195,6 +195,7 @@ export function useInventoryPage(options: {
   }, [api, options.me]);
 
   return {
+    api,
     summary,
     items,
     movements,

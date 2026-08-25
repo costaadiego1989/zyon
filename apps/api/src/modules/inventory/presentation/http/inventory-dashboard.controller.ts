@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, Req, UseGuards, Param } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Post, Query, Req, UseGuards, Param } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -6,6 +6,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { ListInventoryUseCase } from "../../application/use-cases/list-inventory.use-case.js";
 import { RecordMovementUseCase } from "../../application/use-cases/record-movement.use-case.js";
 import { TransferStockUseCase } from "../../application/use-cases/transfer-stock.use-case.js";
@@ -45,7 +46,60 @@ export class InventoryDashboardController {
     private readonly listErpConnections: ListErpConnectionsUseCase,
     private readonly connectOmie: ConnectOmieUseCase,
     private readonly disconnectErp: DisconnectErpUseCase,
+    @Inject(PRISMA_CLIENT) private readonly prisma: any,
   ) {}
+
+  @Get("items/:sku/product-detail")
+  @ApiOperation({ summary: "Get full product detail from catalog by SKU" })
+  @ApiOkResponse({ description: "Product detail from catalog" })
+  async getProductDetailBySku(@Req() req: any, @Param("sku") sku: string) {
+    const user = currentUser(req);
+    const variant = await this.prisma.productVariant.findFirst({
+      where: { sku, product: { merchantId: user.merchantId } },
+      include: {
+        product: { include: { variants: { include: { stock: true, price: true, media: true } } } },
+        stock: true,
+        price: true,
+        media: true,
+      },
+    });
+    if (!variant) return { found: false };
+    const product = variant.product;
+    return {
+      found: true,
+      product: {
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        type: product.type,
+        isActive: product.isActive,
+      },
+      variant: {
+        id: variant.id,
+        sku: variant.sku,
+        attributes: variant.attributes,
+        barcode: variant.barcode,
+        weightGrams: variant.weightGrams,
+        lengthCm: variant.lengthCm,
+        widthCm: variant.widthCm,
+        heightCm: variant.heightCm,
+        isActive: variant.isActive,
+        stock: variant.stock?.[0]?.quantity ?? 0,
+        reserved: variant.stock?.[0]?.reserved ?? 0,
+        price: variant.price?.basePriceInCents ?? 0,
+        cost: variant.price?.costInCents ?? null,
+        media: (variant.media ?? []).map((m: any) => ({ url: m.url, type: m.type, alt: m.alt })),
+      },
+      allVariants: product.variants.map((v: any) => ({
+        id: v.id,
+        sku: v.sku,
+        attributes: v.attributes,
+        stock: v.stock?.[0]?.quantity ?? 0,
+        price: v.price?.basePriceInCents ?? 0,
+        isActive: v.isActive,
+      })),
+    };
+  }
 
   @Get("summary")
   @ApiOperation({ summary: "Get inventory dashboard summary" })

@@ -292,5 +292,14 @@ export function inventoryEndpoints(base: string, f: typeof fetch) {
         f,
       );
     },
+
+    getProductDetailBySku(merchantId: string, sku: string): Promise<any> {
+      return dashboardJson<any>(
+        base,
+        `/dashboard/inventory/items/${encodeURIComponent(sku)}/product-detail`,
+        { method: "GET" },
+        f,
+      );
+    },
   };
 }
