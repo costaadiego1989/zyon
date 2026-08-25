@@ -157,6 +157,7 @@ export function DeliveryPage(props: DeliveryPageProps) {
           saving={vm.saving}
           onSave={vm.saveOwnDeliveryConfig}
           onClose={() => vm.setOwnDeliveryPanelOpen(false)}
+          originZip={vm.config.originZip}
         />
       </SidePanel>
     </div>

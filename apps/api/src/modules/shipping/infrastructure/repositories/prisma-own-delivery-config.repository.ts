@@ -30,6 +30,7 @@ export class PrismaOwnDeliveryConfigRepository implements OwnDeliveryConfigRepos
         flatPriceCents: config.flatPriceCents,
         freeAboveCents: config.freeAboveCents,
         neighborhoods: config.neighborhoods,
+        radiusZones: config.radiusZones,
         estimatedValue: config.estimatedValue,
         estimatedUnit: config.estimatedUnit
       },
@@ -39,6 +40,7 @@ export class PrismaOwnDeliveryConfigRepository implements OwnDeliveryConfigRepos
         flatPriceCents: config.flatPriceCents,
         freeAboveCents: config.freeAboveCents,
         neighborhoods: config.neighborhoods,
+        radiusZones: config.radiusZones,
         estimatedValue: config.estimatedValue,
         estimatedUnit: config.estimatedUnit
       }
@@ -56,6 +58,7 @@ export class PrismaOwnDeliveryConfigRepository implements OwnDeliveryConfigRepos
       flatPriceCents: record.flatPriceCents,
       freeAboveCents: record.freeAboveCents,
       neighborhoods: record.neighborhoods,
+      radiusZones: record.radiusZones ?? null,
       estimatedValue: record.estimatedValue,
       estimatedUnit: record.estimatedUnit
     };

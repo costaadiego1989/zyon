@@ -12,6 +12,7 @@ const DEFAULT_OWN_DELIVERY: OwnDeliveryConfig = {
   estimatedValue: 60,
   estimatedUnit: "minutes",
   neighborhoods: [],
+  radiusZones: [],
 };
 
 const DEFAULT_CONFIG: DeliveryConfig = {
@@ -37,6 +38,7 @@ function normalizeConfig(raw: Partial<DeliveryConfig> | null | undefined): Deliv
       estimatedValue: raw.ownDelivery?.estimatedValue ?? 60,
       estimatedUnit: raw.ownDelivery?.estimatedUnit ?? "minutes",
       neighborhoods: raw.ownDelivery?.neighborhoods ?? [],
+      radiusZones: raw.ownDelivery?.radiusZones ?? [],
     },
   };
 }
@@ -92,7 +94,7 @@ export function useDeliveryPage() {
     try {
       await api.updateDeliveryConfig?.({
         melhorEnvioEnabled: enabled,
-        ...(enabled ? { ownDelivery: { ...configRef.current.ownDelivery, enabled: false } } : {}),
+        ...(enabled ? { ownDelivery: { enabled: false } } : {}),
       });
       showToast("success", enabled ? "Melhor Envio ativado" : "Melhor Envio desativado");
     } catch {
@@ -116,7 +118,7 @@ export function useDeliveryPage() {
     setSaving(true);
     try {
       await api.updateDeliveryConfig?.({
-        ownDelivery: { ...configRef.current.ownDelivery, enabled },
+        ownDelivery: { enabled },
         ...(enabled ? { melhorEnvioEnabled: false } : {}),
       });
       showToast("success", enabled ? "Entrega própria ativada" : "Entrega própria desativada");

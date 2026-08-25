@@ -80,6 +80,10 @@ export class DeliveryConfigController {
         flatPriceCents: body.own_delivery.flat_price_cents,
         freeAboveCents: body.own_delivery.free_above_cents,
         neighborhoods: body.own_delivery.neighborhoods,
+        radiusZones: body.own_delivery.radius_zones?.map((z) => ({
+          maxKm: z.max_km,
+          priceCents: z.price_cents
+        })),
         estimatedValue: body.own_delivery.estimated_value,
         estimatedUnit: body.own_delivery.estimated_unit
       } : undefined
@@ -171,10 +175,11 @@ export type UpdateDeliveryConfigDto = {
   melhor_envio_enabled?: boolean;
   own_delivery?: {
     enabled: boolean;
-    mode: "flat" | "neighborhood";
+    mode?: "flat" | "neighborhood" | "radius";
     flat_price_cents?: number | null;
     free_above_cents?: number | null;
     neighborhoods?: Array<{ name: string; priceCents: number }> | null;
+    radius_zones?: Array<{ max_km: number | null; price_cents: number }> | null;
     estimated_value?: number;
     estimated_unit?: "minutes" | "days";
   };
