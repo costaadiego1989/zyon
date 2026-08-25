@@ -4,10 +4,12 @@ import { OnSaleCompletedHandler } from "../../infrastructure/event-handlers/on-s
 import { ErpStockPushService } from "../services/erp-stock-push.service.js";
 import { InventoryWebhookEmitterService } from "../services/inventory-webhook-emitter.service.js";
 import { CrmSyncService } from "../services/crm-sync.service.js";
+import { MarketplaceStockPushService } from "../services/marketplace-stock-push.service.js";
 
 export type HandleSaleCompletedOutput = {
   stockDecrementedCount: number;
   erpPushed: boolean;
+  marketplacePushed: boolean;
   webhookQueued: boolean;
   crmSynced: boolean;
 };
@@ -30,6 +32,7 @@ export class HandleSaleCompletedUseCase {
   constructor(
     private readonly stockHandler: OnSaleCompletedHandler,
     private readonly erpPush: ErpStockPushService,
+    private readonly marketplacePush: MarketplaceStockPushService,
     private readonly webhookEmitter: InventoryWebhookEmitterService,
     private readonly crmSync: CrmSyncService
   ) {}
@@ -38,6 +41,7 @@ export class HandleSaleCompletedUseCase {
     const output: HandleSaleCompletedOutput = {
       stockDecrementedCount: 0,
       erpPushed: false,
+      marketplacePushed: false,
       webhookQueued: false,
       crmSynced: false
     };
@@ -65,6 +69,15 @@ export class HandleSaleCompletedUseCase {
       this.logger.warn(`[Sale] ERP push failed: ${errorMsg}`);
     }
 
+    // 2b. Push new stock level to connected marketplaces (ML, Shopee, TikTok)
+    try {
+      await this.marketplacePush.pushAfterSale(event);
+      output.marketplacePushed = true;
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`[Sale] Marketplace push failed: ${errorMsg}`);
+    }
+
     // 3. Emit webhooks (fire-and-forget)
     try {
       await this.webhookEmitter.emitWebhooks(event);
@@ -84,7 +97,7 @@ export class HandleSaleCompletedUseCase {
     }
 
     this.logger.log(
-      `[Sale] Completed: orderId=${event.orderId}, stock=${output.stockDecrementedCount}, erp=${output.erpPushed}, webhook=${output.webhookQueued}, crm=${output.crmSynced}`
+      `[Sale] Completed: orderId=${event.orderId}, stock=${output.stockDecrementedCount}, erp=${output.erpPushed}, marketplace=${output.marketplacePushed}, webhook=${output.webhookQueued}, crm=${output.crmSynced}`
     );
 
     return output;
