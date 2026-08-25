@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useMemo, useState } from "react";
+import React, { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { LogOut, ShieldCheck, ExternalLink } from "lucide-react";
 import { PageErrorBoundary } from "./PageErrorBoundary.js";
 import { NAV_ITEMS, type TabKey } from "./nav-config.js";
@@ -79,10 +79,32 @@ export interface DashboardShellProps {
 }
 
 export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: initialOnboardingCompleted }: DashboardShellProps) {
-  const [tab, setTab] = useState<TabKey>(initialTab ?? "overview");
+  // DASH-017/018: URL hash-based routing for deep links & back button
+  const resolveInitialTab = (): TabKey => {
+    const hash = window.location.hash.slice(1);
+    if (hash) return hash as TabKey;
+    return initialTab ?? "overview";
+  };
+  const [tab, setTab] = useState<TabKey>(resolveInitialTab);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [hideOnboarding, setHideOnboarding] = useState(initialOnboardingCompleted !== false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
+  // Sync hash → tab on popstate / hashchange
+  useEffect(() => {
+    const onHashChange = () => {
+      const hash = window.location.hash.slice(1);
+      if (hash) setTab(hash as TabKey);
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+
+  // changeTab: update state + hash in one call
+  const changeTab = useCallback((next: TabKey) => {
+    setTab(next);
+    window.location.hash = next;
+  }, []);
 
   // Connect to support socket for real-time handoff notifications
   const socket = useSupportSocket(API_BASE_URL, me.id, me.name || undefined);
@@ -169,7 +191,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                   <button
                     key={item.key}
                     type="button"
-                    onClick={() => setTab(item.key)}
+                    onClick={() => changeTab(item.key)}
                     style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, padding: "6px 8px", borderRadius: 9, cursor: "pointer", marginBottom: 1, background: active ? "var(--sidebar-active)" : "transparent", border: "none", textAlign: "left", font: "inherit" }}
                   >
                     <div style={{ width: 24, height: 24, borderRadius: 7, background: active ? "oklch(30% 0.03 149)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
@@ -225,7 +247,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
               onClear={() => setNotifications([])}
               onClickNotification={(n) => {
                 if (n.ticketId) {
-                  setTab("support" as TabKey);
+                  changeTab("support" as TabKey);
                 }
                 setNotifications((prev) => prev.filter((x) => x.id !== n.id));
               }}
@@ -243,8 +265,8 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
               <OnboardingWizard
                 apiBaseUrl={API_BASE_URL}
                 me={me}
-                onNavigate={(target: TabKey) => setTab(target)}
-                onFinished={() => { setHideOnboarding(true); setTab("overview"); }}
+                onNavigate={(target: TabKey) => changeTab(target)}
+                onFinished={() => { setHideOnboarding(true); changeTab("overview"); }}
               />
             ) : null}
             {tab === "overview" ? (
@@ -269,8 +291,8 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
               <CatalogPage
                 apiBaseUrl={API_BASE_URL}
                 me={me}
-                onCreate={() => { setEditingProductId(null); setTab("product-detail"); }}
-                onEdit={(id) => { setEditingProductId(id); setTab("product-detail"); }}
+                onCreate={() => { setEditingProductId(null); changeTab("product-detail"); }}
+                onEdit={(id) => { setEditingProductId(id); changeTab("product-detail"); }}
               />
             ) : null}
             {tab === "product-detail" ? (
@@ -278,8 +300,8 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 apiBaseUrl={API_BASE_URL}
                 me={me}
                 productId={editingProductId}
-                onBack={() => setTab("catalog")}
-                onSaved={() => setTab("catalog")}
+                onBack={() => changeTab("catalog")}
+                onSaved={() => changeTab("catalog")}
               />
             ) : null}
             {tab === "categories" ? <CategoriesPage apiBaseUrl={API_BASE_URL} me={me} /> : null}

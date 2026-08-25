@@ -94,11 +94,17 @@ export function useOverviewPage(props: OverviewPageProps): OverviewPageVM {
         api.getTimeseries(props.me.id, period).then(setTimeseries),
       );
 
+      // TODO(DASH-OP-001): Implement period-based API param for trend comparison
+      // Currently, getDashboardOverview does not accept a period parameter.
+      // When it does, uncomment the previous period fetches below.
+      // For now, trends will be 0% (previous = current).
       const prevPeriod = getPreviousPeriod(period);
       if (showCheckout) {
-        promises.push(
-          api.getDashboardOverview(props.me.id).then(setPreviousCheckoutOverview),
-        );
+        // promises.push(
+        //   api.getDashboardOverview(props.me.id, { period: prevPeriod }).then(setPreviousCheckoutOverview),
+        // );
+        // Set to null to hide trends until API supports period param
+        setPreviousCheckoutOverview(null);
       }
       if (showStore) {
         promises.push(
