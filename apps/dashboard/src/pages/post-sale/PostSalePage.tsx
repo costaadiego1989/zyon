@@ -39,7 +39,7 @@ export function PostSalePage(props: PostSalePageProps) {
         <div>
           <span className="eyebrow">Inteligência IA</span>
           <h1 style={{ color: "var(--color-brand)" }}>Pós-Venda</h1>
-          <p className="page-lead">Engajamento inteligente após a compra. Envie follow-ups personalizados, colete reviews e NPS com IA.</p>
+          <p className="page-lead">Engajamento inteligente após a compra. Envie follow-ups personalizados, colete reviews e NPS com IA</p>
         </div>
       </header>
 

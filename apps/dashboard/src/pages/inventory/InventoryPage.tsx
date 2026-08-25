@@ -130,7 +130,7 @@ export function InventoryPage(props: InventoryPageProps) {
         <div>
           <span className="eyebrow">Loja</span>
           <h1>Estoque</h1>
-          <p className="page-lead">Gerenciamento centralizado de SKUs, estoque e movimentações. Rastreie em tempo real e receba alertas de ruptura.</p>
+          <p className="page-lead">Gerenciamento centralizado de SKUs, estoque e movimentações. Rastreie em tempo real e receba alertas</p>
         </div>
       </header>
 
@@ -144,7 +144,7 @@ export function InventoryPage(props: InventoryPageProps) {
         color: "var(--color-brand)",
         lineHeight: 1.65,
       }}>
-        <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong> Controle total do estoque por SKU com visibilidade de quantidade disponível, reservada e custo médio. O sistema avisa quando o estoque fica baixo ou quando há ruptura. Integre seus dados ERP para sincronização automática.
+        <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong> Controle total do estoque por SKU com visibilidade de quantidade disponível, reservada e custo médio. O sistema avisa quando o estoque fica baixo. Integre seus dados ERP para sincronização automática.
       </div>
 
       {/* KPI Stats */}
@@ -329,7 +329,7 @@ export function InventoryPage(props: InventoryPageProps) {
           empty={{
             icon: AlertCircle,
             title: "Nenhum alerta ativo",
-            description: "Alertas aparecerão aqui quando houver situações que exijam atenção (estoque baixo, ruptura, etc).",
+            description: "Alertas aparecerão aqui quando houver situações que exijam atenção (estoque baixo e etc).",
           }}
         >
           {vm.alerts.length > 0 && (
