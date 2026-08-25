@@ -5,6 +5,8 @@ import { createHmac, randomBytes } from "node:crypto";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { encryptErpSecret } from "../../infrastructure/adapters/erp-secret-cipher.js";
+import { isMarketplaceProvider } from "../../infrastructure/adapters/marketplace-adapter.factory.js";
+import { TriggerMarketplaceSyncUseCase } from "../../application/use-cases/trigger-marketplace-sync.use-case.js";
 
 function env(key: string, fallback = ""): string {
   return process.env[key] ?? fallback;
@@ -14,7 +16,19 @@ function env(key: string, fallback = ""): string {
 @Controller("inventory/erp/oauth")
 export class ErpOAuthController {
   private readonly logger = new Logger(ErpOAuthController.name);
-  constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    private readonly marketplaceSync: TriggerMarketplaceSyncUseCase,
+  ) {}
+
+  private async triggerInitialSync(merchantId: string, provider: string, accessToken: string, connectionId: string) {
+    try {
+      const result = await this.marketplaceSync.execute({ merchantId, provider, accessToken, connectionId });
+      this.logger.log("marketplace.initial_sync.complete", { merchantId, provider, imported: result.productsImported });
+    } catch (err) {
+      this.logger.error("marketplace.initial_sync.failed", { merchantId, provider, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
 
   /**
    * GET /inventory/erp/oauth/:provider/authorize
@@ -266,7 +280,7 @@ export class ErpOAuthController {
       const refreshTokenCipher = tokenData.refresh_token ? encryptErpSecret(tokenData.refresh_token) : null;
       const expiresAt = new Date(Date.now() + (tokenData.expires_in ?? 3600) * 1000);
 
-      await this.prisma.erpConnection.upsert({
+      const connection = await this.prisma.erpConnection.upsert({
         where: { merchantId_provider: { merchantId, provider } },
         update: {
           status: "connected",
@@ -286,6 +300,11 @@ export class ErpOAuthController {
       });
 
       this.logger.log("erp.connected", { merchantId, provider, expiresAt: expiresAt.toISOString() });
+
+      // Fire-and-forget: import products into inventory (marketplaces only)
+      if (isMarketplaceProvider(provider)) {
+        void this.triggerInitialSync(merchantId, provider, tokenData.access_token, connection.id);
+      }
 
       const dashboardUrl = process.env.DASHBOARD_URL ?? "http://localhost:5175";
       res.redirect(302, `${dashboardUrl}?erp_connected=${provider}`);
