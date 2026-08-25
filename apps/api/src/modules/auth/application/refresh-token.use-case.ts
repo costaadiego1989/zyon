@@ -19,8 +19,17 @@ export class RefreshTokenUseCase {
   ) {}
 
   execute(token: string): AuthResponse {
+    // Parse token to extract jti without full verification (we'll verify below)
+    const parts = token.split(".");
+    if (parts.length !== 3) throw new Error("jwt_malformed");
+    const decoded = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")) as { exp: number; jti: string };
+
     // Verify signature, accept within grace window (7 days default)
     const principal = this.jwt.verifyForRefresh(token);
+
+    // Revoke the old refresh token immediately
+    this.jwt.revokeToken(decoded.jti, decoded.exp);
+
     // Build new response using the shared factory
     return toAuthResponse(
       { id: principal.userId, merchantId: principal.merchantId, email: principal.email, role: principal.role },

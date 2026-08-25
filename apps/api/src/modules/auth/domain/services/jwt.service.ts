@@ -7,6 +7,7 @@ export interface JwtPayload {
   merchant_id: string;
   email: string;
   role: string;
+  jti: string; // JWT ID for revocation tracking
   iat: number;
   exp: number;
 }
@@ -44,6 +45,8 @@ interface ParsedJwt {
 const DEV_SECRET_FALLBACK = "dev-secret-change-me";
 
 export class JwtService {
+  private readonly blacklistedTokens = new Map<string, number>(); // jti -> expiry timestamp (seconds)
+
   constructor(
     private readonly secret = requireSecret("JWT_SECRET", DEV_SECRET_FALLBACK),
     private readonly ttlSeconds = Number(process.env.JWT_EXPIRES_IN_SECONDS ?? 3600)
@@ -55,6 +58,37 @@ export class JwtService {
     ) {
       throw new Error("jwt_secret_is_dev_default_in_production");
     }
+    // Clean up expired blacklist entries every 5 minutes
+    this.startBlacklistCleanup();
+  }
+
+  private startBlacklistCleanup(): void {
+    setInterval(() => {
+      const now = Math.floor(Date.now() / 1000);
+      for (const [jti, expiry] of this.blacklistedTokens.entries()) {
+        if (expiry <= now) {
+          this.blacklistedTokens.delete(jti);
+        }
+      }
+    }, 5 * 60 * 1000);
+  }
+
+  /**
+   * Revoke a token immediately by adding its jti to the blacklist.
+   * Stays in blacklist until the token's natural expiry.
+   */
+  revokeToken(jti: string, expirySeconds: number): void {
+    this.blacklistedTokens.set(jti, expirySeconds);
+  }
+
+  /**
+   * Check if a token ID is on the revocation blacklist.
+   */
+  private isTokenRevoked(jti: string): boolean {
+    const expiry = this.blacklistedTokens.get(jti);
+    if (!expiry) return false;
+    const now = Math.floor(Date.now() / 1000);
+    return expiry > now;
   }
 
   sign(principal: AuthenticatedPrincipal, nowSeconds = Math.floor(Date.now() / 1000)): string {
@@ -63,6 +97,7 @@ export class JwtService {
       merchant_id: principal.merchantId,
       email: principal.email,
       role: principal.role,
+      jti: crypto.randomUUID(), // Unique token ID for revocation
       iat: nowSeconds,
       exp: nowSeconds + this.ttlSeconds
     };
@@ -118,6 +153,12 @@ export class JwtService {
    */
   private verifyCore(token: string, nowSeconds: number, options: VerifyCoreOptions): AuthenticatedPrincipal {
     const { decoded } = this.parseAndValidate(token);
+
+    // Check revocation blacklist
+    if (this.isTokenRevoked(decoded.jti)) {
+      throw new Error("jwt_token_revoked");
+    }
+
     if (options.graceSeconds === 0) {
       // Strict expiry check
       if (decoded.exp <= nowSeconds) throw new Error("jwt_expired");
