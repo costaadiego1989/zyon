@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import type { MerchantProfile } from "../../api-client.js";
 import type { ErpConnectionDTO } from "../../api/endpoints/inventory.js";
+import { useApi } from "../../hooks/useApi.js";
 import { showToast } from "../../components/Toast.js";
 
 export function useInventoryPage(options: {
   me: MerchantProfile | null;
-  api?: any;
 }) {
+  const api = useApi();
   const [summary, setSummary] = useState<any>(null);
   const [items, setItems] = useState<any[]>([]);
   const [movements, setMovements] = useState<any[]>([]);
@@ -25,42 +26,41 @@ export function useInventoryPage(options: {
   const [tab, setTab] = useState<"overview" | "movements" | "alerts" | "erp">("overview");
 
   const loadData = useCallback(async () => {
-    if (!options.api || !options.me) return;
+    if (!options.me) return;
 
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
       const [sum, itemList, moveList, alertList, locList, erpList] = await Promise.all([
-        options.api.getInventorySummary(options.me.id),
-        options.api.listInventoryItems(options.me.id, { pageSize: 50 }),
-        options.api.listMovements(options.me.id, { pageSize: 50 }),
-        options.api.listAlerts(options.me.id, false),
-        options.api.listLocations(options.me.id),
-        options.api.getErpConnections(options.me.id).catch(() => []),
-      ]).catch((err) => {
-        setError(err?.message ?? "Erro ao carregar estoque");
-        return [null, null, null, null, null, []];
-      });
+        api.getInventorySummary(options.me.id).catch(() => null),
+        api.listInventoryItems(options.me.id, { pageSize: 50 }).catch(() => null),
+        api.listMovements(options.me.id, { pageSize: 50 }).catch(() => null),
+        api.listAlerts(options.me.id, false).catch(() => null),
+        api.listLocations(options.me.id).catch(() => null),
+        api.getErpConnections(options.me.id).catch(() => []),
+      ]);
 
       setSummary(sum ?? null);
-      setItems(itemList?.items ?? []);
-      setMovements(moveList?.movements ?? []);
-      setAlerts(alertList ?? []);
-      setLocations(locList ?? []);
+      setItems(Array.isArray(itemList) ? itemList : itemList?.items ?? []);
+      setMovements(Array.isArray(moveList) ? moveList : moveList?.movements ?? []);
+      setAlerts(Array.isArray(alertList) ? alertList : []);
+      setLocations(Array.isArray(locList) ? locList : []);
       setErpConnections(Array.isArray(erpList) ? erpList : []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao carregar estoque");
     } finally {
       setLoading(false);
     }
-  }, [options.api, options.me]);
+  }, [api, options.me]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
   const acknowledgeAlert = useCallback(async (alertId: string) => {
-    if (!options.api || !options.me) return;
+    if (!options.me) return;
     try {
-      await options.api.acknowledgeAlert(options.me.id, alertId);
+      await api.acknowledgeAlert(options.me.id, alertId);
       setAlerts((prev) =>
         prev.map((a) =>
           a.id === alertId ? { ...a, acknowledged_at: new Date().toISOString() } : a,
@@ -70,50 +70,54 @@ export function useInventoryPage(options: {
     } catch (err) {
       showToast("error", err instanceof Error ? err.message : "Erro ao reconhecer alerta");
     }
-  }, [options.api, options.me]);
+  }, [api, options.me]);
 
   const recordMovement = useCallback(async (input: {
-    sku: string;
+    itemId: string;
     kind: string;
     quantity: number;
     reason?: string;
   }) => {
-    if (!options.api || !options.me) return;
+    if (!options.me) return;
     try {
-      await options.api.recordMovement(options.me.id, input);
+      await api.recordMovement(options.me.id, input.itemId, {
+        kind: input.kind,
+        quantity: input.quantity,
+        reason: input.reason,
+      });
       showToast("success", "Movimentação registrada");
       await loadData();
     } catch (err) {
       showToast("error", err instanceof Error ? err.message : "Erro ao registrar movimentação");
     }
-  }, [options.api, options.me, loadData]);
+  }, [api, options.me, loadData]);
 
   const connectErp = useCallback(async (provider: string, credentials?: Record<string, string>) => {
-    if (!options.api || !options.me) return;
+    if (!options.me) return;
     try {
-      const conn = await options.api.connectErp(options.me.id, provider, credentials);
+      const conn = await api.connectErp(options.me.id, provider, credentials);
       setErpConnections((prev) => [...prev.filter((c) => c.provider !== provider), conn]);
       showToast("success", `${provider} conectado com sucesso`);
     } catch (err) {
       showToast("error", err instanceof Error ? err.message : `Erro ao conectar ${provider}`);
     }
-  }, [options.api, options.me]);
+  }, [api, options.me]);
 
   const disconnectErp = useCallback(async (connectionId: string) => {
-    if (!options.api || !options.me) return;
+    if (!options.me) return;
     try {
-      await options.api.disconnectErp(options.me.id, connectionId);
+      await api.disconnectErp(options.me.id, connectionId);
       setErpConnections((prev) => prev.filter((c) => c.id !== connectionId));
       showToast("success", "Conexão removida");
     } catch (err) {
       showToast("error", err instanceof Error ? err.message : "Erro ao desconectar");
     }
-  }, [options.api, options.me]);
+  }, [api, options.me]);
 
   const syncErp = useCallback(async (connectionId: string) => {
-    if (!options.api || !options.me) return;
+    if (!options.me) return;
     try {
-      await options.api.syncErp(options.me.id, connectionId);
+      await api.syncErp(options.me.id, connectionId);
       setErpConnections((prev) =>
         prev.map((c) => c.id === connectionId ? { ...c, lastSyncAt: new Date().toISOString() } : c),
       );
@@ -121,7 +125,7 @@ export function useInventoryPage(options: {
     } catch (err) {
       showToast("error", err instanceof Error ? err.message : "Erro ao sincronizar");
     }
-  }, [options.api, options.me]);
+  }, [api, options.me]);
 
   return {
     summary,

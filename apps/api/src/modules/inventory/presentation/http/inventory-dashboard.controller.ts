@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Post, Query, Req, UseGuards } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -46,16 +46,16 @@ export class InventoryDashboardController {
   @ApiOkResponse({ description: "Inventory items" })
   async listItems(
     @Req() req: any,
-    @Body() body?: { status?: string; locationId?: string; search?: string; page?: number; pageSize?: number },
+    @Query() query?: { status?: string; locationId?: string; search?: string; page?: string; pageSize?: string },
   ) {
     const user = currentUser(req);
     return this.listInventory.execute({
       merchantId: user.merchantId,
-      status: body?.status as any,
-      locationId: body?.locationId,
-      search: body?.search,
-      page: body?.page,
-      pageSize: body?.pageSize,
+      status: query?.status as any,
+      locationId: query?.locationId,
+      search: query?.search,
+      page: query?.page ? Number(query.page) : undefined,
+      pageSize: query?.pageSize ? Number(query.pageSize) : undefined,
     });
   }
 
@@ -104,17 +104,17 @@ export class InventoryDashboardController {
   @ApiOkResponse({ description: "Movements" })
   async listStockMovements(
     @Req() req: any,
-    @Body() body?: { itemId?: string; kind?: string; from?: string; to?: string; page?: number; pageSize?: number },
+    @Query() query?: { itemId?: string; kind?: string; from?: string; to?: string; page?: string; pageSize?: string },
   ) {
     const user = currentUser(req);
     return this.listMovements.execute({
       merchantId: user.merchantId,
-      itemId: body?.itemId,
-      kind: body?.kind,
-      from: body?.from ? new Date(body.from) : undefined,
-      to: body?.to ? new Date(body.to) : undefined,
-      page: body?.page,
-      pageSize: body?.pageSize,
+      itemId: query?.itemId,
+      kind: query?.kind,
+      from: query?.from ? new Date(query.from) : undefined,
+      to: query?.to ? new Date(query.to) : undefined,
+      page: query?.page ? Number(query.page) : undefined,
+      pageSize: query?.pageSize ? Number(query.pageSize) : undefined,
     });
   }
 
@@ -123,10 +123,11 @@ export class InventoryDashboardController {
   @ApiOkResponse({ description: "Alerts" })
   async listStockAlerts(
     @Req() req: any,
-    @Body() body?: { acknowledged?: boolean },
+    @Query() query?: { acknowledged?: string },
   ) {
     const user = currentUser(req);
-    return this.listAlerts.execute(user.merchantId, body?.acknowledged);
+    const ack = query?.acknowledged === "true" ? true : query?.acknowledged === "false" ? false : undefined;
+    return this.listAlerts.execute(user.merchantId, ack);
   }
 
   @Post("alerts/:id/acknowledge")

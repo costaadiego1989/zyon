@@ -49,7 +49,7 @@ function formatCurrency(cents: number | undefined): string {
 const PAGE_SIZE = 10;
 
 export function InventoryPage(props: InventoryPageProps) {
-  const vm = useInventoryPage({ me: props.me, api: undefined });
+  const vm = useInventoryPage({ me: props.me });
   const [tab, setTab] = useState<InventoryTab>("overview");
   const [itemPage, setItemPage] = useState(1);
   const [movementPage, setMovementPage] = useState(1);
@@ -67,10 +67,10 @@ export function InventoryPage(props: InventoryPageProps) {
   }
 
   const summary = vm.summary ?? {};
-  const totalSkus = summary.total_skus ?? 0;
-  const lowStockCount = summary.low_stock_count ?? 0;
-  const outOfStockCount = summary.out_of_stock_count ?? 0;
-  const totalInventoryValue = summary.total_inventory_value_cents ?? 0;
+  const totalSkus = summary.totalSkus ?? summary.total_skus ?? 0;
+  const lowStockCount = summary.lowStockCount ?? summary.low_stock_count ?? 0;
+  const outOfStockCount = summary.outOfStockCount ?? summary.out_of_stock_count ?? 0;
+  const totalInventoryValue = summary.totalValueCents ?? summary.total_inventory_value_cents ?? 0;
 
   const itemStartIdx = (itemPage - 1) * PAGE_SIZE;
   const paginatedItems = vm.items.slice(itemStartIdx, itemStartIdx + PAGE_SIZE);

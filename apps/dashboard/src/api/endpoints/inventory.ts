@@ -86,10 +86,17 @@ export function inventoryEndpoints(base: string, f: typeof fetch) {
       merchantId: string,
       opts?: { status?: string; locationId?: string; search?: string; page?: number; pageSize?: number },
     ): Promise<{ items: InventoryItemDTO[]; total: number }> {
+      const params = new URLSearchParams();
+      if (opts?.status) params.set("status", opts.status);
+      if (opts?.locationId) params.set("locationId", opts.locationId);
+      if (opts?.search) params.set("search", opts.search);
+      if (opts?.page) params.set("page", String(opts.page));
+      if (opts?.pageSize) params.set("pageSize", String(opts.pageSize));
+      const query = params.toString();
       return dashboardJson<{ items: InventoryItemDTO[]; total: number }>(
         base,
-        `/dashboard/inventory/items`,
-        { method: "POST", jsonBody: opts ?? {} },
+        `/dashboard/inventory/items${query ? `?${query}` : ""}`,
+        { method: "GET" },
         f,
       );
     },
@@ -123,10 +130,16 @@ export function inventoryEndpoints(base: string, f: typeof fetch) {
       merchantId: string,
       opts?: { itemId?: string; kind?: string; from?: string; to?: string; page?: number; pageSize?: number },
     ): Promise<{ movements: InventoryMovementDTO[]; total: number }> {
+      const params = new URLSearchParams();
+      if (opts?.itemId) params.set("itemId", opts.itemId);
+      if (opts?.kind) params.set("kind", opts.kind);
+      if (opts?.page) params.set("page", String(opts.page));
+      if (opts?.pageSize) params.set("pageSize", String(opts.pageSize));
+      const query = params.toString();
       return dashboardJson<{ movements: InventoryMovementDTO[]; total: number }>(
         base,
-        `/dashboard/inventory/movements`,
-        { method: "POST", jsonBody: opts ?? {} },
+        `/dashboard/inventory/movements${query ? `?${query}` : ""}`,
+        { method: "GET" },
         f,
       );
     },
@@ -135,10 +148,13 @@ export function inventoryEndpoints(base: string, f: typeof fetch) {
       merchantId: string,
       acknowledged?: boolean,
     ): Promise<InventoryAlertDTO[]> {
+      const params = new URLSearchParams();
+      if (acknowledged !== undefined) params.set("acknowledged", String(acknowledged));
+      const query = params.toString();
       return dashboardJson<InventoryAlertDTO[]>(
         base,
-        `/dashboard/inventory/alerts`,
-        { method: "POST", jsonBody: acknowledged !== undefined ? { acknowledged } : {} },
+        `/dashboard/inventory/alerts${query ? `?${query}` : ""}`,
+        { method: "GET" },
         f,
       );
     },
