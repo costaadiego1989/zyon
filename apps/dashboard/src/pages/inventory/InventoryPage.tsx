@@ -54,16 +54,7 @@ export function InventoryPage(props: InventoryPageProps) {
   const [tab, setTab] = useState<InventoryTab>("overview");
   const [itemPage, setItemPage] = useState(1);
   const [movementPage, setMovementPage] = useState(1);
-  const [showCreateItemForm, setShowCreateItemForm] = useState(false);
-  const [createFormData, setCreateFormData] = useState({
-    sku: "",
-    productName: "",
-    variantName: "",
-    quantity: "",
-    avgCostCents: "",
-    lowStockThreshold: "",
-  });
-  const [isCreatingItem, setIsCreatingItem] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<any | null>(null);
 
   if (!props.me) {
     return (
@@ -95,33 +86,8 @@ export function InventoryPage(props: InventoryPageProps) {
     return "in_stock";
   };
 
-  const handleCreateItem = async () => {
-    if (!createFormData.sku.trim() || !createFormData.productName.trim() || !createFormData.quantity) {
-      return;
-    }
-
-    setIsCreatingItem(true);
-    try {
-      await vm.createItem({
-        sku: createFormData.sku,
-        productName: createFormData.productName,
-        variantName: createFormData.variantName || undefined,
-        quantity: Number(createFormData.quantity),
-        avgCostCents: createFormData.avgCostCents ? Number(createFormData.avgCostCents) : undefined,
-        lowStockThreshold: createFormData.lowStockThreshold ? Number(createFormData.lowStockThreshold) : undefined,
-      });
-      setShowCreateItemForm(false);
-      setCreateFormData({
-        sku: "",
-        productName: "",
-        variantName: "",
-        quantity: "",
-        avgCostCents: "",
-        lowStockThreshold: "",
-      });
-    } finally {
-      setIsCreatingItem(false);
-    }
+  const handleCloseDetail = () => {
+    setSelectedItem(null);
   };
 
   return (
@@ -191,18 +157,6 @@ export function InventoryPage(props: InventoryPageProps) {
       {/* Tab: Visão Geral */}
       {tab === "overview" && (
         <>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <h2 style={{ margin: 0, font: "500 16px var(--font-sans)", color: "var(--color-text)" }}>Produtos em estoque</h2>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => setShowCreateItemForm(true)}
-              style={{ display: "flex", alignItems: "center", gap: 6 }}
-            >
-              <Plus size={16} />
-              Novo item
-            </Button>
-          </div>
           <DataPanel
             title="Produtos em estoque"
             page={itemPage}
@@ -235,11 +189,11 @@ export function InventoryPage(props: InventoryPageProps) {
                       const status = getItemStatus(item.available ?? 0, item.reserved ?? 0, item.low_stock_threshold ?? 10);
                       const statusInfo = STOCK_STATUS_COLORS[status] ?? STOCK_STATUS_COLORS.in_stock;
                       return (
-                        <tr key={item.id} style={{ borderBottom: i < paginatedItems.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined }}>
+                        <tr key={item.id} onClick={() => setSelectedItem(item)} style={{ borderBottom: i < paginatedItems.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined, cursor: "pointer", transition: "background 0.1s" }} onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-2)"} onMouseLeave={(e) => e.currentTarget.style.background = ""}>
                           <td style={{ padding: "12px 20px", font: "600 12px var(--font-mono)", color: "var(--color-text)" }}>{item.sku ?? "—"}</td>
-                          <td style={{ padding: "12px 20px", font: "500 13px var(--font-sans)", color: "var(--color-text)" }}>{item.product_name ?? "—"}</td>
-                          <td style={{ padding: "12px 20px", font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>{item.location_name ?? "—"}</td>
-                          <td style={{ padding: "12px 20px", font: "600 13px var(--font-data)", color: "var(--color-text)", textAlign: "right" }}>{item.available ?? 0}</td>
+                          <td style={{ padding: "12px 20px", font: "500 13px var(--font-sans)", color: "var(--color-text)" }}>{item.productName ?? item.product_name ?? "—"}</td>
+                          <td style={{ padding: "12px 20px", font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>{item.locationName ?? item.location_name ?? "—"}</td>
+                          <td style={{ padding: "12px 20px", font: "600 13px var(--font-data)", color: "var(--color-text)", textAlign: "right" }}>{(item.quantity ?? 0) - (item.reserved ?? 0)}</td>
                           <td style={{ padding: "12px 20px", font: "13px var(--font-data)", color: "var(--color-text-muted)", textAlign: "right" }}>{item.reserved ?? 0}</td>
                           <td style={{ padding: "12px 20px", textAlign: "center" }}>
                             <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: statusInfo.bg, color: statusInfo.color }}>
@@ -483,164 +437,63 @@ export function InventoryPage(props: InventoryPageProps) {
         </div>
       )}
 
-      {/* Create Item Form SidePanel */}
+      {/* Item Detail SidePanel */}
       <SidePanel
-        isOpen={showCreateItemForm}
-        title="Novo item de estoque"
-        onClose={() => setShowCreateItemForm(false)}
+        isOpen={selectedItem != null}
+        title="Detalhes do Produto"
+        onClose={handleCloseDetail}
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "16px 24px" }}>
-          <div>
-            <label style={{ font: "600 11px var(--font-sans)", color: "var(--color-text-muted)", display: "block", marginBottom: 6 }}>SKU *</label>
-            <input
-              type="text"
-              placeholder="Ex: PRD-001"
-              value={createFormData.sku}
-              onChange={(e) => setCreateFormData({ ...createFormData, sku: e.target.value })}
-              disabled={isCreatingItem}
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                border: "1px solid var(--color-border)",
-                borderRadius: "var(--radius-sm)",
-                font: "13px var(--font-sans)",
-                background: "var(--surface-0)",
-                color: "var(--color-text)",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
+        {selectedItem && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>SKU</label>
+                <div style={{ font: "600 14px var(--font-mono)", color: "var(--color-text)", marginTop: 4 }}>{selectedItem.sku}</div>
+              </div>
+              <div>
+                <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Produto</label>
+                <div style={{ font: "500 14px var(--font-sans)", color: "var(--color-text)", marginTop: 4 }}>{selectedItem.productName ?? selectedItem.product_name ?? "—"}</div>
+              </div>
+              {(selectedItem.variantName ?? selectedItem.variant_name) && (
+                <div>
+                  <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Variante</label>
+                  <div style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>{selectedItem.variantName ?? selectedItem.variant_name}</div>
+                </div>
+              )}
+              <div>
+                <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Local</label>
+                <div style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>{selectedItem.locationName ?? selectedItem.location_name ?? "—"}</div>
+              </div>
+            </div>
 
-          <div>
-            <label style={{ font: "600 11px var(--font-sans)", color: "var(--color-text-muted)", display: "block", marginBottom: 6 }}>Nome do produto *</label>
-            <input
-              type="text"
-              placeholder="Ex: Camiseta Azul"
-              value={createFormData.productName}
-              onChange={(e) => setCreateFormData({ ...createFormData, productName: e.target.value })}
-              disabled={isCreatingItem}
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                border: "1px solid var(--color-border)",
-                borderRadius: "var(--radius-sm)",
-                font: "13px var(--font-sans)",
-                background: "var(--surface-0)",
-                color: "var(--color-text)",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
+            <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div style={{ padding: "12px 14px", borderRadius: "var(--radius-sm)", background: "var(--surface-2)" }}>
+                  <div style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>Disponível</div>
+                  <div style={{ font: "700 20px var(--font-data)", color: "var(--color-brand)" }}>{(selectedItem.quantity ?? 0) - (selectedItem.reserved ?? 0)}</div>
+                </div>
+                <div style={{ padding: "12px 14px", borderRadius: "var(--radius-sm)", background: "var(--surface-2)" }}>
+                  <div style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>Reservado</div>
+                  <div style={{ font: "700 20px var(--font-data)", color: "var(--color-warning)" }}>{selectedItem.reserved ?? 0}</div>
+                </div>
+                <div style={{ padding: "12px 14px", borderRadius: "var(--radius-sm)", background: "var(--surface-2)" }}>
+                  <div style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>Custo médio</div>
+                  <div style={{ font: "700 20px var(--font-data)", color: "var(--color-text)" }}>{formatCurrency(selectedItem.avgCostCents ?? selectedItem.avg_cost_cents ?? 0)}</div>
+                </div>
+                <div style={{ padding: "12px 14px", borderRadius: "var(--radius-sm)", background: "var(--surface-2)" }}>
+                  <div style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>Limiar alerta</div>
+                  <div style={{ font: "700 20px var(--font-data)", color: "var(--color-text-muted)" }}>{selectedItem.lowStockThreshold ?? selectedItem.low_stock_threshold ?? "—"}</div>
+                </div>
+              </div>
+            </div>
 
-          <div>
-            <label style={{ font: "600 11px var(--font-sans)", color: "var(--color-text-muted)", display: "block", marginBottom: 6 }}>Variante</label>
-            <input
-              type="text"
-              placeholder="Ex: Tamanho G"
-              value={createFormData.variantName}
-              onChange={(e) => setCreateFormData({ ...createFormData, variantName: e.target.value })}
-              disabled={isCreatingItem}
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                border: "1px solid var(--color-border)",
-                borderRadius: "var(--radius-sm)",
-                font: "13px var(--font-sans)",
-                background: "var(--surface-0)",
-                color: "var(--color-text)",
-                boxSizing: "border-box",
-              }}
-            />
+            <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16, font: "11px var(--font-mono)", color: "var(--color-text-faint)", display: "flex", flexDirection: "column", gap: 4 }}>
+              <div>ID: {selectedItem.id}</div>
+              <div>Criado: {selectedItem.createdAt ? new Date(selectedItem.createdAt).toLocaleString("pt-BR") : "—"}</div>
+              <div>Atualizado: {selectedItem.updatedAt ? new Date(selectedItem.updatedAt).toLocaleString("pt-BR") : "—"}</div>
+            </div>
           </div>
-
-          <div>
-            <label style={{ font: "600 11px var(--font-sans)", color: "var(--color-text-muted)", display: "block", marginBottom: 6 }}>Quantidade *</label>
-            <input
-              type="number"
-              placeholder="0"
-              value={createFormData.quantity}
-              onChange={(e) => setCreateFormData({ ...createFormData, quantity: e.target.value })}
-              disabled={isCreatingItem}
-              min="0"
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                border: "1px solid var(--color-border)",
-                borderRadius: "var(--radius-sm)",
-                font: "13px var(--font-sans)",
-                background: "var(--surface-0)",
-                color: "var(--color-text)",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
-
-          <div>
-            <label style={{ font: "600 11px var(--font-sans)", color: "var(--color-text-muted)", display: "block", marginBottom: 6 }}>Custo médio (R$)</label>
-            <input
-              type="number"
-              placeholder="0.00"
-              value={createFormData.avgCostCents}
-              onChange={(e) => setCreateFormData({ ...createFormData, avgCostCents: e.target.value })}
-              disabled={isCreatingItem}
-              min="0"
-              step="0.01"
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                border: "1px solid var(--color-border)",
-                borderRadius: "var(--radius-sm)",
-                font: "13px var(--font-sans)",
-                background: "var(--surface-0)",
-                color: "var(--color-text)",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
-
-          <div>
-            <label style={{ font: "600 11px var(--font-sans)", color: "var(--color-text-muted)", display: "block", marginBottom: 6 }}>Limiar estoque baixo</label>
-            <input
-              type="number"
-              placeholder="10"
-              value={createFormData.lowStockThreshold}
-              onChange={(e) => setCreateFormData({ ...createFormData, lowStockThreshold: e.target.value })}
-              disabled={isCreatingItem}
-              min="0"
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                border: "1px solid var(--color-border)",
-                borderRadius: "var(--radius-sm)",
-                font: "13px var(--font-sans)",
-                background: "var(--surface-0)",
-                color: "var(--color-text)",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
-
-          <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowCreateItemForm(false)}
-              disabled={isCreatingItem}
-              style={{ flex: 1 }}
-            >
-              Cancelar
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleCreateItem}
-              disabled={isCreatingItem || !createFormData.sku.trim() || !createFormData.productName.trim() || !createFormData.quantity}
-              style={{ flex: 1 }}
-            >
-              {isCreatingItem ? "Criando..." : "Criar item"}
-            </Button>
-          </div>
-        </div>
+        )}
       </SidePanel>
     </div>
   );

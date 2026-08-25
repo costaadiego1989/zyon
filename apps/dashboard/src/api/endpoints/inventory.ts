@@ -64,7 +64,7 @@ export interface InventoryLocationDTO {
 export interface ErpConnectionDTO {
   id: string;
   merchantId: string;
-  provider: "bling" | "tiny" | "omie";
+  provider: "bling" | "tiny" | "omie" | "mercadolivre" | "shopee" | "tiktokshop";
   status: "connected" | "disconnected" | "error";
   lastSyncAt: string | null;
   directionMode: "push" | "pull" | "bidirectional";
