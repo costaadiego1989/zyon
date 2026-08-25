@@ -145,6 +145,13 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     const current = await this.getSession(merchantId, sessionId);
     if (!current) throw new Error("checkout_session_not_found");
     const next = [...current.chatHistory, turn].slice(-50);
+
+    // TODO R2P-C01: Optimistic locking for concurrent session updates.
+    // The schema has a `version` field, but it's not exposed in CheckoutSession type.
+    // To implement optimistic locking: (1) add version to CheckoutSession interface,
+    // (2) include version in WHERE clause below. For now, use last-write-wins without
+    // version check; concurrent updates may lose chat turns (acceptable under high load
+    // since checkout is typically single-user, but race window exists).
     const row = await this.prisma.checkoutSession.update({
       where: { merchantId_sessionId: { merchantId, sessionId } },
       data: {

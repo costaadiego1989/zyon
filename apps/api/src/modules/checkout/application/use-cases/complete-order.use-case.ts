@@ -88,6 +88,9 @@ export class CompleteOrderUseCase {
 
     // Order aggregate + its outbox events must commit atomically: a crash must
     // not persist a completed order without emitting order.completed.
+    // FIX R2P-C07: saveCompletedOrder, recordEvent, and appendOutbox are wrapped in
+    // Prisma.$transaction when txRunner is wired (production), ensuring ACID guarantees.
+    // The tx-aware repository instance is passed to commit() and re-used for all three ops.
     const commit = async (repo: OrderCommitRepository): Promise<boolean> => {
       const saved = await repo.saveCompletedOrder(order);
       if (saved.idempotent) return true;

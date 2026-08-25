@@ -479,10 +479,18 @@ export class SendChatMessageUseCase {
       const finalMsg = execution.message
         ? `${textContent ? textContent + "\n" : ""}${execution.message}`
         : textContent || "Benefício aplicado ao seu pedido!";
-      return { message: finalMsg, objection: "unknown" as any };
+      // FIX R2P-C04: Validate FINAL assembled message (tool output + LLM reply)
+      const safetyCheck = isSafeGeneratedMessage(finalMsg);
+      const safeMsg = safetyCheck.safe ? finalMsg : "Benefício aplicado ao seu pedido!";
+      return { message: safeMsg, objection: "unknown" as any };
     }
 
-    return { message: result.content || "Como posso ajudar com o seu pedido?", objection: "unknown" as any };
+    // FIX R2P-C04: Validate LLM reply before returning
+    const safetyCheck = isSafeGeneratedMessage(result.content || "");
+    const safeContent = safetyCheck.safe
+      ? result.content || "Como posso ajudar com o seu pedido?"
+      : "Como posso ajudar com o seu pedido?";
+    return { message: safeContent, objection: "unknown" as any };
   }
 
   private hashSessionId(str: string): number {
