@@ -99,8 +99,12 @@ export class WhatsAppWebhookController {
       return { received: true };
     }
 
-    if (secret && secret !== config.webhookSecret) {
-      throw new UnauthorizedException("invalid_webhook_secret");
+    // P1 fix: webhook secret validation must be REQUIRED if configured.
+    // If config.webhookSecret exists, demand the header (fail-closed).
+    if (config.webhookSecret) {
+      if (!secret || secret !== config.webhookSecret) {
+        throw new UnauthorizedException("webhook_secret_invalid");
+      }
     }
 
     // Dispatch async (debouncer handles batching)
@@ -132,8 +136,11 @@ export class WhatsAppWebhookController {
     const config = await this.configRepo.findByDeviceId(payload.deviceID);
     if (!config) return { received: true };
 
-    if (secret && secret !== config.webhookSecret) {
-      throw new UnauthorizedException("invalid_webhook_secret");
+    // P1 fix: webhook secret validation must be REQUIRED if configured.
+    if (config.webhookSecret) {
+      if (!secret || secret !== config.webhookSecret) {
+        throw new UnauthorizedException("webhook_secret_invalid");
+      }
     }
 
     void this.handleStatus.execute({

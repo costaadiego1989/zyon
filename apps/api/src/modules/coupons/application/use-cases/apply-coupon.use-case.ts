@@ -97,7 +97,19 @@ export class ApplyCouponUseCase {
       source: input.source ?? "manual"
     });
 
-    await this.redemptions.save(redemption);
+    // P1 fix: Race condition — wrap save in try/catch to detect concurrent applies.
+    // If unique constraint fails (duplicate redemption on same session), return error.
+    // This handles the case where two concurrent requests both pass limit checks.
+    try {
+      await this.redemptions.save(redemption);
+    } catch (e: unknown) {
+      const err = e as any;
+      // P2002 is Prisma unique constraint violation
+      if (err?.code === "P2002" && err?.meta?.target?.includes("session_id")) {
+        throw new ConflictException("COUPON_ALREADY_APPLIED_CONCURRENT");
+      }
+      throw e;
+    }
 
     await this.outbox.appendOutbox(
       createCouponEventEnvelope({

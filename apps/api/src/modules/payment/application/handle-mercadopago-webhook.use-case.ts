@@ -8,6 +8,7 @@ import {
 import { MetricsService } from "../../../shared/observability/metrics.service.js";
 import { PaymentDispatchService } from "./services/payment-dispatch.service.js";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
+import { MercadoPagoPaymentAdapter } from "../infrastructure/mercadopago-payment.adapter.js";
 
 export type MercadoPagoWebhookInbound = {
   action?: string;
@@ -111,7 +112,8 @@ export class HandleMercadoPagoWebhookUseCase {
   constructor(
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
     private readonly paymentDispatch: PaymentDispatchService,
-    @Optional() private readonly metrics?: MetricsService
+    @Optional() private readonly metrics?: MetricsService,
+    @Optional() private readonly provider?: MercadoPagoPaymentAdapter
   ) {}
 
   async execute(
@@ -167,17 +169,42 @@ export class HandleMercadoPagoWebhookUseCase {
     paymentId: string
   ): Promise<string> {
     // MercadoPago sends action="payment.updated" for most payment events.
-    // Type is "payment" but we need to check the status via polling/details.
-    // For webhook handling, we primarily care about "payment.updated" actions.
+    // Fetch payment status via provider to determine authoritative state.
     if (body.action !== "payment.updated") {
       return "ignored_event_action";
     }
 
-    // At this point, we would fetch the payment details to determine the exact status,
-    // but since we don't have the merchant context from the webhook, we would need
-    // to resolve it from the external payment ID. For now, we log and require
-    // the checkout flow to poll the status (similar to Asaas pattern where webhook
-    // is informational and the UI polls for status).
-    return "noop_payment_webhook_received";
+    // Look up the payment intent by MercadoPago's external ID to get merchant context
+    const ref = await this.payments.getIntentByExternalReference(paymentId);
+    if (!ref) {
+      return "ignored_intent_not_found";
+    }
+
+    const intentEntity = await this.payments.getIntentById(ref.merchantId, ref.id);
+    if (!intentEntity) {
+      return "ignored_intent_not_found";
+    }
+
+    // Fetch authoritative payment status from MercadoPago provider
+    if (!this.provider) {
+      throw new BadRequestException("mercadopago_provider_not_configured");
+    }
+
+    const statusOutput = await this.provider.fetchPaymentStatus({
+      merchantId: ref.merchantId,
+      providerPaymentId: paymentId
+    });
+
+    const state = statusOutput.state;
+
+    if (state === "approved") {
+      return await this.paymentDispatch.markApprovedAndComplete(intentEntity, paymentId);
+    } else if (state === "failed") {
+      await this.paymentDispatch.markFailed(intentEntity, "payment_failed_by_provider");
+      return "payment_failed";
+    }
+
+    // For pending/unknown states, do nothing — webhook is informational
+    return "noop_payment_pending_or_unknown";
   }
 }
