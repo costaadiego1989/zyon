@@ -263,5 +263,14 @@ export function inventoryEndpoints(base: string, f: typeof fetch) {
         f,
       );
     },
+
+    getErpOAuthUrl(merchantId: string, provider: string): Promise<{ url: string }> {
+      return dashboardJson<{ url: string }>(
+        base,
+        `/inventory/erp/oauth/${encodeURIComponent(provider)}/authorize`,
+        { method: "GET" },
+        f,
+      );
+    },
   };
 }

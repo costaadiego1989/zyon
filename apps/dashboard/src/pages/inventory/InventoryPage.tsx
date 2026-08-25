@@ -385,35 +385,7 @@ export function InventoryPage(props: InventoryPageProps) {
             </div>
           </div>
 
-          {/* Section 3: CRM */}
-          <div className="panel" style={{ padding: "20px 24px" }}>
-            <SectionHeader title="CRM" subtitle="Sincronize contatos e deals automaticamente quando uma venda é confirmada" />
-            <div className="grid-3" style={{ gap: 14 }}>
-              <CrmProviderCard
-                name="HubSpot"
-                description="CRM e automação de marketing. Cria contato + deal a cada venda."
-                connection={vm.crmConnections?.find((c: any) => c.provider === "hubspot")}
-                onConnect={() => vm.connectCrm?.("hubspot")}
-                onDisconnect={(id) => vm.disconnectCrm?.(id)}
-              />
-              <CrmProviderCard
-                name="Pipedrive"
-                description="CRM focado em pipeline de vendas. Acompanha cada conversão."
-                connection={vm.crmConnections?.find((c: any) => c.provider === "pipedrive")}
-                onConnect={() => vm.connectCrm?.("pipedrive")}
-                onDisconnect={(id) => vm.disconnectCrm?.(id)}
-              />
-              <CrmProviderCard
-                name="RD Station"
-                description="Marketing e CRM brasileiro. Rastreia leads até conversão."
-                connection={vm.crmConnections?.find((c: any) => c.provider === "rdstation")}
-                onConnect={() => vm.connectCrm?.("rdstation")}
-                onDisconnect={(id) => vm.disconnectCrm?.(id)}
-              />
-            </div>
-          </div>
-
-          {/* Section 4: Webhooks */}
+          {/* Section 3: Webhooks */}
           <div style={{
             padding: "14px 20px",
             borderRadius: "var(--radius-md)",

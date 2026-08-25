@@ -114,12 +114,13 @@ export function useInventoryPage(options: {
         setErpConnections((prev) => [...prev.filter((c) => c.provider !== "omie"), conn]);
         showToast("success", "Omie conectado com sucesso");
       } else {
-        // Bling/Tiny: OAuth flow
-        const response = await fetch(`/api/v1/inventory/erp/oauth/${provider}/authorize`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
-        });
-        const { url } = await response.json();
-        window.open(url, "_blank", "width=600,height=700");
+        // Bling/Tiny: OAuth flow — use proper API client
+        const data = await (api as any).getErpOAuthUrl(options.me.id, provider);
+        if (data?.url) {
+          window.open(data.url, "_blank", "width=600,height=700");
+        } else {
+          showToast("error", "Não foi possível gerar URL de autorização");
+        }
       }
     } catch (err) {
       showToast("error", err instanceof Error ? err.message : `Erro ao conectar ${provider}`);
