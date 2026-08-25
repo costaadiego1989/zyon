@@ -57,6 +57,7 @@ model Merchant {
   inventoryMovements   InventoryMovement[] @relation("InventoryMovements")
   inventoryAlerts      InventoryAlert[]    @relation("InventoryAlerts")
   erpConnections       ErpConnection[]     @relation("ErpConnections")
+  crmConnections       CrmConnection[]     @relation("CrmConnections")
 
   @@map("merchants")
 }
@@ -2326,4 +2327,25 @@ model ErpConnection {
   @@unique([merchantId, provider])
   @@index([merchantId, status])
   @@map("erp_connections")
+}
+
+model CrmConnection {
+  id                 String    @id @default(cuid())
+  merchantId         String    @map("merchant_id")
+  provider           String                                  // hubspot | pipedrive | rdstation
+  status             String    @default("pending")           // pending | connected | error
+  accessTokenCipher  String?   @map("access_token_cipher")
+  refreshTokenCipher String?   @map("refresh_token_cipher")
+  tokenExpiresAt     DateTime? @map("token_expires_at")
+  lastSyncAt         DateTime? @map("last_sync_at")
+  lastErrorCode      String?   @map("last_error_code")
+  config             Json?
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt      @map("updated_at")
+
+  merchant Merchant @relation("CrmConnections", fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, provider])
+  @@index([merchantId, status])
+  @@map("crm_connections")
 }
