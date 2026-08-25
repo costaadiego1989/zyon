@@ -35,18 +35,19 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
   const status = vm.config?.status ?? "disconnected";
 
   return (
-    <>
-      <SectionHeader
-        title="WhatsApp Seller"
-        subtitle="Receba pedidos diretamente no WhatsApp dos seus clientes"
-        trailing={
-          status === "active" ? (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--color-success)", fontSize: 13, fontWeight: 600 }}>
-              <CheckCircle size={14} /> Conectado
-            </span>
-          ) : null
-        }
-      />
+    <div className="page-container">
+      <header className="page-head">
+        <div>
+          <span className="eyebrow">Integrações</span>
+          <h1>WhatsApp Seller</h1>
+          <p className="page-lead">Receba pedidos diretamente no WhatsApp dos seus clientes</p>
+        </div>
+        {status === "active" && (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--color-success)", fontSize: 13, fontWeight: 600 }}>
+            <CheckCircle size={14} /> Conectado
+          </span>
+        )}
+      </header>
 
       {/* ── ACTIVE STATE ── */}
       {status === "active" && (
@@ -190,6 +191,6 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
