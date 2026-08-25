@@ -70,16 +70,29 @@ export function RadiusZonesEditor({ zones, onChange, originZip }: RadiusZonesEdi
     })
   );
 
-  // Sync raw strings if zones change externally (e.g. loaded from API)
+  // Sync raw strings ONLY on external load (not on our own edits).
+  // A ref guards against the feedback loop: typing emits new zones via
+  // onChange, which would otherwise re-sync and reformat mid-typing.
+  const selfEditRef = useRef(false);
+  const loadedRef = useRef(false);
   useEffect(() => {
-    setPriceRaw(
-      DEFAULT_TIERS.map((tier) => {
-        const existing = zones.find((z) => z.maxKm === tier.maxKm);
-        return centsToStr(existing?.priceCents ?? 0);
-      })
-    );
+    if (selfEditRef.current) {
+      // This change came from our own onChange — skip re-sync
+      selfEditRef.current = false;
+      return;
+    }
+    // Only sync the first time zones arrive with content, or on genuine external reset
+    if (!loadedRef.current && zones.length > 0) {
+      loadedRef.current = true;
+      setPriceRaw(
+        DEFAULT_TIERS.map((tier) => {
+          const existing = zones.find((z) => z.maxKm === tier.maxKm);
+          return centsToStr(existing?.priceCents ?? 0);
+        })
+      );
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zones.length]);
+  }, [zones]);
 
   // Effective CEP: prop from merchant config, or manual override
   const effectiveCep = (originZip && originZip.replace(/\D/g, "").length === 8) ? originZip : manualCep;
@@ -181,7 +194,8 @@ export function RadiusZonesEditor({ zones, onChange, originZip }: RadiusZonesEdi
     const updated = [...priceRaw];
     updated[idx] = cleaned;
     setPriceRaw(updated);
-    // Emit parsed zones to parent
+    // Mark as self-edit so useEffect doesn't re-sync
+    selfEditRef.current = true;
     const parsed: RadiusZone[] = DEFAULT_TIERS.map((tier, i) => ({
       maxKm: tier.maxKm,
       priceCents: strToCents(updated[i] ?? ""),
