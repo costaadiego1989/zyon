@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import DOMPurify from "isomorphic-dompurify";
 import type { ConversationBlock } from "@/lib/types";
 import { useWidgetConfig } from "@/lib/widget-config";
 import { useCart } from "@/lib/cart-store";
@@ -422,7 +423,7 @@ export default function ConversationShell({
             {/* Content */}
             <div style={{ flex: 1, overflowY: "auto", padding: "20px", color: "var(--aacp-fg)", fontSize: "13px", lineHeight: 1.6 }}>
               {policyModal.content ? (
-                <div dangerouslySetInnerHTML={{ __html: policyModal.content }} style={{ wordWrap: "break-word" }} />
+                <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(policyModal.content) }} style={{ wordWrap: "break-word" }} />
               ) : (
                 <p style={{ color: "var(--aacp-muted)" }}>Política não configurada</p>
               )}

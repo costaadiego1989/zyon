@@ -3,11 +3,19 @@ import { NextRequest, NextResponse } from "next/server";
 const API_BASE_URL = process.env.AACP_API_URL || "http://localhost:3009";
 const API_KEY = process.env.AACP_SERVICE_API_KEY || "";
 
+const ALLOWED_PREFIXES = ["storefront/", "buyer/", "embed/", "checkout-settings/widget-config"];
+
+function isPathAllowed(pathSegments: string[]): boolean {
+  const path = pathSegments.join("/");
+  return ALLOWED_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
+  if (!isPathAllowed(path)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   return proxyRequest(request, path, "GET");
 }
 
@@ -16,6 +24,7 @@ export async function POST(
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
+  if (!isPathAllowed(path)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   return proxyRequest(request, path, "POST");
 }
 
@@ -24,6 +33,7 @@ export async function PATCH(
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
+  if (!isPathAllowed(path)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   return proxyRequest(request, path, "PATCH");
 }
 
@@ -32,6 +42,7 @@ export async function PUT(
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
+  if (!isPathAllowed(path)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   return proxyRequest(request, path, "PUT");
 }
 
@@ -40,6 +51,7 @@ export async function DELETE(
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
+  if (!isPathAllowed(path)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   return proxyRequest(request, path, "DELETE");
 }
 

@@ -4,6 +4,7 @@ import Script from 'next/script';
 
 export function FacebookPixel({ pixelId }: { pixelId?: string }) {
   if (!pixelId) return null;
+  if (!/^\d{10,20}$/.test(pixelId)) return null;
 
   const fbqScript = `
     !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
@@ -34,6 +35,7 @@ export function FacebookPixel({ pixelId }: { pixelId?: string }) {
 
 export function TiktokPixel({ pixelId }: { pixelId?: string }) {
   if (!pixelId) return null;
+  if (!/^[A-Z0-9]{10,30}$/i.test(pixelId)) return null;
 
   const ttScript = `
     !function (w, d, t) {
