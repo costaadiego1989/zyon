@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Query, Req, Res, Inject, Logger, UseGuards } from "@nestjs/common";
+import { Controller, Get, Param, Query, Req, Res, Inject, Logger, UseGuards } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { PrismaClient } from "@prisma/client";
 import { createHmac, randomBytes } from "node:crypto";
@@ -23,7 +23,7 @@ export class ErpOAuthController {
   @Get(":provider/authorize")
   @UseGuards(AuthGuard)
   @ApiOperation({ summary: "Get ERP OAuth authorize URL" })
-  async authorize(@Req() request: any, @Query("provider") provider: string) {
+  async authorize(@Req() request: any, @Param("provider") provider: string) {
     const merchantId = currentUser(request).merchantId;
     const provider_lower = provider.toLowerCase();
     const state = this.signState(provider_lower, merchantId);
