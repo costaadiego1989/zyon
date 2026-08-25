@@ -8,6 +8,7 @@ import { StatCard } from "../overview/components/StatCard.js";
 import { DataPanel } from "../../components/DataPanel.js";
 import { FilterToolbar } from "../../components/FilterToolbar.js";
 import { ConfirmDialog } from "../../components/ConfirmDialog.js";
+import { showToast } from "../../components/Toast.js";
 import type { CreateCategoryInput, UpdateCategoryInput } from "../../api/endpoints/catalog.js";
 import { Button } from "../../components/Button.js";
 
@@ -34,6 +35,10 @@ export function CategoriesPage(props: CategoriesPageProps) {
   const vm = useCategoriesPage({ merchantId: props.me.id });
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const confirmCatName = vm.tree.find((c) => c.id === confirmDeleteId)?.name ?? "esta categoria";
+
+  useEffect(() => {
+    if (vm.error) showToast("error", vm.error);
+  }, [vm.error]);
 
   const filteredTree = useMemo(() => {
     if (!search && !activeOnly) return vm.tree;
@@ -74,7 +79,7 @@ export function CategoriesPage(props: CategoriesPageProps) {
   useEffect(() => { setPage(1); }, [search, activeOnly]);
 
   return (
-    <div>
+    <div className="page-container">
       <ConfirmDialog
         open={!!confirmDeleteId}
         title="Excluir categoria"
@@ -84,22 +89,16 @@ export function CategoriesPage(props: CategoriesPageProps) {
         onConfirm={() => { vm.deleteCategory(confirmDeleteId!); setConfirmDeleteId(null); }}
         onCancel={() => setConfirmDeleteId(null)}
       />
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+      <header className="page-head">
         <div>
-          <span className="eyebrow">LOJA</span>
-          <h1 >Categorias</h1>
+          <span className="eyebrow">Loja</span>
+          <h1>Categorias</h1>
           <p className="page-lead">Organize os produtos da sua loja em categorias</p>
         </div>
         <Button variant="primary" size="sm" arrow onClick={() => vm.startCreate()}>
           <Plus size={14} /> Nova categoria
         </Button>
-      </div>
-
-      {vm.error ? (
-        <div style={{ padding: "12px 16px", borderRadius: 8, background: "var(--color-error-bg)", border: "1px solid var(--color-error)", font: "13px var(--font-sans)", color: "var(--color-error)", marginBottom: 16 }}>
-          {vm.error}
-        </div>
-      ) : null}
+      </header>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
         <StatCard
