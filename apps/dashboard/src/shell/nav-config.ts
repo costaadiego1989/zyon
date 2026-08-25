@@ -43,6 +43,7 @@ export type TabKey =
   | "onboarding"
   | "overview"
   | "integrations"
+  | "crm-integrations"
   | "shipments"
   | "customers"
   | "returns"
@@ -124,6 +125,7 @@ export const NAV_ITEMS: Array<{
 
   // ─── Integrações ───
   { key: "integrations", label: "API & Webhooks", section: "Integrações", icon: Webhook },
+  { key: "crm-integrations", label: "CRM & Marketing", section: "Integrações", icon: Plug },
   { key: "payment-connections", label: "Pagamentos", section: "Integrações", icon: Zap },
   { key: "marketplace", label: "Marketplace", section: "Integrações", icon: ShoppingBag },
   { key: "whatsapp-seller", label: "WhatsApp Seller", section: "Integrações", icon: Smartphone },

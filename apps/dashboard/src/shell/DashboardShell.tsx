@@ -28,6 +28,7 @@ const MerchantRulesAuthenticatedPage = lazy(() => import("../pages/merchant-rule
 const CheckoutSettingsPage = lazy(() => import("../pages/checkout-settings/index.js").then(m => ({ default: m.CheckoutSettingsPage })));
 const SupportSettingsPage = lazy(() => import("../pages/support-settings-page.js").then(m => ({ default: m.SupportSettingsPage })));
 const IntegrationsPage = lazy(() => import("../pages/integrations-page.js").then(m => ({ default: m.IntegrationsPage })));
+const CrmIntegrationsPage = lazy(() => import("../pages/crm-integrations/index.js").then(m => ({ default: m.IntegrationsPage })));
 const OrdersShipmentsPage = lazy(() => import("../pages/orders-shipments-page.js").then(m => ({ default: m.OrdersShipmentsPage })));
 const CustomersPage = lazy(() => import("../pages/customers-page.js").then(m => ({ default: m.CustomersPage })));
 const FunnelPage = lazy(() => import("../pages/funnel/index.js").then(m => ({ default: m.FunnelPage })));
@@ -276,6 +277,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "settings" ? <CheckoutSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "support" ? <SupportSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "integrations" ? <IntegrationsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "crm-integrations" ? <CrmIntegrationsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "shipments" ? <OrdersShipmentsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "customers" ? <CustomersPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "funnel" ? <FunnelPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
