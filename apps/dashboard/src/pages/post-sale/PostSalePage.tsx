@@ -1,12 +1,14 @@
 import React, { useState } from "react";
-import { Star, ThumbsUp, ThumbsDown, MessageCircle, CheckCircle2 } from "lucide-react";
+import { Star, ThumbsUp, ThumbsDown, MessageCircle, CheckCircle2, Settings } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { TabBar } from "../../components/TabBar.js";
 import { DataPanel } from "../../components/DataPanel.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
 import { Button } from "../../components/Button.js";
+import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { usePostSalePage } from "./usePostSalePage.js";
+import { usePostSaleConfig } from "./usePostSaleConfig.js";
 
 export interface PostSalePageProps {
   apiBaseUrl: string;
@@ -15,7 +17,8 @@ export interface PostSalePageProps {
 
 export function PostSalePage(props: PostSalePageProps) {
   const vm = usePostSalePage({ me: props.me });
-  const [tab, setTab] = useState<"overview" | "reviews" | "nps">("overview");
+  const cfg = usePostSaleConfig({ me: props.me });
+  const [tab, setTab] = useState<"overview" | "reviews" | "nps" | "config">("overview");
 
   if (!props.me) {
     return (
@@ -76,9 +79,10 @@ export function PostSalePage(props: PostSalePageProps) {
           { key: "overview", label: "Visão geral" },
           { key: "reviews", label: `Reviews (${vm.reviews.length})` },
           { key: "nps", label: `NPS (${vm.npsItems.length})` },
+          { key: "config", label: "Configurações" },
         ]}
         activeTab={tab}
-        onTabChange={(k) => setTab(k as "overview" | "reviews" | "nps")}
+        onTabChange={(k) => setTab(k as "overview" | "reviews" | "nps" | "config")}
       />
 
       {/* Overview Tab */}
@@ -264,6 +268,133 @@ export function PostSalePage(props: PostSalePageProps) {
             </div>
           )}
         </DataPanel>
+      )}
+
+      {/* Config Tab */}
+      {tab === "config" && (
+        <div className="panel" style={{ padding: "20px 24px" }}>
+          <SectionHeader title="Campanhas de Pós-Venda" variant="secondary" />
+          <div style={{ display: "flex", flexDirection: "column", gap: 20, marginTop: 24 }}>
+            {/* Follow-up */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>
+                  Follow-up de Entrega
+                </div>
+                <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>
+                  Enviar mensagem após confirmação de entrega
+                </div>
+              </div>
+              <ToggleSwitch
+                checked={cfg.config.followUpEnabled}
+                disabled={cfg.saving}
+                onChange={(v) => cfg.update("followUpEnabled", v)}
+              />
+            </div>
+
+            {/* Review */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>
+                  Pedido de Review
+                </div>
+                <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>
+                  Agendar D+{cfg.config.reviewDelayDays}
+                </div>
+              </div>
+              <ToggleSwitch
+                checked={cfg.config.reviewEnabled}
+                disabled={cfg.saving}
+                onChange={(v) => cfg.update("reviewEnabled", v)}
+              />
+            </div>
+
+            {/* NPS */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>
+                  NPS
+                </div>
+                <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>
+                  Agendar D+{cfg.config.npsDelayDays}
+                </div>
+              </div>
+              <ToggleSwitch
+                checked={cfg.config.npsEnabled}
+                disabled={cfg.saving}
+                onChange={(v) => cfg.update("npsEnabled", v)}
+              />
+            </div>
+
+            {/* Cross-sell */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>
+                  Cross-sell
+                </div>
+                <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>
+                  Agendar D+{cfg.config.crossSellDelayDays}
+                </div>
+              </div>
+              <ToggleSwitch
+                checked={cfg.config.crossSellEnabled}
+                disabled={cfg.saving}
+                onChange={(v) => cfg.update("crossSellEnabled", v)}
+              />
+            </div>
+
+            {/* Win-back */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>
+                  Win-back com Cupom
+                </div>
+                <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>
+                  Scanear inativos após {cfg.config.winBackThresholdDays} dias
+                </div>
+              </div>
+              <ToggleSwitch
+                checked={cfg.config.winBackEnabled}
+                disabled={cfg.saving}
+                onChange={(v) => cfg.update("winBackEnabled", v)}
+              />
+            </div>
+
+            {/* Loyalty */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>
+                  Cupom de Fidelidade
+                </div>
+                <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>
+                  Marcos: {cfg.config.loyaltyMilestones}ª compra
+                </div>
+              </div>
+              <ToggleSwitch
+                checked={cfg.config.loyaltyEnabled}
+                disabled={cfg.saving}
+                onChange={(v) => cfg.update("loyaltyEnabled", v)}
+              />
+            </div>
+
+            {/* Reorder */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>
+                  Recompra Consumível
+                </div>
+                <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>
+                  Lembrete de recompra automático
+                </div>
+              </div>
+              <ToggleSwitch
+                checked={cfg.config.reorderEnabled}
+                disabled={cfg.saving}
+                onChange={(v) => cfg.update("reorderEnabled", v)}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -30,15 +30,21 @@ import { ProcessScheduledMessagesUseCase } from "./application/use-cases/process
 import { SubmitReviewUseCase } from "./application/use-cases/submit-review.use-case.js";
 import { SubmitNpsUseCase } from "./application/use-cases/submit-nps.use-case.js";
 import { GetPostSaleDashboardUseCase } from "./application/use-cases/get-post-sale-dashboard.use-case.js";
+import { ScanInactiveBuyersUseCase } from "./application/use-cases/scan-inactive-buyers.use-case.js";
+import { CheckLoyaltyMilestoneUseCase } from "./application/use-cases/check-loyalty-milestone.use-case.js";
+import { ScanConsumableReordersUseCase } from "./application/use-cases/scan-consumable-reorders.use-case.js";
 
 // Services
 import { PostSaleAiCopywriterService } from "./application/services/post-sale-ai-copywriter.service.js";
 
 // Jobs
 import { PostSaleMessageSenderJob } from "./infrastructure/jobs/post-sale-message-sender.job.js";
+import { WinBackScannerJob } from "./infrastructure/jobs/win-back-scanner.job.js";
+import { ConsumableReorderScannerJob } from "./infrastructure/jobs/consumable-reorder-scanner.job.js";
 
 // Event Handlers
 import { OnOrderDeliveredHandler } from "./infrastructure/event-handlers/on-order-delivered.handler.js";
+import { OnOrderCompletedHandler } from "./infrastructure/event-handlers/on-order-completed.handler.js";
 
 // Controllers
 import { BuyerPostSaleController } from "./presentation/http/buyer-post-sale.controller.js";
@@ -76,8 +82,14 @@ import { PostSaleDashboardController } from "./presentation/http/post-sale-dashb
     SubmitReviewUseCase,
     SubmitNpsUseCase,
     GetPostSaleDashboardUseCase,
+    ScanInactiveBuyersUseCase,
+    CheckLoyaltyMilestoneUseCase,
+    ScanConsumableReordersUseCase,
     PostSaleMessageSenderJob,
+    WinBackScannerJob,
+    ConsumableReorderScannerJob,
     OnOrderDeliveredHandler,
+    OnOrderCompletedHandler,
   ],
   exports: [
     SCHEDULED_MESSAGE_REPOSITORY,

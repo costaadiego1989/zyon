@@ -5,6 +5,7 @@ import {
   type LoyaltyTrackerRepositoryPort,
   type BuyerLoyaltyTracker,
   type UpsertLoyaltyTrackerInput,
+  type FindInactiveBuyersInput,
 } from "../../domain/ports/loyalty-tracker-repository.port.js";
 
 @Injectable()
@@ -103,6 +104,22 @@ export class PrismaLoyaltyTrackerRepository implements LoyaltyTrackerRepositoryP
     });
 
     return this.mapToDomain(tracker);
+  }
+
+  async findInactive(input: FindInactiveBuyersInput): Promise<BuyerLoyaltyTracker[]> {
+    const trackers = await this.prisma.buyerLoyaltyTracker.findMany({
+      where: {
+        lastPurchaseAt: { lt: input.inactiveBefore },
+        OR: [
+          { lastWinBackAt: null },
+          { lastWinBackAt: { lt: input.winBackBefore } },
+        ],
+      },
+      orderBy: { lastPurchaseAt: "asc" },
+      take: input.limit,
+    });
+
+    return trackers.map((t) => this.mapToDomain(t));
   }
 
   private mapToDomain(raw: any): BuyerLoyaltyTracker {

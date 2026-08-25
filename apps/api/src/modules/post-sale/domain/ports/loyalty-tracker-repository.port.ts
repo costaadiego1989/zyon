@@ -21,6 +21,12 @@ export interface UpsertLoyaltyTrackerInput {
   lastWinBackAt?: Date;
 }
 
+export interface FindInactiveBuyersInput {
+  inactiveBefore: Date;
+  winBackBefore: Date;
+  limit: number;
+}
+
 export interface LoyaltyTrackerRepositoryPort {
   upsert(input: UpsertLoyaltyTrackerInput): Promise<BuyerLoyaltyTracker>;
   findByBuyer(merchantId: string, buyerId: string): Promise<BuyerLoyaltyTracker | null>;
@@ -30,4 +36,10 @@ export interface LoyaltyTrackerRepositoryPort {
     amountCents: number
   ): Promise<BuyerLoyaltyTracker>;
   updateLastWinBack(merchantId: string, buyerId: string): Promise<BuyerLoyaltyTracker>;
+  /**
+   * Inactive buyers: lastPurchaseAt < inactiveBefore AND
+   * (lastWinBackAt is null OR lastWinBackAt < winBackBefore).
+   * Enforces the "max 1 win-back per buyer per 30 days" invariant at query level.
+   */
+  findInactive(input: FindInactiveBuyersInput): Promise<BuyerLoyaltyTracker[]>;
 }
