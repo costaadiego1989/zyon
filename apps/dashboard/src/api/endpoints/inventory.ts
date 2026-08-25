@@ -230,5 +230,38 @@ export function inventoryEndpoints(base: string, f: typeof fetch) {
         f,
       );
     },
+
+    // --- CRM Connections ---
+
+    getCrmConnections(merchantId: string): Promise<any[]> {
+      return dashboardJson<any[]>(
+        base,
+        `/dashboard/inventory/crm-connections`,
+        { method: "GET" },
+        f,
+      );
+    },
+
+    connectCrm(
+      merchantId: string,
+      provider: string,
+      credentials?: Record<string, string>,
+    ): Promise<any> {
+      return dashboardJson<any>(
+        base,
+        `/dashboard/inventory/crm-connections/${encodeURIComponent(provider)}/connect`,
+        { method: "POST", jsonBody: credentials ?? {} },
+        f,
+      );
+    },
+
+    disconnectCrm(merchantId: string, connectionId: string): Promise<void> {
+      return dashboardJson<void>(
+        base,
+        `/dashboard/inventory/crm-connections/${encodeURIComponent(connectionId)}/disconnect`,
+        { method: "POST" },
+        f,
+      );
+    },
   };
 }

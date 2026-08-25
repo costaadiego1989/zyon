@@ -387,11 +387,29 @@ export function InventoryPage(props: InventoryPageProps) {
 
           {/* Section 3: CRM */}
           <div className="panel" style={{ padding: "20px 24px" }}>
-            <SectionHeader icon={<Plug size={16} />} title="CRM" subtitle="Sincronize contatos e deals automaticamente" />
+            <SectionHeader title="CRM" subtitle="Sincronize contatos e deals automaticamente quando uma venda é confirmada" />
             <div className="grid-3" style={{ gap: 14 }}>
-              <CrmProviderCard name="HubSpot" description="CRM e automação de marketing" />
-              <CrmProviderCard name="Pipedrive" description="CRM focado em pipeline de vendas" />
-              <CrmProviderCard name="RD Station" description="Marketing e CRM brasileiro" />
+              <CrmProviderCard
+                name="HubSpot"
+                description="CRM e automação de marketing. Cria contato + deal a cada venda."
+                connection={vm.crmConnections?.find((c: any) => c.provider === "hubspot")}
+                onConnect={() => vm.connectCrm?.("hubspot")}
+                onDisconnect={(id) => vm.disconnectCrm?.(id)}
+              />
+              <CrmProviderCard
+                name="Pipedrive"
+                description="CRM focado em pipeline de vendas. Acompanha cada conversão."
+                connection={vm.crmConnections?.find((c: any) => c.provider === "pipedrive")}
+                onConnect={() => vm.connectCrm?.("pipedrive")}
+                onDisconnect={(id) => vm.disconnectCrm?.(id)}
+              />
+              <CrmProviderCard
+                name="RD Station"
+                description="Marketing e CRM brasileiro. Rastreia leads até conversão."
+                connection={vm.crmConnections?.find((c: any) => c.provider === "rdstation")}
+                onConnect={() => vm.connectCrm?.("rdstation")}
+                onDisconnect={(id) => vm.disconnectCrm?.(id)}
+              />
             </div>
           </div>
 
@@ -512,24 +530,27 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
 interface CrmProviderCardProps {
   name: string;
   description: string;
+  connection?: { id: string; provider: string; status: string; lastSyncAt?: string | null } | null;
+  onConnect?: () => void;
+  onDisconnect?: (id: string) => void;
 }
 
-function CrmProviderCard({ name, description }: CrmProviderCardProps) {
+function CrmProviderCard({ name, description, connection, onConnect, onDisconnect }: CrmProviderCardProps) {
+  const isConnected = connection?.status === "connected";
   return (
     <div style={{
-      border: "1px solid var(--color-border)",
+      border: `1px solid ${isConnected ? "var(--color-success)" : "var(--color-border)"}`,
       borderRadius: "var(--radius-md)",
       padding: 20,
       background: "var(--surface-1)",
       display: "flex",
       flexDirection: "column",
       gap: 12,
-      opacity: 0.7,
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 32, height: 32, borderRadius: "var(--radius-sm)", background: "var(--surface-2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Plug size={16} style={{ color: "var(--color-text-muted)" }} />
+          <div style={{ width: 32, height: 32, borderRadius: "var(--radius-sm)", background: isConnected ? "var(--color-success-bg)" : "var(--surface-2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <ExternalLink size={16} style={{ color: isConnected ? "var(--color-success)" : "var(--color-text-muted)" }} />
           </div>
           <span style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)" }}>{name}</span>
         </div>
@@ -537,15 +558,31 @@ function CrmProviderCard({ name, description }: CrmProviderCardProps) {
           padding: "2px 8px",
           borderRadius: "var(--radius-full)",
           font: "600 10px var(--font-mono)",
-          background: "var(--color-brand-subtle)",
-          color: "var(--color-brand)",
+          background: isConnected ? "var(--color-success-bg)" : "var(--surface-2)",
+          color: isConnected ? "var(--color-success)" : "var(--color-text-faint)",
         }}>
-          Em breve
+          {isConnected ? "Conectado" : "Não conectado"}
         </span>
       </div>
       <p style={{ margin: 0, font: "13px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.5 }}>
         {description}
       </p>
+      {connection?.lastSyncAt && (
+        <div style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)" }}>
+          Último sync: {new Date(connection.lastSyncAt).toLocaleString("pt-BR")}
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+        {isConnected ? (
+          <Button size="sm" onClick={() => onDisconnect?.(connection!.id)}>
+            <Unplug size={12} /> Desconectar
+          </Button>
+        ) : (
+          <Button variant="primary" size="sm" onClick={() => onConnect?.()}>
+            <Plug size={12} /> Conectar
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

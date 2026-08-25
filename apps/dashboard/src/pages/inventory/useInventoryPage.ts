@@ -14,6 +14,7 @@ export function useInventoryPage(options: {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [erpConnections, setErpConnections] = useState<ErpConnectionDTO[]>([]);
+  const [crmConnections, setCrmConnections] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,13 +32,14 @@ export function useInventoryPage(options: {
     setLoading(true);
     setError(null);
     try {
-      const [sum, itemList, moveList, alertList, locList, erpList] = await Promise.all([
+      const [sum, itemList, moveList, alertList, locList, erpList, crmList] = await Promise.all([
         api.getInventorySummary(options.me.id).catch(() => null),
         api.listInventoryItems(options.me.id, { pageSize: 50 }).catch(() => null),
         api.listMovements(options.me.id, { pageSize: 50 }).catch(() => null),
         api.listAlerts(options.me.id, false).catch(() => null),
         api.listLocations(options.me.id).catch(() => null),
         api.getErpConnections(options.me.id).catch(() => []),
+        (api as any).getCrmConnections?.(options.me!.id)?.catch?.(() => []) ?? Promise.resolve([]),
       ]);
 
       setSummary(sum ?? null);
@@ -46,6 +48,7 @@ export function useInventoryPage(options: {
       setAlerts(Array.isArray(alertList) ? alertList : []);
       setLocations(Array.isArray(locList) ? locList : []);
       setErpConnections(Array.isArray(erpList) ? erpList : []);
+      setCrmConnections(Array.isArray(crmList) ? crmList : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao carregar estoque");
     } finally {
@@ -127,6 +130,28 @@ export function useInventoryPage(options: {
     }
   }, [api, options.me]);
 
+  const connectCrm = useCallback(async (provider: string, credentials?: Record<string, string>) => {
+    if (!options.me) return;
+    try {
+      const conn = await (api as any).connectCrm?.(options.me.id, provider, credentials);
+      if (conn) setCrmConnections((prev) => [...prev.filter((c: any) => c.provider !== provider), conn]);
+      showToast("success", `${provider} conectado`);
+    } catch (err) {
+      showToast("error", err instanceof Error ? err.message : `Erro ao conectar ${provider}`);
+    }
+  }, [api, options.me]);
+
+  const disconnectCrm = useCallback(async (connectionId: string) => {
+    if (!options.me) return;
+    try {
+      await (api as any).disconnectCrm?.(options.me.id, connectionId);
+      setCrmConnections((prev) => prev.filter((c: any) => c.id !== connectionId));
+      showToast("success", "CRM desconectado");
+    } catch (err) {
+      showToast("error", err instanceof Error ? err.message : "Erro ao desconectar");
+    }
+  }, [api, options.me]);
+
   return {
     summary,
     items,
@@ -134,6 +159,7 @@ export function useInventoryPage(options: {
     alerts,
     locations,
     erpConnections,
+    crmConnections,
     loading,
     error,
     loadData,
@@ -152,5 +178,7 @@ export function useInventoryPage(options: {
     connectErp,
     disconnectErp,
     syncErp,
+    connectCrm,
+    disconnectCrm,
   };
 }
