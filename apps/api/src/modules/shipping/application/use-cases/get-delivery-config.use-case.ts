@@ -19,11 +19,15 @@ export class GetDeliveryConfigUseCase {
       throw new NotFoundException(`Merchant not found: ${input.merchantId}`);
     }
 
-    const ownDelivery = await this.ownDeliveryRepo.getByMerchantId(input.merchantId);
+    const [ownDelivery, rules] = await Promise.all([
+      this.ownDeliveryRepo.getByMerchantId(input.merchantId),
+      this.merchantRepo.getRules(input.merchantId).catch(() => null),
+    ]);
 
     return {
       melhorEnvioEnabled: merchant.melhorEnvioEnabled ?? true,
       melhorEnvioConnected: !!(merchant.melhorEnvioAccessToken && merchant.melhorEnvioRefreshToken),
+      originZip: rules?.originZip ?? "",
       ownDelivery: ownDelivery || {
         enabled: false,
         mode: "flat" as const,
