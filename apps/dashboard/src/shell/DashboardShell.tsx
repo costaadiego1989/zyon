@@ -60,6 +60,7 @@ const M2MAgentsPage = lazy(() => import("../pages/m2m-agents/M2MAgentsPage.js").
 const ProtocolPage = lazy(() => import("../pages/checkout-protocol/ProtocolPage.js").then(m => ({ default: m.ProtocolPage })));
 const CheckoutProgramavelPage = lazy(() => import("../pages/checkout-programavel/CheckoutProgramavelPage.js").then(m => ({ default: m.CheckoutProgramavelPage })));
 const IntentMemoryPage = lazy(() => import("../pages/intent-memory/IntentMemoryPage.js").then(m => ({ default: m.IntentMemoryPage })));
+const InventoryPage = lazy(() => import("../pages/inventory/index.js").then(m => ({ default: m.InventoryPage })));
 const NegotiationPolicyPage = lazy(() => import("../pages/negotiation-policy/NegotiationPolicyPage.js").then(m => ({ default: m.NegotiationPolicyPage })));
 const ChargebacksPage = lazy(() => import("../pages/chargebacks/ChargebacksPage.js").then(m => ({ default: m.ChargebacksPage })));
 const ReturnExchangesPage = lazy(() => import("../pages/returns/ReturnExchangesPage.js").then(m => ({ default: m.ReturnExchangesPage })));
@@ -301,6 +302,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "checkout-protocol" ? <ProtocolPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "checkout-programavel" ? <CheckoutProgramavelPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "intent-memory" ? <IntentMemoryPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "inventory" ? <InventoryPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "negotiation-policy" ? <NegotiationPolicyPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "chargebacks" ? <ChargebacksPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "returns" ? <ReturnExchangesPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
