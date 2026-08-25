@@ -13,12 +13,13 @@ export function parseFloatSafe(value: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export function validateVariants(variants: ProductVariantDraft[]): Record<string, string> {
+export function validateVariants(variants: ProductVariantDraft[], productType?: string): Record<string, string> {
   const errors: Record<string, string> = {};
   if (variants.length === 0) {
     errors["variants"] = "Adicione pelo menos uma variante";
     return errors;
   }
+  const requiresWeight = productType === "physical" || !productType;
   const seenSkus = new Set<string>();
   variants.forEach((v, idx) => {
     if (!v.sku.trim()) errors[`variant_${idx}_sku`] = "SKU obrigatório";
@@ -28,7 +29,9 @@ export function validateVariants(variants: ProductVariantDraft[]): Record<string
     const price = reaisToCents(v.basePriceInput);
     if (price <= 0) errors[`variant_${idx}_price`] = "Preço inválido";
 
-    if (v.weightInput.trim()) {
+    if (requiresWeight && !v.weightInput.trim()) {
+      errors[`variant_${idx}_weight`] = "Peso obrigatório para produtos físicos";
+    } else if (v.weightInput.trim()) {
       const w = parseFloatSafe(v.weightInput);
       if (w === null || w < 0) errors[`variant_${idx}_weight`] = "Peso inválido";
     }
@@ -41,12 +44,15 @@ export function validateVariants(variants: ProductVariantDraft[]): Record<string
   return errors;
 }
 
-export function validateSimpleProduct(variant: ProductVariantDraft): Record<string, string> {
+export function validateSimpleProduct(variant: ProductVariantDraft, productType?: string): Record<string, string> {
   const errors: Record<string, string> = {};
   if (!variant.sku.trim()) errors["simple_sku"] = "SKU obrigatório";
   const price = reaisToCents(variant.basePriceInput);
   if (price <= 0) errors["simple_price"] = "Preço inválido";
-  if (variant.weightInput.trim()) {
+  const requiresWeight = productType === "physical" || !productType;
+  if (requiresWeight && !variant.weightInput.trim()) {
+    errors["simple_weight"] = "Peso obrigatório para produtos físicos";
+  } else if (variant.weightInput.trim()) {
     const w = parseFloatSafe(variant.weightInput);
     if (w === null || w < 0) errors["simple_weight"] = "Peso inválido";
   }

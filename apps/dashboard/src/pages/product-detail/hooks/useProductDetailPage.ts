@@ -101,9 +101,9 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
 
   // Validation
   const variantErrors = useMemo(() => {
-    if (variantManager.hasVariants) return validateVariants(variantManager.variants);
-    return validateSimpleProduct(variantManager.variants[0]);
-  }, [variantManager.variants, variantManager.hasVariants]);
+    if (variantManager.hasVariants) return validateVariants(variantManager.variants, form.productType);
+    return validateSimpleProduct(variantManager.variants[0], form.productType);
+  }, [variantManager.variants, variantManager.hasVariants, form.productType]);
 
   const formErrors = useMemo(() => {
     const errors: Record<string, string> = {};
