@@ -47,26 +47,51 @@ async function geocodeCep(cep: string): Promise<{ lat: number; lng: number } | n
   }
 }
 
+const centsToStr = (cents: number) => (cents ? (cents / 100).toFixed(2).replace(".", ",") : "");
+const strToCents = (str: string) => {
+  const cleaned = str.replace(/[^\d,]/g, "").replace(",", ".");
+  const val = parseFloat(cleaned);
+  return isNaN(val) ? 0 : Math.round(val * 100);
+};
+
 export function RadiusZonesEditor({ zones, onChange, originZip }: RadiusZonesEditorProps) {
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
   const [origin, setOrigin] = useState<{ lat: number; lng: number } | null>(null);
+  const [manualCep, setManualCep] = useState("");
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const circlesRef = useRef<any[]>([]);
 
-  // Initialize zones from defaults if empty
-  const currentZones: RadiusZone[] = DEFAULT_TIERS.map((tier) => {
-    const existing = zones.find((z) => z.maxKm === tier.maxKm);
-    return existing ?? { maxKm: tier.maxKm, priceCents: 0 };
-  });
+  // Raw string state per tier — avoids reformat-on-keystroke loop ("10" -> "1,00")
+  const [priceRaw, setPriceRaw] = useState<string[]>(() =>
+    DEFAULT_TIERS.map((tier) => {
+      const existing = zones.find((z) => z.maxKm === tier.maxKm);
+      return centsToStr(existing?.priceCents ?? 0);
+    })
+  );
 
-  // Geocode origin ZIP
+  // Sync raw strings if zones change externally (e.g. loaded from API)
   useEffect(() => {
-    if (!originZip) return;
-    geocodeCep(originZip).then((coords) => {
+    setPriceRaw(
+      DEFAULT_TIERS.map((tier) => {
+        const existing = zones.find((z) => z.maxKm === tier.maxKm);
+        return centsToStr(existing?.priceCents ?? 0);
+      })
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zones.length]);
+
+  // Effective CEP: prop from merchant config, or manual override
+  const effectiveCep = (originZip && originZip.replace(/\D/g, "").length === 8) ? originZip : manualCep;
+
+  // Geocode origin ZIP (from config or manual input)
+  useEffect(() => {
+    const cleaned = effectiveCep.replace(/\D/g, "");
+    if (cleaned.length !== 8) return;
+    geocodeCep(cleaned).then((coords) => {
       if (coords) setOrigin(coords);
     });
-  }, [originZip]);
+  }, [effectiveCep]);
 
   // Initialize Leaflet map
   useEffect(() => {
@@ -151,21 +176,17 @@ export function RadiusZonesEditor({ zones, onChange, originZip }: RadiusZonesEdi
     }
   }
 
-  const formatPrice = (cents: number) => {
-    if (!cents) return "";
-    return (cents / 100).toFixed(2).replace(".", ",");
-  };
-
-  const parseCents = (str: string) => {
-    const cleaned = str.replace(/[^\d,]/g, "").replace(",", ".");
-    const val = parseFloat(cleaned);
-    return isNaN(val) ? 0 : Math.round(val * 100);
-  };
-
   const handlePriceChange = (idx: number, raw: string) => {
-    const updated = [...currentZones];
-    updated[idx] = { ...updated[idx], priceCents: parseCents(raw) };
-    onChange(updated.filter((z) => z.priceCents > 0));
+    const cleaned = raw.replace(/[^\d,]/g, "");
+    const updated = [...priceRaw];
+    updated[idx] = cleaned;
+    setPriceRaw(updated);
+    // Emit parsed zones to parent
+    const parsed: RadiusZone[] = DEFAULT_TIERS.map((tier, i) => ({
+      maxKm: tier.maxKm,
+      priceCents: strToCents(updated[i] ?? ""),
+    }));
+    onChange(parsed.filter((z) => z.priceCents > 0));
   };
 
   return (
@@ -188,10 +209,24 @@ export function RadiusZonesEditor({ zones, onChange, originZip }: RadiusZonesEdi
       >
         {!origin && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
-            {originZip ? "Carregando mapa..." : "Configure o CEP de origem para ver o mapa"}
+            {effectiveCep ? "Carregando mapa..." : "Informe o CEP de origem abaixo"}
           </div>
         )}
       </div>
+
+      {/* Manual CEP input when merchant has no origin zip configured */}
+      {!originZip && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={manualCep}
+            onChange={(e) => setManualCep(e.target.value.replace(/\D/g, "").slice(0, 8))}
+            placeholder="CEP de origem (ex: 20040020)"
+            style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-1)", font: "13px var(--font-sans)", color: "var(--color-text)" }}
+          />
+        </div>
+      )}
 
       {/* Zone price inputs */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -228,7 +263,7 @@ export function RadiusZonesEditor({ zones, onChange, originZip }: RadiusZonesEdi
               <input
                 type="text"
                 inputMode="decimal"
-                value={formatPrice(currentZones[i]?.priceCents ?? 0)}
+                value={priceRaw[i] ?? ""}
                 onChange={(e) => handlePriceChange(i, e.target.value)}
                 placeholder="0,00"
                 style={{
