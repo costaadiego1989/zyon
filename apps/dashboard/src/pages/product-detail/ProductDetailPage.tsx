@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { ArrowLeft, Save } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
-import { SaveFeedbackBanner } from "../../components/save-feedback-banner.js";
+import { showToast } from "../../components/Toast.js";
 import { Button } from "../../components/Button.js";
 import { useProductDetailPage } from "./hooks/useProductDetailPage.js";
 import { ProductForm } from "./components/ProductForm.js";
@@ -43,6 +43,24 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
     onSaved: props.onSaved,
   });
 
+  // Save result → toast
+  useEffect(() => {
+    if (page.saveResult === "success") {
+      showToast("success", page.isEditing ? "Produto atualizado" : "Produto criado");
+      page.setSaveResult(null);
+    } else if (page.saveResult === "error") {
+      showToast("error", page.saveErrorMsg ?? "Erro ao salvar produto");
+      page.setSaveResult(null);
+    }
+  }, [page.saveResult]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load error → toast
+  useEffect(() => {
+    if (page.loadError) {
+      showToast("error", page.loadError);
+    }
+  }, [page.loadError]);
+
   if (!props.me) {
     return (
       <header className="page-head">
@@ -55,36 +73,23 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
   }
 
   return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+    <div className="page-container">
+      <header className="page-head">
         <div>
           <button
             type="button"
             onClick={() => props.onBack?.()}
-            style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 0", border: "none", background: "transparent", cursor: "pointer", color: "var(--color-text-muted)", font: "600 11.5px var(--font-sans)", marginBottom: 8 }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: 0, border: "none", background: "transparent", cursor: "pointer", color: "var(--color-text-muted)", font: "500 12px var(--font-sans)", marginBottom: 8 }}
           >
             <ArrowLeft size={12} /> Voltar para o catálogo
           </button>
-          <span className="eyebrow">LOJA / CATÁLOGO</span>
+          <span className="eyebrow">Loja</span>
           <h1>{page.isEditing ? "Editar produto" : "Novo produto"}</h1>
         </div>
         <Button variant="primary" size="sm" arrow disabled={!page.canSave} onClick={() => void page.handleSave()}>
           <Save size={14} /> {page.saving ? "Salvando..." : page.isEditing ? "Salvar alterações" : "Criar produto"}
         </Button>
-      </div>
-
-      <SaveFeedbackBanner
-        result={page.saveResult}
-        errorMessage={page.saveErrorMsg ?? undefined}
-        successMessage={page.isEditing ? "Produto atualizado" : "Produto criado"}
-        onDismiss={() => page.setSaveResult(null)}
-      />
-
-      {page.loadError ? (
-        <div style={{ padding: "12px 16px", borderRadius: 8, background: "var(--color-error-bg)", border: "1px solid var(--color-error)", font: "13px var(--font-sans)", color: "var(--color-error)", marginBottom: 16 }}>
-          {page.loadError}
-        </div>
-      ) : null}
+      </header>
 
       {page.loading ? (
         <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando produto...</div>
