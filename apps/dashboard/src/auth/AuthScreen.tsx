@@ -111,21 +111,42 @@ export function AuthScreen(props: AuthScreenProps) {
             <img src="/logo-zyon.png" alt="Zyon" className="auth-hero__logo-img" />
           </div>
           <p className="auth-hero__tagline">
-            Plataforma headless de checkout inteligente com IA que negocia, personaliza ofertas e converte abandonos em vendas.
+            IA que negocia preço, recupera carrinhos abandonados via WhatsApp,
+            personaliza ofertas por intenção de compra e sincroniza estoque com seu ERP.
           </p>
           <div className="auth-hero__metrics">
             <div className="auth-hero__metric">
-              <span className="auth-hero__metric-value">110+</span>
-              <span className="auth-hero__metric-label">API Endpoints</span>
+              <span className="auth-hero__metric-value">+34%</span>
+              <span className="auth-hero__metric-label">Recuperação de carrinho</span>
             </div>
             <div className="auth-hero__metric">
-              <span className="auth-hero__metric-value">23</span>
-              <span className="auth-hero__metric-label">Módulos</span>
+              <span className="auth-hero__metric-value">IA</span>
+              <span className="auth-hero__metric-label">Negociação autônoma</span>
             </div>
             <div className="auth-hero__metric">
-              <span className="auth-hero__metric-value">3</span>
-              <span className="auth-hero__metric-label">Integrações</span>
+              <span className="auth-hero__metric-value">24/7</span>
+              <span className="auth-hero__metric-label">Agente de vendas</span>
             </div>
+          </div>
+
+          <div style={{ marginTop: 32, display: "flex", flexDirection: "column", gap: 12, maxWidth: 380 }}>
+            {[
+              "Intent Memory — classifica perfil de cada comprador",
+              "Revenue Manager — sugestões de otimização diárias",
+              "Cart Recovery — reconquista via WhatsApp com cupom",
+              "Cross-sell inteligente por histórico de compra",
+            ].map((feature) => (
+              <div key={feature} style={{ display: "flex", alignItems: "center", gap: 10, font: "13px 'Manrope', sans-serif", color: "oklch(70% 0.01 145)" }}>
+                <span style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: "oklch(60% 0.15 150)",
+                  flexShrink: 0,
+                }} />
+                {feature}
+              </div>
+            ))}
           </div>
         </div>
       </section>
