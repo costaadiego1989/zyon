@@ -135,7 +135,11 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, onCancel
             throw new Error(errData?.message ?? "Erro ao enviar código");
           }
           if (res.status === 404) {
-            console.warn("[BuyerRegistrationForm] send-otp endpoint not found (404), skipping for dev");
+            if (process.env.NODE_ENV === 'development') {
+              console.warn("[BuyerRegistrationForm] send-otp endpoint not found (404), skipping for dev");
+            } else {
+              throw new Error("Serviço de verificação indisponível");
+            }
           }
           if (res.ok) {
             const data = await res.json().catch(() => null);
@@ -159,7 +163,11 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, onCancel
             throw new Error(errData?.message ?? "Código inválido");
           }
           if (res.status === 404) {
-            console.warn("[BuyerRegistrationForm] verify-otp endpoint not found (404), skipping for dev");
+            if (process.env.NODE_ENV === 'development') {
+              console.warn("[BuyerRegistrationForm] verify-otp endpoint not found (404), skipping for dev");
+            } else {
+              throw new Error("Serviço de verificação indisponível");
+            }
           }
           setCurrentStep(3);
           trackRegistrationStep(merchantId, "auth_phone_verified");
@@ -176,6 +184,11 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, onCancel
             const errData = await res.json().catch(() => null);
             throw new Error(errData?.detail ?? "Erro ao enviar código");
           }
+          if (res.status === 404) {
+            if (process.env.NODE_ENV !== 'development') {
+              throw new Error("Serviço de verificação indisponível");
+            }
+          }
           break;
         }
         case 4: {
@@ -188,6 +201,11 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, onCancel
           if (!res.ok && res.status !== 404) {
             const errData = await res.json().catch(() => null);
             throw new Error(errData?.detail ?? "Código inválido");
+          }
+          if (res.status === 404) {
+            if (process.env.NODE_ENV !== 'development') {
+              throw new Error("Serviço de verificação indisponível");
+            }
           }
           break;
         }
@@ -240,17 +258,26 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, onCancel
             throw new Error(errData?.message ?? "Erro ao registrar");
           }
 
-          let globalUserId = "new-buyer";
+          let globalUserId: string;
           if (res.ok) {
             const data = await res.json();
             if (data.token) {
               localStorage.setItem("zyon_buyer_token", data.token);
             }
-            globalUserId = data.global_user_id ?? globalUserId;
+            globalUserId = data.global_user_id;
+            if (!globalUserId) {
+              throw new Error("Registro falhou: servidor não retornou identificação do usuário");
+            }
+          } else if (res.status === 404) {
+            if (process.env.NODE_ENV === 'development') {
+              console.warn("[BuyerRegistrationForm] register endpoint not found (404), using mock token for dev");
+              localStorage.setItem("zyon_buyer_token", "dev-mock-token");
+              globalUserId = "dev-new-buyer";
+            } else {
+              throw new Error("Serviço de registro indisponível");
+            }
           } else {
-            // 404 dev mode - set a mock token
-            console.warn("[BuyerRegistrationForm] register endpoint not found (404), using mock token for dev");
-            localStorage.setItem("zyon_buyer_token", "dev-mock-token");
+            throw new Error("Erro ao registrar");
           }
 
           trackRegistrationStep(merchantId, "auth_registration_completed");

@@ -57,7 +57,10 @@ export default function BuyerLoginForm({ merchantId, onComplete, onCancel }: Pro
         }
 
         const data = await res.json();
-        let globalUserId = data.global_user_id ?? data.globalUserId ?? "returning-buyer";
+        const globalUserId = data.global_user_id ?? data.globalUserId;
+        if (!globalUserId) {
+          throw new Error("Login falhou: servidor não retornou identificação do usuário");
+        }
         if (data.token) {
           localStorage.setItem("zyon_buyer_token", data.token);
           localStorage.setItem("zyon_buyer_session", JSON.stringify({ globalUserId, token: data.token }));

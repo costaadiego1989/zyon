@@ -13,23 +13,25 @@ export async function redirectToCheckout(opts: {
   if (opts.cartId) params.set("cartId", opts.cartId);
   if (opts.globalUserId) params.set("globalUserId", opts.globalUserId);
 
-  try {
-    const tokenRes = await fetch("/api/checkout-token", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        merchant_id: opts.merchantId,
-        cart_ref: opts.cartId,
-        allowed_origin: widgetBase,
-      }),
-    });
-    if (tokenRes.ok) {
-      const data = await tokenRes.json();
-      params.set("embedToken", data.embed_session_token);
-    }
-  } catch (e) {
-    console.error("[checkout] token fetch error:", e);
+  const tokenRes = await fetch("/api/checkout-token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      merchant_id: opts.merchantId,
+      cart_ref: opts.cartId,
+      allowed_origin: widgetBase,
+    }),
+  });
+
+  if (!tokenRes.ok) {
+    throw new Error("Não foi possível gerar token de checkout. Tente novamente.");
   }
 
+  const data = await tokenRes.json();
+  if (!data.embed_session_token) {
+    throw new Error("Não foi possível gerar token de checkout. Tente novamente.");
+  }
+
+  params.set("embedToken", data.embed_session_token);
   window.location.href = `${widgetBase}?${params.toString()}`;
 }
