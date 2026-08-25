@@ -18,8 +18,8 @@
   padding: 24px;
   min-height: 100vh;
   overflow: visible;
-  background: oklch(7% 0.005 150 / 0.55);
-  backdrop-filter: blur(2px);
+  background: oklch(7% 0.005 150 / 0.4);
+  backdrop-filter: blur(4px);
 }
 
 .auth-header {
