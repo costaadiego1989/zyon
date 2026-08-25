@@ -1,11 +1,13 @@
 import React, { useState } from "react";
-import { Package, AlertTriangle, DollarSign, Boxes, AlertCircle } from "lucide-react";
+import { Package, AlertTriangle, DollarSign, Boxes, AlertCircle, RefreshCw, Plug, Unplug, ExternalLink } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
+import type { ErpConnectionDTO } from "../../api/endpoints/inventory.js";
 import { TabBar } from "../../components/TabBar.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { DataPanel } from "../../components/DataPanel.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { Button } from "../../components/Button.js";
+import { SectionHeader } from "../../components/SectionHeader.js";
 import { useInventoryPage } from "./useInventoryPage.js";
 
 export interface InventoryPageProps {
@@ -329,14 +331,221 @@ export function InventoryPage(props: InventoryPageProps) {
 
       {/* Tab: Conectores ERP */}
       {tab === "erp" && (
-        <div className="panel" style={{ padding: "20px 24px" }}>
-          <EmptyState
-            icon={AlertCircle}
-            title="Conectores ERP em breve"
-            description="Em desenvolvimento: integração com Bling, Tiny e Omie para sincronização automática de estoque."
-          />
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          {/* Section 1: Como funciona */}
+          <div style={{
+            padding: "16px 20px",
+            borderRadius: "var(--radius-md)",
+            background: "var(--accent-soft)",
+            border: "1px solid var(--accent-line)",
+            font: "13px var(--font-sans)",
+            color: "var(--color-brand)",
+            lineHeight: 1.65,
+          }}>
+            <strong style={{ color: "var(--color-text)" }}>Como funciona a sincronização:</strong>{" "}
+            Quando uma venda é confirmada, o sistema automaticamente:{" "}
+            <span style={{ fontWeight: 600 }}>①</span> Decrementa o estoque do item vendido{" "}
+            <span style={{ fontWeight: 600 }}>②</span> Envia atualização pro ERP conectado{" "}
+            <span style={{ fontWeight: 600 }}>③</span> Emite webhook <code style={{ font: "12px var(--font-mono)", background: "var(--surface-2)", padding: "1px 4px", borderRadius: 3 }}>inventory.item.decremented</code>{" "}
+            <span style={{ fontWeight: 600 }}>④</span> Sincroniza contato/deal no CRM.{" "}
+            Conecte seu ERP abaixo para manter tudo em sync.
+          </div>
+
+          {/* Section 2: Conectar ERP */}
+          <div className="panel" style={{ padding: "20px 24px" }}>
+            <SectionHeader icon={<Package size={16} />} title="Conectar ERP" subtitle="Integre seu sistema de gestão para sincronização automática de estoque" />
+            <div className="grid-3" style={{ gap: 14 }}>
+              <ErpProviderCard
+                provider="bling"
+                name="Bling"
+                description="ERP brasileiro líder em PMEs. Produtos, estoque e NF-e."
+                connection={vm.erpConnections.find((c) => c.provider === "bling")}
+                onConnect={() => vm.connectErp("bling")}
+                onDisconnect={(id) => vm.disconnectErp(id)}
+                onSync={(id) => vm.syncErp(id)}
+              />
+              <ErpProviderCard
+                provider="tiny"
+                name="Tiny"
+                description="ERP by Olist. Gestão de estoque multi-depósito."
+                connection={vm.erpConnections.find((c) => c.provider === "tiny")}
+                onConnect={() => vm.connectErp("tiny")}
+                onDisconnect={(id) => vm.disconnectErp(id)}
+                onSync={(id) => vm.syncErp(id)}
+              />
+              <ErpProviderCard
+                provider="omie"
+                name="Omie"
+                description="ERP em nuvem. Financeiro + estoque integrado."
+                connection={vm.erpConnections.find((c) => c.provider === "omie")}
+                onConnect={() => vm.connectErp("omie")}
+                onDisconnect={(id) => vm.disconnectErp(id)}
+                onSync={(id) => vm.syncErp(id)}
+              />
+            </div>
+          </div>
+
+          {/* Section 3: CRM */}
+          <div className="panel" style={{ padding: "20px 24px" }}>
+            <SectionHeader icon={<Plug size={16} />} title="CRM" subtitle="Sincronize contatos e deals automaticamente" />
+            <div className="grid-3" style={{ gap: 14 }}>
+              <CrmProviderCard name="HubSpot" description="CRM e automação de marketing" />
+              <CrmProviderCard name="Pipedrive" description="CRM focado em pipeline de vendas" />
+              <CrmProviderCard name="RD Station" description="Marketing e CRM brasileiro" />
+            </div>
+          </div>
+
+          {/* Section 4: Webhooks */}
+          <div style={{
+            padding: "14px 20px",
+            borderRadius: "var(--radius-md)",
+            background: "var(--surface-2)",
+            border: "1px solid var(--color-border)",
+            font: "13px var(--font-sans)",
+            color: "var(--color-text-muted)",
+            lineHeight: 1.65,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+          }}>
+            <span>
+              Quando o estoque é decrementado, o evento <code style={{ font: "12px var(--font-mono)", background: "var(--surface-1)", padding: "1px 4px", borderRadius: 3 }}>inventory.item.decremented</code> é emitido para todos os webhook endpoints cadastrados em <strong>API &amp; Webhooks</strong>.
+            </span>
+            <a
+              href="#"
+              onClick={(e) => e.preventDefault()}
+              style={{ font: "600 12px var(--font-sans)", color: "var(--color-brand)", textDecoration: "none", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4 }}
+            >
+              Configurar webhooks <ExternalLink size={12} />
+            </a>
+          </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* --- Sub-components for ERP tab --- */
+
+interface ErpProviderCardProps {
+  provider: string;
+  name: string;
+  description: string;
+  connection?: ErpConnectionDTO;
+  onConnect: () => void;
+  onDisconnect: (id: string) => void;
+  onSync: (id: string) => void;
+}
+
+function ErpProviderCard({ provider, name, description, connection, onConnect, onDisconnect, onSync }: ErpProviderCardProps) {
+  const status = connection?.status ?? "disconnected";
+  const statusConfig: Record<string, { bg: string; color: string; label: string }> = {
+    connected: { bg: "var(--color-success-bg)", color: "var(--color-success)", label: "Conectado" },
+    disconnected: { bg: "var(--surface-2)", color: "var(--color-text-faint)", label: "Não conectado" },
+    error: { bg: "var(--color-error-bg)", color: "var(--color-error)", label: "Erro" },
+  };
+  const statusInfo = statusConfig[status] ?? statusConfig.disconnected;
+
+  return (
+    <div style={{
+      border: "1px solid var(--color-border)",
+      borderRadius: "var(--radius-md)",
+      padding: 20,
+      background: "var(--surface-1)",
+      display: "flex",
+      flexDirection: "column",
+      gap: 12,
+    }}>
+      {/* Header with icon + status */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: "var(--radius-sm)", background: "var(--surface-2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Package size={16} style={{ color: "var(--color-text-muted)" }} />
+          </div>
+          <span style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)" }}>{name}</span>
+        </div>
+        <span style={{
+          padding: "2px 8px",
+          borderRadius: "var(--radius-full)",
+          font: "600 10px var(--font-mono)",
+          background: statusInfo.bg,
+          color: statusInfo.color,
+        }}>
+          {statusInfo.label}
+        </span>
+      </div>
+
+      {/* Description */}
+      <p style={{ margin: 0, font: "13px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.5 }}>
+        {description}
+      </p>
+
+      {/* Last sync */}
+      {connection?.lastSyncAt && (
+        <span style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)" }}>
+          Última sync: {new Date(connection.lastSyncAt).toLocaleString("pt-BR")}
+        </span>
+      )}
+
+      {/* Actions */}
+      <div style={{ display: "flex", gap: 8, marginTop: "auto" }}>
+        {status === "disconnected" || status === "error" ? (
+          <Button variant="primary" size="sm" onClick={onConnect}>
+            <Plug size={12} style={{ marginRight: 4 }} /> Conectar
+          </Button>
+        ) : (
+          <>
+            <Button variant="outline" size="sm" onClick={() => onSync(connection!.id)}>
+              <RefreshCw size={12} style={{ marginRight: 4 }} /> Sincronizar agora
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => onDisconnect(connection!.id)}>
+              <Unplug size={12} style={{ marginRight: 4 }} /> Desconectar
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface CrmProviderCardProps {
+  name: string;
+  description: string;
+}
+
+function CrmProviderCard({ name, description }: CrmProviderCardProps) {
+  return (
+    <div style={{
+      border: "1px solid var(--color-border)",
+      borderRadius: "var(--radius-md)",
+      padding: 20,
+      background: "var(--surface-1)",
+      display: "flex",
+      flexDirection: "column",
+      gap: 12,
+      opacity: 0.7,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: "var(--radius-sm)", background: "var(--surface-2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Plug size={16} style={{ color: "var(--color-text-muted)" }} />
+          </div>
+          <span style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)" }}>{name}</span>
+        </div>
+        <span style={{
+          padding: "2px 8px",
+          borderRadius: "var(--radius-full)",
+          font: "600 10px var(--font-mono)",
+          background: "var(--color-brand-subtle)",
+          color: "var(--color-brand)",
+        }}>
+          Em breve
+        </span>
+      </div>
+      <p style={{ margin: 0, font: "13px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.5 }}>
+        {description}
+      </p>
     </div>
   );
 }

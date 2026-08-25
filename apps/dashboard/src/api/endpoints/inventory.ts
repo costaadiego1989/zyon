@@ -61,6 +61,16 @@ export interface InventoryLocationDTO {
   isActive: boolean;
 }
 
+export interface ErpConnectionDTO {
+  id: string;
+  merchantId: string;
+  provider: "bling" | "tiny" | "omie";
+  status: "connected" | "disconnected" | "error";
+  lastSyncAt: string | null;
+  directionMode: "push" | "pull" | "bidirectional";
+  createdAt: string;
+}
+
 export function inventoryEndpoints(base: string, f: typeof fetch) {
   return {
     getInventorySummary(merchantId: string): Promise<InventorySummaryDTO> {
@@ -159,6 +169,48 @@ export function inventoryEndpoints(base: string, f: typeof fetch) {
         base,
         `/dashboard/inventory/locations`,
         { method: "POST", jsonBody: data },
+        f,
+      );
+    },
+
+    // --- ERP Connections ---
+
+    getErpConnections(merchantId: string): Promise<ErpConnectionDTO[]> {
+      return dashboardJson<ErpConnectionDTO[]>(
+        base,
+        `/dashboard/inventory/erp-connections`,
+        { method: "GET" },
+        f,
+      );
+    },
+
+    connectErp(
+      merchantId: string,
+      provider: string,
+      credentials?: Record<string, string>,
+    ): Promise<ErpConnectionDTO> {
+      return dashboardJson<ErpConnectionDTO>(
+        base,
+        `/dashboard/inventory/erp-connections/${encodeURIComponent(provider)}/connect`,
+        { method: "POST", jsonBody: credentials ?? {} },
+        f,
+      );
+    },
+
+    disconnectErp(merchantId: string, connectionId: string): Promise<void> {
+      return dashboardJson<void>(
+        base,
+        `/dashboard/inventory/erp-connections/${encodeURIComponent(connectionId)}/disconnect`,
+        { method: "POST" },
+        f,
+      );
+    },
+
+    syncErp(merchantId: string, connectionId: string): Promise<void> {
+      return dashboardJson<void>(
+        base,
+        `/dashboard/inventory/erp-connections/${encodeURIComponent(connectionId)}/sync`,
+        { method: "POST" },
         f,
       );
     },
