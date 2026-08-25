@@ -90,6 +90,7 @@ export class PrismaProductRepository implements ProductRepositoryPort {
   async search(input: SearchProductsInput): Promise<SearchProductsResult> {
     const where: Prisma.ProductWhereInput = {
       merchantId: input.merchantId,
+      deletedAt: null, // exclude soft-deleted products from all listings
     };
 
     // Only filter by isActive when explicitly requested (storefront uses true, dashboard shows all)
@@ -174,7 +175,7 @@ export class PrismaProductRepository implements ProductRepositoryPort {
   async softDelete(merchantId: string, productId: string): Promise<void> {
     await this.prisma.product.update({
       where: { id: productId, merchantId },
-      data: { isActive: false },
+      data: { isActive: false, deletedAt: new Date() },
     });
   }
 

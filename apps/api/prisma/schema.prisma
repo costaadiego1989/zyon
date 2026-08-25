@@ -1230,6 +1230,7 @@ model Product {
   metadata        Json?
   categoryId      String?   @map("category_id")
   isActive        Boolean   @default(true) @map("is_active")
+  deletedAt       DateTime? @map("deleted_at")
   seoTitle        String?   @map("seo_title")
   metaDescription String?   @map("meta_description")
   slug            String?   @unique
