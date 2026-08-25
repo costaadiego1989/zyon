@@ -173,6 +173,27 @@ export function useInventoryPage(options: {
     }
   }, [api, options.me]);
 
+  const createItem = useCallback(async (input: {
+    sku: string;
+    productName: string;
+    variantName?: string;
+    locationId?: string;
+    quantity: number;
+    avgCostCents?: number;
+    lowStockThreshold?: number;
+  }) => {
+    if (!options.me) return;
+    try {
+      const newItem = await api.createItem(options.me.id, input);
+      setItems((prev) => [newItem, ...prev]);
+      showToast("success", "Item criado com sucesso");
+      return newItem;
+    } catch (err) {
+      showToast("error", err instanceof Error ? err.message : "Erro ao criar item");
+      throw err;
+    }
+  }, [api, options.me]);
+
   return {
     summary,
     items,
@@ -196,6 +217,7 @@ export function useInventoryPage(options: {
     // Actions
     acknowledgeAlert,
     recordMovement,
+    createItem,
     connectErp,
     disconnectErp,
     syncErp,

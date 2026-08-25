@@ -10,6 +10,7 @@ import { ListAlertsUseCase } from "./application/use-cases/list-alerts.use-case.
 import { AcknowledgeAlertUseCase } from "./application/use-cases/acknowledge-alert.use-case.js";
 import { ListLocationsUseCase } from "./application/use-cases/list-locations.use-case.js";
 import { CreateLocationUseCase } from "./application/use-cases/create-location.use-case.js";
+import { CreateInventoryItemUseCase } from "./application/use-cases/create-inventory-item.use-case.js";
 import { HandleSaleCompletedUseCase } from "./application/use-cases/handle-sale-completed.use-case.js";
 import { ListCrmConnectionsUseCase } from "./application/use-cases/list-crm-connections.use-case.js";
 import { ConnectCrmUseCase } from "./application/use-cases/connect-crm.use-case.js";
@@ -88,6 +89,7 @@ import { ErpOAuthController } from "./presentation/http/erp-oauth.controller.js"
     AcknowledgeAlertUseCase,
     ListLocationsUseCase,
     CreateLocationUseCase,
+    CreateInventoryItemUseCase,
     ListCrmConnectionsUseCase,
     ConnectCrmUseCase,
     DisconnectCrmUseCase,

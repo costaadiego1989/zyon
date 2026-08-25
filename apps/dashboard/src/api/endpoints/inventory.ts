@@ -189,6 +189,26 @@ export function inventoryEndpoints(base: string, f: typeof fetch) {
       );
     },
 
+    createItem(
+      merchantId: string,
+      data: {
+        sku: string;
+        productName: string;
+        variantName?: string;
+        locationId?: string;
+        quantity: number;
+        avgCostCents?: number;
+        lowStockThreshold?: number;
+      },
+    ): Promise<InventoryItemDTO> {
+      return dashboardJson<InventoryItemDTO>(
+        base,
+        `/dashboard/inventory/items`,
+        { method: "POST", jsonBody: data },
+        f,
+      );
+    },
+
     // --- ERP Connections ---
 
     getErpConnections(merchantId: string): Promise<ErpConnectionDTO[]> {

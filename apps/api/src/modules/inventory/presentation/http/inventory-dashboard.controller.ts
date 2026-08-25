@@ -15,6 +15,7 @@ import { ListAlertsUseCase } from "../../application/use-cases/list-alerts.use-c
 import { AcknowledgeAlertUseCase } from "../../application/use-cases/acknowledge-alert.use-case.js";
 import { ListLocationsUseCase } from "../../application/use-cases/list-locations.use-case.js";
 import { CreateLocationUseCase } from "../../application/use-cases/create-location.use-case.js";
+import { CreateInventoryItemUseCase } from "../../application/use-cases/create-inventory-item.use-case.js";
 import { ListCrmConnectionsUseCase } from "../../application/use-cases/list-crm-connections.use-case.js";
 import { ConnectCrmUseCase } from "../../application/use-cases/connect-crm.use-case.js";
 import { DisconnectCrmUseCase } from "../../application/use-cases/disconnect-crm.use-case.js";
@@ -37,6 +38,7 @@ export class InventoryDashboardController {
     private readonly acknowledgeAlert: AcknowledgeAlertUseCase,
     private readonly listLocations: ListLocationsUseCase,
     private readonly createLocation: CreateLocationUseCase,
+    private readonly createItem: CreateInventoryItemUseCase,
     private readonly listCrmConnections: ListCrmConnectionsUseCase,
     private readonly connectCrm: ConnectCrmUseCase,
     private readonly disconnectCrm: DisconnectCrmUseCase,
@@ -68,6 +70,35 @@ export class InventoryDashboardController {
       search: query?.search,
       page: query?.page ? Number(query.page) : undefined,
       pageSize: query?.pageSize ? Number(query.pageSize) : undefined,
+    });
+  }
+
+  @Post("items")
+  @ApiOperation({ summary: "Create a new inventory item" })
+  @ApiOkResponse({ description: "Inventory item created" })
+  async createNewItem(
+    @Req() req: any,
+    @Body() body: {
+      sku: string;
+      productName: string;
+      variantName?: string;
+      locationId?: string;
+      quantity: number;
+      avgCostCents?: number;
+      lowStockThreshold?: number;
+    },
+  ) {
+    const user = currentUser(req);
+    return this.createItem.execute({
+      merchantId: user.merchantId,
+      sku: body.sku,
+      productName: body.productName,
+      variantName: body.variantName,
+      locationId: body.locationId,
+      quantity: body.quantity,
+      avgCostCents: body.avgCostCents,
+      lowStockThreshold: body.lowStockThreshold,
+      actorUserId: user.userId,
     });
   }
 
