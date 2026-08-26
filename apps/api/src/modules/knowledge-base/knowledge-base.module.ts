@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { CatalogModule } from "../catalog/catalog.module.js";
+import { IntegrationsModule } from "../integrations/integrations.module.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { IndexFaqUseCase } from "./application/use-cases/index-faq.use-case.js";
 import { IndexProductUseCase } from "./application/use-cases/index-product.use-case.js";
@@ -21,7 +22,7 @@ import { MerchantPolicyController } from "./presentation/http/merchant-policy.co
 import { KnowledgeAdminController } from "./presentation/http/knowledge-admin.controller.js";
 
 @Module({
-  imports: [CatalogModule],
+  imports: [CatalogModule, IntegrationsModule],
   controllers: [MerchantPolicyController, KnowledgeAdminController],
   providers: [
     IndexFaqUseCase,
