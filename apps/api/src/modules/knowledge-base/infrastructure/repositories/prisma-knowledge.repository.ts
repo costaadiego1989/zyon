@@ -102,6 +102,26 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
     }
   }
 
+  async countBySource(merchantId: string): Promise<Record<string, number>> {
+    try {
+      const rows = (await (this.prisma as any).$queryRaw`
+        SELECT source_type, COUNT(*)::int as count
+        FROM knowledge_chunks
+        WHERE merchant_id = ${merchantId}
+        GROUP BY source_type
+      `) as Array<{ source_type: string; count: number }>;
+
+      const counts: Record<string, number> = {};
+      for (const row of rows) {
+        counts[row.source_type] = Number(row.count);
+      }
+      return counts;
+    } catch (err) {
+      this.logger.error(`Failed to count knowledge chunks: ${err instanceof Error ? err.message : String(err)}`);
+      return {};
+    }
+  }
+
   async similaritySearch(
     merchantId: string,
     queryEmbedding: number[],

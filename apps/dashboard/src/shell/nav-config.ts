@@ -86,7 +86,8 @@ export type TabKey =
   | "inventory"
   | "chargebacks"
   | "delivery"
-  | "post-sale";
+  | "post-sale"
+  | "knowledge";
 
 /**
  * Section metadata drives the collapsible sidebar.
@@ -171,6 +172,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "revenue-lift", label: "Impacto no Revenue", section: "intelligence", icon: TrendingUp, requiredPlan: STORE, keywords: ["revenue lift", "impacto", "incremento", "holdout", "atribuição"] },
   { key: "intent-memory", label: "Memória de Intenção", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["intent", "intenção", "memória", "memory", "perfil"] },
   { key: "post-sale", label: "Pós-Venda", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["pós-venda", "post-sale", "follow-up", "reviews", "nps", "engajamento"] },
+  { key: "knowledge", label: "Base de Conhecimento", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["base de conhecimento", "knowledge", "políticas", "faq", "chunks"] },
   { key: "m2m-agents", label: "Agentes M2M", section: "intelligence", icon: Bot, keywords: ["m2m", "agentes", "machine to machine", "protocolo"] },
 
   // ─── CONFIGURAÇÕES ─── raramente mexido

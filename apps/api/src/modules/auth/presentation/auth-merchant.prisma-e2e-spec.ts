@@ -30,7 +30,7 @@ test(
     const merchantController = new MerchantController(
       new GetMerchantProfileUseCase(merchantRepository),
       new GetMerchantRulesUseCase(merchantRepository),
-      new UpdateMerchantRulesUseCase(merchantRepository),
+      new UpdateMerchantRulesUseCase(merchantRepository, { publish: async () => {}, subscribe: () => {}, handlersFor: () => [] } as any),
       new GetMerchantThemeUseCase(merchantRepository, prisma as any),
       new UpdateMerchantThemeUseCase(merchantRepository),
       { isConfigured: () => false, upload: async () => ({ url: "", key: "", bucket: "" }), uploadBase64: async () => ({ url: "", key: "", bucket: "" }) } as any,

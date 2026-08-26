@@ -12,12 +12,14 @@ import { InMemoryMerchantRepository } from "../infrastructure/in-memory-merchant
 import { MerchantController } from "./merchant.controller.js";
 import { normalizeMerchantCryptoPayments } from "../domain/services/merchant-crypto.validation.js";
 
+const noopEventBus = { publish: async () => {}, subscribe: () => {}, handlersFor: () => [] } as any;
+
 function buildController(repository: InMemoryMerchantRepository) {
   const s3Mock = { isConfigured: () => false, upload: async () => ({ url: "", key: "", bucket: "" }), uploadBase64: async () => ({ url: "", key: "", bucket: "" }) } as any;
   return new MerchantController(
     new GetMerchantProfileUseCase(repository),
     new GetMerchantRulesUseCase(repository),
-    new UpdateMerchantRulesUseCase(repository),
+    new UpdateMerchantRulesUseCase(repository, noopEventBus),
     new GetMerchantThemeUseCase(repository, {} as any),
     new UpdateMerchantThemeUseCase(repository),
     s3Mock,
@@ -128,7 +130,7 @@ function contextFor(request: Record<string, unknown>) {
 test("UpdateMerchantRules rejects maxDiscountPercent > 50", async () => {
   const repository = new InMemoryMerchantRepository();
   repository.seedProfile({ id: "mrc_1", name: "Demo Store" });
-  const updateRules = new UpdateMerchantRulesUseCase(repository);
+  const updateRules = new UpdateMerchantRulesUseCase(repository, noopEventBus);
   await assert.rejects(
     () => updateRules.execute("mrc_1", { maxDiscountPercent: 100 }),
     BadRequestException
@@ -138,7 +140,7 @@ test("UpdateMerchantRules rejects maxDiscountPercent > 50", async () => {
 test("UpdateMerchantRules rejects minimumMarginPercent below floor (< 5)", async () => {
   const repository = new InMemoryMerchantRepository();
   repository.seedProfile({ id: "mrc_1", name: "Demo Store" });
-  const updateRules = new UpdateMerchantRulesUseCase(repository);
+  const updateRules = new UpdateMerchantRulesUseCase(repository, noopEventBus);
   await assert.rejects(
     () => updateRules.execute("mrc_1", { minimumMarginPercent: 2 }),
     BadRequestException
@@ -151,7 +153,7 @@ test("UpdateMerchantRules rejects invalid brandVoice at DTO level", () => {
   // Verify the use-case itself does not throw for valid enum value.
   const repository = new InMemoryMerchantRepository();
   repository.seedProfile({ id: "mrc_1", name: "Demo Store" });
-  const updateRules = new UpdateMerchantRulesUseCase(repository);
+  const updateRules = new UpdateMerchantRulesUseCase(repository, noopEventBus);
   // Valid value should not throw
   assert.doesNotReject(() => updateRules.execute("mrc_1", { brandVoice: "consultative" }));
 });
@@ -162,7 +164,7 @@ test("UpdateMerchantRules rejects unknown field via use-case (no-op for extra pr
   // (repository merges known fields only). Verify the use-case completes without error.
   const repository = new InMemoryMerchantRepository();
   repository.seedProfile({ id: "mrc_1", name: "Demo Store" });
-  const updateRules = new UpdateMerchantRulesUseCase(repository);
+  const updateRules = new UpdateMerchantRulesUseCase(repository, noopEventBus);
   await assert.doesNotReject(
     () => updateRules.execute("mrc_1", { unknownField: "x" } as never)
   );

@@ -24,6 +24,8 @@ export interface KnowledgeRepositoryPort {
 
   deleteBySource(merchantId: string, sourceType: string, sourceId: string): Promise<void>;
 
+  countBySource(merchantId: string): Promise<Record<string, number>>;
+
   similaritySearch(
     merchantId: string,
     queryEmbedding: number[],
