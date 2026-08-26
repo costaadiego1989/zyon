@@ -1,5 +1,5 @@
 import type { RenderState } from './types';
-import { safeExternalUrl } from '../../../lib/safe-url.js';
+import { safeExternalUrl } from '../../../lib/safe-url';
 import { stateBool, stateFn, stateStr, stateStyle } from './types';
 import { LoginStage } from './stages/LoginStage';
 import { IntroStage } from './stages/IntroStage';

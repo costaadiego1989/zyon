@@ -1,4 +1,4 @@
-import { embedAuthHeaders } from '../../../lib/embed-client.js';
+import { embedAuthHeaders } from '../../../lib/embed-client';
 
 import type {
   Bundle,
@@ -41,7 +41,7 @@ function bufferToBase64Url(value: ArrayBuffer): string {
 }
 
 function stringToBuffer(value: string): ArrayBuffer {
-  return new TextEncoder().encode(value).buffer;
+  return new TextEncoder().encode(value).buffer as ArrayBuffer;
 }
 
 function webauthnDisplayName(email: string): string {
@@ -154,7 +154,7 @@ export class PulseAPI {
     return { ok: true };
   }
 
-  async verifyPhoneCode(phone: string, code: string): Promise<{ token: string; name: string; email: string } | null> {
+  async verifyPhoneCode(phone: string, code: string): Promise<{ token: string; name: string; email: string; profileComplete: boolean } | null> {
     if (this.baseUrl) {
       try {
         const r = await fetch(`${this.baseUrl}/buyer/phone/verify`, {
@@ -163,15 +163,36 @@ export class PulseAPI {
           body: JSON.stringify({ phone, code, merchant_id: this.merchantId }),
         });
         if (r.ok) {
-          const data = await r.json() as { token: string; buyer: { globalUserId: string; name: string; email: string; phone: string } };
-          this.setBuyerToken(data.token);
-          return { token: data.token, name: data.buyer.name, email: data.buyer.email };
+          // API returns flat toBuyerAuthResponse: { globalUserId, email, accessToken, tokenType, expiresIn, profileComplete, name? }
+          const data = await r.json() as { accessToken: string; email: string; name?: string; profileComplete?: boolean };
+          this.setBuyerToken(data.accessToken);
+          return { token: data.accessToken, name: data.name ?? '', email: data.email, profileComplete: data.profileComplete !== false };
         }
       } catch {
         // fall through
       }
     }
     return null;
+  }
+
+  /**
+   * Complete the buyer profile (name + CPF + email) after phone-only OTP signup.
+   * Requires the buyer JWT (set by verifyPhoneCode). Returns true on success.
+   */
+  async completeProfile(input: { name: string; cpf: string; email: string }): Promise<{ ok: boolean; error?: string }> {
+    if (!this.baseUrl) return { ok: false, error: 'no_api' };
+    try {
+      const r = await fetch(`${this.baseUrl}/buyer/me/profile`, {
+        method: 'PATCH',
+        headers: this._buyerHeaders(),
+        body: JSON.stringify({ display_name: input.name, cpf: input.cpf, email: input.email }),
+      });
+      if (r.ok) return { ok: true };
+      const body = await r.json().catch(() => ({})) as { code?: string };
+      return { ok: false, error: body.code ?? `http_${r.status}` };
+    } catch {
+      return { ok: false, error: 'network_error' };
+    }
   }
 
   async loginFromSession(sessionId: string): Promise<{ token: string; name: string; email: string } | null> {

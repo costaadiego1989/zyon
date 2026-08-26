@@ -12,7 +12,7 @@ import { AgentAvatar } from '../components/AgentAvatar';
 import { PulseAgentOrb } from '../components/PulseAgentOrb';
 import { ShimmerBorder } from '../components/ShimmerBorder';
 import { useMetaMaskPayment } from '../../hooks/useMetaMaskPayment';
-import { safeExternalUrl } from '../../../../lib/safe-url.js';
+import { safeExternalUrl } from '../../../../lib/safe-url';
 
 // Demo merchant Stellar address — replace with real value from merchant config
 const DEMO_MERCHANT_STELLAR = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';

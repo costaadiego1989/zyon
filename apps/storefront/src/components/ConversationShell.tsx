@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import DOMPurify from "isomorphic-dompurify";
 import type { ConversationBlock } from "@/lib/types";
 import { useWidgetConfig } from "@/lib/widget-config";
@@ -12,10 +12,10 @@ import { BuyerHubTrigger } from "./BuyerHubTrigger";
 import SupportPanel from "./SupportPanel";
 import StoriesRow from "./StoriesRow";
 import CheckoutWidgetPanel from "./CheckoutWidgetPanel";
+import CheckoutPanel from "./CheckoutPanel";
 import BuyerAuthGate from "./BuyerAuthGate";
 import { PulseAgentOrb } from "./conversation/PulseAgentOrb";
 import { THEME_TOKENS, type Theme } from "./conversation/theme-tokens";
-import { redirectToCheckout } from "./conversation/checkout-redirect";
 
 type Channel = "chat" | "voice";
 
@@ -73,6 +73,10 @@ export default function ConversationShell({
   const threadRef = useRef<HTMLDivElement | null>(null);
   const agent = agentName || "Assistente";
   const { cart } = useCart();
+
+  // Inline checkout state (replaces cross-origin redirect to widget app)
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutUserId, setCheckoutUserId] = useState("");
 
   // Focus input when chat mode activates
   useEffect(() => {
@@ -460,7 +464,8 @@ export default function ConversationShell({
                 globalUserId = payload.sub || payload.globalUserId;
               }
             } catch {}
-            await redirectToCheckout({ merchantId, cartId: cart.cartId ?? undefined, globalUserId });
+            setCheckoutUserId(globalUserId ?? "");
+            setCheckoutOpen(true);
           }}
           onViewCart={() => setCartDrawerForceOpen(true)}
           onUpdateQty={handleUpdateQuantity}
@@ -487,9 +492,20 @@ export default function ConversationShell({
                 body: JSON.stringify({ merchant_id: merchantId, event: "login_completed", metadata: { timestamp: new Date().toISOString() } }),
               }).catch(() => {});
             }
-            await redirectToCheckout({ merchantId, cartId: cart.cartId ?? undefined, globalUserId });
+            setCheckoutUserId(globalUserId);
+            setCheckoutOpen(true);
           }}
           onCancel={() => setShowBuyerAuth(false)}
+        />
+      )}
+
+      {/* Inline Checkout Panel — replaces redirect to widget app */}
+      {checkoutOpen && merchantId && (
+        <CheckoutPanel
+          merchantId={merchantId}
+          globalUserId={checkoutUserId}
+          cartRef={cart.cartId ?? undefined}
+          onClose={() => setCheckoutOpen(false)}
         />
       )}
       </div>{/* end content wrapper */}

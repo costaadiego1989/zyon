@@ -1,5 +1,5 @@
 import { Check, Star, Tag, Truck } from "lucide-react";
-import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
+import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model";
 
 type PulseAction = {
   key: string;
