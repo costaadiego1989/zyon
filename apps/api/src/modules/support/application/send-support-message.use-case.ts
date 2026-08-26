@@ -9,6 +9,7 @@ import { CHAT_COMPLETION_PORT } from "../domain/ports/chat-completion.port.js";
 import { stripHtmlFromReply } from "../domain/services/sanitize-reply.js";
 import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 import { QueryKnowledgeUseCase } from "../../knowledge-base/application/use-cases/query-knowledge.use-case.js";
+import { BuyerOrderContextService } from "../../knowledge-base/application/services/buyer-order-context.service.js";
 
 export interface SupportMessageInput {
   message: string;
@@ -19,6 +20,7 @@ export interface SupportMessageInput {
 export interface SupportMessageContext {
   brandName?: string;
   faqItems?: SupportFaqItem[];
+  buyerGlobalUserId?: string;
 }
 
 export interface SupportMessageOutput {
@@ -93,6 +95,7 @@ export class SendSupportMessageUseCase {
     @Inject(CHAT_COMPLETION_PORT) private readonly chat: ChatCompletionPort,
     private readonly handoff: SupportHandoffService,
     @Optional() private readonly queryKnowledge?: QueryKnowledgeUseCase,
+    @Optional() private readonly buyerOrderContext?: BuyerOrderContextService,
   ) {}
 
   async execute(
@@ -121,6 +124,22 @@ export class SendSupportMessageUseCase {
         }
       } catch (err) {
         this.logger.warn(`Knowledge base query failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    // Buyer-specific order context (only if buyer is identified)
+    if (this.buyerOrderContext && ctx?.buyerGlobalUserId) {
+      try {
+        const orderContext = await this.buyerOrderContext.getRecentOrdersContext(
+          input.merchant_id,
+          ctx.buyerGlobalUserId,
+        );
+        if (orderContext) {
+          knowledgeContext = (knowledgeContext ? `${knowledgeContext}\n\n` : "")
+            + `PEDIDOS RECENTES DO CLIENTE:\n${orderContext}`;
+        }
+      } catch (err) {
+        this.logger.warn(`Buyer order context failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 

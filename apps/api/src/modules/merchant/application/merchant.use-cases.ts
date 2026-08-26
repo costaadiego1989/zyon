@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from "@nes
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../domain/ports/merchant-repository.port.js";
 import type { MerchantProfile, MerchantRules } from "../domain/merchant.types.js";
 import { normalizeMerchantCryptoPayments } from "../domain/services/merchant-crypto.validation.js";
+import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../../shared/events/domain-event-bus.port.js";
 
 @Injectable()
 export class GetMerchantProfileUseCase {
@@ -25,7 +26,10 @@ export class GetMerchantRulesUseCase {
 
 @Injectable()
 export class UpdateMerchantRulesUseCase {
-  constructor(@Inject(MERCHANT_REPOSITORY) private readonly repository: MerchantRepository) {}
+  constructor(
+    @Inject(MERCHANT_REPOSITORY) private readonly repository: MerchantRepository,
+    @Inject(DOMAIN_EVENT_BUS) private readonly eventBus: DomainEventBus,
+  ) {}
 
   async execute(merchantId: string, rules: Partial<MerchantRules>): Promise<MerchantRules> {
     const patch = { ...rules };
@@ -46,6 +50,28 @@ export class UpdateMerchantRulesUseCase {
         throw new BadRequestException(message);
       }
     }
-    return this.repository.updateRules(merchantId, patch);
+    const updated = await this.repository.updateRules(merchantId, patch);
+
+    // Emit config-updated so the knowledge base re-indexes store config chunks.
+    // Fire-and-forget: indexing failure must not block the rules update.
+    void this.eventBus.publish({
+      eventType: "merchant.config_updated",
+      merchantId,
+      payload: {
+        merchantId,
+        paymentMethods: extractPaymentMethods(updated),
+        installments: undefined,
+        deliveryRegions: undefined,
+      },
+    });
+
+    return updated;
   }
+}
+
+function extractPaymentMethods(rules: MerchantRules): string[] {
+  const methods: string[] = ["Cartão de crédito", "PIX", "Boleto"];
+  const crypto = rules.cryptoPayments as { enabled?: boolean } | undefined;
+  if (crypto?.enabled) methods.push("Crypto (USDC)");
+  return methods;
 }
