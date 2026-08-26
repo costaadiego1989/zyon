@@ -127,6 +127,15 @@ export class SupportController {
     return { faqItems };
   }
 
+  @ApiOperation({ summary: "Get FAQ by merchant ID (public, no auth)" })
+  @Get("faq/public")
+  async getFaqPublic(@Query("merchantId") merchantId: string) {
+    if (!merchantId) return { faqItems: DEFAULT_SUPPORT_FAQ };
+    const settings = await this.getSettings.execute(merchantId);
+    const faqItems = settings.faqItems.length > 0 ? settings.faqItems : DEFAULT_SUPPORT_FAQ;
+    return { faqItems };
+  }
+
   @ApiBearerAuth("service_api_key")
   @ApiCookieAuth("console_session")
   @ApiOperation({

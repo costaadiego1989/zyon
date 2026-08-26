@@ -74,29 +74,17 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
     let cancelled = false;
     void (async () => {
       try {
-        // Ensure embed token first
-        if (!embedTokenRef.current) {
-          const tokenRes = await fetch("/api/checkout-token", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ merchant_id: merchantId }),
-          });
-          if (tokenRes.ok) {
-            const tokenData = await tokenRes.json();
-            embedTokenRef.current = tokenData.embed_session_token ?? null;
-          }
-        }
-        const headers: Record<string, string> = {};
-        if (embedTokenRef.current) headers["x-aacp-embed-token"] = embedTokenRef.current;
-        const res = await fetch(`${API_BASE}/support/faq`, { headers });
+        // Try public endpoint first (no auth needed, FAQ is public data)
+        const res = await fetch(`${API_BASE}/support/faq/public?merchantId=${merchantId}`);
         if (res.ok) {
           const data = await res.json();
           const items: FaqItem[] = Array.isArray(data.faqItems) ? data.faqItems : [];
           if (!cancelled && items.length > 0) {
             // Merchant FAQ + always append "Falar com atendente" for handoff
+            const hasHandoff = items.some(i => /atendente|humano/i.test(i.question));
             const withHandoff: FaqItem[] = [
               ...items.map((it) => ({ ...it, icon: it.icon || "❓" })),
-              { icon: "👤", question: "Falar com atendente", answer: "Um atendente humano será acionado em breve." },
+              ...(!hasHandoff ? [{ icon: "👤", question: "Falar com atendente", answer: "Um atendente humano será acionado em breve." }] : []),
             ];
             setFaqItems(withHandoff);
           }
