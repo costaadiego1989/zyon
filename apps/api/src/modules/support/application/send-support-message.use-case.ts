@@ -1,4 +1,4 @@
-import { Inject, Injectable , Logger} from "@nestjs/common";
+import { Inject, Injectable , Logger, Optional} from "@nestjs/common";
 import { isSafeGeneratedMessage } from "@zyon/conversation-engine";
 import type { SupportFaqItem, SupportTicketStatus } from "@zyon/shared-types";
 import { faqLookup } from "./support-faq.service.js";
@@ -8,6 +8,7 @@ import type { ChatCompletionPort } from "../domain/ports/chat-completion.port.js
 import { CHAT_COMPLETION_PORT } from "../domain/ports/chat-completion.port.js";
 import { stripHtmlFromReply } from "../domain/services/sanitize-reply.js";
 import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
+import { QueryKnowledgeUseCase } from "../../knowledge-base/application/use-cases/query-knowledge.use-case.js";
 
 export interface SupportMessageInput {
   message: string;
@@ -52,16 +53,22 @@ PROIBIDO:
 
 Se não souber a resposta com certeza com base nas informações oficiais, oriente o cliente a contatar o suporte humano.`;
 
-function buildSystemPrompt(ctx?: SupportMessageContext): string {
-  if (!ctx?.faqItems?.length && !ctx?.brandName) return BASE_SYSTEM_PROMPT;
+function buildSystemPrompt(ctx?: SupportMessageContext, knowledgeContext?: string): string {
+  if (!ctx?.faqItems?.length && !ctx?.brandName && !knowledgeContext) return BASE_SYSTEM_PROMPT;
 
   const parts: string[] = [BASE_SYSTEM_PROMPT];
 
-  if (ctx.brandName) {
+  if (ctx?.brandName) {
     parts.push(`\nCONTEXTO DA LOJA:\nNome: ${ctx.brandName}`);
   }
 
-  if (ctx.faqItems?.length) {
+  if (knowledgeContext) {
+    parts.push(
+      `\nINFORMAÇÕES RELEVANTES DA BASE DE CONHECIMENTO:\n${knowledgeContext}\n\nUse as informações acima para responder à dúvida do cliente.`,
+    );
+  }
+
+  if (ctx?.faqItems?.length) {
     const faqLines = ctx.faqItems
       .slice(0, 10)
       .map((f) => `P: ${f.question}\nR: ${f.answer}`)
@@ -85,6 +92,7 @@ export class SendSupportMessageUseCase {
   constructor(
     @Inject(CHAT_COMPLETION_PORT) private readonly chat: ChatCompletionPort,
     private readonly handoff: SupportHandoffService,
+    @Optional() private readonly queryKnowledge?: QueryKnowledgeUseCase,
   ) {}
 
   async execute(
@@ -95,8 +103,29 @@ export class SendSupportMessageUseCase {
     const faqReply = faqLookup(input.message, ctx?.faqItems ?? []);
     if (faqReply) return { reply: faqReply, safe: true };
 
+    // Query knowledge base (RAG)
+    let knowledgeContext: string | undefined;
+    if (this.queryKnowledge) {
+      try {
+        const result = await this.queryKnowledge.execute({
+          merchantId: input.merchant_id,
+          queryText: input.message,
+          limit: 5,
+          threshold: 0.65,
+        });
+
+        if (result.chunks.length > 0) {
+          knowledgeContext = result.chunks
+            .map((chunk) => `• ${chunk.content}`)
+            .join("\n\n");
+        }
+      } catch (err) {
+        this.logger.warn(`Knowledge base query failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
     // OpenAI (configured?)
-    const systemPrompt = buildSystemPrompt(ctx);
+    const systemPrompt = buildSystemPrompt(ctx, knowledgeContext);
     const rawReply = await this.chat.complete([
       { role: "system", content: systemPrompt },
       { role: "user", content: input.message },

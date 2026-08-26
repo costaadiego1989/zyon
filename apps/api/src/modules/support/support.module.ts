@@ -4,6 +4,7 @@ import { EmbedModule } from "../embed/embed.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
 import { HttpModule } from "../../shared/http/http.module.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
+import { KnowledgeBaseModule } from "../knowledge-base/knowledge-base.module.js";
 import { SendSupportMessageUseCase } from "./application/send-support-message.use-case.js";
 import { GetSupportSettingsUseCase } from "./application/get-support-settings.use-case.js";
 import { ListSupportTicketsUseCase } from "./application/list-support-tickets.use-case.js";
@@ -27,10 +28,11 @@ import { SupportGateway } from "./infrastructure/gateways/support.gateway.js";
 /**
  * SUPP-H1/H2: SendSupportMessageUseCase split across cohesive files.
  * ChatCompletionPort injected for testability.
+ * KnowledgeBaseModule optional: RAG support integrated via QueryKnowledgeUseCase.
  */
 @Module({
   // EmbedModule provides EmbedAuthGuard used by chat/faq endpoints (P0 fix)
-  imports: [EmbedModule, IntegrationsModule, HttpModule],
+  imports: [EmbedModule, IntegrationsModule, HttpModule, KnowledgeBaseModule],
   controllers: [SupportController, SupportMessagesController],
   providers: [
     SendSupportMessageUseCase,

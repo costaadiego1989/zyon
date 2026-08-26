@@ -2197,12 +2197,30 @@ model WhatsAppSession {
   currentPage       Int      @default(0) @map("current_page")
   lastActivityAt    DateTime @default(now()) @updatedAt @map("last_activity_at")
   status            String   @default("active")
+  postSaleContext   Json?    @map("post_sale_context")
   createdAt         DateTime @default(now()) @map("created_at")
 
   @@unique([merchantId, buyerPhone, deviceId])
   @@index([merchantId, status])
   @@index([lastActivityAt])
   @@map("whatsapp_sessions")
+}
+
+model PostSaleMessageTemplate {
+  id          String   @id @default(cuid())
+  merchantId  String   @map("merchant_id")
+  type        String
+  channel     String   @default("whatsapp")
+  name        String
+  body        String
+  subject     String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([merchantId, type, channel])
+  @@index([merchantId])
+  @@map("post_sale_message_templates")
 }
 
 model PaymentHold {
@@ -2433,4 +2451,40 @@ model BuyerLoyaltyTracker {
   @@unique([merchantId, buyerId])
   @@index([merchantId, lastPurchaseAt])
   @@map("buyer_loyalty_trackers")
+}
+
+// ─── Knowledge Base (RAG support — pgvector) ──────────────────────────────────
+// NOTE: The `embedding` column stores JSON-serialized float32 array as fallback.
+// In production with pgvector, a raw migration adds `embedding_vec vector(1536)`
+// with an HNSW index for cosine similarity search. See migration:
+//   ALTER TABLE knowledge_chunks ADD COLUMN embedding_vec vector(1536);
+//   CREATE INDEX idx_kc_embedding_vec ON knowledge_chunks USING hnsw (embedding_vec vector_cosine_ops);
+
+model KnowledgeChunk {
+  id          String   @id @default(cuid())
+  merchantId  String   @map("merchant_id")
+  sourceType  String   @map("source_type") // product | policy | faq | config
+  sourceId    String?  @map("source_id")
+  content     String   @db.Text
+  embedding   String   @db.Text // JSON-serialized float32 array (fallback; prod uses embedding_vec)
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([merchantId, sourceType])
+  @@map("knowledge_chunks")
+}
+
+model MerchantPolicy {
+  id         String   @id @default(cuid())
+  merchantId String   @unique @map("merchant_id")
+  returns    String?  @db.Text
+  shipping   String?  @db.Text
+  warranty   String?  @db.Text
+  payment    String?  @db.Text
+  general    String?  @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("merchant_policies")
 }

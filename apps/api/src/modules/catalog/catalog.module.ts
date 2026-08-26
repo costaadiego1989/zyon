@@ -114,6 +114,7 @@ import { StoreBuilderCatalogController } from "./presentation/http/catalog.contr
     DeleteCategoryUseCase,
     ReorderCategoriesUseCase,
     CatalogCacheService,
+    EmbeddingService,
     "ProductRepositoryPort",
     "StockRepositoryPort",
   ]
