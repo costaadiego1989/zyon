@@ -29,8 +29,8 @@ export function CheckoutLayout() {
     }
   }
 
-  // Determine theme: user preference (localStorage) > merchant default (brand.mode)
-  const THEME_KEY = "zyon-checkout-theme";
+  // Determine theme: user preference (localStorage, shared with storefront) > merchant default (brand.mode)
+  const THEME_KEY = "zyon-theme";
   const merchantDefault = brand.mode === "dark" ? "dark" : "light";
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     try {

@@ -283,6 +283,7 @@ export default async function StorePage({
               merchantSlug={slug}
               storeSettings={config?.storeSettings}
               initialStories={stories}
+              themeMode={config?.theme?.mode}
             />
           </CartProvider>
         </WidgetConfigProvider>

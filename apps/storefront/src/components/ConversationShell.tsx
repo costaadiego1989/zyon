@@ -32,6 +32,7 @@ export default function ConversationShell({
   storeSettings,
   agentGreeting,
   initialStories,
+  themeMode,
 }: {
   storeName: string;
   logo?: string;
@@ -42,6 +43,7 @@ export default function ConversationShell({
   merchantId?: string;
   merchantSlug?: string;
   initialStories?: any[];
+  themeMode?: "dark" | "light" | "grey";
   storeSettings?: {
     social?: { instagram?: string; facebook?: string; linkedin?: string; youtube?: string; googleMaps?: string };
     company?: { cnpj?: string; razaoSocial?: string; email?: string; phone?: string; businessHours?: string; address?: { city?: string; state?: string } };
@@ -57,6 +59,7 @@ export default function ConversationShell({
     agentGreeting,
     quickReplies,
     returnOrderId,
+    themeMode,
   });
 
   const {
@@ -77,6 +80,24 @@ export default function ConversationShell({
   // Inline checkout state (replaces cross-origin redirect to widget app)
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutUserId, setCheckoutUserId] = useState("");
+
+  // Session persistence: restore buyer session from localStorage on mount
+  useEffect(() => {
+    const buyerToken = localStorage.getItem("zyon_buyer_token");
+    if (buyerToken && !showBuyerAuth && !checkoutUserId) {
+      try {
+        // Decode JWT payload to extract globalUserId
+        const payload = JSON.parse(atob(buyerToken.split(".")[1]));
+        const globalUserId = payload.sub || payload.globalUserId;
+        if (globalUserId) {
+          setCheckoutUserId(globalUserId);
+        }
+      } catch (err) {
+        // Invalid token, clear it and force re-auth
+        localStorage.removeItem("zyon_buyer_token");
+      }
+    }
+  }, []);
 
   // Focus input when chat mode activates
   useEffect(() => {
@@ -505,6 +526,7 @@ export default function ConversationShell({
           merchantId={merchantId}
           globalUserId={checkoutUserId}
           cartRef={cart.cartId ?? undefined}
+          theme={theme}
           onClose={() => setCheckoutOpen(false)}
         />
       )}

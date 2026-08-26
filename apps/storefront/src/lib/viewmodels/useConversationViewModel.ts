@@ -37,6 +37,9 @@ export type Channel = "chat" | "voice";
 export type Theme = "dark" | "light";
 export type Mode = "intro" | "chat";
 
+/** Shared localStorage key so storefront + embedded checkout widget stay in sync. */
+export const SHARED_THEME_KEY = "zyon-theme";
+
 export interface ConversationViewModelProps {
   storeName: string;
   merchantId?: string;
@@ -45,6 +48,7 @@ export interface ConversationViewModelProps {
   agentGreeting?: string;
   quickReplies?: string[];
   returnOrderId?: string;
+  themeMode?: "dark" | "light" | "grey";
 }
 
 export interface ConversationViewModelState {
@@ -83,11 +87,20 @@ export interface ConversationViewModelActions {
 export function useConversationViewModel(
   props: ConversationViewModelProps,
 ): ConversationViewModelState & ConversationViewModelActions {
-  const { storeName, merchantId, merchantSlug, agentName, agentGreeting, quickReplies, returnOrderId } = props;
+  const { storeName, merchantId, merchantSlug, agentName, agentGreeting, quickReplies, returnOrderId, themeMode } = props;
   const agent = agentName || "Assistente";
   const [mode, setMode] = useState<Mode>("intro");
   const [channel, setChannel] = useState<Channel | null>(null);
-  const [theme, setTheme] = useState<Theme>("dark");
+  // Theme resolution: user preference (localStorage, shared key) > merchant default > light.
+  // Lazy initializer avoids a dark-mode flash before the restore effect runs.
+  const [theme, setTheme] = useState<Theme>(() => {
+    const merchantDefault: Theme = themeMode === "dark" || themeMode === "grey" ? "dark" : "light";
+    try {
+      const saved = localStorage.getItem(SHARED_THEME_KEY);
+      if (saved === "dark" || saved === "light") return saved;
+    } catch { /* SSR/privacy */ }
+    return merchantDefault;
+  });
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -182,7 +195,7 @@ export function useConversationViewModel(
     const next: Theme = theme === "dark" ? "light" : "dark";
     setTheme(next);
     applyTheme(next);
-    try { localStorage.setItem("pulse-theme-pref", next); } catch { /* */ }
+    try { localStorage.setItem(SHARED_THEME_KEY, next); } catch { /* */ }
   }, [theme, applyTheme]);
 
   const selectChannel = useCallback((ch: Channel) => {
@@ -359,11 +372,9 @@ export function useConversationViewModel(
   useEffect(() => {
     try {
       const savedChannel = localStorage.getItem("pulse-channel-pref") as Channel | null;
-      const savedTheme = localStorage.getItem("pulse-theme-pref") as Theme | null;
-      if (savedTheme === "light" || savedTheme === "dark") {
-        setTheme(savedTheme);
-        applyTheme(savedTheme);
-      }
+      // Theme already resolved in the lazy useState initializer (localStorage > merchant
+      // default). Just apply the CSS tokens for the current value on mount.
+      applyTheme(theme);
       if (savedChannel === "chat" || savedChannel === "voice") {
         setChannel(savedChannel);
         setMode("chat");
