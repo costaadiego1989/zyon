@@ -739,6 +739,61 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       }
     }
 
+    // Deterministic shortcut: "Detalhes {nome}" — bypass LLM and return product_card directly.
+    // Triggered by carousel/card "Saber mais" clicks which pass the product name.
+    const detalhesMatch = normalizedMsg.match(/^detalhes\s+(.+)$/);
+    if (detalhesMatch) {
+      const productName = detalhesMatch[1].trim();
+      try {
+        const detailResult = await this.productRepo.search({
+          merchantId: input.merchantId,
+          query: productName,
+          isActiveOnly: true,
+          limit: 3,
+        });
+        const product = detailResult.products[0];
+        if (product) {
+          const formatPrice = (cents: number) =>
+            new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+          const price = product.defaultVariant?.basePriceInCents ?? 0;
+          const blocks: ConversationBlock[] = [{
+            type: "product_card",
+            data: {
+              id: product.id,
+              name: product.name,
+              price,
+              priceFormatted: formatPrice(price),
+              image: product.defaultVariant?.media?.[0]?.url,
+              description: product.description ?? undefined,
+              inStock: product.hasStock,
+              rating: product.averageRating ?? undefined,
+              reviewCount: product.reviewCount ?? 0,
+              variants: (product.variants ?? []).map((v: any) => ({
+                id: v.id,
+                name: v.name ?? "",
+                value: Object.values(v.attributes ?? {}).join(", "),
+                price: v.basePriceInCents,
+                priceFormatted: v.basePriceInCents ? formatPrice(v.basePriceInCents) : undefined,
+              })),
+            },
+          } as ConversationBlock];
+          this.emitFunnelEvent(input.merchantId, input.sessionId, "product_viewed").catch(() => {});
+          return {
+            message: `Aqui estão os detalhes de **${product.name}**:`,
+            blocks,
+            suggestedNext: [
+              `Adicionar ${product.name} ao carrinho`,
+              `Calcular frete para ${product.name}`,
+              `Ver avaliações de ${product.name}`,
+              "Ver mais produtos",
+            ],
+          };
+        }
+      } catch {
+        // Fall through to agent
+      }
+    }
+
     const result = await this.agent.run({
       sessionId: input.sessionId,
       merchantId: input.merchantId,
