@@ -85,9 +85,10 @@ export class SupportController {
   async chat(@Req() request: EmbedRequest, @Body() body: SupportChatDto) {
     const merchantId = request.embedClaims!.merchantId;
     const settings = await this.getSettings.execute(merchantId);
+    const faqItems = settings.faqItems.length > 0 ? settings.faqItems : DEFAULT_SUPPORT_FAQ;
     return this.sendSupportMessage.execute(
       { merchant_id: merchantId, session_id: body.session_id, message: body.message },
-      { faqItems: settings.faqItems },
+      { faqItems, brandName: request.embedClaims!.merchantId },
     );
   }
 
