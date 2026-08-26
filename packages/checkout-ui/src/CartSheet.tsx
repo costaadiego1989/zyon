@@ -252,10 +252,10 @@ export function CartSheet({ open, cart, mode = "checkout", onClose, onCheckout, 
               </>
             )}
 
-            {onViewCart && (
+            {onClose && (
               <button
                 type="button"
-                onClick={onViewCart}
+                onClick={onClose}
                 style={{
                   width: "100%",
                   height: "40px",

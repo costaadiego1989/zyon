@@ -445,17 +445,33 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       },
 
       getReviews: async (args: any) => {
-        // Deterministic fallback — real impl would query ReviewRepository
-        const reviews = [
-          { id: "rev_1", author: "Maria S.", rating: 5, text: "Excelente produto, recomendo!", date: "2026-08-10" },
-          { id: "rev_2", author: "João P.", rating: 4, text: "Muito bom, entrega rápida.", date: "2026-08-08" },
-          { id: "rev_3", author: "Ana L.", rating: 5, text: "Superou expectativas!", date: "2026-08-05" },
-        ];
-        let filtered = reviews;
-        if (args.filter === "positive") filtered = reviews.filter(r => r.rating >= 4);
-        else if (args.filter === "negative") filtered = reviews.filter(r => r.rating <= 2);
-        else if (args.filter === "recent") filtered = reviews.slice(0, 3);
-        return { reviews: filtered.slice(0, args.limit ?? 10), totalCount: reviews.length, averageRating: 4.7 };
+        const productId = args.productId;
+        const limit = args.limit ?? 10;
+        try {
+          const where: any = { merchantId: this.currentMerchantId, moderationStatus: "approved" };
+          if (productId) where.productId = productId;
+          const [rows, total] = await Promise.all([
+            this.prisma.productReview.findMany({
+              where,
+              orderBy: { createdAt: "desc" },
+              take: limit,
+            }),
+            this.prisma.productReview.count({ where }),
+          ]);
+          const reviews = rows.map((r: any) => ({
+            id: r.id,
+            author: r.buyerName || "Cliente",
+            rating: r.rating,
+            text: r.text,
+            date: r.createdAt?.toISOString?.()?.slice(0, 10) ?? "",
+          }));
+          const avg = reviews.length > 0
+            ? reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length
+            : 0;
+          return { reviews, totalCount: total, averageRating: Math.round(avg * 10) / 10 };
+        } catch {
+          return { reviews: [], totalCount: 0, averageRating: 0 };
+        }
       },
 
       createReview: async (args: any) => {
