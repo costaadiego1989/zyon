@@ -260,7 +260,7 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
     } finally {
       setIsLoading(false);
     }
-  }, [merchantId]);
+  }, [merchantId, faqItems]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
