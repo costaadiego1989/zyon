@@ -32,6 +32,7 @@ import { UpdateSupportTicketStatusUseCase } from "../../application/update-suppo
 import { CreateSupportTicketUseCase } from "../../application/create-support-ticket.use-case.js";
 import {
   CreateSupportTicketDto,
+  PublicSupportChatDto,
   SupportChatDto,
   UpdateSupportSettingsDto,
   UpdateSupportTicketDto,
@@ -135,6 +136,19 @@ export class SupportController {
     const settings = await this.getSettings.execute(merchantId);
     const faqItems = settings.faqItems.length > 0 ? settings.faqItems : DEFAULT_SUPPORT_FAQ;
     return { faqItems };
+  }
+
+  @ApiOperation({ summary: "Public support chat (storefront, no embed token)" })
+  @ApiResponse({ status: 200, description: "AI reply based on merchant FAQ knowledge" })
+  @Post("chat/public")
+  async chatPublic(@Body() body: PublicSupportChatDto) {
+    const merchantId = body.merchant_id;
+    const settings = await this.getSettings.execute(merchantId);
+    const faqItems = settings.faqItems.length > 0 ? settings.faqItems : DEFAULT_SUPPORT_FAQ;
+    return this.sendSupportMessage.execute(
+      { merchant_id: merchantId, session_id: body.session_id, message: body.message },
+      { faqItems, brandName: merchantId },
+    );
   }
 
   @ApiBearerAuth("service_api_key")

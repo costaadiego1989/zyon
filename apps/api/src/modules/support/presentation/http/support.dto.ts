@@ -83,3 +83,29 @@ export class SupportChatDto {
   @MaxLength(120)
   session_id?: string;
 }
+
+/**
+ * Public storefront chat DTO. merchantId is taken from the body (public
+ * storefront pages are unauthenticated). FAQ + support chat are public
+ * buyer-facing data, so no embed token is required. Rate limiting and the
+ * "never invent" LLM guard keep this safe.
+ */
+export class PublicSupportChatDto {
+  @ApiProperty({ description: "Merchant id (public storefront tenant)", maxLength: 120 })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  merchant_id!: string;
+
+  @ApiProperty({ description: "Buyer message to the support assistant", maxLength: 4000 })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(4000)
+  message!: string;
+
+  @ApiPropertyOptional({ description: "Browse session id", maxLength: 120 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  session_id?: string;
+}

@@ -196,32 +196,14 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
         return;
       }
 
-      // Attempt API call if merchantId exists
+      // Call public support chat API (LLM with merchant FAQ as knowledge base)
       if (merchantId) {
         try {
-          // Ensure embed token is available (fetch inline if not cached)
-          if (!embedTokenRef.current) {
-            try {
-              const tokenRes = await fetch("/api/checkout-token", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ merchant_id: merchantId }),
-              });
-              if (tokenRes.ok) {
-                const tokenData = await tokenRes.json();
-                embedTokenRef.current = tokenData.embed_session_token ?? null;
-              }
-            } catch { /* proceed without token */ }
-          }
-
-          const headers: Record<string, string> = { "Content-Type": "application/json" };
-          if (embedTokenRef.current) {
-            headers["x-aacp-embed-token"] = embedTokenRef.current;
-          }
-          const res = await fetch(`${API_BASE}/support/chat`, {
+          const res = await fetch(`${API_BASE}/support/chat/public`, {
             method: "POST",
-            headers,
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              merchant_id: merchantId,
               message: trimmed,
               session_id: sessionIdRef.current,
             }),
@@ -229,7 +211,6 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
 
           if (res.ok) {
             const data = await res.json();
-            // Check for handoff
             if (data.handoff?.ticketId) {
               setTicketId(data.handoff.ticketId);
             }
@@ -241,10 +222,10 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
             setIsLoading(false);
             return;
           }
-        } catch { /* fallback */ }
+        } catch { /* fallback below */ }
       }
 
-      // Fallback response
+      // Fallback response (only if API unreachable)
       const fallbackText = `Entendi, "${trimmed}". Um atendente será designado em breve.`;
       setMessages((prev) => [...prev, {
         id: `a-${Date.now()}`,
