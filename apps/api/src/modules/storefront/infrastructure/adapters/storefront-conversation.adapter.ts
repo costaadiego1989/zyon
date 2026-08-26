@@ -594,13 +594,14 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       },
 
       getFaq: async (args: any) => {
-        const faqs = [
-          { question: "Como faço para rastrear meu pedido?", answer: "Acesse 'Meus Pedidos' ou peça ao assistente para rastrear." },
-          { question: "Qual o prazo de entrega?", answer: "De 2 a 10 dias úteis, dependendo da região e modalidade de envio." },
-          { question: "Como solicitar troca ou devolução?", answer: "Entre em contato em até 7 dias após o recebimento." },
-          { question: "Quais formas de pagamento?", answer: "Cartão de crédito, PIX, boleto bancário." },
-          { question: "Posso parcelar?", answer: "Sim, em até 12x sem juros no cartão de crédito." },
-        ];
+        // Pull merchant FAQ from support hub; fall back to defaults
+        const settings = await this.prisma.supportSetting.findUnique({
+          where: { merchantId: this.currentMerchantId },
+          select: { faqItems: true },
+        }).catch(() => null);
+        const merchantFaq = Array.isArray(settings?.faqItems) ? settings.faqItems as Array<{ question: string; answer: string }> : [];
+        const { DEFAULT_SUPPORT_FAQ } = await import("../../../support/domain/defaults/support-faq.defaults.js");
+        const faqs = merchantFaq.length > 0 ? merchantFaq : DEFAULT_SUPPORT_FAQ;
         return { faqs: args.category ? faqs.slice(0, 3) : faqs };
       },
 

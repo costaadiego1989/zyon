@@ -36,6 +36,7 @@ import {
   UpdateSupportSettingsDto,
   UpdateSupportTicketDto,
 } from "./support.dto.js";
+import { DEFAULT_SUPPORT_FAQ } from "../../domain/defaults/support-faq.defaults.js";
 
 type EmbedRequest = { embedClaims?: EmbedTokenClaims };
 
@@ -122,7 +123,8 @@ export class SupportController {
   async getFaq(@Req() request: EmbedRequest) {
     const merchantId = request.embedClaims!.merchantId;
     const settings = await this.getSettings.execute(merchantId);
-    return { faqItems: settings.faqItems };
+    const faqItems = settings.faqItems.length > 0 ? settings.faqItems : DEFAULT_SUPPORT_FAQ;
+    return { faqItems };
   }
 
   @ApiBearerAuth("service_api_key")
