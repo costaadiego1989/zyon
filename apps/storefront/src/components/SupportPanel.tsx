@@ -10,6 +10,13 @@ interface SupportMessage {
   agentName?: string;
 }
 
+interface FaqItem {
+  id?: string;
+  question: string;
+  answer: string;
+  icon?: string;
+}
+
 interface SupportPanelProps {
   open: boolean;
   onClose: () => void;
@@ -19,11 +26,11 @@ interface SupportPanelProps {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
-const FAQ_ITEMS = [
-  { icon: "🚚", label: "Prazo de entrega" },
-  { icon: "🔄", label: "Política de trocas" },
-  { icon: "💳", label: "Formas de pagamento" },
-  { icon: "👤", label: "Falar com atendente" },
+const DEFAULT_FAQ_ITEMS: FaqItem[] = [
+  { icon: "🚚", question: "Prazo de entrega", answer: "De 2 a 10 dias úteis, dependendo da região e modalidade de envio escolhida." },
+  { icon: "🔄", question: "Política de trocas", answer: "Aceitamos trocas dentro de 7 dias após o recebimento. Produto em perfeitas condições." },
+  { icon: "💳", question: "Formas de pagamento", answer: "Cartão de crédito, PIX, boleto bancário e crypto USDC." },
+  { icon: "👤", question: "Falar com atendente", answer: "Um atendente humano será acionado em breve." },
 ];
 
 export default function SupportPanel({ open, onClose, merchantId, agentName }: SupportPanelProps) {
@@ -36,6 +43,7 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
   const inputRef = useRef<HTMLInputElement | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const [ticketId, setTicketId] = useState<string | null>(null);
+  const [faqItems, setFaqItems] = useState<FaqItem[]>(DEFAULT_FAQ_ITEMS);
   const embedTokenRef = useRef<string | null>(null);
   const sessionIdRef = useRef(`support_${Date.now()}`);
 
@@ -59,6 +67,44 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
       } catch { /* non-critical */ }
     })();
   }, [merchantId]);
+
+  // Load merchant FAQ from support hub (falls back to defaults on error/empty)
+  useEffect(() => {
+    if (!merchantId || !open) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        // Ensure embed token first
+        if (!embedTokenRef.current) {
+          const tokenRes = await fetch("/api/checkout-token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ merchant_id: merchantId }),
+          });
+          if (tokenRes.ok) {
+            const tokenData = await tokenRes.json();
+            embedTokenRef.current = tokenData.embed_session_token ?? null;
+          }
+        }
+        const headers: Record<string, string> = {};
+        if (embedTokenRef.current) headers["x-aacp-embed-token"] = embedTokenRef.current;
+        const res = await fetch(`${API_BASE}/support/faq`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          const items: FaqItem[] = Array.isArray(data.faqItems) ? data.faqItems : [];
+          if (!cancelled && items.length > 0) {
+            // Merchant FAQ + always append "Falar com atendente" for handoff
+            const withHandoff: FaqItem[] = [
+              ...items.map((it) => ({ ...it, icon: it.icon || "❓" })),
+              { icon: "👤", question: "Falar com atendente", answer: "Um atendente humano será acionado em breve." },
+            ];
+            setFaqItems(withHandoff);
+          }
+        }
+      } catch { /* keep defaults */ }
+    })();
+    return () => { cancelled = true; };
+  }, [merchantId, open]);
 
   // Connect to support socket when handoff ticket is created
   useEffect(() => {
@@ -124,15 +170,11 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
     }
   }, [open, view]);
 
-  // Fallback responses for FAQ buttons (deterministic)
+  // Fallback responses for FAQ buttons (from loaded items or deterministic)
   const getFallbackResponse = (label: string): string => {
-    const responses: Record<string, string> = {
-      "Prazo de entrega": "Nossos prazos variam de 2 a 7 dias úteis, dependendo de sua localização. Você receberá um rastreamento assim que o pedido sair do nosso centro de distribuição.",
-      "Política de trocas": "Aceitamos trocas dentro de 30 dias da compra. O produto deve estar em perfeitas condições e com a embalagem original.",
-      "Formas de pagamento": "Aceitamos cartão de crédito, débito, Pix, boleto e múltiplas parcelas via Asaas.",
-      "Falar com atendente": "Um atendente humano será acionado em breve. Você será notificado quando estiver disponível.",
-    };
-    return responses[label] || "Entendi sua dúvida. Deixe-me verificar...";
+    const match = faqItems.find((item) => item.question === label);
+    if (match) return match.answer;
+    return "Entendi sua dúvida. Deixe-me verificar...";
   };
 
   const sendMessage = useCallback(async (text: string, isFaqClick = false) => {
@@ -391,10 +433,10 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
 
               {/* FAQ buttons */}
               <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
-                {FAQ_ITEMS.map((item) => (
+                {faqItems.map((item) => (
                   <button
-                    key={item.label}
-                    onClick={() => handleFaqClick(item.label)}
+                    key={item.question}
+                    onClick={() => handleFaqClick(item.question)}
                     disabled={isLoading}
                     style={{
                       background: "var(--aacp-card, rgba(255,255,255,0.05))",
@@ -422,8 +464,8 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
                       e.currentTarget.style.borderColor = "var(--aacp-line, rgba(255,255,255,0.1))";
                     }}
                   >
-                    <span>{item.icon}</span>
-                    <span style={{ flex: 1, textAlign: "left" }}>{item.label}</span>
+                    <span>{item.icon || "❓"}</span>
+                    <span style={{ flex: 1, textAlign: "left" }}>{item.question}</span>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="9 18 15 12 9 6" />
                     </svg>
