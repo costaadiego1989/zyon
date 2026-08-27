@@ -479,7 +479,6 @@ export default function PreferencesTab({
         display: "flex",
         flexDirection: "column",
         gap: "24px",
-        padding: "20px",
         paddingBottom: "16px",
       }}
     >
