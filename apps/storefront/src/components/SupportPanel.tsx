@@ -161,6 +161,18 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
           text: `${data.agentName} entrou no chat.`,
         }]);
       });
+
+      socket.on("ticket_closed", () => {
+        // Ticket resolved/closed by merchant — reset widget to initial state
+        setMessages([]);
+        setView("welcome");
+        setTicketId(null);
+        setIsLoading(false);
+        try {
+          sessionStorage.removeItem(SESSION_KEY);
+          sessionStorage.removeItem(TICKET_KEY);
+        } catch { /* non-critical */ }
+      });
     })();
 
     return () => {
