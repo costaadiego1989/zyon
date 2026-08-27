@@ -1,5 +1,20 @@
 import { useCheckoutStore } from "@/store/checkout-store";
 
+function translateShippingLabel(label: string): string {
+  const translations: Record<string, string> = {
+    own_delivery_flat: "Entrega própria",
+    own_delivery: "Entrega própria",
+    correios_pac: "PAC",
+    correios_sedex: "Sedex",
+    jadlog_package: "Jadlog",
+    free_shipping: "Frete grátis",
+  };
+  if (label.includes("_")) {
+    return translations[label] ?? label.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+  return label;
+}
+
 export function SmartCart() {
   const cart = useCheckoutStore((s) => s.cart);
   const brand = useCheckoutStore((s) => s.brand);
@@ -322,7 +337,7 @@ export function SmartCart() {
                 lineHeight: 1.35,
               }}
             >
-              Frete · {cart.shipping.label}
+              Frete · {translateShippingLabel(cart.shipping.label)}
             </span>
             <span
               style={{ fontSize: "12px", fontWeight: 600, color: "var(--tx)" }}

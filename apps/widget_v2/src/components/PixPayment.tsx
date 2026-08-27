@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useCheckoutStore } from "@/store/checkout-store";
+import { PulseAgentOrb } from "./PulseAgentOrb";
 
 export function PixPayment() {
   const paymentIntent = useCheckoutStore((s) => s.paymentIntent);
@@ -49,9 +50,18 @@ export function PixPayment() {
   if (status === "completed") {
     return (
       <div className="pix-payment pix-payment--confirmed">
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", padding: "16px 0" }}>
+          <div style={{ animation: "bounce 0.6s ease infinite alternate" }}>
+            <PulseAgentOrb placement="chatBubble" active />
+          </div>
+          <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--tx)", margin: 0, textAlign: "center" }}>
+            Pagamento confirmado! 🎉
+          </p>
+        </div>
         <div className="pix-payment__icon">✓</div>
         <h3 className="pix-payment__title">Pagamento confirmado!</h3>
         <p className="pix-payment__sub">Seu pedido está sendo processado.</p>
+        <style>{`@keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-8px); } }`}</style>
       </div>
     );
   }
@@ -101,9 +111,12 @@ export function PixPayment() {
       {/* Timer */}
       <div className="pix-payment__status">
         {timeLeft !== null && timeLeft > 0 ? (
-          <span className="pix-payment__timer">
-            ⏳ Aguardando pagamento · expira em {formatTime(timeLeft)}
-          </span>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", padding: "8px 0" }}>
+            <PulseAgentOrb placement="chatLoading" active />
+            <span className="pix-payment__timer">
+              Aguardando pagamento · expira em {formatTime(timeLeft)}
+            </span>
+          </div>
         ) : timeLeft === 0 ? (
           <>
             <span className="pix-payment__expired">⚠️ Código expirado.</span>
@@ -115,7 +128,10 @@ export function PixPayment() {
             </button>
           </>
         ) : (
-          <span className="pix-payment__waiting">Aguardando pagamento...</span>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", padding: "8px 0" }}>
+            <PulseAgentOrb placement="chatLoading" active />
+            <span className="pix-payment__waiting">Aguardando pagamento...</span>
+          </div>
         )}
       </div>
     </div>

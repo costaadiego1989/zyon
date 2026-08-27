@@ -1,7 +1,23 @@
 import { useState, useRef, useEffect } from "react";
 import { useCheckoutStore } from "@/store/checkout-store";
 import { AgentAvatar } from "./AgentAvatar";
+import { PulseAgentOrb } from "./PulseAgentOrb";
 import type { ChatBlock } from "@/api/checkout-session";
+
+function translateShippingLabel(label: string): string {
+  const translations: Record<string, string> = {
+    own_delivery_flat: "Entrega própria",
+    own_delivery: "Entrega própria",
+    correios_pac: "PAC",
+    correios_sedex: "Sedex",
+    jadlog_package: "Jadlog",
+    free_shipping: "Frete grátis",
+  };
+  if (label.includes("_")) {
+    return translations[label] ?? label.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+  return label;
+}
 
 /* ─── Block Renderers ─── */
 
@@ -41,10 +57,12 @@ function CartSummaryBlock({ data }: { data?: Record<string, unknown> }) {
 
 function ShippingOptionsBlock({ options }: { options?: unknown }) {
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
+  const selectShipping = useCheckoutStore((s) => s.selectShipping);
   const opts = (options as Array<{ key: string; label: string; tag?: string; sub?: string; cost?: number }>) ?? [];
 
-  const handleSelect = (opt: (typeof opts)[0]) => {
-    void sendMessage(`Entrega · ${opt.label}`);
+  const handleSelect = async (opt: (typeof opts)[0]) => {
+    await selectShipping(opt.key);
+    void sendMessage(`Entrega · ${translateShippingLabel(opt.label)}`);
   };
 
   const formatPrice = (v: number) =>
@@ -56,7 +74,7 @@ function ShippingOptionsBlock({ options }: { options?: unknown }) {
       {opts.map((opt) => (
         <button
           key={opt.key}
-          onClick={() => handleSelect(opt)}
+          onClick={() => void handleSelect(opt)}
           style={{
             padding: "10px 12px",
             borderRadius: "10px",
@@ -69,7 +87,7 @@ function ShippingOptionsBlock({ options }: { options?: unknown }) {
           }}
         >
           <div style={{ fontWeight: 600, display: "flex", justifyContent: "space-between" }}>
-            <span>{opt.label}</span>
+            <span>{translateShippingLabel(opt.label)}</span>
             <span style={{ fontSize: "12px", color: "var(--aacp-accent, #0f766e)" }}>
               {opt.cost === 0 ? "Grátis" : opt.cost != null ? formatPrice(opt.cost / 100) : ""}
             </span>
@@ -148,7 +166,12 @@ function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
           </button>
         </div>
       )}
-      <p style={{ fontSize: "12px", color: "var(--mut)", margin: 0 }}>Aguardando pagamento...</p>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", padding: "16px" }}>
+        <PulseAgentOrb placement="chatLoading" active />
+        <p style={{ fontSize: "13px", color: "var(--mut)", margin: 0, textAlign: "center" }}>
+          Aguardando pagamento...
+        </p>
+      </div>
     </div>
   );
 }
@@ -157,6 +180,11 @@ function OrderConfirmationBlock({ data }: { data?: Record<string, unknown> }) {
   if (!data) return null;
   return (
     <div style={{ padding: "16px", borderRadius: "12px", background: "var(--card)", border: "1px solid var(--aacp-accent, #0f766e)", textAlign: "center" }}>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: "12px" }}>
+        <div style={{ animation: "bounce 0.6s ease infinite alternate" }}>
+          <PulseAgentOrb placement="chatBubble" active />
+        </div>
+      </div>
       <div style={{ fontSize: "28px", marginBottom: "6px" }}>✓</div>
       <div style={{ fontSize: "15px", fontWeight: 700, color: "var(--tx)" }}>
         {(data.title as string) || "Pedido confirmado!"}
@@ -219,6 +247,64 @@ function OfferCouponBlock({ data }: { data?: Record<string, unknown> }) {
   );
 }
 
+function AddressConfirmationBlock({ data }: { data?: Record<string, unknown> }) {
+  const sendMessage = useCheckoutStore((s) => s.sendMessage);
+  if (!data) return null;
+  const formatted = (data.formatted as string) || "";
+
+  const handleYes = () => {
+    void sendMessage("Sim");
+  };
+
+  const handleNo = () => {
+    void sendMessage("Não");
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      {formatted && (
+        <div style={{ padding: "10px 12px", borderRadius: "8px", background: "var(--chip)", fontSize: "13px", color: "var(--tx)" }}>
+          {formatted}
+        </div>
+      )}
+      <div style={{ display: "flex", gap: "8px" }}>
+        <button
+          onClick={handleYes}
+          style={{
+            flex: 1,
+            padding: "10px 12px",
+            borderRadius: "8px",
+            border: "none",
+            background: "var(--aacp-accent, #0f766e)",
+            color: "#fff",
+            fontSize: "13px",
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          Sim
+        </button>
+        <button
+          onClick={handleNo}
+          style={{
+            flex: 1,
+            padding: "10px 12px",
+            borderRadius: "8px",
+            border: "1px solid var(--bd)",
+            background: "var(--chip)",
+            color: "var(--tx)",
+            fontSize: "13px",
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          Não
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function FormFieldBlock({ data }: { data?: Record<string, unknown> }) {
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
   const [value, setValue] = useState("");
@@ -264,6 +350,8 @@ function BlockRenderer({ block }: { block: ChatBlock }) {
       return <p style={{ fontSize: "14px", lineHeight: 1.5, color: "var(--tx)", margin: 0, wordBreak: "break-word" }}>{String(block.data?.content || block.text || "")}</p>;
     case "cart_summary":
       return <CartSummaryBlock data={block.data} />;
+    case "address_confirmation":
+      return <AddressConfirmationBlock data={block.data} />;
     case "shipping_options":
       return <ShippingOptionsBlock options={block.data?.options} />;
     case "payment_methods":
@@ -294,12 +382,8 @@ export function ChatPanel() {
   const messages = useCheckoutStore((s) => s.messages);
   const isTyping = useCheckoutStore((s) => s.isTyping);
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
-  const brand = useCheckoutStore((s) => s.brand);
   const [input, setInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
-
-  // Agent avatar: use brand avatar/logo if available
-  const avatarUrl = brand.agentAvatarUrl || brand.logoUrl;
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -341,15 +425,7 @@ export function ChatPanel() {
             }}
           >
             {msg.role === "agent" && (
-              avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt=""
-                  style={{ width: "28px", height: "28px", borderRadius: "50%", objectFit: "cover", flex: "none", marginTop: "2px" }}
-                />
-              ) : (
-                <AgentAvatar active />
-              )
+              <AgentAvatar active />
             )}
 
             <div style={{ maxWidth: "80%", display: "flex", flexDirection: "column", gap: "6px", minWidth: 0 }}>
@@ -414,11 +490,7 @@ export function ChatPanel() {
 
         {isTyping && (
           <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="" style={{ width: "28px", height: "28px", borderRadius: "50%", objectFit: "cover", flex: "none" }} />
-            ) : (
-              <AgentAvatar active />
-            )}
+            <AgentAvatar active />
             <div style={{ padding: "10px 12px", borderRadius: "12px", background: "var(--card)", color: "var(--mut)", border: "1px solid var(--bd)" }}>
               <span style={{ animation: "dot-pulse 1.2s infinite" }}>●</span>
               <span style={{ animation: "dot-pulse 1.2s infinite", animationDelay: "0.2s" }}>●</span>
@@ -482,6 +554,7 @@ export function ChatPanel() {
       <style>{`
         @keyframes bubble-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
         @keyframes dot-pulse { 0%,80%,100% { opacity: .3; } 40% { opacity: 1; } }
+        @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-8px); } }
       `}</style>
     </div>
   );
