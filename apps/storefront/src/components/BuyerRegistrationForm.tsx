@@ -125,11 +125,20 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
     try {
       switch (currentStep) {
         case 1: {
-          // Send phone OTP
+          // Send phone OTP — include fallback email if available
+          let fallbackEmail: string | undefined;
+          try {
+            const session = localStorage.getItem("zyon_buyer_session");
+            if (session) {
+              const parsed = JSON.parse(session);
+              if (parsed.email) fallbackEmail = parsed.email;
+            }
+          } catch {}
+
           const res = await fetch(`${API_BASE}/buyer/phone/send`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ phone: phoneDigits, merchant_name: merchantName }),
+            body: JSON.stringify({ phone: phoneDigits, merchant_name: merchantName, fallback_email: fallbackEmail }),
           });
           if (!res.ok && res.status !== 404) {
             const errData = await res.json().catch(() => null);
@@ -142,12 +151,7 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
               throw new Error("Serviço de verificação indisponível");
             }
           }
-          if (res.ok) {
-            const data = await res.json().catch(() => null);
-            if (data?.dev_code) {
-              setPhoneOtp(data.dev_code);
-            }
-          }
+          // OTP enviado via WhatsApp/SMS — buyer verifica no celular (não auto-preenche)
           setCurrentStep(2);
           trackRegistrationStep(merchantId, "auth_phone_submitted");
           break;
@@ -262,13 +266,16 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
           let globalUserId: string;
           if (res.ok) {
             const data = await res.json();
-            if (data.token) {
-              localStorage.setItem("zyon_buyer_token", data.token);
+            const token = data.accessToken ?? data.access_token ?? data.token;
+            const respEmail = data.email ?? email;
+            if (token) {
+              localStorage.setItem("zyon_buyer_token", token);
             }
-            globalUserId = data.global_user_id;
+            globalUserId = data.globalUserId ?? data.global_user_id;
             if (!globalUserId) {
               throw new Error("Registro falhou: servidor não retornou identificação do usuário");
             }
+            localStorage.setItem("zyon_buyer_session", JSON.stringify({ globalUserId, token, email: respEmail }));
           } else if (res.status === 404) {
             if (process.env.NODE_ENV === 'development') {
               console.warn("[BuyerRegistrationForm] register endpoint not found (404), using mock token for dev");
