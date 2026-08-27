@@ -28,6 +28,7 @@ export const STOREFRONT_CONVERSATION_ADAPTER = Symbol("StorefrontConversationAda
 export class StorefrontConversationAdapter implements StorefrontConversationPort {
   private readonly logger = new Logger(StorefrontConversationAdapter.name);
   private readonly agent: StorefrontLangGraphAgent;
+  private readonly copyProvider: OpenRouterProvider;
   private currentMerchantId = "";
   private currentSessionId = "";
 
@@ -49,6 +50,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       baseUrl: localBaseUrl,
       model: localModel
     });
+    this.copyProvider = provider;
 
     // Fallback provider: DeepSeek cloud (used when primary LLM fails)
     const fallbackApiKey = process.env.OPENROUTER_API_KEY || process.env.DEEPSEEK_API_KEY || "";
@@ -694,6 +696,34 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     });
   }
 
+  /**
+   * When an A/B experiment prompt is active, generate the short intro copy with
+   * the variant's tone instead of a hardcoded string. Keeps deterministic blocks
+   * fast while still letting the experiment influence the agent's communication.
+   * Falls back to the provided default text on any failure or when no experiment.
+   */
+  private async generateVariantCopy(
+    experimentSystemPrompt: string | undefined,
+    instruction: string,
+    fallback: string,
+  ): Promise<string> {
+    if (!experimentSystemPrompt) return fallback;
+    try {
+      const result = await this.copyProvider.chat({
+        messages: [
+          { role: "system", content: experimentSystemPrompt },
+          { role: "user", content: instruction },
+        ],
+        temperature: 0.7,
+        maxTokens: 60,
+      });
+      const text = result.content?.trim();
+      return text && text.length > 0 ? text : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
   async reply(input: StorefrontConversationInput): Promise<StorefrontConversationOutput> {
     this.currentMerchantId = input.merchantId;
     this.currentSessionId = input.cartId || input.sessionId;
@@ -732,8 +762,16 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
             }
           } as ConversationBlock];
           const isProducts = normalizedMsg === "ver produtos";
+          const introDefault = isProducts ? "Encontrei esses produtos para você:" : "Aqui estão nossas ofertas:";
+          const introMessage = await this.generateVariantCopy(
+            input.experimentSystemPrompt,
+            isProducts
+              ? "Responda em 1 frase curta e amigável que encontrou produtos pra o cliente. Não liste os produtos."
+              : "Responda em 1 frase curta e animada apresentando as ofertas do dia. Não liste os produtos.",
+            introDefault,
+          );
           return {
-            message: isProducts ? "Encontrei esses produtos para você:" : "Aqui estão nossas ofertas:",
+            message: introMessage,
             blocks,
             suggestedNext: ["Selecionar Produto", "Filtrar Produtos", "Categorias", "Ofertas do Dia"],
           };
@@ -789,8 +827,13 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
             },
           } as ConversationBlock];
           this.emitFunnelEvent(input.merchantId, input.sessionId, "product_viewed").catch(() => {});
+          const detailMessage = await this.generateVariantCopy(
+            input.experimentSystemPrompt,
+            `Apresente o produto "${product.name}" em 1 frase curta e empolgante. Não repita o nome completo, diga "esse produto" ou algo natural.`,
+            `Aqui estão os detalhes de **${product.name}**:`,
+          );
           return {
-            message: `Aqui estão os detalhes de **${product.name}**:`,
+            message: detailMessage,
             blocks,
             suggestedNext: [
               `Adicionar ${product.name} ao carrinho`,
