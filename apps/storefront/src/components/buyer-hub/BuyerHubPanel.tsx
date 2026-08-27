@@ -88,7 +88,7 @@ const TABS: TabDef[] = [
   },
   {
     key: "preferences",
-    label: "Preferencias",
+    label: "Preferências",
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -469,7 +469,7 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
           position: "fixed",
           top: 0,
           right: 0,
-          width: "min(420px, 90vw)",
+          width: "min(480px, 100vw)",
           height: "100dvh",
           background: "var(--aacp-panel-bg)",
           borderLeft: "1px solid var(--aacp-line)",
@@ -602,7 +602,8 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
               aria-label="Navegacao do hub"
               style={{
                 display: "flex",
-                gap: "0",
+                gap: "2px",
+                padding: "0 8px",
                 borderBottom: "1px solid var(--aacp-line)",
                 overflowX: "auto",
                 overflowY: "hidden",
@@ -621,9 +622,11 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
                     onClick={() => vm.setActiveTab(tab.key)}
                     title={tab.label}
                     style={{
-                      flex: "0 0 auto",
-                      width: "56px",
-                      padding: "12px 0",
+                      // Distribute evenly when they fit; each keeps a comfortable
+                      // minimum so labels breathe (mobile-first hit target).
+                      flex: "1 1 0",
+                      minWidth: "58px",
+                      padding: "14px 4px",
                       background: "transparent",
                       border: "none",
                       borderBottom: isActive ? "2px solid var(--aacp-accent)" : "2px solid transparent",
@@ -632,12 +635,12 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
                       display: "flex",
                       flexDirection: "column",
                       alignItems: "center",
-                      gap: "4px",
+                      gap: "5px",
                       transition: "color 0.15s ease, border-color 0.15s ease",
                     }}
                   >
                     {tab.icon}
-                    <span style={{ fontSize: "10px", fontWeight: isActive ? 600 : 500, whiteSpace: "nowrap" }}>{tab.label}</span>
+                    <span style={{ fontSize: "10.5px", fontWeight: isActive ? 600 : 500, whiteSpace: "nowrap", letterSpacing: "0.1px" }}>{tab.label}</span>
                   </button>
                 );
               })}
