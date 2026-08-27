@@ -318,7 +318,7 @@ export function useBuyerHub(): UseBuyerHub {
         if (!tracking.data && !tracking.loading) void loadTracking();
         break;
       case "conversations":
-        if (!conversations.data && !conversations.loading) void runFetch(setConversations, "/buyer/me/conversations");
+        if (!conversations.data && !conversations.loading) void loadConversations();
         break;
       case "preferences":
         if (!preferences.data && !preferences.loading) void runFetch(setPreferences, "/buyer/me/preferences");
@@ -329,7 +329,7 @@ export function useBuyerHub(): UseBuyerHub {
         break;
       case "settings":
         if (!intentProfile.data && !intentProfile.loading) void runFetch(setIntentProfile, "/buyer/me/intent-profile");
-        if (!reviews.data && !reviews.loading) void runFetch(setReviews, "/buyer/me/reviews");
+        if (!reviews.data && !reviews.loading) void loadReviews();
         break;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
