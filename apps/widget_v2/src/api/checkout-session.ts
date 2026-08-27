@@ -143,6 +143,16 @@ export interface PaymentIntent {
   pix_qr_url?: string;
   stripe_client_secret?: string;
   stripe_publishable_key?: string;
+  // Crypto fields
+  crypto_chain?: string;
+  crypto_chain_label?: string;
+  crypto_network?: string;
+  crypto_token_symbol?: string;
+  crypto_amount_display?: string;
+  crypto_amount_atomic?: string;
+  crypto_destination_address?: string;
+  crypto_token_address?: string;
+  crypto_chain_id?: number;
   expires_at_unix?: number;
   amount_cents?: number;
 }
@@ -384,6 +394,16 @@ export class CheckoutSession {
       pix_qr_url: pixQrUrl,
       stripe_client_secret: raw.buyerFacing?.clientSecret,
       stripe_publishable_key: raw.buyerFacing?.stripePublishableKey,
+      // Crypto buyerFacing mapping
+      crypto_chain: raw.buyerFacing?.chain,
+      crypto_chain_label: raw.buyerFacing?.chainLabel,
+      crypto_network: raw.buyerFacing?.evmNetwork,
+      crypto_token_symbol: raw.buyerFacing?.tokenSymbol,
+      crypto_amount_display: raw.buyerFacing?.amountDisplay,
+      crypto_amount_atomic: raw.buyerFacing?.amountAtomic,
+      crypto_destination_address: raw.buyerFacing?.destinationAddress,
+      crypto_token_address: raw.buyerFacing?.tokenAddress,
+      crypto_chain_id: raw.buyerFacing?.chainId,
       expires_at_unix: expiresAtUnix,
       amount_cents: raw.amountCents,
     };

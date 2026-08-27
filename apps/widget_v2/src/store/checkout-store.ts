@@ -670,11 +670,16 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       });
 
       // Add payment block as agent message so ChatPanel renders it
-      const blockType = method === "pix" ? "pix_payment" : "stripe_card";
+      const blockType = method === "pix" ? "pix_payment" : method === "crypto" ? "crypto_payment" : "stripe_card";
+      const blockText = method === "pix"
+        ? "Pix gerado! Pague e confirmo seu pedido automaticamente."
+        : method === "crypto"
+          ? "Envie o valor em USDC para o endereço abaixo."
+          : "Preencha os dados do cartão para finalizar.";
       const paymentMsg: Message = {
         id: `agent_pay_${Date.now()}`,
         role: "agent",
-        text: method === "pix" ? "Pix gerado! Pague e confirmo seu pedido automaticamente." : "Preencha os dados do cartão para finalizar.",
+        text: blockText,
         blocks: [{
           type: blockType,
           data: {
@@ -683,6 +688,13 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
             pix_qr_url: intent.pix_qr_url,
             stripe_client_secret: intent.stripe_client_secret,
             stripe_publishable_key: intent.stripe_publishable_key,
+            crypto_chain_label: intent.crypto_chain_label,
+            crypto_network: intent.crypto_network,
+            crypto_token_symbol: intent.crypto_token_symbol,
+            crypto_amount_display: intent.crypto_amount_display,
+            crypto_destination_address: intent.crypto_destination_address,
+            crypto_token_address: intent.crypto_token_address,
+            crypto_chain_id: intent.crypto_chain_id,
             expires_at_unix: intent.expires_at_unix,
             amount_cents: intent.amount_cents,
           },

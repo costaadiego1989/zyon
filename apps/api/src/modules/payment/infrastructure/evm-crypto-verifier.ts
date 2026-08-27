@@ -1,5 +1,6 @@
 import { createPublicClient, decodeEventLog, http, type Hash, type Hex } from "viem";
 import { base, baseSepolia, polygon, polygonAmoy } from "viem/chains";
+import { Logger } from "@nestjs/common";
 import {
   ERC20_TRANSFER_TOPIC,
   evmChainId,
@@ -12,18 +13,25 @@ import {
 } from "./evm-crypto.constants.js";
 import type { CryptoVerifierPort, VerifyCryptoTransferInput, VerifyCryptoTransferResult } from "../domain/ports/crypto-verifier.port.js";
 
+const logger = new Logger("EvmCryptoVerifier");
+
 export class EvmCryptoVerifier implements CryptoVerifierPort {
   async verifyTransfer(input: VerifyCryptoTransferInput): Promise<VerifyCryptoTransferResult> {
+    const chain = input.buyerFacing.chain as EvmChain;
+    const network = input.buyerFacing.evmNetwork as EvmNetwork;
+    logger.log(`[CRYPTO-VERIFY] start txHash=${input.txHash} chain=${chain} network=${network} wallet=${input.walletAddress}`);
+
     if (isQuoteExpired(input.buyerFacing.quoteExpiresAt)) {
+      logger.warn(`[CRYPTO-VERIFY] quote expired: ${input.buyerFacing.quoteExpiresAt}`);
       throw new Error("crypto_quote_expired");
     }
 
-    const chain = input.buyerFacing.chain as EvmChain;
-    const network = input.buyerFacing.evmNetwork as EvmNetwork;
     const rpcUrl = resolveRpcUrl(chain, network);
     if (!rpcUrl) {
+      logger.error(`[CRYPTO-VERIFY] RPC not configured for ${chain}/${network}`);
       throw new Error("crypto_rpc_not_configured");
     }
+    logger.log(`[CRYPTO-VERIFY] using RPC ${rpcUrl} chainId=${evmChainId(chain, network)}`);
 
     const viemChain = resolveViemChain(chain, network);
     const client = createPublicClient({
@@ -33,13 +41,17 @@ export class EvmCryptoVerifier implements CryptoVerifierPort {
 
     const hash = input.txHash.trim() as Hash;
     const receipt = await client.getTransactionReceipt({ hash });
+    logger.log(`[CRYPTO-VERIFY] receipt status=${receipt.status} block=${receipt.blockNumber} logs=${receipt.logs.length}`);
     if (receipt.status !== "success") {
+      logger.warn(`[CRYPTO-VERIFY] tx not successful: ${receipt.status}`);
       throw new Error("crypto_tx_not_successful");
     }
 
     const currentBlock = await client.getBlockNumber();
     const confirmations = Number(currentBlock - receipt.blockNumber) + 1;
+    logger.log(`[CRYPTO-VERIFY] confirmations=${confirmations} required=${minConfirmations(network)} (currentBlock=${currentBlock})`);
     if (confirmations < minConfirmations(network)) {
+      logger.warn(`[CRYPTO-VERIFY] insufficient confirmations: ${confirmations}/${minConfirmations(network)}`);
       throw new Error("crypto_insufficient_confirmations");
     }
 
@@ -82,12 +94,16 @@ export class EvmCryptoVerifier implements CryptoVerifierPort {
       }
     }
 
+    logger.log(`[CRYPTO-VERIFY] expected: to=${treasury} value=${expectedValue} from=${wallet} | matches=${matches.length}`);
     if (matches.length === 0) {
+      logger.warn(`[CRYPTO-VERIFY] no matching Transfer log — token/treasury/value/sender mismatch`);
       throw new Error("crypto_transfer_not_matched");
     }
     if (matches.length > 1) {
+      logger.warn(`[CRYPTO-VERIFY] ambiguous: ${matches.length} matching transfers`);
       throw new Error("crypto_transfer_ambiguous_match");
     }
+    logger.log(`[CRYPTO-VERIFY] ✓ VERIFIED transfer from=${matches[0]!.from} value=${matches[0]!.value}`);
     return { from: matches[0]!.from };
   }
 }

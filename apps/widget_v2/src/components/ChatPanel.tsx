@@ -520,6 +520,108 @@ function FormFieldBlock({ data }: { data?: Record<string, unknown> }) {
   );
 }
 
+function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
+  const pollPayment = useCheckoutStore((s) => s.pollPayment);
+  const api = useCheckoutStore((s) => s.api);
+  const [txHash, setTxHash] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    pollPayment();
+  }, [pollPayment]);
+
+  if (!data) return null;
+
+  const chainLabel = String(data.crypto_chain_label || "Polygon");
+  const amount = String(data.crypto_amount_display || "?.?? USDC");
+  const destination = String(data.crypto_destination_address || "");
+  const tokenSymbol = String(data.crypto_token_symbol || "USDC");
+
+  const handleCopyAddress = async () => {
+    try {
+      await navigator.clipboard.writeText(destination);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = destination;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (!txHash.trim() || !api) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const intentId = String(data.intent_id || "");
+      const res = await fetch(`${api.apiBaseUrl}/embed/payment/intents/${intentId}/crypto/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${api.authToken}` },
+        body: JSON.stringify({ session_id: api.currentSessionId, tx_hash: txHash.trim(), wallet_address: "" }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setError(err.detail || err.message || `Erro ${res.status}`);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro ao confirmar");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
+      <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>Pague com {tokenSymbol} ({chainLabel})</div>
+      <p style={{ fontSize: "12px", color: "var(--mut)", margin: "0 0 10px", lineHeight: 1.4 }}>
+        Envie exatamente <strong>{amount}</strong> para o endereço abaixo. Após enviar, cole o hash da transação.
+      </p>
+      <div style={{ display: "flex", gap: "6px", marginBottom: "10px" }}>
+        <code style={{ flex: 1, minWidth: 0, background: "var(--chip, var(--card))", padding: "8px 10px", borderRadius: "8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "11px", fontFamily: "var(--aacp-font, inherit)" }}>
+          {destination.slice(0, 10)}...{destination.slice(-8)}
+        </code>
+        <button
+          onClick={handleCopyAddress}
+          style={{ padding: "8px 14px", borderRadius: "8px", background: "var(--aacp-accent, #0f766e)", color: "#fff", border: "none", fontSize: "13px", fontWeight: 600, fontFamily: "var(--aacp-font, inherit)", cursor: "pointer", flex: "none" }}
+        >
+          {copied ? "✓ Copiado" : "Copiar"}
+        </button>
+      </div>
+      <div style={{ marginBottom: "10px" }}>
+        <input
+          type="text"
+          placeholder="Cole o tx hash aqui (0x...)"
+          value={txHash}
+          onChange={(e) => setTxHash(e.target.value)}
+          style={{ width: "100%", padding: "8px 10px", borderRadius: "8px", border: "1px solid var(--bd)", background: "var(--card)", color: "var(--tx)", fontSize: "12px", fontFamily: "var(--aacp-font, inherit)", boxSizing: "border-box" }}
+        />
+      </div>
+      {error && <div style={{ padding: "6px 10px", borderRadius: "6px", background: "#fee", color: "#c92a2a", fontSize: "12px", marginBottom: "8px" }}>{error}</div>}
+      <button
+        onClick={handleConfirm}
+        disabled={!txHash.trim() || loading}
+        style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", background: !txHash.trim() || loading ? "var(--bd)" : "var(--aacp-accent, #0f766e)", color: "#fff", border: "none", fontSize: "13px", fontWeight: 600, fontFamily: "var(--aacp-font, inherit)", cursor: !txHash.trim() || loading ? "not-allowed" : "pointer" }}
+      >
+        {loading ? "Verificando..." : "Confirmar pagamento"}
+      </button>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", padding: "12px 0 0" }}>
+        <PulseAgentOrb placement="chatLoading" active />
+        <p style={{ fontSize: "12px", color: "var(--mut)", margin: 0, textAlign: "center" }}>Aguardando confirmação on-chain...</p>
+      </div>
+    </div>
+  );
+}
+
 function BlockRenderer({ block }: { block: ChatBlock }) {
   switch (block.type) {
     case "text":
@@ -535,6 +637,8 @@ function BlockRenderer({ block }: { block: ChatBlock }) {
       return <PaymentMethodsBlock methods={block.data?.methods} />;
     case "pix_payment":
       return <PixPaymentBlock data={block.data} />;
+    case "crypto_payment":
+      return <CryptoPaymentBlock data={block.data} />;
     case "stripe_card":
       return <StripeCardBlock data={block.data} />;
     case "order_confirmation":
