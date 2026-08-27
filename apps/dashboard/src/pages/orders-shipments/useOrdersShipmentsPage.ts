@@ -3,6 +3,7 @@ import { useApi } from "../../hooks/useApi.js";
 import { DashboardHttpError } from "../../api/http/index.js";
 import type { CursorPage, MerchantProfile, TenantOrder } from "../../api-client.js";
 import { computeOrderMetrics, filterOrders, STATUS_LABELS } from "./utils.js";
+import { showToast } from "../../components/Toast.js";
 import { downloadCsv } from "../../hooks/useCsvExport.js";
 
 const PAGE_SIZE = 10;
@@ -145,9 +146,9 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
     try {
       await api.updateOrderStatus(order.id, status);
       setOrders((prev) => prev.map((item) => item.id === order.id ? { ...item, status } : item));
-      setMessage(`Status atualizado para "${STATUS_LABELS[status] ?? status}".`);
+      showToast("success", `Pedido #${order.external_order_id?.slice(-6) ?? order.id.slice(-6)} → ${STATUS_LABELS[status] ?? status}`);
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e));
+      showToast("error", e instanceof Error ? e.message : "Erro ao atualizar status");
     } finally {
       setBusy(false);
     }

@@ -51,7 +51,6 @@ export interface FunnelResult {
 
 const STEP_DEFINITIONS = [
   { name: "checkout_started", label: "Checkout iniciado", events: [] as string[] },
-  { name: "auth_completed", label: "Identificação (OTP)", events: ["auth_phone_submitted", "auth_phone_verified", "auth_identity_confirmed", "auth_registration_completed", "login_completed"] },
   { name: "shipping_calculated", label: "Frete selecionado", events: ["shipping_calculated", "shipping_option_selected"] },
   { name: "coupon_applied", label: "Cupom aplicado", events: ["coupon_applied", "coupon_field_clicked"] },
   { name: "payment_method_selected", label: "Pagamento selecionado", events: ["payment_method_selected"] },

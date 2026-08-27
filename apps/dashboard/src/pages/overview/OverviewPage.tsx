@@ -214,9 +214,9 @@ export function OverviewPage(props: OverviewPageProps) {
   ];
 
   // FUNIL DE CHECKOUT: jornada de compra (nomes batem com get-funnel.use-case.ts STEP_DEFINITIONS)
+  // OTP não entra aqui — buyer já chega logado no checkout (OTP é etapa do funil da loja).
   const CHECKOUT_FUNNEL = [
     { name: "checkout_started", label: "Checkout iniciado", color: "var(--color-brand)" },
-    { name: "auth_completed", label: "Identificação (OTP)", color: "oklch(68% 0.13 280)" },
     { name: "shipping_calculated", label: "Frete selecionado", color: "oklch(70% 0.14 250)" },
     { name: "coupon_applied", label: "Cupom aplicado", color: "var(--color-warning)" },
     { name: "payment_method_selected", label: "Pagamento selecionado", color: "oklch(65% 0.16 200)" },
