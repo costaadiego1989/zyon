@@ -269,7 +269,10 @@ export default async function StorePage({
       {gtmId && <GoogleTagManager gtmId={gtmId} />}
       {fbPixelId && <FacebookPixel pixelId={fbPixelId} />}
       {tiktokPixelId && <TiktokPixel pixelId={tiktokPixelId} />}
-      <div className="storefront-shell">
+      {/* suppressHydrationWarning: zoom/reader browser extensions inject
+          data-original-width + inline max-width on this shell before React
+          hydrates. That mutation is outside our control. */}
+      <div className="storefront-shell" suppressHydrationWarning>
         <WidgetConfigProvider merchantId={config?.merchantId}>
           <CartProvider merchantId={config?.merchantId}>
             <ConversationShell
