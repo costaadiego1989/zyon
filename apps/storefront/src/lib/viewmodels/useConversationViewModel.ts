@@ -8,6 +8,7 @@ import { initTriggerDetection } from "@/lib/triggers";
 import { getInterventionCount, incrementIntervention, canFireTrigger, recordTriggerFired } from "@/lib/intervention-tracker";
 import { TRIGGER_MESSAGES } from "@/lib/trigger-messages";
 import { useCheckoutExperiment } from "@/lib/useCheckoutExperiment";
+import { getValidBuyer } from "@/lib/buyer-auth";
 import {
   trackBeginCheckout,
   trackConversationStart,
@@ -64,6 +65,7 @@ export interface ConversationViewModelState {
   buyerHubOpen: boolean;
   cartDrawerForceOpen: boolean;
   showBuyerAuth: boolean;
+  checkoutIntent: string | null;
   policyModal: { title: string; content: string } | null;
 }
 
@@ -78,6 +80,7 @@ export interface ConversationViewModelActions {
   setSupportOpen: (value: boolean | ((prev: boolean) => boolean)) => void;
   setBuyerHubOpen: (value: boolean | ((prev: boolean) => boolean)) => void;
   setShowBuyerAuth: (value: boolean) => void;
+  setCheckoutIntent: (value: string | null) => void;
   setPolicyModal: (value: { title: string; content: string } | null) => void;
   setCartDrawerForceOpen: (value: boolean) => void;
   startListening: () => void;
@@ -111,6 +114,9 @@ export function useConversationViewModel(
   const [buyerHubOpen, setBuyerHubOpen] = useState(false);
   const [cartDrawerForceOpen, setCartDrawerForceOpen] = useState(false);
   const [showBuyerAuth, setShowBuyerAuth] = useState(false);
+  // Set to the resolved globalUserId when a valid buyer token lets us skip the
+  // OTP gate and open checkout directly. ConversationShell reacts and clears it.
+  const [checkoutIntent, setCheckoutIntent] = useState<string | null>(null);
   const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
 
   const recognitionRef = useRef<any>(null);
@@ -343,9 +349,15 @@ export function useConversationViewModel(
     if (lower === "finalizar compra" || lower === "finalizar pedido") {
       setCartDrawerForceOpen(true);
       setTimeout(() => setCartDrawerForceOpen(false), 100);
-      setShowBuyerAuth(true);
       if (merchantId && conversationId) {
         trackFunnelEvent(merchantId, conversationId, "checkout_intent");
+      }
+      // Skip OTP entirely if a valid 7-day token is already stored.
+      const buyer = getValidBuyer();
+      if (buyer) {
+        setCheckoutIntent(buyer.globalUserId);
+      } else {
+        setShowBuyerAuth(true);
       }
       return;
     }
@@ -354,7 +366,7 @@ export function useConversationViewModel(
       return;
     }
     void sendMessage(option);
-  }, [sendMessage, cart.itemCount]);
+  }, [sendMessage, cart.itemCount, merchantId, conversationId]);
 
   // ─── Cart Quantity ───
   const handleUpdateQuantity = useCallback((variantId: string, quantity: number) => {
@@ -461,6 +473,8 @@ export function useConversationViewModel(
     buyerHubOpen,
     cartDrawerForceOpen,
     showBuyerAuth,
+    checkoutIntent,
+    setCheckoutIntent,
     policyModal,
     selectChannel,
     toggleChannel,
