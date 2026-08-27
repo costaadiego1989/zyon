@@ -28,13 +28,14 @@ export class VerifyBuyerPhoneCodeUseCase {
     const countryCode = input.countryCode ?? "BR";
     const phoneKey = `${countryCode}:${normalized}`;
 
-    this.logger.warn(`[OTP verify] looking up phoneKey="${phoneKey}"`);
     const record = await this.otpStore.findActive(phoneKey);
     if (!record) {
-      this.logger.warn(`[OTP verify] NO active record found for ${phoneKey} — expired or never sent`);
       throw new UnauthorizedException("otp_expired");
     }
-    this.logger.warn(`[OTP verify] record found: attempts=${record.attempts}/${record.maxAttempts} expires=${record.expiresAt.toISOString()}`);
+    // expiresAt may arrive as a Date or an ISO string depending on the store
+    // implementation (Prisma returns Date, cache/serialized stores return string).
+    const expiresAt = record.expiresAt instanceof Date ? record.expiresAt : new Date(record.expiresAt);
+    this.logger.warn(`[OTP verify] record found: attempts=${record.attempts}/${record.maxAttempts} expires=${expiresAt.toISOString()}`);
 
     if (record.attempts >= record.maxAttempts) {
       throw new UnauthorizedException("otp_locked");
