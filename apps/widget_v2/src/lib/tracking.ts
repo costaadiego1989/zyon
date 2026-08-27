@@ -6,10 +6,8 @@ export type CheckoutEventName =
   | "cart_viewed"
   | "item_quantity_updated"
   | "item_removed"
-  | "shipping_selected"
+  | "shipping_option_selected"
   | "payment_method_selected"
-  | "payment_intent_created"
-  | "payment_confirmed"
   | "order_completed"
   | "checkout_abandoned"
   // Behavioral triggers (also tracked as events)

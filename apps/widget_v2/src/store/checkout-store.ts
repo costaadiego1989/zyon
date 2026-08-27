@@ -42,12 +42,13 @@ export interface BuyerData {
   isReturning?: boolean;
   purchaseCount?: number;
   address?: {
+    zip?: string;
     street?: string;
     number?: string;
     complement?: string;
+    neighborhood?: string;
     city?: string;
     state?: string;
-    zipCode?: string;
   };
 }
 
@@ -108,6 +109,7 @@ interface CheckoutState {
   sendMessage: (text: string) => Promise<void>;
   updateQty: (sku: string, quantity: number) => Promise<void>;
   removeCartItem: (sku: string) => Promise<void>;
+  selectShipping: (key: string) => Promise<void>;
   pay: (method: "pix" | "credito" | "debito" | "crypto", installments?: number) => Promise<void>;
   pollPayment: () => void;
   stopPolling: () => void;
@@ -155,14 +157,15 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       const total = cartData.total || items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
       // Buyer data comes pre-resolved from API (via global_user_id in token)
+      const buyerSource = exp?.buyer ?? exp?.customer;
       const buyer: BuyerData = {
-        name: exp?.buyer?.name,
-        email: exp?.buyer?.email,
-        phone: exp?.buyer?.phone,
-        cpf: exp?.buyer?.cpf,
-        isReturning: exp?.buyer?.isReturning,
-        purchaseCount: exp?.buyer?.purchaseCount,
-        address: exp?.buyer?.address,
+        name: buyerSource?.name ?? buyerSource?.fullName,
+        email: buyerSource?.email,
+        phone: buyerSource?.phone,
+        cpf: buyerSource?.cpf,
+        isReturning: buyerSource?.isReturning,
+        purchaseCount: buyerSource?.purchaseCount,
+        address: buyerSource?.address,
       };
 
       // Flatten brand: API returns brand at top level AND theme nested inside.
@@ -291,32 +294,93 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       if ((!res.blocks || res.blocks.length === 0) && text === "Vamos prosseguir") {
         // Buyer is pre-authenticated — skip data collection, go to shipping
         const { buyer } = get();
-        const zip = buyer.address?.zipCode || "";
 
-        // Try to fetch real shipping options
-        let shippingOptions: Array<{ key: string; label: string; tag: string; sub: string; cost: number }> = [];
-        if (zip) {
-          try {
-            shippingOptions = await api.fetchShippingQuote(zip);
-          } catch { /* fallback below */ }
-        }
-        if (shippingOptions.length === 0) {
-          shippingOptions = [
-            { key: "pac", label: "Correios PAC", tag: "Econômico", sub: "5-8 dias úteis", cost: 0 },
-            { key: "sedex", label: "Correios Sedex", tag: "Rápido", sub: "2-3 dias úteis", cost: 1590 },
-            { key: "transportadora", label: "Transportadora", tag: "Econômico", sub: "7-12 dias úteis", cost: 0 },
-          ];
+        // Check if address is complete (all fields populated)
+        const addr = buyer.address;
+        const hasCompleteAddress = Boolean(
+          addr?.zip && addr?.street && addr?.number && addr?.city && addr?.state
+        );
+
+        // If address is incomplete, ask for CEP first
+        if (!hasCompleteAddress || !addr) {
+          const zipMsg: Message = {
+            id: `agent_${Date.now()}`,
+            role: "agent",
+            text: "Para calcular o frete, preciso do seu CEP.",
+            blocks: [{ type: "form_field", data: { field: "cep", label: "CEP de entrega", placeholder: "00000-000" } }],
+            timestamp: Date.now(),
+          };
+          set((s) => ({ messages: [...s.messages, zipMsg], isTyping: false }));
+          return;
         }
 
-        const shippingMsg: Message = {
+        // Address is complete — show address confirmation before auto-quoting
+        const addrLine = `${addr.street}, ${addr.number}${addr.complement ? ', ' + addr.complement : ''} - ${addr.city}/${addr.state}`;
+        const confirmMsg: Message = {
           id: `agent_${Date.now()}`,
           role: "agent",
-          text: "Perfeito! Agora escolha como prefere receber:",
-          blocks: [{ type: "shipping_options", data: { options: shippingOptions } }],
+          text: `Localizei seu endereço: ${addrLine}. Está correto?`,
+          blocks: [{ type: "address_confirmation", data: { address: addr, formatted: addrLine } }],
+          quickReplies: ["Sim", "Não"],
           timestamp: Date.now(),
         };
-        set((s) => ({ messages: [...s.messages, shippingMsg], isTyping: false }));
+        set((s) => ({ messages: [...s.messages, confirmMsg], isTyping: false }));
         return;
+      }
+
+      // Handle address confirmation — user said "Não" (wants to correct address)
+      if (text === "Não" && messages.length > 0) {
+        const lastAgentMsg = [...messages].reverse().find((m) => m.role === "agent");
+        if (lastAgentMsg?.blocks?.some((b) => b.type === "address_confirmation")) {
+          const zipMsg: Message = {
+            id: `agent_${Date.now()}`,
+            role: "agent",
+            text: "Sem problema. Informe o CEP de entrega:",
+            blocks: [{ type: "form_field", data: { field: "cep", label: "CEP de entrega", placeholder: "00000-000" } }],
+            timestamp: Date.now(),
+          };
+          set((s) => ({ messages: [...s.messages, zipMsg], isTyping: false }));
+          return;
+        }
+      }
+
+      // Handle address confirmation — user said "Sim"
+      if (text === "Sim" && messages.length > 0) {
+        const lastAgentMsg = [...messages].reverse().find((m) => m.role === "agent");
+        if (lastAgentMsg?.blocks?.some((b) => b.type === "address_confirmation")) {
+          // Auto-quote shipping using the confirmed address
+          const { buyer } = get();
+          const zip = buyer.address?.zip || "00000000";
+          let shippingOptions: Array<{ key: string; label: string; tag: string; sub: string; cost: number }> = [];
+          try {
+            shippingOptions = await api.fetchShippingQuote(zip);
+          } catch (err) {
+            console.error('[WIDGET-DBG] fetchShippingQuote failed', err);
+          }
+
+          if (shippingOptions.length === 0) {
+            // Fallback if quote fails
+            const zipMsg: Message = {
+              id: `agent_${Date.now()}`,
+              role: "agent",
+              text: "Não consegui calcular o frete. Tente novamente.",
+              quickReplies: ["Tentar novamente"],
+              timestamp: Date.now(),
+            };
+            set((s) => ({ messages: [...s.messages, zipMsg], isTyping: false }));
+            return;
+          }
+
+          const shippingMsg: Message = {
+            id: `agent_${Date.now()}`,
+            role: "agent",
+            text: "Perfeito! Agora escolha como prefere receber:",
+            blocks: [{ type: "shipping_options", data: { options: shippingOptions } }],
+            timestamp: Date.now(),
+          };
+          set((s) => ({ messages: [...s.messages, shippingMsg], isTyping: false }));
+          return;
+        }
       }
 
       // If API returns empty for shipping selection, provide payment methods
@@ -348,9 +412,11 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         return;
       }
 
+      // Render agent response with message text and blocks
       const agentMsg: Message = {
         id: `agent_${Date.now()}`,
         role: "agent",
+        text: res.message,
         blocks: res.blocks,
         quickReplies: res.quick_replies,
         timestamp: Date.now(),
@@ -403,34 +469,36 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         set({ status: "completed", cart: { ...get().cart, status: "paid" } });
       }
     } catch {
-      // API failed — provide local fallback to keep flow going
+      // API failed — show error message (don't show fake shipping options
+      // that have no backend quote, as selectShipping would fail)
       const { cart } = get();
       if (text === "Vamos prosseguir" && cart.items.length > 0) {
-        // Simulate what API would return: cart summary + shipping options
-        const fallbackMsg: Message = {
-          id: `agent_${Date.now()}`,
-          role: "agent",
-          text: `Perfeito! Confirmei seu pedido. Agora escolha como prefere receber:`,
-          blocks: [
-            { type: "shipping_options", data: { options: [
-              { key: "pac", label: "Correios PAC", tag: "Econômico", sub: "5-8 dias úteis", cost: 0 },
-              { key: "sedex", label: "Correios Sedex", tag: "Rápido", sub: "2-3 dias úteis", cost: 1590 },
-              { key: "transportadora", label: "Transportadora", tag: "Econômico", sub: "7-12 dias úteis", cost: 0 },
-            ]}},
-          ],
-          timestamp: Date.now(),
-        };
-        set((s) => ({ messages: [...s.messages, fallbackMsg], isTyping: false }));
-      } else {
-        const errorMsg: Message = {
-          id: `error_${Date.now()}`,
-          role: "agent",
-          text: "Não consegui conectar ao servidor. Tente novamente.",
-          quickReplies: ["Tentar novamente"],
-          timestamp: Date.now(),
-        };
-        set((s) => ({ messages: [...s.messages, errorMsg], isTyping: false }));
+        // Try to fetch shipping quote directly even if chat failed
+        try {
+          const { buyer } = get();
+          const zip = buyer.address?.zip || "00000000";
+          const shippingOptions = await api.fetchShippingQuote(zip);
+          if (shippingOptions.length > 0) {
+            const shippingMsg: Message = {
+              id: `agent_${Date.now()}`,
+              role: "agent",
+              text: "Escolha como prefere receber:",
+              blocks: [{ type: "shipping_options", data: { options: shippingOptions } }],
+              timestamp: Date.now(),
+            };
+            set((s) => ({ messages: [...s.messages, shippingMsg], isTyping: false }));
+            return;
+          }
+        } catch { /* truly offline */ }
       }
+      const errorMsg: Message = {
+        id: `error_${Date.now()}`,
+        role: "agent",
+        text: "Não consegui conectar ao servidor. Tente novamente.",
+        quickReplies: ["Tentar novamente"],
+        timestamp: Date.now(),
+      };
+      set((s) => ({ messages: [...s.messages, errorMsg], isTyping: false }));
     }
   },
 
@@ -487,9 +555,56 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }
   },
 
-  pay: async (method, installments) => {
-    const { api, buyer } = get();
+  selectShipping: async (key: string) => {
+    const { api } = get();
     if (!api) return;
+    console.log('[WIDGET-DBG] selectShipping called', { key });
+    try {
+      const result = await api.selectShipping(key);
+      console.log('[WIDGET-DBG] selectShipping success', { key, result });
+      set((s) => ({
+        cart: {
+          ...s.cart,
+          shipping: {
+            key,
+            label: result.shipping?.method ?? key,
+            cost: Math.round((result.shipping?.customerPrice ?? 0) * 100),
+          },
+          status: "shipping_calculated",
+        },
+      }));
+      void trackEvent("shipping_option_selected", { key });
+    } catch (err) {
+      console.error('[WIDGET-DBG] selectShipping failed', { key, error: err });
+      const errorMsg: Message = {
+        id: `error_${Date.now()}`,
+        role: "agent",
+        text: "Não foi possível confirmar o frete. Tente novamente.",
+        quickReplies: ["Tentar novamente"],
+        timestamp: Date.now(),
+      };
+      set((s) => ({ messages: [...s.messages, errorMsg] }));
+    }
+  },
+
+  pay: async (method, installments) => {
+    const { api, buyer, cart } = get();
+    if (!api) return;
+    console.log('[WIDGET-DBG] pay', { method, hasShipping: !!get().cart.shipping });
+
+    // Require shipping selection before payment
+    if (!cart.shipping) {
+      const errorMsg: Message = {
+        id: `error_${Date.now()}`,
+        role: "agent",
+        text: "Selecione um frete antes de pagar.",
+        quickReplies: ["Voltar"],
+        timestamp: Date.now(),
+      };
+      set((s) => ({ messages: [...s.messages, errorMsg] }));
+      return;
+    }
+
     try {
       // Sync buyer data to checkout session before payment — Asaas requires
       // fullName, email, and cpf on the session to create a customer.
@@ -505,8 +620,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       }
 
       const intent = await api.createPaymentIntent(method, installments);
-      void trackEvent("payment_method_selected", { method });
-      void trackEvent("payment_intent_created", { intent_id: intent.intent_id });
+      void trackEvent("payment_method_selected", { method, intent_id: intent.intent_id });
       set({
         paymentIntent: intent,
         cart: { ...get().cart, status: "ready_to_pay" },
@@ -547,7 +661,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   pollPayment: () => {
     const { api, paymentIntent } = get();
-    if (!api || !paymentIntent) return;
+    // Guard against polling with a missing/empty intent id (would hit /intents/undefined/status)
+    if (!api || !paymentIntent || !paymentIntent.intent_id) return;
     set({ paymentPolling: true });
     const pollStartTime = Date.now();
 
@@ -559,15 +674,25 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       }
       try {
         const status = await api.getPaymentStatus(paymentIntent.intent_id);
-        if (status.status === "paid" || status.status === "confirmed") {
+        // API PaymentIntentStatus terminal-success value is "approved"
+        // (webhook flips requires_action → approved). "paid"/"confirmed"
+        // kept for backward compat with any legacy provider mapping.
+        if (
+          status.status === "approved" ||
+          status.status === "paid" ||
+          status.status === "confirmed"
+        ) {
           get().stopPolling();
-          void trackEvent("payment_confirmed", {
+          void trackEvent("order_completed", {
             intent_id: paymentIntent.intent_id,
           });
           set({
             cart: { ...get().cart, status: "paid" },
             status: "completed",
           });
+        } else if (status.status === "failed" || status.status === "cancelled") {
+          get().stopPolling();
+          set({ status: "error", error: "payment_failed" });
         }
       } catch {
         // continue polling
