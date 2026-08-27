@@ -9,6 +9,8 @@ import {
 import { MetricsService } from "../../../shared/observability/metrics.service.js";
 import { PaymentDispatchService } from "./services/payment-dispatch.service.js";
 import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
+import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
+import type { PrismaClient } from "@prisma/client";
 
 export type AsaasWebhookInbound = {
   id: string;
@@ -88,6 +90,7 @@ export class HandleAsaasWebhookUseCase {
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
     private readonly paymentDispatch: PaymentDispatchService,
     @Optional() private readonly metrics?: MetricsService,
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
   ) {}
 
   async execute(inboundAccessTokenHeader: string | undefined, rawBody: unknown, webhookToken?: string): Promise<HandleAsaasWebhookResult> {
@@ -95,6 +98,7 @@ export class HandleAsaasWebhookUseCase {
     assertWebhookToken(expectedToken, inboundAccessTokenHeader);
 
     const body = normalizeInbound(rawBody);
+    this.logger.log(`[WEBHOOK] received event=${body.event} paymentId=${body.payment?.id} extRef=${body.payment?.externalReference}`);
 
     if (!body.id || !body.event) {
       throw new BadRequestException("asaas_webhook_invalid_shape");
@@ -106,6 +110,7 @@ export class HandleAsaasWebhookUseCase {
     // scoped read: the port returns only { id, merchantId }; the authoritative
     // entity is re-fetched scoped below (ADR 0001 #3).
     const ref = extRef ? await this.payments.getIntentByExternalReference(extRef) : null;
+    this.logger.log(`[WEBHOOK] extRef=${extRef} intentFound=${!!ref} intentId=${ref?.id}`);
     const merchantId = ref?.merchantId ?? null;
     const eventKey: ProviderEventKey = { provider: "asaas", merchantId, eventId: body.id };
 
@@ -122,13 +127,16 @@ export class HandleAsaasWebhookUseCase {
     }
 
     if (!ref) {
+      this.logger.warn(`[WEBHOOK] IGNORED intent_not_found extRef=${extRef}`);
       return { outcome: "ignored", reason: "intent_not_found" };
     }
 
     const intentEntity = await this.payments.getIntentById(ref.merchantId, ref.id);
     if (!intentEntity) {
+      this.logger.warn(`[WEBHOOK] IGNORED intent_entity_not_found id=${ref.id}`);
       return { outcome: "ignored", reason: "intent_not_found" };
     }
+    this.logger.log(`[WEBHOOK] dispatching event=${body.event} intentId=${ref.id}`);
 
     try {
       const effect = await this.dispatch(body.event, intentEntity, body.payment);
@@ -193,6 +201,7 @@ export class HandleAsaasWebhookUseCase {
     const snap = intentEntity.snapshot();
     const payId = typeof paymentSlice?.id === "string" ? paymentSlice.id.trim() : "";
     const centsFromWebhook = paymentValueAsCents(paymentSlice);
+    this.logger.log(`[WEBHOOK] handlePaymentReceived intentId=${snap.id} status=${snap.status} payId=${payId} webhookCents=${centsFromWebhook} expectedCents=${snap.amountCents}`);
     if (!payId) throw new BadRequestException("payment_id_missing_on_webhook");
     if (typeof centsFromWebhook !== "number") throw new BadRequestException("payment_value_missing_on_webhook");
 
@@ -202,7 +211,29 @@ export class HandleAsaasWebhookUseCase {
       return "payment_value_mismatch";
     }
 
-    return this.paymentDispatch.markApprovedAndComplete(intentEntity, payId);
+    this.logger.log(`[WEBHOOK] markApprovedAndComplete intentId=${snap.id} payId=${payId} → APPROVING`);
+    const result = await this.paymentDispatch.markApprovedAndComplete(intentEntity, payId);
+    this.logger.log(`[WEBHOOK] APPROVED intentId=${snap.id} effect=${result}`);
+
+    // Create in-app notification for merchant (fire-and-forget)
+    try {
+      if (this.prisma) {
+        const merchantId = snap.merchantId;
+        await this.prisma.merchantNotification.create({
+          data: {
+            merchantId,
+            type: "order_paid",
+            title: `Novo pedido pago! R$ ${(snap.amountCents / 100).toFixed(2)}`,
+            body: `Pagamento confirmado via ${snap.method ?? "PIX"}`,
+            metadata: { intentId: snap.id, amountCents: snap.amountCents, method: snap.method },
+          },
+        });
+      }
+    } catch {
+      // Non-blocking — notification creation must never fail the webhook
+    }
+
+    return result;
   }
 
   private async failOpenIntent(intentEntity: PaymentIntentEntity, reason: string): Promise<void> {

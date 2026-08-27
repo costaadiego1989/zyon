@@ -8,8 +8,10 @@ import { SendOrderShippedUseCase } from "./application/use-cases/send-order-ship
 import { SendOrderDeliveredUseCase } from "./application/use-cases/send-order-delivered.use-case.js";
 import { SendReturnApprovedUseCase } from "./application/use-cases/send-return-approved.use-case.js";
 import { NotificationListener } from "./presentation/listeners/notification.listener.js";
+import { MerchantNotificationController } from "./presentation/http/merchant-notification.controller.js";
 
 @Module({
+  controllers: [MerchantNotificationController],
   providers: [
     {
       provide: EMAIL_SENDER_PORT,

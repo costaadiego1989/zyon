@@ -815,15 +815,16 @@ model PaymentCryptoTransfer {
 }
 
 model BuyerAccount {
-  globalUserId String   @id @default(cuid()) @map("global_user_id")
-  email        String   @unique
-  passwordHash String?  @map("password_hash")
-  displayName  String   @map("display_name")
-  phone        String?
-  cpf          String?
-  address      Json?
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  globalUserId     String   @id @default(cuid()) @map("global_user_id")
+  email            String   @unique
+  passwordHash     String?  @map("password_hash")
+  displayName      String   @map("display_name")
+  phone            String?
+  cpf              String?
+  asaasCustomerId  String?  @map("asaas_customer_id")
+  address          Json?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   agentProfile        BuyerAgentProfile?
   addresses           BuyerAddress[]
@@ -2487,4 +2488,19 @@ model MerchantPolicy {
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@map("merchant_policies")
+}
+
+model MerchantNotification {
+  id          String    @id @default(cuid())
+  merchantId  String    @map("merchant_id")
+  type        String
+  title       String
+  body        String?   @db.Text
+  metadata    Json?
+  read        Boolean   @default(false)
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([merchantId, createdAt])
+  @@index([merchantId, read])
+  @@map("merchant_notifications")
 }
