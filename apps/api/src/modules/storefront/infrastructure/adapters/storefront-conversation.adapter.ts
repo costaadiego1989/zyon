@@ -768,13 +768,20 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
               inStock: product.hasStock,
               rating: product.averageRating ?? undefined,
               reviewCount: product.reviewCount ?? 0,
-              variants: (product.variants ?? []).map((v: any) => ({
-                id: v.id,
-                name: v.name ?? "",
-                value: Object.values(v.attributes ?? {}).join(", "),
-                price: v.basePriceInCents,
-                priceFormatted: v.basePriceInCents ? formatPrice(v.basePriceInCents) : undefined,
-              })),
+              variants: (product.variants ?? []).map((v: any) => {
+                const attrs = (v.attributes ?? {}) as Record<string, string>;
+                const attrKeys = Object.keys(attrs);
+                const attrValues = Object.values(attrs);
+                return {
+                  id: v.id,
+                  // Attribute dimension label (e.g. "Cor", "Tamanho"); fall back to variant name/SKU
+                  name: v.name || attrKeys.join(" / ") || "Opção",
+                  // Attribute values (e.g. "Preto", "42"); fall back to SKU
+                  value: attrValues.length > 0 ? attrValues.join(", ") : (v.sku ?? v.name ?? ""),
+                  price: v.basePriceInCents,
+                  priceFormatted: v.basePriceInCents ? formatPrice(v.basePriceInCents) : undefined,
+                };
+              }),
             },
           } as ConversationBlock];
           this.emitFunnelEvent(input.merchantId, input.sessionId, "product_viewed").catch(() => {});
