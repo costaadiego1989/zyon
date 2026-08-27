@@ -136,6 +136,29 @@ export default function ConversationShell({
     }
   }, [messages, isLoading]);
 
+  // Keep pinned to bottom while rendered blocks grow (product cards, carousels,
+  // images loading async). A plain scroll on [messages] fires before block
+  // layout settles, so also observe the thread's size and re-scroll on growth.
+  useEffect(() => {
+    const el = threadRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let lastHeight = el.scrollHeight;
+    const observer = new ResizeObserver(() => {
+      if (!threadRef.current) return;
+      const grew = threadRef.current.scrollHeight > lastHeight;
+      lastHeight = threadRef.current.scrollHeight;
+      // Only auto-scroll if the user is already near the bottom (don't yank
+      // them down while they scroll up to read history).
+      const nearBottom =
+        threadRef.current.scrollHeight - threadRef.current.scrollTop - threadRef.current.clientHeight < 240;
+      if (grew && nearBottom) {
+        threadRef.current.scrollTop = threadRef.current.scrollHeight;
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void sendMessage(input);
