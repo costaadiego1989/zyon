@@ -57,3 +57,7 @@ apps/widget/cart-*.png
 nul
 .vercel
 .env*
+
+.playwright-tiktok-profile/
+scripts/tiktok-*.js
+tiktok-*.png
