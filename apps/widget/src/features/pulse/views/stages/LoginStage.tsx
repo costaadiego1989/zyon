@@ -1,6 +1,97 @@
 import type { StageProps } from '../types';
 import { stateBool, stateFn, stateRef, stateStr, stateStyle } from '../types';
-import React from 'react';
+import React, { useState } from 'react';
+
+function isValidCpf(cpf: string): boolean {
+  const digits = cpf.replace(/\D/g, '');
+  if (digits.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(digits)) return false;
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += Number(digits[i]) * (10 - i);
+  let d1 = 11 - (sum % 11);
+  if (d1 >= 10) d1 = 0;
+  if (Number(digits[9]) !== d1) return false;
+  sum = 0;
+  for (let i = 0; i < 10; i++) sum += Number(digits[i]) * (11 - i);
+  let d2 = 11 - (sum % 11);
+  if (d2 >= 10) d2 = 0;
+  return Number(digits[10]) === d2;
+}
+
+function formatCpf(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+  if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+}
+
+function CompleteProfileForm({ onSubmit }: { onSubmit: (name: string, cpf: string, email: string) => void }) {
+  const [name, setName] = useState('');
+  const [cpf, setCpf] = useState('');
+  const [email, setEmail] = useState('');
+  const [cpfError, setCpfError] = useState('');
+
+  const handleSubmit = () => {
+    const cleanCpf = cpf.replace(/\D/g, '');
+    if (!isValidCpf(cleanCpf)) { setCpfError('CPF inválido'); return; }
+    setCpfError('');
+    onSubmit(name.trim(), cleanCpf, email.trim());
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', boxSizing: 'border-box', background: 'var(--chip)',
+    border: '1px solid var(--bd)', borderRadius: '12px', padding: '13px 14px',
+    fontSize: '14px', fontFamily: 'inherit', color: 'var(--tx)', outline: 'none',
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <div style={{ fontSize: '13px', fontWeight: 600, textAlign: 'center', marginBottom: '2px' }}>
+        Complete seu cadastro
+      </div>
+      <div style={{ fontSize: '11px', color: 'var(--mut)', textAlign: 'center', marginBottom: '4px' }}>
+        Precisamos de mais alguns dados para finalizar sua compra
+      </div>
+      <input
+        type="text"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Nome completo"
+        style={inputStyle}
+      />
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="E-mail"
+        style={inputStyle}
+      />
+      <input
+        type="text"
+        inputMode="numeric"
+        value={cpf}
+        onChange={(e) => { setCpf(formatCpf(e.target.value)); setCpfError(''); }}
+        placeholder="CPF (000.000.000-00)"
+        style={{ ...inputStyle, ...(cpfError ? { borderColor: '#ef4444' } : {}) }}
+      />
+      {cpfError && <div style={{ fontSize: '11px', color: '#ef4444', textAlign: 'center' }}>{cpfError}</div>}
+      <button
+        type="button"
+        disabled={!name.trim() || !email.includes('@') || cpf.replace(/\D/g, '').length !== 11}
+        onClick={handleSubmit}
+        style={{
+          border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+          fontSize: '14px', fontWeight: 600, color: '#fff', padding: '13px',
+          borderRadius: '12px', background: 'var(--g1)', width: '100%',
+          opacity: (!name.trim() || !email.includes('@') || cpf.replace(/\D/g, '').length !== 11) ? 0.5 : 1,
+        }}
+      >
+        Continuar
+      </button>
+    </div>
+  );
+}
 
 export function LoginStage({ s }: StageProps) {
   const camRef = stateRef<HTMLVideoElement>(s, 'camRef');
@@ -314,6 +405,15 @@ export function LoginStage({ s }: StageProps) {
               />
               Verificando…
             </div>
+          )}
+
+          {stateStr(s, 'phoneStep') === 'complete_profile' && (
+            <CompleteProfileForm
+              onSubmit={(name, cpf, email) => {
+                const fn = s['completeProfile'] as (n: string, c: string, e: string) => void;
+                fn(name, cpf, email);
+              }}
+            />
           )}
 
           {stateStr(s, 'phoneError') && (

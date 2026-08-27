@@ -1,6 +1,10 @@
 /**
  * Checkout redirect logic — generates embed token and redirects to widget.
  * Extracted to avoid duplication between onCheckout and BuyerAuthGate.onComplete.
+ *
+ * The cart is NOT passed via URL (anti-pattern: size limits, URL leakage, tamperability).
+ * Instead, the backend hydrates the checkout session's cart from the storefront cart store
+ * using the cart_ref (conversation ID) passed as cartId param.
  */
 export async function redirectToCheckout(opts: {
   merchantId?: string;

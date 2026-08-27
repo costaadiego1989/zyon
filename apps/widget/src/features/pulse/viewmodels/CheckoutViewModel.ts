@@ -83,7 +83,7 @@ interface CheckoutState {
   supportInput: string;
   couponShownAt: number | null;
   urgencyTick: number;
-  phoneStep: 'idle' | 'enter_phone' | 'enter_code' | 'verifying' | 'done';
+  phoneStep: 'idle' | 'enter_phone' | 'enter_code' | 'verifying' | 'done' | 'complete_profile';
   phoneNumber: string;
   phoneCode: string;
   phoneError: string | null;
@@ -808,16 +808,41 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       if (result) {
         this.setState((s) => ({
           authed: true,
-          phoneStep: 'done',
           customer: { ...s.customer, name: result.name || s.customer.name, email: result.email || s.customer.email },
         }));
-        const orders = await api.getOrders();
-        this.setState({ orders });
+        // If profile is incomplete (no CPF/real name), ask user to complete before proceeding
+        if (!result.profileComplete) {
+          this.setState({ phoneStep: 'complete_profile', phoneError: null });
+        } else {
+          this.setState({ phoneStep: 'done' });
+          const orders = await api.getOrders();
+          this.setState({ orders });
+        }
       } else {
         this.setState({ phoneStep: 'enter_code', phoneError: 'Código inválido. Tente novamente.' });
       }
     } catch {
       this.setState({ phoneStep: 'enter_code', phoneError: 'Erro ao verificar o código. Tente novamente.' });
+    }
+  };
+
+  /** Complete profile: name + CPF + email after phone-only signup. */
+  completeProfile = async (name: string, cpf: string, email: string): Promise<void> => {
+    this.setState({ phoneError: null });
+    const api = await this.ensureApi();
+    const result = await api.completeProfile({ name, cpf, email });
+    if (result.ok) {
+      this.setState((s) => ({
+        phoneStep: 'done',
+        customer: { ...s.customer, name, email },
+      }));
+      const orders = await api.getOrders();
+      this.setState({ orders });
+    } else {
+      const msg = result.error === 'cpf_invalid'
+        ? 'CPF inválido. Verifique os números.'
+        : 'Erro ao salvar. Tente novamente.';
+      this.setState({ phoneError: msg });
     }
   };
 
