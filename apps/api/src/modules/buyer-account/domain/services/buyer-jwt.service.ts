@@ -15,6 +15,12 @@ export interface BuyerPrincipal {
   globalUserId: string;
   email: string;
   merchantId?: string; // H3 fix: present when JWT was issued for a specific merchant
+  // The global TenantGuard inspects role/aud to exempt buyer principals from
+  // merchant-tenant validation. Without these it treats the buyer as a
+  // malformed merchant principal and returns 403 invalid_tenant_principal.
+  // Optional on input to sign(); always populated on verify() output.
+  role?: "buyer";
+  aud?: "buyer";
 }
 
 export class BuyerJwtService {
@@ -53,7 +59,7 @@ export class BuyerJwtService {
     if (decoded.exp <= nowSeconds) throw new Error("jwt_expired");
     if (decoded.aud !== "buyer" || decoded.role !== "buyer") throw new Error("jwt_wrong_audience");
     // H3 fix: include merchantId if present in claims
-    return { globalUserId: decoded.sub, email: decoded.email, merchantId: decoded.merchantId };
+    return { globalUserId: decoded.sub, email: decoded.email, merchantId: decoded.merchantId, role: "buyer", aud: "buyer" };
   }
 
   expiresIn(): number {
