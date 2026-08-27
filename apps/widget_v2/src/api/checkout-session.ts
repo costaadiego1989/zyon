@@ -106,6 +106,14 @@ export interface CartItem {
   variant?: string;
 }
 
+export interface SuggestedProduct {
+  sku: string;
+  name: string;
+  unit_price: number;
+  image_url?: string;
+  display_mode?: string;
+}
+
 export interface Experience {
   brand?: BrandConfig;
   agent?: AgentConfig;
@@ -116,6 +124,7 @@ export interface Experience {
   stripeEnabled?: boolean;
   cryptoPaymentsEnabled?: boolean;
   cryptoPayments?: CryptoPaymentsConfig;
+  suggestedProducts?: SuggestedProduct[];
 }
 
 export interface StartResponse {
@@ -133,6 +142,10 @@ export interface ChatResponse {
   blocks?: ChatBlock[];
   quick_replies?: string[];
   message?: string;
+  experience?: Partial<Experience>;
+  stage?: string;
+  missing_fields?: string[];
+  expected_input_type?: string;
 }
 
 export interface PaymentIntent {
@@ -153,6 +166,9 @@ export interface PaymentIntent {
   crypto_destination_address?: string;
   crypto_token_address?: string;
   crypto_chain_id?: number;
+  crypto_rpc_url?: string;
+  crypto_block_explorer_url?: string;
+  crypto_native_currency?: { name: string; symbol: string; decimals: number };
   expires_at_unix?: number;
   amount_cents?: number;
 }
@@ -388,6 +404,9 @@ export class CheckoutSession {
         destinationAddress?: string;
         tokenAddress?: string;
         chainId?: number;
+        rpcUrl?: string;
+        blockExplorerUrl?: string;
+        nativeCurrency?: { name: string; symbol: string; decimals: number };
       };
     };
     const expiresAtUnix = raw.buyerFacing?.quoteExpiresAt
@@ -415,6 +434,9 @@ export class CheckoutSession {
       crypto_destination_address: raw.buyerFacing?.destinationAddress,
       crypto_token_address: raw.buyerFacing?.tokenAddress,
       crypto_chain_id: raw.buyerFacing?.chainId,
+      crypto_rpc_url: raw.buyerFacing?.rpcUrl,
+      crypto_block_explorer_url: raw.buyerFacing?.blockExplorerUrl,
+      crypto_native_currency: raw.buyerFacing?.nativeCurrency,
       expires_at_unix: expiresAtUnix,
       amount_cents: raw.amountCents,
     };
@@ -472,4 +494,30 @@ export class CheckoutSession {
   private assertSession(): void {
     if (!this.sessionId) throw new Error("session_not_started");
   }
+}
+
+/**
+ * Convert API cross-sell suggestions (experience.suggestedProducts) into a
+ * `cross_sell` ChatBlock the widget's block renderer already understands.
+ * Returns null when there is nothing to show.
+ */
+export function crossSellBlockFromSuggestions(
+  suggestions: SuggestedProduct[] | undefined
+): ChatBlock | null {
+  if (!suggestions?.length) return null;
+  // display_mode is set per-product by the API (from merchant config); the
+  // whole batch shares one mode, so read it from the first product.
+  const displayMode = suggestions[0]?.display_mode ?? "inline";
+  return {
+    type: "cross_sell",
+    data: {
+      displayMode,
+      products: suggestions.map((p) => ({
+        id: p.sku,
+        name: p.name,
+        price: p.unit_price,
+        image: p.image_url,
+      })),
+    },
+  };
 }

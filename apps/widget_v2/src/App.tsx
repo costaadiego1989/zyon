@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useCheckoutStore } from "@/store/checkout-store";
 import { CheckoutLayout } from "@/layouts/CheckoutLayout";
+import { MascotOverlay } from "@/components/MascotOverlay";
 import { setupAbandonmentTracking, trackEvent } from "@/lib/tracking";
 import { onOrderCompleted } from "@/lib/lifecycle";
 import { setupIdleTrigger, setupExitIntentTrigger, type TriggerName } from "@/lib/triggers";
@@ -212,12 +213,7 @@ export function App() {
   }, [brand]);
 
   if (status === "loading") {
-    return (
-      <div className="checkout-loading">
-        <div className="checkout-loading__spinner" />
-        <p>Carregando checkout...</p>
-      </div>
-    );
+    return <MascotOverlay message="Preparando seu checkout..." sub="Só um instante" />;
   }
 
   if (status === "error") {

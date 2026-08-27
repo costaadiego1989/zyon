@@ -6,7 +6,7 @@ import {
   evmChainId,
   isQuoteExpired,
   minConfirmations,
-  resolveRpcUrl,
+  resolveRpcUrls,
   type CryptoBuyerFacing,
   type EvmChain,
   type EvmNetwork
@@ -26,28 +26,52 @@ export class EvmCryptoVerifier implements CryptoVerifierPort {
       throw new Error("crypto_quote_expired");
     }
 
-    const rpcUrl = resolveRpcUrl(chain, network);
-    if (!rpcUrl) {
+    const rpcUrls = resolveRpcUrls(chain, network);
+    if (!rpcUrls.length) {
       logger.error(`[CRYPTO-VERIFY] RPC not configured for ${chain}/${network}`);
       throw new Error("crypto_rpc_not_configured");
     }
-    logger.log(`[CRYPTO-VERIFY] using RPC ${rpcUrl} chainId=${evmChainId(chain, network)}`);
+    logger.log(`[CRYPTO-VERIFY] using ${rpcUrls.length} RPC endpoint(s), chainId=${evmChainId(chain, network)}`);
 
     const viemChain = resolveViemChain(chain, network);
-    const client = createPublicClient({
-      chain: viemChain,
-      transport: http(rpcUrl)
-    });
 
+    // Try each RPC in order; on rate-limit/timeout, fall through to next
     const hash = input.txHash.trim() as Hash;
-    const receipt = await client.getTransactionReceipt({ hash });
+    let receipt: Awaited<ReturnType<ReturnType<typeof createPublicClient>["getTransactionReceipt"]>> | undefined;
+    let currentBlock: bigint | undefined;
+    let lastRpcError: Error | undefined;
+
+    for (const rpcUrl of rpcUrls) {
+      try {
+        const client = createPublicClient({ chain: viemChain, transport: http(rpcUrl) });
+        receipt = await client.getTransactionReceipt({ hash });
+        currentBlock = await client.getBlockNumber();
+        logger.log(`[CRYPTO-VERIFY] RPC ${rpcUrl} succeeded`);
+        break;
+      } catch (err: any) {
+        lastRpcError = err;
+        const msg = err?.message || String(err);
+        // Rate limit, timeout, or server error → try next provider
+        if (msg.includes("rate limit") || msg.includes("429") || msg.includes("timeout") || msg.includes("503") || msg.includes("502")) {
+          logger.warn(`[CRYPTO-VERIFY] RPC ${rpcUrl} failed (retryable): ${msg.slice(0, 120)}`);
+          continue;
+        }
+        // Non-retryable error (bad tx hash, etc.) → throw immediately
+        throw err;
+      }
+    }
+
+    if (!receipt || currentBlock === undefined) {
+      logger.error(`[CRYPTO-VERIFY] all ${rpcUrls.length} RPC endpoints failed`);
+      throw lastRpcError ?? new Error("crypto_rpc_all_failed");
+    }
+
     logger.log(`[CRYPTO-VERIFY] receipt status=${receipt.status} block=${receipt.blockNumber} logs=${receipt.logs.length}`);
     if (receipt.status !== "success") {
       logger.warn(`[CRYPTO-VERIFY] tx not successful: ${receipt.status}`);
       throw new Error("crypto_tx_not_successful");
     }
 
-    const currentBlock = await client.getBlockNumber();
     const confirmations = Number(currentBlock - receipt.blockNumber) + 1;
     logger.log(`[CRYPTO-VERIFY] confirmations=${confirmations} required=${minConfirmations(network)} (currentBlock=${currentBlock})`);
     if (confirmations < minConfirmations(network)) {

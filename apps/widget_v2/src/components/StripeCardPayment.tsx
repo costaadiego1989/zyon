@@ -19,6 +19,7 @@ function CardForm() {
   const elements = useElements();
   const paymentIntent = useCheckoutStore((s) => s.paymentIntent);
   const api = useCheckoutStore((s) => s.api);
+  const brand = useCheckoutStore((s) => s.brand);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -83,12 +84,16 @@ function CardForm() {
     );
   }
 
+  const isDark = brand?.mode === "dark";
+  const textColor = brand?.textColor || (isDark ? "#f1f5f9" : "#111827");
+  const placeholderColor = brand?.mutedTextColor || (isDark ? "#94a3b8" : "#64748b");
+
   const cardStyle = {
     base: {
       fontSize: "16px",
-      color: "#111827",
-      fontFamily: "var(--aacp-font, 'Inter', sans-serif)",
-      "::placeholder": { color: "#64748b" },
+      color: textColor,
+      fontFamily: brand?.fontFamily || "Inter, sans-serif",
+      "::placeholder": { color: placeholderColor },
     },
     invalid: { color: "#dc2626" },
   };

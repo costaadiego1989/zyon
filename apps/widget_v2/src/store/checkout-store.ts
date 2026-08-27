@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import {
   CheckoutSession,
+  crossSellBlockFromSuggestions,
   type BrandConfig,
   type AgentConfig,
   type CartItem,
@@ -93,6 +94,7 @@ interface CheckoutState {
   // Chat — the MAIN interaction surface
   messages: Message[];
   isTyping: boolean;
+  channel: "chat" | "voice";
 
   // Payment
   paymentIntent: PaymentIntent | null;
@@ -103,6 +105,9 @@ interface CheckoutState {
   activeDiscount: { stage: DiscountStage; percent: number } | null;
   advancedRules: AdvancedRule[];
   activeRuleActions: RuleAction[];
+
+  // Cross-sell (deferred from start → rendered at selectChannel)
+  _pendingCrossSellBlock: ChatBlock | null;
 
   // Actions
   init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; globalUserId?: string }) => Promise<void>;
@@ -123,7 +128,51 @@ interface CheckoutState {
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let wsCleanup: (() => void) | null = null;
-const MAX_POLL_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_POLL_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
+ * Derive UI blocks from the server-reported checkout stage when the backend
+ * response carries only text (no blocks). This bridges the gap for voice/
+ * free-text flows where the deterministic string-match logic doesn't fire.
+ */
+function deriveBlocksFromStage(
+  stage: string | undefined,
+  state: { buyer: BuyerData; cart: CartState; merchantPaymentConfig: { stripeEnabled?: boolean; cryptoPaymentsEnabled?: boolean; cryptoPayments?: CryptoPaymentsConfig } },
+): ChatBlock[] | undefined {
+  if (!stage) return undefined;
+
+  if (stage === "shipping" || stage === "delivery") {
+    // Address already confirmed → shipping was calculated. Don't re-show the
+    // address card (that caused the confirm→confirm loop). Nothing to derive;
+    // the backend/selectShipping flow drives shipping_options from here.
+    if (state.cart.status === "shipping_calculated" || state.cart.status === "ready_to_pay") {
+      return undefined;
+    }
+    const addr = state.buyer.address;
+    const hasCompleteAddress = Boolean(addr?.zip && addr?.street && addr?.number && addr?.city && addr?.state);
+    if (hasCompleteAddress && addr) {
+      const addrLine = `${addr.street}, ${addr.number}${addr.complement ? ', ' + addr.complement : ''} - ${addr.city}/${addr.state}`;
+      return [{ type: "address_confirmation", data: { address: addr, formatted: addrLine } }];
+    }
+    // Missing address → ask for CEP
+    return [{ type: "form_field", data: { field: "cep", label: "CEP de entrega", placeholder: "00000-000" } }];
+  }
+
+  if (stage === "payment") {
+    const methods: Array<{ key: string; label: string; sub: string }> = [];
+    methods.push({ key: "pix", label: "Pix", sub: "Pagamento instantâneo, sem taxas" });
+    methods.push({ key: "credito", label: "Cartão de crédito", sub: "Parcele em até 12x sem juros" });
+    methods.push({ key: "debito", label: "Cartão de débito", sub: "Débito à vista" });
+    if (state.merchantPaymentConfig.cryptoPaymentsEnabled) {
+      const token = state.merchantPaymentConfig.cryptoPayments?.token || "USDC";
+      const chain = state.merchantPaymentConfig.cryptoPayments?.chain || "polygon";
+      methods.push({ key: "crypto", label: `Crypto · ${token}`, sub: `Liquida na ${chain} + cashback` });
+    }
+    return [{ type: "payment_methods", data: { methods } }];
+  }
+
+  return undefined;
+}
 
 function startPolling(): void {
   const state = useCheckoutStore.getState();
@@ -134,7 +183,8 @@ function startPolling(): void {
   pollTimer = setInterval(async () => {
     if (Date.now() - pollStartTime > MAX_POLL_DURATION_MS) {
       useCheckoutStore.getState().stopPolling();
-      useCheckoutStore.setState({ status: "error", error: "payment_expired" });
+      // Session expired — full reset to avoid stale cart/payment state
+      useCheckoutStore.getState().resetSession();
       return;
     }
     try {
@@ -157,7 +207,8 @@ function startPolling(): void {
         });
       } else if (status.status === "failed" || status.status === "cancelled") {
         useCheckoutStore.getState().stopPolling();
-        useCheckoutStore.setState({ status: "error", error: "payment_failed" });
+        // Payment terminal failure — reset session to avoid stale state
+        useCheckoutStore.getState().resetSession();
       }
     } catch {
       // continue polling
@@ -177,12 +228,14 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   cart: { items: [], total: 0, discount: 0, status: "awaiting" },
   messages: [],
   isTyping: false,
+  channel: "chat",
   paymentIntent: null,
   paymentPolling: false,
   triggerConfig: null,
   activeDiscount: null,
   advancedRules: [],
   activeRuleActions: [],
+  _pendingCrossSellBlock: null,
 
   init: async ({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId }) => {
     try {
@@ -257,6 +310,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         cart: { items, total, discount: 0, status: "awaiting" },
         status: "channel_gate",
         error: null,
+        _pendingCrossSellBlock: crossSellBlockFromSuggestions(exp?.suggestedProducts),
       });
 
       // Initialize tracking
@@ -292,23 +346,37 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     void trackEvent("channel_selected", { channel: _channel });
 
     // Add welcome message from agent with quick replies
-    const { cart } = get();
+    const { cart, _pendingCrossSellBlock } = get();
 
     const welcomeText = cart.items.length > 0
       ? `Vi que você tem ${cart.items.length} ${cart.items.length === 1 ? 'item' : 'itens'} no carrinho. Vamos finalizar sua compra?`
       : `Olá, estou aqui para te ajudar a encontrar o produto ideal.`;
 
+    const messages: Message[] = [
+      {
+        id: "welcome",
+        role: "agent",
+        text: welcomeText,
+        quickReplies: ["Vamos prosseguir", "Quero voltar"],
+        timestamp: Date.now(),
+      },
+    ];
+
+    // Render cross-sell suggestions from checkout start (pre_payment touchpoint).
+    if (_pendingCrossSellBlock) {
+      messages.push({
+        id: "cross_sell_start",
+        role: "agent",
+        blocks: [_pendingCrossSellBlock],
+        timestamp: Date.now() + 1,
+      });
+    }
+
     set({
       status: "active",
-      messages: [
-        {
-          id: "welcome",
-          role: "agent",
-          text: welcomeText,
-          quickReplies: ["Vamos prosseguir", "Quero voltar"],
-          timestamp: Date.now(),
-        },
-      ],
+      channel: _channel,
+      messages,
+      _pendingCrossSellBlock: null,
     });
   },
 
@@ -388,8 +456,10 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         }
       }
 
-      // Handle address confirmation — user said "Sim"
-      if (text === "Sim" && messages.length > 0) {
+      // Handle address confirmation — user said "Sim", "Correto", "Confirmo", etc.
+      const normalized = text.trim().toLowerCase().replace(/[.!?,;]+$/, "");
+      const isAddressConfirm = ["sim", "correto", "confirmo", "certo", "isso", "é esse", "esse mesmo"].includes(normalized);
+      if (isAddressConfirm && messages.length > 0) {
         const lastAgentMsg = [...messages].reverse().find((m) => m.role === "agent");
         if (lastAgentMsg?.blocks?.some((b) => b.type === "address_confirmation")) {
           // Auto-quote shipping using the confirmed address
@@ -456,12 +526,25 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         return;
       }
 
-      // Render agent response with message text and blocks
+      // Render agent response with message text and blocks.
+      // Primary: backend LLM navigation tools emit UI blocks (res.blocks).
+      // Fallback: derive from reported stage when the LLM didn't call a tool.
+      // Both make voice/free-text chat show the same components as buttons.
+      const { buyer, cart, merchantPaymentConfig } = get();
+      const baseBlocks = res.blocks && res.blocks.length > 0
+        ? res.blocks
+        : (deriveBlocksFromStage(res.stage, { buyer, cart, merchantPaymentConfig }) ?? []);
+      // Cross-sell arrives via experience.suggestedProducts (not blocks[]) — merge it in
+      // so the existing cross_sell renderer picks it up (pre_payment touchpoint).
+      const crossSellBlock = crossSellBlockFromSuggestions(res.experience?.suggestedProducts);
+      const mergedBlocks = crossSellBlock
+        ? [...baseBlocks, crossSellBlock]
+        : baseBlocks;
       const agentMsg: Message = {
         id: `agent_${Date.now()}`,
         role: "agent",
         text: res.message,
-        blocks: res.blocks,
+        blocks: mergedBlocks,
         quickReplies: res.quick_replies,
         timestamp: Date.now(),
       };
@@ -512,14 +595,14 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       if (orderBlock) {
         set({ status: "completed", cart: { ...get().cart, status: "paid" } });
       }
-    } catch {
+    } catch (err) {
+      console.error("[WIDGET-CHAT] embed/chat failed:", err);
       // API failed — show error message (don't show fake shipping options
       // that have no backend quote, as selectShipping would fail)
-      const { cart } = get();
+      const { cart, buyer, merchantPaymentConfig } = get();
       if (text === "Vamos prosseguir" && cart.items.length > 0) {
         // Try to fetch shipping quote directly even if chat failed
         try {
-          const { buyer } = get();
           const zip = buyer.address?.zip || "00000000";
           const shippingOptions = await api.fetchShippingQuote(zip);
           if (shippingOptions.length > 0) {
@@ -534,6 +617,22 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
             return;
           }
         } catch { /* truly offline */ }
+      }
+      // If shipping is already calculated, the user is at the payment stage.
+      // Show payment methods locally so voice/free-text users aren't stuck.
+      if (cart.status === "shipping_calculated" || cart.status === "ready_to_pay") {
+        const payBlocks = deriveBlocksFromStage("payment", { buyer, cart, merchantPaymentConfig });
+        if (payBlocks) {
+          const payMsg: Message = {
+            id: `agent_${Date.now()}`,
+            role: "agent",
+            text: "Escolha como prefere pagar:",
+            blocks: payBlocks,
+            timestamp: Date.now(),
+          };
+          set((s) => ({ messages: [...s.messages, payMsg], isTyping: false }));
+          return;
+        }
       }
       const errorMsg: Message = {
         id: `error_${Date.now()}`,
@@ -759,6 +858,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
             crypto_destination_address: intent.crypto_destination_address,
             crypto_token_address: intent.crypto_token_address,
             crypto_chain_id: intent.crypto_chain_id,
+            crypto_rpc_url: intent.crypto_rpc_url,
+            crypto_block_explorer_url: intent.crypto_block_explorer_url,
+            crypto_native_currency: intent.crypto_native_currency,
             expires_at_unix: intent.expires_at_unix,
             amount_cents: intent.amount_cents,
           },

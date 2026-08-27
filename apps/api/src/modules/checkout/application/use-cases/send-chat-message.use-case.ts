@@ -22,7 +22,7 @@ import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.s
 import { CheckoutCustomerService } from "../services/checkout-customer.service.js";
 import { CheckoutShippingService } from "../services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "../services/checkout-offer.service.js";
-import { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
+import { CHECKOUT_CROSS_SELL_RECOMMENDER, type CheckoutCrossSellRecommenderPort } from "../../domain/ports/cross-sell-recommender.port.js";
 import { resolveCrossSellProduct } from "../../../cross-sell/application/services/cross-sell-product-resolver.js";
 import { PRODUCT_SEARCH_PORT, type ProductSearchPort } from "../../domain/ports/product-search.port.js";
 import { TenantBoundaryGuard } from "../../domain/services/tenant-boundary.guard.js";
@@ -52,7 +52,7 @@ export class SendChatMessageUseCase {
     private readonly offerService: CheckoutOfferService,
     @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
-    @Optional() private readonly crossSellUseCase?: ListEligibleCrossSellsUseCase,
+    @Optional() @Inject(CHECKOUT_CROSS_SELL_RECOMMENDER) private readonly crossSellRecommender?: CheckoutCrossSellRecommenderPort,
     @Optional() @Inject(PRODUCT_SEARCH_PORT) private readonly productSearch?: ProductSearchPort,
     @Optional() @Inject(BUYER_CONVERSATION_REPOSITORY) private readonly conversationRepo?: BuyerConversationRepository,
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 },
@@ -202,15 +202,18 @@ export class SendChatMessageUseCase {
 
     const isHoldout = (working as any).cohort === "holdout";
 
-    let reply: { message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[] };
+    let reply: { message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[]; blocks?: Array<{ type: string; data?: Record<string, unknown> }> };
     this.logger.debug("chat.routing", { stage, missingFields, rulesCount: merchantRules?.length ?? 0, isHoldout });
 
-    let llmReply: { message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[] } | null = null;
+    let llmReply: { message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[]; blocks?: Array<{ type: string; data?: Record<string, unknown> }> } | null = null;
 
-    // During data_collection or shipping stage with missing fields, ALWAYS use
-    // deterministic path. LLM tools are irrelevant until buyer completes data entry
-    // and confirms address/shipping.
-    const forceDeterministic = (stage === "data_collection" || stage === "shipping") && missingFields && missingFields.length > 0;
+    // During data_collection, ALWAYS use deterministic path (collects buyer data).
+    // During shipping, force deterministic ONLY if address is not yet verified —
+    // once address is confirmed, LLM navigation tools guide the next step
+    // (show_shipping_options, show_payment_methods, etc).
+    const addressVerified = Boolean((working.customer as any)?.address_verified);
+    const forceDeterministic = stage === "data_collection"
+      || (stage === "shipping" && missingFields && missingFields.length > 0 && !addressVerified);
 
     if (!isHoldout && !forceDeterministic) {
       let experimentPromptOverride: string | undefined;
@@ -238,7 +241,28 @@ export class SendChatMessageUseCase {
         // Non-critical — continue without experiment override
       }
 
-      llmReply = await this.callLocalLlm(input.user_message, merchantRules ?? [], merchant?.name, working.cart, input.merchant_id, experimentPromptOverride, offer);
+      // Build UI context so the LLM's navigation tools can emit the right blocks.
+      const custAddr = (working.customer as any)?.address;
+      const addressFormatted = custAddr?.street
+        ? `${custAddr.street}, ${custAddr.number ?? ""}${custAddr.complement ? ", " + custAddr.complement : ""} - ${custAddr.city ?? ""}/${custAddr.state ?? ""}`
+        : undefined;
+      const paymentMethods: Array<{ key: string; label: string; sub?: string }> = [
+        { key: "pix", label: "Pix", sub: "Pagamento instantâneo, sem taxas" },
+        { key: "credito", label: "Cartão de crédito", sub: "Parcele em até 12x" },
+        { key: "debito", label: "Cartão de débito", sub: "Débito à vista" },
+      ];
+      if (rules.cryptoPayments && (rules.cryptoPayments as any).enabled) {
+        paymentMethods.push({ key: "crypto", label: "Crypto · USDC", sub: "Polygon ou Base" });
+      }
+      llmReply = await this.callLocalLlm(
+        input.user_message, merchantRules ?? [], merchant?.name, working.cart, input.merchant_id, experimentPromptOverride, offer,
+        {
+          stage,
+          shippingOptions: working.shippingOptions as any,
+          paymentMethods,
+          address: addressFormatted ? { ...custAddr, formatted: addressFormatted } : undefined,
+        },
+      );
     } else if (forceDeterministic) {
       this.logger.debug("chat.routing.forced-deterministic", { stage, missingFields });
     }
@@ -295,18 +319,14 @@ export class SendChatMessageUseCase {
     const chatActions: any[] = [];
     let suggestedProducts: SuggestedProduct[] = [];
 
-    if (!isHoldout && stage === "payment" && previousStage === "shipping" && this.crossSellUseCase) {
+    if (!isHoldout && stage === "payment" && previousStage === "shipping" && this.crossSellRecommender) {
       try {
-        const suggestions = await this.crossSellUseCase.execute({
-          session_id: input.session_id,
+        suggestedProducts = await this.crossSellRecommender.suggest({
           merchant_id: input.merchant_id,
+          session_id: input.session_id,
           cart: working.cart,
-          global_user_id: working.globalUserId,
-          merchant_customer_id: working.customer?.externalCustomerId
+          touchpoint: "pre_payment",
         });
-        suggestedProducts = suggestions.flatMap((suggestion) =>
-          suggestion.ranked_items.map((sku) => resolveCrossSellProduct(sku, suggestion.id))
-        );
       } catch {
         // cross-sell is non-critical; swallow errors
       }
@@ -439,7 +459,8 @@ export class SendChatMessageUseCase {
       turns: updated.chatHistory,
       experience: responseExperience,
       stage: finalStage,
-      missing_fields: finalMissingFields
+      missing_fields: finalMissingFields,
+      blocks: reply.blocks
     };
   }
 
@@ -451,7 +472,13 @@ export class SendChatMessageUseCase {
     merchantId?: string,
     experimentPromptOverride?: string,
     authorizedOffer?: SafeAuthorizedOffer,
-  ): Promise<{ message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[] }> {
+    uiContext?: {
+      stage?: string;
+      shippingOptions?: Array<{ key: string; label: string; tag?: string; sub?: string; cost?: number }>;
+      paymentMethods?: Array<{ key: string; label: string; sub?: string }>;
+      address?: { formatted?: string; [k: string]: unknown };
+    },
+  ): Promise<{ message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[]; blocks?: Array<{ type: string; data?: Record<string, unknown> }> }> {
     if (!this.chatLlmGateway || !this.chatToolExecutor) {
       return { message: "Como posso ajudar com o seu pedido?", objection: "unknown" as any };
     }
@@ -459,7 +486,14 @@ export class SendChatMessageUseCase {
     const cartInfo = cart?.total ? `Carrinho: R$${(cart.total / 100).toFixed(2)}` : "";
     const tools = this.chatLlmGateway.getTools();
     const systemPrompt = experimentPromptOverride
-      || this.chatLlmGateway.buildSystemPrompt({ merchantName, merchantRules, cartInfo });
+      || this.chatLlmGateway.buildSystemPrompt({
+        merchantName,
+        merchantRules,
+        cartInfo,
+        stage: uiContext?.stage,
+        hasAddress: Boolean(uiContext?.address?.formatted),
+        hasShipping: Boolean(uiContext?.shippingOptions?.length),
+      });
 
     const messages: Array<{ role: "system" | "user"; content: string }> = [
       { role: "system", content: systemPrompt },
@@ -474,7 +508,13 @@ export class SendChatMessageUseCase {
     if (result.toolCalls.length > 0) {
       const execution = await this.chatToolExecutor.executeToolCalls(
         result.toolCalls,
-        { merchantId: merchantId || "", authorizedOffer },
+        {
+          merchantId: merchantId || "",
+          authorizedOffer,
+          shippingOptions: uiContext?.shippingOptions,
+          paymentMethods: uiContext?.paymentMethods,
+          address: uiContext?.address,
+        },
       );
       const textContent = result.content?.trim() || "";
       const finalMsg = execution.message
@@ -483,7 +523,7 @@ export class SendChatMessageUseCase {
       // FIX R2P-C04: Validate FINAL assembled message (tool output + LLM reply)
       const safetyCheck = isSafeGeneratedMessage(finalMsg);
       const safeMsg = safetyCheck.safe ? finalMsg : "Benefício aplicado ao seu pedido!";
-      return { message: safeMsg, objection: "unknown" as any };
+      return { message: safeMsg, objection: "unknown" as any, blocks: execution.blocks };
     }
 
     // FIX R2P-C04: Validate LLM reply before returning

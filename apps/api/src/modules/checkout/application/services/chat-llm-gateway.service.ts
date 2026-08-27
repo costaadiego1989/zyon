@@ -63,6 +63,39 @@ export class ChatLlmGatewayService {
           parameters: { type: "object", properties: { query: { type: "string", description: "Nome ou descrição do produto" } }, required: ["query"] },
         },
       },
+      // ─── UI Navigation Tools — controlam quais componentes aparecem na tela ───
+      {
+        type: "function",
+        function: {
+          name: "confirm_address",
+          description: "Mostra o card de confirmação do endereço de entrega. Use quando o cliente quiser prosseguir e o endereço precisar ser confirmado.",
+          parameters: { type: "object", properties: {}, required: [] },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "request_cep",
+          description: "Mostra o campo para o cliente digitar o CEP. Use quando o endereço estiver incompleto ou o cliente quiser mudar o endereço de entrega.",
+          parameters: { type: "object", properties: {}, required: [] },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "show_shipping_options",
+          description: "Mostra as opções de frete calculadas para o cliente escolher. Use quando o endereço estiver confirmado e for hora de escolher a entrega.",
+          parameters: { type: "object", properties: {}, required: [] },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "show_payment_methods",
+          description: "Mostra as formas de pagamento disponíveis (Pix, cartão, crypto). Use quando o frete estiver selecionado OU quando o cliente perguntar sobre formas de pagamento.",
+          parameters: { type: "object", properties: {}, required: [] },
+        },
+      },
     ];
   }
 
@@ -71,10 +104,22 @@ export class ChatLlmGatewayService {
     merchantName?: string;
     merchantRules: string[];
     cartInfo: string;
+    stage?: string;
+    hasAddress?: boolean;
+    hasShipping?: boolean;
   }): string {
     return [
       `Você é assistente de checkout da ${opts.merchantName || "loja"}. Seja breve e direto.`,
       opts.cartInfo,
+      "",
+      `ETAPA ATUAL: ${opts.stage || "unknown"}`,
+      "",
+      "NAVEGAÇÃO DO CHECKOUT (use as ferramentas de UI para guiar o cliente):",
+      "- Se etapa é 'shipping' e endereço completo: CHAME confirm_address",
+      "- Se etapa é 'shipping' e endereço incompleto: CHAME request_cep",
+      "- Se cliente confirmou endereço ('sim', 'correto', 'confirmo'): CHAME show_shipping_options",
+      "- Se frete foi selecionado OU cliente pergunta sobre pagamento: CHAME show_payment_methods",
+      "- NUNCA descreva opções em texto se pode mostrar com ferramenta de UI",
       "",
       "REGRAS COMERCIAIS (siga a primeira que encaixar e USE A FERRAMENTA correspondente):",
       ...opts.merchantRules.map((r, i) => `${i + 1}. ${r}`),

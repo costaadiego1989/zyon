@@ -460,8 +460,8 @@ function fallbackReply(
       return {
         objection,
         message: optionCount > 0
-          ? `Calculei ${optionCount} opçõesde frete. Selecione uma delas para seguirmos.`
-          : `Ja tenho o endereco completo. Vou carregar as opçõesde frete para voce escolher.`
+          ? `Calculei ${optionCount} ${optionCount === 1 ? "opção" : "opções"} de frete. Selecione ${optionCount === 1 ? "ela" : "uma delas"} para seguirmos.`
+          : `Já tenho o endereço completo. Vou carregar as opções de frete para você escolher.`
       };
     }
     if (next === "confirmar endereço") {

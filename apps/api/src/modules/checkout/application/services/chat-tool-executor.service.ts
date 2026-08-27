@@ -7,13 +7,19 @@ export interface ToolCall {
   args: Record<string, any>;
 }
 
+export interface ChatBlock {
+  type: string;
+  data?: Record<string, unknown>;
+}
+
 export interface ToolExecutionResult {
   toolCalls: ToolCall[];
   message: string;
+  blocks?: ChatBlock[];
 }
 
 /**
- * Executes LLM tool calls (discount, shipping, coupon, marketplace search).
+ * Executes LLM tool calls (discount, shipping, coupon, marketplace search, UI navigation).
  * CRITICAL: Every commercial tool call is validated against authorizedOffer.
  * LLM cannot apply discounts/shipping that the rules-engine didn't approve.
  */
@@ -27,10 +33,17 @@ export class ChatToolExecutorService {
 
   async executeToolCalls(
     toolCalls: Array<{ function?: { name: string; arguments: string | object } }>,
-    context: { merchantId: string; authorizedOffer?: AuthorizedOffer },
+    context: {
+      merchantId: string;
+      authorizedOffer?: AuthorizedOffer;
+      shippingOptions?: Array<{ key: string; label: string; tag?: string; sub?: string; cost?: number }>;
+      paymentMethods?: Array<{ key: string; label: string; sub?: string }>;
+      address?: { formatted?: string; [k: string]: unknown };
+    },
   ): Promise<ToolExecutionResult> {
     const executed: ToolCall[] = [];
     const results: string[] = [];
+    const blocks: ChatBlock[] = [];
     const offer = context.authorizedOffer;
 
     for (const tc of toolCalls) {
@@ -43,7 +56,6 @@ export class ChatToolExecutorService {
 
       switch (fn) {
         case "apply_discount": {
-          // SAFETY: Only apply if rules-engine authorized a discount >= requested
           const requestedPercent = Number(args.percent) || 0;
           if (offer?.approved && offer.type === "discount_percent" && offer.value >= requestedPercent) {
             results.push(`✅ Desconto de ${offer.value}% aplicado no carrinho`);
@@ -55,7 +67,6 @@ export class ChatToolExecutorService {
         }
 
         case "apply_free_shipping": {
-          // SAFETY: Only apply if rules-engine authorized free shipping
           if (offer?.approved && offer.type === "shipping_free") {
             results.push(`✅ Frete grátis aplicado`);
           } else {
@@ -66,7 +77,6 @@ export class ChatToolExecutorService {
         }
 
         case "apply_coupon": {
-          // Coupons are validated separately by coupon module — allow passthrough
           results.push(`Verificando cupom ${args.code}...`);
           break;
         }
@@ -77,12 +87,39 @@ export class ChatToolExecutorService {
           }
           break;
 
+        // ─── UI Navigation Tools ───
+        case "confirm_address": {
+          if (context.address?.formatted) {
+            blocks.push({ type: "address_confirmation", data: context.address });
+          }
+          break;
+        }
+
+        case "show_shipping_options": {
+          if (context.shippingOptions?.length) {
+            blocks.push({ type: "shipping_options", data: { options: context.shippingOptions } });
+          }
+          break;
+        }
+
+        case "show_payment_methods": {
+          if (context.paymentMethods?.length) {
+            blocks.push({ type: "payment_methods", data: { methods: context.paymentMethods } });
+          }
+          break;
+        }
+
+        case "request_cep": {
+          blocks.push({ type: "form_field", data: { field: "cep", label: "CEP de entrega", placeholder: "00000-000" } });
+          break;
+        }
+
         default:
           this.logger.warn(`Unknown tool call: ${fn}`);
       }
     }
 
-    return { toolCalls: executed, message: results.join("\n") };
+    return { toolCalls: executed, message: results.join("\n"), blocks: blocks.length ? blocks : undefined };
   }
 
   private async executeMarketplaceSearch(query: string, merchantId: string): Promise<string> {

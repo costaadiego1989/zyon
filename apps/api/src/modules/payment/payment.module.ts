@@ -35,6 +35,7 @@ import { StripeWebhookController } from "./presentation/http/stripe-webhook.cont
 import { MercadoPagoWebhookController } from "./presentation/http/mercadopago-webhook.controller.js";
 import { CRYPTO_VERIFIER } from "./domain/ports/crypto-verifier.port.js";
 import { EvmCryptoVerifier } from "./infrastructure/evm-crypto-verifier.js";
+import { BullMqCryptoVerifyQueue, BullMqCryptoVerifyWorker } from "./infrastructure/bullmq-crypto-verify.queue.js";
 import { HttpClientService } from "../../shared/http/http-client.service.js";
 import { readAsaasConnection, isAsaasConfigured } from "./infrastructure/asaas-env.js";
 import { readStripeConnection, isStripeConfigured } from "./infrastructure/stripe-env.js";
@@ -148,6 +149,8 @@ import {
     ReconcilePaymentIntentsWorker,
     { provide: CHECKOUT_PAYMENT_PORT, useExisting: CheckoutPaymentAdapter },
     { provide: CRYPTO_VERIFIER, useClass: EvmCryptoVerifier },
+    BullMqCryptoVerifyQueue,
+    BullMqCryptoVerifyWorker,
     {
       provide: AsaasPaymentAdapter,
       useFactory: (http: HttpClientService) => {

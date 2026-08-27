@@ -1008,6 +1008,11 @@ export interface ChatAction {
   offer_id?: string;
 }
 
+export interface ChatUiBlock {
+  type: string;
+  data?: Record<string, unknown>;
+}
+
 export interface ChatMessageResponse {
   message: string;
   objection: "shipping_cost" | "price" | "trust" | "payment" | "unknown";
@@ -1020,6 +1025,8 @@ export interface ChatMessageResponse {
   expected_input_type?: string;
   ssml?: string;
   voice_config?: { speed: number; pitch: number };
+  /** UI components the widget should render, emitted by LLM navigation tools. */
+  blocks?: ChatUiBlock[];
 }
 
 export interface ShippingEvaluateRequest {

@@ -1,10 +1,69 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useCheckoutStore } from "@/store/checkout-store";
 import { AgentAvatar } from "./AgentAvatar";
 import { PulseAgentOrb } from "./PulseAgentOrb";
 import type { ChatBlock } from "@/api/checkout-session";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
+import { useVoiceCheckout } from "@/lib/voice/use-voice-checkout";
+
+/* ─── Voice: derive speakable text from message (text + block context) ─── */
+
+function blockToNarration(block: ChatBlock): string | null {
+  switch (block.type) {
+    case "address_confirmation":
+      return block.data?.formatted
+        ? `Localizei o endereço ${block.data.formatted}. Está correto?`
+        : "Confirme o endereço de entrega.";
+    case "shipping_options": {
+      const opts = (block.data?.options as Array<{ label: string; cost?: number }>) ?? [];
+      if (!opts.length) return null;
+      return `Temos ${opts.length} opções de frete: ${opts.map(o => translateShippingLabel(o.label)).join(", ")}. Qual prefere?`;
+    }
+    case "payment_methods": {
+      const meths = (block.data?.methods as Array<{ label: string }>) ?? [];
+      if (!meths.length) return null;
+      return `As formas de pagamento disponíveis são: ${meths.map(m => m.label).join(", ")}. Qual prefere?`;
+    }
+    case "cart_summary": {
+      const total = block.data?.total as number | undefined;
+      if (total) {
+        const fmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(total);
+        return `O total do pedido é ${fmt}.`;
+      }
+      return null;
+    }
+    case "pix_payment":
+      return "Gerei o código Pix. Escaneie o QR Code no app do banco.";
+    case "crypto_chain_select":
+      return "Escolha a rede para pagar com USDC: Polygon ou Base.";
+    case "crypto_payment": {
+      const amount = block.data?.crypto_amount_display as string | undefined;
+      return amount
+        ? `Envie ${amount} para o endereço exibido. Toque em pagar quando estiver pronto.`
+        : "Envie o valor em USDC para o endereço abaixo.";
+    }
+    case "stripe_card":
+      return "Preencha os dados do cartão de crédito para finalizar.";
+    case "order_confirmation":
+      return "Pedido confirmado! Obrigada pela compra.";
+    default:
+      return null;
+  }
+}
+
+function messageToSpeech(msg: { text?: string; blocks?: ChatBlock[] }): string | null {
+  const parts: string[] = [];
+  if (msg.text) parts.push(msg.text);
+  if (msg.blocks) {
+    for (const block of msg.blocks) {
+      const narration = blockToNarration(block);
+      if (narration) parts.push(narration);
+    }
+  }
+  return parts.length > 0 ? parts.join(" ") : null;
+}
+
 
 function translateShippingLabel(label: string): string {
   const translations: Record<string, string> = {
@@ -216,6 +275,7 @@ function StripeCardBlockForm({
   // selector causes an infinite render loop (getSnapshot not cached).
   const api = useCheckoutStore((s) => s.api);
   const pollPayment = useCheckoutStore((s) => s.pollPayment);
+  const brand = useCheckoutStore((s) => s.brand);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -273,10 +333,13 @@ function StripeCardBlockForm({
           options={{
             style: {
               base: {
+                // Stripe renders in an iframe and cannot resolve host CSS vars —
+                // pass computed brand values (dark mode = light text).
                 fontSize: "14px",
-                color: "var(--tx)",
+                color: brand?.textColor || (brand?.mode === "dark" ? "#f1f5f9" : "#111827"),
+                fontFamily: brand?.fontFamily || "Inter, sans-serif",
                 "::placeholder": {
-                  color: "var(--mut)",
+                  color: brand?.mutedTextColor || (brand?.mode === "dark" ? "#94a3b8" : "#64748b"),
                 },
               },
               invalid: {
@@ -380,26 +443,171 @@ function OrderConfirmationBlock({ data }: { data?: Record<string, unknown> }) {
   );
 }
 
+type CrossSellProduct = { name: string; price?: number; image?: string };
+
+const formatCrossSellPrice = (v: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+
+/**
+ * Cross-sell renderer with 3 display modes driven by merchant config:
+ * - inline: rendered in the chat thread (default)
+ * - modal: centered overlay dialog (dismissable)
+ * - banner: fixed strip at the top of the widget
+ */
 function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
-  if (!data) return null;
-  const products = (data.products as Array<{ name: string; price?: number }>) ?? [];
-  const formatPrice = (v: number) =>
-    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+  const [dismissed, setDismissed] = useState(false);
 
-  return (
-    <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
-      <div style={{ fontSize: "12px", fontWeight: 600, marginBottom: "8px" }}>Você também pode gostar:</div>
-      {products.map((p, i) => (
-        <button
-          key={i}
-          onClick={() => void sendMessage(`Adicionar ${p.name}`)}
-          style={{ display: "flex", justifyContent: "space-between", width: "100%", padding: "8px 10px", borderRadius: "8px", border: "1px solid var(--bd)", background: "transparent", color: "var(--tx)", cursor: "pointer", fontSize: "12px", marginBottom: "6px", textAlign: "left" }}
+  const products = (data?.products as CrossSellProduct[]) ?? [];
+  const mode = (data?.displayMode as string) ?? "inline";
+
+  const handleEsc = useCallback((e: KeyboardEvent) => {
+    if (e.key === "Escape") setDismissed(true);
+  }, []);
+
+  useEffect(() => {
+    if (mode !== "modal" || dismissed) return;
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [mode, dismissed, handleEsc]);
+
+  if (!data || products.length === 0 || dismissed) return null;
+
+  const addButton = (p: CrossSellProduct, i: number, compact = false) => (
+    <button
+      key={i}
+      data-testid="cross-sell-product"
+      onClick={() => void sendMessage(`Adicionar ${p.name}`)}
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        width: compact ? "auto" : "100%",
+        gap: compact ? "8px" : undefined,
+        padding: "8px 10px",
+        borderRadius: "8px",
+        border: "1px solid var(--bd)",
+        background: "transparent",
+        color: "var(--tx)",
+        cursor: "pointer",
+        fontSize: "12px",
+        marginBottom: compact ? 0 : "6px",
+        textAlign: "left",
+        flexShrink: 0,
+      }}
+    >
+      <span>{p.name}</span>
+      {p.price != null && (
+        <span style={{ color: "var(--aacp-accent, #0f766e)", fontWeight: 600 }}>
+          {formatCrossSellPrice(p.price)}
+        </span>
+      )}
+    </button>
+  );
+
+  // ─── MODAL ────────────────────────────────────────────────────────────────
+  if (mode === "modal") {
+    return (
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Complementos sugeridos"
+        data-testid="cross-sell-modal"
+        onClick={(e) => { if (e.target === e.currentTarget) setDismissed(true); }}
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 9999,
+          background: "rgba(0,0,0,0.55)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "20px",
+        }}
+      >
+        <div
+          style={{
+            background: "var(--card)",
+            border: "1px solid var(--bd)",
+            borderRadius: "14px",
+            padding: "18px",
+            maxWidth: "420px",
+            width: "100%",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+          }}
         >
-          <span>{p.name}</span>
-          {p.price != null && <span style={{ color: "var(--aacp-accent, #0f766e)", fontWeight: 600 }}>{formatPrice(p.price)}</span>}
-        </button>
-      ))}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: "12px" }}>
+            <div>
+              <div style={{ fontSize: "11px", color: "var(--mut)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Antes de pagar</div>
+              <div style={{ fontSize: "15px", fontWeight: 700 }}>Você também pode gostar</div>
+            </div>
+            <button
+              type="button"
+              aria-label="Fechar sugestões"
+              data-testid="cross-sell-dismiss"
+              onClick={() => setDismissed(true)}
+              style={{ background: "transparent", border: "none", color: "var(--mut)", cursor: "pointer", fontSize: "18px", lineHeight: 1 }}
+            >
+              ×
+            </button>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {products.map((p, i) => addButton(p, i))}
+          </div>
+          <button
+            type="button"
+            data-testid="cross-sell-skip"
+            onClick={() => setDismissed(true)}
+            style={{ marginTop: "12px", width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid var(--bd)", background: "transparent", color: "var(--mut)", cursor: "pointer", fontSize: "12px", fontWeight: 600 }}
+          >
+            Continuar sem adicionar →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── BANNER ───────────────────────────────────────────────────────────────
+  if (mode === "banner") {
+    return (
+      <div
+        data-testid="cross-sell-banner"
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 50,
+          background: "var(--card)",
+          border: "1px solid var(--bd)",
+          borderRadius: "10px",
+          padding: "10px 12px",
+          marginBottom: "8px",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+          <span style={{ fontSize: "12px", fontWeight: 600 }}>Você também pode gostar:</span>
+          <button
+            type="button"
+            aria-label="Fechar sugestões"
+            data-testid="cross-sell-dismiss"
+            onClick={() => setDismissed(true)}
+            style={{ background: "transparent", border: "none", color: "var(--mut)", cursor: "pointer", fontSize: "16px", lineHeight: 1 }}
+          >
+            ×
+          </button>
+        </div>
+        <div style={{ display: "flex", gap: "8px", overflowX: "auto", scrollbarWidth: "none" }}>
+          {products.map((p, i) => addButton(p, i, true))}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── INLINE (default) ───────────────────────────────────────────────────────
+  return (
+    <div data-testid="cross-sell-inline" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
+      <div style={{ fontSize: "12px", fontWeight: 600, marginBottom: "8px" }}>Você também pode gostar:</div>
+      {products.map((p, i) => addButton(p, i))}
     </div>
   );
 }
@@ -543,6 +751,9 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   const destination = String(data.crypto_destination_address || "");
   const tokenAddress = String(data.crypto_token_address || "");
   const chainId = Number(data.crypto_chain_id || 80002);
+  const rpcUrl = String(data.crypto_rpc_url || "");
+  const blockExplorerUrl = String(data.crypto_block_explorer_url || "");
+  const cryptoNativeCurrency = data.crypto_native_currency as { name: string; symbol: string; decimals: number } | undefined;
 
   const chainIdHex = "0x" + chainId.toString(16);
 
@@ -573,23 +784,29 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   };
 
   const switchOrAddChain = async (eth: any) => {
+    const nativeCur = cryptoNativeCurrency || { name: "ETH", symbol: "ETH", decimals: 18 };
+    const chainParams = {
+      chainId: chainIdHex,
+      chainName: `${chainLabel} ${network}`,
+      nativeCurrency: nativeCur,
+      rpcUrls: [rpcUrl || `https://sepolia.base.org`],
+      blockExplorerUrls: [blockExplorerUrl || `https://sepolia.basescan.org`],
+    };
     try {
-      await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: chainIdHex }] });
-    } catch (switchErr: any) {
-      // 4902 = chain not added
-      if (switchErr?.code === 4902) {
-        await eth.request({
-          method: "wallet_addEthereumChain",
-          params: [{
-            chainId: chainIdHex,
-            chainName: `${chainLabel} ${network}`,
-            nativeCurrency: { name: "MATIC", symbol: "MATIC", decimals: 18 },
-            rpcUrls: [`https://rpc-amoy.polygon.technology`],
-            blockExplorerUrls: [`https://amoy.polygonscan.com`],
-          }],
-        });
-      } else {
-        throw switchErr;
+      // Always attempt addEthereumChain first — this updates the RPC URL even
+      // if the chain already exists (fixes stale public RPC → rate limit).
+      await eth.request({ method: "wallet_addEthereumChain", params: [chainParams] });
+    } catch (addErr: any) {
+      // Some wallets reject addEthereumChain for already-added chains → switch
+      if (addErr?.code === 4001) throw addErr; // User rejected — stop
+      try {
+        await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: chainIdHex }] });
+      } catch (switchErr: any) {
+        if (switchErr?.code === 4902) {
+          await eth.request({ method: "wallet_addEthereumChain", params: [chainParams] });
+        } else {
+          throw switchErr;
+        }
       }
     }
   };
@@ -801,14 +1018,147 @@ function BlockRenderer({ block }: { block: ChatBlock }) {
   }
 }
 
+/* ─── Voice Composer — mic button + pending-turn confirmation ─── */
+
+function VoiceComposer({ voice }: { voice: ReturnType<typeof useVoiceCheckout> }) {
+  const { listening, speaking, unsupported, hint, pendingTurn, handleMicPress, confirmPendingTurn, discardPendingTurn, retryPendingTurn } = voice;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "10px",
+        flexShrink: 0,
+        padding: "12px 0 4px",
+        borderTop: "1px solid var(--bd)",
+      }}
+    >
+      {/* Pending transcript confirmation */}
+      {pendingTurn && (
+        <div
+          style={{
+            width: "100%",
+            padding: "12px 14px",
+            borderRadius: "12px",
+            background: "var(--chip)",
+            border: "1px solid var(--bd)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "10px",
+          }}
+        >
+          <div style={{ fontSize: "13px", color: "var(--tx)", lineHeight: 1.4 }}>
+            "{pendingTurn.displayTranscript}"
+          </div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button
+              type="button"
+              onClick={() => void confirmPendingTurn()}
+              style={{
+                flex: 1, padding: "8px", borderRadius: "8px", border: "none",
+                background: "var(--aacp-accent, #0f766e)", color: "#fff",
+                fontSize: "12px", fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              Confirmar
+            </button>
+            <button
+              type="button"
+              onClick={retryPendingTurn}
+              style={{
+                padding: "8px 12px", borderRadius: "8px", border: "1px solid var(--bd)",
+                background: "transparent", color: "var(--tx)",
+                fontSize: "12px", fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              Repetir
+            </button>
+            <button
+              type="button"
+              onClick={discardPendingTurn}
+              aria-label="Descartar"
+              style={{
+                padding: "8px 12px", borderRadius: "8px", border: "1px solid var(--bd)",
+                background: "transparent", color: "var(--mut)",
+                fontSize: "12px", cursor: "pointer",
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Mic button */}
+      {!pendingTurn && (
+        <button
+          type="button"
+          onClick={handleMicPress}
+          disabled={unsupported || speaking}
+          aria-label={listening ? "Parar de ouvir" : "Falar"}
+          style={{
+            width: "64px", height: "64px", borderRadius: "50%",
+            border: "none", cursor: unsupported || speaking ? "not-allowed" : "pointer",
+            background: listening ? "var(--aacp-accent, #0f766e)" : "var(--chip)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "transform 0.15s, background 0.2s",
+            transform: listening ? "scale(1.08)" : "scale(1)",
+            boxShadow: listening ? "0 0 0 6px color-mix(in srgb, var(--aacp-accent) 20%, transparent)" : "none",
+            opacity: unsupported ? 0.4 : 1,
+          }}
+        >
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+            stroke={listening ? "#fff" : "var(--aacp-accent, #0f766e)"}
+            strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <line x1="12" y1="19" x2="12" y2="23" />
+            <line x1="8" y1="23" x2="16" y2="23" />
+          </svg>
+        </button>
+      )}
+
+      {/* Hint */}
+      <p style={{ fontSize: "12px", color: "var(--mut)", margin: 0, textAlign: "center", minHeight: "16px" }}>
+        {hint}
+      </p>
+    </div>
+  );
+}
+
 /* ─── Main ChatPanel Component ─── */
 
 export function ChatPanel() {
   const messages = useCheckoutStore((s) => s.messages);
   const isTyping = useCheckoutStore((s) => s.isTyping);
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
+  const channel = useCheckoutStore((s) => s.channel);
   const [input, setInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Voice checkout integration (active when channel === "voice").
+  // Narrate the full message: text AND block context, so the LLM voice guides
+  // each step (address, shipping, payment) the same way the chat shows blocks.
+  const lastAgentMessage = [...messages].reverse().find((m) => m.role === "agent");
+  const lastAgentText = lastAgentMessage ? messageToSpeech(lastAgentMessage) : null;
+  // Distinct playback key per message id so re-narration fires when a new
+  // block-only message arrives (text may repeat across turns).
+  const lastAgentKey = lastAgentMessage?.id ?? null;
+  const onConfirmTranscript = useCallback(
+    (text: string) => sendMessage(text),
+    [sendMessage],
+  );
+  const voice = useVoiceCheckout({
+    enabled: channel === "voice",
+    busy: isTyping,
+    composerLocked: false,
+    awaitingAgentPlayback: false,
+    latestAgentText: lastAgentText,
+    agentPlaybackKey: lastAgentKey,
+    onConfirmTranscript,
+  });
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -926,55 +1276,59 @@ export function ChatPanel() {
         <div ref={chatEndRef} />
       </div>
 
-      {/* Input bar */}
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          display: "flex",
-          gap: "8px",
-          flexShrink: 0,
-          padding: "10px 0 0",
-          borderTop: "1px solid var(--bd)",
-        }}
-      >
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Escreva sua mensagem..."
-          aria-label="Mensagem"
+      {/* Input bar — voice or text depending on selected channel */}
+      {channel === "voice" ? (
+        <VoiceComposer voice={voice} />
+      ) : (
+        <form
+          onSubmit={handleSubmit}
           style={{
-            flex: 1,
-            minWidth: 0,
-            padding: "10px 14px",
-            borderRadius: "10px",
-            border: "1px solid var(--bd)",
-            background: "var(--chip)",
-            color: "var(--tx)",
-            fontSize: "13px",
-            fontFamily: "inherit",
-            outline: "none",
-          }}
-        />
-        <button
-          type="submit"
-          disabled={!input.trim()}
-          aria-label="Enviar mensagem"
-          style={{
-            padding: "10px 16px",
-            borderRadius: "10px",
-            background: input.trim() ? "var(--aacp-accent, #0f766e)" : "var(--bd)",
-            color: "#fff",
-            border: "none",
-            fontSize: "12px",
-            fontWeight: 600,
-            cursor: input.trim() ? "pointer" : "not-allowed",
-            flex: "none",
+            display: "flex",
+            gap: "8px",
+            flexShrink: 0,
+            padding: "10px 0 0",
+            borderTop: "1px solid var(--bd)",
           }}
         >
-          Enviar
-        </button>
-      </form>
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Escreva sua mensagem..."
+            aria-label="Mensagem"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              padding: "10px 14px",
+              borderRadius: "10px",
+              border: "1px solid var(--bd)",
+              background: "var(--chip)",
+              color: "var(--tx)",
+              fontSize: "13px",
+              fontFamily: "inherit",
+              outline: "none",
+            }}
+          />
+          <button
+            type="submit"
+            disabled={!input.trim()}
+            aria-label="Enviar mensagem"
+            style={{
+              padding: "10px 16px",
+              borderRadius: "10px",
+              background: input.trim() ? "var(--aacp-accent, #0f766e)" : "var(--bd)",
+              color: "#fff",
+              border: "none",
+              fontSize: "12px",
+              fontWeight: 600,
+              cursor: input.trim() ? "pointer" : "not-allowed",
+              flex: "none",
+            }}
+          >
+            Enviar
+          </button>
+        </form>
+      )}
 
       <style>{`
         @keyframes bubble-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
