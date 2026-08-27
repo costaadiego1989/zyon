@@ -501,6 +501,18 @@ export default function ConversationsTab({
           <ConversationCard key={c.id} conv={c} onRate={onRate} />
         ))}
       </ul>
+      <div
+        style={{
+          fontSize: 12,
+          color: "var(--aacp-muted)",
+          padding: "12px",
+          borderRadius: 8,
+          border: "1px solid var(--aacp-line)",
+          background: "var(--aacp-surface-3)",
+        }}
+      >
+        Nota: Tickets de suporte são gerenciados na aba Suporte. Conversas de checkout aparecem aqui.
+      </div>
     </section>
   );
 }

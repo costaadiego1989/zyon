@@ -35,6 +35,7 @@ export interface PurchaseRecordDto {
   discountAmount: number;
   currency: string;
   completedAt: Date;
+  paymentMethod?: string | null;
   items: unknown;
 }
 
@@ -121,6 +122,7 @@ export class GetBuyerPurchasesUseCase {
             merchantId: true,
             externalOrderId: true,
             trackingCode: true,
+            sessionId: true,
           },
         })
       : [];
@@ -130,6 +132,28 @@ export class GetBuyerPurchasesUseCase {
         order.trackingCode,
       ])
     );
+
+    // Resolve payment method via the payment intent tied to each order's session.
+    const sessionByOrder = new Map(
+      completedOrders
+        .filter((o) => o.sessionId)
+        .map((o) => [`${o.merchantId}:${o.externalOrderId}`, o.sessionId as string])
+    );
+    const sessionIds = [...new Set([...sessionByOrder.values()])];
+    const paymentIntents = sessionIds.length
+      ? await this.prisma.paymentIntent.findMany({
+          where: { sessionId: { in: sessionIds } },
+          select: { merchantId: true, sessionId: true, method: true, status: true },
+        })
+      : [];
+    // Prefer a paid/confirmed intent when several exist for one session.
+    const paymentBySession = new Map<string, string>();
+    for (const pi of paymentIntents) {
+      const key = `${pi.merchantId}:${pi.sessionId}`;
+      if (!paymentBySession.has(key) || pi.status === "paid" || pi.status === "confirmed") {
+        paymentBySession.set(key, pi.method);
+      }
+    }
     const shipments = await listShipmentsForPurchases(this.prisma, page.map((r) => ({
       merchantId: r.merchantId,
       orderId: r.orderId
@@ -145,6 +169,8 @@ export class GetBuyerPurchasesUseCase {
       const key = `${r.merchantId}:${r.orderId}`;
       const shipment = shipmentByOrder.get(key);
       const trackingCode = shipment?.trackingCode ?? trackingByOrder.get(key) ?? null;
+      const sessionId = sessionByOrder.get(key);
+      const paymentMethod = sessionId ? paymentBySession.get(`${r.merchantId}:${sessionId}`) ?? null : null;
       return {
         id: r.id,
         orderId: r.orderId,
@@ -164,6 +190,7 @@ export class GetBuyerPurchasesUseCase {
         discountAmount: toNumber(r.discountAmount),
         currency: r.currency,
         completedAt: r.completedAt,
+        paymentMethod,
         items: r.items,
       };
     });

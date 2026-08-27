@@ -32,6 +32,29 @@ function correiosTrackingUrl(code: string): string {
   return `https://rastreamento.correios.com.br/app/index.php?objeto=${encodeURIComponent(code)}`;
 }
 
+// Resolve the best tracking URL + link label for a purchase.
+function resolveTracking(
+  code: string,
+  carrier?: string | null,
+  trackingUrl?: string | null,
+): { url: string; label: string } {
+  const carrierLc = (carrier ?? "").toLowerCase();
+  const urlLc = (trackingUrl ?? "").toLowerCase();
+  if (carrierLc.includes("melhor") || urlLc.startsWith("melhorenvio") || urlLc.includes("melhorenvio")) {
+    // MelhorEnvio: use the provided tracking URL directly (normalize scheme if missing).
+    const href = trackingUrl
+      ? trackingUrl.startsWith("http")
+        ? trackingUrl
+        : `https://${trackingUrl}`
+      : correiosTrackingUrl(code);
+    return { url: href, label: "Rastrear no Melhor Envio" };
+  }
+  if (trackingUrl && trackingUrl.startsWith("http")) {
+    return { url: trackingUrl, label: "Rastrear" };
+  }
+  return { url: correiosTrackingUrl(code), label: "Rastrear nos Correios" };
+}
+
 // ─── Timeline dot icon ────────────────────────────────────────────────────
 
 function TimelineDot() {
@@ -113,17 +136,16 @@ function TrackingEventItem({
 // ─── Main component ───────────────────────────────────────────────────────
 
 export function TrackingTab({ purchases }: TrackingTabProps) {
-  // Filter: tracking_code exists + tracking_status not in ["delivered", "cancelled"]
-  const active = purchases.filter(
-    (p) =>
-      Boolean(p.tracking_code) &&
-      p.tracking_status &&
-      p.tracking_status !== "delivered" &&
-      p.tracking_status !== "cancelled"
+  // Group all non-cancelled orders by tracking status
+  const allNonCancelled = purchases.filter(
+    (p) => p.tracking_status !== "cancelled" && p.tracking_status !== "cancelado",
   );
 
+  const active = allNonCancelled.filter((p) => p.tracking_status !== "delivered" && p.tracking_status !== "entregue");
+  const delivered = allNonCancelled.filter((p) => p.tracking_status === "delivered" || p.tracking_status === "entregue");
+
   // Empty state
-  if (active.length === 0) {
+  if (allNonCancelled.length === 0) {
     return (
       <div
         style={{
@@ -145,17 +167,71 @@ export function TrackingTab({ purchases }: TrackingTabProps) {
           📭
         </div>
         <div style={{ fontSize: "13px", color: "var(--aacp-muted)" }}>
-          Nenhuma entrega em andamento.
+          Nenhum pedido para rastrear.
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      {active.map((purchase) => (
-        <TrackingCard key={purchase.id} purchase={purchase} />
-      ))}
+    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+      {/* Active tracking section */}
+      {active.length > 0 && (
+        <fieldset
+          style={{
+            border: "none",
+            padding: 0,
+            margin: 0,
+          }}
+        >
+          <legend
+            style={{
+              fontSize: "12px",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+              color: "var(--aacp-muted)",
+              marginBottom: "10px",
+            }}
+          >
+            Em andamento
+          </legend>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            {active.map((purchase) => (
+              <TrackingCard key={purchase.id} purchase={purchase} />
+            ))}
+          </div>
+        </fieldset>
+      )}
+
+      {/* Delivered section */}
+      {delivered.length > 0 && (
+        <fieldset
+          style={{
+            border: "none",
+            padding: 0,
+            margin: 0,
+          }}
+        >
+          <legend
+            style={{
+              fontSize: "12px",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+              color: "var(--aacp-muted)",
+              marginBottom: "10px",
+            }}
+          >
+            Entregues
+          </legend>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            {delivered.map((purchase) => (
+              <TrackingCard key={purchase.id} purchase={purchase} />
+            ))}
+          </div>
+        </fieldset>
+      )}
     </div>
   );
 }
@@ -166,7 +242,123 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
   const events = purchase.tracking_events || [];
   const status = trackingStatusLabel(purchase.tracking_status);
   const carrier = purchase.carrier || "Correios";
+  const hasTracking = Boolean(purchase.tracking_code);
+  const isDelivered = purchase.tracking_status === "delivered" || purchase.tracking_status === "entregue";
 
+  // Delivered state: simple checkmark card
+  if (isDelivered) {
+    return (
+      <div
+        style={{
+          padding: "14px",
+          borderRadius: "10px",
+          border: "1px solid var(--aacp-line)",
+          background: "var(--aacp-surface-2)",
+        }}
+        role="region"
+        aria-label={`Rastreamento entregue - ${purchase.merchant_name}`}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            justifyContent: "space-between",
+          }}
+        >
+          <div style={{ flex: 1 }}>
+            <div
+              style={{
+                fontSize: "12px",
+                fontWeight: 600,
+                color: "var(--aacp-fg)",
+              }}
+            >
+              {purchase.merchant_name}
+            </div>
+            {purchase.tracking_code && (
+              <div style={{ fontSize: "10px", color: "var(--aacp-muted)", marginTop: "4px" }}>
+                {purchase.tracking_code}
+              </div>
+            )}
+          </div>
+          <div
+            aria-label="Entregue"
+            style={{
+              fontSize: "24px",
+              flexShrink: 0,
+            }}
+          >
+            ✅
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // No tracking code: waiting state
+  if (!hasTracking) {
+    return (
+      <div
+        style={{
+          padding: "14px",
+          borderRadius: "10px",
+          border: "1px solid var(--aacp-line)",
+          background: "var(--aacp-surface-2)",
+        }}
+        role="region"
+        aria-label={`Aguardando rastreio - ${purchase.merchant_name}`}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+            marginBottom: "8px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "12px",
+              fontWeight: 600,
+              color: "var(--aacp-fg)",
+            }}
+          >
+            {purchase.merchant_name}
+          </div>
+          <div
+            style={{
+              fontSize: "10px",
+              fontWeight: 600,
+              color: "var(--aacp-muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.3px",
+            }}
+          >
+            {carrier}
+          </div>
+        </div>
+        <div
+          style={{
+            padding: "10px 12px",
+            borderRadius: "8px",
+            background: "color-mix(in srgb, var(--aacp-muted) 8%, transparent)",
+            fontSize: "12px",
+            color: "var(--aacp-muted)",
+            borderLeft: "3px solid var(--aacp-muted)",
+          }}
+          role="status"
+        >
+          Aguardando rastreio
+        </div>
+        <div style={{ fontSize: "11px", color: "var(--aacp-muted)", marginTop: "8px" }}>
+          Este pedido ainda não possui código de rastreio. Atualize em breve.
+        </div>
+      </div>
+    );
+  }
+
+  // Active tracking: timeline + link
   return (
     <div
       style={{
@@ -277,48 +469,64 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
         </div>
       )}
 
-      {/* Link to Correios */}
-      <a
-        href={correiosTrackingUrl(purchase.tracking_code!)}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "4px",
-          fontSize: "11px",
-          color: "var(--aacp-accent)",
-          textDecoration: "none",
-          fontWeight: 600,
-          transition: "opacity 0.15s ease",
-          cursor: "pointer",
-        }}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLAnchorElement).style.opacity = "0.8";
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLAnchorElement).style.opacity = "1";
-        }}
-        aria-label={`Rastrear ${purchase.tracking_code} nos Correios`}
-      >
-        <span>Rastrear nos Correios</span>
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 12 12"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          aria-hidden="true"
+      {/* Link to tracking service */}
+      {purchase.tracking_code && (
+        <a
+          href={resolveTracking(
+            purchase.tracking_code,
+            purchase.carrier,
+            purchase.tracking_url,
+          ).url}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "4px",
+            fontSize: "11px",
+            color: "var(--aacp-accent)",
+            textDecoration: "none",
+            fontWeight: 600,
+            transition: "opacity 0.15s ease",
+            cursor: "pointer",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLAnchorElement).style.opacity = "0.8";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLAnchorElement).style.opacity = "1";
+          }}
+          aria-label={`${resolveTracking(
+            purchase.tracking_code,
+            purchase.carrier,
+            purchase.tracking_url,
+          ).label} ${purchase.tracking_code}`}
         >
-          <path
-            d="M3 9L9 3M9 3H5M9 3V7"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </a>
+          <span>
+            {resolveTracking(
+              purchase.tracking_code,
+              purchase.carrier,
+              purchase.tracking_url,
+            ).label}
+          </span>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+          >
+            <path
+              d="M3 9L9 3M9 3H5M9 3V7"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </a>
+      )}
     </div>
   );
 }

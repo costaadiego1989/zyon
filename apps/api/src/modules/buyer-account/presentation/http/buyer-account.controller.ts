@@ -166,6 +166,7 @@ export class BuyerAccountController {
         items: purchaseItems(r.items),
         items_count: purchaseItems(r.items).reduce((sum, item) => sum + item.quantity, 0),
         currency: r.currency,
+        payment_method: r.paymentMethod ?? null,
         created_at: r.completedAt instanceof Date ? r.completedAt.toISOString() : String(r.completedAt)
       })),
       next_cursor: page.nextCursor

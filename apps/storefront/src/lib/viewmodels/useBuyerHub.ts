@@ -57,6 +57,7 @@ export interface BuyerPurchase {
   items_count: number;
   currency: string;
   created_at: string;
+  payment_method?: string | null;
 }
 
 export interface ConversationMessage {
@@ -94,6 +95,16 @@ export interface BuyerLoyalty {
   // Backend returns a categorical string: "unknown" | "low" | "medium" | "high".
   discount_sensitivity?: string | null;
   last_purchase_at?: string | null;
+}
+
+export interface DiscountRule {
+  id: string;
+  code: string;
+  discount_type: "percent" | "fixed" | "shipping_free" | "shipping_percent" | "shipping_fixed";
+  discount_value: number;
+  min_cart_total: number | null;
+  max_usages: number | null;
+  usages_count: number;
 }
 
 export interface BuyerSummary {
@@ -232,6 +243,10 @@ export interface UseBuyerHub {
   loyalty: SectionState<BuyerLoyalty>;
   loadLoyalty: () => Promise<void>;
 
+  // Discount Rules (per merchant, loaded from storefront endpoint)
+  discountRules: SectionState<DiscountRule[]>;
+  loadDiscountRules: (merchantSlug: string) => Promise<void>;
+
   // Reviews
   reviews: SectionState<BuyerReview[]>;
   loadReviews: () => Promise<void>;
@@ -264,6 +279,7 @@ export function useBuyerHub(): UseBuyerHub {
   const [conversations, setConversations] = useState<SectionState<BuyerConversation[]>>(EMPTY_SECTION);
   const [preferences, setPreferences] = useState<SectionState<BuyerPreferences>>(EMPTY_SECTION);
   const [loyalty, setLoyalty] = useState<SectionState<BuyerLoyalty>>(EMPTY_SECTION);
+  const [discountRules, setDiscountRules] = useState<SectionState<DiscountRule[]>>(EMPTY_SECTION);
   const [reviews, setReviews] = useState<SectionState<BuyerReview[]>>(EMPTY_SECTION);
   const [intentProfile, setIntentProfile] = useState<SectionState<BuyerIntentProfile>>(EMPTY_SECTION);
 
@@ -294,6 +310,7 @@ export function useBuyerHub(): UseBuyerHub {
           setConversations(EMPTY_SECTION);
           setPreferences(EMPTY_SECTION);
           setLoyalty(EMPTY_SECTION);
+          setDiscountRules(EMPTY_SECTION);
           setReviews(EMPTY_SECTION);
           setIntentProfile(EMPTY_SECTION);
         }
@@ -450,9 +467,11 @@ export function useBuyerHub(): UseBuyerHub {
   const loadTracking = useCallback(async () => {
     setTracking((s) => ({ ...s, loading: true, error: null }));
     try {
-      // Pull up to 50 most recent and filter where tracking_code exists.
+      // Pull up to 50 most recent; TrackingTab shows all non-cancelled orders.
       const data = await apiCall<PurchasePage>("/buyer/me/purchases?limit=50");
-      const filtered = data.items.filter((p) => Boolean(p.tracking_code));
+      const filtered = data.items.filter(
+        (p) => p.tracking_status !== "cancelled" && p.tracking_status !== "cancelado",
+      );
       setTracking({ data: filtered, loading: false, error: null });
     } catch (err: any) {
       setTracking({ s: false, loading: false, error: err?.message || "Erro ao carregar rastreamento" } as any);
@@ -515,6 +534,14 @@ export function useBuyerHub(): UseBuyerHub {
     await runFetch(setLoyalty, "/buyer/me/loyalty");
   }, []);
 
+  // ─── Discount Rules ───────────────────────────────────────────────────
+  const loadDiscountRules = useCallback(async (merchantSlug: string) => {
+    await runFetch<{ items: DiscountRule[] }>(setDiscountRules as any, `/storefront/${encodeURIComponent(merchantSlug)}/coupons`)
+      .then((res) => {
+        if (res) setDiscountRules({ data: res.items, loading: false, error: null });
+      });
+  }, []);
+
   // ─── Reviews ──────────────────────────────────────────────────────────
   const loadReviews = useCallback(async () => {
     await runFetch<{ items: BuyerReview[] }>(setReviews as any, "/buyer/me/reviews")
@@ -566,6 +593,7 @@ export function useBuyerHub(): UseBuyerHub {
       setConversations(EMPTY_SECTION);
       setPreferences(EMPTY_SECTION);
       setLoyalty(EMPTY_SECTION);
+      setDiscountRules(EMPTY_SECTION);
       setReviews(EMPTY_SECTION);
       setIntentProfile(EMPTY_SECTION);
       return data;
@@ -619,6 +647,7 @@ export function useBuyerHub(): UseBuyerHub {
     setConversations(EMPTY_SECTION);
     setPreferences(EMPTY_SECTION);
     setLoyalty(EMPTY_SECTION);
+    setDiscountRules(EMPTY_SECTION);
     setReviews(EMPTY_SECTION);
     setIntentProfile(EMPTY_SECTION);
     setActiveTab("profile");
@@ -661,6 +690,9 @@ export function useBuyerHub(): UseBuyerHub {
 
     loyalty,
     loadLoyalty,
+
+    discountRules,
+    loadDiscountRules,
 
     reviews,
     loadReviews,

@@ -15,7 +15,7 @@ export interface OrdersTabProps {
 // ─── Formatters ────────────────────────────────────────────────────────────
 
 const brlFmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-const dateFmt = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" });
+const dateFmt = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 
 function fmtBRL(value: number): string {
   if (!Number.isFinite(value)) return brlFmt.format(0);
@@ -26,6 +26,15 @@ function fmtDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return dateFmt.format(d);
+}
+
+function paymentMethodLabel(method?: string | null): string | null {
+  if (!method) return null;
+  const m = method.toLowerCase();
+  if (m === "pix") return "📱 Pix";
+  if (m === "credit_card" || m === "cartao" || m === "cartão") return "💳 Cartão";
+  if (m === "boleto") return "📄 Boleto";
+  return method;
 }
 
 function trackingStatusLabel(status: string | null | undefined): string {
@@ -135,6 +144,7 @@ function PurchaseCard({ purchase, expanded, onToggle }: PurchaseCardProps) {
   const tone = trackingPillTone(purchase.tracking_status);
   const statusLabel = trackingStatusLabel(purchase.tracking_status);
   const hasDiscount = (purchase.discount_amount ?? 0) > 0;
+  const paymentLabel = paymentMethodLabel(purchase.payment_method);
   const cardId = `aacp-order-${purchase.id}`;
   const itemsId = `${cardId}-items`;
 
@@ -216,6 +226,22 @@ function PurchaseCard({ purchase, expanded, onToggle }: PurchaseCardProps) {
             <span style={{ fontSize: "12px", color: "var(--aacp-muted)" }}>
               {fmtDate(purchase.created_at)}
             </span>
+            {paymentLabel && (
+              <span
+                aria-label={`Forma de pagamento: ${paymentLabel}`}
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  padding: "2px 8px",
+                  borderRadius: "999px",
+                  background: "var(--aacp-surface-3)",
+                  color: "var(--aacp-fg)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {paymentLabel}
+              </span>
+            )}
             <span
               role="status"
               aria-label={`Status de rastreamento: ${statusLabel}`}

@@ -75,7 +75,7 @@ function ToggleSwitch({ value, onChange, label, description, disabled = false }:
         justifyContent: "space-between",
         alignItems: "flex-start",
         gap: "12px",
-        padding: "12px 0",
+        padding: "12px 2px",
       }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -518,7 +518,7 @@ export default function PreferencesTab({
             borderRadius: "8px",
             border: "1px solid var(--aacp-line)",
             background: "var(--aacp-card)",
-            padding: "4px",
+            padding: "8px 12px",
             overflow: "hidden",
           }}
         >
@@ -602,7 +602,7 @@ export default function PreferencesTab({
             borderRadius: "8px",
             border: "1px solid var(--aacp-line)",
             background: "var(--aacp-card)",
-            padding: "4px",
+            padding: "8px 12px",
             overflow: "hidden",
           }}
         >
