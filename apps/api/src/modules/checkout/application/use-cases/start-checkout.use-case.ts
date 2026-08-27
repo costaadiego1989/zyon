@@ -12,6 +12,7 @@ import { AGENT_CONTEXT_PORT, type AgentContextPort } from "../../domain/ports/ag
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { BUYER_IDENTITY_REPOSITORY, type BuyerIdentityRepository } from "../../../buyer-purchase-history/domain/ports/buyer-identity.repository.port.js";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../../buyer-account/domain/ports/buyer-account-repository.port.js";
+import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../../storefront/domain/ports/storefront-cart.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { CHECKOUT_SETTINGS_PORT, type CheckoutSettingsPort } from "../../domain/ports/checkout-settings.port.js";
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
@@ -51,18 +52,22 @@ export class StartCheckoutUseCase {
     @Optional() private readonly holdoutGroupService?: HoldoutGroupService,
     @Optional() @Inject(INTENT_MEMORY_REPOSITORY) private readonly intentMemory?: IntentMemoryRepositoryPort,
     @Optional() @Inject(BUYER_INTENT_CONSENT_REPOSITORY) private readonly intentConsent?: BuyerIntentConsentRepositoryPort,
-    @Optional() @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly buyerAccount?: BuyerAccountRepository
+    @Optional() @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly buyerAccount?: BuyerAccountRepository,
+    @Optional() @Inject(STOREFRONT_CART_PORT) private readonly storefrontCart?: StorefrontCartPort
   ) { }
 
   async execute(input: StartCheckoutRequest): Promise<StartCheckoutResponse> {
     const settings = await this.checkoutSettings?.getContext(input.merchant_id);
     const merchant = await this.merchantRepository?.getProfile(input.merchant_id);
     const merchantRules = await this.merchantRepository?.getRules(input.merchant_id);
-    const sessionId = input.session_id ?? `chk_${crypto.randomUUID()}`;
-    const globalUserId = await this.identity.resolveGlobalUserId(input.merchant_id, input.customer);
+    let sessionId = input.session_id ?? `chk_${crypto.randomUUID()}`;
+    // Use explicit global_user_id from the widget (authenticated buyer) if provided;
+    // otherwise resolve from customer hints (anonymous buyer).
+    const globalUserId = (input as any).global_user_id?.trim()
+      || await this.identity.resolveGlobalUserId(input.merchant_id, input.customer);
 
     // Hydrate customer from buyer-account when available (logged buyer → session gets full data)
-    if (this.buyerAccount && globalUserId && (!input.customer?.fullName || !input.customer?.email)) {
+    if (this.buyerAccount && globalUserId && (!input.customer?.fullName || !input.customer?.email || !input.customer?.address?.zip)) {
       try {
         const account = await this.buyerAccount.findByGlobalUserId(globalUserId);
         if (account) {
@@ -74,6 +79,7 @@ export class StartCheckoutUseCase {
               email: input.customer?.email || account.email || undefined,
               phone: input.customer?.phone || account.phone || undefined,
               cpf: input.customer?.cpf || (account as any).cpf || undefined,
+              address: input.customer?.address?.zip ? input.customer.address : (account.address ?? input.customer?.address),
             },
           };
         }
@@ -115,6 +121,37 @@ export class StartCheckoutUseCase {
     }
 
     this.metrics?.checkoutStarted.inc({ merchant_id: input.merchant_id });
+
+    // Cart hydration from storefront: if a cart_ref is provided and no items are in the input,
+    // try to load the storefront cart and merge its items into the request.
+    const cartRef = (input as any).cart_ref?.trim?.();
+    if (this.storefrontCart && cartRef && (!input.cart?.items || input.cart.items.length === 0)) {
+      try {
+        const storefrontCart = await this.storefrontCart.getOrCreate(input.merchant_id, cartRef);
+        if (storefrontCart?.items && storefrontCart.items.length > 0) {
+          input = {
+            ...input,
+            cart: {
+              currency: input.cart?.currency ?? "BRL",
+              source: input.cart?.source ?? "storefront",
+              total: storefrontCart.total / 100,
+              items: storefrontCart.items.map((i) => ({
+                sku: i.sku,
+                name: i.name,
+                price: i.unitPriceCents / 100,
+                quantity: i.quantity,
+              })),
+            },
+          };
+          this.logger.log(`Hydrated cart from storefront for ${cartRef}: ${storefrontCart.items.length} items`);
+        }
+      } catch (err) {
+        this.logger.warn(`Failed to hydrate cart from storefront (non-blocking): ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    this.logger.warn('[CHECKOUT-DBG] session created', { sessionId, globalUserId, cartItems: input.cart?.items?.length ?? 0, hasShipping: !!input.shipping });
+
     const existingSession = await this.sessions.getSession(input.merchant_id, sessionId);
 
     let session: CheckoutSession;
@@ -133,6 +170,8 @@ export class StartCheckoutUseCase {
       await this.sessions.saveSession(session);
       await this.sessions.recordEvent(input.merchant_id, sessionId, "checkout_started");
     }
+
+    this.logger.warn('[CHECKOUT-DBG] session saved', { sessionId, customer: { cpf: !!session.customer?.cpf, name: !!session.customer?.fullName, asaasId: !!session.customer?.asaasCustomerId } });
 
     if (this.customerService && session.customer?.email?.trim()) {
       session = await this.customerService.hydrateReturningBuyerFromEmailHint(session);

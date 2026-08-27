@@ -85,12 +85,18 @@ export class QuoteShippingUseCase {
       quote_key: quoteKey
     });
 
+    // Ensure packages is never empty — carriers reject empty arrays.
+    // Use a sensible default (small box, 0.5kg) when caller omits dimensions.
+    const packages = input.packages && input.packages.length > 0
+      ? input.packages
+      : [{ weightKg: 0.5, heightCm: 10, widthCm: 15, lengthCm: 20, quantity: 1 }];
+
     const ctx = {
       originZip: input.origin_zip ?? "",
       destinationZip: input.destination_zip,
       cartTotalCents,
       merchantId: input.merchant_id,
-      packages: input.packages ?? [],
+      packages,
     };
     const allResults = await Promise.allSettled(
       this.carriers.map((c) => c.fetchQuotes(ctx))
@@ -150,12 +156,25 @@ export class QuoteShippingUseCase {
     // Add own-delivery options if enabled
     const resultsWithOwnDelivery = await this.appendOwnDeliveryOptions(finalResults, input);
 
+    // Fallback: if no shipping options are available (no carriers responded,
+    // no own-delivery configured), provide a default "Retirada no local" option
+    // so the checkout flow is never blocked by missing shipping quotes.
+    const resultsWithFallback = resultsWithOwnDelivery.length > 0
+      ? resultsWithOwnDelivery
+      : [{
+          carrier_key: "local_pickup",
+          label: "Retirada no local / Combinar entrega",
+          price: 0,
+          eta_days: 1,
+          is_free: true
+        }];
+
     const withFreeShipping = ShippingQuoteEntity.create({
       session_id: input.session_id,
       merchant_id: input.merchant_id,
       destination_zip: input.destination_zip,
       quote_key: quoteKey
-    }).addResults(resultsWithOwnDelivery);
+    }).addResults(resultsWithFallback);
 
     const finalQuote = withFreeShipping.recordCreated();
     await this.quotes.saveWithEvents(finalQuote);

@@ -2,7 +2,8 @@ import type { NextConfig } from "next";
 
 const config: NextConfig = {
   reactStrictMode: true,
-  transpilePackages: ["@zyon/checkout-ui", "@zyon/widget"],
+  transpilePackages: ["@zyon/checkout-ui"],
+  serverExternalPackages: ["jsdom", "isomorphic-dompurify"],
   experimental: {
     serverActions: {
       allowedOrigins: ["localhost:3001"],

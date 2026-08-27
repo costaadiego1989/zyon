@@ -33,8 +33,13 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     if (input.method === "crypto") {
       return this.evmCrypto.createPayment(input);
     }
-    if (input.method === "card" && this.stripe) {
-      return this.stripe.createPayment(input);
+
+    // For card, try Stripe only if merchant connection is active, otherwise fall through to Asaas
+    if (input.method === "card") {
+      const stripe = await this.resolveStripe(input.merchantId);
+      if (stripe) {
+        return stripe.createPayment(input);
+      }
     }
 
     // Priority: mercadopago > asaas for PIX/boleto (if configured)
@@ -102,14 +107,20 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     if (this.platformConnections && connection?.status !== "active") {
       throw new Error("asaas_connection_not_active");
     }
-    const tenantKey =
+    const rawSecret =
       await this.platformConnections?.getConnectionSecret(
         merchantId,
         "asaas",
       );
+    const tenantKey = extractAsaasApiKey(rawSecret);
     if (tenantKey && this.asaasBaseUrl) {
+      // Use sandbox URL when the merchant connection is in test environment
+      const isSandbox = connection?.environment === "test";
+      const baseUrl = isSandbox
+        ? (process.env.ASAAS_BASE_URL_SANDBOX?.trim() || "https://sandbox.asaas.com/api")
+        : this.asaasBaseUrl;
       return new AsaasPaymentAdapter(
-        this.asaasBaseUrl,
+        baseUrl,
         tenantKey,
         this.fetchImpl,
       );
@@ -143,4 +154,39 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     }
     return this.mercadopago;
   }
+
+  private async resolveStripe(
+    merchantId: string,
+  ): Promise<StripePaymentAdapter | null> {
+    const connection =
+      await this.platformConnections?.getConnection(
+        merchantId,
+        "stripe",
+      );
+    if (this.platformConnections && connection?.status !== "active") {
+      return null;
+    }
+    return this.stripe;
+  }
+}
+
+/**
+ * The Asaas connection secret is stored as JSON (`{"apiKey":"...","webhookToken":"..."}`)
+ * by SaveAsaasConnectionConfigUseCase. Older records may hold the raw key string.
+ * Extract the API key from either shape.
+ */
+function extractAsaasApiKey(rawSecret: string | undefined): string | undefined {
+  if (!rawSecret) return undefined;
+  const trimmed = rawSecret.trim();
+  if (trimmed.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(trimmed) as { apiKey?: string };
+      return typeof parsed.apiKey === "string" && parsed.apiKey.trim()
+        ? parsed.apiKey.trim()
+        : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  return trimmed || undefined;
 }

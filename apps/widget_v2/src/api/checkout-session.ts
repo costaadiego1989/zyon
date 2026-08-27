@@ -78,18 +78,20 @@ export interface AgentConfig {
 
 export interface BuyerConfig {
   name?: string;
+  fullName?: string;
   email?: string;
   phone?: string;
   cpf?: string;
   isReturning?: boolean;
   purchaseCount?: number;
   address?: {
+    zip?: string;
     street?: string;
     number?: string;
     complement?: string;
+    neighborhood?: string;
     city?: string;
     state?: string;
-    zipCode?: string;
   };
 }
 
@@ -108,6 +110,7 @@ export interface Experience {
   brand?: BrandConfig;
   agent?: AgentConfig;
   buyer?: BuyerConfig;
+  customer?: BuyerConfig;
   cart?: { items: CartItem[] };
   stage?: string;
   stripeEnabled?: boolean;
@@ -127,8 +130,9 @@ export interface ChatBlock {
 }
 
 export interface ChatResponse {
-  blocks: ChatBlock[];
+  blocks?: ChatBlock[];
   quick_replies?: string[];
+  message?: string;
 }
 
 export interface PaymentIntent {
@@ -149,6 +153,7 @@ export class CheckoutSession {
   private baseUrl: string;
   private globalUserId: string | undefined;
   private sessionId: string | null = null;
+  private shippingOptions: Array<{ carrier: string; method: string; carrierKey: string; customerPrice: number; deliveryDays?: number }> = [];
 
   constructor(config: CheckoutSessionConfig) {
     this.token = config.embedToken;
@@ -263,36 +268,66 @@ export class CheckoutSession {
     return res.json();
   }
 
-  async fetchShippingQuote(destinationZip: string): Promise<Array<{ key: string; label: string; tag: string; sub: string; cost: number }>> {
+  async fetchShippingQuote(destinationZip?: string): Promise<Array<{ key: string; label: string; tag: string; sub: string; cost: number }>> {
     this.assertSession();
+    const body: Record<string, unknown> = { session_id: this.sessionId };
+    if (destinationZip) body.destination_zip = destinationZip;
     const res = await fetch(`${this.baseUrl}/embed/shipping/quote`, {
       method: "POST",
       headers: this.headers(),
-      body: JSON.stringify({
-        session_id: this.sessionId,
-        destination_zip: destinationZip,
-      }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) return [];
-    const data = (await res.json()) as { options?: Array<{ carrier: string; method: string; deliveryDays?: number; customerPrice: number; carrierKey: string }> };
-    return (data.options ?? []).map((o) => ({
-      key: o.carrierKey,
-      label: `${o.carrier} ${o.method}`.trim(),
-      tag: o.deliveryDays ? `${o.deliveryDays} dias` : "A confirmar",
-      sub: o.carrier,
-      cost: Math.round(o.customerPrice * 100),
+    const data = (await res.json()) as {
+      options?: Array<{ carrier: string; method: string; deliveryDays?: number; customerPrice: number; carrierKey: string }>;
+      results?: Array<{ carrier_key: string; label: string; price: number; eta_days: number; is_free?: boolean }>;
+    };
+    // API returns `results` (new format); legacy `options` kept for backward compat
+    const rawOptions = data.options ?? [];
+    const rawResults = data.results ?? [];
+    if (rawOptions.length > 0) {
+      this.shippingOptions = rawOptions;
+      return rawOptions.map((o) => ({
+        key: o.carrierKey,
+        label: `${o.carrier} ${o.method}`.trim(),
+        tag: o.deliveryDays ? `${o.deliveryDays} dias` : "A confirmar",
+        sub: o.carrier,
+        cost: Math.round(o.customerPrice * 100),
+      }));
+    }
+    // Map results (current API format) to widget shape
+    this.shippingOptions = rawResults.map((r) => ({
+      carrier: r.label,
+      method: "",
+      deliveryDays: r.eta_days,
+      customerPrice: r.price / 100,
+      carrierKey: r.carrier_key,
+    }));
+    return rawResults.map((r) => ({
+      key: r.carrier_key,
+      label: r.label,
+      tag: r.eta_days ? `${r.eta_days} dia${r.eta_days > 1 ? "s" : ""}` : "A confirmar",
+      sub: r.is_free ? "Grátis" : `R$ ${(r.price / 100).toFixed(2)}`,
+      cost: r.price,
     }));
   }
 
-  async selectShipping(key: string): Promise<unknown> {
+  async selectShipping(key: string): Promise<{ ok: boolean; shipping: { carrier: string; method: string; carrierKey: string; customerPrice: number } }> {
     this.assertSession();
+    console.log('[WIDGET-DBG] API selectShipping', { key, sessionId: this.sessionId });
     const res = await fetch(`${this.baseUrl}/embed/shipping/select`, {
       method: "POST",
       headers: this.headers(),
-      body: JSON.stringify({ session_id: this.sessionId, shipping_key: key }),
+      body: JSON.stringify({ session_id: this.sessionId, carrier_key: key }),
     });
-    if (!res.ok) throw new Error(`embed_shipping_failed: ${res.status}`);
-    return res.json();
+    if (!res.ok) {
+      const errorBody = await res.text().catch(() => "");
+      console.error('[WIDGET-DBG] API selectShipping failed', { status: res.status, body: errorBody });
+      throw new Error(`embed_shipping_failed: ${res.status} ${errorBody}`);
+    }
+    const result = await res.json();
+    console.log('[WIDGET-DBG] API selectShipping response', result);
+    return result;
   }
 
   async createPaymentIntent(
@@ -303,6 +338,7 @@ export class CheckoutSession {
     // API expects: method = "pix" | "card" | "boleto" | "crypto"
     const apiMethod = method === "credito" || method === "debito" ? "card" : method;
     const idempotencyKey = `pay_${this.sessionId}_${apiMethod}`;
+    console.log('[WIDGET-DBG] API createPaymentIntent', { method: apiMethod, sessionId: this.sessionId });
     const res = await fetch(`${this.baseUrl}/embed/payment/intents`, {
       method: "POST",
       headers: this.headers(),
@@ -317,14 +353,50 @@ export class CheckoutSession {
       const text = await res.text().catch(() => "");
       throw new Error(`embed_payment_failed: ${res.status} ${text.slice(0, 200)}`);
     }
-    return res.json() as Promise<PaymentIntent>;
+    // API returns PaymentIntentSnapshot shape — map to widget's PaymentIntent interface
+    const raw = (await res.json()) as {
+      id: string;
+      status: string;
+      method: string;
+      amountCents: number;
+      buyerFacing?: {
+        qrCodeCopyPaste?: string;
+        encodedQrImage?: string;
+        invoiceUrl?: string;
+        clientSecret?: string;
+        stripePublishableKey?: string;
+        quoteExpiresAt?: string;
+      };
+    };
+    const expiresAtUnix = raw.buyerFacing?.quoteExpiresAt
+      ? Math.floor(Date.parse(raw.buyerFacing.quoteExpiresAt) / 1000)
+      : undefined;
+    // encodedQrImage is raw base64 PNG — turn into a data URI for <img src>
+    const pixQrUrl = raw.buyerFacing?.encodedQrImage
+      ? `data:image/png;base64,${raw.buyerFacing.encodedQrImage}`
+      : undefined;
+    return {
+      intent_id: raw.id,
+      method: method,
+      status: raw.status,
+      pix_code: raw.buyerFacing?.qrCodeCopyPaste,
+      pix_qr_url: pixQrUrl,
+      stripe_client_secret: raw.buyerFacing?.clientSecret,
+      expires_at_unix: expiresAtUnix,
+      amount_cents: raw.amountCents,
+    };
   }
 
   async getPaymentStatus(intentId: string): Promise<{ status: string; paid_at?: string }> {
-    const res = await fetch(`${this.baseUrl}/embed/payment/intents/${intentId}/status`, {
-      method: "GET",
-      headers: this.headers(),
-    });
+    this.assertSession();
+    // API requires session_id as a query param (tenant + session boundary check)
+    const res = await fetch(
+      `${this.baseUrl}/embed/payment/intents/${encodeURIComponent(intentId)}/status?session_id=${encodeURIComponent(this.sessionId!)}`,
+      {
+        method: "GET",
+        headers: this.headers(),
+      }
+    );
     if (!res.ok) throw new Error(`embed_payment_status_failed: ${res.status}`);
     return res.json() as Promise<{ status: string; paid_at?: string }>;
   }

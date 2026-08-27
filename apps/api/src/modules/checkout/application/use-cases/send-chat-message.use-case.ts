@@ -207,9 +207,10 @@ export class SendChatMessageUseCase {
 
     let llmReply: { message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[] } | null = null;
 
-    // During data_collection stage with missing fields, ALWAYS use deterministic path.
-    // LLM tools (marketplace, discount) are irrelevant until buyer completes registration.
-    const forceDeterministic = stage === "data_collection" && missingFields && missingFields.length > 0;
+    // During data_collection or shipping stage with missing fields, ALWAYS use
+    // deterministic path. LLM tools are irrelevant until buyer completes data entry
+    // and confirms address/shipping.
+    const forceDeterministic = (stage === "data_collection" || stage === "shipping") && missingFields && missingFields.length > 0;
 
     if (!isHoldout && !forceDeterministic) {
       let experimentPromptOverride: string | undefined;

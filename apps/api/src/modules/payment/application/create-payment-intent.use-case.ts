@@ -154,9 +154,6 @@ export class CreatePaymentIntentUseCase {
     if (existing) return existing.snapshot();
 
     const method: PaymentMethod = body.method ?? "pix";
-    if (method === "card" && !isStripeConfigured()) {
-      throw new ConflictException("stripe_provider_not_configured");
-    }
 
     const acceptedOfferId = await this.validateAcceptedOffer(body, merchantId, sessionId);
     const commerceOrderId = await this.ensurePendingCommerceOrder(merchantId, sessionId, session);
@@ -168,24 +165,26 @@ export class CreatePaymentIntentUseCase {
     const orderAmountCents = Math.round(orderAmountMajorUnits * 100);
     if (orderAmountCents <= 0) throw new BadRequestException("payment_intent_amount_invalid");
 
-    const isStripeCard = method === "card";
-    const usesAsaas = method !== "crypto" && method !== "card";
+    // Card routing: prefer Stripe when the merchant has an ACTIVE Stripe
+    // connection; otherwise fall back to Asaas (which processes credit cards in
+    // Brazil). This mirrors RoutingPaymentAdapter and prevents a hard failure
+    // when Stripe is restricted/inactive but Asaas is active.
+    let stripeCardActive = false;
+    if (method === "card") {
+      const stripeConnection = await this.platformConnections?.getConnection(merchantId, "stripe");
+      stripeCardActive =
+        isStripeConfigured() &&
+        (!this.platformConnections || stripeConnection?.status === "active");
+    }
+
+    const isStripeCard = method === "card" && stripeCardActive;
+    const usesAsaas = method !== "crypto" && !isStripeCard;
     let stripeConnectAccountId: string | undefined;
     let platformFeeCents = 0;
 
     if (isStripeCard) {
-      const stripeConnection =
-        await this.platformConnections?.getConnection(
-          merchantId,
-          "stripe",
-        );
-      if (
-        this.platformConnections &&
-        stripeConnection?.status !== "active"
-      ) {
-        throw new BadRequestException("stripe_connect_not_active");
-      }
       stripeConnectAccountId = await this.merchants.getStripeConnectAccountId(merchantId);
+      const stripeConnection = await this.platformConnections?.getConnection(merchantId, "stripe");
       stripeConnectAccountId =
         stripeConnection?.externalAccountId ?? stripeConnectAccountId;
       if (!stripeConnectAccountId) {
@@ -201,7 +200,7 @@ export class CreatePaymentIntentUseCase {
       let customer = session.customer;
 
       // Hydrate customer from buyer-account if session is missing required fields
-      if ((!customer?.fullName || !customer?.email || !customer?.cpf) && session.globalUserId && this.buyerAccount) {
+      if ((!customer?.fullName || !customer?.email || !customer?.cpf || !customer?.asaasCustomerId) && session.globalUserId && this.buyerAccount) {
         const account = await this.buyerAccount.findByGlobalUserId(session.globalUserId).catch(() => null);
         if (account) {
           customer = {
@@ -210,6 +209,7 @@ export class CreatePaymentIntentUseCase {
             email: customer?.email || account.email || undefined,
             phone: customer?.phone || account.phone || undefined,
             cpf: customer?.cpf || (account as any).cpf || undefined,
+            asaasCustomerId: customer?.asaasCustomerId || (account as any).asaasCustomerId || undefined,
           };
           // Persist hydrated customer to session for future use
           const hydrated: CheckoutSession = { ...session, customer, updatedAt: new Date().toISOString() };
@@ -233,6 +233,7 @@ export class CreatePaymentIntentUseCase {
           phone: customer.phone ?? undefined
         });
       } catch (error) {
+        this.logger.error(`payment.customer_create_failed: ${error instanceof Error ? error.message : String(error)}`);
         throw normalizeProviderException(error);
       }
       const updatedSession: CheckoutSession = {
@@ -296,6 +297,7 @@ export class CreatePaymentIntentUseCase {
             : {})
       });
     } catch (error) {
+      this.logger.error(`payment.provider_create_failed: ${error instanceof Error ? error.message : String(error)}`);
       throw normalizeProviderException(error);
     }
 
@@ -303,6 +305,8 @@ export class CreatePaymentIntentUseCase {
     intent.setBuyerFacingPayload({
       ...(created.buyerFacingPayload ?? {})
     });
+
+    this.logger.log({ event: "payment_intent.provider_created", intentId: intent.id, method });
 
     this.logger.log({
       event: "payment_intent.created",

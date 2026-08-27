@@ -135,12 +135,35 @@ function PaymentMethodsBlock({ methods }: { methods?: unknown }) {
 
 function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   const pollPayment = useCheckoutStore((s) => s.pollPayment);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     pollPayment();
   }, [pollPayment]);
 
   if (!data) return null;
+
+  const handleCopy = async () => {
+    const code = String(data.pix_code ?? "");
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for iframe/insecure context
+      const ta = document.createElement("textarea");
+      ta.value = code;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   return (
     <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
@@ -154,15 +177,15 @@ function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
         </div>
       ) : null}
       {data.pix_code != null && (
-        <div style={{ display: "flex", gap: "6px", marginBottom: "8px", fontSize: "11px", fontFamily: "'Space Mono', monospace" }}>
-          <code style={{ flex: 1, minWidth: 0, background: "var(--chip)", padding: "6px 8px", borderRadius: "6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div style={{ display: "flex", gap: "6px", marginBottom: "8px" }}>
+          <code style={{ flex: 1, minWidth: 0, background: "var(--chip, var(--card))", padding: "8px 10px", borderRadius: "8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "11px", fontFamily: "var(--aacp-font, inherit)" }}>
             {String(data.pix_code).slice(0, 50)}...
           </code>
           <button
-            onClick={() => void navigator.clipboard.writeText(String(data.pix_code))}
-            style={{ padding: "6px 10px", borderRadius: "6px", background: "var(--aacp-accent, #0f766e)", color: "#fff", border: "none", fontSize: "11px", fontWeight: 600, cursor: "pointer", flex: "none" }}
+            onClick={handleCopy}
+            style={{ padding: "8px 14px", borderRadius: "8px", background: "var(--aacp-accent, #0f766e)", color: "#fff", border: "none", fontSize: "13px", fontWeight: 600, fontFamily: "var(--aacp-font, inherit)", cursor: "pointer", flex: "none", transition: "opacity 0.2s" }}
           >
-            Copiar
+            {copied ? "✓ Copiado" : "Copiar Pix"}
           </button>
         </div>
       )}
