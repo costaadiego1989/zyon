@@ -126,6 +126,16 @@ export default function ConversationShell({
     });
   };
 
+  // Auto-scroll + refocus input every time messages change (user sends OR LLM replies)
+  useEffect(() => {
+    if (messages.length === 0) return;
+    scrollToBottom();
+    // Refocus input after LLM response so user can type immediately
+    if (!isLoading && inputRef.current) {
+      setTimeout(() => inputRef.current?.focus(), 80);
+    }
+  }, [messages, isLoading]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void sendMessage(input);
