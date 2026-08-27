@@ -212,15 +212,15 @@ export function OverviewPage(props: OverviewPageProps) {
     { name: "cross_sell_added", label: "Cross-sell aceito", color: "var(--color-warning)" },
   ];
 
-  // FUNIL DE CHECKOUT: jornada de compra
+  // FUNIL DE CHECKOUT: jornada de compra (nomes batem com get-funnel.use-case.ts STEP_DEFINITIONS)
   const CHECKOUT_FUNNEL = [
     { name: "checkout_started", label: "Checkout iniciado", color: "var(--color-brand)" },
-    { name: "auth_completed", label: "Identificação", color: "oklch(68% 0.13 280)" },
-    { name: "shipping", label: "Frete selecionado", color: "oklch(70% 0.14 250)" },
-    { name: "payment", label: "Pagamento selecionado", color: "oklch(65% 0.16 200)" },
-    { name: "coupon_applied", label: "Cupom visto", color: "var(--color-warning)" },
-    { name: "cross_sell_added", label: "Cross-sell aceito", color: "oklch(72% 0.15 320)" },
-    { name: "completed", label: "Sucesso", color: "var(--color-success)" },
+    { name: "auth_completed", label: "Identificação (OTP)", color: "oklch(68% 0.13 280)" },
+    { name: "shipping_calculated", label: "Frete selecionado", color: "oklch(70% 0.14 250)" },
+    { name: "coupon_applied", label: "Cupom aplicado", color: "var(--color-warning)" },
+    { name: "payment_method_selected", label: "Pagamento selecionado", color: "oklch(65% 0.16 200)" },
+    { name: "order_completed", label: "Pagamento concluído", color: "var(--color-success)" },
+    { name: "payment_failed", label: "Pagamento falhado", color: "var(--color-error)" },
   ];
 
   const storefrontRaw = vm.storefrontFunnelData?.steps ?? vm.funnelData?.steps ?? [];
@@ -239,7 +239,7 @@ export function OverviewPage(props: OverviewPageProps) {
     .map((def) => {
       const found = checkoutRaw.find((s) => s.name === def.name);
       if (!found) return null;
-      if (def.name === "cross_sell_added" && found.count === 0) return null;
+      if (def.name === "payment_failed" && found.count === 0) return null;
       return { label: def.label, value: found.count, color: def.color };
     })
     .filter(Boolean) as Array<{ label: string; value: number; color: string }>;
