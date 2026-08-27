@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import BuyerRegistrationForm from "./BuyerRegistrationForm";
 import BuyerLoginForm from "./BuyerLoginForm";
+import { getValidBuyer } from "@/lib/buyer-auth";
 
 type Props = {
   merchantId?: string;
@@ -89,20 +90,9 @@ export default function BuyerAuthGate({ merchantId, merchantName, onComplete, on
 
   // Auto-login: if buyer already has a valid token in localStorage, skip OTP entirely
   useEffect(() => {
-    try {
-      const token = localStorage.getItem("zyon_buyer_token");
-      if (!token) return;
-      // Decode JWT payload (no verification — server will reject if expired)
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      const now = Math.floor(Date.now() / 1000);
-      if (payload.exp && payload.exp > now && payload.sub) {
-        void onComplete(payload.sub);
-      } else {
-        // Token expired — remove and require fresh OTP
-        localStorage.removeItem("zyon_buyer_token");
-      }
-    } catch {
-      // Malformed token — ignore, show auth gate normally
+    const buyer = getValidBuyer();
+    if (buyer) {
+      void onComplete(buyer.globalUserId);
     }
   }, []);
 
