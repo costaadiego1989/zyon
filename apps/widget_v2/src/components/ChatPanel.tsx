@@ -523,101 +523,180 @@ function FormFieldBlock({ data }: { data?: Record<string, unknown> }) {
 function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   const pollPayment = useCheckoutStore((s) => s.pollPayment);
   const api = useCheckoutStore((s) => s.api);
-  const [txHash, setTxHash] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    pollPayment();
-  }, [pollPayment]);
+  type CryptoStep = "idle" | "connected" | "sending" | "confirming" | "error";
+  const [step, setStep] = useState<CryptoStep>("idle");
+  const [wallet, setWallet] = useState<string>("");
+  const [error, setError] = useState<string>("");
+
+  // Keep fallback polling active
+  useEffect(() => { pollPayment(); }, [pollPayment]);
 
   if (!data) return null;
 
+  const intentId = String(data.intent_id || "");
   const chainLabel = String(data.crypto_chain_label || "Polygon");
-  const amount = String(data.crypto_amount_display || "?.?? USDC");
-  const destination = String(data.crypto_destination_address || "");
+  const network = String(data.crypto_network || "testnet");
   const tokenSymbol = String(data.crypto_token_symbol || "USDC");
+  const amountDisplay = String(data.crypto_amount_display || "?.?? USDC");
+  const amountAtomic = String(data.crypto_amount_atomic || "0");
+  const destination = String(data.crypto_destination_address || "");
+  const tokenAddress = String(data.crypto_token_address || "");
+  const chainId = Number(data.crypto_chain_id || 80002);
 
-  const handleCopyAddress = async () => {
-    try {
-      await navigator.clipboard.writeText(destination);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      const ta = document.createElement("textarea");
-      ta.value = destination;
-      ta.style.position = "fixed";
-      ta.style.opacity = "0";
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      document.body.removeChild(ta);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+  const chainIdHex = "0x" + chainId.toString(16);
+
+  // Encode ERC20 transfer(address,uint256) calldata manually
+  function encodeTransferData(to: string, value: string): string {
+    const selector = "0xa9059cbb";
+    const addrPadded = to.toLowerCase().replace("0x", "").padStart(64, "0");
+    const valHex = BigInt(value).toString(16).padStart(64, "0");
+    return selector + addrPadded + valHex;
+  }
+
+  const handleConnect = async () => {
+    const eth = (window as any).ethereum;
+    if (!eth) {
+      setError("no_metamask");
+      return;
     }
-  };
-
-  const handleConfirm = async () => {
-    if (!txHash.trim() || !api) return;
-    setLoading(true);
-    setError(null);
     try {
-      const intentId = String(data.intent_id || "");
-      const res = await fetch(`${api.apiBaseUrl}/embed/payment/intents/${intentId}/crypto/confirm`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${api.authToken}` },
-        body: JSON.stringify({ session_id: api.currentSessionId, tx_hash: txHash.trim(), wallet_address: "" }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        setError(err.detail || err.message || `Erro ${res.status}`);
+      const accounts: string[] = await eth.request({ method: "eth_requestAccounts" });
+      if (accounts[0]) {
+        setWallet(accounts[0]);
+        setStep("connected");
+        setError("");
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erro ao confirmar");
-    } finally {
-      setLoading(false);
+    } catch {
+      setError("Conexão rejeitada");
     }
   };
+
+  const switchOrAddChain = async (eth: any) => {
+    try {
+      await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: chainIdHex }] });
+    } catch (switchErr: any) {
+      // 4902 = chain not added
+      if (switchErr?.code === 4902) {
+        await eth.request({
+          method: "wallet_addEthereumChain",
+          params: [{
+            chainId: chainIdHex,
+            chainName: `${chainLabel} ${network}`,
+            nativeCurrency: { name: "MATIC", symbol: "MATIC", decimals: 18 },
+            rpcUrls: [`https://rpc-amoy.polygon.technology`],
+            blockExplorerUrls: [`https://amoy.polygonscan.com`],
+          }],
+        });
+      } else {
+        throw switchErr;
+      }
+    }
+  };
+
+  const handlePay = async () => {
+    const eth = (window as any).ethereum;
+    if (!eth || !wallet) return;
+    setStep("sending");
+    setError("");
+    try {
+      // Ensure correct chain
+      const currentChainId: string = await eth.request({ method: "eth_chainId" });
+      if (currentChainId.toLowerCase() !== chainIdHex.toLowerCase()) {
+        await switchOrAddChain(eth);
+      }
+
+      const calldata = encodeTransferData(destination, amountAtomic);
+      const txHash: string = await eth.request({
+        method: "eth_sendTransaction",
+        params: [{
+          from: wallet,
+          to: tokenAddress,
+          data: calldata,
+        }],
+      });
+
+      // tx sent — confirm on backend
+      setStep("confirming");
+      if (api) {
+        await fetch(`${api.apiBaseUrl}/embed/payment/intents/${intentId}/crypto/confirm`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${api.authToken}` },
+          body: JSON.stringify({ session_id: api.currentSessionId, tx_hash: txHash, wallet_address: wallet }),
+        });
+      }
+      pollPayment();
+    } catch (e: any) {
+      if (e?.code === 4001) {
+        setError("Transação cancelada");
+        setStep("connected");
+      } else {
+        setError(e?.message || "Erro ao enviar transação");
+        setStep("connected");
+      }
+    }
+  };
+
+  const btnBase: React.CSSProperties = {
+    padding: "8px 14px", borderRadius: "8px", background: "var(--aacp-accent, #0f766e)",
+    color: "#fff", border: "none", fontSize: "13px", fontWeight: 600,
+    fontFamily: "var(--aacp-font, inherit)", cursor: "pointer", width: "100%",
+  };
+
+  // No MetaMask installed
+  if (error === "no_metamask") {
+    return (
+      <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
+        <p style={{ fontSize: "12px", color: "var(--mut)", margin: "0 0 8px" }}>Instale MetaMask para pagar com crypto</p>
+        <a href="https://metamask.io/download/" target="_blank" rel="noopener noreferrer"
+          style={{ fontSize: "12px", color: "var(--aacp-accent, #0f766e)", textDecoration: "underline" }}>
+          Baixar MetaMask
+        </a>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
-      <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>Pague com {tokenSymbol} ({chainLabel})</div>
+      <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>
+        Pague com {tokenSymbol} ({chainLabel} {network !== "mainnet" ? network : ""})
+      </div>
       <p style={{ fontSize: "12px", color: "var(--mut)", margin: "0 0 10px", lineHeight: 1.4 }}>
-        Envie exatamente <strong>{amount}</strong> para o endereço abaixo. Após enviar, cole o hash da transação.
+        <strong>{amountDisplay}</strong>
       </p>
-      <div style={{ display: "flex", gap: "6px", marginBottom: "10px" }}>
-        <code style={{ flex: 1, minWidth: 0, background: "var(--chip, var(--card))", padding: "8px 10px", borderRadius: "8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "11px", fontFamily: "var(--aacp-font, inherit)" }}>
-          {destination.slice(0, 10)}...{destination.slice(-8)}
-        </code>
-        <button
-          onClick={handleCopyAddress}
-          style={{ padding: "8px 14px", borderRadius: "8px", background: "var(--aacp-accent, #0f766e)", color: "#fff", border: "none", fontSize: "13px", fontWeight: 600, fontFamily: "var(--aacp-font, inherit)", cursor: "pointer", flex: "none" }}
-        >
-          {copied ? "✓ Copiado" : "Copiar"}
-        </button>
-      </div>
-      <div style={{ marginBottom: "10px" }}>
-        <input
-          type="text"
-          placeholder="Cole o tx hash aqui (0x...)"
-          value={txHash}
-          onChange={(e) => setTxHash(e.target.value)}
-          style={{ width: "100%", padding: "8px 10px", borderRadius: "8px", border: "1px solid var(--bd)", background: "var(--card)", color: "var(--tx)", fontSize: "12px", fontFamily: "var(--aacp-font, inherit)", boxSizing: "border-box" }}
-        />
-      </div>
-      {error && <div style={{ padding: "6px 10px", borderRadius: "6px", background: "#fee", color: "#c92a2a", fontSize: "12px", marginBottom: "8px" }}>{error}</div>}
-      <button
-        onClick={handleConfirm}
-        disabled={!txHash.trim() || loading}
-        style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", background: !txHash.trim() || loading ? "var(--bd)" : "var(--aacp-accent, #0f766e)", color: "#fff", border: "none", fontSize: "13px", fontWeight: 600, fontFamily: "var(--aacp-font, inherit)", cursor: !txHash.trim() || loading ? "not-allowed" : "pointer" }}
-      >
-        {loading ? "Verificando..." : "Confirmar pagamento"}
-      </button>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", padding: "12px 0 0" }}>
-        <PulseAgentOrb placement="chatLoading" active />
-        <p style={{ fontSize: "12px", color: "var(--mut)", margin: 0, textAlign: "center" }}>Aguardando confirmação on-chain...</p>
-      </div>
+
+      {step === "idle" && (
+        <button onClick={handleConnect} style={btnBase}>Conectar carteira</button>
+      )}
+
+      {step === "connected" && (
+        <>
+          <div style={{ fontSize: "11px", color: "var(--mut)", marginBottom: "8px", wordBreak: "break-all" }}>
+            Carteira: {wallet.slice(0, 6)}...{wallet.slice(-4)}
+          </div>
+          <button onClick={handlePay} style={btnBase}>Pagar {amountDisplay}</button>
+        </>
+      )}
+
+      {step === "sending" && (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", padding: "8px 0" }}>
+          <PulseAgentOrb placement="chatLoading" active />
+          <p style={{ fontSize: "12px", color: "var(--mut)", margin: 0 }}>Confirme no MetaMask...</p>
+        </div>
+      )}
+
+      {step === "confirming" && (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", padding: "8px 0" }}>
+          <PulseAgentOrb placement="chatLoading" active />
+          <p style={{ fontSize: "12px", color: "var(--mut)", margin: 0 }}>Transação enviada! Verificando on-chain...</p>
+        </div>
+      )}
+
+      {error && error !== "no_metamask" && (
+        <div style={{ padding: "6px 10px", borderRadius: "6px", background: "#fee", color: "#c92a2a", fontSize: "12px", marginTop: "8px" }}>
+          {error}
+        </div>
+      )}
     </div>
   );
 }
