@@ -3,9 +3,23 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./styles/base.css": "./src/styles/base.css",
+    "./styles/checkout.css": "./src/styles/checkout.css",
+    "./styles/animations.css": "./src/styles/animations.css",
+    "./styles/pulse-skin.css": "./src/styles/pulse-skin.css",
+    "./design-system/tokens.css": "./src/design-system/tokens.css"
+  },
   "scripts": {
     "dev": "vite --port 5174",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview"
   },
