@@ -80,11 +80,17 @@ export function CrossSellPage({ context }: { context: CrossSellContext }) {
 
             {/* Strategies */}
             <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "20px 22px" }}>
-              <h3 style={{ font: "600 14px var(--font-sans)", letterSpacing: "-0.01em", color: "var(--color-brand)", marginBottom: 14 }}>Estratégias de recomendação</h3>
+              <h3 style={{ font: "600 14px var(--font-sans)", letterSpacing: "-0.01em", color: "var(--color-brand)", marginBottom: 14 }}>Estratégia de recomendação</h3>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {(Object.keys(STRATEGY_LABELS) as CrossSellStrategy[]).map((s) => (
-                  <label key={s} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--color-border)", cursor: "pointer", background: config.strategies.includes(s) ? "rgba(15,118,110,0.04)" : "transparent" }}>
-                    <ToggleSwitch checked={config.strategies.includes(s)} onChange={() => toggleStrategy(s)} />
+                  <label key={s} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, border: config.strategies[0] === s ? "1.5px solid var(--color-brand)" : "1px solid var(--color-border)", cursor: "pointer", background: config.strategies[0] === s ? "rgba(15,118,110,0.06)" : "transparent", transition: "all 0.15s ease" }}>
+                    <input
+                      type="radio"
+                      name="cross-sell-strategy"
+                      checked={config.strategies[0] === s}
+                      onChange={() => patchConfig({ strategies: [s] })}
+                      style={{ width: 16, height: 16, accentColor: "var(--color-brand)", cursor: "pointer" }}
+                    />
                     <div style={{ flex: 1 }}>
                       <div style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>{STRATEGY_LABELS[s].title}</div>
                       <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>{STRATEGY_LABELS[s].desc}</div>

@@ -540,7 +540,7 @@ export default function ConversationShell({
             // Track login_completed funnel event
             if (merchantId && conversationId) {
               const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
-              fetch(`${API_BASE}/v1/storefront/conversations/${encodeURIComponent(conversationId)}/events`, {
+              fetch(`${API_BASE}/storefront/conversations/${encodeURIComponent(conversationId)}/events`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ merchant_id: merchantId, event: "login_completed", metadata: { timestamp: new Date().toISOString() } }),

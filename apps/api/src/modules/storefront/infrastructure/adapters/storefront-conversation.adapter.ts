@@ -947,6 +947,12 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     if (toolsUsed.includes("add_item_to_cart")) {
       await this.emitFunnelEvent(merchantId, sessionId, "cart_viewed");
     }
+    if (toolsUsed.includes("quote_shipping")) {
+      await this.emitFunnelEvent(merchantId, sessionId, "shipping_option_selected");
+    }
+    if (toolsUsed.includes("apply_coupon")) {
+      await this.emitFunnelEvent(merchantId, sessionId, "coupon_applied");
+    }
     if (toolsUsed.includes("create_checkout_session")) {
       await this.emitFunnelEvent(merchantId, sessionId, "payment_method_selected");
     }

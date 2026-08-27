@@ -17,6 +17,7 @@ import { Button } from "../components/Button.js";
 import { showToast } from "../components/Toast.js";
 import { STATUS_LABELS, formatMinor, formatDate, formatPhone } from "./orders-shipments/utils.js";
 import { OrderStatusBadge } from "./orders-shipments/components/OrderStatusBadge.js";
+import { FilterToolbar } from "../components/FilterToolbar.js";
 
 export { STATUS_LABELS, computeOrderMetrics, filterOrders } from "./orders-shipments/utils.js";
 
@@ -72,16 +73,28 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
   const vm = useOrdersShipmentsPage({ me });
   const [draggedOrder, setDraggedOrder] = useState<TenantOrder | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [period, setPeriod] = useState<"all" | "today" | "7d" | "15d" | "30d">("all");
   const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: "", to: "" });
 
-  const dateFilteredOrders = useMemo(() => {
+  const filteredOrders = useMemo(() => {
     let result = vm.orders;
-    if (dateRange.from) result = result.filter(o => o.completed_at >= dateRange.from);
-    if (dateRange.to) result = result.filter(o => o.completed_at <= dateRange.to + "T23:59:59");
-    return result;
-  }, [vm.orders, dateRange]);
 
-  const filteredOrders = dateFilteredOrders;
+    // Preset period filter (relative to now)
+    if (period !== "all") {
+      const days = period === "today" ? 0 : period === "7d" ? 7 : period === "15d" ? 15 : 30;
+      const cutoff = new Date();
+      if (period === "today") cutoff.setHours(0, 0, 0, 0);
+      else cutoff.setDate(cutoff.getDate() - days);
+      const cutoffIso = cutoff.toISOString();
+      result = result.filter((o) => o.completed_at >= cutoffIso);
+    }
+
+    // Custom date range (overrides/combines with preset)
+    if (dateRange.from) result = result.filter((o) => o.completed_at >= dateRange.from);
+    if (dateRange.to) result = result.filter((o) => o.completed_at <= dateRange.to + "T23:59:59");
+
+    return result;
+  }, [vm.orders, period, dateRange]);
 
   function handleDragStart(e: React.DragEvent, order: TenantOrder) {
     setDraggedOrder(order);
@@ -143,16 +156,35 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
 
       {vm.message ? <div className="panel-error">{vm.message}</div> : null}
 
-      {/* Date filter — compact 2-col grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", padding: "0 0 14px", maxWidth: "360px" }}>
-        <input type="date" value={dateRange.from} onChange={e => setDateRange(d => ({ ...d, from: e.target.value }))} style={{ padding: "8px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", font: "12px var(--font-sans)", width: "100%" }} />
-        <div style={{ display: "flex", gap: "6px" }}>
-          <input type="date" value={dateRange.to} onChange={e => setDateRange(d => ({ ...d, to: e.target.value }))} style={{ padding: "8px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", font: "12px var(--font-sans)", flex: 1 }} />
-          {(dateRange.from || dateRange.to) && (
-            <button onClick={() => setDateRange({ from: "", to: "" })} style={{ padding: "0 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "transparent", color: "var(--color-text-muted)", cursor: "pointer", font: "11px var(--font-sans)", whiteSpace: "nowrap" }}>✕</button>
-          )}
-        </div>
-      </div>
+      {/* Period presets + custom date range — aligned to kanban width */}
+      <FilterToolbar
+        tabs={[
+          { key: "all", label: "Todos" },
+          { key: "today", label: "Hoje" },
+          { key: "7d", label: "Últimos 7 dias" },
+          { key: "15d", label: "Últimos 15 dias" },
+          { key: "30d", label: "Últimos 30 dias" },
+        ]}
+        activeTab={period}
+        onTabChange={(k) => { setPeriod(k as typeof period); setDateRange({ from: "", to: "" }); }}
+        extra={
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <input
+              type="date"
+              value={dateRange.from}
+              onChange={(e) => { setDateRange((d) => ({ ...d, from: e.target.value })); setPeriod("all"); }}
+              style={{ padding: "7px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", font: "12px var(--font-sans)", colorScheme: "dark" }}
+            />
+            <span style={{ color: "var(--color-text-muted)", fontSize: "12px" }}>até</span>
+            <input
+              type="date"
+              value={dateRange.to}
+              onChange={(e) => { setDateRange((d) => ({ ...d, to: e.target.value })); setPeriod("all"); }}
+              style={{ padding: "7px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", font: "12px var(--font-sans)", colorScheme: "dark" }}
+            />
+          </div>
+        }
+      />
 
       {/* Kanban Board */}
       {!vm.hasLoaded ? (

@@ -11,7 +11,7 @@ function trackRegistrationStep(merchantId: string | undefined, event: string) {
   const sessionId = typeof sessionStorage !== "undefined"
     ? sessionStorage.getItem("zyon_conversation_id") ?? "unknown"
     : "unknown";
-  fetch(`${API_BASE}/v1/storefront/conversations/${encodeURIComponent(sessionId)}/events`, {
+  fetch(`${API_BASE}/storefront/conversations/${encodeURIComponent(sessionId)}/events`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ merchant_id: merchantId, event, metadata: { timestamp: new Date().toISOString() } }),
