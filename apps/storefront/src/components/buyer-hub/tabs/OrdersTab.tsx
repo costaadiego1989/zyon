@@ -1,6 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import {
+  FiChevronDown,
+  FiPackage,
+  FiCreditCard,
+  FiSmartphone,
+  FiFileText,
+  FiLoader,
+} from "react-icons/fi";
+import type { IconType } from "react-icons";
 import type { BuyerPurchase } from "@/lib/viewmodels/useBuyerHub";
 
 // ─── Shared Types ──────────────────────────────────────────────────────────
@@ -15,7 +24,7 @@ export interface OrdersTabProps {
 // ─── Formatters ────────────────────────────────────────────────────────────
 
 const brlFmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-const dateFmt = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+const dateFmt = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "short", year: "numeric" });
 
 function fmtBRL(value: number): string {
   if (!Number.isFinite(value)) return brlFmt.format(0);
@@ -28,13 +37,20 @@ function fmtDate(iso: string): string {
   return dateFmt.format(d);
 }
 
-function paymentMethodLabel(method?: string | null): string | null {
+interface PaymentMethodInfo {
+  label: string;
+  Icon: IconType;
+}
+
+function paymentMethodInfo(method?: string | null): PaymentMethodInfo | null {
   if (!method) return null;
   const m = method.toLowerCase();
-  if (m === "pix") return "📱 Pix";
-  if (m === "credit_card" || m === "cartao" || m === "cartão") return "💳 Cartão";
-  if (m === "boleto") return "📄 Boleto";
-  return method;
+  if (m === "pix") return { label: "Pix", Icon: FiSmartphone };
+  if (m === "credit_card" || m === "card" || m === "cartao" || m === "cartão") {
+    return { label: "Cartão", Icon: FiCreditCard };
+  }
+  if (m === "boleto") return { label: "Boleto", Icon: FiFileText };
+  return { label: method, Icon: FiCreditCard };
 }
 
 function trackingStatusLabel(status: string | null | undefined): string {
@@ -49,6 +65,10 @@ function trackingStatusLabel(status: string | null | undefined): string {
   if (s === "returned" || s === "devolvido") return "Devolvido";
   if (s === "out_for_delivery" || s === "saiu_para_entrega") return "Saiu para entrega";
   if (s === "failed_attempt" || s === "tentativa_falhou") return "Tentativa falhou";
+  if (s === "created" || s === "criado") return "Criado";
+  if (s === "label_generated" || s === "etiqueta_gerada") return "Etiqueta gerada";
+  if (s === "flat-rate" || s === "flat_rate" || s === "frete_fixo") return "Frete fixo";
+  if (s === "free_shipping" || s === "entrega_gratis") return "Entrega grátis";
   return status;
 }
 
@@ -66,70 +86,6 @@ function trackingPillTone(status: string | null | undefined): { bg: string; fg: 
   return { bg: "color-mix(in oklab, var(--aacp-accent) 16%, transparent)", fg: "var(--aacp-accent)" };
 }
 
-// ─── Inline SVG Icons ──────────────────────────────────────────────────────
-
-function ChevronDownIcon({ open }: { open: boolean }) {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      style={{
-        transform: open ? "rotate(180deg)" : "rotate(0deg)",
-        transition: "transform 160ms ease",
-        flexShrink: 0,
-      }}
-    >
-      <polyline points="6 9 12 15 18 9" />
-    </svg>
-  );
-}
-
-function PackageIcon() {
-  return (
-    <svg
-      width="28"
-      height="28"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-      <line x1="12" y1="22.08" x2="12" y2="12" />
-    </svg>
-  );
-}
-
-function SpinnerIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      style={{ animation: "aacp-spin 800ms linear infinite" }}
-    >
-      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-    </svg>
-  );
-}
-
 // ─── Purchase Card ─────────────────────────────────────────────────────────
 
 interface PurchaseCardProps {
@@ -144,7 +100,7 @@ function PurchaseCard({ purchase, expanded, onToggle }: PurchaseCardProps) {
   const tone = trackingPillTone(purchase.tracking_status);
   const statusLabel = trackingStatusLabel(purchase.tracking_status);
   const hasDiscount = (purchase.discount_amount ?? 0) > 0;
-  const paymentLabel = paymentMethodLabel(purchase.payment_method);
+  const payment = paymentMethodInfo(purchase.payment_method);
   const cardId = `aacp-order-${purchase.id}`;
   const itemsId = `${cardId}-items`;
 
@@ -226,10 +182,13 @@ function PurchaseCard({ purchase, expanded, onToggle }: PurchaseCardProps) {
             <span style={{ fontSize: "12px", color: "var(--aacp-muted)" }}>
               {fmtDate(purchase.created_at)}
             </span>
-            {paymentLabel && (
+            {payment && (
               <span
-                aria-label={`Forma de pagamento: ${paymentLabel}`}
+                aria-label={`Forma de pagamento: ${payment.label}`}
                 style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
                   fontSize: "11px",
                   fontWeight: 600,
                   padding: "2px 8px",
@@ -239,7 +198,8 @@ function PurchaseCard({ purchase, expanded, onToggle }: PurchaseCardProps) {
                   whiteSpace: "nowrap",
                 }}
               >
-                {paymentLabel}
+                <payment.Icon size={12} aria-hidden="true" />
+                {payment.label}
               </span>
             )}
             <span
@@ -260,7 +220,15 @@ function PurchaseCard({ purchase, expanded, onToggle }: PurchaseCardProps) {
             </span>
           </div>
         </div>
-        <ChevronDownIcon open={expanded} />
+        <FiChevronDown
+          size={16}
+          aria-hidden="true"
+          style={{
+            transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 160ms ease",
+            flexShrink: 0,
+          }}
+        />
       </button>
 
       {expanded && (
@@ -399,20 +367,32 @@ export function OrdersTab({ purchases, hasMore, loadingMore, onLoadMore }: Order
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          gap: "8px",
-          padding: "36px 16px",
+          gap: "12px",
+          padding: "48px 16px",
           color: "var(--aacp-muted)",
           textAlign: "center",
         }}
       >
-        <span style={{ color: "var(--aacp-muted)" }}>
-          <PackageIcon />
-        </span>
-        <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--aacp-fg)" }}>
-          Nenhum pedido ainda.
+        <div
+          aria-hidden="true"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "56px",
+            height: "56px",
+            borderRadius: "50%",
+            background: "var(--aacp-surface-3)",
+            color: "var(--aacp-muted)",
+          }}
+        >
+          <FiPackage size={26} />
+        </div>
+        <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--aacp-fg)" }}>
+          Nenhum pedido
         </span>
         <span style={{ fontSize: "12px", color: "var(--aacp-muted)" }}>
-          Suas compras aparecerão aqui assim que forem concluídas.
+          Seus pedidos aparecerão aqui.
         </span>
       </div>
     );
@@ -465,7 +445,13 @@ export function OrdersTab({ purchases, hasMore, loadingMore, onLoadMore }: Order
               transition: "background 120ms ease",
             }}
           >
-            {loadingMore && <SpinnerIcon />}
+            {loadingMore && (
+              <FiLoader
+                size={14}
+                aria-hidden="true"
+                style={{ animation: "aacp-spin 800ms linear infinite" }}
+              />
+            )}
             <span>{loadingMore ? "Carregando…" : "Carregar mais"}</span>
           </button>
         </div>

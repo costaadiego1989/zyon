@@ -1,5 +1,6 @@
 "use client";
 
+import { FiTruck, FiCheckCircle, FiMapPin, FiExternalLink } from "react-icons/fi";
 import type { BuyerPurchase, TrackingEvent } from "@/lib/viewmodels/useBuyerHub";
 
 export interface TrackingTabProps {
@@ -9,7 +10,8 @@ export interface TrackingTabProps {
 // ─── Status label map ──────────────────────────────────────────────────────
 
 const TRACKING_STATUS_LABEL: Record<string, string> = {
-  pending: "Aguardando rastreio",
+  pending: "Aguardando envio",
+  created: "Criado",
   label_generated: "Etiqueta gerada",
   dispatched: "Despachado",
   in_transit: "Em transporte",
@@ -17,42 +19,78 @@ const TRACKING_STATUS_LABEL: Record<string, string> = {
   delivered: "Entregue",
   returned: "Devolvido",
   cancelled: "Cancelado",
+  "flat-rate": "Frete fixo",
+  flat_rate: "Frete fixo",
+  free_shipping: "Entrega grátis",
 };
 
 function trackingStatusLabel(status?: string | null): string {
-  if (!status) return "Pendente";
-  return TRACKING_STATUS_LABEL[status] ?? status.replace(/_/g, " ");
+  if (!status) return "Aguardando envio";
+  const key = status.toLowerCase();
+  return TRACKING_STATUS_LABEL[key] ?? status.replace(/_/g, " ");
 }
 
 function fmtDate(iso: string): string {
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(new Date(iso));
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(iso));
 }
 
 function correiosTrackingUrl(code: string): string {
   return `https://rastreamento.correios.com.br/app/index.php?objeto=${encodeURIComponent(code)}`;
 }
 
+// A real tracking code — not an internal reference like "pending:<uuid>" or a bare UUID.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const BR_CODE_RE = /^[A-Z]{2}\d{9}[A-Z]{2}$/i;
+
+function isRealTrackingCode(code?: string | null): boolean {
+  if (!code) return false;
+  const c = code.trim();
+  if (!c) return false;
+  if (/^pending:/i.test(c)) return false;
+  if (UUID_RE.test(c)) return false;
+  return true;
+}
+
+// Carriers that don't provide a trackable code — direct delivery / flat rate.
+function isDirectDelivery(carrier?: string | null): boolean {
+  const c = (carrier ?? "").toLowerCase();
+  return c.includes("flat") || c.includes("free") || c.includes("grátis") || c.includes("gratis");
+}
+
 // Resolve the best tracking URL + link label for a purchase.
+// Returns null when no reliable external tracking link exists.
 function resolveTracking(
   code: string,
   carrier?: string | null,
   trackingUrl?: string | null,
-): { url: string; label: string } {
+): { url: string; label: string } | null {
   const carrierLc = (carrier ?? "").toLowerCase();
   const urlLc = (trackingUrl ?? "").toLowerCase();
-  if (carrierLc.includes("melhor") || urlLc.startsWith("melhorenvio") || urlLc.includes("melhorenvio")) {
-    // MelhorEnvio: use the provided tracking URL directly (normalize scheme if missing).
-    const href = trackingUrl
-      ? trackingUrl.startsWith("http")
-        ? trackingUrl
-        : `https://${trackingUrl}`
-      : correiosTrackingUrl(code);
-    return { url: href, label: "Rastrear no Melhor Envio" };
+
+  // MelhorEnvio: use the provided tracking URL directly.
+  if (carrierLc.includes("melhor") || urlLc.includes("melhorenvio")) {
+    if (trackingUrl) {
+      const href = trackingUrl.startsWith("http") ? trackingUrl : `https://${trackingUrl}`;
+      return { url: href, label: "Rastrear no Melhor Envio" };
+    }
+    return null;
   }
+
+  // Explicit http tracking URL from the carrier.
   if (trackingUrl && trackingUrl.startsWith("http")) {
     return { url: trackingUrl, label: "Rastrear" };
   }
-  return { url: correiosTrackingUrl(code), label: "Rastrear nos Correios" };
+
+  // Correios: only when carrier is correios or code matches the BR format.
+  if (carrierLc.includes("correios") || BR_CODE_RE.test(code)) {
+    return { url: correiosTrackingUrl(code), label: "Rastrear nos Correios" };
+  }
+
+  return null;
 }
 
 // ─── Timeline dot icon ────────────────────────────────────────────────────
@@ -148,26 +186,37 @@ export function TrackingTab({ purchases }: TrackingTabProps) {
   if (allNonCancelled.length === 0) {
     return (
       <div
+        role="status"
         style={{
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          gap: "8px",
+          gap: "12px",
           padding: "48px 16px",
           textAlign: "center",
         }}
       >
         <div
+          aria-hidden="true"
           style={{
-            fontSize: "32px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "56px",
+            height: "56px",
+            borderRadius: "50%",
+            background: "var(--aacp-surface-3)",
             color: "var(--aacp-muted)",
           }}
         >
-          📭
+          <FiTruck size={26} />
         </div>
-        <div style={{ fontSize: "13px", color: "var(--aacp-muted)" }}>
-          Nenhum pedido para rastrear.
+        <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--aacp-fg)" }}>
+          Nenhuma entrega
+        </div>
+        <div style={{ fontSize: "12px", color: "var(--aacp-muted)" }}>
+          Quando você fizer um pedido com envio, ele aparecerá aqui.
         </div>
       </div>
     );
@@ -242,8 +291,11 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
   const events = purchase.tracking_events || [];
   const status = trackingStatusLabel(purchase.tracking_status);
   const carrier = purchase.carrier || "Correios";
-  const hasTracking = Boolean(purchase.tracking_code);
+  const rawCode = purchase.tracking_code || "";
   const isDelivered = purchase.tracking_status === "delivered" || purchase.tracking_status === "entregue";
+  const isFlatRate = isDirectDelivery(carrier);
+  const hasRealCode = isRealTrackingCode(rawCode);
+  const tracking = hasRealCode ? resolveTracking(rawCode, carrier, purchase.tracking_url) : null;
 
   // Delivered state: simple checkmark card
   if (isDelivered) {
@@ -276,28 +328,28 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
             >
               {purchase.merchant_name}
             </div>
-            {purchase.tracking_code && (
+            {hasRealCode && (
               <div style={{ fontSize: "10px", color: "var(--aacp-muted)", marginTop: "4px" }}>
-                {purchase.tracking_code}
+                {rawCode}
               </div>
             )}
           </div>
           <div
             aria-label="Entregue"
             style={{
-              fontSize: "24px",
               flexShrink: 0,
+              color: "var(--aacp-success)",
             }}
           >
-            ✅
+            <FiCheckCircle size={24} />
           </div>
         </div>
       </div>
     );
   }
 
-  // No tracking code: waiting state
-  if (!hasTracking) {
+  // Flat-rate or free shipping: no tracking code
+  if (isFlatRate && !hasRealCode) {
     return (
       <div
         style={{
@@ -307,7 +359,7 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
           background: "var(--aacp-surface-2)",
         }}
         role="region"
-        aria-label={`Aguardando rastreio - ${purchase.merchant_name}`}
+        aria-label={`Sem rastreio - ${purchase.merchant_name}`}
       >
         <div
           style={{
@@ -349,7 +401,66 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
           }}
           role="status"
         >
-          Aguardando rastreio
+          Sem rastreio — entrega direta
+        </div>
+      </div>
+    );
+  }
+
+  // No tracking code yet (pending, UUID, or missing)
+  if (!hasRealCode) {
+    return (
+      <div
+        style={{
+          padding: "14px",
+          borderRadius: "10px",
+          border: "1px solid var(--aacp-line)",
+          background: "var(--aacp-surface-2)",
+        }}
+        role="region"
+        aria-label={`Aguardando código - ${purchase.merchant_name}`}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+            marginBottom: "8px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "12px",
+              fontWeight: 600,
+              color: "var(--aacp-fg)",
+            }}
+          >
+            {purchase.merchant_name}
+          </div>
+          <div
+            style={{
+              fontSize: "10px",
+              fontWeight: 600,
+              color: "var(--aacp-muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.3px",
+            }}
+          >
+            {carrier}
+          </div>
+        </div>
+        <div
+          style={{
+            padding: "10px 12px",
+            borderRadius: "8px",
+            background: "color-mix(in srgb, var(--aacp-muted) 8%, transparent)",
+            fontSize: "12px",
+            color: "var(--aacp-muted)",
+            borderLeft: "3px solid var(--aacp-muted)",
+          }}
+          role="status"
+        >
+          Aguardando código
         </div>
         <div style={{ fontSize: "11px", color: "var(--aacp-muted)", marginTop: "8px" }}>
           Este pedido ainda não possui código de rastreio. Atualize em breve.
@@ -358,7 +469,7 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
     );
   }
 
-  // Active tracking: timeline + link
+  // Active tracking: timeline + link (only if we have a real tracking URL).
   return (
     <div
       style={{
@@ -421,8 +532,8 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
             color: "var(--aacp-muted)",
           }}
         >
-          <span style={{ fontWeight: 600 }}>📍</span>
-          <span>{purchase.tracking_code}</span>
+          <FiMapPin size={12} aria-hidden="true" />
+          <span>{rawCode}</span>
         </div>
         <div
           style={{
@@ -470,13 +581,9 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
       )}
 
       {/* Link to tracking service */}
-      {purchase.tracking_code && (
+      {tracking && (
         <a
-          href={resolveTracking(
-            purchase.tracking_code,
-            purchase.carrier,
-            purchase.tracking_url,
-          ).url}
+          href={tracking.url}
           target="_blank"
           rel="noopener noreferrer"
           style={{
@@ -496,35 +603,10 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
           onMouseLeave={(e) => {
             (e.currentTarget as HTMLAnchorElement).style.opacity = "1";
           }}
-          aria-label={`${resolveTracking(
-            purchase.tracking_code,
-            purchase.carrier,
-            purchase.tracking_url,
-          ).label} ${purchase.tracking_code}`}
+          aria-label={`${tracking.label} ${rawCode}`}
         >
-          <span>
-            {resolveTracking(
-              purchase.tracking_code,
-              purchase.carrier,
-              purchase.tracking_url,
-            ).label}
-          </span>
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 12 12"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            aria-hidden="true"
-          >
-            <path
-              d="M3 9L9 3M9 3H5M9 3V7"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <span>{tracking.label}</span>
+          <FiExternalLink size={10} />
         </a>
       )}
     </div>

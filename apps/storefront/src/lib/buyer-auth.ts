@@ -52,5 +52,8 @@ export function clearBuyerSession(): void {
   try {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(SESSION_KEY);
+    // Also clear the BuyerHub's own session key so logout is global across
+    // both the checkout gate and the hub panel.
+    localStorage.removeItem("aacp_buyer_auth_session");
   } catch {}
 }

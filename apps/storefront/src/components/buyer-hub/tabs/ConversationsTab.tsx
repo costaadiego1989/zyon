@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback, useId } from "react";
+import { useState, useCallback, useId, useEffect } from "react";
+import { FiMessageSquare, FiThumbsUp, FiThumbsDown, FiChevronRight } from "react-icons/fi";
 import type { BuyerConversation, ConversationMessage } from "@/lib/viewmodels/useBuyerHub";
 
 // ─── Public types ──────────────────────────────────────────────────────────
@@ -59,69 +60,46 @@ function isAssistant(role: ConversationMessage["role"]): boolean {
   return role === "assistant" || role === "agent";
 }
 
-// ─── Icons (inline SVG) ────────────────────────────────────────────────────
+// ─── Support ticket bridge (sessionStorage) ─────────────────────────────────
 
-function IconThumbsUp({ filled }: { filled: boolean }) {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill={filled ? "currentColor" : "none"}
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d="M7 10v12" />
-      <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H7a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L15 2h0a3.13 3.13 0 0 1 3 3.88Z" />
-    </svg>
-  );
+const SUPPORT_MESSAGES_KEY = "zyon_support_messages";
+const SUPPORT_TICKET_KEY = "zyon_support_ticket";
+
+interface SupportState {
+  hasMessages: boolean;
+  messageCount: number;
+  closed: boolean;
 }
 
-function IconThumbsDown({ filled }: { filled: boolean }) {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill={filled ? "currentColor" : "none"}
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d="M17 14V2" />
-      <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H17a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L9 22h0a3.13 3.13 0 0 1-3-3.88Z" />
-    </svg>
-  );
-}
+function readSupportState(): SupportState | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(SUPPORT_MESSAGES_KEY);
+    if (!raw) return null;
+    let messageCount = 0;
+    try {
+      const parsed = JSON.parse(raw);
+      messageCount = Array.isArray(parsed) ? parsed.length : 0;
+    } catch {
+      messageCount = 0;
+    }
+    if (messageCount === 0) return null;
 
-function IconChevron({ expanded }: { expanded: boolean }) {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-      style={{
-        transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
-        transition: "transform 150ms ease",
-      }}
-    >
-      <polyline points="9 18 15 12 9 6" />
-    </svg>
-  );
+    let closed = false;
+    const ticketRaw = window.sessionStorage.getItem(SUPPORT_TICKET_KEY);
+    if (ticketRaw) {
+      try {
+        const ticket = JSON.parse(ticketRaw);
+        const status = String(ticket?.status ?? "").toLowerCase();
+        closed = status === "closed" || status === "resolved" || status === "fechado";
+      } catch {
+        closed = false;
+      }
+    }
+    return { hasMessages: true, messageCount, closed };
+  } catch {
+    return null;
+  }
 }
 
 // ─── Sub-components ────────────────────────────────────────────────────────
@@ -261,7 +239,11 @@ function MessageBubble({
               (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
             }}
           >
-            <IconThumbsUp filled={msg.rating === "up"} />
+            <FiThumbsUp
+              size={14}
+              fill={msg.rating === "up" ? "currentColor" : "none"}
+              aria-hidden="true"
+            />
           </button>
           <button
             type="button"
@@ -281,7 +263,11 @@ function MessageBubble({
               (e.currentTarget as HTMLButtonElement).style.transform = "scale(1)";
             }}
           >
-            <IconThumbsDown filled={msg.rating === "down"} />
+            <FiThumbsDown
+              size={14}
+              fill={msg.rating === "down" ? "currentColor" : "none"}
+              aria-hidden="true"
+            />
           </button>
           {error ? (
             <span
@@ -399,7 +385,15 @@ function ConversationCard({
           </div>
           {preview ? <p style={previewStyle}>{preview}</p> : null}
         </div>
-        <IconChevron expanded={expanded} />
+        <FiChevronRight
+          size={16}
+          aria-hidden="true"
+          style={{
+            transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
+            transition: "transform 150ms ease",
+            flexShrink: 0,
+          }}
+        />
       </button>
       <div
         id={panelId}
@@ -434,6 +428,79 @@ function ConversationCard({
   );
 }
 
+// ─── Support ticket card ────────────────────────────────────────────────────
+
+function SupportTicketCard({ support }: { support: SupportState }) {
+  const reopen = useCallback(() => {
+    if (typeof window === "undefined") return;
+    // Decoupled: ConversationShell listens for this event to open the SupportPanel.
+    window.dispatchEvent(new CustomEvent("zyon:open-support"));
+  }, []);
+
+  const closed = support.closed;
+
+  return (
+    <li
+      aria-label={closed ? "Suporte — Fechado" : "Suporte ativo"}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "12px 14px",
+        borderRadius: 12,
+        border: "1px solid var(--aacp-line)",
+        background: closed ? "var(--aacp-surface-3)" : "var(--aacp-card)",
+        opacity: closed ? 0.7 : 1,
+      }}
+    >
+      <div
+        aria-hidden="true"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 36,
+          height: 36,
+          borderRadius: "50%",
+          background: closed ? "var(--aacp-surface-2)" : "color-mix(in srgb, var(--aacp-accent) 14%, transparent)",
+          color: closed ? "var(--aacp-muted)" : "var(--aacp-accent)",
+          flexShrink: 0,
+        }}
+      >
+        <FiMessageSquare size={18} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--aacp-fg)" }}>
+          {closed ? "Suporte — Fechado" : "Suporte ativo"}
+        </div>
+        <div style={{ fontSize: 12, color: "var(--aacp-muted)", marginTop: 2 }}>
+          {support.messageCount} {support.messageCount === 1 ? "mensagem" : "mensagens"}
+        </div>
+      </div>
+      {!closed && (
+        <button
+          type="button"
+          onClick={reopen}
+          aria-label="Reabrir suporte"
+          style={{
+            padding: "8px 14px",
+            borderRadius: 8,
+            border: "1px solid var(--aacp-accent)",
+            background: "var(--aacp-accent)",
+            color: "var(--aacp-panel-bg)",
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+            flexShrink: 0,
+          }}
+        >
+          Reabrir
+        </button>
+      )}
+    </li>
+  );
+}
+
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export default function ConversationsTab({
@@ -441,6 +508,16 @@ export default function ConversationsTab({
   loading,
   onRate,
 }: ConversationsTabProps) {
+  const [support, setSupport] = useState<SupportState | null>(null);
+
+  useEffect(() => {
+    setSupport(readSupportState());
+    // Re-check when the support panel writes new messages/status.
+    const onStorage = () => setSupport(readSupportState());
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
   if (loading) {
     return (
       <div
@@ -459,21 +536,43 @@ export default function ConversationsTab({
     );
   }
 
-  if (!conversations || conversations.length === 0) {
+  const hasConversations = Boolean(conversations && conversations.length > 0);
+
+  if (!hasConversations && !support) {
     return (
       <div
         role="status"
         style={{
-          padding: 32,
-          color: "var(--aacp-muted)",
-          fontSize: 14,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 12,
+          padding: "48px 16px",
           textAlign: "center",
-          background: "var(--aacp-card)",
-          border: "1px solid var(--aacp-line)",
-          borderRadius: 12,
         }}
       >
-        Nenhuma conversa registrada.
+        <div
+          aria-hidden="true"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 56,
+            height: 56,
+            borderRadius: "50%",
+            background: "var(--aacp-surface-3)",
+            color: "var(--aacp-muted)",
+          }}
+        >
+          <FiMessageSquare size={26} />
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--aacp-fg)" }}>
+          Nenhuma conversa
+        </div>
+        <div style={{ fontSize: 12, color: "var(--aacp-muted)", maxWidth: 260 }}>
+          Suas conversas com a assistente e tickets de suporte aparecerão aqui.
+        </div>
       </div>
     );
   }
@@ -497,22 +596,11 @@ export default function ConversationsTab({
           gap: 12,
         }}
       >
+        {support && <SupportTicketCard support={support} />}
         {conversations.map((c) => (
           <ConversationCard key={c.id} conv={c} onRate={onRate} />
         ))}
       </ul>
-      <div
-        style={{
-          fontSize: 12,
-          color: "var(--aacp-muted)",
-          padding: "12px",
-          borderRadius: 8,
-          border: "1px solid var(--aacp-line)",
-          background: "var(--aacp-surface-3)",
-        }}
-      >
-        Nota: Tickets de suporte são gerenciados na aba Suporte. Conversas de checkout aparecem aqui.
-      </div>
     </section>
   );
 }

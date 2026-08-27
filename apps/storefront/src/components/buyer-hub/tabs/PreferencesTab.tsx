@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { FiCheck } from "react-icons/fi";
 import type { BuyerPreferences, BuyerIntentProfile } from "@/lib/viewmodels/useBuyerHub";
 
 // ─── Shared Types ──────────────────────────────────────────────────────────
@@ -23,23 +24,9 @@ function fmtPercent(value: number | undefined | null): string {
 
 // ─── Icons (inline SVG) ────────────────────────────────────────────────────
 
-
 function IconCheck() {
   return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
+    <FiCheck size={14} aria-hidden="true" />
   );
 }
 

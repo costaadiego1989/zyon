@@ -22,6 +22,22 @@ type Channel = "chat" | "voice";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
+/**
+ * Parse basic markdown (bold, italic) to sanitized HTML.
+ * Supports: **bold**, *italic*, \n → <br/>.
+ * Always sanitized via DOMPurify to prevent XSS.
+ */
+function renderMarkdownText(text: string): string {
+  let html = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    .replace(/\n/g, "<br/>");
+  return DOMPurify.sanitize(html, { ALLOWED_TAGS: ["strong", "em", "br"] });
+}
+
 export default function ConversationShell({
   storeName,
   logo,
@@ -82,6 +98,22 @@ export default function ConversationShell({
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [logoError, setLogoError] = useState(false);
   const [checkoutUserId, setCheckoutUserId] = useState("");
+
+  // Suppress hydration mismatch: SSR renders "intro" mode but client may
+  // restore a session from localStorage → mode diverges on hydration.
+  // Render intro-safe layout until mounted, then let the actual mode take over.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  // Until mounted, force the SSR default ("intro") so the first client render
+  // matches the server HTML. After mount, follow the real mode.
+  const effectiveMode = mounted ? mode : "intro";
+
+  // Listen for custom events from BuyerHub (e.g., open support)
+  useEffect(() => {
+    const onOpenSupport = () => setSupportOpen(true);
+    window.addEventListener("zyon:open-support", onOpenSupport);
+    return () => window.removeEventListener("zyon:open-support", onOpenSupport);
+  }, []);
 
   // React to checkoutIntent from viewmodel — valid token skipped the gate, go straight to checkout
   useEffect(() => {
@@ -216,7 +248,7 @@ export default function ConversationShell({
         @keyframes shimmerRotate { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
       `}</style>
 
-      {mode === "chat" && (
+      {effectiveMode === "chat" && (
         <>
         <header style={{ display: "flex", alignItems: "center", gap: "11px", padding: "8px 14px", borderBottom: "none", zIndex: 9, background: "var(--aacp-bg)", flex: "none" }}>
           {logo && !logoError ? (
@@ -302,7 +334,7 @@ export default function ConversationShell({
         </>
       )}
 
-      {mode === "intro" ? (
+      {effectiveMode === "intro" ? (
         /* ─── INTRO STAGE ─── */
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "28px 24px", overflowY: "auto" }}>
           <div style={{ maxWidth: "520px", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
@@ -397,7 +429,7 @@ export default function ConversationShell({
                       </div>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1, minWidth: 0 }}>
-                      {m.text && <div style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", fontSize: "13.5px", lineHeight: 1.55, whiteSpace: "pre-wrap", background: "var(--aacp-card)", color: "var(--aacp-fg)", wordWrap: "break-word", border: "1px solid var(--aacp-line)" }}>{m.text}</div>}
+                      {m.text && <div style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", fontSize: "13.5px", lineHeight: 1.55, whiteSpace: "pre-wrap", background: "var(--aacp-card)", color: "var(--aacp-fg)", wordWrap: "break-word", border: "1px solid var(--aacp-line)" }} dangerouslySetInnerHTML={{ __html: renderMarkdownText(m.text) }} />}
                       {m.blocks?.map((block, idx) => (
                         <div key={idx} style={{ maxWidth: "100%" }}>
                           <BlockRenderer block={block} onQuickReply={handleQuickReply} />
@@ -466,7 +498,7 @@ export default function ConversationShell({
       )}
 
       {/* Footer — CNPJ + policies */}
-      {mode === "chat" && storeSettings?.company?.cnpj && (
+      {effectiveMode === "chat" && storeSettings?.company?.cnpj && (
         <div style={{ padding: "8px 14px", borderTop: "1px solid var(--aacp-line)", background: "var(--aacp-bg)", display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", flexWrap: "wrap", flex: "none" }}>
           <span style={{ fontSize: "9px", color: "var(--aacp-muted)", fontFamily: "'Space Mono', monospace", letterSpacing: "0.5px" }}>
             {storeSettings.company.razaoSocial && `${storeSettings.company.razaoSocial} · `}CNPJ {storeSettings.company.cnpj}
@@ -510,14 +542,14 @@ export default function ConversationShell({
       )}
 
       {/* Support FAB + Panel — only in chat mode */}
-      {mode === "chat" && (
+      {effectiveMode === "chat" && (
         <>
           <SupportPanel open={supportOpen} onClose={() => setSupportOpen(false)} merchantId={merchantId} agentName={agentName} />
         </>
       )}
 
       {/* Native Cart — FAB + lateral drawer, no iframe */}
-      {mode === "chat" && (
+      {effectiveMode === "chat" && (
         <CheckoutWidgetPanel
           merchantId={merchantId}
           onCheckout={async () => {
