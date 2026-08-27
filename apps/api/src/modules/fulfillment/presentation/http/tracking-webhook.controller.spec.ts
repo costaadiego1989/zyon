@@ -1,4 +1,4 @@
-import { describe, it } from "node:test";
+import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
 import { TrackingWebhookController } from "./tracking-webhook.controller.js";
 import { RecordTrackingEventUseCase } from "../../application/use-cases/record-tracking-event.use-case.js";
@@ -10,6 +10,13 @@ import { InMemoryOutboxRepository } from "../../../../shared/messaging/infrastru
 import { InMemoryDomainEventBus } from "../../../../shared/events/in-memory-domain-event-bus.js";
 import type { ShipmentRepository } from "../../domain/ports/shipment-repository.port.js";
 import type { ShipmentSnapshot } from "../../domain/entities/shipment.entity.js";
+
+// Generic carriers (correios/ups/fedex) authenticate via a shared bearer secret.
+const TEST_SECRET = "test_tracking_secret";
+before(() => { process.env.TRACKING_WEBHOOK_SECRET = TEST_SECRET; });
+
+// Mock authenticated request: bearer token matching the shared secret.
+const AUTHED_REQ = { headers: { authorization: `Bearer ${TEST_SECRET}` } } as const;
 
 function makeSetup(seedShipment?: ShipmentEntity) {
   const repo = new InMemoryShipmentRepository();
@@ -27,7 +34,7 @@ const BASE = { merchant_id: "mrc_1", order_id: "ord_1", carrier_key: "correios" 
 describe("TrackingWebhookController.ingest", () => {
   it("returns ignored when tracking_code is unknown", async () => {
     const { controller } = makeSetup();
-    const result = await controller.ingest("correios", {
+    const result = await controller.ingest("correios", AUTHED_REQ as any, {
       tracking_code: "TRACK_MISSING",
       merchant_id: "mrc_1",
       status: "dispatched",
@@ -41,7 +48,7 @@ describe("TrackingWebhookController.ingest", () => {
     const { controller } = makeSetup();
     await assert.rejects(
       () =>
-        controller.ingest("correios", {
+        controller.ingest("correios", AUTHED_REQ as any, {
           tracking_code: "TRACK_1",
           merchant_id: "",
           status: "dispatched",
@@ -56,7 +63,7 @@ describe("TrackingWebhookController.ingest", () => {
     const { controller } = makeSetup();
     await assert.rejects(
       () =>
-        controller.ingest("correios", {
+        controller.ingest("correios", AUTHED_REQ as any, {
           tracking_code: "TRACK_1",
           merchant_id: "   ",
           status: "dispatched",
@@ -78,7 +85,7 @@ describe("TrackingWebhookController.ingest", () => {
     await repo.save(entity.setLabel("http://track.example.com/1", "TRACK_CROSS"));
 
     // Cross-tenant lookup returns ignored (no leak)
-    const result = await controller.ingest("correios", {
+    const result = await controller.ingest("correios", AUTHED_REQ as any, {
       tracking_code: "TRACK_CROSS",
       merchant_id: "mrc_2",
       status: "dispatched",
@@ -98,7 +105,7 @@ describe("TrackingWebhookController.ingest", () => {
     const entity = (await repo.findById(snap.id, "mrc_1"))!;
     await repo.save(entity.setLabel("http://track.example.com/1", "TRACK_OK"));
 
-    const result = await controller.ingest("correios", {
+    const result = await controller.ingest("correios", AUTHED_REQ as any, {
       tracking_code: "TRACK_OK",
       merchant_id: "mrc_1",
       status: "label_generated",
@@ -126,7 +133,7 @@ describe("TrackingWebhookController.ingest", () => {
     const entity = (await repo.findById(snap.id, "mrc_1"))!;
     await repo.save(entity.setLabel("http://track.example.com/1", "TRACK_MERGE"));
 
-    await controller.ingest("ups", {
+    await controller.ingest("ups", AUTHED_REQ as any, {
       tracking_code: "TRACK_MERGE",
       merchant_id: "mrc_1",
       status: "label_generated",
@@ -151,7 +158,7 @@ describe("TrackingWebhookController.ingest", () => {
     const entity = (await repo.findById(snap.id, "mrc_1"))!;
     await repo.save(entity.setLabel("http://track.example.com/1", "TRACK_NORAW"));
 
-    await controller.ingest("fedex", {
+    await controller.ingest("fedex", AUTHED_REQ as any, {
       tracking_code: "TRACK_NORAW",
       merchant_id: "mrc_1",
       status: "label_generated",
@@ -173,7 +180,7 @@ describe("TrackingWebhookController.ingest", () => {
     const entity = (await repo.findById(snap.id, "mrc_1"))!;
     await repo.save(entity.setLabel("http://track.example.com/1", "TRACK_TRIM"));
 
-    const result = await controller.ingest("correios", {
+    const result = await controller.ingest("correios", AUTHED_REQ as any, {
       tracking_code: "TRACK_TRIM",
       merchant_id: "  mrc_1  ",
       status: "label_generated",
@@ -195,7 +202,7 @@ describe("TrackingWebhookController.ingest", () => {
 
     await assert.rejects(
       () =>
-        controller.ingest("correios", {
+        controller.ingest("correios", AUTHED_REQ as any, {
           tracking_code: "TRACK_BAD",
           merchant_id: "mrc_1",
           status: "delivered",

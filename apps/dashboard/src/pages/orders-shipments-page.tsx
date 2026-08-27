@@ -15,7 +15,7 @@ import type { MerchantProfile, TenantOrder } from "../api-client.js";
 import { useOrdersShipmentsPage } from "./orders-shipments/useOrdersShipmentsPage.js";
 import { Button } from "../components/Button.js";
 import { showToast } from "../components/Toast.js";
-import { STATUS_LABELS, isStatusBefore, formatMinor, formatDate, formatPhone, customerLabel} from "./orders-shipments/utils.js";
+import { STATUS_LABELS, formatMinor, formatDate, formatPhone } from "./orders-shipments/utils.js";
 import { OrderStatusBadge } from "./orders-shipments/components/OrderStatusBadge.js";
 
 export { STATUS_LABELS, computeOrderMetrics, filterOrders } from "./orders-shipments/utils.js";
@@ -72,7 +72,6 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
   const vm = useOrdersShipmentsPage({ me });
   const [draggedOrder, setDraggedOrder] = useState<TenantOrder | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
   const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: "", to: "" });
 
   const dateFilteredOrders = useMemo(() => {
@@ -82,13 +81,7 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
     return result;
   }, [vm.orders, dateRange]);
 
-  const filteredOrders = searchQuery.trim()
-    ? dateFilteredOrders.filter((o) => {
-        const q = searchQuery.toLowerCase();
-        const label = customerLabel(o.customer as Record<string, unknown> | null);
-        return o.external_order_id.toLowerCase().includes(q) || label.toLowerCase().includes(q);
-      })
-    : dateFilteredOrders;
+  const filteredOrders = dateFilteredOrders;
 
   function handleDragStart(e: React.DragEvent, order: TenantOrder) {
     setDraggedOrder(order);
@@ -134,17 +127,9 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
           <h1>Pedidos e Envios</h1>
           <p className="page-lead">Arraste os cards entre colunas para atualizar o status do pedido</p>
         </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", marginLeft: "auto" }}>
-          <input
-            placeholder="Buscar por ID ou cliente..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ height: 34, padding: "0 12px", width: 220, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-1)", color: "var(--color-text)", font: "13px var(--font-sans)" }}
-          />
-          <Button variant="outline" size="sm" onClick={() => vm.exportCsv()}>
-            <Download size={14} /> CSV
-          </Button>
-        </div>
+        <Button variant="outline" size="sm" onClick={() => vm.exportCsv()}>
+          <Download size={14} /> CSV
+        </Button>
       </header>
 
       {/* Stats */}
@@ -158,15 +143,15 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
 
       {vm.message ? <div className="panel-error">{vm.message}</div> : null}
 
-      {/* Date range filter */}
-      <div style={{ display: "flex", gap: "10px", alignItems: "center", padding: "0 0 14px", flexWrap: "wrap" }}>
-        <label style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>Período:</label>
-        <input type="date" value={dateRange.from} onChange={e => setDateRange(d => ({ ...d, from: e.target.value }))} style={{ padding: "6px 10px", borderRadius: "8px", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", font: "12px var(--font-sans)" }} />
-        <span style={{ color: "var(--color-text-muted)", fontSize: "12px" }}>até</span>
-        <input type="date" value={dateRange.to} onChange={e => setDateRange(d => ({ ...d, to: e.target.value }))} style={{ padding: "6px 10px", borderRadius: "8px", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", font: "12px var(--font-sans)" }} />
-        {(dateRange.from || dateRange.to) && (
-          <button onClick={() => setDateRange({ from: "", to: "" })} style={{ padding: "4px 10px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "transparent", color: "var(--color-text-muted)", cursor: "pointer", font: "11px var(--font-sans)" }}>Limpar</button>
-        )}
+      {/* Date filter — compact 2-col grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", padding: "0 0 14px", maxWidth: "360px" }}>
+        <input type="date" value={dateRange.from} onChange={e => setDateRange(d => ({ ...d, from: e.target.value }))} style={{ padding: "8px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", font: "12px var(--font-sans)", width: "100%" }} />
+        <div style={{ display: "flex", gap: "6px" }}>
+          <input type="date" value={dateRange.to} onChange={e => setDateRange(d => ({ ...d, to: e.target.value }))} style={{ padding: "8px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", font: "12px var(--font-sans)", flex: 1 }} />
+          {(dateRange.from || dateRange.to) && (
+            <button onClick={() => setDateRange({ from: "", to: "" })} style={{ padding: "0 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "transparent", color: "var(--color-text-muted)", cursor: "pointer", font: "11px var(--font-sans)", whiteSpace: "nowrap" }}>✕</button>
+          )}
+        </div>
       </div>
 
       {/* Kanban Board */}
