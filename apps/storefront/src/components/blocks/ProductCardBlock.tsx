@@ -163,8 +163,10 @@ export default function ProductCardBlock({
   }, [data.originalPrice, data.price, data.discountPercent]);
 
   const variants = data.variants ?? [];
+  // Hide variant section if variants have no meaningful value (default variant only)
+  const hasRealVariants = variants.length > 1 || (variants.length === 1 && variants[0].value.trim().length > 0);
   const variantsAreColors =
-    variants.length > 0 && isColorToken(variants[0].value);
+    hasRealVariants && variants.length > 0 && isColorToken(variants[0].value);
 
   const selectedVariant =
     variants.find((v) => v.id === selectedVariantId) ?? null;
@@ -411,7 +413,7 @@ export default function ProductCardBlock({
         )}
 
         {/* Variants */}
-        {variants.length > 0 && (
+        {hasRealVariants && (
           <div
             style={{
               display: "flex",
