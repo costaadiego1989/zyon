@@ -10,13 +10,16 @@ import {
   Body,
   Query,
   Post,
+  Put,
 } from "@nestjs/common";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { currentTenantPrincipal, type TenantPrincipalRequest } from "../../../../shared/auth/tenant-principal.js";
 import { GetPostSaleDashboardUseCase } from "../../application/use-cases/get-post-sale-dashboard.use-case.js";
+import { GeneratePostSaleTemplateUseCase } from "../../application/use-cases/generate-post-sale-template.use-case.js";
 import { REVIEW_REPOSITORY, type ReviewRepositoryPort } from "../../domain/ports/review-repository.port.js";
 import { NPS_REPOSITORY, type NpsRepositoryPort } from "../../domain/ports/nps-repository.port.js";
-import { Inject } from "@nestjs/common";
+import { POST_SALE_TEMPLATE_REPOSITORY, type PostSaleTemplateRepositoryPort } from "../../domain/ports/post-sale-template-repository.port.js";
+import { Inject, Optional } from "@nestjs/common";
 
 @Controller("dashboard/post-sale")
 @UseGuards(AuthGuard)
@@ -25,10 +28,13 @@ export class PostSaleDashboardController {
 
   constructor(
     private readonly dashboard: GetPostSaleDashboardUseCase,
+    private readonly generateTemplateUseCase: GeneratePostSaleTemplateUseCase,
     @Inject(REVIEW_REPOSITORY)
     private readonly reviews: ReviewRepositoryPort,
     @Inject(NPS_REPOSITORY)
-    private readonly nps: NpsRepositoryPort
+    private readonly nps: NpsRepositoryPort,
+    @Optional() @Inject(POST_SALE_TEMPLATE_REPOSITORY)
+    private readonly templates?: PostSaleTemplateRepositoryPort
   ) {}
 
   @Get("stats")
@@ -110,4 +116,71 @@ export class PostSaleDashboardController {
       review: updated,
     };
   }
+
+  @Get("templates")
+  async listTemplates(@Req() req: TenantPrincipalRequest) {
+    const tenant = currentTenantPrincipal(req);
+
+    if (!this.templates) {
+      throw new BadRequestException("Templates feature not available");
+    }
+
+    const templates = await this.templates.findAllByMerchant(tenant.tenantId);
+    return { templates };
+  }
+
+  @Put("templates/:type/:channel")
+  async upsertTemplate(
+    @Req() req: TenantPrincipalRequest,
+    @Param("type") type: string,
+    @Param("channel") channel: string,
+    @Body() body: { name: string; body: string; subject?: string }
+  ) {
+    const tenant = currentTenantPrincipal(req);
+
+    if (!this.templates) {
+      throw new BadRequestException("Templates feature not available");
+    }
+
+    const template = await this.templates.upsert({
+      merchantId: tenant.tenantId,
+      type,
+      channel,
+      name: body.name,
+      body: body.body,
+      subject: body.subject,
+    });
+
+    this.logger.log(`Template upserted`, {
+      type,
+      channel,
+      merchantId: tenant.tenantId,
+    });
+
+    return { template };
+  }
+
+  @Post("templates/generate")
+  async generatePostSaleTemplate(
+    @Req() req: TenantPrincipalRequest,
+    @Body() body: { type: string; channel: string; tone?: string; storeName?: string }
+  ) {
+    const tenant = currentTenantPrincipal(req);
+
+    const generated = await this.generateTemplateUseCase.execute({
+      type: body.type as any,
+      channel: body.channel,
+      tone: body.tone,
+      storeName: body.storeName || "loja",
+    });
+
+    this.logger.log(`Template generated`, {
+      type: body.type,
+      channel: body.channel,
+      merchantId: tenant.tenantId,
+    });
+
+    return generated;
+  }
 }
+

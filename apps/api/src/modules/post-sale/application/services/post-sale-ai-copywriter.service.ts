@@ -1,5 +1,7 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Inject, Optional } from "@nestjs/common";
+import { BadRequestException } from "@nestjs/common";
 import { isSafeGeneratedMessage } from "../../../checkout/domain/types/safe-generated-message.js";
+import { POST_SALE_TEMPLATE_REPOSITORY, type PostSaleTemplateRepositoryPort } from "../../domain/ports/post-sale-template-repository.port.js";
 
 export interface GenerateMessageInput {
   type: "follow_up" | "review_request" | "nps" | "cross_sell" | "win_back" | "loyalty" | "reorder";
@@ -7,131 +9,170 @@ export interface GenerateMessageInput {
   productName: string;
   merchantId: string;
   buyerId: string;
+  storeName?: string;
 }
 
 @Injectable()
 export class PostSaleAiCopywriterService {
   private readonly logger = new Logger(PostSaleAiCopywriterService.name);
 
-  async generate(input: GenerateMessageInput): Promise<string> {
-    const template = this.getTemplate(input.type, input.buyerName, input.productName);
+  constructor(
+    @Optional() @Inject(POST_SALE_TEMPLATE_REPOSITORY)
+    private readonly templateRepo?: PostSaleTemplateRepositoryPort
+  ) {}
 
-    // Try LLM if API key available
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (apiKey) {
+  async generate(input: GenerateMessageInput): Promise<string> {
+    const channel = "whatsapp";
+
+    // Try merchant custom template first
+    if (this.templateRepo) {
       try {
-        const llmMessage = await this.generateWithLLM(input, template, apiKey);
-        const safety = isSafeGeneratedMessage(llmMessage);
-        if (safety.safe) {
-          return llmMessage;
+        const customTemplate = await this.templateRepo.findByMerchantAndType(input.merchantId, input.type, channel);
+        if (customTemplate) {
+          return this.interpolateTemplate(customTemplate.body, input);
         }
-        this.logger.warn(
-          `LLM message failed safety check: ${safety.reason}`,
-          { merchantId: input.merchantId, type: input.type }
-        );
       } catch (err) {
-        this.logger.error(
-          `LLM call failed, falling back to template`,
-          {
-            error: err instanceof Error ? err.message : String(err),
-            merchantId: input.merchantId,
-            type: input.type,
-          }
-        );
+        this.logger.warn(`Failed to fetch merchant template: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
-    // Fallback to template
-    return template;
+    // Use rich platform default
+    const template = this.getDefaultTemplate(input.type);
+    return this.interpolateTemplate(template, input);
   }
 
-  private async generateWithLLM(
-    input: GenerateMessageInput,
-    fallback: string,
-    apiKey: string
+  private interpolateTemplate(template: string, input: GenerateMessageInput): string {
+    return template
+      .replace(/\{\{buyerName\}\}/g, input.buyerName)
+      .replace(/\{\{productName\}\}/g, input.productName)
+      .replace(/\{\{storeName\}\}/g, input.storeName || "loja")
+      .replace(/\{\{link\}\}/g, "#");
+  }
+
+  private getDefaultTemplate(type: string): string {
+    const templates: Record<string, string> = {
+      follow_up: `Oi {{buyerName}}! 😊 Aqui é da {{storeName}}.
+
+Seu {{productName}} já chegou? Queremos saber se está tudo certo com o pedido!
+
+Se precisar de algo, é só responder aqui. Estamos à disposição! 💬`,
+
+      review_request: `Oi {{buyerName}}! ⭐
+
+Você recebeu o {{productName}} há alguns dias. O que achou?
+
+De 1 a 5 estrelas, que nota você dá? Responda com o número (1 a 5) e, se quiser, um comentário sobre o produto!
+
+Sua opinião ajuda demais outros clientes. Obrigado! 🙏`,
+
+      nps: `Oi {{buyerName}}! 😊
+
+Aqui é da {{storeName}}. Seu pedido do {{productName}} chegou faz uns dias.
+
+De 1 a 5 estrelas, o quanto você recomendaria a gente? ⭐
+
+É só responder com o número (1 a 5) aqui mesmo! 🙏`,
+
+      cross_sell: `{{buyerName}}, tudo bem? 🎁
+
+Como você comprou o {{productName}}, separamos algumas opções que combinam perfeitamente!
+
+Dá uma olhada: {{link}}
+
+Tem desconto especial pra quem já é cliente! 💛`,
+
+      win_back: `Oi {{buyerName}}! Sentimos sua falta! 💜
+
+Faz um tempo que você não aparece por aqui. A {{storeName}} preparou algo especial pra você voltar.
+
+Confira as novidades: {{link}}
+
+Te esperamos! 🙌`,
+
+      loyalty: `Parabéns, {{buyerName}}! 🎉🎊
+
+Você acaba de completar mais uma compra conosco na {{storeName}}!
+
+Como agradecimento pela sua fidelidade, preparamos um benefício exclusivo. Confira: {{link}}
+
+Obrigado por fazer parte! 💛`,
+
+      reorder: `{{buyerName}}, tudo bem? 🔔
+
+Lembra do {{productName}} que você comprou? Pelo tempo de uso, pode ser que esteja na hora de repor!
+
+Reponha aqui com facilidade: {{link}}
+
+Cuidamos do frete pra você! 📦`,
+    };
+
+    return templates[type] || `Oi {{buyerName}}! Tudo bem?`;
+  }
+
+  async generateWithAi(
+    prompt: string
   ): Promise<string> {
-    const prompt = this.buildPrompt(input, fallback);
-
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+    const providers = [
+      {
+        baseUrl: process.env.LOCAL_LLM_BASE_URL || "http://localhost:11434/v1",
+        apiKey: process.env.LOCAL_LLM_API_KEY || "ollama",
+        model: process.env.LOCAL_LLM_MODEL || "llama3.2",
       },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || "gpt-4-turbo",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a friendly e-commerce post-sale messaging expert. Generate warm, personalized WhatsApp-style messages in Portuguese. Be concise, authentic, and never claim unauthorized discounts or guarantees. Always validate that the message is safe and does not mislead the buyer.",
-          },
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        temperature: 0.7,
-        max_tokens: 150,
-      }),
-    });
+      {
+        baseUrl: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1",
+        apiKey: process.env.DEEPSEEK_API_KEY || "",
+        model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
+      },
+    ];
 
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.statusText}`);
+    for (const provider of providers) {
+      if (!provider.apiKey) continue;
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20000);
+
+        const res = await fetch(`${provider.baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` },
+          body: JSON.stringify({
+            model: provider.model,
+            messages: [
+              {
+                role: "system",
+                content: "You are a post-sale messaging expert for e-commerce in Brazil. Generate persuasive, warm messages in pt-BR. Use {{buyerName}}, {{productName}}, {{link}}, {{storeName}} as placeholders. Never invent discounts, guarantees, or request sensitive data.",
+              },
+              { role: "user", content: prompt },
+            ],
+            max_tokens: 300,
+            temperature: 0.6,
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeout);
+
+        if (!res.ok) {
+          this.logger.debug(`Provider ${provider.model} failed with status ${res.status}`);
+          continue;
+        }
+
+        const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+        const text = data.choices?.[0]?.message?.content?.trim() ?? "";
+        if (text) {
+          const safety = isSafeGeneratedMessage(text);
+          if (safety.safe) {
+            return text;
+          }
+          this.logger.warn(`Generated message failed safety check: ${safety.reason}`);
+        }
+      } catch (err) {
+        this.logger.debug(
+          `Provider error: ${err instanceof Error ? err.message : String(err)}`
+        );
+        continue;
+      }
     }
 
-    const data = (await response.json()) as any;
-    const message = data.choices?.[0]?.message?.content?.trim() || fallback;
-    return message;
-  }
-
-  private buildPrompt(input: GenerateMessageInput, fallback: string): string {
-    const contexts: Record<string, string> = {
-      follow_up:
-        "The buyer just received their order. Ask them how it went and if they need any help.",
-      review_request:
-        "It's been 3 days since delivery. Ask them to leave a review, mention a small incentive (e.g., discount on next purchase).",
-      nps: "Ask the buyer to rate their experience from 0-10 with the store.",
-      cross_sell:
-        "Suggest complementary products based on what they bought. Be subtle, not pushy.",
-      win_back: "The buyer hasn't purchased in 30+ days. Welcome them back with a special offer.",
-      loyalty: "Congratulate the buyer on reaching a purchase milestone.",
-      reorder: "The buyer bought a consumable product. Remind them it might be time to reorder.",
-    };
-
-    return `
-Generate a brief, friendly WhatsApp message in Portuguese for this scenario:
-- Buyer: ${input.buyerName}
-- Product: ${input.productName}
-- Type: ${input.type}
-- Context: ${contexts[input.type]}
-
-Fallback if you can't generate: "${fallback}"
-
-Important:
-- Keep it under 120 characters
-- No unauthorized offers (no "I'm giving you X%", no "free shipping guaranteed", etc.)
-- Sound like a friendly person, not corporate
-- Use casual Portuguese (pt-BR)
-- Never ask for sensitive data (CVV, password, etc.)
-`;
-  }
-
-  private getTemplate(
-    type: string,
-    buyerName: string,
-    productName: string
-  ): string {
-    const templates: Record<string, string> = {
-      follow_up: `Oi ${buyerName}! 👋 Tudo bem com seu pedido? O ${productName} chegou certinho?`,
-      review_request: `${buyerName}, você curtiu o ${productName}? Deixa sua avaliação pra gente! ⭐`,
-      nps: `De 0 a 10, quanto recomendaria a gente pro seu amigo?`,
-      cross_sell: `${buyerName}, veja esses produtos que combinam com sua compra! 🎁`,
-      win_back: `Que saudade, ${buyerName}! Temos novidades pra você. 💝`,
-      loyalty: `Parabéns pela sua ${productName}ª compra, ${buyerName}! 🎉`,
-      reorder: `${buyerName}, chegou a hora de repor o ${productName}?`,
-    };
-
-    return templates[type] || `Oi ${buyerName}!`;
+    throw new BadRequestException("ai_generation_failed");
   }
 }

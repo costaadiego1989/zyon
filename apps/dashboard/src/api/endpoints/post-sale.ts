@@ -1,4 +1,4 @@
-import type { Review, NpsItem, PostSaleStats } from "../../pages/post-sale/usePostSalePage.js";
+import type { Review, NpsItem, PostSaleStats, PostSaleTemplate } from "../../pages/post-sale/usePostSalePage.js";
 
 export function postSaleEndpoints(base: string, f: typeof fetch) {
   const headers = () => ({
@@ -41,6 +41,37 @@ export function postSaleEndpoints(base: string, f: typeof fetch) {
         method: "PATCH",
         headers: headers(),
         body: JSON.stringify({ status }),
+      }).then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      });
+    },
+
+    listTemplates(): Promise<{ templates: PostSaleTemplate[] }> {
+      return f(`${base}/dashboard/post-sale/templates`, {
+        headers: headers(),
+      }).then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      });
+    },
+
+    saveTemplate(type: string, channel: string, data: { name: string; body: string; subject?: string }): Promise<{ template: PostSaleTemplate }> {
+      return f(`${base}/dashboard/post-sale/templates/${type}/${channel}`, {
+        method: "PUT",
+        headers: headers(),
+        body: JSON.stringify(data),
+      }).then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      });
+    },
+
+    generateTemplate(data: { type: string; channel: string; tone?: string; storeName?: string }): Promise<{ name: string; body: string; subject?: string }> {
+      return f(`${base}/dashboard/post-sale/templates/generate`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify(data),
       }).then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();

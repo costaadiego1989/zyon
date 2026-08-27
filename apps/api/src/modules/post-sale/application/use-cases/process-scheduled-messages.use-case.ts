@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject } from "@nestjs/common";
+import { Injectable, Logger, Inject, Optional } from "@nestjs/common";
 import {
   SCHEDULED_MESSAGE_REPOSITORY,
   type ScheduledMessageRepositoryPort,
@@ -6,6 +6,10 @@ import {
 import { WHATSAPP_SENDER_PORT, type WhatsAppSenderPort } from "../../../notifications/domain/ports/whatsapp-sender.port.js";
 import { EMAIL_SENDER_PORT, type EmailSenderPort } from "../../../notifications/domain/ports/email-sender.port.js";
 import { PostSaleAiCopywriterService } from "../services/post-sale-ai-copywriter.service.js";
+import {
+  WHATSAPP_POST_SALE_CONTEXT_PORT,
+  type WhatsAppPostSaleContextPort,
+} from "../../../whatsapp-channel/domain/ports/whatsapp-post-sale-context.port.js";
 
 @Injectable()
 export class ProcessScheduledMessagesUseCase {
@@ -18,7 +22,9 @@ export class ProcessScheduledMessagesUseCase {
     private readonly whatsapp: WhatsAppSenderPort,
     @Inject(EMAIL_SENDER_PORT)
     private readonly email: EmailSenderPort,
-    private readonly copywriter: PostSaleAiCopywriterService
+    private readonly copywriter: PostSaleAiCopywriterService,
+    @Optional() @Inject(WHATSAPP_POST_SALE_CONTEXT_PORT)
+    private readonly contextPort?: WhatsAppPostSaleContextPort,
   ) {}
 
   async execute(): Promise<{ processed: number; sent: number; failed: number }> {
@@ -51,7 +57,9 @@ export class ProcessScheduledMessagesUseCase {
               to: msg.buyerEmail,
               subject: this.subjectForType(msg.type),
               html: `<p>${content.replace(/\n/g, "<br>")}</p>`,
-              from: "noreply@aacp.local",
+              // Omit `from` so ResendEmailAdapter uses its verified RESEND_FROM_EMAIL.
+              // The old hardcoded "noreply@aacp.local" is an unverified domain that
+              // Resend rejects (400), silently dropping every post-sale email.
             });
           } else {
             this.logger.warn(
@@ -73,6 +81,28 @@ export class ProcessScheduledMessagesUseCase {
           });
           stats.sent++;
 
+          // Set WhatsApp post-sale context so the reply handler can capture responses
+          if (msg.channel === "whatsapp" && msg.buyerPhone && this.contextPort) {
+            const stage = msg.type === "nps" ? "awaiting_nps" : msg.type === "review_request" ? "awaiting_review" : null;
+            if (stage) {
+              try {
+                const productId = (msg.metadata as Record<string, unknown> | null)?.["productId"] as string | undefined;
+                await this.contextPort.setPostSaleContext(msg.merchantId, msg.buyerPhone, {
+                  stage,
+                  orderId: msg.orderId,
+                  productId,
+                  buyerId: msg.buyerId,
+                  askedAt: new Date().toISOString(),
+                });
+              } catch (err) {
+                this.logger.warn("Failed to set post-sale context on WA session", {
+                  messageId: msg.id,
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              }
+            }
+          }
+
           this.logger.log(
             `Message sent`,
             {
@@ -84,15 +114,26 @@ export class ProcessScheduledMessagesUseCase {
           );
         } catch (err) {
           stats.failed++;
+          const errMsg = err instanceof Error ? err.message : String(err);
+
+          // Transport/temporary failures → requeue as pending for retry on next tick.
+          // Permanent failures (e.g. invalid phone format) → mark failed.
+          const isTransient = errMsg.includes("transport_failed") ||
+            errMsg.includes("ECONNREFUSED") ||
+            errMsg.includes("ETIMEDOUT") ||
+            errMsg.includes("429") ||
+            errMsg.includes("503");
+
           await this.messages.update(msg.id, {
-            status: "failed",
+            status: isTransient ? "pending" : "failed",
           });
+
           this.logger.error(
-            `Failed to process message`,
+            `Failed to process message (${isTransient ? "will retry" : "permanent"})`,
             {
               messageId: msg.id,
               type: msg.type,
-              error: err instanceof Error ? err.message : String(err),
+              error: errMsg,
               merchantId: msg.merchantId,
             }
           );

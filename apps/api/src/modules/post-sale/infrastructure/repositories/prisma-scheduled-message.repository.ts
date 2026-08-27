@@ -33,18 +33,23 @@ export class PrismaScheduledMessageRepository implements ScheduledMessageReposit
   }
 
   async findPendingDue(limit: number): Promise<ScheduledMessage[]> {
-    const messages = await this.prisma.postSaleScheduledMessage.findMany({
-      where: {
-        status: "pending",
-        sendAt: {
-          lte: new Date(),
-        },
-      },
-      orderBy: { sendAt: "asc" },
-      take: limit,
-    });
+    // Atomic claim: SELECT FOR UPDATE SKIP LOCKED + status transition to 'processing'.
+    // Prevents double-send when multiple API instances run concurrently.
+    const claimed: any[] = await this.prisma.$queryRawUnsafe(
+      `UPDATE post_sale_scheduled_messages
+       SET status = 'processing'
+       WHERE id IN (
+         SELECT id FROM post_sale_scheduled_messages
+         WHERE status = 'pending' AND send_at <= NOW()
+         ORDER BY send_at ASC
+         LIMIT $1
+         FOR UPDATE SKIP LOCKED
+       )
+       RETURNING *`,
+      limit,
+    );
 
-    return messages.map((m) => this.mapToDomain(m));
+    return claimed.map((m) => this.mapToDomain(m));
   }
 
   async update(
@@ -76,23 +81,25 @@ export class PrismaScheduledMessageRepository implements ScheduledMessageReposit
   }
 
   private mapToDomain(raw: any): ScheduledMessage {
+    // Accept both Prisma camelCase (from .create/.update) and raw snake_case
+    // (from $queryRawUnsafe in findPendingDue).
     return {
       id: raw.id,
-      merchantId: raw.merchantId,
-      buyerId: raw.buyerId,
-      orderId: raw.orderId,
+      merchantId: raw.merchantId ?? raw.merchant_id,
+      buyerId: raw.buyerId ?? raw.buyer_id,
+      orderId: raw.orderId ?? raw.order_id,
       type: raw.type,
       channel: raw.channel,
-      sendAt: raw.sendAt,
+      sendAt: raw.sendAt ?? raw.send_at,
       status: raw.status,
-      sentAt: raw.sentAt,
-      messageContent: raw.messageContent,
-      buyerPhone: raw.buyerPhone,
-      buyerEmail: raw.buyerEmail,
-      buyerName: raw.buyerName,
-      productName: raw.productName,
+      sentAt: raw.sentAt ?? raw.sent_at,
+      messageContent: raw.messageContent ?? raw.message_content,
+      buyerPhone: raw.buyerPhone ?? raw.buyer_phone,
+      buyerEmail: raw.buyerEmail ?? raw.buyer_email,
+      buyerName: raw.buyerName ?? raw.buyer_name,
+      productName: raw.productName ?? raw.product_name,
       metadata: raw.metadata,
-      createdAt: raw.createdAt,
+      createdAt: raw.createdAt ?? raw.created_at,
     };
   }
 
