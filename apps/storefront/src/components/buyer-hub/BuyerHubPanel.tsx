@@ -48,7 +48,7 @@ const TABS: TabDef[] = [
     key: "profile",
     label: "Perfil",
     icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
         <circle cx="12" cy="7" r="4" />
       </svg>
@@ -58,7 +58,7 @@ const TABS: TabDef[] = [
     key: "orders",
     label: "Pedidos",
     icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
         <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
         <line x1="12" y1="22.08" x2="12" y2="12" />
@@ -69,7 +69,7 @@ const TABS: TabDef[] = [
     key: "tracking",
     label: "Rastreio",
     icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="1" y="3" width="15" height="13" rx="2" ry="2" />
         <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
         <circle cx="5.5" cy="18.5" r="2.5" />
@@ -81,7 +81,7 @@ const TABS: TabDef[] = [
     key: "conversations",
     label: "Conversas",
     icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
       </svg>
     ),
@@ -90,7 +90,7 @@ const TABS: TabDef[] = [
     key: "preferences",
     label: "Preferencias",
     icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
         <path d="M13.73 21a2 2 0 01-3.46 0" />
       </svg>
@@ -100,7 +100,7 @@ const TABS: TabDef[] = [
     key: "loyalty",
     label: "Fidelidade",
     icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
       </svg>
     ),
@@ -109,7 +109,7 @@ const TABS: TabDef[] = [
     key: "settings",
     label: "Config",
     icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="3" />
         <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
       </svg>
@@ -214,12 +214,12 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
   const canConfirmCode = codeSent && phoneCode.length === 6;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "24px 0" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "20px", padding: "24px 0" }}>
       {/* Icon */}
       <div style={{ display: "flex", justifyContent: "center" }}>
         <div style={{
-          width: "48px",
-          height: "48px",
+          width: "56px",
+          height: "56px",
           borderRadius: "50%",
           background: "var(--aacp-surface-2)",
           border: "1px solid var(--aacp-line)",
@@ -227,7 +227,7 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
           alignItems: "center",
           justifyContent: "center",
         }}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3" />
           </svg>
         </div>
@@ -235,24 +235,25 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
 
       {/* Title */}
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--aacp-muted)", marginBottom: "6px" }}>Conta segura</div>
-        <div style={{ fontSize: "16px", fontWeight: 700, color: "var(--aacp-fg)", marginBottom: "6px" }}>Entrar com celular</div>
-        <div style={{ fontSize: "12px", color: "var(--aacp-muted)", lineHeight: 1.5 }}>Acesse pedidos anteriores e conclua compras futuras com menos etapas.</div>
+        <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--aacp-muted)", marginBottom: "8px" }}>Conta segura</div>
+        <div style={{ fontSize: "18px", fontWeight: 700, color: "var(--aacp-fg)", marginBottom: "8px", lineHeight: 1.3 }}>Entrar com celular</div>
+        <div style={{ fontSize: "13px", color: "var(--aacp-muted)", lineHeight: 1.5 }}>Acesse pedidos anteriores e conclua compras futuras com menos etapas.</div>
       </div>
 
       {/* Assurance strip */}
       <div style={{
         display: "flex",
         alignItems: "center",
-        gap: "8px",
-        padding: "10px 14px",
-        borderRadius: "8px",
+        gap: "10px",
+        padding: "12px 16px",
+        borderRadius: "10px",
         background: "var(--aacp-surface-2)",
         border: "1px solid var(--aacp-line)",
-        fontSize: "12px",
+        fontSize: "13px",
         color: "var(--aacp-muted)",
+        lineHeight: 1.4,
       }}>
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-success, #22c55e)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-success, #22c55e)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
           <path d="M9 12l2 2 4-4" />
         </svg>
@@ -260,20 +261,21 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
       </div>
 
       {/* Form */}
-      <form onSubmit={(e) => e.preventDefault()} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+      <form onSubmit={(e) => e.preventDefault()} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         {!codeSent ? (
-          <label style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%" }}>
-            <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--aacp-muted)" }}>Celular</span>
+          <label style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
+            <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--aacp-muted)" }}>Celular</span>
             <div style={{
               display: "flex",
               alignItems: "center",
-              gap: "10px",
-              padding: "10px 14px",
-              borderRadius: "10px",
+              gap: "12px",
+              padding: "12px 16px",
+              borderRadius: "12px",
               border: "1px solid var(--aacp-line)",
               background: "var(--aacp-surface-3)",
+              transition: "border-color 0.15s ease, background 0.15s ease",
             }}>
-              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                 <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
                 <line x1="12" y1="18" x2="12.01" y2="18" />
               </svg>
@@ -291,25 +293,26 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
                   border: "none",
                   outline: "none",
                   color: "var(--aacp-fg)",
-                  fontSize: "14px",
+                  fontSize: "15px",
                   fontFamily: "inherit",
                 }}
               />
             </div>
           </label>
         ) : (
-          <label style={{ display: "flex", flexDirection: "column", gap: "6px", width: "100%" }}>
-            <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--aacp-muted)" }}>Codigo de verificacao</span>
+          <label style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
+            <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--aacp-muted)" }}>Codigo de verificacao</span>
             <div style={{
               display: "flex",
               alignItems: "center",
-              gap: "10px",
-              padding: "10px 14px",
-              borderRadius: "10px",
+              gap: "12px",
+              padding: "12px 16px",
+              borderRadius: "12px",
               border: "1px solid var(--aacp-line)",
               background: "var(--aacp-surface-3)",
+              transition: "border-color 0.15s ease, background 0.15s ease",
             }}>
-              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                 <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
               </svg>
               <input
@@ -327,9 +330,9 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
                   border: "none",
                   outline: "none",
                   color: "var(--aacp-fg)",
-                  fontSize: "14px",
+                  fontSize: "15px",
                   fontFamily: "inherit",
-                  letterSpacing: "3px",
+                  letterSpacing: "4px",
                   textAlign: "center",
                 }}
               />
@@ -338,13 +341,13 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
         )}
 
         {codeSent && (
-          <p style={{ fontSize: "12px", color: "var(--aacp-muted)", textAlign: "center" }} role="status">
+          <p style={{ fontSize: "13px", color: "var(--aacp-muted)", textAlign: "center" }} role="status">
             Codigo enviado para {phone}
           </p>
         )}
 
         {error && (
-          <p style={{ fontSize: "12px", color: "#ef4444", textAlign: "center", padding: "4px 0" }} role="alert">{error}</p>
+          <p style={{ fontSize: "13px", color: "#ef4444", textAlign: "center", padding: "6px 0" }} role="alert">{error}</p>
         )}
 
         <button
@@ -353,16 +356,25 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
           onClick={() => { codeSent ? handleVerifyCode() : handleSendCode(); }}
           style={{
             width: "100%",
-            padding: "12px",
-            borderRadius: "10px",
+            padding: "14px",
+            borderRadius: "12px",
             background: "var(--aacp-accent)",
             color: "#fff",
             border: "none",
             cursor: loading || (!codeSent && !canSendCode) || (codeSent && !canConfirmCode) ? "not-allowed" : "pointer",
-            fontSize: "14px",
+            fontSize: "15px",
             fontWeight: 600,
             opacity: loading || (!codeSent && !canSendCode) || (codeSent && !canConfirmCode) ? 0.5 : 1,
-            transition: "opacity 0.15s ease",
+            transition: "opacity 0.15s ease, transform 0.15s ease",
+            transform: "scale(1)",
+          }}
+          onMouseDown={(e) => {
+            if (!(loading || (!codeSent && !canSendCode) || (codeSent && !canConfirmCode))) {
+              (e.target as HTMLButtonElement).style.transform = "scale(0.98)";
+            }
+          }}
+          onMouseUp={(e) => {
+            (e.target as HTMLButtonElement).style.transform = "scale(1)";
           }}
         >
           {loading ? "Processando..." : codeSent ? "Confirmar codigo" : "Enviar codigo por SMS"}
@@ -377,10 +389,11 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
               border: "none",
               color: "var(--aacp-muted)",
               cursor: "pointer",
-              fontSize: "12px",
-              padding: "6px 0",
+              fontSize: "13px",
+              padding: "8px 0",
               textDecoration: "underline",
-              textUnderlineOffset: "2px",
+              textUnderlineOffset: "3px",
+              transition: "color 0.15s ease",
             }}
           >
             Alterar numero
@@ -441,6 +454,7 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
           background: "rgba(0, 0, 0, 0.5)",
           zIndex: 999,
           animation: "buyerHubFadeIn 0.2s ease",
+          backdropFilter: "blur(2px)",
         }}
       />
 
@@ -455,11 +469,11 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
           position: "fixed",
           top: 0,
           right: 0,
-          width: "100%",
-          maxWidth: "380px",
-          height: "100vh",
+          width: "min(420px, 90vw)",
+          height: "100dvh",
           background: "var(--aacp-panel-bg)",
-          boxShadow: "0 10px 40px rgba(0, 0, 0, 0.3)",
+          borderLeft: "1px solid var(--aacp-line)",
+          boxShadow: "-12px 0 48px rgba(0, 0, 0, 0.24)",
           display: "flex",
           flexDirection: "column",
           zIndex: 1000,
@@ -477,56 +491,99 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
             from { opacity: 0; }
             to { opacity: 1; }
           }
+          @media (prefers-reduced-motion: reduce) {
+            @keyframes buyerHubSlideIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+          }
+          [role="tablist"][aria-label="Navegacao do hub"]::-webkit-scrollbar { display: none; }
         `}</style>
 
-        {/* Header */}
+        {/* Header — Premium spacing & typography */}
         <div style={{
-          padding: "16px",
+          padding: "24px 20px",
           borderBottom: "1px solid var(--aacp-line)",
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-start",
           justifyContent: "space-between",
+          gap: "16px",
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "16px", flex: 1, minWidth: 0 }}>
+            {/* Avatar with gradient ring */}
             <div
               style={{
-                width: "36px",
-                height: "36px",
-                borderRadius: "50%",
-                background: "var(--aacp-accent)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#fff",
-                fontWeight: 700,
-                fontSize: "14px",
+                position: "relative",
+                width: "48px",
+                height: "48px",
+                flexShrink: 0,
               }}
               aria-hidden="true"
             >
-              {avatarInitial}
+              {/* Gradient ring (outer) */}
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg, var(--aacp-accent) 0%, var(--aacp-accent, #3b82f6) 100%)",
+                  opacity: 0.2,
+                }}
+              />
+              {/* Avatar circle */}
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 2,
+                  borderRadius: "50%",
+                  background: "var(--aacp-accent)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: "18px",
+                }}
+              >
+                {avatarInitial}
+              </div>
             </div>
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--aacp-fg)" }}>{displayName}</span>
-              <span style={{ fontSize: "11px", color: "var(--aacp-muted)" }}>{displayEmail}</span>
+
+            {/* Name & email */}
+            <div style={{ display: "flex", flexDirection: "column", minWidth: 0, gap: "4px" }}>
+              <span style={{ fontSize: "15px", fontWeight: 600, color: "var(--aacp-fg)", wordBreak: "break-word" }}>{displayName}</span>
+              <span style={{ fontSize: "12px", color: "var(--aacp-muted)", wordBreak: "break-word" }}>{displayEmail}</span>
             </div>
           </div>
+
+          {/* Close button — ghost style */}
           <button
             onClick={onClose}
             aria-label="Fechar painel"
             style={{
-              width: "28px",
-              height: "28px",
-              borderRadius: "50%",
-              border: "1px solid var(--aacp-line)",
+              width: "36px",
+              height: "36px",
+              borderRadius: "8px",
+              border: "none",
               background: "transparent",
               color: "var(--aacp-muted)",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              flexShrink: 0,
+              transition: "background 0.15s ease, color 0.15s ease",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "var(--aacp-surface-2)";
+              (e.currentTarget as HTMLButtonElement).style.color = "var(--aacp-fg)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+              (e.currentTarget as HTMLButtonElement).style.color = "var(--aacp-muted)";
             }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
@@ -534,20 +591,23 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
 
         {/* Content area */}
         {!isAuthenticated ? (
-          <div style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column" }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column" }}>
             <PhoneLoginForm onAuthSuccess={handleAuthSuccess} />
           </div>
         ) : (
           <>
-            {/* Tab bar */}
+            {/* Tab bar — HORIZONTAL SCROLLABLE, NOT STRETCHED */}
             <div
               role="tablist"
               aria-label="Navegacao do hub"
               style={{
                 display: "flex",
+                gap: "0",
                 borderBottom: "1px solid var(--aacp-line)",
                 overflowX: "auto",
+                overflowY: "hidden",
                 scrollbarWidth: "none",
+                msOverflowStyle: "none",
               }}
             >
               {TABS.map((tab) => {
@@ -561,9 +621,9 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
                     onClick={() => vm.setActiveTab(tab.key)}
                     title={tab.label}
                     style={{
-                      flex: "1 0 0",
-                      minWidth: "48px",
-                      padding: "10px 4px",
+                      flex: "0 0 auto",
+                      width: "56px",
+                      padding: "12px 0",
                       background: "transparent",
                       border: "none",
                       borderBottom: isActive ? "2px solid var(--aacp-accent)" : "2px solid transparent",
@@ -572,23 +632,23 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
                       display: "flex",
                       flexDirection: "column",
                       alignItems: "center",
-                      gap: "3px",
+                      gap: "4px",
                       transition: "color 0.15s ease, border-color 0.15s ease",
                     }}
                   >
                     {tab.icon}
-                    <span style={{ fontSize: "9px", fontWeight: isActive ? 600 : 500, whiteSpace: "nowrap" }}>{tab.label}</span>
+                    <span style={{ fontSize: "10px", fontWeight: isActive ? 600 : 500, whiteSpace: "nowrap" }}>{tab.label}</span>
                   </button>
                 );
               })}
             </div>
 
-            {/* Tab content */}
+            {/* Tab content — spacious padding, max-width constraint */}
             <div
               id={`buyerhub-tabpanel-${vm.activeTab}`}
               role="tabpanel"
               aria-label={TABS.find((t) => t.key === vm.activeTab)?.label}
-              style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", padding: "16px" }}
+              style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", padding: "20px" }}
             >
               {vm.activeTab === "profile" && (
                 <ProfileTab
