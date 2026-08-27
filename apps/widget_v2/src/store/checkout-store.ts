@@ -116,6 +116,7 @@ interface CheckoutState {
   setActiveDiscount: (stage: DiscountStage, percent: number) => void;
   dismissDiscount: () => void;
   evaluateAdvancedRules: () => void;
+  resetSession: () => void;
 }
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -726,5 +727,18 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     };
     const actions = evaluateRules(advancedRules, context);
     set({ activeRuleActions: actions });
+  },
+
+  resetSession: () => {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    set({
+      status: "loading",
+      cart: { items: [], total: 0, discount: 0, status: "awaiting" },
+      messages: [],
+      paymentIntent: null,
+      paymentPolling: false,
+      activeDiscount: null,
+      error: null,
+    });
   },
 }));

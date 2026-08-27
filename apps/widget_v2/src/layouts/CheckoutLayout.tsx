@@ -4,6 +4,7 @@ import { ChannelGate } from "@/components/ChannelGate";
 import { ChatPanel } from "@/components/ChatPanel";
 import { SmartCart } from "@/components/SmartCart";
 import { DiscountBanner } from "@/components/DiscountBanner";
+import { PulseAgentOrb } from "@/components/PulseAgentOrb";
 import SupportFAB from "@/components/SupportFAB";
 import SupportPanel from "@/components/SupportPanel";
 import { ShimmerBorder } from "@/components/ShimmerBorder";
@@ -17,6 +18,7 @@ export function CheckoutLayout() {
   const cart = useCheckoutStore((s) => s.cart);
   const activeDiscount = useCheckoutStore((s) => s.activeDiscount);
   const dismissDiscount = useCheckoutStore((s) => s.dismissDiscount);
+  const resetSession = useCheckoutStore((s) => s.resetSession);
 
   const storeName = brand.name || "Loja";
   const agentName = agent.name || "Assistente";
@@ -186,8 +188,65 @@ export function CheckoutLayout() {
         </ShimmerBorder>
       )}
 
-      {/* Active/Completed: split layout — chat left + smart cart right */}
-      {(status === "active" || status === "completed") && (
+      {/* Payment success — dedicated confirmation screen */}
+      {status === "completed" && (
+        <ShimmerBorder radius={brand.borderRadius ? `${brand.borderRadius}px` : "19px"}>
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "20px",
+              padding: "32px",
+              background: "var(--bg)",
+              textAlign: "center",
+            }}
+          >
+            <div style={{ animation: "ckoutBounce 0.6s ease infinite alternate" }}>
+              <PulseAgentOrb placement="orderComplete" active />
+            </div>
+            <div>
+              <h2 style={{ margin: "0 0 8px", fontSize: "22px", fontWeight: 700, color: "var(--tx)" }}>
+                Pagamento confirmado! 🎉
+              </h2>
+              <p style={{ margin: 0, fontSize: "14px", color: "var(--mut)", lineHeight: 1.5, maxWidth: "320px" }}>
+                Seu pedido foi confirmado com sucesso. Você receberá os detalhes por e-mail e WhatsApp.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                resetSession();
+                if (typeof window !== "undefined") {
+                  const returnUrl = document.referrer || "/";
+                  window.location.href = returnUrl.includes("/store/") ? returnUrl : "/";
+                }
+              }}
+              style={{
+                marginTop: "8px",
+                padding: "12px 28px",
+                borderRadius: "12px",
+                border: "none",
+                background: "var(--ac, var(--aacp-accent, #0f766e))",
+                color: "#fff",
+                fontSize: "14px",
+                fontWeight: 700,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              Voltar à loja
+            </button>
+            <style>{`@keyframes ckoutBounce { from { transform: translateY(0); } to { transform: translateY(-10px); } }`}</style>
+          </div>
+        </ShimmerBorder>
+      )}
+
+      {/* Active: split layout — chat left + smart cart right */}
+      {status === "active" && (
         <ShimmerBorder radius={brand.borderRadius ? `${brand.borderRadius}px` : "19px"}>
           <div
             style={{
