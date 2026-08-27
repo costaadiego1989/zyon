@@ -1,12 +1,14 @@
 import React from "react";
 import { Plus, Trash2, X } from "lucide-react";
 import { PrefixInput } from "../../../components/PrefixInput.js";
+import { ToggleSwitch } from "../../../components/ToggleSwitch.js";
 import type { ProductVariantDraft } from "../hooks/useVariantManager.js";
 
 export interface VariantManagerProps {
   variants: ProductVariantDraft[];
   hasVariants: boolean;
-  productType: "physical" | "digital" | "service";
+  variantRequired: boolean;
+  productType: "physical" | "digital" | "service" | "food";
   formErrors: Record<string, string>;
   onUpdateVariant: (index: number, patch: Partial<ProductVariantDraft>) => void;
   onAddVariant: () => void;
@@ -15,12 +17,14 @@ export interface VariantManagerProps {
   onUpdateAttribute: (variantIdx: number, attrIdx: number, patch: { key?: string; value?: string }) => void;
   onRemoveAttribute: (variantIdx: number, attrIdx: number) => void;
   onToggleVariantsMode: (enabled: boolean) => void;
+  onToggleVariantRequired: (required: boolean) => void;
 }
 
 export function VariantManager(props: VariantManagerProps) {
   const {
     variants,
     hasVariants,
+    variantRequired,
     productType,
     formErrors,
     onUpdateVariant,
@@ -30,6 +34,7 @@ export function VariantManager(props: VariantManagerProps) {
     onUpdateAttribute,
     onRemoveAttribute,
     onToggleVariantsMode,
+    onToggleVariantRequired,
   } = props;
 
   return (
@@ -92,6 +97,19 @@ export function VariantManager(props: VariantManagerProps) {
               <Plus size={12} /> Adicionar variante
             </button>
           </div>
+
+          {/* Selection requirement toggle */}
+          <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", marginBottom: 14, borderRadius: 10, border: "1px solid var(--color-border)", background: "var(--surface-1)", cursor: "pointer" }}>
+            <ToggleSwitch checked={variantRequired} onChange={() => onToggleVariantRequired(!variantRequired)} />
+            <div style={{ flex: 1 }}>
+              <div style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>Seleção obrigatória</div>
+              <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>
+                {variantRequired
+                  ? "O cliente precisa escolher uma variante antes de comprar"
+                  : "A seleção de variante é opcional (usa a primeira como padrão)"}
+              </div>
+            </div>
+          </label>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {variants.map((v, idx) => (

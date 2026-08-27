@@ -137,6 +137,7 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
           <VariantManager
             variants={page.variantManager.variants}
             hasVariants={page.variantManager.hasVariants}
+            variantRequired={page.variantManager.variantRequired}
             productType={page.form.productType}
             formErrors={page.formErrors}
             onUpdateVariant={page.variantManager.updateVariant}
@@ -146,6 +147,7 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
             onUpdateAttribute={page.variantManager.updateAttribute}
             onRemoveAttribute={page.variantManager.removeAttribute}
             onToggleVariantsMode={page.variantManager.toggleVariantsMode}
+            onToggleVariantRequired={page.variantManager.toggleVariantRequired}
           />
           </SectionErrorBoundary>
 

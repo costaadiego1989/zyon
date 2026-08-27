@@ -61,6 +61,8 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
         const mediaMap: Record<string, Array<{ id: string; url: string }>> = {};
         const isComplex = product.variants.length !== 1;
         variantManager.setHasVariants(isComplex);
+        const meta = (product.metadata ?? {}) as Record<string, unknown>;
+        variantManager.toggleVariantRequired(meta.variantSelectionRequired === true);
         variantManager.setVariants(
           product.variants.length > 0
             ? product.variants.map((v) => {
@@ -133,6 +135,12 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
         savedMetadata.optionGroups = form.optionGroups;
       } else {
         delete savedMetadata.optionGroups;
+      }
+      // Persist whether variant selection is mandatory for this product.
+      if (variantManager.hasVariants) {
+        savedMetadata.variantSelectionRequired = variantManager.variantRequired;
+      } else {
+        delete savedMetadata.variantSelectionRequired;
       }
 
       let skuToUse = variants[0].sku.trim();

@@ -32,6 +32,7 @@ export function emptyVariant(): ProductVariantDraft {
 export function useVariantManager(initialVariants: ProductVariantDraft[] = [emptyVariant()]) {
   const [variants, setVariants] = useState<ProductVariantDraft[]>(initialVariants);
   const [hasVariants, setHasVariants] = useState(initialVariants.length > 1);
+  const [variantRequired, setVariantRequired] = useState(false);
 
   const updateVariant = useCallback((index: number, patch: Partial<ProductVariantDraft>) => {
     setVariants((prev) => prev.map((v, i) => (i === index ? { ...v, ...patch } : v)));
@@ -71,13 +72,19 @@ export function useVariantManager(initialVariants: ProductVariantDraft[] = [empt
   const reset = useCallback(() => {
     setVariants([emptyVariant()]);
     setHasVariants(false);
+    setVariantRequired(false);
   }, []);
 
   const toggleVariantsMode = useCallback((enabled: boolean) => {
     setHasVariants(enabled);
     if (!enabled) {
       setVariants([emptyVariant()]);
+      setVariantRequired(false);
     }
+  }, []);
+
+  const toggleVariantRequired = useCallback((required: boolean) => {
+    setVariantRequired(required);
   }, []);
 
   return {
@@ -85,6 +92,7 @@ export function useVariantManager(initialVariants: ProductVariantDraft[] = [empt
     setVariants,
     hasVariants,
     setHasVariants,
+    variantRequired,
     updateVariant,
     addVariant,
     removeVariant,
@@ -93,5 +101,6 @@ export function useVariantManager(initialVariants: ProductVariantDraft[] = [empt
     removeAttribute,
     reset,
     toggleVariantsMode,
+    toggleVariantRequired,
   };
 }
