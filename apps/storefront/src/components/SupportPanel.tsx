@@ -48,8 +48,9 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
   const sessionIdRef = useRef(`support_${Date.now()}`);
 
   const SESSION_KEY = "zyon_support_messages";
+  const TICKET_KEY = "zyon_support_ticket";
 
-  // On mount, restore from sessionStorage
+  // On mount, restore conversation + active ticket from sessionStorage
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem(SESSION_KEY);
@@ -60,6 +61,11 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
           setView("chat");
         }
       }
+      const savedTicket = sessionStorage.getItem(TICKET_KEY);
+      if (savedTicket) {
+        setTicketId(savedTicket);
+        setView("chat");
+      }
     } catch { /* non-critical */ }
   }, []);
 
@@ -69,6 +75,13 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
       try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(messages)); } catch { /* non-critical */ }
     }
   }, [messages]);
+
+  // Persist active ticket id so the conversation reconnects on reopen
+  useEffect(() => {
+    try {
+      if (ticketId) sessionStorage.setItem(TICKET_KEY, ticketId);
+    } catch { /* non-critical */ }
+  }, [ticketId]);
 
   // Obtain embed token on mount (needed for /support/chat auth)
   useEffect(() => {
