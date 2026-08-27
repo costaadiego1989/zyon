@@ -24,6 +24,16 @@ const TRACKING_STATUS_LABEL: Record<string, string> = {
   free_shipping: "Entrega grátis",
 };
 
+// Human-friendly carrier names (the API stores raw keys like "flat-rate").
+const CARRIER_LABELS: Record<string, string> = {
+  "flat-rate": "Frete fixo",
+  flat_rate: "Frete fixo",
+  free_shipping: "Entrega grátis",
+  "melhor-envio": "Melhor Envio",
+  melhor_envio: "Melhor Envio",
+  correios: "Correios",
+};
+
 function trackingStatusLabel(status?: string | null): string {
   if (!status) return "Aguardando envio";
   const key = status.toLowerCase();
@@ -291,6 +301,7 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
   const events = purchase.tracking_events || [];
   const status = trackingStatusLabel(purchase.tracking_status);
   const carrier = purchase.carrier || "Correios";
+  const carrierLabel = CARRIER_LABELS[carrier.toLowerCase()] ?? carrier;
   const rawCode = purchase.tracking_code || "";
   const isDelivered = purchase.tracking_status === "delivered" || purchase.tracking_status === "entregue";
   const isFlatRate = isDirectDelivery(carrier);
@@ -387,7 +398,7 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
               letterSpacing: "0.3px",
             }}
           >
-            {carrier}
+            {carrierLabel}
           </div>
         </div>
         <div
@@ -446,7 +457,7 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
               letterSpacing: "0.3px",
             }}
           >
-            {carrier}
+            {carrierLabel}
           </div>
         </div>
         <div
@@ -508,7 +519,7 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
             letterSpacing: "0.3px",
           }}
         >
-          {carrier}
+          {carrierLabel}
         </div>
       </div>
 

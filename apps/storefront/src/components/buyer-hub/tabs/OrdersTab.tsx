@@ -7,6 +7,7 @@ import {
   FiCreditCard,
   FiSmartphone,
   FiFileText,
+  FiDollarSign,
   FiLoader,
 } from "react-icons/fi";
 import type { IconType } from "react-icons";
@@ -50,6 +51,7 @@ function paymentMethodInfo(method?: string | null): PaymentMethodInfo | null {
     return { label: "Cartão", Icon: FiCreditCard };
   }
   if (m === "boleto") return { label: "Boleto", Icon: FiFileText };
+  if (m === "crypto" || m === "cripto") return { label: "Cripto", Icon: FiDollarSign };
   return { label: method, Icon: FiCreditCard };
 }
 
