@@ -756,6 +756,9 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   const [step, setStep] = useState<CryptoStep>("idle");
   const [wallet, setWallet] = useState<string>("");
   const [error, setError] = useState<string>("");
+  // When the wallet's own RPC is rate-limited on broadcast, we can't intercept —
+  // surface actionable instructions to swap the RPC in wallet settings.
+  const [rpcHelp, setRpcHelp] = useState<boolean>(false);
 
   // Keep fallback polling active
   useEffect(() => { pollPayment(); }, [pollPayment]);
@@ -888,15 +891,19 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
     if (!eth || !wallet) return;
     setStep("sending");
     setError("");
+    setRpcHelp(false);
     try {
       // Ensure correct chain
       const currentChainId: string = await eth.request({ method: "eth_chainId" });
+      console.log("[CRYPTO-PAY] chainId current=%s target=%s rpcUrl=%s", currentChainId, chainIdHex, rpcUrl);
       if (currentChainId.toLowerCase() !== chainIdHex.toLowerCase()) {
+        console.log("[CRYPTO-PAY] switching chain...");
         await switchOrAddChain(eth);
       }
 
       // Pre-flight: verify sufficient token + gas balance before prompting to sign.
       const balanceError = await checkBalances();
+      console.log("[CRYPTO-PAY] balance check:", balanceError ?? "OK");
       if (balanceError) {
         setError(balanceError);
         setStep("connected");
@@ -911,6 +918,7 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
         alchemyRpc("eth_getTransactionCount", [wallet, "pending"]),
         alchemyRpc("eth_gasPrice", []),
       ]);
+      console.log("[CRYPTO-PAY] nonce=%s gasPrice=%s", nonce, gasPrice);
       const txParams: Record<string, string> = {
         from: wallet,
         to: tokenAddress,
@@ -919,10 +927,12 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
       };
       if (nonce) txParams.nonce = nonce;
       if (gasPrice) txParams.gasPrice = gasPrice;
+      console.log("[CRYPTO-PAY] sending tx:", txParams);
       const txHash: string = await eth.request({
         method: "eth_sendTransaction",
         params: [txParams],
       });
+      console.log("[CRYPTO-PAY] tx sent:", txHash);
 
       // tx sent — confirm on backend
       setStep("confirming");
@@ -935,15 +945,18 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
       }
       pollPayment();
     } catch (e: any) {
+      console.error("[CRYPTO-PAY] ERROR:", e?.code, e?.message, e);
       if (e?.code === 4001) {
         setError("Transação cancelada");
         setStep("connected");
       } else {
         const msg = String(e?.message || "").toLowerCase();
-        // Rate-limit errors from MetaMask's internal RPC probe — suggest removing
-        // and re-adding the chain in wallet settings to update the RPC endpoint.
-        if (msg.includes("rate limit") || msg.includes("getblockbynumber")) {
-          setError("RPC sobrecarregado. Remova e re-adicione a rede no MetaMask, ou tente novamente.");
+        // Rate-limit on broadcast (eth_sendRawTransaction) comes from the wallet's
+        // OWN RPC endpoint, which we cannot override — the wallet ignores the
+        // Alchemy URL for chains it already stored. Guide the buyer to swap it.
+        if (msg.includes("rate limit") || msg.includes("getblockbynumber") || msg.includes("sendrawtransaction")) {
+          setRpcHelp(true);
+          setError("O RPC da sua carteira está sobrecarregado. Atualize o endereço RPC da rede (instruções abaixo) e tente novamente.");
         } else if (msg.includes("insufficient funds") || msg.includes("client error") || msg.includes("http")) {
           const gasSymbol = cryptoNativeCurrency?.symbol || "ETH";
           setError(`Falha ao enviar. Verifique se tem ${tokenSymbol} suficiente e ${gasSymbol} para gas.`);
@@ -1013,6 +1026,27 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
       {error && error !== "no_metamask" && (
         <div style={{ padding: "6px 10px", borderRadius: "6px", background: "#fee", color: "#c92a2a", fontSize: "12px", marginTop: "8px" }}>
           {error}
+        </div>
+      )}
+      {rpcHelp && rpcUrl && (
+        <div style={{ padding: "10px 12px", borderRadius: "8px", background: "var(--chip)", border: "1px solid var(--bd)", fontSize: "12px", color: "var(--tx)", marginTop: "8px", lineHeight: 1.5 }}>
+          <div style={{ fontWeight: 600, marginBottom: "6px" }}>Como corrigir (1 min):</div>
+          <ol style={{ margin: "0 0 8px", paddingLeft: "18px" }}>
+            <li>Abra o MetaMask → Configurações → Redes → {chainLabel} {network}</li>
+            <li>Substitua a URL do RPC pela abaixo e salve</li>
+            <li>Volte aqui e toque em Pagar novamente</li>
+          </ol>
+          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+            <code style={{ flex: 1, minWidth: 0, background: "var(--card)", padding: "6px 8px", borderRadius: "6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "11px" }}>
+              {rpcUrl}
+            </code>
+            <button
+              onClick={() => { void navigator.clipboard?.writeText(rpcUrl); }}
+              style={{ padding: "6px 10px", borderRadius: "6px", border: "none", background: "var(--aacp-accent, #0f766e)", color: "#fff", fontSize: "11px", fontWeight: 600, cursor: "pointer", flex: "none" }}
+            >
+              Copiar
+            </button>
+          </div>
         </div>
       )}
     </div>
