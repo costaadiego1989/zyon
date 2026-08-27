@@ -6,6 +6,7 @@ import type { ConversationBlock } from "@/lib/types";
 import { useWidgetConfig } from "@/lib/widget-config";
 import { useCart } from "@/lib/cart-store";
 import { useConversationViewModel, type Message } from "@/lib/viewmodels/useConversationViewModel";
+import { getValidBuyer } from "@/lib/buyer-auth";
 import BlockRenderer from "./blocks/BlockRenderer";
 import { BuyerHub } from "./BuyerHub";
 import { BuyerHubTrigger } from "./BuyerHubTrigger";
@@ -65,10 +66,10 @@ export default function ConversationShell({
   const {
     mode, channel, theme, messages, input, isLoading, listening,
     conversationId, supportOpen, buyerHubOpen, cartDrawerForceOpen,
-    showBuyerAuth, policyModal,
+    showBuyerAuth, checkoutIntent, policyModal,
     selectChannel, toggleChannel, toggleTheme, sendMessage,
     handleQuickReply, handleUpdateQuantity, setInput,
-    setSupportOpen, setBuyerHubOpen, setShowBuyerAuth, setPolicyModal,
+    setSupportOpen, setBuyerHubOpen, setShowBuyerAuth, setCheckoutIntent, setPolicyModal,
     setCartDrawerForceOpen, startListening, stopListening,
   } = vm;
 
@@ -81,6 +82,15 @@ export default function ConversationShell({
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [logoError, setLogoError] = useState(false);
   const [checkoutUserId, setCheckoutUserId] = useState("");
+
+  // React to checkoutIntent from viewmodel — valid token skipped the gate, go straight to checkout
+  useEffect(() => {
+    if (checkoutIntent) {
+      setCheckoutUserId(checkoutIntent);
+      setCheckoutOpen(true);
+      setCheckoutIntent(null);
+    }
+  }, [checkoutIntent, setCheckoutIntent]);
 
   // Session persistence: restore buyer session from localStorage on mount
   useEffect(() => {
@@ -511,23 +521,12 @@ export default function ConversationShell({
         <CheckoutWidgetPanel
           merchantId={merchantId}
           onCheckout={async () => {
-            const buyerToken = localStorage.getItem("zyon_buyer_token");
-            if (!buyerToken) {
+            const buyer = getValidBuyer();
+            if (!buyer) {
               setShowBuyerAuth(true);
               return;
             }
-            // Extract globalUserId from stored buyer session
-            let globalUserId: string | undefined;
-            try {
-              const session = JSON.parse(localStorage.getItem("zyon_buyer_session") || "{}");
-              globalUserId = session.globalUserId || session.global_user_id;
-              if (!globalUserId) {
-                // Try decoding JWT payload
-                const payload = JSON.parse(atob(buyerToken.split(".")[1]));
-                globalUserId = payload.sub || payload.globalUserId;
-              }
-            } catch {}
-            setCheckoutUserId(globalUserId ?? "");
+            setCheckoutUserId(buyer.globalUserId);
             setCheckoutOpen(true);
           }}
           onViewCart={() => setCartDrawerForceOpen(true)}
