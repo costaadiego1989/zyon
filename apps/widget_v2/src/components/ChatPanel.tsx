@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, type ReactNode } from "react";
 import { useCheckoutStore } from "@/store/checkout-store";
 import { AgentAvatar } from "./AgentAvatar";
 import { PulseAgentOrb } from "./PulseAgentOrb";
@@ -6,6 +6,22 @@ import type { ChatBlock } from "@/api/checkout-session";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { useVoiceCheckout } from "@/lib/voice/use-voice-checkout";
+
+/* ─── Inline markdown: render **bold** / *italic* as JSX (no HTML injection) ─── */
+
+function renderInlineMarkdown(text: string): ReactNode {
+  // Split on **bold** and *italic* markers, keeping the delimiters as groups.
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("*") && part.endsWith("*")) {
+      return <em key={i}>{part.slice(1, -1)}</em>;
+    }
+    return part;
+  });
+}
 
 /* ─── Voice: derive speakable text from message (text + block context) ─── */
 
@@ -65,7 +81,8 @@ function messageToSpeech(msg: { text?: string; blocks?: ChatBlock[] }): string |
 }
 
 
-function translateShippingLabel(label: string): string {
+function translateShippingLabel(label: string | undefined | null): string {
+  if (!label) return "";
   const translations: Record<string, string> = {
     own_delivery_flat: "Entrega própria",
     own_delivery: "Entrega própria",
@@ -119,7 +136,10 @@ function CartSummaryBlock({ data }: { data?: Record<string, unknown> }) {
 function ShippingOptionsBlock({ options }: { options?: unknown }) {
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
   const selectShipping = useCheckoutStore((s) => s.selectShipping);
-  const opts = (options as Array<{ key: string; label: string; tag?: string; sub?: string; cost?: number }>) ?? [];
+  // Filter out malformed options (missing key/label) so a bad backend payload
+  // can't crash the render (translateShippingLabel on undefined).
+  const opts = ((options as Array<{ key: string; label: string; tag?: string; sub?: string; cost?: number }>) ?? [])
+    .filter((o) => o && o.key && o.label);
 
   const handleSelect = async (opt: (typeof opts)[0]) => {
     await selectShipping(opt.key);
@@ -792,18 +812,29 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
       rpcUrls: [rpcUrl || `https://sepolia.base.org`],
       blockExplorerUrls: [blockExplorerUrl || `https://sepolia.basescan.org`],
     };
+    // Rate-limit / RPC errors here are non-fatal: the chain is already usable,
+    // MetaMask just failed an internal eth_getBlockByNumber probe. We swallow
+    // them so the actual eth_sendTransaction (which uses the wallet's own RPC)
+    // still proceeds. Only user rejection (4001) aborts.
+    const isRateLimitOrRpc = (err: any) => {
+      const msg = String(err?.message || "").toLowerCase();
+      return msg.includes("rate limit") || msg.includes("429") || msg.includes("getblockbynumber") || msg.includes("timeout");
+    };
     try {
       // Always attempt addEthereumChain first — this updates the RPC URL even
       // if the chain already exists (fixes stale public RPC → rate limit).
       await eth.request({ method: "wallet_addEthereumChain", params: [chainParams] });
     } catch (addErr: any) {
-      // Some wallets reject addEthereumChain for already-added chains → switch
       if (addErr?.code === 4001) throw addErr; // User rejected — stop
+      if (isRateLimitOrRpc(addErr)) return;    // Chain usable; ignore RPC probe error
       try {
         await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: chainIdHex }] });
       } catch (switchErr: any) {
+        if (switchErr?.code === 4001) throw switchErr;
         if (switchErr?.code === 4902) {
           await eth.request({ method: "wallet_addEthereumChain", params: [chainParams] });
+        } else if (isRateLimitOrRpc(switchErr)) {
+          return; // Non-fatal — proceed to send
         } else {
           throw switchErr;
         }
@@ -824,12 +855,16 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
       }
 
       const calldata = encodeTransferData(destination, amountAtomic);
+      // Provide explicit gas limit to prevent MetaMask from calling
+      // eth_getBlockByNumber (rate-limited on public RPCs) for estimation.
+      // ERC20 transfer() typically costs ~65k gas; 100k is a safe upper bound.
       const txHash: string = await eth.request({
         method: "eth_sendTransaction",
         params: [{
           from: wallet,
           to: tokenAddress,
           data: calldata,
+          gas: "0x186A0", // 100,000 — safe for ERC20 transfer
         }],
       });
 
@@ -848,7 +883,14 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
         setError("Transação cancelada");
         setStep("connected");
       } else {
-        setError(e?.message || "Erro ao enviar transação");
+        const msg = String(e?.message || "").toLowerCase();
+        // Rate-limit errors from MetaMask's internal RPC probe — suggest removing
+        // and re-adding the chain in wallet settings to update the RPC endpoint.
+        if (msg.includes("rate limit") || msg.includes("getblockbynumber")) {
+          setError("RPC sobrecarregado. Remova e re-adicione Base Sepolia no MetaMask, ou tente novamente.");
+        } else {
+          setError(e?.message || "Erro ao enviar transação");
+        }
         setStep("connected");
       }
     }
@@ -1215,9 +1257,10 @@ export function ChatPanel() {
                     lineHeight: 1.5,
                     wordBreak: "break-word",
                     border: msg.role === "agent" ? "1px solid var(--bd)" : "none",
+                    whiteSpace: "pre-wrap",
                   }}
                 >
-                  {msg.text}
+                  {msg.role === "agent" ? renderInlineMarkdown(msg.text) : msg.text}
                 </div>
               )}
               {msg.blocks?.map((block, j) => (

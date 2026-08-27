@@ -517,12 +517,16 @@ export class SendChatMessageUseCase {
         },
       );
       const textContent = result.content?.trim() || "";
+      const hasUiBlocks = execution.blocks && execution.blocks.length > 0;
+      // Navigation tools (show_shipping_options, show_payment_methods) emit blocks
+      // without text messages — use a neutral prompt, not "Benefício aplicado".
+      const fallbackMsg = hasUiBlocks ? "" : "Como posso ajudar com o seu pedido?";
       const finalMsg = execution.message
         ? `${textContent ? textContent + "\n" : ""}${execution.message}`
-        : textContent || "Benefício aplicado ao seu pedido!";
+        : textContent || fallbackMsg;
       // FIX R2P-C04: Validate FINAL assembled message (tool output + LLM reply)
-      const safetyCheck = isSafeGeneratedMessage(finalMsg);
-      const safeMsg = safetyCheck.safe ? finalMsg : "Benefício aplicado ao seu pedido!";
+      const safetyCheck = isSafeGeneratedMessage(finalMsg || "ok");
+      const safeMsg = safetyCheck.safe ? finalMsg : fallbackMsg;
       return { message: safeMsg, objection: "unknown" as any, blocks: execution.blocks };
     }
 

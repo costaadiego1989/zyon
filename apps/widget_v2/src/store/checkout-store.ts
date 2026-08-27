@@ -131,6 +131,62 @@ let wsCleanup: (() => void) | null = null;
 const MAX_POLL_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 /**
+ * Narration fallback for interactive blocks. When the backend/LLM returns a
+ * component block with no accompanying text, the agent would otherwise "drop"
+ * a silent UI element. This maps each block type to a short line so the agent
+ * always speaks when it shows something. Returns null for blocks that are
+ * self-explanatory or purely structural (no narration needed).
+ */
+function narrateBlock(block: ChatBlock): string | null {
+  const count = (block.data?.products as unknown[] | undefined)?.length;
+  switch (block.type) {
+    case "cross_sell":
+      return count === 1
+        ? "Separei um item que combina com sua compra:"
+        : "Separei alguns itens que combinam com sua compra:";
+    case "shipping_options":
+      return "Escolha como prefere receber:";
+    case "payment_methods":
+      return "Como você prefere pagar?";
+    case "pix_payment":
+      return "Gerei seu código Pix. Escaneie o QR Code ou copie o código abaixo:";
+    case "crypto_chain_select":
+      return "Escolha a rede para pagar com cripto:";
+    case "crypto_payment":
+      return "Envie o valor para o endereço abaixo para concluir o pagamento:";
+    case "stripe_card":
+      return "Preencha os dados do seu cartão para finalizar:";
+    case "address_confirmation":
+      return "Confirme seu endereço de entrega:";
+    case "form_field":
+      return null; // form_field blocks carry their own label
+    case "offer_coupon":
+      return "Tenho um cupom pra você:";
+    case "order_summary":
+    case "cart_summary":
+      return "Aqui está o resumo do seu pedido:";
+    case "order_confirmation":
+      return "Pedido confirmado! Obrigada pela compra. 🎉";
+    default:
+      return null;
+  }
+}
+
+/**
+ * Pick agent text for a message: prefer the LLM/backend text when present;
+ * otherwise narrate the first block that has a narration. Guarantees no
+ * interactive component renders without the agent saying anything.
+ */
+function resolveAgentText(message: string | undefined, blocks: ChatBlock[]): string | undefined {
+  if (message && message.trim().length > 0) return message;
+  for (const block of blocks) {
+    const narration = narrateBlock(block);
+    if (narration) return narration;
+  }
+  return message;
+}
+
+/**
  * Derive UI blocks from the server-reported checkout stage when the backend
  * response carries only text (no blocks). This bridges the gap for voice/
  * free-text flows where the deterministic string-match logic doesn't fire.
@@ -363,10 +419,13 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     ];
 
     // Render cross-sell suggestions from checkout start (pre_payment touchpoint).
+    // Always pair the component with narration so the agent "speaks" instead of
+    // silently dropping a product block.
     if (_pendingCrossSellBlock) {
       messages.push({
         id: "cross_sell_start",
         role: "agent",
+        text: resolveAgentText(undefined, [_pendingCrossSellBlock]) ?? undefined,
         blocks: [_pendingCrossSellBlock],
         timestamp: Date.now() + 1,
       });
@@ -398,6 +457,75 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       timestamp: Date.now(),
     };
     set({ messages: [...messages, userMsg], isTyping: true });
+
+    // Address confirmation is a LOCAL UI action — handle before hitting the LLM.
+    // The buyer said "Sim"/"Correto" to the address card → fetch shipping quote
+    // and show options directly, skipping the chat round-trip (which would return
+    // a text-only "Benefício aplicado" with no blocks).
+    const normalizedConfirm = text.trim().toLowerCase().replace(/[.!?,;]+$/, "");
+    const isAddrConfirm = ["sim", "correto", "confirmo", "certo", "isso", "é esse", "esse mesmo"].includes(normalizedConfirm);
+    if (isAddrConfirm) {
+      const lastAgentMsg = [...messages].reverse().find((m) => m.role === "agent");
+      if (lastAgentMsg?.blocks?.some((b) => b.type === "address_confirmation")) {
+        const { buyer } = get();
+        const zip = buyer.address?.zip || "00000000";
+        let shippingOptions: Array<{ key: string; label: string; tag: string; sub: string; cost: number }> = [];
+        try {
+          shippingOptions = await api.fetchShippingQuote(zip);
+        } catch (err) {
+          console.error("[WIDGET] fetchShippingQuote failed", err);
+        }
+        const validOptions = shippingOptions.filter((o) => o && o.key && o.label);
+        if (validOptions.length === 0) {
+          set((s) => ({
+            messages: [...s.messages, {
+              id: `agent_${Date.now()}`, role: "agent",
+              text: "Não consegui calcular o frete agora. Tente novamente.",
+              quickReplies: ["Tentar novamente"], timestamp: Date.now(),
+            }],
+            isTyping: false,
+          }));
+          return;
+        }
+        set((s) => ({
+          messages: [...s.messages, {
+            id: `agent_${Date.now()}`, role: "agent",
+            text: "Perfeito! Agora escolha como prefere receber:",
+            blocks: [{ type: "shipping_options", data: { options: validOptions } }],
+            timestamp: Date.now(),
+          }],
+          isTyping: false,
+        }));
+        return;
+      }
+    }
+
+    // Shipping selection is a LOCAL UI action — show payment methods directly.
+    // The "Entrega · X" message is sent after selectShipping(key) already hit the
+    // backend; the next step is always payment methods, no LLM needed.
+    if (text.startsWith("Entrega ·")) {
+      const { merchantPaymentConfig } = get();
+      const methods: Array<{ key: string; label: string; sub: string }> = [];
+      methods.push({ key: "pix", label: "Pix", sub: "Pagamento instantâneo, sem taxas" });
+      methods.push({ key: "credito", label: "Cartão de crédito", sub: "Parcele em até 12x sem juros" });
+      methods.push({ key: "debito", label: "Cartão de débito", sub: "Débito à vista" });
+      if (merchantPaymentConfig.cryptoPaymentsEnabled) {
+        const token = merchantPaymentConfig.cryptoPayments?.token || "USDC";
+        const chain = merchantPaymentConfig.cryptoPayments?.chain || "polygon";
+        methods.push({ key: "crypto", label: `Crypto · ${token}`, sub: `Liquida na ${chain} + cashback` });
+      }
+      set((s) => ({
+        messages: [...s.messages, {
+          id: `agent_${Date.now()}`, role: "agent",
+          text: "Frete selecionado! Agora escolha como quer pagar:",
+          blocks: [{ type: "payment_methods", data: { methods } }],
+          timestamp: Date.now(),
+        }],
+        isTyping: false,
+        cart: { ...s.cart, status: "shipping_calculated" },
+      }));
+      return;
+    }
 
     try {
       const res = await api.chat(text);
@@ -456,76 +584,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         }
       }
 
-      // Handle address confirmation — user said "Sim", "Correto", "Confirmo", etc.
-      const normalized = text.trim().toLowerCase().replace(/[.!?,;]+$/, "");
-      const isAddressConfirm = ["sim", "correto", "confirmo", "certo", "isso", "é esse", "esse mesmo"].includes(normalized);
-      if (isAddressConfirm && messages.length > 0) {
-        const lastAgentMsg = [...messages].reverse().find((m) => m.role === "agent");
-        if (lastAgentMsg?.blocks?.some((b) => b.type === "address_confirmation")) {
-          // Auto-quote shipping using the confirmed address
-          const { buyer } = get();
-          const zip = buyer.address?.zip || "00000000";
-          let shippingOptions: Array<{ key: string; label: string; tag: string; sub: string; cost: number }> = [];
-          try {
-            shippingOptions = await api.fetchShippingQuote(zip);
-          } catch (err) {
-            console.error('[WIDGET-DBG] fetchShippingQuote failed', err);
-          }
-
-          if (shippingOptions.length === 0) {
-            // Fallback if quote fails
-            const zipMsg: Message = {
-              id: `agent_${Date.now()}`,
-              role: "agent",
-              text: "Não consegui calcular o frete. Tente novamente.",
-              quickReplies: ["Tentar novamente"],
-              timestamp: Date.now(),
-            };
-            set((s) => ({ messages: [...s.messages, zipMsg], isTyping: false }));
-            return;
-          }
-
-          const shippingMsg: Message = {
-            id: `agent_${Date.now()}`,
-            role: "agent",
-            text: "Perfeito! Agora escolha como prefere receber:",
-            blocks: [{ type: "shipping_options", data: { options: shippingOptions } }],
-            timestamp: Date.now(),
-          };
-          set((s) => ({ messages: [...s.messages, shippingMsg], isTyping: false }));
-          return;
-        }
-      }
-
-      // If API returns empty for shipping selection, provide payment methods
-      if ((!res.blocks || res.blocks.length === 0) && text.startsWith("Entrega ·")) {
-        const { merchantPaymentConfig } = get();
-        const methods: Array<{ key: string; label: string; sub: string }> = [];
-        methods.push({ key: "pix", label: "Pix", sub: "Pagamento instantâneo, sem taxas" });
-        // Stripe always enabled (mandatory in onboarding)
-        methods.push({ key: "credito", label: "Cartão de crédito", sub: "Parcele em até 12x sem juros" });
-        methods.push({ key: "debito", label: "Cartão de débito", sub: "Débito à vista" });
-        if (merchantPaymentConfig.cryptoPaymentsEnabled) {
-          const token = merchantPaymentConfig.cryptoPayments?.token || "USDC";
-          const chain = merchantPaymentConfig.cryptoPayments?.chain || "polygon";
-          methods.push({ key: "crypto", label: `Crypto · ${token}`, sub: `Liquida na ${chain} + cashback` });
-        }
-
-        const payMsg: Message = {
-          id: `agent_${Date.now()}`,
-          role: "agent",
-          text: "Frete selecionado! Agora escolha como quer pagar:",
-          blocks: [{ type: "payment_methods", data: { methods } }],
-          timestamp: Date.now(),
-        };
-        set((s) => ({
-          messages: [...s.messages, payMsg],
-          isTyping: false,
-          cart: { ...s.cart, status: "shipping_calculated" },
-        }));
-        return;
-      }
-
       // Render agent response with message text and blocks.
       // Primary: backend LLM navigation tools emit UI blocks (res.blocks).
       // Fallback: derive from reported stage when the LLM didn't call a tool.
@@ -540,10 +598,13 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       const mergedBlocks = crossSellBlock
         ? [...baseBlocks, crossSellBlock]
         : baseBlocks;
+      // Universal narration: when the LLM returned empty text but there are
+      // interactive blocks, derive a human-readable line from the first block.
+      const agentText = resolveAgentText(res.message, mergedBlocks);
       const agentMsg: Message = {
         id: `agent_${Date.now()}`,
         role: "agent",
-        text: res.message,
+        text: agentText,
         blocks: mergedBlocks,
         quickReplies: res.quick_replies,
         timestamp: Date.now(),
