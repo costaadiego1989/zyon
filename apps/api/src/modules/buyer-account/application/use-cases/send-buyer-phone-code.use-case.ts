@@ -28,12 +28,6 @@ export class SendBuyerPhoneCodeUseCase {
     }
 
     const phoneKey = `${countryCode}:${normalized}`;
-
-    // If there's already an active (non-expired, non-consumed) OTP, resend the same code.
-    // Always generate a fresh code and overwrite any previous OTP for this phone.
-    // The store's save() upserts by phone, so a new send invalidates the old code
-    // (attempts reset, consumedAt cleared). This keeps send/verify consistent:
-    // the code the caller receives (SMS or dev_code) is always the active one.
     const code = String(randomInt(100000, 1000000));
     const codeHash = createHash("sha256").update(code).digest("hex");
     const expiresAt = new Date(Date.now() + OTP_TTL_MS);
@@ -44,7 +38,7 @@ export class SendBuyerPhoneCodeUseCase {
     if (this.sms) {
       await this.sms.send(normalized, `Seu código de verificação: ${code}`);
     } else {
-      this.logger.warn(`[OTP] SMS provider not configured; code=${code} for phone=***${normalized.slice(-4)}`);
+      this.logger.warn(`[OTP] SMS provider not configured for phone=***${normalized.slice(-4)}`);
     }
 
     const isDev = process.env.NODE_ENV !== "production";

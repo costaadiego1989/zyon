@@ -42,6 +42,9 @@ export default function BuyerLoginForm({ merchantId, onComplete, onCancel }: Pro
           const errData = await res.json().catch(() => null);
           throw new Error(errData?.message ?? "Erro ao enviar código");
         }
+        const data = await res.json().catch(() => null);
+        // Dev convenience: auto-fill code when SMS provider is not configured
+        if (data?.dev_code) setOtp(String(data.dev_code));
         setStep(2);
       } else {
         // Verify OTP
