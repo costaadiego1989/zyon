@@ -343,7 +343,8 @@ export class CheckoutSession {
 
   async createPaymentIntent(
     method: "pix" | "credito" | "debito" | "crypto",
-    installments?: number
+    installments?: number,
+    options?: { chain?: "polygon" | "base" }
   ): Promise<PaymentIntent> {
     this.assertSession();
     // API expects: method = "pix" | "card" | "boleto" | "crypto"
@@ -358,6 +359,7 @@ export class CheckoutSession {
         idempotency_key: idempotencyKey,
         method: apiMethod,
         installments,
+        ...(options?.chain ? { preferred_chain: options.chain } : {}),
       }),
     });
     if (!res.ok) {
@@ -377,6 +379,15 @@ export class CheckoutSession {
         clientSecret?: string;
         stripePublishableKey?: string;
         quoteExpiresAt?: string;
+        chain?: "polygon" | "base";
+        chainLabel?: string;
+        evmNetwork?: "mainnet" | "testnet";
+        tokenSymbol?: "USDC";
+        amountDisplay?: string;
+        amountAtomic?: string;
+        destinationAddress?: string;
+        tokenAddress?: string;
+        chainId?: number;
       };
     };
     const expiresAtUnix = raw.buyerFacing?.quoteExpiresAt

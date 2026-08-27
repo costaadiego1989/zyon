@@ -19,10 +19,14 @@ import {
   type CryptoTransferQuote
 } from "./evm-crypto.constants.js";
 import { quoteUsdcFromBrlCents } from "./evm-crypto-quote.service.js";
+import { CryptoQuoteService } from "./crypto-quote.service.js";
 
 @Injectable()
 export class EvmCryptoPaymentAdapter implements PaymentProviderPort {
-  constructor(@Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository) {}
+  constructor(
+    @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository,
+    private readonly cryptoQuote: CryptoQuoteService
+  ) {}
 
   async createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput> {
     if (input.method !== "crypto") {
@@ -33,10 +37,19 @@ export class EvmCryptoPaymentAdapter implements PaymentProviderPort {
     }
 
     const rules = await this.merchants.getRules(input.merchantId);
-    const config = rules.cryptoPayments;
+    let config = rules.cryptoPayments;
     if (!isCryptoPaymentsEnabled(config)) {
       throw new BadRequestException("crypto_payments_not_enabled_for_merchant");
     }
+
+    // Buyer-selected chain override (validated against allowed EVM chains).
+    if (input.preferredChain && (input.preferredChain === "polygon" || input.preferredChain === "base")) {
+      config = { ...config!, chain: input.preferredChain };
+    }
+
+    // Live BRL/USDC rate from Binance; fall back to merchant's configured value.
+    const { brlPerUsdc } = await this.cryptoQuote.getUsdcBrl(config!.brlPerUsdc);
+    config = { ...config!, brlPerUsdc };
 
     const quote = buildCryptoQuote(input.amountCents, config!, input.intentId, input.platformFeeCents ?? 0);
     const providerPaymentId = `crypto_${input.intentId}`;

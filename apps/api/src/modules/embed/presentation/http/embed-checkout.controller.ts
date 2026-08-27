@@ -220,6 +220,7 @@ export class EmbedCheckoutController {
       idempotency_key: string;
       method?: "pix" | "card" | "boleto" | "crypto";
       accepted_offer_id?: string;
+      preferred_chain?: "polygon" | "base";
       credit_card?: {
         holderName: string;
         number: string;
@@ -248,6 +249,10 @@ export class EmbedCheckoutController {
       method: body.method,
       accepted_offer_id:
         typeof body.accepted_offer_id === "string" ? body.accepted_offer_id.trim() || undefined : undefined,
+      preferred_chain:
+        body.preferred_chain === "polygon" || body.preferred_chain === "base"
+          ? body.preferred_chain
+          : undefined,
       credit_card: body.credit_card,
       remote_ip: remoteIp
     });

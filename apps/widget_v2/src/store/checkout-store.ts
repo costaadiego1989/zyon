@@ -112,6 +112,7 @@ interface CheckoutState {
   removeCartItem: (sku: string) => Promise<void>;
   selectShipping: (key: string) => Promise<void>;
   pay: (method: "pix" | "credito" | "debito" | "crypto", installments?: number) => Promise<void>;
+  selectCryptoChain: (chain: "polygon" | "base") => Promise<void>;
   pollPayment: () => void;
   stopPolling: () => void;
   setActiveDiscount: (stage: DiscountStage, percent: number) => void;
@@ -648,6 +649,19 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       return;
     }
 
+    // Crypto: pick the chain FIRST, then create the intent in selectCryptoChain.
+    if (method === "crypto") {
+      const chainSelectMsg: Message = {
+        id: `agent_pay_${Date.now()}`,
+        role: "agent",
+        text: "Escolha a rede para pagar com USDC:",
+        blocks: [{ type: "crypto_chain_select", data: { chains: ["polygon", "base"] } }],
+        timestamp: Date.now(),
+      };
+      set((s) => ({ messages: [...s.messages, chainSelectMsg] }));
+      return;
+    }
+
     try {
       // Sync buyer data to checkout session before payment — Asaas requires
       // fullName, email, and cpf on the session to create a customer.
@@ -670,12 +684,10 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       });
 
       // Add payment block as agent message so ChatPanel renders it
-      const blockType = method === "pix" ? "pix_payment" : method === "crypto" ? "crypto_payment" : "stripe_card";
+      const blockType = method === "pix" ? "pix_payment" : "stripe_card";
       const blockText = method === "pix"
         ? "Pix gerado! Pague e confirmo seu pedido automaticamente."
-        : method === "crypto"
-          ? "Envie o valor em USDC para o endereço abaixo."
-          : "Preencha os dados do cartão para finalizar.";
+        : "Preencha os dados do cartão para finalizar.";
       const paymentMsg: Message = {
         id: `agent_pay_${Date.now()}`,
         role: "agent",
@@ -688,6 +700,58 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
             pix_qr_url: intent.pix_qr_url,
             stripe_client_secret: intent.stripe_client_secret,
             stripe_publishable_key: intent.stripe_publishable_key,
+            expires_at_unix: intent.expires_at_unix,
+            amount_cents: intent.amount_cents,
+          },
+        }],
+        timestamp: Date.now(),
+      };
+      set((s) => ({ messages: [...s.messages, paymentMsg] }));
+    } catch {
+      // API failed — show error
+      const errorMsg: Message = {
+        id: `error_${Date.now()}`,
+        role: "agent",
+        text: "Não foi possível criar o pagamento. Tente novamente.",
+        quickReplies: ["Tentar novamente"],
+        timestamp: Date.now(),
+      };
+      set((s) => ({ messages: [...s.messages, errorMsg] }));
+    }
+  },
+
+  selectCryptoChain: async (chain) => {
+    const { api, buyer } = get();
+    if (!api) return;
+
+    try {
+      // Sync buyer data before payment (parity with pay()).
+      if (buyer.name || buyer.email || buyer.cpf) {
+        await api.updateCustomer({
+          customer: {
+            fullName: buyer.name,
+            email: buyer.email,
+            cpf: buyer.cpf,
+            phone: buyer.phone,
+          },
+        }).catch(() => {});
+      }
+
+      const intent = await api.createPaymentIntent("crypto", undefined, { chain });
+      void trackEvent("payment_method_selected", { method: "crypto", intent_id: intent.intent_id, chain });
+      set({
+        paymentIntent: intent,
+        cart: { ...get().cart, status: "ready_to_pay" },
+      });
+
+      const paymentMsg: Message = {
+        id: `agent_pay_${Date.now()}`,
+        role: "agent",
+        text: "Envie o valor em USDC para o endereço abaixo.",
+        blocks: [{
+          type: "crypto_payment",
+          data: {
+            intent_id: intent.intent_id,
             crypto_chain_label: intent.crypto_chain_label,
             crypto_network: intent.crypto_network,
             crypto_token_symbol: intent.crypto_token_symbol,
@@ -703,7 +767,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       };
       set((s) => ({ messages: [...s.messages, paymentMsg] }));
     } catch {
-      // API failed — show error
       const errorMsg: Message = {
         id: `error_${Date.now()}`,
         role: "agent",

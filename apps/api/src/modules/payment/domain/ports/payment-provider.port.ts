@@ -36,6 +36,18 @@ export type CreateProviderPaymentInput = {
   remoteIp?: string;
   stripeConnectAccountId?: string;
   platformFeeCents?: number;
+  /**
+   * Crypto-only: buyer-selected chain override. When set (and valid for the
+   * merchant's crypto config), the crypto quote is built on this chain instead
+   * of the merchant's configured default chain.
+   */
+  preferredChain?: "polygon" | "base";
+  /**
+   * Crypto-only: live BRL/USDC rate to use when computing the USDC amount,
+   * overriding the merchant's configured brlPerUsdc. Falls back to the merchant
+   * value when absent.
+   */
+  brlPerUsdcOverride?: number;
 };
 
 export type CryptoTransferQuotePayload = {

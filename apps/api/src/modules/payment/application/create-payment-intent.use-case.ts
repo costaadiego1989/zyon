@@ -37,6 +37,12 @@ export type CreatePaymentIntentRequest = {
   idempotency_key: string;
   method?: PaymentMethod;
   accepted_offer_id?: string;
+  /**
+   * Crypto-only: buyer-selected chain (e.g. "polygon" or "base"). Harmless for
+   * non-crypto methods. Threaded into the crypto provider so the buyer-driven
+   * selection in the widget survives to the quote that renders the wallet.
+   */
+  preferred_chain?: "polygon" | "base";
   credit_card?: {
     holderName: string;
     number: string;
@@ -294,7 +300,9 @@ export class CreatePaymentIntentUseCase {
               creditCardHolderInfo,
               remoteIp: body.remote_ip
             }
-            : {})
+            : method === "crypto"
+              ? { preferredChain: body.preferred_chain }
+              : {})
       });
     } catch (error) {
       this.logger.error(`payment.provider_create_failed: ${error instanceof Error ? error.message : String(error)}`);

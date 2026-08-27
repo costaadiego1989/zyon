@@ -27,6 +27,8 @@ import { EvmCryptoPaymentAdapter } from "./infrastructure/evm-crypto-payment.ada
 import { CheckoutPaymentAdapter } from "./infrastructure/checkout-payment.adapter.js";
 import { PaymentHttpController } from "./presentation/http/payment.controller.js";
 import { CryptoPaymentController } from "./presentation/http/crypto-payment.controller.js";
+import { CryptoQuoteController } from "./presentation/http/crypto-quote.controller.js";
+import { CryptoQuoteService } from "./infrastructure/crypto-quote.service.js";
 import { StripePaymentController } from "./presentation/http/stripe-payment.controller.js";
 import { AsaasWebhookController } from "./presentation/http/asaas-webhook.controller.js";
 import { StripeWebhookController } from "./presentation/http/stripe-webhook.controller.js";
@@ -96,6 +98,7 @@ import {
   controllers: [
     PaymentHttpController,
     CryptoPaymentController,
+    CryptoQuoteController,
     StripePaymentController,
     AsaasWebhookController,
     StripeWebhookController,
@@ -135,6 +138,7 @@ import {
     RefreshMercadoPagoTokenUseCase,
     DeleteMercadoPagoConnectionUseCase,
     EvmCryptoPaymentAdapter,
+    CryptoQuoteService,
     CheckoutPaymentAdapter,
     PaymentEventPublisher,
     PaymentWebSocketGateway,

@@ -701,6 +701,67 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   );
 }
 
+function CryptoChainSelectBlock({ data }: { data?: Record<string, unknown> }) {
+  const selectCryptoChain = useCheckoutStore((s) => s.selectCryptoChain);
+  const [pending, setPending] = useState<string | null>(null);
+  const rawChains = (data?.chains as string[] | undefined) ?? ["polygon", "base"];
+  const labels: Record<string, string> = { polygon: "Polygon", base: "Base" };
+  const chains = rawChains.filter((c): c is "polygon" | "base" => c === "polygon" || c === "base");
+
+  const handleSelect = (chain: "polygon" | "base") => {
+    if (pending) return;
+    setPending(chain);
+    void selectCryptoChain(chain);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--tx)" }}>Rede:</div>
+      {chains.map((chain) => (
+        <button
+          key={chain}
+          onClick={() => handleSelect(chain)}
+          disabled={!!pending}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "10px 12px",
+            borderRadius: "10px",
+            border: "1px solid var(--bd)",
+            background: "var(--chip)",
+            color: "var(--tx)",
+            cursor: pending ? "default" : "pointer",
+            textAlign: "left",
+            fontSize: "13px",
+            opacity: pending && pending !== chain ? 0.5 : 1,
+          }}
+          onMouseEnter={(e) => {
+            if (!pending) e.currentTarget.style.borderColor = "var(--aacp-accent)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = "var(--bd)";
+          }}
+        >
+          <span style={{ fontWeight: 600 }}>{labels[chain] ?? chain}</span>
+          <span
+            style={{
+              fontSize: "10px",
+              fontWeight: 700,
+              padding: "2px 6px",
+              borderRadius: "6px",
+              background: "var(--aacp-accent)",
+              color: "#fff",
+            }}
+          >
+            USDC
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function BlockRenderer({ block }: { block: ChatBlock }) {
   switch (block.type) {
     case "text":
@@ -716,6 +777,8 @@ function BlockRenderer({ block }: { block: ChatBlock }) {
       return <PaymentMethodsBlock methods={block.data?.methods} />;
     case "pix_payment":
       return <PixPaymentBlock data={block.data} />;
+    case "crypto_chain_select":
+      return <CryptoChainSelectBlock data={block.data} />;
     case "crypto_payment":
       return <CryptoPaymentBlock data={block.data} />;
     case "stripe_card":
