@@ -56,10 +56,12 @@ export class GetBuyerSummaryUseCase {
       ? await this.loadRecordsFromPort(globalUserId)
       : await this.loadRecordsFromRepository(globalUserId);
 
+    // totalAmount/discountAmount arrive as Prisma Decimal (string). Coerce to
+    // Number before summing — otherwise `+` concatenates strings.
     const totalOrders = records.length;
-    const totalSpent = records.reduce((s, r) => s + r.totalAmount, 0);
+    const totalSpent = records.reduce((s, r) => s + Number(r.totalAmount), 0);
     const averageTicket = totalOrders > 0 ? totalSpent / totalOrders : 0;
-    const totalSaved = records.reduce((s, r) => s + r.discountAmount, 0);
+    const totalSaved = records.reduce((s, r) => s + Number(r.discountAmount), 0);
 
     const countByMerchant = new Map<string, number>();
     for (const r of records) {

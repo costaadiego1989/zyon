@@ -23,39 +23,6 @@ function fmtPercent(value: number | undefined | null): string {
 
 // ─── Icons (inline SVG) ────────────────────────────────────────────────────
 
-function IconToggleOn() {
-  return (
-    <svg
-      width="20"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      stroke="none"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <rect x="1" y="5" width="22" height="14" rx="7" fill="currentColor" />
-      <circle cx="18" cy="12" r="6" fill="var(--aacp-panel-bg)" />
-    </svg>
-  );
-}
-
-function IconToggleOff() {
-  return (
-    <svg
-      width="20"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      stroke="none"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <rect x="1" y="5" width="22" height="14" rx="7" fill="var(--aacp-line)" />
-      <circle cx="6" cy="12" r="6" fill="var(--aacp-panel-bg)" />
-    </svg>
-  );
-}
 
 function IconCheck() {
   return (
@@ -159,27 +126,41 @@ function ToggleSwitch({ value, onChange, label, description, disabled = false }:
       </div>
       <button
         type="button"
+        role="switch"
         onClick={handle}
         disabled={busy || disabled}
         aria-label={`${label} - ${value ? "ativar" : "desativar"}`}
-        aria-pressed={value}
+        aria-checked={value}
         style={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: "40px",
+          position: "relative",
+          display: "inline-block",
+          width: "44px",
           height: "24px",
           borderRadius: "12px",
           border: "none",
-          background: value ? "var(--aacp-success)" : "var(--aacp-line)",
-          color: value ? "var(--aacp-panel-bg)" : "var(--aacp-panel-bg)",
+          padding: 0,
+          background: value ? "var(--aacp-accent)" : "var(--aacp-surface-3, rgba(255,255,255,0.12))",
           cursor: busy || disabled ? "not-allowed" : "pointer",
           opacity: busy ? 0.7 : disabled ? 0.45 : 1,
-          transition: "background 200ms ease, color 200ms ease",
+          transition: "background 200ms ease",
           flexShrink: 0,
         }}
       >
-        {value ? <IconToggleOn /> : <IconToggleOff />}
+        <span
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: "2px",
+            left: "2px",
+            width: "20px",
+            height: "20px",
+            borderRadius: "50%",
+            background: "#ffffff",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+            transform: value ? "translateX(20px)" : "translateX(0)",
+            transition: "transform 0.2s ease",
+          }}
+        />
       </button>
     </div>
   );
@@ -511,6 +492,7 @@ export default function PreferencesTab({
         display: "flex",
         flexDirection: "column",
         gap: "24px",
+        padding: "20px",
         paddingBottom: "16px",
       }}
     >

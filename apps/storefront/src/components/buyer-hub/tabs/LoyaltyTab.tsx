@@ -246,109 +246,6 @@ function Chip({ label }: { label: string }) {
 
 // ─── Discount Sensitivity Bar ─────────────────────────────────────────────
 
-interface SensitivityBarProps {
-  value: string | null | undefined;
-}
-
-// Map the backend categorical sensitivity ("low"|"medium"|"high") to a 0..1 fill.
-const SENSITIVITY_MAP: Record<string, { fill: number; label: string }> = {
-  low: { fill: 0.2, label: "Baixa" },
-  baixa: { fill: 0.2, label: "Baixa" },
-  medium: { fill: 0.55, label: "Moderada" },
-  moderada: { fill: 0.55, label: "Moderada" },
-  high: { fill: 0.9, label: "Alta" },
-  alta: { fill: 0.9, label: "Alta" },
-};
-
-function SensitivityBar({ value }: SensitivityBarProps) {
-  const entry = value ? SENSITIVITY_MAP[value.toLowerCase()] : undefined;
-  const normalized = entry ? entry.fill : null;
-
-  function getColor(v: number): string {
-    if (v <= 0.3) return "var(--aacp-success)";
-    if (v <= 0.6) return "var(--aacp-accent)";
-    return "#f59e0b";
-  }
-
-  if (normalized === null) {
-    return (
-      <div
-        style={{
-          padding: "12px 14px",
-          borderRadius: "8px",
-          background: "var(--aacp-surface-2)",
-          border: "1px solid var(--aacp-line)",
-          fontSize: "12px",
-          color: "var(--aacp-muted)",
-        }}
-      >
-        Sem dados suficientes para calcular sensibilidade.
-      </div>
-    );
-  }
-
-  const color = getColor(normalized);
-  const label = entry?.label ?? "—";
-
-  return (
-    <div
-      style={{
-        padding: "14px",
-        borderRadius: "10px",
-        background: "var(--aacp-card)",
-        border: "1px solid var(--aacp-line)",
-        display: "flex",
-        flexDirection: "column",
-        gap: "10px",
-      }}
-      role="meter"
-      aria-label="Sensibilidade a desconto"
-      aria-valuenow={Math.round(normalized * 100)}
-      aria-valuemin={0}
-      aria-valuemax={100}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--aacp-fg)" }}>
-          {label}
-        </span>
-        <span style={{ fontSize: "12px", color: "var(--aacp-muted)" }}>
-          {Math.round(normalized * 100)}%
-        </span>
-      </div>
-      <div
-        style={{
-          position: "relative",
-          height: "6px",
-          borderRadius: "3px",
-          background: "var(--aacp-surface-3)",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            height: "100%",
-            width: `${normalized * 100}%`,
-            borderRadius: "3px",
-            background: color,
-            transition: "width 300ms ease",
-          }}
-        />
-      </div>
-    </div>
-  );
-}
-
-// ─── Loading Skeleton ─────────────────────────────────────────────────────
-
 function LoadingSkeleton() {
   return (
     <div
@@ -559,7 +456,7 @@ export default function LoyaltyTab({ loyalty, summary, loading }: LoyaltyTabProp
         </div>
       )}
 
-      {/* Sensibilidade a desconto */}
+      {/* Descontos disponíveis */}
       <div>
         <div
           style={{
@@ -579,10 +476,34 @@ export default function LoyaltyTab({ loyalty, summary, loading }: LoyaltyTabProp
               letterSpacing: "0.5px",
             }}
           >
-            Sensibilidade a desconto
+            Descontos disponíveis
           </span>
         </div>
-        <SensitivityBar value={loyalty?.discount_sensitivity} />
+        <div
+          style={{
+            padding: "16px 14px",
+            borderRadius: "10px",
+            border: "2px dashed var(--aacp-line)",
+            background: "color-mix(in srgb, var(--aacp-surface-2) 50%, transparent)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "10px",
+            textAlign: "center",
+          }}
+        >
+          <IconTag />
+          <div
+            style={{
+              fontSize: "12px",
+              color: "var(--aacp-muted)",
+              lineHeight: 1.5,
+              maxWidth: "280px",
+            }}
+          >
+            Nenhum cupom disponível no momento. Ofertas personalizadas aparecerão aqui durante o checkout.
+          </div>
+        </div>
       </div>
     </div>
   );

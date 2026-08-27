@@ -326,6 +326,9 @@ export function useBuyerHub(): UseBuyerHub {
         break;
       case "loyalty":
         if (!loyalty.data && !loyalty.loading) void runFetch(setLoyalty, "/buyer/me/loyalty");
+        // Summary is computed from real purchase records and is the reliable source
+        // for order count / total spent / average ticket KPIs shown on this tab.
+        if (!summary.data && !summary.loading) void runFetch(setSummary, "/buyer/me/summary");
         break;
       case "settings":
         if (!intentProfile.data && !intentProfile.loading) void runFetch(setIntentProfile, "/buyer/me/intent-profile");
@@ -592,6 +595,7 @@ export function useBuyerHub(): UseBuyerHub {
         break;
       case "loyalty":
         await loadLoyalty();
+        await runFetch(setSummary, "/buyer/me/summary");
         break;
       case "settings":
         await loadIntentProfile();
