@@ -22,7 +22,15 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit(): void {
+    // When REDIS_URL is set, OutboxBullMqRelay drives dispatch() through a
+    // Redis-locked recurring job (single active consumer across all instances).
+    // The in-process setInterval is only the fallback for Redis-less dev/test.
+    if (process.env.REDIS_URL?.trim()) {
+      this.logger.log("Outbox dispatch delegated to BullMQ relay (REDIS_URL present)");
+      return;
+    }
     this.timer = setInterval(() => void this.dispatch(), DISPATCH_INTERVAL_MS);
+    this.logger.log("Outbox dispatch: setInterval fallback (no REDIS_URL)");
   }
 
   onModuleDestroy(): void {

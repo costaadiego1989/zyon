@@ -23,8 +23,9 @@ export class BubbleWhatsAdapter implements WhatsAppSenderPort {
     const number = cleanDigits.startsWith("55") ? cleanDigits : `55${cleanDigits}`;
     const jid = `${number}@s.whatsapp.net`;
 
+    let response: Response;
     try {
-      const response = await fetch(`${baseUrl}/send-message`, {
+      response = await fetch(`${baseUrl}/send-message`, {
         method: "POST",
         headers: {
           Authorization: token,
@@ -35,15 +36,22 @@ export class BubbleWhatsAdapter implements WhatsAppSenderPort {
           message: msg.message,
         }),
       });
-
-      if (response.ok) {
-        this.logger.log(`WhatsApp sent to ${number}`);
-      } else {
-        const errText = await response.text();
-        this.logger.error(`BubbleWhats failed: ${response.status} — ${errText}`);
-      }
     } catch (err) {
-      this.logger.error(`BubbleWhats error`, { error: err });
+      // Network/transport failure — throw so the queue worker retries with backoff.
+      const reason = err instanceof Error ? err.message : String(err);
+      this.logger.error(`BubbleWhats transport error`, { error: reason });
+      throw new Error(`whatsapp_send_transport_failed: ${reason}`);
     }
+
+    if (response.ok) {
+      this.logger.log(`WhatsApp sent to ${number}`);
+      return;
+    }
+
+    // Delivery rejected by gateway — throw so retry/backoff fires instead of
+    // silently marking the message as sent.
+    const errText = await response.text().catch(() => "");
+    this.logger.error(`BubbleWhats failed: ${response.status} — ${errText}`);
+    throw new Error(`whatsapp_send_failed: ${response.status} ${errText}`.trim());
   }
 }

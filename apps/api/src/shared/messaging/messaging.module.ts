@@ -6,6 +6,7 @@ import { InMemoryDomainEventBus } from "../events/in-memory-domain-event-bus.js"
 import { DOMAIN_EVENT_BUS } from "../events/domain-event-bus.port.js";
 import { PRISMA_CLIENT } from "../persistence/persistence.module.js";
 import { OutboxDispatcher } from "./outbox-dispatcher.service.js";
+import { OutboxBullMqRelay } from "./infrastructure/outbox-bullmq-relay.service.js";
 
 @Global()
 @Module({
@@ -17,7 +18,8 @@ import { OutboxDispatcher } from "./outbox-dispatcher.service.js";
     },
     InMemoryDomainEventBus,
     { provide: DOMAIN_EVENT_BUS, useExisting: InMemoryDomainEventBus },
-    OutboxDispatcher
+    OutboxDispatcher,
+    OutboxBullMqRelay,
   ],
   exports: [OUTBOX_REPOSITORY, DOMAIN_EVENT_BUS, OutboxDispatcher]
 })
