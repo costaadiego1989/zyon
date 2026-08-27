@@ -9,7 +9,6 @@ import QuickRepliesBlock from "./QuickRepliesBlock";
 import OrderConfirmationBlock from "./OrderConfirmationBlock";
 import ReviewsBlock from "./ReviewsBlock";
 import AddReviewBlock from "./AddReviewBlock";
-import CrossSellBlock from "./CrossSellBlock";
 import ShippingQuoteBlock from "./ShippingQuoteBlock";
 import VariantSelectorBlock from "./VariantSelectorBlock";
 import ProductComparisonBlock from "./ProductComparisonBlock";
@@ -55,7 +54,25 @@ export default function BlockRenderer({
     case "add_review":
       return <AddReviewBlock block={block} onQuickReply={onQuickReply} />;
     case "cross_sell":
-      return <CrossSellBlock block={block} onQuickReply={onQuickReply} />;
+      // Render similar products using the same premium carousel layout
+      return (
+        <ProductCarouselBlock
+          block={{
+            type: "product_carousel",
+            data: {
+              products: ((block as any).data?.products ?? []).map((p: any) => ({
+                id: p.id,
+                name: p.name,
+                price: p.price,
+                priceFormatted: p.priceFormatted || new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format((p.price || 0) / 100),
+                image: p.image,
+                inStock: p.inStock ?? true,
+              })),
+            },
+          }}
+          onQuickReply={onQuickReply}
+        />
+      );
     case "category_carousel":
       return <CategoryCarouselBlock block={block as any} onQuickReply={onQuickReply} />;
     case "marketplace_products":

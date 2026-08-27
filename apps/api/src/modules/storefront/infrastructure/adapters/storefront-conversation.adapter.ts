@@ -522,7 +522,6 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       },
 
       getSimilarProducts: async (args: any) => {
-        // Search products in same category as fallback
         const product = await this.productRepo.findById(this.currentMerchantId, args.productId);
         if (!product) return { products: [] };
         const result = await this.productRepo.search({
@@ -530,8 +529,10 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
           query: undefined,
           categoryId: product.categoryId,
           isActiveOnly: true,
-          limit: Math.min(args.limit ?? 5, 10)
+          limit: Math.min((args.limit ?? 5) + 1, 10)
         });
+        const formatPrice = (cents: number) =>
+          new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
         return {
           products: result.products
             .filter((p) => p.id !== args.productId)
@@ -540,8 +541,11 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
               id: p.id,
               name: p.name,
               price: p.defaultVariant?.basePriceInCents ?? 0,
+              priceFormatted: formatPrice(p.defaultVariant?.basePriceInCents ?? 0),
               image: p.defaultVariant?.media?.[0]?.url,
               inStock: p.hasStock,
+              rating: p.averageRating ?? undefined,
+              reviewCount: p.reviewCount ?? 0,
             }))
         };
       },
