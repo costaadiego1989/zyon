@@ -19,6 +19,7 @@ import { UpdateBuyerProfileUseCase } from "../../application/use-cases/update-bu
 import { ChangeBuyerPasswordUseCase } from "../../application/use-cases/change-buyer-password.use-case.js";
 import { GetBuyerPurchasesUseCase } from "../../application/use-cases/get-buyer-purchases.use-case.js";
 import { GetBuyerSummaryUseCase } from "../../application/use-cases/get-buyer-summary.use-case.js";
+import { GetBuyerLoyaltyUseCase } from "../../application/use-cases/get-buyer-loyalty.use-case.js";
 import { SendBuyerPhoneCodeUseCase } from "../../application/use-cases/send-buyer-phone-code.use-case.js";
 import { VerifyBuyerPhoneCodeUseCase } from "../../application/use-cases/verify-buyer-phone-code.use-case.js";
 import { SendBuyerEmailCodeUseCase } from "../../application/use-cases/send-buyer-email-code.use-case.js";
@@ -37,6 +38,7 @@ export class BuyerAccountController {
     private readonly changePassword: ChangeBuyerPasswordUseCase,
     private readonly getPurchases: GetBuyerPurchasesUseCase,
     private readonly getSummary: GetBuyerSummaryUseCase,
+    private readonly getLoyalty: GetBuyerLoyaltyUseCase,
     private readonly sendPhoneCode: SendBuyerPhoneCodeUseCase,
     private readonly verifyPhoneCode: VerifyBuyerPhoneCodeUseCase,
     private readonly sendEmailCode: SendBuyerEmailCodeUseCase,
@@ -180,6 +182,22 @@ export class BuyerAccountController {
       total_spent: data.stats.totalSpent,
       average_ticket: data.stats.averageTicket,
       currency: "BRL"
+    };
+  }
+
+  @Get("me/loyalty")
+  @UseGuards(BuyerJwtAuthGuard)
+  async loyalty(@Req() req: { user?: unknown }) {
+    const buyer = currentBuyer(req);
+    const data = await this.getLoyalty.execute(buyer.globalUserId);
+    return {
+      total_orders: data.totalOrders,
+      total_spent_cents: data.totalSpentCents,
+      avg_order_value_cents: data.avgOrderValueCents,
+      top_categories: data.topCategories,
+      preferred_brands: data.preferredBrands,
+      discount_sensitivity: data.discountSensitivity,
+      last_purchase_at: data.lastPurchaseAt instanceof Date ? data.lastPurchaseAt.toISOString() : data.lastPurchaseAt,
     };
   }
 

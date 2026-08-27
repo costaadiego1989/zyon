@@ -20,8 +20,11 @@ import { UpsertBuyerAgentUseCase } from "./application/use-cases/upsert-buyer-ag
 import { EnableM2mAgentUseCase } from "./application/use-cases/enable-m2m-agent.use-case.js";
 import { RevokeM2mAgentUseCase } from "./application/use-cases/revoke-m2m-agent.use-case.js";
 import { GetBuyerSummaryUseCase } from "./application/use-cases/get-buyer-summary.use-case.js";
+import { GetBuyerLoyaltyUseCase } from "./application/use-cases/get-buyer-loyalty.use-case.js";
 import { SendBuyerPhoneCodeUseCase } from "./application/use-cases/send-buyer-phone-code.use-case.js";
 import { VerifyBuyerPhoneCodeUseCase } from "./application/use-cases/verify-buyer-phone-code.use-case.js";
+import { GetBuyerPreferencesUseCase } from "./application/use-cases/get-buyer-preferences.use-case.js";
+import { UpdateBuyerPreferencesUseCase } from "./application/use-cases/update-buyer-preferences.use-case.js";
 import { WebAuthnRegisterOptionsUseCase } from "./application/use-cases/webauthn-register-options.use-case.js";
 import { WebAuthnRegisterVerifyUseCase } from "./application/use-cases/webauthn-register-verify.use-case.js";
 import { WebAuthnLoginOptionsUseCase } from "./application/use-cases/webauthn-login-options.use-case.js";
@@ -35,6 +38,11 @@ import { BuyerAccountController } from "./presentation/http/buyer-account.contro
 import { BuyerAgentController } from "./presentation/http/buyer-agent.controller.js";
 import { BuyerHubController } from "./presentation/http/buyer-hub.controller.js";
 import { BuyerWebAuthnController } from "./presentation/http/buyer-webauthn.controller.js";
+import { BuyerPreferencesController } from "./presentation/http/buyer-preferences.controller.js";
+import { BuyerIntentController } from "./presentation/http/buyer-intent.controller.js";
+import { BuyerReviewsController } from "./presentation/http/buyer-reviews.controller.js";
+import { GetBuyerIntentProfileUseCase } from "./application/use-cases/get-buyer-intent-profile.use-case.js";
+import { ListBuyerReviewsUseCase } from "./application/use-cases/list-buyer-reviews.use-case.js";
 import { ListBuyerConversationsUseCase } from "./application/use-cases/buyer-conversation.use-cases.js";
 import { GetBuyerConversationUseCase } from "./application/use-cases/buyer-conversation.use-cases.js";
 import { RateBuyerConversationMessageUseCase } from "./application/use-cases/buyer-conversation.use-cases.js";
@@ -53,7 +61,7 @@ import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-weba
 
 @Module({
   imports: [BuyerAccountRepositoryModule, BuyerPurchaseHistoryModule, forwardRef(() => CheckoutModule), IntegrationsModule],
-  controllers: [BuyerAccountController, BuyerAgentController, BuyerHubController, BuyerWebAuthnController],
+  controllers: [BuyerAccountController, BuyerAgentController, BuyerHubController, BuyerWebAuthnController, BuyerPreferencesController, BuyerIntentController, BuyerReviewsController],
   providers: [
     RegisterBuyerUseCase,
     RegisterBuyerWithRateLimitUseCase,
@@ -71,6 +79,7 @@ import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-weba
     EnableM2mAgentUseCase,
     RevokeM2mAgentUseCase,
     GetBuyerSummaryUseCase,
+    GetBuyerLoyaltyUseCase,
     ListBuyerConversationsUseCase,
     GetBuyerConversationUseCase,
     RateBuyerConversationMessageUseCase,
@@ -80,6 +89,10 @@ import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-weba
     VerifyBuyerPhoneCodeUseCase,
     SendBuyerEmailCodeUseCase,
     VerifyBuyerEmailCodeUseCase,
+    GetBuyerPreferencesUseCase,
+    UpdateBuyerPreferencesUseCase,
+    GetBuyerIntentProfileUseCase,
+    ListBuyerReviewsUseCase,
     // WhatsApp OTP delivery via BubbleWhats
     {
       provide: SMS_PROVIDER,
