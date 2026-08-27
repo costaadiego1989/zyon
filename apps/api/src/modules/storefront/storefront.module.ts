@@ -98,6 +98,7 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
     GetStoreConfigUseCase,
     GetStorefrontFunnelUseCase,
     STOREFRONT_CONVERSATION_PORT,
+    STOREFRONT_CART_PORT,
     AIGatewayService
   ]
 })

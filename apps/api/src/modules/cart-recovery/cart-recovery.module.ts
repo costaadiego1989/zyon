@@ -1,4 +1,4 @@
-import { Module, forwardRef } from "@nestjs/common";
+import { Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { RecoveryScannerJob } from "./infrastructure/jobs/recovery-scanner.job.js";
 import { AttemptCartRecoveryUseCase } from "./application/use-cases/attempt-cart-recovery.use-case.js";
@@ -13,7 +13,8 @@ import { STRATEGY_PREFERENCES_REPOSITORY } from "./domain/ports/strategy-prefere
 import { InMemoryRecoveryAttemptRepository } from "./infrastructure/repositories/in-memory-recovery-attempt.repository.js";
 import { PrismaStrategyPreferencesRepository } from "./infrastructure/repositories/prisma-strategy-preferences.repository.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
-import { CheckoutModule } from "../checkout/checkout.module.js";
+import { CHECKOUT_SESSION_REPOSITORY } from "../checkout/domain/ports/checkout-session.repository.port.js";
+import { PrismaCheckoutRepository } from "../checkout/infrastructure/prisma/prisma-checkout.repository.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
 import { NotificationsModule } from "../notifications/notifications.module.js";
@@ -37,13 +38,17 @@ export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_US
  */
 @Module({
   imports: [
-    forwardRef(() => CheckoutModule),
     MerchantModule,
     BuyerPurchaseHistoryModule,
     NotificationsModule,
   ],
   controllers: [CartRecoveryController, CartRecoveryDashboardController],
   providers: [
+    {
+      provide: CHECKOUT_SESSION_REPOSITORY,
+      useFactory: (prisma: PrismaClient) => new PrismaCheckoutRepository(prisma),
+      inject: [PRISMA_CLIENT],
+    },
     {
       provide: RECOVERY_ATTEMPT_REPOSITORY,
       useFactory: (prisma: PrismaClient) => {

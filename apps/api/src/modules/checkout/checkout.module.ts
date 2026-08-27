@@ -1,6 +1,8 @@
 import { forwardRef, Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { AgentRulesModule } from "../agent-rules/agent-rules.module.js";
+import { STOREFRONT_CART_PORT } from "../storefront/domain/ports/storefront-cart.port.js";
+import { PrismaStorefrontCartRepository } from "../storefront/infrastructure/repositories/prisma-storefront-cart.repository.js";
 import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
 import { CheckoutSettingsModule } from "../checkout-settings/checkout-settings.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
@@ -66,7 +68,6 @@ import { OtpService } from "./application/services/otp.service.js";
 import { BuyerRecognitionService } from "./application/services/buyer-recognition.service.js";
 import { BuyerAccountPersistenceService } from "./application/services/buyer-account-persistence.service.js";
 import { ExperimentsModule } from "../experiments/experiments.module.js";
-import { CartRecoveryModule } from "../cart-recovery/cart-recovery.module.js";
 import { IntentMemoryModule } from "../intent-memory/intent-memory.module.js";
 import { PaymentModule } from "../payment/payment.module.js";
 
@@ -82,7 +83,6 @@ import { PaymentModule } from "../payment/payment.module.js";
     BuyerAccountRepositoryModule,
     ExperimentsModule,
     RevenueLiftModule,
-    forwardRef(() => CartRecoveryModule),
     IntentMemoryModule
   ],
   controllers: [CheckoutController],
@@ -137,6 +137,11 @@ import { PaymentModule } from "../payment/payment.module.js";
     { provide: OFFER_REPOSITORY, useExisting: CHECKOUT_REPOSITORY },
     { provide: ORDER_REPOSITORY, useExisting: CHECKOUT_REPOSITORY },
     { provide: DASHBOARD_READ_MODEL, useExisting: CHECKOUT_REPOSITORY },
+    {
+      provide: STOREFRONT_CART_PORT,
+      useFactory: (prisma: PrismaClient) => new PrismaStorefrontCartRepository(prisma),
+      inject: [PRISMA_CLIENT]
+    },
     {
       provide: STORE_OVERVIEW_READ_MODEL,
       useFactory: (prisma: PrismaClient) => new PrismaStoreOverviewRepository(prisma),
