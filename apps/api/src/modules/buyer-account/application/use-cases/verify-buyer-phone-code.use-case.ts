@@ -54,6 +54,10 @@ export class VerifyBuyerPhoneCodeUseCase {
     await this.otpStore.consume(phoneKey);
 
     let account = await this.repo.findByPhone(normalized);
+    // Fallback: phone field may be encrypted (PII). Use the deterministic email pattern.
+    if (!account) {
+      account = await this.repo.findByEmail(`phone_${normalized}@buyer.aacp`).catch(() => null);
+    }
     if (!account) {
       const now = new Date();
       // C2 fix: use null passwordHash for phone-only accounts instead of sentinel

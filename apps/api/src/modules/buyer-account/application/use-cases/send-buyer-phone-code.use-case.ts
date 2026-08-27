@@ -30,34 +30,19 @@ export class SendBuyerPhoneCodeUseCase {
     const phoneKey = `${countryCode}:${normalized}`;
 
     // If there's already an active (non-expired, non-consumed) OTP, resend the same code.
-    const existing = await this.otpStore.findActive(phoneKey);
-    if (existing) {
-      this.logger.log(`[OTP] Active OTP exists for ***${normalized.slice(-4)}, resending delivery`);
-      // Re-deliver via SMS/WhatsApp (user might not have received the first one)
-      if (this.sms) {
-        // We can't recover the plain code from hash, so generate a new one
-        const code = String(randomInt(100000, 1000000));
-        const codeHash = createHash("sha256").update(code).digest("hex");
-        const expiresAt = new Date(Date.now() + OTP_TTL_MS);
-        await this.otpStore.save({ phone: phoneKey, codeHash, maxAttempts: 5, expiresAt });
-        this.logger.warn(`[OTP-PHONE] code=${code} phone=${normalized} (resend)`);
-        await this.sms.send(normalized, `Your verification code: ${code}`);
-      }
-      return {
-        sent: true,
-        delivered_to: `***${normalized.slice(-4)}`,
-      };
-    }
-
+    // Always generate a fresh code and overwrite any previous OTP for this phone.
+    // The store's save() upserts by phone, so a new send invalidates the old code
+    // (attempts reset, consumedAt cleared). This keeps send/verify consistent:
+    // the code the caller receives (SMS or dev_code) is always the active one.
     const code = String(randomInt(100000, 1000000));
     const codeHash = createHash("sha256").update(code).digest("hex");
     const expiresAt = new Date(Date.now() + OTP_TTL_MS);
 
     await this.otpStore.save({ phone: phoneKey, codeHash, maxAttempts: 5, expiresAt });
-    this.logger.warn(`[OTP-PHONE] code=${code} phone=${normalized} expires=${expiresAt.toISOString()}`);
+    this.logger.warn(`[OTP-PHONE] code=${code} phone=***${normalized.slice(-4)} expires=${expiresAt.toISOString()}`);
 
     if (this.sms) {
-      await this.sms.send(normalized, `Your verification code: ${code}`);
+      await this.sms.send(normalized, `Seu código de verificação: ${code}`);
     } else {
       this.logger.warn(`[OTP] SMS provider not configured; code=${code} for phone=***${normalized.slice(-4)}`);
     }
@@ -66,7 +51,7 @@ export class SendBuyerPhoneCodeUseCase {
     return {
       sent: true,
       delivered_to: `***${normalized.slice(-4)}`,
-      ...(isDev && !this.sms ? { dev_code: code } : {}),
+      ...(isDev ? { dev_code: code } : {}),
     };
   }
 }

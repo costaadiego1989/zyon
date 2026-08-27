@@ -18,6 +18,8 @@ export interface BuyerAuthResponse {
   accessToken: string;
   tokenType: "Bearer";
   expiresIn: number;
+  profileComplete: boolean;
+  name?: string;
 }
 
 @Injectable()
@@ -55,6 +57,11 @@ export class RegisterBuyerUseCase {
 }
 
 export function toBuyerAuthResponse(account: BuyerAccount, jwt: BuyerJwtService, merchantId?: string): BuyerAuthResponse {
+  // Profile is complete when the buyer has a real name (not the "+55..." phone placeholder),
+  // a real email (not the "phone_xxx@buyer.aacp" placeholder), and a CPF.
+  const hasRealName = !!account.displayName && !account.displayName.startsWith("+");
+  const hasRealEmail = !!account.email && !account.email.includes("@buyer.aacp");
+  const profileComplete = hasRealName && hasRealEmail && !!account.cpf;
   return {
     globalUserId: account.globalUserId,
     email: account.email,
@@ -62,5 +69,7 @@ export function toBuyerAuthResponse(account: BuyerAccount, jwt: BuyerJwtService,
     accessToken: jwt.sign({ globalUserId: account.globalUserId, email: account.email, merchantId }),
     tokenType: "Bearer",
     expiresIn: jwt.expiresIn(),
+    profileComplete,
+    name: hasRealName ? account.displayName : undefined,
   };
 }

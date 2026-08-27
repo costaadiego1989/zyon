@@ -89,13 +89,15 @@ export class BuyerAccountController {
   @UseGuards(BuyerJwtAuthGuard)
   async patchProfile(
     @Req() req: { user?: unknown },
-    @Body() body: { display_name?: string; phone?: string; address?: CustomerAddress }
+    @Body() body: { display_name?: string; phone?: string; email?: string; cpf?: string; address?: CustomerAddress }
   ) {
     const buyer = currentBuyer(req);
     const updated = await this.updateProfile.execute({
       globalUserId: buyer.globalUserId,
       displayName: body.display_name,
       phone: body.phone,
+      email: body.email,
+      cpf: body.cpf,
       address: body.address
     });
     return {

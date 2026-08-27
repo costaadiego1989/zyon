@@ -3,11 +3,12 @@ import type { CustomerAddress } from "@zyon/shared-types";
 export interface BuyerAccountProps {
   globalUserId: string;
   email: string;
-  passwordHash: string | null; // C2 fix: null for phone-only accounts
+  passwordHash: string | null;
   displayName: string;
   phone?: string;
-  phoneCountryCode?: string; // C3 fix: country code for phone
+  phoneCountryCode?: string;
   cpf?: string;
+  asaasCustomerId?: string;
   address?: CustomerAddress;
   createdAt: Date;
   updatedAt: Date;
@@ -16,11 +17,12 @@ export interface BuyerAccountProps {
 export class BuyerAccount {
   readonly globalUserId: string;
   readonly email: string;
-  readonly passwordHash: string | null; // C2 fix: null for phone-only
+  readonly passwordHash: string | null;
   readonly displayName: string;
   readonly phone?: string;
-  readonly phoneCountryCode?: string; // C3 fix: country code
+  readonly phoneCountryCode?: string;
   readonly cpf?: string;
+  readonly asaasCustomerId?: string;
   readonly address?: CustomerAddress;
   readonly createdAt: Date;
   readonly updatedAt: Date;
@@ -45,6 +47,7 @@ export class BuyerAccount {
     this.phone = props.phone;
     this.phoneCountryCode = props.phoneCountryCode; // C3 fix: store country code
     this.cpf = normalizeCpf(props.cpf);
+    this.asaasCustomerId = props.asaasCustomerId;
     this.address = props.address;
     this.createdAt = props.createdAt;
     this.updatedAt = props.updatedAt;
@@ -63,6 +66,10 @@ export class BuyerAccount {
 
   withNewPasswordHash(passwordHash: string | null): BuyerAccount {
     return new BuyerAccount({ ...this, passwordHash, updatedAt: new Date() });
+  }
+
+  withAsaasCustomerId(asaasCustomerId: string): BuyerAccount {
+    return new BuyerAccount({ ...this, asaasCustomerId, updatedAt: new Date() });
   }
 }
 

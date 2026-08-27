@@ -27,6 +27,7 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
         displayName: account.displayName,
         phone: pii.phone,
         cpf: pii.cpf,
+        asaasCustomerId: account.asaasCustomerId ?? null,
         address: account.address ?? null,
       },
       update: {
@@ -35,6 +36,7 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
         displayName: account.displayName,
         phone: pii.phone,
         cpf: pii.cpf,
+        asaasCustomerId: account.asaasCustomerId ?? undefined,
         address: account.address ?? null,
         updatedAt: account.updatedAt,
       },
@@ -47,9 +49,16 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
   }
 
   async findByPhone(phone: string): Promise<BuyerAccount | null> {
-    this.logger.warn("buyer_account_phone_lookup_requires_hash_index_migration");
-    const row = await (this.prisma as any).buyerAccount.findFirst({ where: { phone: phone.replace(/\D/g, "") } });
-    return row ? toDomainAccount(row) : null;
+    const normalized = phone.replace(/\D/g, "");
+    // Primary: try direct phone field match (works for unencrypted phones)
+    const row = await (this.prisma as any).buyerAccount.findFirst({ where: { phone: normalized } });
+    if (row) return toDomainAccount(row);
+
+    // Fallback: when phone is encrypted (pii_v1:*), direct match fails.
+    // Look up by the deterministic email pattern used for phone-only accounts.
+    const phoneEmail = `phone_${normalized}@buyer.aacp`;
+    const byEmail = await (this.prisma as any).buyerAccount.findUnique({ where: { email: phoneEmail } });
+    return byEmail ? toDomainAccount(byEmail) : null;
   }
 
   async findByGlobalUserId(globalUserId: string): Promise<BuyerAccount | null> {
@@ -108,6 +117,7 @@ type AccountRow = {
   displayName: string;
   phone: string | null;
   cpf: string | null;
+  asaasCustomerId?: string | null;
   address?: unknown;
   createdAt: Date;
   updatedAt: Date;
@@ -156,6 +166,7 @@ function toDomainAccount(row: AccountRow): BuyerAccount {
     displayName: row.displayName,
     phone: piiForDomain(row.phone),
     cpf: piiForDomain(row.cpf),
+    asaasCustomerId: row.asaasCustomerId ?? undefined,
     address: toCustomerAddress(row.address),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
