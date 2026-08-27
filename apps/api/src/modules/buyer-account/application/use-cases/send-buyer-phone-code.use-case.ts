@@ -38,7 +38,7 @@ export class SendBuyerPhoneCodeUseCase {
     if (this.sms) {
       await this.sms.send(normalized, `Seu código de verificação: ${code}`);
     } else {
-      this.logger.warn(`[OTP] SMS provider not configured for phone=***${normalized.slice(-4)}`);
+      this.logger.warn(`[OTP] SMS provider not configured for phone=***${normalized}`);
     }
 
     const isDev = process.env.NODE_ENV !== "production";
