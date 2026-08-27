@@ -11,7 +11,9 @@ interface ActiveSessionsListProps {
 const PAGE_SIZE = 10;
 
 const STAGE_LABELS: Record<string, string> = {
+  checkout_started: "Início",
   data_collection: "Cadastro",
+  auth_completed: "Identificação",
   shipping: "Frete",
   payment: "Pagamento",
   completed: "Concluído",
@@ -61,7 +63,7 @@ export function ActiveSessionsList({ sessions, loading }: ActiveSessionsListProp
                 return (
                   <tr key={s.sessionId} style={{ borderBottom: i < pageItems.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined }}>
                     <td style={{ padding: "12px 20px", font: "12px var(--font-data)", color: "var(--color-text)" }}>
-                      {s.buyerEmail || s.buyerPhone || s.sessionId.slice(0, 16)}
+                      {s.buyerEmail || s.buyerPhone || (s as any).buyerHint || s.sessionId.slice(0, 16)}
                     </td>
                     <td style={{ padding: "12px 20px" }}>
                       <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: "var(--surface-2)", color: "var(--color-text-muted)" }}>

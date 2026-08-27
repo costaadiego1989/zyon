@@ -229,7 +229,8 @@ export interface FunnelSession {
   buyerPhone: string;
   buyerEmail: string;
   buyerName: string;
-  stage: "data_collection" | "shipping" | "payment" | "completed";
+  buyerHint?: string;
+  stage: string;
   lastActivityAt: string;
   abandonmentScore: number;
 }

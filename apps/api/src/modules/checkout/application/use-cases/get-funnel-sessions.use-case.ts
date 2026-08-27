@@ -6,9 +6,12 @@ import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.s
 
 interface FunnelSession {
   sessionId: string;
-  currentStep: string;
+  stage: string;
   buyerHint: string;
-  updatedAt: string;
+  buyerEmail?: string;
+  buyerPhone?: string;
+  lastActivityAt: string;
+  abandonmentScore: number;
   cartTotal: number;
   itemCount: number;
 }
@@ -19,10 +22,14 @@ export interface FunnelSessionsResult {
 }
 
 const STEP_PRIORITY: Record<string, number> = {
-  order_completed: 4,
-  payment_method_selected: 3,
-  shipping_calculated: 2,
-  shipping_option_selected: 2,
+  order_completed: 5,
+  payment_method_selected: 4,
+  shipping_calculated: 3,
+  shipping_option_selected: 3,
+  auth_phone_verified: 2,
+  auth_identity_confirmed: 2,
+  auth_registration_completed: 2,
+  login_completed: 2,
 };
 
 @Injectable()
@@ -59,9 +66,12 @@ export class GetFunnelSessionsUseCase {
 
       return {
         sessionId: s.sessionId,
-        currentStep,
+        stage: currentStep,
         buyerHint: maskBuyerInfo(customer),
-        updatedAt: s.updatedAt.toISOString(),
+        buyerEmail: customer?.email ?? undefined,
+        buyerPhone: customer?.phone ?? undefined,
+        lastActivityAt: s.updatedAt.toISOString(),
+        abandonmentScore: s.abandonmentScore ?? 0,
         cartTotal: Math.round(cartTotal * 100) / 100,
         itemCount,
       };
@@ -91,9 +101,10 @@ function resolveCurrentStep(eventNames: string[]): string {
 
 function priorityToStepName(priority: number): string {
   switch (priority) {
-    case 4: return "completed";
-    case 3: return "payment";
-    case 2: return "shipping";
+    case 5: return "completed";
+    case 4: return "payment";
+    case 3: return "shipping";
+    case 2: return "auth_completed";
     default: return "checkout_started";
   }
 }
