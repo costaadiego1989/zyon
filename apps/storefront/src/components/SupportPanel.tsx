@@ -47,6 +47,29 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
   const embedTokenRef = useRef<string | null>(null);
   const sessionIdRef = useRef(`support_${Date.now()}`);
 
+  const SESSION_KEY = "zyon_support_messages";
+
+  // On mount, restore from sessionStorage
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(SESSION_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed);
+          setView("chat");
+        }
+      }
+    } catch { /* non-critical */ }
+  }, []);
+
+  // On messages change, persist to sessionStorage
+  useEffect(() => {
+    if (messages.length > 0) {
+      try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(messages)); } catch { /* non-critical */ }
+    }
+  }, [messages]);
+
   // Obtain embed token on mount (needed for /support/chat auth)
   useEffect(() => {
     if (!merchantId || embedTokenRef.current) return;
@@ -142,12 +165,12 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
     }
   }, [messages]);
 
-  // Reset state when closing
+  // Reset only input when closing — messages persist across open/close via sessionStorage
   useEffect(() => {
     if (!open) {
-      setMessages([]);
       setInput("");
-      setView("welcome");
+      // Don't clear messages or view — persist conversation across panel close/open.
+      // Session naturally clears on tab close (sessionStorage).
     }
   }, [open]);
 

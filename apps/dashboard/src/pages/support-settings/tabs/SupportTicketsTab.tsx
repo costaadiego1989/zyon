@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Ticket,
   Clock,
@@ -56,12 +56,35 @@ export function SupportTicketsTab(props: Props) {
 
   const [draggedTicket, setDraggedTicket] = useState<(typeof tickets)[0] | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [period, setPeriod] = useState<"today" | "7d" | "15d" | "30d">("today");
+  const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: "", to: "" });
 
   const selectedTicket = tickets.find((t) => t.id === openTicketId);
 
-  const openCount = tickets.filter((t) => t.status === "open").length;
-  const inProgressCount = tickets.filter((t) => t.status === "in_progress").length;
-  const resolvedCount = tickets.filter((t) => t.status === "resolved").length;
+  const filteredTickets = useMemo(() => {
+    const hasCustomRange = Boolean(dateRange.from || dateRange.to);
+    let result = tickets;
+
+    if (hasCustomRange) {
+      // Custom date range takes over the preset
+      if (dateRange.from) result = result.filter((t) => new Date(t.createdAt).toISOString() >= dateRange.from);
+      if (dateRange.to) result = result.filter((t) => new Date(t.createdAt).toISOString() <= dateRange.to + "T23:59:59");
+    } else {
+      // Preset period filter (relative to now)
+      const days = period === "today" ? 0 : period === "7d" ? 7 : period === "15d" ? 15 : 30;
+      const cutoff = new Date();
+      if (period === "today") cutoff.setHours(0, 0, 0, 0);
+      else cutoff.setDate(cutoff.getDate() - days);
+      const cutoffIso = cutoff.toISOString();
+      result = result.filter((t) => new Date(t.createdAt).toISOString() >= cutoffIso);
+    }
+
+    return result;
+  }, [tickets, period, dateRange]);
+
+  const openCount = filteredTickets.filter((t) => t.status === "open").length;
+  const inProgressCount = filteredTickets.filter((t) => t.status === "in_progress").length;
+  const resolvedCount = filteredTickets.filter((t) => t.status === "resolved").length;
 
   function handleDragStart(e: React.DragEvent, ticket: (typeof tickets)[0]) {
     setDraggedTicket(ticket);
@@ -121,10 +144,54 @@ export function SupportTicketsTab(props: Props) {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* KPIs */}
       <div className="grid-4" style={{ gap: 14 }}>
-        <StatCard label="Total" value={tickets.length} icon={<Ticket size={16} />} />
+        <StatCard label="Total" value={filteredTickets.length} icon={<Ticket size={16} />} />
         <StatCard label="Abertos" value={openCount} icon={<Clock size={16} />} accent={openCount > 0 ? "var(--color-warning)" : undefined} />
         <StatCard label="Em atendimento" value={inProgressCount} icon={<MessageSquare size={16} />} accent={inProgressCount > 0 ? "var(--color-brand)" : undefined} />
         <StatCard label="Resolvidos" value={resolvedCount} icon={<CheckCircle size={16} />} accent="var(--color-success)" />
+      </div>
+
+      {/* Period filter bar — tabs left, date range right */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", gap: "16px", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          {(["today", "7d", "15d", "30d"] as const).map((key) => {
+            const labels: Record<string, string> = { today: "Hoje", "7d": "Últimos 7 dias", "15d": "Últimos 15 dias", "30d": "Últimos 30 dias" };
+            const isActive = period === key && !dateRange.from && !dateRange.to;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => { setPeriod(key); setDateRange({ from: "", to: "" }); }}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: "var(--radius-full, 20px)",
+                  border: isActive ? "1px solid var(--color-brand)" : "1px solid var(--color-border)",
+                  background: isActive ? "var(--color-brand)" : "transparent",
+                  color: isActive ? "#fff" : "var(--color-text-muted)",
+                  font: "500 12px var(--font-sans)",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                {labels[key]}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <input
+            type="date"
+            value={dateRange.from}
+            onChange={(e) => setDateRange((d) => ({ ...d, from: e.target.value }))}
+            style={{ padding: "7px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "#fff", font: "12px var(--font-sans)", colorScheme: "dark" }}
+          />
+          <span style={{ color: "var(--color-text-muted)", fontSize: "12px" }}>até</span>
+          <input
+            type="date"
+            value={dateRange.to}
+            onChange={(e) => setDateRange((d) => ({ ...d, to: e.target.value }))}
+            style={{ padding: "7px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "#fff", font: "12px var(--font-sans)", colorScheme: "dark" }}
+          />
+        </div>
       </div>
 
       {/* Kanban instruction */}
@@ -143,7 +210,7 @@ export function SupportTicketsTab(props: Props) {
         onDragEnd={handleDragEnd}
       >
         {COLUMNS.map((col) => {
-          const colTickets = tickets.filter((t) => t.status === col.id);
+          const colTickets = filteredTickets.filter((t) => t.status === col.id);
           const isHovering = dropTarget === col.id;
           const isValidTarget = draggedTicket ? canDrop(draggedTicket.status, col.id) : false;
 

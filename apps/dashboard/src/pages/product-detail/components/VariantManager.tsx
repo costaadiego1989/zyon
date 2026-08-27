@@ -71,16 +71,13 @@ export function VariantManager(props: VariantManagerProps) {
       {/* SIMPLE vs COMPLEX TOGGLE */}
       <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: "20px 22px" }}>
         <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-          <span style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>Produto com variantes</span>
-          <input
-            type="checkbox"
-            checked={hasVariants}
-            onChange={(e) => onToggleVariantsMode(e.target.checked)}
-            style={{ width: 18, height: 18, accentColor: "var(--color-brand-hover)", cursor: "pointer" }}
-          />
-          <span style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)" }}>
-            {hasVariants ? "Ativado" : "Desativado"}
-          </span>
+          <ToggleSwitch checked={hasVariants} onChange={() => onToggleVariantsMode(!hasVariants)} />
+          <div style={{ flex: 1 }}>
+            <div style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>Produto com variantes</div>
+            <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>
+              {hasVariants ? "Produto tem múltiplas variações (cor, tamanho, etc)" : "Produto simples, sem variações"}
+            </div>
+          </div>
         </label>
       </section>
 
