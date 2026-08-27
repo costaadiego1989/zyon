@@ -17,7 +17,6 @@ import { Button } from "../components/Button.js";
 import { showToast } from "../components/Toast.js";
 import { STATUS_LABELS, formatMinor, formatDate, formatPhone } from "./orders-shipments/utils.js";
 import { OrderStatusBadge } from "./orders-shipments/components/OrderStatusBadge.js";
-import { FilterToolbar } from "../components/FilterToolbar.js";
 
 export { STATUS_LABELS, computeOrderMetrics, filterOrders } from "./orders-shipments/utils.js";
 
@@ -156,35 +155,49 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
 
       {vm.message ? <div className="panel-error">{vm.message}</div> : null}
 
-      {/* Period presets + custom date range — aligned to kanban width */}
-      <FilterToolbar
-        tabs={[
-          { key: "all", label: "Todos" },
-          { key: "today", label: "Hoje" },
-          { key: "7d", label: "Últimos 7 dias" },
-          { key: "15d", label: "Últimos 15 dias" },
-          { key: "30d", label: "Últimos 30 dias" },
-        ]}
-        activeTab={period}
-        onTabChange={(k) => { setPeriod(k as typeof period); setDateRange({ from: "", to: "" }); }}
-        extra={
-          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-            <input
-              type="date"
-              value={dateRange.from}
-              onChange={(e) => { setDateRange((d) => ({ ...d, from: e.target.value })); setPeriod("all"); }}
-              style={{ padding: "7px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", font: "12px var(--font-sans)", colorScheme: "dark" }}
-            />
-            <span style={{ color: "var(--color-text-muted)", fontSize: "12px" }}>até</span>
-            <input
-              type="date"
-              value={dateRange.to}
-              onChange={(e) => { setDateRange((d) => ({ ...d, to: e.target.value })); setPeriod("all"); }}
-              style={{ padding: "7px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", font: "12px var(--font-sans)", colorScheme: "dark" }}
-            />
-          </div>
-        }
-      />
+      {/* Period filter bar — tabs left, date range right */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", gap: "16px", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          {(["all", "today", "7d", "15d", "30d"] as const).map((key) => {
+            const labels: Record<string, string> = { all: "Todos", today: "Hoje", "7d": "Últimos 7 dias", "15d": "Últimos 15 dias", "30d": "Últimos 30 dias" };
+            const isActive = period === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => { setPeriod(key); setDateRange({ from: "", to: "" }); }}
+                style={{
+                  padding: "6px 14px",
+                  borderRadius: "var(--radius-full, 20px)",
+                  border: isActive ? "1px solid var(--color-brand)" : "1px solid var(--color-border)",
+                  background: isActive ? "var(--color-brand)" : "transparent",
+                  color: isActive ? "#fff" : "var(--color-text-muted)",
+                  font: "500 12px var(--font-sans)",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                {labels[key]}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <input
+            type="date"
+            value={dateRange.from}
+            onChange={(e) => { setDateRange((d) => ({ ...d, from: e.target.value })); setPeriod("all"); }}
+            style={{ padding: "7px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "#fff", font: "12px var(--font-sans)", colorScheme: "dark" }}
+          />
+          <span style={{ color: "var(--color-text-muted)", fontSize: "12px" }}>até</span>
+          <input
+            type="date"
+            value={dateRange.to}
+            onChange={(e) => { setDateRange((d) => ({ ...d, to: e.target.value })); setPeriod("all"); }}
+            style={{ padding: "7px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "#fff", font: "12px var(--font-sans)", colorScheme: "dark" }}
+          />
+        </div>
+      </div>
 
       {/* Kanban Board */}
       {!vm.hasLoaded ? (
