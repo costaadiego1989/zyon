@@ -46,31 +46,44 @@ export function ActiveSessionsList({ sessions, loading }: ActiveSessionsListProp
               </tr>
             </thead>
             <tbody>
-              {pageItems.map((s, i) => (
-                <tr key={s.sessionId} style={{ borderBottom: i < pageItems.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined }}>
-                  <td style={{ padding: "12px 20px", font: "12px var(--font-data)", color: "var(--color-text)" }}>
-                    {s.buyerEmail || s.buyerPhone || s.sessionId.slice(0, 16)}
-                  </td>
-                  <td style={{ padding: "12px 20px" }}>
-                    <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: "var(--surface-2)", color: "var(--color-text-muted)" }}>
-                      {STAGE_LABELS[s.stage] ?? s.stage}
-                    </span>
-                  </td>
-                  <td style={{ padding: "12px 20px", font: "12px var(--font-data)", color: "var(--color-text-muted)" }}>
-                    {new Date(s.lastActivityAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                  </td>
-                  <td style={{ padding: "12px 20px" }}>
-                    <span style={{
-                      display: "inline-flex", alignItems: "center", gap: 5,
-                      font: "600 11px var(--font-data)",
-                      color: s.abandonmentScore >= 0.7 ? "var(--color-error)" : s.abandonmentScore >= 0.3 ? "var(--color-warning)" : "var(--color-success)",
-                    }}>
-                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "currentColor" }} />
-                      {(s.abandonmentScore * 100).toFixed(0)}%
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {pageItems.map((s, i) => {
+                const lastActivityDate = s.lastActivityAt ? new Date(s.lastActivityAt) : null;
+                const dateStr = lastActivityDate && !isNaN(lastActivityDate.getTime())
+                  ? lastActivityDate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+                  : "—";
+
+                const riskPct = typeof s.abandonmentScore === "number" && !isNaN(s.abandonmentScore)
+                  ? `${Math.round(s.abandonmentScore * 100)}%`
+                  : "—";
+
+                const riskScore = typeof s.abandonmentScore === "number" ? s.abandonmentScore : 0;
+
+                return (
+                  <tr key={s.sessionId} style={{ borderBottom: i < pageItems.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined }}>
+                    <td style={{ padding: "12px 20px", font: "12px var(--font-data)", color: "var(--color-text)" }}>
+                      {s.buyerEmail || s.buyerPhone || s.sessionId.slice(0, 16)}
+                    </td>
+                    <td style={{ padding: "12px 20px" }}>
+                      <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: "var(--surface-2)", color: "var(--color-text-muted)" }}>
+                        {STAGE_LABELS[s.stage] ?? s.stage}
+                      </span>
+                    </td>
+                    <td style={{ padding: "12px 20px", font: "12px var(--font-data)", color: "var(--color-text-muted)" }}>
+                      {dateStr}
+                    </td>
+                    <td style={{ padding: "12px 20px" }}>
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 5,
+                        font: "600 11px var(--font-data)",
+                        color: riskScore >= 0.7 ? "var(--color-error)" : riskScore >= 0.3 ? "var(--color-warning)" : "var(--color-success)",
+                      }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "currentColor" }} />
+                        {riskPct}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

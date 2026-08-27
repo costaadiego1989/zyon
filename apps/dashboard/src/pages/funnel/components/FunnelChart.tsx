@@ -8,6 +8,7 @@ interface FunnelChartProps {
 }
 
 export function FunnelChart({ steps, transitions }: FunnelChartProps): React.ReactElement {
+  const conversionStep = steps.find(s => s.name === "order_completed") ?? steps[steps.length - 2];
   return (
     <div className="fnl-chart-card">
       <SectionHeader
@@ -15,7 +16,7 @@ export function FunnelChart({ steps, transitions }: FunnelChartProps): React.Rea
         title="Funil de Etapas"
         trailing={
           <span className="fnl-chart-conversion">
-            {steps.length > 0 ? `${steps[steps.length - 1]?.percentage.toFixed(1)}% conversão` : "—"}
+            {steps.length > 0 ? `${(conversionStep?.percentage ?? 0).toFixed(1)}% conversão` : "—"}
           </span>
         }
       />

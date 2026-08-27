@@ -52,6 +52,7 @@ export interface FunnelInsight {
  */
 export const FUNNEL_INSIGHT_SOURCES: Record<string, FunnelInsight["module"]> = {
   // Registration / data collection
+  auth_completed: "intent-memory",
   auth_phone_submitted: "intent-memory",
   auth_phone_verified: "intent-memory",
   auth_identity_confirmed: "intent-memory",
@@ -92,6 +93,13 @@ export function buildInsight(step: string, dropOff: number): FunnelInsight {
         detail: "Compradores iniciam sessão mas não prosseguem para a próxima etapa. Pode indicar carregamento lento, confusão na interface ou falta de produtos visíveis.",
         action: "Verifique o tempo de carregamento da página e se os produtos aparecem imediatamente ao entrar.",
         module: "general",
+      };
+    case "auth_completed":
+      return {
+        headline: `${pct} não completam a identificação`,
+        detail: "Intent Memory detecta que compradores abandonam na etapa de identificação (OTP). Causas comuns: SMS não chega, código expira rápido, ou desconfiança ao pedir telefone.",
+        action: "Habilite verificação por e-mail como fallback e reduza o tempo de expiração do código OTP.",
+        module: "intent-memory",
       };
     case "product_viewed":
       return {
@@ -255,6 +263,7 @@ export interface FunnelPageVM {
 const EMPTY_CHECKOUT_FUNNEL: FunnelData = {
   steps: [
     { name: "checkout_started", label: "Checkout iniciado", count: 0, percentage: 0 },
+    { name: "auth_completed", label: "Identificação", count: 0, percentage: 0 },
     { name: "shipping_calculated", label: "Frete selecionado", count: 0, percentage: 0 },
     { name: "coupon_applied", label: "Cupom aplicado", count: 0, percentage: 0 },
     { name: "payment_method_selected", label: "Pagamento selecionado", count: 0, percentage: 0 },
@@ -262,7 +271,8 @@ const EMPTY_CHECKOUT_FUNNEL: FunnelData = {
     { name: "payment_failed", label: "Pagamento falhado", count: 0, percentage: 0 },
   ],
   transitions: [
-    { from: "checkout_started", to: "shipping_calculated", rate: 0, dropOff: 0, avgTimeSeconds: 0 },
+    { from: "checkout_started", to: "auth_completed", rate: 0, dropOff: 0, avgTimeSeconds: 0 },
+    { from: "auth_completed", to: "shipping_calculated", rate: 0, dropOff: 0, avgTimeSeconds: 0 },
     { from: "shipping_calculated", to: "coupon_applied", rate: 0, dropOff: 0, avgTimeSeconds: 0 },
     { from: "coupon_applied", to: "payment_method_selected", rate: 0, dropOff: 0, avgTimeSeconds: 0 },
     { from: "payment_method_selected", to: "order_completed", rate: 0, dropOff: 0, avgTimeSeconds: 0 },
@@ -324,6 +334,7 @@ const STOREFRONT_CONTEXT_STEPS = new Set([
  */
 const CHECKOUT_CONTEXT_STEPS = new Set([
   "checkout_started",
+  "auth_completed",
   "shipping_calculated",
   "coupon_applied",
   "payment_method_selected",

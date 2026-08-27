@@ -215,6 +215,7 @@ export function OverviewPage(props: OverviewPageProps) {
   // FUNIL DE CHECKOUT: jornada de compra
   const CHECKOUT_FUNNEL = [
     { name: "checkout_started", label: "Checkout iniciado", color: "var(--color-brand)" },
+    { name: "auth_completed", label: "Identificação", color: "oklch(68% 0.13 280)" },
     { name: "shipping", label: "Frete selecionado", color: "oklch(70% 0.14 250)" },
     { name: "payment", label: "Pagamento selecionado", color: "oklch(65% 0.16 200)" },
     { name: "coupon_applied", label: "Cupom visto", color: "var(--color-warning)" },
