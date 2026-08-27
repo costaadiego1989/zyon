@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { getValidBuyer } from "@/lib/buyer-auth";
 
 type BuyerProfile = {
   global_user_id: string;
@@ -54,16 +55,36 @@ type AuthSession = {
 
 function safeReadSession(): AuthSession | null {
   if (typeof window === "undefined") return null;
+  // 1) Native hub session (set by hub OTP login).
   try {
     const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!raw) return null;
-    const s = JSON.parse(raw) as AuthSession;
-    if (!s.global_user_id || !s.access_token) return null;
-    if (s.expires_at && Date.now() >= s.expires_at) return null;
-    return s;
+    if (raw) {
+      const s = JSON.parse(raw) as AuthSession;
+      if (s.global_user_id && s.access_token && !(s.expires_at && Date.now() >= s.expires_at)) {
+        return s;
+      }
+    }
   } catch {
-    return null;
+    /* fall through */
   }
+  // 2) Shared checkout session (set by BuyerAuthGate / login / register).
+  // Keeps hub and checkout auth in sync — logging in on one recognizes the other.
+  const buyer = getValidBuyer();
+  if (buyer) {
+    let expiresAt = 0;
+    try {
+      const payload = JSON.parse(atob(buyer.token.split(".")[1]));
+      if (payload.exp) expiresAt = payload.exp * 1000;
+    } catch {}
+    return {
+      global_user_id: buyer.globalUserId,
+      email: buyer.email ?? "",
+      access_token: buyer.token,
+      expires_at: expiresAt,
+      phone: "",
+    };
+  }
+  return null;
 }
 
 const TRACKING_STATUS_LABEL: Record<string, string> = {
@@ -131,6 +152,17 @@ export function BuyerHub({ merchantId, isOpen, onClose }: { merchantId?: string;
       /* SSR/privacy */
     }
   }, []);
+
+  // Re-sync session from storage each time the hub opens, so a checkout-side
+  // login (or logout) is reflected without a page reload.
+  useEffect(() => {
+    if (!isOpen) return;
+    const fresh = safeReadSession();
+    setSession((prev) => {
+      if (fresh?.access_token === prev?.access_token) return prev;
+      return fresh;
+    });
+  }, [isOpen]);
 
   // Fetch profile and purchases if authenticated
   useEffect(() => {
@@ -248,6 +280,11 @@ export function BuyerHub({ merchantId, isOpen, onClose }: { merchantId?: string;
       };
       setSession(newSession);
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(newSession));
+      // Sync shared checkout session so the OTP gate is skipped after a hub login.
+      try {
+        localStorage.setItem("zyon_buyer_token", accessToken);
+        localStorage.setItem("zyon_buyer_session", JSON.stringify({ globalUserId, token: accessToken, email }));
+      } catch {}
       setCodeSent(false);
       setPhoneCode("");
     } catch {
@@ -266,6 +303,11 @@ export function BuyerHub({ merchantId, isOpen, onClose }: { merchantId?: string;
     setCodeSent(false);
     setAuthError(null);
     localStorage.removeItem(AUTH_STORAGE_KEY);
+    // Clear shared checkout session too, so logout is global across hub + checkout.
+    try {
+      localStorage.removeItem("zyon_buyer_token");
+      localStorage.removeItem("zyon_buyer_session");
+    } catch {}
   }
 
   function toggleTheme() {
