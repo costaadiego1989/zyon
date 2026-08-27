@@ -640,6 +640,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
             pix_code: intent.pix_code,
             pix_qr_url: intent.pix_qr_url,
             stripe_client_secret: intent.stripe_client_secret,
+            stripe_publishable_key: intent.stripe_publishable_key,
             expires_at_unix: intent.expires_at_unix,
             amount_cents: intent.amount_cents,
           },

@@ -3,6 +3,8 @@ import { useCheckoutStore } from "@/store/checkout-store";
 import { AgentAvatar } from "./AgentAvatar";
 import { PulseAgentOrb } from "./PulseAgentOrb";
 import type { ChatBlock } from "@/api/checkout-session";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
 function translateShippingLabel(label: string): string {
   const translations: Record<string, string> = {
@@ -199,6 +201,158 @@ function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   );
 }
 
+function StripeCardBlockForm({
+  clientSecret,
+  intentId
+}: {
+  clientSecret: string;
+  intentId: string;
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Select each slice individually — returning a new object literal from the
+  // selector causes an infinite render loop (getSnapshot not cached).
+  const api = useCheckoutStore((s) => s.api);
+  const pollPayment = useCheckoutStore((s) => s.pollPayment);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stripe || !elements) {
+      setError("Stripe não carregou corretamente");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Confirm payment with Stripe Elements (card data never touches our server)
+      const { paymentIntent, error: confirmError } = await stripe.confirmCardPayment(
+        clientSecret,
+        {
+          payment_method: {
+            card: elements.getElement(CardElement)!,
+          },
+        }
+      );
+
+      if (confirmError) {
+        setError(confirmError.message || "Erro ao processar cartão");
+        setLoading(false);
+        return;
+      }
+
+      if (paymentIntent?.status === "succeeded" || paymentIntent?.status === "requires_action") {
+        // Confirm the payment server-side (marks as approved in DB)
+        if (api) {
+          try {
+            await api.confirmStripePayment(intentId);
+          } catch (confirmErr) {
+            // Server confirm failed, but Stripe payment succeeded — poll anyway
+            console.error("Server confirm failed:", confirmErr);
+          }
+        }
+        // Start polling for approved status
+        pollPayment();
+      } else {
+        setError(`Payment failed: ${paymentIntent?.status}`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro desconhecido");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div style={{ marginBottom: "12px" }}>
+        <CardElement
+          options={{
+            style: {
+              base: {
+                fontSize: "14px",
+                color: "var(--tx)",
+                "::placeholder": {
+                  color: "var(--mut)",
+                },
+              },
+              invalid: {
+                color: "#c92a2a",
+              },
+            },
+          }}
+        />
+      </div>
+      {error && (
+        <div style={{ padding: "8px 10px", borderRadius: "6px", background: "#fee", color: "#c92a2a", fontSize: "12px", marginBottom: "12px" }}>
+          {error}
+        </div>
+      )}
+      <button
+        type="submit"
+        disabled={!stripe || loading}
+        style={{
+          width: "100%",
+          padding: "10px 14px",
+          borderRadius: "8px",
+          background: loading || !stripe ? "var(--bd)" : "var(--aacp-accent, #0f766e)",
+          color: "#fff",
+          border: "none",
+          fontSize: "13px",
+          fontWeight: 600,
+          fontFamily: "var(--aacp-font, inherit)",
+          cursor: loading || !stripe ? "not-allowed" : "pointer",
+        }}
+      >
+        {loading ? "Processando..." : "Pagar"}
+      </button>
+    </form>
+  );
+}
+
+// Cache Stripe.js promise per publishable key — loadStripe() must NOT run on
+// every render (a new Promise each render re-mounts <Elements> → infinite loop).
+const stripePromiseCache = new Map<string, ReturnType<typeof loadStripe>>();
+function getStripePromise(publishableKey: string) {
+  let p = stripePromiseCache.get(publishableKey);
+  if (!p) {
+    p = loadStripe(publishableKey);
+    stripePromiseCache.set(publishableKey, p);
+  }
+  return p;
+}
+
+function StripeCardBlock({ data }: { data?: Record<string, unknown> }) {
+  const clientSecret = data?.stripe_client_secret as string | undefined;
+  const publishableKey = data?.stripe_publishable_key as string | undefined;
+  const intentId = data?.intent_id as string | undefined;
+
+  if (!clientSecret || !publishableKey || !intentId) {
+    return (
+      <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
+        <p style={{ fontSize: "12px", color: "var(--mut)", margin: 0 }}>Erro: dados de pagamento incompletos</p>
+      </div>
+    );
+  }
+
+  const stripePromise = getStripePromise(publishableKey);
+
+  return (
+    <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
+      <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px" }}>Pague com Cartão de Crédito</div>
+      <p style={{ fontSize: "12px", color: "var(--mut)", margin: "0 0 12px", lineHeight: 1.4 }}>
+        Seus dados do cartão são seguros e encriptados.
+      </p>
+      <Elements stripe={stripePromise} options={{ clientSecret }}>
+        <StripeCardBlockForm clientSecret={clientSecret} intentId={intentId} />
+      </Elements>
+    </div>
+  );
+}
+
 function OrderConfirmationBlock({ data }: { data?: Record<string, unknown> }) {
   if (!data) return null;
   return (
@@ -381,6 +535,8 @@ function BlockRenderer({ block }: { block: ChatBlock }) {
       return <PaymentMethodsBlock methods={block.data?.methods} />;
     case "pix_payment":
       return <PixPaymentBlock data={block.data} />;
+    case "stripe_card":
+      return <StripeCardBlock data={block.data} />;
     case "order_confirmation":
       return <OrderConfirmationBlock data={block.data} />;
     case "order_summary":

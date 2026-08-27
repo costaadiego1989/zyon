@@ -142,6 +142,7 @@ export interface PaymentIntent {
   pix_code?: string;
   pix_qr_url?: string;
   stripe_client_secret?: string;
+  stripe_publishable_key?: string;
   expires_at_unix?: number;
   amount_cents?: number;
 }
@@ -382,6 +383,7 @@ export class CheckoutSession {
       pix_code: raw.buyerFacing?.qrCodeCopyPaste,
       pix_qr_url: pixQrUrl,
       stripe_client_secret: raw.buyerFacing?.clientSecret,
+      stripe_publishable_key: raw.buyerFacing?.stripePublishableKey,
       expires_at_unix: expiresAtUnix,
       amount_cents: raw.amountCents,
     };
@@ -399,6 +401,19 @@ export class CheckoutSession {
     );
     if (!res.ok) throw new Error(`embed_payment_status_failed: ${res.status}`);
     return res.json() as Promise<{ status: string; paid_at?: string }>;
+  }
+
+  async confirmStripePayment(intentId: string): Promise<{ status: string; intent_id: string }> {
+    this.assertSession();
+    const res = await fetch(`${this.baseUrl}/embed/payment/intents/${encodeURIComponent(intentId)}/stripe/confirm`, {
+      method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify({
+        session_id: this.sessionId,
+      }),
+    });
+    if (!res.ok) throw new Error(`stripe_confirm_failed: ${res.status}`);
+    return res.json() as Promise<{ status: string; intent_id: string }>;
   }
 
   async applyOffer(offerId: string): Promise<unknown> {
