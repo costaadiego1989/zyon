@@ -785,33 +785,45 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
     return selector + addrPadded + valHex;
   }
 
-  // Pre-flight balance check: verify the wallet holds enough token (USDC) and
-  // some native currency for gas before sending. Returns an error string, or
-  // null when funds are sufficient. Best-effort — RPC errors are non-fatal
-  // (we let the tx attempt proceed rather than block on a flaky probe).
-  async function checkBalances(eth: any): Promise<string | null> {
+  // Query our own Alchemy RPC (crypto_rpc_url) directly, bypassing MetaMask's
+  // possibly rate-limited RPC for read calls. Returns null on failure.
+  async function alchemyRpc(method: string, params: unknown[]): Promise<string | null> {
+    if (!rpcUrl) return null;
     try {
-      // ERC20 balanceOf(address) → selector 0x70a08231
-      const balanceOfData = "0x70a08231" + wallet.toLowerCase().replace("0x", "").padStart(64, "0");
-      const [tokenBalHex, nativeBalHex] = await Promise.all([
-        eth.request({ method: "eth_call", params: [{ to: tokenAddress, data: balanceOfData }, "latest"] }),
-        eth.request({ method: "eth_getBalance", params: [wallet, "latest"] }),
-      ]);
-      const tokenBal = BigInt(tokenBalHex || "0x0");
-      const nativeBal = BigInt(nativeBalHex || "0x0");
-      const required = BigInt(amountAtomic);
-      if (tokenBal < required) {
-        return `Saldo de ${tokenSymbol} insuficiente. Você precisa de ${amountDisplay}.`;
-      }
-      if (nativeBal === 0n) {
-        const gasSymbol = cryptoNativeCurrency?.symbol || "ETH";
-        return `Sem ${gasSymbol} para taxa de rede (gas). Adicione ${gasSymbol} via faucet e tente novamente.`;
-      }
-      return null;
+      const res = await fetch(rpcUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+      });
+      const json = await res.json();
+      return typeof json?.result === "string" ? json.result : null;
     } catch {
-      // RPC probe failed — don't block; let the tx attempt surface the real error.
       return null;
     }
+  }
+
+  // Pre-flight balance check via our Alchemy RPC (not MetaMask's). Verifies the
+  // wallet holds enough token (USDC) and native currency for gas. Returns an
+  // error string, or null when funds are sufficient / probe unavailable.
+  async function checkBalances(): Promise<string | null> {
+    // ERC20 balanceOf(address) → selector 0x70a08231
+    const balanceOfData = "0x70a08231" + wallet.toLowerCase().replace("0x", "").padStart(64, "0");
+    const [tokenBalHex, nativeBalHex] = await Promise.all([
+      alchemyRpc("eth_call", [{ to: tokenAddress, data: balanceOfData }, "latest"]),
+      alchemyRpc("eth_getBalance", [wallet, "latest"]),
+    ]);
+    if (tokenBalHex === null && nativeBalHex === null) return null; // RPC unavailable — don't block
+    const tokenBal = BigInt(tokenBalHex || "0x0");
+    const nativeBal = BigInt(nativeBalHex || "0x0");
+    const required = BigInt(amountAtomic);
+    if (tokenBalHex !== null && tokenBal < required) {
+      return `Saldo de ${tokenSymbol} insuficiente. Você precisa de ${amountDisplay}.`;
+    }
+    if (nativeBalHex !== null && nativeBal === 0n) {
+      const gasSymbol = cryptoNativeCurrency?.symbol || "ETH";
+      return `Sem ${gasSymbol} para taxa de rede (gas). Adicione ${gasSymbol} via faucet e tente novamente.`;
+    }
+    return null;
   }
 
   const handleConnect = async () => {
@@ -884,7 +896,7 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
       }
 
       // Pre-flight: verify sufficient token + gas balance before prompting to sign.
-      const balanceError = await checkBalances(eth);
+      const balanceError = await checkBalances();
       if (balanceError) {
         setError(balanceError);
         setStep("connected");
@@ -892,17 +904,24 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
       }
 
       const calldata = encodeTransferData(destination, amountAtomic);
-      // Provide explicit gas limit to prevent MetaMask from calling
-      // eth_getBlockByNumber (rate-limited on public RPCs) for estimation.
-      // ERC20 transfer() typically costs ~65k gas; 100k is a safe upper bound.
+      // Fetch nonce + gasPrice from OUR Alchemy RPC (not MetaMask's, which may be
+      // rate-limited) and pass them explicit. Combined with the manual gas limit,
+      // MetaMask never needs to query its own RPC to build the tx.
+      const [nonce, gasPrice] = await Promise.all([
+        alchemyRpc("eth_getTransactionCount", [wallet, "pending"]),
+        alchemyRpc("eth_gasPrice", []),
+      ]);
+      const txParams: Record<string, string> = {
+        from: wallet,
+        to: tokenAddress,
+        data: calldata,
+        gas: "0x186A0", // 100,000 — safe for ERC20 transfer
+      };
+      if (nonce) txParams.nonce = nonce;
+      if (gasPrice) txParams.gasPrice = gasPrice;
       const txHash: string = await eth.request({
         method: "eth_sendTransaction",
-        params: [{
-          from: wallet,
-          to: tokenAddress,
-          data: calldata,
-          gas: "0x186A0", // 100,000 — safe for ERC20 transfer
-        }],
+        params: [txParams],
       });
 
       // tx sent — confirm on backend
