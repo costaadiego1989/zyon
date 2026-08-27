@@ -38,6 +38,20 @@ const KANBAN_COLUMNS: KanbanColumnDef[] = [
   { id: "cancelled", label: "Cancelado", statuses: ["cancelled", "failed", "refunded", "returned"], color: "var(--color-error)", acceptsFrom: ["pending", "approved", "processing", "paid"] },
 ];
 
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  pix: "PIX",
+  credit_card: "Cartão",
+  boleto: "Boleto",
+  crypto: "Crypto",
+};
+
+const PAYMENT_PROVIDER_LABELS: Record<string, string> = {
+  asaas: "Asaas",
+  stripe: "Stripe",
+  mercado_pago: "Mercado Pago",
+  unknown: "—",
+};
+
 function getColumnForStatus(status: string): string {
   for (const col of KANBAN_COLUMNS) {
     if (col.statuses.includes(status)) return col.id;
@@ -139,7 +153,7 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
           <h1>Pedidos e Envios</h1>
           <p className="page-lead">Arraste os cards entre colunas para atualizar o status do pedido</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => vm.exportCsv()}>
+        <Button variant="outline" size="sm" onClick={() => vm.exportCsv(filteredOrders)}>
           <Download size={14} /> CSV
         </Button>
       </header>
@@ -343,7 +357,24 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
 
   const cart = order.cart as { items?: Array<{ name?: string; title?: string; quantity?: number; price?: number; unit_price?: number }> };
   const items = Array.isArray(cart?.items) ? cart.items : [];
-  const customer = order.customer as { full_name?: string; email?: string; phone?: string } | null;
+  const customer = order.customer as {
+    full_name?: string;
+    email?: string;
+    phone?: string;
+    address?: {
+      zip?: string;
+      street?: string;
+      number?: string;
+      complement?: string;
+      neighborhood?: string;
+      city?: string;
+      state?: string;
+    };
+  } | null;
+  const address = customer?.address;
+  const hasAddress = Boolean(
+    address && (address.street || address.city || address.zip),
+  );
 
   const sectionStyle: React.CSSProperties = { padding: "16px 0", borderBottom: "1px solid var(--color-border)" };
   const labelStyle: React.CSSProperties = { font: "600 11px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-muted)", marginBottom: 10, textTransform: "uppercase" as const };
@@ -396,6 +427,41 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
             </div>
           ) : <p style={{ ...valueStyle, color: "var(--color-text-muted)" }}>Sem dados do cliente</p>}
         </div>
+
+        {/* Payment */}
+        <div style={sectionStyle}>
+          <div style={labelStyle}>Pagamento</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px" }}>
+            <div>
+              <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Método</span>
+              <div style={valueStyle}>{order.payment_method ? PAYMENT_METHOD_LABELS[order.payment_method] || order.payment_method : "—"}</div>
+            </div>
+            <div>
+              <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Provider</span>
+              <div style={valueStyle}>{order.payment_provider ? PAYMENT_PROVIDER_LABELS[order.payment_provider] || order.payment_provider : "—"}</div>
+            </div>
+            {order.paid_at && (
+              <div style={{ gridColumn: "1 / -1" }}>
+                <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Data pagamento</span>
+                <div style={valueStyle}>{formatDate(order.paid_at)}</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Address */}
+        {hasAddress && (
+          <div style={sectionStyle}>
+            <div style={labelStyle}>Endereço</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px" }}>
+              {address?.street && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Rua</span><div style={valueStyle}>{address.street}{address.number ? `, ${address.number}` : ""}</div></div>}
+              {address?.complement && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Complemento</span><div style={valueStyle}>{address.complement}</div></div>}
+              {address?.neighborhood && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Bairro</span><div style={valueStyle}>{address.neighborhood}</div></div>}
+              {address?.city && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Cidade</span><div style={valueStyle}>{address.city}/{address.state}</div></div>}
+              {address?.zip && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>CEP</span><div style={valueStyle}>{address.zip}</div></div>}
+            </div>
+          </div>
+        )}
 
         {/* Tracking */}
         <div style={sectionStyle}>

@@ -22,6 +22,9 @@ function makeOrder(overrides: Partial<TenantOrder> = {}): TenantOrder {
     completed_at: "2026-06-15T14:30:00Z",
     cancelled_at: null,
     cancellation_reason: null,
+    payment_method: null,
+    payment_provider: null,
+    paid_at: null,
     ...overrides,
   };
 }

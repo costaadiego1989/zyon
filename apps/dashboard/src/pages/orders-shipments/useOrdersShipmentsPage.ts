@@ -71,15 +71,35 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
     return filteredOrders.slice(start, start + PAGE_SIZE);
   }, [filteredOrders, page]);
 
-  const exportCsv = useCallback(() => {
-    const header = "id,customer,status,total,currency,created_at";
-    const rows = filteredOrders.map((o: TenantOrder) => {
-      const customer = o.customer as { full_name?: unknown; email?: unknown } | null;
-      const name = typeof customer?.full_name === "string" ? customer.full_name : "";
-      const email = typeof customer?.email === "string" ? customer.email : "";
-      const label = name || email || "-";
+  const exportCsv = useCallback((ordersToExport?: TenantOrder[]) => {
+    const data = ordersToExport ?? filteredOrders;
+    const header = "id,cliente,email,telefone,endereco,status,total,moeda,metodo_pagamento,provider,data_pagamento,rastreio,data_pedido";
+    const rows = data.map((o: TenantOrder) => {
+      const customer = o.customer as { full_name?: string; email?: string; phone?: string; address?: { street?: string; number?: string; complement?: string; neighborhood?: string; city?: string; state?: string; zip?: string } } | null;
+      const name = customer?.full_name ?? "";
+      const email = customer?.email ?? "";
+      const phone = customer?.phone ?? "";
+      const addr = customer?.address;
+      const endereco = addr
+        ? [addr.street, addr.number, addr.complement, addr.neighborhood, `${addr.city ?? ""}/${addr.state ?? ""}`, addr.zip].filter(Boolean).join(" - ")
+        : "";
       const createdAt = o.completed_at ?? o.cancelled_at ?? "";
-      return [o.id, label, o.status, String(o.total), o.currency, createdAt].join(",");
+      const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+      return [
+        o.id,
+        esc(name),
+        esc(email),
+        phone,
+        esc(endereco),
+        o.status,
+        String(o.total),
+        o.currency,
+        o.payment_method ?? "",
+        o.payment_provider ?? "",
+        o.paid_at ?? "",
+        o.tracking_code ?? "",
+        createdAt,
+      ].join(",");
     });
     const bom = String.fromCharCode(0xfeff);
     downloadCsv(bom + header, rows, `orders-${new Date().toISOString().slice(0, 10)}.csv`);
