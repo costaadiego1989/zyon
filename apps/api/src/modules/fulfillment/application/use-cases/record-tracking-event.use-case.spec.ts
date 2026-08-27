@@ -6,14 +6,16 @@ import { ShipmentEntity } from "../../domain/entities/shipment.entity.js";
 import { InMemoryShipmentRepository } from "../../infrastructure/repositories/in-memory-shipment.repository.js";
 import { InMemoryTrackingEventRepository } from "../../infrastructure/repositories/in-memory-tracking-event.repository.js";
 import { InMemoryOutboxRepository } from "../../../../shared/messaging/infrastructure/in-memory-outbox.repository.js";
+import { InMemoryDomainEventBus } from "../../../../shared/events/in-memory-domain-event-bus.js";
 
 function makeSetup() {
   const repo = new InMemoryShipmentRepository();
   const trackingRepo = new InMemoryTrackingEventRepository();
   const outbox = new InMemoryOutboxRepository();
+  const eventBus = new InMemoryDomainEventBus();
   const create = new CreateShipmentUseCase(repo, outbox);
-  const record = new RecordTrackingEventUseCase(repo, trackingRepo, outbox);
-  return { repo, trackingRepo, outbox, create, record };
+  const record = new RecordTrackingEventUseCase(repo, trackingRepo, outbox, eventBus);
+  return { repo, trackingRepo, outbox, eventBus, create, record };
 }
 
 async function advanceTo(repo: InMemoryShipmentRepository, id: string, merchantId: string, status: ShipmentEntity["status"]) {

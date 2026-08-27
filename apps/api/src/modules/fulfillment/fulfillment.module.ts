@@ -10,6 +10,7 @@ import { ListShipmentsUseCase } from "./application/use-cases/list-shipments.use
 import { RecordTrackingEventUseCase } from "./application/use-cases/record-tracking-event.use-case.js";
 import { CancelShipmentUseCase } from "./application/use-cases/cancel-shipment.use-case.js";
 import { FulfillmentOnOrderCompletedHandler } from "./infrastructure/event-handlers/on-order-completed.handler.js";
+import { OnShipmentDeliveredHandler } from "./infrastructure/event-handlers/on-shipment-delivered.handler.js";
 import { TrackingWebhookController } from "./presentation/http/tracking-webhook.controller.js";
 
 @Module({
@@ -31,7 +32,8 @@ import { TrackingWebhookController } from "./presentation/http/tracking-webhook.
     ListShipmentsUseCase,
     RecordTrackingEventUseCase,
     CancelShipmentUseCase,
-    FulfillmentOnOrderCompletedHandler
+    FulfillmentOnOrderCompletedHandler,
+    OnShipmentDeliveredHandler
   ],
   exports: [CreateShipmentUseCase, ListShipmentsUseCase, SHIPMENT_REPOSITORY]
 })

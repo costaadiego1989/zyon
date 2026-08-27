@@ -4,6 +4,7 @@ import { TRACKING_EVENT_REPOSITORY, type TrackingEventRepository } from "../../d
 import { TrackingEventEntity } from "../../domain/entities/tracking-event.entity.js";
 import type { ShipmentStatus } from "../../domain/entities/shipment.entity.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
+import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../../../shared/events/domain-event-bus.port.js";
 import { createFulfillmentEventEnvelope } from "../../domain/events/fulfillment-domain-event.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
@@ -14,7 +15,8 @@ export class RecordTrackingEventUseCase {
   constructor(
     @Inject(SHIPMENT_REPOSITORY) private readonly shipments: ShipmentRepository,
     @Inject(TRACKING_EVENT_REPOSITORY) private readonly trackingEvents: TrackingEventRepository,
-    @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository
+    @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
+    @Inject(DOMAIN_EVENT_BUS) private readonly eventBus: DomainEventBus
   ) {}
 
   async execute(input: {
@@ -102,6 +104,17 @@ export class RecordTrackingEventUseCase {
             }
           })
         );
+
+        // Also publish on the in-memory domain bus so OnShipmentDeliveredHandler
+        // updates CompletedOrder status and emits order.delivered for post-sale.
+        await this.eventBus.publish({
+          eventType: "shipment.delivered",
+          merchantId: input.merchant_id,
+          payload: {
+            shipment_id: input.shipment_id,
+            delivered_at: input.occurred_at.toISOString()
+          }
+        });
       }
     }
 

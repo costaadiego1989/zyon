@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import {
   CheckCircle,
   DollarSign,
@@ -73,14 +73,22 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
   const [draggedOrder, setDraggedOrder] = useState<TenantOrder | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: "", to: "" });
+
+  const dateFilteredOrders = useMemo(() => {
+    let result = vm.orders;
+    if (dateRange.from) result = result.filter(o => o.completed_at >= dateRange.from);
+    if (dateRange.to) result = result.filter(o => o.completed_at <= dateRange.to + "T23:59:59");
+    return result;
+  }, [vm.orders, dateRange]);
 
   const filteredOrders = searchQuery.trim()
-    ? vm.orders.filter((o) => {
+    ? dateFilteredOrders.filter((o) => {
         const q = searchQuery.toLowerCase();
         const label = customerLabel(o.customer as Record<string, unknown> | null);
         return o.external_order_id.toLowerCase().includes(q) || label.toLowerCase().includes(q);
       })
-    : vm.orders;
+    : dateFilteredOrders;
 
   function handleDragStart(e: React.DragEvent, order: TenantOrder) {
     setDraggedOrder(order);
@@ -149,6 +157,17 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
       </div>
 
       {vm.message ? <div className="panel-error">{vm.message}</div> : null}
+
+      {/* Date range filter */}
+      <div style={{ display: "flex", gap: "10px", alignItems: "center", padding: "0 0 14px", flexWrap: "wrap" }}>
+        <label style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>Período:</label>
+        <input type="date" value={dateRange.from} onChange={e => setDateRange(d => ({ ...d, from: e.target.value }))} style={{ padding: "6px 10px", borderRadius: "8px", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", font: "12px var(--font-sans)" }} />
+        <span style={{ color: "var(--color-text-muted)", fontSize: "12px" }}>até</span>
+        <input type="date" value={dateRange.to} onChange={e => setDateRange(d => ({ ...d, to: e.target.value }))} style={{ padding: "6px 10px", borderRadius: "8px", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", font: "12px var(--font-sans)" }} />
+        {(dateRange.from || dateRange.to) && (
+          <button onClick={() => setDateRange({ from: "", to: "" })} style={{ padding: "4px 10px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "transparent", color: "var(--color-text-muted)", cursor: "pointer", font: "11px var(--font-sans)" }}>Limpar</button>
+        )}
+      </div>
 
       {/* Kanban Board */}
       {!vm.hasLoaded ? (
