@@ -33,19 +33,26 @@ export default function BuyerLoginForm({ merchantId, merchantName, onComplete, o
 
     try {
       if (step === 1) {
-        // Send OTP
+        // Send OTP — include fallback email from prior session if available
+        let fallbackEmail: string | undefined;
+        try {
+          const session = localStorage.getItem("zyon_buyer_session");
+          if (session) {
+            const parsed = JSON.parse(session);
+            if (parsed.email) fallbackEmail = parsed.email;
+          }
+        } catch {}
+
         const res = await fetch(`${API_BASE}/buyer/phone/send`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: phoneDigits, merchant_name: merchantName }),
+          body: JSON.stringify({ phone: phoneDigits, merchant_name: merchantName, fallback_email: fallbackEmail }),
         });
         if (!res.ok) {
           const errData = await res.json().catch(() => null);
           throw new Error(errData?.message ?? "Erro ao enviar código");
         }
-        const data = await res.json().catch(() => null);
-        // Dev convenience: auto-fill code when SMS provider is not configured
-        if (data?.dev_code) setOtp(String(data.dev_code));
+        // OTP enviado via WhatsApp/SMS — buyer verifica no celular
         setStep(2);
       } else {
         // Verify OTP
@@ -61,13 +68,15 @@ export default function BuyerLoginForm({ merchantId, merchantName, onComplete, o
         }
 
         const data = await res.json();
-        const globalUserId = data.global_user_id ?? data.globalUserId;
+        const globalUserId = data.globalUserId ?? data.global_user_id;
         if (!globalUserId) {
           throw new Error("Login falhou: servidor não retornou identificação do usuário");
         }
-        if (data.token) {
-          localStorage.setItem("zyon_buyer_token", data.token);
-          localStorage.setItem("zyon_buyer_session", JSON.stringify({ globalUserId, token: data.token }));
+        const token = data.accessToken ?? data.access_token ?? data.token;
+        const email = data.email;
+        if (token) {
+          localStorage.setItem("zyon_buyer_token", token);
+          localStorage.setItem("zyon_buyer_session", JSON.stringify({ globalUserId, token, email }));
         }
 
         await onComplete(globalUserId);
