@@ -130,10 +130,6 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
       return dashboardJson(base, "/intent-memory/records", { method: "GET" }, f);
     },
 
-    getStoreSettings(): Promise<Record<string, unknown>> {
-      return dashboardJson(base, "/merchants/me/store-settings", { method: "GET" }, f);
-    },
-
     listTeam(merchantId: string): Promise<{ members: Array<{ id: string; userId: string; email: string; role: "OWNER" | "ADMIN" | "STAFF"; joinedAt: string }>; invites: Array<{ id: string; email: string; role: "OWNER" | "ADMIN" | "STAFF"; status: "PENDING" | "ACCEPTED" | "EXPIRED"; createdAt: string; expiresAt: string }> }> {
       return dashboardJson(base, `/merchants/${merchantId}/team`, { method: "GET" }, f);
     },
