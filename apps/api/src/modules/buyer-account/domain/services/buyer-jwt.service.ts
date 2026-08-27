@@ -23,7 +23,7 @@ export class BuyerJwtService {
     // by the merchant AuthGuard (which uses JWT_SECRET). The two secrets are
     // cryptographically independent, preventing audience confusion attacks.
     private readonly secret = requireSecret("BUYER_JWT_SECRET", "buyer-dev-secret-change-me"),
-    private readonly ttlSeconds = Number(process.env.JWT_EXPIRES_IN_SECONDS ?? 3600)
+    private readonly ttlSeconds = Number(process.env.BUYER_JWT_EXPIRES_SECONDS ?? 604800) // 7 days default
   ) {}
 
   sign(principal: BuyerPrincipal, nowSeconds = Math.floor(Date.now() / 1000)): string {
