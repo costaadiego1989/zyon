@@ -51,10 +51,10 @@ export interface FunnelResult {
 
 const STEP_DEFINITIONS = [
   { name: "checkout_started", label: "Checkout iniciado", events: [] as string[] },
-  { name: "shipping_calculated", label: "Frete selecionado", events: ["shipping_calculated", "shipping_option_selected"] },
+  { name: "shipping_calculated", label: "Frete selecionado", events: ["shipping_calculated", "shipping_option_selected", "shipping_selected"] },
   { name: "coupon_applied", label: "Cupom aplicado", events: ["coupon_applied", "coupon_field_clicked"] },
-  { name: "payment_method_selected", label: "Pagamento selecionado", events: ["payment_method_selected"] },
-  { name: "order_completed", label: "Pagamento concluído", events: ["order_completed"] },
+  { name: "payment_method_selected", label: "Pagamento selecionado", events: ["payment_method_selected", "payment_intent_created"] },
+  { name: "order_completed", label: "Pagamento concluído", events: ["order_completed", "payment_confirmed"] },
   { name: "payment_failed", label: "Pagamento falhado", events: ["payment_failed", "sale_declined"] },
 ] as const;
 
