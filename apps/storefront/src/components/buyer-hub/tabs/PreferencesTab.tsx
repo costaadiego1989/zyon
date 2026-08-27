@@ -174,7 +174,7 @@ function ToggleSwitch({ value, onChange, label, description, disabled = false }:
           background: value ? "var(--aacp-success)" : "var(--aacp-line)",
           color: value ? "var(--aacp-panel-bg)" : "var(--aacp-panel-bg)",
           cursor: busy || disabled ? "not-allowed" : "pointer",
-          opacity: busy ? 0.7 : 1,
+          opacity: busy ? 0.7 : disabled ? 0.45 : 1,
           transition: "background 200ms ease, color 200ms ease",
           flexShrink: 0,
         }}
@@ -236,7 +236,7 @@ function LanguageSelect({ value, onChange, disabled = false }: LanguageSelectPro
           color: "var(--aacp-fg)",
           fontSize: "13px",
           cursor: busy || disabled ? "not-allowed" : "pointer",
-          opacity: busy ? 0.7 : 1,
+          opacity: busy ? 0.7 : disabled ? 0.45 : 1,
           transition: "opacity 200ms ease",
           fontFamily: "inherit",
         }}
@@ -553,7 +553,8 @@ export default function PreferencesTab({
                 value={preferences.sms_opt_in}
                 onChange={() => handleToggle("sms_opt_in")}
                 label="SMS"
-                description="Receba mensagens de texto sobre seus pedidos"
+                description="Indisponível no momento"
+                disabled
               />
               <div style={{ height: "1px", background: "var(--aacp-line)" }} />
               <ToggleSwitch

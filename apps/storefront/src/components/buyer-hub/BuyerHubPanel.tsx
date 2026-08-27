@@ -22,6 +22,7 @@ export interface BuyerHubPanelProps {
   isOpen: boolean;
   onClose: () => void;
   merchantId?: string;
+  onToggleTheme?: () => void;
 }
 
 // ─── Auth Session shape (persisted to localStorage) ─────────────────────────
@@ -392,7 +393,7 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
 
 // ─── BuyerHubPanel ──────────────────────────────────────────────────────────
 
-export function BuyerHubPanel({ isOpen, onClose, merchantId }: BuyerHubPanelProps) {
+export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: BuyerHubPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const vm = useBuyerHub();
   const [authVersion, setAuthVersion] = useState(0);
@@ -587,7 +588,7 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId }: BuyerHubPanelProp
               id={`buyerhub-tabpanel-${vm.activeTab}`}
               role="tabpanel"
               aria-label={TABS.find((t) => t.key === vm.activeTab)?.label}
-              style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}
+              style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", padding: "16px" }}
             >
               {vm.activeTab === "profile" && (
                 <ProfileTab
@@ -639,11 +640,18 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId }: BuyerHubPanelProp
               )}
               {vm.activeTab === "settings" && (
                 <SettingsTab
-                  theme={(typeof window !== "undefined" && localStorage.getItem("pulse-theme-pref") as "dark" | "light") || "dark"}
+                  theme={(typeof window !== "undefined" && (localStorage.getItem("zyon-theme") as "dark" | "light")) || "dark"}
                   onToggleTheme={() => {
-                    const current = localStorage.getItem("pulse-theme-pref") ?? "dark";
-                    const next = current === "dark" ? "light" : "dark";
-                    localStorage.setItem("pulse-theme-pref", next);
+                    // Delegate to the parent ConversationShell so its React theme
+                    // state + applyTheme run (single source of truth). Fallback to a
+                    // local write when the hub is used standalone.
+                    if (onToggleTheme) {
+                      onToggleTheme();
+                    } else {
+                      const current = (typeof window !== "undefined" && localStorage.getItem("zyon-theme")) ?? "dark";
+                      localStorage.setItem("zyon-theme", current === "dark" ? "light" : "dark");
+                    }
+                    setAuthVersion((v) => v + 1);
                   }}
                   onExportData={vm.exportData}
                   onDeleteAccount={async () => { await vm.deleteAccount(); }}

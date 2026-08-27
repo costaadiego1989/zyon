@@ -91,7 +91,8 @@ export interface BuyerLoyalty {
   avg_order_value_cents: number;
   top_categories: string[];
   preferred_brands: string[];
-  discount_sensitivity?: number | null;
+  // Backend returns a categorical string: "unknown" | "low" | "medium" | "high".
+  discount_sensitivity?: string | null;
   last_purchase_at?: string | null;
 }
 
@@ -321,6 +322,7 @@ export function useBuyerHub(): UseBuyerHub {
         break;
       case "preferences":
         if (!preferences.data && !preferences.loading) void runFetch(setPreferences, "/buyer/me/preferences");
+        if (!intentProfile.data && !intentProfile.loading) void runFetch(setIntentProfile, "/buyer/me/intent-profile");
         break;
       case "loyalty":
         if (!loyalty.data && !loyalty.loading) void runFetch(setLoyalty, "/buyer/me/loyalty");

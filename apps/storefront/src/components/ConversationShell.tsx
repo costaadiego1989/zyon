@@ -537,7 +537,7 @@ export default function ConversationShell({
       )}
 
       {/* Buyer Hub Panel */}
-      <BuyerHub isOpen={buyerHubOpen} onClose={() => setBuyerHubOpen(false)} merchantId={merchantId} />
+      <BuyerHub isOpen={buyerHubOpen} onClose={() => setBuyerHubOpen(false)} merchantId={merchantId} onToggleTheme={toggleTheme} />
 
       {/* Buyer Auth Gate */}
       {showBuyerAuth && (

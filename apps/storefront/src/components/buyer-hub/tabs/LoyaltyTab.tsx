@@ -14,8 +14,8 @@ export interface LoyaltyTabProps {
 
 const currencyFmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
-function fmtBRL(value: number): string {
-  return currencyFmt.format(value);
+function fmtBRL(value: number | null | undefined): string {
+  return currencyFmt.format(Number.isFinite(value as number) ? (value as number) : 0);
 }
 
 // ─── Icons (inline SVG) ────────────────────────────────────────────────────
@@ -247,17 +247,22 @@ function Chip({ label }: { label: string }) {
 // ─── Discount Sensitivity Bar ─────────────────────────────────────────────
 
 interface SensitivityBarProps {
-  value: number | null | undefined;
+  value: string | null | undefined;
 }
 
-function SensitivityBar({ value }: SensitivityBarProps) {
-  const normalized = typeof value === "number" ? Math.max(0, Math.min(1, value)) : null;
+// Map the backend categorical sensitivity ("low"|"medium"|"high") to a 0..1 fill.
+const SENSITIVITY_MAP: Record<string, { fill: number; label: string }> = {
+  low: { fill: 0.2, label: "Baixa" },
+  baixa: { fill: 0.2, label: "Baixa" },
+  medium: { fill: 0.55, label: "Moderada" },
+  moderada: { fill: 0.55, label: "Moderada" },
+  high: { fill: 0.9, label: "Alta" },
+  alta: { fill: 0.9, label: "Alta" },
+};
 
-  function getLabel(v: number): string {
-    if (v <= 0.3) return "Baixa";
-    if (v <= 0.6) return "Moderada";
-    return "Alta";
-  }
+function SensitivityBar({ value }: SensitivityBarProps) {
+  const entry = value ? SENSITIVITY_MAP[value.toLowerCase()] : undefined;
+  const normalized = entry ? entry.fill : null;
 
   function getColor(v: number): string {
     if (v <= 0.3) return "var(--aacp-success)";
@@ -283,7 +288,7 @@ function SensitivityBar({ value }: SensitivityBarProps) {
   }
 
   const color = getColor(normalized);
-  const label = getLabel(normalized);
+  const label = entry?.label ?? "—";
 
   return (
     <div
@@ -422,9 +427,17 @@ export default function LoyaltyTab({ loyalty, summary, loading }: LoyaltyTabProp
 
   if (!loyalty && !summary) return <EmptyState />;
 
-  const ordersCount = summary?.orders_count ?? loyalty?.total_orders ?? 0;
-  const totalSpent = summary?.total_spent ?? (loyalty ? loyalty.total_spent_cents / 100 : 0);
-  const averageTicket = summary?.average_ticket ?? (loyalty ? loyalty.avg_order_value_cents / 100 : 0);
+  const num = (v: unknown): number => (Number.isFinite(v as number) ? (v as number) : 0);
+
+  const ordersCount = num(summary?.orders_count) || num(loyalty?.total_orders) || 0;
+  const totalSpent =
+    Number.isFinite(summary?.total_spent as number)
+      ? num(summary?.total_spent)
+      : num(loyalty?.total_spent_cents) / 100;
+  const averageTicket =
+    Number.isFinite(summary?.average_ticket as number)
+      ? num(summary?.average_ticket)
+      : num(loyalty?.avg_order_value_cents) / 100;
 
   return (
     <div
