@@ -919,12 +919,56 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       }
     }
 
+    // If LLM returned blocks but empty message, generate contextual intro copy.
+    // This ensures the A/B communication strategy is applied even when the LLM
+    // focused on tool execution and skipped producing companion text.
+    let finalMessage = result.message;
+    if ((!finalMessage || finalMessage.trim().length === 0) && result.blocks && result.blocks.length > 0) {
+      const blockTypes = result.blocks.map((b: any) => b.type).join(", ");
+      const contextHint = this.blockContextHint(result.blocks, result.toolsUsed);
+      finalMessage = await this.generateVariantCopy(
+        input.experimentSystemPrompt,
+        `Você acabou de mostrar ${contextHint} para o cliente. Escreva 1 frase curta e natural acompanhando a apresentação. Não repita dados do componente (preço, nome). Seja empático e conversacional.`,
+        this.defaultBlockIntro(result.toolsUsed),
+      );
+    }
+
     return {
-      message: result.message,
+      message: finalMessage,
       blocks: result.blocks,
       cartId: result.cartId,
       suggestedNext: storefrontQuickReplies(lastTool, quickRepliesConfig, cartState, shippingOptions, input.userMessage)
     };
+  }
+
+  /**
+   * Contextual hint for the copy generator based on rendered blocks.
+   */
+  private blockContextHint(blocks: any[], toolsUsed: string[]): string {
+    if (toolsUsed.includes("search_products")) return "uma lista de produtos";
+    if (toolsUsed.includes("get_product_details")) return "os detalhes de um produto";
+    if (toolsUsed.includes("quote_shipping")) return "as opções de frete";
+    if (toolsUsed.includes("get_cart")) return "o carrinho do cliente";
+    if (toolsUsed.includes("get_reviews")) return "avaliações do produto";
+    if (toolsUsed.includes("compare_products")) return "uma comparação entre produtos";
+    if (toolsUsed.includes("get_similar_products")) return "produtos similares";
+    if (blocks.some((b: any) => b.type === "product_carousel")) return "produtos recomendados";
+    if (blocks.some((b: any) => b.type === "product_card")) return "um produto em destaque";
+    return "informações relevantes";
+  }
+
+  /**
+   * Default intro text when no experiment variant is active (zero LLM latency).
+   */
+  private defaultBlockIntro(toolsUsed: string[]): string {
+    if (toolsUsed.includes("search_products")) return "Encontrei algumas opções pra você:";
+    if (toolsUsed.includes("get_product_details")) return "Aqui estão os detalhes:";
+    if (toolsUsed.includes("quote_shipping")) return "Calculei o frete pra você:";
+    if (toolsUsed.includes("get_cart")) return "Seu carrinho:";
+    if (toolsUsed.includes("get_reviews")) return "Veja o que outros compradores disseram:";
+    if (toolsUsed.includes("compare_products")) return "Comparação entre os produtos:";
+    if (toolsUsed.includes("get_similar_products")) return "Produtos similares que podem te interessar:";
+    return "Aqui está o que encontrei:";
   }
 
   /**
