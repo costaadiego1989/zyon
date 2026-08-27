@@ -785,6 +785,35 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
     return selector + addrPadded + valHex;
   }
 
+  // Pre-flight balance check: verify the wallet holds enough token (USDC) and
+  // some native currency for gas before sending. Returns an error string, or
+  // null when funds are sufficient. Best-effort — RPC errors are non-fatal
+  // (we let the tx attempt proceed rather than block on a flaky probe).
+  async function checkBalances(eth: any): Promise<string | null> {
+    try {
+      // ERC20 balanceOf(address) → selector 0x70a08231
+      const balanceOfData = "0x70a08231" + wallet.toLowerCase().replace("0x", "").padStart(64, "0");
+      const [tokenBalHex, nativeBalHex] = await Promise.all([
+        eth.request({ method: "eth_call", params: [{ to: tokenAddress, data: balanceOfData }, "latest"] }),
+        eth.request({ method: "eth_getBalance", params: [wallet, "latest"] }),
+      ]);
+      const tokenBal = BigInt(tokenBalHex || "0x0");
+      const nativeBal = BigInt(nativeBalHex || "0x0");
+      const required = BigInt(amountAtomic);
+      if (tokenBal < required) {
+        return `Saldo de ${tokenSymbol} insuficiente. Você precisa de ${amountDisplay}.`;
+      }
+      if (nativeBal === 0n) {
+        const gasSymbol = cryptoNativeCurrency?.symbol || "ETH";
+        return `Sem ${gasSymbol} para taxa de rede (gas). Adicione ${gasSymbol} via faucet e tente novamente.`;
+      }
+      return null;
+    } catch {
+      // RPC probe failed — don't block; let the tx attempt surface the real error.
+      return null;
+    }
+  }
+
   const handleConnect = async () => {
     const eth = (window as any).ethereum;
     if (!eth) {
@@ -854,6 +883,14 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
         await switchOrAddChain(eth);
       }
 
+      // Pre-flight: verify sufficient token + gas balance before prompting to sign.
+      const balanceError = await checkBalances(eth);
+      if (balanceError) {
+        setError(balanceError);
+        setStep("connected");
+        return;
+      }
+
       const calldata = encodeTransferData(destination, amountAtomic);
       // Provide explicit gas limit to prevent MetaMask from calling
       // eth_getBlockByNumber (rate-limited on public RPCs) for estimation.
@@ -887,7 +924,10 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
         // Rate-limit errors from MetaMask's internal RPC probe — suggest removing
         // and re-adding the chain in wallet settings to update the RPC endpoint.
         if (msg.includes("rate limit") || msg.includes("getblockbynumber")) {
-          setError("RPC sobrecarregado. Remova e re-adicione Base Sepolia no MetaMask, ou tente novamente.");
+          setError("RPC sobrecarregado. Remova e re-adicione a rede no MetaMask, ou tente novamente.");
+        } else if (msg.includes("insufficient funds") || msg.includes("client error") || msg.includes("http")) {
+          const gasSymbol = cryptoNativeCurrency?.symbol || "ETH";
+          setError(`Falha ao enviar. Verifique se tem ${tokenSymbol} suficiente e ${gasSymbol} para gas.`);
         } else {
           setError(e?.message || "Erro ao enviar transação");
         }
