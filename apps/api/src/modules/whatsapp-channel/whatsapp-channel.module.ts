@@ -5,7 +5,7 @@
  * Supports multi-provider: BubbleWhats (legacy) and Twilio (new).
  */
 
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { WhatsAppWebhookController } from "./presentation/http/whatsapp-webhook.controller.js";
 import { WhatsAppConfigController } from "./presentation/http/whatsapp-config.controller.js";
 import { HandleIncomingMessageUseCase } from "./application/use-cases/handle-incoming-message.use-case.js";
@@ -18,11 +18,14 @@ import { BubbleWhatsSenderAdapter } from "./infrastructure/adapters/bubblewhats-
 import { TwilioSenderAdapter } from "./infrastructure/adapters/twilio-sender.adapter.js";
 import { TwilioDeduplicatorService } from "./infrastructure/services/twilio-deduplicator.service.js";
 import { WHATSAPP_SENDER_PORT } from "./domain/ports/whatsapp-sender.port.js";
-import { WHATSAPP_SESSION_REPOSITORY } from "./domain/ports/whatsapp-session-repository.port.js";
+import { WHATSAPP_SESSION_REPOSITORY, type WhatsAppSessionRepository } from "./domain/ports/whatsapp-session-repository.port.js";
 import { WHATSAPP_CONFIG_REPOSITORY } from "./domain/ports/whatsapp-config-repository.port.js";
+import { WHATSAPP_POST_SALE_CONTEXT_PORT } from "./domain/ports/whatsapp-post-sale-context.port.js";
+import { WhatsAppPostSaleContextAdapter } from "./infrastructure/adapters/whatsapp-post-sale-context.adapter.js";
 import { PrismaWhatsAppSessionRepository } from "./infrastructure/repositories/prisma-whatsapp-session.repository.js";
 import { PrismaWhatsAppConfigRepository } from "./infrastructure/repositories/prisma-whatsapp-config.repository.js";
 import { PersistenceModule } from "../../shared/persistence/persistence.module.js";
+import { PostSaleModule } from "../post-sale/post-sale.module.js";
 
 /**
  * Multi-tenant sender resolver.
@@ -50,7 +53,7 @@ class MultiProviderSenderAdapter {
 }
 
 @Module({
-  imports: [PersistenceModule],
+  imports: [PersistenceModule, forwardRef(() => PostSaleModule)],
   controllers: [WhatsAppWebhookController, WhatsAppConfigController],
   providers: [
     // Use cases
@@ -78,7 +81,12 @@ class MultiProviderSenderAdapter {
     },
     { provide: WHATSAPP_SESSION_REPOSITORY, useClass: PrismaWhatsAppSessionRepository },
     { provide: WHATSAPP_CONFIG_REPOSITORY, useClass: PrismaWhatsAppConfigRepository },
+    {
+      provide: WHATSAPP_POST_SALE_CONTEXT_PORT,
+      useFactory: (repo: WhatsAppSessionRepository) => new WhatsAppPostSaleContextAdapter(repo),
+      inject: [WHATSAPP_SESSION_REPOSITORY],
+    },
   ],
-  exports: [SendWhatsAppResponseUseCase],
+  exports: [SendWhatsAppResponseUseCase, WHATSAPP_POST_SALE_CONTEXT_PORT],
 })
 export class WhatsAppChannelModule {}

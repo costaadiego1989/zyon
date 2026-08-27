@@ -5,7 +5,7 @@
 import { Injectable, Inject } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
-import type { WhatsAppSessionRepository, WhatsAppSessionEntity } from "../../domain/ports/whatsapp-session-repository.port.js";
+import type { WhatsAppSessionRepository, WhatsAppSessionEntity, PostSaleContextData } from "../../domain/ports/whatsapp-session-repository.port.js";
 
 @Injectable()
 export class PrismaWhatsAppSessionRepository implements WhatsAppSessionRepository {
@@ -69,7 +69,26 @@ export class PrismaWhatsAppSessionRepository implements WhatsAppSessionRepositor
     });
   }
 
+  async setPostSaleContext(id: string, context: PostSaleContextData): Promise<void> {
+    await (this.prisma as any).whatsAppSession.update({
+      where: { id },
+      data: {
+        postSaleContext: context,
+      },
+    });
+  }
+
+  async clearPostSaleContext(id: string): Promise<void> {
+    await (this.prisma as any).whatsAppSession.update({
+      where: { id },
+      data: {
+        postSaleContext: null,
+      },
+    });
+  }
+
   private toDomain(row: any): WhatsAppSessionEntity {
+    const postSaleContext = row.postSaleContext && typeof row.postSaleContext === "object" ? row.postSaleContext : undefined;
     return {
       id: row.id,
       merchantId: row.merchantId,
@@ -82,6 +101,7 @@ export class PrismaWhatsAppSessionRepository implements WhatsAppSessionRepositor
       currentPage: row.currentPage ?? 0,
       lastActivityAt: new Date(row.lastActivityAt),
       status: row.status,
+      postSaleContext,
       createdAt: new Date(row.createdAt),
     };
   }
