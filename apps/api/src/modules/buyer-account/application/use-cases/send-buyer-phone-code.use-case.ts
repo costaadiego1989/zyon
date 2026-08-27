@@ -6,9 +6,21 @@ import { SMS_PROVIDER, type SmsSender } from "../../domain/ports/sms.port.js";
 export interface SendBuyerPhoneCodeRequest {
   phone: string;
   countryCode?: string;
+  merchantName?: string;
+  buyerName?: string;
 }
 
 const OTP_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Build a clear, branded OTP SMS in pt-BR.
+ * Format: "Olá {nome}! Seu código de acesso à {loja} é 123456. Válido por 5 min. Não compartilhe."
+ */
+function buildOtpMessage(code: string, merchantName?: string, buyerName?: string): string {
+  const greeting = buyerName ? `Olá, ${buyerName.split(" ")[0]}! ` : "";
+  const store = merchantName ? ` à ${merchantName}` : "";
+  return `${greeting}Seu código de acesso${store} é ${code}. Válido por 5 minutos. Não compartilhe com ninguém.`;
+}
 
 @Injectable()
 export class SendBuyerPhoneCodeUseCase {
@@ -36,9 +48,9 @@ export class SendBuyerPhoneCodeUseCase {
     this.logger.warn(`[OTP-PHONE] code=${code} phone=***${normalized.slice(-4)} expires=${expiresAt.toISOString()}`);
 
     if (this.sms) {
-      await this.sms.send(normalized, `Seu código de verificação: ${code}`);
+      await this.sms.send(normalized, buildOtpMessage(code, input.merchantName, input.buyerName));
     } else {
-      this.logger.warn(`[OTP] SMS provider not configured for phone=***${normalized}`);
+      this.logger.warn(`[OTP] SMS provider not configured for phone=***${normalized.slice(-4)}`);
     }
 
     const isDev = process.env.NODE_ENV !== "production";

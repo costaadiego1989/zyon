@@ -184,8 +184,12 @@ export class BuyerAccountController {
   }
 
   @Post("phone/send")
-  async sendCode(@Body() body: { phone: string }) {
-    return this.sendPhoneCode.execute(body);
+  async sendCode(@Body() body: { phone: string; merchant_name?: string; buyer_name?: string }) {
+    return this.sendPhoneCode.execute({
+      phone: body.phone,
+      merchantName: body.merchant_name,
+      buyerName: body.buyer_name,
+    });
   }
 
   @Post("phone/verify")

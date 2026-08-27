@@ -6,6 +6,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009"
 
 type Props = {
   merchantId?: string;
+  merchantName?: string;
   onComplete: (globalUserId: string) => void | Promise<void>;
   onCancel: () => void;
 };
@@ -17,7 +18,7 @@ function formatPhone(value: string): string {
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }
 
-export default function BuyerLoginForm({ merchantId, onComplete, onCancel }: Props) {
+export default function BuyerLoginForm({ merchantId, merchantName, onComplete, onCancel }: Props) {
   const [step, setStep] = useState<1 | 2>(1);
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
@@ -36,7 +37,7 @@ export default function BuyerLoginForm({ merchantId, onComplete, onCancel }: Pro
         const res = await fetch(`${API_BASE}/buyer/phone/send`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: phoneDigits }),
+          body: JSON.stringify({ phone: phoneDigits, merchant_name: merchantName }),
         });
         if (!res.ok) {
           const errData = await res.json().catch(() => null);

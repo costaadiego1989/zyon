@@ -6,6 +6,7 @@ import BuyerLoginForm from "./BuyerLoginForm";
 
 type Props = {
   merchantId?: string;
+  merchantName?: string;
   onComplete: (globalUserId: string) => void | Promise<void>;
   onCancel: () => void;
 };
@@ -82,7 +83,7 @@ function ArrowLeftIcon() {
   );
 }
 
-export default function BuyerAuthGate({ merchantId, onComplete, onCancel }: Props) {
+export default function BuyerAuthGate({ merchantId, merchantName, onComplete, onCancel }: Props) {
   const [mode, setMode] = useState<Mode>("choose");
   const biometricAvailable = isBiometricAvailable();
 
@@ -338,10 +339,10 @@ export default function BuyerAuthGate({ merchantId, onComplete, onCancel }: Prop
             </button>
 
             {mode === "register" && (
-              <BuyerRegistrationForm merchantId={merchantId} onComplete={onComplete} onCancel={onCancel} />
+              <BuyerRegistrationForm merchantId={merchantId} merchantName={merchantName} onComplete={onComplete} onCancel={onCancel} />
             )}
             {mode === "login" && (
-              <BuyerLoginForm merchantId={merchantId} onComplete={onComplete} onCancel={onCancel} />
+              <BuyerLoginForm merchantId={merchantId} merchantName={merchantName} onComplete={onComplete} onCancel={onCancel} />
             )}
           </div>
         )}

@@ -20,6 +20,7 @@ function trackRegistrationStep(merchantId: string | undefined, event: string) {
 
 type Props = {
   merchantId?: string;
+  merchantName?: string;
   onComplete: (globalUserId: string) => void | Promise<void>;
   onCancel: () => void;
 };
@@ -68,7 +69,7 @@ function formatCEP(value: string): string {
   return `${digits.slice(0, 5)}-${digits.slice(5)}`;
 }
 
-export default function BuyerRegistrationForm({ merchantId, onComplete, onCancel }: Props) {
+export default function BuyerRegistrationForm({ merchantId, merchantName, onComplete, onCancel }: Props) {
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -128,7 +129,7 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, onCancel
           const res = await fetch(`${API_BASE}/buyer/phone/send`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ phone: phoneDigits }),
+            body: JSON.stringify({ phone: phoneDigits, merchant_name: merchantName }),
           });
           if (!res.ok && res.status !== 404) {
             const errData = await res.json().catch(() => null);

@@ -535,6 +535,7 @@ export default function ConversationShell({
       {showBuyerAuth && (
         <BuyerAuthGate
           merchantId={merchantId}
+          merchantName={storeName}
           onComplete={async (globalUserId) => {
             setShowBuyerAuth(false);
             // Track login_completed funnel event
