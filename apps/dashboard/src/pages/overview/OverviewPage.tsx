@@ -207,9 +207,10 @@ export function OverviewPage(props: OverviewPageProps) {
     { name: "checkout_started", label: "Sessão iniciada", color: "var(--color-brand)" },
     { name: "product_viewed", label: "Produto visualizado", color: "oklch(70% 0.14 250)" },
     { name: "cart_viewed", label: "Produto adicionado ao carrinho", color: "oklch(65% 0.16 200)" },
-    { name: "auth_phone_submitted", label: "Cadastro iniciado", color: "var(--color-info)" },
+    { name: "auth_phone_submitted", label: "OTP enviado", color: "var(--color-info)" },
+    { name: "auth_phone_verified", label: "OTP verificado", color: "oklch(68% 0.13 280)" },
     { name: "auth_registration_completed", label: "Cadastro completo", color: "var(--color-success)" },
-    { name: "cross_sell_added", label: "Cross-sell aceito", color: "var(--color-warning)" },
+    { name: "login_completed", label: "Login", color: "oklch(72% 0.15 320)" },
   ];
 
   // FUNIL DE CHECKOUT: jornada de compra (nomes batem com get-funnel.use-case.ts STEP_DEFINITIONS)

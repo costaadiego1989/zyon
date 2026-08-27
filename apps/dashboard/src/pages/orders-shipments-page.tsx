@@ -31,8 +31,8 @@ type KanbanColumnDef = {
 };
 
 const KANBAN_COLUMNS: KanbanColumnDef[] = [
-  { id: "pending", label: "Aguardando", statuses: ["pending", "approved", "processing"], color: "var(--color-warning)", acceptsFrom: [] },
-  { id: "paid", label: "Pago", statuses: ["paid"], color: "var(--color-brand)", acceptsFrom: ["pending", "approved", "processing"] },
+  { id: "pending", label: "Aguardando", statuses: ["pending", "processing"], color: "var(--color-warning)", acceptsFrom: [] },
+  { id: "paid", label: "Pago", statuses: ["paid", "approved"], color: "var(--color-brand)", acceptsFrom: ["pending", "processing"] },
   { id: "shipped", label: "Enviado", statuses: ["shipped"], color: "oklch(70% 0.14 250)", acceptsFrom: ["paid", "approved"] },
   { id: "delivered", label: "Entregue", statuses: ["delivered"], color: "var(--color-success)", acceptsFrom: ["shipped"] },
   { id: "cancelled", label: "Cancelado", statuses: ["cancelled", "failed", "refunded", "returned"], color: "var(--color-error)", acceptsFrom: ["pending", "approved", "processing", "paid"] },
