@@ -1,14 +1,54 @@
 import { Injectable } from "@nestjs/common";
-import { Counter, Histogram, Gauge, Registry } from "prom-client";
+import { Counter, Histogram, Gauge, Registry, collectDefaultMetrics } from "prom-client";
 
 @Injectable()
 export class MetricsService {
   readonly registry = new Registry();
 
+  constructor() {
+    collectDefaultMetrics({ register: this.registry });
+  }
+
   readonly checkoutStarted = new Counter({
     name: "checkout_started_total",
     help: "Total checkout sessions started",
     labelNames: ["merchant_id"],
+    registers: [this.registry],
+  });
+
+  readonly paymentIntentCreated = new Counter({
+    name: "payment_intent_created_total",
+    help: "Total payment intents created",
+    labelNames: ["method", "merchant_id"],
+    registers: [this.registry],
+  });
+
+  readonly paymentFailed = new Counter({
+    name: "payment_failed_total",
+    help: "Total payments failed",
+    labelNames: ["method", "reason"],
+    registers: [this.registry],
+  });
+
+  readonly webhookProcessingSeconds = new Histogram({
+    name: "webhook_processing_seconds",
+    help: "Time to process an inbound provider webhook end to end",
+    labelNames: ["provider"],
+    buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10],
+    registers: [this.registry],
+  });
+
+  readonly apiRequestDuration = new Histogram({
+    name: "api_request_duration_seconds",
+    help: "Duration of HTTP API requests in seconds",
+    labelNames: ["method", "route", "status"],
+    buckets: [0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10],
+    registers: [this.registry],
+  });
+
+  readonly activeWsConnections = new Gauge({
+    name: "active_ws_connections",
+    help: "Number of active WebSocket connections",
     registers: [this.registry],
   });
 
@@ -22,7 +62,7 @@ export class MetricsService {
   readonly paymentApproved = new Counter({
     name: "payment_approved_total",
     help: "Total payments approved",
-    labelNames: ["merchant_id"],
+    labelNames: ["merchant_id", "method", "provider"],
     registers: [this.registry],
   });
 

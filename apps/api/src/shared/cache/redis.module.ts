@@ -6,6 +6,7 @@
 
 import { Global, Module } from "@nestjs/common";
 import { Logger } from "@nestjs/common";
+import { Redis } from "ioredis";
 
 export const REDIS_CLIENT_TOKEN = "REDIS_CLIENT";
 
@@ -23,8 +24,6 @@ export const REDIS_CLIENT_TOKEN = "REDIS_CLIENT";
         }
 
         try {
-          // Dynamic import to handle ESM + CommonJS compatibility
-          const Redis = require("ioredis");
           const client = new Redis(redisUrl, {
             maxRetriesPerRequest: null,
             enableReadyCheck: false,

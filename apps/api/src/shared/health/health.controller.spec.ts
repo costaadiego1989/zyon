@@ -4,83 +4,108 @@ import { HealthController } from "./health.controller.js";
 import { HealthService } from "./health.service.js";
 import { HttpException } from "@nestjs/common";
 
-test("HealthController.liveness returns {status:'ok', timestamp:ISO}", () => {
-  const service = new HealthService({
-    $queryRaw: async () => undefined
-  } as never);
+test("HealthController.check returns {status:'ok', db:true, redis:boolean|'not_configured', uptime, timestamp:ISO} when DB is up", async () => {
+  const mockRedis = {
+    ping: async () => "PONG",
+  };
+  const service = new HealthService(
+    { $queryRaw: async () => [{ "1": 1 }] } as never,
+    mockRedis
+  );
   const controller = new HealthController(service);
 
-  const result = controller.liveness();
+  const result = await controller.check();
 
   assert.equal(result.status, "ok");
+  assert.equal(result.db, true);
+  assert.ok(result.redis === true || result.redis === false || result.redis === "not_configured");
+  assert.ok(typeof result.uptime === "number");
+  assert.ok(result.uptime > 0);
   assert.ok(typeof result.timestamp === "string");
   assert.doesNotThrow(() => new Date(result.timestamp).toISOString());
   assert.equal(new Date(result.timestamp).toISOString(), result.timestamp);
 });
 
-test("HealthController.liveness emits a fresh timestamp per call", async () => {
-  const service = new HealthService({
-    $queryRaw: async () => undefined
-  } as never);
-  const controller = new HealthController(service);
-
-  const first = controller.liveness();
-  await new Promise((r) => setTimeout(r, 5));
-  const second = controller.liveness();
-
-  assert.notEqual(first.timestamp, second.timestamp);
-});
-
-test("HealthController.readiness returns 200 {status:'ready', db:'connected'} when DB is up", async () => {
-  const service = new HealthService({
-    $queryRaw: async () => [{ "1": 1 }]
-  } as never);
-  const controller = new HealthController(service);
-
-  const result = await controller.readiness();
-
-  assert.deepEqual(result, { status: "ready", db: "connected" });
-});
-
-test("HealthController.readiness throws 503 {status:'unavailable', db:'disconnected'} when DB ping fails", async () => {
-  const service = new HealthService({
-    $queryRaw: async () => {
-      throw new Error("connection refused");
-    }
-  } as never);
+test("HealthController.check throws 503 {status:'degraded', db:false} when DB ping fails", async () => {
+  const service = new HealthService(
+    {
+      $queryRaw: async () => {
+        throw new Error("connection refused");
+      },
+    } as never,
+    null
+  );
   const controller = new HealthController(service);
 
   await assert.rejects(
-    controller.readiness(),
+    controller.check(),
     (err: unknown) => {
       assert.ok(err instanceof HttpException);
       const response = err.getResponse() as Record<string, unknown>;
       assert.equal(err.getStatus(), 503);
-      assert.equal(response.status, "unavailable");
-      assert.equal(response.db, "disconnected");
+      assert.equal(response.status, "degraded");
+      assert.equal(response.db, false);
       return true;
     }
   );
 });
 
-test("HealthService.readiness returns ready:true on success", async () => {
-  const service = new HealthService({
-    $queryRaw: async () => undefined
-  } as never);
+test("HealthService.check returns status:'ok' when DB is up", async () => {
+  const service = new HealthService(
+    { $queryRaw: async () => [{ "1": 1 }] } as never,
+    null
+  );
 
-  const result = await service.readiness();
+  const result = await service.check();
 
-  assert.deepEqual(result, { ready: true, db: "connected" });
+  assert.equal(result.status, "ok");
+  assert.equal(result.db, true);
+  assert.equal(result.redis, "not_configured");
 });
 
-test("HealthService.readiness returns ready:false when query rejects", async () => {
-  const service = new HealthService({
-    $queryRaw: async () => {
-      throw new Error("db down");
-    }
-  } as never);
+test("HealthService.check returns status:'degraded' when DB is down", async () => {
+  const service = new HealthService(
+    {
+      $queryRaw: async () => {
+        throw new Error("db down");
+      },
+    } as never,
+    null
+  );
 
-  const result = await service.readiness();
+  const result = await service.check();
 
-  assert.deepEqual(result, { ready: false, db: "disconnected" });
+  assert.equal(result.status, "degraded");
+  assert.equal(result.db, false);
+  assert.equal(result.redis, "not_configured");
+});
+
+test("HealthService.check returns redis:true when Redis is available", async () => {
+  const mockRedis = {
+    ping: async () => "PONG",
+  };
+  const service = new HealthService(
+    { $queryRaw: async () => [{ "1": 1 }] } as never,
+    mockRedis
+  );
+
+  const result = await service.check();
+
+  assert.equal(result.redis, true);
+});
+
+test("HealthService.check returns redis:false when Redis ping fails", async () => {
+  const mockRedis = {
+    ping: async () => {
+      throw new Error("redis down");
+    },
+  };
+  const service = new HealthService(
+    { $queryRaw: async () => [{ "1": 1 }] } as never,
+    mockRedis
+  );
+
+  const result = await service.check();
+
+  assert.equal(result.redis, false);
 });

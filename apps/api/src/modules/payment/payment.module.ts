@@ -1,5 +1,6 @@
 import { forwardRef, Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
+import { EmbedTokenService } from "../embed/domain/embed-token.service.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { CommerceModule } from "../commerce/commerce.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
@@ -36,6 +37,8 @@ import { HttpClientService } from "../../shared/http/http-client.service.js";
 import { readAsaasConnection, isAsaasConfigured } from "./infrastructure/asaas-env.js";
 import { readStripeConnection, isStripeConfigured } from "./infrastructure/stripe-env.js";
 import { ReconcilePaymentIntentsScheduler, ReconcilePaymentIntentsWorker } from "./infrastructure/reconciliation-payment-intents.job.js";
+import { PaymentEventPublisher } from "./infrastructure/payment-event-publisher.js";
+import { PaymentWebSocketGateway } from "./infrastructure/payment-ws.gateway.js";
 import { readMercadoPagoConnection, isMercadoPagoConfigured } from "./infrastructure/mercadopago-env.js";
 import {
   ASAAS_PLATFORM_PORT,
@@ -133,6 +136,9 @@ import {
     DeleteMercadoPagoConnectionUseCase,
     EvmCryptoPaymentAdapter,
     CheckoutPaymentAdapter,
+    PaymentEventPublisher,
+    PaymentWebSocketGateway,
+    EmbedTokenService,
     // Background job: reconcile stale payment intents (every 15 minutes)
     ReconcilePaymentIntentsScheduler,
     ReconcilePaymentIntentsWorker,
@@ -253,6 +259,7 @@ import {
     GetPaymentIntentStatusUseCase,
     PAYMENT_PLATFORM_REPOSITORY,
     BillingPlanMeteringService,
+    PaymentEventPublisher,
   ]
 })
 export class PaymentModule {}

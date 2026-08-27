@@ -1,4 +1,4 @@
-import { Inject, Injectable, Optional } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import type { CurrencyCode } from "@zyon/shared-types";
 import type { PaymentIntentEntity } from "../../domain/payment-intent.entity.js";
 import type { PaymentIntentSnapshot } from "../../domain/payment-intent.entity.js";
@@ -8,6 +8,7 @@ import type { PaymentRepository } from "../../domain/ports/payment-repository.po
 import { PAYMENT_REPOSITORY } from "../../domain/ports/payment-repository.port.js";
 import { MetricsService } from "../../../../shared/observability/metrics.service.js";
 import { MarkCommerceOrderPaidUseCase } from "../../../commerce/application/mark-commerce-order-paid.use-case.js";
+import { PaymentEventPublisher } from "../../infrastructure/payment-event-publisher.js";
 
 /**
  * Shared payment intent state-machine & checkout completion logic.
@@ -15,11 +16,14 @@ import { MarkCommerceOrderPaidUseCase } from "../../../commerce/application/mark
  */
 @Injectable()
 export class PaymentDispatchService {
+  private readonly logger = new Logger(PaymentDispatchService.name);
+
   constructor(
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
     @Inject(CHECKOUT_PAYMENT_PORT) private readonly checkoutPayment: CheckoutPaymentPort,
     @Optional() private readonly metrics?: MetricsService,
-    @Optional() private readonly markCommerceOrderPaid?: MarkCommerceOrderPaidUseCase
+    @Optional() private readonly markCommerceOrderPaid?: MarkCommerceOrderPaidUseCase,
+    @Optional() private readonly publisher?: PaymentEventPublisher
   ) {}
 
   /**
@@ -53,7 +57,7 @@ export class PaymentDispatchService {
       commerceOrderId: snap.commerceOrderId
     });
 
-    this.metrics?.paymentApproved.inc({ merchant_id: snap.merchantId });
+    this.metrics?.paymentApproved.inc({ merchant_id: snap.merchantId, method: snap.method });
 
     // Complete checkout flow
     await this.checkoutPayment.completeAfterApproval({
@@ -66,6 +70,9 @@ export class PaymentDispatchService {
     });
 
     const commerceSynced = await this.markLinkedCommerceOrderPaid(snap, providerPaymentId);
+
+    void this.publisher?.publishStatusChange(snap.id, "approved", snap.merchantId)
+      .catch(err => this.logger.warn(`Failed to publish approved event for intent ${snap.id}: ${(err as Error).message}`));
 
     return commerceSynced
       ? "checkout_completed_after_payment_and_commerce_paid"
@@ -99,6 +106,11 @@ export class PaymentDispatchService {
       sessionId: snap.sessionId,
       reason
     });
+
+    this.metrics?.paymentFailed.inc({ method: snap.method, reason });
+
+    void this.publisher?.publishStatusChange(snap.id, "failed", snap.merchantId)
+      .catch(err => this.logger.warn(`Failed to publish failed event for intent ${snap.id}: ${(err as Error).message}`));
   }
 
   /**

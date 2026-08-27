@@ -16,6 +16,7 @@ import type { TriggerConfig, TriggerName } from "@/lib/triggers";
 import type { AdvancedRule, RuleAction } from "@/lib/advanced-rules";
 import { evaluateRules } from "@/lib/advanced-rules";
 import type { DiscountStage } from "@/components/DiscountBanner";
+import { connectPaymentWs } from "@/lib/payment-ws";
 
 export type CheckoutStatus = "loading" | "channel_gate" | "active" | "error" | "completed";
 export type CartStatus = "awaiting" | "shipping_calculated" | "ready_to_pay" | "paid";
@@ -120,7 +121,48 @@ interface CheckoutState {
 }
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+let wsCleanup: (() => void) | null = null;
 const MAX_POLL_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
+function startPolling(): void {
+  const state = useCheckoutStore.getState();
+  const { api, paymentIntent } = state;
+  if (!api || !paymentIntent || !paymentIntent.intent_id) return;
+
+  const pollStartTime = Date.now();
+  pollTimer = setInterval(async () => {
+    if (Date.now() - pollStartTime > MAX_POLL_DURATION_MS) {
+      useCheckoutStore.getState().stopPolling();
+      useCheckoutStore.setState({ status: "error", error: "payment_expired" });
+      return;
+    }
+    try {
+      const status = await api.getPaymentStatus(paymentIntent.intent_id);
+      // API PaymentIntentStatus terminal-success value is "approved"
+      // (webhook flips requires_action → approved). "paid"/"confirmed"
+      // kept for backward compat with any legacy provider mapping.
+      if (
+        status.status === "approved" ||
+        status.status === "paid" ||
+        status.status === "confirmed"
+      ) {
+        useCheckoutStore.getState().stopPolling();
+        void trackEvent("order_completed", {
+          intent_id: paymentIntent.intent_id,
+        });
+        useCheckoutStore.setState({
+          cart: { ...useCheckoutStore.getState().cart, status: "paid" },
+          status: "completed",
+        });
+      } else if (status.status === "failed" || status.status === "cancelled") {
+        useCheckoutStore.getState().stopPolling();
+        useCheckoutStore.setState({ status: "error", error: "payment_failed" });
+      }
+    } catch {
+      // continue polling
+    }
+  }, 3000);
+}
 
 export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   status: "loading",
@@ -666,43 +708,38 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     // Guard against polling with a missing/empty intent id (would hit /intents/undefined/status)
     if (!api || !paymentIntent || !paymentIntent.intent_id) return;
     set({ paymentPolling: true });
-    const pollStartTime = Date.now();
 
-    pollTimer = setInterval(async () => {
-      if (Date.now() - pollStartTime > MAX_POLL_DURATION_MS) {
+    // Try WebSocket first; on error, fall back to polling
+    wsCleanup = connectPaymentWs({
+      apiBaseUrl: api.apiBaseUrl,
+      token: api.authToken,
+      intentId: paymentIntent.intent_id,
+      onApproved: () => {
         get().stopPolling();
-        set({ status: "error", error: "payment_expired" });
-        return;
-      }
-      try {
-        const status = await api.getPaymentStatus(paymentIntent.intent_id);
-        // API PaymentIntentStatus terminal-success value is "approved"
-        // (webhook flips requires_action → approved). "paid"/"confirmed"
-        // kept for backward compat with any legacy provider mapping.
-        if (
-          status.status === "approved" ||
-          status.status === "paid" ||
-          status.status === "confirmed"
-        ) {
-          get().stopPolling();
-          void trackEvent("order_completed", {
-            intent_id: paymentIntent.intent_id,
-          });
-          set({
-            cart: { ...get().cart, status: "paid" },
-            status: "completed",
-          });
-        } else if (status.status === "failed" || status.status === "cancelled") {
-          get().stopPolling();
-          set({ status: "error", error: "payment_failed" });
-        }
-      } catch {
-        // continue polling
-      }
-    }, 3000);
+        void trackEvent("order_completed", {
+          intent_id: paymentIntent.intent_id,
+        });
+        set({
+          cart: { ...get().cart, status: "paid" },
+          status: "completed",
+        });
+      },
+      onFailed: () => {
+        get().stopPolling();
+        set({ status: "error", error: "payment_failed" });
+      },
+      onError: () => {
+        // WS failed, fall back to polling
+        startPolling();
+      },
+    });
   },
 
   stopPolling: () => {
+    if (wsCleanup) {
+      wsCleanup();
+      wsCleanup = null;
+    }
     if (pollTimer) {
       clearInterval(pollTimer);
       pollTimer = null;
@@ -731,6 +768,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   },
 
   resetSession: () => {
+    if (wsCleanup) { wsCleanup(); wsCleanup = null; }
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     set({
       status: "loading",

@@ -1,11 +1,14 @@
 import { Module } from "@nestjs/common";
+import { APP_INTERCEPTOR } from "@nestjs/core";
 import { LoggerModule } from "nestjs-pino";
+import { MetricsInterceptor } from "./shared/observability/metrics.interceptor.js";
 import { TenantModule } from "./shared/tenant/tenant.module.js";
 import { ObservabilityModule } from "./shared/observability/observability.module.js";
 import { HttpModule } from "./shared/http/http.module.js";
 import { PersistenceModule } from "./shared/persistence/persistence.module.js";
 import { DataRetentionModule } from "./shared/retention/data-retention.module.js";
 import { MessagingModule } from "./shared/messaging/messaging.module.js";
+import { HealthModule } from "./shared/health/health.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
 import { AgentRulesModule } from "./modules/agent-rules/agent-rules.module.js";
 import { BuyerPurchaseHistoryModule } from "./modules/buyer-purchase-history/buyer-purchase-history.module.js";
@@ -101,6 +104,7 @@ const REDACTED_LOG_PATHS = [
     PersistenceModule,
     DataRetentionModule,
     MessagingModule,
+    HealthModule,
     AuthModule,
     MerchantModule,
     AgentRulesModule,
@@ -142,6 +146,9 @@ const REDACTED_LOG_PATHS = [
     PostSaleModule,
     KnowledgeBaseModule,
     // PublicApiModule, // TODO: fix DI (CommerceV1Controller, InstallationsModule)
-  ]
+  ],
+  providers: [
+    { provide: APP_INTERCEPTOR, useClass: MetricsInterceptor },
+  ],
 })
 export class AppModule {}
