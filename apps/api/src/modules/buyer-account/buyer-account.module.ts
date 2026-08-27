@@ -41,6 +41,13 @@ import { BuyerWebAuthnController } from "./presentation/http/buyer-webauthn.cont
 import { BuyerPreferencesController } from "./presentation/http/buyer-preferences.controller.js";
 import { BuyerIntentController } from "./presentation/http/buyer-intent.controller.js";
 import { BuyerReviewsController } from "./presentation/http/buyer-reviews.controller.js";
+import { BuyerAddressesController } from "./presentation/http/buyer-addresses.controller.js";
+import {
+  ListBuyerAddressesUseCase,
+  AddBuyerAddressUseCase,
+  UpdateBuyerAddressUseCase,
+  DeleteBuyerAddressUseCase,
+} from "./application/use-cases/list-buyer-addresses.use-case.js";
 import { GetBuyerIntentProfileUseCase } from "./application/use-cases/get-buyer-intent-profile.use-case.js";
 import { ListBuyerReviewsUseCase } from "./application/use-cases/list-buyer-reviews.use-case.js";
 import { ListBuyerConversationsUseCase } from "./application/use-cases/buyer-conversation.use-cases.js";
@@ -61,7 +68,7 @@ import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-weba
 
 @Module({
   imports: [BuyerAccountRepositoryModule, BuyerPurchaseHistoryModule, forwardRef(() => CheckoutModule), IntegrationsModule],
-  controllers: [BuyerAccountController, BuyerAgentController, BuyerHubController, BuyerWebAuthnController, BuyerPreferencesController, BuyerIntentController, BuyerReviewsController],
+  controllers: [BuyerAccountController, BuyerAgentController, BuyerHubController, BuyerWebAuthnController, BuyerPreferencesController, BuyerIntentController, BuyerReviewsController, BuyerAddressesController],
   providers: [
     RegisterBuyerUseCase,
     RegisterBuyerWithRateLimitUseCase,
@@ -93,6 +100,10 @@ import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-weba
     UpdateBuyerPreferencesUseCase,
     GetBuyerIntentProfileUseCase,
     ListBuyerReviewsUseCase,
+    ListBuyerAddressesUseCase,
+    AddBuyerAddressUseCase,
+    UpdateBuyerAddressUseCase,
+    DeleteBuyerAddressUseCase,
     // WhatsApp OTP delivery via BubbleWhats
     {
       provide: SMS_PROVIDER,
