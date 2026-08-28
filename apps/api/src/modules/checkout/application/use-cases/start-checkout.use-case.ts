@@ -12,6 +12,7 @@ import { AGENT_CONTEXT_PORT, type AgentContextPort } from "../../domain/ports/ag
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { BUYER_IDENTITY_REPOSITORY, type BuyerIdentityRepository } from "../../../buyer-purchase-history/domain/ports/buyer-identity.repository.port.js";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../../buyer-account/domain/ports/buyer-account-repository.port.js";
+import { BUYER_ADDRESS_REPOSITORY, type BuyerAddressRepository } from "../../../buyer-account/domain/ports/buyer-address.port.js";
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../../storefront/domain/ports/storefront-cart.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { CHECKOUT_SETTINGS_PORT, type CheckoutSettingsPort } from "../../domain/ports/checkout-settings.port.js";
@@ -53,12 +54,26 @@ export class StartCheckoutUseCase {
     @Optional() @Inject(INTENT_MEMORY_REPOSITORY) private readonly intentMemory?: IntentMemoryRepositoryPort,
     @Optional() @Inject(BUYER_INTENT_CONSENT_REPOSITORY) private readonly intentConsent?: BuyerIntentConsentRepositoryPort,
     @Optional() @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly buyerAccount?: BuyerAccountRepository,
-    @Optional() @Inject(STOREFRONT_CART_PORT) private readonly storefrontCart?: StorefrontCartPort
+    @Optional() @Inject(STOREFRONT_CART_PORT) private readonly storefrontCart?: StorefrontCartPort,
+    @Optional() @Inject(BUYER_ADDRESS_REPOSITORY) private readonly buyerAddressRepo?: BuyerAddressRepository
   ) { }
 
   async execute(input: StartCheckoutRequest): Promise<StartCheckoutResponse> {
     const settings = await this.checkoutSettings?.getContext(input.merchant_id);
     const merchant = await this.merchantRepository?.getProfile(input.merchant_id);
+
+    // Whitelabel branding: shown for free-plan merchants (no active/trialing paid
+    // subscription). "Powered by Zyon" badge appears in the checkout footer.
+    let showBranding = true;
+    if (this.prisma) {
+      try {
+        const sub = await this.prisma.merchantBillingSubscription.findUnique({
+          where: { merchantId: input.merchant_id },
+          select: { status: true },
+        });
+        showBranding = !(sub && (sub.status === "active" || sub.status === "trialing"));
+      } catch { /* default to showing branding (free-tier safe default) */ }
+    }
     const merchantRules = await this.merchantRepository?.getRules(input.merchant_id);
     let sessionId = input.session_id ?? `chk_${crypto.randomUUID()}`;
     // Use explicit global_user_id from the widget (authenticated buyer) if provided;
@@ -66,7 +81,9 @@ export class StartCheckoutUseCase {
     const globalUserId = (input as any).global_user_id?.trim()
       || await this.identity.resolveGlobalUserId(input.merchant_id, input.customer);
 
-    // Hydrate customer from buyer-account when available (logged buyer → session gets full data)
+    // Hydrate name/email/phone/cpf from buyer-account. NOTE: address is resolved
+    // separately below — the BuyerHub addresses table is the source of truth, so
+    // we deliberately do NOT copy the (often stale) account.address inline blob here.
     if (this.buyerAccount && globalUserId && (!input.customer?.fullName || !input.customer?.email || !input.customer?.address?.zip)) {
       try {
         const account = await this.buyerAccount.findByGlobalUserId(globalUserId);
@@ -79,12 +96,49 @@ export class StartCheckoutUseCase {
               email: input.customer?.email || account.email || undefined,
               phone: input.customer?.phone || account.phone || undefined,
               cpf: input.customer?.cpf || (account as any).cpf || undefined,
-              address: input.customer?.address?.zip ? input.customer.address : (account.address ?? input.customer?.address),
             },
           };
         }
       } catch (err) {
         this.logger.warn(`buyer-account hydration failed (non-blocking)`, { globalUserId, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
+    // Resolve address (only when the request didn't carry an explicit one).
+    // Priority: BuyerHub saved addresses (source of truth, editable by the buyer)
+    // → account.address inline blob (legacy fallback). This prevents a stale
+    // onboarding address from overriding what the buyer saved in BuyerHub.
+    if (globalUserId && !input.customer?.address?.zip) {
+      let resolvedAddress: NonNullable<typeof input.customer>["address"] | undefined;
+
+      if (this.buyerAddressRepo) {
+        try {
+          const addresses = await this.buyerAddressRepo.list(globalUserId);
+          const defaultAddr = addresses.find((a) => a.isDefault) || addresses[0];
+          if (defaultAddr) {
+            resolvedAddress = {
+              zip: defaultAddr.zip,
+              street: defaultAddr.street,
+              number: defaultAddr.number,
+              complement: defaultAddr.complement,
+              neighborhood: defaultAddr.neighborhood,
+              city: defaultAddr.city,
+              state: defaultAddr.state,
+            };
+          }
+        } catch { /* non-critical — try account fallback below */ }
+      }
+
+      // Legacy fallback: inline account.address (pre-BuyerHub buyers).
+      if (!resolvedAddress?.zip && this.buyerAccount) {
+        try {
+          const account = await this.buyerAccount.findByGlobalUserId(globalUserId);
+          if (account?.address?.zip) resolvedAddress = account.address;
+        } catch { /* non-critical */ }
+      }
+
+      if (resolvedAddress?.zip) {
+        input = { ...input, customer: { ...input.customer, address: resolvedAddress } };
       }
     }
 
@@ -290,6 +344,7 @@ export class StartCheckoutUseCase {
         agent,
         couponBoxEnabled: merchantRules?.couponBoxEnabled,
         rules: merchantRules,
+        showBranding,
         serviceFee: this.experienceConfig.platformFeeBrl,
         suggestedProducts,
         stripeConnectAccountId: merchant?.stripeConnectAccountId,
@@ -327,7 +382,8 @@ export class StartCheckoutUseCase {
       return await this.crossSell.suggest({
         merchant_id: merchantId,
         session_id: session.sessionId,
-        cart: session.cart
+        cart: session.cart,
+        touchpoint: "pre_payment"
       });
     } catch (error) {
       this.logger.warn({
