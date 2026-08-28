@@ -14,13 +14,19 @@ export interface ProductCardBlock {
     price: number;
     priceFormatted: string;
     image?: string;
-    variants?: Array<{ id: string; name: string; value: string; price?: number; priceFormatted?: string }>;
+    variants?: Array<{ id: string; name: string; value: string; price?: number; priceFormatted?: string; stock?: number; sku?: string }>;
     inStock: boolean;
     rating?: number;
     reviewCount?: number;
     originalPrice?: number;
     originalPriceFormatted?: string;
     discountPercent?: number;
+    /** Total available stock across variants (shown in detailed view) */
+    stock?: number;
+    /** Primary variant SKU (shown in detailed view) */
+    sku?: string;
+    /** When true, render the full detail view (untruncated description, per-variant stock, SKU) */
+    detailed?: boolean;
   };
 }
 

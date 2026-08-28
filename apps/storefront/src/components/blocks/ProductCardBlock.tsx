@@ -393,7 +393,7 @@ export default function ProductCardBlock({
           {data.name}
         </h3>
 
-        {/* Description */}
+        {/* Description — full text in detailed view, 3-line clamp otherwise */}
         {data.description && (
           <p
             style={{
@@ -401,15 +401,50 @@ export default function ProductCardBlock({
               lineHeight: 1.5,
               color: "var(--aacp-muted)",
               margin: 0,
-              display: "-webkit-box",
-              WebkitLineClamp: 3,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
+              ...(data.detailed
+                ? {}
+                : {
+                    display: "-webkit-box",
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: "vertical" as const,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }),
             }}
           >
             {data.description}
           </p>
+        )}
+
+        {/* Detailed view: stock badge + SKU */}
+        {data.detailed && (
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px", fontSize: "11.5px" }}>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                padding: "3px 9px",
+                borderRadius: "6px",
+                fontWeight: 600,
+                background: data.inStock
+                  ? "color-mix(in srgb, var(--aacp-accent) 12%, transparent)"
+                  : "color-mix(in srgb, #dc2626 12%, transparent)",
+                color: data.inStock ? "var(--aacp-accent)" : "#dc2626",
+              }}
+            >
+              {data.inStock
+                ? data.stock && data.stock < 999
+                  ? `Em estoque · ${data.stock} ${data.stock === 1 ? "unidade" : "unidades"}`
+                  : "Em estoque"
+                : "Indisponível"}
+            </span>
+            {data.sku && (
+              <span style={{ color: "var(--aacp-muted)", fontFamily: "var(--aacp-font-mono, monospace)" }}>
+                SKU: {data.sku}
+              </span>
+            )}
+          </div>
         )}
 
         {/* Variants */}
@@ -520,12 +555,18 @@ export default function ProductCardBlock({
               >
                 {variants.map((v) => {
                   const isSelected = v.id === selectedVariantId;
+                  // In detailed view, show per-variant stock and disable out-of-stock chips.
+                  const outOfStock = data.detailed && v.stock !== undefined && v.stock <= 0;
+                  const stockLabel = data.detailed && v.stock !== undefined && v.stock < 999
+                    ? outOfStock ? " · esgotado" : ` · ${v.stock}`
+                    : "";
                   return (
                     <button
                       key={v.id}
                       type="button"
                       aria-pressed={isSelected}
-                      onClick={() => setSelectedVariantId(v.id)}
+                      disabled={outOfStock}
+                      onClick={() => { if (!outOfStock) setSelectedVariantId(v.id); }}
                       style={{
                         minWidth: "40px",
                         height: "34px",
@@ -537,11 +578,13 @@ export default function ProductCardBlock({
                         background: isSelected
                           ? "color-mix(in srgb, var(--aacp-accent) 12%, var(--aacp-surface-2))"
                           : "var(--aacp-surface-2)",
-                        color: "var(--aacp-fg)",
+                        color: outOfStock ? "var(--aacp-muted)" : "var(--aacp-fg)",
                         fontSize: "12px",
                         fontWeight: 600,
                         fontFamily: "inherit",
-                        cursor: "pointer",
+                        cursor: outOfStock ? "not-allowed" : "pointer",
+                        opacity: outOfStock ? 0.5 : 1,
+                        textDecoration: outOfStock ? "line-through" : "none",
                         boxShadow: isSelected
                           ? "0 0 0 3px color-mix(in srgb, var(--aacp-accent) 18%, transparent)"
                           : "none",
@@ -549,17 +592,17 @@ export default function ProductCardBlock({
                         transform: isSelected ? "scale(1.04)" : "scale(1)",
                       }}
                       onMouseEnter={(e) => {
-                        if (!isSelected) {
+                        if (!isSelected && !outOfStock) {
                           e.currentTarget.style.borderColor = "var(--aacp-muted)";
                         }
                       }}
                       onMouseLeave={(e) => {
-                        if (!isSelected) {
+                        if (!isSelected && !outOfStock) {
                           e.currentTarget.style.borderColor = "var(--aacp-line)";
                         }
                       }}
                     >
-                      {v.value}
+                      {v.value}{stockLabel}
                     </button>
                   );
                 })}

@@ -8,6 +8,20 @@ import {
 } from "../../domain/ports/product-repository.port.js";
 import { ProductEntity, ProductVariantProps } from "../../domain/entities/product.entity.js";
 
+/**
+ * Normalize text for accent- and case-insensitive matching.
+ * "Café Especial" -> "cafe especial". Uses Unicode NFD decomposition to strip
+ * diacritics so buyers can type "cafe" and match "Café" (Postgres `contains`
+ * with mode:"insensitive" only ignores case, not accents).
+ */
+function normalizeForSearch(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 @Injectable()
 export class PrismaProductRepository implements ProductRepositoryPort {
   private readonly logger = new Logger(PrismaProductRepository.name);
@@ -138,7 +152,51 @@ export class PrismaProductRepository implements ProductRepositoryPort {
       this.prisma.product.count({ where }),
     ]);
 
-    const entities = products.map((p) => this.toEntity(p));
+    let entities = products.map((p) => this.toEntity(p));
+
+    // Accent-insensitive fallback: Postgres `contains` mode:"insensitive" only
+    // ignores case, not diacritics. If the DB returned few results AND the query
+    // is a text search, broaden to the full active catalog and match in-memory
+    // using NFD-normalized comparison ("cafe" matches "Café").
+    if (input.query && !isGenericQuery && entities.length < limit) {
+      const normalizedQuery = normalizeForSearch(input.query);
+      const alreadyFoundIds = new Set(entities.map((e) => e.id));
+
+      // Only fetch broader set if the normalized query differs (has diacritics stripped)
+      const queryHasAccentDifference = normalizedQuery !== input.query.toLowerCase().trim();
+      if (queryHasAccentDifference || entities.length === 0) {
+        const broadWhere: Prisma.ProductWhereInput = {
+          merchantId: input.merchantId,
+          deletedAt: null,
+        };
+        if (input.isActiveOnly) broadWhere.isActive = true;
+        if (input.categoryId) broadWhere.categoryId = input.categoryId;
+        if (input.inStockOnly) broadWhere.variants = { some: { stock: { some: { quantity: { gt: 0 } } } } };
+
+        const candidates = await this.prisma.product.findMany({
+          where: broadWhere,
+          take: 100, // bounded scan
+          include: {
+            variants: { include: { price: true, stock: true, media: { orderBy: { order: "asc" } } } },
+          },
+        });
+
+        const accentMatches = candidates
+          .filter((p) => !alreadyFoundIds.has(p.id))
+          .filter((p) => {
+            const nameNorm = normalizeForSearch(p.name);
+            const descNorm = normalizeForSearch(p.description ?? "");
+            return nameNorm.includes(normalizedQuery) || descNorm.includes(normalizedQuery);
+          })
+          .slice(0, limit - entities.length)
+          .map((p) => this.toEntity(p));
+
+        if (accentMatches.length > 0) {
+          entities = [...entities, ...accentMatches];
+        }
+      }
+    }
+
     const nextCursor = products.length === limit ? products[products.length - 1].id : undefined;
 
     return { products: entities, nextCursor, total };

@@ -109,6 +109,9 @@ interface CheckoutState {
   // Cross-sell (deferred from start → rendered at selectChannel)
   _pendingCrossSellBlock: ChatBlock | null;
 
+  // Whitelabel: "Powered by Zyon" badge shown for free-plan merchants
+  showBranding: boolean;
+
   // Actions
   init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; globalUserId?: string }) => Promise<void>;
   selectChannel: (channel: "chat" | "voice") => void;
@@ -292,6 +295,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   advancedRules: [],
   activeRuleActions: [],
   _pendingCrossSellBlock: null,
+  showBranding: false,
 
   init: async ({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId }) => {
     try {
@@ -367,6 +371,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         status: "channel_gate",
         error: null,
         _pendingCrossSellBlock: crossSellBlockFromSuggestions(exp?.suggestedProducts),
+        showBranding: exp?.rules?.showBranding ?? false,
       });
 
       // Initialize tracking

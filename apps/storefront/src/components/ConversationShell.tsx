@@ -14,6 +14,7 @@ import SupportPanel from "./SupportPanel";
 import StoriesRow from "./StoriesRow";
 import CheckoutWidgetPanel from "./CheckoutWidgetPanel";
 import CheckoutPanel from "./CheckoutPanel";
+import WhitelabelBadge from "./WhitelabelBadge";
 import BuyerAuthGate from "./BuyerAuthGate";
 import { PulseAgentOrb } from "./conversation/PulseAgentOrb";
 import { THEME_TOKENS, type Theme } from "./conversation/theme-tokens";
@@ -50,6 +51,7 @@ export default function ConversationShell({
   agentGreeting,
   initialStories,
   themeMode,
+  showBranding,
 }: {
   storeName: string;
   logo?: string;
@@ -61,6 +63,7 @@ export default function ConversationShell({
   merchantSlug?: string;
   initialStories?: any[];
   themeMode?: "dark" | "light" | "grey";
+  showBranding?: boolean;
   storeSettings?: {
     social?: { instagram?: string; facebook?: string; linkedin?: string; youtube?: string; googleMaps?: string };
     company?: { cnpj?: string; razaoSocial?: string; email?: string; phone?: string; businessHours?: string; address?: { city?: string; state?: string } };
@@ -82,11 +85,11 @@ export default function ConversationShell({
   const {
     mode, channel, theme, messages, input, isLoading, listening,
     conversationId, supportOpen, buyerHubOpen, cartDrawerForceOpen,
-    showBuyerAuth, checkoutIntent, policyModal,
+    showBuyerAuth, checkoutIntent, policyModal, crossSellPending,
     selectChannel, toggleChannel, toggleTheme, sendMessage,
     handleQuickReply, handleUpdateQuantity, setInput,
     setSupportOpen, setBuyerHubOpen, setShowBuyerAuth, setCheckoutIntent, setPolicyModal,
-    setCartDrawerForceOpen, startListening, stopListening,
+    setCartDrawerForceOpen, dismissCrossSell, startListening, stopListening,
   } = vm;
 
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -531,6 +534,9 @@ export default function ConversationShell({
           )}
         </div>
       )}
+
+      {/* Whitelabel badge — free-plan merchants, both chat and intro modes */}
+      <WhitelabelBadge show={showBranding} />
 
       {/* Policy Modal */}
       {policyModal && (

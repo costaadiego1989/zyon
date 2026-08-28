@@ -41,6 +41,34 @@ export type Mode = "intro" | "chat";
 /** Shared localStorage key so storefront + embedded checkout widget stay in sync. */
 export const SHARED_THEME_KEY = "zyon-theme";
 
+/**
+ * Narration fallback for storefront conversation blocks. When the LLM returns a
+ * visual component with no accompanying text, derive a short line so the agent
+ * always "speaks" instead of silently dropping a component. Keeps the chat
+ * immersive. Returns undefined for blocks that need no narration.
+ */
+function narrateStorefrontBlock(type: string | undefined): string | undefined {
+  switch (type) {
+    case "product_carousel":
+    case "marketplace_products":
+      return "Separei estes produtos pra você:";
+    case "product_card":
+      return "Encontrei este produto:";
+    case "product_comparison":
+      return "Aqui está a comparação entre os produtos:";
+    case "category_carousel":
+      return "Estas são as categorias disponíveis:";
+    case "cart_summary":
+      return "Aqui está o resumo do seu carrinho:";
+    case "shipping_options":
+      return "Estas são as opções de entrega:";
+    case "cross_sell":
+      return "Separei alguns itens que combinam com sua compra:";
+    default:
+      return undefined;
+  }
+}
+
 export interface ConversationViewModelProps {
   storeName: string;
   merchantId?: string;
@@ -67,6 +95,20 @@ export interface ConversationViewModelState {
   showBuyerAuth: boolean;
   checkoutIntent: string | null;
   policyModal: { title: string; content: string } | null;
+  crossSellPending: CrossSellInterstitialData | null;
+}
+
+export interface CrossSellInterstitialData {
+  trigger: string;
+  products: Array<{
+    id: string;
+    name: string;
+    price: number;
+    priceFormatted: string;
+    image?: string;
+    inStock: boolean;
+    discountPercent?: number;
+  }>;
 }
 
 export interface ConversationViewModelActions {
@@ -83,6 +125,7 @@ export interface ConversationViewModelActions {
   setCheckoutIntent: (value: string | null) => void;
   setPolicyModal: (value: { title: string; content: string } | null) => void;
   setCartDrawerForceOpen: (value: boolean) => void;
+  dismissCrossSell: () => void;
   startListening: () => void;
   stopListening: () => void;
 }
@@ -118,6 +161,8 @@ export function useConversationViewModel(
   // OTP gate and open checkout directly. ConversationShell reacts and clears it.
   const [checkoutIntent, setCheckoutIntent] = useState<string | null>(null);
   const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
+  const [crossSellPending, setCrossSellPending] = useState<CrossSellInterstitialData | null>(null);
+  const dismissCrossSell = useCallback(() => setCrossSellPending(null), []);
 
   const recognitionRef = useRef<any>(null);
   const { config: widgetConfig } = useWidgetConfig();
@@ -302,6 +347,15 @@ export function useConversationViewModel(
           }
           updateFromBlocks(blocks);
 
+          // Surface a cross-sell suggestion as a pre-cart interstitial (modal),
+          // not just inline in the thread. Only when it accompanies a cart update
+          // (add-to-cart) so it acts as the "before cart" step.
+          const crossSellBlock = blocks.find((b: any) => b.type === "cross_sell" && b.data?.products?.length);
+          const cartGrew = blocks.some((b: any) => b.type === "cart_summary");
+          if (crossSellBlock && cartGrew) {
+            setCrossSellPending(crossSellBlock.data as CrossSellInterstitialData);
+          }
+
           // Track funnel events for experiment based on response content
           if (conversationId && merchantId) {
             const hasCart = blocks.some((b: any) => b.type === "cart_summary");
@@ -317,10 +371,20 @@ export function useConversationViewModel(
             ["product_carousel", "product_card", "cart_summary", "category_carousel", "product_comparison", "shipping_options", "marketplace_products"].includes(b.type)
           );
 
+          // Always show agent text alongside visual blocks for immersive conversation.
+          // If the LLM didn't produce text, derive narration from the first visual block.
+          let agentText = data.message || undefined;
+          if (!agentText && hasVisualBlock) {
+            const firstVisual = blocks.find((b: any) =>
+              ["product_carousel", "product_card", "cart_summary", "category_carousel", "product_comparison", "shipping_options", "marketplace_products", "cross_sell"].includes(b.type)
+            );
+            agentText = narrateStorefrontBlock(firstVisual?.type);
+          }
+
           const agentMsg: Message = {
             id: `a-${Date.now()}`,
             role: "agent",
-            text: hasVisualBlock ? undefined : data.message,
+            text: agentText,
             blocks,
           };
           setMessages((prev) => [...prev, agentMsg]);
@@ -476,6 +540,8 @@ export function useConversationViewModel(
     checkoutIntent,
     setCheckoutIntent,
     policyModal,
+    crossSellPending,
+    dismissCrossSell,
     selectChannel,
     toggleChannel,
     toggleTheme,
