@@ -19,7 +19,9 @@ export class SendOrderConfirmationUseCase {
       const html = renderOrderConfirmationTemplate(event);
       await this.emailSender.send({
         to: event.buyerEmail,
-        subject: `✅ Pedido #${event.orderNumber} confirmado — estamos preparando!`,
+        subject: event.merchantName
+          ? `✅ ${event.merchantName} — pedido confirmado, estamos preparando!`
+          : `✅ Pedido #${event.orderNumber} confirmado — estamos preparando!`,
         html,
       });
     } else {

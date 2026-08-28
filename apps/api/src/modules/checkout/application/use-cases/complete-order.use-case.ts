@@ -11,6 +11,7 @@ import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/mes
 import { CHECKOUT_REPOSITORY } from "../../domain/ports/checkout-repository.port.js";
 import type { CheckoutEventName, CompletedOrder, DomainEventEnvelope } from "@zyon/shared-types";
 import { PlaceCrossStoreOrderUseCase } from "../../../marketplace/application/use-cases/place-cross-store-order.use-case.js";
+import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { RecordIntentIfConsentedUseCase } from "../../../intent-memory/application/use-cases/classify-customer-intent.use-case.js";
 import { AttributionTaggerService } from "../../../revenue-lift/domain/services/attribution-tagger.service.js";
 
@@ -48,7 +49,8 @@ export class CompleteOrderUseCase {
     @Optional() private readonly recordFunnelEvent?: RecordFunnelEventUseCase,
     @Optional() private readonly placeCrossStoreOrder?: PlaceCrossStoreOrderUseCase,
     @Optional() private readonly attributionTagger?: AttributionTaggerService,
-    @Optional() private readonly recordIntentIfConsented?: RecordIntentIfConsentedUseCase
+    @Optional() private readonly recordIntentIfConsented?: RecordIntentIfConsentedUseCase,
+    @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository
   ) { }
 
   private readonly logger = new Logger(CompleteOrderUseCase.name);
@@ -56,6 +58,12 @@ export class CompleteOrderUseCase {
   async execute(input: CompleteOrderRequest): Promise<CompleteOrderResponse> {
     const session = await this.sessions.getSession(input.merchant_id, input.session_id);
     if (!session) throw new NotFoundException("checkout_session_not_found");
+
+    // Store name for buyer confirmation email + WhatsApp (falls back gracefully).
+    let merchantName: string | undefined;
+    try {
+      merchantName = (await this.merchantRepo?.getProfile(input.merchant_id))?.name;
+    } catch { /* non-critical — templates fall back to "nossa loja" */ }
 
     // P1: server-side recompute and validation — never trust client-supplied totals.
     // Guards only fire when offerRepository is wired (i.e., production path).
@@ -127,6 +135,7 @@ export class CompleteOrderUseCase {
             payload: {
               type: "ORDER_CONFIRMATION",
               merchantId: input.merchant_id,
+              merchantName,
               orderId: input.external_order_id,
               orderNumber: input.external_order_id,
               buyerEmail: buyerEmail ?? "",
@@ -134,8 +143,10 @@ export class CompleteOrderUseCase {
               buyerPhone,
               // cart item.price and order_total are in major units (reais),
               // per computeExpectedTotal — do not divide by 100.
+              // Append the product variant (size/color/etc) to the name so the
+              // buyer sees exactly what they bought.
               items: (session.cart?.items ?? []).map((it) => ({
-                name: it.name,
+                name: it.variant ? `${it.name} (${it.variant})` : it.name,
                 quantity: it.quantity,
                 price: it.price.toFixed(2),
               })),

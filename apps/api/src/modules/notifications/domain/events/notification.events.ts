@@ -8,6 +8,7 @@ export type NotificationEventType =
 export interface OrderConfirmationEvent {
   type: "ORDER_CONFIRMATION";
   merchantId: string;
+  merchantName?: string;
   orderId: string;
   buyerEmail: string;
   buyerName?: string;
