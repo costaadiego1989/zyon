@@ -127,7 +127,7 @@ interface CheckoutState {
   stopPolling: () => void;
   setActiveDiscount: (stage: DiscountStage, percent: number, couponCode?: string, message?: string) => void;
   dismissDiscount: () => void;
-  applyProgressiveDiscount: (cartStatus: CartStatus) => void;
+  applyProgressiveDiscount: (cartStatus: CartStatus) => Promise<void>;
   evaluateAdvancedRules: () => void;
   resetSession: () => void;
 }
@@ -1029,23 +1029,33 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
    * Fires the DiscountBanner with increasing percent as the buyer advances.
    * Only activates when merchant has progressiveDiscount.enabled.
    */
-  applyProgressiveDiscount: (cartStatus) => {
+  applyProgressiveDiscount: async (cartStatus) => {
     const { progressiveDiscount } = get();
     if (!progressiveDiscount?.enabled) return;
 
-    // Map widget cart stages to progressive discount stages
-    const stageMap: Record<string, string> = {
+    // Map the widget cart stage to the backend track event that authorizes the
+    // matching progressive discount via the rules-engine.
+    const eventMap: Record<string, string> = {
+      awaiting: "coupon_field_clicked",       // → initial_coupon
+      shipping_calculated: "checkout_abandoned", // → abandoned_cart
+      ready_to_pay: "payment_method_selected",   // → payment_nudge
+    };
+    const stageMap: Record<string, DiscountStage> = {
       awaiting: "initial_coupon",
       shipping_calculated: "abandoned_cart",
       ready_to_pay: "payment_nudge",
     };
+    const event = eventMap[cartStatus];
+    const stage = stageMap[cartStatus];
+    if (!event || !stage) return;
 
-    const discountStage = stageMap[cartStatus];
-    if (!discountStage) return;
-    const percent = progressiveDiscount.stages[discountStage];
-    if (!percent || percent <= 0) return;
-
-    set({ activeDiscount: { stage: discountStage as DiscountStage, percent } });
+    // Track → rules-engine authorizes → returns approved_percent (persisted to
+    // session.cart.currentDiscount server-side). Apply it to the local cart so
+    // the summary + payment reflect the real, authorized discount.
+    const result = await trackEvent(event as never);
+    const approved = result?.progressive_offer?.approved_percent ?? 0;
+    if (approved <= 0) return;
+    get().setActiveDiscount(stage, approved);
   },
 
   evaluateAdvancedRules: () => {

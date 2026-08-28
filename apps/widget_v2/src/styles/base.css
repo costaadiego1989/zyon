@@ -72,9 +72,11 @@
 }
 
 /* Dark theme — mirrors the storefront palette (globals.css) so the embedded
-   checkout matches the storefront's dark tone. Applied when App.tsx adds
-   body.theme-dark (brand.mode === "dark"). Merchant brand.* inline overrides
-   still win via App.tsx setProperty. */
+   checkout matches the storefront's dark tone. Applied when CheckoutLayout sets
+   data-theme="dark" on .pulse-widget-shell (brand.mode === "dark"). Merchant
+   brand.* inline overrides still win via App.tsx setProperty. */
+.pulse-widget-shell[data-theme="dark"],
+.zyon-page[data-theme="dark"],
 body.theme-dark {
   --aacp-bg: #08080c;
   --aacp-surface: #0f0f16;
@@ -88,6 +90,9 @@ body.theme-dark {
   --aacp-surface-elevated: #1a1a24;
   --aacp-success: #34d399;
   --aacp-warning: #fbbf24;
+  --aacp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --aacp-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --aacp-shadow-lg: 0 34px 70px -28px rgba(0, 0, 0, 0.75);
 
   /* Short-form aliases resolve from the dark values above */
   --bg: var(--aacp-bg);
