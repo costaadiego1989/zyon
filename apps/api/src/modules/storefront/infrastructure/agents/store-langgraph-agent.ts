@@ -366,9 +366,49 @@ export class StorefrontLangGraphAgent {
 
     // ─── Build blocks from tool results ─────────────────────────────────
     // Skip product carousel when add_item_to_cart was called in the same turn
-    // (search_products was used only to resolve the product ID, not to display results)
-    const skipProductCarousel = !!toolResults["add_item_to_cart"];
-    if (toolResults["search_products"] && !skipProductCarousel) {
+    // Skip the search carousel when search_products was used only to resolve a
+    // product ID for a downstream action (add to cart, OR show full details).
+    // Otherwise a detail request renders the carousel instead of the detailed card.
+    const skipProductCarousel = !!toolResults["add_item_to_cart"] || !!toolResults["get_product_details"];
+    // Auto-promote single search result to detailed card when the user intent was
+    // "details/info" but the LLM only called search_products (not get_product_details).
+    const isDetailIntent = /detalh|saber mais|informa[cç]|especifica|mais sobre|me fale|conte.*sobre/i.test(input.userMessage);
+    const searchData = toolResults["search_products"] as any;
+    const singleSearchAsDetail = !toolResults["get_product_details"] && isDetailIntent && searchData?.products?.length === 1;
+
+    if (singleSearchAsDetail) {
+      // Promote the single search result to a detailed product_card
+      const p = searchData.products[0];
+      const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+      const price = p.price ?? 0;
+      blocks.push({
+        type: "product_card",
+        data: {
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          price,
+          priceFormatted: formatPrice(price),
+          image: p.image,
+          inStock: p.inStock ?? true,
+          rating: p.rating ?? undefined,
+          reviewCount: p.reviewCount ?? 0,
+          detailed: true,
+          stock: p.inStock ? undefined : 0,
+          sku: p.variants?.[0]?.sku ?? p.variants?.[0]?.id,
+          variants: p.variants?.map((v: any) => {
+            const ATTR_LABELS: Record<string, string> = { color: "Cor", size: "Tamanho", material: "Material", weight: "Peso", style: "Estilo", flavor: "Sabor", voltage: "Voltagem", capacity: "Capacidade", model: "Modelo", edition: "Edição", pack: "Pacote", type: "Tipo", format: "Formato" };
+            const rawName = Object.keys(v.attributes ?? {})[0] ?? "SKU";
+            const name = ATTR_LABELS[rawName.toLowerCase()] ?? rawName;
+            const value = Object.values(v.attributes ?? {})[0] as string ?? v.sku ?? v.id;
+            return { id: v.id ?? v.sku, name, value, price: v.basePriceInCents ?? v.price ?? undefined, priceFormatted: v.basePriceInCents ? formatPrice(v.basePriceInCents) : undefined };
+          }),
+        }
+      } as any);
+      if (!finalContent || finalContent.trim().length === 0) {
+        finalContent = "Aqui estão os detalhes completos:";
+      }
+    } else if (toolResults["search_products"] && !skipProductCarousel) {
       const searchData = toolResults["search_products"] as any;
       if (searchData?.products?.length > 0) {
         const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
@@ -415,6 +455,7 @@ export class StorefrontLangGraphAgent {
         const p = detailData.product;
         const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
         const price = p.variants?.[0]?.basePriceInCents ?? p.price ?? 0;
+        const isDigitalOrService = p.type === "digital" || p.type === "service";
         blocks.push({
           type: "product_card",
           data: {
@@ -424,18 +465,30 @@ export class StorefrontLangGraphAgent {
             price,
             priceFormatted: formatPrice(price),
             image: p.media?.[0]?.url ?? p.image,
-            inStock: p.type === "digital" || p.type === "service" || (p.stock ?? 0) > 0,
+            inStock: isDigitalOrService || (p.stock ?? 0) > 0,
             rating: p.rating ?? 4.3,
             reviewCount: p.reviewCount ?? 0,
+            // Detail view: get_product_details IS the "full info" tool, so render the
+            // enriched card (untruncated description, per-variant stock, SKU).
+            detailed: true,
+            stock: isDigitalOrService ? 999 : (p.stock ?? 0),
+            sku: p.variants?.[0]?.sku,
             variants: p.variants?.map((v: any) => {
               const ATTR_LABELS: Record<string, string> = { color: "Cor", size: "Tamanho", material: "Material", weight: "Peso", style: "Estilo", flavor: "Sabor", voltage: "Voltagem", capacity: "Capacidade", model: "Modelo", edition: "Edição", pack: "Pacote", type: "Tipo", format: "Formato", length: "Comprimento", width: "Largura", height: "Altura" };
               const rawName = Object.keys(v.attributes ?? {})[0] ?? "SKU";
               const name = ATTR_LABELS[rawName.toLowerCase()] ?? rawName;
               const value = Object.values(v.attributes ?? {})[0] as string ?? v.sku;
-              return { id: v.id ?? v.sku, name, value, price: v.basePriceInCents ?? undefined, priceFormatted: v.basePriceInCents ? formatPrice(v.basePriceInCents) : undefined };
+              const variantStock = isDigitalOrService ? 999 : Math.max(0, (v.stockQuantity ?? 0) - (v.stockReserved ?? 0));
+              return { id: v.id ?? v.sku, name, value, sku: v.sku, stock: variantStock, price: v.basePriceInCents ?? undefined, priceFormatted: v.basePriceInCents ? formatPrice(v.basePriceInCents) : undefined };
             }),
           }
         });
+        // Never leave the detail component mute: if the LLM produced no text,
+        // seed a short neutral line. The A/B variant system_prompt shapes tone
+        // when the LLM does generate — this only guards the empty case.
+        if (!finalContent || finalContent.trim().length === 0) {
+          finalContent = "Aqui estão os detalhes completos:";
+        }
       } else {
         finalContent = detailData?.error === "product_not_found"
           ? "Desculpe, não encontrei esse produto no catálogo. Posso ajudar com outra coisa?"
@@ -491,7 +544,7 @@ export class StorefrontLangGraphAgent {
         blocks.push({
           type: "cross_sell",
           data: {
-            trigger: "Combina com sua compra ✨ Outros clientes também levaram:",
+            trigger: "Complete seu pedido e economize — quem levou este produto também garantiu:",
             products: cartData.crossSellSuggestions.map((p: any) => ({
               id: p.sku,
               name: p.name,
@@ -757,6 +810,7 @@ export class StorefrontLangGraphAgent {
       "- Quando pedirem 'Ver categorias': use list_categories. Responda 'Nossas categorias:' (UI mostra cards).",
       "- Quando o cliente quiser finalizar, use create_checkout_session.",
       "- IMPORTANTE: Quando o histórico da conversa mostra um produto que foi consultado anteriormente, use esse contexto. Busque pelo nome do produto com search_products se precisar do ID.",
+      "- IMPORTANTE: Se o cliente pedir informações/detalhes sobre um produto e você tem o produto no contexto (histórico ou última mensagem), chame get_product_details IMEDIATAMENTE — não peça esclarecimento antes de mostrar o card. Mostrar o card completo É a resposta certa.",
       "",
       "GUIA DE QUICK REPLIES (opções pré-configuradas que o cliente pode clicar):",
       "- 'Ver Produtos' → use search_products com query '*' para listar produtos disponíveis. NÃO use list_categories.",
@@ -775,6 +829,7 @@ export class StorefrontLangGraphAgent {
       "- 'Mais Informações' → use get_product_details. Foque na info solicitada (specs, material, etc).",
       "- 'Ver detalhes', 'Detalhes', 'Mais detalhes', 'Selecionar' (após carrossel) → use get_product_details com o productId do produto mencionado. A UI renderiza o card completo.",
       "- 'Detalhes [nome do produto]' → o cliente clicou num produto do carrossel. Use search_products com o nome para obter o ID, depois get_product_details. OBRIGATÓRIO renderizar card.",
+      "- REGRA CRÍTICA — PEDIDO DE DETALHES EM LINGUAGEM LIVRE: quando o cliente pedir mais informações sobre UM produto em qualquer forma ('quero saber mais sobre esse produto', 'me fale mais sobre X', 'quero detalhes', 'como é esse produto', 'o que vem incluso', 'qual o material'), você DEVE OBRIGATORIAMENTE chamar get_product_details e renderizar o card completo — NUNCA apenas pergunte de volta o que ele quer saber. Identifique o produto: se ele disse o nome, use search_products para obter o ID; se disse 'esse'/'este produto' sem nome, use o ÚLTIMO produto mencionado no histórico da conversa. Só depois de renderizar o card, comente no seu tom o diferencial do produto e convide a tirar dúvidas específicas.",
       "- 'Ver Avaliações' → use get_reviews com productId. A UI mostra bloco de reviews.",
       "- 'Tirar Dúvidas' → use get_product_questions ou diga 'Pode perguntar!' e ESPERE.",
       "- 'Comparar' → use compare_products. A UI mostra tabela comparativa.",

@@ -7,6 +7,7 @@ interface CrossSellProduct {
   priceFormatted: string;
   image?: string;
   inStock: boolean;
+  discountPercent?: number;
 }
 
 interface CrossSellBlockProps {
@@ -55,19 +56,44 @@ export default function CrossSellBlock({
         }
       `}</style>
 
-      {/* Header */}
+      {/* Header — strong, accent-led CTA (not muted) */}
       <div
         style={{
-          padding: "14px 18px 10px",
+          padding: "14px 18px 12px",
+          display: "flex",
+          alignItems: "center",
+          gap: "9px",
+          background:
+            "linear-gradient(180deg, color-mix(in srgb, var(--aacp-accent) 10%, transparent) 0%, transparent 100%)",
         }}
       >
+        <span
+          aria-hidden
+          style={{
+            flexShrink: 0,
+            width: "28px",
+            height: "28px",
+            borderRadius: "8px",
+            background: "var(--aacp-accent)",
+            color: "#fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="9" cy="21" r="1" />
+            <circle cx="20" cy="21" r="1" />
+            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+          </svg>
+        </span>
         <p
           style={{
             margin: 0,
-            fontSize: "13px",
-            fontWeight: 600,
-            color: "var(--aacp-muted)",
-            lineHeight: 1.4,
+            fontSize: "13.5px",
+            fontWeight: 700,
+            color: "var(--aacp-fg)",
+            lineHeight: 1.35,
           }}
         >
           {data.trigger}
@@ -118,6 +144,7 @@ export default function CrossSellBlock({
             {/* Image / monogram */}
             <div
               style={{
+                position: "relative",
                 width: "100%",
                 height: "80px",
                 background:
@@ -128,6 +155,25 @@ export default function CrossSellBlock({
                 overflow: "hidden",
               }}
             >
+              {product.discountPercent && product.discountPercent > 0 ? (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: "6px",
+                    left: "6px",
+                    padding: "2px 7px",
+                    borderRadius: "6px",
+                    background: "#e11d48",
+                    color: "#fff",
+                    fontSize: "10px",
+                    fontWeight: 800,
+                    letterSpacing: "0.02em",
+                    boxShadow: "0 2px 6px rgba(225,29,72,0.4)",
+                  }}
+                >
+                  -{Math.round(product.discountPercent)}%
+                </span>
+              ) : null}
               {product.image ? (
                 <img
                   src={product.image}
@@ -206,30 +252,47 @@ export default function CrossSellBlock({
                 style={{
                   marginTop: "auto",
                   width: "100%",
-                  padding: "6px 8px",
-                  borderRadius: "6px",
+                  padding: "9px 8px",
+                  borderRadius: "8px",
                   border: "none",
                   background: product.inStock
                     ? "var(--aacp-accent)"
                     : "color-mix(in srgb, var(--aacp-muted) 30%, var(--aacp-surface-2))",
                   color: "#fff",
-                  fontSize: "11px",
-                  fontWeight: 700,
+                  fontSize: "12px",
+                  fontWeight: 800,
                   fontFamily: "inherit",
                   cursor: product.inStock ? "pointer" : "not-allowed",
                   opacity: product.inStock ? 1 : 0.5,
-                  transition: "filter 0.12s ease",
+                  transition: "filter 0.12s ease, transform 0.12s ease",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "5px",
+                  boxShadow: product.inStock ? "0 3px 10px color-mix(in srgb, var(--aacp-accent) 40%, transparent)" : "none",
                 }}
                 onMouseEnter={(e) => {
                   if (product.inStock) {
                     e.currentTarget.style.filter = "brightness(1.08)";
+                    e.currentTarget.style.transform = "translateY(-1px)";
                   }
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.filter = "none";
+                  e.currentTarget.style.transform = "none";
                 }}
               >
-                {product.inStock ? "Adicionar" : "Esgotado"}
+                {product.inStock ? (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    Adicionar
+                  </>
+                ) : (
+                  "Esgotado"
+                )}
               </button>
             </div>
           </div>
