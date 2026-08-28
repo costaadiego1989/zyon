@@ -451,8 +451,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       messages,
       _pendingCrossSellBlock: null,
     });
-    // Progressive discount: initial stage when checkout becomes active.
-    get().applyProgressiveDiscount("awaiting");
+    // NOTE: no discount at checkout entry. Progressive discount is applied only
+    // on behavioral triggers (idle / exit-intent) via App.tsx onTrigger, and the
+    // manual coupon field is shown when no automatic discount is active.
   },
 
   sendMessage: async (text) => {
@@ -540,7 +541,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         isTyping: false,
         cart: { ...s.cart, status: "shipping_calculated" },
       }));
-      get().applyProgressiveDiscount("shipping_calculated");
       return;
     }
 
@@ -794,7 +794,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
           status: "shipping_calculated",
         },
       }));
-      get().applyProgressiveDiscount("shipping_calculated");
       void trackEvent("shipping_option_selected", { key });
     } catch (err) {
       console.error('[WIDGET-DBG] selectShipping failed', { key, error: err });
