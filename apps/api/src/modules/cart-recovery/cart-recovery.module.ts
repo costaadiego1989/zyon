@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
+import { TRACK_RECOVERY_OUTCOME_USE_CASE } from "./cart-recovery.tokens.js";
 import { RecoveryScannerJob } from "./infrastructure/jobs/recovery-scanner.job.js";
 import { CartRecoveryOnOrderCompletedHandler } from "./infrastructure/event-handlers/on-order-completed.handler.js";
 import { AttemptCartRecoveryUseCase } from "./application/use-cases/attempt-cart-recovery.use-case.js";
@@ -26,7 +27,9 @@ import { WHATSAPP_SENDER_PORT } from "../notifications/domain/ports/whatsapp-sen
 import { EMAIL_SENDER_PORT } from "../notifications/domain/ports/email-sender.port.js";
 
 export const ATTEMPT_CART_RECOVERY_USE_CASE = Symbol("ATTEMPT_CART_RECOVERY_USE_CASE");
-export const TRACK_RECOVERY_OUTCOME_USE_CASE = Symbol("TRACK_RECOVERY_OUTCOME_USE_CASE");
+// Imported from tokens file (single source) to avoid the module↔handler cycle;
+// re-exported so existing importers of this module keep working.
+export { TRACK_RECOVERY_OUTCOME_USE_CASE };
 export const GET_RECOVERY_METRICS_USE_CASE = Symbol("GET_RECOVERY_METRICS_USE_CASE");
 export const GET_STRATEGY_PREFERENCES_USE_CASE = Symbol("GET_STRATEGY_PREFERENCES_USE_CASE");
 export const UPDATE_STRATEGY_PREFERENCES_USE_CASE = Symbol("UPDATE_STRATEGY_PREFERENCES_USE_CASE");

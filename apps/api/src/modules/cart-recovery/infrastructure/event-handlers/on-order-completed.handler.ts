@@ -1,6 +1,6 @@
 import { Injectable, Inject, OnModuleInit, Logger } from "@nestjs/common";
 import { DOMAIN_EVENT_BUS, type DomainEvent, type DomainEventBus } from "../../../../shared/events/domain-event-bus.port.js";
-import { TRACK_RECOVERY_OUTCOME_USE_CASE } from "../../cart-recovery.module.js";
+import { TRACK_RECOVERY_OUTCOME_USE_CASE } from "../../cart-recovery.tokens.js";
 import type { TrackRecoveryOutcomeUseCase } from "../../application/use-cases/track-recovery-outcome.use-case.js";
 
 const logger = new Logger("CartRecoveryOnOrderCompletedHandler");
