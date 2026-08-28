@@ -11,6 +11,9 @@ interface NativeCartPanelProps {
   onUpdateQty: (variantId: string, quantity: number) => void;
   onRemoveItem: (variantId: string) => void;
   forceOpen?: boolean;
+  /** When true, the drawer does NOT auto-open on cart growth (a cross-sell
+   *  interstitial is showing instead and owns the "just added" moment). */
+  suppressAutoOpen?: boolean;
 }
 
 export default function NativeCartPanel({
@@ -20,6 +23,7 @@ export default function NativeCartPanel({
   onUpdateQty,
   onRemoveItem,
   forceOpen,
+  suppressAutoOpen,
 }: NativeCartPanelProps) {
   const { cart, clearCart } = useCart();
   const { config: widgetConfig } = useWidgetConfig();
@@ -36,9 +40,10 @@ export default function NativeCartPanel({
     }
   }, [forceOpen]);
 
-  // Auto-open drawer when items are added, auto-close after 3s
+  // Auto-open drawer when items are added, auto-close after 3s.
+  // Skipped while a cross-sell interstitial owns the post-add moment.
   useEffect(() => {
-    if (cart.itemCount > prevCountRef.current && cart.itemCount > 0) {
+    if (!suppressAutoOpen && cart.itemCount > prevCountRef.current && cart.itemCount > 0) {
       setSheetOpen(true);
 
       if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
@@ -48,7 +53,7 @@ export default function NativeCartPanel({
       }, 3000);
     }
     prevCountRef.current = cart.itemCount;
-  }, [cart.itemCount]);
+  }, [cart.itemCount, suppressAutoOpen]);
 
   // Cancel auto-close on user interaction (manual open)
   const handleManualOpen = () => {
