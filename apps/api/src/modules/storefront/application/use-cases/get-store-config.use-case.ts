@@ -41,6 +41,15 @@ export interface StoreConfigOutput {
   storeSettings?: Record<string, unknown>;
   /** True for free-plan merchants (no active billing subscription). Shows "Powered by Zyon" badge. */
   showBranding?: boolean;
+  /**
+   * Storefront agent activation mode, projected from AgentRule.checkoutSettings.
+   * "silent_until_trigger" (default) = stay in intro, open on a signal (idle/exit);
+   * "proactive" = auto-open the chat after agentInitialDelaySeconds;
+   * "manual_only" = never auto-open, buyer must open the chat.
+   */
+  agentMode?: "silent_until_trigger" | "proactive" | "manual_only";
+  /** Delay (seconds) before the proactive mode auto-opens the chat. */
+  agentInitialDelaySeconds?: number;
 }
 
 function slugify(text: string): string {
@@ -97,17 +106,30 @@ export class GetStoreConfigUseCase {
 
     const theme = decodePersistedTheme(row.theme);
 
-    // Read agent identity from agent_rules (source of truth for agent name)
+    // Read agent identity + activation mode from agent_rules (source of truth).
     let agentName = theme?.agentName;
     let agentGreeting: string | undefined;
+    let agentMode: StoreConfigOutput["agentMode"];
+    let agentInitialDelaySeconds: number | undefined;
     try {
       const agentRule = await this.prisma.agentRule.findFirst({
         where: { merchantId: row.id },
-        select: { identity: true },
+        select: { identity: true, checkoutSettings: true },
       });
       const identity = agentRule?.identity as { agentName?: string; greeting?: string } | null;
       if (identity?.agentName) agentName = identity.agentName;
       if (identity?.greeting) agentGreeting = identity.greeting;
+
+      const checkoutSettings = agentRule?.checkoutSettings as
+        | { agentMode?: StoreConfigOutput["agentMode"]; initialDelaySeconds?: number }
+        | null;
+      const mode = checkoutSettings?.agentMode;
+      if (mode === "silent_until_trigger" || mode === "proactive" || mode === "manual_only") {
+        agentMode = mode;
+      }
+      if (typeof checkoutSettings?.initialDelaySeconds === "number") {
+        agentInitialDelaySeconds = checkoutSettings.initialDelaySeconds;
+      }
     } catch {}
 
     // Load quick replies from merchant config, or use default welcome stage
@@ -166,6 +188,8 @@ export class GetStoreConfigUseCase {
       storeCategory: row.storeCategory ?? undefined,
       storeSettings: (row.storeSettings as Record<string, unknown>) ?? undefined,
       showBranding,
+      agentMode: agentMode ?? "silent_until_trigger",
+      agentInitialDelaySeconds: agentInitialDelaySeconds ?? 5,
     };
   }
 }

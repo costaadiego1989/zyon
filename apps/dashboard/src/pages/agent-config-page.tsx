@@ -5,7 +5,13 @@ import { Button } from "../components/Button.js";
 import { SectionHeader } from "../components/SectionHeader.js";
 import { TabBar } from "../components/TabBar.js";
 import { useAgentConfigPage, TONE_PT_TO_EN, DEFAULT_STAGE_QR, type StageQrConfig } from "./useAgentConfigPage.js";
-import type { AgentTone } from "@zyon/shared-types";
+import type { AgentTone, AgentMode } from "@zyon/shared-types";
+
+const AGENT_MODE_OPTIONS: Array<{ value: AgentMode; title: string; desc: string }> = [
+  { value: "silent_until_trigger", title: "Esperar sinal", desc: "O agente fica em silêncio e só age quando o cliente dá um sinal (fica parado, hesita)." },
+  { value: "proactive", title: "Iniciar sozinho", desc: "O agente abre o chat e se apresenta sozinho após alguns segundos na loja." },
+  { value: "manual_only", title: "Só quando chamado", desc: "O agente fica quieto até o cliente abrir o chat manualmente." },
+];
 
 export interface AgentConfigPageProps {
   apiBaseUrl: string;
@@ -104,6 +110,30 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
                   <textarea value={vm.form.greeting} onChange={(e) => vm.patch({ greeting: e.target.value })} placeholder={"Olá! Sou a Micha 👋\nA partir de agora serei sua vendedora particular..."} rows={3} style={{ width: "100%", padding: "9px 10px", borderRadius: 7, border: `1px solid ${vm.errors.greeting ? "var(--color-error)" : "var(--color-border)"}`, background: "var(--surface-1)", color: "var(--color-text)", font: "12.5px var(--font-sans)", resize: "vertical", lineHeight: 1.5 }} />
                   {vm.errors.greeting && <span style={{ font: "11px var(--font-sans)", color: "var(--color-error)", marginTop: 4, display: "block" }}>{vm.errors.greeting}</span>}
                 </label>
+              </div>
+              )}
+
+              {isStorefront && (
+              <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--color-border)" }}>
+                <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
+                  Como o agente ativa na loja
+                  <span title="Define quando o agente aborda o cliente que está navegando na loja." style={{ color: "var(--color-text-faint)", cursor: "help", display: "inline-flex" }}><Info size={12} /></span>
+                </span>
+                <p style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)", margin: "0 0 10px" }}>Escolha se o agente age sozinho, espera um sinal do cliente, ou só responde quando chamado.</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {AGENT_MODE_OPTIONS.map((opt) => {
+                    const active = vm.form.agentMode === opt.value;
+                    return (
+                      <label key={opt.value} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", borderRadius: 8, border: active ? "1.5px solid var(--color-brand)" : "1px solid var(--color-border)", cursor: "pointer", background: active ? "var(--color-brand-subtle, rgba(15,118,110,0.06))" : "transparent", transition: "all 0.15s ease" }}>
+                        <input type="radio" name="agent-mode" checked={active} onChange={() => vm.patch({ agentMode: opt.value })} style={{ marginTop: 2, width: 15, height: 15, accentColor: "var(--color-brand)", cursor: "pointer" }} />
+                        <div>
+                          <div style={{ font: "600 12.5px var(--font-sans)", color: "var(--color-text)" }}>{opt.title}</div>
+                          <div style={{ font: "11.5px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 2 }}>{opt.desc}</div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
               )}
 

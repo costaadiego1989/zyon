@@ -3,9 +3,6 @@ import { useState } from "react";
 import {
   Save,
   RotateCcw,
-  Eye,
-  EyeOff,
-  Power,
   Bell,
   Minimize2,
   Timer,
@@ -14,7 +11,6 @@ import {
   Activity,
 } from "lucide-react";
 import type {
-  CheckoutSettingsMode,
   CheckoutWidgetPosition,
 } from "@zyon/shared-types";
 import type { MerchantProfile as MerchantMeProfile } from "../../api-client.js";
@@ -26,14 +22,13 @@ import { SettingRow } from "./components/SettingRow.js";
 import { ToggleSwitch } from "./components/ToggleSwitch.js";
 import { SliderField } from "./components/SliderField.js";
 import { NumberField } from "./components/NumberField.js";
-import { ActivationFlow } from "./components/ActivationFlow.js";
 import { TriggerCard } from "./components/TriggerCard.js";
 import { TriggerEditor } from "./components/TriggerEditor.js";
 import { RulesList } from "./components/RulesList.js";
 import { RuleEditor } from "./components/RuleEditor.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
 import { FormField, FormSelect, FormTextarea } from "../../components/FormField.js";
-import { ALL_TRIGGERS, MODE_OPTIONS, PROGRESSIVE_PRESETS, TRIGGER_STATUS } from "./lib/constants.js";
+import { ALL_TRIGGERS, PROGRESSIVE_PRESETS, TRIGGER_STATUS } from "./lib/constants.js";
 import type { Draft } from "./lib/draft.js";
 import "./checkout-settings-page.css";
 
@@ -86,12 +81,6 @@ export function CheckoutSettingsPage(props: {
   const hasErrors = Object.keys(vm.errors).length > 0;
   const activeTriggers = vm.draft ? ALL_TRIGGERS.filter((t) => vm.draft!.triggers[t].enabled && TRIGGER_STATUS[t] === "active").length : 0;
   const totalAvailableTriggers = ALL_TRIGGERS.filter((t) => TRIGGER_STATUS[t] === "active").length;
-  const modeBadge =
-    vm.draft?.mode === "silent_until_trigger"
-      ? { cls: "ok", label: "trigger" }
-      : vm.draft?.mode === "proactive"
-      ? { cls: "warn", label: "proativo" }
-      : { cls: "muted", label: "manual" };
 
   return (
     <div className="dashboard-content cfg-page">
@@ -143,17 +132,6 @@ export function CheckoutSettingsPage(props: {
       {/* ── Content ── */}
       {vm.draft ? (
         <div className="cfg-controls">
-          {/* ── Activation flow diagram ── */}
-          <div className="cfg-flow-card">
-            <div className="cfg-flow-card-head">
-              <div className="cfg-flow-title">
-                <Activity size={15} strokeWidth={1.75} />
-                <span>Como o agente entra em ação</span>
-              </div>
-              <span className={`badge ${modeBadge.cls}`}>{modeBadge.label}</span>
-            </div>
-            <ActivationFlow draft={vm.draft} />
-          </div>
 
           {/* Tabs */}
           <TabBar
@@ -170,52 +148,9 @@ export function CheckoutSettingsPage(props: {
           <div className="cfg-panel">
 
             {vm.activeTab === "behavior" && <>
-            {/* 1 — Activation */}
-            <SectionRail
-              icon={<Power size={16} strokeWidth={1.75} />}
-              index="01"
-              title="Como ativa"
-              desc="Escolha se o agente age sozinho ou espera um sinal."
-            >
-              <fieldset className="cfg-modes">
-                <legend className="sr-only">Modo de ativação</legend>
-                {MODE_OPTIONS.map(({ value, label, desc, iconName, isDefault }) => {
-                  const selected = vm.draft!.mode === value;
-                  const iconMap: Record<string, React.ReactNode> = {
-                    Radio: <Power size={16} strokeWidth={1.75} />,
-                    Eye: <Eye size={16} strokeWidth={1.75} />,
-                    EyeOff: <EyeOff size={16} strokeWidth={1.75} />,
-                  };
-                  return (
-                    <label
-                      key={value}
-                      className={`cfg-mode${selected ? " selected" : ""}`}
-                      data-disabled={vm.busy ? "true" : undefined}
-                    >
-                      <input
-                        type="radio"
-                        name="mode"
-                        value={value}
-                        checked={selected}
-                        disabled={vm.busy}
-                        onChange={() => vm.patchDraft({ mode: value as CheckoutSettingsMode })}
-                      />
-                      <span className="cfg-mode-icon">{iconMap[iconName]}</span>
-                      <span className="cfg-mode-text">
-                        <span className="cfg-mode-label">
-                          {label}
-                          {isDefault ? <span className="cfg-tag">padrão</span> : null}
-                        </span>
-                        <span className="cfg-mode-desc">{desc}</span>
-                      </span>
-                      <span className="cfg-mode-check" aria-hidden="true">
-                        <CheckCircle2 size={16} strokeWidth={2} />
-                      </span>
-                    </label>
-                  );
-                })}
-              </fieldset>
-            </SectionRail>
+            {/* Activation mode moved to the AI Agents page (Agentes de IA · Loja) —
+                it is agent behavior, and only meaningful in the storefront where the
+                buyer is browsing. In checkout the agent already IS the interface. */}
 
             {/* 2 — Behavior */}
             <SectionRail

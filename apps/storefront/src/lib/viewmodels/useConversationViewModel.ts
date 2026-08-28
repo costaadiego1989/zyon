@@ -78,6 +78,10 @@ export interface ConversationViewModelProps {
   quickReplies?: string[];
   returnOrderId?: string;
   themeMode?: "dark" | "light" | "grey";
+  /** Storefront agent activation mode (from agent-rules, projected via store config). */
+  agentMode?: "silent_until_trigger" | "proactive" | "manual_only";
+  /** Seconds before proactive mode auto-opens the chat. */
+  agentInitialDelaySeconds?: number;
 }
 
 export interface ConversationViewModelState {
@@ -133,7 +137,7 @@ export interface ConversationViewModelActions {
 export function useConversationViewModel(
   props: ConversationViewModelProps,
 ): ConversationViewModelState & ConversationViewModelActions {
-  const { storeName, merchantId, merchantSlug, agentName, agentGreeting, quickReplies, returnOrderId, themeMode } = props;
+  const { storeName, merchantId, merchantSlug, agentName, agentGreeting, quickReplies, returnOrderId, themeMode, agentMode, agentInitialDelaySeconds } = props;
   const agent = agentName || "Assistente";
   const [mode, setMode] = useState<Mode>("intro");
   const [channel, setChannel] = useState<Channel | null>(null);
@@ -481,8 +485,12 @@ export function useConversationViewModel(
         sessionId: conversationId || undefined,
       },
       (triggerEvent) => {
+        // Activation mode gates whether a signal (idle/exit-intent) may wake the
+        // agent. manual_only never reacts; proactive already auto-opened; only
+        // silent_until_trigger opens the chat in response to a buyer signal.
+        if (agentMode === "manual_only") return;
+        if (agentMode === "proactive") return;
         if (!widgetConfig) return;
-        if (widgetConfig.mode === "manual_only") return;
         if (!widgetConfig.enabledTriggers?.includes(triggerEvent)) return;
 
         const maxInterventions = widgetConfig.maxInterventionsPerSession ?? 3;
@@ -502,23 +510,34 @@ export function useConversationViewModel(
           ? ` 🎁 Use o cupom **${customTrigger.couponCode}** para um desconto especial!`
           : "";
 
+        // Open the chat (intro → chat) if still on the hero, then append the nudge
+        // so the buyer actually sees the agent reaching out.
+        setMode("chat");
         setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "agent", text: nudgeText + couponSuffix }]);
       },
     );
     return cleanup;
-  }, [merchantId, conversationId, widgetConfig]);
+  }, [merchantId, conversationId, widgetConfig, agentMode]);
 
+  // Proactive activation: after a delay, auto-open the chat (intro → chat) and
+  // surface the greeting. `agentMode` (from agent-rules, projected via store config)
+  // is the source of truth; fire once per mount. selectChannel is read through a
+  // ref so its changing identity (it depends on conversationId) does not reset the
+  // timer on every render — otherwise the timeout never completes.
+  const selectChannelRef = useRef(selectChannel);
+  selectChannelRef.current = selectChannel;
+  const proactiveFiredRef = useRef(false);
   useEffect(() => {
-    if (!widgetConfig) return;
-    if (widgetConfig.mode !== "proactive") return;
-    const delaySec = widgetConfig.initialDelaySeconds ?? 4;
+    if (agentMode !== "proactive") return;
+    if (proactiveFiredRef.current) return;
+    const delaySec = agentInitialDelaySeconds ?? 5;
     const timer = setTimeout(() => {
-      if (getInterventionCount(merchantId || "") >= (widgetConfig.maxInterventionsPerSession ?? 3)) return;
-      incrementIntervention(merchantId || "");
-      setMessages((prev) => [...prev, { id: `proactive-${Date.now()}`, role: "agent", text: "Oi! Vi que você está por aqui. Posso ajudar a encontrar algo ou tirar alguma dúvida?" }]);
+      proactiveFiredRef.current = true;
+      // selectChannel opens the chat AND emits the configured greeting + quick replies.
+      selectChannelRef.current("chat");
     }, delaySec * 1000);
     return () => clearTimeout(timer);
-  }, [widgetConfig, merchantId]);
+  }, [agentMode, agentInitialDelaySeconds]);
 
   const trackedOrderRef = useRef<string | undefined>(undefined);
   useEffect(() => {

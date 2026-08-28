@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useApi } from "../hooks/useApi.js";
 import { showToast } from "../components/Toast.js";
-import type { StageQuickReplies, AgentTone } from "@zyon/shared-types";
+import type { StageQuickReplies, AgentTone, AgentMode } from "@zyon/shared-types";
 import type { MerchantProfile } from "../api-client.js";
 
 export interface AgentConfigForm {
@@ -19,6 +19,7 @@ export interface AgentConfigForm {
   maxPartialShippingDiscount: string;
   offerExpirationMinutes: string;
   quickReplies: StageQuickReplies | undefined;
+  agentMode: AgentMode;
 }
 
 const DEFAULT_FORM: AgentConfigForm = {
@@ -36,6 +37,7 @@ const DEFAULT_FORM: AgentConfigForm = {
   maxPartialShippingDiscount: "20",
   offerExpirationMinutes: "15",
   quickReplies: undefined,
+  agentMode: "silent_until_trigger",
 };
 
 export function validateAgentConfig(form: AgentConfigForm): Record<string, string> {
@@ -119,6 +121,12 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
         const arUnknown = ar as unknown as Record<string, unknown>;
         const rulesUnknown = rules as unknown as Record<string, unknown>;
         const identity = (arUnknown.identity ?? {}) as Record<string, unknown>;
+        const checkoutSettings = (arUnknown.checkoutSettings ?? {}) as Record<string, unknown>;
+        const rawMode = checkoutSettings.agentMode;
+        const agentMode: AgentMode =
+          rawMode === "proactive" || rawMode === "manual_only" || rawMode === "silent_until_trigger"
+            ? rawMode
+            : "silent_until_trigger";
 
         setForm({
           agentName: String(identity.agentName ?? "Assistente"),
@@ -135,6 +143,7 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
           maxPartialShippingDiscount: String(rulesUnknown.maxPartialShippingDiscount ?? 20),
           offerExpirationMinutes: String(rulesUnknown.offerExpirationMinutes ?? 15),
           quickReplies: (rulesUnknown.quickReplies as unknown as StageQuickReplies | undefined) ?? undefined,
+          agentMode,
         });
       } catch {
         // silent — form stays at defaults
@@ -176,6 +185,9 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
           language: form.language,
           greeting: form.greeting,
           emptyCartGreeting: form.emptyCartGreeting,
+        },
+        checkoutSettings: {
+          agentMode: form.agentMode,
         },
       } as never);
 

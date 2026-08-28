@@ -53,6 +53,8 @@ export default function ConversationShell({
   initialStories,
   themeMode,
   showBranding,
+  agentMode,
+  agentInitialDelaySeconds,
 }: {
   storeName: string;
   logo?: string;
@@ -65,6 +67,8 @@ export default function ConversationShell({
   initialStories?: any[];
   themeMode?: "dark" | "light" | "grey";
   showBranding?: boolean;
+  agentMode?: "silent_until_trigger" | "proactive" | "manual_only";
+  agentInitialDelaySeconds?: number;
   storeSettings?: {
     social?: { instagram?: string; facebook?: string; linkedin?: string; youtube?: string; googleMaps?: string };
     company?: { cnpj?: string; razaoSocial?: string; email?: string; phone?: string; businessHours?: string; address?: { city?: string; state?: string } };
@@ -81,6 +85,8 @@ export default function ConversationShell({
     quickReplies,
     returnOrderId,
     themeMode,
+    agentMode,
+    agentInitialDelaySeconds,
   });
 
   const {

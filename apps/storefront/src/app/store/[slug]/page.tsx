@@ -288,6 +288,8 @@ export default async function StorePage({
               initialStories={stories}
               themeMode={config?.theme?.mode}
               showBranding={config?.showBranding}
+              agentMode={config?.agentMode}
+              agentInitialDelaySeconds={config?.agentInitialDelaySeconds}
             />
           </CartProvider>
         </WidgetConfigProvider>
