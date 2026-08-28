@@ -364,6 +364,29 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
             );
           })}
         </div>
+
+        {/* Coupon-strategy conflict warning: coupon discount must not stack with
+            advanced rules or progressive discount configured in checkout settings. */}
+        {activeKey === "offer_coupon" && (
+          <div
+            role="note"
+            style={{
+              marginTop: 12,
+              padding: "12px 14px",
+              borderRadius: "var(--radius-sm)",
+              background: "#fef3c7",
+              borderLeft: "4px solid #f59e0b",
+              font: "12px var(--font-sans)",
+              color: "#78350f",
+              lineHeight: 1.5,
+            }}
+          >
+            <strong>Atenção:</strong> para o cupom de recuperação funcionar sem conflito,
+            desative <strong>Regras Avançadas</strong> e <strong>Desconto Progressivo</strong> em
+            Configurações de Checkout. Descontos não acumulam — se uma regra avançada ou o
+            desconto progressivo já ofereceu desconto, o cupom pode não ser aplicado.
+          </div>
+        )}
       </div>
 
       {/* WhatsApp template preview */}
