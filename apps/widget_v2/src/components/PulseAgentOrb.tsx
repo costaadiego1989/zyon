@@ -30,7 +30,7 @@ const AGENT_ORB_PRESETS: Record<AgentOrbPlacement, AgentOrbPreset> = {
   chatBubble: { size: 26, mood: "happy" },
   chatLoading: { size: 54, mood: "neutral", spin: true },
   cartEmpty: { size: 90, mood: "sad", ring: true, float: true },
-  orderComplete: { size: 72, mood: "sad", ring: true, float: true },
+  orderComplete: { size: 72, mood: "happy", ring: true, float: true, glow: true },
 };
 
 const SAD_MOUTH_PATH = "M4 11 Q15 3 26 11";
