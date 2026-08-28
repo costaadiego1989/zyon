@@ -41,6 +41,13 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
    * Runs every 15 min.
    */
   onModuleInit(): void {
+    // Run an initial scan shortly after boot so recovery doesn't wait a full
+    // interval after a restart, then schedule the recurring scan.
+    setTimeout(() => {
+      this.scan().catch((err) => {
+        this.logger.error("recovery-scanner: initial scan failed", { error: err instanceof Error ? err.message : String(err) });
+      });
+    }, 5_000);
     this.intervalHandle = setInterval(() => {
       this.scan().catch((err) => {
         this.logger.error(
@@ -49,7 +56,7 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
         );
       });
     }, SCAN_INTERVAL_MS);
-    this.logger.log("recovery-scanner: scheduled for every 15 minutes", { intervalMs: SCAN_INTERVAL_MS });
+    this.logger.log("recovery-scanner: scheduled for every 15 minutes (initial scan in 5s)", { intervalMs: SCAN_INTERVAL_MS });
   }
 
   /**
