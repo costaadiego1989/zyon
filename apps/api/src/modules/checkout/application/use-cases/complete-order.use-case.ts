@@ -112,18 +112,35 @@ export class CompleteOrderUseCase {
           causationId: input.external_order_id
         })
       );
-      if (whatsappMessage && session.customer?.phone && order.trackingCode) {
+      // Buyer confirmation (email + WhatsApp) via the notifications module.
+      // NotificationListener subscribes to "order.confirmed" and dispatches
+      // SendOrderConfirmationUseCase, which renders and sends both channels.
+      // Emitting here (with the enriched buyer/items payload) is what actually
+      // triggers buyer notifications — previously nothing emitted order.confirmed.
+      const buyerEmail = session.customer?.email;
+      const buyerPhone = session.customer?.phone;
+      if (buyerEmail || buyerPhone) {
         await repo.appendOutbox(
           createCheckoutEventEnvelope({
-            eventType: "whatsapp.message.requested",
+            eventType: "order.confirmed",
             merchantId: input.merchant_id,
             payload: {
-              session_id: input.session_id,
-              phone: session.customer.phone,
-              template: "order_tracking",
-              external_order_id: input.external_order_id,
-              tracking_code: order.trackingCode,
-              message: whatsappMessage
+              type: "ORDER_CONFIRMATION",
+              merchantId: input.merchant_id,
+              orderId: input.external_order_id,
+              orderNumber: input.external_order_id,
+              buyerEmail: buyerEmail ?? "",
+              buyerName: session.customer?.fullName,
+              buyerPhone,
+              // cart item.price and order_total are in major units (reais),
+              // per computeExpectedTotal — do not divide by 100.
+              items: (session.cart?.items ?? []).map((it) => ({
+                name: it.name,
+                quantity: it.quantity,
+                price: it.price.toFixed(2),
+              })),
+              total: input.order_total.toFixed(2),
+              currency: input.currency,
             },
             causationId: input.external_order_id
           })

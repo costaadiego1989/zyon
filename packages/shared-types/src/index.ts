@@ -658,6 +658,7 @@ export type CheckoutDomainEventType =
   | "checkout.intervention_triggered"
   | "checkout.cart.updated"
   | "order.completed"
+  | "order.confirmed"
   | "order.tracking.updated"
   | "whatsapp.message.requested"
   | "payment.status.changed"

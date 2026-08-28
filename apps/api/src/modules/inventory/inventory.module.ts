@@ -1,6 +1,8 @@
 import { Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
+import { CHECKOUT_SESSION_REPOSITORY } from "../checkout/domain/ports/checkout-session.repository.port.js";
+import { PrismaCheckoutRepository } from "../checkout/infrastructure/prisma/prisma-checkout.repository.js";
 import { ListInventoryUseCase } from "./application/use-cases/list-inventory.use-case.js";
 import { RecordMovementUseCase } from "./application/use-cases/record-movement.use-case.js";
 import { TransferStockUseCase } from "./application/use-cases/transfer-stock.use-case.js";
@@ -52,6 +54,13 @@ import { MarketplaceWebhookController } from "./presentation/http/marketplace-we
     {
       provide: INVENTORY_REPOSITORY,
       useFactory: (prisma: PrismaClient) => new PrismaInventoryRepository(prisma),
+      inject: [PRISMA_CLIENT],
+    },
+    {
+      // Needed by InventoryOnOrderCompletedHandler to resolve order items from
+      // the checkout session (drives stock decrement + ERP push).
+      provide: CHECKOUT_SESSION_REPOSITORY,
+      useFactory: (prisma: PrismaClient) => new PrismaCheckoutRepository(prisma),
       inject: [PRISMA_CLIENT],
     },
     {

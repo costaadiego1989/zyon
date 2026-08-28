@@ -16,7 +16,10 @@ export class InventoryOnOrderCompletedHandler implements OnModuleInit {
   constructor(
     @Inject(DOMAIN_EVENT_BUS) private readonly eventBus: DomainEventBus,
     private readonly handleSaleCompleted: HandleSaleCompletedUseCase,
-    @Optional() @Inject("CHECKOUT_SESSION_REPOSITORY") private readonly checkoutSessions?: CheckoutSessionRepository
+    // Token is a Symbol — injecting the string "CHECKOUT_SESSION_REPOSITORY"
+    // never matched, so session items were never resolved and stock never
+    // decremented. Use the imported symbol.
+    @Optional() @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly checkoutSessions?: CheckoutSessionRepository
   ) {}
 
   onModuleInit(): void {
