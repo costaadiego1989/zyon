@@ -1,11 +1,3 @@
-/**
- * Storefront conversation adapter — implements StorefrontConversationPort.
- *
- * Wires StorefrontLangGraphAgent with tool handlers calling real repos.
- * Cart operations use PrismaStorefrontCartRepository for persistence.
- * Coupon operations use the coupons module ApplyCouponUseCase.
- */
-
 import { Injectable, Inject, Logger, Optional } from "@nestjs/common";
 import { StorefrontLangGraphAgent } from "../agents/store-langgraph-agent.js";
 import type { StorefrontConversationPort, StorefrontConversationInput, StorefrontConversationOutput } from "../../domain/ports/conversation.port.js";
@@ -54,7 +46,6 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     });
     this.copyProvider = provider;
 
-    // Fallback provider: DeepSeek cloud (used when primary LLM fails)
     const fallbackApiKey = process.env.OPENROUTER_API_KEY || process.env.DEEPSEEK_API_KEY || "";
     const fallbackBaseUrl = process.env.OPENROUTER_BASE_URL || process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1";
     const fallbackModel = process.env.OPENROUTER_MODEL || process.env.DEEPSEEK_MODEL || "deepseek-chat";
@@ -88,7 +79,6 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
           source: "local" as const,
         }));
 
-        // Marketplace fallback: when local catalog has few/no relevant results, also search partner stores
         const shouldSearchMarketplace = localProducts.length < 3 && this.searchFederatedProducts && args.query && args.query !== "*";
         if (shouldSearchMarketplace) {
           try {
@@ -98,7 +88,6 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
               limit: Math.min(args.limit ?? 5, 10),
             });
             const rawProducts = marketplaceResult.products ?? [];
-            // Resolve seller names
             const sellerIds = [...new Set(rawProducts.map(p => p.sourceMerchantId))];
             const sellerNames: Record<string, string> = {};
             for (const sid of sellerIds) {
@@ -191,22 +180,19 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
 
       addItemToCart: async (args) => {
         const merchantId = this.currentMerchantId;
-        // ALWAYS use conversation sessionId as cart key — stable across multiple adds in same session
         const sessionId = this.currentSessionId || `cart_${Date.now()}`;
+
         this.logger.debug("cart.addItem", { merchantId, sessionId, variantId: args.variantId, qty: args.quantity });
 
-        // Resolve product + real variantId (LLM may pass productId or variantId)
         let productName = "Produto";
         let unitPriceCents = 0;
         let imageUrl: string | undefined;
         let resolvedVariantId = args.variantId;
 
         try {
-          // First try: args.variantId is actually a variant ID (most specific — user explicitly selected)
           let product = await this.productRepo.findById(merchantId, "dummy").catch(() => null);
           let foundVariant = null;
 
-          // Search for the variant across all products
           const searchResult = await this.productRepo.search({ merchantId, limit: 100 });
           product = searchResult.products.find(p =>
             p.variants.some(v => v.id === args.variantId || v.sku === args.variantId)
@@ -222,7 +208,6 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
             }
           }
 
-          // Fallback: if not found as variantId, try as productId
           if (!foundVariant) {
             product = await this.productRepo.findById(merchantId, args.variantId);
             if (product) {
@@ -236,7 +221,6 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
             }
           }
 
-          // Third try: marketplace federated product (cross-store item)
           if (unitPriceCents === 0 && this.searchFederatedProducts) {
             try {
               const fedProduct = await this.prisma.federatedProduct.findUnique({
@@ -254,7 +238,6 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
           // Non-critical: proceed with what we have
         }
 
-        // Stock check (non-blocking — proceed even if stock unavailable in dev)
         try {
           const stock = await this.stockRepo.getAvailableStock(resolvedVariantId);
           if (stock.quantity <= 0) {
@@ -275,46 +258,41 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         });
         this.logger.debug("cart.afterAdd", { sessionId: cart.sessionId, itemCount: cart.items.length, total: cart.total });
 
-        // Cross-sell: delegate to the official engine (ListEligibleCrossSells)
-        // which respects merchant strategies[], rules ranking, and buyer-history bias.
-        // Falls back to first-N catalog products when no rule matches or engine unavailable.
         let crossSellSuggestions: Array<{ name: string; sku: string; price: number; imageUrl?: string; discountPercent?: number }> = [];
         try {
           const crossSellConfig = await this.loadCrossSellConfig(merchantId);
           if (crossSellConfig.enabled && crossSellConfig.touchpoints.pre_cart) {
             const maxSuggestions = crossSellConfig.limits.maxSuggestionsPerSession ?? 3;
-
-            // Resolve category for each cart item so `same_category` rules can match.
-            // Category triggers compare against cart.items[].category (name or id).
-            const skuToCategory = new Map<string, string>();
+            const cartVariantIds = cart.items.map((i) => i.sku ?? i.variantId);
+            const variantToSku = new Map<string, string>();
+            const variantToCategory = new Map<string, string>();
             try {
-              const rows = await this.prisma.product.findMany({
-                where: { merchantId, variants: { some: { sku: { in: cart.items.map((i) => i.sku ?? i.variantId) } } } },
-                select: { categoryId: true, category: { select: { name: true } }, variants: { select: { sku: true } } },
+              const variants = await this.prisma.productVariant.findMany({
+                where: { id: { in: cartVariantIds } },
+                select: {
+                  id: true,
+                  sku: true,
+                  product: { select: { categoryId: true, category: { select: { name: true } } } },
+                },
               });
-              for (const p of rows) {
-                for (const v of p.variants) {
-                  if (v.sku) {
-                    // Store both the category name and id so rules using either match.
-                    if (p.category?.name) skuToCategory.set(v.sku.toLowerCase(), p.category.name);
-                    else if (p.categoryId) skuToCategory.set(v.sku.toLowerCase(), p.categoryId);
-                  }
-                }
+              for (const v of variants) {
+                if (v.sku) variantToSku.set(v.id, v.sku);
+                const catName = v.product?.category?.name ?? v.product?.categoryId;
+                if (catName) variantToCategory.set(v.id, catName);
               }
-            } catch { /* category resolution is best-effort */ }
+            } catch { /* best-effort resolution */ }
 
-            // Build the Cart shape the engine expects from the internal cart.
             const engineCart = {
               currency: "BRL" as const,
               total: cart.total / 100,
               items: cart.items.map((i) => {
-                const sku = i.sku ?? i.variantId;
+                const variantId = i.sku ?? i.variantId;
                 return {
-                  sku,
+                  sku: variantToSku.get(variantId) ?? variantId,
                   name: i.name,
                   price: i.unitPriceCents / 100,
                   quantity: i.quantity,
-                  category: skuToCategory.get(sku.toLowerCase()),
+                  category: variantToCategory.get(variantId),
                 };
               }),
               source: "storefront" as const,
@@ -329,7 +307,6 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
               });
 
               if (suggestions.length > 0) {
-                // Resolve ranked_items (SKUs) to product details.
                 const allRecSkus = new Set(suggestions.flatMap((s) => s.ranked_items));
                 const catalogResults = await this.productRepo.search({ merchantId, limit: 100, isActiveOnly: true });
                 const skuToProduct = new Map<string, (typeof catalogResults.products)[number]>();
