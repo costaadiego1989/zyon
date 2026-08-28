@@ -5,9 +5,9 @@ import "reflect-metadata";
 import { config as loadDotenv } from "dotenv";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { json, urlencoded } from "express";
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory, Reflector } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import { AppModule } from "./app.module.js";
 import { E2eAppModule } from "./e2e-app.module.js";
 import { resolveSecurityHeaders } from "./shared/config/security-headers-config.js";
@@ -34,10 +34,14 @@ async function bootstrap() {
     process.env.E2E_SEED_ENABLED === "true" && process.env.NODE_ENV !== "production";
   const rootModule = useE2eComposition ? E2eAppModule : AppModule;
 
-  const app = await NestFactory.create(rootModule, { rawBody: true });
+  const app = await NestFactory.create<NestExpressApplication>(rootModule, {
+    rawBody: true,
+    bodyParser: true,
+  });
+  app.useBodyParser("json", { limit: "5mb" });
+  app.useBodyParser("urlencoded", { extended: true, limit: "5mb" });
   configureTrustProxy(app);
 
-  // CORS: In production Kong handles CORS; in dev we need it for local dashboard/storefront
   if (process.env.NODE_ENV !== "production") {
     app.enableCors({
       origin: true,
@@ -47,8 +51,6 @@ async function bootstrap() {
     });
   }
 
-  app.use(json({ limit: "10mb" }));
-  app.use(urlencoded({ extended: true, limit: "5mb" }));
   app.use(apiVersioningMiddleware);
 
   const securityHeaders = resolveSecurityHeaders();
