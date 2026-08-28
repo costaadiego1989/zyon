@@ -65,6 +65,7 @@ export interface ReturnProps {
   buyerId: string;
   reason: ReturnReason;
   notes?: string;
+  imageUrls?: string[];
   status: ReturnStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -81,6 +82,7 @@ export class ReturnEntity {
   readonly buyerId: string;
   readonly reason: ReturnReason;
   readonly notes?: string;
+  readonly imageUrls?: string[];
   readonly status: ReturnStatus;
   readonly createdAt: Date;
   readonly updatedAt: Date;
@@ -96,6 +98,7 @@ export class ReturnEntity {
     this.buyerId = props.buyerId;
     this.reason = props.reason;
     this.notes = props.notes;
+    this.imageUrls = props.imageUrls;
     this.status = props.status;
     this.createdAt = props.createdAt;
     this.updatedAt = props.updatedAt;

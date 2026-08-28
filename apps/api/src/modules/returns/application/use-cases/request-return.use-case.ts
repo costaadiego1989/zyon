@@ -13,15 +13,13 @@ export class RequestReturnUseCase {
 
   async execute(input: {
     merchantId: string;
-    orderId: string;
+    orderId?: string;
     buyerId: string;
     reason: string;
     notes?: string;
+    imageUrls?: string[];
     items: Array<{ variantId: string; quantity: number; reason?: string }>;
   }): Promise<ReturnEntity> {
-    if (!input.orderId?.trim()) {
-      throw new BadRequestException("order_id_required");
-    }
     if (!VALID_REASONS.includes(input.reason as ReturnReason)) {
       throw new BadRequestException("invalid_return_reason");
     }
@@ -32,18 +30,23 @@ export class RequestReturnUseCase {
       if (item.quantity <= 0) throw new BadRequestException("quantity_must_be_positive");
     }
 
-    const existing = await this.returnRepo.findByOrderId(input.merchantId, input.orderId);
-    const activeReturn = existing.find((r) => r.status !== "CANCELLED" && r.status !== "REJECTED");
-    if (activeReturn) {
-      throw new BadRequestException("active_return_already_exists_for_order");
+    const orderId = input.orderId?.trim() || `manual_${Date.now()}`;
+
+    if (input.orderId?.trim()) {
+      const existing = await this.returnRepo.findByOrderId(input.merchantId, orderId);
+      const activeReturn = existing.find((r) => r.status !== "CANCELLED" && r.status !== "REJECTED");
+      if (activeReturn) {
+        throw new BadRequestException("active_return_already_exists_for_order");
+      }
     }
 
     const created = await this.returnRepo.create({
       merchantId: input.merchantId,
-      orderId: input.orderId,
+      orderId,
       buyerId: input.buyerId,
       reason: input.reason,
       notes: input.notes,
+      imageUrls: input.imageUrls,
       items: input.items,
     });
 

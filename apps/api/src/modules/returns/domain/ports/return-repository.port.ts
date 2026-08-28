@@ -6,6 +6,7 @@ export interface CreateReturnInput {
   buyerId: string;
   reason: string;
   notes?: string;
+  imageUrls?: string[];
   items: Array<{ variantId: string; quantity: number; reason?: string }>;
 }
 

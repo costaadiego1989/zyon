@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
+import { ReturnRequestForm } from "./ReturnRequestForm";
 
 interface SupportMessage {
   id: string;
@@ -38,7 +39,8 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [view, setView] = useState<"welcome" | "chat">("welcome");
+  const [view, setView] = useState<"welcome" | "chat" | "return">("welcome");
+  const [returnDone, setReturnDone] = useState(false);
   const threadRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const socketRef = useRef<Socket | null>(null);
@@ -425,7 +427,32 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
             minHeight: 0,
           }}
         >
-          {view === "welcome" && messages.length === 0 ? (
+          {view === "return" ? (
+            /* Return / exchange request form */
+            returnDone ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center", textAlign: "center", flex: 1, justifyContent: "center" }}>
+                <div style={{ fontSize: 32 }}>✅</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--aacp-fg, #f5f5f7)" }}>Solicitação enviada</div>
+                <div style={{ fontSize: 12, color: "var(--aacp-muted, #8b8b95)", lineHeight: 1.5 }}>
+                  Recebemos sua solicitação de troca/devolução. A loja vai analisar e te retornar.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setReturnDone(false); setView("welcome"); }}
+                  style={{ marginTop: 4, padding: "8px 16px", borderRadius: 10, border: "1px solid var(--aacp-line, rgba(255,255,255,0.1))", background: "transparent", color: "var(--aacp-fg, #f5f5f7)", font: "500 13px inherit", cursor: "pointer" }}
+                >
+                  Voltar
+                </button>
+              </div>
+            ) : (
+              <ReturnRequestForm
+                orderId=""
+                merchantId={merchantId ?? ""}
+                onSuccess={() => setReturnDone(true)}
+                onCancel={() => setView("welcome")}
+              />
+            )
+          ) : view === "welcome" && messages.length === 0 ? (
             /* Welcome state with FAQ */
             <div
               style={{
@@ -447,6 +474,33 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
                   Posso ajudar com dúvidas sobre entrega, pagamento, trocas e muito mais. Como posso te ajudar?
                 </div>
               </div>
+
+              {/* Fixed action: Troca e Devolução */}
+              <button
+                type="button"
+                onClick={() => { setReturnDone(false); setView("return"); }}
+                style={{
+                  width: "100%",
+                  background: "var(--aacp-accent, #0f766e)",
+                  border: "none",
+                  borderRadius: "10px",
+                  padding: "12px",
+                  color: "#fff",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontFamily: "inherit",
+                }}
+              >
+                <span>📦</span>
+                <span style={{ flex: 1, textAlign: "left" }}>Troca e Devolução</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </button>
 
               {/* FAQ buttons */}
               <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>

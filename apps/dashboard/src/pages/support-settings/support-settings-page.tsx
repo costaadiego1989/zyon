@@ -13,13 +13,13 @@ import { useSupportSocket } from "../../hooks/useSupportSocket.js";
 type Tab = "faq" | "tickets";
 
 const TABS = [
-  { key: "faq" as const, label: "FAQ automático" },
   { key: "tickets" as const, label: "Chamados" },
+  { key: "faq" as const, label: "FAQ automático" },
 ];
 
 export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeProfile | null }) {
   const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
-  const [activeTab, setActiveTab] = useState<Tab>("faq");
+  const [activeTab, setActiveTab] = useState<Tab>("tickets");
   const socket = useSupportSocket(props.apiBaseUrl, props.me?.id);
 
   if (!props.me) {

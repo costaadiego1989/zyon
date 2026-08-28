@@ -1432,6 +1432,7 @@ model Return {
   buyerId    String       @map("buyer_id")
   reason     ReturnReason
   notes      String?
+  imageUrls  String[]     @map("image_urls")
   status     ReturnStatus @default(REQUESTED)
   createdAt  DateTime     @default(now()) @map("created_at")
   updatedAt  DateTime     @updatedAt @map("updated_at")

@@ -146,7 +146,13 @@ export class GetFunnelUseCase {
       const fromCount = stepCounts[i];
       const toCount = stepCounts[i + 1];
       const rate = fromCount > 0 ? Math.round((toCount / fromCount) * 10000) / 100 : 0;
-      const dropOff = fromCount > 0 ? Math.round(((fromCount - toCount) / fromCount) * 10000) / 100 : 0;
+      // Drop-off is only meaningful when the next step is a strict subset of the
+      // current one (linear funnel). Optional steps (coupon) or non-monotonic
+      // ordering (order_completed counted separately from payment) can make
+      // toCount > fromCount, which would yield a nonsensical negative drop-off.
+      // Clamp to [0, 100] so the UI never shows "-250% saiu".
+      const rawDropOff = fromCount > 0 ? ((fromCount - toCount) / fromCount) * 100 : 0;
+      const dropOff = Math.round(Math.max(0, Math.min(100, rawDropOff)) * 100) / 100;
 
       const avgTimeSeconds = computeAvgTimeBetweenSteps(
         sessionEvents,

@@ -31,6 +31,7 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
         buyerId: input.buyerId,
         reason: input.reason as any,
         notes: input.notes,
+        imageUrls: input.imageUrls ?? [],
         items: {
           create: input.items.map((i) => ({
             variantId: i.variantId,
@@ -181,6 +182,7 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
       buyerId: row.buyerId,
       reason: row.reason,
       notes: row.notes ?? undefined,
+      imageUrls: row.imageUrls ?? [],
       status: row.status,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
