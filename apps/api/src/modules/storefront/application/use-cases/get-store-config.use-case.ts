@@ -39,6 +39,8 @@ export interface StoreConfigOutput {
   stories?: any[];
   storeCategory?: string;
   storeSettings?: Record<string, unknown>;
+  /** True for free-plan merchants (no active billing subscription). Shows "Powered by Zyon" badge. */
+  showBranding?: boolean;
 }
 
 function slugify(text: string): string {
@@ -81,6 +83,17 @@ export class GetStoreConfigUseCase {
     if (!row) {
       throw new NotFoundException("store_not_found");
     }
+
+    // Whitelabel: free-plan merchants (no active/trialing paid subscription) show
+    // the "Powered by Zyon" badge in the store and checkout.
+    let showBranding = true;
+    try {
+      const sub = await this.prisma.merchantBillingSubscription.findUnique({
+        where: { merchantId: row.id },
+        select: { status: true },
+      });
+      showBranding = !(sub && (sub.status === "active" || sub.status === "trialing"));
+    } catch { /* default to showing branding (free-tier safe default) */ }
 
     const theme = decodePersistedTheme(row.theme);
 
@@ -152,6 +165,7 @@ export class GetStoreConfigUseCase {
       stories,
       storeCategory: row.storeCategory ?? undefined,
       storeSettings: (row.storeSettings as Record<string, unknown>) ?? undefined,
+      showBranding,
     };
   }
 }

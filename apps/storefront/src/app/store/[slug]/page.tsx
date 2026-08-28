@@ -287,6 +287,7 @@ export default async function StorePage({
               storeSettings={config?.storeSettings}
               initialStories={stories}
               themeMode={config?.theme?.mode}
+              showBranding={config?.showBranding}
             />
           </CartProvider>
         </WidgetConfigProvider>

@@ -16,6 +16,7 @@ import CheckoutWidgetPanel from "./CheckoutWidgetPanel";
 import CheckoutPanel from "./CheckoutPanel";
 import WhitelabelBadge from "./WhitelabelBadge";
 import BuyerAuthGate from "./BuyerAuthGate";
+import CrossSellInterstitial from "./CrossSellInterstitial";
 import { PulseAgentOrb } from "./conversation/PulseAgentOrb";
 import { THEME_TOKENS, type Theme } from "./conversation/theme-tokens";
 
@@ -585,8 +586,23 @@ export default function ConversationShell({
           onUpdateQty={handleUpdateQuantity}
           onRemoveItem={(variantId) => handleUpdateQuantity(variantId, 0)}
           forceOpen={cartDrawerForceOpen}
+          suppressAutoOpen={Boolean(crossSellPending)}
         />
       )}
+
+      {/* Cross-sell interstitial — shows before the cart drawer after add-to-cart */}
+      <CrossSellInterstitial
+        data={crossSellPending}
+        onClose={dismissCrossSell}
+        onViewCart={() => {
+          dismissCrossSell();
+          setCartDrawerForceOpen(true);
+        }}
+        onAddItem={(_id, name) => {
+          dismissCrossSell();
+          handleQuickReply(`Adicionar ${name} ao carrinho`);
+        }}
+      />
 
       {/* Buyer Hub Panel */}
       <BuyerHub isOpen={buyerHubOpen} onClose={() => setBuyerHubOpen(false)} merchantId={merchantId} onToggleTheme={toggleTheme} />

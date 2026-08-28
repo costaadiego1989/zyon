@@ -9,7 +9,7 @@ import SupportFAB from "@/components/SupportFAB";
 import SupportPanel from "@/components/SupportPanel";
 import { ShimmerBorder } from "@/components/ShimmerBorder";
 
-export function CheckoutLayout() {
+export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light" } = {}) {
   const [supportOpen, setSupportOpen] = useState(false);
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const status = useCheckoutStore((s) => s.status);
@@ -19,6 +19,7 @@ export function CheckoutLayout() {
   const activeDiscount = useCheckoutStore((s) => s.activeDiscount);
   const dismissDiscount = useCheckoutStore((s) => s.dismissDiscount);
   const resetSession = useCheckoutStore((s) => s.resetSession);
+  const showBranding = useCheckoutStore((s) => s.showBranding);
 
   const storeName = brand.name || "Loja";
   const agentName = agent.name || "Assistente";
@@ -31,16 +32,24 @@ export function CheckoutLayout() {
     }
   }
 
-  // Determine theme: user preference (localStorage, shared with storefront) > merchant default (brand.mode)
+  // Theme priority: forcedTheme (from embedding storefront) > localStorage (shared key) > merchant default.
   const THEME_KEY = "zyon-theme";
   const merchantDefault = brand.mode === "dark" ? "dark" : "light";
   const [theme, setTheme] = useState<"dark" | "light">(() => {
+    if (forcedTheme === "dark" || forcedTheme === "light") return forcedTheme;
     try {
       const saved = localStorage.getItem(THEME_KEY);
       if (saved === "dark" || saved === "light") return saved;
     } catch {}
     return merchantDefault;
   });
+
+  // Follow the embedding storefront's theme when it changes (light/dark toggle).
+  useEffect(() => {
+    if (forcedTheme === "dark" || forcedTheme === "light") {
+      setTheme(forcedTheme);
+    }
+  }, [forcedTheme]);
 
   const toggleTheme = useCallback(() => {
     const next = theme === "dark" ? "light" : "dark";
@@ -360,31 +369,29 @@ export function CheckoutLayout() {
       />
       <SupportPanel open={supportOpen} onClose={() => setSupportOpen(false)} />
 
-      {/* Branding badge */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          padding: "6px 0",
-          flex: "none",
-        }}
-      >
-        <span
+      {/* Whitelabel badge — free-plan merchants only. Accent background per brand. */}
+      {showBranding && (
+        <div
           style={{
-            fontSize: "9.5px",
-            fontWeight: 500,
-            color: "var(--mut)",
-            opacity: 0.6,
-            letterSpacing: "0.3px",
-            padding: "3px 10px",
-            borderRadius: "20px",
-            border: "1px solid var(--bd)",
-            background: "var(--card)",
+            display: "flex",
+            justifyContent: "center",
+            padding: "8px 0",
+            flex: "none",
+            background: "var(--aacp-accent, #0f766e)",
           }}
         >
-          Powered by Zyon
-        </span>
-      </div>
+          <span
+            style={{
+              fontSize: "10px",
+              fontWeight: 600,
+              color: "#fff",
+              letterSpacing: "0.4px",
+            }}
+          >
+            Powered by Zyon
+          </span>
+        </div>
+      )}
 
       <style>{`
         @keyframes pulseDot { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
