@@ -121,6 +121,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   }
 
   async recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName): Promise<void> {
+    if (!event) return; // Guard: missing event name should not 500
     await this.prisma.$transaction(async (tx) => {
       const session = await tx.checkoutSession.findUnique({
         where: { merchantId_sessionId: { merchantId, sessionId } }

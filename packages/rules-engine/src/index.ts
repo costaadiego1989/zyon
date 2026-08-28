@@ -22,11 +22,14 @@ export function estimateMargin(
   subsidy = 0,
   paymentFeeRate = 0.04
 ): MarginResult {
-  const productCost = cart.items.reduce(
+  // Cart may arrive with no items (e.g. tracking events fired after checkout
+  // completed and the cart was cleared) — default to an empty list.
+  const items = cart?.items ?? [];
+  const productCost = items.reduce(
     (sum, item) => sum + (item.cost ?? item.price * 0.5) * item.quantity,
     0
   );
-  const grossRevenue = Math.max(cart.total - subsidy, 0);
+  const grossRevenue = Math.max((cart?.total ?? 0) - subsidy, 0);
   const paymentFees = grossRevenue * paymentFeeRate;
   const marginValue = grossRevenue - productCost - paymentFees;
   const marginPercent = grossRevenue > 0 ? marginValue / grossRevenue : 0;

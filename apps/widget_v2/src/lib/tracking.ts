@@ -40,8 +40,10 @@ export async function trackEvent(
       },
       body: JSON.stringify({
         session_id: sessionId,
-        event_name: event,
-        event_data: data ?? {},
+        // Backend contract (TrackEventRequest) expects `event` + `metadata`,
+        // not event_name/event_data.
+        event,
+        metadata: data ?? {},
       }),
     });
   } catch {
