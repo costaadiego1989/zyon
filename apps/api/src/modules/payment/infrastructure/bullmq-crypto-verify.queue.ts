@@ -60,17 +60,24 @@ export class BullMqCryptoVerifyWorker implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit(): void {
     const connection = redisConnection();
-    if (!connection) return;
+    if (!connection) {
+      this.logger.warn("crypto-verify: no REDIS_URL — worker NOT started (sync fallback in controller)");
+      return;
+    }
     this.worker = new Worker<CryptoVerifyJobData>(
       QUEUE_NAME,
       (job) => this.process(job),
       { connection, concurrency: 5 },
     );
     this.worker.on("failed", (job, err) => {
-      this.logger.error(`Crypto verify FINAL failure for ${job?.id ?? "unknown"}: ${err.message}`);
+      this.logger.error(`Crypto verify FINAL failure for ${job?.id ?? "unknown"} (attempt ${job?.attemptsMade}): ${err.message}`);
       // After all retries exhausted, intent stays in "requires_action" state.
       // Ops team should monitor this queue's failed jobs.
     });
+    this.worker.on("completed", (job) => {
+      this.logger.log(`crypto-verify: job ${job.id} completed`);
+    });
+    this.logger.log(`crypto-verify: BullMQ worker started (concurrency 5)`);
   }
 
   async onModuleDestroy(): Promise<void> {

@@ -910,6 +910,14 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
         return;
       }
 
+      // Guard: never broadcast a zero-value transfer (missing amountAtomic in
+      // the quote payload). Sending 0 wastes gas and can never be verified.
+      if (!amountAtomic || BigInt(amountAtomic) === 0n) {
+        setError("Valor do pagamento inválido. Recarregue e tente novamente.");
+        setStep("connected");
+        return;
+      }
+
       const calldata = encodeTransferData(destination, amountAtomic);
       // Fetch nonce + gasPrice from OUR Alchemy RPC (not MetaMask's, which may be
       // rate-limited) and pass them explicit. Combined with the manual gas limit,
