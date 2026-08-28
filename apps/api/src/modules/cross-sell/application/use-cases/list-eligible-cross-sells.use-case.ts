@@ -9,6 +9,7 @@ import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/mes
 import { createCrossSellEventEnvelope } from "../../domain/events/cross-sell-domain-event.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 import { GetBuyerPurchaseContextUseCase } from "../../../buyer-purchase-history/application/buyer-purchase-history.use-cases.js";
+import { CrossSellCoOccurrenceService } from "../../domain/services/co-occurrence.service.js";
 
 export type ListEligibleCrossSellsInput = {
   session_id: string;
@@ -32,6 +33,7 @@ export class ListEligibleCrossSellsUseCase {
     @Inject(CROSS_SELL_SUGGESTION_REPOSITORY) private readonly suggestions: CrossSellSuggestionRepository,
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
     @Optional() private readonly getBuyerContext?: GetBuyerPurchaseContextUseCase,
+    @Optional() private readonly coOccurrence?: CrossSellCoOccurrenceService,
   ) {}
 
   async execute(input: ListEligibleCrossSellsInput) {
@@ -63,6 +65,29 @@ export class ListEligibleCrossSellsUseCase {
     }
 
     const ranked = rankEligiblePromotions(filtered, input.cart, historyBias);
+
+    // AI collaborative-filtering fallback: when no manually-configured promotion
+    // matched the cart AND ai_personalized is enabled, derive recommendations
+    // from co-occurrence in real purchase history ("buyers who bought X also bought Y").
+    if (ranked.length === 0 && input.enabled_strategies?.includes("ai_personalized") && this.coOccurrence) {
+      const cartSkus = input.cart.items.map((i) => i.sku);
+      const coSkus = await this.coOccurrence.recommend(input.merchant_id, cartSkus, 3);
+      if (coSkus.length > 0) {
+        // Return co-occurrence results as virtual suggestions (no promo_id),
+        // using a synthetic promo identifier so the system can track/dedup.
+        const virtualPromoId = `co_occ_${input.session_id}`;
+        const suggestion = CrossSellSuggestionEntity.create({
+          session_id: input.session_id,
+          merchant_id: input.merchant_id,
+          promo_id: virtualPromoId,
+          ranked_items: coSkus,
+          agent_copy: input.agent_copy ?? "Baseado em compras anteriores",
+          computed_discount: 0, // no discount for AI-derived suggestions
+        });
+        await this.suggestions.save(suggestion);
+        return [suggestion.snapshot()];
+      }
+    }
 
     // P2 fix: load existing pending suggestions for this session so we can
     // skip promo_ids that already have a pending suggestion (no duplicates).
