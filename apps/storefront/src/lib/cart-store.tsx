@@ -195,10 +195,16 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
       const itemIndex = prev.items.findIndex((i) => i.variantId === variantId);
       if (itemIndex === -1) return prev;
 
-      const item = prev.items[itemIndex];
-      const updatedItem = { ...item, quantity, subtotal: item.price * quantity };
-      const newItems = [...prev.items];
-      newItems[itemIndex] = updatedItem;
+      let newItems: CartItem[];
+      if (quantity <= 0) {
+        // Zero quantity removes the line item entirely (matches the server,
+        // which treats quantity <= 0 as removal).
+        newItems = prev.items.filter((_, i) => i !== itemIndex);
+      } else {
+        const item = prev.items[itemIndex];
+        newItems = [...prev.items];
+        newItems[itemIndex] = { ...item, quantity, subtotal: item.price * quantity };
+      }
 
       const newItemCount = newItems.reduce((sum, i) => sum + i.quantity, 0);
       const newTotal = newItems.reduce((sum, i) => sum + i.subtotal, 0);
