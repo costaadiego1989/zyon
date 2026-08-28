@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { PersistenceModule, PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { CatalogModule } from "../catalog/catalog.module.js";
+import { CrossSellModule } from "../cross-sell/cross-sell.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { ShippingModule } from "../shipping/shipping.module.js";
 import { CouponsModule } from "../coupons/coupons.module.js";
@@ -41,6 +42,7 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
     BuyerAccountRepositoryModule,
     SupportModule,
     MarketplaceModule,
+    CrossSellModule,
   ],
   controllers: [StorefrontController],
   providers: [

@@ -14,6 +14,7 @@ import type { StoreToolHandlers } from "../../domain/tools/store-tools.js";
 import { OpenRouterProvider } from "@zyon/conversation-engine";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
+import { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
 import type { ProductRepositoryPort, StockRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 import { storefrontQuickReplies, type StorefrontCartState, type StorefrontShippingOption } from "../../domain/services/storefront-quick-replies.service.js";
@@ -40,6 +41,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     private readonly supportHandoff: SupportHandoffService,
     @Optional() private readonly searchFederatedProducts?: SearchFederatedProductsUseCase,
+    @Optional() private readonly listEligibleCrossSells?: ListEligibleCrossSellsUseCase,
   ) {
     const localApiKey = process.env.LOCAL_LLM_API_KEY || process.env.OPENROUTER_API_KEY || "";
     const localBaseUrl = process.env.LOCAL_LLM_BASE_URL || process.env.OPENROUTER_BASE_URL || undefined;
@@ -273,62 +275,70 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         });
         this.logger.debug("cart.afterAdd", { sessionId: cart.sessionId, itemCount: cart.items.length, total: cart.total });
 
-        // Cross-sell: use merchant CrossSellPromotion rules first (sku_in_cart,
-        // category_in_cart, cart_total_above). Falls back to first N catalog
-        // products when no rule matches.
+        // Cross-sell: delegate to the official engine (ListEligibleCrossSells)
+        // which respects merchant strategies[], rules ranking, and buyer-history bias.
+        // Falls back to first-N catalog products when no rule matches or engine unavailable.
         let crossSellSuggestions: Array<{ name: string; sku: string; price: number; imageUrl?: string; discountPercent?: number }> = [];
         try {
           const crossSellConfig = await this.loadCrossSellConfig(merchantId);
           if (crossSellConfig.enabled && crossSellConfig.touchpoints.pre_cart) {
             const maxSuggestions = crossSellConfig.limits.maxSuggestionsPerSession ?? 3;
 
-            // Try rules-based cross-sell from CrossSellPromotion table.
-            const cartSkus = cart.items.map((i) => i.sku?.toLowerCase() ?? "");
-            const cartCategories = cart.items.flatMap((i: any) => (i.categories ?? []).map((c: string) => c.toLowerCase()));
-            const cartTotal = cart.total / 100;
+            // Build the Cart shape the engine expects from the internal cart.
+            const engineCart = {
+              currency: "BRL" as const,
+              total: cart.total / 100,
+              items: cart.items.map((i) => ({
+                sku: i.sku ?? i.variantId,
+                name: i.name,
+                price: i.unitPriceCents / 100,
+                quantity: i.quantity,
+              })),
+              source: "storefront" as const,
+            };
 
-            const activePromos = await this.prisma.crossSellPromotion.findMany({
-              where: { merchantId, status: "active", startsAt: { lte: new Date() }, OR: [{ endsAt: null }, { endsAt: { gte: new Date() } }] },
-              orderBy: { createdAt: "desc" },
-              take: 20,
-            });
-
-            // Match: a promo triggers if any trigger condition matches the cart.
-            const matchedPromo = activePromos.find((p) => {
-              const trigger = p.trigger as { sku_in_cart?: string[]; category_in_cart?: string[]; cart_total_above?: number } | null;
-              if (!trigger) return false;
-              if (trigger.sku_in_cart?.length && trigger.sku_in_cart.some((s) => cartSkus.includes(s.toLowerCase()))) return true;
-              if (trigger.category_in_cart?.length && trigger.category_in_cart.some((c) => cartCategories.includes(c.toLowerCase()))) return true;
-              if (typeof trigger.cart_total_above === "number" && cartTotal >= trigger.cart_total_above) return true;
-              return false;
-            });
-
-            if (matchedPromo && matchedPromo.recommendedSkus.length > 0) {
-              // Resolve recommended SKUs to product details via search.
-              const recommendedResults = await this.productRepo.search({
-                merchantId,
-                limit: 100,
-                isActiveOnly: true,
+            if (this.listEligibleCrossSells) {
+              const suggestions = await this.listEligibleCrossSells.execute({
+                session_id: cart.sessionId || `sf_${Date.now()}`,
+                merchant_id: merchantId,
+                cart: engineCart,
+                enabled_strategies: crossSellConfig.strategies as import("@zyon/shared-types").CrossSellStrategy[],
               });
-              const recSkuSet = new Set(matchedPromo.recommendedSkus.map((s) => s.toLowerCase()));
-              const discount = Number(matchedPromo.discountPercent) || 0;
-              crossSellSuggestions = recommendedResults.products
-                .filter((p) => {
+
+              if (suggestions.length > 0) {
+                // Resolve ranked_items (SKUs) to product details.
+                const allRecSkus = new Set(suggestions.flatMap((s) => s.ranked_items));
+                const catalogResults = await this.productRepo.search({ merchantId, limit: 100, isActiveOnly: true });
+                const skuToProduct = new Map<string, (typeof catalogResults.products)[number]>();
+                for (const p of catalogResults.products) {
                   const pSku = p.variants?.[0]?.sku?.toLowerCase() ?? p.id.toLowerCase();
-                  return recSkuSet.has(pSku) || recSkuSet.has(p.id.toLowerCase());
-                })
-                .filter((p) => p.name !== productName)
-                .slice(0, maxSuggestions)
-                .map((p) => ({
-                  name: p.name,
-                  sku: p.variants?.[0]?.sku ?? p.id,
-                  price: (p.variants?.[0]?.basePriceInCents ?? 0) / 100,
-                  imageUrl: p.variants?.[0]?.media?.[0]?.url,
-                  discountPercent: discount > 0 ? discount : undefined,
-                }));
+                  if (allRecSkus.has(pSku) || allRecSkus.has(p.variants?.[0]?.sku ?? "") || allRecSkus.has(p.id)) {
+                    skuToProduct.set(pSku, p);
+                    skuToProduct.set(p.variants?.[0]?.sku ?? "", p);
+                    skuToProduct.set(p.id, p);
+                  }
+                }
+
+                for (const suggestion of suggestions) {
+                  if (crossSellSuggestions.length >= maxSuggestions) break;
+                  for (const sku of suggestion.ranked_items) {
+                    if (crossSellSuggestions.length >= maxSuggestions) break;
+                    const p = skuToProduct.get(sku) || skuToProduct.get(sku.toLowerCase());
+                    if (p && p.name !== productName) {
+                      crossSellSuggestions.push({
+                        name: p.name,
+                        sku: p.variants?.[0]?.sku ?? p.id,
+                        price: (p.variants?.[0]?.basePriceInCents ?? 0) / 100,
+                        imageUrl: p.variants?.[0]?.media?.[0]?.url,
+                        discountPercent: suggestion.computed_discount > 0 ? suggestion.computed_discount : undefined,
+                      });
+                    }
+                  }
+                }
+              }
             }
 
-            // Fallback: catalog scan when no rule matched or no products resolved.
+            // Fallback: catalog scan when no rule matched or engine unavailable.
             if (crossSellSuggestions.length === 0) {
               const products = await this.productRepo.search({ merchantId, limit: 10, isActiveOnly: true });
               crossSellSuggestions = products.products
@@ -1146,7 +1156,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     }
   }
 
-  private async loadCrossSellConfig(merchantId: string): Promise<{ enabled: boolean; touchpoints: { browsing: boolean; pre_cart: boolean; pre_payment: boolean; post_purchase: boolean }; discount: { enabled: boolean; percent: number }; limits: { maxSuggestionsPerSession: number; cooldownSeconds: number } }> {
+  private async loadCrossSellConfig(merchantId: string): Promise<{ enabled: boolean; touchpoints: { browsing: boolean; pre_cart: boolean; pre_payment: boolean; post_purchase: boolean }; discount: { enabled: boolean; percent: number }; limits: { maxSuggestionsPerSession: number; cooldownSeconds: number }; strategies: string[] }> {
     try {
       const merchant = await this.prisma.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true } });
       const settings = (merchant?.storeSettings as Record<string, any>) ?? {};
@@ -1156,9 +1166,10 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         touchpoints: { browsing: cs.touchpoints?.browsing ?? true, pre_cart: cs.touchpoints?.pre_cart ?? false, pre_payment: cs.touchpoints?.pre_payment ?? true, post_purchase: cs.touchpoints?.post_purchase ?? false },
         discount: { enabled: cs.discount?.enabled ?? false, percent: cs.discount?.percent ?? 10 },
         limits: { maxSuggestionsPerSession: cs.limits?.maxSuggestionsPerSession ?? 2, cooldownSeconds: cs.limits?.cooldownSeconds ?? 120 },
+        strategies: cs.strategies ?? ["same_category", "ai_personalized"],
       };
     } catch {
-      return { enabled: false, touchpoints: { browsing: true, pre_cart: false, pre_payment: true, post_purchase: false }, discount: { enabled: false, percent: 10 }, limits: { maxSuggestionsPerSession: 2, cooldownSeconds: 120 } };
+      return { enabled: false, touchpoints: { browsing: true, pre_cart: false, pre_payment: true, post_purchase: false }, discount: { enabled: false, percent: 10 }, limits: { maxSuggestionsPerSession: 2, cooldownSeconds: 120 }, strategies: ["same_category", "ai_personalized"] };
     }
   }
 }
