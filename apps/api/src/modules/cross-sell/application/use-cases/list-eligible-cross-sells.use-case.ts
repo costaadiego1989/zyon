@@ -73,19 +73,24 @@ export class ListEligibleCrossSellsUseCase {
       const cartSkus = input.cart.items.map((i) => i.sku);
       const coSkus = await this.coOccurrence.recommend(input.merchant_id, cartSkus, 3);
       if (coSkus.length > 0) {
-        // Return co-occurrence results as virtual suggestions (no promo_id),
-        // using a synthetic promo identifier so the system can track/dedup.
-        const virtualPromoId = `co_occ_${input.session_id}`;
-        const suggestion = CrossSellSuggestionEntity.create({
-          session_id: input.session_id,
-          merchant_id: input.merchant_id,
-          promo_id: virtualPromoId,
-          ranked_items: coSkus,
-          agent_copy: input.agent_copy ?? "Baseado em compras anteriores",
-          computed_discount: 0, // no discount for AI-derived suggestions
-        });
-        await this.suggestions.save(suggestion);
-        return [suggestion.snapshot()];
+        // Return a transient co-occurrence suggestion WITHOUT persisting it:
+        // cross_sell_suggestions.promo_id has a FK to cross_sell_promotions, and
+        // AI-derived suggestions have no backing promotion row. Return the
+        // snapshot shape directly so the caller can render it.
+        return [
+          {
+            id: `co_occ_${input.session_id}_${Date.now()}`,
+            session_id: input.session_id,
+            merchant_id: input.merchant_id,
+            promo_id: "",
+            ranked_items: coSkus,
+            agent_copy: input.agent_copy ?? "Baseado em compras anteriores",
+            computed_discount: 0,
+            status: "pending" as const,
+            suggested_at: new Date().toISOString(),
+            resolved_at: null,
+          },
+        ];
       }
     }
 

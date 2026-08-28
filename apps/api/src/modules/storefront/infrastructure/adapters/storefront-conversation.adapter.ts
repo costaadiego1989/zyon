@@ -307,23 +307,22 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
               });
 
               if (suggestions.length > 0) {
-                const allRecSkus = new Set(suggestions.flatMap((s) => s.ranked_items));
                 const catalogResults = await this.productRepo.search({ merchantId, limit: 100, isActiveOnly: true });
+                // Index every catalog product by both its commercial SKU and id
+                // (lowercased) so suggestion SKUs — which may be lowercased by the
+                // co-occurrence engine or original-case from rules — always resolve.
                 const skuToProduct = new Map<string, (typeof catalogResults.products)[number]>();
                 for (const p of catalogResults.products) {
-                  const pSku = p.variants?.[0]?.sku?.toLowerCase() ?? p.id.toLowerCase();
-                  if (allRecSkus.has(pSku) || allRecSkus.has(p.variants?.[0]?.sku ?? "") || allRecSkus.has(p.id)) {
-                    skuToProduct.set(pSku, p);
-                    skuToProduct.set(p.variants?.[0]?.sku ?? "", p);
-                    skuToProduct.set(p.id, p);
-                  }
+                  const commercialSku = p.variants?.[0]?.sku;
+                  if (commercialSku) skuToProduct.set(commercialSku.toLowerCase(), p);
+                  skuToProduct.set(p.id.toLowerCase(), p);
                 }
 
                 for (const suggestion of suggestions) {
                   if (crossSellSuggestions.length >= maxSuggestions) break;
                   for (const sku of suggestion.ranked_items) {
                     if (crossSellSuggestions.length >= maxSuggestions) break;
-                    const p = skuToProduct.get(sku) || skuToProduct.get(sku.toLowerCase());
+                    const p = skuToProduct.get(sku.toLowerCase());
                     if (p && p.name !== productName) {
                       crossSellSuggestions.push({
                         name: p.name,
