@@ -14,6 +14,7 @@ import VariantSelectorBlock from "./VariantSelectorBlock";
 import ProductComparisonBlock from "./ProductComparisonBlock";
 import CategoryCarouselBlock from "./CategoryCarouselBlock";
 import MarketplaceProductsBlock from "./MarketplaceProductsBlock";
+import CrossSellBlock from "./CrossSellBlock";
 
 export default function BlockRenderer({
   block,
@@ -54,25 +55,7 @@ export default function BlockRenderer({
     case "add_review":
       return <AddReviewBlock block={block} onQuickReply={onQuickReply} />;
     case "cross_sell":
-      // Render similar products using the same premium carousel layout
-      return (
-        <ProductCarouselBlock
-          block={{
-            type: "product_carousel",
-            data: {
-              products: ((block as any).data?.products ?? []).map((p: any) => ({
-                id: p.id,
-                name: p.name,
-                price: p.price,
-                priceFormatted: p.priceFormatted || new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format((p.price || 0) / 100),
-                image: p.image,
-                inStock: p.inStock ?? true,
-              })),
-            },
-          }}
-          onQuickReply={onQuickReply}
-        />
-      );
+      return <CrossSellBlock block={block as any} onQuickReply={onQuickReply} />;
     case "category_carousel":
       return <CategoryCarouselBlock block={block as any} onQuickReply={onQuickReply} />;
     case "marketplace_products":
