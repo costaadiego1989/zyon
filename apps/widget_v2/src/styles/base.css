@@ -71,6 +71,37 @@
   --sheetbd: var(--aacp-line-strong);
 }
 
+/* Dark theme — mirrors the storefront palette (globals.css) so the embedded
+   checkout matches the storefront's dark tone. Applied when App.tsx adds
+   body.theme-dark (brand.mode === "dark"). Merchant brand.* inline overrides
+   still win via App.tsx setProperty. */
+body.theme-dark {
+  --aacp-bg: #08080c;
+  --aacp-surface: #0f0f16;
+  --aacp-surface-2: rgba(255, 255, 255, 0.05);
+  --aacp-surface-3: rgba(255, 255, 255, 0.08);
+  --aacp-fg: #f5f5f7;
+  --aacp-muted: #8b8b95;
+  --aacp-faint: #6c6a72;
+  --aacp-line: rgba(255, 255, 255, 0.1);
+  --aacp-line-strong: rgba(255, 255, 255, 0.12);
+  --aacp-surface-elevated: #1a1a24;
+  --aacp-success: #34d399;
+  --aacp-warning: #fbbf24;
+
+  /* Short-form aliases resolve from the dark values above */
+  --bg: var(--aacp-bg);
+  --tx: var(--aacp-fg);
+  --mut: var(--aacp-muted);
+  --bd: var(--aacp-line-strong);
+  --card: var(--aacp-surface);
+  --chip: var(--aacp-surface-2);
+  --dot: var(--aacp-success);
+  --tile1: var(--aacp-surface-3);
+  --tile2: var(--aacp-surface-2);
+  --sheetbd: var(--aacp-line-strong);
+}
+
 * {
   box-sizing: border-box;
 }
