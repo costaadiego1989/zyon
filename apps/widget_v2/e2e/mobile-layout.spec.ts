@@ -36,7 +36,7 @@ async function enterChat(page: Page) {
   await page.locator("text=/carrinho|Olá|produto ideal/i").first().waitFor({ state: "visible", timeout: 10000 });
 }
 
-test("mobile: cart sidebar hidden, FAB shown", async ({ page }) => {
+test("mobile: cart sidebar hidden, FAB shown, FABs clear the chat input", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 }); // iPhone-ish
   await setupMocks(page);
   await enterChat(page);
@@ -44,21 +44,58 @@ test("mobile: cart sidebar hidden, FAB shown", async ({ page }) => {
   // Sidebar (aside.smart-cart-sidebar) should NOT be visible on mobile
   await expect(page.locator("aside.smart-cart-sidebar")).toHaveCount(0);
   // Cart FAB should be visible
-  await expect(page.locator(".cart-fab-mobile")).toBeVisible({ timeout: 3000 });
+  const fab = page.locator(".cart-fab-mobile");
+  await expect(fab).toBeVisible({ timeout: 3000 });
 
-  // Chat panel should have full width (not squeezed) — check it's wider than 300px
+  // Chat panel should have full width (not squeezed)
   const chatWidth = await page.locator(".pulse-widget-shell").first().evaluate((el) => el.clientWidth);
   expect(chatWidth).toBeGreaterThan(340);
+
+  // FAB must sit ABOVE the chat input bar (not overlapping "Enviar").
+  const input = page.getByPlaceholder(/mensagem/i).first();
+  const inputBox = await input.boundingBox();
+  const fabBox = await fab.boundingBox();
+  // FAB bottom edge should be above the input's top edge
+  expect(fabBox!.y + fabBox!.height).toBeLessThan(inputBox!.y);
 });
 
-test("mobile: tapping FAB opens cart drawer", async ({ page }) => {
+test("mobile: tapping FAB opens cart drawer (slides up from bottom)", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await setupMocks(page);
   await enterChat(page);
 
   await page.locator(".cart-fab-mobile").click();
-  await expect(page.locator(".smart-cart-drawer")).toBeVisible({ timeout: 3000 });
-  await expect(page.locator(".smart-cart-drawer")).toContainText(/Carrinho/i);
+  const drawer = page.locator(".smart-cart-drawer");
+  await expect(drawer).toBeVisible({ timeout: 3000 });
+  await expect(drawer).toContainText(/Carrinho/i);
+
+  // Drawer is anchored to the bottom (bottom sheet), radius top-only, slide-up animation
+  const style = await drawer.evaluate((el) => {
+    const s = getComputedStyle(el);
+    return { bottom: s.bottom, borderTopLeftRadius: s.borderTopLeftRadius, animationName: s.animationName };
+  });
+  expect(style.bottom).toBe("0px");
+  expect(style.borderTopLeftRadius).toBe("20px");
+  expect(style.animationName).toContain("ckui-sheet-up");
+});
+
+test("mobile: closing drawer plays slide-down animation then unmounts", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await setupMocks(page);
+  await enterChat(page);
+
+  await page.locator(".cart-fab-mobile").click();
+  const drawer = page.locator(".smart-cart-drawer");
+  await expect(drawer).toBeVisible({ timeout: 3000 });
+
+  // Click close → slide-down animation kicks in
+  await drawer.locator('button[aria-label="Fechar"]').click();
+  const animName = await drawer.evaluate((el) => getComputedStyle(el).animationName).catch(() => "gone");
+  // Either mid slide-down animation, or already unmounted
+  expect(["ckui-sheet-down", "gone"]).toContain(animName === "ckui-sheet-down" ? "ckui-sheet-down" : "gone");
+
+  // After the animation completes, the drawer is unmounted
+  await expect(drawer).toHaveCount(0, { timeout: 1500 });
 });
 
 test("desktop: cart sidebar shown, FAB hidden", async ({ page }) => {

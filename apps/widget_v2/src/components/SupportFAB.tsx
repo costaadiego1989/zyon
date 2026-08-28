@@ -5,12 +5,15 @@ interface SupportFABProps {
   open: boolean;
   onToggle: () => void;
   cartItemCount?: number;
+  /** Extra bottom offset in px (e.g. to clear the whitelabel badge). */
+  bottomOffset?: number;
 }
 
 export default function SupportFAB({
   open,
   onToggle,
   cartItemCount = 0,
+  bottomOffset = 0,
 }: SupportFABProps) {
   const brand = useCheckoutStore((s) => s.brand);
   const [showTooltip, setShowTooltip] = useState(true);
@@ -28,8 +31,8 @@ export default function SupportFAB({
     string,
     { bottom?: string; top?: string; left?: string; right?: string }
   > = {
-    bottom_right: { bottom: "16px", right: "16px" },
-    bottom_left: { bottom: "16px", left: "16px" },
+    bottom_right: { bottom: `${16 + bottomOffset}px`, right: "16px" },
+    bottom_left: { bottom: `${16 + bottomOffset}px`, left: "16px" },
     top_right: { top: "16px", right: "16px" },
     top_left: { top: "16px", left: "16px" },
   };
@@ -39,8 +42,8 @@ export default function SupportFAB({
     string,
     { bottom?: string; top?: string; left?: string; right?: string }
   > = {
-    bottom_right: { bottom: "72px", right: "16px" },
-    bottom_left: { bottom: "72px", left: "16px" },
+    bottom_right: { bottom: `${72 + bottomOffset}px`, right: "16px" },
+    bottom_left: { bottom: `${72 + bottomOffset}px`, left: "16px" },
     top_right: { top: "72px", right: "16px" },
     top_left: { top: "72px", left: "16px" },
   };

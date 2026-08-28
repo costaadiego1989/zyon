@@ -12,9 +12,19 @@ import { ShimmerBorder } from "@/components/ShimmerBorder";
 export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light" } = {}) {
   const [supportOpen, setSupportOpen] = useState(false);
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
+  const [cartDrawerClosing, setCartDrawerClosing] = useState(false);
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth < 640 : true
   );
+
+  // Close the cart drawer with a slide-down animation, then unmount.
+  const closeCartDrawer = useCallback(() => {
+    setCartDrawerClosing(true);
+    window.setTimeout(() => {
+      setCartDrawerOpen(false);
+      setCartDrawerClosing(false);
+    }, 280); // matches the slide transition
+  }, []);
   const status = useCheckoutStore((s) => s.status);
   const brand = useCheckoutStore((s) => s.brand);
   const agent = useCheckoutStore((s) => s.agent);
@@ -360,7 +370,9 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
         </ShimmerBorder>
       )}
 
-      {/* Mobile Cart FAB + Drawer */}
+      {/* Mobile Cart FAB + Drawer.
+          FABs must clear the chat input bar (~72px) and the whitelabel badge
+          (~40px when shown) so they never sit on top of "Enviar" or the badge. */}
       {isMobile && status === "active" && cart.items.length > 0 && (
         <button
           type="button"
@@ -368,7 +380,8 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
           onClick={() => setCartDrawerOpen(true)}
           style={{
             position: "fixed",
-            bottom: "80px",
+            // support FAB base (16 + inputBar 72 + badge) + 56 to stack above support
+            bottom: `${16 + 72 + (showBranding ? 40 : 0) + 56}px`,
             right: "16px",
             width: "48px",
             height: "48px",
@@ -392,29 +405,76 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
       )}
       {cartDrawerOpen && (
         <>
+          {/* Keyframes for the bottom-sheet (same as storefront CartSheet) */}
+          <style>{`
+            @keyframes ckui-sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+            @keyframes ckui-sheet-down { from { transform: translateY(0); } to { transform: translateY(100%); } }
+            @keyframes ckui-scrim-in { from { opacity: 0; } to { opacity: 1; } }
+            @keyframes ckui-scrim-out { from { opacity: 1; } to { opacity: 0; } }
+          `}</style>
+
+          {/* Scrim — fades in on open, fades out on close */}
           <div
             className="smart-cart-drawer-overlay"
-            onClick={() => setCartDrawerOpen(false)}
-            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000 }}
+            onClick={closeCartDrawer}
+            role="presentation"
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0, 0, 0, 0.45)",
+              zIndex: 1000,
+              animation: `${cartDrawerClosing ? "ckui-scrim-out" : "ckui-scrim-in"} 0.2s ease both`,
+            }}
           />
+
+          {/* Bottom sheet — slides up from bottom, slides down to close */}
           <div
             className="smart-cart-drawer"
-            style={{ position: "fixed", bottom: 0, left: 0, right: 0, maxHeight: "70vh", overflowY: "auto", background: "var(--aacp-surface, #fff)", borderRadius: "16px 16px 0 0", padding: "16px", zIndex: 1001, boxShadow: "0 -8px 24px rgba(0,0,0,0.2)" }}
+            role="dialog"
+            aria-label="Carrinho"
+            style={{
+              position: "fixed",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              maxHeight: "70vh",
+              overflowY: "auto",
+              background: "var(--aacp-surface, #0f0f16)",
+              borderTop: "1px solid var(--aacp-line, rgba(255,255,255,0.1))",
+              borderRadius: "20px 20px 0 0",
+              padding: "0 18px 20px",
+              zIndex: 1001,
+              boxShadow: "0 -8px 40px rgba(0,0,0,0.3)",
+              display: "flex",
+              flexDirection: "column",
+              animation: `${cartDrawerClosing ? "ckui-sheet-down" : "ckui-sheet-up"} 0.28s cubic-bezier(0.22, 1, 0.36, 1) both`,
+            }}
           >
+            {/* Drag handle */}
+            <div style={{ padding: "10px 0 4px", display: "flex", justifyContent: "center", cursor: "grab", touchAction: "none" }}>
+              <div style={{ width: "38px", height: "4px", borderRadius: "4px", background: "var(--aacp-muted, #8b8b95)", opacity: 0.4 }} />
+            </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-              <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--aacp-fg, #111)" }}>Carrinho</span>
-              <button onClick={() => setCartDrawerOpen(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "var(--aacp-fg, #111)" }}>✕</button>
+              <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--aacp-fg, #f5f5f7)" }}>Carrinho</span>
+              <button
+                onClick={closeCartDrawer}
+                aria-label="Fechar"
+                style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line, rgba(255,255,255,0.1))", background: "transparent", color: "var(--aacp-muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+              >
+                ✕
+              </button>
             </div>
             <SmartCart />
           </div>
         </>
       )}
 
-      {/* Support FAB and Panel */}
+      {/* Support FAB and Panel — lift above chat input + whitelabel badge on mobile */}
       <SupportFAB
         open={supportOpen}
         onToggle={() => setSupportOpen(!supportOpen)}
         cartItemCount={cart.items.length}
+        bottomOffset={isMobile && status === "active" ? 72 + (showBranding ? 40 : 0) : (showBranding ? 40 : 0)}
       />
       <SupportPanel open={supportOpen} onClose={() => setSupportOpen(false)} />
 
