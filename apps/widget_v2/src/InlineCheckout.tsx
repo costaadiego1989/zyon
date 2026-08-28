@@ -5,6 +5,8 @@ import { CheckoutLayout } from "./layouts/CheckoutLayout";
 import { MascotOverlay } from "./components/MascotOverlay";
 import { setupAbandonmentTracking, trackEvent } from "./lib/tracking";
 import { onOrderCompleted } from "./lib/lifecycle";
+import { setupIdleTrigger, setupExitIntentTrigger, type TriggerName } from "./lib/triggers";
+import type { DiscountStage } from "./components/DiscountBanner";
 
 export interface InlineCheckoutProps {
   embedToken: string;
@@ -23,7 +25,6 @@ export function InlineCheckout(props: InlineCheckoutProps) {
   const brand = useCheckoutStore((s) => s.brand);
   const sessionId = useCheckoutStore((s) => s.sessionId);
 
-  // Initialize store with provided props (not URL)
   useEffect(() => {
     if (!props.embedToken || !props.merchantId) return;
     void init({
@@ -35,7 +36,6 @@ export function InlineCheckout(props: InlineCheckoutProps) {
     });
   }, [init, props.embedToken, props.merchantId]);
 
-  // Apply theme from storefront preference
   useEffect(() => {
     if (props.theme === "light") {
       document.body.classList.add("theme-light");
@@ -49,11 +49,32 @@ export function InlineCheckout(props: InlineCheckoutProps) {
     };
   }, [props.theme]);
 
-  // Abandonment tracking
   useEffect(() => {
     const cleanup = setupAbandonmentTracking();
     return cleanup;
   }, []);
+
+  const triggerConfig = useCheckoutStore((s) => s.triggerConfig);
+  const triggerMessages = useCheckoutStore((s) => s.triggerMessages);
+  useEffect(() => {
+    if (!triggerConfig) return;
+
+    const stageMap: Partial<Record<TriggerName, DiscountStage>> = {
+      idle_30_seconds: "initial_coupon",
+      exit_intent_detected: "exit_intent",
+    };
+
+    const onTrigger = (trigger: TriggerName) => {
+      const stage = stageMap[trigger];
+      if (!stage) return;
+      const msg = triggerMessages?.[trigger];
+      useCheckoutStore.getState().setActiveDiscount(stage, 5, msg?.couponCode, msg?.message);
+    };
+
+    const cleanupIdle = setupIdleTrigger(triggerConfig, onTrigger);
+    const cleanupExit = setupExitIntentTrigger(triggerConfig, onTrigger);
+    return () => { cleanupIdle(); cleanupExit(); };
+  }, [triggerConfig, triggerMessages, status]);
 
   useEffect(() => {
     if (status === "completed" && sessionId) {
