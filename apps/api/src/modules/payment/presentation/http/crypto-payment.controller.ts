@@ -23,7 +23,14 @@ export class CryptoPaymentController {
     const request: ConfirmCryptoPaymentRequest = { ...body, intent_id: intentId };
     // Enqueue for async verification with retry/backoff. Falls back to sync
     // verify when Redis is unavailable (dev/CI) so behavior is unchanged there.
-    const enqueued = await this.verifyQueue.enqueue(request);
+    let enqueued = false;
+    try {
+      enqueued = await this.verifyQueue.enqueue(request);
+    } catch (err) {
+      // Enqueue failure must not 500 the buyer — fall back to synchronous verify.
+      // eslint-disable-next-line no-console
+      console.error("[CRYPTO-CONFIRM] enqueue failed, falling back to sync:", err);
+    }
     if (enqueued) {
       return { status: "pending_verification", intent_id: intentId };
     }
