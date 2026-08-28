@@ -22,9 +22,16 @@ export function DiscountBanner({
   onDismiss,
 }: DiscountBannerProps) {
   const brand = useCheckoutStore((s) => s.brand);
+  const buyer = useCheckoutStore((s) => s.buyer);
+
+  // A returning buyer (purchaseCount > 0) should NOT see "boas-vindas" (welcome).
+  // Show a returning-customer message instead.
+  const isReturning = (buyer.purchaseCount ?? 0) > 0 || buyer.isReturning;
 
   const defaultMessages: Record<string, string> = {
-    initial_coupon: `🎉 Cupom de boas-vindas: ${percent}% OFF aplicado!`,
+    initial_coupon: isReturning
+      ? `🎉 Que bom ter você de volta! ${percent}% OFF nesta compra`
+      : `🎉 Cupom de boas-vindas: ${percent}% OFF aplicado!`,
     exit_intent: `⚡ Espera! Ganhe ${percent}% OFF se finalizar agora`,
     abandoned_cart: `🔥 Oferta especial: ${percent}% de desconto no seu carrinho`,
     payment_nudge: `💰 Última chance! ${percent}% OFF para fechar agora`,

@@ -25,14 +25,21 @@ export function initTracking(apiInstance: CheckoutSession, session: string) {
   sessionId = session;
 }
 
+export interface TrackEventResult {
+  progressive_offer?: {
+    stage: string;
+    approved_percent: number;
+    reason: string;
+  };
+}
+
 export async function trackEvent(
   event: CheckoutEventName,
   data?: Record<string, unknown>
-): Promise<void> {
-  if (!api || !sessionId) return;
+): Promise<TrackEventResult | undefined> {
+  if (!api || !sessionId) return undefined;
   try {
-    // Fire and forget — tracking should never block UI
-    void fetch(`${api.apiBaseUrl}/embed/track`, {
+    const res = await fetch(`${api.apiBaseUrl}/embed/track`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -40,15 +47,15 @@ export async function trackEvent(
       },
       body: JSON.stringify({
         session_id: sessionId,
-        // Backend contract (TrackEventRequest) expects `event` + `metadata`,
-        // not event_name/event_data.
         event,
         metadata: data ?? {},
       }),
     });
+    if (res.ok) return (await res.json()) as TrackEventResult;
   } catch {
     // Silent fail — tracking is best-effort
   }
+  return undefined;
 }
 
 // Abandonment detection

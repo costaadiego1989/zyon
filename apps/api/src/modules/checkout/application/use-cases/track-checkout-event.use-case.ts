@@ -176,6 +176,20 @@ export class TrackCheckoutEventUseCase {
       ? ((session.cart.currentDiscount ?? 0) / session.cart.total) * 100
       : 0;
     if (evaluation.value <= currentDiscountPercent) return undefined;
+
+    // Persist the rules-engine-authorized discount to the session cart so the
+    // payment intent (computed server-side from the session) charges the
+    // discounted amount — not just surface it as a cosmetic banner value.
+    const discountValue = Math.round(session.cart.total * (evaluation.value / 100) * 100) / 100;
+    try {
+      await this.sessions.saveSession({
+        ...session,
+        cart: { ...session.cart, currentDiscount: discountValue },
+      });
+    } catch {
+      // Non-blocking: banner still shows; payment falls back to prior discount.
+    }
+
     return {
       stage,
       requested_percent: requested,

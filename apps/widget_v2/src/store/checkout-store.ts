@@ -1004,11 +1004,24 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   },
 
   setActiveDiscount: (stage, percent, couponCode?, message?) => {
-    set({ activeDiscount: { stage, percent, couponCode, message } });
+    // The percent passed here is already rules-engine-authorized (from
+    // track-event's progressive_offer.approved_percent). Apply it to the cart
+    // so the summary shows the discounted total and the payment intent charges
+    // the discounted amount — not just a cosmetic banner.
+    set((s) => {
+      const discountValue = percent > 0
+        ? Math.round((s.cart.total * (percent / 100)) * 100) / 100
+        : 0;
+      return {
+        activeDiscount: { stage, percent, couponCode, message },
+        cart: { ...s.cart, discount: discountValue },
+      };
+    });
   },
 
   dismissDiscount: () => {
-    set({ activeDiscount: null });
+    // Dismissing the banner removes the (not-yet-committed) discount from the cart.
+    set((s) => ({ activeDiscount: null, cart: { ...s.cart, discount: 0 } }));
   },
 
   /**

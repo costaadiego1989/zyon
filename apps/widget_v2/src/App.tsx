@@ -102,16 +102,23 @@ export function App() {
       exit_intent_detected: "exit_intent",
     };
 
-    const onTrigger = (trigger: TriggerName) => {
+    const onTrigger = async (trigger: TriggerName) => {
       const stage = stageMap[trigger];
       if (!stage) return;
       const msg = triggerMessages?.[trigger];
-      // Pass the merchant's configured message + coupon so the banner shows them.
-      useCheckoutStore.getState().setActiveDiscount(stage, 5, msg?.couponCode, msg?.message);
+      // Track the trigger so the backend authorizes a progressive offer via the
+      // rules-engine (respects maxDiscount/margin). Use the AUTHORIZED percent —
+      // never a hardcoded value — so the banner and the applied discount match
+      // what the payment intent will actually charge.
+      const result = await trackEvent(trigger as never);
+      const approved = result?.progressive_offer?.approved_percent ?? 0;
+      if (approved <= 0) return; // rules-engine did not authorize a discount
+      useCheckoutStore.getState().setActiveDiscount(stage, approved, msg?.couponCode, msg?.message);
     };
 
-    const cleanupIdle = setupIdleTrigger(triggerConfig, onTrigger);
-    const cleanupExit = setupExitIntentTrigger(triggerConfig, onTrigger);
+    const onTriggerSync = (t: TriggerName) => { void onTrigger(t); };
+    const cleanupIdle = setupIdleTrigger(triggerConfig, onTriggerSync);
+    const cleanupExit = setupExitIntentTrigger(triggerConfig, onTriggerSync);
 
     return () => {
       cleanupIdle();
