@@ -7,5 +7,6 @@ export interface CheckoutCrossSellRecommenderPort {
     merchant_id: string;
     session_id: string;
     cart: Cart;
+    touchpoint?: "browsing" | "pre_cart" | "pre_payment" | "post_purchase";
   }): Promise<SuggestedProduct[]>;
 }

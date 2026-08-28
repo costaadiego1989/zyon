@@ -12,7 +12,12 @@ function setup() {
   const suggestions = new InMemoryCrossSellSuggestionRepository();
   const outbox = new InMemoryOutboxRepository();
   const listEligible = new ListEligibleCrossSellsUseCase(promotions, suggestions, outbox);
-  const recommender = new CheckoutCrossSellRecommender(listEligible, { merchant: { findUnique: async () => null } } as any);
+  // Mock merchant with crossSell enabled so the recommender proceeds past the enabled check
+  const prismaMock = {
+    merchant: { findUnique: async () => ({ storeSettings: { crossSell: { enabled: true } } }) },
+    crossSellSuggestion: { findFirst: async () => null },
+  } as any;
+  const recommender = new CheckoutCrossSellRecommender(listEligible, prismaMock);
   return { promotions, suggestions, outbox, recommender };
 }
 

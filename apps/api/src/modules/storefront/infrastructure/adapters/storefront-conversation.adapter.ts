@@ -524,21 +524,32 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       },
 
       getSimilarProducts: async (args: any) => {
+        // Cross-sell "browsing" touchpoint gate: similar-products suggestions are the
+        // proactive cross-sell mechanism during store navigation. Respect merchant config —
+        // when cross-sell is disabled or the browsing touchpoint is off, return nothing so
+        // no cross_sell block is rendered.
+        const crossSellConfig = await this.loadCrossSellConfig(this.currentMerchantId);
+        if (!crossSellConfig.enabled || !crossSellConfig.touchpoints.browsing) {
+          return { products: [] };
+        }
+
         const product = await this.productRepo.findById(this.currentMerchantId, args.productId);
         if (!product) return { products: [] };
+        const maxSuggestions = crossSellConfig.limits.maxSuggestionsPerSession ?? 5;
+        const requested = Math.min(args.limit ?? 5, maxSuggestions);
         const result = await this.productRepo.search({
           merchantId: this.currentMerchantId,
           query: undefined,
           categoryId: product.categoryId,
           isActiveOnly: true,
-          limit: Math.min((args.limit ?? 5) + 1, 10)
+          limit: Math.min(requested + 1, 10)
         });
         const formatPrice = (cents: number) =>
           new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
         return {
           products: result.products
             .filter((p) => p.id !== args.productId)
-            .slice(0, args.limit ?? 5)
+            .slice(0, requested)
             .map((p) => ({
               id: p.id,
               name: p.name,
@@ -798,6 +809,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
           const formatPrice = (cents: number) =>
             new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
           const price = product.defaultVariant?.basePriceInCents ?? 0;
+          const isDigitalOrService = product.type === "digital" || product.type === "service";
           const blocks: ConversationBlock[] = [{
             type: "product_card",
             data: {
@@ -810,16 +822,23 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
               inStock: product.hasStock,
               rating: product.averageRating ?? undefined,
               reviewCount: product.reviewCount ?? 0,
+              // "Detalhes {nome}" IS a full-detail request → render the enriched card.
+              detailed: true,
+              stock: isDigitalOrService ? 999 : (product.totalStock ?? 0),
+              sku: product.defaultVariant?.sku ?? product.variants?.[0]?.sku,
               variants: (product.variants ?? []).map((v: any) => {
                 const attrs = (v.attributes ?? {}) as Record<string, string>;
                 const attrKeys = Object.keys(attrs);
                 const attrValues = Object.values(attrs);
+                const variantStock = isDigitalOrService ? 999 : Math.max(0, (v.stockQuantity ?? 0) - (v.stockReserved ?? 0));
                 return {
                   id: v.id,
                   // Attribute dimension label (e.g. "Cor", "Tamanho"); fall back to variant name/SKU
                   name: v.name || attrKeys.join(" / ") || "Opção",
                   // Attribute values (e.g. "Preto", "42"); fall back to SKU
                   value: attrValues.length > 0 ? attrValues.join(", ") : (v.sku ?? v.name ?? ""),
+                  sku: v.sku,
+                  stock: variantStock,
                   price: v.basePriceInCents,
                   priceFormatted: v.basePriceInCents ? formatPrice(v.basePriceInCents) : undefined,
                 };

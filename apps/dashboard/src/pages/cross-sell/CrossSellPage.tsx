@@ -28,7 +28,7 @@ const DISPLAY_OPTIONS: Array<{ value: CrossSellDisplayMode; label: string }> = [
 
 export function CrossSellPage({ context }: { context: CrossSellContext }) {
   const vm = useCrossSellPage(context);
-  const { state, visibleTouchpoints, toggleTouchpoint, toggleStrategy, patchConfig, save } = vm;
+  const { state, visibleTouchpoints, toggleTouchpoint, selectTouchpoint, toggleStrategy, patchConfig, save } = vm;
   const { config } = state;
 
   if (state.loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--color-text-faint)" }}>Carregando...</div>;
@@ -62,18 +62,24 @@ export function CrossSellPage({ context }: { context: CrossSellContext }) {
 
         {config.enabled && (
           <>
-            {/* Touchpoints */}
+            {/* Touchpoints — mutually exclusive per context */}
             <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "20px 22px" }}>
               <h3 style={{ font: "600 14px var(--font-sans)", letterSpacing: "-0.01em", color: "var(--color-brand)", marginBottom: 14 }}>Onde sugerir</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {visibleTouchpoints.map((tp) => (
-                  <div key={tp} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: config.touchpoints[tp] ? "rgba(15,118,110,0.04)" : "transparent" }}>
-                    <div>
-                      <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>{TOUCHPOINT_LABELS[tp].title}</div>
-                      <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 2 }}>{TOUCHPOINT_LABELS[tp].desc}</div>
+                  <label key={tp} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, border: config.touchpoints[tp] ? "1.5px solid var(--color-brand)" : "1px solid var(--color-border)", cursor: "pointer", background: config.touchpoints[tp] ? "rgba(15,118,110,0.06)" : "transparent", transition: "all 0.15s ease" }}>
+                    <input
+                      type="radio"
+                      name={`cross-sell-touchpoint-${context}`}
+                      checked={config.touchpoints[tp]}
+                      onChange={() => selectTouchpoint(tp)}
+                      style={{ width: 16, height: 16, accentColor: "var(--color-brand)", cursor: "pointer" }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>{TOUCHPOINT_LABELS[tp].title}</div>
+                      <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>{TOUCHPOINT_LABELS[tp].desc}</div>
                     </div>
-                    <ToggleSwitch checked={config.touchpoints[tp]} onChange={() => toggleTouchpoint(tp)} />
-                  </div>
+                  </label>
                 ))}
               </div>
             </section>

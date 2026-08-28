@@ -125,6 +125,7 @@ export interface Experience {
   cryptoPaymentsEnabled?: boolean;
   cryptoPayments?: CryptoPaymentsConfig;
   suggestedProducts?: SuggestedProduct[];
+  rules?: { showBranding?: boolean; [key: string]: unknown };
 }
 
 export interface StartResponse {

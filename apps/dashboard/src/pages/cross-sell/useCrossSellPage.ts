@@ -42,6 +42,10 @@ export function useCrossSellPage(context: CrossSellContext) {
     return () => { cancelled = true; };
   }, [api]);
 
+  const visibleTouchpoints: CrossSellTouchpoint[] = context === "store"
+    ? ["browsing", "pre_cart"]
+    : ["pre_payment", "post_purchase"];
+
   function patchConfig(partial: Partial<CrossSellConfig>) {
     setState((p) => ({
       ...p,
@@ -64,6 +68,21 @@ export function useCrossSellPage(context: CrossSellContext) {
         touchpoints: { ...p.config.touchpoints, [tp]: !p.config.touchpoints[tp] },
       },
     }));
+  }
+
+  /**
+   * Select a single touchpoint within the current context (mutually exclusive):
+   * enables `tp` and disables the other touchpoints visible in this context.
+   * Touchpoints from the other context are left untouched.
+   */
+  function selectTouchpoint(tp: CrossSellTouchpoint) {
+    setState((p) => {
+      const next = { ...p.config.touchpoints };
+      for (const key of visibleTouchpoints) {
+        next[key] = key === tp;
+      }
+      return { ...p, config: { ...p.config, touchpoints: next } };
+    });
   }
 
   function toggleStrategy(strategy: CrossSellStrategy) {
@@ -93,16 +112,13 @@ export function useCrossSellPage(context: CrossSellContext) {
     }
   }
 
-  const visibleTouchpoints: CrossSellTouchpoint[] = context === "store"
-    ? ["browsing", "pre_cart"]
-    : ["pre_payment", "post_purchase"];
-
   return {
     state,
     context,
     visibleTouchpoints,
     patchConfig,
     toggleTouchpoint,
+    selectTouchpoint,
     toggleStrategy,
     save,
   };
