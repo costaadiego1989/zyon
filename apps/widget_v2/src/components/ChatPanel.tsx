@@ -6,6 +6,7 @@ import type { ChatBlock } from "@/api/checkout-session";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { useVoiceCheckout } from "@/lib/voice/use-voice-checkout";
+import { trackEvent } from "@/lib/tracking";
 
 /* ─── Inline markdown: render **bold** / *italic* as JSX (no HTML injection) ─── */
 
@@ -339,17 +340,29 @@ function StripeCardBlockForm({
       }
 
       if (paymentIntent?.status === "succeeded" || paymentIntent?.status === "requires_action") {
-        // Confirm the payment server-side (marks as approved in DB)
+        // Confirm the payment server-side (marks as approved in DB).
+        let approved = false;
         if (api) {
           try {
-            await api.confirmStripePayment(intentId);
+            const res = await api.confirmStripePayment(intentId);
+            approved = (res as { status?: string })?.status === "approved";
           } catch (confirmErr) {
-            // Server confirm failed, but Stripe payment succeeded — poll anyway
             console.error("Server confirm failed:", confirmErr);
           }
         }
-        // Start polling for approved status
-        pollPayment();
+        // Stripe succeeded and the server confirmed → complete the checkout now.
+        // (Previously called pollPayment(), but the store's paymentIntent isn't
+        // set for block-rendered card forms, so polling no-op'd and the screen
+        // never updated despite the backend returning approved.)
+        if (approved || paymentIntent.status === "succeeded") {
+          useCheckoutStore.setState((s) => ({
+            status: "completed",
+            cart: { ...s.cart, status: "paid" },
+          }));
+          void trackEvent("order_completed", { intent_id: intentId });
+        } else {
+          pollPayment();
+        }
       } else {
         setError(`Payment failed: ${paymentIntent?.status}`);
       }
