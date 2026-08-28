@@ -209,6 +209,16 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
       } catch { /* contact optional */ }
     }
 
+    // Resolve store name so recovery copy is branded on both channels.
+    let merchantName: string | undefined;
+    try {
+      const m = await this.prisma.merchant.findUnique({
+        where: { id: session.merchantId },
+        select: { name: true },
+      });
+      merchantName = m?.name || undefined;
+    } catch { /* name optional */ }
+
     // Create attempt (use-case classifies + selects internally, or uses forcedStrategy)
     // and dispatches WhatsApp (Bubble) + email (Resend) on both channels.
     const useCase = new AttemptCartRecoveryUseCase(
@@ -233,6 +243,7 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
       buyerPhone,
       buyerEmail,
       buyerName,
+      merchantName,
     });
 
     if (!result.created) {

@@ -121,7 +121,8 @@ export class AttemptCartRecoveryUseCase {
     let anySent = false;
 
     if (this.whatsappSender && input.buyerPhone) {
-      const message = `🛒 *Seu carrinho está te esperando!*
+      const storeLabel = input.merchantName ? ` na *${input.merchantName}*` : "";
+      const message = `🛒 *Seu carrinho${storeLabel} está te esperando!*
 
 ${offerLine}
 
@@ -140,8 +141,9 @@ ${offerLine}
       const greeting = input.buyerName ? `Olá, ${input.buyerName}!` : "Olá!";
       const subject = `${input.merchantName ? `[${input.merchantName}] ` : ""}Seu carrinho está te esperando 🛒`;
       const html = `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+  ${input.merchantName ? `<div style="font-size:12px;color:#888;letter-spacing:0.04em;text-transform:uppercase;margin-bottom:8px">${input.merchantName}</div>` : ""}
   <h2 style="margin:0 0 12px">${greeting}</h2>
-  <p style="font-size:15px;line-height:1.5;color:#333">Você deixou itens no carrinho. ${offerLine}</p>
+  <p style="font-size:15px;line-height:1.5;color:#333">Você deixou itens no carrinho${input.merchantName ? ` da ${input.merchantName}` : ""}. ${offerLine}</p>
   <p style="margin:20px 0"><a href="${link}" style="display:inline-block;padding:12px 24px;border-radius:8px;background:#0f766e;color:#fff;text-decoration:none;font-weight:600">Finalizar minha compra</a></p>
   <p style="font-size:12px;color:#888">⏰ Oferta por tempo limitado.</p>
 </div>`;
