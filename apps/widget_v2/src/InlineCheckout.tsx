@@ -1,11 +1,8 @@
 "use client";
-/**
- * InlineCheckout — mount widget_v2 checkout inside the storefront without URL params.
- * Uses relative imports (not @/ aliases) so it works when transpiled by Next.js.
- */
 import { useEffect } from "react";
 import { useCheckoutStore } from "./store/checkout-store";
 import { CheckoutLayout } from "./layouts/CheckoutLayout";
+import { MascotOverlay } from "./components/MascotOverlay";
 import { setupAbandonmentTracking, trackEvent } from "./lib/tracking";
 import { onOrderCompleted } from "./lib/lifecycle";
 
@@ -58,7 +55,6 @@ export function InlineCheckout(props: InlineCheckoutProps) {
     return cleanup;
   }, []);
 
-  // Order completion
   useEffect(() => {
     if (status === "completed" && sessionId) {
       void trackEvent("order_completed");
@@ -66,30 +62,14 @@ export function InlineCheckout(props: InlineCheckoutProps) {
     }
   }, [status, sessionId]);
 
-  // Apply brand CSS vars
   useEffect(() => {
     const root = document.documentElement;
     if (brand.accentColor) root.style.setProperty("--aacp-accent", brand.accentColor);
-    if (brand.backgroundColor) root.style.setProperty("--aacp-bg", brand.backgroundColor);
-    if (brand.textColor) root.style.setProperty("--aacp-fg", brand.textColor);
     if (brand.fontFamily) root.style.setProperty("--aacp-font", brand.fontFamily);
-    if (brand.borderColor) root.style.setProperty("--aacp-border-color", brand.borderColor);
-    if (brand.surfaceColor) root.style.setProperty("--aacp-surface", brand.surfaceColor);
-    if (brand.mutedTextColor) root.style.setProperty("--aacp-muted", brand.mutedTextColor);
-    // Short aliases
-    if (brand.backgroundColor) root.style.setProperty("--bg", brand.backgroundColor);
-    if (brand.textColor) root.style.setProperty("--tx", brand.textColor);
-    if (brand.mutedTextColor) root.style.setProperty("--mut", brand.mutedTextColor);
-    if (brand.borderColor) root.style.setProperty("--bd", brand.borderColor);
-    if (brand.surfaceColor) root.style.setProperty("--card", brand.surfaceColor);
   }, [brand]);
 
   if (status === "loading") {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--aacp-fg, #f5f5f7)" }}>
-        <p>Carregando checkout...</p>
-      </div>
-    );
+    return <MascotOverlay message="Preparando seu checkout..." sub="Só um instante" />;
   }
 
   if (status === "error") {
@@ -102,5 +82,5 @@ export function InlineCheckout(props: InlineCheckoutProps) {
     );
   }
 
-  return <CheckoutLayout />;
+  return <CheckoutLayout forcedTheme={props.theme} />;
 }

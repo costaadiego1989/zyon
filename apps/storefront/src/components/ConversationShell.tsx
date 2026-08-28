@@ -413,9 +413,23 @@ export default function ConversationShell({
 
                 if (hasProductCard) {
                   const cardBlock = m.blocks!.find((b) => b.type === "product_card")!;
+                  // Non-card blocks that should still render alongside (e.g. quick_replies).
+                  const otherBlocks = (m.blocks ?? []).filter((b) => b.type !== "product_card");
                   return (
-                    <div key={m.id} style={{ width: "100%", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
+                    <div key={m.id} style={{ width: "100%", display: "flex", flexDirection: "column", gap: "8px", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
+                      {/* Agent narration above the card — keeps the conversation immersive (A/B tone) */}
+                      {m.text && (
+                        <div
+                          style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", fontSize: "13.5px", lineHeight: 1.55, whiteSpace: "pre-wrap", background: "var(--aacp-card)", color: "var(--aacp-fg)", wordWrap: "break-word", border: "1px solid var(--aacp-line)", alignSelf: "flex-start", maxWidth: "min(82%, 520px)" }}
+                          dangerouslySetInnerHTML={{ __html: renderMarkdownText(m.text) }}
+                        />
+                      )}
                       <BlockRenderer block={cardBlock} onQuickReply={handleQuickReply} />
+                      {otherBlocks.map((block, idx) => (
+                        <div key={idx} style={{ maxWidth: "100%" }}>
+                          <BlockRenderer block={block} onQuickReply={handleQuickReply} />
+                        </div>
+                      ))}
                     </div>
                   );
                 }
@@ -563,7 +577,7 @@ export default function ConversationShell({
           }}
           onViewCart={() => setCartDrawerForceOpen(true)}
           onUpdateQty={handleUpdateQuantity}
-          onRemoveItem={(variantId) => handleQuickReply(`Remover item ${variantId} do carrinho`)}
+          onRemoveItem={(variantId) => handleUpdateQuantity(variantId, 0)}
           forceOpen={cartDrawerForceOpen}
         />
       )}

@@ -16,13 +16,24 @@ const InlineCheckout = lazy(() =>
   import("@zyon/widget-v2").then((mod) => ({ default: mod.InlineCheckout }))
 );
 
+function resolveInitialTheme(propTheme?: "dark" | "light"): "dark" | "light" {
+  if (propTheme === "dark" || propTheme === "light") return propTheme;
+  // Fall back to the shared theme key the storefront writes, not a hardcoded dark.
+  try {
+    const saved = localStorage.getItem("zyon-theme");
+    if (saved === "dark" || saved === "light") return saved;
+  } catch { /* SSR/privacy */ }
+  return "light";
+}
+
 export default function CheckoutPanel({
   merchantId,
   globalUserId: initialGlobalUserId,
   cartRef,
-  theme = "dark",
+  theme,
   onClose,
 }: CheckoutPanelProps) {
+  const effectiveTheme = resolveInitialTheme(theme);
   const [embedToken, setEmbedToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [globalUserId, setGlobalUserId] = useState(initialGlobalUserId);
@@ -74,9 +85,9 @@ export default function CheckoutPanel({
 
   if (error) {
     return (
-      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "var(--aacp-bg, #0a0a0f)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-        <p style={{ color: "var(--aacp-fg, #f0f0f0)", marginBottom: 16 }}>{error}</p>
-        <button onClick={onClose} style={{ padding: "10px 20px", background: "var(--aacp-surface, #1a1a2e)", border: "1px solid var(--aacp-border-color, #333)", color: "var(--aacp-fg, #f0f0f0)", borderRadius: 8, cursor: "pointer" }}>
+      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "var(--aacp-bg, #f7f8fa)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+        <p style={{ color: "var(--aacp-fg, #111827)", marginBottom: 16 }}>{error}</p>
+        <button onClick={onClose} style={{ padding: "10px 20px", background: "var(--aacp-surface, #ffffff)", border: "1px solid var(--aacp-border-color, #e5e7eb)", color: "var(--aacp-fg, #111827)", borderRadius: 8, cursor: "pointer" }}>
           Voltar
         </button>
       </div>
@@ -85,7 +96,7 @@ export default function CheckoutPanel({
 
   if (!embedToken) {
     return (
-      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "var(--aacp-bg, #0a0a0f)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-fg, #f0f0f0)" }}>
+      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "var(--aacp-bg, #f7f8fa)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-fg, #111827)" }}>
         Carregando checkout...
       </div>
     );
@@ -94,10 +105,10 @@ export default function CheckoutPanel({
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "var(--aacp-bg, #0a0a0f)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "var(--aacp-bg, #f7f8fa)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <button
         onClick={onClose}
-        style={{ position: "absolute", top: 12, right: 12, zIndex: 10001, background: "var(--aacp-surface, #1a1a2e)", border: "1px solid var(--aacp-border-color, #333)", color: "var(--aacp-fg, #f0f0f0)", borderRadius: 6, padding: "8px 12px", cursor: "pointer", fontSize: 13, fontWeight: 500 }}
+        style={{ position: "absolute", top: 12, right: 12, zIndex: 10001, background: "var(--aacp-surface, #ffffff)", border: "1px solid var(--aacp-border-color, #e5e7eb)", color: "var(--aacp-fg, #111827)", borderRadius: 6, padding: "8px 12px", cursor: "pointer", fontSize: 13, fontWeight: 500 }}
       >
         ✕ Voltar
       </button>
@@ -108,7 +119,7 @@ export default function CheckoutPanel({
           apiBaseUrl={apiBase}
           cartRef={cartRef || cart.cartId || undefined}
           globalUserId={globalUserId}
-          theme={theme}
+          theme={effectiveTheme}
           onClose={onClose}
         />
       </Suspense>

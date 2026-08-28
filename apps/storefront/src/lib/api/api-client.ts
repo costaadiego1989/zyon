@@ -193,12 +193,14 @@ export const cartApi = {
     cartId: string,
     variantId: string,
     quantity: number,
-    _merchantId: string,
+    merchantId: string,
   ): Promise<any> {
     return safeFetch(
-      `${API_BASE}/storefront/cart/${encodeURIComponent(cartId)}/items/${encodeURIComponent(variantId)}`,
+      `${API_BASE}/storefront/cart/${encodeURIComponent(cartId)}/items/${encodeURIComponent(variantId)}?merchantId=${encodeURIComponent(merchantId)}`,
       {
-        method: quantity === 0 ? "DELETE" : "PATCH",
+        // The controller exposes only PATCH; the repo treats quantity <= 0 as
+        // removal, so a zero-quantity PATCH deletes the line item.
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ quantity }),
       },
