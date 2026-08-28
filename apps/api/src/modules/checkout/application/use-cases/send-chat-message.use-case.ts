@@ -200,6 +200,25 @@ export class SendChatMessageUseCase {
       this.logger.error("rules.load.failed", { error: rulesErr instanceof Error ? rulesErr.message : String(rulesErr) });
     }
 
+    // Payment-recovery: if the most recent agent turn signals a failed payment,
+    // instruct the LLM (for THIS turn) to proactively offer an alternative
+    // method. The `payment_failed` event is recorded on the session but not
+    // otherwise surfaced to the model, so we derive it from the chat history.
+    const paymentJustFailed = /pagamento (falhou|recusad|não foi|nao foi|nao aprovad|não aprovad)/i.test(lastAgentTurn ?? "");
+    if (paymentJustFailed) {
+      const lastMethod = (working as any).paymentMethod as string | undefined;
+      const altHint =
+        lastMethod === "pix"
+          ? "sugira cartão ou boleto"
+          : lastMethod && lastMethod.includes("cart")
+            ? "sugira PIX (instantâneo, sem taxas) ou boleto"
+            : "sugira PIX ou cartão";
+      merchantRules = [
+        `O pagamento anterior falhou. Reassegure o comprador com empatia e ${altHint} como alternativa. Não repita o mesmo método que falhou. Seja breve e ofereça ajuda para concluir agora.`,
+        ...(merchantRules ?? []),
+      ];
+    }
+
     const isHoldout = (working as any).cohort === "holdout";
 
     let reply: { message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[]; blocks?: Array<{ type: string; data?: Record<string, unknown> }> };

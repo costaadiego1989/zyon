@@ -91,6 +91,41 @@ export function initTriggerDetection(
         document.removeEventListener("mouseleave", handleDocumentLeave),
       );
     }
+
+    // Tab-switch / app-switch is the mobile-friendly exit signal (mouseleave
+    // never fires on touch). When the page is hidden we surface the same
+    // exit-intent nudge, so it's visible when the buyer returns.
+    let visFired = false;
+    const handleVisibility = () => {
+      if (visFired) return;
+      if (document.visibilityState === "hidden") {
+        visFired = true;
+        onTrigger("exit_intent_detected");
+        reportTriggerEvent("exit_intent_detected", config);
+        // Allow re-firing after the long cooldown.
+        setTimeout(() => { visFired = false; }, config.cooldownMs ?? DEFAULT_COOLDOWN_MS);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    cleanups.push(() => document.removeEventListener("visibilitychange", handleVisibility));
+
+    // Actual page unload: fire-and-forget the exit event for server-side
+    // cart-recovery. Uses sendBeacon so it survives the unload.
+    const handlePageHide = () => {
+      if (!config.sessionId || !config.merchantId) return;
+      try {
+        const apiUrl = config.apiBaseUrl || "http://localhost:3009";
+        const payload = JSON.stringify({
+          merchant_id: config.merchantId,
+          session_id: config.sessionId,
+          event: "exit_intent_detected",
+          metadata: { timestamp: new Date().toISOString(), via: "pagehide" },
+        });
+        navigator.sendBeacon?.(`${apiUrl}/checkout/track-event`, new Blob([payload], { type: "application/json" }));
+      } catch { /* never block unload */ }
+    };
+    window.addEventListener("pagehide", handlePageHide);
+    cleanups.push(() => window.removeEventListener("pagehide", handlePageHide));
   }
 
   // ─── Idle Timer Detection ────────────────────────────────
