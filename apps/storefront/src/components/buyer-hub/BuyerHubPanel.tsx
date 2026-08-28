@@ -435,6 +435,14 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
     window.dispatchEvent(new StorageEvent("storage", { key: "zyon_buyer_token" }));
   }, []);
 
+  // Load discount rules when loyalty tab is active and merchantId is available
+  useEffect(() => {
+    if (vm.activeTab === "loyalty" && merchantId && !vm.discountRules.data && !vm.discountRules.loading) {
+      void vm.loadDiscountRules(merchantId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vm.activeTab, merchantId]);
+
   if (!isOpen) return null;
 
   const isAuthenticated = Boolean(vm.auth);
@@ -698,7 +706,8 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
                 <LoyaltyTab
                   loyalty={vm.loyalty.data}
                   summary={vm.summary.data ?? null}
-                  loading={vm.loyalty.loading}
+                  discountRules={vm.discountRules.data}
+                  loading={vm.loyalty.loading || vm.discountRules.loading}
                 />
               )}
               {vm.activeTab === "settings" && (

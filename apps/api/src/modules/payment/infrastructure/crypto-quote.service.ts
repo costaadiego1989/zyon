@@ -10,7 +10,7 @@ export interface CryptoQuoteResult {
 export class CryptoQuoteService {
   private readonly logger = new Logger(CryptoQuoteService.name);
   private cache: { price: number; fetchedAt: number } | null = null;
-  private readonly CACHE_TTL_MS = 60_000; // 60s
+  private readonly CACHE_TTL_MS = 30_000; // 30s — fresh rate for new intents
 
   async getUsdcBrl(fallback?: number): Promise<CryptoQuoteResult> {
     const now = Date.now();

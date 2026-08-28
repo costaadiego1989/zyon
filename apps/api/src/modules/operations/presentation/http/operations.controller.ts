@@ -540,6 +540,9 @@ function toOrderResponse(order: OrderSummary) {
     completed_at: order.completedAt,
     cancelled_at: order.cancelledAt ?? null,
     cancellation_reason: order.cancellationReason ?? null,
+    payment_method: order.paymentMethod ?? null,
+    payment_provider: order.paymentProvider ?? null,
+    paid_at: order.paidAt ?? null,
   };
 }
 

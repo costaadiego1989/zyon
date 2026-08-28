@@ -112,6 +112,59 @@ export class StorefrontController {
     res.redirect(301, logoUrl);
   }
 
+  @Get(":slug/coupons")
+  async getCoupons(@Param("slug") slug: string) {
+    // Resolve merchant using same logic as getStoreConfig
+    let merchant = await this.prisma.merchant.findUnique({ where: { id: slug }, select: { id: true } });
+    if (!merchant) {
+      const all = await this.prisma.merchant.findMany({ select: { id: true, name: true, storeSettings: true } });
+      const match = all.find((m) => {
+        const settings = m.storeSettings as { slug?: string } | null;
+        if (settings?.slug === slug) return true;
+        const slugified = m.name.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+        return slugified === slug;
+      });
+      if (match) merchant = { id: match.id };
+    }
+    if (!merchant) throw new NotFoundException("store_not_found");
+
+    // List active coupons for the merchant (not expired, status=active)
+    const now = new Date();
+    const coupons = await this.prisma.coupon.findMany({
+      where: {
+        merchantId: merchant.id,
+        status: "active",
+        startsAt: { lte: now },
+        OR: [
+          { endsAt: null },
+          { endsAt: { gt: now } }
+        ]
+      },
+      select: {
+        id: true,
+        code: true,
+        discountType: true,
+        discountValue: true,
+        minCartTotal: true,
+        maxUsages: true,
+        usagesCount: true,
+      },
+      orderBy: { createdAt: "desc" }
+    });
+
+    return {
+      items: coupons.map((c) => ({
+        id: c.id,
+        code: c.code,
+        discount_type: c.discountType,
+        discount_value: Number(c.discountValue),
+        min_cart_total: c.minCartTotal ? Number(c.minCartTotal) : null,
+        max_usages: c.maxUsages,
+        usages_count: c.usagesCount,
+      }))
+    };
+  }
+
   @Post("conversations")
   async startConversation(@Body() body: StartConversationRequest) {
     return this.startStoreConversation.execute(body);

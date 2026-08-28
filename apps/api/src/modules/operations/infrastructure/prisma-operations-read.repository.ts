@@ -33,7 +33,32 @@ export class PrismaOperationsReadRepository
       orderBy: [{ completedAt: "desc" }, { id: "desc" }],
       take: input.limit,
     });
-    return rows.map(toOrderSummary);
+
+    // Batch-fetch payments for all sessions in this page to enrich with
+    // method / provider / paidAt without an N+1 query per order.
+    const sessionIds = rows.map((row) => row.sessionId);
+    const payments = sessionIds.length
+      ? await this.prisma.paymentIntent.findMany({
+          where: {
+            merchantId: input.merchantId,
+            sessionId: { in: sessionIds },
+          },
+          orderBy: { createdAt: "asc" },
+        })
+      : [];
+    const paymentBySession = new Map<string, (typeof payments)[number]>();
+    for (const payment of payments) {
+      // Keep the most relevant payment per session: prefer a confirmed one,
+      // otherwise the latest by createdAt (asc order means later overwrites).
+      const existing = paymentBySession.get(payment.sessionId);
+      if (!existing || isConfirmedPayment(payment.status)) {
+        paymentBySession.set(payment.sessionId, payment);
+      }
+    }
+
+    return rows.map((row) =>
+      toOrderSummary(row, paymentBySession.get(row.sessionId)),
+    );
   }
 
   async getOrder(
@@ -130,9 +155,12 @@ export class PrismaOperationsReadRepository
     const commercePayment = [...payments]
       .reverse()
       .find((payment) => Boolean(payment.commerceOrderId));
+    const enrichPayment =
+      [...payments].reverse().find((payment) => isConfirmedPayment(payment.status)) ??
+      payments[payments.length - 1];
 
     return {
-      ...toOrderSummary(row),
+      ...toOrderSummary(row, enrichPayment),
       timeline,
       commerceOrderId: commercePayment?.commerceOrderId ?? undefined,
       paymentStatus: commercePayment?.status,
@@ -259,20 +287,28 @@ function cursorWhere(
   };
 }
 
-function toOrderSummary(row: {
-  id: string;
-  sessionId: string;
-  externalOrderId: string;
-  orderTotal: { toNumber(): number } | number;
-  currency: string;
-  status: string;
-  acceptedOfferId: string | null;
-  trackingCode: string | null;
-  completedAt: Date;
-  cancelledAt: Date | null;
-  cancellationReason: string | null;
-  session: { customer: unknown; cart: unknown };
-}): OrderSummary {
+function toOrderSummary(
+  row: {
+    id: string;
+    sessionId: string;
+    externalOrderId: string;
+    orderTotal: { toNumber(): number } | number;
+    currency: string;
+    status: string;
+    acceptedOfferId: string | null;
+    trackingCode: string | null;
+    completedAt: Date;
+    cancelledAt: Date | null;
+    cancellationReason: string | null;
+    session: { customer: unknown; cart: unknown };
+  },
+  payment?: {
+    method: string;
+    status: string;
+    providerPaymentId: string | null;
+    updatedAt: Date;
+  } | undefined,
+): OrderSummary {
   return {
     id: row.id,
     sessionId: row.sessionId,
@@ -287,7 +323,40 @@ function toOrderSummary(row: {
     completedAt: row.completedAt.toISOString(),
     cancelledAt: row.cancelledAt?.toISOString(),
     cancellationReason: row.cancellationReason ?? undefined,
+    paymentMethod: payment ? derivePaymentMethod(payment.method) : undefined,
+    paymentProvider: payment ? derivePaymentProvider(payment.providerPaymentId) : undefined,
+    paidAt: payment && isConfirmedPayment(payment.status) ? payment.updatedAt.toISOString() : undefined,
   };
+}
+
+function isConfirmedPayment(status: string): boolean {
+  const normalized = status.toLowerCase();
+  return normalized === "approved" || normalized === "paid" || normalized === "confirmed" || normalized === "received";
+}
+
+function derivePaymentMethod(method: string): string {
+  const normalized = method.toLowerCase();
+  if (normalized.includes("pix")) return "pix";
+  if (normalized.includes("credit") || normalized === "card") return "credit_card";
+  if (normalized.includes("boleto")) return "boleto";
+  if (normalized.includes("crypto")) return "crypto";
+  return method;
+}
+
+function derivePaymentProvider(providerPaymentId: string | null): string {
+  if (!providerPaymentId) return "unknown";
+  // Asaas IDs look like "pay_xxx"; Stripe IDs start with "pi_" / "ch_".
+  // Mercado Pago IDs are numeric / "mp_" prefixed in our routing adapter.
+  if (providerPaymentId.startsWith("pi_") || providerPaymentId.startsWith("ch_") || providerPaymentId.startsWith("stripe_")) {
+    return "stripe";
+  }
+  if (providerPaymentId.startsWith("pay_") || providerPaymentId.startsWith("asaas_")) {
+    return "asaas";
+  }
+  if (providerPaymentId.startsWith("mp_") || /^^\d+$/.test(providerPaymentId)) {
+    return "mercado_pago";
+  }
+  return "unknown";
 }
 
 function toCustomerSummary(row: CustomerRow): CustomerSummary {

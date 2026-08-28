@@ -32,7 +32,7 @@ function createTestUseCase(
   agentContext?: AgentContextPort,
   merchantRepo?: MerchantRepository,
   brevoNotifier?: BrevoBuyerEmailNotifier,
-  crossSellUseCase?: { execute(input: unknown): Promise<unknown[]> },
+  crossSellRecommender?: { suggest(input: unknown): Promise<unknown[]> },
   buyerAccounts?: InMemoryBuyerAccountRepository
 ) {
   const otpService = new OtpService();
@@ -49,7 +49,7 @@ function createTestUseCase(
     offerService,
     agentContext,
     merchantRepo,
-    crossSellUseCase as never
+    crossSellRecommender as never
   );
 }
 
@@ -477,19 +477,14 @@ test("SendChatMessageUseCase exposes cross-sell through experience instead of in
     ]
   }));
 
-  const crossSellUseCase = {
-    async execute() {
+  // Recommender port returns resolved SuggestedProduct[] directly (config-gated internally).
+  const crossSellRecommender = {
+    async suggest() {
       return [{
-        id: "sug_1",
-        session_id: "chk_cross_sell",
-        merchant_id: "mrc_1",
-        promo_id: "promo_1",
-        ranked_items: ["CART-COE-01"],
-        agent_copy: "",
-        computed_discount: 0,
-        status: "pending",
-        suggested_at: new Date().toISOString(),
-        resolved_at: null
+        suggestion_id: "sug_1",
+        sku: "CART-COE-01",
+        name: "Carteira Slim RFID",
+        unit_price: 89.9
       }];
     }
   };
@@ -499,7 +494,7 @@ test("SendChatMessageUseCase exposes cross-sell through experience instead of in
     undefined,
     undefined,
     undefined,
-    crossSellUseCase
+    crossSellRecommender
   );
 
   const response = await useCase.execute({

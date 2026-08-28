@@ -49,6 +49,7 @@ import { WhatsAppChannelModule } from "./modules/whatsapp-channel/whatsapp-chann
 import { InventoryModule } from "./modules/inventory/inventory.module.js";
 import { PostSaleModule } from "./modules/post-sale/post-sale.module.js";
 import { KnowledgeBaseModule } from "./modules/knowledge-base/knowledge-base.module.js";
+import { CrossSellModule } from "./modules/cross-sell/cross-sell.module.js";
 // import { PublicApiModule } from "./modules/public-api/public-api.module.js"; // TODO: fix DI (AuthenticateMerchantApiKeyService)
 
 const REDACTED_LOG_PATHS = [
@@ -145,6 +146,7 @@ const REDACTED_LOG_PATHS = [
     InventoryModule,
     PostSaleModule,
     KnowledgeBaseModule,
+    CrossSellModule,
     // PublicApiModule, // TODO: fix DI (CommerceV1Controller, InstallationsModule)
   ],
   providers: [

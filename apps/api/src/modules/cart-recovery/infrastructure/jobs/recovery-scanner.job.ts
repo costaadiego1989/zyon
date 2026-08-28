@@ -11,6 +11,9 @@ import { STRATEGY_PREFERENCES_REPOSITORY, type StrategyPreferencesRepositoryPort
 import { BUYER_PURCHASE_HISTORY_REPOSITORY, type BuyerPurchaseHistoryRepository } from "../../../buyer-purchase-history/domain/ports/buyer-purchase-history-repository.port.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { RecoveryStrategy } from "../../domain/values/recovery-strategy.js";
+import { WHATSAPP_SENDER_PORT, type WhatsAppSenderPort } from "../../../notifications/domain/ports/whatsapp-sender.port.js";
+import { EMAIL_SENDER_PORT, type EmailSenderPort } from "../../../notifications/domain/ports/email-sender.port.js";
+import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../../buyer-account/domain/ports/buyer-account-repository.port.js";
 
 const SCAN_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 
@@ -34,6 +37,9 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
     @Inject(STRATEGY_PREFERENCES_REPOSITORY) private readonly strategyPrefs: StrategyPreferencesRepositoryPort,
     @Inject(BUYER_PURCHASE_HISTORY_REPOSITORY) private readonly purchaseHistory: BuyerPurchaseHistoryRepository,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    @Inject(WHATSAPP_SENDER_PORT) private readonly whatsappSender: WhatsAppSenderPort,
+    @Inject(EMAIL_SENDER_PORT) private readonly emailSender: EmailSenderPort,
+    @Optional() @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly buyerAccount?: BuyerAccountRepository,
   ) {}
 
   /**
@@ -190,8 +196,28 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
       forcedStrategy = this.buildForcedStrategy(cfg, buyerHistoryContext.recent_skus);
     } catch { /* fall back to algorithm */ }
 
-    // Create attempt (use-case classifies + selects internally, or uses forcedStrategy).
-    const useCase = new AttemptCartRecoveryUseCase(this.attempts);
+    // Resolve buyer contact (phone + email) so recovery sends on BOTH channels.
+    let buyerPhone: string | undefined;
+    let buyerEmail: string | undefined;
+    let buyerName: string | undefined;
+    if (this.buyerAccount) {
+      try {
+        const account = await this.buyerAccount.findByGlobalUserId(globalUserId);
+        buyerPhone = account?.phone || undefined;
+        buyerEmail = account?.email || undefined;
+        buyerName = account?.displayName || undefined;
+      } catch { /* contact optional */ }
+    }
+
+    // Create attempt (use-case classifies + selects internally, or uses forcedStrategy)
+    // and dispatches WhatsApp (Bubble) + email (Resend) on both channels.
+    const useCase = new AttemptCartRecoveryUseCase(
+      this.attempts,
+      undefined,
+      this.whatsappSender,
+      undefined,
+      this.emailSender,
+    );
     const result = await useCase.execute({
       merchantId: session.merchantId,
       sessionId: session.sessionId,
@@ -204,6 +230,9 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
         maxDiscountPercent: merchantPolicy.maxDiscountPercent
       },
       forcedStrategy,
+      buyerPhone,
+      buyerEmail,
+      buyerName,
     });
 
     if (!result.created) {

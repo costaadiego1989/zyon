@@ -115,6 +115,9 @@ export type TenantOrder = {
   completed_at: string;
   cancelled_at: string | null;
   cancellation_reason: string | null;
+  payment_method: string | null;
+  payment_provider: string | null;
+  paid_at: string | null;
 };
 
 export type TenantCustomer = {

@@ -18,9 +18,11 @@ import { PrismaCheckoutRepository } from "../checkout/infrastructure/prisma/pris
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
 import { NotificationsModule } from "../notifications/notifications.module.js";
+import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
 import { CartRecoveryController } from "./presentation/http/cart-recovery.controller.js";
 import { CartRecoveryDashboardController } from "./presentation/http/cart-recovery-dashboard.controller.js";
 import { WHATSAPP_SENDER_PORT } from "../notifications/domain/ports/whatsapp-sender.port.js";
+import { EMAIL_SENDER_PORT } from "../notifications/domain/ports/email-sender.port.js";
 
 export const ATTEMPT_CART_RECOVERY_USE_CASE = Symbol("ATTEMPT_CART_RECOVERY_USE_CASE");
 export const TRACK_RECOVERY_OUTCOME_USE_CASE = Symbol("TRACK_RECOVERY_OUTCOME_USE_CASE");
@@ -41,6 +43,7 @@ export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_US
     MerchantModule,
     BuyerPurchaseHistoryModule,
     NotificationsModule,
+    BuyerAccountRepositoryModule,
   ],
   controllers: [CartRecoveryController, CartRecoveryDashboardController],
   providers: [
@@ -62,8 +65,8 @@ export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_US
     RecoveryScannerJob,
     {
       provide: ATTEMPT_CART_RECOVERY_USE_CASE,
-      useFactory: (repo: any, whatsapp: any) => new AttemptCartRecoveryUseCase(repo, undefined, whatsapp),
-      inject: [RECOVERY_ATTEMPT_REPOSITORY, WHATSAPP_SENDER_PORT],
+      useFactory: (repo: any, whatsapp: any, email: any) => new AttemptCartRecoveryUseCase(repo, undefined, whatsapp, undefined, email),
+      inject: [RECOVERY_ATTEMPT_REPOSITORY, WHATSAPP_SENDER_PORT, EMAIL_SENDER_PORT],
     },
     {
       provide: TRACK_RECOVERY_OUTCOME_USE_CASE,

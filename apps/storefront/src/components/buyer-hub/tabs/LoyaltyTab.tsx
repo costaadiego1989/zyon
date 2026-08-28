@@ -1,12 +1,13 @@
 "use client";
 
-import type { BuyerLoyalty, BuyerSummary } from "@/lib/viewmodels/useBuyerHub";
+import type { BuyerLoyalty, BuyerSummary, DiscountRule } from "@/lib/viewmodels/useBuyerHub";
 
 // ─── Shared Types ──────────────────────────────────────────────────────────
 
 export interface LoyaltyTabProps {
   loyalty: BuyerLoyalty | null;
   summary: BuyerSummary | null;
+  discountRules: DiscountRule[] | null;
   loading: boolean;
 }
 
@@ -319,7 +320,7 @@ function EmptyState() {
 
 // ─── Main Component ────────────────────────────────────────────────────────
 
-export default function LoyaltyTab({ loyalty, summary, loading }: LoyaltyTabProps) {
+export default function LoyaltyTab({ loyalty, summary, discountRules, loading }: LoyaltyTabProps) {
   if (loading) return <LoadingSkeleton />;
 
   if (!loyalty && !summary) return <EmptyState />;
@@ -479,31 +480,101 @@ export default function LoyaltyTab({ loyalty, summary, loading }: LoyaltyTabProp
             Descontos disponíveis
           </span>
         </div>
-        <div
-          style={{
-            padding: "16px 14px",
-            borderRadius: "10px",
-            border: "2px dashed var(--aacp-line)",
-            background: "color-mix(in srgb, var(--aacp-surface-2) 50%, transparent)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: "10px",
-            textAlign: "center",
-          }}
-        >
-          <IconTag />
+        {discountRules && discountRules.length > 0 ? (
           <div
             style={{
-              fontSize: "12px",
-              color: "var(--aacp-muted)",
-              lineHeight: 1.5,
-              maxWidth: "280px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+            }}
+            role="list"
+            aria-label="Cupons de desconto disponíveis"
+          >
+            {discountRules.map((rule) => (
+              <div
+                key={rule.id}
+                role="listitem"
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--aacp-line)",
+                  background: "var(--aacp-surface-2)",
+                  display: "flex",
+                  gap: "10px",
+                  alignItems: "flex-start",
+                }}
+              >
+                <div style={{ marginTop: "2px", color: "var(--aacp-accent)", flexShrink: 0 }}>
+                  <IconTag />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      color: "var(--aacp-fg)",
+                      marginBottom: "4px",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {rule.code}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--aacp-muted)",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {rule.discount_type === "percent" && `${Number(rule.discount_value)}% de desconto`}
+                    {rule.discount_type === "fixed" && `${fmtBRL(rule.discount_value)} de desconto`}
+                    {rule.discount_type === "shipping_free" && "Frete grátis"}
+                    {rule.discount_type === "shipping_percent" && `${Number(rule.discount_value)}% de desconto no frete`}
+                    {rule.discount_type === "shipping_fixed" && `${fmtBRL(rule.discount_value)} de desconto no frete`}
+                    {rule.min_cart_total && (
+                      <>
+                        <br />
+                        Mínimo: {fmtBRL(rule.min_cart_total)}
+                      </>
+                    )}
+                    {rule.max_usages && rule.usages_count < rule.max_usages && (
+                      <>
+                        <br />
+                        Disponível: {rule.max_usages - rule.usages_count} de {rule.max_usages}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div
+            style={{
+              padding: "16px 14px",
+              borderRadius: "10px",
+              border: "2px dashed var(--aacp-line)",
+              background: "color-mix(in srgb, var(--aacp-surface-2) 50%, transparent)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "10px",
+              textAlign: "center",
             }}
           >
-            Nenhum cupom disponível no momento. Ofertas personalizadas aparecerão aqui durante o checkout.
+            <IconTag />
+            <div
+              style={{
+                fontSize: "12px",
+                color: "var(--aacp-muted)",
+                lineHeight: 1.5,
+                maxWidth: "280px",
+              }}
+            >
+              Nenhum cupom disponível no momento. Ofertas personalizadas aparecerão aqui durante o checkout.
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

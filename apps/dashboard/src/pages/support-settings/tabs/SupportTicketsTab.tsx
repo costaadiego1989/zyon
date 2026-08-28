@@ -6,12 +6,14 @@ import {
   CheckCircle,
   XCircle,
   User,
+  Download,
 } from "lucide-react";
 import { StatCard } from "../../overview/components/StatCard.js";
 import { EmptyState } from "../../../components/EmptyState.js";
 import { SupportChatDrawer } from "../components/SupportChatDrawer.js";
 import { useSupportTickets } from "../hooks/useSupportTickets.js";
 import { showToast } from "../../../components/Toast.js";
+import { downloadCsv } from "../../../hooks/useCsvExport.js";
 import type { SupportTicketStatus } from "@zyon/shared-types";
 import { createDashboardApi } from "../../../api-client.js";
 import { useSupportSocket } from "../../../hooks/useSupportSocket.js";
@@ -150,7 +152,7 @@ export function SupportTicketsTab(props: Props) {
         <StatCard label="Resolvidos" value={resolvedCount} icon={<CheckCircle size={16} />} accent="var(--color-success)" />
       </div>
 
-      {/* Period filter bar — tabs left, date range right */}
+      {/* Period filter bar — tabs left, date range + CSV right */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", gap: "16px", flexWrap: "wrap" }}>
         <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
           {(["today", "7d", "15d", "30d"] as const).map((key) => {
@@ -191,6 +193,39 @@ export function SupportTicketsTab(props: Props) {
             onChange={(e) => setDateRange((d) => ({ ...d, to: e.target.value }))}
             style={{ padding: "7px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "#fff", font: "12px var(--font-sans)", colorScheme: "dark" }}
           />
+          <button
+            type="button"
+            onClick={() => {
+              const header = "id,status,mensagem,sessao,criado_em,atualizado_em";
+              const rows = filteredTickets.map((t) =>
+                [
+                  t.id,
+                  t.status,
+                  `"${(t.buyerMessage ?? "").replace(/"/g, '""')}"`,
+                  t.sessionId ?? "",
+                  t.createdAt ?? "",
+                  t.updatedAt ?? "",
+                ].join(","),
+              );
+              const bom = String.fromCharCode(0xfeff);
+              downloadCsv(bom + header, rows, `support-tickets-${new Date().toISOString().slice(0, 10)}.csv`);
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              padding: "7px 12px",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--color-border)",
+              background: "transparent",
+              color: "var(--color-text-muted)",
+              font: "500 12px var(--font-sans)",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+          >
+            <Download size={14} /> CSV
+          </button>
         </div>
       </div>
 
