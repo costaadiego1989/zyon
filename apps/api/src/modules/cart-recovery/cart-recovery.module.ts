@@ -10,7 +10,7 @@ import { GetStrategyConfigUseCase } from "./application/use-cases/get-strategy-c
 import { UpdateStrategyConfigUseCase } from "./application/use-cases/update-strategy-config.use-case.js";
 import { RECOVERY_ATTEMPT_REPOSITORY } from "./domain/ports/recovery-attempt-repository.port.js";
 import { STRATEGY_PREFERENCES_REPOSITORY } from "./domain/ports/strategy-preferences-repository.port.js";
-import { InMemoryRecoveryAttemptRepository } from "./infrastructure/repositories/in-memory-recovery-attempt.repository.js";
+import { PrismaRecoveryAttemptRepository } from "./infrastructure/repositories/prisma-recovery-attempt.repository.js";
 import { PrismaStrategyPreferencesRepository } from "./infrastructure/repositories/prisma-strategy-preferences.repository.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { CHECKOUT_SESSION_REPOSITORY } from "../checkout/domain/ports/checkout-session.repository.port.js";
@@ -51,10 +51,7 @@ export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_US
     },
     {
       provide: RECOVERY_ATTEMPT_REPOSITORY,
-      useFactory: (prisma: PrismaClient) => {
-        // TODO: Replace with PrismaRecoveryAttemptRepository when table is migrated
-        return new InMemoryRecoveryAttemptRepository();
-      },
+      useFactory: (prisma: PrismaClient) => new PrismaRecoveryAttemptRepository(prisma),
       inject: [PRISMA_CLIENT],
     },
     {

@@ -3,6 +3,7 @@ import { RecoveryAttempt } from "../../domain/entities/recovery-attempt.entity.j
 import type { RecoveryAttemptRepositoryPort } from "../../domain/ports/recovery-attempt-repository.port.js";
 import { AbandonmentReasonClassifier } from "../../domain/services/abandonment-reason-classifier.service.js";
 import { RecoveryStrategySelector, type StrategySelectionInput } from "../../domain/services/recovery-strategy-selector.service.js";
+import type { RecoveryStrategy } from "../../domain/values/recovery-strategy.js";
 import type { WhatsAppSenderPort } from "../../../notifications/domain/ports/whatsapp-sender.port.js";
 
 export interface AttemptCartRecoveryInput {
@@ -17,6 +18,8 @@ export interface AttemptCartRecoveryInput {
   cartRef?: string | null;
   embedToken?: string | null;
   merchantCheckoutReturnUrl?: string | null;
+  /** Merchant dashboard override — when set, use this instead of the algorithm. */
+  forcedStrategy?: RecoveryStrategy;
 }
 
 export interface Clock {
@@ -69,7 +72,8 @@ export class AttemptCartRecoveryUseCase {
 
     const reason = AbandonmentReasonClassifier.classify(input.events);
 
-    const strategy = RecoveryStrategySelector.select({
+    // Merchant dashboard override wins; otherwise the algorithm selects.
+    const strategy = input.forcedStrategy ?? RecoveryStrategySelector.select({
       session: { abandonmentScore: input.abandonmentScore },
       buyerHistory: input.buyerHistory,
       merchantRules: input.merchantRules,

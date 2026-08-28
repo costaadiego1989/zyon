@@ -106,8 +106,10 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   }
 
   async findSessionsWithTrigger(threshold = 0.55): Promise<CheckoutSession[]> {
-    // Cart Recovery scanner targets sessions within 24h of triggering (to prioritize fresh abandonments).
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // Cart Recovery scanner targets recently-triggered sessions. 72h window gives
+    // abandoned carts a realistic chance to be recovered (buyer may return next day).
+    const RECOVERY_WINDOW_HOURS = 72;
+    const twentyFourHoursAgo = new Date(Date.now() - RECOVERY_WINDOW_HOURS * 60 * 60 * 1000);
     const rows = await this.prisma.checkoutSession.findMany({
       where: {
         triggerAgent: true,

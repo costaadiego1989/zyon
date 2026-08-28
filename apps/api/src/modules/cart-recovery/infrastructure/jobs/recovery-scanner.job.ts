@@ -1,4 +1,5 @@
 import { Injectable, Inject, Logger, Optional, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
+import type { PrismaClient } from "@prisma/client";
 import type { CheckoutSession } from "@zyon/shared-types";
 import { AbandonmentReasonClassifier } from "../../domain/services/abandonment-reason-classifier.service.js";
 import { RecoveryStrategySelector } from "../../domain/services/recovery-strategy-selector.service.js";
@@ -6,6 +7,10 @@ import { AttemptCartRecoveryUseCase } from "../../application/use-cases/attempt-
 import { RECOVERY_ATTEMPT_REPOSITORY, type RecoveryAttemptRepositoryPort } from "../../domain/ports/recovery-attempt-repository.port.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../../checkout/domain/ports/checkout-session.repository.port.js";
 import { MERCHANT_RULES_REPOSITORY, type MerchantRulesRepository } from "../../../merchant/domain/ports/merchant-rules.repository.port.js";
+import { STRATEGY_PREFERENCES_REPOSITORY, type StrategyPreferencesRepositoryPort } from "../../domain/ports/strategy-preferences-repository.port.js";
+import { BUYER_PURCHASE_HISTORY_REPOSITORY, type BuyerPurchaseHistoryRepository } from "../../../buyer-purchase-history/domain/ports/buyer-purchase-history-repository.port.js";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import type { RecoveryStrategy } from "../../domain/values/recovery-strategy.js";
 
 const SCAN_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 
@@ -26,6 +31,9 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Inject(RECOVERY_ATTEMPT_REPOSITORY) private readonly attempts: RecoveryAttemptRepositoryPort,
     @Inject(MERCHANT_RULES_REPOSITORY) private readonly merchantRules: MerchantRulesRepository,
+    @Inject(STRATEGY_PREFERENCES_REPOSITORY) private readonly strategyPrefs: StrategyPreferencesRepositoryPort,
+    @Inject(BUYER_PURCHASE_HISTORY_REPOSITORY) private readonly purchaseHistory: BuyerPurchaseHistoryRepository,
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
   ) {}
 
   /**
@@ -124,13 +132,26 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    // TODO: Fetch buyer history from record — this.purchaseHistory doesn't expose purchase context yet
-    // For now, use default buyer history
-    const buyerHistoryContext = {
+    // Fix #4: Load real buyer purchase history (known_buyer, discount sensitivity, recent SKUs).
+    let buyerHistoryContext = {
       known_buyer: false,
-      discount_sensitivity: "low" as const,
-      recent_skus: []
+      discount_sensitivity: "low" as "low" | "medium" | "high",
+      recent_skus: [] as string[],
     };
+    try {
+      const history = await this.purchaseHistory.getByBuyer({ globalUserId, merchantId: session.merchantId });
+      if (history) {
+        const ctx = history.toSafeContext().purchase_history;
+        buyerHistoryContext = {
+          known_buyer: ctx.known_buyer,
+          // Strategy selector only knows low/medium/high — map "unknown" → "low".
+          discount_sensitivity: ctx.discount_sensitivity === "unknown" ? "low" : ctx.discount_sensitivity,
+          recent_skus: ctx.recent_skus,
+        };
+      }
+    } catch (err) {
+      this.logger.warn("recovery-scanner: buyer history lookup failed (using defaults)", { error: err instanceof Error ? err.message : String(err) });
+    }
 
     const merchantPolicy = await this.merchantRules.getRules(session.merchantId);
     if (!merchantPolicy) {
@@ -141,39 +162,41 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    // Classify reason from session event log (rebuild from recorded events)
-    // Note: session doesn't store raw events, only summary scores; this is simplified for MVP
-    const reason = AbandonmentReasonClassifier.classify(["exit_intent_detected"]);
-
-    // Select strategy
-    const strategy = RecoveryStrategySelector.select({
-      session: { abandonmentScore: session.abandonmentScore },
-      buyerHistory: buyerHistoryContext,
-      merchantRules: {
-        allowFreeShipping: merchantPolicy.allowFreeShipping,
-        maxDiscountPercent: merchantPolicy.maxDiscountPercent
-      },
-      abandonmentReason: reason
-    });
-
-    // If no_action, skip
-    if (strategy.type === "no_action") {
-      return;
+    // Fix #2: Classify reason from the session's real recorded checkout events.
+    let eventNames: string[] = [];
+    try {
+      const rows = await this.prisma.checkoutEvent.findMany({
+        where: { merchantId: session.merchantId, sessionId: session.sessionId },
+        orderBy: { occurredAt: "asc" },
+        select: { eventName: true },
+      });
+      eventNames = rows.map((r) => r.eventName);
+    } catch (err) {
+      this.logger.warn("recovery-scanner: event lookup failed", { error: err instanceof Error ? err.message : String(err) });
     }
+    if (eventNames.length === 0) eventNames = ["exit_intent_detected"]; // safe default
 
-    // Create attempt
+    // Fix #7: Honor the merchant's dashboard-configured strategy override.
+    let forcedStrategy: RecoveryStrategy | undefined;
+    try {
+      const cfg = await this.strategyPrefs.getConfig(session.merchantId);
+      forcedStrategy = this.buildForcedStrategy(cfg, buyerHistoryContext.recent_skus);
+    } catch { /* fall back to algorithm */ }
+
+    // Create attempt (use-case classifies + selects internally, or uses forcedStrategy).
     const useCase = new AttemptCartRecoveryUseCase(this.attempts);
     const result = await useCase.execute({
       merchantId: session.merchantId,
       sessionId: session.sessionId,
       globalUserId,
       abandonmentScore: session.abandonmentScore,
-      events: ["exit_intent_detected"],
+      events: eventNames,
       buyerHistory: buyerHistoryContext,
       merchantRules: {
         allowFreeShipping: merchantPolicy.allowFreeShipping,
         maxDiscountPercent: merchantPolicy.maxDiscountPercent
-      }
+      },
+      forcedStrategy,
     });
 
     if (!result.created) {
@@ -186,9 +209,37 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
         merchantId: session.merchantId,
         sessionId: session.sessionId,
         attemptId: result.attemptId,
-        strategy: strategy.type,
-        reason
+        forced: !!forcedStrategy,
+        events: eventNames,
       }
     );
+  }
+
+  /**
+   * Map the merchant's dashboard strategy config to a concrete RecoveryStrategy.
+   * Returns undefined for advanced_rule with no rule_id or unknown config
+   * (so the algorithm decides instead).
+   */
+  private buildForcedStrategy(
+    cfg: { active_strategy?: string; coupon_code?: string; rule_id?: string } | null,
+    recentSkus: string[],
+  ): RecoveryStrategy | undefined {
+    if (!cfg?.active_strategy) return undefined;
+    switch (cfg.active_strategy) {
+      case "offer_free_shipping":
+        return { type: "offer_free_shipping", condition: "merchant_allows_free_shipping" };
+      case "offer_coupon":
+        return cfg.coupon_code
+          ? { type: "offer_coupon", coupon_code: cfg.coupon_code }
+          : undefined;
+      case "personalized_cross_sell":
+        return { type: "personalized_cross_sell", suggested_skus: recentSkus };
+      case "advanced_rule":
+        return cfg.rule_id
+          ? { type: "advanced_rule", rule_id: cfg.rule_id }
+          : undefined;
+      default:
+        return undefined;
+    }
   }
 }
