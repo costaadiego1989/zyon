@@ -2,9 +2,20 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { InMemoryMerchantRepository } from "../../merchant/infrastructure/in-memory-merchant.repository.js";
 import { EvmCryptoPaymentAdapter } from "./evm-crypto-payment.adapter.js";
+import type { CryptoQuoteService } from "./crypto-quote.service.js";
 
 const MERCHANT_TREASURY = "0x1111111111111111111111111111111111111111";
 const ZYON_TREASURY = "0x2222222222222222222222222222222222222222";
+
+// Deterministic quote stub: echoes the merchant's configured fallback so tests
+// stay offline and the atomic amounts remain stable.
+const stubQuote = {
+  getUsdcBrl: async (fallback?: number) => ({
+    brlPerUsdc: fallback ?? 5,
+    source: "fallback" as const,
+    cachedAt: new Date(0).toISOString(),
+  }),
+} as unknown as CryptoQuoteService;
 
 test("EvmCryptoPaymentAdapter splits merchant amount and Zyon platform fee", async () => {
   const previous = process.env.ZYON_CRYPTO_TREASURY_ADDRESS;
@@ -22,7 +33,7 @@ test("EvmCryptoPaymentAdapter splits merchant amount and Zyon platform fee", asy
         quoteTtlSeconds: 900,
       },
     });
-    const adapter = new EvmCryptoPaymentAdapter(merchants);
+    const adapter = new EvmCryptoPaymentAdapter(merchants, stubQuote);
 
     const payment = await adapter.createPayment({
       merchantId: "mrc_crypto",
@@ -64,7 +75,7 @@ test("EvmCryptoPaymentAdapter refuses fee-bearing crypto when Zyon treasury is m
         quoteTtlSeconds: 900,
       },
     });
-    const adapter = new EvmCryptoPaymentAdapter(merchants);
+    const adapter = new EvmCryptoPaymentAdapter(merchants, stubQuote);
 
     await assert.rejects(
       () => adapter.createPayment({

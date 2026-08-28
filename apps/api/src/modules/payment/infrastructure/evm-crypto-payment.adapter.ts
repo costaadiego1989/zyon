@@ -9,12 +9,15 @@ import type {
   PaymentProviderPort
 } from "../domain/ports/payment-provider.port.js";
 import {
+  blockExplorerUrl,
   evmChainId,
   evmChainLabel,
   isCryptoQuoteEnabled,
+  nativeCurrency,
   quoteExpiresAt,
   usdcContractAddress,
   walletConnectProjectId,
+  walletRpcUrl,
   type CryptoBuyerFacing,
   type CryptoTransferQuote
 } from "./evm-crypto.constants.js";
@@ -101,7 +104,9 @@ export function buildCryptoQuote(
       amountDisplay: fee.amountDisplay,
     });
   }
-  const ttl = config.quoteTtlSeconds ?? 900;
+  // Payment window: 24h. The displayed USDC amount is refreshed client-side
+  // every 20s against the live rate, but the buyer has a full day to pay.
+  const ttl = config.quoteTtlSeconds ?? 86400;
   const chain = config.chain;
   const network = config.network;
 
@@ -117,6 +122,9 @@ export function buildCryptoQuote(
     destinationAddress: config.treasuryAddress,
     transfers,
     quoteExpiresAt: quoteExpiresAt(ttl),
-    walletConnectProjectId: walletConnectProjectId()
+    walletConnectProjectId: walletConnectProjectId(),
+    rpcUrl: walletRpcUrl(chain, network),
+    blockExplorerUrl: blockExplorerUrl(chain, network),
+    nativeCurrency: nativeCurrency(chain)
   };
 }
