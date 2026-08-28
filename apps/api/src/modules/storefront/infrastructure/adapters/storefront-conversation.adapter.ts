@@ -273,24 +273,75 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         });
         this.logger.debug("cart.afterAdd", { sessionId: cart.sessionId, itemCount: cart.items.length, total: cart.total });
 
-        // Cross-sell: suggest complementary products after add-to-cart
+        // Cross-sell: use merchant CrossSellPromotion rules first (sku_in_cart,
+        // category_in_cart, cart_total_above). Falls back to first N catalog
+        // products when no rule matches.
         let crossSellSuggestions: Array<{ name: string; sku: string; price: number; imageUrl?: string; discountPercent?: number }> = [];
         try {
           const crossSellConfig = await this.loadCrossSellConfig(merchantId);
           if (crossSellConfig.enabled && crossSellConfig.touchpoints.pre_cart) {
-            const products = await this.productRepo.search({ merchantId, limit: 10, isActiveOnly: true });
-            // Exclude the product just added (by name match, most reliable)
-            const maxSuggestions = crossSellConfig.limits.maxSuggestionsPerSession ?? 2;
-            crossSellSuggestions = products.products
-              .filter((p) => p.name !== productName && p.hasStock)
-              .slice(0, maxSuggestions)
-              .map((p) => ({
-                name: p.name,
-                sku: p.variants[0]?.sku ?? p.id,
-                price: (p.variants[0]?.basePriceInCents ?? 0) / 100,
-                imageUrl: p.variants[0]?.media?.[0]?.url,
-                discountPercent: crossSellConfig.discount.enabled ? crossSellConfig.discount.percent : undefined,
-              }));
+            const maxSuggestions = crossSellConfig.limits.maxSuggestionsPerSession ?? 3;
+
+            // Try rules-based cross-sell from CrossSellPromotion table.
+            const cartSkus = cart.items.map((i) => i.sku?.toLowerCase() ?? "");
+            const cartCategories = cart.items.flatMap((i: any) => (i.categories ?? []).map((c: string) => c.toLowerCase()));
+            const cartTotal = cart.total / 100;
+
+            const activePromos = await this.prisma.crossSellPromotion.findMany({
+              where: { merchantId, status: "active", startsAt: { lte: new Date() }, OR: [{ endsAt: null }, { endsAt: { gte: new Date() } }] },
+              orderBy: { createdAt: "desc" },
+              take: 20,
+            });
+
+            // Match: a promo triggers if any trigger condition matches the cart.
+            const matchedPromo = activePromos.find((p) => {
+              const trigger = p.trigger as { sku_in_cart?: string[]; category_in_cart?: string[]; cart_total_above?: number } | null;
+              if (!trigger) return false;
+              if (trigger.sku_in_cart?.length && trigger.sku_in_cart.some((s) => cartSkus.includes(s.toLowerCase()))) return true;
+              if (trigger.category_in_cart?.length && trigger.category_in_cart.some((c) => cartCategories.includes(c.toLowerCase()))) return true;
+              if (typeof trigger.cart_total_above === "number" && cartTotal >= trigger.cart_total_above) return true;
+              return false;
+            });
+
+            if (matchedPromo && matchedPromo.recommendedSkus.length > 0) {
+              // Resolve recommended SKUs to product details via search.
+              const recommendedResults = await this.productRepo.search({
+                merchantId,
+                limit: 100,
+                isActiveOnly: true,
+              });
+              const recSkuSet = new Set(matchedPromo.recommendedSkus.map((s) => s.toLowerCase()));
+              const discount = Number(matchedPromo.discountPercent) || 0;
+              crossSellSuggestions = recommendedResults.products
+                .filter((p) => {
+                  const pSku = p.variants?.[0]?.sku?.toLowerCase() ?? p.id.toLowerCase();
+                  return recSkuSet.has(pSku) || recSkuSet.has(p.id.toLowerCase());
+                })
+                .filter((p) => p.name !== productName)
+                .slice(0, maxSuggestions)
+                .map((p) => ({
+                  name: p.name,
+                  sku: p.variants?.[0]?.sku ?? p.id,
+                  price: (p.variants?.[0]?.basePriceInCents ?? 0) / 100,
+                  imageUrl: p.variants?.[0]?.media?.[0]?.url,
+                  discountPercent: discount > 0 ? discount : undefined,
+                }));
+            }
+
+            // Fallback: catalog scan when no rule matched or no products resolved.
+            if (crossSellSuggestions.length === 0) {
+              const products = await this.productRepo.search({ merchantId, limit: 10, isActiveOnly: true });
+              crossSellSuggestions = products.products
+                .filter((p) => p.name !== productName && p.hasStock)
+                .slice(0, maxSuggestions)
+                .map((p) => ({
+                  name: p.name,
+                  sku: p.variants[0]?.sku ?? p.id,
+                  price: (p.variants[0]?.basePriceInCents ?? 0) / 100,
+                  imageUrl: p.variants[0]?.media?.[0]?.url,
+                  discountPercent: crossSellConfig.discount.enabled ? crossSellConfig.discount.percent : undefined,
+                }));
+            }
           }
         } catch { /* non-critical */ }
 

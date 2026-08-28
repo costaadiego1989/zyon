@@ -354,6 +354,10 @@ export function useConversationViewModel(
           const cartGrew = blocks.some((b: any) => b.type === "cart_summary");
           if (crossSellBlock && cartGrew) {
             setCrossSellPending(crossSellBlock.data as CrossSellInterstitialData);
+            // Remove cross_sell from inline blocks so it only shows in the interstitial,
+            // not duplicated in the chat body.
+            const idx = blocks.indexOf(crossSellBlock);
+            if (idx !== -1) blocks.splice(idx, 1);
           }
 
           // Track funnel events for experiment based on response content
