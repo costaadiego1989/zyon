@@ -102,7 +102,9 @@ interface CheckoutState {
 
   // Triggers & Interventions
   triggerConfig: TriggerConfig | null;
-  activeDiscount: { stage: DiscountStage; percent: number } | null;
+  triggerMessages: Record<string, { message?: string; couponCode?: string }> | null;
+  activeDiscount: { stage: DiscountStage; percent: number; couponCode?: string; message?: string } | null;
+  progressiveDiscount: { enabled: boolean; stages: Record<string, number> } | null;
   advancedRules: AdvancedRule[];
   activeRuleActions: RuleAction[];
 
@@ -123,8 +125,9 @@ interface CheckoutState {
   selectCryptoChain: (chain: "polygon" | "base") => Promise<void>;
   pollPayment: () => void;
   stopPolling: () => void;
-  setActiveDiscount: (stage: DiscountStage, percent: number) => void;
+  setActiveDiscount: (stage: DiscountStage, percent: number, couponCode?: string, message?: string) => void;
   dismissDiscount: () => void;
+  applyProgressiveDiscount: (cartStatus: CartStatus) => void;
   evaluateAdvancedRules: () => void;
   resetSession: () => void;
 }
@@ -291,7 +294,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   paymentIntent: null,
   paymentPolling: false,
   triggerConfig: null,
+  triggerMessages: null,
   activeDiscount: null,
+  progressiveDiscount: null,
   advancedRules: [],
   activeRuleActions: [],
   _pendingCrossSellBlock: null,
@@ -390,7 +395,10 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
               enabledTriggers: (settings.enabledTriggers ?? []) as TriggerName[],
               cooldownMs: (settings.cooldownSeconds ?? 120) * 1000,
               maxInterventions: settings.maxInterventionsPerSession ?? 3,
+              idleSeconds: settings.idleSeconds ?? 30,
             },
+            triggerMessages: settings.triggerMessages ?? null,
+            progressiveDiscount: settings.progressiveDiscount ?? null,
             advancedRules: settings.advancedRules ?? [],
           });
         }
@@ -442,6 +450,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       messages,
       _pendingCrossSellBlock: null,
     });
+    // Progressive discount: initial stage when checkout becomes active.
+    get().applyProgressiveDiscount("awaiting");
   },
 
   sendMessage: async (text) => {
@@ -529,6 +539,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         isTyping: false,
         cart: { ...s.cart, status: "shipping_calculated" },
       }));
+      get().applyProgressiveDiscount("shipping_calculated");
       return;
     }
 
@@ -782,6 +793,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
           status: "shipping_calculated",
         },
       }));
+      get().applyProgressiveDiscount("shipping_calculated");
       void trackEvent("shipping_option_selected", { key });
     } catch (err) {
       console.error('[WIDGET-DBG] selectShipping failed', { key, error: err });
@@ -991,12 +1003,36 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     set({ paymentPolling: false });
   },
 
-  setActiveDiscount: (stage, percent) => {
-    set({ activeDiscount: { stage, percent } });
+  setActiveDiscount: (stage, percent, couponCode?, message?) => {
+    set({ activeDiscount: { stage, percent, couponCode, message } });
   },
 
   dismissDiscount: () => {
     set({ activeDiscount: null });
+  },
+
+  /**
+   * Progressive discount: map checkout cart status → discount stage → percent.
+   * Fires the DiscountBanner with increasing percent as the buyer advances.
+   * Only activates when merchant has progressiveDiscount.enabled.
+   */
+  applyProgressiveDiscount: (cartStatus) => {
+    const { progressiveDiscount } = get();
+    if (!progressiveDiscount?.enabled) return;
+
+    // Map widget cart stages to progressive discount stages
+    const stageMap: Record<string, string> = {
+      awaiting: "initial_coupon",
+      shipping_calculated: "abandoned_cart",
+      ready_to_pay: "payment_nudge",
+    };
+
+    const discountStage = stageMap[cartStatus];
+    if (!discountStage) return;
+    const percent = progressiveDiscount.stages[discountStage];
+    if (!percent || percent <= 0) return;
+
+    set({ activeDiscount: { stage: discountStage as DiscountStage, percent } });
   },
 
   evaluateAdvancedRules: () => {

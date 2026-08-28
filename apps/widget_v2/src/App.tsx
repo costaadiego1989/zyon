@@ -89,9 +89,12 @@ export function App() {
     }
   }, [status, sessionId]);
 
-  // Setup behavioral triggers (idle, exit intent)
+  // Setup behavioral triggers (idle, exit intent).
+  // Subscribe to triggerConfig so the effect re-runs when it loads async in init()
+  // (was gated on [status] only, which ran before triggerConfig existed → never armed).
+  const triggerConfig = useCheckoutStore((s) => s.triggerConfig);
+  const triggerMessages = useCheckoutStore((s) => s.triggerMessages);
   useEffect(() => {
-    const triggerConfig = useCheckoutStore.getState().triggerConfig;
     if (!triggerConfig) return;
 
     const stageMap: Partial<Record<TriggerName, DiscountStage>> = {
@@ -101,9 +104,10 @@ export function App() {
 
     const onTrigger = (trigger: TriggerName) => {
       const stage = stageMap[trigger];
-      if (stage) {
-        useCheckoutStore.getState().setActiveDiscount(stage, 5);
-      }
+      if (!stage) return;
+      const msg = triggerMessages?.[trigger];
+      // Pass the merchant's configured message + coupon so the banner shows them.
+      useCheckoutStore.getState().setActiveDiscount(stage, 5, msg?.couponCode, msg?.message);
     };
 
     const cleanupIdle = setupIdleTrigger(triggerConfig, onTrigger);
@@ -113,7 +117,7 @@ export function App() {
       cleanupIdle();
       cleanupExit();
     };
-  }, [status]);
+  }, [triggerConfig, triggerMessages, status]);
 
   useEffect(() => {
     const { embedToken, merchantId, cartRef, apiBaseUrl, globalUserId } = readUrlParams();

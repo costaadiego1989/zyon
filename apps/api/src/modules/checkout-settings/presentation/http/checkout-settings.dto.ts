@@ -355,4 +355,13 @@ export class WidgetConfigDto {
 
   @ApiPropertyOptional({ minimum: 1, maximum: 10 })
   maxInterventionsPerSession?: number;
+
+  @ApiPropertyOptional({ minimum: 10, description: "Seconds of inactivity before idle trigger fires" })
+  idleSeconds?: number;
+
+  @ApiPropertyOptional({ description: "Progressive discount config (enabled + per-stage percents)" })
+  progressiveDiscount?: {
+    enabled: boolean;
+    stages: Record<string, number>;
+  };
 }

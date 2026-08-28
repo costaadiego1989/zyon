@@ -315,6 +315,8 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
                   <DiscountBanner
                     stage={activeDiscount.stage}
                     percent={activeDiscount.percent}
+                    couponCode={activeDiscount.couponCode}
+                    message={activeDiscount.message}
                     onDismiss={dismissDiscount}
                   />
                 )}

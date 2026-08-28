@@ -98,6 +98,13 @@ export class CheckoutSettingsPublicController {
       cooldownSeconds: settings.interventionPolicy.cooldownSeconds,
       maxInterventionsPerSession:
         settings.interventionPolicy.maxInterventionsPerSession,
+      idleSeconds: (settings.interventionPolicy as any).idleSeconds ?? 30,
+      progressiveDiscount: settings.interventionPolicy.progressiveDiscount
+        ? {
+            enabled: settings.interventionPolicy.progressiveDiscount.enabled,
+            stages: settings.interventionPolicy.progressiveDiscount.stages,
+          }
+        : undefined,
     };
   }
 }
