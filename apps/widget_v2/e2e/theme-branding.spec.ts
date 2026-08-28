@@ -3,20 +3,30 @@ import { setupCrossSellMocks, navigateToCheckout, selectChatChannel } from "./fi
 
 // ─── Theme sync: widget follows the shared "zyon-theme" localStorage key ──────
 
-test("theme: widget renders light when shared theme key is light", async ({ page }) => {
+// Helper: is an rgb() color light? (luminance > 0.6)
+function isLightColor(rgb: string): boolean {
+  const m = rgb.match(/\d+/g);
+  if (!m || m.length < 3) return false;
+  const [r, g, b] = m.map(Number);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6;
+}
+
+test("theme: widget renders light background when shared key is light", async ({ page }) => {
   await setupCrossSellMocks(page, {});
-  // Storefront writes the shared key; widget must read it (not default to dark).
   await page.addInitScript(() => {
     try { localStorage.setItem("zyon-theme", "light"); } catch {}
   });
   await navigateToCheckout(page);
   await selectChatChannel(page);
 
-  const shellTheme = await page.locator(".pulse-widget-shell").first().getAttribute("data-theme");
-  expect(shellTheme).toBe("light");
+  const shell = page.locator(".pulse-widget-shell").first();
+  expect(await shell.getAttribute("data-theme")).toBe("light");
+  // The CSS vars must actually resolve to a light background (not just the attr).
+  const bg = await shell.evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(isLightColor(bg), `expected light bg, got ${bg}`).toBe(true);
 });
 
-test("theme: widget renders dark when shared theme key is dark", async ({ page }) => {
+test("theme: widget renders dark background when shared key is dark", async ({ page }) => {
   await setupCrossSellMocks(page, {});
   await page.addInitScript(() => {
     try { localStorage.setItem("zyon-theme", "dark"); } catch {}
@@ -24,8 +34,25 @@ test("theme: widget renders dark when shared theme key is dark", async ({ page }
   await navigateToCheckout(page);
   await selectChatChannel(page);
 
-  const shellTheme = await page.locator(".pulse-widget-shell").first().getAttribute("data-theme");
-  expect(shellTheme).toBe("dark");
+  const shell = page.locator(".pulse-widget-shell").first();
+  expect(await shell.getAttribute("data-theme")).toBe("dark");
+  const bg = await shell.evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(isLightColor(bg), `expected dark bg, got ${bg}`).toBe(false);
+});
+
+test("theme: user light preference beats merchant dark default", async ({ page }) => {
+  // Merchant default is dark (brand.mode dark), but user picked light.
+  await setupCrossSellMocks(page, { brand: { mode: "dark" } });
+  await page.addInitScript(() => {
+    try { localStorage.setItem("zyon-theme", "light"); } catch {}
+  });
+  await navigateToCheckout(page);
+  await selectChatChannel(page);
+
+  const shell = page.locator(".pulse-widget-shell").first();
+  expect(await shell.getAttribute("data-theme")).toBe("light");
+  const bg = await shell.evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(isLightColor(bg), `expected light bg (user pref wins), got ${bg}`).toBe(true);
 });
 
 // ─── Whitelabel badge: shown only when rules.showBranding is true ─────────────

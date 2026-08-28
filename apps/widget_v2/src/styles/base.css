@@ -3777,7 +3777,8 @@ textarea {
 }
 
 /* ============ LIGHT THEME ============ */
-.zyon-page[data-theme="light"] {
+.zyon-page[data-theme="light"],
+.pulse-widget-shell[data-theme="light"] {
   --aacp-bg: #F4F6F8;
   --aacp-surface: #FCFCFD;
   --aacp-surface-2: #F7F9FB;
@@ -3805,7 +3806,8 @@ textarea {
   background: var(--aacp-surface);
 }
 
-.zyon-page[data-theme="dark"] {
+.zyon-page[data-theme="dark"],
+.pulse-widget-shell[data-theme="dark"] {
   --aacp-bg: #0B1220;
   --aacp-surface: #111827;
   --aacp-surface-2: #0F172A;
