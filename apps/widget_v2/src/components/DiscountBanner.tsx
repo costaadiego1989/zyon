@@ -30,20 +30,36 @@ export function DiscountBanner({
     payment_nudge: `💰 Última chance! ${percent}% OFF para fechar agora`,
   };
 
-  // Prefer the merchant's configured message; fall back to a stage template.
   const text = message && message.trim().length > 0 ? message : defaultMessages[stage];
+  const accent = brand.accentColor || "var(--aacp-accent, #0f766e)";
 
   return (
-    <div className="discount-banner" style={{ borderColor: brand.accentColor }}>
-      <span className="discount-banner__text">{text}</span>
+    <div
+      className="discount-banner"
+      data-testid="discount-banner"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        padding: "10px 14px",
+        margin: "8px 0",
+        borderRadius: "10px",
+        border: `1px solid ${accent}`,
+        background: "color-mix(in srgb, " + (brand.accentColor || "#0f766e") + " 8%, var(--aacp-surface, #fff))",
+        color: "var(--aacp-fg, #111827)",
+        fontSize: "13px",
+        fontWeight: 500,
+      }}
+    >
+      <span className="discount-banner__text" data-testid="discount-banner-text" style={{ flex: 1 }}>{text}</span>
       {couponCode && (
         <span
           className="discount-banner__coupon"
+          data-testid="discount-banner-coupon"
           style={{
-            marginLeft: "8px",
             padding: "2px 8px",
             borderRadius: "6px",
-            border: `1px dashed ${brand.accentColor || "var(--aacp-accent, #0f766e)"}`,
+            border: `1px dashed ${accent}`,
             fontWeight: 700,
             fontSize: "12px",
             letterSpacing: "0.5px",
@@ -52,7 +68,12 @@ export function DiscountBanner({
           {couponCode}
         </span>
       )}
-      <button className="discount-banner__dismiss" onClick={onDismiss}>
+      <button
+        className="discount-banner__dismiss"
+        onClick={onDismiss}
+        aria-label="Fechar"
+        style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--aacp-muted, #64748B)", fontSize: "14px", lineHeight: 1, padding: 0 }}
+      >
         ✕
       </button>
     </div>
