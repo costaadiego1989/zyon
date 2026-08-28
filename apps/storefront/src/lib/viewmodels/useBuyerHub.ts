@@ -340,6 +340,9 @@ export function useBuyerHub(): UseBuyerHub {
     switch (activeTab) {
       case "profile":
         if (!profile.data && !profile.loading) void loadProfile();
+        // Addresses live in the Profile tab too — load them alongside the profile,
+        // otherwise the list stays empty and saved addresses appear to "not persist".
+        if (!addresses.data && !addresses.loading) void loadAddresses();
         break;
       case "orders":
         if (!purchases.data && !purchases.loading) void loadPurchases(true);
@@ -414,15 +417,24 @@ export function useBuyerHub(): UseBuyerHub {
   }, []);
 
   const createAddress = useCallback(async (input: Omit<BuyerAddress, "id" | "created_at">) => {
-    const created = await apiCall<BuyerAddress>("/buyer/me/addresses", {
-      method: "POST",
-      body: JSON.stringify(input),
-    });
-    setAddresses((s) => ({
-      ...s,
-      data: s.data ? [created, ...s.data] : [created],
-    }));
-    return created;
+    try {
+      const created = await apiCall<BuyerAddress>("/buyer/me/addresses", {
+        method: "POST",
+        body: JSON.stringify(input),
+      });
+      setAddresses((s) => ({
+        ...s,
+        data: s.data ? [created, ...s.data] : [created],
+      }));
+      // Re-fetch from server to reconcile (guards against optimistic drift).
+      void apiCall<{ items: BuyerAddress[] }>("/buyer/me/addresses")
+        .then((res) => setAddresses({ data: res.items, loading: false, error: null }))
+        .catch(() => { /* keep optimistic state */ });
+      return created;
+    } catch (err) {
+      console.error("[BUYER-HUB] createAddress failed:", err);
+      throw err;
+    }
   }, []);
 
   const updateAddress = useCallback(
