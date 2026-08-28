@@ -1,4 +1,4 @@
-import { Logger } from "@nestjs/common";
+import { ConflictException, Logger } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import type { CustomerAddress } from "@zyon/shared-types";
 import {
@@ -18,29 +18,38 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
 
   async save(account: BuyerAccount): Promise<void> {
     const pii = encryptedBuyerPii(account);
-    await (this.prisma as any).buyerAccount.upsert({
-      where: { globalUserId: account.globalUserId },
-      create: {
-        globalUserId: account.globalUserId,
-        email: account.email,
-        passwordHash: account.passwordHash,
-        displayName: account.displayName,
-        phone: pii.phone,
-        cpf: pii.cpf,
-        asaasCustomerId: account.asaasCustomerId ?? null,
-        address: account.address ?? null,
-      },
-      update: {
-        email: account.email,
-        passwordHash: account.passwordHash,
-        displayName: account.displayName,
-        phone: pii.phone,
-        cpf: pii.cpf,
-        asaasCustomerId: account.asaasCustomerId ?? undefined,
-        address: account.address ?? null,
-        updatedAt: account.updatedAt,
-      },
-    });
+    try {
+      await (this.prisma as any).buyerAccount.upsert({
+        where: { globalUserId: account.globalUserId },
+        create: {
+          globalUserId: account.globalUserId,
+          email: account.email,
+          passwordHash: account.passwordHash,
+          displayName: account.displayName,
+          phone: pii.phone,
+          cpf: pii.cpf,
+          asaasCustomerId: account.asaasCustomerId ?? null,
+          address: account.address ?? null,
+        },
+        update: {
+          email: account.email,
+          passwordHash: account.passwordHash,
+          displayName: account.displayName,
+          phone: pii.phone,
+          cpf: pii.cpf,
+          asaasCustomerId: account.asaasCustomerId ?? undefined,
+          address: account.address ?? null,
+          updatedAt: account.updatedAt,
+        },
+      });
+    } catch (err) {
+      // Convert the unique-email violation into a domain error so callers can
+      // surface a 409 instead of a raw Prisma 500.
+      if (isUniqueEmailViolation(err)) {
+        throw new ConflictException("email_already_in_use");
+      }
+      throw err;
+    }
   }
 
   async findByEmail(email: string): Promise<BuyerAccount | null> {
@@ -199,4 +208,13 @@ function toDomainAgent(row: AgentRow): BuyerAgentProfile {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   });
+}
+
+// Detects Prisma's P2002 unique-constraint error scoped to the email field.
+function isUniqueEmailViolation(err: unknown): boolean {
+  const e = err as { code?: string; meta?: { target?: unknown } };
+  if (e?.code !== "P2002") return false;
+  const target = e.meta?.target;
+  if (Array.isArray(target)) return target.some((t) => String(t).toLowerCase().includes("email"));
+  return String(target ?? "").toLowerCase().includes("email");
 }

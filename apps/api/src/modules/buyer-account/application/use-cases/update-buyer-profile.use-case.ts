@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, Logger, Optional } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Logger, Optional } from "@nestjs/common";
 import type { CustomerAddress } from "@zyon/shared-types";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../domain/ports/buyer-account-repository.port.js";
 import type { BuyerAccount } from "../../domain/entities/buyer-account.entity.js";
@@ -47,10 +47,23 @@ export class UpdateBuyerProfileUseCase {
       throw new BadRequestException("cpf_invalid");
     }
 
+    // Guard the unique email constraint before hitting the DB, so a taken email
+    // returns a clear 409 instead of a raw Prisma 500.
+    const wantsRealEmail = input.email && !input.email.includes("@buyer.aacp");
+    if (wantsRealEmail) {
+      const normalizedEmail = input.email!.trim().toLowerCase();
+      if (normalizedEmail !== account.email.toLowerCase()) {
+        const existing = await this.repo.findByEmail(normalizedEmail);
+        if (existing && existing.globalUserId !== account.globalUserId) {
+          throw new ConflictException("email_already_in_use");
+        }
+      }
+    }
+
     const updated = account.withUpdatedProfile(input.displayName, input.phone, input.address, input.cpf);
 
     // If a real email is provided (not the placeholder), update it
-    let finalAccount = input.email && !input.email.includes("@buyer.aacp")
+    let finalAccount = wantsRealEmail
       ? new (updated.constructor as any)({ ...updated, email: input.email, updatedAt: new Date() })
       : updated;
 

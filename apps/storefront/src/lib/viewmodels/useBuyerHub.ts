@@ -156,6 +156,18 @@ export interface SectionState<T> {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const EMPTY_SECTION: SectionState<any> = { data: null, loading: false, error: null };
 
+// Maps backend error codes to friendly pt-BR messages.
+const API_ERROR_MESSAGES: Record<string, string> = {
+  email_already_in_use: "Este e-mail já está em uso por outra conta.",
+  email_already_registered: "Este e-mail já está cadastrado.",
+  cpf_invalid: "CPF inválido. Verifique os dígitos.",
+  buyer_account_not_found: "Conta não encontrada.",
+};
+
+function friendlyApiError(raw: string): string {
+  return API_ERROR_MESSAGES[raw] ?? raw;
+}
+
 // ─── Auth helper ───────────────────────────────────────────────────────────
 
 function getToken(): string | null {
@@ -183,7 +195,9 @@ async function apiCall<T>(
     let msg = `Erro ${res.status}`;
     try {
       const j = await res.json();
-      msg = j?.message || j?.error || msg;
+      // Problem-details responses use `detail`; older ones use message/error.
+      const raw = j?.message || j?.error || j?.detail || msg;
+      msg = friendlyApiError(raw);
     } catch {}
     throw new Error(msg);
   }
