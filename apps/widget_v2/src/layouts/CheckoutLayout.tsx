@@ -12,6 +12,9 @@ import { ShimmerBorder } from "@/components/ShimmerBorder";
 export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light" } = {}) {
   const [supportOpen, setSupportOpen] = useState(false);
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth < 640 : true
+  );
   const status = useCheckoutStore((s) => s.status);
   const brand = useCheckoutStore((s) => s.brand);
   const agent = useCheckoutStore((s) => s.agent);
@@ -50,6 +53,16 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
       setTheme(forcedTheme);
     }
   }, [forcedTheme]);
+
+  // Responsive layout via JS (checkout.css media queries aren't loaded when
+  // embedded in the storefront). Mobile: cart is a drawer + FAB; desktop: sidebar.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onResize = () => setIsMobile(window.innerWidth < 640);
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   const toggleTheme = useCallback(() => {
     const next = theme === "dark" ? "light" : "dark";
@@ -325,28 +338,30 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
                 <ChatPanel />
               </div>
 
-              {/* SmartCart sidebar - desktop only, drawer on mobile */}
-              <aside
-                className="smart-cart-sidebar"
-                style={{
-                  width: "280px",
-                  flex: "none",
-                  display: "flex",
-                  flexDirection: "column",
-                  overflow: "hidden",
-                  borderLeft: "1px solid var(--bd)",
-                  paddingLeft: "14px",
-                }}
-              >
-                <SmartCart />
-              </aside>
+              {/* SmartCart sidebar - desktop only */}
+              {!isMobile && (
+                <aside
+                  className="smart-cart-sidebar"
+                  style={{
+                    width: "280px",
+                    flex: "none",
+                    display: "flex",
+                    flexDirection: "column",
+                    overflow: "hidden",
+                    borderLeft: "1px solid var(--bd)",
+                    paddingLeft: "14px",
+                  }}
+                >
+                  <SmartCart />
+                </aside>
+              )}
             </div>
           </div>
         </ShimmerBorder>
       )}
 
       {/* Mobile Cart FAB + Drawer */}
-      {status === "active" && cart.items.length > 0 && (
+      {isMobile && status === "active" && cart.items.length > 0 && (
         <button
           type="button"
           className="cart-fab-mobile"
@@ -362,7 +377,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
             background: "var(--aacp-accent, #0f766e)",
             color: "#fff",
             cursor: "pointer",
-            display: "none",
+            display: "flex",
             alignItems: "center",
             justifyContent: "center",
             boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
@@ -377,11 +392,18 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
       )}
       {cartDrawerOpen && (
         <>
-          <div className="smart-cart-drawer-overlay" onClick={() => setCartDrawerOpen(false)} />
-          <div className="smart-cart-drawer">
+          <div
+            className="smart-cart-drawer-overlay"
+            onClick={() => setCartDrawerOpen(false)}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000 }}
+          />
+          <div
+            className="smart-cart-drawer"
+            style={{ position: "fixed", bottom: 0, left: 0, right: 0, maxHeight: "70vh", overflowY: "auto", background: "var(--aacp-surface, #fff)", borderRadius: "16px 16px 0 0", padding: "16px", zIndex: 1001, boxShadow: "0 -8px 24px rgba(0,0,0,0.2)" }}
+          >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-              <span style={{ fontSize: "15px", fontWeight: 700 }}>Carrinho</span>
-              <button onClick={() => setCartDrawerOpen(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "var(--tx)" }}>✕</button>
+              <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--aacp-fg, #111)" }}>Carrinho</span>
+              <button onClick={() => setCartDrawerOpen(false)} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "var(--aacp-fg, #111)" }}>✕</button>
             </div>
             <SmartCart />
           </div>
