@@ -812,10 +812,14 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   pay: async (method, installments) => {
     const { api, buyer, cart } = get();
     if (!api) return;
-    console.log('[WIDGET-DBG] pay', { method, hasShipping: !!get().cart.shipping });
 
-    // Require shipping selection before payment
-    if (!cart.shipping) {
+    // Require shipping before payment. Accept either an explicit cart.shipping
+    // object OR a cart status that proves shipping was already chosen — the
+    // free/own-delivery option can leave cart.shipping unset (backend select
+    // may no-op) while the flow already advanced to shipping_calculated.
+    const shippingChosen = Boolean(cart.shipping) ||
+      cart.status === "shipping_calculated" || cart.status === "ready_to_pay";
+    if (!shippingChosen) {
       const errorMsg: Message = {
         id: `error_${Date.now()}`,
         role: "agent",
