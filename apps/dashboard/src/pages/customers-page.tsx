@@ -8,6 +8,7 @@ import { FilterToolbar } from "../components/FilterToolbar.js";
 import { downloadCsv } from "../hooks/useCsvExport.js";
 import { useCustomersPage } from "./useCustomersPage.js";
 import { SectionErrorBoundary } from "../components/PageErrorBoundary.js";
+import { maskPhone } from "../utils/masks.js";
 
 export type CustomerRow = {
   globalUserId: string;
@@ -222,7 +223,7 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
                     </td>
                     <td style={{ font: "13px var(--font-sans)", color: "var(--color-text)" }}>{row.name}</td>
                     <td style={{ font: "13px var(--font-mono)", color: "var(--color-text-muted)" }}>{row.email}</td>
-                    <td style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>{row.phone}</td>
+                    <td style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>{row.phone && row.phone !== "-" ? maskPhone(row.phone) : row.phone}</td>
                     <td style={{ font: "13px var(--font-mono)", color: "var(--color-text-muted)" }}>{formatDate(row.firstSeen)}</td>
                     <td style={{ font: "13px var(--font-mono)", color: "var(--color-text-muted)" }}>{formatDate(row.lastSeen)}</td>
                   </tr>
@@ -272,7 +273,7 @@ function CustomerDetailModal({
 
   const displayName = (profile?.full_name as string) || (row?.name && row.name !== "-" ? row.name : "Cliente sem nome");
   const displayEmail = (row?.email && row.email !== "-") ? row.email : (profile?.email as string) || "email@exemplo.com";
-  const displayPhone = (row?.phone && row.phone !== "-") ? row.phone : "(00) 00000-0000";
+  const displayPhone = (row?.phone && row.phone !== "-") ? maskPhone(row.phone) : "(00) 00000-0000";
   const displayInitials = (row?.initials && row.initials !== "?") ? row.initials : displayName.charAt(0).toUpperCase();
 
   return (
