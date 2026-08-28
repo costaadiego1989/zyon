@@ -284,16 +284,39 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
           if (crossSellConfig.enabled && crossSellConfig.touchpoints.pre_cart) {
             const maxSuggestions = crossSellConfig.limits.maxSuggestionsPerSession ?? 3;
 
+            // Resolve category for each cart item so `same_category` rules can match.
+            // Category triggers compare against cart.items[].category (name or id).
+            const skuToCategory = new Map<string, string>();
+            try {
+              const rows = await this.prisma.product.findMany({
+                where: { merchantId, variants: { some: { sku: { in: cart.items.map((i) => i.sku ?? i.variantId) } } } },
+                select: { categoryId: true, category: { select: { name: true } }, variants: { select: { sku: true } } },
+              });
+              for (const p of rows) {
+                for (const v of p.variants) {
+                  if (v.sku) {
+                    // Store both the category name and id so rules using either match.
+                    if (p.category?.name) skuToCategory.set(v.sku.toLowerCase(), p.category.name);
+                    else if (p.categoryId) skuToCategory.set(v.sku.toLowerCase(), p.categoryId);
+                  }
+                }
+              }
+            } catch { /* category resolution is best-effort */ }
+
             // Build the Cart shape the engine expects from the internal cart.
             const engineCart = {
               currency: "BRL" as const,
               total: cart.total / 100,
-              items: cart.items.map((i) => ({
-                sku: i.sku ?? i.variantId,
-                name: i.name,
-                price: i.unitPriceCents / 100,
-                quantity: i.quantity,
-              })),
+              items: cart.items.map((i) => {
+                const sku = i.sku ?? i.variantId;
+                return {
+                  sku,
+                  name: i.name,
+                  price: i.unitPriceCents / 100,
+                  quantity: i.quantity,
+                  category: skuToCategory.get(sku.toLowerCase()),
+                };
+              }),
               source: "storefront" as const,
             };
 
