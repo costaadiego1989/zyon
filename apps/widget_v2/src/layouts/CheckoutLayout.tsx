@@ -73,11 +73,28 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
     margin: "0 auto",
     display: "flex",
     flexDirection: "column",
-    backgroundColor: "var(--bg)",
-    color: "var(--tx)",
+    backgroundColor: "var(--aacp-bg, #F7F8FA)",
+    color: "var(--aacp-fg, #111827)",
     fontFamily: "inherit",
     overflow: "hidden",
   };
+
+  // Full theme palette injected inline so the checkout renders correctly even
+  // when the widget's base.css isn't loaded (embedded in the storefront). The
+  // accent color stays from the merchant brand (set on :root by InlineCheckout).
+  const themePalette: Record<string, string> = theme === "light"
+    ? {
+        "--aacp-bg": "#F4F6F8", "--aacp-surface": "#FCFCFD", "--aacp-surface-2": "#F7F9FB",
+        "--aacp-surface-3": "#EEF2F6", "--aacp-fg": "#0F172A", "--aacp-muted": "#64748B",
+        "--aacp-faint": "#94A3B8", "--aacp-line": "rgba(15,23,42,0.08)", "--aacp-line-strong": "#D9E2EC",
+        "--aacp-panel-bg": "#FCFCFD", "--aacp-surface-elevated": "#FFFFFF",
+      }
+    : {
+        "--aacp-bg": "#0B1220", "--aacp-surface": "#111827", "--aacp-surface-2": "#0F172A",
+        "--aacp-surface-3": "#1E293B", "--aacp-fg": "#F1F5F9", "--aacp-muted": "#94A3B8",
+        "--aacp-faint": "#64748B", "--aacp-line": "rgba(241,245,249,0.08)", "--aacp-line-strong": "rgba(241,245,249,0.14)",
+        "--aacp-panel-bg": "#0F172A", "--aacp-surface-elevated": "#1A1A24",
+      };
 
   return (
     <div
@@ -86,10 +103,18 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
       data-theme={themeAttr}
       style={{
         ...widgetStyle,
+        // Full theme palette + short aliases injected inline for storefront embedding
+        ...themePalette,
+        "--bg": "var(--aacp-bg)",
+        "--tx": "var(--aacp-fg)",
+        "--mut": "var(--aacp-muted)",
+        "--bd": "var(--aacp-line-strong)",
+        "--card": "var(--aacp-surface)",
+        "--chip": "var(--aacp-surface-2)",
         boxShadow: "none",
         borderRadius: 0,
         overflow: "hidden",
-      }}
+      } as React.CSSProperties}
     >
       {/* Header */}
       <div

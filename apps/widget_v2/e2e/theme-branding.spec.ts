@@ -55,6 +55,29 @@ test("theme: user light preference beats merchant dark default", async ({ page }
   expect(isLightColor(bg), `expected light bg (user pref wins), got ${bg}`).toBe(true);
 });
 
+test("theme: inline palette works without base.css (embedded scenario)", async ({ page }) => {
+  // Simulate storefront embed: strip all link/style stylesheets after load.
+  // The inline palette vars must still produce a light background.
+  await setupCrossSellMocks(page, { brand: { mode: "dark" } });
+  await page.addInitScript(() => {
+    try { localStorage.setItem("zyon-theme", "light"); } catch {}
+  });
+  await navigateToCheckout(page);
+  await selectChatChannel(page);
+
+  // Remove all external stylesheets (simulates no base.css loaded)
+  await page.evaluate(() => {
+    document.querySelectorAll('link[rel="stylesheet"], style').forEach((el) => el.remove());
+  });
+  // Wait for reflow
+  await page.waitForTimeout(200);
+
+  const shell = page.locator(".pulse-widget-shell").first();
+  const bg = await shell.evaluate((el) => getComputedStyle(el).backgroundColor);
+  // Even without CSS files, inline palette on the shell should produce light bg
+  expect(isLightColor(bg), `expected light bg from inline palette, got ${bg}`).toBe(true);
+});
+
 // ─── Whitelabel badge: shown only when rules.showBranding is true ─────────────
 
 test("branding: 'Powered by Zyon' shown when showBranding=true", async ({ page }) => {
