@@ -299,6 +299,7 @@ function StripeCardBlockForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return; // Guard: prevent double-submit (re-confirm → Stripe error)
     if (!stripe || !elements) {
       setError("Stripe não carregou corretamente");
       return;
@@ -308,6 +309,19 @@ function StripeCardBlockForm({
     setError(null);
 
     try {
+      // If this intent already succeeded (e.g. a prior confirm went through),
+      // don't confirm again — Stripe rejects re-confirming a succeeded intent
+      // with payment_intent_unexpected_state. Just finalize server-side.
+      const existing = await stripe.retrievePaymentIntent(clientSecret);
+      if (existing.paymentIntent?.status === "succeeded") {
+        if (api) {
+          try { await api.confirmStripePayment(intentId); } catch { /* poll anyway */ }
+        }
+        pollPayment();
+        setLoading(false);
+        return;
+      }
+
       // Confirm payment with Stripe Elements (card data never touches our server)
       const { paymentIntent, error: confirmError } = await stripe.confirmCardPayment(
         clientSecret,

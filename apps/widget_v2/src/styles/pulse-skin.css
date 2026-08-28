@@ -37,39 +37,43 @@
 }
 
 /* ---- dark theme (default Pulse look) ---- */
+/* Dark palette aligned to the storefront (globals.css): bg #08080c, surface
+   #0f0f16, translucent white surfaces. Was a GitHub-ish #0d1117 tone that
+   didn't match the storefront the widget embeds into. */
 .zyon-page[data-skin="pulse"][data-theme="dark"],
 .pulse-widget-shell[data-skin="pulse"][data-theme="dark"] {
-  --aacp-bg: #0d1117;
-  --aacp-surface: #161b22;
-  --aacp-surface-2: #1c2128;
-  --aacp-surface-3: #242b33;
-  --aacp-fg: #f0f2f5;
-  --aacp-muted: #8b949e;
-  --aacp-faint: #6e7681;
-  --aacp-line: rgba(255, 255, 255, 0.08);
+  --aacp-bg: #08080c;
+  --aacp-surface: #0f0f16;
+  --aacp-surface-2: rgba(255, 255, 255, 0.05);
+  --aacp-surface-3: rgba(255, 255, 255, 0.08);
+  --aacp-fg: #f5f5f7;
+  --aacp-muted: #8b8b95;
+  --aacp-faint: #6c6a72;
+  --aacp-line: rgba(255, 255, 255, 0.1);
   --aacp-line-strong: rgba(255, 255, 255, 0.12);
   --aacp-success: #34d399;
   --aacp-warning: #fbbf24;
-  --aacp-panel-bg: #161b22;
-  --aacp-inset-bg: #1c2128;
-  --aacp-shell-bg: #0d1117;
-  --aacp-shell-border: rgba(255, 255, 255, 0.08);
+  --aacp-panel-bg: #0f0f16;
+  --aacp-inset-bg: rgba(255, 255, 255, 0.05);
+  --aacp-shell-bg: #08080c;
+  --aacp-shell-border: rgba(255, 255, 255, 0.1);
+  --aacp-surface-elevated: #1a1a24;
   --aacp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --aacp-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
   --aacp-shadow-lg: 0 34px 70px -28px rgba(0, 0, 0, 0.75);
 
   /* Aliases for V2 inline components */
-  --bg: #0d1117;
-  --tx: #f0f2f5;
-  --mut: #8b949e;
+  --bg: #08080c;
+  --tx: #f5f5f7;
+  --mut: #8b8b95;
   --bd: rgba(255, 255, 255, 0.12);
-  --card: #161b22;
-  --chip: #1c2128;
+  --card: #0f0f16;
+  --chip: rgba(255, 255, 255, 0.05);
   --dot: #34d399;
-  --g2: #6e7681;
-  --tile1: #242b33;
-  --tile2: #1c2128;
-  color: #f0f2f5;
+  --g2: #6c6a72;
+  --tile1: rgba(255, 255, 255, 0.08);
+  --tile2: rgba(255, 255, 255, 0.05);
+  color: #f5f5f7;
 }
 
 /* ---- light theme ---- */

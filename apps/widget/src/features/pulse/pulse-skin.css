@@ -37,7 +37,11 @@
 }
 
 /* ---- dark theme (default Pulse look) ---- */
-.zyon-page[data-skin="pulse"][data-theme="dark"] {
+/* .pulse-widget-shell included so the embedded widget_v2 checkout (which uses
+   that shell class) picks up this dark palette instead of falling back light. */
+.zyon-page[data-skin="pulse"][data-theme="dark"],
+.pulse-widget-shell[data-skin="pulse"][data-theme="dark"],
+.pulse-widget-shell[data-theme="dark"] {
   --aacp-bg: #08080c;
   --aacp-surface: #0f0f16;
   --aacp-surface-2: rgba(255, 255, 255, 0.05);
