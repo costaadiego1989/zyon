@@ -227,7 +227,7 @@ export const DEFAULT_MERCHANT_RULES: MerchantRules = {
 
 export type CrossSellTouchpoint = "browsing" | "pre_cart" | "pre_payment" | "post_purchase";
 export type CrossSellStrategy = "same_category" | "bought_together" | "cart_value_upgrade" | "complementary" | "ai_personalized";
-export type CrossSellDisplayMode = "inline" | "modal" | "banner";
+export type CrossSellDisplayMode = "inline" | "modal" | "banner" | "interstitial";
 
 export interface CrossSellConfig {
   enabled: boolean;
@@ -239,7 +239,11 @@ export interface CrossSellConfig {
   };
   discount: {
     enabled: boolean;
+    /** Discount type: "percent" applies `percent`; "coupon" applies the merchant coupon `couponCode`. */
+    mode?: "percent" | "coupon";
     percent: number;
+    /** When mode === "coupon", the code of an existing merchant coupon to apply/surface. */
+    couponCode?: string;
   };
   display: {
     mode: CrossSellDisplayMode;

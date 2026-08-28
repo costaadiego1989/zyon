@@ -258,7 +258,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         });
         this.logger.debug("cart.afterAdd", { sessionId: cart.sessionId, itemCount: cart.items.length, total: cart.total });
 
-        let crossSellSuggestions: Array<{ name: string; sku: string; price: number; imageUrl?: string; discountPercent?: number }> = [];
+        let crossSellSuggestions: Array<{ name: string; sku: string; price: number; imageUrl?: string; discountPercent?: number; couponCode?: string }> = [];
         try {
           const crossSellConfig = await this.loadCrossSellConfig(merchantId);
           if (crossSellConfig.enabled && crossSellConfig.touchpoints.pre_cart) {
@@ -348,7 +348,8 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
                   sku: p.variants[0]?.sku ?? p.id,
                   price: (p.variants[0]?.basePriceInCents ?? 0) / 100,
                   imageUrl: p.variants[0]?.media?.[0]?.url,
-                  discountPercent: crossSellConfig.discount.enabled ? crossSellConfig.discount.percent : undefined,
+                  discountPercent: crossSellConfig.discount.enabled && crossSellConfig.discount.mode !== "coupon" ? crossSellConfig.discount.percent : undefined,
+                  couponCode: crossSellConfig.discount.enabled && crossSellConfig.discount.mode === "coupon" ? crossSellConfig.discount.couponCode : undefined,
                 }));
             }
           }
@@ -1155,7 +1156,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     }
   }
 
-  private async loadCrossSellConfig(merchantId: string): Promise<{ enabled: boolean; touchpoints: { browsing: boolean; pre_cart: boolean; pre_payment: boolean; post_purchase: boolean }; discount: { enabled: boolean; percent: number }; limits: { maxSuggestionsPerSession: number; cooldownSeconds: number }; strategies: string[] }> {
+  private async loadCrossSellConfig(merchantId: string): Promise<{ enabled: boolean; touchpoints: { browsing: boolean; pre_cart: boolean; pre_payment: boolean; post_purchase: boolean }; discount: { enabled: boolean; mode: string; percent: number; couponCode?: string }; limits: { maxSuggestionsPerSession: number; cooldownSeconds: number }; strategies: string[] }> {
     try {
       const merchant = await this.prisma.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true } });
       const settings = (merchant?.storeSettings as Record<string, any>) ?? {};
@@ -1163,12 +1164,12 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       return {
         enabled: cs.enabled ?? false,
         touchpoints: { browsing: cs.touchpoints?.browsing ?? true, pre_cart: cs.touchpoints?.pre_cart ?? false, pre_payment: cs.touchpoints?.pre_payment ?? true, post_purchase: cs.touchpoints?.post_purchase ?? false },
-        discount: { enabled: cs.discount?.enabled ?? false, percent: cs.discount?.percent ?? 10 },
+        discount: { enabled: cs.discount?.enabled ?? false, mode: cs.discount?.mode ?? "percent", percent: cs.discount?.percent ?? 10, couponCode: cs.discount?.couponCode },
         limits: { maxSuggestionsPerSession: cs.limits?.maxSuggestionsPerSession ?? 2, cooldownSeconds: cs.limits?.cooldownSeconds ?? 120 },
         strategies: cs.strategies ?? ["same_category", "ai_personalized"],
       };
     } catch {
-      return { enabled: false, touchpoints: { browsing: true, pre_cart: false, pre_payment: true, post_purchase: false }, discount: { enabled: false, percent: 10 }, limits: { maxSuggestionsPerSession: 2, cooldownSeconds: 120 }, strategies: ["same_category", "ai_personalized"] };
+      return { enabled: false, touchpoints: { browsing: true, pre_cart: false, pre_payment: true, post_purchase: false }, discount: { enabled: false, mode: "percent", percent: 10 }, limits: { maxSuggestionsPerSession: 2, cooldownSeconds: 120 }, strategies: ["same_category", "ai_personalized"] };
     }
   }
 }

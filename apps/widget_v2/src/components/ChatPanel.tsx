@@ -623,6 +623,83 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
     );
   }
 
+  // ─── INTERSTITIAL (bottom sheet) ────────────────────────────────────────────
+  // Mirrors the storefront pre_cart CrossSellInterstitial so the checkout
+  // (pre_payment) shows the same premium experience.
+  if (mode === "interstitial") {
+    return (
+      <>
+        <div
+          onClick={() => setDismissed(true)}
+          data-testid="cross-sell-interstitial-backdrop"
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9998, animation: "csFadeIn 0.2s ease" }}
+        />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Complete seu pedido"
+          data-testid="cross-sell-interstitial"
+          style={{
+            position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 9999,
+            maxWidth: "560px", margin: "0 auto", maxHeight: "82vh",
+            display: "flex", flexDirection: "column",
+            background: "var(--card)", borderTopLeftRadius: "20px", borderTopRightRadius: "20px",
+            borderTop: "1px solid var(--bd)", boxShadow: "0 -12px 48px rgba(0,0,0,0.28)",
+            animation: "csSlideUp 0.32s cubic-bezier(0.22,1,0.36,1)", overflow: "hidden",
+          }}
+        >
+          <style>{`
+            @keyframes csSlideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+            @keyframes csFadeIn { from { opacity: 0; } to { opacity: 1; } }
+            @media (prefers-reduced-motion: reduce) { @keyframes csSlideUp { from { opacity:0 } to { opacity:1 } } }
+            .cs-scroll::-webkit-scrollbar { display: none; }
+          `}</style>
+          <div style={{ display: "flex", justifyContent: "center", paddingTop: "10px" }}>
+            <div style={{ width: "36px", height: "4px", borderRadius: "2px", background: "var(--bd)" }} />
+          </div>
+          <div style={{ padding: "14px 20px 12px", display: "flex", alignItems: "center", gap: "11px" }}>
+            <span aria-hidden style={{ flexShrink: 0, width: "34px", height: "34px", borderRadius: "10px", background: "var(--aacp-accent, #0f766e)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: "15px", fontWeight: 800, color: "var(--tx)", lineHeight: 1.25 }}>Complete seu pedido</p>
+              <p style={{ margin: "2px 0 0", fontSize: "12.5px", fontWeight: 500, color: "var(--mut)", lineHeight: 1.35 }}>Aproveite e leve junto:</p>
+            </div>
+            <button type="button" onClick={() => setDismissed(true)} aria-label="Fechar" style={{ flexShrink: 0, width: "30px", height: "30px", borderRadius: "50%", border: "none", background: "var(--chip, rgba(255,255,255,0.05))", color: "var(--mut)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div className="cs-scroll" style={{ display: "flex", gap: "12px", padding: "4px 20px 20px", overflowX: "auto", overflowY: "hidden", scrollbarWidth: "none" }}>
+            {products.map((p, i) => (
+              <div key={i} style={{ minWidth: "160px", maxWidth: "160px", flexShrink: 0, background: "var(--tile2, var(--card))", border: "1px solid var(--bd)", borderRadius: "14px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                <div style={{ width: "100%", aspectRatio: "1 / 1", background: "var(--tile1, var(--card))", display: "flex", alignItems: "center", justifyContent: "center", padding: "12px" }}>
+                  {p.image ? (
+                    <img src={p.image} alt={p.name} loading="lazy" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+                  ) : (
+                    <span style={{ fontSize: "40px", fontWeight: 800, color: "var(--aacp-accent, #0f766e)", opacity: 0.25 }}>{p.name.charAt(0).toUpperCase()}</span>
+                  )}
+                </div>
+                <div style={{ padding: "11px", display: "flex", flexDirection: "column", gap: "7px", flex: 1 }}>
+                  <span style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--tx)", lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.name}</span>
+                  {p.price != null && <span style={{ fontSize: "15px", fontWeight: 800, color: "var(--aacp-accent, #0f766e)" }}>{formatCrossSellPrice(p.price)}</span>}
+                  <button type="button" data-testid="cross-sell-product" onClick={() => { void sendMessage(`Adicionar ${p.name}`); setDismissed(true); }} style={{ marginTop: "auto", width: "100%", padding: "9px 8px", borderRadius: "9px", border: "none", background: "var(--aacp-accent, #0f766e)", color: "#fff", fontSize: "12.5px", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Adicionar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: "10px", padding: "14px 20px calc(16px + env(safe-area-inset-bottom, 0px))", borderTop: "1px solid var(--bd)" }}>
+            <button type="button" onClick={() => setDismissed(true)} style={{ flex: "1 1 0", padding: "13px 12px", borderRadius: "12px", border: "1px solid var(--bd)", background: "transparent", color: "var(--tx)", fontSize: "13.5px", fontWeight: 600, cursor: "pointer" }}>
+              Continuar
+            </button>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   // ─── INLINE (default) ───────────────────────────────────────────────────────
   return (
     <div data-testid="cross-sell-inline" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>

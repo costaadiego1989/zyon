@@ -24,6 +24,7 @@ const DISPLAY_OPTIONS: Array<{ value: CrossSellDisplayMode; label: string }> = [
   { value: "inline", label: "Inline (chat)" },
   { value: "modal", label: "Modal (popup)" },
   { value: "banner", label: "Banner (topo)" },
+  { value: "interstitial", label: "Interstitial (sheet)" },
 ];
 
 export function CrossSellPage({ context }: { context: CrossSellContext }) {
@@ -144,16 +145,57 @@ export function CrossSellPage({ context }: { context: CrossSellContext }) {
                   <ToggleSwitch checked={config.discount.enabled} onChange={() => patchConfig({ discount: { ...config.discount, enabled: !config.discount.enabled } })} />
                 </div>
                 {config.discount.enabled && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <input
-                      type="number"
-                      min={1}
-                      max={50}
-                      value={config.discount.percent}
-                      onChange={(e) => patchConfig({ discount: { ...config.discount, percent: Math.max(1, Math.min(50, parseInt(e.target.value) || 10)) } })}
-                      style={{ width: 80, height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-1)", font: "13px var(--font-mono)", color: "var(--color-text)", outline: "none" }}
-                    />
-                    <span style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>% de desconto</span>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {/* Discount mode: percent OR coupon */}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      {(["percent", "coupon"] as const).map((m) => {
+                        const active = (config.discount.mode ?? "percent") === m;
+                        return (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => patchConfig({ discount: { ...config.discount, mode: m } })}
+                            style={{
+                              padding: "6px 12px", borderRadius: 8,
+                              border: `2px solid ${active ? "var(--color-brand)" : "var(--color-border)"}`,
+                              background: active ? "var(--color-brand-subtle, rgba(15,118,110,0.08))" : "transparent",
+                              font: "600 12px var(--font-sans)",
+                              color: active ? "var(--color-brand)" : "var(--color-text)",
+                              cursor: "pointer", transition: "all 0.15s",
+                            }}
+                          >
+                            {m === "percent" ? "Percentual" : "Cupom da loja"}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {(config.discount.mode ?? "percent") === "percent" ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <input
+                          type="number"
+                          min={1}
+                          max={50}
+                          value={config.discount.percent}
+                          onChange={(e) => patchConfig({ discount: { ...config.discount, percent: Math.max(1, Math.min(50, parseInt(e.target.value) || 10)) } })}
+                          style={{ width: 80, height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-1)", font: "13px var(--font-mono)", color: "var(--color-text)", outline: "none" }}
+                        />
+                        <span style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>% de desconto</span>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <input
+                            type="text"
+                            value={config.discount.couponCode ?? ""}
+                            onChange={(e) => patchConfig({ discount: { ...config.discount, couponCode: e.target.value.trim().toUpperCase() } })}
+                            placeholder="EX: LEVEMAIS10"
+                            style={{ width: 180, height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-1)", font: "13px var(--font-mono)", color: "var(--color-text)", outline: "none", textTransform: "uppercase" }}
+                          />
+                          <span style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>código do cupom</span>
+                        </div>
+                        <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Use um cupom ativo da loja. O desconto segue as regras do cupom.</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
