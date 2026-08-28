@@ -128,6 +128,7 @@ interface CheckoutState {
   setActiveDiscount: (stage: DiscountStage, percent: number, couponCode?: string, message?: string) => void;
   dismissDiscount: () => void;
   applyProgressiveDiscount: (cartStatus: CartStatus) => Promise<void>;
+  applyCouponCode: (code: string) => Promise<{ ok: boolean; error?: string }>;
   evaluateAdvancedRules: () => void;
   resetSession: () => void;
 }
@@ -1022,6 +1023,26 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   dismissDiscount: () => {
     // Dismissing the banner removes the (not-yet-committed) discount from the cart.
     set((s) => ({ activeDiscount: null, cart: { ...s.cart, discount: 0 } }));
+  },
+
+  applyCouponCode: async (code) => {
+    const { api, cart } = get();
+    if (!api) return { ok: false, error: "Sessão não iniciada" };
+    try {
+      const result = await api.applyCoupon(code.trim().toUpperCase(), {
+        items: cart.items.map((it) => ({ sku: it.sku, name: it.name, price: it.price, quantity: it.quantity })),
+        total: cart.total,
+      });
+      // Rules-engine authorized → apply the discount to the cart.
+      const discountValue = result.discount_applied ?? 0;
+      set((s) => ({
+        cart: { ...s.cart, discount: discountValue },
+        activeDiscount: discountValue > 0 ? { stage: "initial_coupon" as DiscountStage, percent: Math.round((discountValue / s.cart.total) * 100), couponCode: code.trim().toUpperCase() } : null,
+      }));
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || "Cupom inválido ou expirado" };
+    }
   },
 
   /**

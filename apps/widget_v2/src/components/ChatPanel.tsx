@@ -183,14 +183,23 @@ function ShippingOptionsBlock({ options }: { options?: unknown }) {
 
 function PaymentMethodsBlock({ methods }: { methods?: unknown }) {
   const pay = useCheckoutStore((s) => s.pay);
+  const activeDiscount = useCheckoutStore((s) => s.activeDiscount);
+  const activeRuleActions = useCheckoutStore((s) => s.activeRuleActions);
+  const cartDiscount = useCheckoutStore((s) => s.cart.discount);
   const meths = (methods as Array<{ key: string; label: string; sub?: string }>) ?? [];
 
   const handleSelect = (method: (typeof meths)[0]) => {
     void pay(method.key as "pix" | "credito" | "debito" | "crypto");
   };
 
+  // Show the manual coupon field only when no automatic discount is in play:
+  // no progressive/trigger discount, no advanced-rule discount, none applied yet.
+  const hasAutoDiscount = Boolean(activeDiscount) || cartDiscount > 0 ||
+    (activeRuleActions?.some((a) => /discount|coupon|shipping/i.test(a.type)) ?? false);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      {!hasAutoDiscount && <CouponInputBlock />}
       <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--tx)" }}>Forma de pagamento:</div>
       {meths.map((m) => (
         <button
@@ -732,6 +741,71 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
     <div data-testid="cross-sell-inline" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
       <div style={{ fontSize: "12px", fontWeight: 600, marginBottom: "8px" }}>Você também pode gostar:</div>
       {products.map((p, i) => addButton(p, i))}
+    </div>
+  );
+}
+
+function CouponInputBlock() {
+  const applyCouponCode = useCheckoutStore((s) => s.applyCouponCode);
+  const [code, setCode] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [applied, setApplied] = useState(false);
+
+  const handleApply = async () => {
+    if (!code.trim() || loading) return;
+    setLoading(true);
+    setError(null);
+    const result = await applyCouponCode(code);
+    if (result.ok) {
+      setApplied(true);
+    } else {
+      setError(result.error || "Cupom inválido");
+    }
+    setLoading(false);
+  };
+
+  if (applied) {
+    return (
+      <div style={{ padding: "10px 12px", borderRadius: "10px", border: "1px solid var(--aacp-accent, #0f766e)", background: "color-mix(in srgb, var(--aacp-accent) 8%, var(--card))", fontSize: "12px", color: "var(--aacp-accent, #0f766e)", fontWeight: 600 }}>
+        ✓ Cupom {code.toUpperCase()} aplicado!
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
+      <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--tx)", marginBottom: "8px" }}>Tem cupom de desconto?</div>
+      <div style={{ display: "flex", gap: "6px" }}>
+        <input
+          type="text"
+          value={code}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          placeholder="Código do cupom"
+          style={{
+            flex: 1, minWidth: 0, padding: "8px 10px", borderRadius: "8px",
+            border: "1px solid var(--bd)", background: "var(--chip)",
+            color: "var(--tx)", fontSize: "12px", fontFamily: "inherit", outline: "none",
+            textTransform: "uppercase", letterSpacing: "0.5px",
+          }}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void handleApply(); } }}
+          disabled={loading}
+        />
+        <button
+          onClick={() => void handleApply()}
+          disabled={!code.trim() || loading}
+          style={{
+            padding: "8px 14px", borderRadius: "8px", border: "none",
+            background: code.trim() ? "var(--aacp-accent, #0f766e)" : "var(--bd)",
+            color: "#fff", fontSize: "12px", fontWeight: 600,
+            cursor: code.trim() && !loading ? "pointer" : "not-allowed",
+            flex: "none", opacity: loading ? 0.6 : 1,
+          }}
+        >
+          {loading ? "..." : "Aplicar"}
+        </button>
+      </div>
+      {error && <div style={{ fontSize: "11px", color: "#c92a2a", marginTop: "6px" }}>{error}</div>}
     </div>
   );
 }

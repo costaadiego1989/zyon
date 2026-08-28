@@ -481,6 +481,20 @@ export class CheckoutSession {
     return res.json();
   }
 
+  async applyCoupon(code: string, cart: { items: Array<{ sku: string; name: string; price: number; quantity: number }>; total: number }): Promise<{ discount_applied: number; coupon: Record<string, unknown> }> {
+    this.assertSession();
+    const res = await fetch(`${this.baseUrl}/embed/coupons/apply`, {
+      method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify({ session_id: this.sessionId, merchant_id: this.merchantId, code, cart }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as { detail?: string }).detail || `coupon_apply_failed: ${res.status}`);
+    }
+    return res.json() as Promise<{ discount_applied: number; coupon: Record<string, unknown> }>;
+  }
+
   async updateCustomer(data: Record<string, unknown>): Promise<unknown> {
     this.assertSession();
     const res = await fetch(`${this.baseUrl}/embed/customer/update`, {
