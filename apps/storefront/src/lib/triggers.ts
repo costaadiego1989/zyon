@@ -61,17 +61,33 @@ export function initTriggerDetection(
 
     if (!isTouchDevice) {
       exitFired = false;
-      const handler = (e: MouseEvent) => {
+      const fire = () => {
         if (exitFired) return;
-        // Fire when the cursor is near the top of the viewport (5px margin, like checkout).
-        if (e.clientY <= 5) {
-          exitFired = true;
-          onTrigger("exit_intent_detected");
-          reportTriggerEvent("exit_intent_detected", config);
-        }
+        exitFired = true;
+        onTrigger("exit_intent_detected");
+        reportTriggerEvent("exit_intent_detected", config);
       };
-      document.addEventListener("mouseleave", handler);
-      cleanups.push(() => document.removeEventListener("mouseleave", handler));
+      // Primary signal: mouseout on the document where the cursor leaves toward the
+      // top edge and to no in-page element (relatedTarget null = left the window).
+      // This is more reliable across browsers than document "mouseleave", which
+      // does not consistently fire when the pointer exits the viewport.
+      const handleMouseOut = (e: MouseEvent) => {
+        if (exitFired) return;
+        const to = e.relatedTarget as Node | null;
+        if (to) return; // moved to another element, not out of the window
+        if (e.clientY <= 5) fire();
+      };
+      document.addEventListener("mouseout", handleMouseOut);
+      cleanups.push(() => document.removeEventListener("mouseout", handleMouseOut));
+
+      // Fallback: mouseleave on documentElement (covers browsers that fire this
+      // instead of mouseout when the pointer crosses the top boundary).
+      const handleLeave = (e: MouseEvent) => {
+        if (exitFired) return;
+        if (e.clientY <= 5) fire();
+      };
+      document.documentElement.addEventListener("mouseleave", handleLeave);
+      cleanups.push(() => document.documentElement.removeEventListener("mouseleave", handleLeave));
     }
 
     // Tab/app switch is the mobile-friendly exit signal (mouseleave never fires on touch).
