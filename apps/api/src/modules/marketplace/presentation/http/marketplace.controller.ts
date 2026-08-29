@@ -10,6 +10,7 @@ import {
   Req,
 } from "@nestjs/common";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
+import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/domain/billing-plan-guard.js";
 import { GetSellerOrdersUseCase } from "../../application/use-cases/get-seller-orders.use-case.js";
 import { GetSellerStatsUseCase } from "../../application/use-cases/get-seller-stats.use-case.js";
 import { UpdateMarketplaceConfigUseCase } from "../../application/use-cases/update-marketplace-config.use-case.js";
@@ -31,7 +32,8 @@ interface AuthenticatedRequest {
   };
 }
 
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, PlanLimitGuard)
+@RequirePlanFeature("marketplace")
 @Controller("marketplace/dashboard")
 export class MarketplaceController {
   constructor(

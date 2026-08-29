@@ -1,6 +1,7 @@
 import { Module, OnModuleInit } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PersistenceModule, PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 import { RedisModule } from "../../shared/cache/redis.module.js";
 import { MessagingModule } from "../../shared/messaging/messaging.module.js";
 import { ExperimentsModule } from "../experiments/experiments.module.js";
@@ -38,6 +39,8 @@ import { RevenueManagerController } from "./presentation/http/revenue-manager.co
   imports: [PersistenceModule, RedisModule, MessagingModule, ExperimentsModule],
   controllers: [RevenueManagerController],
   providers: [
+    BillingPlanMeteringService,
+    PlanLimitGuard,
     {
       provide: OBSERVATION_REPOSITORY_PORT,
       useFactory: (prisma: PrismaClient) => new PrismaObservationRepository(prisma),

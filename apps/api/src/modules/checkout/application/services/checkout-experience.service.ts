@@ -38,6 +38,8 @@ export interface ExperienceDeps {
   serviceFee?: number;
   suggestedProducts?: SuggestedProduct[];
   showBranding?: boolean;
+  /** Voice checkout habilitado (feature voiceCheckout do plano — Growth+). */
+  voiceEnabled?: boolean;
   /** Payment configuration — which methods the merchant accepts */
   stripeConnectAccountId?: string | null;
   cryptoPaymentsEnabled?: boolean;
@@ -237,6 +239,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
       cryptoPaymentsEnabled: deps.rules?.cryptoPayments?.enabled === true,
       cryptoPayments: deps.rules?.cryptoPayments,
       showBranding: deps.showBranding ?? false,
+      voiceEnabled: deps.voiceEnabled ?? false,
     },
     policies: deps.rules?.policies,
     items,

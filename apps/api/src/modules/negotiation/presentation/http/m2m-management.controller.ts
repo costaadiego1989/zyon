@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Put, Post, UseGuards, Req } from "@nestjs/common";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
+import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/domain/billing-plan-guard.js";
 import {
   ListM2MAgentsUseCase,
   CreateM2MAgentUseCase,
@@ -9,7 +10,8 @@ import {
 } from "../../application/m2m-management.use-cases.js";
 
 @Controller("m2m")
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, PlanLimitGuard)
+@RequirePlanFeature("m2mAgents")
 export class M2MManagementController {
   constructor(
     private readonly listAgents: ListM2MAgentsUseCase,

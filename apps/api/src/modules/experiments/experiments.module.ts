@@ -24,6 +24,7 @@ import { GetExperimentResultsUseCase } from "./application/use-cases/get-experim
 import { PromoteWinnerUseCase } from "./application/use-cases/promote-winner.use-case.js";
 import { ExpireSessionsScheduler, ExpireSessionsWorker } from "./infrastructure/jobs/expire-sessions.job.js";
 import { AutoPromoteScheduler, AutoPromoteWorker } from "./infrastructure/jobs/auto-promote.job.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 
 @Module({
   imports: [PersistenceModule, RedisModule, MessagingModule, IntegrationsModule],
@@ -31,6 +32,8 @@ import { AutoPromoteScheduler, AutoPromoteWorker } from "./infrastructure/jobs/a
   providers: [
     SignificanceCalculator,
     ExperimentRouterService,
+    BillingPlanMeteringService,
+    PlanLimitGuard,
     {
       provide: EXPERIMENT_REPOSITORY_PORT,
       useFactory: (prisma: PrismaClient) => new PrismaExperimentRepository(prisma),

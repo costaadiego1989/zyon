@@ -3,6 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import { CatalogModule } from "../catalog/catalog.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 import { IndexFaqUseCase } from "./application/use-cases/index-faq.use-case.js";
 import { IndexProductUseCase } from "./application/use-cases/index-product.use-case.js";
 import { IndexPolicyUseCase } from "./application/use-cases/index-policy.use-case.js";
@@ -25,6 +26,8 @@ import { KnowledgeAdminController } from "./presentation/http/knowledge-admin.co
   imports: [CatalogModule, IntegrationsModule],
   controllers: [MerchantPolicyController, KnowledgeAdminController],
   providers: [
+    BillingPlanMeteringService,
+    PlanLimitGuard,
     IndexFaqUseCase,
     IndexProductUseCase,
     IndexPolicyUseCase,

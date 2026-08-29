@@ -1,11 +1,13 @@
 import { Controller, Get, Query, Req, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
+import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/domain/billing-plan-guard.js";
 import { GetRevenueLiftUseCase, GetRevenueLiftTrendUseCase } from "../../application/use-cases/get-revenue-lift.use-case.js";
 
 @ApiTags("Analytics - Revenue Lift")
 @Controller("analytics/revenue-lift")
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, PlanLimitGuard)
+@RequirePlanFeature("revenueLift")
 @ApiBearerAuth("JWT")
 export class RevenueLiftController {
   constructor(

@@ -1,6 +1,7 @@
 import { Module, forwardRef } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 import { DOMAIN_EVENT_BUS } from "../../shared/events/domain-event-bus.port.js";
 import { NotificationsModule } from "../notifications/notifications.module.js";
 import { WhatsAppChannelModule } from "../whatsapp-channel/whatsapp-channel.module.js";
@@ -73,6 +74,8 @@ import { PostSaleDashboardController } from "./presentation/http/post-sale-dashb
   ],
   controllers: [BuyerPostSaleController, PostSaleDashboardController],
   providers: [
+    BillingPlanMeteringService,
+    PlanLimitGuard,
     {
       provide: SCHEDULED_MESSAGE_REPOSITORY,
       useFactory: (prisma: PrismaClient) => new PrismaScheduledMessageRepository(prisma),

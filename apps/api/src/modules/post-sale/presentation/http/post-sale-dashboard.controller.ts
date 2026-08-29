@@ -13,6 +13,7 @@ import {
   Put,
 } from "@nestjs/common";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
+import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/domain/billing-plan-guard.js";
 import { currentTenantPrincipal, type TenantPrincipalRequest } from "../../../../shared/auth/tenant-principal.js";
 import { GetPostSaleDashboardUseCase } from "../../application/use-cases/get-post-sale-dashboard.use-case.js";
 import { GeneratePostSaleTemplateUseCase } from "../../application/use-cases/generate-post-sale-template.use-case.js";
@@ -22,7 +23,8 @@ import { POST_SALE_TEMPLATE_REPOSITORY, type PostSaleTemplateRepositoryPort } fr
 import { Inject, Optional } from "@nestjs/common";
 
 @Controller("dashboard/post-sale")
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, PlanLimitGuard)
+@RequirePlanFeature("postSale")
 export class PostSaleDashboardController {
   private readonly logger = new Logger(PostSaleDashboardController.name);
 

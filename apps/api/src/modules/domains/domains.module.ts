@@ -10,11 +10,14 @@ import { VerifyDomainUseCase } from "./application/use-cases/verify-domain.use-c
 import { ListDomainsUseCase } from "./application/use-cases/list-domains.use-case.js";
 import { DnsVerificationService } from "./infrastructure/dns-verification.service.js";
 import { DomainsController, DomainCheckController } from "./presentation/http/domains.controller.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 
 @Module({
   imports: [PersistenceModule, AuthModule],
   controllers: [DomainsController, DomainCheckController],
   providers: [
+    BillingPlanMeteringService,
+    PlanLimitGuard,
     DnsVerificationService,
     RegisterDomainUseCase,
     VerifyDomainUseCase,

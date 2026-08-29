@@ -98,7 +98,7 @@ export class CheckoutController {
 
   @Post("orders/complete")
   @UseGuards(PlanLimitGuard)
-  @RequirePlanLimit("ordersPerMonth")
+  @RequirePlanLimit("ordersPerMonth", 1, { soft: true })
   complete(@Body() body: CompleteOrderRequest) {
     return this.completeOrder.execute(body);
   }

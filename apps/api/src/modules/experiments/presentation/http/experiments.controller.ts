@@ -19,6 +19,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
+import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/domain/billing-plan-guard.js";
 import { CreateExperimentUseCase } from "../../application/use-cases/create-experiment.use-case.js";
 import { GetExperimentUseCase } from "../../application/use-cases/get-experiment.use-case.js";
 import { ListExperimentsUseCase } from "../../application/use-cases/list-experiments.use-case.js";
@@ -38,7 +39,8 @@ import {
 
 @ApiTags("Experiments")
 @Controller("experiments")
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, PlanLimitGuard)
+@RequirePlanFeature("abTests")
 @ApiBearerAuth("JWT")
 export class ExperimentsController {
   constructor(

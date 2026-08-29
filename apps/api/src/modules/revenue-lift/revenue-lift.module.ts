@@ -6,6 +6,7 @@ import { RevenueLiftCalculatorService } from "./domain/services/revenue-lift-cal
 import { RevenueLiftRepository } from "./infrastructure/revenue-lift.repository.js";
 import { GetRevenueLiftUseCase, GetRevenueLiftTrendUseCase } from "./application/use-cases/get-revenue-lift.use-case.js";
 import { RevenueLiftController } from "./presentation/http/revenue-lift.controller.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 
 @Module({
   imports: [PersistenceModule],
@@ -17,6 +18,8 @@ import { RevenueLiftController } from "./presentation/http/revenue-lift.controll
     RevenueLiftRepository,
     GetRevenueLiftUseCase,
     GetRevenueLiftTrendUseCase,
+    BillingPlanMeteringService,
+    PlanLimitGuard,
   ],
   exports: [
     HoldoutGroupService,

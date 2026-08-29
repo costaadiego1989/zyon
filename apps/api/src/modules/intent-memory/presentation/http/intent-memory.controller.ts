@@ -17,11 +17,13 @@ import {
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
+import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/domain/billing-plan-guard.js";
 import { ClassifyCustomerIntentUseCase, RecordIntentIfConsentedUseCase } from "../../application/use-cases/classify-customer-intent.use-case.js";
 
 @ApiTags("Intent Memory")
 @Controller("intent-memory")
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, PlanLimitGuard)
+@RequirePlanFeature("intentMemory")
 @ApiBearerAuth("JWT")
 export class IntentMemoryController {
   constructor(

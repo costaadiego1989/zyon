@@ -4,6 +4,7 @@ import { AuthModule } from "../auth/auth.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 import { EvaluateNegotiationUseCase } from "./application/evaluate-negotiation.use-case.js";
 import {
   GetMerchantNegotiationPolicyUseCase,
@@ -47,6 +48,8 @@ import { PaymentModule } from "../payment/payment.module.js";
     M2MManagementController,
   ],
   providers: [
+    BillingPlanMeteringService,
+    PlanLimitGuard,
     EvaluateNegotiationUseCase,
     GetMerchantNegotiationPolicyUseCase,
     UpsertMerchantNegotiationPolicyUseCase,

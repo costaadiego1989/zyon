@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Put, Req, UseGuards } from "@nestjs/common";
 import type { MerchantNegotiationPolicy } from "@zyon/negotiation-engine";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
+import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/domain/billing-plan-guard.js";
 import {
   GetMerchantNegotiationPolicyUseCase,
   UpsertMerchantNegotiationPolicyUseCase
@@ -25,6 +26,8 @@ export class MerchantNegotiationPolicyController {
   }
 
   @Put()
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanFeature("advancedRules")
   async put(@Req() request: unknown, @Body() body: MerchantNegotiationPolicy & { merchantId?: string }) {
     const user = currentUser(request as { user?: unknown });
     await this.upsertPolicy.execute({ merchantId: user.merchantId, policy: body });

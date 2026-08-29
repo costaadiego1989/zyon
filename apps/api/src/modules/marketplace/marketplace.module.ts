@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { createPrismaClient } from "../../shared/persistence/prisma-client.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 
 import { MARKETPLACE_CONFIG_REPOSITORY } from "./domain/ports/marketplace-config-repository.port.js";
 import { FEDERATED_PRODUCT_REPOSITORY } from "./domain/ports/federated-product-repository.port.js";
@@ -52,6 +53,8 @@ const prismaProvider = {
   controllers: [MarketplaceController, MarketplaceDiscoveryController],
   providers: [
     prismaProvider,
+    BillingPlanMeteringService,
+    PlanLimitGuard,
 
     // Repositories
     {

@@ -5,6 +5,7 @@ import { InMemoryIntentMemoryRepository } from "./infrastructure/repositories/in
 import { InMemoryBuyerIntentConsentRepository } from "./infrastructure/repositories/in-memory-buyer-intent-consent.repository.js";
 import { ClassifyCustomerIntentUseCase, RecordIntentIfConsentedUseCase } from "./application/use-cases/classify-customer-intent.use-case.js";
 import { IntentMemoryController } from "./presentation/http/intent-memory.controller.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 
 /**
  * IntentMemoryModule — LGPD-compliant buyer intent classification and memory.
@@ -15,6 +16,8 @@ import { IntentMemoryController } from "./presentation/http/intent-memory.contro
 @Module({
   controllers: [IntentMemoryController],
   providers: [
+    BillingPlanMeteringService,
+    PlanLimitGuard,
     {
       provide: INTENT_MEMORY_REPOSITORY,
       // TODO: Replace with PrismaIntentMemoryRepository when table is migrated

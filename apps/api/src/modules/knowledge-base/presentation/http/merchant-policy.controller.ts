@@ -11,6 +11,7 @@ import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal
 import { RequireTenantAccess } from "../../../integrations/presentation/http/tenant-access.decorator.js";
 import { TenantAccessGuard } from "../../../integrations/presentation/http/tenant-access.guard.js";
 import { TenantCredentialGuard } from "../../../integrations/presentation/http/tenant-credential.guard.js";
+import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/domain/billing-plan-guard.js";
 import { GetPolicyUseCase } from "../../application/use-cases/get-policy.use-case.js";
 import { UpdatePolicyUseCase } from "../../application/use-cases/update-policy.use-case.js";
 import { UpdateMerchantPolicyDto } from "./merchant-policy.dto.js";
@@ -53,8 +54,9 @@ export class MerchantPolicyController {
   @ApiResponse({ status: 200, description: "Policies saved and indexed" })
   @ApiResponse({ status: 400, description: "Invalid body" })
   @ApiResponse({ status: 403, description: "Missing support:write scope" })
-  @UseGuards(TenantCredentialGuard, TenantAccessGuard)
+  @UseGuards(TenantCredentialGuard, TenantAccessGuard, PlanLimitGuard)
   @RequireTenantAccess({ serviceScopes: ["support:write"] })
+  @RequirePlanFeature("knowledgeBase")
   @Put()
   updatePolicies(@Req() request: unknown, @Body() body: UpdateMerchantPolicyDto) {
     return this.updatePolicy.execute(tenantId(request), body);

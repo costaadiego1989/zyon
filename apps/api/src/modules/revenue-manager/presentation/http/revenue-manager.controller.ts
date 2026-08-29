@@ -19,6 +19,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
+import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/domain/billing-plan-guard.js";
 import { ApproveHypothesisUseCase } from "../../application/use-cases/approve-hypothesis.use-case.js";
 import { RejectHypothesisUseCase } from "../../application/use-cases/reject-hypothesis.use-case.js";
 import { OBSERVATION_REPOSITORY_PORT, type ObservationRepositoryPort } from "../../domain/ports/observation-repository.port.js";
@@ -37,7 +38,8 @@ import {
 
 @ApiTags("Revenue Manager")
 @Controller("revenue-manager")
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, PlanLimitGuard)
+@RequirePlanFeature("revenueManager")
 @ApiBearerAuth("JWT")
 export class RevenueManagerController {
   constructor(

@@ -33,6 +33,7 @@ import {
 } from "../../../intent-memory/domain/ports/intent-memory-repository.port.js";
 import { BuyerIntentMemoryConsentEntity } from "../../../intent-memory/domain/entities/buyer-intent-memory-consent.entity.js";
 import { HoldoutGroupService } from "../../../revenue-lift/domain/services/holdout-group.service.js";
+import { BILLING_PLANS, BUYER_SERVICE_FEE_CENTS, effectiveBillingPlan } from "../../../payment/domain/billing-plans.js";
 
 @Injectable()
 export class StartCheckoutUseCase {
@@ -62,16 +63,29 @@ export class StartCheckoutUseCase {
     const settings = await this.checkoutSettings?.getContext(input.merchant_id);
     const merchant = await this.merchantRepository?.getProfile(input.merchant_id);
 
-    // Whitelabel branding: shown for free-plan merchants (no active/trialing paid
-    // subscription). "Powered by Zyon" badge appears in the checkout footer.
+    // Plano efetivo do merchant → gates de features no checkout:
+    // - whiteLabel: badge "Powered by Zyon" só quando plano NÃO tem a feature.
+    // - voiceCheckout: canal de voz só quando plano tem a feature (Growth+).
+    // Starter (Free) e trial caem em Starter (effectiveBillingPlan).
     let showBranding = true;
+    let voiceEnabled = false;
     if (this.prisma) {
       try {
         const sub = await this.prisma.merchantBillingSubscription.findUnique({
           where: { merchantId: input.merchant_id },
-          select: { status: true },
+          select: { status: true, trialEndsAt: true, stripePriceId: true },
         });
-        showBranding = !(sub && (sub.status === "active" || sub.status === "trialing"));
+        if (sub) {
+          const plan = effectiveBillingPlan(
+            {
+              status: sub.status as "active" | "trialing" | "past_due" | "cancelled" | "unpaid" | "paused" | "incomplete",
+              trialEndsAt: sub.trialEndsAt?.toISOString(),
+              stripePriceId: sub.stripePriceId ?? undefined,
+            },
+          );
+          showBranding = !BILLING_PLANS[plan].features.whiteLabel;
+          voiceEnabled = BILLING_PLANS[plan].features.voiceCheckout;
+        }
       } catch { /* default to showing branding (free-tier safe default) */ }
     }
     const merchantRules = await this.merchantRepository?.getRules(input.merchant_id);
@@ -345,7 +359,8 @@ export class StartCheckoutUseCase {
         couponBoxEnabled: merchantRules?.couponBoxEnabled,
         rules: merchantRules,
         showBranding,
-        serviceFee: this.experienceConfig.platformFeeBrl,
+        voiceEnabled,
+        serviceFee: BUYER_SERVICE_FEE_CENTS / 100, // R$0,99 fixo, todos os planos
         suggestedProducts,
         stripeConnectAccountId: merchant?.stripeConnectAccountId,
         cryptoPaymentsEnabled: !!(merchantRules as any)?.cryptoPayments?.enabled,

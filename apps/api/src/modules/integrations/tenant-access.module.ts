@@ -9,6 +9,7 @@ import { INTEGRATIONS_REPOSITORY } from "./domain/ports/integrations.repository.
 import { PrismaIntegrationsRepository } from "./infrastructure/prisma-integrations.repository.js";
 import { TenantAccessGuard } from "./presentation/http/tenant-access.guard.js";
 import { TenantCredentialGuard } from "./presentation/http/tenant-credential.guard.js";
+import { BillingPlanMeteringService } from "../payment/domain/billing-plan-guard.js";
 
 @Module({
   imports: [AuthModule],
@@ -16,6 +17,7 @@ import { TenantCredentialGuard } from "./presentation/http/tenant-credential.gua
     ApiKeyService,
     ApiKeyAccessPolicy,
     AuthenticateMerchantApiKeyService,
+    BillingPlanMeteringService,
     TenantCredentialGuard,
     TenantAccessGuard,
     {
