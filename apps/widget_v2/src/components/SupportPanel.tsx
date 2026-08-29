@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
 import { useCheckoutStore } from "@/store/checkout-store";
+import { fetchPublicFaq, sendSupportChat } from "@/api/support";
 
 interface SupportMessage {
   id: string;
@@ -84,18 +85,14 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch(`${apiBaseUrl}/support/faq/public?merchantId=${merchantId}`);
-        if (res.ok) {
-          const data = await res.json();
-          const items: FaqItem[] = Array.isArray(data.faqItems) ? data.faqItems : [];
-          if (!cancelled && items.length > 0) {
-            const hasHandoff = items.some(i => /atendente|humano/i.test(i.question));
-            const withHandoff: FaqItem[] = [
-              ...items.map((it) => ({ ...it, icon: it.icon || "❓" })),
-              ...(!hasHandoff ? [{ icon: "👤", question: "Falar com atendente", answer: "Um atendente humano será acionado em breve." }] : []),
-            ];
-            setFaqItems(withHandoff);
-          }
+        const items = await fetchPublicFaq(apiBaseUrl, merchantId);
+        if (!cancelled && items.length > 0) {
+          const hasHandoff = items.some(i => /atendente|humano/i.test(i.question));
+          const withHandoff: FaqItem[] = [
+            ...items.map((it) => ({ ...it, icon: it.icon || "❓" })),
+            ...(!hasHandoff ? [{ icon: "👤", question: "Falar com atendente", answer: "Um atendente humano será acionado em breve." }] : []),
+          ];
+          setFaqItems(withHandoff);
         }
       } catch { /* keep defaults */ }
     })();
@@ -208,25 +205,20 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
 
       if (merchantId) {
         try {
-          const res = await fetch(`${apiBaseUrl}/support/chat/public`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              merchant_id: merchantId,
-              message: trimmed,
-              session_id: sessionIdRef.current,
-            }),
+          const data = await sendSupportChat(apiBaseUrl, {
+            merchantId,
+            message: trimmed,
+            sessionId: sessionIdRef.current,
           });
 
-          if (res.ok) {
-            const data = await res.json();
-            if (data.handoff?.ticketId) {
-              setTicketId(data.handoff.ticketId);
+          if (data) {
+            if (data.ticketId) {
+              setTicketId(data.ticketId);
             }
             setMessages((prev) => [...prev, {
               id: `a-${Date.now()}`,
               role: "agent",
-              text: data.reply || data.message || data.response || "Mensagem recebida.",
+              text: data.reply || "Mensagem recebida.",
             }]);
             setIsLoading(false);
             return;
