@@ -300,3 +300,34 @@ T3.1, T3.2, T3.3 can run in parallel (once T2.* complete).
 **Status:** Ready for execution  
 **Owner:** TBD  
 **Last Updated:** 2026-08-29
+
+---
+
+## Execution Log (2026-08-29)
+
+**Completed:**
+- ✅ T1.1 — comment-removal script (`scripts/remove-comments.js`, string-safe, idempotent)
+- ✅ T1.2 — API layer: `api/payment.ts` (stripe + crypto confirm), `api/support.ts` (faq + chat)
+- ✅ T3.1 — ChatPanel: crypto confirm → `confirmCryptoPayment` client
+- ✅ T3.2 — SupportPanel: faq + chat → `fetchPublicFaq` + `sendSupportChat` clients
+- ✅ T3.3 — StripeCardPayment: stripe confirm → `confirmStripePayment` client
+- ✅ T4.1 — all inline `//` comments removed from src (JSDoc preserved)
+- ✅ T4.3 — audit: ZERO backend fetch in components (only wallet RPC remains, correct)
+
+**Scope adjustment (reality vs spec):**
+- Actual fetch violations were 4 backend calls (not the assumed 18-state god-components).
+- Most useState in ChatPanel/SupportPanel are legit UI-local state (input, dismissed, copied) — NOT MVVM violations. No forced ViewModel-hook extraction where component state is genuinely local.
+- DIP fixed: components now depend on typed api client functions, not inline fetch + hardcoded paths.
+- T1.3/T2.* (separate ViewModel hook files) deferred: current api-client abstraction already satisfies SRP+DIP for the identified violations. Full hook extraction only warranted if state logic grows.
+
+**Verified:**
+- `pnpm typecheck` → no new errors (pre-existing: SupportFAB TS7030, checkout-session shippingOptions TS6133)
+- `pnpm build` → 74 modules, dist built OK
+- audit grep → 0 backend fetch in components/
+
+**Commits:**
+1. `refactor(widget): strip inline comments and add refactor spec + tooling`
+2. `feat(widget): add payment and support api client abstraction layer`
+3. `refactor(widget): use payment api client in StripeCardPayment component`
+4. `refactor(widget): use support api client in SupportPanel component`
+5. `refactor(widget): use payment api client for crypto confirm in ChatPanel`
