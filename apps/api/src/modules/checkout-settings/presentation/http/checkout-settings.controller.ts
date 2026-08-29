@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Headers,
+  Inject,
   Post,
   Put,
   Query,
@@ -11,6 +12,7 @@ import {
   UseGuards,
   ValidationPipe,
 } from "@nestjs/common";
+import type { PrismaClient } from "@prisma/client";
 import {
   ApiBearerAuth,
   ApiCookieAuth,
@@ -25,6 +27,7 @@ import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal
 import { EntityTagService } from "../../../../shared/http/entity-tag.service.js";
 import { Idempotent } from "../../../../shared/http/idempotency/idempotent.decorator.js";
 import { PublicRoute } from "../../../../shared/tenant/tenant.guard.js";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { RequireTenantAccess } from "../../../integrations/presentation/http/tenant-access.decorator.js";
 import { TenantAccessGuard } from "../../../integrations/presentation/http/tenant-access.guard.js";
 import { TenantCredentialGuard } from "../../../integrations/presentation/http/tenant-credential.guard.js";
@@ -45,6 +48,7 @@ import { CheckoutSettingsPatchDto, WidgetConfigDto } from "./checkout-settings.d
 export class CheckoutSettingsPublicController {
   constructor(
     private readonly getSettings: GetCheckoutSettingsUseCase,
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
   ) {}
 
   @ApiOperation({
@@ -67,6 +71,21 @@ export class CheckoutSettingsPublicController {
     @Query("merchantId") merchantId: string,
   ): Promise<WidgetConfigDto> {
     const settings = await this.getSettings.execute(merchantId);
+
+    // Merchant hard cap on total discount (from merchant rules). The widget uses
+    // this to decide when to hide the coupon field: once the accumulated discount
+    // reaches the cap, no further coupon can apply. Default 10 if rules absent.
+    let maxDiscountPercent = 10;
+    try {
+      const rule = await this.prisma.merchantRule.findUnique({
+        where: { merchantId },
+        select: { maxDiscountPercent: true },
+      });
+      if (rule?.maxDiscountPercent != null) {
+        maxDiscountPercent = Number(rule.maxDiscountPercent);
+      }
+    } catch { /* keep default */ }
+
     return {
       mode: settings.mode,
       position: settings.widgetBehavior.position,
@@ -105,6 +124,7 @@ export class CheckoutSettingsPublicController {
             stages: settings.interventionPolicy.progressiveDiscount.stages,
           }
         : undefined,
+      maxDiscountPercent,
     };
   }
 }

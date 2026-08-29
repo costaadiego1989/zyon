@@ -2,6 +2,7 @@ import { Injectable, Logger, Inject } from "@nestjs/common";
 import { INVENTORY_REPOSITORY, type InventoryRepositoryPort } from "../../domain/ports/inventory-repository.port.js";
 import { INVENTORY_MOVEMENT_REPOSITORY, type InventoryMovementRepositoryPort } from "../../domain/ports/inventory-movement-repository.port.js";
 import { INVENTORY_ALERT_REPOSITORY, type InventoryAlertRepositoryPort } from "../../domain/ports/inventory-alert-repository.port.js";
+import { INVENTORY_LOCATION_REPOSITORY, type InventoryLocationRepositoryPort } from "../../domain/ports/inventory-location-repository.port.js";
 import type { SaleCompletedEvent } from "../../domain/events/sale-completed.event.js";
 import { computeStockStatus } from "../../domain/values/stock-status.js";
 
@@ -17,13 +18,22 @@ export class OnSaleCompletedHandler {
     @Inject(INVENTORY_REPOSITORY) private readonly invRepo: InventoryRepositoryPort,
     @Inject(INVENTORY_MOVEMENT_REPOSITORY) private readonly movementRepo: InventoryMovementRepositoryPort,
     @Inject(INVENTORY_ALERT_REPOSITORY) private readonly alertRepo: InventoryAlertRepositoryPort,
+    @Inject(INVENTORY_LOCATION_REPOSITORY) private readonly locationRepo: InventoryLocationRepositoryPort,
   ) {}
 
   async handle(event: SaleCompletedEvent): Promise<void> {
     const { merchantId, orderId, items } = event;
 
-    // Phase 2: resolve default location per merchant; for now use "default"
-    const defaultLocationId = "default";
+    // Resolve the merchant's default inventory location. The InventoryItem
+    // snapshot created by the catalog→inventory sync lives at the isDefault
+    // location (a cuid), never the literal string "default" — using the latter
+    // meant findBySku always missed and stock never decremented on a sale.
+    const locations = await this.locationRepo.list(merchantId);
+    const defaultLocationId = (locations.find((l) => l.isDefault) ?? locations[0])?.id;
+    if (!defaultLocationId) {
+      this.logger.warn(`No inventory location for merchant ${merchantId}; skipping stock decrement for order ${orderId}`);
+      return;
+    }
 
     for (const item of items) {
       try {
