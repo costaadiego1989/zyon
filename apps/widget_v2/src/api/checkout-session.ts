@@ -30,7 +30,6 @@ export interface BrandConfig {
   warningColor?: string;
   mode?: string;
   density?: string;
-  // Extended fields from API (snake_case variants + extras)
   backgroundImageUrl?: string;
   favicon?: string;
   agentAvatarUrl?: string;
@@ -159,7 +158,6 @@ export interface PaymentIntent {
   pix_qr_url?: string;
   stripe_client_secret?: string;
   stripe_publishable_key?: string;
-  // Crypto fields
   crypto_chain?: string;
   crypto_chain_label?: string;
   crypto_network?: string;
@@ -312,7 +310,6 @@ export class CheckoutSession {
       options?: Array<{ carrier: string; method: string; deliveryDays?: number; customerPrice: number; carrierKey: string }>;
       results?: Array<{ carrier_key: string; label: string; price: number; eta_days: number; is_free?: boolean }>;
     };
-    // API returns `results` (new format); legacy `options` kept for backward compat
     const rawOptions = data.options ?? [];
     const rawResults = data.results ?? [];
     if (rawOptions.length > 0) {
@@ -325,7 +322,6 @@ export class CheckoutSession {
         cost: Math.round(o.customerPrice * 100),
       }));
     }
-    // Map results (current API format) to widget shape
     this.shippingOptions = rawResults.map((r) => ({
       carrier: r.label,
       method: "",
@@ -366,7 +362,6 @@ export class CheckoutSession {
     options?: { chain?: "polygon" | "base" }
   ): Promise<PaymentIntent> {
     this.assertSession();
-    // API expects: method = "pix" | "card" | "boleto" | "crypto"
     const apiMethod = method === "credito" || method === "debito" ? "card" : method;
     const idempotencyKey = `pay_${this.sessionId}_${apiMethod}`;
     console.log('[WIDGET-DBG] API createPaymentIntent', { method: apiMethod, sessionId: this.sessionId });
@@ -385,7 +380,6 @@ export class CheckoutSession {
       const text = await res.text().catch(() => "");
       throw new Error(`embed_payment_failed: ${res.status} ${text.slice(0, 200)}`);
     }
-    // API returns PaymentIntentSnapshot shape — map to widget's PaymentIntent interface
     const raw = (await res.json()) as {
       id: string;
       status: string;
@@ -415,7 +409,6 @@ export class CheckoutSession {
     const expiresAtUnix = raw.buyerFacing?.quoteExpiresAt
       ? Math.floor(Date.parse(raw.buyerFacing.quoteExpiresAt) / 1000)
       : undefined;
-    // encodedQrImage is raw base64 PNG — turn into a data URI for <img src>
     const pixQrUrl = raw.buyerFacing?.encodedQrImage
       ? `data:image/png;base64,${raw.buyerFacing.encodedQrImage}`
       : undefined;
@@ -427,7 +420,6 @@ export class CheckoutSession {
       pix_qr_url: pixQrUrl,
       stripe_client_secret: raw.buyerFacing?.clientSecret,
       stripe_publishable_key: raw.buyerFacing?.stripePublishableKey,
-      // Crypto buyerFacing mapping
       crypto_chain: raw.buyerFacing?.chain,
       crypto_chain_label: raw.buyerFacing?.chainLabel,
       crypto_network: raw.buyerFacing?.evmNetwork,
@@ -447,7 +439,6 @@ export class CheckoutSession {
 
   async getPaymentStatus(intentId: string): Promise<{ status: string; paid_at?: string }> {
     this.assertSession();
-    // API requires session_id as a query param (tenant + session boundary check)
     const res = await fetch(
       `${this.baseUrl}/embed/payment/intents/${encodeURIComponent(intentId)}/status?session_id=${encodeURIComponent(this.sessionId!)}`,
       {
@@ -522,8 +513,6 @@ export function crossSellBlockFromSuggestions(
   suggestions: SuggestedProduct[] | undefined
 ): ChatBlock | null {
   if (!suggestions?.length) return null;
-  // display_mode is set per-product by the API (from merchant config); the
-  // whole batch shares one mode, so read it from the first product.
   const displayMode = suggestions[0]?.display_mode ?? "inline";
   return {
     type: "cross_sell",

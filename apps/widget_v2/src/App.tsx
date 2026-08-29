@@ -22,21 +22,16 @@ function readUrlParams() {
   let apiBaseUrl = params.get("apiBaseUrl") || params.get("api_base_url") || DEFAULT_API_BASE;
   let globalUserId = params.get("globalUserId") || params.get("global_user_id") || undefined;
 
-  // SECURITY (W2-016): Enforce HTTPS in production.
-  // Allow http only on localhost (development). On any other domain, enforce https
-  // to prevent tokens being sent over plaintext.
   const isLocalhost = apiBaseUrl.includes("localhost") || apiBaseUrl.includes("127.0.0.1");
   if (!isLocalhost && apiBaseUrl.startsWith("http://")) {
     apiBaseUrl = apiBaseUrl.replace("http://", "https://");
   }
 
-  // If URL has params, persist to sessionStorage for refresh resilience
   if (embedToken && merchantId) {
     try {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId }));
     } catch { /* quota */ }
   } else {
-    // No URL params — try to recover from sessionStorage (page refresh)
     try {
       const saved = sessionStorage.getItem(SESSION_KEY);
       if (saved) {
@@ -50,7 +45,6 @@ function readUrlParams() {
     } catch { /* corrupted */ }
   }
 
-  // Strip sensitive params from URL (security: avoid leaking token in Referer/history)
   const sensitive = ["embedToken", "embedSessionToken", "embed_session_token", "merchantId", "merchant_id"];
   let changed = false;
   for (const key of sensitive) {
@@ -75,13 +69,11 @@ export function App() {
   const brand = useCheckoutStore((s) => s.brand);
   const sessionId = useCheckoutStore((s) => s.sessionId);
 
-  // Setup abandonment tracking
   useEffect(() => {
     const cleanup = setupAbandonmentTracking();
     return cleanup;
   }, []);
 
-  // Track order completion
   useEffect(() => {
     if (status === "completed" && sessionId) {
       void trackEvent("order_completed");
@@ -89,9 +81,6 @@ export function App() {
     }
   }, [status, sessionId]);
 
-  // Setup behavioral triggers (idle, exit intent).
-  // Subscribe to triggerConfig so the effect re-runs when it loads async in init()
-  // (was gated on [status] only, which ran before triggerConfig existed → never armed).
   const triggerConfig = useCheckoutStore((s) => s.triggerConfig);
   const triggerMessages = useCheckoutStore((s) => s.triggerMessages);
   useEffect(() => {
@@ -106,12 +95,6 @@ export function App() {
       const stage = stageMap[trigger];
       if (!stage) return;
       const msg = triggerMessages?.[trigger];
-      // A trigger only SURFACES its configured message and (optionally) a
-      // suggested coupon code — it must NOT apply a discount to the cart on its
-      // own. Discounts are authorized only by the rules-engine: the buyer applies
-      // the suggested coupon via the coupon field, which validates server-side.
-      // percent=0 shows the banner/coupon without touching cart.discount, so the
-      // coupon field stays visible (it only hides at the merchant cap).
       useCheckoutStore.getState().setActiveDiscount(stage, 0, msg?.couponCode, msg?.message);
     };
 
@@ -127,7 +110,6 @@ export function App() {
   useEffect(() => {
     const { embedToken, merchantId, cartRef, apiBaseUrl, globalUserId } = readUrlParams();
     if (!embedToken || !merchantId) {
-      // Dev fallback: if on localhost and only cartId present, show helpful message
       const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
       if (isLocalhost && cartRef) {
         useCheckoutStore.setState({
@@ -145,12 +127,10 @@ export function App() {
     void init({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId });
   }, [init]);
 
-  // Issue #1: Set page title with store name
   useEffect(() => {
     if (brand.name) document.title = `Checkout · ${brand.name}`;
   }, [brand.name]);
 
-  // Apply brand theme as CSS variables
   useEffect(() => {
     const root = document.documentElement;
     if (brand.accentColor) root.style.setProperty("--aacp-accent", brand.accentColor);
@@ -166,14 +146,12 @@ export function App() {
     if (brand.mutedTextColor) root.style.setProperty("--aacp-muted", brand.mutedTextColor);
     if (brand.successColor) root.style.setProperty("--aacp-success", brand.successColor);
     if (brand.warningColor) root.style.setProperty("--aacp-warning", brand.warningColor);
-    // Short-form aliases used by inline styles in V2 components
     if (brand.backgroundColor) root.style.setProperty("--bg", brand.backgroundColor);
     if (brand.textColor) root.style.setProperty("--tx", brand.textColor);
     if (brand.mutedTextColor) root.style.setProperty("--mut", brand.mutedTextColor);
     if (brand.borderColor) root.style.setProperty("--bd", brand.borderColor);
     if (brand.surfaceColor) root.style.setProperty("--card", brand.surfaceColor);
     if (brand.successColor) root.style.setProperty("--dot", brand.successColor);
-    // Mode: light/dark
     if (brand.mode === "dark") {
       document.body.classList.add("theme-dark");
       document.body.classList.remove("theme-light");
@@ -181,14 +159,11 @@ export function App() {
       document.body.classList.add("theme-light");
       document.body.classList.remove("theme-dark");
     }
-    // Density
     if (brand.density) root.dataset.density = brand.density;
-    // Background image
     if (brand.backgroundImageUrl) {
       document.body.style.background = `url(${brand.backgroundImageUrl}) center/cover no-repeat fixed`;
       document.body.style.backgroundColor = brand.backgroundColor || "";
     }
-    // Favicon
     const favicon = brand.favicon || brand.logoUrl;
     if (favicon) {
       let link = document.querySelector("link[rel='icon']") as HTMLLinkElement;
@@ -199,12 +174,10 @@ export function App() {
       }
       link.href = favicon;
     }
-    // Density → max-width shell
     const density = brand.density;
     if (density === "compact") root.style.setProperty("--aacp-shell-max-width", "480px");
     else if (density === "comfortable") root.style.setProperty("--aacp-shell-max-width", "680px");
     else root.style.setProperty("--aacp-shell-max-width", "100%");
-    // Font loading
     if (brand.fontFamily && !document.querySelector(`link[data-font-loaded]`)) {
       const stripQuotes = (s: string) => s.trim().replace(/^['"]|['"]$/g, "");
       const isSystem = (f: string) => f.startsWith("ui-") || f.startsWith("system");

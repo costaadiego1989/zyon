@@ -34,7 +34,6 @@ function urlToWs(baseUrl: string): string {
 export function connectPaymentWs(options: PaymentWsOptions): () => void {
   const { apiBaseUrl, token, intentId, onApproved, onFailed, onError } = options;
 
-  // Guard against SSR or environments without WebSocket
   if (typeof WebSocket === "undefined") {
     onError();
     return () => {};
@@ -63,7 +62,6 @@ export function connectPaymentWs(options: PaymentWsOptions): () => void {
           }
         }
       } catch {
-        // Ignore parse errors, continue listening
       }
     });
 
@@ -72,15 +70,12 @@ export function connectPaymentWs(options: PaymentWsOptions): () => void {
     });
 
     ws.addEventListener("close", () => {
-      // If we got a close before terminal status, fall back to polling
       onError();
     });
   } catch {
-    // Connection failed, immediately trigger fallback
     onError();
   }
 
-  // Return cleanup function
   return () => {
     if (ws) {
       ws.close();

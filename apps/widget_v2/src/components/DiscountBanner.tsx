@@ -24,8 +24,6 @@ export function DiscountBanner({
   const brand = useCheckoutStore((s) => s.brand);
   const buyer = useCheckoutStore((s) => s.buyer);
 
-  // A returning buyer (purchaseCount > 0) should NOT see "boas-vindas" (welcome).
-  // Show a returning-customer message instead.
   const isReturning = (buyer.purchaseCount ?? 0) > 0 || buyer.isReturning;
 
   const defaultMessages: Record<string, string> = {

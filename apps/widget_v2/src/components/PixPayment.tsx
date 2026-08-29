@@ -10,13 +10,11 @@ export function PixPayment() {
   const [copied, setCopied] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
-  // Start polling on mount
   useEffect(() => {
     pollPayment();
     return () => stopPolling();
   }, [pollPayment, stopPolling]);
 
-  // Countdown timer
   useEffect(() => {
     if (!paymentIntent?.expires_at_unix) return;
     const update = () => {
@@ -35,7 +33,6 @@ export function PixPayment() {
     try {
       await navigator.clipboard.writeText(text);
     } catch {
-      // Fallback for iframes/embeds where clipboard API is blocked
       const textarea = document.createElement("textarea");
       textarea.value = text;
       textarea.style.position = "fixed";

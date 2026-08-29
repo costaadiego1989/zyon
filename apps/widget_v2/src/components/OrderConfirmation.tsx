@@ -26,7 +26,6 @@ export function OrderConfirmation() {
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
   const handleBackToStore = () => {
-    // Navigate to merchant storefront; fallback to closing tab
     const storeUrl =
       (window as unknown as Record<string, string>).__AACP_STORE_URL__ || document.referrer || "/";
     window.location.href = storeUrl;

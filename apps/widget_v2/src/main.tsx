@@ -1,7 +1,6 @@
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 
-// Styles
 import "./styles/base.css";
 import "./design-system/tokens.css";
 import "./styles/pulse-skin.css";
@@ -15,7 +14,6 @@ import { InlineCheckout } from "./InlineCheckout";
 
 const root = document.getElementById("root");
 if (root) {
-  // ?embed=1 mounts InlineCheckout (same as storefront integration) for E2E testing.
   const params = new URLSearchParams(window.location.search);
   if (params.get("embed") === "1") {
     createRoot(root).render(

@@ -3,7 +3,6 @@ import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { useCheckoutStore } from "@/store/checkout-store";
 
-// Stripe publishable key from env or default test key
 const STRIPE_PK = (typeof window !== "undefined" && window.__STRIPE_PK__)
   || import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
   || "pk_test_placeholder";
@@ -46,7 +45,6 @@ function CardForm() {
     }
 
     if (result?.status === "succeeded") {
-      // Confirm with our backend
       try {
         const confirmRes = await fetch(
           `${api.apiBaseUrl}/embed/payment/intents/${paymentIntent.intent_id}/stripe/confirm`,

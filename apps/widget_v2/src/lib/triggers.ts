@@ -56,7 +56,7 @@ export function setupIdleTrigger(
   events.forEach((e) =>
     document.addEventListener(e, resetIdle, { passive: true })
   );
-  resetIdle(); // start timer
+  resetIdle();
 
   return () => {
     if (idleTimer) clearTimeout(idleTimer);
@@ -75,7 +75,6 @@ export function setupExitIntentTrigger(
   const handler = (e: MouseEvent) => {
     if (fired) return;
     if (e.clientY <= 5) {
-      // mouse near top of viewport
       fired = true;
       fireTrigger("exit_intent_detected", config, onTrigger);
     }

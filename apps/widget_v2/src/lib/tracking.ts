@@ -10,7 +10,6 @@ export type CheckoutEventName =
   | "payment_method_selected"
   | "order_completed"
   | "checkout_abandoned"
-  // Behavioral triggers (also tracked as events)
   | "idle_30_seconds"
   | "exit_intent_detected"
   | "shipping_objection_detected"
@@ -53,12 +52,10 @@ export async function trackEvent(
     });
     if (res.ok) return (await res.json()) as TrackEventResult;
   } catch {
-    // Silent fail — tracking is best-effort
   }
   return undefined;
 }
 
-// Abandonment detection
 export function setupAbandonmentTracking(): () => void {
   const handler = () => {
     trackEvent("checkout_abandoned", {

@@ -17,7 +17,6 @@ export function PaymentSelector() {
   const paymentIntent = useCheckoutStore((s) => s.paymentIntent);
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
 
-  // If Stripe card payment is active, show that
   if (paymentIntent?.stripe_client_secret) {
     return <StripeCardPayment />;
   }

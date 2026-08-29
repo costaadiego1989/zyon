@@ -17,13 +17,12 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
     typeof window !== "undefined" ? window.innerWidth < 640 : true
   );
 
-  // Close the cart drawer with a slide-down animation, then unmount.
   const closeCartDrawer = useCallback(() => {
     setCartDrawerClosing(true);
     window.setTimeout(() => {
       setCartDrawerOpen(false);
       setCartDrawerClosing(false);
-    }, 280); // matches the slide transition
+    }, 280);
   }, []);
   const status = useCheckoutStore((s) => s.status);
   const brand = useCheckoutStore((s) => s.brand);
@@ -45,7 +44,6 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
     }
   }
 
-  // Theme priority: forcedTheme (from embedding storefront) > localStorage (shared key) > merchant default.
   const THEME_KEY = "zyon-theme";
   const merchantDefault = brand.mode === "dark" ? "dark" : "light";
   const [theme, setTheme] = useState<"dark" | "light">(() => {
@@ -57,15 +55,12 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
     return merchantDefault;
   });
 
-  // Follow the embedding storefront's theme when it changes (light/dark toggle).
   useEffect(() => {
     if (forcedTheme === "dark" || forcedTheme === "light") {
       setTheme(forcedTheme);
     }
   }, [forcedTheme]);
 
-  // Responsive layout via JS (checkout.css media queries aren't loaded when
-  // embedded in the storefront). Mobile: cart is a drawer + FAB; desktop: sidebar.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const onResize = () => setIsMobile(window.innerWidth < 640);
@@ -82,13 +77,11 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
 
   const themeAttr = theme;
 
-  // Sync body background with theme
   useEffect(() => {
     const bodyBg = theme === "dark" ? "#0d1117" : "#e7e5df";
     document.body.style.background = bodyBg;
   }, [theme]);
 
-  // Widget style from brand theme
   const widgetStyle: React.CSSProperties = {
     width: "100%",
     height: "100dvh",
@@ -102,9 +95,6 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
     overflow: "hidden",
   };
 
-  // Full theme palette injected inline so the checkout renders correctly even
-  // when the widget's base.css isn't loaded (embedded in the storefront). The
-  // accent color stays from the merchant brand (set on :root by InlineCheckout).
   const themePalette: Record<string, string> = theme === "light"
     ? {
         "--aacp-bg": "#F4F6F8", "--aacp-surface": "#FCFCFD", "--aacp-surface-2": "#F7F9FB",
@@ -126,7 +116,6 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
       data-theme={themeAttr}
       style={{
         ...widgetStyle,
-        // Full theme palette + short aliases injected inline for storefront embedding
         ...themePalette,
         "--bg": "var(--aacp-bg)",
         "--tx": "var(--aacp-fg)",
@@ -380,7 +369,6 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
           onClick={() => setCartDrawerOpen(true)}
           style={{
             position: "fixed",
-            // support FAB base (16 + inputBar 72 + badge) + 56 to stack above support
             bottom: `${16 + 72 + (showBranding ? 40 : 0) + 56}px`,
             right: "16px",
             width: "48px",

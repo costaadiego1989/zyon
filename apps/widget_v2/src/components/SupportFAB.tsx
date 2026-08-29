@@ -72,7 +72,6 @@ export default function SupportFAB({
     return () => clearTimeout(timer);
   }, [visible, startMinimized]);
 
-  // Pulse badge when cart count changes
   useEffect(() => {
     if (cartItemCount > 0) {
       setBadgePulse(true);

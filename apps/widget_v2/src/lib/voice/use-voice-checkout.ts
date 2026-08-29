@@ -64,10 +64,6 @@ function createVoiceTurnId(): string {
   return `voice_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 }
 
-// Audio quality: pick the best available pt-BR voice. Browser default voices
-// are often robotic; named "natural"/"premium"/cloud voices (Google, Microsoft
-// Online, Luciana, Francisca) sound markedly better. We score candidates and
-// cache the winner, refreshing when the voice list loads asynchronously.
 let cachedPreferredVoice: SpeechSynthesisVoice | null | undefined;
 
 function scorePtBrVoice(voice: SpeechSynthesisVoice): number {
@@ -77,16 +73,11 @@ function scorePtBrVoice(voice: SpeechSynthesisVoice): number {
   let score = lang === "pt-br" ? 100 : lang.startsWith("pt") ? 40 : 0;
   const name = voice.name?.toLowerCase() ?? "";
 
-  // Prefer higher-fidelity engines first: cloud/neural voices are dramatically
-  // less robotic than the bundled Windows SAPI fallback (the core complaint).
   if (/natural|neural|premium|enhanced/.test(name)) score += 48;
   if (/google/.test(name)) score += 32;
   if (/online|microsoft/.test(name)) score += 22;
-  // Clara reads as a warm female agent — prefer named female pt-BR voices when
-  // multiple are available (Maria/Francisca/Luciana/Brenda/Thalita/Maria Clara).
   if (/maria|francisca|luciana|brenda|thalita|giovanna|clara|heloisa/.test(name)) score += 16;
   if (/daniel|antonio|fabio|julio|ricardo/.test(name)) score += 8;
-  // Local-only fallbacks are usually the lowest quality.
   if (voice.localService && !/natural|neural|premium|enhanced/.test(name)) score -= 8;
 
   return score;
@@ -119,12 +110,6 @@ function resolvePreferredPtBrVoice(): SpeechSynthesisVoice | null {
   return picked;
 }
 
-// Visual-audio coherence: the on-screen presence orb/waveform should move with
-// the *actual* speech, not a decorative loop. We publish a 0..1 "amplitude" on
-// a CSS custom property that the UI consumes (transform: scaleY based on it).
-// Speech amplitude is driven by real `onboundary` (per-word) events — each word
-// kicks the level up, then a rAF loop decays it, producing a natural envelope
-// that tracks the spoken cadence even within Web Speech's limits.
 const VOICE_AMP_PROP = "--aacp-voice-amp";
 
 function setVoiceAmp(value: number): void {
@@ -147,7 +132,6 @@ function createSpeechAmplitudeController() {
   };
 
   const tick = () => {
-    // Exponential decay toward rest; each word boundary re-energizes `level`.
     level *= 0.86;
     setVoiceAmp(level);
     if (level > 0.02) {
@@ -160,8 +144,6 @@ function createSpeechAmplitudeController() {
   };
 
   return {
-    // A spoken word just started — punch the level up with a little variation
-    // so the waveform never looks mechanically uniform.
     pulse() {
       if (!hasRaf) {
         setVoiceAmp(0.7);
@@ -221,14 +203,12 @@ function createMicAmplitudeController(): MicAmplitudeController {
   const tick = () => {
     if (!analyser || !buffer) return;
     analyser.getByteTimeDomainData(buffer);
-    // RMS of the centered waveform → perceived loudness in 0..1.
     let sumSquares = 0;
     for (let i = 0; i < buffer.length; i += 1) {
       const centered = (buffer[i] - 128) / 128;
       sumSquares += centered * centered;
     }
     const rms = Math.sqrt(sumSquares / buffer.length);
-    // Scale + soft clip: quiet rooms still show life, loud speech caps at 1.
     const amp = Math.min(1, rms * 3.2);
     setVoiceAmp(amp);
     raf = window.requestAnimationFrame(tick);
@@ -254,7 +234,6 @@ function createMicAmplitudeController(): MicAmplitudeController {
         source.connect(analyser);
         raf = window.requestAnimationFrame(tick);
       } catch {
-        // Permission denied / no device — silently fall back to static orb.
         stop();
       }
     },
@@ -342,7 +321,6 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
   if (ampRef.current === null) {
     ampRef.current = createSpeechAmplitudeController();
   }
-  // Live mic amplitude while the user speaks (drives the same orb/waveform).
   const micAmpRef = useRef<MicAmplitudeController | null>(null);
   if (micAmpRef.current === null) {
     micAmpRef.current = createMicAmplitudeController();
@@ -350,8 +328,6 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
   const buildPendingTurnRef = useRef(buildPendingTurn);
   const onConfirmTranscriptRef = useRef(onConfirmTranscript);
   const onAgentPlaybackDoneRef = useRef(onAgentPlaybackDone);
-  // P2: refs that are always current so async handlers (utterance.onend) never
-  // read stale busy/composerLocked/awaitingAgentPlayback values from a closure.
   const busyRef = useRef(busy);
   const composerLockedRef = useRef(composerLocked);
   const awaitingAgentPlaybackRef = useRef(awaitingAgentPlayback);
@@ -368,11 +344,8 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
     onAgentPlaybackDoneRef.current = onAgentPlaybackDone;
   }, [onAgentPlaybackDone]);
 
-  // P2: keep refs in sync with latest prop values on every render.
   useEffect(() => { busyRef.current = busy; }, [busy]);
   useEffect(() => { composerLockedRef.current = composerLocked; }, [composerLocked]);
-  // P3: consume awaitingAgentPlayback by tracking it in a ref so the onend
-  // handler can gate auto-listen on it; removes the dead-parameter smell.
   useEffect(() => { awaitingAgentPlaybackRef.current = awaitingAgentPlayback; }, [awaitingAgentPlayback]);
 
   const stopListening = useCallback(() => {
@@ -415,8 +388,6 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
     if (typeof window === "undefined" || !window.speechSynthesis) return;
     const synth = window.speechSynthesis;
     if (typeof synth.addEventListener !== "function") return;
-    // pt-BR voices often populate asynchronously; (re)resolve the preferred
-    // voice when the list changes so the first utterance can still use it.
     const refresh = () => {
       const picked = pickPreferredPtBrVoice();
       if (picked) cachedPreferredVoice = picked;
@@ -457,7 +428,6 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
     recognition.onstart = () => {
       setListening(true);
       setHint("Estou ouvindo...");
-      // Open the live mic meter so the orb/waveform reacts to the user's voice.
       void micAmpRef.current?.start();
     };
 
@@ -465,14 +435,10 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
       micAmpRef.current?.stop();
       setListening(false);
       const error = event?.error ?? "";
-      // Benign: no speech detected or we aborted the session ourselves. These
-      // fire constantly (e.g. a brief pause right after tapping) and must NOT
-      // surface a scary "não captei" — just invite another try calmly.
       if (error === "no-speech" || error === "aborted" || error === "") {
         setHint("Não ouvi nada. Toque e fale quando quiser.");
         return;
       }
-      // Permission problems need a distinct, actionable message.
       if (error === "not-allowed" || error === "service-not-allowed") {
         setHint("Preciso de permissão do microfone. Libere o acesso ou use o chat.");
         return;
@@ -558,12 +524,6 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
 
       const utterance = new SpeechSynthesisUtterance(stripAgentPrefix(text));
       utterance.lang = "pt-BR";
-      // Audio quality tuning. The Windows default pt-BR SAPI voice sounds robotic
-      // mostly because of its flat, slightly-too-fast delivery. A marginally
-      // slower rate (0.98) plus a touch more pitch (1.04) reads warmer and more
-      // human for conversational copy, and gives the picked neural/cloud voice
-      // (see scorePtBrVoice) room to breathe. A higher-fidelity pt-BR voice is
-      // selected when the browser exposes one.
       utterance.rate = 0.98;
       utterance.pitch = 1.04;
       utterance.volume = 1;
@@ -575,8 +535,6 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
         ampRef.current?.pulse();
         setHint("Estou falando com você...");
       };
-      // Real per-word boundary events drive the visual amplitude so the orb and
-      // waveform move in time with the actual speech — visual-audio coherence.
       utterance.onboundary = () => {
         ampRef.current?.pulse();
       };
@@ -585,12 +543,6 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
         ampRef.current?.reset();
         markPlaybackDone();
         setHint("Toque no microfone quando quiser responder.");
-        // P2: read current values from refs instead of the stale closure
-        // values of busy/composerLocked/awaitingAgentPlayback. The onend
-        // callback fires asynchronously (seconds later); without refs it would
-        // re-open the mic even when the app has since become busy/locked.
-        // P3: also gate on awaitingAgentPlayback so callers can suppress
-        // auto-listen when another agent line is already queued.
         if (
           autoListenRef.current &&
           !busyRef.current &&
@@ -610,8 +562,6 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(utterance);
     },
-    // P2: remove busy/composerLocked from deps — they are now read via refs
-    // inside the callback so there is no closure capture to invalidate.
     [enabled, startListening, stopListening],
   );
 
