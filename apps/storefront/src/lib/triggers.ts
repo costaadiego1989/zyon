@@ -1,8 +1,9 @@
-// Trigger detection module for storefront widget
-// Handles exit intent, idle detection, and other behavioral checkout triggers
+// Trigger detection for the storefront store agent.
+// Mirrors the checkout widget_v2 implementation (apps/widget_v2/src/lib/triggers.ts),
+// which is the proven-working version: module-level timer/counter state (survives
+// React re-renders), mousemove/keydown in the idle activity set, and a 5px top
+// margin for exit-intent. Kept as separate setup functions so arming is explicit.
 "use client";
-
-import { useEffect } from "react";
 
 export type TriggerEvent = "exit_intent_detected" | "idle_30_seconds";
 
@@ -17,21 +18,17 @@ export interface TriggerConfig {
 }
 
 const DEFAULT_IDLE_THRESHOLD_MS = 30_000;
-const DEFAULT_COOLDOWN_MS = 3_600_000; // 1 hour
 
-/**
- * Report a trigger event to the checkout API (track-event endpoint).
- */
-async function reportTriggerEvent(
-  triggerName: TriggerEvent,
-  config: TriggerConfig,
-): Promise<void> {
+// Module-level state so re-arming the effect (config/session changes) never resets
+// the idle countdown or double-counts — this is exactly why the checkout version works.
+let idleTimer: ReturnType<typeof setTimeout> | null = null;
+let exitFired = false;
+
+function reportTriggerEvent(triggerName: TriggerEvent, config: TriggerConfig): void {
   if (!config.sessionId || !config.merchantId) return;
-
   const apiUrl = config.apiBaseUrl || "http://localhost:3009";
-
   try {
-    await fetch(`${apiUrl}/checkout/track-event`, {
+    fetch(`${apiUrl}/checkout/track-event`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -40,15 +37,15 @@ async function reportTriggerEvent(
         event: triggerName,
         metadata: { timestamp: new Date().toISOString() },
       }),
-    });
+    }).catch(() => {});
   } catch {
-    // Silently fail — triggers must never break the page
+    /* triggers must never break the page */
   }
 }
 
 /**
- * Initialize trigger detection (exit intent + idle timer).
- * Returns a cleanup function that removes all listeners.
+ * Initialize trigger detection (exit-intent + idle). Returns a cleanup function.
+ * The gating (activation mode, frequency limits) lives in the caller's onTrigger.
  */
 export function initTriggerDetection(
   config: TriggerConfig,
@@ -57,44 +54,27 @@ export function initTriggerDetection(
   if (typeof window === "undefined") return () => {};
 
   const cleanups: Array<() => void> = [];
-  let idleTimerId: ReturnType<typeof setTimeout> | null = null;
 
-  // ─── Exit Intent Detection ───────────────────────────────
-  if (config.enableExitIntent) {
-    // Skip on touch/mobile devices
-    const isTouchDevice =
-      "ontouchstart" in window || navigator.maxTouchPoints > 0;
+  // ─── Exit-intent ─────────────────────────────────────────
+  if (config.enableExitIntent ?? true) {
+    const isTouchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
 
     if (!isTouchDevice) {
-      let fired = false;
-      const cooldown = config.cooldownMs ?? DEFAULT_COOLDOWN_MS;
-      let cooldownActive = false;
-
-      const handleDocumentLeave = (event: MouseEvent) => {
-        if (fired || cooldownActive) return;
-        // Only fire when cursor exits through the top of the viewport
-        if (event.clientY > 0) return;
-
-        fired = true;
-        cooldownActive = true;
-
-        onTrigger("exit_intent_detected");
-        reportTriggerEvent("exit_intent_detected", config);
-
-        setTimeout(() => {
-          cooldownActive = false;
-        }, cooldown);
+      exitFired = false;
+      const handler = (e: MouseEvent) => {
+        if (exitFired) return;
+        // Fire when the cursor is near the top of the viewport (5px margin, like checkout).
+        if (e.clientY <= 5) {
+          exitFired = true;
+          onTrigger("exit_intent_detected");
+          reportTriggerEvent("exit_intent_detected", config);
+        }
       };
-
-      document.addEventListener("mouseleave", handleDocumentLeave);
-      cleanups.push(() =>
-        document.removeEventListener("mouseleave", handleDocumentLeave),
-      );
+      document.addEventListener("mouseleave", handler);
+      cleanups.push(() => document.removeEventListener("mouseleave", handler));
     }
 
-    // Tab-switch / app-switch is the mobile-friendly exit signal (mouseleave
-    // never fires on touch). When the page is hidden we surface the same
-    // exit-intent nudge, so it's visible when the buyer returns.
+    // Tab/app switch is the mobile-friendly exit signal (mouseleave never fires on touch).
     let visFired = false;
     const handleVisibility = () => {
       if (visFired) return;
@@ -102,15 +82,12 @@ export function initTriggerDetection(
         visFired = true;
         onTrigger("exit_intent_detected");
         reportTriggerEvent("exit_intent_detected", config);
-        // Allow re-firing after the long cooldown.
-        setTimeout(() => { visFired = false; }, config.cooldownMs ?? DEFAULT_COOLDOWN_MS);
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
     cleanups.push(() => document.removeEventListener("visibilitychange", handleVisibility));
 
-    // Actual page unload: fire-and-forget the exit event for server-side
-    // cart-recovery. Uses sendBeacon so it survives the unload.
+    // Real unload: fire-and-forget for server-side cart recovery.
     const handlePageHide = () => {
       if (!config.sessionId || !config.merchantId) return;
       try {
@@ -122,76 +99,41 @@ export function initTriggerDetection(
           metadata: { timestamp: new Date().toISOString(), via: "pagehide" },
         });
         navigator.sendBeacon?.(`${apiUrl}/checkout/track-event`, new Blob([payload], { type: "application/json" }));
-      } catch { /* never block unload */ }
+      } catch {
+        /* never block unload */
+      }
     };
     window.addEventListener("pagehide", handlePageHide);
     cleanups.push(() => window.removeEventListener("pagehide", handlePageHide));
   }
 
-  // ─── Idle Timer Detection ────────────────────────────────
+  // ─── Idle ────────────────────────────────────────────────
   if (config.enableIdleTimer ?? true) {
     const threshold = config.idleThresholdMs ?? DEFAULT_IDLE_THRESHOLD_MS;
-    let idleFired = false;
 
-    const startIdleTimer = () => {
-      if (idleTimerId !== null) clearTimeout(idleTimerId);
-
-      idleTimerId = setTimeout(() => {
-        if (!idleFired) {
-          idleFired = true;
-          onTrigger("idle_30_seconds");
-          reportTriggerEvent("idle_30_seconds", config);
-        }
+    const resetIdle = () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        onTrigger("idle_30_seconds");
+        reportTriggerEvent("idle_30_seconds", config);
       }, threshold);
     };
 
-    const handleActivity = () => {
-      // Reset idle state on activity after it was already triggered
-      if (idleFired) idleFired = false;
-      startIdleTimer();
-    };
-
-    const activityEvents = [
-      "click",
-      "scroll",
-      "keypress",
-      "touchstart",
-    ] as const;
-
+    // Include mousemove + keydown (the checkout set) so genuine activity resets the
+    // timer, but the countdown actually completes when the buyer stops interacting.
+    const activityEvents = ["mousemove", "keydown", "scroll", "click", "touchstart"] as const;
     for (const evt of activityEvents) {
-      document.addEventListener(evt, handleActivity, { passive: true });
-      cleanups.push(() => document.removeEventListener(evt, handleActivity));
+      document.addEventListener(evt, resetIdle, { passive: true });
+      cleanups.push(() => document.removeEventListener(evt, resetIdle));
     }
-
-    // Start the initial timer
-    startIdleTimer();
+    resetIdle(); // start the countdown
   }
 
-  // ─── Cleanup ─────────────────────────────────────────────
   return () => {
     for (const fn of cleanups) fn();
-    if (idleTimerId !== null) clearTimeout(idleTimerId);
+    if (idleTimer) {
+      clearTimeout(idleTimer);
+      idleTimer = null;
+    }
   };
-}
-
-/**
- * React hook that initializes trigger detection and auto-cleans up.
- * Uses the same initTriggerDetection internally.
- */
-export function useTriggerDetection(
-  config: TriggerConfig,
-  onTrigger: (event: TriggerEvent) => void,
-): void {
-  useEffect(() => {
-    const cleanup = initTriggerDetection(config, onTrigger);
-    return cleanup;
-    // Re-initialize when session/merchant or enable flags change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    config.enableExitIntent,
-    config.enableIdleTimer,
-    config.idleThresholdMs,
-    config.merchantId,
-    config.sessionId,
-  ]);
 }
