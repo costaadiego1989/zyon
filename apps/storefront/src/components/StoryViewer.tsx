@@ -51,12 +51,10 @@ export default function StoryViewer({
   const currentStory = currentCategory?.stories[storyIndex];
   const duration = (currentStory?.duration ?? 7) * 1000;
 
-  // Fade in on mount
   useEffect(() => {
     requestAnimationFrame(() => setVisible(true));
   }, []);
 
-  // Mark category as viewed
   const markViewed = useCallback((idx: number) => {
     const cat = categories[idx];
     if (cat && !viewedCatsRef.current.has(cat.id)) {
@@ -65,7 +63,6 @@ export default function StoryViewer({
     }
   }, [categories, onViewed]);
 
-  // Advance to next story/category
   const goNext = useCallback(() => {
     const cat = categories[catIndex];
     if (storyIndex < cat.stories.length - 1) {
@@ -88,7 +85,6 @@ export default function StoryViewer({
     }
   }, [catIndex, storyIndex, categories, markViewed, onClose]);
 
-  // Go to previous story
   const goPrev = useCallback(() => {
     if (storyIndex > 0) {
       setStoryIndex((s) => s - 1);
@@ -103,13 +99,11 @@ export default function StoryViewer({
       setImageLoaded(false);
       elapsedRef.current = 0;
     } else {
-      // Restart current
       setProgress(0);
       elapsedRef.current = 0;
     }
   }, [catIndex, storyIndex, categories]);
 
-  // Timer logic using requestAnimationFrame
   useEffect(() => {
     if (paused || !imageLoaded) return;
 
@@ -139,7 +133,6 @@ export default function StoryViewer({
     };
   }, [catIndex, storyIndex, paused, imageLoaded, duration, goNext]);
 
-  // Keyboard handler
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -150,7 +143,6 @@ export default function StoryViewer({
     return () => document.removeEventListener("keydown", handleKey);
   }, [onClose, goNext, goPrev]);
 
-  // Touch handlers
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0];
     touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
@@ -178,14 +170,11 @@ export default function StoryViewer({
     const dy = touch.clientY - start.y;
     const elapsed = Date.now() - start.time;
 
-    // Swipe detection
     if (elapsed < 400) {
       if (Math.abs(dy) > 80 && Math.abs(dy) > Math.abs(dx)) {
-        // Swipe down → close
         if (dy > 0) { onClose(); return; }
       }
       if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
-        // Swipe left → next category
         if (dx < 0) {
           markViewed(catIndex);
           if (catIndex < categories.length - 1) {
@@ -199,7 +188,6 @@ export default function StoryViewer({
           }
           return;
         }
-        // Swipe right → prev category
         if (dx > 0 && catIndex > 0) {
           setCatIndex((c) => c - 1);
           setStoryIndex(0);
@@ -211,7 +199,6 @@ export default function StoryViewer({
       }
     }
 
-    // Tap: no significant movement
     if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
       const width = window.innerWidth;
       if (touch.clientX > width * 0.5) {
@@ -222,7 +209,6 @@ export default function StoryViewer({
     }
   }, [paused, catIndex, categories, goNext, goPrev, markViewed, onClose]);
 
-  // Mouse click handler for desktop
   const handleClick = useCallback((e: React.MouseEvent) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -233,7 +219,6 @@ export default function StoryViewer({
     }
   }, [goNext, goPrev]);
 
-  // Mouse long press for desktop
   const mouseDownRef = useRef<number | null>(null);
 
   const handleMouseDown = useCallback(() => {
@@ -252,7 +237,6 @@ export default function StoryViewer({
     }
   }, [paused]);
 
-  // Title positioning
   function getTitleStyle(): React.CSSProperties {
     const config = currentStory?.titleConfig as any;
     if (!config) return { display: "none" };
@@ -276,13 +260,11 @@ export default function StoryViewer({
         : `rgba(0,0,0,${config.bgOpacity ?? 0.5})`;
     }
 
-    // New positionX/positionY (percentage-based free positioning)
     if (config.positionX != null && config.positionY != null) {
       base.left = `${config.positionX}%`;
       base.top = `${config.positionY}%`;
       base.transform = "translate(-50%, -50%)";
     } else {
-      // Legacy: "top" | "center" | "bottom"
       base.left = "16px";
       base.right = "16px";
       switch (config.position) {

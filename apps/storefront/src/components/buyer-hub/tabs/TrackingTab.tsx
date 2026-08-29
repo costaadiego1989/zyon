@@ -7,7 +7,6 @@ export interface TrackingTabProps {
   purchases: BuyerPurchase[];
 }
 
-// ─── Status label map ──────────────────────────────────────────────────────
 
 const TRACKING_STATUS_LABEL: Record<string, string> = {
   pending: "Aguardando envio",
@@ -24,7 +23,6 @@ const TRACKING_STATUS_LABEL: Record<string, string> = {
   free_shipping: "Entrega grátis",
 };
 
-// Human-friendly carrier names (the API stores raw keys like "flat-rate").
 const CARRIER_LABELS: Record<string, string> = {
   "flat-rate": "Frete fixo",
   flat_rate: "Frete fixo",
@@ -52,7 +50,6 @@ function correiosTrackingUrl(code: string): string {
   return `https://rastreamento.correios.com.br/app/index.php?objeto=${encodeURIComponent(code)}`;
 }
 
-// A real tracking code — not an internal reference like "pending:<uuid>" or a bare UUID.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const BR_CODE_RE = /^[A-Z]{2}\d{9}[A-Z]{2}$/i;
 
@@ -65,14 +62,11 @@ function isRealTrackingCode(code?: string | null): boolean {
   return true;
 }
 
-// Carriers that don't provide a trackable code — direct delivery / flat rate.
 function isDirectDelivery(carrier?: string | null): boolean {
   const c = (carrier ?? "").toLowerCase();
   return c.includes("flat") || c.includes("free") || c.includes("grátis") || c.includes("gratis");
 }
 
-// Resolve the best tracking URL + link label for a purchase.
-// Returns null when no reliable external tracking link exists.
 function resolveTracking(
   code: string,
   carrier?: string | null,
@@ -81,7 +75,6 @@ function resolveTracking(
   const carrierLc = (carrier ?? "").toLowerCase();
   const urlLc = (trackingUrl ?? "").toLowerCase();
 
-  // MelhorEnvio: use the provided tracking URL directly.
   if (carrierLc.includes("melhor") || urlLc.includes("melhorenvio")) {
     if (trackingUrl) {
       const href = trackingUrl.startsWith("http") ? trackingUrl : `https://${trackingUrl}`;
@@ -90,12 +83,10 @@ function resolveTracking(
     return null;
   }
 
-  // Explicit http tracking URL from the carrier.
   if (trackingUrl && trackingUrl.startsWith("http")) {
     return { url: trackingUrl, label: "Rastrear" };
   }
 
-  // Correios: only when carrier is correios or code matches the BR format.
   if (carrierLc.includes("correios") || BR_CODE_RE.test(code)) {
     return { url: correiosTrackingUrl(code), label: "Rastrear nos Correios" };
   }
@@ -103,7 +94,6 @@ function resolveTracking(
   return null;
 }
 
-// ─── Timeline dot icon ────────────────────────────────────────────────────
 
 function TimelineDot() {
   return (
@@ -124,7 +114,6 @@ function TimelineDot() {
   );
 }
 
-// ─── Timeline line (between events) ────────────────────────────────────
 
 function TimelineLine() {
   return (
@@ -140,7 +129,6 @@ function TimelineLine() {
   );
 }
 
-// ─── Tracking event item ──────────────────────────────────────────────────
 
 function TrackingEventItem({
   event,
@@ -181,10 +169,8 @@ function TrackingEventItem({
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────
 
 export function TrackingTab({ purchases }: TrackingTabProps) {
-  // Group all non-cancelled orders by tracking status
   const allNonCancelled = purchases.filter(
     (p) => p.tracking_status !== "cancelled" && p.tracking_status !== "cancelado",
   );
@@ -192,7 +178,6 @@ export function TrackingTab({ purchases }: TrackingTabProps) {
   const active = allNonCancelled.filter((p) => p.tracking_status !== "delivered" && p.tracking_status !== "entregue");
   const delivered = allNonCancelled.filter((p) => p.tracking_status === "delivered" || p.tracking_status === "entregue");
 
-  // Empty state
   if (allNonCancelled.length === 0) {
     return (
       <div
@@ -295,7 +280,6 @@ export function TrackingTab({ purchases }: TrackingTabProps) {
   );
 }
 
-// ─── Card component (merchant + tracking code + events) ────────────────────
 
 function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
   const events = purchase.tracking_events || [];
@@ -308,7 +292,6 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
   const hasRealCode = isRealTrackingCode(rawCode);
   const tracking = hasRealCode ? resolveTracking(rawCode, carrier, purchase.tracking_url) : null;
 
-  // Delivered state: simple checkmark card
   if (isDelivered) {
     return (
       <div
@@ -359,7 +342,6 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
     );
   }
 
-  // Flat-rate or free shipping: no tracking code
   if (isFlatRate && !hasRealCode) {
     return (
       <div
@@ -418,7 +400,6 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
     );
   }
 
-  // No tracking code yet (pending, UUID, or missing)
   if (!hasRealCode) {
     return (
       <div
@@ -480,7 +461,6 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
     );
   }
 
-  // Active tracking: timeline + link (only if we have a real tracking URL).
   return (
     <div
       style={{

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { useCart } from "@/lib/cart-store";
 
 interface CheckoutPanelProps {
@@ -11,18 +11,16 @@ interface CheckoutPanelProps {
   onClose: () => void;
 }
 
-// Dynamic import to avoid SSR issues (widget uses browser APIs)
 const InlineCheckout = lazy(() =>
   import("@zyon/widget-v2").then((mod) => ({ default: mod.InlineCheckout }))
 );
 
 function resolveInitialTheme(propTheme?: "dark" | "light"): "dark" | "light" {
   if (propTheme === "dark" || propTheme === "light") return propTheme;
-  // Fall back to the shared theme key the storefront writes, not a hardcoded dark.
   try {
     const saved = localStorage.getItem("zyon-theme");
     if (saved === "dark" || saved === "light") return saved;
-  } catch { /* SSR/privacy */ }
+  } catch {  }
   return "light";
 }
 
@@ -39,8 +37,6 @@ export default function CheckoutPanel({
   const [globalUserId, setGlobalUserId] = useState(initialGlobalUserId);
   const { cart, clearCart } = useCart();
 
-  // When the checkout widget completes an order, clear the storefront cart so
-  // the buyer starts fresh next time (session products are cleared post-payment).
   useEffect(() => {
     const onOrderCompleted = () => {
       clearCart();
@@ -62,13 +58,18 @@ export default function CheckoutPanel({
     }
   }, [initialGlobalUserId]);
 
+  const tokenCartRef = useRef<string | null>(null);
+  if (tokenCartRef.current === null) {
+    tokenCartRef.current = cartRef || cart.cartId || "";
+  }
   useEffect(() => {
+    const cartRefForToken = cartRef || tokenCartRef.current || undefined;
     fetch("/api/checkout-token", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         merchant_id: merchantId,
-        cart_ref: cartRef || cart.cartId,
+        cart_ref: cartRefForToken,
         allowed_origin: typeof window !== "undefined" ? window.location.origin : "",
       }),
     })
@@ -81,7 +82,9 @@ export default function CheckoutPanel({
         else setError("Falha ao iniciar checkout");
       })
       .catch(() => setError("Erro ao conectar com servidor de checkout"));
-  }, [merchantId, cartRef, cart.cartId]);
+    // Intentionally excludes cart.cartId: see comment above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [merchantId, cartRef]);
 
   if (error) {
     return (
@@ -117,7 +120,7 @@ export default function CheckoutPanel({
           embedToken={embedToken}
           merchantId={merchantId}
           apiBaseUrl={apiBase}
-          cartRef={cartRef || cart.cartId || undefined}
+          cartRef={cartRef || tokenCartRef.current || undefined}
           globalUserId={globalUserId}
           theme={effectiveTheme}
           onClose={onClose}

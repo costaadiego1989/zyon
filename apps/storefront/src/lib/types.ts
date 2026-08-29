@@ -1,4 +1,3 @@
-// Re-export types from API module for storefront use
 export interface ProductCardBlock {
   type: "product_card";
   data: {
@@ -15,16 +14,11 @@ export interface ProductCardBlock {
     originalPrice?: number;
     originalPriceFormatted?: string;
     discountPercent?: number;
-    /** "marketplace" when product comes from a partner store */
     source?: "local" | "marketplace";
-    /** Seller store name (only for marketplace products) */
     sellerName?: string;
     sellerMerchantId?: string;
-    /** Total available stock across variants (shown in detailed view) */
     stock?: number;
-    /** Primary variant SKU (shown in detailed view) */
     sku?: string;
-    /** When true, render the full detail view (untruncated description, per-variant stock, SKU) */
     detailed?: boolean;
   };
 }

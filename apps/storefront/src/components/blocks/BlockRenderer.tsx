@@ -31,12 +31,8 @@ export default function BlockRenderer({
     case "comparison_table":
       return <ComparisonTableBlock block={block} />;
     case "cart_summary":
-      // Cart state handled by CartProvider → sent to widget via postMessage.
-      // No inline rendering — widget FAB shows badge.
       return null;
     case "checkout_redirect":
-      // Legacy checkout redirect — widget handles checkout natively now.
-      // Just open the widget panel instead.
       return null;
     case "shipping_options":
       return <ShippingOptionsBlock block={block} />;

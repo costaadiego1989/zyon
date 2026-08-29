@@ -4,16 +4,12 @@ import { useState, useCallback } from "react";
 import { FiCheck } from "react-icons/fi";
 import type { BuyerPreferences, BuyerIntentProfile } from "@/lib/viewmodels/useBuyerHub";
 
-// ─── Shared Types ──────────────────────────────────────────────────────────
-
 export interface PreferencesTabProps {
   preferences: BuyerPreferences | null;
   intentProfile: BuyerIntentProfile | null;
   loading: boolean;
   onUpdatePreference: (key: string, value: boolean | string) => Promise<void>;
 }
-
-// ─── Formatters ────────────────────────────────────────────────────────────
 
 const percentFmt = new Intl.NumberFormat("pt-BR", { style: "percent", minimumFractionDigits: 0 });
 
@@ -22,15 +18,11 @@ function fmtPercent(value: number | undefined | null): string {
   return percentFmt.format(value);
 }
 
-// ─── Icons (inline SVG) ────────────────────────────────────────────────────
-
 function IconCheck() {
   return (
     <FiCheck size={14} aria-hidden="true" />
   );
 }
-
-// ─── Toggle Switch ────────────────────────────────────────────────────────
 
 interface ToggleSwitchProps {
   value: boolean;
@@ -153,8 +145,6 @@ function ToggleSwitch({ value, onChange, label, description, disabled = false }:
   );
 }
 
-// ─── Language Select ───────────────────────────────────────────────────────
-
 interface LanguageSelectProps {
   value: string;
   onChange: (v: string) => Promise<void>;
@@ -215,8 +205,6 @@ function LanguageSelect({ value, onChange, disabled = false }: LanguageSelectPro
     </div>
   );
 }
-
-// ─── Intent Profile Section ────────────────────────────────────────────────
 
 interface IntentProfileSectionProps {
   intentProfile: BuyerIntentProfile | null;
@@ -432,8 +420,6 @@ function IntentProfileSection({ intentProfile, loading }: IntentProfileSectionPr
     </div>
   );
 }
-
-// ─── Main Component ────────────────────────────────────────────────────────
 
 export default function PreferencesTab({
   preferences,

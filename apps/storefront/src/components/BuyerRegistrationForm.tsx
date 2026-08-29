@@ -5,7 +5,6 @@ import { OtpInput } from "./OtpInput";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
-/** Track registration funnel step */
 function trackRegistrationStep(merchantId: string | undefined, event: string) {
   if (!merchantId) return;
   const sessionId = typeof sessionStorage !== "undefined"
@@ -74,7 +73,6 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Form data
   const [phone, setPhone] = useState("");
   const [phoneOtp, setPhoneOtp] = useState("");
   const [email, setEmail] = useState("");
@@ -125,7 +123,6 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
     try {
       switch (currentStep) {
         case 1: {
-          // Send phone OTP — include fallback email if available
           let fallbackEmail: string | undefined;
           try {
             const session = localStorage.getItem("zyon_buyer_session");
@@ -151,13 +148,11 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
               throw new Error("Serviço de verificação indisponível");
             }
           }
-          // OTP enviado via WhatsApp/SMS — buyer verifica no celular (não auto-preenche)
           setCurrentStep(2);
           trackRegistrationStep(merchantId, "auth_phone_submitted");
           break;
         }
         case 2: {
-          // Verify phone OTP
           const res = await fetch(`${API_BASE}/buyer/phone/verify`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -179,7 +174,6 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
           break;
         }
         case 3: {
-          // Send email OTP via Resend
           const res = await fetch(`${API_BASE}/buyer/email/send`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -197,7 +191,6 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
           break;
         }
         case 4: {
-          // Verify email OTP
           const res = await fetch(`${API_BASE}/buyer/email/verify`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -215,7 +208,6 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
           break;
         }
         case 5: {
-          // Validate name + CPF, move to address step
           if (!name.trim() || name.trim().split(" ").length < 2) {
             throw new Error("Informe seu nome completo");
           }
@@ -228,7 +220,6 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
           break;
         }
         case 6: {
-          // Final registration
           if (!address) {
             throw new Error("Busque o CEP primeiro");
           }
@@ -300,7 +291,6 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
     }
   };
 
-  // --- Render helpers ---
 
   const cardStyle: React.CSSProperties = {
     padding: "14px",

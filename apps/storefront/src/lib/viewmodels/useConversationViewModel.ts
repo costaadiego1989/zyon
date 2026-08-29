@@ -18,7 +18,6 @@ import {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
-/** Fire funnel event to backend for experiment tracking */
 function trackFunnelEvent(merchantId: string, sessionId: string, event: string) {
   fetch(`${API_BASE}/v1/storefront/conversations/${encodeURIComponent(sessionId)}/events`, {
     method: "POST",
@@ -38,19 +37,12 @@ export type Channel = "chat" | "voice";
 export type Theme = "dark" | "light";
 export type Mode = "intro" | "chat";
 
-/** Shared localStorage key so storefront + embedded checkout widget stay in sync. */
 export const SHARED_THEME_KEY = "zyon-theme";
 
-/** sessionStorage key for the persisted conversation snapshot (per merchant). */
 export const CONVERSATION_STATE_KEY = (merchantId: string) => `zyon_conversation_state_${merchantId}`;
 
-/** Max age of a restored conversation snapshot (ms). Older = ignored (stale). */
-const CONVERSATION_MAX_AGE_MS = 6 * 60 * 60 * 1000; // 6h
+const CONVERSATION_MAX_AGE_MS = 6 * 60 * 60 * 1000; 
 
-/**
- * Restore a persisted conversation snapshot for the merchant, if fresh.
- * Returns null on any failure (SSR, privacy mode, corrupt/stale data).
- */
 function restoreConversation(merchantId?: string): {
   conversationId: string | null;
   messages: Message[];
@@ -83,13 +75,6 @@ function restoreConversation(merchantId?: string): {
     return null;
   }
 }
-
-/**
- * Narration fallback for storefront conversation blocks. When the LLM returns a
- * visual component with no accompanying text, derive a short line so the agent
- * always "speaks" instead of silently dropping a component. Keeps the chat
- * immersive. Returns undefined for blocks that need no narration.
- */
 function narrateStorefrontBlock(type: string | undefined): string | undefined {
   switch (type) {
     case "product_carousel":
@@ -111,7 +96,6 @@ function narrateStorefrontBlock(type: string | undefined): string | undefined {
       return undefined;
   }
 }
-
 export interface ConversationViewModelProps {
   storeName: string;
   merchantId?: string;
@@ -121,12 +105,9 @@ export interface ConversationViewModelProps {
   quickReplies?: string[];
   returnOrderId?: string;
   themeMode?: "dark" | "light" | "grey";
-  /** Storefront agent activation mode (from agent-rules, projected via store config). */
   agentMode?: "silent_until_trigger" | "proactive" | "manual_only";
-  /** Seconds before proactive mode auto-opens the chat. */
   agentInitialDelaySeconds?: number;
 }
-
 export interface ConversationViewModelState {
   mode: Mode;
   channel: Channel | null;
@@ -144,7 +125,6 @@ export interface ConversationViewModelState {
   policyModal: { title: string; content: string } | null;
   crossSellPending: CrossSellInterstitialData | null;
 }
-
 export interface CrossSellInterstitialData {
   trigger: string;
   products: Array<{
@@ -157,7 +137,6 @@ export interface CrossSellInterstitialData {
     discountPercent?: number;
   }>;
 }
-
 export interface ConversationViewModelActions {
   selectChannel: (ch: Channel) => void;
   toggleChannel: () => void;
@@ -176,7 +155,6 @@ export interface ConversationViewModelActions {
   startListening: () => void;
   stopListening: () => void;
 }
-
 export function useConversationViewModel(
   props: ConversationViewModelProps,
 ): ConversationViewModelState & ConversationViewModelActions {
@@ -184,8 +162,7 @@ export function useConversationViewModel(
   const agent = agentName || "Assistente";
   const [mode, setMode] = useState<Mode>("intro");
   const [channel, setChannel] = useState<Channel | null>(null);
-  // Theme resolution: user preference (localStorage, shared key) > merchant default > light.
-  // Lazy initializer avoids a dark-mode flash before the restore effect runs.
+  
   const [theme, setTheme] = useState<Theme>(() => {
     const merchantDefault: Theme = themeMode === "dark" || themeMode === "grey" ? "dark" : "light";
     try {
@@ -204,22 +181,20 @@ export function useConversationViewModel(
   const [buyerHubOpen, setBuyerHubOpen] = useState(false);
   const [cartDrawerForceOpen, setCartDrawerForceOpen] = useState(false);
   const [showBuyerAuth, setShowBuyerAuth] = useState(false);
-  // Set to the resolved globalUserId when a valid buyer token lets us skip the
-  // OTP gate and open checkout directly. ConversationShell reacts and clears it.
   const [checkoutIntent, setCheckoutIntent] = useState<string | null>(null);
   const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
   const [crossSellPending, setCrossSellPending] = useState<CrossSellInterstitialData | null>(null);
   const dismissCrossSell = useCallback(() => setCrossSellPending(null), []);
-
   const recognitionRef = useRef<any>(null);
   const { config: widgetConfig } = useWidgetConfig();
   const { cart, updateFromBlocks, updateItemQuantity } = useCart();
   const experimentVM = useCheckoutExperiment();
-
   const initConversation = useCallback(async () => {
+    console.log("[init] initConversation called", { merchantId, conversationId });
     if (!merchantId || conversationId) return;
     try {
       const data = await checkoutApi.create({ merchantId });
+      console.log("[init] create response", { conversation_id: data?.conversation_id, hasExperiment: !!data?.experiment });
       if (data?.conversation_id) {
         setConversationId(data.conversation_id);
         try { sessionStorage.setItem("zyon_conversation_id", data.conversation_id); } catch {}
@@ -227,12 +202,9 @@ export function useConversationViewModel(
           conversation_id: data.conversation_id,
           experiment: data.experiment || null,
         });
-
-        // Track conversation_started funnel event
         if (merchantId) {
           trackFunnelEvent(merchantId, data.conversation_id, "conversation_started");
         }
-
         if (data.experiment?.system_prompt) {
           checkoutApi.sendMessage(data.conversation_id, "olá", {
             merchantId,
@@ -240,7 +212,7 @@ export function useConversationViewModel(
             history: [],
           }).then((greetingData) => {
             if (greetingData?.message) {
-              // Store for when user interacts — hero stays until then
+              
               experimentVM.setExperimentGreeting(greetingData.message, greetingData.suggested_next);
             }
           }).catch(() => { /* keep default behavior */ });
@@ -248,7 +220,6 @@ export function useConversationViewModel(
       }
     } catch { /* fallback mode */ }
   }, [merchantId, conversationId, agent, storeName]);
-
   const applyTheme = useCallback((t: Theme) => {
     if (typeof document === "undefined") return;
     const THEME_TOKENS: Record<Theme, Record<string, string>> = {
@@ -288,30 +259,23 @@ export function useConversationViewModel(
       document.documentElement.style.setProperty(key, val);
     }
   }, []);
-
   const toggleTheme = useCallback(() => {
     const next: Theme = theme === "dark" ? "light" : "dark";
     setTheme(next);
     applyTheme(next);
     try { localStorage.setItem(SHARED_THEME_KEY, next); } catch { /* */ }
   }, [theme, applyTheme]);
-
   const selectChannel = useCallback((ch: Channel) => {
     setChannel(ch);
     setMode("chat");
     try { localStorage.setItem("pulse-channel-pref", ch); } catch { /* */ }
     initConversation();
-
-    // Greeting priority: active A/B-test message (experiment) → merchant's own
-    // configured greeting → a strong persuasive fallback. The A/B greeting wins
-    // so the running experiment's copy style is honored; the fallback only shows
-    // when neither an experiment nor a merchant greeting exists.
+    
     const expGreeting = experimentVM.getExperimentGreeting();
     const persuasiveFallback = `Oi! Sou ${agent}, sua vendedora pessoal aqui na ${storeName}. 💚 Me conta o que você procura — eu encontro o produto ideal, garanto o melhor preço com cupons, calculo o frete e fecho seu pedido em segundos, tudo por aqui. Bora começar?`;
     const greeting = expGreeting?.message || agentGreeting || persuasiveFallback;
 
     const replies = expGreeting?.suggestedNext ?? quickReplies ?? ["Ver Produtos", "Encontrar Produto", "Categorias", "Prazo de Entrega", "Trocas e Devoluções", "Rastrear Pedido", "Meus Dados", "Ofertas"];
-
     setMessages([{
       id: "welcome",
       role: "agent",
@@ -341,7 +305,9 @@ export function useConversationViewModel(
       const transcript = e.results[0]?.[0]?.transcript;
       if (transcript) {
         setListening(false);
-        void sendMessage(transcript);
+        void sendMessage(transcript).catch((err) => {
+          console.error("[conversation] voice sendMessage failed:", err);
+        });
       }
     };
     r.onerror = () => setListening(false);
@@ -349,25 +315,19 @@ export function useConversationViewModel(
     r.start();
     setListening(true);
   }
-
   function stopListening() {
     recognitionRef.current?.abort();
     setListening(false);
   }
-
   const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
-
-    // The buyer engaging (sending a message) renews the agent's nudge budget:
-    // an active buyer is a fresh opportunity, so saturation caps reset.
     if (merchantId) noteActivity(merchantId);
 
     const userMsg: Message = { id: `u-${Date.now()}`, role: "user", text: trimmed };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setIsLoading(true);
-
     const newHistory = [...history, { role: "user" as const, content: trimmed }];
     setHistory(newHistory);
 
@@ -384,7 +344,6 @@ export function useConversationViewModel(
           });
         }
       }
-
       if (convId && merchantId) {
         const data = await checkoutApi.sendMessage(convId, trimmed, {
           merchantId,
@@ -399,21 +358,15 @@ export function useConversationViewModel(
             blocks.push({ type: "quick_replies", data: { options: data.suggested_next } });
           }
           updateFromBlocks(blocks);
-
-          // Surface a cross-sell suggestion as a pre-cart interstitial (modal),
-          // not just inline in the thread. Only when it accompanies a cart update
-          // (add-to-cart) so it acts as the "before cart" step.
+          
           const crossSellBlock = blocks.find((b: any) => b.type === "cross_sell" && b.data?.products?.length);
           const cartGrew = blocks.some((b: any) => b.type === "cart_summary");
           if (crossSellBlock && cartGrew) {
             setCrossSellPending(crossSellBlock.data as CrossSellInterstitialData);
-            // Remove cross_sell from inline blocks so it only shows in the interstitial,
-            // not duplicated in the chat body.
+            
             const idx = blocks.indexOf(crossSellBlock);
             if (idx !== -1) blocks.splice(idx, 1);
           }
-
-          // Track funnel events for experiment based on response content
           if (conversationId && merchantId) {
             const hasCart = blocks.some((b: any) => b.type === "cart_summary");
             const hasProducts = blocks.some((b: any) => ["product_carousel", "product_card", "marketplace_products"].includes(b.type));
@@ -423,13 +376,9 @@ export function useConversationViewModel(
               trackFunnelEvent(merchantId, conversationId, "product_viewed");
             }
           }
-
           const hasVisualBlock = blocks.some((b: any) =>
             ["product_carousel", "product_card", "cart_summary", "category_carousel", "product_comparison", "shipping_options", "marketplace_products"].includes(b.type)
           );
-
-          // Always show agent text alongside visual blocks for immersive conversation.
-          // If the LLM didn't produce text, derive narration from the first visual block.
           let agentText = data.message || undefined;
           if (!agentText && hasVisualBlock) {
             const firstVisual = blocks.find((b: any) =>
@@ -437,7 +386,6 @@ export function useConversationViewModel(
             );
             agentText = narrateStorefrontBlock(firstVisual?.type);
           }
-
           const agentMsg: Message = {
             id: `a-${Date.now()}`,
             role: "agent",
@@ -455,11 +403,8 @@ export function useConversationViewModel(
     } catch {
       setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: "agent", text: "Não consegui conectar ao servidor. Verifique sua conexão." }]);
     }
-
     setIsLoading(false);
   }, [conversationId, merchantId, history, cart.cartId]);
-
-  // ─── Quick Reply ───
   const handleQuickReply = useCallback((option: string) => {
     const lower = option.toLowerCase();
     if (lower === "ver carrinho" || lower === "ver meu carrinho") {
@@ -473,7 +418,6 @@ export function useConversationViewModel(
       if (merchantId && conversationId) {
         trackFunnelEvent(merchantId, conversationId, "checkout_intent");
       }
-      // Skip OTP entirely if a valid 7-day token is already stored.
       const buyer = getValidBuyer();
       if (buyer) {
         setCheckoutIntent(buyer.globalUserId);
@@ -483,13 +427,15 @@ export function useConversationViewModel(
       return;
     }
     if (lower === "aplicar cupom" && cart.itemCount === 0) {
-      void sendMessage("Quero aplicar um cupom de desconto");
+      void sendMessage("Quero aplicar um cupom de desconto").catch((err) => {
+        console.error("[conversation] coupon sendMessage failed:", err);
+      });
       return;
     }
-    void sendMessage(option);
+    void sendMessage(option).catch((err) => {
+      console.error("[conversation] quick-reply sendMessage failed:", err);
+    });
   }, [sendMessage, cart.itemCount, merchantId, conversationId]);
-
-  // ─── Cart Quantity ───
   const handleUpdateQuantity = useCallback((variantId: string, quantity: number) => {
     updateItemQuantity(variantId, quantity);
     if (cart.cartId && merchantId) {
@@ -498,12 +444,6 @@ export function useConversationViewModel(
       });
     }
   }, [cart.cartId, merchantId, updateItemQuantity]);
-
-  // ─── Side Effects ───
-
-  // Persist conversation (messages + id + mode/channel) so an accidental full
-  // page reload doesn't wipe the chat history. Keyed per merchant in
-  // sessionStorage (survives reload, clears when the tab closes).
   useEffect(() => {
     if (!merchantId) return;
     if (messages.length === 0) return;
@@ -514,121 +454,107 @@ export function useConversationViewModel(
       );
     } catch { /* quota/privacy */ }
   }, [merchantId, conversationId, messages, mode, channel]);
-
-  // Restore preferences + prior conversation on mount
+  const restoredRef = useRef(false);
   useEffect(() => {
     try {
       const savedChannel = localStorage.getItem("pulse-channel-pref") as Channel | null;
-      // Theme already resolved in the lazy useState initializer (localStorage > merchant
-      // default). Just apply the CSS tokens for the current value on mount.
       applyTheme(theme);
-
-      // Restore prior conversation if a fresh snapshot exists (survives reload).
       const restored = restoreConversation(merchantId);
       if (restored && restored.messages.length > 0) {
         setMessages(restored.messages);
         if (restored.conversationId) setConversationId(restored.conversationId);
         if (restored.mode) setMode(restored.mode);
         if (restored.channel) setChannel(restored.channel);
-        return; // Do NOT re-init — we already have a live conversation.
+        restoredRef.current = true; 
+        return;
       }
-
       if (savedChannel === "chat" || savedChannel === "voice") {
         setChannel(savedChannel);
         setMode("chat");
-        initConversation();
-      } else {
-        initConversation();
       }
     } catch { /* SSR/privacy */ }
   }, []);
-
+  
+  useEffect(() => {
+    if (!merchantId) return;
+    if (restoredRef.current) return; 
+    void initConversation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [merchantId]);
   useEffect(() => {
     trackConversationStart(storeName, experimentVM.getTrackingVariantId());
   }, [storeName, experimentVM.experiment]);
-
-  // Trigger detection (idle / exit-intent) must be armed ONCE and never re-armed
-  // by changing config/session, otherwise the 30s idle timer keeps resetting and
-  // never completes. Read the volatile values (agentMode, widgetConfig,
-  // conversationId) through refs so the effect can depend only on merchantId.
+  
   const agentModeRef = useRef(agentMode);
   agentModeRef.current = agentMode;
   const widgetConfigRef = useRef(widgetConfig);
   widgetConfigRef.current = widgetConfig;
   const conversationIdRef = useRef(conversationId);
   conversationIdRef.current = conversationId;
-  // Expose the experiment VM to the trigger callback (which only depends on
-  // [merchantId]) so nudges can be generated in the active A/B variant's voice.
   const experimentVMRef = useRef(experimentVM);
   experimentVMRef.current = experimentVM;
-
-  // Shared nudge logic used by BOTH the idle timer and the exit-intent hook.
-  // Applies activation-mode gating + per-trigger cooldown, shows the deterministic
-  // nudge instantly, then upgrades it to the active A/B variant's voice via the LLM.
   const fireNudge = useCallback((triggerEvent: "idle_30_seconds" | "exit_intent_detected") => {
     const mid = merchantId || "";
-    // Only manual_only suppresses triggers; silent + proactive both react to signals.
     if (agentModeRef.current === "manual_only") return;
 
     const cfg = widgetConfigRef.current;
     const cooldownMs = (cfg?.cooldownSeconds ?? 120) * 1000;
     if (!canFireTrigger(mid, triggerEvent, cooldownMs)) return;
-
     const customTrigger = cfg?.triggerMessages?.[triggerEvent];
     const staticNudge = customTrigger?.message || TRIGGER_MESSAGES[triggerEvent];
     if (!staticNudge) return;
 
     recordTriggerFired(mid, triggerEvent);
-
     const couponSuffix = customTrigger?.couponCode
       ? ` 🎁 Use o cupom **${customTrigger.couponCode}** para um desconto especial!`
       : "";
-
-    setMode("chat");
-    const nudgeId = crypto.randomUUID();
-    setMessages((prev) => [...prev, { id: nudgeId, role: "agent", text: staticNudge + couponSuffix }]);
-
-    // Regenerate the nudge in the active A/B variant's voice. We build a STRONG,
-    // explicit instruction that (a) restates the running variant's style directive
-    // and (b) constrains the output to a single short nudge line — otherwise the LLM
-    // drifts into a generic "how can I help" reply that ignores the variant tone.
     const exp = experimentVMRef.current.experiment;
     const variantId = exp?.variantId ?? experimentVMRef.current.getTrackingVariantId();
     const convId = conversationIdRef.current;
-    if (variantId && convId && mid) {
-      const situation =
-        triggerEvent === "exit_intent_detected"
-          ? "O comprador está prestes a SAIR da loja (exit-intent)."
-          : "O comprador está INATIVO/parado na loja há um tempo, sem interagir.";
-      const styleDirective = exp?.systemPrompt
-        ? `Siga EXATAMENTE este estilo de comunicação: "${exp.systemPrompt}".`
-        : "Use um tom persuasivo, caloroso e vendedor.";
-      const intent = [
-        `[INSTRUÇÃO INTERNA — NÃO responda como se eu fosse o comprador.]`,
-        situation,
-        styleDirective,
-        `Escreva UMA única frase curta (máx. 2 linhas), na primeira pessoa da vendedora, chamando o comprador de volta e oferecendo ajuda concreta para fechar a compra.`,
-        `Não faça perguntas genéricas do tipo "como posso ajudar". Seja específica e no estilo acima. Responda SÓ com a mensagem, sem aspas.`,
-      ].join(" ");
-      void checkoutApi
-        .sendMessage(convId, intent, { merchantId: mid, cartId: cart.cartId || undefined, history: [], variantId })
-        .then((data: any) => {
-          const styled = typeof data?.message === "string" ? data.message.trim().replace(/^["']|["']$/g, "") : "";
-          if (!styled) return;
-          if (/tive um problema|não consegui|erro ao|tente novamente/i.test(styled)) return;
-          setMessages((prev) => prev.map((m) => (m.id === nudgeId ? { ...m, text: styled + couponSuffix } : m)));
-        })
-        .catch(() => { /* keep the static nudge */ });
-    }
-  }, [merchantId, cart.cartId]);
 
+    if (!variantId || !convId || !mid) {
+      setMode("chat");
+      setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "agent", text: staticNudge + couponSuffix }]);
+      return;
+    }
+    
+    setMode("chat");
+    setIsLoading(true);
+    
+    let settled = false;
+    const reveal = (text: string) => {
+      if (settled) return;
+      settled = true;
+      setIsLoading(false);
+      setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "agent", text }]);
+    };
+    const fallbackTimer = setTimeout(() => reveal(staticNudge + couponSuffix), 6000);
+    const situation =
+      triggerEvent === "exit_intent_detected"
+        ? "O comprador está prestes a SAIR da loja (exit-intent)."
+        : "O comprador está INATIVO/parado na loja há um tempo, sem interagir.";
+    const styleDirective = exp?.systemPrompt
+      ? `Siga EXATAMENTE este estilo de comunicação: "${exp.systemPrompt}".`
+      : "Use um tom persuasivo, caloroso e vendedor.";
+    const intent = [
+      `[INSTRUÇÃO INTERNA — NÃO responda como se eu fosse o comprador.]`,
+      situation,
+      styleDirective,
+      `Escreva UMA única frase curta (máx. 2 linhas), na primeira pessoa da vendedora, chamando o comprador de volta e oferecendo ajuda concreta para fechar a compra.`,
+      `Não faça perguntas genéricas do tipo "como posso ajudar". Seja específica e no estilo acima. Responda SÓ com a mensagem, sem aspas.`,
+    ].join(" ");
+    void checkoutApi
+      .sendMessage(convId, intent, { merchantId: mid, cartId: cart.cartId || undefined, history: [], variantId })
+      .then((data: any) => {
+        clearTimeout(fallbackTimer);
+        const styled = typeof data?.message === "string" ? data.message.trim().replace(/^["']|["']$/g, "") : "";
+        const bad = !styled || /tive um problema|não consegui|erro ao|tente novamente/i.test(styled);
+        reveal((bad ? staticNudge : styled) + couponSuffix);
+      })
+      .catch(() => { clearTimeout(fallbackTimer); reveal(staticNudge + couponSuffix); });
+  }, [merchantId, cart.cartId]);
   const fireNudgeRef = useRef(fireNudge);
   fireNudgeRef.current = fireNudge;
-
-  // Trigger detection — direct port of the checkout widget_v2 setup (which works
-  // reliably): setupIdleTrigger + setupExitIntentTrigger, armed once on mount.
-  // Both funnel into fireNudge (mode gating + cooldown + A/B voice) via a ref so
-  // this effect doesn't re-arm and reset the idle timer.
   useEffect(() => {
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
     const cfg = {
@@ -645,12 +571,6 @@ export function useConversationViewModel(
       cleanupExit();
     };
   }, [merchantId]);
-
-  // Proactive activation: after a delay, auto-open the chat (intro → chat) and
-  // surface the greeting. `agentMode` (from agent-rules, projected via store config)
-  // is the source of truth; fire once per mount. selectChannel is read through a
-  // ref so its changing identity (it depends on conversationId) does not reset the
-  // timer on every render — otherwise the timeout never completes.
   const selectChannelRef = useRef(selectChannel);
   selectChannelRef.current = selectChannel;
   const initConversationRef = useRef(initConversation);
@@ -659,19 +579,14 @@ export function useConversationViewModel(
   useEffect(() => {
     if (agentMode !== "proactive") return;
     if (proactiveFiredRef.current) return;
-    // Pre-start the conversation immediately so the active A/B-test greeting is
-    // fetched and cached before the timer fires — otherwise the proactive open
-    // races the experiment fetch and falls back to the static greeting.
     initConversationRef.current();
     const delaySec = agentInitialDelaySeconds ?? 5;
     const timer = setTimeout(() => {
       proactiveFiredRef.current = true;
-      // selectChannel opens the chat AND emits the experiment/merchant greeting.
       selectChannelRef.current("chat");
     }, delaySec * 1000);
     return () => clearTimeout(timer);
   }, [agentMode, agentInitialDelaySeconds]);
-
   const trackedOrderRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!returnOrderId) return;

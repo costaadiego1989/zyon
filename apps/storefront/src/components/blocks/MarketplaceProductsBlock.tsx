@@ -42,7 +42,7 @@ export default function MarketplaceProductsBlock({
         fontFamily: "var(--aacp-font)",
       }}
     >
-      {/* Section header */}
+      {}
       <div
         style={{
           display: "flex",
@@ -80,7 +80,7 @@ export default function MarketplaceProductsBlock({
         </h2>
       </div>
 
-      {/* Grid of product cards */}
+      {}
       <div
         style={{
           display: "grid",

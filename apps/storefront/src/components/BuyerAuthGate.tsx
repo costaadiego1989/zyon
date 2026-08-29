@@ -16,16 +16,8 @@ type Mode = "choose" | "register" | "login" | "biometric";
 
 const BIOMETRIC_KEY = "zyon_biometric_registered";
 
-// SECURITY (SF-008): "Face ID" is gated behind two conditions and stays disabled
-// unless BOTH hold, because this build does not implement a real WebAuthn challenge:
-//   1. The platform exposes the WebAuthn API (navigator.credentials + PublicKeyCredential).
-//   2. The user has previously registered a credential (marker in localStorage).
-// Until a real WebAuthn ceremony (navigator.credentials.get with a server-issued
-// challenge) is wired up, this must never enable on a device without the API, so we
-// cannot present a fake biometric that merely reads a token from localStorage.
 function isBiometricAvailable(): boolean {
   if (typeof window === "undefined") return false;
-  // Require the WebAuthn platform API — no API means no real biometric is possible.
   if (
     typeof navigator === "undefined" ||
     !navigator.credentials ||
@@ -88,7 +80,6 @@ export default function BuyerAuthGate({ merchantId, merchantName, onComplete, on
   const [mode, setMode] = useState<Mode>("choose");
   const biometricAvailable = isBiometricAvailable();
 
-  // Auto-login: if buyer already has a valid token in localStorage, skip OTP entirely
   useEffect(() => {
     const buyer = getValidBuyer();
     if (buyer) {
@@ -98,9 +89,6 @@ export default function BuyerAuthGate({ merchantId, merchantName, onComplete, on
 
   const handleBiometric = async () => {
     try {
-      // SECURITY (SF-004): Token in localStorage is mitigated by CSP headers + DOMPurify sanitization
-      // on the entire application. This guards against XSS injection into the token value.
-      // Long-term: migrate to httpOnly cookies once API supports cookie-based buyer auth.
       const stored = localStorage.getItem(BIOMETRIC_KEY);
       if (stored) {
         const data = JSON.parse(stored) as { globalUserId?: string; token?: string };
@@ -110,7 +98,6 @@ export default function BuyerAuthGate({ merchantId, merchantName, onComplete, on
         await onComplete(data.globalUserId ?? "biometric-user");
       }
     } catch {
-      // Ignore parse errors
     }
   };
 
@@ -145,7 +132,7 @@ export default function BuyerAuthGate({ merchantId, merchantName, onComplete, on
       >
         {mode === "choose" && (
           <div style={{ padding: "22px", display: "flex", flexDirection: "column", gap: "14px" }}>
-            {/* Header */}
+            {}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span
                 style={{
@@ -202,7 +189,7 @@ export default function BuyerAuthGate({ merchantId, merchantName, onComplete, on
               É rápido e seguro. Vamos pedir apenas o necessário.
             </p>
 
-            {/* Option: Face ID */}
+            {}
             <button
               type="button"
               onClick={handleBiometric}
@@ -245,7 +232,7 @@ export default function BuyerAuthGate({ merchantId, merchantName, onComplete, on
               </span>
             </button>
 
-            {/* Option: Celular */}
+            {}
             <button
               type="button"
               onClick={() => setMode("login")}
@@ -284,7 +271,7 @@ export default function BuyerAuthGate({ merchantId, merchantName, onComplete, on
               </span>
             </button>
 
-            {/* Option: Criar conta */}
+            {}
             <button
               type="button"
               onClick={() => setMode("register")}

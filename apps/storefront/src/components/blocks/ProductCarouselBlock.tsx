@@ -9,7 +9,6 @@ function formatPrice(cents: number): string {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
 }
 
-/** Mini image slider for product cards with multiple images */
 export default function ProductCarouselBlock({
   block,
   onQuickReply,
@@ -48,7 +47,7 @@ export default function ProductCarouselBlock({
       }));
       setProducts((prev) => [...prev, ...newProducts]);
       setCursor(result.nextCursor ?? undefined);
-    } catch { /* non-critical */ } finally {
+    } catch {  } finally {
       setLoadingMore(false);
     }
   }, [cursor, loadingMore, data.merchantId, data.query, data.categoryId]);
@@ -77,7 +76,7 @@ export default function ProductCarouselBlock({
         .aacp-carousel-scroll { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
-      {/* Left arrow */}
+      {}
       {products.length > 2 && (
         <button
           type="button"
@@ -109,7 +108,7 @@ export default function ProductCarouselBlock({
         </button>
       )}
 
-      {/* Right arrow */}
+      {}
       {products.length > 2 && (
         <button
           type="button"

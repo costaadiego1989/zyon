@@ -66,7 +66,7 @@ export default function MarketplaceProductCard({
         }
       `}</style>
 
-      {/* Hero image — 200px height, full width */}
+      {}
       <div
         aria-hidden
         style={{
@@ -114,7 +114,7 @@ export default function MarketplaceProductCard({
         )}
       </div>
 
-      {/* Body */}
+      {}
       <div
         style={{
           padding: "16px 18px 16px",
@@ -123,7 +123,7 @@ export default function MarketplaceProductCard({
           gap: "12px",
         }}
       >
-        {/* Product name */}
+        {}
         <h3
           style={{
             fontFamily: "var(--aacp-font-display)",
@@ -138,7 +138,7 @@ export default function MarketplaceProductCard({
           {name}
         </h3>
 
-        {/* Seller badge */}
+        {}
         <p
           style={{
             fontSize: "12px",
@@ -150,7 +150,7 @@ export default function MarketplaceProductCard({
           Vendido por {sellerName}
         </p>
 
-        {/* Price block */}
+        {}
         <div
           style={{
             display: "flex",
@@ -184,7 +184,7 @@ export default function MarketplaceProductCard({
             </span>
           </div>
 
-          {/* Stock indicator */}
+          {}
           <div
             style={{
               display: "inline-flex",
@@ -214,7 +214,7 @@ export default function MarketplaceProductCard({
           </div>
         </div>
 
-        {/* Action button */}
+        {}
         <div
           style={{
             display: "flex",

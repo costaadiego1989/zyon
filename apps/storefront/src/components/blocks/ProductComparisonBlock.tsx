@@ -35,7 +35,6 @@ export default function ProductComparisonBlock({
 }) {
   const { products } = block.data;
 
-  // Stable attribute key order across all products
   const attrKeys = Array.from(
     products.reduce((set, p) => {
       Object.keys(p.attributes).forEach((k) => set.add(k));
@@ -127,7 +126,7 @@ export default function ProductComparisonBlock({
             </tr>
           </thead>
           <tbody>
-            {/* Price */}
+            {}
             <tr>
               <td
                 style={{
@@ -163,7 +162,7 @@ export default function ProductComparisonBlock({
               ))}
             </tr>
 
-            {/* Rating */}
+            {}
             {products.some((p) => p.rating !== undefined) && (
               <tr>
                 <td
@@ -198,7 +197,7 @@ export default function ProductComparisonBlock({
               </tr>
             )}
 
-            {/* Stock */}
+            {}
             <tr>
               <td
                 style={{
@@ -255,7 +254,7 @@ export default function ProductComparisonBlock({
               ))}
             </tr>
 
-            {/* Custom attributes */}
+            {}
             {attrKeys.map((key) => (
               <tr key={key}>
                 <td
@@ -295,7 +294,7 @@ export default function ProductComparisonBlock({
         </table>
       </div>
 
-      {/* Bottom action row */}
+      {}
       <div
         style={{
           display: "flex",

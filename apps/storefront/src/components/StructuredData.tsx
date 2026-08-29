@@ -1,10 +1,5 @@
 'use client';
 
-/**
- * JSON-LD structured data components for SEO.
- * Renders schema.org structured data for products and organizations.
- */
-
 export function OrganizationSchema({
   name,
   logo,
@@ -36,7 +31,6 @@ export function OrganizationSchema({
     />
   );
 }
-
 export function ProductSchema({
   name,
   price,
@@ -77,7 +71,6 @@ export function ProductSchema({
     />
   );
 }
-
 export function WebSiteSchema({
   name,
   url,
@@ -107,7 +100,6 @@ export function WebSiteSchema({
     />
   );
 }
-
 export function BreadcrumbListSchema({ items }: { items: Array<{ name: string; url: string }> }) {
   const schema = {
     "@context": "https://schema.org",

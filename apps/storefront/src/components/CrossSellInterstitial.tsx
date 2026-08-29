@@ -19,7 +19,7 @@ export default function CrossSellInterstitial({
 
   return (
     <>
-      {/* Backdrop */}
+      {}
       <div
         onClick={onClose}
         role="presentation"
@@ -32,7 +32,7 @@ export default function CrossSellInterstitial({
         }}
       />
 
-      {/* Bottom sheet */}
+      {}
       <div
         role="dialog"
         aria-modal="true"
@@ -72,12 +72,12 @@ export default function CrossSellInterstitial({
           .cross-sell-scroll::-webkit-scrollbar { display: none; }
         `}</style>
 
-        {/* Grabber */}
+        {}
         <div style={{ display: "flex", justifyContent: "center", paddingTop: "10px" }}>
           <div style={{ width: "36px", height: "4px", borderRadius: "2px", background: "var(--aacp-line)" }} />
         </div>
 
-        {/* Header — flat, no gradient */}
+        {}
         <div
           style={{
             padding: "14px 20px 12px",
@@ -136,7 +136,7 @@ export default function CrossSellInterstitial({
           </button>
         </div>
 
-        {/* Product cards — identical layout to ProductCarouselBlock */}
+        {}
         <div
           className="cross-sell-scroll"
           style={{
@@ -176,7 +176,7 @@ export default function CrossSellInterstitial({
                 e.currentTarget.style.boxShadow = "none";
               }}
             >
-              {/* Image — matches carousel: 160px, surface-3 bg, monogram fallback */}
+              {}
               <div
                 style={{
                   width: "100%",
@@ -198,7 +198,7 @@ export default function CrossSellInterstitial({
                     {product.name.charAt(0).toUpperCase()}
                   </div>
                 )}
-                {/* Stock badge — top left */}
+                {}
                 <div style={{
                   position: "absolute",
                   top: "8px",
@@ -214,7 +214,7 @@ export default function CrossSellInterstitial({
                 }}>
                   {product.inStock ? "Pronta entrega" : "Indisponível"}
                 </div>
-                {/* Discount badge */}
+                {}
                 {product.discountPercent && product.discountPercent > 0 ? (
                   <div style={{ position: "absolute", top: "32px", left: "8px", padding: "3px 8px", borderRadius: "6px", background: "var(--aacp-accent)", color: "#fff", fontSize: "10px", fontWeight: 700, letterSpacing: "0.02em" }}>
                     -{Math.round(product.discountPercent)}%
@@ -222,7 +222,7 @@ export default function CrossSellInterstitial({
                 ) : null}
               </div>
 
-              {/* Card body — matches carousel: centered, name, rating, price, button */}
+              {}
               <div style={{ padding: "16px 16px 18px", display: "flex", flexDirection: "column", gap: "4px", flex: 1, textAlign: "center" }}>
                 <h4 style={{
                   fontSize: "13.5px",
@@ -239,7 +239,7 @@ export default function CrossSellInterstitial({
                   {product.name}
                 </h4>
 
-                {/* Star rating placeholder — matches carousel */}
+                {}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", marginTop: "6px" }}>
                   <span style={{ display: "inline-flex", gap: "1px", fontSize: "12px", lineHeight: 1, color: "#F5B301" }} aria-label="Sem avaliações">
                     {Array.from({ length: 5 }).map((_, i) => (
@@ -251,14 +251,14 @@ export default function CrossSellInterstitial({
 
                 <div style={{ flex: 1, minHeight: "10px" }} />
 
-                {/* Price — matches carousel: 20px accent bold */}
+                {}
                 <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
                   <span style={{ fontSize: "20px", fontWeight: 800, color: "var(--aacp-accent)", letterSpacing: "-0.02em" }}>
                     {product.priceFormatted}
                   </span>
                 </div>
 
-                {/* Add to cart button — matches carousel */}
+                {}
                 <button
                   type="button"
                   onClick={() => onAddItem(product.id, product.name)}
@@ -287,7 +287,7 @@ export default function CrossSellInterstitial({
           ))}
         </div>
 
-        {/* Footer actions */}
+        {}
         <div
           style={{
             display: "flex",

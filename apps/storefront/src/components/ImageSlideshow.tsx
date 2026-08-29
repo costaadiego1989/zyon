@@ -15,13 +15,6 @@ export interface SlideShowProps {
   autoPlayInterval?: number;
 }
 
-/**
- * Reusable image slideshow component.
- * - Arrow navigation (‹ ›) when multiple images
- * - Dot indicators
- * - Optional autoplay
- * - Touch swipe support
- */
 export default function ImageSlideshow({
   images,
   alt = "",
@@ -37,15 +30,11 @@ export default function ImageSlideshow({
   const [current, setCurrent] = useState(0);
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const count = images.length;
-
   const goNext = useCallback(() => setCurrent((c) => (c + 1) % count), [count]);
   const goPrev = useCallback(() => setCurrent((c) => (c - 1 + count) % count), [count]);
-
-  // Autoplay
   if (autoPlay && count > 1) {
-    // Use effect-less interval via ref pattern in parent — for now keep simple
+    
   }
-
   if (count === 0) return null;
   if (count === 1) {
     return (
@@ -54,7 +43,6 @@ export default function ImageSlideshow({
       </div>
     );
   }
-
   return (
     <div
       style={{ position: "relative", width, height, borderRadius, overflow: "hidden" }}
@@ -73,7 +61,6 @@ export default function ImageSlideshow({
         loading="lazy"
         style={{ width: "100%", height: "100%", objectFit, display: "block", transition: "opacity 0.2s ease" }}
       />
-
       {/* Left arrow */}
       {showArrows && (
         <button
@@ -103,7 +90,6 @@ export default function ImageSlideshow({
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
         </button>
       )}
-
       {/* Right arrow */}
       {showArrows && (
         <button
@@ -133,7 +119,6 @@ export default function ImageSlideshow({
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
         </button>
       )}
-
       {/* Dots */}
       {showDots && (
         <div style={{ position: "absolute", bottom: "8px", left: "50%", transform: "translateX(-50%)", display: "flex", gap: "4px", zIndex: 2 }}>

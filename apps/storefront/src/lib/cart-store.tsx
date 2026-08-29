@@ -76,13 +76,11 @@ export function useCart(): CartContextValue {
 export function CartProvider({ children, merchantId }: { children: ReactNode; merchantId?: string }) {
   const [cart, setCart] = useState<CartState>(EMPTY_CART);
 
-  // Restore cart from API on mount if cartId exists and merchantId is available
   useEffect(() => {
     if (!merchantId) return;
     const savedId = getSavedCartId(merchantId);
     if (!savedId) return;
 
-    // Hydrate cartId optimistically while fetching full state
     setCart((prev) => prev.cartId === savedId ? prev : { ...EMPTY_CART, cartId: savedId });
 
     cartApi.get(savedId, merchantId)
@@ -158,9 +156,8 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
         cartId: resolvedCartId,
         items: items.map((i: any) => {
           const qty = i.quantity ?? 1;
-          // price comes in reais (149.90) from product cards, or unit_price_cents (14990) from API
           const rawPrice = i.price ?? (i.unit_price_cents ? i.unit_price_cents / 100 : null) ?? i.unitPrice ?? 0;
-          const price = rawPrice > 1000 && !i.price ? rawPrice / 100 : rawPrice; // guard: if looks like cents, convert
+          const price = rawPrice > 1000 && !i.price ? rawPrice / 100 : rawPrice; 
           return {
             variantId: i.variantId ?? i.variant_id ?? i.id,
             productName: i.productName ?? i.product_name ?? i.name ?? "Produto",
@@ -197,8 +194,6 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
 
       let newItems: CartItem[];
       if (quantity <= 0) {
-        // Zero quantity removes the line item entirely (matches the server,
-        // which treats quantity <= 0 as removal).
         newItems = prev.items.filter((_, i) => i !== itemIndex);
       } else {
         const item = prev.items[itemIndex];

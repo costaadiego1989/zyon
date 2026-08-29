@@ -13,16 +13,12 @@ import {
 import type { IconType } from "react-icons";
 import type { BuyerPurchase } from "@/lib/viewmodels/useBuyerHub";
 
-// ─── Shared Types ──────────────────────────────────────────────────────────
-
 export interface OrdersTabProps {
   purchases: BuyerPurchase[];
   hasMore: boolean;
   loadingMore: boolean;
   onLoadMore: () => void;
 }
-
-// ─── Formatters ────────────────────────────────────────────────────────────
 
 const brlFmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const dateFmt = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "short", year: "numeric" });
@@ -87,8 +83,6 @@ function trackingPillTone(status: string | null | undefined): { bg: string; fg: 
   }
   return { bg: "color-mix(in oklab, var(--aacp-accent) 16%, transparent)", fg: "var(--aacp-accent)" };
 }
-
-// ─── Purchase Card ─────────────────────────────────────────────────────────
 
 interface PurchaseCardProps {
   purchase: BuyerPurchase;
@@ -341,8 +335,6 @@ function PurchaseCard({ purchase, expanded, onToggle }: PurchaseCardProps) {
     </article>
   );
 }
-
-// ─── Main Component ────────────────────────────────────────────────────────
 
 export function OrdersTab({ purchases, hasMore, loadingMore, onLoadMore }: OrdersTabProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());

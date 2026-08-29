@@ -2,9 +2,6 @@
 
 import { createContext, useContext } from "react";
 
-/**
- * Shape returned by GET /checkout-settings/widget-config?merchantId=XXX
- */
 export interface WidgetConfig {
   mode: "silent_until_trigger" | "proactive" | "manual_only";
   position?: "bottom_right" | "bottom_left" | "top_right" | "top_left";
@@ -30,19 +27,16 @@ export interface WidgetConfig {
   cooldownSeconds?: number;
   maxInterventionsPerSession?: number;
 }
-
 export interface WidgetConfigState {
   config: WidgetConfig | null;
   loading: boolean;
   error: string | null;
 }
-
 const DEFAULT_STATE: WidgetConfigState = {
   config: null,
   loading: true,
   error: null,
 };
-
 export const WidgetConfigContext = createContext<WidgetConfigState>(DEFAULT_STATE);
 
 export function useWidgetConfig(): WidgetConfigState {

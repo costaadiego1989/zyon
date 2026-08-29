@@ -24,7 +24,6 @@ export default async function Image({
       storeCategory = config.storeCategory || storeCategory;
     }
   } catch {
-    // Use defaults on failure
   }
 
   return new ImageResponse(
@@ -42,7 +41,7 @@ export default async function Image({
           position: "relative",
         }}
       >
-        {/* Accent border top */}
+        {}
         <div
           style={{
             position: "absolute",
@@ -54,7 +53,7 @@ export default async function Image({
           }}
         />
 
-        {/* Logo initial circle */}
+        {}
         <div
           style={{
             width: "120px",

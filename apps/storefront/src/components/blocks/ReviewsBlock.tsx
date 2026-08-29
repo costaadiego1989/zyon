@@ -127,7 +127,6 @@ export default function ReviewsBlock({ block, onQuickReply }: ReviewsBlockProps)
   const visibleReviews = data.reviews.slice(0, visibleCount);
   const hasMore = visibleCount < data.reviews.length || !!data.nextCursor;
 
-  // Compute distribution (approximate from available reviews)
   const distribution = [5, 4, 3, 2, 1].map((star) => {
     const count = data.reviews.filter((r) => Math.round(r.rating) === star).length;
     const percent =

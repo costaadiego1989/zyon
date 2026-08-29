@@ -5,7 +5,6 @@ import type { BuyerProfile, BuyerAddress } from "@/lib/viewmodels/useBuyerHub";
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
-// ─── Props ───────────────────────────────────────────────────────────────
 
 export interface ProfileTabProps {
   profile: BuyerProfile | null;
@@ -21,7 +20,6 @@ export interface ProfileTabProps {
   onDeleteAddress: (id: string) => Promise<void>;
 }
 
-// Shape of a new/edited address as captured by the mini-form.
 export interface AddressFormValues {
   zip: string;
   street: string;
@@ -32,7 +30,6 @@ export interface AddressFormValues {
   state: string;
 }
 
-// ─── Formatters ────────────────────────────────────────────────────────────
 
 function formatPhone(value: string): string {
   const numbers = value.replace(/\D/g, "").slice(0, 11);
@@ -51,11 +48,9 @@ function maskCPF(cpf?: string | null): string {
   if (!cpf) return "—";
   const digits = cpf.replace(/\D/g, "");
   if (digits.length !== 11) return cpf;
-  // 123.***.***-45
   return `${digits.slice(0, 3)}.***.***-${digits.slice(9)}`;
 }
 
-// ─── Inline SVG icons ────────────────────────────────────────────────────────
 
 function IconUser() {
   return (
@@ -142,7 +137,6 @@ function IconCheck() {
   );
 }
 
-// ─── Shared inline styles ────────────────────────────────────────────────────
 
 const styles: Record<string, React.CSSProperties> = {
   section: { display: "flex", flexDirection: "column", gap: 16, padding: 4 },
@@ -213,7 +207,6 @@ const styles: Record<string, React.CSSProperties> = {
   errorText: { fontSize: 12, color: "#ef4444", margin: 0 },
 };
 
-// ─── Editable field row (edit mode) ──────────────────────────────────────────
 
 function EditField(props: {
   id: string;
@@ -240,7 +233,6 @@ function EditField(props: {
   );
 }
 
-// ─── Loading skeleton ────────────────────────────────────────────────────────
 
 function Skeleton() {
   const bar = (w: string | number, h = 14): React.CSSProperties => ({
@@ -275,7 +267,6 @@ function Skeleton() {
   );
 }
 
-// ─── Address mini-form ───────────────────────────────────────────────────────
 
 const EMPTY_ADDRESS: AddressFormValues = {
   zip: "",
@@ -414,7 +405,6 @@ function AddressForm(props: {
   );
 }
 
-// ─── Address card ────────────────────────────────────────────────────────────
 
 function AddressCard(props: {
   address: BuyerAddress;
@@ -494,7 +484,6 @@ function AddressCard(props: {
   );
 }
 
-// ─── Main component ──────────────────────────────────────────────────────────
 
 export default function ProfileTab({
   profile,
@@ -726,7 +715,6 @@ export default function ProfileTab({
   );
 }
 
-// ─── Read-only field row ─────────────────────────────────────────────────────
 
 function ReadField(props: { icon: React.ReactNode; label: string; value: string; mono?: boolean }) {
   return (
@@ -742,7 +730,6 @@ function ReadField(props: { icon: React.ReactNode; label: string; value: string;
   );
 }
 
-// ─── Keyframes ───────────────────────────────────────────────────────────────
 
 function StyleTag() {
   return (

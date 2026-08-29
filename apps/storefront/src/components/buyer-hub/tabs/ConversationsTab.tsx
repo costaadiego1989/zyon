@@ -4,15 +4,11 @@ import { useState, useCallback, useId, useEffect } from "react";
 import { FiMessageSquare, FiThumbsUp, FiThumbsDown, FiChevronRight } from "react-icons/fi";
 import type { BuyerConversation, ConversationMessage } from "@/lib/viewmodels/useBuyerHub";
 
-// ─── Public types ──────────────────────────────────────────────────────────
-
 export interface ConversationsTabProps {
   conversations: BuyerConversation[];
   loading: boolean;
   onRate: (conversationId: string, messageId: string, rating: "up" | "down") => Promise<void>;
 }
-
-// ─── Formatters ────────────────────────────────────────────────────────────
 
 const dateFmt = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" });
 const dateTimeFmt = new Intl.DateTimeFormat("pt-BR", {
@@ -42,7 +38,6 @@ function truncate(text: string, max = 60): string {
 
 function lastAssistantOrUserPreview(msgs: ConversationMessage[]): string {
   if (!msgs || msgs.length === 0) return "";
-  // Walk in reverse; prefer last assistant, fall back to last user, else any.
   for (let i = msgs.length - 1; i >= 0; i--) {
     if (msgs[i].role === "assistant" || msgs[i].role === "agent") {
       return msgs[i].content;
@@ -59,8 +54,6 @@ function lastAssistantOrUserPreview(msgs: ConversationMessage[]): string {
 function isAssistant(role: ConversationMessage["role"]): boolean {
   return role === "assistant" || role === "agent";
 }
-
-// ─── Support ticket bridge (sessionStorage) ─────────────────────────────────
 
 const SUPPORT_MESSAGES_KEY = "zyon_support_messages";
 const SUPPORT_TICKET_KEY = "zyon_support_ticket";
@@ -101,8 +94,6 @@ function readSupportState(): SupportState | null {
     return null;
   }
 }
-
-// ─── Sub-components ────────────────────────────────────────────────────────
 
 function RoleBadge({ role }: { role: ConversationMessage["role"] }) {
   const isUser = role === "user";
@@ -428,12 +419,9 @@ function ConversationCard({
   );
 }
 
-// ─── Support ticket card ────────────────────────────────────────────────────
-
 function SupportTicketCard({ support }: { support: SupportState }) {
   const reopen = useCallback(() => {
     if (typeof window === "undefined") return;
-    // Decoupled: ConversationShell listens for this event to open the SupportPanel.
     window.dispatchEvent(new CustomEvent("zyon:open-support"));
   }, []);
 
@@ -501,8 +489,6 @@ function SupportTicketCard({ support }: { support: SupportState }) {
   );
 }
 
-// ─── Component ─────────────────────────────────────────────────────────────
-
 export default function ConversationsTab({
   conversations,
   loading,
@@ -512,7 +498,6 @@ export default function ConversationsTab({
 
   useEffect(() => {
     setSupport(readSupportState());
-    // Re-check when the support panel writes new messages/status.
     const onStorage = () => setSupport(readSupportState());
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);

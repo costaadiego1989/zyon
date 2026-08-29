@@ -33,7 +33,6 @@ export default function BuyerLoginForm({ merchantId, merchantName, onComplete, o
 
     try {
       if (step === 1) {
-        // Send OTP — include fallback email from prior session if available
         let fallbackEmail: string | undefined;
         try {
           const session = localStorage.getItem("zyon_buyer_session");
@@ -52,10 +51,8 @@ export default function BuyerLoginForm({ merchantId, merchantName, onComplete, o
           const errData = await res.json().catch(() => null);
           throw new Error(errData?.message ?? "Erro ao enviar código");
         }
-        // OTP enviado via WhatsApp/SMS — buyer verifica no celular
         setStep(2);
       } else {
-        // Verify OTP
         const res = await fetch(`${API_BASE}/buyer/phone/verify`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

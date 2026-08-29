@@ -24,11 +24,6 @@ type Channel = "chat" | "voice";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
-/**
- * Parse basic markdown (bold, italic) to sanitized HTML.
- * Supports: **bold**, *italic*, \n → <br/>.
- * Always sanitized via DOMPurify to prevent XSS.
- */
 function renderMarkdownText(text: string): string {
   let html = text
     .replace(/&/g, "&amp;")
@@ -39,7 +34,6 @@ function renderMarkdownText(text: string): string {
     .replace(/\n/g, "<br/>");
   return DOMPurify.sanitize(html, { ALLOWED_TAGS: ["strong", "em", "br"] });
 }
-
 export default function ConversationShell({
   storeName,
   logo,
@@ -75,7 +69,6 @@ export default function ConversationShell({
     policies?: { privacy?: string; returns?: string; terms?: string; shipping?: string };
   };
 }) {
-  // ─── MVVM: All logic delegated to ViewModel ───
   const vm = useConversationViewModel({
     storeName,
     merchantId,
@@ -88,7 +81,6 @@ export default function ConversationShell({
     agentMode,
     agentInitialDelaySeconds,
   });
-
   const {
     mode, channel, theme, messages, input, isLoading, listening,
     conversationId, supportOpen, buyerHubOpen, cartDrawerForceOpen,
@@ -98,69 +90,51 @@ export default function ConversationShell({
     setSupportOpen, setBuyerHubOpen, setShowBuyerAuth, setCheckoutIntent, setPolicyModal,
     setCartDrawerForceOpen, dismissCrossSell, startListening, stopListening,
   } = vm;
-
   const inputRef = useRef<HTMLInputElement | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
   const agent = agentName || "Assistente";
   const { cart } = useCart();
-
-  // Inline checkout state (replaces cross-origin redirect to widget app)
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  
+  const [checkoutCartRef, setCheckoutCartRef] = useState<string | undefined>(undefined);
   const [logoError, setLogoError] = useState(false);
   const [checkoutUserId, setCheckoutUserId] = useState("");
-
-  // Suppress hydration mismatch: SSR renders "intro" mode but client may
-  // restore a session from localStorage → mode diverges on hydration.
-  // Render intro-safe layout until mounted, then let the actual mode take over.
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
-  // Until mounted, force the SSR default ("intro") so the first client render
-  // matches the server HTML. After mount, follow the real mode.
   const effectiveMode = mounted ? mode : "intro";
-
-  // Listen for custom events from BuyerHub (e.g., open support)
   useEffect(() => {
     const onOpenSupport = () => setSupportOpen(true);
     window.addEventListener("zyon:open-support", onOpenSupport);
     return () => window.removeEventListener("zyon:open-support", onOpenSupport);
   }, []);
-
-  // React to checkoutIntent from viewmodel — valid token skipped the gate, go straight to checkout
   useEffect(() => {
     if (checkoutIntent) {
       setCheckoutUserId(checkoutIntent);
+      setCheckoutCartRef(cart.cartId ?? undefined);
       setCheckoutOpen(true);
       setCheckoutIntent(null);
     }
   }, [checkoutIntent, setCheckoutIntent]);
-
-  // Session persistence: restore buyer session from localStorage on mount
   useEffect(() => {
     const buyerToken = localStorage.getItem("zyon_buyer_token");
     if (buyerToken && !showBuyerAuth && !checkoutUserId) {
       try {
-        // Decode JWT payload to extract globalUserId
         const payload = JSON.parse(atob(buyerToken.split(".")[1]));
         const globalUserId = payload.sub || payload.globalUserId;
         if (globalUserId) {
           setCheckoutUserId(globalUserId);
         }
       } catch (err) {
-        // Invalid token, clear it and force re-auth
         localStorage.removeItem("zyon_buyer_token");
       }
     }
   }, []);
-
-  // Focus input when chat mode activates
   useEffect(() => {
     if (mode === "chat" && !isLoading) {
       const t = setTimeout(() => inputRef.current?.focus(), 150);
       return () => clearTimeout(t);
     }
   }, [mode, isLoading]);
-
-  // Analytics: track product views from blocks
   const trackedIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     for (const m of messages) {
@@ -172,26 +146,18 @@ export default function ConversationShell({
       }
     }
   }, [messages]);
-
   const scrollToBottom = () => {
     requestAnimationFrame(() => {
       if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight;
     });
   };
-
-  // Auto-scroll + refocus input every time messages change (user sends OR LLM replies)
   useEffect(() => {
     if (messages.length === 0) return;
     scrollToBottom();
-    // Refocus input after LLM response so user can type immediately
     if (!isLoading && inputRef.current) {
       setTimeout(() => inputRef.current?.focus(), 80);
     }
   }, [messages, isLoading]);
-
-  // Keep pinned to bottom while rendered blocks grow (product cards, carousels,
-  // images loading async). A plain scroll on [messages] fires before block
-  // layout settles, so also observe the thread's size and re-scroll on growth.
   useEffect(() => {
     const el = threadRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
@@ -200,8 +166,6 @@ export default function ConversationShell({
       if (!threadRef.current) return;
       const grew = threadRef.current.scrollHeight > lastHeight;
       lastHeight = threadRef.current.scrollHeight;
-      // Only auto-scroll if the user is already near the bottom (don't yank
-      // them down while they scroll up to read history).
       const nearBottom =
         threadRef.current.scrollHeight - threadRef.current.scrollTop - threadRef.current.clientHeight < 240;
       if (grew && nearBottom) {
@@ -211,14 +175,12 @@ export default function ConversationShell({
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void sendMessage(input);
     scrollToBottom();
     setTimeout(() => inputRef.current?.focus(), 100);
   };
-
   const chatQuickReplies = [
     "Ver Produtos",
     "Encontrar Produto",
@@ -230,7 +192,6 @@ export default function ConversationShell({
     "Meus Dados",
     "Ofertas",
   ];
-
   return (
     <div className="pulse-widget-shell" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", position: "relative", borderRadius: "19px", padding: "1.5px" }}>
       {/* Shimmer border — rotating conic gradient around entire chat container */}
@@ -257,7 +218,6 @@ export default function ConversationShell({
         @keyframes micPulse { 0%{box-shadow:0 0 0 0 rgba(255,76,108,0.5)} 100%{box-shadow:0 0 0 9px rgba(255,76,108,0)} }
         @keyframes shimmerRotate { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
       `}</style>
-
       {effectiveMode === "chat" && (
         <>
         <header style={{ display: "flex", alignItems: "center", gap: "11px", padding: "8px 14px", borderBottom: "none", zIndex: 9, background: "var(--aacp-bg)", flex: "none" }}>
@@ -282,7 +242,6 @@ export default function ConversationShell({
               <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--aacp-success)", letterSpacing: "0.03em" }}>Online</span>
             </div>
           </div>
-
           <button type="button" onClick={toggleChannel} title={channel === "voice" ? "Mudar para chat" : "Mudar para voz"} style={{ width: "30px", height: "30px", borderRadius: "50%", border: `1px solid ${channel === "voice" ? "var(--aacp-accent)" : "var(--aacp-line)"}`, background: channel === "voice" ? "color-mix(in srgb, var(--aacp-accent) 15%, transparent)" : "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
             {channel === "voice" ? (
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.9-.9L3 21l1.9-5.6A8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" /></svg>
@@ -290,13 +249,11 @@ export default function ConversationShell({
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
             )}
           </button>
-
           <button type="button" onClick={toggleTheme} title={theme === "dark" ? "Modo claro" : "Modo escuro"} style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
             <svg width="15" height="15" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--aacp-muted)" strokeWidth="1.8" /><path d="M12 3a9 9 0 0 0 0 18z" fill="var(--aacp-muted)" /></svg>
           </button>
 
           <BuyerHubTrigger onClick={() => setBuyerHubOpen(!buyerHubOpen)} hasNotifications={false} />
-
           <button type="button" onClick={() => setSupportOpen((v) => !v)} title="Suporte" style={{ width: "30px", height: "30px", borderRadius: "50%", border: `1px solid ${supportOpen ? "var(--aacp-accent)" : "var(--aacp-line)"}`, background: supportOpen ? "color-mix(in srgb, var(--aacp-accent) 12%, transparent)" : "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={supportOpen ? "var(--aacp-accent)" : "var(--aacp-muted)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
           </button>
@@ -343,13 +300,10 @@ export default function ConversationShell({
         {merchantSlug && <StoriesRow merchantSlug={merchantSlug} initialCategories={initialStories} />}
         </>
       )}
-
       {effectiveMode === "intro" ? (
-        /* ─── INTRO STAGE ─── */
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "28px 24px", overflowY: "auto" }}>
           <div style={{ maxWidth: "520px", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
             <div style={{ position: "absolute", top: "-50px", left: "50%", transform: "translateX(-50%)", width: "220px", height: "220px", borderRadius: "50%", background: "var(--aacp-accent, #0f766e)", filter: "blur(80px)", opacity: 0.22, pointerEvents: "none" }} />
-
             <div style={{ width: "min(100%, 520px)", display: "flex", justifyContent: "center", alignItems: "center", margin: "0 auto 18px", position: "relative", zIndex: 1 }}>
               <PulseAgentOrb size={96} />
             </div>
@@ -363,7 +317,6 @@ export default function ConversationShell({
             <div style={{ fontSize: "13.5px", lineHeight: 1.55, color: "var(--aacp-muted)", maxWidth: "100%", marginBottom: "22px" }}>
               Eu cuido da sua compra do início ao fim. Acho a melhor opção, aplico promoções, organizo a entrega e finalizo o pagamento com você, passo a passo.
             </div>
-
             <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "9px", letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--aacp-muted)", marginBottom: "11px" }}>
               Como você prefere comprar?
             </div>
@@ -375,7 +328,6 @@ export default function ConversationShell({
                 <span style={{ fontSize: "13.5px", fontWeight: 600 }}>Por chat</span>
                 <span style={{ fontSize: "10.5px", color: "var(--aacp-muted)", lineHeight: 1.3 }}>Converse digitando</span>
               </button>
-
               <button type="button" onClick={() => selectChannel("voice")} style={{ flex: 1, cursor: "pointer", fontFamily: "inherit", border: "1px solid var(--aacp-accent)", background: "color-mix(in srgb, var(--aacp-accent) 8%, transparent)", borderRadius: "16px", padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "9px", position: "relative", overflow: "hidden", color: "var(--aacp-fg)" }}>
                 <span style={{ position: "absolute", top: "9px", right: "9px", fontFamily: "'Space Mono', monospace", fontSize: "7.5px", letterSpacing: ".5px", color: "var(--aacp-accent)", border: "1px solid var(--aacp-accent)", borderRadius: "5px", padding: "1px 4px" }}>IA</span>
                 <span style={{ width: "38px", height: "38px", borderRadius: "11px", background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
@@ -388,7 +340,6 @@ export default function ConversationShell({
           </div>
         </div>
       ) : (
-        /* ─── CHAT STAGE ─── */
         <>
           <main ref={threadRef} role="main" style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "12px 18px", display: "flex", flexDirection: "column", gap: "14px", minHeight: 0, scrollBehavior: "smooth", msOverflowStyle: "none", scrollbarWidth: "none" }}>
             {/* Welcome state — no messages yet */}
@@ -414,16 +365,13 @@ export default function ConversationShell({
                 </div>
               </div>
             )}
-
             {messages.map((m) => {
               if (m.role === "agent") {
                 const hasProductCard = m.blocks?.some((b) => b.type === "product_card");
                 const hasOnlyBlocks = !m.text && m.blocks?.length;
                 const isFullWidth = hasOnlyBlocks || hasProductCard;
-
                 if (hasProductCard) {
                   const cardBlock = m.blocks!.find((b) => b.type === "product_card")!;
-                  // Non-card blocks that should still render alongside (e.g. quick_replies).
                   const otherBlocks = (m.blocks ?? []).filter((b) => b.type !== "product_card");
                   return (
                     <div key={m.id} style={{ width: "100%", display: "flex", flexDirection: "column", gap: "8px", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
@@ -443,7 +391,6 @@ export default function ConversationShell({
                     </div>
                   );
                 }
-
                 return (
                   <div key={m.id} style={{ display: "flex", gap: "9px", alignItems: "flex-start", maxWidth: isFullWidth ? "100%" : "min(82%, 520px)", alignSelf: "flex-start", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both", width: isFullWidth ? "100%" : undefined }}>
                     <div style={{ width: "26px", height: "26px", borderRadius: "50%", background: `radial-gradient(120% 120% at 30% 25%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0) 42%), var(--aacp-accent)`, flex: "none", position: "relative", marginTop: "4px" }}>
@@ -470,7 +417,6 @@ export default function ConversationShell({
                 );
               }
             })}
-
             {isLoading && (
               <div style={{ display: "flex", gap: "9px", alignItems: "flex-end", alignSelf: "flex-start", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
                 {/* Thinking orb with eyes looking up */}
@@ -489,11 +435,9 @@ export default function ConversationShell({
               </div>
             )}
           </main>
-
           {/* Composer / Voice indicator */}
           <div style={{ padding: "9px 14px 14px", flex: "none" }}>
             {channel === "voice" && listening ? (
-              /* Listening state */
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", padding: "18px" }}>
                 <button type="button" onClick={stopListening} style={{ width: "56px", height: "56px", borderRadius: "50%", background: "#ff4c6c", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", animation: "micPulse 1.2s infinite" }}>
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
@@ -501,7 +445,6 @@ export default function ConversationShell({
                 <span style={{ fontSize: "12px", color: "var(--aacp-muted)" }}>Escutando… toque para parar</span>
               </div>
             ) : channel === "voice" && !listening ? (
-              /* Voice idle — tap to speak */
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", padding: "18px" }}>
                 <button type="button" onClick={startListening} disabled={isLoading} style={{ width: "56px", height: "56px", borderRadius: "50%", background: "var(--aacp-accent)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: isLoading ? 0.4 : 1 }}>
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
@@ -509,7 +452,6 @@ export default function ConversationShell({
                 <span style={{ fontSize: "12px", color: "var(--aacp-muted)" }}>Toque para falar</span>
               </div>
             ) : (
-              /* Chat composer */
               <form onSubmit={handleSubmit} style={{ display: "flex", alignItems: "center", gap: "9px", padding: "9px 9px 9px 15px", background: "var(--aacp-card)", border: "1px solid var(--aacp-line)", borderRadius: "14px", transition: "border-color 0.2s ease, box-shadow 0.2s ease" }} onFocus={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.boxShadow = "0 0 0 2px color-mix(in srgb, var(--aacp-accent) 20%, transparent)"; }} onBlur={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.boxShadow = "none"; }}>
                 <input ref={inputRef} type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder={isLoading ? "Aguarde..." : "Escreva sua mensagem…"} aria-label="Mensagem" disabled={isLoading} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: "var(--aacp-fg)", fontSize: "13px", padding: 0, fontFamily: "inherit" }} />
                 <button type="submit" disabled={!input.trim() || isLoading} aria-label="Enviar mensagem" style={{ width: "36px", height: "36px", borderRadius: "10px", border: "none", cursor: !input.trim() || isLoading ? "not-allowed" : "pointer", background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0, opacity: !input.trim() || isLoading ? 0.4 : 1 }}>
@@ -520,7 +462,6 @@ export default function ConversationShell({
           </div>
         </>
       )}
-
       {/* Footer — CNPJ + policies */}
       {effectiveMode === "chat" && storeSettings?.company?.cnpj && (
         <div style={{ padding: "8px 14px", borderTop: "1px solid var(--aacp-line)", background: "var(--aacp-bg)", display: "flex", alignItems: "center", justifyContent: "center", gap: "12px", flexWrap: "wrap", flex: "none" }}>
@@ -541,10 +482,8 @@ export default function ConversationShell({
           )}
         </div>
       )}
-
       {/* Whitelabel badge — free-plan merchants, both chat and intro modes */}
       <WhitelabelBadge show={showBranding} />
-
       {/* Policy Modal */}
       {policyModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0, 0, 0, 0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "20px" }} onClick={() => setPolicyModal(null)}>
@@ -567,14 +506,12 @@ export default function ConversationShell({
           </div>
         </div>
       )}
-
       {/* Support FAB + Panel — only in chat mode */}
       {effectiveMode === "chat" && (
         <>
           <SupportPanel open={supportOpen} onClose={() => setSupportOpen(false)} merchantId={merchantId} agentName={agentName} />
         </>
       )}
-
       {/* Native Cart — FAB + lateral drawer, no iframe */}
       {effectiveMode === "chat" && (
         <CheckoutWidgetPanel
@@ -586,6 +523,7 @@ export default function ConversationShell({
               return;
             }
             setCheckoutUserId(buyer.globalUserId);
+            setCheckoutCartRef(cart.cartId ?? undefined);
             setCheckoutOpen(true);
           }}
           onViewCart={() => setCartDrawerForceOpen(true)}
@@ -595,7 +533,6 @@ export default function ConversationShell({
           suppressAutoOpen={Boolean(crossSellPending)}
         />
       )}
-
       {/* Cross-sell interstitial — shows before the cart drawer after add-to-cart */}
       <CrossSellInterstitial
         data={crossSellPending}
@@ -609,10 +546,8 @@ export default function ConversationShell({
           handleQuickReply(`Adicionar ${name} ao carrinho`);
         }}
       />
-
       {/* Buyer Hub Panel */}
       <BuyerHub isOpen={buyerHubOpen} onClose={() => setBuyerHubOpen(false)} merchantId={merchantId} onToggleTheme={toggleTheme} />
-
       {/* Buyer Auth Gate */}
       {showBuyerAuth && (
         <BuyerAuthGate
@@ -620,7 +555,6 @@ export default function ConversationShell({
           merchantName={storeName}
           onComplete={async (globalUserId) => {
             setShowBuyerAuth(false);
-            // Track login_completed funnel event
             if (merchantId && conversationId) {
               const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
               fetch(`${API_BASE}/storefront/conversations/${encodeURIComponent(conversationId)}/events`, {
@@ -630,18 +564,18 @@ export default function ConversationShell({
               }).catch(() => {});
             }
             setCheckoutUserId(globalUserId);
+            setCheckoutCartRef(cart.cartId ?? undefined);
             setCheckoutOpen(true);
           }}
           onCancel={() => setShowBuyerAuth(false)}
         />
       )}
-
       {/* Inline Checkout Panel — replaces redirect to widget app */}
       {checkoutOpen && merchantId && (
         <CheckoutPanel
           merchantId={merchantId}
           globalUserId={checkoutUserId}
-          cartRef={cart.cartId ?? undefined}
+          cartRef={checkoutCartRef}
           theme={theme}
           onClose={() => setCheckoutOpen(false)}
         />

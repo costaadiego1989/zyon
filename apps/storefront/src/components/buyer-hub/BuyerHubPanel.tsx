@@ -11,12 +11,10 @@ import PreferencesTab from "./tabs/PreferencesTab";
 import LoyaltyTab from "./tabs/LoyaltyTab";
 import { SettingsTab } from "./tabs/SettingsTab";
 
-// ─── Constants ──────────────────────────────────────────────────────────────
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 const AUTH_STORAGE_KEY = "aacp_buyer_auth_session";
 
-// ─── Props ──────────────────────────────────────────────────────────────────
 
 export interface BuyerHubPanelProps {
   isOpen: boolean;
@@ -25,7 +23,6 @@ export interface BuyerHubPanelProps {
   onToggleTheme?: () => void;
 }
 
-// ─── Auth Session shape (persisted to localStorage) ─────────────────────────
 
 interface AuthSession {
   global_user_id: string;
@@ -35,7 +32,6 @@ interface AuthSession {
   phone: string;
 }
 
-// ─── Tab definitions ────────────────────────────────────────────────────────
 
 interface TabDef {
   key: TabType;
@@ -117,7 +113,6 @@ const TABS: TabDef[] = [
   },
 ];
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
 
 function formatPhone(value: string): string {
   const numbers = value.replace(/\D/g, "").slice(0, 11);
@@ -126,7 +121,6 @@ function formatPhone(value: string): string {
   return numbers;
 }
 
-// ─── PhoneLoginForm ─────────────────────────────────────────────────────────
 
 function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
   const [phone, setPhone] = useState("");
@@ -179,7 +173,6 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
         setError(payload?.message ?? "Codigo invalido.");
         return;
       }
-      // Extract session data
       const globalUserId = payload.globalUserId ?? payload.global_user_id;
       const accessToken = payload.accessToken ?? payload.access_token;
       const email = payload.email ?? "";
@@ -188,7 +181,6 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
         setError("Resposta invalida do servidor.");
         return;
       }
-      // Persist to aacp_buyer_auth_session
       const newSession: AuthSession = {
         global_user_id: globalUserId,
         email,
@@ -197,7 +189,6 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
         phone: normalizedPhone,
       };
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(newSession));
-      // Sync shared checkout session keys
       try {
         localStorage.setItem("zyon_buyer_token", accessToken);
         localStorage.setItem("zyon_buyer_session", JSON.stringify({ globalUserId, token: accessToken, email }));
@@ -404,21 +395,18 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
   );
 }
 
-// ─── BuyerHubPanel ──────────────────────────────────────────────────────────
 
 export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: BuyerHubPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const vm = useBuyerHub();
   const [authVersion, setAuthVersion] = useState(0);
 
-  // Focus trap: focus panel on open
   useEffect(() => {
     if (isOpen && panelRef.current) {
       panelRef.current.focus();
     }
   }, [isOpen]);
 
-  // Escape key closes panel
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -428,14 +416,11 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Trigger re-render after OTP login so vm picks up new auth
   const handleAuthSuccess = useCallback(() => {
     setAuthVersion((v) => v + 1);
-    // Force page to re-evaluate — the useBuyerHub hook will pick up new token on next render cycle
     window.dispatchEvent(new StorageEvent("storage", { key: "zyon_buyer_token" }));
   }, []);
 
-  // Load discount rules when loyalty tab is active and merchantId is available
   useEffect(() => {
     if (vm.activeTab === "loyalty" && merchantId && !vm.discountRules.data && !vm.discountRules.loading) {
       void vm.loadDiscountRules(merchantId);
@@ -630,8 +615,6 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
                     onClick={() => vm.setActiveTab(tab.key)}
                     title={tab.label}
                     style={{
-                      // Distribute evenly when they fit; each keeps a comfortable
-                      // minimum so labels breathe (mobile-first hit target).
                       flex: "1 1 0",
                       minWidth: "58px",
                       padding: "14px 4px",
@@ -714,9 +697,6 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
                 <SettingsTab
                   theme={(typeof window !== "undefined" && (localStorage.getItem("zyon-theme") as "dark" | "light")) || "dark"}
                   onToggleTheme={() => {
-                    // Delegate to the parent ConversationShell so its React theme
-                    // state + applyTheme run (single source of truth). Fallback to a
-                    // local write when the hub is used standalone.
                     if (onToggleTheme) {
                       onToggleTheme();
                     } else {

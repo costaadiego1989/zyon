@@ -5,8 +5,6 @@ import { getValidBuyer, clearBuyerSession, type ValidBuyer } from "@/lib/buyer-a
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
-// ─── Shared Types ──────────────────────────────────────────────────────────
-
 export interface BuyerProfile {
   global_user_id: string;
   display_name: string;
@@ -92,7 +90,6 @@ export interface BuyerLoyalty {
   avg_order_value_cents: number;
   top_categories: string[];
   preferred_brands: string[];
-  // Backend returns a categorical string: "unknown" | "low" | "medium" | "high".
   discount_sensitivity?: string | null;
   last_purchase_at?: string | null;
 }
@@ -136,8 +133,6 @@ export interface PurchasePage {
   next_cursor: string | null;
 }
 
-// ─── Tab + State Shape ─────────────────────────────────────────────────────
-
 export type TabType =
   | "profile"
   | "orders"
@@ -153,10 +148,8 @@ export interface SectionState<T> {
   error: string | null;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const EMPTY_SECTION: SectionState<any> = { data: null, loading: false, error: null };
 
-// Maps backend error codes to friendly pt-BR messages.
 const API_ERROR_MESSAGES: Record<string, string> = {
   email_already_in_use: "Este e-mail já está em uso por outra conta.",
   email_already_registered: "Este e-mail já está cadastrado.",
@@ -167,8 +160,6 @@ const API_ERROR_MESSAGES: Record<string, string> = {
 function friendlyApiError(raw: string): string {
   return API_ERROR_MESSAGES[raw] ?? raw;
 }
-
-// ─── Auth helper ───────────────────────────────────────────────────────────
 
 function getToken(): string | null {
   const buyer: ValidBuyer | null = getValidBuyer();
@@ -195,43 +186,34 @@ async function apiCall<T>(
     let msg = `Erro ${res.status}`;
     try {
       const j = await res.json();
-      // Problem-details responses use `detail`; older ones use message/error.
       const raw = j?.message || j?.error || j?.detail || msg;
       msg = friendlyApiError(raw);
     } catch {}
     throw new Error(msg);
   }
-  // 204 / empty
   if (res.status === 204) return undefined as unknown as T;
   const ct = res.headers.get("content-type") || "";
   if (ct.includes("application/json")) return (await res.json()) as T;
   return (await res.text()) as unknown as T;
 }
 
-// ─── Public hook ───────────────────────────────────────────────────────────
-
 export interface UseBuyerHub {
-  // Auth
   auth: ValidBuyer | null;
   signOut: () => void;
 
-  // Tab
   activeTab: TabType;
   setActiveTab: (tab: TabType) => void;
 
-  // Profile
   profile: SectionState<BuyerProfile>;
   loadProfile: () => Promise<void>;
   updateProfile: (patch: Partial<BuyerProfile>) => Promise<void>;
 
-  // Addresses
   addresses: SectionState<BuyerAddress[]>;
   loadAddresses: () => Promise<void>;
   createAddress: (input: Omit<BuyerAddress, "id" | "created_at">) => Promise<BuyerAddress>;
   updateAddress: (id: string, input: Omit<BuyerAddress, "id" | "created_at">) => Promise<BuyerAddress>;
   deleteAddress: (id: string) => Promise<void>;
 
-  // Purchases
   purchases: SectionState<BuyerPurchase[]>;
   purchasesCursor: string | null;
   purchasesHasMore: boolean;
@@ -239,39 +221,31 @@ export interface UseBuyerHub {
   loadMorePurchases: () => Promise<void>;
   summary: SectionState<BuyerSummary>;
 
-  // Tracking (filtered from purchases)
   tracking: SectionState<BuyerPurchase[]>;
   loadTracking: () => Promise<void>;
 
-  // Conversations
   conversations: SectionState<BuyerConversation[]>;
   loadConversations: () => Promise<void>;
   rateMessage: (conversationId: string, messageId: string, rating: "up" | "down") => Promise<void>;
 
-  // Preferences
   preferences: SectionState<BuyerPreferences>;
   loadPreferences: () => Promise<void>;
   updatePreferences: (patch: Partial<BuyerPreferences>) => Promise<void>;
 
-  // Loyalty
   loyalty: SectionState<BuyerLoyalty>;
   loadLoyalty: () => Promise<void>;
 
-  // Discount Rules (per merchant, loaded from storefront endpoint)
   discountRules: SectionState<DiscountRule[]>;
   loadDiscountRules: (merchantSlug: string) => Promise<void>;
 
-  // Reviews
   reviews: SectionState<BuyerReview[]>;
   loadReviews: () => Promise<void>;
 
-  // Settings
   intentProfile: SectionState<BuyerIntentProfile>;
   loadIntentProfile: () => Promise<void>;
   exportData: () => Promise<void>;
   deleteAccount: () => Promise<{ deleted: boolean; anonymized_purchases: number } | null>;
 
-  // Refresh everything
   refresh: () => Promise<void>;
 }
 
@@ -297,22 +271,18 @@ export function useBuyerHub(): UseBuyerHub {
   const [reviews, setReviews] = useState<SectionState<BuyerReview[]>>(EMPTY_SECTION);
   const [intentProfile, setIntentProfile] = useState<SectionState<BuyerIntentProfile>>(EMPTY_SECTION);
 
-  // ─── Auth bootstrap ────────────────────────────────────────────────────
   useEffect(() => {
     const buyer = getValidBuyer();
     setAuth(buyer);
     if (!buyer) return;
 
-    // Auto-load profile on mount (small, always useful for header).
     void runFetch(setProfile, "/buyer/me");
 
-    // Sync across tabs/windows.
     const onStorage = (e: StorageEvent) => {
       if (e.key === "zyon_buyer_token" || e.key === "zyon_buyer_session") {
         const next = getValidBuyer();
         setAuth(next);
         if (!next) {
-          // Hard reset sections on logout.
           setProfile(EMPTY_SECTION);
           setAddresses(EMPTY_SECTION);
           setPurchases(EMPTY_SECTION);
@@ -334,14 +304,11 @@ export function useBuyerHub(): UseBuyerHub {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  // ─── Lazy per-tab loaders ─────────────────────────────────────────────
   useEffect(() => {
     if (!auth) return;
     switch (activeTab) {
       case "profile":
         if (!profile.data && !profile.loading) void loadProfile();
-        // Addresses live in the Profile tab too — load them alongside the profile,
-        // otherwise the list stays empty and saved addresses appear to "not persist".
         if (!addresses.data && !addresses.loading) void loadAddresses();
         break;
       case "orders":
@@ -360,8 +327,6 @@ export function useBuyerHub(): UseBuyerHub {
         break;
       case "loyalty":
         if (!loyalty.data && !loyalty.loading) void runFetch(setLoyalty, "/buyer/me/loyalty");
-        // Summary is computed from real purchase records and is the reliable source
-        // for order count / total spent / average ticket KPIs shown on this tab.
         if (!summary.data && !summary.loading) void runFetch(setSummary, "/buyer/me/summary");
         break;
       case "settings":
@@ -372,7 +337,6 @@ export function useBuyerHub(): UseBuyerHub {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, auth]);
 
-  // ─── Generic fetch helper ─────────────────────────────────────────────
   async function runFetch<T>(
     setter: React.Dispatch<React.SetStateAction<SectionState<T>>>,
     path: string,
@@ -389,7 +353,6 @@ export function useBuyerHub(): UseBuyerHub {
     }
   }
 
-  // ─── Profile ──────────────────────────────────────────────────────────
   const loadProfile = useCallback(async () => {
     await runFetch(setProfile, "/buyer/me");
   }, []);
@@ -408,7 +371,6 @@ export function useBuyerHub(): UseBuyerHub {
     }
   }, []);
 
-  // ─── Addresses ────────────────────────────────────────────────────────
   const loadAddresses = useCallback(async () => {
     await runFetch<{ items: BuyerAddress[] }>(setAddresses as any, "/buyer/me/addresses")
       .then((res) => {
@@ -426,7 +388,6 @@ export function useBuyerHub(): UseBuyerHub {
         ...s,
         data: s.data ? [created, ...s.data] : [created],
       }));
-      // Re-fetch from server to reconcile (guards against optimistic drift).
       void apiCall<{ items: BuyerAddress[] }>("/buyer/me/addresses")
         .then((res) => setAddresses({ data: res.items, loading: false, error: null }))
         .catch(() => { /* keep optimistic state */ });
@@ -462,7 +423,6 @@ export function useBuyerHub(): UseBuyerHub {
     }));
   }, []);
 
-  // ─── Purchases (cursor pagination) ────────────────────────────────────
   const loadPurchases = useCallback(async (reset = true) => {
     if (reset) {
       purchasesRef.current = [];
@@ -489,11 +449,9 @@ export function useBuyerHub(): UseBuyerHub {
     await loadPurchases(false);
   }, [purchasesHasMore, purchases.loading, loadPurchases]);
 
-  // ─── Tracking (derived from purchases with tracking_code) ─────────────
   const loadTracking = useCallback(async () => {
     setTracking((s) => ({ ...s, loading: true, error: null }));
     try {
-      // Pull up to 50 most recent; TrackingTab shows all non-cancelled orders.
       const data = await apiCall<PurchasePage>("/buyer/me/purchases?limit=50");
       const filtered = data.items.filter(
         (p) => p.tracking_status !== "cancelled" && p.tracking_status !== "cancelado",
@@ -504,7 +462,6 @@ export function useBuyerHub(): UseBuyerHub {
     }
   }, []);
 
-  // ─── Conversations ────────────────────────────────────────────────────
   const loadConversations = useCallback(async () => {
     await runFetch<{ items: BuyerConversation[] }>(setConversations as any, "/buyer/me/conversations")
       .then((res) => {
@@ -518,7 +475,6 @@ export function useBuyerHub(): UseBuyerHub {
         `/buyer/me/conversations/${encodeURIComponent(conversationId)}/rate`,
         { method: "POST", body: JSON.stringify({ message_id: messageId, rating }) },
       );
-      // Patch local cache so UI reflects the vote immediately.
       setConversations((s) => ({
         ...s,
         data: s.data
@@ -536,7 +492,6 @@ export function useBuyerHub(): UseBuyerHub {
     [],
   );
 
-  // ─── Preferences ──────────────────────────────────────────────────────
   const loadPreferences = useCallback(async () => {
     await runFetch(setPreferences, "/buyer/me/preferences");
   }, []);
@@ -555,12 +510,10 @@ export function useBuyerHub(): UseBuyerHub {
     }
   }, []);
 
-  // ─── Loyalty ──────────────────────────────────────────────────────────
   const loadLoyalty = useCallback(async () => {
     await runFetch(setLoyalty, "/buyer/me/loyalty");
   }, []);
 
-  // ─── Discount Rules ───────────────────────────────────────────────────
   const loadDiscountRules = useCallback(async (merchantSlug: string) => {
     await runFetch<{ items: DiscountRule[] }>(setDiscountRules as any, `/storefront/${encodeURIComponent(merchantSlug)}/coupons`)
       .then((res) => {
@@ -568,7 +521,6 @@ export function useBuyerHub(): UseBuyerHub {
       });
   }, []);
 
-  // ─── Reviews ──────────────────────────────────────────────────────────
   const loadReviews = useCallback(async () => {
     await runFetch<{ items: BuyerReview[] }>(setReviews as any, "/buyer/me/reviews")
       .then((res) => {
@@ -576,7 +528,6 @@ export function useBuyerHub(): UseBuyerHub {
       });
   }, []);
 
-  // ─── Settings: export + delete ────────────────────────────────────────
   const loadIntentProfile = useCallback(async () => {
     await runFetch(setIntentProfile, "/buyer/me/intent-profile");
   }, []);
@@ -607,7 +558,6 @@ export function useBuyerHub(): UseBuyerHub {
       );
       clearBuyerSession();
       setAuth(null);
-      // Reset sections.
       setProfile(EMPTY_SECTION);
       setAddresses(EMPTY_SECTION);
       setPurchases(EMPTY_SECTION);

@@ -60,7 +60,6 @@ export default function SupportFAB({ open, onToggle, cartItemCount = 0 }: Suppor
     return () => clearTimeout(timer);
   }, [visible, startMinimized]);
 
-  // Pulse badge when cart count changes
   useEffect(() => {
     if (cartItemCount > 0) {
       setBadgePulse(true);
@@ -81,7 +80,7 @@ export default function SupportFAB({ open, onToggle, cartItemCount = 0 }: Suppor
         @keyframes badgeBounce { 0% { transform: scale(0.5); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }
       `}</style>
 
-      {/* Tooltip */}
+      {}
       {showTooltip && !open && (
         <div
           style={{
@@ -127,7 +126,7 @@ export default function SupportFAB({ open, onToggle, cartItemCount = 0 }: Suppor
         </div>
       )}
 
-      {/* FAB Button */}
+      {}
       <button
         type="button"
         onClick={onToggle}

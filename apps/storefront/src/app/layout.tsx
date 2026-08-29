@@ -20,9 +20,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
-      {/* suppressHydrationWarning: browser extensions (e.g. ColorZilla) inject
-          attributes like cz-shortcut-listen on <body> before React hydrates,
-          which is outside our control and must not produce a hydration error. */}
+      {}
       <body suppressHydrationWarning>{children}</body>
     </html>
   );

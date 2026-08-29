@@ -53,7 +53,6 @@ export default function StoriesRow({ merchantSlug, initialCategories }: { mercha
     setViewed(getViewedSet(merchantSlug));
   }, [merchantSlug]);
 
-  // Always fetch stories client-side (SSR serialization may lose data)
   useEffect(() => {
     let cancelled = false;
     async function fetchStories() {

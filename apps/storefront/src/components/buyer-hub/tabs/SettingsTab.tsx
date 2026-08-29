@@ -57,7 +57,7 @@ export function SettingsTab({
         }
       `}</style>
 
-      {/* Appearance */}
+      {}
       <div>
         <div
           style={{

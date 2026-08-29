@@ -2,7 +2,6 @@
 
 import type { BuyerLoyalty, BuyerSummary, DiscountRule } from "@/lib/viewmodels/useBuyerHub";
 
-// ─── Shared Types ──────────────────────────────────────────────────────────
 
 export interface LoyaltyTabProps {
   loyalty: BuyerLoyalty | null;
@@ -11,7 +10,6 @@ export interface LoyaltyTabProps {
   loading: boolean;
 }
 
-// ─── Formatters ────────────────────────────────────────────────────────────
 
 const currencyFmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -19,7 +17,6 @@ function fmtBRL(value: number | null | undefined): string {
   return currencyFmt.format(Number.isFinite(value as number) ? (value as number) : 0);
 }
 
-// ─── Icons (inline SVG) ────────────────────────────────────────────────────
 
 function IconShoppingBag() {
   return (
@@ -164,7 +161,6 @@ function IconPackage() {
   );
 }
 
-// ─── KPI Card ─────────────────────────────────────────────────────────────
 
 interface KpiCardProps {
   icon: React.ReactNode;
@@ -223,7 +219,6 @@ function KpiCard({ icon, label, value }: KpiCardProps) {
   );
 }
 
-// ─── Chip ─────────────────────────────────────────────────────────────────
 
 function Chip({ label }: { label: string }) {
   return (
@@ -245,7 +240,6 @@ function Chip({ label }: { label: string }) {
   );
 }
 
-// ─── Discount Sensitivity Bar ─────────────────────────────────────────────
 
 function LoadingSkeleton() {
   return (
@@ -280,7 +274,6 @@ function LoadingSkeleton() {
   );
 }
 
-// ─── Empty State ──────────────────────────────────────────────────────────
 
 function EmptyState() {
   return (
@@ -318,7 +311,6 @@ function EmptyState() {
   );
 }
 
-// ─── Main Component ────────────────────────────────────────────────────────
 
 export default function LoyaltyTab({ loyalty, summary, discountRules, loading }: LoyaltyTabProps) {
   if (loading) return <LoadingSkeleton />;
@@ -346,7 +338,7 @@ export default function LoyaltyTab({ loyalty, summary, discountRules, loading }:
         paddingBottom: "16px",
       }}
     >
-      {/* KPI Cards */}
+      {}
       <div
         style={{
           display: "flex",
@@ -373,7 +365,7 @@ export default function LoyaltyTab({ loyalty, summary, discountRules, loading }:
         />
       </div>
 
-      {/* Categorias favoritas */}
+      {}
       {loyalty?.top_categories && loyalty.top_categories.length > 0 && (
         <div>
           <div
@@ -415,7 +407,7 @@ export default function LoyaltyTab({ loyalty, summary, discountRules, loading }:
         </div>
       )}
 
-      {/* Marcas preferidas */}
+      {}
       {loyalty?.preferred_brands && loyalty.preferred_brands.length > 0 && (
         <div>
           <div
@@ -457,7 +449,7 @@ export default function LoyaltyTab({ loyalty, summary, discountRules, loading }:
         </div>
       )}
 
-      {/* Descontos disponíveis */}
+      {}
       <div>
         <div
           style={{

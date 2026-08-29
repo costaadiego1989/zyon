@@ -1,27 +1,4 @@
-/**
- * STOREFRONT API CLIENT
- *
- * Architecture:
- * - OUR storefront is multi-tenant (serves many merchants by slug)
- * - External customers are single-tenant (have their own API key)
- *
- * For our storefront:
- * - Catalog/products: internal route (scoped by merchantId param)
- * - Checkout/messages: internal route (uses embed token for auth)
- * - Cart: internal route (scoped by merchantId)
- * - Settings: loaded via SSR (server-client.ts)
- *
- * For external customers consuming our headless API:
- * - Everything goes through /v1 with their API key
- * - They DON'T use this file — they use the SDK (zyon-sdk)
- *
- * This file is the STOREFRONT's integration layer. Customers use the SDK.
- */
-
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
-
-// ─── Types ───────────────────────────────────────────────────
-
 export interface Product {
   id: string;
   name: string;
@@ -36,14 +13,10 @@ export interface Product {
   discountPercent?: number;
   originalPrice?: number;
 }
-
 export interface ProductListResponse {
   products: Product[];
   nextCursor?: string;
 }
-
-// ─── HTTP ────────────────────────────────────────────────────
-
 async function safeFetch(url: string, options?: RequestInit) {
   const res = await fetch(url, {
     ...options,
@@ -52,7 +25,6 @@ async function safeFetch(url: string, options?: RequestInit) {
       ...options?.headers,
     },
   });
-
   if (!res.ok) {
     const error: any = new Error(`HTTP ${res.status}`);
     error.status = res.status;
@@ -62,9 +34,6 @@ async function safeFetch(url: string, options?: RequestInit) {
 
   return res.json();
 }
-
-// ─── Products (internal route — multi-tenant by merchantId) ──
-
 export const productsApi = {
   async list(
     merchantId: string,
@@ -86,13 +55,11 @@ export const productsApi = {
       `${API_BASE}/merchants/${merchantId}/products${qs ? `?${qs}` : ""}`,
       { credentials: "include" },
     );
-
     return {
       products: result.products ?? [],
       nextCursor: result.nextCursor,
     };
   },
-
   async get(merchantId: string, productId: string): Promise<Product | null> {
     const result = await safeFetch(
       `${API_BASE}/merchants/${merchantId}/products/${productId}`,
@@ -101,9 +68,6 @@ export const productsApi = {
     return result ?? null;
   },
 };
-
-// ─── Settings (loaded via SSR — this is for client-side refresh) ──
-
 export const settingsApi = {
   async getCheckoutSettings(merchantId: string): Promise<any> {
     return safeFetch(
@@ -115,21 +79,16 @@ export const settingsApi = {
     return safeFetch(`${API_BASE}/storefront/${slug}/config`);
   },
 };
-
-// ─── Marketplace (internal — federated cross-merchant) ───────
-
 export const marketplaceApi = {
   async search(query: string, options?: { limit?: number }): Promise<any[]> {
     const params = new URLSearchParams();
     params.set("q", query);
     if (options?.limit) params.set("limit", String(options.limit));
-
     const result = await safeFetch(
       `${API_BASE}/storefront/marketplace/search?${params.toString()}`,
     );
     return result.items ?? [];
   },
-
   async list(options?: { limit?: number; cursor?: string }): Promise<any[]> {
     const params = new URLSearchParams();
     if (options?.limit) params.set("limit", String(options.limit));
@@ -140,9 +99,6 @@ export const marketplaceApi = {
     return result.items ?? [];
   },
 };
-
-// ─── Checkout / Conversations (internal — embed token auth) ──
-
 export const checkoutApi = {
   async create(data: {
     merchantId: string;
@@ -179,16 +135,12 @@ export const checkoutApi = {
     });
   },
 };
-
-// ─── Cart (internal — scoped by merchantId) ──────────────────
-
 export const cartApi = {
   async get(cartId: string, merchantId: string): Promise<any> {
     return safeFetch(
       `${API_BASE}/storefront/cart/${encodeURIComponent(cartId)}?merchantId=${encodeURIComponent(merchantId)}`,
     );
   },
-
   async updateItem(
     cartId: string,
     variantId: string,
@@ -198,8 +150,6 @@ export const cartApi = {
     return safeFetch(
       `${API_BASE}/storefront/cart/${encodeURIComponent(cartId)}/items/${encodeURIComponent(variantId)}?merchantId=${encodeURIComponent(merchantId)}`,
       {
-        // The controller exposes only PATCH; the repo treats quantity <= 0 as
-        // removal, so a zero-quantity PATCH deletes the line item.
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ quantity }),
@@ -207,16 +157,12 @@ export const cartApi = {
     );
   },
 };
-
-// ─── Intent Memory / LGPD Consent (internal — buyer auth required) ──
-
 export const intentMemoryApi = {
   async getConsent(buyerToken: string): Promise<any> {
     return safeFetch(`${API_BASE}/buyer/consent/intent-memory`, {
       headers: { Authorization: `Bearer ${buyerToken}` },
     }).catch(() => null);
   },
-
   async deleteConsent(buyerToken: string): Promise<boolean> {
     try {
       await safeFetch(`${API_BASE}/buyer/consent/intent-memory`, {

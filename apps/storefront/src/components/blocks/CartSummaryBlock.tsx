@@ -52,7 +52,7 @@ export default function CartSummaryBlock({
         }
       `}</style>
 
-      {/* Cart icon */}
+      {}
       <div
         style={{
           width: "36px",
@@ -81,7 +81,7 @@ export default function CartSummaryBlock({
         </svg>
       </div>
 
-      {/* Info */}
+      {}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           <p

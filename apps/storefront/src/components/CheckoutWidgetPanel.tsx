@@ -11,11 +11,8 @@ interface NativeCartPanelProps {
   onUpdateQty: (variantId: string, quantity: number) => void;
   onRemoveItem: (variantId: string) => void;
   forceOpen?: boolean;
-  /** When true, the drawer does NOT auto-open on cart growth (a cross-sell
-   *  interstitial is showing instead and owns the "just added" moment). */
   suppressAutoOpen?: boolean;
 }
-
 export default function NativeCartPanel({
   merchantId,
   onCheckout,
@@ -30,22 +27,17 @@ export default function NativeCartPanel({
   const [sheetOpen, setSheetOpen] = useState(false);
   const prevCountRef = useRef(cart.itemCount);
   const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const isBudgetMode = widgetConfig?.budgetModeEnabled === true;
-
-  // Force open from parent (e.g., "Ver carrinho" quickReply)
+  
   useEffect(() => {
     if (forceOpen) {
       handleManualOpen();
     }
   }, [forceOpen]);
-
-  // Auto-open drawer when items are added, auto-close after 3s.
-  // Skipped while a cross-sell interstitial owns the post-add moment.
+  
   useEffect(() => {
     if (!suppressAutoOpen && cart.itemCount > prevCountRef.current && cart.itemCount > 0) {
       setSheetOpen(true);
-
       if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
       autoCloseTimerRef.current = setTimeout(() => {
         setSheetOpen(false);
@@ -54,8 +46,7 @@ export default function NativeCartPanel({
     }
     prevCountRef.current = cart.itemCount;
   }, [cart.itemCount, suppressAutoOpen]);
-
-  // Cancel auto-close on user interaction (manual open)
+  
   const handleManualOpen = () => {
     if (autoCloseTimerRef.current) {
       clearTimeout(autoCloseTimerRef.current);
@@ -63,16 +54,14 @@ export default function NativeCartPanel({
     }
     setSheetOpen(true);
   };
-
-  // Persist cart to sessionStorage
+  
   useEffect(() => {
     if (cart.items.length > 0) {
       try {
         sessionStorage.setItem("zyon-cart", JSON.stringify(cart));
-      } catch { /* quota/privacy */ }
+      } catch {  }
     }
   }, [cart]);
-
   const handleBudgetSubmit = async (data: {
     customerName: string;
     customerEmail: string;
@@ -90,7 +79,6 @@ export default function NativeCartPanel({
     });
     clearCart();
   };
-
   return (
     <>
       <CartFAB

@@ -1,9 +1,3 @@
-// Client-side Google Analytics 4 helpers.
-//
-// Assumes window.gtag is already injected (typically by Google Tag Manager).
-// Every function is a graceful no-op when gtag is unavailable, so the
-// storefront stays safe to render in dev, tests, or analytics-blocked
-// environments.
 
 type GtagFn = (
   command: "event",
@@ -23,7 +17,6 @@ function safeGtag(name: string, params?: Record<string, unknown>): void {
   try {
     window.gtag("event", name, params);
   } catch {
-    // swallow - analytics must never break the page
   }
 }
 
@@ -83,7 +76,6 @@ export function trackConversationStart(storeId: string, variantId?: string | nul
   const params: Record<string, unknown> = {
     store_id: storeId,
   };
-  // Attach variantId if experiment is active (for A/B testing analysis)
   if (variantId) {
     params.experiment_variant_id = variantId;
   }

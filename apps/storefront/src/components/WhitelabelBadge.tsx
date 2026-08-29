@@ -1,10 +1,5 @@
 "use client";
 
-/**
- * Whitelabel "Powered by Zyon" badge — shown only for free-plan merchants
- * (no active billing subscription). Rendered in both the store (ConversationShell)
- * and checkout. Background uses the merchant's primary/accent color.
- */
 export default function WhitelabelBadge({ show }: { show?: boolean }) {
   if (!show) return null;
   return (

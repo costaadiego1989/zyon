@@ -52,7 +52,6 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
   const SESSION_KEY = "zyon_support_messages";
   const TICKET_KEY = "zyon_support_ticket";
 
-  // On mount, restore conversation + active ticket from sessionStorage
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem(SESSION_KEY);
@@ -71,21 +70,18 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
     } catch { /* non-critical */ }
   }, []);
 
-  // On messages change, persist to sessionStorage
   useEffect(() => {
     if (messages.length > 0) {
       try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(messages)); } catch { /* non-critical */ }
     }
   }, [messages]);
 
-  // Persist active ticket id so the conversation reconnects on reopen
   useEffect(() => {
     try {
       if (ticketId) sessionStorage.setItem(TICKET_KEY, ticketId);
     } catch { /* non-critical */ }
   }, [ticketId]);
 
-  // Obtain embed token on mount (needed for /support/chat auth)
   useEffect(() => {
     if (!merchantId || embedTokenRef.current) return;
     void (async () => {
@@ -106,19 +102,16 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
     })();
   }, [merchantId]);
 
-  // Load merchant FAQ from support hub (falls back to defaults on error/empty)
   useEffect(() => {
     if (!merchantId || !open) return;
     let cancelled = false;
     void (async () => {
       try {
-        // Try public endpoint first (no auth needed, FAQ is public data)
         const res = await fetch(`${API_BASE}/support/faq/public?merchantId=${merchantId}`);
         if (res.ok) {
           const data = await res.json();
           const items: FaqItem[] = Array.isArray(data.faqItems) ? data.faqItems : [];
           if (!cancelled && items.length > 0) {
-            // Merchant FAQ + always append "Falar com atendente" for handoff
             const hasHandoff = items.some(i => /atendente|humano/i.test(i.question));
             const withHandoff: FaqItem[] = [
               ...items.map((it) => ({ ...it, icon: it.icon || "❓" })),
@@ -132,7 +125,6 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
     return () => { cancelled = true; };
   }, [merchantId, open]);
 
-  // Connect to support socket when handoff ticket is created
   useEffect(() => {
     if (!ticketId) return;
     let socket: Socket | null = null;
@@ -165,7 +157,6 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
       });
 
       socket.on("ticket_closed", () => {
-        // Ticket resolved/closed by merchant — reset widget to initial state
         setMessages([]);
         setView("welcome");
         setTicketId(null);
@@ -183,7 +174,6 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
     };
   }, [ticketId]);
 
-  // Scroll to bottom on new messages
   useEffect(() => {
     if (threadRef.current) {
       requestAnimationFrame(() => {
@@ -192,7 +182,6 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
     }
   }, [messages]);
 
-  // Reset only input when closing — messages persist across open/close via sessionStorage
   useEffect(() => {
     if (!open) {
       setInput("");
@@ -201,14 +190,12 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
     }
   }, [open]);
 
-  // Focus input when panel opens or chat view is active
   useEffect(() => {
     if (open && view === "chat" && inputRef.current) {
       requestAnimationFrame(() => inputRef.current?.focus());
     }
   }, [open, view]);
 
-  // Fallback responses for FAQ buttons (from loaded items or deterministic)
   const getFallbackResponse = (label: string): string => {
     const match = faqItems.find((item) => item.question === label);
     if (match) return match.answer;
@@ -219,7 +206,6 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    // Add user message
     const userMsg: SupportMessage = {
       id: `u-${Date.now()}`,
       role: "user",
@@ -231,7 +217,6 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
     setIsLoading(true);
 
     try {
-      // For FAQ clicks EXCEPT handoff, use fallback. Handoff always goes to API.
       const isHandoffRequest = /atendente|humano|suporte/i.test(trimmed);
       if (isFaqClick && !isHandoffRequest) {
         const fallbackText = getFallbackResponse(trimmed);
@@ -246,7 +231,6 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
         return;
       }
 
-      // Call public support chat API (LLM with merchant FAQ as knowledge base)
       if (merchantId) {
         try {
           const res = await fetch(`${API_BASE}/support/chat/public`, {
@@ -275,7 +259,6 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
         } catch { /* fallback below */ }
       }
 
-      // Fallback response (only if API unreachable)
       const fallbackText = `Entendi, "${trimmed}". Um atendente será designado em breve.`;
       setMessages((prev) => [...prev, {
         id: `a-${Date.now()}`,
@@ -428,7 +411,6 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
           }}
         >
           {view === "return" ? (
-            /* Return / exchange request form */
             returnDone ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center", textAlign: "center", flex: 1, justifyContent: "center" }}>
                 <div style={{ fontSize: 32 }}>✅</div>
@@ -453,7 +435,6 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
               />
             )
           ) : view === "welcome" && messages.length === 0 ? (
-            /* Welcome state with FAQ */
             <div
               style={{
                 display: "flex",
@@ -552,7 +533,6 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
               </div>
             </div>
           ) : (
-            /* Chat thread */
             <>
               {messages.map((msg) => (
                 <div

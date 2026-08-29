@@ -85,7 +85,6 @@ export default async function StorePage({
   const { slug } = await params;
   const { order } = await searchParams;
 
-  // Try real API first, fallback to demo fixture
   const config = await fetchStoreConfig(slug);
   const stories = config?.stories ?? await fetchStoreStories(slug);
   const merchant = config ? null : getDemoMerchant(slug);
@@ -105,14 +104,12 @@ export default async function StorePage({
   const fbPixelId = config?.storeSettings?.gtm?.pixelIds?.facebook;
   const tiktokPixelId = config?.storeSettings?.gtm?.pixelIds?.tiktok;
 
-  // Theme: merge from API config or demo merchant
-  // Mode-based color defaults (override light-mode defaults when mode is dark/grey)
   const mode = config?.theme?.mode;
   const modeDefaults = mode === "dark"
     ? { bg: "#09090b", text: "#fafafa", surface: "#18181b", border: "#27272a", muted: "#71717a" }
     : mode === "grey"
     ? { bg: "#191919", text: "#fafafa", surface: "#262626", border: "#333333", muted: "#a1a1aa" }
-    : null; // light or undefined = use configured/default colors
+    : null; 
 
   const themeColors = config
     ? {
@@ -141,7 +138,6 @@ export default async function StorePage({
         borderColor: undefined,
       };
 
-  // Calculate derived colors from merchant theme (matching Pulse design)
   const deriveColors = (bgColor: string, textColor: string) => {
     return {
       surface: bgColor, // Use bg directly, add subtle variations via CSS
@@ -212,7 +208,6 @@ export default async function StorePage({
     config?.storeSettings?.social?.linkedin,
   ].filter(Boolean) as string[];
 
-  // Build Google Fonts URL from merchant font config
   const fontFamilies = [config?.theme.fontFamily, config?.theme.fontDisplay]
     .filter(Boolean)
     .map((f) => f!.split(",")[0].trim().replace(/'/g, ""))

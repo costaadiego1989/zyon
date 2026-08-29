@@ -163,7 +163,6 @@ export default function ProductCardBlock({
   }, [data.originalPrice, data.price, data.discountPercent]);
 
   const variants = data.variants ?? [];
-  // Hide variant section if variants have no meaningful value (default variant only)
   const hasRealVariants = variants.length > 1 || (variants.length === 1 && variants[0].value.trim().length > 0);
   const variantsAreColors =
     hasRealVariants && variants.length > 0 && isColorToken(variants[0].value);
@@ -171,7 +170,6 @@ export default function ProductCardBlock({
   const selectedVariant =
     variants.find((v) => v.id === selectedVariantId) ?? null;
 
-  // Derive displayed price from selected variant (falls back to card-level price)
   const displayedPrice = useMemo(() => {
     if (selectedVariant?.price !== undefined && selectedVariant.price > 0) {
       return selectedVariant.price;
@@ -555,7 +553,6 @@ export default function ProductCardBlock({
               >
                 {variants.map((v) => {
                   const isSelected = v.id === selectedVariantId;
-                  // In detailed view, show per-variant stock and disable out-of-stock chips.
                   const outOfStock = data.detailed && v.stock !== undefined && v.stock <= 0;
                   const stockLabel = data.detailed && v.stock !== undefined && v.stock < 999
                     ? outOfStock ? " · esgotado" : ` · ${v.stock}`

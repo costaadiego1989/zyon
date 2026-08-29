@@ -56,7 +56,7 @@ export default function CrossSellBlock({
         }
       `}</style>
 
-      {/* Header — strong, accent-led CTA (not muted) */}
+      {}
       <div
         style={{
           padding: "14px 18px 12px",
@@ -100,7 +100,7 @@ export default function CrossSellBlock({
         </p>
       </div>
 
-      {/* Horizontal scroll cards */}
+      {}
       <div
         style={{
           padding: "0 18px 16px",
