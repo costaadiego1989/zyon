@@ -17,6 +17,7 @@ import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { SupportHandoffService } from "../../../support/application/support-handoff.service.js";
 import { AgentCopyService } from "../copy/agent-copy.service.js";
+import { resolveDeterministicShortcut } from "../shortcuts/deterministic-shortcuts.service.js";
 
 export const STOREFRONT_CONVERSATION_ADAPTER = Symbol("StorefrontConversationAdapter");
 
@@ -100,130 +101,15 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
 
     this.emitFunnelEvent(input.merchantId, input.sessionId, "checkout_started").catch(() => {});
 
-    // Deterministic shortcut: "Ofertas" / "Ofertas do Dia" bypass LLM and call tool directly
-    const normalizedMsg = input.userMessage.trim().toLowerCase();
-    if (normalizedMsg === "ofertas" || normalizedMsg === "ofertas do dia" || normalizedMsg === "promoções" || normalizedMsg === "promocoes" || normalizedMsg === "ver produtos") {
-      try {
-        const result = await this.productRepo.search({
-          merchantId: input.merchantId,
-          query: normalizedMsg === "ver produtos" ? "*" : undefined,
-          isActiveOnly: true,
-          limit: 10
-        });
-        if (result.products.length > 0) {
-          // Emit product_viewed for deterministic product listing (non-blocking)
-          this.emitFunnelEvent(input.merchantId, input.sessionId, "product_viewed").catch(() => {});
-
-          const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
-          const blocks: ConversationBlock[] = [{
-            type: "product_carousel",
-            data: {
-              products: result.products.map((p) => ({
-                id: p.id,
-                name: p.name,
-                price: p.defaultVariant?.basePriceInCents ?? 0,
-                priceFormatted: formatPrice(p.defaultVariant?.basePriceInCents ?? 0),
-                image: p.defaultVariant?.media?.[0]?.url,
-                inStock: p.hasStock,
-                badge: "Oferta",
-                discountPercent: 15,
-              }))
-            }
-          } as ConversationBlock];
-          const isProducts = normalizedMsg === "ver produtos";
-          const introDefault = isProducts ? "Encontrei esses produtos para você:" : "Aqui estão nossas ofertas:";
-          const introMessage = await this.copyService.generateVariantCopy(
-            input.experimentSystemPrompt,
-            isProducts
-              ? "Responda em 1 frase curta e amigável que encontrou produtos pra o cliente. Não liste os produtos."
-              : "Responda em 1 frase curta e animada apresentando as ofertas do dia. Não liste os produtos.",
-            introDefault,
-          );
-          return {
-            message: introMessage,
-            blocks,
-            suggestedNext: ["Selecionar Produto", "Filtrar Produtos", "Categorias", "Ofertas do Dia"],
-          };
-        }
-      } catch {
-        // Fall through to agent if repo fails
-      }
-    }
-
-    // Deterministic shortcut: "Detalhes {nome}" — bypass LLM and return product_card directly.
-    // Triggered by carousel/card "Saber mais" clicks which pass the product name.
-    const detalhesMatch = normalizedMsg.match(/^detalhes\s+(.+)$/);
-    if (detalhesMatch) {
-      const productName = detalhesMatch[1].trim();
-      try {
-        const detailResult = await this.productRepo.search({
-          merchantId: input.merchantId,
-          query: productName,
-          isActiveOnly: true,
-          limit: 3,
-        });
-        const product = detailResult.products[0];
-        if (product) {
-          const formatPrice = (cents: number) =>
-            new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
-          const price = product.defaultVariant?.basePriceInCents ?? 0;
-          const isDigitalOrService = product.type === "digital" || product.type === "service";
-          const blocks: ConversationBlock[] = [{
-            type: "product_card",
-            data: {
-              id: product.id,
-              name: product.name,
-              price,
-              priceFormatted: formatPrice(price),
-              image: product.defaultVariant?.media?.[0]?.url,
-              description: product.description ?? undefined,
-              inStock: product.hasStock,
-              rating: product.averageRating ?? undefined,
-              reviewCount: product.reviewCount ?? 0,
-              // "Detalhes {nome}" IS a full-detail request → render the enriched card.
-              detailed: true,
-              stock: isDigitalOrService ? 999 : (product.totalStock ?? 0),
-              sku: product.defaultVariant?.sku ?? product.variants?.[0]?.sku,
-              variants: (product.variants ?? []).map((v: any) => {
-                const attrs = (v.attributes ?? {}) as Record<string, string>;
-                const attrKeys = Object.keys(attrs);
-                const attrValues = Object.values(attrs);
-                const variantStock = isDigitalOrService ? 999 : Math.max(0, (v.stockQuantity ?? 0) - (v.stockReserved ?? 0));
-                return {
-                  id: v.id,
-                  // Attribute dimension label (e.g. "Cor", "Tamanho"); fall back to variant name/SKU
-                  name: v.name || attrKeys.join(" / ") || "Opção",
-                  // Attribute values (e.g. "Preto", "42"); fall back to SKU
-                  value: attrValues.length > 0 ? attrValues.join(", ") : (v.sku ?? v.name ?? ""),
-                  sku: v.sku,
-                  stock: variantStock,
-                  price: v.basePriceInCents,
-                  priceFormatted: v.basePriceInCents ? formatPrice(v.basePriceInCents) : undefined,
-                };
-              }),
-            },
-          } as ConversationBlock];
-          this.emitFunnelEvent(input.merchantId, input.sessionId, "product_viewed").catch(() => {});
-          const detailMessage = await this.copyService.generateVariantCopy(
-            input.experimentSystemPrompt,
-            `Apresente o produto "${product.name}" em 1 frase curta e empolgante. Não repita o nome completo, diga "esse produto" ou algo natural.`,
-            `Aqui estão os detalhes de **${product.name}**:`,
-          );
-          return {
-            message: detailMessage,
-            blocks,
-            suggestedNext: [
-              `Adicionar ${product.name} ao carrinho`,
-              `Calcular frete para ${product.name}`,
-              `Ver avaliações de ${product.name}`,
-              "Ver mais produtos",
-            ],
-          };
-        }
-      } catch {
-        // Fall through to agent
-      }
-    }
+    const shortcut = await resolveDeterministicShortcut(
+      {
+        productRepo: this.productRepo,
+        copyService: this.copyService,
+        emitFunnelEvent: this.emitFunnelEvent.bind(this),
+      },
+      input,
+    );
+    if (shortcut) return shortcut;
 
     const result = await this.agent.run({
       sessionId: input.sessionId,
