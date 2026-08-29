@@ -48,7 +48,19 @@ export class GenerateNudgeUseCase {
   private async resolveAvailableOffers(merchantId: string): Promise<string[]> {
     const offers: string[] = [];
 
-    if (this.coupons) {
+    const maxDiscountPercent = await this.resolveMaxDiscount(merchantId);
+    const progressive = await this.resolveProgressive(merchantId);
+
+    const progressiveActive = progressive.enabled && progressive.maxPercent > 0;
+    const cappedProgressive = Math.min(progressive.maxPercent, maxDiscountPercent);
+    const couponsAllowed = !progressiveActive || progressive.mode === "coupon_only" || progressive.mode === "both";
+    const progressiveAllowed = progressiveActive && progressive.mode !== "coupon_only";
+
+    if (progressiveAllowed && cappedProgressive > 0) {
+      offers.push(`desconto progressivo de até ${cappedProgressive}% ao concluir a compra`);
+    }
+
+    if (couponsAllowed && this.coupons) {
       try {
         const now = Date.now();
         const coupons = await this.coupons.findAllByMerchant(merchantId);
@@ -65,19 +77,6 @@ export class GenerateNudgeUseCase {
       }
     }
 
-    try {
-      const setting = await this.prisma.checkoutSetting.findUnique({
-        where: { merchantId },
-        select: { interventionPolicy: true },
-      });
-      const pd = (setting?.interventionPolicy as { progressiveDiscount?: { enabled?: boolean; maxProgressivePercent?: number } } | null)?.progressiveDiscount;
-      if (pd?.enabled && (pd.maxProgressivePercent ?? 0) > 0) {
-        offers.push(`desconto progressivo de até ${pd.maxProgressivePercent}% ao concluir a compra`);
-      }
-    } catch (err) {
-      this.logger.warn(`[nudge] progressive lookup failed: ${err instanceof Error ? err.message : "unknown"}`);
-    }
-
     if (this.merchants) {
       try {
         const rules = await this.merchants.getRules(merchantId);
@@ -91,6 +90,34 @@ export class GenerateNudgeUseCase {
     }
 
     return offers;
+  }
+
+  private async resolveProgressive(merchantId: string): Promise<{ enabled: boolean; maxPercent: number; mode: string }> {
+    try {
+      const setting = await this.prisma.checkoutSetting.findUnique({
+        where: { merchantId },
+        select: { interventionPolicy: true },
+      });
+      const pd = (setting?.interventionPolicy as { progressiveDiscount?: { enabled?: boolean; maxProgressivePercent?: number; mode?: string } } | null)?.progressiveDiscount;
+      return {
+        enabled: Boolean(pd?.enabled),
+        maxPercent: pd?.maxProgressivePercent ?? 0,
+        mode: pd?.mode ?? "progressive_only",
+      };
+    } catch {
+      return { enabled: false, maxPercent: 0, mode: "progressive_only" };
+    }
+  }
+
+  private async resolveMaxDiscount(merchantId: string): Promise<number> {
+    if (!this.merchants) return 100;
+    try {
+      const rules = await this.merchants.getRules(merchantId);
+      const max = Number(rules?.maxDiscountPercent ?? 0);
+      return max > 0 ? max : 100;
+    } catch {
+      return 100;
+    }
   }
 
   private describeCoupon(s: { code: string; discount_type: string; discount_value: number; min_cart_total: number | null }): string {
