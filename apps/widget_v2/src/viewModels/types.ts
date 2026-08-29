@@ -1,5 +1,3 @@
-import type { CheckoutSession } from "@/api/checkout-session";
-
 export interface Message {
   id: string;
   role: "user" | "agent" | "merchant";
