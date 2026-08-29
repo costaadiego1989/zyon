@@ -171,7 +171,6 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
               </div>
             ) : (
               <ReturnRequestForm
-                orderId=""
                 merchantId={merchantId ?? ""}
                 onSuccess={() => setReturnDone(true)}
                 onCancel={() => setView("welcome")}

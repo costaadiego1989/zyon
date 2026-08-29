@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
+import { useEffect, useMemo, useState } from "react";
+import { fetchBuyerOrders, submitReturnRequest, type BuyerOrderOption } from "@/lib/services/support.service";
 
 interface ReturnRequestFormProps {
-  orderId: string;
+  orderId?: string;
   merchantId: string;
   onSuccess: () => void;
   onCancel: () => void;
@@ -20,13 +19,43 @@ const REASONS = [
   { value: "OTHER", label: "Outro motivo" },
 ];
 
-export function ReturnRequestForm({ orderId, merchantId, onSuccess, onCancel }: ReturnRequestFormProps) {
+export function ReturnRequestForm({ orderId: initialOrderId, merchantId, onSuccess, onCancel }: ReturnRequestFormProps) {
   const [reason, setReason] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const [orders, setOrders] = useState<BuyerOrderOption[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState(initialOrderId ?? "");
+  const [orderSearch, setOrderSearch] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    setOrdersLoading(true);
+    fetchBuyerOrders(merchantId)
+      .then((list) => {
+        if (!active) return;
+        setOrders(list);
+        if (!initialOrderId && list.length === 1) setSelectedOrderId(list[0].order_id);
+      })
+      .finally(() => {
+        if (active) setOrdersLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [merchantId, initialOrderId]);
+
+  const filteredOrders = useMemo(() => {
+    const q = orderSearch.trim().toLowerCase();
+    if (!q) return orders;
+    return orders.filter(
+      (o) => o.order_id.toLowerCase().includes(q) || o.merchant_name.toLowerCase().includes(q),
+    );
+  }, [orders, orderSearch]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -54,27 +83,15 @@ export function ReturnRequestForm({ orderId, merchantId, onSuccess, onCancel }: 
     setLoading(true);
     setError("");
     try {
-      const token = localStorage.getItem("zyon_buyer_token");
-      const res = await fetch(`${API_BASE}/buyer/returns/request`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          orderId,
-          merchantId,
-          reason,
-          title: title.trim(),
-          description: description.trim(),
-          items: [{ variantId: "all", quantity: 1, reason }],
-          images,
-        }),
+      await submitReturnRequest({
+        orderId: selectedOrderId.trim() || undefined,
+        merchantId,
+        reason,
+        title: title.trim(),
+        description: description.trim(),
+        items: [{ variantId: "all", quantity: 1, reason }],
+        images,
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.message ?? "Erro ao enviar solicitação");
-      }
       onSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro inesperado");
@@ -89,8 +106,44 @@ export function ReturnRequestForm({ orderId, merchantId, onSuccess, onCancel }: 
         Solicitar devolução
       </h3>
       <p style={{ font: "12px var(--aacp-font, system-ui)", color: "var(--aacp-muted, #8b8b95)", margin: 0, lineHeight: 1.5 }}>
-        Pedido: <strong>{orderId.slice(0, 12)}</strong> · Prazo de 14 dias após a compra
+        Prazo de 14 dias após a compra
       </p>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label style={{ font: "500 11px var(--aacp-font, system-ui)", color: "var(--aacp-muted, #8b8b95)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+          Pedido
+        </label>
+        {ordersLoading ? (
+          <span style={{ font: "12px var(--aacp-font, system-ui)", color: "var(--aacp-muted, #8b8b95)" }}>Carregando seus pedidos...</span>
+        ) : orders.length === 0 ? (
+          <span style={{ font: "12px var(--aacp-font, system-ui)", color: "var(--aacp-muted, #8b8b95)" }}>
+            Nenhum pedido encontrado nesta loja. Você pode seguir sem vincular.
+          </span>
+        ) : (
+          <>
+            {orders.length > 5 && (
+              <input
+                value={orderSearch}
+                onChange={(e) => setOrderSearch(e.target.value)}
+                placeholder="Buscar por número do pedido..."
+                style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--aacp-line, rgba(255,255,255,0.08))", background: "var(--aacp-surface, #1a1a1a)", color: "var(--aacp-fg, #f5f5f7)", font: "13px var(--aacp-font, system-ui)", marginBottom: 6 }}
+              />
+            )}
+            <select
+              value={selectedOrderId}
+              onChange={(e) => setSelectedOrderId(e.target.value)}
+              style={{ padding: "9px 12px", borderRadius: 8, border: "1px solid var(--aacp-line, rgba(255,255,255,0.08))", background: "var(--aacp-surface, #1a1a1a)", color: "var(--aacp-fg, #f5f5f7)", font: "13px var(--aacp-font, system-ui)" }}
+            >
+              <option value="">Sem pedido vinculado</option>
+              {filteredOrders.map((o) => (
+                <option key={o.id} value={o.order_id}>
+                  {o.order_id}{o.created_at ? ` · ${new Date(o.created_at).toLocaleDateString("pt-BR")}` : ""}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
+      </div>
 
       {/* Motivo */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>

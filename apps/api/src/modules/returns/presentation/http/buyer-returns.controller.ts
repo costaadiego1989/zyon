@@ -3,6 +3,16 @@ import { BuyerJwtAuthGuard, currentBuyer } from "../../../buyer-account/presenta
 import { RequestReturnUseCase } from "../../application/use-cases/request-return.use-case.js";
 import { RETURN_REPOSITORY_PORT, type ReturnRepositoryPort } from "../../domain/ports/return-repository.port.js";
 import { S3UploadService } from "../../../../shared/storage/s3-upload.service.js";
+import { CreateSupportTicketUseCase } from "../../../support/application/create-support-ticket.use-case.js";
+
+const RETURN_REASON_LABELS: Record<string, string> = {
+  DEFECTIVE: "Produto com defeito",
+  WRONG_ITEM: "Recebi item errado",
+  NOT_AS_DESCRIBED: "Diferente do anúncio",
+  CHANGED_MIND: "Mudei de ideia",
+  DAMAGED_IN_TRANSIT: "Danificado no transporte",
+  OTHER: "Outro motivo",
+};
 
 const MAX_RETURN_IMAGES = 3;
 
@@ -15,6 +25,7 @@ export class BuyerReturnsController {
     private readonly requestReturn: RequestReturnUseCase,
     @Inject(RETURN_REPOSITORY_PORT) private readonly returnRepo: ReturnRepositoryPort,
     private readonly s3: S3UploadService,
+    private readonly createSupportTicket: CreateSupportTicketUseCase,
   ) {}
 
   @Post("request")
@@ -56,10 +67,34 @@ export class BuyerReturnsController {
       items: body.items,
     });
 
+    // Surface the return in the merchant support inbox. Best-effort: a ticket
+    // failure must not sink the already-persisted return.
+    let ticketId: string | null = null;
+    try {
+      const reasonLabel = RETURN_REASON_LABELS[body.reason] ?? body.reason;
+      const orderRef = body.orderId?.trim() ? `Pedido ${body.orderId.trim()}` : "Pedido não informado";
+      const detail = [body.title, body.description].filter(Boolean).join(" — ");
+      const buyerMessage = [
+        `[Devolução/Troca] ${reasonLabel}`,
+        orderRef,
+        detail,
+      ].filter(Boolean).join("\n");
+      const ticket = await this.createSupportTicket.execute({
+        merchantId: body.merchantId,
+        sessionId: returnEntry.id,
+        message: buyerMessage,
+        source: "return_request",
+      });
+      ticketId = ticket.id;
+    } catch (err) {
+      this.logger.warn(`[returns] support ticket creation failed: ${err instanceof Error ? err.message : "unknown"}`);
+    }
+
     return {
       returnId: returnEntry.id,
       status: returnEntry.status,
       imageCount: imageUrls.length,
+      ticketId,
       message: "Solicitação de devolução criada com sucesso. O merchant será notificado.",
     };
   }

@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PersistenceModule, PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { BuyerAccountModule } from "../buyer-account/buyer-account.module.js";
+import { SupportModule } from "../support/support.module.js";
 import { RETURN_REPOSITORY_PORT } from "./domain/ports/return-repository.port.js";
 import { PrismaReturnRepository } from "./infrastructure/repositories/prisma-return.repository.js";
 import { RequestReturnUseCase } from "./application/use-cases/request-return.use-case.js";
@@ -15,7 +16,7 @@ import { ReturnsController } from "./presentation/http/returns.controller.js";
 import { BuyerReturnsController } from "./presentation/http/buyer-returns.controller.js";
 
 @Module({
-  imports: [PersistenceModule, BuyerAccountModule],
+  imports: [PersistenceModule, BuyerAccountModule, SupportModule],
   controllers: [ReturnsController, BuyerReturnsController],
   providers: [
     {

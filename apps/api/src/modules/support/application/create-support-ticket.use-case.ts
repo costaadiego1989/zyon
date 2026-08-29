@@ -25,13 +25,14 @@ export class CreateSupportTicketUseCase {
     merchantId: string;
     sessionId?: string;
     message: string;
+    source?: SupportTicket["source"];
   }): Promise<SupportTicket> {
     const ticket = await this.repository.save(
       SupportTicketEntity.create({
         merchantId: input.merchantId,
         sessionId: input.sessionId,
         buyerMessage: input.message,
-        source: "dashboard",
+        source: input.source ?? "dashboard",
       }).snapshot(),
     );
     this.publisher.publishCreated(ticket);

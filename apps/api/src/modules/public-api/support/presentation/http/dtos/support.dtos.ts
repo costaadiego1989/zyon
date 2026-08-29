@@ -38,8 +38,8 @@ export class SupportTicketResponseDto {
   @ApiProperty({ description: 'Ticket status', enum: ['open', 'in_progress', 'resolved', 'closed'] })
   status!: 'open' | 'in_progress' | 'resolved' | 'closed';
 
-  @ApiProperty({ description: 'Ticket source', enum: ['widget', 'dashboard', 'system'] })
-  source!: 'widget' | 'dashboard' | 'system';
+  @ApiProperty({ description: 'Ticket source', enum: ['widget', 'dashboard', 'system', 'return_request'] })
+  source!: 'widget' | 'dashboard' | 'system' | 'return_request';
 
   @ApiProperty({ description: 'Creation timestamp (ISO 8601)' })
   created_at!: string;
