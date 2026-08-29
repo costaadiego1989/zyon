@@ -83,7 +83,7 @@ export function handleFireNudge(params: FireNudgeParams) {
     .then((data: any) => {
       clearTimeout(fallbackTimer);
       const styled = typeof data?.message === "string" ? data.message.trim().replace(/^["']|["']$/g, "") : "";
-      const bad = !styled || /tive um problema|não consegui|erro ao|tente novamente/i.test(styled);
+      const bad = !styled || /tive um problema|não consegui|erro ao|tente novamente|reformular|não entendi|pode repetir|como posso ajudar/i.test(styled);
       reveal((bad ? staticNudge : styled) + couponSuffix);
     })
     .catch(() => {
