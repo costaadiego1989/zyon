@@ -2,6 +2,7 @@ import { useState } from "react";
 import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { useCheckoutStore } from "@/store/checkout-store";
+import { confirmStripePayment } from "@/api/payment";
 
 const STRIPE_PK = (typeof window !== "undefined" && window.__STRIPE_PK__)
   || import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
@@ -46,14 +47,10 @@ function CardForm() {
 
     if (result?.status === "succeeded") {
       try {
-        const confirmRes = await fetch(
-          `${api.apiBaseUrl}/embed/payment/intents/${paymentIntent.intent_id}/stripe/confirm`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${api.authToken}` },
-            body: JSON.stringify({ payment_intent_id: result.id }),
-          }
-        );
+        const confirmRes = await confirmStripePayment(api, {
+          paymentIntentId: paymentIntent.intent_id,
+          stripePaymentId: result.id,
+        });
         if (confirmRes.ok) {
           setSuccess(true);
           useCheckoutStore.setState({
