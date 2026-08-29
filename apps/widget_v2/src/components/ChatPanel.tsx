@@ -12,7 +12,6 @@ import { trackEvent } from "@/lib/tracking";
 /* ─── Inline markdown: render **bold** / *italic* as JSX (no HTML injection) ─── */
 
 function renderInlineMarkdown(text: string): ReactNode {
-  // Split on **bold** and *italic* markers, keeping the delimiters as groups.
   const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
   return parts.map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**")) {
@@ -138,8 +137,6 @@ function CartSummaryBlock({ data }: { data?: Record<string, unknown> }) {
 function ShippingOptionsBlock({ options }: { options?: unknown }) {
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
   const selectShipping = useCheckoutStore((s) => s.selectShipping);
-  // Filter out malformed options (missing key/label) so a bad backend payload
-  // can't crash the render (translateShippingLabel on undefined).
   const opts = ((options as Array<{ key: string; label: string; tag?: string; sub?: string; cost?: number }>) ?? [])
     .filter((o) => o && o.key && o.label);
 
@@ -234,7 +231,6 @@ function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback for iframe/insecure context
       const ta = document.createElement("textarea");
       ta.value = code;
       ta.style.position = "fixed";
@@ -293,15 +289,13 @@ function StripeCardBlockForm({
   const elements = useElements();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Select each slice individually — returning a new object literal from the
-  // selector causes an infinite render loop (getSnapshot not cached).
   const api = useCheckoutStore((s) => s.api);
   const pollPayment = useCheckoutStore((s) => s.pollPayment);
   const brand = useCheckoutStore((s) => s.brand);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) return; // Guard: prevent double-submit (re-confirm → Stripe error)
+    if (loading) return;
     if (!stripe || !elements) {
       setError("Stripe não carregou corretamente");
       return;
@@ -311,14 +305,6 @@ function StripeCardBlockForm({
     setError(null);
 
     try {
-      // If this intent already succeeded (e.g. a prior confirm went through),
-      // don't confirm again — Stripe rejects re-confirming a succeeded intent
-      // with payment_intent_unexpected_state. Finalize server-side and complete
-      // the checkout directly. Do NOT call pollPayment() here: for block-rendered
-      // card forms the store's paymentIntent isn't set, so the WS/poll fallback
-      // can observe a non-approved/expired state and resetSession() — which
-      // throws the buyer back to the start of the checkout after a successful
-      // payment. The Stripe intent is already "succeeded", so mark completed.
       const existing = await stripe.retrievePaymentIntent(clientSecret);
       if (existing.paymentIntent?.status === "succeeded") {
         if (api) {
@@ -333,7 +319,6 @@ function StripeCardBlockForm({
         return;
       }
 
-      // Confirm payment with Stripe Elements (card data never touches our server)
       const { paymentIntent, error: confirmError } = await stripe.confirmCardPayment(
         clientSecret,
         {
@@ -350,7 +335,6 @@ function StripeCardBlockForm({
       }
 
       if (paymentIntent?.status === "succeeded" || paymentIntent?.status === "requires_action") {
-        // Confirm the payment server-side (marks as approved in DB).
         let approved = false;
         if (api) {
           try {
@@ -360,10 +344,6 @@ function StripeCardBlockForm({
             console.error("Server confirm failed:", confirmErr);
           }
         }
-        // Stripe succeeded and the server confirmed → complete the checkout now.
-        // (Previously called pollPayment(), but the store's paymentIntent isn't
-        // set for block-rendered card forms, so polling no-op'd and the screen
-        // never updated despite the backend returning approved.)
         if (approved || paymentIntent.status === "succeeded") {
           useCheckoutStore.setState((s) => ({
             status: "completed",
@@ -390,8 +370,6 @@ function StripeCardBlockForm({
           options={{
             style: {
               base: {
-                // Stripe renders in an iframe and cannot resolve host CSS vars —
-                // pass computed brand values (dark mode = light text).
                 fontSize: "14px",
                 color: brand?.textColor || (brand?.mode === "dark" ? "#f1f5f9" : "#111827"),
                 fontFamily: brand?.fontFamily || "Inter, sans-serif",
@@ -433,8 +411,6 @@ function StripeCardBlockForm({
   );
 }
 
-// Cache Stripe.js promise per publishable key — loadStripe() must NOT run on
-// every render (a new Promise each render re-mounts <Elements> → infinite loop).
 const stripePromiseCache = new Map<string, ReturnType<typeof loadStripe>>();
 function getStripePromise(publishableKey: string) {
   let p = stripePromiseCache.get(publishableKey);
@@ -459,9 +435,6 @@ function StripeCardBlock({ data }: { data?: Record<string, unknown> }) {
   }
 
   const stripePromise = getStripePromise(publishableKey);
-  // Memoize the options object: a fresh literal on every render forces
-  // <Elements> to re-mount (it treats a new options ref as a new session),
-  // which tears down and re-creates the CardElement mid-payment.
   const elementsOptions = useMemo(() => ({ clientSecret }), [clientSecret]);
 
   return (
@@ -566,11 +539,7 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
     </button>
   );
 
-  // ─── MODAL ────────────────────────────────────────────────────────────────
   if (mode === "modal") {
-    // Portal to <body>: same containing-block issue as the interstitial (the
-    // bubble-in animation's final transform on the message row would clip a
-    // position:fixed overlay inside the chat's overflow:hidden).
     return createPortal(
       <div
         role="dialog"
@@ -632,7 +601,6 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
     );
   }
 
-  // ─── BANNER ───────────────────────────────────────────────────────────────
   if (mode === "banner") {
     return (
       <div
@@ -668,13 +636,6 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
     );
   }
 
-  // ─── INTERSTITIAL (inline card) ─────────────────────────────────────────────
-  // Mirrors the storefront pre_cart CrossSellBlock: an inline card in the chat
-  // flow (mobile-first horizontal carousel), NOT a fixed bottom-sheet. Rendering
-  // it inline avoids the containing-block/clip issues of position:fixed inside
-  // the animated message list. "Continuar" dismisses the suggestions and lets the
-  // conversational flow proceed to the NEXT step (address → shipping → coupon →
-  // payment) — it must NOT jump straight to payment.
   if (mode === "interstitial") {
     const advanceToPayment = () => {
       setDismissed(true);
@@ -723,8 +684,6 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
                   data-testid="cross-sell-product"
                   disabled={p.inStock === false}
                   onClick={() => {
-                    // Include the SKU so the backend maps to add_cross_sell_item (adds the
-                    // exact variant to the checkout cart) instead of a marketplace search.
                     const ref = p.sku ? `${p.name} (SKU: ${p.sku})` : p.name;
                     void sendMessage(`Adicionar ${ref} ao carrinho`);
                     setDismissed(true);
@@ -748,7 +707,6 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
     );
   }
 
-  // ─── INLINE (default) ───────────────────────────────────────────────────────
   return (
     <div data-testid="cross-sell-inline" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
       <div style={{ fontSize: "12px", fontWeight: 600, marginBottom: "8px" }}>Você também pode gostar:</div>
@@ -770,8 +728,6 @@ function CouponInputBlock({ data }: { data?: Record<string, unknown> }) {
 
   const methods = data?.methods as Array<{ key: string; label: string; sub?: string }> | undefined;
 
-  // Once the accumulated discount reaches the merchant's hard cap, no further
-  // coupon can apply — skip the coupon step entirely and advance to payment.
   const currentDiscountPercent = cartTotal > 0 ? (cartDiscount / cartTotal) * 100 : 0;
   const atMaxDiscount = currentDiscountPercent >= maxDiscountPercent - 0.01;
 
@@ -780,7 +736,6 @@ function CouponInputBlock({ data }: { data?: Record<string, unknown> }) {
       setDone(true);
       proceedToPayment(methods);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [atMaxDiscount]);
 
   if (atMaxDiscount || done) return null;
@@ -797,7 +752,7 @@ function CouponInputBlock({ data }: { data?: Record<string, unknown> }) {
     const result = await applyCouponCode(code);
     setLoading(false);
     if (result.ok) {
-      advance(); // coupon applied → go to payment
+      advance();
     } else {
       setError(result.error || "Cupom inválido");
     }
@@ -976,11 +931,8 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   const [step, setStep] = useState<CryptoStep>("idle");
   const [wallet, setWallet] = useState<string>("");
   const [error, setError] = useState<string>("");
-  // When the wallet's own RPC is rate-limited on broadcast, we can't intercept —
-  // surface actionable instructions to swap the RPC in wallet settings.
   const [rpcHelp, setRpcHelp] = useState<boolean>(false);
 
-  // Keep fallback polling active
   useEffect(() => { pollPayment(); }, [pollPayment]);
 
   if (!data) return null;
@@ -1000,7 +952,6 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
 
   const chainIdHex = "0x" + chainId.toString(16);
 
-  // Encode ERC20 transfer(address,uint256) calldata manually
   function encodeTransferData(to: string, value: string): string {
     const selector = "0xa9059cbb";
     const addrPadded = to.toLowerCase().replace("0x", "").padStart(64, "0");
@@ -1008,8 +959,6 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
     return selector + addrPadded + valHex;
   }
 
-  // Query our own Alchemy RPC (crypto_rpc_url) directly, bypassing MetaMask's
-  // possibly rate-limited RPC for read calls. Returns null on failure.
   async function alchemyRpc(method: string, params: unknown[]): Promise<string | null> {
     if (!rpcUrl) return null;
     try {
@@ -1025,17 +974,13 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
     }
   }
 
-  // Pre-flight balance check via our Alchemy RPC (not MetaMask's). Verifies the
-  // wallet holds enough token (USDC) and native currency for gas. Returns an
-  // error string, or null when funds are sufficient / probe unavailable.
   async function checkBalances(): Promise<string | null> {
-    // ERC20 balanceOf(address) → selector 0x70a08231
     const balanceOfData = "0x70a08231" + wallet.toLowerCase().replace("0x", "").padStart(64, "0");
     const [tokenBalHex, nativeBalHex] = await Promise.all([
       alchemyRpc("eth_call", [{ to: tokenAddress, data: balanceOfData }, "latest"]),
       alchemyRpc("eth_getBalance", [wallet, "latest"]),
     ]);
-    if (tokenBalHex === null && nativeBalHex === null) return null; // RPC unavailable — don't block
+    if (tokenBalHex === null && nativeBalHex === null) return null;
     const tokenBal = BigInt(tokenBalHex || "0x0");
     const nativeBal = BigInt(nativeBalHex || "0x0");
     const required = BigInt(amountAtomic);
@@ -1076,21 +1021,15 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
       rpcUrls: [rpcUrl || `https://sepolia.base.org`],
       blockExplorerUrls: [blockExplorerUrl || `https://sepolia.basescan.org`],
     };
-    // Rate-limit / RPC errors here are non-fatal: the chain is already usable,
-    // MetaMask just failed an internal eth_getBlockByNumber probe. We swallow
-    // them so the actual eth_sendTransaction (which uses the wallet's own RPC)
-    // still proceeds. Only user rejection (4001) aborts.
     const isRateLimitOrRpc = (err: any) => {
       const msg = String(err?.message || "").toLowerCase();
       return msg.includes("rate limit") || msg.includes("429") || msg.includes("getblockbynumber") || msg.includes("timeout");
     };
     try {
-      // Always attempt addEthereumChain first — this updates the RPC URL even
-      // if the chain already exists (fixes stale public RPC → rate limit).
       await eth.request({ method: "wallet_addEthereumChain", params: [chainParams] });
     } catch (addErr: any) {
-      if (addErr?.code === 4001) throw addErr; // User rejected — stop
-      if (isRateLimitOrRpc(addErr)) return;    // Chain usable; ignore RPC probe error
+      if (addErr?.code === 4001) throw addErr;
+      if (isRateLimitOrRpc(addErr)) return;
       try {
         await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: chainIdHex }] });
       } catch (switchErr: any) {
@@ -1098,7 +1037,7 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
         if (switchErr?.code === 4902) {
           await eth.request({ method: "wallet_addEthereumChain", params: [chainParams] });
         } else if (isRateLimitOrRpc(switchErr)) {
-          return; // Non-fatal — proceed to send
+          return;
         } else {
           throw switchErr;
         }
@@ -1113,7 +1052,6 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
     setError("");
     setRpcHelp(false);
     try {
-      // Ensure correct chain
       const currentChainId: string = await eth.request({ method: "eth_chainId" });
       console.log("[CRYPTO-PAY] chainId current=%s target=%s rpcUrl=%s", currentChainId, chainIdHex, rpcUrl);
       if (currentChainId.toLowerCase() !== chainIdHex.toLowerCase()) {
@@ -1121,7 +1059,6 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
         await switchOrAddChain(eth);
       }
 
-      // Pre-flight: verify sufficient token + gas balance before prompting to sign.
       const balanceError = await checkBalances();
       console.log("[CRYPTO-PAY] balance check:", balanceError ?? "OK");
       if (balanceError) {
@@ -1130,8 +1067,6 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
         return;
       }
 
-      // Guard: never broadcast a zero-value transfer (missing amountAtomic in
-      // the quote payload). Sending 0 wastes gas and can never be verified.
       if (!amountAtomic || BigInt(amountAtomic) === 0n) {
         setError("Valor do pagamento inválido. Recarregue e tente novamente.");
         setStep("connected");
@@ -1139,9 +1074,6 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
       }
 
       const calldata = encodeTransferData(destination, amountAtomic);
-      // Fetch nonce + gasPrice from OUR Alchemy RPC (not MetaMask's, which may be
-      // rate-limited) and pass them explicit. Combined with the manual gas limit,
-      // MetaMask never needs to query its own RPC to build the tx.
       const [nonce, gasPrice] = await Promise.all([
         alchemyRpc("eth_getTransactionCount", [wallet, "pending"]),
         alchemyRpc("eth_gasPrice", []),
@@ -1151,7 +1083,7 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
         from: wallet,
         to: tokenAddress,
         data: calldata,
-        gas: "0x186A0", // 100,000 — safe for ERC20 transfer
+        gas: "0x186A0",
       };
       if (nonce) txParams.nonce = nonce;
       if (gasPrice) txParams.gasPrice = gasPrice;
@@ -1162,7 +1094,6 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
       });
       console.log("[CRYPTO-PAY] tx sent:", txHash);
 
-      // tx sent — confirm on backend
       setStep("confirming");
       if (api) {
         await fetch(`${api.apiBaseUrl}/embed/payment/intents/${intentId}/crypto/confirm`, {
@@ -1179,9 +1110,6 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
         setStep("connected");
       } else {
         const msg = String(e?.message || "").toLowerCase();
-        // Rate-limit on broadcast (eth_sendRawTransaction) comes from the wallet's
-        // OWN RPC endpoint, which we cannot override — the wallet ignores the
-        // Alchemy URL for chains it already stored. Guide the buyer to swap it.
         if (msg.includes("rate limit") || msg.includes("getblockbynumber") || msg.includes("sendrawtransaction")) {
           setRpcHelp(true);
           setError("O RPC da sua carteira está sobrecarregado. Atualize o endereço RPC da rede (instruções abaixo) e tente novamente.");
@@ -1202,7 +1130,6 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
     fontFamily: "var(--aacp-font, inherit)", cursor: "pointer", width: "100%",
   };
 
-  // No MetaMask installed
   if (error === "no_metamask") {
     return (
       <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
@@ -1376,7 +1303,6 @@ function BlockRenderer({ block }: { block: ChatBlock }) {
     case "form_field":
       return <FormFieldBlock data={block.data} />;
     default:
-      // Fallback: render text content if available
       if (block.text) return <p style={{ fontSize: "14px", lineHeight: 1.5, color: "var(--tx)", margin: 0, wordBreak: "break-word" }}>{block.text}</p>;
       if (block.data?.text || block.data?.content) return <p style={{ fontSize: "14px", lineHeight: 1.5, color: "var(--tx)", margin: 0, wordBreak: "break-word" }}>{String(block.data.text || block.data.content)}</p>;
       return null;
@@ -1503,13 +1429,8 @@ export function ChatPanel() {
   const [input, setInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Voice checkout integration (active when channel === "voice").
-  // Narrate the full message: text AND block context, so the LLM voice guides
-  // each step (address, shipping, payment) the same way the chat shows blocks.
   const lastAgentMessage = [...messages].reverse().find((m) => m.role === "agent");
   const lastAgentText = lastAgentMessage ? messageToSpeech(lastAgentMessage) : null;
-  // Distinct playback key per message id so re-narration fires when a new
-  // block-only message arrives (text may repeat across turns).
   const lastAgentKey = lastAgentMessage?.id ?? null;
   const onConfirmTranscript = useCallback(
     (text: string) => sendMessage(text),
@@ -1540,7 +1461,6 @@ export function ChatPanel() {
     void sendMessage(text);
   };
 
-  // Find quick replies from the last agent message
   const lastAgentMsg = [...messages].reverse().find((m) => m.role === "agent");
   const activeQuickReplies = lastAgentMsg?.quickReplies ?? [];
 

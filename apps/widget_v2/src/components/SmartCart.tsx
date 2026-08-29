@@ -17,7 +17,6 @@ function translateShippingLabel(label: string): string {
 
 export function SmartCart() {
   const cart = useCheckoutStore((s) => s.cart);
-  const brand = useCheckoutStore((s) => s.brand);
   const agent = useCheckoutStore((s) => s.agent);
   const updateQty = useCheckoutStore((s) => s.updateQty);
   const removeCartItem = useCheckoutStore((s) => s.removeCartItem);

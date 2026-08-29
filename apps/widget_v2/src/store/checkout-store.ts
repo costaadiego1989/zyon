@@ -72,35 +72,27 @@ export interface Message {
 }
 
 interface CheckoutState {
-  // Status
   status: CheckoutStatus;
   error: string | null;
 
-  // Session
   sessionId: string | null;
   api: CheckoutSession | null;
 
-  // Merchant config (from API)
   brand: BrandConfig;
   agent: AgentConfig;
   merchantPaymentConfig: { stripeEnabled?: boolean; cryptoPaymentsEnabled?: boolean; cryptoPayments?: CryptoPaymentsConfig };
 
-  // Buyer (pre-authenticated via global_user_id)
   buyer: BuyerData;
 
-  // Cart
   cart: CartState;
 
-  // Chat — the MAIN interaction surface
   messages: Message[];
   isTyping: boolean;
   channel: "chat" | "voice";
 
-  // Payment
   paymentIntent: PaymentIntent | null;
   paymentPolling: boolean;
 
-  // Triggers & Interventions
   triggerConfig: TriggerConfig | null;
   triggerMessages: Record<string, { message?: string; couponCode?: string }> | null;
   activeDiscount: { stage: DiscountStage; percent: number; couponCode?: string; message?: string } | null;
@@ -110,16 +102,12 @@ interface CheckoutState {
   /** Merchant hard cap on total discount percent. Coupon field hides once reached. */
   maxDiscountPercent: number;
 
-  // Cross-sell (deferred from start → rendered at selectChannel)
   _pendingCrossSellBlock: ChatBlock | null;
 
-  // Whitelabel: "Powered by Zyon" badge shown for free-plan merchants
   showBranding: boolean;
 
-  // Voice checkout habilitado (feature do plano — Growth+). Free esconde o canal de voz.
   voiceEnabled: boolean;
 
-  // Actions
   init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; globalUserId?: string }) => Promise<void>;
   selectChannel: (channel: "chat" | "voice") => void;
   sendMessage: (text: string) => Promise<void>;
@@ -142,7 +130,7 @@ interface CheckoutState {
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let wsCleanup: (() => void) | null = null;
-const MAX_POLL_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+const MAX_POLL_DURATION_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Narration fallback for interactive blocks. When the backend/LLM returns a
@@ -173,7 +161,7 @@ function narrateBlock(block: ChatBlock): string | null {
     case "address_confirmation":
       return "Confirme seu endereço de entrega:";
     case "form_field":
-      return null; // form_field blocks carry their own label
+      return null;
     case "offer_coupon":
       return "Tenho um cupom pra você:";
     case "order_summary":
@@ -212,9 +200,6 @@ function deriveBlocksFromStage(
   if (!stage) return undefined;
 
   if (stage === "shipping" || stage === "delivery") {
-    // Address already confirmed → shipping was calculated. Don't re-show the
-    // address card (that caused the confirm→confirm loop). Nothing to derive;
-    // the backend/selectShipping flow drives shipping_options from here.
     if (state.cart.status === "shipping_calculated" || state.cart.status === "ready_to_pay") {
       return undefined;
     }
@@ -224,7 +209,6 @@ function deriveBlocksFromStage(
       const addrLine = `${addr.street}, ${addr.number}${addr.complement ? ', ' + addr.complement : ''} - ${addr.city}/${addr.state}`;
       return [{ type: "address_confirmation", data: { address: addr, formatted: addrLine } }];
     }
-    // Missing address → ask for CEP
     return [{ type: "form_field", data: { field: "cep", label: "CEP de entrega", placeholder: "00000-000" } }];
   }
 
@@ -238,9 +222,6 @@ function deriveBlocksFromStage(
       const chain = state.merchantPaymentConfig.cryptoPayments?.chain || "polygon";
       methods.push({ key: "crypto", label: `Crypto · ${token}`, sub: `Liquida na ${chain} + cashback` });
     }
-    // Coupon is a step BEFORE payment: emit the coupon_input block, which
-    // carries a "Não possuo cupom" action that advances to payment methods
-    // (the methods travel in the block data). It self-hides the field at the cap.
     return [{ type: "coupon_input", data: { methods } }];
   }
 
@@ -256,15 +237,11 @@ function startPolling(): void {
   pollTimer = setInterval(async () => {
     if (Date.now() - pollStartTime > MAX_POLL_DURATION_MS) {
       useCheckoutStore.getState().stopPolling();
-      // Session expired — full reset to avoid stale cart/payment state
       useCheckoutStore.getState().resetSession();
       return;
     }
     try {
       const status = await api.getPaymentStatus(paymentIntent.intent_id);
-      // API PaymentIntentStatus terminal-success value is "approved"
-      // (webhook flips requires_action → approved). "paid"/"confirmed"
-      // kept for backward compat with any legacy provider mapping.
       if (
         status.status === "approved" ||
         status.status === "paid" ||
@@ -280,14 +257,9 @@ function startPolling(): void {
         });
       } else if (status.status === "failed" || status.status === "cancelled") {
         useCheckoutStore.getState().stopPolling();
-        // Payment terminal failure — surface an error state; do NOT resetSession()
-        // (that wipes cart/messages and throws the buyer back to the start of the
-        // checkout, which also fired spuriously after a successful card payment
-        // when the poll fallback observed a stale/consumed intent).
         useCheckoutStore.setState({ status: "error", error: "payment_failed" });
       }
     } catch {
-      // continue polling
     }
   }, 3000);
 }
@@ -326,15 +298,10 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       const response = await api.start();
       const exp = response.experience;
 
-      // Fetch real cart items from storefront cart endpoint (not from embed/start)
       const cartData = await api.fetchCart();
       const items = cartData.items;
-      // W2-006: Server total is authoritative; client-side reduce is a display-only fallback.
-      // Payment intent is computed server-side from the session — see createPaymentIntent() which
-      // sends only session_id, never a client-computed amount.
       const total = cartData.total || items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
-      // Buyer data comes pre-resolved from API (via global_user_id in token)
       const buyerSource = exp?.buyer ?? exp?.customer;
       const buyer: BuyerData = {
         name: buyerSource?.name ?? buyerSource?.fullName,
@@ -346,7 +313,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         address: buyerSource?.address,
       };
 
-      // Flatten brand: API returns brand at top level AND theme nested inside.
       const rawBrand = exp?.brand ?? {};
       const theme = rawBrand.theme ?? {};
       const brand: BrandConfig = {
@@ -396,11 +362,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         voiceEnabled: (exp?.rules as { voiceEnabled?: boolean } | undefined)?.voiceEnabled ?? false,
       });
 
-      // Initialize tracking
       initTracking(api, response.session_id);
       void trackEvent("checkout_started");
 
-      // Fetch checkout settings for triggers
       try {
         const settingsRes = await fetch(
           `${apiBaseUrl}/checkout-settings/widget-config?merchantId=${encodeURIComponent(merchantId)}`
@@ -432,7 +396,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   selectChannel: (_channel) => {
     void trackEvent("channel_selected", { channel: _channel });
 
-    // Add welcome message from agent with quick replies
     const { cart, _pendingCrossSellBlock } = get();
 
     const welcomeText = cart.items.length > 0
@@ -449,9 +412,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       },
     ];
 
-    // Render cross-sell suggestions from checkout start (pre_payment touchpoint).
-    // Always pair the component with narration so the agent "speaks" instead of
-    // silently dropping a product block.
     if (_pendingCrossSellBlock) {
       messages.push({
         id: "cross_sell_start",
@@ -468,13 +428,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       messages,
       _pendingCrossSellBlock: null,
     });
-    // NOTE: no discount at checkout entry. Progressive discount is applied only
-    // on behavioral triggers (idle / exit-intent) via App.tsx onTrigger, and the
-    // manual coupon field is shown when no automatic discount is active.
   },
 
   sendMessage: async (text) => {
-    // Handle "Quero voltar" — navigate back
     if (text === "Quero voltar") {
       window.history.back();
       return;
@@ -483,7 +439,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     const { api, messages } = get();
     if (!api) return;
 
-    // Add user message
     const userMsg: Message = {
       id: `user_${Date.now()}`,
       role: "user",
@@ -492,10 +447,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     };
     set({ messages: [...messages, userMsg], isTyping: true });
 
-    // Address confirmation is a LOCAL UI action — handle before hitting the LLM.
-    // The buyer said "Sim"/"Correto" to the address card → fetch shipping quote
-    // and show options directly, skipping the chat round-trip (which would return
-    // a text-only "Benefício aplicado" with no blocks).
     const normalizedConfirm = text.trim().toLowerCase().replace(/[.!?,;]+$/, "");
     const isAddrConfirm = ["sim", "correto", "confirmo", "certo", "isso", "é esse", "esse mesmo"].includes(normalizedConfirm);
     if (isAddrConfirm) {
@@ -534,9 +485,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       }
     }
 
-    // Shipping selection is a LOCAL UI action — show payment methods directly.
-    // The "Entrega · X" message is sent after selectShipping(key) already hit the
-    // backend; the next step is always payment methods, no LLM needed.
     if (text.startsWith("Entrega ·")) {
       const { merchantPaymentConfig } = get();
       const methods: Array<{ key: string; label: string; sub: string }> = [];
@@ -552,9 +500,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         messages: [...s.messages, {
           id: `agent_${Date.now()}`, role: "agent",
           text: "Frete selecionado! Tem um cupom de desconto?",
-          // Coupon is its own step BEFORE payment: the coupon_input block carries
-          // a "Não possuo cupom" action that advances to the payment methods.
-          // The block self-hides the field at the merchant discount cap.
           blocks: [{ type: "coupon_input", data: { methods } }],
           timestamp: Date.now(),
         }],
@@ -567,18 +512,14 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     try {
       const res = await api.chat(text);
 
-      // If API returns empty blocks for "Vamos prosseguir", provide shipping options
       if ((!res.blocks || res.blocks.length === 0) && text === "Vamos prosseguir") {
-        // Buyer is pre-authenticated — skip data collection, go to shipping
         const { buyer } = get();
 
-        // Check if address is complete (all fields populated)
         const addr = buyer.address;
         const hasCompleteAddress = Boolean(
           addr?.zip && addr?.street && addr?.number && addr?.city && addr?.state
         );
 
-        // If address is incomplete, ask for CEP first
         if (!hasCompleteAddress || !addr) {
           const zipMsg: Message = {
             id: `agent_${Date.now()}`,
@@ -591,7 +532,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
           return;
         }
 
-        // Address is complete — show address confirmation before auto-quoting
         const addrLine = `${addr.street}, ${addr.number}${addr.complement ? ', ' + addr.complement : ''} - ${addr.city}/${addr.state}`;
         const confirmMsg: Message = {
           id: `agent_${Date.now()}`,
@@ -605,7 +545,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         return;
       }
 
-      // Handle address confirmation — user said "Não" (wants to correct address)
       if (text === "Não" && messages.length > 0) {
         const lastAgentMsg = [...messages].reverse().find((m) => m.role === "agent");
         if (lastAgentMsg?.blocks?.some((b) => b.type === "address_confirmation")) {
@@ -621,22 +560,14 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         }
       }
 
-      // Render agent response with message text and blocks.
-      // Primary: backend LLM navigation tools emit UI blocks (res.blocks).
-      // Fallback: derive from reported stage when the LLM didn't call a tool.
-      // Both make voice/free-text chat show the same components as buttons.
       const { buyer, cart, merchantPaymentConfig } = get();
       const baseBlocks = res.blocks && res.blocks.length > 0
         ? res.blocks
         : (deriveBlocksFromStage(res.stage, { buyer, cart, merchantPaymentConfig }) ?? []);
-      // Cross-sell arrives via experience.suggestedProducts (not blocks[]) — merge it in
-      // so the existing cross_sell renderer picks it up (pre_payment touchpoint).
       const crossSellBlock = crossSellBlockFromSuggestions(res.experience?.suggestedProducts);
       const mergedBlocks = crossSellBlock
         ? [...baseBlocks, crossSellBlock]
         : baseBlocks;
-      // Universal narration: when the LLM returned empty text but there are
-      // interactive blocks, derive a human-readable line from the first block.
       const agentText = resolveAgentText(res.message, mergedBlocks);
       const agentMsg: Message = {
         id: `agent_${Date.now()}`,
@@ -651,7 +582,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         isTyping: false,
       }));
 
-      // Update cart from cart_summary block
       const cartBlock = res.blocks?.find((b) => b.type === "cart_summary");
       if (cartBlock?.data) {
         const items = (cartBlock.data.items as CartItem[]) || [];
@@ -661,7 +591,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         }));
       }
 
-      // Update cart from shipping_confirmed block
       const shippingConfirm = res.blocks?.find((b) => b.type === "shipping_confirmed");
       if (shippingConfirm?.data) {
         set((s) => ({
@@ -673,7 +602,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         }));
       }
 
-      // Update cart status from pix_payment block (ready to pay)
       const pixBlock = res.blocks?.find((b) => b.type === "pix_payment");
       if (pixBlock?.data) {
         set((s) => ({
@@ -688,18 +616,14 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         }));
       }
 
-      // Order confirmation → completed
       const orderBlock = res.blocks?.find((b) => b.type === "order_confirmation");
       if (orderBlock) {
         set({ status: "completed", cart: { ...get().cart, status: "paid" } });
       }
     } catch (err) {
       console.error("[WIDGET-CHAT] embed/chat failed:", err);
-      // API failed — show error message (don't show fake shipping options
-      // that have no backend quote, as selectShipping would fail)
       const { cart, buyer, merchantPaymentConfig } = get();
       if (text === "Vamos prosseguir" && cart.items.length > 0) {
-        // Try to fetch shipping quote directly even if chat failed
         try {
           const zip = buyer.address?.zip || "00000000";
           const shippingOptions = await api.fetchShippingQuote(zip);
@@ -716,8 +640,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
           }
         } catch { /* truly offline */ }
       }
-      // If shipping is already calculated, the user is at the payment stage.
-      // Show payment methods locally so voice/free-text users aren't stuck.
       if (cart.status === "shipping_calculated" || cart.status === "ready_to_pay") {
         const payBlocks = deriveBlocksFromStage("payment", { buyer, cart, merchantPaymentConfig });
         if (payBlocks) {
@@ -747,29 +669,24 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     const { api, cart } = get();
     if (!api) return;
 
-    // Capture old qty for tracking
     const oldItem = cart.items.find((item) => item.sku === sku);
     const oldQty = oldItem?.quantity ?? 0;
 
-    // Optimistic local update
     const updatedItems = cart.items.map((item) =>
       item.sku === sku ? { ...item, quantity } : item
     );
     const newTotal = updatedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
     set({ cart: { ...cart, items: updatedItems, total: newTotal } });
 
-    // Track event
     void trackEvent("item_quantity_updated", {
       sku,
       old_qty: oldQty,
       new_qty: quantity,
     });
 
-    // Server sync via PATCH /storefront/cart/:cartId/items/:variantId
     try {
       await api.updateCartItemQty(sku, quantity);
     } catch {
-      // Revert on failure
       set({ cart });
     }
   },
@@ -777,20 +694,16 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   removeCartItem: async (sku) => {
     const { api, cart } = get();
 
-    // Optimistic local update (always works regardless of API)
     const updatedItems = cart.items.filter((item) => item.sku !== sku);
     const newTotal = updatedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
     set({ cart: { ...cart, items: updatedItems, total: newTotal } });
 
-    // Track event
     void trackEvent("item_removed", { sku });
 
-    // Server sync: set quantity to 0 = remove
     if (api) {
       try {
         await api.updateCartItemQty(sku, 0);
       } catch {
-        // Revert on failure
         set({ cart });
       }
     }
@@ -832,10 +745,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     const { api, buyer, cart } = get();
     if (!api) return;
 
-    // Require shipping before payment. Accept either an explicit cart.shipping
-    // object OR a cart status that proves shipping was already chosen — the
-    // free/own-delivery option can leave cart.shipping unset (backend select
-    // may no-op) while the flow already advanced to shipping_calculated.
     const shippingChosen = Boolean(cart.shipping) ||
       cart.status === "shipping_calculated" || cart.status === "ready_to_pay";
     if (!shippingChosen) {
@@ -850,7 +759,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       return;
     }
 
-    // Crypto: pick the chain FIRST, then create the intent in selectCryptoChain.
     if (method === "crypto") {
       const chainSelectMsg: Message = {
         id: `agent_pay_${Date.now()}`,
@@ -864,8 +772,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }
 
     try {
-      // Sync buyer data to checkout session before payment — Asaas requires
-      // fullName, email, and cpf on the session to create a customer.
       if (buyer.name || buyer.email || buyer.cpf) {
         await api.updateCustomer({
           customer: {
@@ -884,7 +790,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         cart: { ...get().cart, status: "ready_to_pay" },
       });
 
-      // Add payment block as agent message so ChatPanel renders it
       const blockType = method === "pix" ? "pix_payment" : "stripe_card";
       const blockText = method === "pix"
         ? "Pix gerado! Pague e confirmo seu pedido automaticamente."
@@ -909,7 +814,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       };
       set((s) => ({ messages: [...s.messages, paymentMsg] }));
     } catch {
-      // API failed — show error
       const errorMsg: Message = {
         id: `error_${Date.now()}`,
         role: "agent",
@@ -926,7 +830,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     if (!api) return;
 
     try {
-      // Sync buyer data before payment (parity with pay()).
       if (buyer.name || buyer.email || buyer.cpf) {
         await api.updateCustomer({
           customer: {
@@ -985,11 +888,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   pollPayment: () => {
     const { api, paymentIntent } = get();
-    // Guard against polling with a missing/empty intent id (would hit /intents/undefined/status)
     if (!api || !paymentIntent || !paymentIntent.intent_id) return;
     set({ paymentPolling: true });
 
-    // Try WebSocket first; on error, fall back to polling
     wsCleanup = connectPaymentWs({
       apiBaseUrl: api.apiBaseUrl,
       token: api.authToken,
@@ -1009,7 +910,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         set({ status: "error", error: "payment_failed" });
       },
       onError: () => {
-        // WS failed, fall back to polling
         startPolling();
       },
     });
@@ -1028,14 +928,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   },
 
   setActiveDiscount: (stage, percent, couponCode?, message?) => {
-    // Two modes:
-    // - percent > 0: a rules-engine-authorized discount (from
-    //   applyProgressiveDiscount's track-event → approved_percent). Apply it to
-    //   the cart so the summary and payment intent reflect the discounted total.
-    // - percent === 0: a suggestion-only banner (trigger with a coupon code). It
-    //   surfaces the message/coupon WITHOUT touching cart.discount, so no phantom
-    //   discount is applied and the coupon field stays visible. The buyer applies
-    //   the coupon via the field, which validates through the rules-engine.
     set((s) => ({
       activeDiscount: { stage, percent, couponCode, message },
       cart: percent > 0
@@ -1045,7 +937,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   },
 
   dismissDiscount: () => {
-    // Dismissing the banner removes the (not-yet-committed) discount from the cart.
     set((s) => ({ activeDiscount: null, cart: { ...s.cart, discount: 0 } }));
   },
 
@@ -1057,7 +948,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         items: cart.items.map((it) => ({ sku: it.sku, name: it.name, price: it.price, quantity: it.quantity })),
         total: cart.total,
       });
-      // Rules-engine authorized → apply the discount to the cart.
       const discountValue = result.discount_applied ?? 0;
       set((s) => ({
         cart: { ...s.cart, discount: discountValue },
@@ -1070,8 +960,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   },
 
   proceedToPayment: (methods) => {
-    // Advance from the coupon step to payment. If methods weren't carried in the
-    // coupon block, rebuild them from the merchant payment config.
     const s = get();
     let list = methods;
     if (!list?.length) {
@@ -1108,12 +996,10 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     const { progressiveDiscount } = get();
     if (!progressiveDiscount?.enabled) return;
 
-    // Map the widget cart stage to the backend track event that authorizes the
-    // matching progressive discount via the rules-engine.
     const eventMap: Record<string, string> = {
-      awaiting: "coupon_field_clicked",       // → initial_coupon
-      shipping_calculated: "checkout_abandoned", // → abandoned_cart
-      ready_to_pay: "payment_method_selected",   // → payment_nudge
+      awaiting: "coupon_field_clicked",
+      shipping_calculated: "checkout_abandoned",
+      ready_to_pay: "payment_method_selected",
     };
     const stageMap: Record<string, DiscountStage> = {
       awaiting: "initial_coupon",
@@ -1124,9 +1010,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     const stage = stageMap[cartStatus];
     if (!event || !stage) return;
 
-    // Track → rules-engine authorizes → returns approved_percent (persisted to
-    // session.cart.currentDiscount server-side). Apply it to the local cart so
-    // the summary + payment reflect the real, authorized discount.
     const result = await trackEvent(event as never);
     const approved = result?.progressive_offer?.approved_percent ?? 0;
     if (approved <= 0) return;

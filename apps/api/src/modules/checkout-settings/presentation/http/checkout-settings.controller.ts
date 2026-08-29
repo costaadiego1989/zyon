@@ -122,6 +122,8 @@ export class CheckoutSettingsPublicController {
         ? {
             enabled: settings.interventionPolicy.progressiveDiscount.enabled,
             stages: settings.interventionPolicy.progressiveDiscount.stages,
+            mode: (settings.interventionPolicy.progressiveDiscount as any).mode ?? "progressive_only",
+            maxProgressivePercent: (settings.interventionPolicy.progressiveDiscount as any).maxProgressivePercent ?? 0,
           }
         : undefined,
       maxDiscountPercent,
