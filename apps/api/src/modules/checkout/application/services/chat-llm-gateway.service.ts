@@ -58,8 +58,16 @@ export class ChatLlmGatewayService {
       {
         type: "function",
         function: {
+          name: "add_cross_sell_item",
+          description: "Adiciona ao carrinho um produto sugerido no cross-sell (quando o cliente diz 'Adicionar <produto>'). NÃO use search_marketplace para itens sugeridos — use esta ferramenta com o sku do produto.",
+          parameters: { type: "object", properties: { sku: { type: "string", description: "SKU do produto sugerido a adicionar" }, quantity: { type: "number", description: "Quantidade (padrão 1)" } }, required: ["sku"] },
+        },
+      },
+      {
+        type: "function",
+        function: {
           name: "search_marketplace",
-          description: "Busca produto no marketplace de lojas parceiras quando cliente pedir algo específico",
+          description: "Busca produto no marketplace de lojas parceiras quando cliente pedir algo específico que NÃO está entre as sugestões de cross-sell",
           parameters: { type: "object", properties: { query: { type: "string", description: "Nome ou descrição do produto" } }, required: ["query"] },
         },
       },
@@ -126,8 +134,12 @@ export class ChatLlmGatewayService {
       "",
       "IMPORTANTE: Quando uma regra diz 'ofereça X% desconto', CHAME apply_discount. Quando diz 'frete grátis', CHAME apply_free_shipping. Quando diz 'cupom CODIGO', CHAME apply_coupon.",
       "",
+      "CROSS-SELL (itens sugeridos):",
+      "- Quando o cliente disser 'Adicionar <produto> ao carrinho' referindo-se a um item SUGERIDO (a mensagem traz 'SKU: XXX'), CHAME add_cross_sell_item com esse sku. NUNCA use search_marketplace para um item sugerido.",
+      "- add_cross_sell_item adiciona o produto ao carrinho do checkout e atualiza o total.",
+      "",
       "BUSCA DE PRODUTOS:",
-      "- Quando o cliente pedir um produto específico, SEMPRE chame search_marketplace com o nome do produto.",
+      "- Quando o cliente pedir um produto específico que NÃO é uma sugestão de cross-sell, chame search_marketplace com o nome do produto.",
       "- search_marketplace busca no catálogo da loja E em lojas parceiras do marketplace.",
       "- Se encontrar produtos, apresente-os ao cliente com nome, preço e vendedor.",
       "- Se não encontrar nada, informe que o produto não está disponível.",

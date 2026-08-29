@@ -380,6 +380,8 @@ export interface CheckoutItemSnapshot {
 export interface SuggestedProduct {
   suggestion_id?: string;
   sku: string;
+  /** Catalog ProductVariant id — required to add the item to the cart. */
+  variant_id?: string;
   name: string;
   unit_price: number;
   image_url?: string;
@@ -387,6 +389,8 @@ export interface SuggestedProduct {
   category?: string;
   variant?: string;
   description?: string;
+  /** Whether the variant has available stock (drives the Add button state). */
+  in_stock?: boolean;
   display_mode?: CrossSellDisplayMode;
 }
 
@@ -407,6 +411,7 @@ export interface CheckoutExperienceSnapshot {
     cryptoPaymentsEnabled?: boolean;
     cryptoPayments?: MerchantCryptoPayments;
     showBranding?: boolean;
+    voiceEnabled?: boolean;
   };
   policies?: MerchantPolicies;
   items: CheckoutItemSnapshot[];
@@ -1095,7 +1100,7 @@ export interface SupportTicket {
   sessionId?: string;
   buyerMessage: string;
   status: SupportTicketStatus;
-  source: "widget" | "dashboard" | "system";
+  source: "widget" | "dashboard" | "system" | "return_request";
   createdAt: string;
   updatedAt: string;
   resolvedAt?: string;

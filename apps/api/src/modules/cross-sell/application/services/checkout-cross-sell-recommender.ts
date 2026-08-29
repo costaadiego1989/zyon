@@ -54,12 +54,44 @@ export class CheckoutCrossSellRecommender implements CheckoutCrossSellRecommende
     const max = config.limits.maxSuggestionsPerSession;
     const limited = suggestions.slice(0, max);
 
-    return limited.flatMap((suggestion) =>
+    const base = limited.flatMap((suggestion) =>
       suggestion.ranked_items.map((sku) => ({
         ...resolveCrossSellProduct(sku, suggestion.id),
         display_mode: config.display.mode
       }))
     );
+
+    // Enrich each suggestion with real catalog data (variant id, live price,
+    // image, stock) so the widget renders the same card as the storefront and
+    // the Add button can add the exact variant to the cart. Falls back to the
+    // resolver's values when a SKU isn't found in this merchant's catalog.
+    return Promise.all(base.map((p) => this.enrichFromCatalog(input.merchant_id, p)));
+  }
+
+  private async enrichFromCatalog(
+    merchantId: string,
+    product: SuggestedProduct,
+  ): Promise<SuggestedProduct> {
+    try {
+      const variant = await this.prisma.productVariant.findFirst({
+        where: { sku: product.sku, product: { merchantId } },
+        include: { price: true, media: { orderBy: { order: "asc" }, take: 1 }, stock: true, product: true },
+      });
+      if (!variant) return product;
+      const priceCents = variant.price?.basePriceInCents;
+      const stockQty = (variant.stock ?? []).reduce((sum: number, s: { quantity: number }) => sum + s.quantity, 0);
+      return {
+        ...product,
+        variant_id: variant.id,
+        name: variant.product?.name ?? product.name,
+        unit_price: priceCents != null ? priceCents / 100 : product.unit_price,
+        image_url: variant.media?.[0]?.url ?? product.image_url,
+        in_stock: stockQty > 0,
+      };
+    } catch (err) {
+      this.logger.warn(`[cross-sell] enrich failed for sku=${product.sku}`, err);
+      return product;
+    }
   }
 
   private async loadConfig(merchantId: string): Promise<CrossSellConfig> {

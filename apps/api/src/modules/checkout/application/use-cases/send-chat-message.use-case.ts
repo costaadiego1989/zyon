@@ -2,6 +2,9 @@ import { Inject, Injectable, NotFoundException, Optional , Logger} from "@nestjs
 import type {
   ChatMessageRequest,
   ChatMessageResponse,
+  ChatUiBlock,
+  CartItem,
+  CheckoutSession,
   SuggestedProduct
 } from "@zyon/shared-types";
 import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
@@ -23,7 +26,7 @@ import { CheckoutCustomerService } from "../services/checkout-customer.service.j
 import { CheckoutShippingService } from "../services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "../services/checkout-offer.service.js";
 import { CHECKOUT_CROSS_SELL_RECOMMENDER, type CheckoutCrossSellRecommenderPort } from "../../domain/ports/cross-sell-recommender.port.js";
-import { resolveCrossSellProduct } from "../../../cross-sell/application/services/cross-sell-product-resolver.js";
+import { resolveCrossSellProduct, resolveCrossSellCartItem } from "../../../cross-sell/application/services/cross-sell-product-resolver.js";
 import { PRODUCT_SEARCH_PORT, type ProductSearchPort } from "../../domain/ports/product-search.port.js";
 import { TenantBoundaryGuard } from "../../domain/services/tenant-boundary.guard.js";
 import { isSafeGeneratedMessage } from "../../domain/types/safe-generated-message.js";
@@ -280,6 +283,8 @@ export class SendChatMessageUseCase {
           shippingOptions: working.shippingOptions as any,
           paymentMethods,
           address: addressFormatted ? { ...custAddr, formatted: addressFormatted } : undefined,
+          addCrossSellItem: (sku: string, quantity: number) =>
+            this.addCrossSellItemToCart(working, sku, quantity),
         },
       );
     } else if (forceDeterministic) {
@@ -496,6 +501,7 @@ export class SendChatMessageUseCase {
       shippingOptions?: Array<{ key: string; label: string; tag?: string; sub?: string; cost?: number }>;
       paymentMethods?: Array<{ key: string; label: string; sub?: string }>;
       address?: { formatted?: string; [k: string]: unknown };
+      addCrossSellItem?: (sku: string, quantity: number) => Promise<{ ok: boolean; name?: string; cartBlock?: ChatUiBlock }>;
     },
   ): Promise<{ message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[]; blocks?: Array<{ type: string; data?: Record<string, unknown> }> }> {
     if (!this.chatLlmGateway || !this.chatToolExecutor) {
@@ -533,6 +539,7 @@ export class SendChatMessageUseCase {
           shippingOptions: uiContext?.shippingOptions,
           paymentMethods: uiContext?.paymentMethods,
           address: uiContext?.address,
+          addCrossSellItem: uiContext?.addCrossSellItem,
         },
       );
       const textContent = result.content?.trim() || "";
@@ -555,6 +562,80 @@ export class SendChatMessageUseCase {
       ? result.content || "Como posso ajudar com o seu pedido?"
       : "Como posso ajudar com o seu pedido?";
     return { message: safeContent, objection: "unknown" as any };
+  }
+
+  /**
+   * Adds a cross-sell suggestion to the checkout session cart. Resolves the
+   * product from the real catalog (price/name) by SKU, appends/increments the
+   * line, recomputes the gross total, invalidates any prior shipping quote
+   * (cart changed → freight must be re-selected), persists the session, and
+   * returns an updated cart_summary block for the widget.
+   */
+  private async addCrossSellItemToCart(
+    working: CheckoutSession,
+    sku: string,
+    quantity: number,
+  ): Promise<{ ok: boolean; name?: string; cartBlock?: ChatUiBlock }> {
+    const qty = Math.max(1, Math.min(99, Math.floor(quantity) || 1));
+
+    // Resolve from the real catalog first; fall back to the deterministic
+    // resolver so a missing catalog row never blocks the add.
+    let name: string | undefined;
+    let price: number | undefined;
+    let category: string | undefined;
+    let variant: string | undefined;
+    let imageUrl: string | undefined;
+    try {
+      if (this.prisma) {
+        const v = await this.prisma.productVariant.findFirst({
+          where: { sku, product: { merchantId: working.merchantId } },
+          include: { price: true, product: true, media: { orderBy: { order: "asc" }, take: 1 } },
+        });
+        if (v) {
+          name = v.product?.name;
+          price = v.price?.basePriceInCents != null ? v.price.basePriceInCents / 100 : undefined;
+          imageUrl = v.media?.[0]?.url ?? undefined;
+        }
+      }
+    } catch { /* fall back below */ }
+
+    if (price == null || !name) {
+      const resolved = resolveCrossSellCartItem(sku);
+      name = name ?? resolved.name;
+      price = price ?? resolved.price;
+      category = resolved.category;
+      variant = resolved.variant;
+      imageUrl = imageUrl ?? resolved.imageUrl;
+    }
+
+    const items = [...working.cart.items];
+    const existing = items.find((it) => it.sku === sku);
+    if (existing) {
+      existing.quantity = Math.min(99, existing.quantity + qty);
+    } else {
+      items.push({ sku, name: name!, price: price!, quantity: qty, category, variant, imageUrl } as CartItem);
+    }
+    const total = Math.round(items.reduce((s, it) => s + it.price * it.quantity, 0) * 100) / 100;
+
+    working.cart = { ...working.cart, items, total };
+    // Cart changed → prior freight quote is stale; force re-selection.
+    working.shipping = undefined;
+    working.updatedAt = new Date().toISOString();
+    try {
+      await this.sessions.saveSession(working);
+    } catch (err) {
+      this.logger.warn(`[cross-sell] failed to persist cart add for sku=${sku}`, err as Error);
+      return { ok: false };
+    }
+
+    const cartBlock: ChatUiBlock = {
+      type: "cart_summary",
+      data: {
+        items: items.map((it) => ({ name: it.name, qty: it.quantity, price: it.price })),
+        total,
+      },
+    };
+    return { ok: true, name, cartBlock };
   }
 
   private hashSessionId(str: string): number {

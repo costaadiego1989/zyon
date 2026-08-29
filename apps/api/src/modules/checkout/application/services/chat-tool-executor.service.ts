@@ -39,6 +39,9 @@ export class ChatToolExecutorService {
       shippingOptions?: Array<{ key: string; label: string; tag?: string; sub?: string; cost?: number }>;
       paymentMethods?: Array<{ key: string; label: string; sub?: string }>;
       address?: { formatted?: string; [k: string]: unknown };
+      /** Adds a cross-sell suggestion to the checkout cart. Provided by the
+       *  use-case that owns the session; returns the updated state. */
+      addCrossSellItem?: (sku: string, quantity: number) => Promise<{ ok: boolean; name?: string; cartBlock?: ChatBlock }>;
     },
   ): Promise<ToolExecutionResult> {
     const executed: ToolCall[] = [];
@@ -78,6 +81,26 @@ export class ChatToolExecutorService {
 
         case "apply_coupon": {
           results.push(`Verificando cupom ${args.code}...`);
+          break;
+        }
+
+        case "add_cross_sell_item": {
+          const sku = String(args.sku ?? "").trim();
+          const quantity = Number(args.quantity) || 1;
+          if (sku && context.addCrossSellItem) {
+            try {
+              const added = await context.addCrossSellItem(sku, quantity);
+              results.push(added?.ok
+                ? `✅ ${added.name ?? sku} adicionado ao carrinho.`
+                : `Não consegui adicionar esse item agora.`);
+              if (added?.ok && added.cartBlock) blocks.push(added.cartBlock);
+            } catch {
+              results.push("Não consegui adicionar esse item agora.");
+            }
+          } else if (sku) {
+            // No cart port wired — fall back to a neutral message (never marketplace).
+            results.push("Não consegui adicionar esse item agora.");
+          }
           break;
         }
 
