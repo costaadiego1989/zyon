@@ -1,152 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { Socket } from "socket.io-client";
+import { useEffect, useRef } from "react";
 import { useCheckoutStore } from "@/store/checkout-store";
-import { fetchPublicFaq, sendSupportChat } from "@/api/support";
-
-interface SupportMessage {
-  id: string;
-  role: "user" | "agent" | "merchant";
-  text: string;
-  agentName?: string;
-}
-
-interface FaqItem {
-  id?: string;
-  question: string;
-  answer: string;
-  icon?: string;
-}
+import { useSupportViewModel } from "@/viewModels/useSupportViewModel";
 
 interface SupportPanelProps {
   open: boolean;
   onClose: () => void;
 }
 
-const DEFAULT_FAQ_ITEMS: FaqItem[] = [
-  { icon: "🚚", question: "Prazo de entrega", answer: "De 2 a 10 dias úteis, dependendo da região e modalidade de envio escolhida." },
-  { icon: "🔄", question: "Política de trocas", answer: "Aceitamos trocas dentro de 7 dias após o recebimento. Produto em perfeitas condições." },
-  { icon: "💳", question: "Formas de pagamento", answer: "Cartão de crédito, PIX, boleto bancário e crypto USDC." },
-  { icon: "👤", question: "Falar com atendente", answer: "Um atendente humano será acionado em breve." },
-];
-
 export default function SupportPanel({ open, onClose }: SupportPanelProps) {
-  const api = useCheckoutStore((s) => s.api);
   const agentConfig = useCheckoutStore((s) => s.agent);
   const agent = agentConfig.name || "Assistente";
-  const merchantId = api?.currentMerchantId ?? null;
-  const apiBaseUrl = api?.apiBaseUrl ?? "http://localhost:3009";
 
-  const [messages, setMessages] = useState<SupportMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [view, setView] = useState<"welcome" | "chat">("welcome");
+  const vm = useSupportViewModel();
   const threadRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const socketRef = useRef<Socket | null>(null);
-  const [ticketId, setTicketId] = useState<string | null>(null);
-  const [faqItems, setFaqItems] = useState<FaqItem[]>(DEFAULT_FAQ_ITEMS);
-  const sessionIdRef = useRef(`support_${Date.now()}`);
-
-  const SESSION_KEY = "zyon_support_messages";
-  const TICKET_KEY = "zyon_support_ticket";
-
-  useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem(SESSION_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setMessages(parsed);
-          setView("chat");
-        }
-      }
-      const savedTicket = sessionStorage.getItem(TICKET_KEY);
-      if (savedTicket) {
-        setTicketId(savedTicket);
-        setView("chat");
-      }
-    } catch { /* non-critical */ }
-  }, []);
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(messages)); } catch { /* non-critical */ }
-    }
-  }, [messages]);
-
-  useEffect(() => {
-    try {
-      if (ticketId) sessionStorage.setItem(TICKET_KEY, ticketId);
-    } catch { /* non-critical */ }
-  }, [ticketId]);
-
-  useEffect(() => {
-    if (!merchantId || !open) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const items = await fetchPublicFaq(apiBaseUrl, merchantId);
-        if (!cancelled && items.length > 0) {
-          const hasHandoff = items.some(i => /atendente|humano/i.test(i.question));
-          const withHandoff: FaqItem[] = [
-            ...items.map((it) => ({ ...it, icon: it.icon || "❓" })),
-            ...(!hasHandoff ? [{ icon: "👤", question: "Falar com atendente", answer: "Um atendente humano será acionado em breve." }] : []),
-          ];
-          setFaqItems(withHandoff);
-        }
-      } catch { /* keep defaults */ }
-    })();
-    return () => { cancelled = true; };
-  }, [merchantId, open, apiBaseUrl]);
-
-  useEffect(() => {
-    if (!ticketId) return;
-    let socket: Socket | null = null;
-    void (async () => {
-      const { io } = await import("socket.io-client");
-      socket = io(`${apiBaseUrl}/support`, { transports: ["websocket", "polling"] });
-      socketRef.current = socket;
-
-      socket.on("connect", () => {
-        socket!.emit("join_ticket", { ticketId });
-      });
-
-      socket.on("new_message", (msg: { senderType: string; content: string; senderName?: string }) => {
-        if (msg.senderType === "merchant") {
-          setMessages((prev) => [...prev, {
-            id: `m-${Date.now()}`,
-            role: "merchant",
-            text: msg.content,
-            agentName: msg.senderName,
-          }]);
-        }
-      });
-
-      socket.on("agent_joined", (data: { agentName: string }) => {
-        setMessages((prev) => [...prev, {
-          id: `sys-${Date.now()}`,
-          role: "agent",
-          text: `${data.agentName} entrou no chat.`,
-        }]);
-      });
-
-      socket.on("ticket_closed", () => {
-        setMessages([]);
-        setView("welcome");
-        setTicketId(null);
-        setIsLoading(false);
-        try {
-          sessionStorage.removeItem(SESSION_KEY);
-          sessionStorage.removeItem(TICKET_KEY);
-        } catch { /* non-critical */ }
-      });
-    })();
-
-    return () => {
-      socket?.disconnect();
-      socketRef.current = null;
-    };
-  }, [ticketId, apiBaseUrl]);
 
   useEffect(() => {
     if (threadRef.current) {
@@ -154,103 +21,30 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
         if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight;
       });
     }
-  }, [messages]);
+  }, [vm.messages]);
 
   useEffect(() => {
     if (!open) {
-      setInput("");
+      vm.setInput("");
     }
   }, [open]);
 
   useEffect(() => {
-    if (open && view === "chat" && inputRef.current) {
+    if (open && vm.view === "chat" && inputRef.current) {
       requestAnimationFrame(() => inputRef.current?.focus());
     }
-  }, [open, view]);
-
-  const getFallbackResponse = (label: string): string => {
-    const match = faqItems.find((item) => item.question === label);
-    if (match) return match.answer;
-    return "Entendi sua dúvida. Deixe-me verificar...";
-  };
-
-  const sendMessage = useCallback(async (text: string, isFaqClick = false) => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-
-    const userMsg: SupportMessage = {
-      id: `u-${Date.now()}`,
-      role: "user",
-      text: trimmed,
-    };
-    setMessages((prev) => [...prev, userMsg]);
-    setInput("");
-    setView("chat");
-    setIsLoading(true);
-
-    try {
-      const isHandoffRequest = /atendente|humano|suporte/i.test(trimmed);
-      if (isFaqClick && !isHandoffRequest) {
-        const fallbackText = getFallbackResponse(trimmed);
-        setTimeout(() => {
-          setMessages((prev) => [...prev, {
-            id: `a-${Date.now()}`,
-            role: "agent",
-            text: fallbackText,
-          }]);
-          setIsLoading(false);
-        }, 500);
-        return;
-      }
-
-      if (merchantId) {
-        try {
-          const data = await sendSupportChat(apiBaseUrl, {
-            merchantId,
-            message: trimmed,
-            sessionId: sessionIdRef.current,
-          });
-
-          if (data) {
-            if (data.ticketId) {
-              setTicketId(data.ticketId);
-            }
-            setMessages((prev) => [...prev, {
-              id: `a-${Date.now()}`,
-              role: "agent",
-              text: data.reply || "Mensagem recebida.",
-            }]);
-            setIsLoading(false);
-            return;
-          }
-        } catch { /* fallback below */ }
-      }
-
-      const fallbackText = `Entendi, "${trimmed}". Um atendente será designado em breve.`;
-      setMessages((prev) => [...prev, {
-        id: `a-${Date.now()}`,
-        role: "agent",
-        text: fallbackText,
-      }]);
-    } catch {
-      setMessages((prev) => [...prev, {
-        id: `a-${Date.now()}`,
-        role: "agent",
-        text: "Desculpe, houve um erro. Tente novamente.",
-      }]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [merchantId, faqItems, apiBaseUrl]);
+  }, [open, vm.view]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    void sendMessage(input, false);
+    void vm.sendMessage(vm.input, false);
   };
 
   const handleFaqClick = (label: string) => {
-    void sendMessage(label, true);
+    void vm.sendMessage(label, true);
   };
+
+  const isLoading = vm.loading;
 
   return (
     <>
@@ -262,7 +56,6 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
         }
       `}</style>
 
-      {/* Backdrop */}
       {open && (
         <div
           onClick={onClose}
@@ -276,7 +69,6 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
         />
       )}
 
-      {/* Panel Container */}
       <div
         id="support-panel"
         style={{
@@ -298,7 +90,6 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
           transition: "bottom 0.3s cubic-bezier(0.25, 1, 0.5, 1)",
         }}
       >
-        {/* Header */}
         <div
           style={{
             display: "flex",
@@ -338,7 +129,6 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
             </div>
           </div>
 
-          {/* Close button */}
           <button
             type="button"
             onClick={onClose}
@@ -364,7 +154,6 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
           </button>
         </div>
 
-        {/* Thread / Body */}
         <div
           ref={threadRef}
           style={{
@@ -377,8 +166,7 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
             minHeight: 0,
           }}
         >
-          {view === "welcome" && messages.length === 0 ? (
-            /* Welcome state with FAQ */
+          {vm.view === "welcome" && vm.messages.length === 0 ? (
             <div
               style={{
                 display: "flex",
@@ -400,9 +188,8 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
                 </div>
               </div>
 
-              {/* FAQ buttons */}
               <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
-                {faqItems.map((item) => (
+                {vm.faqItems.map((item) => (
                   <button
                     key={item.question}
                     onClick={() => handleFaqClick(item.question)}
@@ -450,9 +237,8 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
               </div>
             </div>
           ) : (
-            /* Chat thread */
             <>
-              {messages.map((msg) => (
+              {vm.messages.map((msg) => (
                 <div
                   key={msg.id}
                   style={{
@@ -544,7 +330,6 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
           )}
         </div>
 
-        {/* Composer */}
         <div
           style={{
             padding: "10px 14px",
@@ -556,8 +341,8 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
             <input
               ref={inputRef}
               type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
+              value={vm.input}
+              onChange={(e) => vm.setInput(e.target.value)}
               placeholder={isLoading ? "Aguarde..." : "Digite sua mensagem…"}
               disabled={isLoading}
               style={{
@@ -577,7 +362,7 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
             />
             <button
               type="submit"
-              disabled={!input.trim() || isLoading}
+              disabled={!vm.input.trim() || isLoading}
               style={{
                 width: "32px",
                 height: "32px",
@@ -585,12 +370,12 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
                 border: "none",
                 background: "var(--aacp-accent, #0f766e)",
                 color: "#fff",
-                cursor: !input.trim() || isLoading ? "not-allowed" : "pointer",
+                cursor: !vm.input.trim() || isLoading ? "not-allowed" : "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 flex: "none",
-                opacity: !input.trim() || isLoading ? 0.5 : 1,
+                opacity: !vm.input.trim() || isLoading ? 0.5 : 1,
                 transition: "opacity 0.15s ease",
               }}
               aria-label="Enviar mensagem"

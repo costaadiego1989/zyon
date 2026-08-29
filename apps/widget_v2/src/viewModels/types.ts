@@ -48,7 +48,7 @@ export interface SupportViewModelInterface {
 
   loadFaq: () => Promise<void>;
   setInput: (text: string) => void;
-  sendMessage: (text: string) => Promise<void>;
+  sendMessage: (text: string, isFaqClick?: boolean) => Promise<void>;
   switchToChat: () => void;
   switchToWelcome: () => void;
 
