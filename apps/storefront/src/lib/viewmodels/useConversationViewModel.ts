@@ -5,7 +5,7 @@ import { useWidgetConfig } from "@/lib/widget-config";
 import { useCart } from "@/lib/cart-store";
 import { checkoutApi, cartApi } from "@/lib/api/api-client";
 import { initTriggerDetection } from "@/lib/triggers";
-import { getInterventionCount, incrementIntervention, canFireTrigger, recordTriggerFired } from "@/lib/intervention-tracker";
+import { canFireTrigger, recordTriggerFired, noteActivity } from "@/lib/intervention-tracker";
 import { TRIGGER_MESSAGES } from "@/lib/trigger-messages";
 import { useCheckoutExperiment } from "@/lib/useCheckoutExperiment";
 import { getValidBuyer } from "@/lib/buyer-auth";
@@ -316,6 +316,10 @@ export function useConversationViewModel(
     const trimmed = text.trim();
     if (!trimmed) return;
 
+    // The buyer engaging (sending a message) renews the agent's nudge budget:
+    // an active buyer is a fresh opportunity, so saturation caps reset.
+    if (merchantId) noteActivity(merchantId);
+
     const userMsg: Message = { id: `u-${Date.now()}`, role: "user", text: trimmed };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
@@ -508,15 +512,14 @@ export function useConversationViewModel(
         const mode = agentModeRef.current;
         if (mode === "manual_only") return;
 
-        // Frequency limits fall back to sane defaults when checkout widgetConfig
-        // is absent (the storefront must not depend on checkout being configured).
-        // The storefront browsing session is long-lived, so allow more nudges than
-        // the checkout's tight default before going quiet.
+        // Throttling is per-trigger: a cooldown window (rate-limit, re-fires after
+        // it passes) + a generous saturation cap (resets on buyer activity). This
+        // is the whole gate now — no global "N per session then silent forever"
+        // counter, which was permanently muting the agent. Cooldown falls back to
+        // the checkout config when present, else a sane default.
         const cfg = widgetConfigRef.current;
-        const maxInterventions = cfg?.maxInterventionsPerSession ?? 6;
         const cooldownMs = (cfg?.cooldownSeconds ?? 120) * 1000;
 
-        if (getInterventionCount(merchantId || "") >= maxInterventions) return;
         if (!canFireTrigger(merchantId || "", triggerEvent, cooldownMs)) return;
 
         // Custom copy from checkout-settings overrides the built-in fallback when present.
@@ -524,7 +527,6 @@ export function useConversationViewModel(
         const nudgeText = customTrigger?.message || TRIGGER_MESSAGES[triggerEvent];
         if (!nudgeText) return;
 
-        incrementIntervention(merchantId || "");
         recordTriggerFired(merchantId || "", triggerEvent);
 
         const couponSuffix = customTrigger?.couponCode
