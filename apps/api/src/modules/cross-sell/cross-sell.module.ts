@@ -9,6 +9,7 @@ import { CreateCrossSellPromotionUseCase } from "./application/use-cases/create-
 import { UpdateCrossSellPromotionUseCase } from "./application/use-cases/update-cross-sell-promotion.use-case.js";
 import { ArchiveCrossSellPromotionUseCase } from "./application/use-cases/archive-cross-sell-promotion.use-case.js";
 import { CrossSellCoOccurrenceService } from "./domain/services/co-occurrence.service.js";
+import { CatalogStrategyRecommender } from "./domain/services/catalog-strategy-recommender.js";
 import { ListEligibleCrossSellsUseCase } from "./application/use-cases/list-eligible-cross-sells.use-case.js";
 import { ListCrossSellPromotionsUseCase } from "./application/use-cases/list-cross-sell-promotions.use-case.js";
 import { AcceptCrossSellSuggestionUseCase } from "./application/use-cases/accept-cross-sell-suggestion.use-case.js";
@@ -49,6 +50,7 @@ import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purc
     DeclineCrossSellSuggestionUseCase,
     CheckoutCrossSellRecommender,
     CrossSellCoOccurrenceService,
+    CatalogStrategyRecommender,
     BillingPlanMeteringService,
     PlanLimitGuard,
     {
