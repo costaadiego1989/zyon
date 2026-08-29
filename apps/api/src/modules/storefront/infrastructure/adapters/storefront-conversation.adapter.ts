@@ -1,6 +1,6 @@
 import { Injectable, Inject, Logger, Optional } from "@nestjs/common";
 import { StorefrontLangGraphAgent } from "../agents/store-langgraph-agent.js";
-import type { StorefrontConversationPort, StorefrontConversationInput, StorefrontConversationOutput } from "../../domain/ports/conversation.port.js";
+import type { StorefrontConversationPort, StorefrontConversationInput, StorefrontConversationOutput, NudgeCopyInput } from "../../domain/ports/conversation.port.js";
 import type { ConversationBlock } from "../../domain/types/conversation-block.js";
 import type { StoreToolHandlers } from "../../domain/tools/store-tools.js";
 import { OpenRouterProvider } from "@zyon/conversation-engine";
@@ -794,6 +794,29 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     } catch {
       return fallback;
     }
+  }
+
+  async generateNudge(input: NudgeCopyInput): Promise<string> {
+    const style = input.experimentSystemPrompt || (input.agentTone ? `Tom de comunicação: ${input.agentTone}. Seja persuasiva e vendedora.` : undefined);
+    if (!style) return input.fallback;
+
+    const offersBlock = input.availableOffers.length > 0
+      ? `Benefícios REAIS que você PODE mencionar (use no máximo um, o mais relevante): ${input.availableOffers.join("; ")}.`
+      : "NÃO há nenhum desconto, cupom, frete grátis ou oferta disponível. NÃO prometa nem invente nenhum benefício, desconto ou frete. Apenas ofereça ajuda para escolher o produto.";
+
+    const moment = input.trigger === "exit_intent_detected" ? "está saindo da loja" : "está parado na loja há um tempo, indeciso";
+    const situation = input.stage === "cart"
+      ? `O comprador tem itens no carrinho e ${moment}. Foque em fechar a compra agora.`
+      : `O comprador ${moment} e ainda não tem itens no carrinho. Foque em ajudá-lo a escolher e avançar.`;
+
+    const instruction = [
+      situation,
+      offersBlock,
+      "Escreva UMA frase curta (máx 18 palavras) que o leve a agir agora, falando em primeira pessoa direto ao comprador.",
+      "Regra absoluta: só cite um benefício se ele estiver listado acima; nunca invente desconto, cupom ou frete. Só a frase, sem aspas, sem perguntar 'como posso ajudar'.",
+    ].join(" ");
+
+    return this.generateVariantCopy(style, instruction, input.fallback);
   }
 
   async reply(input: StorefrontConversationInput): Promise<StorefrontConversationOutput> {

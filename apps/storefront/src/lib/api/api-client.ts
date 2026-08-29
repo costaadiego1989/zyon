@@ -115,6 +115,13 @@ export const checkoutApi = {
     });
   },
 
+  async generateNudge(merchantId: string, trigger: "idle_30_seconds" | "exit_intent_detected", stage: "cart" | "browsing", fallback: string): Promise<{ message: string }> {
+    return safeFetch(`${API_BASE}/storefront/nudge`, {
+      method: "POST",
+      body: JSON.stringify({ merchant_id: merchantId, trigger, stage, fallback }),
+    });
+  },
+
   async sendMessage(checkoutId: string, text: string, options?: {
     token?: string;
     merchantId?: string;

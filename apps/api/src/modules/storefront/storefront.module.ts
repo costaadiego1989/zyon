@@ -12,6 +12,7 @@ import { MarketplaceModule } from "../marketplace/marketplace.module.js";
 import { SearchFederatedProductsUseCase } from "../marketplace/application/use-cases/search-federated-products.use-case.js";
 import { StartStoreConversationUseCase } from "./application/use-cases/start-store-conversation.use-case.js";
 import { SendStoreMessageUseCase } from "./application/use-cases/send-store-message.use-case.js";
+import { GenerateNudgeUseCase } from "./application/use-cases/generate-nudge.use-case.js";
 import { GetConversationHistoryUseCase } from "./application/use-cases/get-conversation-history.use-case.js";
 import { GetStoreConfigUseCase } from "./application/use-cases/get-store-config.use-case.js";
 import { GetStorefrontFunnelUseCase } from "./application/use-cases/get-storefront-funnel.use-case.js";
@@ -79,6 +80,7 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
     AIGatewayService,
     StartStoreConversationUseCase,
     SendStoreMessageUseCase,
+    GenerateNudgeUseCase,
     GetConversationHistoryUseCase,
     GetStoreConfigUseCase,
     GetStorefrontFunnelUseCase,

@@ -38,8 +38,21 @@ export interface StorefrontConversationOutput {
   suggestedNext?: string[];
 }
 
+export type NudgeTrigger = "idle_30_seconds" | "exit_intent_detected";
+
+export interface NudgeCopyInput {
+  merchantId: string;
+  trigger: NudgeTrigger;
+  stage?: "cart" | "browsing";
+  experimentSystemPrompt?: string;
+  agentTone?: string;
+  availableOffers: string[];
+  fallback: string;
+}
+
 export const STOREFRONT_CONVERSATION_PORT = Symbol("StorefrontConversationPort");
 
 export interface StorefrontConversationPort {
   reply(input: StorefrontConversationInput): Promise<StorefrontConversationOutput>;
+  generateNudge(input: NudgeCopyInput): Promise<string>;
 }

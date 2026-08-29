@@ -252,6 +252,7 @@ export function useConversationViewModel(
         widgetConfig: widgetConfigRef.current,
         setMode,
         setMessages,
+        setIsLoading,
         canFireTrigger,
         recordTriggerFired,
       });

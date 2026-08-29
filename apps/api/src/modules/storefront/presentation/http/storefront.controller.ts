@@ -4,6 +4,7 @@ import { NonProductionRoute } from "../../../../shared/http/non-production-route
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { StartStoreConversationUseCase } from "../../application/use-cases/start-store-conversation.use-case.js";
 import { SendStoreMessageUseCase } from "../../application/use-cases/send-store-message.use-case.js";
+import { GenerateNudgeUseCase } from "../../application/use-cases/generate-nudge.use-case.js";
 import { GetConversationHistoryUseCase } from "../../application/use-cases/get-conversation-history.use-case.js";
 import { GetStoreConfigUseCase } from "../../application/use-cases/get-store-config.use-case.js";
 import { GetStorefrontFunnelUseCase } from "../../application/use-cases/get-storefront-funnel.use-case.js";
@@ -32,6 +33,7 @@ export class StorefrontController {
   constructor(
     private readonly startStoreConversation: StartStoreConversationUseCase,
     private readonly sendStoreMessage: SendStoreMessageUseCase,
+    private readonly generateNudge: GenerateNudgeUseCase,
     private readonly getConversationHistory: GetConversationHistoryUseCase,
     private readonly getStoreConfig: GetStoreConfigUseCase,
     private readonly getStorefrontFunnel: GetStorefrontFunnelUseCase,
@@ -181,6 +183,16 @@ export class StorefrontController {
       user_message: body.user_message,
       cart_id: body.cart_id,
       history: body.history
+    });
+  }
+
+  @Post("nudge")
+  async nudge(@Body() body: { merchant_id: string; trigger: "idle_30_seconds" | "exit_intent_detected"; stage?: "cart" | "browsing"; fallback: string }) {
+    return this.generateNudge.execute({
+      merchant_id: body.merchant_id,
+      trigger: body.trigger,
+      stage: body.stage,
+      fallback: body.fallback,
     });
   }
 
@@ -357,6 +369,20 @@ export class StorefrontController {
       discount: cart.discount ? cart.discount / 100 : 0,
       total: cart.total / 100,
     };
+  }
+
+  /**
+   * Clears the storefront cart on the backend. Called when an order completes so
+   * a page refresh cannot restore a paid/stale cart — the session truly resets.
+   */
+  @Post("cart/:cartId/clear")
+  async clearCart(
+    @Param("cartId") cartId: string,
+    @Query("merchantId") merchantId: string
+  ) {
+    if (!merchantId) throw new NotFoundException("merchantId query param required");
+    const cart = await this.cartRepo.clear(merchantId, cartId);
+    return { cartId: cart.sessionId, items: [], itemCount: 0, discount: 0, total: 0 };
   }
 
   @Get("marketplace/search")
