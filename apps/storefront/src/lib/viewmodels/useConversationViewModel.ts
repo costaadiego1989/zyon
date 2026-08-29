@@ -259,11 +259,13 @@ export function useConversationViewModel(
     try { localStorage.setItem("pulse-channel-pref", ch); } catch { /* */ }
     initConversation();
 
-    // Use experiment greeting if pre-fetched, otherwise static
+    // Greeting priority: active A/B-test message (experiment) → merchant's own
+    // configured greeting → a strong persuasive fallback. The A/B greeting wins
+    // so the running experiment's copy style is honored; the fallback only shows
+    // when neither an experiment nor a merchant greeting exists.
     const expGreeting = experimentVM.getExperimentGreeting();
-    const greeting = expGreeting?.message
-      || agentGreeting
-      || `Oi! Sou ${agent}, assistente da ${storeName}. Me diz o que procura — posso buscar produtos, aplicar cupons, calcular frete e fechar pedido tudo aqui. 🛍️`;
+    const persuasiveFallback = `Oi! Sou ${agent}, sua vendedora pessoal aqui na ${storeName}. 💚 Me conta o que você procura — eu encontro o produto ideal, garanto o melhor preço com cupons, calculo o frete e fecho seu pedido em segundos, tudo por aqui. Bora começar?`;
+    const greeting = expGreeting?.message || agentGreeting || persuasiveFallback;
 
     const replies = expGreeting?.suggestedNext ?? quickReplies ?? ["Ver Produtos", "Encontrar Produto", "Categorias", "Prazo de Entrega", "Trocas e Devoluções", "Rastrear Pedido", "Meus Dados", "Ofertas"];
 
@@ -473,6 +475,16 @@ export function useConversationViewModel(
     trackConversationStart(storeName, experimentVM.getTrackingVariantId());
   }, [storeName, experimentVM.experiment]);
 
+  // Trigger detection (idle / exit-intent) must be armed ONCE and never re-armed
+  // by changing config/session, otherwise the 30s idle timer keeps resetting and
+  // never completes. Read the volatile values (agentMode, widgetConfig,
+  // conversationId) through refs so the effect can depend only on merchantId.
+  const agentModeRef = useRef(agentMode);
+  agentModeRef.current = agentMode;
+  const widgetConfigRef = useRef(widgetConfig);
+  widgetConfigRef.current = widgetConfig;
+  const conversationIdRef = useRef(conversationId);
+  conversationIdRef.current = conversationId;
   useEffect(() => {
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
     const cleanup = initTriggerDetection(
@@ -482,24 +494,29 @@ export function useConversationViewModel(
         idleThresholdMs: 30000,
         apiBaseUrl: API_BASE,
         merchantId,
-        sessionId: conversationId || undefined,
+        // Read at fire-time so a late-arriving conversationId is still reported.
+        get sessionId() { return conversationIdRef.current || undefined; },
       },
       (triggerEvent) => {
         // Activation mode gates whether a signal (idle/exit-intent) may wake the
-        // agent. manual_only never reacts; proactive already auto-opened; only
-        // silent_until_trigger opens the chat in response to a buyer signal.
-        if (agentMode === "manual_only") return;
-        if (agentMode === "proactive") return;
-        if (!widgetConfig) return;
-        if (!widgetConfig.enabledTriggers?.includes(triggerEvent)) return;
+        // agent — source of truth on the storefront is agent-rules, NOT the
+        // checkout widget-config. manual_only never reacts; proactive already
+        // auto-opened; only silent_until_trigger opens on a buyer signal.
+        const mode = agentModeRef.current;
+        if (mode === "manual_only") return;
+        if (mode === "proactive") return;
 
-        const maxInterventions = widgetConfig.maxInterventionsPerSession ?? 3;
-        const cooldownMs = (widgetConfig.cooldownSeconds ?? 120) * 1000;
+        // Frequency limits fall back to sane defaults when checkout widgetConfig
+        // is absent (the storefront must not depend on checkout being configured).
+        const cfg = widgetConfigRef.current;
+        const maxInterventions = cfg?.maxInterventionsPerSession ?? 3;
+        const cooldownMs = (cfg?.cooldownSeconds ?? 120) * 1000;
 
         if (getInterventionCount(merchantId || "") >= maxInterventions) return;
         if (!canFireTrigger(merchantId || "", triggerEvent, cooldownMs)) return;
 
-        const customTrigger = widgetConfig.triggerMessages?.[triggerEvent];
+        // Custom copy from checkout-settings overrides the built-in fallback when present.
+        const customTrigger = cfg?.triggerMessages?.[triggerEvent];
         const nudgeText = customTrigger?.message || TRIGGER_MESSAGES[triggerEvent];
         if (!nudgeText) return;
 
@@ -517,7 +534,7 @@ export function useConversationViewModel(
       },
     );
     return cleanup;
-  }, [merchantId, conversationId, widgetConfig, agentMode]);
+  }, [merchantId]);
 
   // Proactive activation: after a delay, auto-open the chat (intro → chat) and
   // surface the greeting. `agentMode` (from agent-rules, projected via store config)
@@ -526,14 +543,20 @@ export function useConversationViewModel(
   // timer on every render — otherwise the timeout never completes.
   const selectChannelRef = useRef(selectChannel);
   selectChannelRef.current = selectChannel;
+  const initConversationRef = useRef(initConversation);
+  initConversationRef.current = initConversation;
   const proactiveFiredRef = useRef(false);
   useEffect(() => {
     if (agentMode !== "proactive") return;
     if (proactiveFiredRef.current) return;
+    // Pre-start the conversation immediately so the active A/B-test greeting is
+    // fetched and cached before the timer fires — otherwise the proactive open
+    // races the experiment fetch and falls back to the static greeting.
+    initConversationRef.current();
     const delaySec = agentInitialDelaySeconds ?? 5;
     const timer = setTimeout(() => {
       proactiveFiredRef.current = true;
-      // selectChannel opens the chat AND emits the configured greeting + quick replies.
+      // selectChannel opens the chat AND emits the experiment/merchant greeting.
       selectChannelRef.current("chat");
     }, delaySec * 1000);
     return () => clearTimeout(timer);
