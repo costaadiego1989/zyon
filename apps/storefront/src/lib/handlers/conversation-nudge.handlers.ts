@@ -1,4 +1,4 @@
-import { Message } from "@/lib/viewmodels/useConversationViewModel";
+import type { Message } from "@/lib/viewmodels/useConversationViewModel/types";
 import { checkoutApi } from "@/lib/api/api-client";
 import { TRIGGER_MESSAGES } from "@/lib/trigger-messages";
 

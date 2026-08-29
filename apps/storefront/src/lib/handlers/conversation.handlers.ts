@@ -1,4 +1,4 @@
-import { Message, CrossSellInterstitialData } from "@/lib/viewmodels/useConversationViewModel";
+import type { Message, CrossSellInterstitialData } from "@/lib/viewmodels/useConversationViewModel/types";
 import { narrateStorefrontBlock, trackFunnelEvent } from "@/lib/services/conversation.service";
 import { checkoutApi, cartApi } from "@/lib/api/api-client";
 import { getValidBuyer } from "@/lib/buyer-auth";

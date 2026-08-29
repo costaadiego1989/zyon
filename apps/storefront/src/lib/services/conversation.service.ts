@@ -1,4 +1,4 @@
-import { Message, Mode, Channel } from "@/lib/viewmodels/useConversationViewModel";
+import type { Message, Mode, Channel } from "@/lib/viewmodels/useConversationViewModel/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 export const CONVERSATION_MAX_AGE_MS = 6 * 60 * 60 * 1000;
