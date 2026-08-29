@@ -82,20 +82,24 @@ export function initTriggerDetection(
       // top edge and to no in-page element (relatedTarget null = left the window).
       // This is more reliable across browsers than document "mouseleave", which
       // does not consistently fire when the pointer exits the viewport.
+      // Threshold generous enough to catch real human movement: when the pointer
+      // darts out through the top, the last reported clientY is often tens of px
+      // from the edge, not <5. Exit-intent libs use ~ this range.
+      const TOP_THRESHOLD = 50;
       const handleMouseOut = (e: MouseEvent) => {
         if (exitFired) return;
         const to = e.relatedTarget as Node | null;
         if (to) return; // moved to another element, not out of the window
-        if (e.clientY <= 5) fire();
+        if (e.clientY <= TOP_THRESHOLD) fire();
       };
       document.addEventListener("mouseout", handleMouseOut);
       cleanups.push(() => document.removeEventListener("mouseout", handleMouseOut));
 
-      // Fallback: mouseleave on documentElement (covers browsers that fire this
-      // instead of mouseout when the pointer crosses the top boundary).
+      // Fallback: mouseleave on documentElement (some browsers fire this instead of
+      // mouseout when the pointer crosses the top boundary).
       const handleLeave = (e: MouseEvent) => {
         if (exitFired) return;
-        if (e.clientY <= 5) fire();
+        if (e.clientY <= TOP_THRESHOLD) fire();
       };
       document.documentElement.addEventListener("mouseleave", handleLeave);
       cleanups.push(() => document.documentElement.removeEventListener("mouseleave", handleLeave));
