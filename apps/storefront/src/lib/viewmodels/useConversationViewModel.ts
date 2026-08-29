@@ -489,6 +489,10 @@ export function useConversationViewModel(
   widgetConfigRef.current = widgetConfig;
   const conversationIdRef = useRef(conversationId);
   conversationIdRef.current = conversationId;
+  // Expose the experiment VM to the trigger callback (which only depends on
+  // [merchantId]) so nudges can be generated in the active A/B variant's voice.
+  const experimentVMRef = useRef(experimentVM);
+  experimentVMRef.current = experimentVM;
   useEffect(() => {
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
     const cleanup = initTriggerDetection(
@@ -524,8 +528,8 @@ export function useConversationViewModel(
 
         // Custom copy from checkout-settings overrides the built-in fallback when present.
         const customTrigger = cfg?.triggerMessages?.[triggerEvent];
-        const nudgeText = customTrigger?.message || TRIGGER_MESSAGES[triggerEvent];
-        if (!nudgeText) return;
+        const staticNudge = customTrigger?.message || TRIGGER_MESSAGES[triggerEvent];
+        if (!staticNudge) return;
 
         recordTriggerFired(merchantId || "", triggerEvent);
 
@@ -533,10 +537,46 @@ export function useConversationViewModel(
           ? ` 🎁 Use o cupom **${customTrigger.couponCode}** para um desconto especial!`
           : "";
 
-        // Open the chat (intro → chat) if still on the hero, then append the nudge
-        // so the buyer actually sees the agent reaching out.
+        // Open the chat (intro → chat) so the buyer sees the agent reaching out.
         setMode("chat");
-        setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "agent", text: nudgeText + couponSuffix }]);
+
+        const nudgeId = crypto.randomUUID();
+        // Show the deterministic nudge immediately (no latency, always safe).
+        setMessages((prev) => [...prev, { id: nudgeId, role: "agent", text: staticNudge + couponSuffix }]);
+
+        // If an A/B experiment is active, regenerate the nudge in that variant's
+        // voice via the LLM (which applies the variant systemPrompt server-side)
+        // and replace the static one in place — so BOTH the greeting and the nudge
+        // speak in the active test's communication style. On any failure the static
+        // nudge already shown stays as the safe fallback.
+        const expVM = experimentVMRef.current;
+        const variantId = expVM.getTrackingVariantId();
+        const convId = conversationIdRef.current;
+        if (variantId && convId && merchantId) {
+          const intent =
+            triggerEvent === "exit_intent_detected"
+              ? "O comprador está prestes a sair da loja. Gere UMA mensagem curta e persuasiva, no seu tom, para reengajá-lo e oferecer ajuda."
+              : "O comprador está inativo há um tempo. Gere UMA mensagem curta e acolhedora, no seu tom, oferecendo ajuda para encontrar o que procura.";
+          // Send with an empty history so this internal instruction doesn't pollute
+          // the visible conversation; the backend applies the variant systemPrompt.
+          void checkoutApi
+            .sendMessage(convId, intent, {
+              merchantId,
+              cartId: cart.cartId || undefined,
+              history: [],
+              variantId,
+            })
+            .then((data: any) => {
+              const styled = typeof data?.message === "string" ? data.message.trim() : "";
+              if (!styled) return;
+              // Never downgrade the good static nudge to an LLM error/fallback reply.
+              // Only replace when the model produced a real, safe styled message.
+              const looksLikeError = /tive um problema|não consegui|erro ao|tente novamente/i.test(styled);
+              if (looksLikeError) return;
+              setMessages((prev) => prev.map((m) => (m.id === nudgeId ? { ...m, text: styled + couponSuffix } : m)));
+            })
+            .catch(() => { /* keep the static nudge */ });
+        }
       },
     );
     return cleanup;
