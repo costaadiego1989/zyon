@@ -82,25 +82,16 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     });
   }
 
-  /**
-   * When an A/B experiment prompt is active, generate the short intro copy with
-   * the variant's tone instead of a hardcoded string. Keeps deterministic blocks
-   * fast while still letting the experiment influence the agent's communication.
-   * Falls back to the provided default text on any failure or when no experiment.
-   */
   async generateNudge(input: NudgeCopyInput): Promise<string> {
     return this.copyService.generateNudge(input);
   }
-
   async reply(input: StorefrontConversationInput): Promise<StorefrontConversationOutput> {
     const ctx: ToolRequestContext = {
       merchantId: input.merchantId,
       sessionId: input.cartId || input.sessionId,
       buyer: input.buyerContext,
     };
-
     this.emitFunnelEvent(input.merchantId, input.sessionId, "checkout_started").catch(() => {});
-
     const shortcut = await resolveDeterministicShortcut(
       {
         productRepo: this.productRepo,
@@ -110,7 +101,6 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       input,
     );
     if (shortcut) return shortcut;
-
     const result = await this.agent.run({
       sessionId: input.sessionId,
       merchantId: input.merchantId,
@@ -127,11 +117,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       systemPrompt: input.experimentSystemPrompt,
       toolHandlers: composeStoreToolHandlers(this.handlerDeps, ctx),
     });
-
-    // Emit funnel events based on tools used (non-blocking)
     this.emitToolFunnelEvents(input.merchantId, input.sessionId, result.toolsUsed).catch(() => {});
-
-    // Resolve cart state for context-aware quick replies
     let cartState: StorefrontCartState | undefined;
     if (input.cartId) {
       try {
@@ -146,13 +132,8 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
           itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0),
           couponCode: cart.couponCode ?? null
         };
-      } catch {
-        // Non-critical: proceed without cart state
-      }
+      } catch {}
     }
-
-    // Determine the most relevant tool for stage detection:
-    // Priority tools override generic search_products when both are called in same turn
     const PRIORITY_TOOLS = new Set([
       "compare_products", "get_product_details", "add_item_to_cart", "get_reviews",
       "create_review", "get_product_questions", "create_question", "get_similar_products",
@@ -162,8 +143,6 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     ]);
     const priorityTool = [...result.toolsUsed].reverse().find((t: string) => PRIORITY_TOOLS.has(t));
     const lastTool = priorityTool ?? result.toolsUsed[result.toolsUsed.length - 1] ?? null;
-
-    // Convert shipping options if quote_shipping was used
     let shippingOptions: StorefrontShippingOption[] | undefined;
     if (lastTool === "quote_shipping" && (result as any).shippingOptions) {
       shippingOptions = (result as any).shippingOptions.map((opt: any) => ({
@@ -173,20 +152,12 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         days: opt.days
       }));
     }
-
-    // Load merchant's quick replies config from storeSettings if available
     let quickRepliesConfig: StoreQuickRepliesConfig | null = null;
     if (input.storeSettings?.quick_replies) {
       try {
         quickRepliesConfig = input.storeSettings.quick_replies as StoreQuickRepliesConfig;
-      } catch {
-        // Non-critical: use defaults if config is malformed
-      }
+      } catch {}
     }
-
-    // If LLM returned blocks but empty message, generate contextual intro copy.
-    // This ensures the A/B communication strategy is applied even when the LLM
-    // focused on tool execution and skipped producing companion text.
     let finalMessage = result.message;
     if ((!finalMessage || finalMessage.trim().length === 0) && result.blocks && result.blocks.length > 0) {
       const blockTypes = result.blocks.map((b: any) => b.type).join(", ");
@@ -197,7 +168,6 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         this.defaultBlockIntro(result.toolsUsed),
       );
     }
-
     return {
       message: finalMessage,
       blocks: result.blocks,
@@ -205,10 +175,6 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       suggestedNext: storefrontQuickReplies(lastTool, quickRepliesConfig, cartState, shippingOptions, input.userMessage)
     };
   }
-
-  /**
-   * Contextual hint for the copy generator based on rendered blocks.
-   */
   private blockContextHint(blocks: any[], toolsUsed: string[]): string {
     if (toolsUsed.includes("search_products")) return "uma lista de produtos";
     if (toolsUsed.includes("get_product_details")) return "os detalhes de um produto";
@@ -221,10 +187,6 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     if (blocks.some((b: any) => b.type === "product_card")) return "um produto em destaque";
     return "informações relevantes";
   }
-
-  /**
-   * Default intro text when no experiment variant is active (zero LLM latency).
-   */
   private defaultBlockIntro(toolsUsed: string[]): string {
     if (toolsUsed.includes("search_products")) return "Encontrei algumas opções pra você:";
     if (toolsUsed.includes("get_product_details")) return "Aqui estão os detalhes:";
@@ -235,11 +197,6 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     if (toolsUsed.includes("get_similar_products")) return "Produtos similares que podem te interessar:";
     return "Aqui está o que encontrei:";
   }
-
-  /**
-   * Ensure a CheckoutSession exists for this storefront conversation.
-   * Required because CheckoutEvent has a FK to CheckoutSession.
-   */
   private async ensureCheckoutSession(merchantId: string, sessionId: string): Promise<void> {
     const existing = await this.prisma.checkoutSession.findUnique({
       where: { merchantId_sessionId: { merchantId, sessionId } },
@@ -261,18 +218,12 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         }
       });
     } else {
-      // Touch updatedAt so session appears as "active" in funnel dashboard
       await this.prisma.checkoutSession.update({
         where: { merchantId_sessionId: { merchantId, sessionId } },
         data: { updatedAt: new Date() }
       });
     }
   }
-
-  /**
-   * Emit a funnel event for this storefront session.
-   * Best-effort: never throws — conversation must not fail due to analytics.
-   */
   private async emitFunnelEvent(merchantId: string, sessionId: string, eventName: string): Promise<void> {
     try {
       await this.ensureCheckoutSession(merchantId, sessionId);
@@ -284,14 +235,8 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
           data: { merchantId, sessionId, eventName, occurredAt: new Date() }
         });
       }
-    } catch {
-      // Non-blocking: funnel tracking must never break the conversation
-    }
+    } catch {}
   }
-
-  /**
-   * Emit funnel events based on tools used during agent execution.
-   */
   private async emitToolFunnelEvents(merchantId: string, sessionId: string, toolsUsed: string[]): Promise<void> {
     if (toolsUsed.includes("search_products") || toolsUsed.includes("get_product_details")) {
       await this.emitFunnelEvent(merchantId, sessionId, "product_viewed");
@@ -309,11 +254,6 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       await this.emitFunnelEvent(merchantId, sessionId, "payment_method_selected");
     }
   }
-
-  /**
-   * Generate smart quick-reply suggestions based on last tool actions.
-   * @deprecated Use storefrontQuickReplies() instead — now delegated to domain service.
-   */
   private buildSuggestedActions(toolsUsed: string[], cartId?: string): string[] {
     const lastTool = toolsUsed[toolsUsed.length - 1];
     switch (lastTool) {
@@ -340,7 +280,6 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
           : ["O que vocês vendem?", "Tem promoção?", "Buscar produto"];
     }
   }
-
   private async loadCrossSellConfig(merchantId: string): Promise<{ enabled: boolean; touchpoints: { browsing: boolean; pre_cart: boolean; pre_payment: boolean; post_purchase: boolean }; discount: { enabled: boolean; mode: string; percent: number; couponCode?: string }; limits: { maxSuggestionsPerSession: number; cooldownSeconds: number }; strategies: string[] }> {
     try {
       const merchant = await this.prisma.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true } });
