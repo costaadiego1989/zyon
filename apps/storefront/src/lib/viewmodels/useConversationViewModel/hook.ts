@@ -190,8 +190,9 @@ export function useConversationViewModel(
 
   useEffect(() => {
     if (!merchantId) return;
-    if (messages.length === 0) return;
-    saveConversationState(merchantId, CONVERSATION_STATE_KEY, { conversationId, messages, mode, channel });
+    const persisted = messages.filter((m) => !m.ephemeral);
+    if (persisted.length === 0) return;
+    saveConversationState(merchantId, CONVERSATION_STATE_KEY, { conversationId, messages: persisted, mode, channel });
   }, [merchantId, conversationId, messages, mode, channel]);
 
   const restoredRef = useRef(false);
@@ -239,20 +240,15 @@ export function useConversationViewModel(
       handleFireNudge({
         triggerEvent,
         merchantId: merchantId || null,
-        conversationId: conversationIdRef.current,
         agentMode: agentModeRef.current,
         widgetConfig: widgetConfigRef.current,
-        experiment: experimentVMRef.current.experiment,
-        cartId: cart.cartId,
         setMode,
         setMessages,
-        setIsLoading,
         canFireTrigger,
         recordTriggerFired,
-        getTrackingVariantId: () => experimentVMRef.current.getTrackingVariantId(),
       });
     },
-    [merchantId, cart.cartId],
+    [merchantId],
   );
 
   useNudgeTriggers(merchantId, conversationIdRef, fireNudge);

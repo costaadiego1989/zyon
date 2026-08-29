@@ -191,38 +191,26 @@ export interface InitConversationParams {
 export async function initConversation(params: InitConversationParams) {
   const { merchantId, conversationId, cartId, setConversationId, captureFromConversationStart, setExperimentGreeting } = params;
 
-  console.log("[init] initConversation called", { merchantId, conversationId });
   if (!merchantId || conversationId) return;
   try {
     const data = await checkoutApi.create({ merchantId });
-    console.log("[init] create response", { conversation_id: data?.conversation_id, hasExperiment: !!data?.experiment });
-    if (data?.conversation_id) {
-      setConversationId(data.conversation_id);
-      try {
-        sessionStorage.setItem("zyon_conversation_id", data.conversation_id);
-      } catch {}
-      captureFromConversationStart({
-        conversation_id: data.conversation_id,
-        experiment: data.experiment || null,
-      });
-      if (merchantId) {
-        trackFunnelEvent(merchantId, data.conversation_id, "conversation_started");
-      }
-      if (data.experiment?.system_prompt) {
-        checkoutApi
-          .sendMessage(data.conversation_id, "olá", {
-            merchantId,
-            cartId: cartId || undefined,
-            history: [],
-          })
-          .then((greetingData) => {
-            if (greetingData?.message) {
-              setExperimentGreeting(greetingData.message, greetingData.suggested_next);
-            }
-          })
-          .catch(() => {});
-      }
-    }
+    if (!data?.conversation_id) return;
+
+    const convId = data.conversation_id;
+    setConversationId(convId);
+    try {
+      sessionStorage.setItem("zyon_conversation_id", convId);
+    } catch {}
+    captureFromConversationStart({ conversation_id: convId, experiment: data.experiment || null });
+    trackFunnelEvent(merchantId, convId, "conversation_started");
+
+    if (!data.experiment?.system_prompt) return;
+    checkoutApi
+      .sendMessage(convId, "olá", { merchantId, cartId: cartId || undefined, history: [] })
+      .then((greetingData) => {
+        if (greetingData?.message) setExperimentGreeting(greetingData.message, greetingData.suggested_next);
+      })
+      .catch(() => {});
   } catch {}
 }
 

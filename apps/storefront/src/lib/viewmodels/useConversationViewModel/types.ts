@@ -3,6 +3,7 @@ export type Message = {
   role: "user" | "agent";
   text?: string;
   blocks?: any[];
+  ephemeral?: boolean;
 };
 
 export type Channel = "chat" | "voice";
