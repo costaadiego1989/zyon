@@ -61,6 +61,7 @@ export interface StorefrontAgentInput {
   agentIdentity?: { agentName?: string; persona?: string; tone?: string; greeting?: string; language?: string };
   merchantPolicy?: { maxDiscountPercent?: number; allowFreeShipping?: boolean; allowShippingDiscount?: boolean; freeShippingMinCartValue?: number; maxPartialShippingDiscount?: number; offerExpirationMinutes?: number };
   advancedRules?: string[];
+  buyerContext?: { globalUserId: string; name?: string; phone?: string; email?: string };
   callbacks?: StorefrontAgentCallbacks;
 }
 
@@ -157,9 +158,13 @@ export class StorefrontLangGraphAgent {
 
     // System prompt: experiment variant EXTENDS default (not replaces) to keep advancedRules + merchantPolicy
     const defaultSystem = this.buildDefaultSystem(input.merchantName, input.storeCategory, input.storeSettings, input.agentIdentity, input.merchantPolicy, input.advancedRules);
-    const systemContent = input.systemPrompt
+    const baseSystemContent = input.systemPrompt
       ? `${input.systemPrompt}\n\n${defaultSystem}`
       : this.baseSystemPrompt || defaultSystem;
+    const buyerIdentityNote = input.buyerContext?.name && input.buyerContext?.phone
+      ? `\n\nCLIENTE AUTENTICADO: ${input.buyerContext.name} (telefone ${input.buyerContext.phone}). Para create_review, use estes dados automaticamente como authorName e authorPhone — NÃO peça nome nem telefone ao cliente. Vá direto para nota e comentário.`
+      : "";
+    const systemContent = baseSystemContent + buyerIdentityNote;
     // Limit history to last 10 messages to prevent context overflow that makes LLM skip tool calls
     const recentHistory = input.history.slice(-10);
     const rawMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
@@ -483,9 +488,7 @@ export class StorefrontLangGraphAgent {
             }),
           }
         });
-        // Never leave the detail component mute: if the LLM produced no text,
-        // seed a short neutral line. The A/B variant system_prompt shapes tone
-        // when the LLM does generate — this only guards the empty case.
+
         if (!finalContent || finalContent.trim().length === 0) {
           finalContent = "Aqui estão os detalhes completos:";
         }
@@ -596,8 +599,6 @@ export class StorefrontLangGraphAgent {
         });
       }
     }
-    // Skip category carousel when search_products was called in the same turn
-    // (list_categories was used to get categoryId, then search filtered by it — don't show categories again)
     const skipCategoryCarousel = !!toolResults["search_products"];
     if (toolResults["list_categories"] && !skipCategoryCarousel) {
       const catData = toolResults["list_categories"] as any;
@@ -690,7 +691,6 @@ export class StorefrontLangGraphAgent {
       }
     }
 
-    // Filter blocks: exclusive views remove carousel noise
     const hasProductCard = blocks.some(b => b.type === "product_card");
     const hasShippingOptions = blocks.some(b => b.type === "shipping_options");
     const hasComparison = blocks.some(b => b.type === "product_comparison");
@@ -699,7 +699,6 @@ export class StorefrontLangGraphAgent {
       ? blocks.filter(b => b.type !== "product_carousel")
       : blocks;
 
-    // ─── Safety validation ────────────────────────────────────────────────
     const messageToValidate = finalContent || FALLBACK_MESSAGE;
 
     const safetyContext: StorefrontMessageContext = {
@@ -711,7 +710,6 @@ export class StorefrontLangGraphAgent {
 
     const validation = validateStorefrontMessage(messageToValidate, safetyContext);
 
-    // Emit token callback.
     if (validation.message && input.callbacks?.onToken) {
       input.callbacks.onToken(validation.message);
     }
@@ -835,7 +833,7 @@ export class StorefrontLangGraphAgent {
       "- 'Comparar' → use compare_products. A UI mostra tabela comparativa.",
       "- 'Lista de Desejos' → use add_to_wishlist ou get_wishlist conforme contexto.",
       "- 'Produtos Semelhantes' → use get_similar_products. A UI mostra cross-sell block.",
-      "- 'Escrever Avaliação' → Para criar avaliação, o cliente PRECISA informar nome e telefone. Peça o nome primeiro e depois o telefone no formato (11) 99999-9999. Se a mensagem contém [nome:X|tel:Y], extraia os dados e use create_review com authorName=X e authorPhone=Y. Se NÃO contém esses dados, peça nome e telefone antes de prosseguir.",
+      "- 'Escrever Avaliação' → Se houver CLIENTE AUTENTICADO no contexto, use create_review direto com o nome e telefone dele — NÃO peça identificação, só pergunte a nota (1-5) e o comentário. Caso contrário (cliente anônimo): peça nome e depois telefone no formato (11) 99999-9999. Se a mensagem contém [nome:X|tel:Y], extraia e use create_review com authorName=X e authorPhone=Y.",
       "- 'Fazer Pergunta' → use create_question. Peça a pergunta ao cliente.",
       "- 'FAQ' → use get_faq. Responda com as perguntas frequentes.",
       "- 'Falar com Humano' → use escalate_to_human. Confirme o encaminhamento.",

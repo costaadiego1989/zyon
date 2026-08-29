@@ -145,6 +145,26 @@ export class SendStoreMessageUseCase {
       this.logger.warn(`[experiment] Failed to load: ${err instanceof Error ? err.message : String(err)}`);
     }
 
+    let buyerContext: { globalUserId: string; name?: string; phone?: string; email?: string } | undefined;
+    if (input.global_user_id) {
+      try {
+        const account = await this.prisma.buyerAccount.findUnique({
+          where: { globalUserId: input.global_user_id },
+          select: { globalUserId: true, displayName: true, phone: true, email: true },
+        });
+        if (account) {
+          buyerContext = {
+            globalUserId: account.globalUserId,
+            name: account.displayName || undefined,
+            phone: account.phone || undefined,
+            email: account.email || undefined,
+          };
+        }
+      } catch {
+        /* buyer identity is best-effort — never block the reply */
+      }
+    }
+
     const result = await this.conversation.reply({
       userMessage: input.user_message,
       cartId: input.cart_id,
@@ -158,6 +178,7 @@ export class SendStoreMessageUseCase {
       merchantPolicy,
       advancedRules,
       experimentSystemPrompt,
+      buyerContext,
     });
 
     // Persist conversation history (non-blocking, best-effort)

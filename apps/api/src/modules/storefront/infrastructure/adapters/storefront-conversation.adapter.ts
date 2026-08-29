@@ -24,6 +24,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
   private readonly copyProvider: OpenRouterProvider;
   private currentMerchantId = "";
   private currentSessionId = "";
+  private currentBuyer: { globalUserId: string; name?: string; phone?: string; email?: string } | undefined;
 
   constructor(
     @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo: MerchantRepository,
@@ -538,13 +539,15 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       },
 
       createReview: async (args: any) => {
-        if (!args.authorName || !args.authorPhone) {
+        const authorName = args.authorName || this.currentBuyer?.name;
+        const authorPhone = args.authorPhone || this.currentBuyer?.phone;
+        if (!authorName || !authorPhone) {
           return {
             error: "Para criar uma avaliação, preciso do seu nome e telefone. Pode informar?",
             requiresIdentification: true,
           };
         }
-        const phoneDigits = (args.authorPhone as string).replace(/\D/g, "");
+        const phoneDigits = (authorPhone as string).replace(/\D/g, "");
         if (phoneDigits.length < 10 || phoneDigits.length > 11) {
           return {
             error: "Telefone inválido. Informe um número com DDD (10 ou 11 dígitos).",
@@ -554,7 +557,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         return {
           id: `rev_${Date.now()}`,
           productId: args.productId,
-          author: args.authorName,
+          author: authorName,
           phone: phoneDigits,
           rating: args.rating,
           text: args.text,
@@ -822,6 +825,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
   async reply(input: StorefrontConversationInput): Promise<StorefrontConversationOutput> {
     this.currentMerchantId = input.merchantId;
     this.currentSessionId = input.cartId || input.sessionId;
+    this.currentBuyer = input.buyerContext;
 
     // Emit checkout_started on every session (idempotent — only first call creates the event)
     this.emitFunnelEvent(input.merchantId, input.sessionId, "checkout_started").catch(() => {});
@@ -963,6 +967,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       agentIdentity: input.agentIdentity,
       merchantPolicy: input.merchantPolicy,
       advancedRules: input.advancedRules,
+      buyerContext: input.buyerContext,
       systemPrompt: input.experimentSystemPrompt,
     });
 

@@ -363,6 +363,8 @@ export class WidgetConfigDto {
   progressiveDiscount?: {
     enabled: boolean;
     stages: Record<string, number>;
+    mode?: string;
+    maxProgressivePercent?: number;
   };
 
   @ApiPropertyOptional({ description: "Merchant hard cap on total discount percent (from merchant rules). The coupon field hides once accumulated discount reaches this cap." })

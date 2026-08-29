@@ -60,6 +60,7 @@ export async function handleSendMessage(params: SendMessageParams) {
         cartId: cartId || undefined,
         history: newHistory,
         variantId: variantId || undefined,
+        token: getValidBuyer()?.token,
       });
 
       if (data) {

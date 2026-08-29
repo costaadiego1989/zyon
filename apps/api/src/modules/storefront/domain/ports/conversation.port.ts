@@ -15,6 +15,13 @@ export interface MerchantPolicy {
   offerExpirationMinutes?: number;
 }
 
+export interface BuyerContext {
+  globalUserId: string;
+  name?: string;
+  phone?: string;
+  email?: string;
+}
+
 export interface StorefrontConversationInput {
   userMessage: string;
   cartId?: string;
@@ -29,6 +36,8 @@ export interface StorefrontConversationInput {
   advancedRules?: string[];
   /** Experiment variant system prompt — overrides default when A/B test is running */
   experimentSystemPrompt?: string;
+  /** Identity of the logged-in buyer, when authenticated. Lets tools like create_review skip asking for name/phone. */
+  buyerContext?: BuyerContext;
 }
 
 export interface StorefrontConversationOutput {

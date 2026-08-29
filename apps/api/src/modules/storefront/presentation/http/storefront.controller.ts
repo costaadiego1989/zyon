@@ -1,4 +1,5 @@
-import { BadRequestException, Body, Controller, Get, Inject, NotFoundException, Param, Patch, Post, Query, Res } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Headers, Inject, NotFoundException, Param, Patch, Post, Query, Res } from "@nestjs/common";
+import { BuyerJwtService } from "../../../buyer-account/domain/services/buyer-jwt.service.js";
 import type { PrismaClient } from "@prisma/client";
 import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
@@ -171,14 +172,25 @@ export class StorefrontController {
   @Post("conversations/:conversationId/messages")
   async sendMessage(
     @Param("conversationId") conversationId: string,
-    @Body() body: SendMessageRequest & { merchant_id: string }
+    @Body() body: SendMessageRequest & { merchant_id: string },
+    @Headers("authorization") authorization?: string
   ) {
+    let globalUserId: string | undefined;
+    const token = authorization?.startsWith("Bearer ") ? authorization.slice(7).trim() : undefined;
+    if (token) {
+      try {
+        globalUserId = new BuyerJwtService().verify(token).globalUserId;
+      } catch {
+        /* invalid/expired buyer token — treat as anonymous */
+      }
+    }
     return this.sendStoreMessage.execute({
       merchant_id: body.merchant_id,
       conversation_id: conversationId,
       user_message: body.user_message,
       cart_id: body.cart_id,
-      history: body.history
+      history: body.history,
+      global_user_id: globalUserId,
     });
   }
 
