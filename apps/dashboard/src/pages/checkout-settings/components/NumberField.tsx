@@ -29,9 +29,15 @@ export function NumberField({
           type="number"
           min={min}
           max={max}
-          value={value}
+          value={Number.isFinite(value) ? value : ""}
           disabled={disabled}
-          onChange={(e) => onChange(Number(e.target.value))}
+          onChange={(e) => {
+            const raw = e.target.value;
+            // Empty input → fall back to the min (or 0) instead of propagating NaN,
+            // which would render the field blank and break the derived help text.
+            const parsed = raw === "" ? (min ?? 0) : Number(raw);
+            onChange(Number.isFinite(parsed) ? parsed : (min ?? 0));
+          }}
         />
         {suffix ? <span className="cfg-number-suffix">{suffix}</span> : null}
       </div>

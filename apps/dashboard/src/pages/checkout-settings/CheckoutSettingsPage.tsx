@@ -259,7 +259,7 @@ export function CheckoutSettingsPage(props: {
               <div className="cfg-grid-2">
                 <NumberField
                   label="Espera entre ações"
-                  help={`Agente espera ${(vm.draft!.cooldownSeconds / 60).toFixed(1)} min antes de agir de novo.`}
+                  help={`Agente espera ${((Number.isFinite(vm.draft!.cooldownSeconds) ? vm.draft!.cooldownSeconds : 90) / 60).toFixed(1)} min antes de agir de novo.`}
                   value={vm.draft!.cooldownSeconds}
                   min={30}
                   disabled={vm.busy}
