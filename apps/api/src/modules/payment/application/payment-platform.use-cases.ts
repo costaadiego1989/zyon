@@ -38,7 +38,7 @@ import type {
   BillingSubscriptionWithPlanSnapshot,
   PaymentConnectionSnapshot,
 } from "../domain/payment-platform.types.js";
-import { BILLING_PLANS, effectiveBillingPlan } from "../domain/billing-plans.js";
+import { BILLING_PLANS, BUYER_SERVICE_FEE_CENTS, effectiveBillingPlan } from "../domain/billing-plans.js";
 import { BillingPlanMeteringService } from "../domain/billing-plan-guard.js";
 
 @Injectable()
@@ -381,9 +381,8 @@ export class GetBillingSubscriptionUseCase {
       plan,
       planName: config.name,
       monthlyPriceBrl: config.monthlyPriceBrl,
-      transactionFeePercent: subscription.status === "trialing"
-        ? BILLING_PLANS.starter.transactionFeePercent
-        : config.transactionFeePercent,
+      transactionFeeCents: config.transactionFeeCents,
+      buyerServiceFeeCents: BUYER_SERVICE_FEE_CENTS,
       limits: config.limits,
       features: config.features,
       usage,

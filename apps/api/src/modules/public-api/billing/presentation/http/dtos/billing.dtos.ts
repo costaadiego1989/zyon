@@ -23,8 +23,11 @@ export class PlanResponse {
   @ApiProperty({ example: 199.9 })
   monthly_price_brl!: number;
 
-  @ApiProperty({ example: 2.5 })
-  transaction_fee_percent!: number;
+  @ApiProperty({ example: 149, description: 'Fee do merchant por transação em centavos (sai do repasse)' })
+  transaction_fee_cents!: number;
+
+  @ApiProperty({ example: 99, description: 'Taxa de serviço do buyer em centavos (somada ao total do pedido)' })
+  buyer_service_fee_cents!: number;
 
   @ApiProperty({ example: { orders_per_month: 5000, sessions_per_month: 50000 } })
   limits!: Record<string, number | null>;
@@ -58,8 +61,11 @@ export class SubscriptionResponse {
   @ApiProperty({ example: 199.9 })
   monthly_price_brl!: number;
 
-  @ApiProperty({ example: 2.5 })
-  transaction_fee_percent!: number;
+  @ApiProperty({ example: 149, description: 'Fee do merchant por transação em centavos' })
+  transaction_fee_cents!: number;
+
+  @ApiProperty({ example: 99, description: 'Taxa de serviço do buyer em centavos' })
+  buyer_service_fee_cents!: number;
 
   @ApiProperty({ example: '2024-01-15T10:30:00Z' })
   created_at!: string;

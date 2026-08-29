@@ -31,7 +31,7 @@ export type BillingUsageSnapshot = {
 };
 
 export type PlanLimitRequirement =
-  | { kind: "limit"; key: BillingPlanLimitKey; increment?: number }
+  | { kind: "limit"; key: BillingPlanLimitKey; increment?: number; soft?: boolean }
   | { kind: "feature"; key: BillingPlanFeatureKey };
 
 export const PLAN_LIMIT_REQUIREMENT = Symbol("PLAN_LIMIT_REQUIREMENT");
@@ -39,8 +39,9 @@ export const PLAN_LIMIT_REQUIREMENT = Symbol("PLAN_LIMIT_REQUIREMENT");
 export function RequirePlanLimit(
   key: BillingPlanLimitKey,
   increment = 1,
+  opts?: { soft?: boolean },
 ): ReturnType<typeof SetMetadata> {
-  return SetMetadata(PLAN_LIMIT_REQUIREMENT, { kind: "limit", key, increment } satisfies PlanLimitRequirement);
+  return SetMetadata(PLAN_LIMIT_REQUIREMENT, { kind: "limit", key, increment, soft: opts?.soft } satisfies PlanLimitRequirement);
 }
 
 export function RequirePlanFeature(
@@ -152,6 +153,15 @@ export class BillingPlanMeteringService {
     const current = usage[requirement.key];
     const next = current + (requirement.increment ?? 1);
     if (next > limit) {
+      // Soft-limit: aviso, não bloqueia. Starter pode continuar vendendo além do limite.
+      if (requirement.soft) {
+        console.warn(
+          `Plan limit soft-exceeded: merchant=${merchantId}, plan=${plan}, ` +
+          `limit=${requirement.key}, current=${current}, attempted=${next}, limit=${limit}`
+        );
+        return;
+      }
+      // Hard-limit: bloqueia (default para features não-Starter).
       throw new ForbiddenException({
         code: "plan_limit_exceeded",
         feature: requirement.key,

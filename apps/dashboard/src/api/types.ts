@@ -145,7 +145,10 @@ export type BillingSubscription = {
   plan: "starter" | "growth" | "scale" | string;
   plan_name?: string;
   monthly_price_brl?: number;
-  transaction_fee_percent?: number;
+  /** Fee do merchant por transação, fixo em centavos (sai do repasse). */
+  transaction_fee_cents?: number;
+  /** Taxa de serviço do buyer, fixo em centavos (somada ao total do pedido). */
+  buyer_service_fee_cents?: number;
   limits?: Record<string, number | null>;
   features?: Record<string, boolean>;
   status: string;

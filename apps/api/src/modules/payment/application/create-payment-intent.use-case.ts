@@ -20,7 +20,7 @@ import type { CreateProviderPaymentOutput, PaymentProviderPort } from "../domain
 import { PAYMENT_PROVIDER_PORT } from "../domain/ports/payment-provider.port.js";
 import type { CheckoutSession, CurrencyCode } from "@zyon/shared-types";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../buyer-account/domain/ports/buyer-account-repository.port.js";
-import { isStripeConfigured, readPlatformFeeCents } from "../infrastructure/stripe-env.js";
+import { isStripeConfigured, readBuyerServiceFeeCents } from "../infrastructure/stripe-env.js";
 import { createCheckoutEventEnvelope } from "../../checkout/domain/events/checkout-domain-event.js";
 import { CHECKOUT_PAYMENT_PORT, type CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
 import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
@@ -30,6 +30,8 @@ import {
   PAYMENT_PLATFORM_REPOSITORY,
   type PaymentPlatformRepository,
 } from "../domain/ports/payment-platform-repository.port.js";
+import { BillingPlanMeteringService } from "../domain/billing-plan-guard.js";
+import { assertProviderFeeCap, BILLING_PLANS } from "../domain/billing-plans.js";
 
 export type CreatePaymentIntentRequest = {
   merchant_id: string;
@@ -144,6 +146,7 @@ export class CreatePaymentIntentUseCase {
     private readonly offers?: OfferRepository,
     @Optional() @Inject(BUYER_ACCOUNT_REPOSITORY)
     private readonly buyerAccount?: BuyerAccountRepository,
+    @Optional() private readonly billingMetering?: BillingPlanMeteringService,
   ) { }
 
   async execute(body: CreatePaymentIntentRequest): Promise<CreatePaymentIntentResponseBody> {
@@ -186,7 +189,20 @@ export class CreatePaymentIntentUseCase {
     const isStripeCard = method === "card" && stripeCardActive;
     const usesAsaas = method !== "crypto" && !isStripeCard;
     let stripeConnectAccountId: string | undefined;
-    let platformFeeCents = 0;
+
+    // Modelo iFood — DOIS fees:
+    // 1) Buyer service fee (R$0,99 fixo, todos métodos): somado ao amount que o
+    //    comprador paga. Receita da plataforma.
+    // 2) Merchant transaction fee (fixo por plano): sai do repasse (payment-hold),
+    //    NÃO soma ao amount. Só é retido no split do Stripe (application_fee).
+    const buyerServiceFeeCents = readBuyerServiceFeeCents();
+    const merchantFeeCents = this.billingMetering
+      ? BILLING_PLANS[await this.billingMetering.getEffectivePlan(merchantId)].transactionFeeCents
+      : 0;
+
+    // application_fee (Stripe Connect): a Zyon retém buyer fee + merchant fee do
+    // split; o merchant recebe orderAmount − merchantFee. Cap ao valor cobrado.
+    let stripeApplicationFeeCents = 0;
 
     if (isStripeCard) {
       stripeConnectAccountId = await this.merchants.getStripeConnectAccountId(merchantId);
@@ -196,10 +212,15 @@ export class CreatePaymentIntentUseCase {
       if (!stripeConnectAccountId) {
         throw new BadRequestException("stripe_connect_not_configured");
       }
-      platformFeeCents = readPlatformFeeCents();
+      stripeApplicationFeeCents = buyerServiceFeeCents + merchantFeeCents;
     }
 
-    const amountCents = orderAmountCents + platformFeeCents;
+    // Buyer paga o total do pedido + a taxa de serviço, em qualquer método.
+    const amountCents = orderAmountCents + buyerServiceFeeCents;
+    // Guard: application_fee nunca pode exceder o total cobrado (Stripe recusa).
+    if (isStripeCard) {
+      stripeApplicationFeeCents = assertProviderFeeCap(stripeApplicationFeeCents, amountCents);
+    }
     let asaasCustomer = resolveAsaasCustomerIdFromSession(session);
 
     if (usesAsaas && !asaasCustomer) {
@@ -292,7 +313,7 @@ export class CreatePaymentIntentUseCase {
         method,
         description: paymentDescription(merchantId, sessionId, commerceOrderId),
         ...(isStripeCard
-          ? { stripeConnectAccountId, platformFeeCents }
+          ? { stripeConnectAccountId, platformFeeCents: stripeApplicationFeeCents }
           : usesAsaas
             ? {
               asaasCustomerId: resolveAsaasCustomerForProvider(asaasCustomer),

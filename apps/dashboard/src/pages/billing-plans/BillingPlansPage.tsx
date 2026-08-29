@@ -10,7 +10,7 @@ const PLANS: PlanDef[] = [
     key: "starter",
     name: "Starter",
     price: 0,
-    fee: "2,49%",
+    fee: "R$ 1,99",
     limits: { orders: 100, sessions: 100, ai: 100, connections: 1 },
     features: [],
   },
@@ -18,7 +18,7 @@ const PLANS: PlanDef[] = [
     key: "growth",
     name: "Growth",
     price: 249,
-    fee: "1,99%",
+    fee: "R$ 1,49",
     limits: { orders: 500, sessions: 1000, ai: 5000, connections: 2 },
     features: ["Voice checkout", "Face biometry", "Crypto payments"],
     recommended: true,
@@ -27,7 +27,7 @@ const PLANS: PlanDef[] = [
     key: "scale",
     name: "Scale",
     price: 599,
-    fee: "1,49%",
+    fee: "R$ 0,99",
     limits: { orders: -1, sessions: -1, ai: -1, connections: -1 },
     features: [
       "Voice checkout",
@@ -131,12 +131,55 @@ export function BillingPlansPage() {
         </p>
       </header>
 
+      {/* Overage warning: Starter/Growth excedeu limite de pedidos */}
+      {vm.usagePercentages.orders >= 100 && (
+        <div style={{
+          padding: "14px 16px",
+          borderRadius: 10,
+          background: "color-mix(in oklab, #F59E0B 10%, transparent)",
+          border: "1px solid color-mix(in oklab, #F59E0B 30%, transparent)",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          marginBottom: 8,
+        }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <div style={{ font: "500 12.5px var(--font-sans)", color: "var(--color-text)" }}>
+            Você ultrapassou o limite de pedidos do plano. Suas vendas continuam normalmente — considere fazer upgrade para um plano com mais capacidade.
+          </div>
+        </div>
+      )}
+
+      {/* Whitelabel notice: Starter mostra badge */}
+      {vm.currentPlan === "starter" && (
+        <div style={{
+          padding: "14px 16px",
+          borderRadius: 10,
+          background: "color-mix(in oklab, var(--color-brand) 6%, transparent)",
+          border: "1px solid color-mix(in oklab, var(--color-brand) 20%, transparent)",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          marginBottom: 8,
+        }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-brand)" strokeWidth="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
+          </svg>
+          <div style={{ font: "500 12.5px var(--font-sans)", color: "var(--color-text)" }}>
+            Plano Free — o badge <b>"Powered by Zyon"</b> é exibido no checkout. Módulos avançados (Voice, Crypto, A/B Tests, Marketplace) não estão disponíveis. Faça upgrade para desbloquear.
+          </div>
+        </div>
+      )}
+
       {/* Current plan + Usage */}
       <div className="billing-plans__top-grid">
         <CurrentPlanCard
           planName={sub.plan_name ?? currentPlanDef?.name ?? sub.plan}
           monthlyPrice={sub.monthly_price_brl ?? currentPlanDef?.price ?? 0}
-          transactionFee={sub.transaction_fee_percent ?? 0}
+          transactionFeeCents={sub.transaction_fee_cents ?? 0}
           nextBillingDate={sub.current_period_end}
           daysRemaining={vm.daysRemaining}
           status={sub.status}

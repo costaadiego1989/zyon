@@ -205,7 +205,7 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
             <dt style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>Plano</dt>
             <dd style={{ margin: 0, font: "600 13px var(--font-mono)", color: "var(--color-text)" }}>{subscription.plan_name ?? subscription.plan}</dd>
             <dt style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>Fee Zyon</dt>
-            <dd style={{ margin: 0, font: "600 13px var(--font-mono)", color: "var(--color-text)" }}>{subscription.transaction_fee_percent?.toLocaleString("pt-BR") ?? "—"}% por transação</dd>
+            <dd style={{ margin: 0, font: "600 13px var(--font-mono)", color: "var(--color-text)" }}>R$ {subscription.transaction_fee_cents ? ((subscription.transaction_fee_cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })) : "—"}/venda</dd>
             <dt style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>Status</dt>
             <dd style={{ margin: 0 }}>{subscriptionStatusBadge(subscription.status)}</dd>
             <dt style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>Renovação</dt>

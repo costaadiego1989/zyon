@@ -16,7 +16,21 @@ export type BillingPlanFeatureKey =
   | "voiceCheckout"
   | "faceBiometry"
   | "cryptoPayments"
-  | "whiteLabel";
+  | "whiteLabel"
+  | "publicApiV1"
+  | "abTests"
+  | "marketplace"
+  | "intentMemory"
+  | "revenueLift"
+  // Growth+ (regras avançadas, integrações, IA de conteúdo/retenção)
+  | "advancedRules"
+  | "knowledgeBase"
+  | "postSale"
+  | "customDomain"
+  | "crmIntegrations"
+  // Scale (otimização autônoma + M2M)
+  | "revenueManager"
+  | "m2mAgents";
 
 export type BillingPlanLimits = Record<BillingPlanLimitKey, number | null>;
 export type BillingPlanFeatures = Record<BillingPlanFeatureKey, boolean>;
@@ -24,10 +38,19 @@ export type BillingPlanFeatures = Record<BillingPlanFeatureKey, boolean>;
 export type BillingPlanConfig = {
   name: string;
   monthlyPriceBrl: number;
-  transactionFeePercent: number;
+  /** Fee do MERCHANT por transação, fixo em centavos (sai do repasse/hold). */
+  transactionFeeCents: number;
   limits: BillingPlanLimits;
   features: BillingPlanFeatures;
 };
+
+/**
+ * Taxa de serviço do BUYER, fixa em centavos (R$0,99). Modelo iFood: cobrada do
+ * comprador (somada ao total do pedido) em todos os planos e métodos de
+ * pagamento. Independe do plano do merchant. Receita da plataforma, separada do
+ * fee de transação do merchant.
+ */
+export const BUYER_SERVICE_FEE_CENTS = 99;
 
 const UNLIMITED = null;
 
@@ -35,7 +58,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
   starter: {
     name: "Starter",
     monthlyPriceBrl: 0,
-    transactionFeePercent: 2.49,
+    transactionFeeCents: 199,
     limits: {
       ordersPerMonth: 100,
       sessionsPerMonth: 100,
@@ -52,13 +75,25 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       voiceCheckout: false,
       faceBiometry: false,
       cryptoPayments: false,
-      whiteLabel: true,
+      whiteLabel: false, // Free mostra o badge "Powered by Zyon"
+      publicApiV1: false,
+      abTests: false,
+      marketplace: false,
+      intentMemory: false,
+      revenueLift: false,
+      advancedRules: false,
+      knowledgeBase: false,
+      postSale: false,
+      customDomain: false,
+      crmIntegrations: false,
+      revenueManager: false,
+      m2mAgents: false,
     },
   },
   growth: {
     name: "Growth",
     monthlyPriceBrl: 249,
-    transactionFeePercent: 1.99,
+    transactionFeeCents: 149,
     limits: {
       ordersPerMonth: 500,
       sessionsPerMonth: 1_000,
@@ -75,13 +110,25 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       voiceCheckout: true,
       faceBiometry: true,
       cryptoPayments: true,
-      whiteLabel: true,
+      whiteLabel: true, // paga = remove badge
+      publicApiV1: true,
+      abTests: false,
+      marketplace: false,
+      intentMemory: false,
+      revenueLift: false,
+      advancedRules: true,
+      knowledgeBase: true,
+      postSale: true,
+      customDomain: true,
+      crmIntegrations: true,
+      revenueManager: false,
+      m2mAgents: false,
     },
   },
   scale: {
     name: "Scale",
     monthlyPriceBrl: 599,
-    transactionFeePercent: 1.49,
+    transactionFeeCents: 99,
     limits: {
       ordersPerMonth: UNLIMITED,
       sessionsPerMonth: UNLIMITED,
@@ -99,6 +146,18 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       faceBiometry: true,
       cryptoPayments: true,
       whiteLabel: true,
+      publicApiV1: true,
+      abTests: true,
+      marketplace: true,
+      intentMemory: true,
+      revenueLift: true,
+      advancedRules: true,
+      knowledgeBase: true,
+      postSale: true,
+      customDomain: true,
+      crmIntegrations: true,
+      revenueManager: true,
+      m2mAgents: true,
     },
   },
 };
@@ -133,18 +192,15 @@ export function effectiveBillingPlan(
   return planFromPriceId(subscription.stripePriceId) ?? "starter";
 }
 
-export function transactionFeePercentFor(
+/**
+ * Fee do MERCHANT por transação, fixo em centavos, para a assinatura dada.
+ * Sai do repasse (payment-hold). Trial e assinaturas inativas caem no Starter.
+ */
+export function merchantTransactionFeeCentsFor(
   subscription: Pick<BillingSubscriptionSnapshot, "status" | "trialEndsAt" | "stripePriceId"> | undefined,
   now = new Date(),
 ): number {
-  if (subscription?.status === "trialing") return BILLING_PLANS.starter.transactionFeePercent;
-  return BILLING_PLANS[effectiveBillingPlan(subscription, now)].transactionFeePercent;
-}
-
-export function calculatePlatformFeeCents(orderAmountCents: number, feePercent: number): number {
-  const amount = Math.max(0, Math.trunc(orderAmountCents));
-  const percent = Math.max(0, feePercent);
-  return Math.round(amount * (percent / 100));
+  return BILLING_PLANS[effectiveBillingPlan(subscription, now)].transactionFeeCents;
 }
 
 export function assertProviderFeeCap(platformFeeCents: number, providerFeeCents: number): number {

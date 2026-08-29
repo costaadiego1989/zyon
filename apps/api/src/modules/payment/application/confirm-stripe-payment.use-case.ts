@@ -6,7 +6,7 @@ import { PAYMENT_REPOSITORY, type PaymentRepository } from "../domain/ports/paym
 import { CHECKOUT_PAYMENT_PORT, type CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../shared/messaging/ports/outbox.repository.port.js";
 import { createCheckoutEventEnvelope } from "../../checkout/domain/events/checkout-domain-event.js";
-import { readPlatformFeeCents, readStripeConnection } from "../infrastructure/stripe-env.js";
+import { readBuyerServiceFeeCents, readStripeConnection } from "../infrastructure/stripe-env.js";
 import { isE2ePaymentStubEnabled } from "../infrastructure/e2e-payment-provider.js";
 import { MarkCommerceOrderPaidUseCase } from "../../commerce/application/mark-commerce-order-paid.use-case.js";
 import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
@@ -100,7 +100,8 @@ export class ConfirmStripePaymentUseCase {
         commerceOrderId: snap.commerceOrderId
       });
 
-      const orderAmountCents = Math.max(0, snap.amountCents - readPlatformFeeCents());
+      // amountCents inclui a taxa de serviço do buyer; subtrai p/ obter o total do pedido.
+      const orderAmountCents = Math.max(0, snap.amountCents - readBuyerServiceFeeCents());
       await this.checkoutPayment.completeAfterApproval({
         merchantId,
         sessionId,

@@ -2,10 +2,10 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
 
-const HOLD_DAYS = 14; // CDC brasileiro — prazo de arrependimento
+const HOLD_DAYS = 14;
 
 export interface PlatformFeeConfig {
-  transactionFeePercent: number;
+  transactionFeeCents: number;
 }
 
 @Injectable()
@@ -22,8 +22,7 @@ export class CreatePaymentHoldUseCase {
     feeConfig: PlatformFeeConfig;
   }): Promise<{ holdId: string; holdUntil: Date; platformFeeCents: number; merchantNetCents: number }> {
     const { merchantId, paymentIntentId, orderId, totalAmountCents, feeConfig } = input;
-
-    const platformFeeCents = Math.round(totalAmountCents * feeConfig.transactionFeePercent / 100);
+    const platformFeeCents = feeConfig.transactionFeeCents;
     const merchantNetCents = totalAmountCents - platformFeeCents;
     const holdUntil = new Date(Date.now() + HOLD_DAYS * 86_400_000);
 
@@ -56,8 +55,6 @@ export class ReleasePaymentHoldsUseCase {
   async execute(): Promise<{ released: number }> {
     const now = new Date();
 
-    // Atomic: updateMany with WHERE status='held' AND holdUntil <= now
-    // Prevents race condition with concurrent workers releasing same hold
     const result = await (this.prisma as any).paymentHold.updateMany({
       where: { status: "held", holdUntil: { lte: now } },
       data: { status: "released", releasedAt: now },

@@ -62,7 +62,8 @@ export interface BillingSubscriptionWithPlanSnapshot extends BillingSubscription
   plan: BillingPlan;
   planName: string;
   monthlyPriceBrl: number;
-  transactionFeePercent: number;
+  transactionFeeCents: number;
+  buyerServiceFeeCents: number;
   limits: Record<string, number | null>;
   features: Record<string, boolean>;
   usage?: BillingUsageSnapshot;

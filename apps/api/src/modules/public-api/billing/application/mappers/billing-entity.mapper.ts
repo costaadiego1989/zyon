@@ -1,5 +1,5 @@
 import type { BillingSubscriptionWithPlanSnapshot, BillingUsageSnapshot } from '../../../../payment/domain/payment-platform.types.js';
-import { BILLING_PLANS } from '../../../../payment/domain/billing-plans.js';
+import { BILLING_PLANS, BUYER_SERVICE_FEE_CENTS } from '../../../../payment/domain/billing-plans.js';
 import type { PlanResponse, SubscriptionResponse, UsageResponse, InvoiceResponse } from '../../presentation/http/dtos/billing.dtos.js';
 
 export class BillingEntityMapper {
@@ -9,7 +9,8 @@ export class BillingEntityMapper {
         plan_id: planId,
         name: config.name,
         monthly_price_brl: config.monthlyPriceBrl,
-        transaction_fee_percent: config.transactionFeePercent,
+        transaction_fee_cents: config.transactionFeeCents,
+        buyer_service_fee_cents: BUYER_SERVICE_FEE_CENTS,
         limits: config.limits as Record<string, number | null>,
         features: config.features as Record<string, boolean>,
       }),
@@ -26,7 +27,8 @@ export class BillingEntityMapper {
       current_period_end: snapshot.currentPeriodEnd,
       cancel_at_period_end: snapshot.cancelAtPeriodEnd,
       monthly_price_brl: snapshot.monthlyPriceBrl,
-      transaction_fee_percent: snapshot.transactionFeePercent,
+      transaction_fee_cents: snapshot.transactionFeeCents,
+      buyer_service_fee_cents: snapshot.buyerServiceFeeCents,
       created_at: snapshot.createdAt,
       updated_at: snapshot.updatedAt,
     };

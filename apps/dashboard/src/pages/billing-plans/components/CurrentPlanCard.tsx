@@ -4,7 +4,8 @@ import { Button } from "../../../components/Button.js";
 interface CurrentPlanCardProps {
   planName: string;
   monthlyPrice: number;
-  transactionFee: number;
+  /** Fee do merchant por transação, fixo em centavos. */
+  transactionFeeCents: number;
   nextBillingDate: string | null;
   daysRemaining: number | null;
   status: string;
@@ -16,7 +17,7 @@ interface CurrentPlanCardProps {
 export function CurrentPlanCard({
   planName,
   monthlyPrice,
-  transactionFee,
+  transactionFeeCents,
   nextBillingDate,
   daysRemaining,
   status,
@@ -107,7 +108,7 @@ export function CurrentPlanCard({
             TAXA POR TRANSAÇÃO
           </div>
           <div style={{ font: "700 20px var(--font-mono)", color: "var(--color-text)" }}>
-            {transactionFee.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}%
+            R$ {(transactionFeeCents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}/venda
           </div>
         </div>
       </div>
