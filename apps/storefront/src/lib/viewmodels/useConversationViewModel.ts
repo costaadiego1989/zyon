@@ -498,13 +498,15 @@ export function useConversationViewModel(
         get sessionId() { return conversationIdRef.current || undefined; },
       },
       (triggerEvent) => {
-        // Activation mode gates whether a signal (idle/exit-intent) may wake the
-        // agent — source of truth on the storefront is agent-rules, NOT the
-        // checkout widget-config. manual_only never reacts; proactive already
-        // auto-opened; only silent_until_trigger opens on a buyer signal.
+        // Activation modes are cumulative in agentiveness, not mutually exclusive:
+        //   manual_only          → agent never acts on its own (no triggers)
+        //   silent_until_trigger → reacts to idle/exit-intent signals
+        //   proactive            → opens on its own AND still reacts to signals
+        // So only manual_only suppresses triggers. In proactive the chat is already
+        // open; a later idle/exit nudge is appended to keep the agent engaging
+        // (still bounded by maxInterventions + cooldown below).
         const mode = agentModeRef.current;
         if (mode === "manual_only") return;
-        if (mode === "proactive") return;
 
         // Frequency limits fall back to sane defaults when checkout widgetConfig
         // is absent (the storefront must not depend on checkout being configured).
