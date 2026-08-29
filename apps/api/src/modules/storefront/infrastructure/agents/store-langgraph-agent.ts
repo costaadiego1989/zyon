@@ -64,6 +64,7 @@ export interface StorefrontAgentInput {
   advancedRules?: string[];
   buyerContext?: { globalUserId: string; name?: string; phone?: string; email?: string };
   callbacks?: StorefrontAgentCallbacks;
+  toolHandlers?: StoreToolHandlers;
 }
 
 export interface StorefrontAgentResult {
@@ -157,6 +158,14 @@ export class StorefrontLangGraphAgent {
     let totalTokens = 0;
     const blocks: ConversationBlock[] = [];
 
+    const executableTools = input.toolHandlers
+      ? buildExecutableStoreTools({
+          merchantId: input.merchantId,
+          sessionId: input.sessionId,
+          handlers: input.toolHandlers
+        })
+      : this.executableTools;
+
     const defaultSystem = buildStoreSystemPrompt({
       merchantName: input.merchantName,
       storeCategory: input.storeCategory,
@@ -225,7 +234,7 @@ export class StorefrontLangGraphAgent {
             toolsUsed.push(tc.name);
             input.callbacks?.onToolCall?.(tc.name, tc.args);
 
-            const execTool = this.executableTools.find((t) => t.name === tc.name);
+            const execTool = executableTools.find((t) => t.name === tc.name);
             if (execTool) {
               const toolResult = await execTool.execute(tc.args);
               toolResults[tc.name] = toolResult.ok ? toolResult.data : { error: toolResult.error };
@@ -265,7 +274,7 @@ export class StorefrontLangGraphAgent {
           if (retryResult.toolCalls && retryResult.toolCalls.length > 0) {
             for (const tc of retryResult.toolCalls) {
               toolsUsed.push(tc.name);
-              const execTool = this.executableTools.find((t) => t.name === tc.name);
+              const execTool = executableTools.find((t) => t.name === tc.name);
               if (execTool) {
                 const toolResult = await execTool.execute(tc.args);
                 toolResults[tc.name] = toolResult.ok ? toolResult.data : { error: toolResult.error };
@@ -331,7 +340,7 @@ export class StorefrontLangGraphAgent {
               fbMessages.push({ role: "assistant", content: fbResult.content || "", tool_calls: fbResult.toolCalls.map((tc) => ({ id: tc.id, type: "function", function: { name: tc.name, arguments: JSON.stringify(tc.args) } })) } as any);
               for (const tc of fbResult.toolCalls) {
                 toolsUsed.push(tc.name);
-                const execTool = this.executableTools.find((t) => t.name === tc.name);
+                const execTool = executableTools.find((t) => t.name === tc.name);
                 if (execTool) {
                   const toolResult = await execTool.execute(tc.args);
                   toolResults[tc.name] = toolResult.ok ? toolResult.data : { error: toolResult.error };
