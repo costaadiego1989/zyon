@@ -26,6 +26,10 @@ export interface WidgetConfig {
   handoffChannels: string[];
   cooldownSeconds?: number;
   maxInterventionsPerSession?: number;
+  /** Merchant hard cap on total discount percent — used to frame conversion nudges. */
+  maxDiscountPercent?: number;
+  /** Progressive discount config — drives the value cited in cart-stage nudges. */
+  progressiveDiscount?: { enabled: boolean; stages: Record<string, number> };
 }
 export interface WidgetConfigState {
   config: WidgetConfig | null;
