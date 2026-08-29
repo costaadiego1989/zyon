@@ -14,6 +14,7 @@ import type { StoreQuickRepliesConfig } from "@zyon/shared-types";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { SupportHandoffService } from "../../../support/application/support-handoff.service.js";
+import { AgentCopyService } from "../copy/agent-copy.service.js";
 
 export const STOREFRONT_CONVERSATION_ADAPTER = Symbol("StorefrontConversationAdapter");
 
@@ -22,6 +23,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
   private readonly logger = new Logger(StorefrontConversationAdapter.name);
   private readonly agent: StorefrontLangGraphAgent;
   private readonly copyProvider: OpenRouterProvider;
+  private readonly copyService: AgentCopyService;
   private currentMerchantId = "";
   private currentSessionId = "";
   private currentBuyer: { globalUserId: string; name?: string; phone?: string; email?: string } | undefined;
@@ -46,6 +48,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       model: localModel
     });
     this.copyProvider = provider;
+    this.copyService = new AgentCopyService(provider);
 
     const fallbackApiKey = process.env.OPENROUTER_API_KEY || process.env.DEEPSEEK_API_KEY || "";
     const fallbackBaseUrl = process.env.OPENROUTER_BASE_URL || process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1";
@@ -777,49 +780,8 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
    * fast while still letting the experiment influence the agent's communication.
    * Falls back to the provided default text on any failure or when no experiment.
    */
-  private async generateVariantCopy(
-    experimentSystemPrompt: string | undefined,
-    instruction: string,
-    fallback: string,
-  ): Promise<string> {
-    if (!experimentSystemPrompt) return fallback;
-    try {
-      const result = await this.copyProvider.chat({
-        messages: [
-          { role: "system", content: experimentSystemPrompt },
-          { role: "user", content: instruction },
-        ],
-        temperature: 0.7,
-        maxTokens: 60,
-      });
-      const text = result.content?.trim();
-      return text && text.length > 0 ? text : fallback;
-    } catch {
-      return fallback;
-    }
-  }
-
   async generateNudge(input: NudgeCopyInput): Promise<string> {
-    const style = input.experimentSystemPrompt || (input.agentTone ? `Tom de comunicação: ${input.agentTone}. Seja persuasiva e vendedora.` : undefined);
-    if (!style) return input.fallback;
-
-    const offersBlock = input.availableOffers.length > 0
-      ? `Benefícios REAIS que você PODE mencionar (use no máximo um, o mais relevante): ${input.availableOffers.join("; ")}.`
-      : "NÃO há nenhum desconto, cupom, frete grátis ou oferta disponível. NÃO prometa nem invente nenhum benefício, desconto ou frete. Apenas ofereça ajuda para escolher o produto.";
-
-    const moment = input.trigger === "exit_intent_detected" ? "está saindo da loja" : "está parado na loja há um tempo, indeciso";
-    const situation = input.stage === "cart"
-      ? `O comprador tem itens no carrinho e ${moment}. Foque em fechar a compra agora.`
-      : `O comprador ${moment} e ainda não tem itens no carrinho. Foque em ajudá-lo a escolher e avançar.`;
-
-    const instruction = [
-      situation,
-      offersBlock,
-      "Escreva UMA frase curta (máx 18 palavras) que o leve a agir agora, falando em primeira pessoa direto ao comprador.",
-      "Regra absoluta: só cite um benefício se ele estiver listado acima; nunca invente desconto, cupom ou frete. Só a frase, sem aspas, sem perguntar 'como posso ajudar'.",
-    ].join(" ");
-
-    return this.generateVariantCopy(style, instruction, input.fallback);
+    return this.copyService.generateNudge(input);
   }
 
   async reply(input: StorefrontConversationInput): Promise<StorefrontConversationOutput> {
@@ -862,7 +824,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
           } as ConversationBlock];
           const isProducts = normalizedMsg === "ver produtos";
           const introDefault = isProducts ? "Encontrei esses produtos para você:" : "Aqui estão nossas ofertas:";
-          const introMessage = await this.generateVariantCopy(
+          const introMessage = await this.copyService.generateVariantCopy(
             input.experimentSystemPrompt,
             isProducts
               ? "Responda em 1 frase curta e amigável que encontrou produtos pra o cliente. Não liste os produtos."
@@ -934,7 +896,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
             },
           } as ConversationBlock];
           this.emitFunnelEvent(input.merchantId, input.sessionId, "product_viewed").catch(() => {});
-          const detailMessage = await this.generateVariantCopy(
+          const detailMessage = await this.copyService.generateVariantCopy(
             input.experimentSystemPrompt,
             `Apresente o produto "${product.name}" em 1 frase curta e empolgante. Não repita o nome completo, diga "esse produto" ou algo natural.`,
             `Aqui estão os detalhes de **${product.name}**:`,
@@ -1034,7 +996,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     if ((!finalMessage || finalMessage.trim().length === 0) && result.blocks && result.blocks.length > 0) {
       const blockTypes = result.blocks.map((b: any) => b.type).join(", ");
       const contextHint = this.blockContextHint(result.blocks, result.toolsUsed);
-      finalMessage = await this.generateVariantCopy(
+      finalMessage = await this.copyService.generateVariantCopy(
         input.experimentSystemPrompt,
         `Você acabou de mostrar ${contextHint} para o cliente. Escreva 1 frase curta e natural acompanhando a apresentação. Não repita dados do componente (preço, nome). Seja empático e conversacional.`,
         this.defaultBlockIntro(result.toolsUsed),
