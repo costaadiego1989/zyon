@@ -1,22 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { Socket } from "socket.io-client";
 import { ReturnRequestForm } from "./ReturnRequestForm";
-
-interface SupportMessage {
-  id: string;
-  role: "user" | "agent" | "merchant";
-  text: string;
-  agentName?: string;
-}
-
-interface FaqItem {
-  id?: string;
-  question: string;
-  answer: string;
-  icon?: string;
-}
+import { useSupportPanel } from "@/lib/viewmodels/useSupportPanel";
 
 interface SupportPanelProps {
   open: boolean;
@@ -25,265 +10,23 @@ interface SupportPanelProps {
   agentName?: string;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
-
-const DEFAULT_FAQ_ITEMS: FaqItem[] = [
-  { icon: "🚚", question: "Prazo de entrega", answer: "De 2 a 10 dias úteis, dependendo da região e modalidade de envio escolhida." },
-  { icon: "🔄", question: "Política de trocas", answer: "Aceitamos trocas dentro de 7 dias após o recebimento. Produto em perfeitas condições." },
-  { icon: "💳", question: "Formas de pagamento", answer: "Cartão de crédito, PIX, boleto bancário e crypto USDC." },
-  { icon: "👤", question: "Falar com atendente", answer: "Um atendente humano será acionado em breve." },
-];
-
 export default function SupportPanel({ open, onClose, merchantId, agentName }: SupportPanelProps) {
   const agent = agentName || "Assistente";
-  const [messages, setMessages] = useState<SupportMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [view, setView] = useState<"welcome" | "chat" | "return">("welcome");
-  const [returnDone, setReturnDone] = useState(false);
-  const threadRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const socketRef = useRef<Socket | null>(null);
-  const [ticketId, setTicketId] = useState<string | null>(null);
-  const [faqItems, setFaqItems] = useState<FaqItem[]>(DEFAULT_FAQ_ITEMS);
-  const embedTokenRef = useRef<string | null>(null);
-  const sessionIdRef = useRef(`support_${Date.now()}`);
-
-  const SESSION_KEY = "zyon_support_messages";
-  const TICKET_KEY = "zyon_support_ticket";
-
-  useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem(SESSION_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setMessages(parsed);
-          setView("chat");
-        }
-      }
-      const savedTicket = sessionStorage.getItem(TICKET_KEY);
-      if (savedTicket) {
-        setTicketId(savedTicket);
-        setView("chat");
-      }
-    } catch { /* non-critical */ }
-  }, []);
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(messages)); } catch { /* non-critical */ }
-    }
-  }, [messages]);
-
-  useEffect(() => {
-    try {
-      if (ticketId) sessionStorage.setItem(TICKET_KEY, ticketId);
-    } catch { /* non-critical */ }
-  }, [ticketId]);
-
-  useEffect(() => {
-    if (!merchantId || embedTokenRef.current) return;
-    void (async () => {
-      try {
-        const res = await fetch("/api/checkout-token", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            merchant_id: merchantId,
-            allowed_origin: typeof window !== "undefined" ? window.location.origin : undefined,
-          }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          embedTokenRef.current = data.embed_session_token ?? null;
-        }
-      } catch { /* non-critical */ }
-    })();
-  }, [merchantId]);
-
-  useEffect(() => {
-    if (!merchantId || !open) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch(`${API_BASE}/support/faq/public?merchantId=${merchantId}`);
-        if (res.ok) {
-          const data = await res.json();
-          const items: FaqItem[] = Array.isArray(data.faqItems) ? data.faqItems : [];
-          if (!cancelled && items.length > 0) {
-            const hasHandoff = items.some(i => /atendente|humano/i.test(i.question));
-            const withHandoff: FaqItem[] = [
-              ...items.map((it) => ({ ...it, icon: it.icon || "❓" })),
-              ...(!hasHandoff ? [{ icon: "👤", question: "Falar com atendente", answer: "Um atendente humano será acionado em breve." }] : []),
-            ];
-            setFaqItems(withHandoff);
-          }
-        }
-      } catch { /* keep defaults */ }
-    })();
-    return () => { cancelled = true; };
-  }, [merchantId, open]);
-
-  useEffect(() => {
-    if (!ticketId) return;
-    let socket: Socket | null = null;
-    void (async () => {
-      const { io } = await import("socket.io-client");
-      socket = io(`${API_BASE}/support`, { transports: ["websocket", "polling"] });
-      socketRef.current = socket;
-
-      socket.on("connect", () => {
-        socket!.emit("join_ticket", { ticketId });
-      });
-
-      socket.on("new_message", (msg: { senderType: string; content: string; senderName?: string }) => {
-        if (msg.senderType === "merchant") {
-          setMessages((prev) => [...prev, {
-            id: `m-${Date.now()}`,
-            role: "merchant",
-            text: msg.content,
-            agentName: msg.senderName,
-          }]);
-        }
-      });
-
-      socket.on("agent_joined", (data: { agentName: string }) => {
-        setMessages((prev) => [...prev, {
-          id: `sys-${Date.now()}`,
-          role: "agent",
-          text: `${data.agentName} entrou no chat.`,
-        }]);
-      });
-
-      socket.on("ticket_closed", () => {
-        setMessages([]);
-        setView("welcome");
-        setTicketId(null);
-        setIsLoading(false);
-        try {
-          sessionStorage.removeItem(SESSION_KEY);
-          sessionStorage.removeItem(TICKET_KEY);
-        } catch { /* non-critical */ }
-      });
-    })();
-
-    return () => {
-      socket?.disconnect();
-      socketRef.current = null;
-    };
-  }, [ticketId]);
-
-  useEffect(() => {
-    if (threadRef.current) {
-      requestAnimationFrame(() => {
-        if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight;
-      });
-    }
-  }, [messages]);
-
-  useEffect(() => {
-    if (!open) {
-      setInput("");
-      // Don't clear messages or view — persist conversation across panel close/open.
-      // Session naturally clears on tab close (sessionStorage).
-    }
-  }, [open]);
-
-  useEffect(() => {
-    if (open && view === "chat" && inputRef.current) {
-      requestAnimationFrame(() => inputRef.current?.focus());
-    }
-  }, [open, view]);
-
-  const getFallbackResponse = (label: string): string => {
-    const match = faqItems.find((item) => item.question === label);
-    if (match) return match.answer;
-    return "Entendi sua dúvida. Deixe-me verificar...";
-  };
-
-  const sendMessage = useCallback(async (text: string, isFaqClick = false) => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-
-    const userMsg: SupportMessage = {
-      id: `u-${Date.now()}`,
-      role: "user",
-      text: trimmed,
-    };
-    setMessages((prev) => [...prev, userMsg]);
-    setInput("");
-    setView("chat");
-    setIsLoading(true);
-
-    try {
-      const isHandoffRequest = /atendente|humano|suporte/i.test(trimmed);
-      if (isFaqClick && !isHandoffRequest) {
-        const fallbackText = getFallbackResponse(trimmed);
-        setTimeout(() => {
-          setMessages((prev) => [...prev, {
-            id: `a-${Date.now()}`,
-            role: "agent",
-            text: fallbackText,
-          }]);
-          setIsLoading(false);
-        }, 500);
-        return;
-      }
-
-      if (merchantId) {
-        try {
-          const res = await fetch(`${API_BASE}/support/chat/public`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              merchant_id: merchantId,
-              message: trimmed,
-              session_id: sessionIdRef.current,
-            }),
-          });
-
-          if (res.ok) {
-            const data = await res.json();
-            if (data.handoff?.ticketId) {
-              setTicketId(data.handoff.ticketId);
-            }
-            setMessages((prev) => [...prev, {
-              id: `a-${Date.now()}`,
-              role: "agent",
-              text: data.reply || data.message || data.response || "Mensagem recebida.",
-            }]);
-            setIsLoading(false);
-            return;
-          }
-        } catch { /* fallback below */ }
-      }
-
-      const fallbackText = `Entendi, "${trimmed}". Um atendente será designado em breve.`;
-      setMessages((prev) => [...prev, {
-        id: `a-${Date.now()}`,
-        role: "agent",
-        text: fallbackText,
-      }]);
-    } catch {
-      setMessages((prev) => [...prev, {
-        id: `a-${Date.now()}`,
-        role: "agent",
-        text: "Desculpe, houve um erro. Tente novamente.",
-      }]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [merchantId, faqItems]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    void sendMessage(input, false);
-  };
-
-  const handleFaqClick = (label: string) => {
-    void sendMessage(label, true);
-  };
+  const {
+    messages,
+    input,
+    setInput,
+    isLoading,
+    view,
+    setView,
+    returnDone,
+    setReturnDone,
+    faqItems,
+    threadRef,
+    inputRef,
+    handleSubmit,
+    handleFaqClick,
+  } = useSupportPanel({ open, merchantId, agentName });
 
   return (
     <>

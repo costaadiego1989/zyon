@@ -1,145 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FaWhatsapp, FaFacebook, FaInstagram } from "react-icons/fa";
 import type { ProductCardBlock as ProductCardBlockType } from "@/lib/types";
-
-const COLOR_KEYWORDS = [
-  "preto",
-  "azul",
-  "verde",
-  "branco",
-  "vermelho",
-  "cinza",
-  "bege",
-  "marinho",
-  "amarelo",
-  "rosa",
-  "lilas",
-  "laranja",
-  "marrom",
-  "vinho",
-];
-
-const COLOR_HEX: Record<string, string> = {
-  preto: "#111111",
-  azul: "#2563eb",
-  verde: "#16a34a",
-  branco: "#f5f5f5",
-  vermelho: "#dc2626",
-  cinza: "#6b7280",
-  bege: "#d6c5a3",
-  marinho: "#1e3a8a",
-  amarelo: "#facc15",
-  rosa: "#ec4899",
-  lilas: "#a855f7",
-  laranja: "#f97316",
-  marrom: "#92400e",
-  vinho: "#7f1d1d",
-};
-
-function getInitial(name: string): string {
-  const trimmed = name.trim();
-  if (!trimmed) return "★";
-  return trimmed.charAt(0).toUpperCase();
-}
-
-function isColorToken(value: string): boolean {
-  const v = value.trim().toLowerCase();
-  if (/^(#([0-9a-f]{3,8})|rgb\(|hsl\()/i.test(value.trim())) return true;
-  return COLOR_KEYWORDS.some((k) => v.includes(k));
-}
-
-function colorFromToken(value: string): string {
-  const v = value.trim().toLowerCase();
-  if (/^#([0-9a-f]{3,8})$/i.test(v)) return v;
-  for (const key of COLOR_KEYWORDS) {
-    if (v.includes(key)) return COLOR_HEX[key];
-  }
-  return "#9ca3af";
-}
-
-function isLightHex(hex: string): boolean {
-  const m = hex.replace("#", "");
-  if (m.length !== 6 && m.length !== 3) return false;
-  const full =
-    m.length === 3
-      ? m
-          .split("")
-          .map((c) => c + c)
-          .join("")
-      : m;
-  const r = parseInt(full.slice(0, 2), 16);
-  const g = parseInt(full.slice(2, 4), 16);
-  const b = parseInt(full.slice(4, 6), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.65;
-}
-
-function StarRating({ value, count }: { value: number; count: number }) {
-  const full = Math.floor(value);
-  const partial = Math.max(0, Math.min(1, value - full));
-  const total = 5;
-  return (
-    <div
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "6px",
-        fontSize: "12px",
-        color: "var(--aacp-muted)",
-      }}
-      aria-label={`Avaliação ${value.toFixed(1)} de 5`}
-    >
-      <span
-        style={{
-          display: "inline-flex",
-          gap: "1px",
-          color: "#F5B301",
-          fontSize: "13px",
-          lineHeight: 1,
-          letterSpacing: "0.5px",
-        }}
-        aria-hidden
-      >
-        {Array.from({ length: total }).map((_, i) => {
-          let fillRatio = 0;
-          if (i < full) fillRatio = 1;
-          else if (i === full) fillRatio = partial;
-          const empty = fillRatio === 0;
-          return (
-            <span
-              key={i}
-              style={{ position: "relative", display: "inline-block" }}
-            >
-              <span style={{ color: "rgba(245, 179, 1, 0.22)" }}>★</span>
-              {!empty && (
-                <span
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    width: `${fillRatio * 100}%`,
-                    overflow: "hidden",
-                    color: "#F5B301",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  ★
-                </span>
-              )}
-            </span>
-          );
-        })}
-      </span>
-      <span style={{ fontWeight: 600, color: "var(--aacp-fg)" }}>
-        {value.toFixed(1)}
-      </span>
-      <span style={{ color: "var(--aacp-muted)" }}>
-        ({count} {count === 1 ? "avaliação" : "avaliações"})
-      </span>
-    </div>
-  );
-}
+import { isColorToken } from "@/lib/utils/color";
+import { StarRating } from "./parts/StarRating";
+import { ProductCardMedia } from "./parts/ProductCardMedia";
+import { ProductCardVariants } from "./parts/ProductCardVariants";
+import { ProductCardCta } from "./parts/ProductCardCta";
+import { ProductCardShare } from "./parts/ProductCardShare";
 
 export default function ProductCardBlock({
   block,
@@ -227,132 +95,12 @@ export default function ProductCardBlock({
         }
       `}</style>
 
-      {/* Hero image — 200px height, full width */}
-      <div
-        aria-hidden
-        style={{
-          position: "relative",
-          width: "100%",
-          height: "200px",
-          background: data.image
-            ? "linear-gradient(180deg, var(--aacp-surface-2) 0%, var(--aacp-surface-3) 100%)"
-            : "linear-gradient(135deg, var(--aacp-surface-2) 0%, var(--aacp-surface-3) 100%)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          overflow: "hidden",
-          flexShrink: 0,
-        }}
-      >
-        {data.image ? (
-          <img
-            src={data.image}
-            alt={data.name}
-            style={{
-              maxWidth: "100%",
-              maxHeight: "100%",
-              width: "auto",
-              height: "auto",
-              objectFit: "contain",
-              display: "block",
-            }}
-            loading="lazy"
-          />
-        ) : (
-          <span
-            style={{
-              fontFamily: "var(--aacp-font-display)",
-              fontSize: "72px",
-              fontWeight: 800,
-              lineHeight: 1,
-              color: "color-mix(in srgb, var(--aacp-accent) 30%, transparent)",
-              letterSpacing: "-0.04em",
-              userSelect: "none",
-            }}
-          >
-            {getInitial(data.name)}
-          </span>
-        )}
+      <ProductCardMedia
+        data={data}
+        hasDiscount={hasDiscount}
+        onQuickReply={onQuickReply}
+      />
 
-        {/* Top-left badges */}
-        <div
-          style={{
-            position: "absolute",
-            top: "12px",
-            left: "12px",
-            display: "flex",
-            flexDirection: "column",
-            gap: "6px",
-            alignItems: "flex-start",
-          }}
-        >
-          {hasDiscount && (
-            <span
-              style={{
-                background: "var(--aacp-accent)",
-                color: "#fff",
-                fontSize: "11px",
-                fontWeight: 700,
-                padding: "5px 9px",
-                borderRadius: "999px",
-                letterSpacing: "0.05em",
-                boxShadow:
-                  "0 4px 12px color-mix(in srgb, var(--aacp-accent) 35%, transparent)",
-              }}
-            >
-              -{data.discountPercent}%
-            </span>
-          )}
-        </div>
-
-        {/* Wishlist heart (top-right) */}
-        <button
-          type="button"
-          aria-label="Adicionar à lista de desejos"
-          onClick={() => onQuickReply?.(`Adicionar ${data.name} à lista de desejos`)}
-          style={{
-            position: "absolute",
-            top: "12px",
-            right: "12px",
-            width: "34px",
-            height: "34px",
-            borderRadius: "50%",
-            background: "color-mix(in srgb, var(--aacp-surface) 80%, transparent)",
-            border: "1px solid var(--aacp-line)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            color: "var(--aacp-muted)",
-            backdropFilter: "blur(6px)",
-            transition: "all 0.15s ease",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = "#ef4444";
-            e.currentTarget.style.borderColor = "#ef4444";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = "var(--aacp-muted)";
-            e.currentTarget.style.borderColor = "var(--aacp-line)";
-          }}
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden
-          >
-            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-          </svg>
-        </button>
-      </div>
-
-      {/* Body */}
       <div
         style={{
           padding: "16px 18px 16px",
@@ -361,7 +109,6 @@ export default function ProductCardBlock({
           gap: "12px",
         }}
       >
-        {/* Rating row */}
         {data.rating !== undefined && (
           <div
             style={{
@@ -376,7 +123,6 @@ export default function ProductCardBlock({
           </div>
         )}
 
-        {/* Product name */}
         <h3
           style={{
             fontFamily: "var(--aacp-font-display)",
@@ -391,7 +137,6 @@ export default function ProductCardBlock({
           {data.name}
         </h3>
 
-        {/* Description — full text in detailed view, 3-line clamp otherwise */}
         {data.description && (
           <p
             style={{
@@ -414,7 +159,6 @@ export default function ProductCardBlock({
           </p>
         )}
 
-        {/* Detailed view: stock badge + SKU */}
         {data.detailed && (
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px", fontSize: "11.5px" }}>
             <span
@@ -445,195 +189,17 @@ export default function ProductCardBlock({
           </div>
         )}
 
-        {/* Variants */}
         {hasRealVariants && (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "8px",
-              paddingTop: "4px",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "8px",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 600,
-                  color: "var(--aacp-muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                  fontFamily: "var(--aacp-font-display)",
-                }}
-              >
-                {variants[0]?.name || "Variantes"} ({variants.length})
-              </span>
-              {selectedVariant && (
-                <span
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    color: "var(--aacp-accent)",
-                  }}
-                >
-                  {selectedVariant.priceFormatted ?? (selectedVariant.price ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(selectedVariant.price / 100) : null)}
-                </span>
-              )}
-            </div>
-
-            {variantsAreColors ? (
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: "8px",
-                  alignItems: "center",
-                }}
-              >
-                {variants.map((v) => {
-                  const isSelected = v.id === selectedVariantId;
-                  const color = colorFromToken(v.value);
-                  const light = isLightHex(color);
-                  return (
-                    <button
-                      key={v.id}
-                      type="button"
-                      aria-pressed={isSelected}
-                      aria-label={v.value}
-                      title={`${v.name}: ${v.value}`}
-                      onClick={() => setSelectedVariantId(v.id)}
-                      style={{
-                        position: "relative",
-                        width: "28px",
-                        height: "28px",
-                        borderRadius: "50%",
-                        border: isSelected
-                          ? "2px solid var(--aacp-accent)"
-                          : light
-                          ? "1px solid var(--aacp-line)"
-                          : "1px solid color-mix(in srgb, #ffffff 20%, transparent)",
-                        background: color,
-                        cursor: "pointer",
-                        padding: 0,
-                        boxShadow: isSelected
-                          ? "0 0 0 3px color-mix(in srgb, var(--aacp-accent) 22%, transparent), inset 0 0 0 2px var(--aacp-surface)"
-                          : "none",
-                        transition: "transform 0.15s ease, box-shadow 0.15s ease",
-                        transform: isSelected ? "scale(1.08)" : "scale(1)",
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!isSelected) {
-                          e.currentTarget.style.transform = "scale(1.08)";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isSelected) {
-                          e.currentTarget.style.transform = "scale(1)";
-                        }
-                      }}
-                    />
-                  );
-                })}
-              </div>
-            ) : (
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: "6px",
-                  alignItems: "center",
-                }}
-              >
-                {variants.map((v) => {
-                  const isSelected = v.id === selectedVariantId;
-                  const outOfStock = data.detailed && v.stock !== undefined && v.stock <= 0;
-                  const stockLabel = data.detailed && v.stock !== undefined && v.stock < 999
-                    ? outOfStock ? " · esgotado" : ` · ${v.stock}`
-                    : "";
-                  return (
-                    <button
-                      key={v.id}
-                      type="button"
-                      aria-pressed={isSelected}
-                      disabled={outOfStock}
-                      onClick={() => { if (!outOfStock) setSelectedVariantId(v.id); }}
-                      style={{
-                        minWidth: "40px",
-                        height: "34px",
-                        padding: "0 12px",
-                        borderRadius: "9px",
-                        border: isSelected
-                          ? "1.5px solid var(--aacp-accent)"
-                          : "1px solid var(--aacp-line)",
-                        background: isSelected
-                          ? "color-mix(in srgb, var(--aacp-accent) 12%, var(--aacp-surface-2))"
-                          : "var(--aacp-surface-2)",
-                        color: outOfStock ? "var(--aacp-muted)" : "var(--aacp-fg)",
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        fontFamily: "inherit",
-                        cursor: outOfStock ? "not-allowed" : "pointer",
-                        opacity: outOfStock ? 0.5 : 1,
-                        textDecoration: outOfStock ? "line-through" : "none",
-                        boxShadow: isSelected
-                          ? "0 0 0 3px color-mix(in srgb, var(--aacp-accent) 18%, transparent)"
-                          : "none",
-                        transition: "all 0.15s ease",
-                        transform: isSelected ? "scale(1.04)" : "scale(1)",
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!isSelected && !outOfStock) {
-                          e.currentTarget.style.borderColor = "var(--aacp-muted)";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isSelected && !outOfStock) {
-                          e.currentTarget.style.borderColor = "var(--aacp-line)";
-                        }
-                      }}
-                    >
-                      {v.value}{stockLabel}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Selected variant detail */}
-            {selectedVariant && (
-              <div
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: "8px",
-                  background: "color-mix(in srgb, var(--aacp-accent) 6%, var(--aacp-surface-2))",
-                  border: "1px solid color-mix(in srgb, var(--aacp-accent) 20%, var(--aacp-line))",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "8px",
-                }}
-              >
-                <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--aacp-fg)" }}>
-                  {selectedVariant.name}: <span style={{ color: "var(--aacp-accent)" }}>{selectedVariant.value}</span>
-                </span>
-                {selectedVariant.price !== undefined && selectedVariant.price > 0 && (
-                  <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--aacp-accent)", fontFamily: "var(--aacp-font-display)" }}>
-                    {selectedVariant.priceFormatted ?? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(selectedVariant.price / 100)}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
+          <ProductCardVariants
+            variants={variants}
+            selectedVariantId={selectedVariantId}
+            setSelectedVariantId={setSelectedVariantId}
+            variantsAreColors={variantsAreColors}
+            selectedVariant={selectedVariant}
+            detailed={data.detailed}
+          />
         )}
 
-        {/* Price block */}
         <div
           style={{
             display: "flex",
@@ -706,7 +272,6 @@ export default function ProductCardBlock({
             </span>
           </div>
 
-          {/* Stock indicator */}
           <div
             style={{
               display: "inline-flex",
@@ -736,7 +301,6 @@ export default function ProductCardBlock({
           </div>
         </div>
 
-        {/* Stock + shipping note */}
         {data.inStock && (
           <div
             style={{
@@ -770,7 +334,6 @@ export default function ProductCardBlock({
           </div>
         )}
 
-        {/* Marketplace seller badge */}
         {data.source === "marketplace" && data.sellerName && (
           <div
             style={{
@@ -812,144 +375,17 @@ export default function ProductCardBlock({
           </div>
         )}
 
-        {/* Action buttons */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "8px",
-            marginTop: "6px",
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => onQuickReply?.(buildCtaText("Adicionar"))}
-            disabled={!data.inStock}
-            style={{
-              width: "100%",
-              height: "44px",
-              padding: "0 16px",
-              borderRadius: "10px",
-              border: "none",
-              background: data.inStock
-                ? "var(--aacp-accent)"
-                : "color-mix(in srgb, var(--aacp-muted) 30%, var(--aacp-surface-2))",
-              color: "#fff",
-              fontSize: "14px",
-              fontWeight: 700,
-              fontFamily: "inherit",
-              letterSpacing: "0.01em",
-              cursor: data.inStock ? "pointer" : "not-allowed",
-              opacity: data.inStock ? 1 : 0.6,
-              transition:
-                "transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease",
-              boxShadow: data.inStock
-                ? "0 4px 14px color-mix(in srgb, var(--aacp-accent) 30%, transparent)"
-                : "none",
-            }}
-            onMouseEnter={(e) => {
-              if (data.inStock) {
-                e.currentTarget.style.transform = "translateY(-1px)";
-                e.currentTarget.style.boxShadow =
-                  "0 8px 22px color-mix(in srgb, var(--aacp-accent) 42%, transparent)";
-                e.currentTarget.style.filter = "brightness(1.05)";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (data.inStock) {
-                e.currentTarget.style.transform = "none";
-                e.currentTarget.style.boxShadow =
-                  "0 4px 14px color-mix(in srgb, var(--aacp-accent) 30%, transparent)";
-                e.currentTarget.style.filter = "none";
-              }
-            }}
-          >
-            {data.inStock ? "Adicionar ao carrinho" : "Produto indisponível"}
-          </button>
+        <ProductCardCta
+          data={data}
+          selectedVariant={selectedVariant}
+          selectedVariantId={selectedVariantId}
+          buildCtaText={buildCtaText}
+          onQuickReply={onQuickReply}
+        />
 
-          <button
-            type="button"
-            onClick={() => onQuickReply?.(buildCtaText("Comprar"))}
-            disabled={!data.inStock}
-            style={{
-              width: "100%",
-              height: "44px",
-              padding: "0 16px",
-              borderRadius: "10px",
-              border: "1.5px solid var(--aacp-accent)",
-              background: "transparent",
-              color: data.inStock ? "var(--aacp-accent)" : "var(--aacp-muted)",
-              fontSize: "14px",
-              fontWeight: 700,
-              fontFamily: "inherit",
-              letterSpacing: "0.01em",
-              cursor: data.inStock ? "pointer" : "not-allowed",
-              opacity: data.inStock ? 1 : 0.6,
-              transition: "all 0.15s ease",
-            }}
-            onMouseEnter={(e) => {
-              if (data.inStock) {
-                e.currentTarget.style.background =
-                  "color-mix(in srgb, var(--aacp-accent) 10%, transparent)";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (data.inStock) {
-                e.currentTarget.style.background = "transparent";
-              }
-            }}
-          >
-            Comprar agora
-          </button>
-        </div>
-
-        {/* Share buttons */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "10px 18px",
-            borderTop: "1px solid var(--aacp-line)",
-          }}
-        >
-          <span style={{ fontSize: "11px", color: "var(--aacp-muted)", fontWeight: 500 }}>
-            Compartilhar:
-          </span>
-          <a
-            href={`https://wa.me/?text=${encodeURIComponent(data.name + (typeof window !== "undefined" ? " " + window.location.href : ""))}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Compartilhar no WhatsApp"
-            style={{ display: "flex", alignItems: "center", padding: "4px", borderRadius: "6px", color: "#25D366", textDecoration: "none" }}
-          >
-            <FaWhatsapp size={18} />
-          </a>
-          <a
-            href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : "")}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Compartilhar no Facebook"
-            style={{ display: "flex", alignItems: "center", padding: "4px", borderRadius: "6px", color: "#1877F2", textDecoration: "none" }}
-          >
-            <FaFacebook size={18} />
-          </a>
-          <button
-            type="button"
-            aria-label="Copiar link para Instagram"
-            onClick={() => {
-              if (typeof navigator !== "undefined") {
-                navigator.clipboard.writeText(window.location.href).catch(() => {});
-              }
-            }}
-            style={{ display: "flex", alignItems: "center", padding: "4px", borderRadius: "6px", color: "#E4405F", background: "none", border: "none", cursor: "pointer" }}
-          >
-            <FaInstagram size={18} />
-          </button>
-        </div>
+        <ProductCardShare productName={data.name} />
       </div>
 
-      {/* Quick replies */}
       <div
         style={{
           display: "flex",
