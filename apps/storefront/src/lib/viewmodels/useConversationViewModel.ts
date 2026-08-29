@@ -6,6 +6,7 @@ import { useCart } from "@/lib/cart-store";
 import { checkoutApi, cartApi } from "@/lib/api/api-client";
 import { initTriggerDetection } from "@/lib/triggers";
 import { canFireTrigger, recordTriggerFired, noteActivity } from "@/lib/intervention-tracker";
+import { useExitIntent } from "use-exit-intent";
 import { TRIGGER_MESSAGES } from "@/lib/trigger-messages";
 import { useCheckoutExperiment } from "@/lib/useCheckoutExperiment";
 import { getValidBuyer } from "@/lib/buyer-auth";
@@ -493,94 +494,103 @@ export function useConversationViewModel(
   // [merchantId]) so nudges can be generated in the active A/B variant's voice.
   const experimentVMRef = useRef(experimentVM);
   experimentVMRef.current = experimentVM;
+
+  // Shared nudge logic used by BOTH the idle timer and the exit-intent hook.
+  // Applies activation-mode gating + per-trigger cooldown, shows the deterministic
+  // nudge instantly, then upgrades it to the active A/B variant's voice via the LLM.
+  const fireNudge = useCallback((triggerEvent: "idle_30_seconds" | "exit_intent_detected") => {
+    const mid = merchantId || "";
+    // Only manual_only suppresses triggers; silent + proactive both react to signals.
+    if (agentModeRef.current === "manual_only") return;
+
+    const cfg = widgetConfigRef.current;
+    const cooldownMs = (cfg?.cooldownSeconds ?? 120) * 1000;
+    if (!canFireTrigger(mid, triggerEvent, cooldownMs)) return;
+
+    const customTrigger = cfg?.triggerMessages?.[triggerEvent];
+    const staticNudge = customTrigger?.message || TRIGGER_MESSAGES[triggerEvent];
+    if (!staticNudge) return;
+
+    recordTriggerFired(mid, triggerEvent);
+
+    const couponSuffix = customTrigger?.couponCode
+      ? ` 🎁 Use o cupom **${customTrigger.couponCode}** para um desconto especial!`
+      : "";
+
+    setMode("chat");
+    const nudgeId = crypto.randomUUID();
+    setMessages((prev) => [...prev, { id: nudgeId, role: "agent", text: staticNudge + couponSuffix }]);
+
+    // Regenerate in the active A/B variant's voice (LLM applies the variant
+    // systemPrompt server-side); keep the static nudge on any failure/error.
+    const variantId = experimentVMRef.current.getTrackingVariantId();
+    const convId = conversationIdRef.current;
+    if (variantId && convId && mid) {
+      const intent =
+        triggerEvent === "exit_intent_detected"
+          ? "O comprador está prestes a sair da loja. Gere UMA mensagem curta e persuasiva, no seu tom, para reengajá-lo e oferecer ajuda."
+          : "O comprador está inativo há um tempo. Gere UMA mensagem curta e acolhedora, no seu tom, oferecendo ajuda para encontrar o que procura.";
+      void checkoutApi
+        .sendMessage(convId, intent, { merchantId: mid, cartId: cart.cartId || undefined, history: [], variantId })
+        .then((data: any) => {
+          const styled = typeof data?.message === "string" ? data.message.trim() : "";
+          if (!styled) return;
+          if (/tive um problema|não consegui|erro ao|tente novamente/i.test(styled)) return;
+          setMessages((prev) => prev.map((m) => (m.id === nudgeId ? { ...m, text: styled + couponSuffix } : m)));
+        })
+        .catch(() => { /* keep the static nudge */ });
+    }
+  }, [merchantId, cart.cartId]);
+
+  const fireNudgeRef = useRef(fireNudge);
+  fireNudgeRef.current = fireNudge;
+
+  // ── Idle: home-grown timer (works reliably; not mouse-dependent) ──
   useEffect(() => {
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
     const cleanup = initTriggerDetection(
       {
-        enableExitIntent: true,
+        enableExitIntent: false, // exit-intent handled by the use-exit-intent lib below
         enableIdleTimer: true,
         idleThresholdMs: 30000,
         apiBaseUrl: API_BASE,
         merchantId,
-        // Read at fire-time so a late-arriving conversationId is still reported.
         get sessionId() { return conversationIdRef.current || undefined; },
       },
       (triggerEvent) => {
-        // Activation modes are cumulative in agentiveness, not mutually exclusive:
-        //   manual_only          → agent never acts on its own (no triggers)
-        //   silent_until_trigger → reacts to idle/exit-intent signals
-        //   proactive            → opens on its own AND still reacts to signals
-        // So only manual_only suppresses triggers. In proactive the chat is already
-        // open; a later idle/exit nudge is appended to keep the agent engaging
-        // (still bounded by maxInterventions + cooldown below).
-        const mode = agentModeRef.current;
-        if (mode === "manual_only") return;
-
-        // Throttling is per-trigger: a cooldown window (rate-limit, re-fires after
-        // it passes) + a generous saturation cap (resets on buyer activity). This
-        // is the whole gate now — no global "N per session then silent forever"
-        // counter, which was permanently muting the agent. Cooldown falls back to
-        // the checkout config when present, else a sane default.
-        const cfg = widgetConfigRef.current;
-        const cooldownMs = (cfg?.cooldownSeconds ?? 120) * 1000;
-
-        if (!canFireTrigger(merchantId || "", triggerEvent, cooldownMs)) return;
-
-        // Custom copy from checkout-settings overrides the built-in fallback when present.
-        const customTrigger = cfg?.triggerMessages?.[triggerEvent];
-        const staticNudge = customTrigger?.message || TRIGGER_MESSAGES[triggerEvent];
-        if (!staticNudge) return;
-
-        recordTriggerFired(merchantId || "", triggerEvent);
-
-        const couponSuffix = customTrigger?.couponCode
-          ? ` 🎁 Use o cupom **${customTrigger.couponCode}** para um desconto especial!`
-          : "";
-
-        // Open the chat (intro → chat) so the buyer sees the agent reaching out.
-        setMode("chat");
-
-        const nudgeId = crypto.randomUUID();
-        // Show the deterministic nudge immediately (no latency, always safe).
-        setMessages((prev) => [...prev, { id: nudgeId, role: "agent", text: staticNudge + couponSuffix }]);
-
-        // If an A/B experiment is active, regenerate the nudge in that variant's
-        // voice via the LLM (which applies the variant systemPrompt server-side)
-        // and replace the static one in place — so BOTH the greeting and the nudge
-        // speak in the active test's communication style. On any failure the static
-        // nudge already shown stays as the safe fallback.
-        const expVM = experimentVMRef.current;
-        const variantId = expVM.getTrackingVariantId();
-        const convId = conversationIdRef.current;
-        if (variantId && convId && merchantId) {
-          const intent =
-            triggerEvent === "exit_intent_detected"
-              ? "O comprador está prestes a sair da loja. Gere UMA mensagem curta e persuasiva, no seu tom, para reengajá-lo e oferecer ajuda."
-              : "O comprador está inativo há um tempo. Gere UMA mensagem curta e acolhedora, no seu tom, oferecendo ajuda para encontrar o que procura.";
-          // Send with an empty history so this internal instruction doesn't pollute
-          // the visible conversation; the backend applies the variant systemPrompt.
-          void checkoutApi
-            .sendMessage(convId, intent, {
-              merchantId,
-              cartId: cart.cartId || undefined,
-              history: [],
-              variantId,
-            })
-            .then((data: any) => {
-              const styled = typeof data?.message === "string" ? data.message.trim() : "";
-              if (!styled) return;
-              // Never downgrade the good static nudge to an LLM error/fallback reply.
-              // Only replace when the model produced a real, safe styled message.
-              const looksLikeError = /tive um problema|não consegui|erro ao|tente novamente/i.test(styled);
-              if (looksLikeError) return;
-              setMessages((prev) => prev.map((m) => (m.id === nudgeId ? { ...m, text: styled + couponSuffix } : m)));
-            })
-            .catch(() => { /* keep the static nudge */ });
-        }
+        if (triggerEvent === "idle_30_seconds") fireNudgeRef.current("idle_30_seconds");
       },
     );
     return cleanup;
   }, [merchantId]);
+
+  // ── Exit-intent: battle-tested library (handles the real leave-gesture across
+  // browsers, which our hand-rolled mouseout threshold did not). Re-arm each time
+  // so it can fire again; the per-trigger cooldown in fireNudge rate-limits it. ──
+  const { registerHandler, resetState } = useExitIntent({
+    cookie: { key: "zyon_exit_intent", daysToExpire: 0 },
+    desktop: {
+      triggerOnIdle: false,
+      triggerOnMouseLeave: true,
+      useBeforeUnload: false,
+      // Fire the instant the pointer leaves — no arming delay, no post-leave delay.
+      // (Defaults are mouseLeaveDelayInSeconds:5 + delayInSecondsToTrigger:10, which
+      // is what made exit-intent feel like it only worked after a long wait.)
+      delayInSecondsToTrigger: 0,
+      mouseLeaveDelayInSeconds: 0,
+    },
+    mobile: { triggerOnIdle: false, delayInSecondsToTrigger: 8 },
+  });
+  useEffect(() => {
+    registerHandler({
+      id: "zyon-store-exit-nudge",
+      handler: () => {
+        fireNudgeRef.current("exit_intent_detected");
+        // Re-arm so a later exit is caught again (cooldown still gates the nudge).
+        setTimeout(() => resetState(), 4000);
+      },
+    });
+  }, [registerHandler, resetState]);
 
   // Proactive activation: after a delay, auto-open the chat (intro → chat) and
   // surface the greeting. `agentMode` (from agent-rules, projected via store config)
