@@ -510,8 +510,10 @@ export function useConversationViewModel(
 
         // Frequency limits fall back to sane defaults when checkout widgetConfig
         // is absent (the storefront must not depend on checkout being configured).
+        // The storefront browsing session is long-lived, so allow more nudges than
+        // the checkout's tight default before going quiet.
         const cfg = widgetConfigRef.current;
-        const maxInterventions = cfg?.maxInterventionsPerSession ?? 3;
+        const maxInterventions = cfg?.maxInterventionsPerSession ?? 6;
         const cooldownMs = (cfg?.cooldownSeconds ?? 120) * 1000;
 
         if (getInterventionCount(merchantId || "") >= maxInterventions) return;
