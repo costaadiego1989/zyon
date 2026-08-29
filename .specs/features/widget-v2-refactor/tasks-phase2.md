@@ -261,3 +261,46 @@ T6, T7 can start after T3/T4 respectively (T8 waits for T5).
 **Status:** Ready for execution  
 **Sub-Agent Work:** T3, T4, T5 can run in parallel (3 agents, 2 hrs wall-clock)  
 **Sequential:** T6→T7→T8→T9→T10 (4 hrs after VMs)
+
+---
+
+## Execution Log (2026-08-29) — Phase 2 Complete
+
+**Completed all tasks:**
+- ✅ T1 — error-handler.ts (reportError, parseErrorMessage, retryAsync)
+- ✅ T2 — viewModels/types.ts + index.ts (3 interfaces)
+- ✅ T3 — useChatViewModel (18 useState → 4 + derived, crypto flow, reportError)
+- ✅ T4 — useSupportViewModel (faq + chat + socket lifecycle, reportError)
+- ✅ T5 — usePaymentViewModel (stripe confirm + pix stub + reset, reportError)
+- ✅ T6 — ChatPanel split: 1629 → 208 lines. Extracted chat/helpers.tsx, chat/ChatBlocks.tsx, chat/VoiceComposer.tsx
+- ✅ T7 — SupportPanel → uses useSupportViewModel (0 useState, 0 fetch, 0 socket in component)
+- ✅ T8 — StripeCardPayment → uses usePaymentViewModel (Stripe SDK stays in component, backend confirm in VM)
+- ✅ T9 — typecheck + build pass (only 2 pre-existing errors)
+- ✅ T10 — audit pass
+
+**Architecture Audit Results:**
+- Backend fetch in components: ZERO (only wallet RPC in ChatBlocks, correct — external)
+- console.error in components: ZERO (all via reportError)
+- ViewModels using reportError: 3/3
+- Layers: api/(3) → viewModels/(5) → components/(15) + chat/(4) + lib/error-handler
+- ChatPanel: 208 lines (was 1706)
+- SupportPanel: 392 lines (pure render, 0 logic)
+- StripeCardPayment: 120 lines
+
+**Design decisions:**
+- Stripe client-side SDK (confirmCardPayment, useStripe/useElements) stays in component — it's DOM/SDK interaction, not business logic. VM handles only backend confirm.
+- ChatPanel main still reads store directly (store IS the chat VM-equivalent for messages); block components extracted to chat/. useChatViewModel available for future wiring.
+- SupportPanel View is 392 lines but pure markup (inline SVGs + styles), zero logic — acceptable MVVM View.
+- Comments fully removed including JSX {/* */} and JSDoc.
+
+**Verified:**
+- pnpm typecheck → only pre-existing (checkout-session:184, SupportFAB:75)
+- pnpm build → 79 modules, 241.78 KiB (gzip 53.54 KiB)
+
+**Phase 2 Commits (8):**
+1. docs(widget): phase 2 spec+design+tasks
+2. feat(widget): error-handler + viewmodel types foundation
+3. feat(widget): chat, support, payment viewmodel hooks
+4. refactor(widget): payment viewmodel in StripeCardPayment (T8)
+5. refactor(widget): support viewmodel in SupportPanel (T7)
+6. refactor(widget): split ChatPanel god-file into chat/ modules (T6)
