@@ -62,9 +62,16 @@ export default function ProductComparisonBlock({
             width: "100%",
             borderCollapse: "collapse",
             fontSize: 13,
-            minWidth: Math.max(420, products.length * 140),
+            tableLayout: "fixed",
+            minWidth: 110 + products.length * 160,
           }}
         >
+          <colgroup>
+            <col style={{ width: 110 }} />
+            {products.map((p) => (
+              <col key={p.id} style={{ width: `calc((100% - 110px) / ${products.length})` }} />
+            ))}
+          </colgroup>
           <thead>
             <tr>
               <th
@@ -99,7 +106,6 @@ export default function ProductComparisonBlock({
                     fontWeight: 600,
                     color: "var(--aacp-fg)",
                     fontSize: 13,
-                    minWidth: 140,
                     verticalAlign: "top",
                   }}
                 >
@@ -312,20 +318,38 @@ export default function ProductComparisonBlock({
             onClick={() => onQuickReply?.(`Adicionar ${p.name}`)}
             disabled={!p.inStock}
             style={{
-              flex: "1 0 140px",
+              flex: 1,
+              minWidth: 0,
               padding: "10px 14px",
-              borderRadius: "var(--aacp-radius-sm)",
+              borderRadius: "10px",
               border: "none",
-              background: p.inStock ? "var(--aacp-grad-primary)" : "var(--aacp-surface-3)",
+              background: p.inStock
+                ? "var(--aacp-accent)"
+                : "color-mix(in srgb, var(--aacp-muted) 30%, var(--aacp-surface-2))",
               color: p.inStock ? "#fff" : "var(--aacp-muted)",
               fontSize: 12.5,
-              fontWeight: 600,
+              fontWeight: 700,
+              fontFamily: "var(--aacp-font)",
               cursor: p.inStock ? "pointer" : "not-allowed",
-              transition: "transform 160ms ease, opacity 160ms ease",
+              transition: "box-shadow 160ms ease, transform 160ms ease",
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
-              boxShadow: p.inStock ? "var(--aacp-shadow-sm)" : "none",
+              boxShadow: p.inStock
+                ? "0 4px 14px color-mix(in srgb, var(--aacp-accent) 30%, transparent)"
+                : "none",
+            }}
+            onMouseEnter={(e) => {
+              if (!p.inStock) return;
+              e.currentTarget.style.boxShadow =
+                "0 8px 22px color-mix(in srgb, var(--aacp-accent) 42%, transparent)";
+              e.currentTarget.style.transform = "translateY(-1px)";
+            }}
+            onMouseLeave={(e) => {
+              if (!p.inStock) return;
+              e.currentTarget.style.boxShadow =
+                "0 4px 14px color-mix(in srgb, var(--aacp-accent) 30%, transparent)";
+              e.currentTarget.style.transform = "translateY(0)";
             }}
           >
             Adicionar {p.name.length > 18 ? `${p.name.slice(0, 18)}…` : p.name}

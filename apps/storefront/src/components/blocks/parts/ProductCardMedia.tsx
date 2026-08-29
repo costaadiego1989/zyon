@@ -2,6 +2,7 @@
 
 import type { ProductCardBlock as ProductCardBlockType } from "@/lib/types";
 import { getInitial } from "./util";
+import { ProductCardShare } from "./ProductCardShare";
 
 export function ProductCardMedia({
   data,
@@ -14,7 +15,6 @@ export function ProductCardMedia({
 }) {
   return (
     <div
-      aria-hidden
       style={{
         position: "relative",
         width: "100%",
@@ -66,7 +66,7 @@ export function ProductCardMedia({
           left: "12px",
           display: "flex",
           flexDirection: "column",
-          gap: "6px",
+          gap: "8px",
           alignItems: "flex-start",
         }}
       >
@@ -87,6 +87,7 @@ export function ProductCardMedia({
             -{data.discountPercent}%
           </span>
         )}
+        <ProductCardShare productName={data.name} />
       </div>
 
       <button

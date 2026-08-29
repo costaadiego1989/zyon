@@ -7,7 +7,6 @@ import { StarRating } from "./parts/StarRating";
 import { ProductCardMedia } from "./parts/ProductCardMedia";
 import { ProductCardVariants } from "./parts/ProductCardVariants";
 import { ProductCardCta } from "./parts/ProductCardCta";
-import { ProductCardShare } from "./parts/ProductCardShare";
 
 export default function ProductCardBlock({
   block,
@@ -93,6 +92,12 @@ export default function ProductCardBlock({
           from { opacity: 0; transform: translateY(12px); }
           to { opacity: 1; transform: translateY(0); }
         }
+        @container (max-width: 340px) {
+          .aacp-pc-grid { grid-template-columns: 1fr !important; }
+        }
+        @media (max-width: 360px) {
+          .aacp-pc-grid { grid-template-columns: 1fr !important; }
+        }
       `}</style>
 
       <ProductCardMedia
@@ -109,124 +114,75 @@ export default function ProductCardBlock({
           gap: "12px",
         }}
       >
-        {data.rating !== undefined && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "10px",
-              flexWrap: "wrap",
-            }}
-          >
-            <StarRating value={data.rating} count={data.reviewCount ?? 0} />
-          </div>
-        )}
-
-        <h3
+        <div
+          className="aacp-pc-grid"
           style={{
-            fontFamily: "var(--aacp-font-display)",
-            fontSize: "18px",
-            fontWeight: 700,
-            margin: 0,
-            color: "var(--aacp-fg)",
-            lineHeight: 1.3,
-            letterSpacing: "-0.01em",
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1.35fr) minmax(0, 1fr)",
+            gap: "16px",
+            alignItems: "start",
           }}
         >
-          {data.name}
-        </h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px", minWidth: 0 }}>
+            {data.rating !== undefined && (
+              <StarRating value={data.rating} count={data.reviewCount ?? 0} />
+            )}
 
-        {data.description && (
-          <p
-            style={{
-              fontSize: "12.5px",
-              lineHeight: 1.5,
-              color: "var(--aacp-muted)",
-              margin: 0,
-              ...(data.detailed
-                ? {}
-                : {
-                    display: "-webkit-box",
-                    WebkitLineClamp: 3,
-                    WebkitBoxOrient: "vertical" as const,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }),
-            }}
-          >
-            {data.description}
-          </p>
-        )}
-
-        {data.detailed && (
-          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px", fontSize: "11.5px" }}>
-            <span
+            <h3
               style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "5px",
-                padding: "3px 9px",
-                borderRadius: "6px",
-                fontWeight: 600,
-                background: data.inStock
-                  ? "color-mix(in srgb, var(--aacp-accent) 12%, transparent)"
-                  : "color-mix(in srgb, #dc2626 12%, transparent)",
-                color: data.inStock ? "var(--aacp-accent)" : "#dc2626",
+                fontFamily: "var(--aacp-font-display)",
+                fontSize: "18px",
+                fontWeight: 700,
+                margin: 0,
+                color: "var(--aacp-fg)",
+                lineHeight: 1.3,
+                letterSpacing: "-0.01em",
               }}
             >
-              {data.inStock
-                ? data.stock && data.stock < 999
-                  ? `Em estoque · ${data.stock} ${data.stock === 1 ? "unidade" : "unidades"}`
-                  : "Em estoque"
-                : "Indisponível"}
-            </span>
-            {data.sku && (
-              <span style={{ color: "var(--aacp-muted)", fontFamily: "var(--aacp-font-mono, monospace)" }}>
+              {data.name}
+            </h3>
+
+            {data.description && (
+              <p
+                style={{
+                  fontSize: "12.5px",
+                  lineHeight: 1.5,
+                  color: "var(--aacp-muted)",
+                  margin: 0,
+                  ...(data.detailed
+                    ? {}
+                    : {
+                        display: "-webkit-box",
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: "vertical" as const,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }),
+                }}
+              >
+                {data.description}
+              </p>
+            )}
+
+            {data.detailed && data.sku && (
+              <span style={{ fontSize: "11.5px", color: "var(--aacp-muted)", fontFamily: "var(--aacp-font-mono, monospace)" }}>
                 SKU: {data.sku}
               </span>
             )}
           </div>
-        )}
 
-        {hasRealVariants && (
-          <ProductCardVariants
-            variants={variants}
-            selectedVariantId={selectedVariantId}
-            setSelectedVariantId={setSelectedVariantId}
-            variantsAreColors={variantsAreColors}
-            selectedVariant={selectedVariant}
-            detailed={data.detailed}
-          />
-        )}
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-end",
-            justifyContent: "space-between",
-            gap: "12px",
-            marginTop: "6px",
-            paddingTop: "12px",
-            borderTop: "1px solid var(--aacp-line)",
-          }}
-        >
           <div
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: "3px",
+              gap: "6px",
               minWidth: 0,
+              alignItems: "flex-end",
+              textAlign: "right",
             }}
           >
             {hasDiscount && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                }}
-              >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
                 <span
                   style={{
                     fontSize: "13px",
@@ -270,68 +226,80 @@ export default function ProductCardBlock({
             >
               {displayedPriceFormatted}
             </span>
-          </div>
 
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              fontSize: "11.5px",
-              fontWeight: 600,
-              color: data.inStock ? "var(--aacp-success)" : "#ef4444",
-              paddingBottom: "4px",
-              whiteSpace: "nowrap",
-            }}
-            aria-live="polite"
-          >
-            <span
+            <div
               style={{
-                width: "8px",
-                height: "8px",
-                borderRadius: "50%",
-                background: data.inStock ? "var(--aacp-success)" : "#ef4444",
-                boxShadow: data.inStock
-                  ? "0 0 0 3px color-mix(in srgb, var(--aacp-success) 22%, transparent)"
-                  : "0 0 0 3px color-mix(in srgb, #ef4444 22%, transparent)",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                fontSize: "11.5px",
+                fontWeight: 600,
+                color: data.inStock ? "var(--aacp-success)" : "#ef4444",
+                whiteSpace: "nowrap",
               }}
-              aria-hidden
-            />
-            {data.inStock ? "Em estoque" : "Esgotado"}
+              aria-live="polite"
+            >
+              <span
+                style={{
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "50%",
+                  background: data.inStock ? "var(--aacp-success)" : "#ef4444",
+                  boxShadow: data.inStock
+                    ? "0 0 0 3px color-mix(in srgb, var(--aacp-success) 22%, transparent)"
+                    : "0 0 0 3px color-mix(in srgb, #ef4444 22%, transparent)",
+                }}
+                aria-hidden
+              />
+              {data.inStock
+                ? data.detailed && data.stock && data.stock < 999
+                  ? `Em estoque · ${data.stock} ${data.stock === 1 ? "un." : "un."}`
+                  : "Em estoque"
+                : "Esgotado"}
+            </div>
+
+            {data.inStock && (
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontSize: "11.5px",
+                  color: "var(--aacp-muted)",
+                  lineHeight: 1.3,
+                }}
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--aacp-success)"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="M3 7h13l5 5v7h-2" />
+                  <path d="M3 17V7" />
+                  <circle cx="7.5" cy="17.5" r="2.5" />
+                  <circle cx="17.5" cy="17.5" r="2.5" />
+                </svg>
+                <span>Frete grátis Brasil</span>
+              </div>
+            )}
           </div>
         </div>
 
-        {data.inStock && (
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              fontSize: "11.5px",
-              color: "var(--aacp-muted)",
-              marginTop: "-2px",
-            }}
-          >
-            <svg
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="var(--aacp-success)"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <path d="M3 7h13l5 5v7h-2" />
-              <path d="M3 17V7" />
-              <circle cx="7.5" cy="17.5" r="2.5" />
-              <circle cx="17.5" cy="17.5" r="2.5" />
-            </svg>
-            <span>
-              Frete grátis para todo o Brasil
-            </span>
-          </div>
+        {hasRealVariants && (
+          <ProductCardVariants
+            variants={variants}
+            selectedVariantId={selectedVariantId}
+            setSelectedVariantId={setSelectedVariantId}
+            variantsAreColors={variantsAreColors}
+            selectedVariant={selectedVariant}
+            detailed={data.detailed}
+          />
         )}
 
         {data.source === "marketplace" && data.sellerName && (
@@ -382,8 +350,6 @@ export default function ProductCardBlock({
           buildCtaText={buildCtaText}
           onQuickReply={onQuickReply}
         />
-
-        <ProductCardShare productName={data.name} />
       </div>
 
       <div

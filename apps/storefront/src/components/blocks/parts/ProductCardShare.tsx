@@ -2,37 +2,47 @@
 
 import { FaWhatsapp, FaFacebook, FaInstagram } from "react-icons/fa";
 
+const iconWrap: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "30px",
+  height: "30px",
+  borderRadius: "50%",
+  background: "color-mix(in srgb, var(--aacp-surface) 80%, transparent)",
+  border: "1px solid var(--aacp-line)",
+  backdropFilter: "blur(6px)",
+  textDecoration: "none",
+  cursor: "pointer",
+  padding: 0,
+};
+
 export function ProductCardShare({ productName }: { productName: string }) {
   return (
     <div
       style={{
         display: "flex",
-        alignItems: "center",
-        gap: "8px",
-        padding: "10px 18px",
-        borderTop: "1px solid var(--aacp-line)",
+        flexDirection: "row",
+        gap: "6px",
       }}
     >
-      <span style={{ fontSize: "11px", color: "var(--aacp-muted)", fontWeight: 500 }}>
-        Compartilhar:
-      </span>
       <a
         href={`https://wa.me/?text=${encodeURIComponent(productName + (typeof window !== "undefined" ? " " + window.location.href : ""))}`}
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Compartilhar no WhatsApp"
-        style={{ display: "flex", alignItems: "center", padding: "4px", borderRadius: "6px", color: "#25D366", textDecoration: "none" }}
+        style={{ ...iconWrap, color: "#25D366" }}
       >
-        <FaWhatsapp size={18} />
+        <FaWhatsapp size={15} />
       </a>
       <a
         href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : "")}`}
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Compartilhar no Facebook"
-        style={{ display: "flex", alignItems: "center", padding: "4px", borderRadius: "6px", color: "#1877F2", textDecoration: "none" }}
+        style={{ ...iconWrap, color: "#1877F2" }}
       >
-        <FaFacebook size={18} />
+        <FaFacebook size={15} />
       </a>
       <button
         type="button"
@@ -42,9 +52,9 @@ export function ProductCardShare({ productName }: { productName: string }) {
             navigator.clipboard.writeText(window.location.href).catch(() => {});
           }
         }}
-        style={{ display: "flex", alignItems: "center", padding: "4px", borderRadius: "6px", color: "#E4405F", background: "none", border: "none", cursor: "pointer" }}
+        style={{ ...iconWrap, color: "#E4405F" }}
       >
-        <FaInstagram size={18} />
+        <FaInstagram size={15} />
       </button>
     </div>
   );
