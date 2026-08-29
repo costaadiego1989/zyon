@@ -163,6 +163,12 @@ export const cartApi = {
       },
     );
   },
+  async clear(cartId: string, merchantId: string): Promise<any> {
+    return safeFetch(
+      `${API_BASE}/storefront/cart/${encodeURIComponent(cartId)}/clear?merchantId=${encodeURIComponent(merchantId)}`,
+      { method: "POST" },
+    ).catch(() => null);
+  },
 };
 export const intentMemoryApi = {
   async getConsent(buyerToken: string): Promise<any> {

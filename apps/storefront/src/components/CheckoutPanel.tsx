@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { useCart } from "@/lib/cart-store";
+import { cartApi } from "@/lib/api/api-client";
 
 interface CheckoutPanelProps {
   merchantId: string;
@@ -39,11 +40,16 @@ export default function CheckoutPanel({
 
   useEffect(() => {
     const onOrderCompleted = () => {
+      // Clear the cart on the backend too (not just local sessionStorage) so a
+      // page refresh after checkout can't restore a paid/stale cart — the
+      // session fully resets. Backend clear is best-effort; local clear always runs.
+      const cid = cart.cartId;
+      if (cid && merchantId) void cartApi.clear(cid, merchantId);
       clearCart();
     };
     window.addEventListener("aacp:order-completed", onOrderCompleted);
     return () => window.removeEventListener("aacp:order-completed", onOrderCompleted);
-  }, [clearCart]);
+  }, [clearCart, cart.cartId, merchantId]);
 
   useEffect(() => {
     if (!initialGlobalUserId) {

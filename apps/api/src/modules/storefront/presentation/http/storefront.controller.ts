@@ -71,7 +71,6 @@ export class StorefrontController {
 
   @Get(":slug/stories")
   async getStories(@Param("slug") slug: string) {
-    // Resolve merchant using same logic as getStoreConfig
     let merchant = await this.prisma.merchant.findUnique({ where: { id: slug }, select: { id: true } });
     if (!merchant) {
       const all = await this.prisma.merchant.findMany({ select: { id: true, name: true, storeSettings: true } });
@@ -110,13 +109,11 @@ export class StorefrontController {
       res.send(buffer);
       return;
     }
-    // External URL — redirect
     res.redirect(301, logoUrl);
   }
 
   @Get(":slug/coupons")
   async getCoupons(@Param("slug") slug: string) {
-    // Resolve merchant using same logic as getStoreConfig
     let merchant = await this.prisma.merchant.findUnique({ where: { id: slug }, select: { id: true } });
     if (!merchant) {
       const all = await this.prisma.merchant.findMany({ select: { id: true, name: true, storeSettings: true } });
@@ -130,7 +127,6 @@ export class StorefrontController {
     }
     if (!merchant) throw new NotFoundException("store_not_found");
 
-    // List active coupons for the merchant (not expired, status=active)
     const now = new Date();
     const coupons = await this.prisma.coupon.findMany({
       where: {
@@ -217,7 +213,6 @@ export class StorefrontController {
     }
 
     try {
-      // Emit to CheckoutEvent table for funnel analytics (best-effort)
       const funnelEvents = new Set([
         "auth_phone_submitted", "auth_phone_verified", "auth_identity_confirmed",
         "auth_registration_completed", "login_completed", "product_viewed", "cart_viewed",
@@ -371,10 +366,6 @@ export class StorefrontController {
     };
   }
 
-  /**
-   * Clears the storefront cart on the backend. Called when an order completes so
-   * a page refresh cannot restore a paid/stale cart — the session truly resets.
-   */
   @Post("cart/:cartId/clear")
   async clearCart(
     @Param("cartId") cartId: string,
