@@ -23,6 +23,13 @@ const DEFAULT_IDLE_THRESHOLD_MS = 30_000;
 // the idle countdown or double-counts — this is exactly why the checkout version works.
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
 let exitFired = false;
+let exitRearmTimer: ReturnType<typeof setTimeout> | null = null;
+
+// After firing, ignore the same physical gesture (mouse jittering at the edge) for
+// a short window, then re-arm so a genuine later exit is caught again. The real
+// per-session rate-limit lives in the caller's canFireTrigger (cooldown + cap);
+// exitFired only debounces the raw event, it must NOT latch forever.
+const EXIT_REARM_MS = 4_000;
 
 function reportTriggerEvent(triggerName: TriggerEvent, config: TriggerConfig): void {
   if (!config.sessionId || !config.merchantId) return;
@@ -66,6 +73,10 @@ export function initTriggerDetection(
         exitFired = true;
         onTrigger("exit_intent_detected");
         reportTriggerEvent("exit_intent_detected", config);
+        // Re-arm after a short debounce so a later genuine exit fires again.
+        // (The caller's cooldown still decides whether a NUDGE actually shows.)
+        if (exitRearmTimer) clearTimeout(exitRearmTimer);
+        exitRearmTimer = setTimeout(() => { exitFired = false; }, EXIT_REARM_MS);
       };
       // Primary signal: mouseout on the document where the cursor leaves toward the
       // top edge and to no in-page element (relatedTarget null = left the window).
@@ -150,6 +161,10 @@ export function initTriggerDetection(
     if (idleTimer) {
       clearTimeout(idleTimer);
       idleTimer = null;
+    }
+    if (exitRearmTimer) {
+      clearTimeout(exitRearmTimer);
+      exitRearmTimer = null;
     }
   };
 }
