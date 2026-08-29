@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useCheckoutStore } from "@/store/checkout-store";
+import { confirmCryptoPayment } from "@/api/payment";
 import { AgentAvatar } from "./AgentAvatar";
 import { PulseAgentOrb } from "./PulseAgentOrb";
 import type { ChatBlock } from "@/api/checkout-session";
@@ -1095,11 +1096,12 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
       console.log("[CRYPTO-PAY] tx sent:", txHash);
 
       setStep("confirming");
-      if (api) {
-        await fetch(`${api.apiBaseUrl}/embed/payment/intents/${intentId}/crypto/confirm`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${api.authToken}` },
-          body: JSON.stringify({ session_id: api.currentSessionId, tx_hash: txHash, wallet_address: wallet }),
+      if (api && api.currentSessionId) {
+        await confirmCryptoPayment(api, {
+          paymentIntentId: intentId,
+          sessionId: api.currentSessionId,
+          txHash: txHash,
+          walletAddress: wallet,
         });
       }
       pollPayment();
