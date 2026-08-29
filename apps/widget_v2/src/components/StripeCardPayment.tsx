@@ -2,7 +2,7 @@ import { useState } from "react";
 import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { useCheckoutStore } from "@/store/checkout-store";
-import { confirmStripePayment } from "@/api/payment";
+import { usePaymentViewModel } from "@/viewModels/usePaymentViewModel";
 
 const STRIPE_PK = (typeof window !== "undefined" && window.__STRIPE_PK__)
   || import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
@@ -20,19 +20,26 @@ function CardForm() {
   const paymentIntent = useCheckoutStore((s) => s.paymentIntent);
   const api = useCheckoutStore((s) => s.api);
   const brand = useCheckoutStore((s) => s.brand);
-  const [processing, setProcessing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [clientError, setClientError] = useState<string | null>(null);
+
+  const vm = usePaymentViewModel({
+    api: api!,
+    paymentIntentId: paymentIntent?.intent_id ?? "",
+    onSuccess: () => {
+      useCheckoutStore.setState({
+        status: "completed",
+        cart: { ...useCheckoutStore.getState().cart, status: "paid" },
+      });
+    },
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!stripe || !elements || !paymentIntent?.stripe_client_secret || !api) return;
 
-    setProcessing(true);
-    setError(null);
-
+    setClientError(null);
     const cardElement = elements.getElement(CardElement);
-    if (!cardElement) { setProcessing(false); return; }
+    if (!cardElement) return;
 
     const { error: stripeError, paymentIntent: result } = await stripe.confirmCardPayment(
       paymentIntent.stripe_client_secret,
@@ -40,34 +47,21 @@ function CardForm() {
     );
 
     if (stripeError) {
-      setError(stripeError.message || "Erro no pagamento");
-      setProcessing(false);
+      setClientError(stripeError.message || "Erro no pagamento");
       return;
     }
 
-    if (result?.status === "succeeded") {
-      try {
-        const confirmRes = await confirmStripePayment(api, {
-          paymentIntentId: paymentIntent.intent_id,
-          stripePaymentId: result.id,
-        });
-        if (confirmRes.ok) {
-          setSuccess(true);
-          useCheckoutStore.setState({
-            status: "completed",
-            cart: { ...useCheckoutStore.getState().cart, status: "paid" }
-          });
-        } else {
-          setError("Pagamento processado mas confirmação falhou. Entre em contato.");
-        }
-      } catch {
-        setError("Erro de conexão na confirmação.");
-      }
-    } else {
-      setError("Pagamento não foi concluído. Tente novamente.");
+    if (result?.status !== "succeeded") {
+      setClientError("Pagamento não foi concluído. Tente novamente.");
+      return;
     }
-    setProcessing(false);
+
+    await vm.confirmStripePayment(result.id);
   };
+
+  const processing = vm.processing;
+  const error = clientError || vm.error;
+  const success = vm.success;
 
   if (success) {
     return (
