@@ -4,9 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useWidgetConfig } from "@/lib/widget-config";
 import { useCart } from "@/lib/cart-store";
 import { checkoutApi, cartApi } from "@/lib/api/api-client";
-import { initTriggerDetection } from "@/lib/triggers";
+import { setupIdleTrigger, setupExitIntentTrigger, type TriggerName } from "@/lib/triggers";
 import { canFireTrigger, recordTriggerFired, noteActivity } from "@/lib/intervention-tracker";
-import { useExitIntent } from "use-exit-intent";
 import { TRIGGER_MESSAGES } from "@/lib/trigger-messages";
 import { useCheckoutExperiment } from "@/lib/useCheckoutExperiment";
 import { getValidBuyer } from "@/lib/buyer-auth";
@@ -545,52 +544,26 @@ export function useConversationViewModel(
   const fireNudgeRef = useRef(fireNudge);
   fireNudgeRef.current = fireNudge;
 
-  // ── Idle: home-grown timer (works reliably; not mouse-dependent) ──
+  // Trigger detection — direct port of the checkout widget_v2 setup (which works
+  // reliably): setupIdleTrigger + setupExitIntentTrigger, armed once on mount.
+  // Both funnel into fireNudge (mode gating + cooldown + A/B voice) via a ref so
+  // this effect doesn't re-arm and reset the idle timer.
   useEffect(() => {
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
-    const cleanup = initTriggerDetection(
-      {
-        enableExitIntent: false, // exit-intent handled by the use-exit-intent lib below
-        enableIdleTimer: true,
-        idleThresholdMs: 30000,
-        apiBaseUrl: API_BASE,
-        merchantId,
-        get sessionId() { return conversationIdRef.current || undefined; },
-      },
-      (triggerEvent) => {
-        if (triggerEvent === "idle_30_seconds") fireNudgeRef.current("idle_30_seconds");
-      },
-    );
-    return cleanup;
+    const cfg = {
+      idleSeconds: 30,
+      apiBaseUrl: API_BASE,
+      merchantId,
+      get sessionId() { return conversationIdRef.current || undefined; },
+    };
+    const onTrigger = (t: TriggerName) => fireNudgeRef.current(t);
+    const cleanupIdle = setupIdleTrigger(cfg, onTrigger);
+    const cleanupExit = setupExitIntentTrigger(cfg, onTrigger);
+    return () => {
+      cleanupIdle();
+      cleanupExit();
+    };
   }, [merchantId]);
-
-  // ── Exit-intent: battle-tested library (handles the real leave-gesture across
-  // browsers, which our hand-rolled mouseout threshold did not). Re-arm each time
-  // so it can fire again; the per-trigger cooldown in fireNudge rate-limits it. ──
-  const { registerHandler, resetState } = useExitIntent({
-    cookie: { key: "zyon_exit_intent", daysToExpire: 0 },
-    desktop: {
-      triggerOnIdle: false,
-      triggerOnMouseLeave: true,
-      useBeforeUnload: false,
-      // Fire the instant the pointer leaves — no arming delay, no post-leave delay.
-      // (Defaults are mouseLeaveDelayInSeconds:5 + delayInSecondsToTrigger:10, which
-      // is what made exit-intent feel like it only worked after a long wait.)
-      delayInSecondsToTrigger: 0,
-      mouseLeaveDelayInSeconds: 0,
-    },
-    mobile: { triggerOnIdle: false, delayInSecondsToTrigger: 8 },
-  });
-  useEffect(() => {
-    registerHandler({
-      id: "zyon-store-exit-nudge",
-      handler: () => {
-        fireNudgeRef.current("exit_intent_detected");
-        // Re-arm so a later exit is caught again (cooldown still gates the nudge).
-        setTimeout(() => resetState(), 4000);
-      },
-    });
-  }, [registerHandler, resetState]);
 
   // Proactive activation: after a delay, auto-open the chat (intro → chat) and
   // surface the greeting. `agentMode` (from agent-rules, projected via store config)
