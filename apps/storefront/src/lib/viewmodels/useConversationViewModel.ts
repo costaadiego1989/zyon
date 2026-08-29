@@ -41,6 +41,49 @@ export type Mode = "intro" | "chat";
 /** Shared localStorage key so storefront + embedded checkout widget stay in sync. */
 export const SHARED_THEME_KEY = "zyon-theme";
 
+/** sessionStorage key for the persisted conversation snapshot (per merchant). */
+export const CONVERSATION_STATE_KEY = (merchantId: string) => `zyon_conversation_state_${merchantId}`;
+
+/** Max age of a restored conversation snapshot (ms). Older = ignored (stale). */
+const CONVERSATION_MAX_AGE_MS = 6 * 60 * 60 * 1000; // 6h
+
+/**
+ * Restore a persisted conversation snapshot for the merchant, if fresh.
+ * Returns null on any failure (SSR, privacy mode, corrupt/stale data).
+ */
+function restoreConversation(merchantId?: string): {
+  conversationId: string | null;
+  messages: Message[];
+  mode: Mode | null;
+  channel: Channel | null;
+} | null {
+  if (!merchantId || typeof sessionStorage === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(CONVERSATION_STATE_KEY(merchantId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as {
+      conversationId?: string | null;
+      messages?: Message[];
+      mode?: Mode;
+      channel?: Channel | null;
+      savedAt?: number;
+    };
+    if (!Array.isArray(parsed.messages)) return null;
+    if (parsed.savedAt && Date.now() - parsed.savedAt > CONVERSATION_MAX_AGE_MS) {
+      sessionStorage.removeItem(CONVERSATION_STATE_KEY(merchantId));
+      return null;
+    }
+    return {
+      conversationId: parsed.conversationId ?? null,
+      messages: parsed.messages,
+      mode: parsed.mode ?? null,
+      channel: parsed.channel ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Narration fallback for storefront conversation blocks. When the LLM returns a
  * visual component with no accompanying text, derive a short line so the agent
@@ -458,13 +501,38 @@ export function useConversationViewModel(
 
   // ─── Side Effects ───
 
-  // Restore preferences
+  // Persist conversation (messages + id + mode/channel) so an accidental full
+  // page reload doesn't wipe the chat history. Keyed per merchant in
+  // sessionStorage (survives reload, clears when the tab closes).
+  useEffect(() => {
+    if (!merchantId) return;
+    if (messages.length === 0) return;
+    try {
+      sessionStorage.setItem(
+        CONVERSATION_STATE_KEY(merchantId),
+        JSON.stringify({ conversationId, messages, mode, channel, savedAt: Date.now() }),
+      );
+    } catch { /* quota/privacy */ }
+  }, [merchantId, conversationId, messages, mode, channel]);
+
+  // Restore preferences + prior conversation on mount
   useEffect(() => {
     try {
       const savedChannel = localStorage.getItem("pulse-channel-pref") as Channel | null;
       // Theme already resolved in the lazy useState initializer (localStorage > merchant
       // default). Just apply the CSS tokens for the current value on mount.
       applyTheme(theme);
+
+      // Restore prior conversation if a fresh snapshot exists (survives reload).
+      const restored = restoreConversation(merchantId);
+      if (restored && restored.messages.length > 0) {
+        setMessages(restored.messages);
+        if (restored.conversationId) setConversationId(restored.conversationId);
+        if (restored.mode) setMode(restored.mode);
+        if (restored.channel) setChannel(restored.channel);
+        return; // Do NOT re-init — we already have a live conversation.
+      }
+
       if (savedChannel === "chat" || savedChannel === "voice") {
         setChannel(savedChannel);
         setMode("chat");
@@ -520,19 +588,32 @@ export function useConversationViewModel(
     const nudgeId = crypto.randomUUID();
     setMessages((prev) => [...prev, { id: nudgeId, role: "agent", text: staticNudge + couponSuffix }]);
 
-    // Regenerate in the active A/B variant's voice (LLM applies the variant
-    // systemPrompt server-side); keep the static nudge on any failure/error.
-    const variantId = experimentVMRef.current.getTrackingVariantId();
+    // Regenerate the nudge in the active A/B variant's voice. We build a STRONG,
+    // explicit instruction that (a) restates the running variant's style directive
+    // and (b) constrains the output to a single short nudge line — otherwise the LLM
+    // drifts into a generic "how can I help" reply that ignores the variant tone.
+    const exp = experimentVMRef.current.experiment;
+    const variantId = exp?.variantId ?? experimentVMRef.current.getTrackingVariantId();
     const convId = conversationIdRef.current;
     if (variantId && convId && mid) {
-      const intent =
+      const situation =
         triggerEvent === "exit_intent_detected"
-          ? "O comprador está prestes a sair da loja. Gere UMA mensagem curta e persuasiva, no seu tom, para reengajá-lo e oferecer ajuda."
-          : "O comprador está inativo há um tempo. Gere UMA mensagem curta e acolhedora, no seu tom, oferecendo ajuda para encontrar o que procura.";
+          ? "O comprador está prestes a SAIR da loja (exit-intent)."
+          : "O comprador está INATIVO/parado na loja há um tempo, sem interagir.";
+      const styleDirective = exp?.systemPrompt
+        ? `Siga EXATAMENTE este estilo de comunicação: "${exp.systemPrompt}".`
+        : "Use um tom persuasivo, caloroso e vendedor.";
+      const intent = [
+        `[INSTRUÇÃO INTERNA — NÃO responda como se eu fosse o comprador.]`,
+        situation,
+        styleDirective,
+        `Escreva UMA única frase curta (máx. 2 linhas), na primeira pessoa da vendedora, chamando o comprador de volta e oferecendo ajuda concreta para fechar a compra.`,
+        `Não faça perguntas genéricas do tipo "como posso ajudar". Seja específica e no estilo acima. Responda SÓ com a mensagem, sem aspas.`,
+      ].join(" ");
       void checkoutApi
         .sendMessage(convId, intent, { merchantId: mid, cartId: cart.cartId || undefined, history: [], variantId })
         .then((data: any) => {
-          const styled = typeof data?.message === "string" ? data.message.trim() : "";
+          const styled = typeof data?.message === "string" ? data.message.trim().replace(/^["']|["']$/g, "") : "";
           if (!styled) return;
           if (/tive um problema|não consegui|erro ao|tente novamente/i.test(styled)) return;
           setMessages((prev) => prev.map((m) => (m.id === nudgeId ? { ...m, text: styled + couponSuffix } : m)));
