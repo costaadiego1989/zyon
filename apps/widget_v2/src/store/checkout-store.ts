@@ -107,12 +107,17 @@ interface CheckoutState {
   progressiveDiscount: { enabled: boolean; stages: Record<string, number> } | null;
   advancedRules: AdvancedRule[];
   activeRuleActions: RuleAction[];
+  /** Merchant hard cap on total discount percent. Coupon field hides once reached. */
+  maxDiscountPercent: number;
 
   // Cross-sell (deferred from start → rendered at selectChannel)
   _pendingCrossSellBlock: ChatBlock | null;
 
   // Whitelabel: "Powered by Zyon" badge shown for free-plan merchants
   showBranding: boolean;
+
+  // Voice checkout habilitado (feature do plano — Growth+). Free esconde o canal de voz.
+  voiceEnabled: boolean;
 
   // Actions
   init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; globalUserId?: string }) => Promise<void>;
@@ -129,6 +134,8 @@ interface CheckoutState {
   dismissDiscount: () => void;
   applyProgressiveDiscount: (cartStatus: CartStatus) => Promise<void>;
   applyCouponCode: (code: string) => Promise<{ ok: boolean; error?: string }>;
+  /** Advance from the coupon step to the payment methods block. */
+  proceedToPayment: (methods?: Array<{ key: string; label: string; sub?: string }>) => void;
   evaluateAdvancedRules: () => void;
   resetSession: () => void;
 }
@@ -231,7 +238,10 @@ function deriveBlocksFromStage(
       const chain = state.merchantPaymentConfig.cryptoPayments?.chain || "polygon";
       methods.push({ key: "crypto", label: `Crypto · ${token}`, sub: `Liquida na ${chain} + cashback` });
     }
-    return [{ type: "payment_methods", data: { methods } }];
+    // Coupon is a step BEFORE payment: emit the coupon_input block, which
+    // carries a "Não possuo cupom" action that advances to payment methods
+    // (the methods travel in the block data). It self-hides the field at the cap.
+    return [{ type: "coupon_input", data: { methods } }];
   }
 
   return undefined;
@@ -270,8 +280,11 @@ function startPolling(): void {
         });
       } else if (status.status === "failed" || status.status === "cancelled") {
         useCheckoutStore.getState().stopPolling();
-        // Payment terminal failure — reset session to avoid stale state
-        useCheckoutStore.getState().resetSession();
+        // Payment terminal failure — surface an error state; do NOT resetSession()
+        // (that wipes cart/messages and throws the buyer back to the start of the
+        // checkout, which also fired spuriously after a successful card payment
+        // when the poll fallback observed a stale/consumed intent).
+        useCheckoutStore.setState({ status: "error", error: "payment_failed" });
       }
     } catch {
       // continue polling
@@ -300,8 +313,10 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   progressiveDiscount: null,
   advancedRules: [],
   activeRuleActions: [],
+  maxDiscountPercent: 10,
   _pendingCrossSellBlock: null,
   showBranding: false,
+  voiceEnabled: false,
 
   init: async ({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId }) => {
     try {
@@ -378,6 +393,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         error: null,
         _pendingCrossSellBlock: crossSellBlockFromSuggestions(exp?.suggestedProducts),
         showBranding: exp?.rules?.showBranding ?? false,
+        voiceEnabled: (exp?.rules as { voiceEnabled?: boolean } | undefined)?.voiceEnabled ?? false,
       });
 
       // Initialize tracking
@@ -401,6 +417,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
             triggerMessages: settings.triggerMessages ?? null,
             progressiveDiscount: settings.progressiveDiscount ?? null,
             advancedRules: settings.advancedRules ?? [],
+            maxDiscountPercent: settings.maxDiscountPercent ?? 10,
           });
         }
       } catch {
@@ -534,8 +551,11 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       set((s) => ({
         messages: [...s.messages, {
           id: `agent_${Date.now()}`, role: "agent",
-          text: "Frete selecionado! Agora escolha como quer pagar:",
-          blocks: [{ type: "payment_methods", data: { methods } }],
+          text: "Frete selecionado! Tem um cupom de desconto?",
+          // Coupon is its own step BEFORE payment: the coupon_input block carries
+          // a "Não possuo cupom" action that advances to the payment methods.
+          // The block self-hides the field at the merchant discount cap.
+          blocks: [{ type: "coupon_input", data: { methods } }],
           timestamp: Date.now(),
         }],
         isTyping: false,
@@ -1008,19 +1028,20 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   },
 
   setActiveDiscount: (stage, percent, couponCode?, message?) => {
-    // The percent passed here is already rules-engine-authorized (from
-    // track-event's progressive_offer.approved_percent). Apply it to the cart
-    // so the summary shows the discounted total and the payment intent charges
-    // the discounted amount — not just a cosmetic banner.
-    set((s) => {
-      const discountValue = percent > 0
-        ? Math.round((s.cart.total * (percent / 100)) * 100) / 100
-        : 0;
-      return {
-        activeDiscount: { stage, percent, couponCode, message },
-        cart: { ...s.cart, discount: discountValue },
-      };
-    });
+    // Two modes:
+    // - percent > 0: a rules-engine-authorized discount (from
+    //   applyProgressiveDiscount's track-event → approved_percent). Apply it to
+    //   the cart so the summary and payment intent reflect the discounted total.
+    // - percent === 0: a suggestion-only banner (trigger with a coupon code). It
+    //   surfaces the message/coupon WITHOUT touching cart.discount, so no phantom
+    //   discount is applied and the coupon field stays visible. The buyer applies
+    //   the coupon via the field, which validates through the rules-engine.
+    set((s) => ({
+      activeDiscount: { stage, percent, couponCode, message },
+      cart: percent > 0
+        ? { ...s.cart, discount: Math.round((s.cart.total * (percent / 100)) * 100) / 100 }
+        : s.cart,
+    }));
   },
 
   dismissDiscount: () => {
@@ -1046,6 +1067,36 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     } catch (err: any) {
       return { ok: false, error: err?.message || "Cupom inválido ou expirado" };
     }
+  },
+
+  proceedToPayment: (methods) => {
+    // Advance from the coupon step to payment. If methods weren't carried in the
+    // coupon block, rebuild them from the merchant payment config.
+    const s = get();
+    let list = methods;
+    if (!list?.length) {
+      const cfg = s.merchantPaymentConfig;
+      list = [
+        { key: "pix", label: "Pix", sub: "Pagamento instantâneo, sem taxas" },
+        { key: "credito", label: "Cartão de crédito", sub: "Parcele em até 12x sem juros" },
+        { key: "debito", label: "Cartão de débito", sub: "Débito à vista" },
+      ];
+      if (cfg?.cryptoPaymentsEnabled) {
+        const token = cfg.cryptoPayments?.token || "USDC";
+        const chain = cfg.cryptoPayments?.chain || "polygon";
+        list.push({ key: "crypto", label: `Crypto · ${token}`, sub: `Liquida na ${chain} + cashback` });
+      }
+    }
+    set((st) => ({
+      messages: [...st.messages, {
+        id: `agent_pay_${Date.now()}`,
+        role: "agent",
+        text: "Como você quer pagar?",
+        blocks: [{ type: "payment_methods", data: { methods: list } }],
+        timestamp: Date.now(),
+      }],
+      cart: { ...st.cart, status: "ready_to_pay" },
+    }));
   },
 
   /**

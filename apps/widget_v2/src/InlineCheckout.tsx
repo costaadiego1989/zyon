@@ -68,7 +68,13 @@ export function InlineCheckout(props: InlineCheckoutProps) {
       const stage = stageMap[trigger];
       if (!stage) return;
       const msg = triggerMessages?.[trigger];
-      useCheckoutStore.getState().setActiveDiscount(stage, 5, msg?.couponCode, msg?.message);
+      // A trigger only SURFACES its configured message and (optionally) a
+      // suggested coupon code — it must NOT apply a discount to the cart on its
+      // own. Discounts are authorized only by the rules-engine: the buyer applies
+      // the suggested coupon via the coupon field, which validates server-side.
+      // Passing percent=0 shows the banner/coupon without touching cart.discount,
+      // so the coupon field stays visible (it only hides at the merchant cap).
+      useCheckoutStore.getState().setActiveDiscount(stage, 0, msg?.couponCode, msg?.message);
     };
 
     const cleanupIdle = setupIdleTrigger(triggerConfig, onTrigger);

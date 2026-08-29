@@ -108,9 +108,11 @@ export interface CartItem {
 
 export interface SuggestedProduct {
   sku: string;
+  variant_id?: string;
   name: string;
   unit_price: number;
   image_url?: string;
+  in_stock?: boolean;
   display_mode?: string;
 }
 
@@ -529,9 +531,12 @@ export function crossSellBlockFromSuggestions(
       displayMode,
       products: suggestions.map((p) => ({
         id: p.sku,
+        sku: p.sku,
+        variantId: p.variant_id,
         name: p.name,
         price: p.unit_price,
         image: p.image_url,
+        inStock: p.in_stock !== false,
       })),
     },
   };
