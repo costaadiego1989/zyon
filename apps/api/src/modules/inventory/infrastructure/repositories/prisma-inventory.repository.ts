@@ -15,8 +15,8 @@ export class PrismaInventoryRepository implements InventoryRepositoryPort {
     if (filter.locationId) whereClause.locationId = filter.locationId;
     if (filter.search) {
       whereClause.OR = [
-        { sku: { contains: filter.search, mode: "insensitive" as any } },
-        { productName: { contains: filter.search, mode: "insensitive" as any } },
+        { sku: { contains: filter.search, mode: "insensitive" } },
+        { productName: { contains: filter.search, mode: "insensitive" } },
       ];
     }
 
@@ -43,7 +43,7 @@ export class PrismaInventoryRepository implements InventoryRepositoryPort {
         reorderPoint: item.reorderPoint,
         lowStockThreshold: item.lowStockThreshold,
         avgCostCents: item.avgCostCents,
-        salePriceCents: (item as any).salePriceCents ?? null,
+        salePriceCents: item.salePriceCents ?? null,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
       }))
@@ -75,7 +75,7 @@ export class PrismaInventoryRepository implements InventoryRepositoryPort {
       reorderPoint: item.reorderPoint,
       lowStockThreshold: item.lowStockThreshold,
       avgCostCents: item.avgCostCents,
-        salePriceCents: (item as any).salePriceCents ?? null,
+        salePriceCents: item.salePriceCents ?? null,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     };
@@ -100,7 +100,7 @@ export class PrismaInventoryRepository implements InventoryRepositoryPort {
       reorderPoint: item.reorderPoint,
       lowStockThreshold: item.lowStockThreshold,
       avgCostCents: item.avgCostCents,
-        salePriceCents: (item as any).salePriceCents ?? null,
+        salePriceCents: item.salePriceCents ?? null,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     };
@@ -146,7 +146,7 @@ export class PrismaInventoryRepository implements InventoryRepositoryPort {
       reorderPoint: item.reorderPoint,
       lowStockThreshold: item.lowStockThreshold,
       avgCostCents: item.avgCostCents,
-        salePriceCents: (item as any).salePriceCents ?? null,
+        salePriceCents: item.salePriceCents ?? null,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     };
@@ -178,7 +178,7 @@ export class PrismaInventoryRepository implements InventoryRepositoryPort {
       reorderPoint: updated.reorderPoint,
       lowStockThreshold: updated.lowStockThreshold,
       avgCostCents: updated.avgCostCents,
-      salePriceCents: (updated as any).salePriceCents ?? null,
+      salePriceCents: updated.salePriceCents ?? null,
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
     };
@@ -210,7 +210,7 @@ export class PrismaInventoryRepository implements InventoryRepositoryPort {
       reorderPoint: updated.reorderPoint,
       lowStockThreshold: updated.lowStockThreshold,
       avgCostCents: updated.avgCostCents,
-      salePriceCents: (updated as any).salePriceCents ?? null,
+      salePriceCents: updated.salePriceCents ?? null,
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
     };
@@ -243,7 +243,7 @@ export class PrismaInventoryRepository implements InventoryRepositoryPort {
     const outOfStockCount = items.filter((item) => item.quantity - item.reserved <= 0).length;
 
     const totalValueCents = items.reduce((sum, item) => {
-      const price = (item as any).salePriceCents ?? item.avgCostCents ?? 0;
+      const price = item.salePriceCents ?? item.avgCostCents ?? 0;
       return sum + price * item.quantity;
     }, 0);
 
@@ -279,7 +279,7 @@ export class PrismaInventoryRepository implements InventoryRepositoryPort {
         reorderPoint: item.reorderPoint,
         lowStockThreshold: item.lowStockThreshold,
         avgCostCents: item.avgCostCents,
-        salePriceCents: (item as any).salePriceCents ?? null,
+        salePriceCents: item.salePriceCents ?? null,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
       }));
