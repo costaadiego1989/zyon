@@ -4453,3 +4453,140 @@ button:active:not(:disabled) {
 .stat-card:hover::before {
   opacity: 1;
 }
+
+/* ── Support: Exchange Card badges ── */
+.exchange-card-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.exchange-card-badge--error {
+  color: var(--color-error);
+  background: var(--color-error-bg);
+  border-color: var(--color-error-border);
+}
+.exchange-card-badge--warning {
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+  border-color: var(--color-warning-border);
+}
+.exchange-card-badge--info {
+  color: var(--color-info);
+  background: var(--color-info-bg);
+  border-color: var(--color-info-border);
+}
+.exchange-card-badge--muted {
+  color: var(--color-text-muted);
+  background: var(--color-surface-alt);
+  border-color: var(--color-border);
+}
+
+/* ── Support: Image gallery thumbnails ── */
+.image-gallery-thumbnail {
+  transition: border-color var(--duration-fast) var(--ease), transform var(--duration-fast) var(--ease);
+}
+.image-gallery-thumbnail:hover {
+  border-color: var(--color-brand) !important;
+  transform: scale(1.02);
+}
+.image-gallery-thumbnail:focus-visible {
+  outline: 2px solid var(--color-brand-ring);
+  outline-offset: 2px;
+}
+
+/* ── Support: Lightbox overlay ── */
+.lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.82);
+  z-index: 9500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.lightbox-content {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lightbox-image {
+  max-width: 90vw;
+  max-height: 85vh;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+}
+.lightbox-close {
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 2;
+}
+.lightbox-close:hover {
+  background: var(--color-surface-raised);
+}
+.lightbox-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-surface) 80%, transparent);
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.lightbox-nav:hover:not(:disabled) {
+  background: var(--color-surface-raised);
+}
+.lightbox-nav:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.lightbox-nav--prev { left: -20px; }
+.lightbox-nav--next { right: -20px; }
+.lightbox-counter {
+  position: absolute;
+  bottom: -32px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 520px) {
+  .lightbox-nav--prev { left: 4px; }
+  .lightbox-nav--next { right: 4px; }
+  .lightbox-close { top: 4px; right: 4px; }
+}
+
+/* ── Support: spinner ── */
+.spin {
+  animation: support-spin 0.8s linear infinite;
+}
+@keyframes support-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

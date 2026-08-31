@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
+import type { SupportMessageMetadata } from "@zyon/shared-types";
 
 export interface TicketMessage {
   id: string;
   ticketId: string;
   senderType: "buyer" | "merchant";
   content: string;
+  metadata?: SupportMessageMetadata | null;
   createdAt: string;
 }
 
@@ -13,6 +15,13 @@ interface NewTicketEvent {
   id: string;
   buyerMessage: string;
   sessionId?: string;
+}
+
+export interface TicketTransferredEvent {
+  ticketId: string;
+  fromMerchantId: string;
+  toMerchantId: string;
+  toStoreName: string;
 }
 
 export function useSupportSocket(apiBaseUrl: string, merchantId: string | undefined, agentName?: string) {
@@ -73,6 +82,16 @@ export function useSupportSocket(apiBaseUrl: string, merchantId: string | undefi
     [],
   );
 
+  const onTicketTransferred = useCallback(
+    (handler: (event: TicketTransferredEvent) => void) => {
+      const socket = socketRef.current;
+      if (!socket) return () => {};
+      socket.on("ticket_transferred", handler);
+      return () => { socket.off("ticket_transferred", handler); };
+    },
+    [],
+  );
+
   const clearNewTickets = useCallback(() => setNewTickets([]), []);
 
   return {
@@ -83,5 +102,6 @@ export function useSupportSocket(apiBaseUrl: string, merchantId: string | undefi
     leaveTicket,
     sendMessage,
     onNewMessage,
+    onTicketTransferred,
   };
 }

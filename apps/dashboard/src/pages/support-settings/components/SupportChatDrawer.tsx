@@ -1,8 +1,11 @@
-import React, { useEffect, useRef } from "react";
-import { X, Send, MessageSquare } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { X, Send, MessageSquare, Store } from "lucide-react";
 import { Button } from "../../../components/Button.js";
 import { useSupportChat } from "../hooks/useSupportChat.js";
+import { reportError } from "../../../hooks/useErrorReporter.js";
 import type { TicketMessage } from "../../../hooks/useSupportSocket.js";
+import { ExchangeCard } from "./ExchangeCard.js";
+import { PartnerStoreDropdown } from "./PartnerStoreDropdown.js";
 
 type DashboardApi = ReturnType<typeof import("../../../api-client.js").createDashboardApi>;
 
@@ -22,6 +25,9 @@ export function SupportChatDrawer(props: SupportChatDrawerProps) {
   const { ticketId, buyerMessage, status, api, onClose, onSend, onJoin, onLeave, onNewMessage } = props;
   const { messages, loading, addMessage, addOptimisticMerchantMessage } = useSupportChat(api, ticketId);
   const [input, setInput] = React.useState("");
+  const [isMarketplaceOrigin, setIsMarketplaceOrigin] = useState(false);
+  const [showTransferDropdown, setShowTransferDropdown] = useState(false);
+  const [transferredTo, setTransferredTo] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -45,6 +51,22 @@ export function SupportChatDrawer(props: SupportChatDrawerProps) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getTicketMarketplaceOrigin(ticketId)
+      .then((result) => {
+        if (!cancelled) setIsMarketplaceOrigin(result.isMarketplaceOrigin);
+      })
+      .catch((e) => reportError({ source: "SupportChatDrawer.getTicketMarketplaceOrigin", error: e }));
+    return () => { cancelled = true; };
+  }, [ticketId, api]);
+
+  function handleTransferred(storeName: string) {
+    setTransferredTo(storeName);
+    setShowTransferDropdown(false);
+  }
 
   function handleSend() {
     const text = input.trim();
@@ -90,20 +112,84 @@ export function SupportChatDrawer(props: SupportChatDrawerProps) {
           {loading ? (
             <div style={{ textAlign: "center", padding: 16, color: "var(--color-muted)" }}>Carregando...</div>
           ) : (
-            messages.map((msg) => (
-              <div key={msg.id} className={`support-msg support-msg--${msg.senderType}`}>
-                <span className="support-msg-label">
-                  {msg.senderType === "buyer" ? "Comprador" : "Você"}
-                </span>
-                <p>{msg.content}</p>
-                <time style={{ fontSize: 10, color: "var(--color-muted)" }}>
-                  {new Date(msg.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                </time>
-              </div>
-            ))
+            messages.map((msg) => {
+              if (msg.metadata?.kind === "ticket_transferred") {
+                return (
+                  <div
+                    key={msg.id}
+                    style={{
+                      alignSelf: "center",
+                      fontSize: 12,
+                      color: "var(--color-text-muted)",
+                      fontStyle: "italic",
+                      padding: "4px 0",
+                      textAlign: "center",
+                    }}
+                  >
+                    Chamado transferido para {msg.metadata.toStoreName}
+                  </div>
+                );
+              }
+
+              const isReturnRequest = msg.metadata?.kind === "return_request";
+
+              return (
+                <div
+                  key={msg.id}
+                  className={`support-msg support-msg--${msg.senderType}`}
+                  style={isReturnRequest ? { maxWidth: "100%", width: "100%" } : undefined}
+                >
+                  <span className="support-msg-label">
+                    {msg.senderType === "buyer" ? "Comprador" : "Você"}
+                  </span>
+                  {msg.metadata?.kind === "return_request" ? (
+                    <ExchangeCard metadata={msg.metadata} />
+                  ) : (
+                    <p>{msg.content}</p>
+                  )}
+                  <time style={{ fontSize: 10, color: "var(--color-muted)" }}>
+                    {new Date(msg.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                  </time>
+                </div>
+              );
+            })
           )}
           <div ref={bottomRef} />
         </div>
+
+        {isMarketplaceOrigin && (
+          <div style={{ padding: "12px 16px", borderTop: "1px solid var(--color-border)" }}>
+            {transferredTo ? (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 12,
+                  color: "var(--color-success)",
+                }}
+              >
+                <Store size={14} />
+                Chamado transferido para {transferredTo}
+              </div>
+            ) : showTransferDropdown ? (
+              <PartnerStoreDropdown
+                api={api}
+                ticketId={ticketId}
+                onTransferred={handleTransferred}
+              />
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                fullWidth
+                onClick={() => setShowTransferDropdown(true)}
+              >
+                <Store size={14} /> Vincular loja parceira
+              </Button>
+            )}
+          </div>
+        )}
 
         {/* Input */}
         {status !== "closed" && status !== "resolved" ? (

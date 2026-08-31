@@ -55,5 +55,35 @@ export function supportEndpoints(base: string, f: typeof fetch) {
         f
       );
     },
+
+    getTicketMarketplaceOrigin(
+      ticketId: string
+    ): Promise<{ isMarketplaceOrigin: boolean; sellerMerchantIds: string[] }> {
+      return dashboardJson(
+        base,
+        `/support/tickets/${encodeURIComponent(ticketId)}/marketplace-origin`,
+        { method: "GET" },
+        f
+      );
+    },
+
+    transferTicket(
+      ticketId: string,
+      targetMerchantId: string
+    ): Promise<{ ticketId: string; toMerchantId: string; toStoreName: string }> {
+      return dashboardJson(
+        base,
+        `/support/tickets/${encodeURIComponent(ticketId)}/transfer`,
+        { method: "POST", jsonBody: { targetMerchantId } },
+        f
+      );
+    },
+
+    listPartnerStores(
+      q?: string
+    ): Promise<{ stores: Array<{ merchantId: string; storeName: string }> }> {
+      const query = q ? `?q=${encodeURIComponent(q)}` : "";
+      return dashboardJson(base, `/marketplace/stores/partners${query}`, { method: "GET" }, f);
+    },
   };
 }
