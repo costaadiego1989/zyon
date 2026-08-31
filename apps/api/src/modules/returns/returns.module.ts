@@ -14,6 +14,7 @@ import { InspectReturnUseCase } from "./application/use-cases/inspect-return.use
 import { ProcessRefundUseCase } from "./application/use-cases/process-refund.use-case.js";
 import { RestockInventoryUseCase } from "./application/use-cases/restock-inventory.use-case.js";
 import { ListReturnsUseCase } from "./application/use-cases/list-returns.use-case.js";
+import { CancelReturnUseCase } from "./application/use-cases/cancel-return.use-case.js";
 import { ReturnsController } from "./presentation/http/returns.controller.js";
 import { BuyerReturnsController } from "./presentation/http/buyer-returns.controller.js";
 
@@ -34,6 +35,7 @@ import { BuyerReturnsController } from "./presentation/http/buyer-returns.contro
     ProcessRefundUseCase,
     RestockInventoryUseCase,
     ListReturnsUseCase,
+    CancelReturnUseCase,
   ],
   exports: [
     RETURN_REPOSITORY_PORT,

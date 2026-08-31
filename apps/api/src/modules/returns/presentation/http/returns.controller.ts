@@ -9,6 +9,7 @@ import { InspectReturnUseCase } from "../../application/use-cases/inspect-return
 import { ProcessRefundUseCase } from "../../application/use-cases/process-refund.use-case.js";
 import { RestockInventoryUseCase } from "../../application/use-cases/restock-inventory.use-case.js";
 import { ListReturnsUseCase } from "../../application/use-cases/list-returns.use-case.js";
+import { CancelReturnUseCase } from "../../application/use-cases/cancel-return.use-case.js";
 import { RETURN_REPOSITORY_PORT, ReturnRepositoryPort } from "../../domain/ports/return-repository.port.js";
 import { ReturnStatus, ItemCondition } from "../../domain/entities/return.entity.js";
 
@@ -23,6 +24,7 @@ export class ReturnsController {
     private readonly processRefund: ProcessRefundUseCase,
     private readonly restockInventory: RestockInventoryUseCase,
     private readonly listReturns: ListReturnsUseCase,
+    private readonly cancelReturn: CancelReturnUseCase,
     @Inject(RETURN_REPOSITORY_PORT) private readonly returnRepo: ReturnRepositoryPort,
   ) {}
 
@@ -109,12 +111,6 @@ export class ReturnsController {
   @Put(":mid/returns/:rid/cancel")
   @RequirePlan("STORE_ONLY", "BOTH")
   async cancel(@Param("mid") merchantId: string, @Param("rid") returnId: string) {
-    const ret = await this.returnRepo.findById(merchantId, returnId);
-    if (!ret) throw new NotFoundException("return_not_found");
-    if (!ret.canCancel) {
-      throw new BadRequestException("cannot_cancel_in_current_status");
-    }
-    await this.returnRepo.updateStatus(returnId, "CANCELLED");
-    return { id: returnId, status: "CANCELLED" };
+    return this.cancelReturn.execute(merchantId, returnId);
   }
 }
