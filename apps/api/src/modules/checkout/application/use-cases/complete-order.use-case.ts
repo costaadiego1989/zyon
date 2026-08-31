@@ -172,97 +172,11 @@ export class CompleteOrderUseCase {
     if (!idempotent) {
       this.metrics?.orderCompleted.inc({ merchant_id: input.merchant_id });
 
-      // Record experiment result if session has a variant
-      if (session.promptVariantId && this.recordExperimentResult) {
-        const durationSeconds = session.createdAt
-          ? Math.round((Date.now() - new Date(session.createdAt).getTime()) / 1000)
-          : undefined;
-        await this.recordExperimentResult.execute({
-          sessionId: input.session_id,
-          merchantId: input.merchant_id,
-          converted: true,
-          revenue: input.order_total,
-          offersShown: session.chatHistory?.filter(m => m.authorizedOfferId)?.length ?? 0,
-          offersAccepted: input.accepted_offer_id ? 1 : 0,
-          durationSeconds,
-        });
-      }
-
-      // Record checkout completion as final funnel stage
-      if (session.promptVariantId && this.recordFunnelEvent) {
-        const timeFromStart = session.createdAt
-          ? Math.round((Date.now() - new Date(session.createdAt).getTime()) / 1000)
-          : undefined;
-        await this.recordFunnelEvent.execute({
-          merchantId: input.merchant_id,
-          sessionId: input.session_id,
-          stage: 'checkout_completed',
-          metadata: { timeFromStart },
-        });
-      }
+      await this.recordConversionAnalytics(session, input);
 
       // Side effects outside the transaction: external calls and cross-aggregate writes.
-      if (whatsappMessage && session.customer?.phone) {
-        const bubbleUrl = process.env.BUBBLEWHATS_API_URL;
-        const bubbleToken = process.env.BUBBLEWHATS_TOKEN;
-        if (bubbleUrl && bubbleToken) {
-          try {
-            const cleanDigits = session.customer.phone.replace(/\D/g, "");
-            const jid = cleanDigits.startsWith("55") ? cleanDigits : `55${cleanDigits}`;
-
-            const response = await fetch(`${bubbleUrl}/send-message`, {
-              method: "POST",
-              headers: {
-                "Authorization": bubbleToken,
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                jid,
-                message: whatsappMessage
-              })
-            });
-
-            if (response.ok) {
-              this.logger.log(`BubbleWhats message sent`, { jid, merchant_id: input.merchant_id, session_id: input.session_id });
-            } else {
-              const errText = await response.text();
-              this.logger.error(`BubbleWhats failed to send message`, { status: response.status, body: errText, merchant_id: input.merchant_id, session_id: input.session_id });
-            }
-          } catch (err) {
-            this.logger.error(`BubbleWhats error sending WhatsApp message`, { error: err, merchant_id: input.merchant_id, session_id: input.session_id });
-          }
-        }
-      }
-
-      // Revenue Lift: tag order for attribution (if service is available)
-      if (this.attributionTagger) {
-        try {
-          const cohort = (session as any).cohort || "treatment";
-          const attributionTag = this.attributionTagger.tag({
-            sessionId: input.session_id,
-            orderId: input.external_order_id,
-            cohort: cohort as "holdout" | "treatment",
-            features: {
-              negotiation: false, // TODO: detect if negotiation was applied
-              crossSell: false, // TODO: detect if cross-sell was applied
-              progressiveDiscount: (session.cart.currentDiscount ?? 0) > 0,
-              cartRecovery: false, // TODO: detect if recovery was applied
-              intentPersonalization: false, // TODO: detect if intent was applied
-              experimentVariantId: session.promptVariantId
-            },
-            revenue: {
-              orderValueCents: input.order_total,
-              discountCents: session.cart.currentDiscount ?? 0,
-              shippingSubsidyCents: 0 // TODO: calculate from shipping realCost vs customerPrice
-            },
-            aiCostCents: 0 // TODO: track LLM costs per session
-          });
-          this.logger.debug("attribution.tagged", { sessionId: input.session_id, cohort, tag: attributionTag });
-        } catch (err) {
-          this.logger.error("attribution.failed", { error: err instanceof Error ? err.message : String(err) });
-          // Non-critical — attribution tagging failure does not block order completion
-        }
-      }
+      await this.sendWhatsAppConfirmation(session, whatsappMessage, input);
+      this.tagAttributionForOrder(session, input);
 
       const globalUserId = await this.resolveBuyerGlobalUserId(session);
       if (globalUserId) {
@@ -319,6 +233,92 @@ export class CompleteOrderUseCase {
       idempotent,
       event_type: "order.completed"
     };
+  }
+
+  private async recordConversionAnalytics(session: CheckoutSession, input: CompleteOrderRequest): Promise<void> {
+    if (!session.promptVariantId) return;
+    const elapsedSeconds = session.createdAt
+      ? Math.round((Date.now() - new Date(session.createdAt).getTime()) / 1000)
+      : undefined;
+
+    if (this.recordExperimentResult) {
+      await this.recordExperimentResult.execute({
+        sessionId: input.session_id,
+        merchantId: input.merchant_id,
+        converted: true,
+        revenue: input.order_total,
+        offersShown: session.chatHistory?.filter(m => m.authorizedOfferId)?.length ?? 0,
+        offersAccepted: input.accepted_offer_id ? 1 : 0,
+        durationSeconds: elapsedSeconds,
+      });
+    }
+
+    if (this.recordFunnelEvent) {
+      await this.recordFunnelEvent.execute({
+        merchantId: input.merchant_id,
+        sessionId: input.session_id,
+        stage: 'checkout_completed',
+        metadata: { timeFromStart: elapsedSeconds },
+      });
+    }
+  }
+
+  private async sendWhatsAppConfirmation(
+    session: CheckoutSession,
+    whatsappMessage: string | undefined,
+    input: CompleteOrderRequest
+  ): Promise<void> {
+    if (!whatsappMessage || !session.customer?.phone) return;
+    const bubbleUrl = process.env.BUBBLEWHATS_API_URL;
+    const bubbleToken = process.env.BUBBLEWHATS_TOKEN;
+    if (!bubbleUrl || !bubbleToken) return;
+    try {
+      const cleanDigits = session.customer.phone.replace(/\D/g, "");
+      const jid = cleanDigits.startsWith("55") ? cleanDigits : `55${cleanDigits}`;
+      const response = await fetch(`${bubbleUrl}/send-message`, {
+        method: "POST",
+        headers: { "Authorization": bubbleToken, "Content-Type": "application/json" },
+        body: JSON.stringify({ jid, message: whatsappMessage })
+      });
+      if (response.ok) {
+        this.logger.log(`BubbleWhats message sent`, { jid, merchant_id: input.merchant_id, session_id: input.session_id });
+        return;
+      }
+      const errText = await response.text();
+      this.logger.error(`BubbleWhats failed to send message`, { status: response.status, body: errText, merchant_id: input.merchant_id, session_id: input.session_id });
+    } catch (err) {
+      this.logger.error(`BubbleWhats error sending WhatsApp message`, { error: err, merchant_id: input.merchant_id, session_id: input.session_id });
+    }
+  }
+
+  private tagAttributionForOrder(session: CheckoutSession, input: CompleteOrderRequest): void {
+    if (!this.attributionTagger) return;
+    try {
+      const cohort = (session as any).cohort || "treatment";
+      const attributionTag = this.attributionTagger.tag({
+        sessionId: input.session_id,
+        orderId: input.external_order_id,
+        cohort: cohort as "holdout" | "treatment",
+        features: {
+          negotiation: false, // TODO: detect if negotiation was applied
+          crossSell: false, // TODO: detect if cross-sell was applied
+          progressiveDiscount: (session.cart.currentDiscount ?? 0) > 0,
+          cartRecovery: false, // TODO: detect if recovery was applied
+          intentPersonalization: false, // TODO: detect if intent was applied
+          experimentVariantId: session.promptVariantId
+        },
+        revenue: {
+          orderValueCents: input.order_total,
+          discountCents: session.cart.currentDiscount ?? 0,
+          shippingSubsidyCents: 0 // TODO: calculate from shipping realCost vs customerPrice
+        },
+        aiCostCents: 0 // TODO: track LLM costs per session
+      });
+      this.logger.debug("attribution.tagged", { sessionId: input.session_id, cohort, tag: attributionTag });
+    } catch (err) {
+      this.logger.error("attribution.failed", { error: err instanceof Error ? err.message : String(err) });
+      // Non-critical — attribution tagging failure does not block order completion
+    }
   }
 
   private async resolveBuyerGlobalUserId(session: CheckoutSession): Promise<string | undefined> {
