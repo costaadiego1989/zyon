@@ -240,9 +240,6 @@ export function useConversationViewModel(
 
   const fireNudge = useCallback(
     (triggerEvent: "idle_30_seconds" | "exit_intent_detected") => {
-      // Stage drives the nudge tone: a buyer with items in the cart gets a
-      // conversion-focused offer (never a discovery question); an empty cart
-      // keeps the discovery message.
       const stage = (cartRef.current?.itemCount ?? 0) > 0 ? "cart" : "browsing";
       handleFireNudge({
         triggerEvent,
