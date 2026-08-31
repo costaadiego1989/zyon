@@ -4,7 +4,7 @@
  * These utilities safely convert to plain numbers for domain/application use.
  */
 
-type DecimalLike = { toNumber(): number } | number | string | null | undefined;
+export type DecimalLike = { toNumber(): number } | number | string | null | undefined;
 
 export function toNumber(value: DecimalLike): number {
   if (value === null || value === undefined) return 0;

@@ -20,7 +20,7 @@ import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
 import type { CheckoutRepository } from "../../domain/ports/checkout-repository.port.js";
 import { CheckoutAbandonmentService } from "../../domain/services/checkout-abandonment.service.js";
 import { CheckoutIdentityService } from "../../domain/services/checkout-identity.service.js";
-import { toNumber, toNumberOrNull } from "../../../../shared/persistence/decimal.util.js";
+import { toNumber, toNumberOrNull, type DecimalLike } from "../../../../shared/persistence/decimal.util.js";
 
 // P2 fix: single canonical default — no inline copy here.
 const DEFAULT_RULES: MerchantRules = DEFAULT_MERCHANT_RULES;
@@ -142,6 +142,15 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
         }
       });
     });
+  }
+
+  async getSessionEvents(merchantId: string, sessionId: string): Promise<CheckoutEventName[]> {
+    const rows = await this.prisma.checkoutEvent.findMany({
+      where: { merchantId, sessionId },
+      orderBy: { occurredAt: "asc" },
+      select: { eventName: true }
+    });
+    return rows.map((r) => r.eventName as CheckoutEventName);
   }
 
   async appendChatTurn(merchantId: string, sessionId: string, turn: ChatTurn): Promise<CheckoutSession> {
@@ -617,10 +626,10 @@ function toAuthorizedOffer(row: {
   merchantId: string;
   sessionId: string;
   type: string;
-  value: any;
+  value: DecimalLike;
   approved: boolean;
   reason: string;
-  marginAfterOffer: any;
+  marginAfterOffer: DecimalLike;
   expiresAt: Date;
   discountCode: string | null;
 }): AuthorizedOffer {
@@ -656,8 +665,8 @@ function toAcceptedOffer(row: {
   sessionId: string;
   offerId: string;
   type: string;
-  value: any;
-  marginAfterOffer: any;
+  value: DecimalLike;
+  marginAfterOffer: DecimalLike;
   acceptedAt: Date;
   expiresAt: Date;
 }): AcceptedOffer {
@@ -695,7 +704,7 @@ function toCompletedOrder(row: {
   merchantId: string;
   sessionId: string;
   externalOrderId: string;
-  orderTotal: any;
+  orderTotal: DecimalLike;
   currency: string;
   status?: string;
   acceptedOfferId: string | null;
@@ -742,15 +751,15 @@ function toMerchantRuleUpdate(rules: MerchantRules) {
 }
 
 function toMerchantRules(row: {
-  maxDiscountPercent: any;
-  minimumMarginPercent: any;
+  maxDiscountPercent: DecimalLike;
+  minimumMarginPercent: DecimalLike;
   allowFreeShipping: boolean;
   allowShippingDiscount: boolean;
   allowBonusItem: boolean;
   allowStackDiscountAndFreeShipping: boolean;
-  freeShippingMinCartValue: any;
-  maxShippingSubsidy: any;
-  maxPartialShippingDiscount: any;
+  freeShippingMinCartValue: DecimalLike;
+  maxShippingSubsidy: DecimalLike;
+  maxPartialShippingDiscount: DecimalLike;
   offerExpirationMinutes: number;
   blockedRegions: string[];
   brandVoice: string;
