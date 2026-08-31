@@ -1101,9 +1101,54 @@ export interface SupportTicket {
   buyerMessage: string;
   status: SupportTicketStatus;
   source: "widget" | "dashboard" | "system" | "return_request";
+  returnId?: string;
+  originMerchantId?: string;
+  transferredAt?: string;
   createdAt: string;
   updatedAt: string;
   resolvedAt?: string;
+}
+
+export type SupportReturnReason =
+  | "DEFECTIVE"
+  | "WRONG_ITEM"
+  | "NOT_AS_DESCRIBED"
+  | "CHANGED_MIND"
+  | "DAMAGED_IN_TRANSIT"
+  | "OTHER";
+
+export interface SupportReturnItem {
+  name: string;
+  variantId: string;
+  quantity: number;
+  imageUrl?: string;
+}
+
+export type SupportMessageMetadata =
+  | { kind: "text" }
+  | {
+      kind: "return_request";
+      returnId: string;
+      reason: SupportReturnReason;
+      reasonLabel: string;
+      items: SupportReturnItem[];
+      imageUrls: string[];
+      orderRef?: string;
+    }
+  | {
+      kind: "ticket_transferred";
+      fromMerchantId: string;
+      toMerchantId: string;
+      toStoreName: string;
+    };
+
+export interface SupportTicketMessage {
+  id: string;
+  ticketId: string;
+  senderType: "buyer" | "merchant";
+  content: string;
+  metadata?: SupportMessageMetadata | null;
+  createdAt: string;
 }
 
 export interface SupportTicketStatusPatch {
