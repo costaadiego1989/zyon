@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post, Req, UseGuards, BadRequestException, Inject, Logger } from "@nestjs/common";
 import { BuyerJwtAuthGuard, currentBuyer } from "../../../buyer-account/presentation/http/buyer-jwt-auth.guard.js";
 import { RequestReturnUseCase } from "../../application/use-cases/request-return.use-case.js";
+import { UploadReturnImageUseCase } from "../../application/use-cases/upload-return-image.use-case.js";
 import { RETURN_REPOSITORY_PORT, type ReturnRepositoryPort } from "../../domain/ports/return-repository.port.js";
 import { S3UploadService } from "../../../../shared/storage/s3-upload.service.js";
 import { CreateSupportTicketUseCase } from "../../../support/application/create-support-ticket.use-case.js";
@@ -23,6 +24,7 @@ export class BuyerReturnsController {
 
   constructor(
     private readonly requestReturn: RequestReturnUseCase,
+    private readonly uploadReturnImage: UploadReturnImageUseCase,
     @Inject(RETURN_REPOSITORY_PORT) private readonly returnRepo: ReturnRepositoryPort,
     private readonly s3: S3UploadService,
     private readonly createSupportTicket: CreateSupportTicketUseCase,
@@ -104,5 +106,18 @@ export class BuyerReturnsController {
     const buyer = currentBuyer(req);
     const returns = await this.returnRepo.findByBuyerId(buyer.globalUserId);
     return { returns };
+  }
+
+  @Post("upload-image")
+  async uploadReturnImage(@Req() req: any, @Body() body: { dataUri: string; merchantId: string }) {
+    const buyer = currentBuyer(req);
+    if (!body.merchantId?.trim()) throw new BadRequestException("merchant_id_required");
+
+    const result = await this.uploadReturnImage.execute({
+      dataUri: body.dataUri,
+      merchantId: body.merchantId,
+    });
+
+    return { url: result.url };
   }
 }

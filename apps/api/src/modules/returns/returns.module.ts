@@ -3,9 +3,11 @@ import type { PrismaClient } from "@prisma/client";
 import { PersistenceModule, PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { BuyerAccountModule } from "../buyer-account/buyer-account.module.js";
 import { SupportModule } from "../support/support.module.js";
+import { StorageModule } from "../../shared/storage/storage.module.js";
 import { RETURN_REPOSITORY_PORT } from "./domain/ports/return-repository.port.js";
 import { PrismaReturnRepository } from "./infrastructure/repositories/prisma-return.repository.js";
 import { RequestReturnUseCase } from "./application/use-cases/request-return.use-case.js";
+import { UploadReturnImageUseCase } from "./application/use-cases/upload-return-image.use-case.js";
 import { GenerateReturnLabelUseCase } from "./application/use-cases/generate-return-label.use-case.js";
 import { MarkReturnReceivedUseCase } from "./application/use-cases/mark-return-received.use-case.js";
 import { InspectReturnUseCase } from "./application/use-cases/inspect-return.use-case.js";
@@ -16,7 +18,7 @@ import { ReturnsController } from "./presentation/http/returns.controller.js";
 import { BuyerReturnsController } from "./presentation/http/buyer-returns.controller.js";
 
 @Module({
-  imports: [PersistenceModule, BuyerAccountModule, SupportModule],
+  imports: [PersistenceModule, BuyerAccountModule, SupportModule, StorageModule],
   controllers: [ReturnsController, BuyerReturnsController],
   providers: [
     {
@@ -25,6 +27,7 @@ import { BuyerReturnsController } from "./presentation/http/buyer-returns.contro
       inject: [PRISMA_CLIENT],
     },
     RequestReturnUseCase,
+    UploadReturnImageUseCase,
     GenerateReturnLabelUseCase,
     MarkReturnReceivedUseCase,
     InspectReturnUseCase,

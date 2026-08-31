@@ -10,6 +10,7 @@ import {
 } from "@nestjs/common";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import { PrismaClient } from "@prisma/client";
+import { ListPartnerStoresUseCase } from "../../application/use-cases/list-partner-stores.use-case.js";
 
 interface AuthenticatedRequest {
   user: {
@@ -38,8 +39,24 @@ interface ListAvailableStoresResponse {
 @Controller("marketplace/stores")
 export class MarketplaceDiscoveryController {
   constructor(
-    private readonly prisma: PrismaClient
+    private readonly prisma: PrismaClient,
+    private readonly listPartnerStores: ListPartnerStoresUseCase
   ) {}
+
+  @Get("partners")
+  async partners(
+    @Req() request: AuthenticatedRequest,
+    @Query("q") q?: string
+  ): Promise<{ stores: Array<{ merchantId: string; storeName: string }> }> {
+    const user = currentUser(request);
+
+    const stores = await this.listPartnerStores.execute({
+      merchantId: user.merchantId,
+      q: q?.trim() || undefined,
+    });
+
+    return { stores };
+  }
 
   @Get()
   async listAvailableStores(

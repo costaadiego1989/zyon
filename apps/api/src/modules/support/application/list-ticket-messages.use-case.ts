@@ -1,5 +1,6 @@
 import { Inject, Injectable, NotFoundException, Logger } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
+import type { SupportMessageMetadata } from "@zyon/shared-types";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
 import type { TicketMessageDto } from "./send-ticket-message.use-case.js";
 
@@ -35,6 +36,7 @@ export class ListTicketMessagesUseCase {
       ticketId: m.ticketId,
       senderType: m.senderType as "buyer" | "merchant",
       content: m.content,
+      metadata: m.metadata as SupportMessageMetadata | null | undefined,
       createdAt: m.createdAt.toISOString(),
     }));
 

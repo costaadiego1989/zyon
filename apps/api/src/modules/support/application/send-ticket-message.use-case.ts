@@ -1,5 +1,6 @@
 import { Inject, Injectable, NotFoundException, Logger } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
+import type { SupportMessageMetadata } from "@zyon/shared-types";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
 
 export interface TicketMessageDto {
@@ -7,6 +8,7 @@ export interface TicketMessageDto {
   ticketId: string;
   senderType: "buyer" | "merchant";
   content: string;
+  metadata?: SupportMessageMetadata | null;
   createdAt: string;
 }
 
@@ -21,6 +23,7 @@ export class SendTicketMessageUseCase {
     merchantId: string;
     senderType: "buyer" | "merchant";
     content: string;
+    metadata?: SupportMessageMetadata;
   }): Promise<TicketMessageDto> {
     const ticket = await this.prisma.supportTicket.findFirst({
       where: { id: input.ticketId, merchantId: input.merchantId },
@@ -32,6 +35,7 @@ export class SendTicketMessageUseCase {
         ticketId: input.ticketId,
         senderType: input.senderType,
         content: input.content,
+        metadata: input.metadata ? (input.metadata as any) : undefined,
       },
     });
 
@@ -48,6 +52,7 @@ export class SendTicketMessageUseCase {
       ticketId: message.ticketId,
       senderType: message.senderType as "buyer" | "merchant",
       content: message.content,
+      metadata: message.metadata as SupportMessageMetadata | null | undefined,
       createdAt: message.createdAt.toISOString(),
     };
   }
