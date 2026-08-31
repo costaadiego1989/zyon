@@ -4,7 +4,7 @@
     "dockerfile": "apps/dashboard/Dockerfile"
   },
   "deploy": {
-    "numReplicas": 2,
+    "numReplicas": 1,
     "restartPolicyType": "on-failure",
     "restartPolicyMaxRetries": 3,
     "healthchecks": {

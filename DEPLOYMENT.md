@@ -5,9 +5,31 @@
 ```
 GitHub → CI Gate (typecheck/lint/test/build)
   ↓
-  ├─ Branch: staging  → Deploy to Railway staging env
-  └─ Tag: v*          → Deploy to Railway production env
+  push to main OR tag v*  → Deploy to Railway production env
 ```
+
+**Current setup: production-only, 1 replica per service (cost-optimized).**
+Add a staging environment + scale replicas when traffic grows.
+
+## Cost Estimate (Railway Pro — $20 credit + pay-as-you-go)
+
+Railway bills **actual usage** (vCPU-sec + RAM-GB-sec), not a flat fee.
+The $20 is a monthly credit; usage beyond that is billed extra.
+
+| Service | Replicas | Config | Est. cost/mo |
+|---------|----------|--------|--------------|
+| api | 1 | 0.5–1 vCPU, 512MB–1GB | $8–15 |
+| dashboard | 1 | nginx static, ~idle | $2–4 |
+| storefront | 1 | 0.5–1 vCPU, 512MB | $5–10 |
+| postgres | 1 | small instance | $5–10 |
+| redis | 1 | 256MB | $2–4 |
+| **Total** | | low MVP traffic | **~$20–40/mo** |
+
+To stay near $20: keep 1 replica, low idle traffic. Scale = change
+`numReplicas` in `railway-*.json` and redeploy.
+
+**Note: no GPU on Railway.** Self-hosted LLMs (Ollama 32B) require a GPU
+host (RunPod/Vast.ai) or a token-based API provider (Together/Groq/DeepInfra).
 
 ### Services
 

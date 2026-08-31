@@ -3,14 +3,13 @@ name: Deploy to Railway
 on:
   push:
     branches:
-      - staging
       - main
     tags:
       - v*
 
 concurrency:
   group: deploy-${{ github.ref }}
-  cancel-in-progress: false  # Don't cancel deploys
+  cancel-in-progress: false  # Don't cancel in-flight deploys
 
 env:
   RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
@@ -62,133 +61,53 @@ jobs:
       - run: cd apps/storefront && pnpm build
       - run: cd apps/widget && pnpm build
 
-  # ── Deploy: Staging (branch: staging) ──────────────────────────────────────
-  deploy-staging:
-    needs: [ci-gate]
-    if: github.ref == 'refs/heads/staging' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-
-      - name: Deploy API to staging
-        run: |
-          railway up \
-            --service api \
-            --environment staging \
-            --name "zyon-api-staging" \
-            --detach
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-
-      - name: Deploy Dashboard to staging
-        run: |
-          railway up \
-            --service dashboard \
-            --environment staging \
-            --name "zyon-dashboard-staging" \
-            --detach
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-
-      - name: Deploy Storefront to staging
-        run: |
-          railway up \
-            --service storefront \
-            --environment staging \
-            --name "zyon-storefront-staging" \
-            --detach
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-
-      - name: Deploy Redis to staging
-        run: |
-          railway up \
-            --service redis \
-            --environment staging \
-            --detach
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-
-      - name: Deploy PostgreSQL to staging
-        run: |
-          railway up \
-            --service postgres \
-            --environment staging \
-            --detach
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-
-      - name: Wait for deployments & health check
-        run: sleep 30 && echo "Staging deployment queued"
-
-  # ── Deploy: Production (tag: v*) ───────────────────────────────────────────
+  # ── Deploy: Production ─────────────────────────────────────────────────────
+  # Triggered by push to `main` or a version tag (v*).
+  # PostgreSQL + Redis are provisioned once in Railway (persistent plugins) —
+  # they are NOT redeployed here (redeploying a DB every push is wasteful and
+  # risky). Only the app services are pushed.
   deploy-production:
     needs: [ci-gate]
-    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment: production
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
-      - name: Deploy API to production
+      - name: Deploy API
         run: |
           railway up \
             --service api \
             --environment production \
-            --name "zyon-api" \
             --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
-      - name: Deploy Dashboard to production
+      - name: Deploy Dashboard
         run: |
           railway up \
             --service dashboard \
             --environment production \
-            --name "zyon-dashboard" \
             --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
-      - name: Deploy Storefront to production
+      - name: Deploy Storefront
         run: |
           railway up \
             --service storefront \
             --environment production \
-            --name "zyon-storefront" \
             --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
-      - name: Deploy Redis to production
+      - name: Deployment summary
         run: |
-          railway up \
-            --service redis \
-            --environment production \
-            --detach
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-
-      - name: Deploy PostgreSQL to production
-        run: |
-          railway up \
-            --service postgres \
-            --environment production \
-            --detach
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-
-      - name: Wait for deployments & health check
-        run: sleep 30 && echo "Production deployment queued"
-
-      - name: Notify deployment
-        run: |
-          echo "✅ Production deployment initiated for tag: ${{ github.ref }}"
-          echo "Monitor at: https://railway.app"
+          echo "✅ Production deployment initiated for ${{ github.ref }}"
+          echo "Services: api, dashboard, storefront"
+          echo "Databases: postgres + redis (persistent, not redeployed)"
+          echo "Monitor: https://railway.app"
