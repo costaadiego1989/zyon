@@ -1,6 +1,6 @@
 import { Injectable, Inject, Logger } from "@nestjs/common";
 import type { SupportFaqItem } from "@zyon/shared-types";
-import { EmbeddingService } from "../../../catalog/infrastructure/services/embedding.service.js";
+import { EMBEDDING_PORT, type EmbeddingPort } from "../../domain/ports/embedding.port.js";
 import { KNOWLEDGE_REPOSITORY, type KnowledgeRepositoryPort } from "../../domain/ports/knowledge-repository.port.js";
 
 export interface IndexFaqInput {
@@ -13,7 +13,7 @@ export class IndexFaqUseCase {
   private readonly logger = new Logger(IndexFaqUseCase.name);
 
   constructor(
-    private readonly embeddingService: EmbeddingService,
+    @Inject(EMBEDDING_PORT) private readonly embeddingService: EmbeddingPort,
     @Inject(KNOWLEDGE_REPOSITORY) private readonly knowledgeRepo: KnowledgeRepositoryPort,
   ) {}
 

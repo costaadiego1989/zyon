@@ -1,5 +1,5 @@
 import { Injectable, Inject, Logger } from "@nestjs/common";
-import { EmbeddingService } from "../../../catalog/infrastructure/services/embedding.service.js";
+import { EMBEDDING_PORT, type EmbeddingPort } from "../../domain/ports/embedding.port.js";
 import {
   KNOWLEDGE_REPOSITORY,
   type KnowledgeRepositoryPort,
@@ -22,7 +22,7 @@ export class QueryKnowledgeUseCase {
   private readonly logger = new Logger(QueryKnowledgeUseCase.name);
 
   constructor(
-    private readonly embeddingService: EmbeddingService,
+    @Inject(EMBEDDING_PORT) private readonly embeddingService: EmbeddingPort,
     @Inject(KNOWLEDGE_REPOSITORY) private readonly knowledgeRepo: KnowledgeRepositoryPort,
   ) {}
 

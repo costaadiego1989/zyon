@@ -14,6 +14,8 @@ import { QueryKnowledgeUseCase } from "./application/use-cases/query-knowledge.u
 import { BuyerOrderContextService } from "./application/services/buyer-order-context.service.js";
 import { KNOWLEDGE_REPOSITORY } from "./domain/ports/knowledge-repository.port.js";
 import { POLICY_REPOSITORY } from "./domain/ports/policy-repository.port.js";
+import { EMBEDDING_PORT } from "./domain/ports/embedding.port.js";
+import { EmbeddingService } from "../catalog/infrastructure/services/embedding.service.js";
 import { PrismaKnowledgeRepository } from "./infrastructure/repositories/prisma-knowledge.repository.js";
 import { PrismaPolicyRepository } from "./infrastructure/repositories/prisma-policy.repository.js";
 import { OnProductUpsertedHandler } from "./infrastructure/event-handlers/on-product-upserted.handler.js";
@@ -49,6 +51,7 @@ import { KnowledgeAdminController } from "./presentation/http/knowledge-admin.co
       useFactory: (prisma: PrismaClient) => new PrismaPolicyRepository(prisma),
       inject: [PRISMA_CLIENT],
     },
+    { provide: EMBEDDING_PORT, useExisting: EmbeddingService },
   ],
   exports: [QueryKnowledgeUseCase, IndexFaqUseCase, IndexProductUseCase, IndexPolicyUseCase, IndexConfigUseCase, BuyerOrderContextService],
 })

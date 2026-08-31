@@ -1,6 +1,6 @@
 import { Injectable, Logger, Inject } from "@nestjs/common";
 import { KNOWLEDGE_REPOSITORY, type KnowledgeRepositoryPort } from "../../domain/ports/knowledge-repository.port.js";
-import { EmbeddingService } from "../../../catalog/infrastructure/services/embedding.service.js";
+import { EMBEDDING_PORT, type EmbeddingPort } from "../../domain/ports/embedding.port.js";
 
 export interface IndexConfigInput {
   merchantId: string;
@@ -20,7 +20,7 @@ export class IndexConfigUseCase {
 
   constructor(
     @Inject(KNOWLEDGE_REPOSITORY) private readonly knowledgeRepository: KnowledgeRepositoryPort,
-    private readonly embeddingService: EmbeddingService,
+    @Inject(EMBEDDING_PORT) private readonly embeddingService: EmbeddingPort,
   ) {}
 
   async execute(input: IndexConfigInput): Promise<void> {
