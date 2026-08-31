@@ -164,3 +164,45 @@ T0.1
 | **TOTAL** | **~14h** |
 
 **Status:** Ready for execution
+
+---
+
+## Execution Log (2026-08-30) — COMPLETE
+
+**All tasks done:**
+- ✅ T0.1 — schema (metadata Json, returnId, originMerchantId, transferredAt) + manual migration (shadow DB broken by pre-existing product_categories migration) + shared-types (SupportMessageMetadata union, SupportTicketMessage)
+- ✅ T1.1 — SendTicketMessage + ListTicketMessages accept/return metadata
+- ✅ T1.2 — RequestReturn links to ticket, emits return_request structured message (reason, items, imageUrls). Extended CreateSupportTicket + entity + prisma repo with returnId.
+- ✅ T1.3 — POST /buyer/returns/upload-image (S3UploadService). NOTE: /buyer/returns/request ALREADY uploads base64→S3 internally.
+- ✅ T2.1 — GET /marketplace/stores/partners?q= (tenant-scoped, active connections)
+- ✅ T2.2 — TransferTicketUseCase (ownership change, active-connection assertion, audit via origin tracking, WS emit). Prisma typed client.
+- ✅ T2.3 — GetTicketMarketplaceOrigin (returnId→orderId→CrossStoreLineItem) + WS ticket_transferred to both merchant rooms + POST :id/transfer + GET :id/marketplace-origin
+- ✅ T3.1 — dashboard: TicketMessage.metadata, onTicketTransferred socket handler, endpoints (transferTicket, getTicketMarketplaceOrigin, listPartnerStores)
+- ✅ T3.2 — ExchangeCard (reason badge + items + gallery), ImageGallery (lazy grid), Lightbox (kbd nav, a11y)
+- ✅ T3.3 — SupportChatDrawer metadata switch + PartnerStoreDropdown (debounced search, confirm, transfer). Marketplace-origin gated.
+- ✅ T4.1 — no-op: storefront ReturnRequestForm already collects images (base64, ≤3, preview) → /buyer/returns/request persists to S3.
+
+**Fixes during exec:**
+- T1.3 buyer-returns.controller: renamed method uploadReturnImage→uploadImage (collided with injected field name).
+
+**Verified:**
+- API: all support/returns/marketplace production files typecheck CLEAN (tsc isolated).
+- Dashboard: vite build succeeds; 5 T3 files typecheck clean.
+- Storefront: service unchanged (upload already worked).
+
+**Known env blockers (NOT from this feature):**
+- apps/api: `pnpm test` (vitest) blocked by ~45 pre-existing errors in start-checkout.use-case (another session's incomplete work). My code validates via isolated tsc.
+- apps/api: prisma migrate dev shadow DB broken by pre-existing product_categories migration → wrote migration.sql manually (additive, nullable, safe).
+- apps/dashboard: `pnpm build` tsc gate fails on pre-existing errors (post-sale.ts, RuleEditor, CouponsPage, etc). vite build alone succeeds.
+
+**Commits (8):**
+1. docs(support): spec+design+tasks
+2. feat(support): message metadata, return link, transfer columns (T0.1)
+3. feat(support): ticket metadata, return image upload, partner store list (T1.1/T1.3/T2.1)
+4. feat(support): link return to ticket with structured message metadata (T1.2)
+5. feat(support): ticket transfer to marketplace partner with WS event (T2.2/T2.3)
+6. feat(support): formatted exchange card, image gallery, partner-store handoff dropdown (T3)
+
+**Not committed (other session's work, left untouched):**
+- apps/dashboard shell/DashboardShell.tsx, shell/nav-config.ts
+- apps/api checkout/* pre-existing errors
