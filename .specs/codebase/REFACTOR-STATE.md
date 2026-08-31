@@ -43,7 +43,13 @@ None yet. Awaiting agent results.
   - **VERIFIED: typecheck 0 errors, 0 raw constructions left, checkout unit suite 53 pass / 3 fail**
   - 3 fails ALL pre-existing (files unchanged on branch, outside refactor scope):
     - send-chat test 20 (field order), track-checkout (ledger cap), complete-order (WhatsApp tracking)
-- [ ] Wave 4 REMAINING: repo-layer any sweep (integrations 31, checkout 13, knowledge-base 12) + T4.x mega-file splits + T3.3/T3.4 (DIP infra imports)
+- [x] Wave 5 COMPLETE (typecheck 0 errors, committed):
+  - [x] T4.1 (split payment-platform.use-cases 14 classes → connect/billing/platform-events + barrel). Subagent botched it (102 errors: missing .js extensions + wrong ../ depth 2 levels down + barrel without .js). Fixed directly: corrected depth (../../../domain) + added .js to all relative imports. Verified 0 errors.
+  - [x] T4.2 (split integrations.use-cases 17 classes → api-keys/webhooks/tracking + barrel). Clean.
+  - [x] T3.4 (knowledge-base → catalog infra leak) — EmbeddingPort in kb domain; 5 use-cases inject EMBEDDING_PORT; module useExisting EmbeddingService. Port needed isAvailable() + generate() (caught by typecheck).
+  - Skipped C1 (console→Logger): cosmetic + adapters intentionally avoid NestJS Logger (domain-purity).
+  - LESSON AGAIN: subagent file-split without .js extensions + wrong relative depth = 102 errors it reported as "done". Root tsc caught it. Barrel-pattern splits must verify BOTH depth and .js.
+- [ ] Wave 5 REMAINING: repo-any sweep (checkout-repo 13, knowledge-base 12, inventory 10) + T1.3 (http any) + T3.2 (billing-guard, 38 importers) + T3.3 (11 infra imports) + T4.3/T4.4/T4.5
 
 ## Lesson reinforced (2nd pass — the migration was NOT actually done)
 First "done" claim was false: `npx tsc`/`node ./node_modules/.bin/tsc` CRASH silently (missing `apps/api/node_modules/typescript/lib/tsc.js`), so `grep -cE "error TS"` returned 0 on a crash log with no errors. User's tsc-watch showed the truth: 24 errors. My perl bulk-replace renamed CALLS without adding IMPORTS; subagent hallucinated a `createPaymentIntent: payments` override that never existed in the original.
