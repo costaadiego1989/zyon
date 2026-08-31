@@ -61,11 +61,20 @@ None yet. Awaiting agent results.
 ## T1.2 repo-any sweep: COMPLETE for identified modules
 revenue-lift, integrations, knowledge-base, checkout, inventory — all typed, 0 errors, committed + pushed.
 
-## Remaining (large / higher-risk / interleaves with other agent — deferred)
-- T1.3 (http/presentation ~280 `any`) — dominated by `@Req() req: any`. NOT mechanical: each handler consumes req.user/req.tenantPrincipal differently; needs per-controller narrowing. Multi-session effort; low ROI (extraction is guarded). Do incrementally per-controller, not batched.
-- T4.3 rest (create-payment-intent, langgraph run) — SKIP recommended (money/AI, mutable state).
-- T3.2 (billing-guard, 38 importers) — cross-cutting, high blast radius.
-- T4.4 (fat controllers), T4.5 (repo-in-controller writes) — touch request handling; interleave with other agent's active work.
+## Wave 7 COMPLETE (all 0 errors, committed + pushed)
+- [x] T3.2 — billing-plan-guard moved payment/domain → payment/infrastructure/billing/; domain file now a barrel re-export. 38 importers intact, domain free of Prisma/@nestjs.
+- [x] T4.5 (partial, 3 safe targets) — routed repo-in-controller WRITES through use-cases:
+  - coupons: ToggleCouponActiveUseCase (spec 4/4)
+  - returns: CancelReturnUseCase (find + canCancel guard + updateStatus)
+  - whatsapp-channel: ConfigureWhatsAppUseCase.disconnect()/setEnabled()
+- [x] T4.4 ASSESSED = FALSE POSITIVE: operations/payment-platform/m2m controllers have ZERO `private async` business logic (0 each). "Fat" = multiple controller classes co-located (operations 3, payment-platform 3) or verbose thin handlers (m2m). Only action would be a file-split like T4.1/T4.2 — deferred (low value, route-decorator churn).
+
+## Genuinely remaining (deferred — reasons)
+- T4.5 embed-consent: writes LGPD consent — SKIPPED to avoid racing the other agent's active intent-memory/consent restructuring.
+- T4.5 storefront cart write: storefront being edited by other agent (conversation-engine).
+- T1.3 (http ~280 `any`): user said leave the anys. Deferred by request.
+- T4.3 rest (create-payment-intent, langgraph): money/AI mutable state, skip recommended.
+- T4.4 file-splits (operations, payment-platform multi-controller files): mechanical, low value.
 
 ## Lesson reinforced (2nd pass — the migration was NOT actually done)
 First "done" claim was false: `npx tsc`/`node ./node_modules/.bin/tsc` CRASH silently (missing `apps/api/node_modules/typescript/lib/tsc.js`), so `grep -cE "error TS"` returned 0 on a crash log with no errors. User's tsc-watch showed the truth: 24 errors. My perl bulk-replace renamed CALLS without adding IMPORTS; subagent hallucinated a `createPaymentIntent: payments` override that never existed in the original.
