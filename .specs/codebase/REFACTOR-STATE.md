@@ -49,7 +49,10 @@ None yet. Awaiting agent results.
   - [x] T3.4 (knowledge-base → catalog infra leak) — EmbeddingPort in kb domain; 5 use-cases inject EMBEDDING_PORT; module useExisting EmbeddingService. Port needed isAvailable() + generate() (caught by typecheck).
   - Skipped C1 (console→Logger): cosmetic + adapters intentionally avoid NestJS Logger (domain-purity).
   - LESSON AGAIN: subagent file-split without .js extensions + wrong relative depth = 102 errors it reported as "done". Root tsc caught it. Barrel-pattern splits must verify BOTH depth and .js.
-- [ ] Wave 5 REMAINING: repo-any sweep (checkout-repo 13, knowledge-base 12, inventory 10) + T1.3 (http any) + T3.2 (billing-guard, 38 importers) + T3.3 (11 infra imports) + T4.3/T4.4/T4.5
+- [~] Wave 6: T4.3 (long-method extraction) — PARTIAL
+  - [x] complete-order.use-case execute() 264→178L: extracted sendWhatsAppConfirmation, tagAttributionForOrder, recordConversionAnalytics (private methods, behavior identical, typecheck 0). Test 3 (WhatsApp) pre-existing mismatch: test expects whatsapp.message.requested outbox event but code uses BubbleWhats fetch — spec unchanged by me, code path predates session.
+  - NOTE: audit LOC numbers were stale — storefront files already refactored by earlier commits (langgraph 597→286, adapter 1206→299). Current >200L methods: create-payment-intent execute() 226L, langgraph run() 286L, send-store execute() 178L. Each is payment/AI-critical — do individually with care, not batched.
+- [ ] Wave 6 REMAINING: T4.3 rest (create-payment-intent, langgraph run) + repo-any sweep (checkout-repo 13, knowledge-base 12, inventory 10) + T1.3 (http any ~280) + T3.2 (billing-guard, 38 importers) + T3.3 (11 infra imports) + T4.4 (fat controllers) + T4.5 (repo-in-controller writes)
 
 ## Lesson reinforced (2nd pass — the migration was NOT actually done)
 First "done" claim was false: `npx tsc`/`node ./node_modules/.bin/tsc` CRASH silently (missing `apps/api/node_modules/typescript/lib/tsc.js`), so `grep -cE "error TS"` returned 0 on a crash log with no errors. User's tsc-watch showed the truth: 24 errors. My perl bulk-replace renamed CALLS without adding IMPORTS; subagent hallucinated a `createPaymentIntent: payments` override that never existed in the original.
