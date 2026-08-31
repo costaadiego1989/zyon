@@ -109,7 +109,7 @@ export class BuyerReturnsController {
   }
 
   @Post("upload-image")
-  async uploadReturnImage(@Req() req: any, @Body() body: { dataUri: string; merchantId: string }) {
+  async uploadImage(@Req() req: any, @Body() body: { dataUri: string; merchantId: string }) {
     const buyer = currentBuyer(req);
     if (!body.merchantId?.trim()) throw new BadRequestException("merchant_id_required");
 

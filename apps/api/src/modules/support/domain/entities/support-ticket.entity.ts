@@ -13,6 +13,7 @@ interface CreateSupportTicketInput {
   sessionId?: string;
   buyerMessage: string;
   source?: SupportTicket["source"];
+  returnId?: string;
 }
 
 export class SupportTicketEntity {
@@ -31,6 +32,7 @@ export class SupportTicketEntity {
       buyerMessage,
       status: "open",
       source: input.source ?? "widget",
+      returnId: input.returnId?.trim() || undefined,
       createdAt: now,
       updatedAt: now
     });

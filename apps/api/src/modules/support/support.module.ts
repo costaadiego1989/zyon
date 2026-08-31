@@ -61,6 +61,6 @@ import { SupportGateway } from "./infrastructure/gateways/support.gateway.js";
       useClass: OpenAIChatAdapter,
     },
   ],
-  exports: [GetSupportSettingsUseCase, ListSupportTicketsUseCase, CreateSupportTicketUseCase, SupportHandoffService, SupportGateway],
+  exports: [GetSupportSettingsUseCase, ListSupportTicketsUseCase, CreateSupportTicketUseCase, SendTicketMessageUseCase, SupportHandoffService, SupportGateway],
 })
 export class SupportModule {}

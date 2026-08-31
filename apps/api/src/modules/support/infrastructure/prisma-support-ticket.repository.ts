@@ -12,6 +12,7 @@ type SupportTicketRow = {
   buyer_message: string;
   status: string;
   source: string;
+  return_id: string | null;
   created_at: Date;
   updated_at: Date;
   resolved_at: Date | null;
@@ -29,6 +30,7 @@ export class PrismaSupportTicketRepository implements SupportTicketRepository {
         "buyer_message",
         "status",
         "source",
+        "return_id",
         "created_at",
         "updated_at",
         "resolved_at"
@@ -40,6 +42,7 @@ export class PrismaSupportTicketRepository implements SupportTicketRepository {
         ${ticket.buyerMessage},
         ${ticket.status},
         ${ticket.source},
+        ${ticket.returnId ?? null},
         ${new Date(ticket.createdAt)},
         ${new Date(ticket.updatedAt)},
         ${ticket.resolvedAt ? new Date(ticket.resolvedAt) : null}
@@ -49,6 +52,7 @@ export class PrismaSupportTicketRepository implements SupportTicketRepository {
         "buyer_message" = EXCLUDED."buyer_message",
         "status" = EXCLUDED."status",
         "source" = EXCLUDED."source",
+        "return_id" = EXCLUDED."return_id",
         "updated_at" = EXCLUDED."updated_at",
         "resolved_at" = EXCLUDED."resolved_at"
     `;
@@ -66,6 +70,7 @@ export class PrismaSupportTicketRepository implements SupportTicketRepository {
         "buyer_message",
         "status",
         "source",
+        "return_id",
         "created_at",
         "updated_at",
         "resolved_at"
@@ -107,6 +112,7 @@ export class PrismaSupportTicketRepository implements SupportTicketRepository {
         "buyer_message",
         "status",
         "source",
+        "return_id",
         "created_at",
         "updated_at",
         "resolved_at"
@@ -146,6 +152,7 @@ function mapTicket(row: SupportTicketRow): SupportTicket {
     buyerMessage: row.buyer_message,
     status: row.status as SupportTicketStatus,
     source: row.source as SupportTicket["source"],
+    returnId: row.return_id ?? undefined,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
     resolvedAt: row.resolved_at?.toISOString()
