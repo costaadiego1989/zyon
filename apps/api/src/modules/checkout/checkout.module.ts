@@ -1,4 +1,5 @@
 import { forwardRef, Module } from "@nestjs/common";
+
 import type { PrismaClient } from "@prisma/client";
 import { AgentRulesModule } from "../agent-rules/agent-rules.module.js";
 import { STOREFRONT_CART_PORT } from "../storefront/domain/ports/storefront-cart.port.js";
@@ -37,6 +38,12 @@ import { GetFunnelSessionsUseCase } from "./application/use-cases/get-funnel-ses
 import { CheckoutCustomerService } from "./application/services/checkout-customer.service.js";
 import { CheckoutShippingService } from "./application/services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "./application/services/checkout-offer.service.js";
+import { BuyerResolutionService } from "./application/services/buyer-resolution.service.js";
+import { BuyerContextService } from "./application/services/buyer-context.service.js";
+import { CheckoutBootstrapService } from "./application/services/checkout-bootstrap.service.js";
+import { InterventionRuleTextBuilder } from "./application/services/intervention-rule-text.builder.js";
+import { ChatContextService } from "./application/services/chat-context.service.js";
+import { ChatResponseBuilder } from "./application/services/chat-response.builder.js";
 import { COMMERCE_OFFER_PORT } from "./domain/ports/commerce-offer.port.js";
 import { CHECKOUT_REPOSITORY } from "./domain/ports/checkout-repository.port.js";
 import { CHECKOUT_SESSION_REPOSITORY } from "./domain/ports/checkout-session.repository.port.js";
@@ -49,9 +56,15 @@ import { CHECKOUT_SETTINGS_PORT } from "./domain/ports/checkout-settings.port.js
 import { CHECKOUT_INTERVENTION_LEDGER } from "./domain/ports/checkout-intervention-ledger.port.js";
 import { CONVERSATION_PORT } from "./domain/ports/conversation.port.js";
 import { PURCHASE_HISTORY_PORT } from "./domain/ports/purchase-history.port.js";
+import { MERCHANT_PLAN_PORT } from "./domain/ports/merchant-plan.port.js";
+import { PROMPT_EXPERIMENT_PORT } from "./domain/ports/prompt-experiment.port.js";
+import { PRODUCT_VARIANT_LOOKUP_PORT } from "./domain/ports/product-variant-lookup.port.js";
 import { AgentRulesContextAdapter } from "./infrastructure/adapters/agent-rules-context.adapter.js";
 import { BuyerPurchaseHistoryAdapter } from "./infrastructure/adapters/buyer-purchase-history.adapter.js";
 import { CheckoutSettingsAdapter } from "./infrastructure/adapters/checkout-settings.adapter.js";
+import { MerchantPlanAdapter } from "./infrastructure/adapters/merchant-plan.adapter.js";
+import { PromptExperimentAdapter } from "./infrastructure/adapters/prompt-experiment.adapter.js";
+import { ProductVariantLookupAdapter } from "./infrastructure/adapters/product-variant-lookup.adapter.js";
 import { DeterministicConversationAdapter } from "./infrastructure/adapters/deterministic-conversation.adapter.js";
 import { OpenAiConversationAdapter } from "./infrastructure/adapters/openai-conversation.adapter.js";
 import { BrevoBuyerEmailNotifier } from "./infrastructure/brevo-buyer-email.notifier.js";
@@ -97,6 +110,12 @@ import { PaymentModule } from "../payment/payment.module.js";
     CheckoutCustomerService,
     CheckoutShippingService,
     CheckoutOfferService,
+    BuyerResolutionService,
+    BuyerContextService,
+    CheckoutBootstrapService,
+    InterventionRuleTextBuilder,
+    ChatContextService,
+    ChatResponseBuilder,
     OtpService,
     BuyerRecognitionService,
     BuyerAccountPersistenceService,
@@ -124,6 +143,9 @@ import { PaymentModule } from "../payment/payment.module.js";
     AgentRulesContextAdapter,
     BuyerPurchaseHistoryAdapter,
     CheckoutSettingsAdapter,
+    MerchantPlanAdapter,
+    PromptExperimentAdapter,
+    ProductVariantLookupAdapter,
     DeterministicConversationAdapter,
     OpenAiConversationAdapter,
     BrevoBuyerEmailNotifier,
@@ -154,6 +176,9 @@ import { PaymentModule } from "../payment/payment.module.js";
     },
     { provide: AGENT_CONTEXT_PORT, useExisting: AgentRulesContextAdapter },
     { provide: CHECKOUT_SETTINGS_PORT, useExisting: CheckoutSettingsAdapter },
+    { provide: MERCHANT_PLAN_PORT, useExisting: MerchantPlanAdapter },
+    { provide: PROMPT_EXPERIMENT_PORT, useExisting: PromptExperimentAdapter },
+    { provide: PRODUCT_VARIANT_LOOKUP_PORT, useExisting: ProductVariantLookupAdapter },
     { provide: PURCHASE_HISTORY_PORT, useExisting: BuyerPurchaseHistoryAdapter },
     {
       provide: CONVERSATION_PORT,
