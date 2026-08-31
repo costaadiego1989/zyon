@@ -7,6 +7,17 @@ import {
   type KnowledgeChunk,
 } from "../../domain/ports/knowledge-repository.port.js";
 
+interface KnowledgeChunkRow {
+  id: string;
+  merchant_id: string;
+  source_type: string;
+  source_id: string;
+  content: string;
+  metadata: Record<string, unknown> | null;
+  similarity?: number;
+  embedding?: string;
+}
+
 @Injectable()
 export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
   private readonly logger = new Logger(PrismaKnowledgeRepository.name);
@@ -27,7 +38,7 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
 
     try {
       // Delete existing chunks for this source
-      await (this.prisma as any).$executeRaw`
+      await this.prisma.$executeRaw`
         DELETE FROM knowledge_chunks
         WHERE merchant_id = ${merchantId}
         AND source_type = ${sourceType}
@@ -41,7 +52,7 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
 
         // Try to use pgvector if available, fallback to base64
         try {
-          await (this.prisma as any).$executeRaw`
+          await this.prisma.$executeRaw`
             INSERT INTO knowledge_chunks (
               id, merchant_id, source_type, source_id, content, embedding, embedding_vec, metadata, created_at, updated_at
             ) VALUES (
@@ -59,7 +70,7 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
           `;
         } catch {
           // Fallback: pgvector not available, use base64 only
-          await (this.prisma as any).$executeRaw`
+          await this.prisma.$executeRaw`
             INSERT INTO knowledge_chunks (
               id, merchant_id, source_type, source_id, content, embedding, metadata, created_at, updated_at
             ) VALUES (
@@ -88,7 +99,7 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
 
   async deleteBySource(merchantId: string, sourceType: string, sourceId: string): Promise<void> {
     try {
-      await (this.prisma as any).$executeRaw`
+      await this.prisma.$executeRaw`
         DELETE FROM knowledge_chunks
         WHERE merchant_id = ${merchantId}
         AND source_type = ${sourceType}
@@ -104,7 +115,7 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
 
   async countBySource(merchantId: string): Promise<Record<string, number>> {
     try {
-      const rows = (await (this.prisma as any).$queryRaw`
+      const rows = (await this.prisma.$queryRaw`
         SELECT source_type, COUNT(*)::int as count
         FROM knowledge_chunks
         WHERE merchant_id = ${merchantId}
@@ -132,9 +143,9 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
       const embeddingStr = JSON.stringify(queryEmbedding);
 
       // Try pgvector similarity search first
-      let results: any[] = [];
+      let results: KnowledgeChunkRow[] = [];
       try {
-        results = await (this.prisma as any).$queryRaw`
+        results = await this.prisma.$queryRaw<KnowledgeChunkRow[]>`
           SELECT
             id, merchant_id, source_type, source_id, content, metadata,
             1 - (embedding_vec <=> ${embeddingStr}::vector(1536)) as similarity
@@ -147,7 +158,7 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
       } catch {
         // pgvector not available, fall back to base64 + JS cosine similarity
         this.logger.debug("pgvector unavailable, using base64 cosine fallback");
-        const allChunks = await (this.prisma as any).$queryRaw`
+        const allChunks = await this.prisma.$queryRaw<KnowledgeChunkRow[]>`
           SELECT id, merchant_id, source_type, source_id, content, metadata, embedding
           FROM knowledge_chunks
           WHERE merchant_id = ${merchantId}
@@ -156,27 +167,27 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
 
         // Compute cosine similarity in JS
         results = allChunks
-          .map((chunk: any) => {
+          .map((chunk): KnowledgeChunkRow | null => {
             try {
-              const chunkEmbedding = JSON.parse(chunk.embedding) as number[];
+              const chunkEmbedding = JSON.parse(chunk.embedding ?? "") as number[];
               const similarity = this.cosineSimilarity(queryEmbedding, chunkEmbedding);
               return { ...chunk, similarity };
             } catch {
               return null;
             }
           })
-          .filter((x: any) => x && x.similarity >= threshold)
-          .sort((a: any, b: any) => b.similarity - a.similarity)
+          .filter((x): x is KnowledgeChunkRow => x !== null && (x.similarity ?? 0) >= threshold)
+          .sort((a, b) => (b.similarity ?? 0) - (a.similarity ?? 0))
           .slice(0, limit);
       }
 
-      return results.map((row: any) => ({
+      return results.map((row): KnowledgeChunk => ({
         id: row.id,
         merchantId: row.merchant_id,
-        sourceType: row.source_type,
+        sourceType: row.source_type as KnowledgeChunk["sourceType"],
         sourceId: row.source_id,
         content: row.content,
-        metadata: row.metadata,
+        metadata: row.metadata ?? undefined,
         similarity: row.similarity,
       }));
     } catch (err) {
