@@ -52,6 +52,8 @@ None yet. Awaiting agent results.
 - [~] Wave 6: T4.3 (long-method extraction) — PARTIAL
   - [x] complete-order.use-case execute() 264→178L: extracted sendWhatsAppConfirmation, tagAttributionForOrder, recordConversionAnalytics (private methods, behavior identical, typecheck 0). Test 3 (WhatsApp) pre-existing mismatch: test expects whatsapp.message.requested outbox event but code uses BubbleWhats fetch — spec unchanged by me, code path predates session.
   - NOTE: audit LOC numbers were stale — storefront files already refactored by earlier commits (langgraph 597→286, adapter 1206→299). Current >200L methods: create-payment-intent execute() 226L, langgraph run() 286L, send-store execute() 178L. Each is payment/AI-critical — do individually with care, not batched.
+- [x] T1.2 knowledge-base repo: typed $queryRaw rows, 12 any removed (caught 2 latent mismatches: null metadata, unconstrained source_type)
+- SKIPPED create-payment-intent + langgraph extraction: dense money/AI logic with interwoven mutable session state; extraction risk (wrong charges) outweighs readability gain. KISS + safety mandate.
 - [ ] Wave 6 REMAINING: T4.3 rest (create-payment-intent, langgraph run) + repo-any sweep (checkout-repo 13, knowledge-base 12, inventory 10) + T1.3 (http any ~280) + T3.2 (billing-guard, 38 importers) + T3.3 (11 infra imports) + T4.4 (fat controllers) + T4.5 (repo-in-controller writes)
 
 ## Lesson reinforced (2nd pass — the migration was NOT actually done)
