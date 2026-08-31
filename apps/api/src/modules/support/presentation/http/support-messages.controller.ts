@@ -14,6 +14,8 @@ import { TenantCredentialGuard } from "../../../integrations/presentation/http/t
 import { TenantAccessGuard } from "../../../integrations/presentation/http/tenant-access.guard.js";
 import { SendTicketMessageUseCase } from "../../application/send-ticket-message.use-case.js";
 import { ListTicketMessagesUseCase } from "../../application/list-ticket-messages.use-case.js";
+import { TransferTicketUseCase } from "../../application/transfer-ticket.use-case.js";
+import { GetTicketMarketplaceOriginUseCase } from "../../application/get-ticket-marketplace-origin.use-case.js";
 
 @ApiTags("Support")
 @UseGuards(TenantCredentialGuard, TenantAccessGuard)
@@ -22,6 +24,8 @@ export class SupportMessagesController {
   constructor(
     private readonly sendMessage: SendTicketMessageUseCase,
     private readonly listMessages: ListTicketMessagesUseCase,
+    private readonly transferTicket: TransferTicketUseCase,
+    private readonly ticketMarketplaceOrigin: GetTicketMarketplaceOriginUseCase,
   ) {}
 
   @Get(":id/messages")
@@ -56,6 +60,36 @@ export class SupportMessagesController {
       merchantId: principal.tenantId,
       senderType: "merchant",
       content: body.content,
+    });
+  }
+
+  @Post(":id/transfer")
+  async transfer(
+    @Req() request: unknown,
+    @Param("id") ticketId: string,
+    @Body() body: { targetMerchantId: string },
+  ) {
+    const principal = currentTenantPrincipal(
+      request as Parameters<typeof currentTenantPrincipal>[0],
+    );
+    return this.transferTicket.execute({
+      ticketId,
+      currentMerchantId: principal.tenantId,
+      targetMerchantId: body.targetMerchantId,
+    });
+  }
+
+  @Get(":id/marketplace-origin")
+  async marketplaceOrigin(
+    @Req() request: unknown,
+    @Param("id") ticketId: string,
+  ) {
+    const principal = currentTenantPrincipal(
+      request as Parameters<typeof currentTenantPrincipal>[0],
+    );
+    return this.ticketMarketplaceOrigin.execute({
+      ticketId,
+      merchantId: principal.tenantId,
     });
   }
 }

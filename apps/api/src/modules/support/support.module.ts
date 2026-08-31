@@ -13,6 +13,8 @@ import { UpdateSupportTicketStatusUseCase } from "./application/update-support-t
 import { CreateSupportTicketUseCase } from "./application/create-support-ticket.use-case.js";
 import { SendTicketMessageUseCase } from "./application/send-ticket-message.use-case.js";
 import { ListTicketMessagesUseCase } from "./application/list-ticket-messages.use-case.js";
+import { TransferTicketUseCase } from "./application/transfer-ticket.use-case.js";
+import { GetTicketMarketplaceOriginUseCase } from "./application/get-ticket-marketplace-origin.use-case.js";
 import { SupportTicketEventPublisher } from "./application/support-ticket-event.publisher.js";
 import { SupportHandoffService } from "./application/support-handoff.service.js";
 import { SUPPORT_SETTINGS_REPOSITORY } from "./domain/ports/support-settings-repository.port.js";
@@ -43,6 +45,8 @@ import { SupportGateway } from "./infrastructure/gateways/support.gateway.js";
     CreateSupportTicketUseCase,
     SendTicketMessageUseCase,
     ListTicketMessagesUseCase,
+    TransferTicketUseCase,
+    GetTicketMarketplaceOriginUseCase,
     SupportTicketEventPublisher,
     SupportHandoffService,
     SupportGateway,
@@ -61,6 +65,6 @@ import { SupportGateway } from "./infrastructure/gateways/support.gateway.js";
       useClass: OpenAIChatAdapter,
     },
   ],
-  exports: [GetSupportSettingsUseCase, ListSupportTicketsUseCase, CreateSupportTicketUseCase, SendTicketMessageUseCase, SupportHandoffService, SupportGateway],
+  exports: [GetSupportSettingsUseCase, ListSupportTicketsUseCase, CreateSupportTicketUseCase, SendTicketMessageUseCase, TransferTicketUseCase, GetTicketMarketplaceOriginUseCase, SupportHandoffService, SupportGateway],
 })
 export class SupportModule {}

@@ -109,4 +109,19 @@ export class SupportGateway implements OnGatewayDisconnect {
       senderType: "buyer",
     });
   }
+
+  /** Notify both origin and target merchant rooms that a ticket was transferred */
+  emitTicketTransferred(
+    fromMerchantId: string,
+    toMerchantId: string,
+    payload: {
+      ticketId: string;
+      fromMerchantId: string;
+      toMerchantId: string;
+      toStoreName: string;
+    },
+  ) {
+    this.server.to(`merchant:${fromMerchantId}`).emit("ticket_transferred", payload);
+    this.server.to(`merchant:${toMerchantId}`).emit("ticket_transferred", payload);
+  }
 }
