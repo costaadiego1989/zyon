@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { EmbedTokenService } from "../../domain/embed-token.service.js";
 import { EmbedCheckoutController, EmbedCheckoutGuardHelper } from "./embed-checkout.controller.js";
-import { StartCheckoutUseCase } from "../../../checkout/application/use-cases/start-checkout.use-case.js";
+import { createStartCheckoutUseCase } from "../../../checkout/application/use-cases/start-checkout.fixture.js";
 import { TrackCheckoutEventUseCase } from "../../../checkout/application/use-cases/track-checkout-event.use-case.js";
 import { InMemoryCheckoutRepository } from "../../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
@@ -28,7 +28,7 @@ test("embed payment intents: merchant_id só do embed token após sessão válid
     })
   );
 
-  const start = new StartCheckoutUseCase(repo, repo, repo);
+  const start = createStartCheckoutUseCase(repo, repo);
   const track = new TrackCheckoutEventUseCase(repo, repo);
   const helper = new EmbedCheckoutGuardHelper(repo);
   const createIntent = new CreatePaymentIntentUseCase(repo, repo, payments, provider);

@@ -14,8 +14,8 @@ import {
 import { EvaluateShippingUseCase } from "../../application/use-cases/evaluate-shipping.use-case.js";
 import { GetCheckoutSessionUseCase } from "../../application/use-cases/get-checkout-session.use-case.js";
 import { GetDecisionUseCase } from "../../application/use-cases/get-decision.use-case.js";
-import { SendChatMessageUseCase } from "../../application/use-cases/send-chat-message.use-case.js";
-import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
+import { createSendChatUseCase } from "../../application/use-cases/send-chat-message.fixture.js";
+import { createStartCheckoutUseCase } from "../../application/use-cases/start-checkout.fixture.js";
 import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-checkout-event.use-case.js";
 import { createPrismaClient } from "../../../../shared/persistence/prisma-client.js";
 import { PrismaCheckoutRepository } from "../../infrastructure/prisma/prisma-checkout.repository.js";
@@ -56,11 +56,11 @@ test(
     const shipService = new CheckoutShippingService(repository, custService);
     const offerService = new CheckoutOfferService(repository);
     const controller = new CheckoutController(
-      new StartCheckoutUseCase(repository, repository, repository),
+      createStartCheckoutUseCase(repository, repository),
       new TrackCheckoutEventUseCase(repository, repository),
       new GetCheckoutSessionUseCase(repository),
       new GetDecisionUseCase(repository),
-      new SendChatMessageUseCase(repository, new FakeConversationPort(), custService, shipService, offerService),
+      createSendChatUseCase(repository, { conversation: new FakeConversationPort(), customerService: custService, shippingService: shipService, offerService }),
       new EvaluateShippingUseCase(repository, repository, repository),
       new ApplyOfferUseCase(repository, repository, new FakeCommerceOfferPort(), acceptOffer),
       new CompleteOrderUseCase(repository, repository, repository),

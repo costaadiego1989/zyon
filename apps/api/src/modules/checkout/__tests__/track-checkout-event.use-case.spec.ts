@@ -25,6 +25,10 @@ class PaymentOnlyCheckoutSettingsPort implements CheckoutSettingsPort {
       operational_constraints: []
     };
   }
+
+  async getInterventionConfig() {
+    return { advancedRules: null, interventionPolicy: null };
+  }
 }
 
 class ProgressiveDiscountSettingsPort implements CheckoutSettingsPort {
@@ -52,6 +56,10 @@ class ProgressiveDiscountSettingsPort implements CheckoutSettingsPort {
       merchant_rules: [],
       operational_constraints: []
     };
+  }
+
+  async getInterventionConfig() {
+    return { advancedRules: null, interventionPolicy: null };
   }
 }
 
@@ -238,6 +246,10 @@ class LedgerCapCheckoutSettings implements CheckoutSettingsPort {
       merchant_rules: [],
       operational_constraints: []
     };
+  }
+
+  async getInterventionConfig() {
+    return { advancedRules: null, interventionPolicy: null };
   }
 }
 

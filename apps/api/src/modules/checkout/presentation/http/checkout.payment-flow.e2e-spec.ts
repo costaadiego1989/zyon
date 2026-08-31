@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
+import { createStartCheckoutUseCase } from "../../application/use-cases/start-checkout.fixture.js";
 import { CompleteOrderUseCase } from "../../application/use-cases/complete-order.use-case.js";
 import { UpdateOrderTrackingUseCase } from "../../application/use-cases/update-order-tracking.use-case.js";
 import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
@@ -33,7 +33,7 @@ test("checkout payment happy path: start-checkout → intent → PAYMENT_RECEIVE
   const merchantId = `m_pay_e2e_${crypto.randomUUID().replace(/-/g, "").slice(0, 18)}`;
   const sessionId = `chk_e2e_${crypto.randomUUID().slice(0, 12)}`;
 
-  await new StartCheckoutUseCase(checkout, checkout, checkout).execute({
+  await createStartCheckoutUseCase(checkout, checkout).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     cart: {
@@ -107,7 +107,7 @@ test("checkout payment: boleto — intent criado com method=boleto + aprovado vi
   const merchantId = `m_boleto_e2e_${crypto.randomUUID().replace(/-/g, "").slice(0, 14)}`;
   const sessionId = `chk_boleto_${crypto.randomUUID().slice(0, 12)}`;
 
-  await new StartCheckoutUseCase(checkout, checkout, checkout).execute({
+  await createStartCheckoutUseCase(checkout, checkout).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     cart: {
@@ -163,7 +163,7 @@ test("checkout payment: webhook PAYMENT_RECEIVED duplicado completa pedido uma �
   const merchantId = `m_dup_e2e_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
   const sessionId = `chk_dup_${crypto.randomUUID().slice(0, 12)}`;
 
-  await new StartCheckoutUseCase(checkout, checkout, checkout).execute({
+  await createStartCheckoutUseCase(checkout, checkout).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     cart: {
@@ -210,7 +210,7 @@ test("checkout payment: PAYMENT_REFUNDED → intent refunded após aprovação",
   const merchantId = `m_refund_e2e_${crypto.randomUUID().replace(/-/g, "").slice(0, 13)}`;
   const sessionId = `chk_refund_${crypto.randomUUID().slice(0, 12)}`;
 
-  await new StartCheckoutUseCase(checkout, checkout, checkout).execute({
+  await createStartCheckoutUseCase(checkout, checkout).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     cart: {
@@ -269,7 +269,7 @@ test("checkout payment: PAYMENT_DELETED não completa ordem", async () => {
   const merchantId = `m_pay_fail_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
   const sessionId = `chk_fail_${crypto.randomUUID().slice(0, 12)}`;
 
-  await new StartCheckoutUseCase(checkout, checkout, checkout).execute({
+  await createStartCheckoutUseCase(checkout, checkout).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     cart: {

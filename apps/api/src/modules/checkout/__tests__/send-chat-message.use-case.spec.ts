@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { AgentContext } from "@zyon/shared-types";
 import type { AgentContextPort } from "../domain/ports/agent-context.port.js";
 import type { ConversationPort } from "../domain/ports/conversation.port.js";
+import type { CheckoutCrossSellRecommenderPort } from "../domain/ports/cross-sell-recommender.port.js";
 import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-memory-checkout.repository.js";
 import type { MerchantRepository } from "../../merchant/domain/ports/merchant-repository.port.js";
 import type { MerchantTheme } from "../../merchant/domain/merchant.types.js";
@@ -13,8 +14,8 @@ import {
   startCheckoutRequest,
   completeOrderRequest
 } from "./checkout-test-fixtures.js";
-import { StartCheckoutUseCase } from "../application/use-cases/start-checkout.use-case.js";
-import { SendChatMessageUseCase } from "../application/use-cases/send-chat-message.use-case.js";
+import { createStartCheckoutUseCase } from "../application/use-cases/start-checkout.fixture.js";
+import { createSendChatUseCase } from "../application/use-cases/send-chat-message.fixture.js";
 import { BrevoBuyerEmailNotifier } from "../infrastructure/brevo-buyer-email.notifier.js";
 import { CompleteOrderUseCase } from "../application/use-cases/complete-order.use-case.js";
 import { CheckoutCustomerService } from "../application/services/checkout-customer.service.js";
@@ -32,7 +33,7 @@ function createTestUseCase(
   agentContext?: AgentContextPort,
   merchantRepo?: MerchantRepository,
   brevoNotifier?: BrevoBuyerEmailNotifier,
-  crossSellRecommender?: { suggest(input: unknown): Promise<unknown[]> },
+  crossSellRecommender?: CheckoutCrossSellRecommenderPort,
   buyerAccounts?: InMemoryBuyerAccountRepository
 ) {
   const otpService = new OtpService();
@@ -41,16 +42,16 @@ function createTestUseCase(
   const custService = new CheckoutCustomerService(repository, brevoNotifier, otpService, recognitionService, persistenceService);
   const shipService = new CheckoutShippingService(repository, custService);
   const offerService = new CheckoutOfferService(repository);
-  return new SendChatMessageUseCase(
-    repository,
+  return createSendChatUseCase(repository, {
     conversation,
-    custService,
-    shipService,
+    customerService: custService,
+    shippingService: shipService,
     offerService,
     agentContext,
-    merchantRepo,
-    crossSellRecommender as never
-  );
+    merchantRepository: merchantRepo,
+    crossSellRecommender,
+    experienceConfig: { platformFeeBrl: 1.99 }
+  });
 }
 
 class RecordingConversationPort implements ConversationPort {
@@ -78,7 +79,7 @@ class FakeAgentContextPort implements AgentContextPort {
 
 test("SendChatMessageUseCase passes merchant agent context to conversation without authorizing from capabilities", async () => {
   const repository = new InMemoryCheckoutRepository();
-  const started = await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_1" }));
+  const started = await createStartCheckoutUseCase(repository, repository).execute(startCheckoutRequest({ session_id: "chk_1" }));
   const conversation = new RecordingConversationPort();
   const agentContext = new FakeAgentContextPort(testAgentContext());
   const useCase = createTestUseCase(repository, conversation, agentContext);
@@ -101,7 +102,7 @@ test("SendChatMessageUseCase passes merchant agent context to conversation witho
 
 test("SendChatMessageUseCase remains compatible when agent context is not configured", async () => {
   const repository = new InMemoryCheckoutRepository();
-  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_1" }));
+  await createStartCheckoutUseCase(repository, repository).execute(startCheckoutRequest({ session_id: "chk_1" }));
   const conversation = new RecordingConversationPort();
   const useCase = createTestUseCase(repository, conversation);
 
@@ -118,7 +119,7 @@ test("SendChatMessageUseCase remains compatible when agent context is not config
 
 test("SendChatMessageUseCase extracts email/CPF/phone/CEP and patches session.customer", async () => {
   const repository = new InMemoryCheckoutRepository();
-  await new StartCheckoutUseCase(repository, repository, repository).execute(
+  await createStartCheckoutUseCase(repository, repository).execute(
     startCheckoutRequest({ session_id: "chk_extract", customer: undefined, shipping: undefined })
   );
   const conversation = new RecordingConversationPort();
@@ -141,7 +142,7 @@ test("SendChatMessageUseCase extracts email/CPF/phone/CEP and patches session.cu
 
 test("SendChatMessageUseCase captures fullName when previous agent turn asked for the name", async () => {
   const repository = new InMemoryCheckoutRepository();
-  await new StartCheckoutUseCase(repository, repository, repository).execute(
+  await createStartCheckoutUseCase(repository, repository).execute(
     startCheckoutRequest({ session_id: "chk_name", customer: undefined })
   );
   await repository.appendChatTurn("mrc_1", "chk_name", {
@@ -165,7 +166,7 @@ test("SendChatMessageUseCase captures fullName when previous agent turn asked fo
 
 test("SendChatMessageUseCase generates email OTP when embed prefilled email and user starts registration", async () => {
   const repository = new InMemoryCheckoutRepository();
-  await new StartCheckoutUseCase(repository, repository, repository).execute(
+  await createStartCheckoutUseCase(repository, repository).execute(
     startCheckoutRequest({
       session_id: "chk_prefill",
       customer: { email: "embed@aacp.io", isReturning: false }
@@ -212,16 +213,7 @@ test("SendChatMessageUseCase skips OTP for embed prefilled email when buyer acco
   const recognitionService = new BuyerRecognitionService(repository, buyerAccounts);
   const persistenceService = new BuyerAccountPersistenceService(buyerAccounts);
   const customerService = new CheckoutCustomerService(repository, undefined, otpService, recognitionService, persistenceService);
-  await new StartCheckoutUseCase(
-    repository,
-    repository,
-    repository,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    customerService
-  ).execute(
+  await createStartCheckoutUseCase(repository, repository, { customerService }).execute(
     startCheckoutRequest({
       session_id: "chk_embed_account",
       customer: { email: "costaadiego1989@gmail.com", isReturning: false },
@@ -248,7 +240,7 @@ test("SendChatMessageUseCase skips OTP for embed prefilled email when buyer acco
 
 test("SendChatMessageUseCase returns refreshed experience snapshot with stage and missing fields", async () => {
   const repository = new InMemoryCheckoutRepository();
-  await new StartCheckoutUseCase(repository, repository, repository).execute(
+  await createStartCheckoutUseCase(repository, repository).execute(
     startCheckoutRequest({ session_id: "chk_exp", customer: undefined })
   );
   const conversation = new RecordingConversationPort();
@@ -271,7 +263,7 @@ test("SendChatMessageUseCase returns refreshed experience snapshot with stage an
 
 test("SendChatMessageUseCase appends buyer + agent turns and forwards history", async () => {
   const repository = new InMemoryCheckoutRepository();
-  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_h" }));
+  await createStartCheckoutUseCase(repository, repository).execute(startCheckoutRequest({ session_id: "chk_h" }));
   const conversation = new RecordingConversationPort();
   const useCase = createTestUseCase(repository, conversation);
 
@@ -298,7 +290,7 @@ test("SendChatMessageUseCase appends buyer + agent turns and forwards history", 
 
 test("SendChatMessageUseCase jornada cadastro → ViaCEP mock → número → frete estimado → etapa pagamento e complete-order", async () => {
   const repository = new InMemoryCheckoutRepository();
-  await new StartCheckoutUseCase(repository, repository, repository).execute(
+  await createStartCheckoutUseCase(repository, repository).execute(
     startCheckoutRequest({ session_id: "chk_full_journey", customer: undefined, shipping: undefined })
   );
 
@@ -513,7 +505,7 @@ test("SendChatMessageUseCase exposes cross-sell through experience instead of in
 
 test("SendChatMessageUseCase gera quick_replies dinâmicas customizadas de acordo com guardrails (CRUD lojista)", async () => {
   const repository = new InMemoryCheckoutRepository();
-  await new StartCheckoutUseCase(repository, repository, repository).execute(
+  await createStartCheckoutUseCase(repository, repository).execute(
     startCheckoutRequest({ session_id: "chk_qr", customer: undefined, shipping: undefined })
   );
 
@@ -624,7 +616,7 @@ test.skip("SendChatMessageUseCase blocks duplicate email registration and return
   const useCase = createTestUseCase(repository, conversation);
 
   // Setup session 1 with registered email
-  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_1" }));
+  await createStartCheckoutUseCase(repository, repository).execute(startCheckoutRequest({ session_id: "chk_1" }));
   const session1 = await repository.getSession("mrc_1", "chk_1");
   if (session1) {
     session1.customer = { email: "duplicado@aacp.io", fullName: "Comprador Um" };
@@ -632,7 +624,7 @@ test.skip("SendChatMessageUseCase blocks duplicate email registration and return
   }
 
   // Setup session 2
-  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_2" }));
+  await createStartCheckoutUseCase(repository, repository).execute(startCheckoutRequest({ session_id: "chk_2" }));
   const session2 = await repository.getSession("mrc_1", "chk_2");
   if (session2) {
     session2.customer = { fullName: "Comprador Dois" };
@@ -667,7 +659,7 @@ test("SendChatMessageUseCase recognizes existing buyer email and continues after
   }));
   const useCase = createTestUseCase(repository, conversation, undefined, undefined, undefined, undefined, buyerAccounts);
 
-  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_prev" }));
+  await createStartCheckoutUseCase(repository, repository).execute(startCheckoutRequest({ session_id: "chk_prev" }));
   const previousSession = await repository.getSession("mrc_1", "chk_prev");
   if (previousSession) {
     previousSession.globalUserId = "buyer_existing_1";
@@ -691,7 +683,7 @@ test("SendChatMessageUseCase recognizes existing buyer email and continues after
     await repository.saveSession(previousSession);
   }
 
-  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_2" }));
+  await createStartCheckoutUseCase(repository, repository).execute(startCheckoutRequest({ session_id: "chk_2" }));
   const currentSession = await repository.getSession("mrc_1", "chk_2");
   if (currentSession) {
     currentSession.customer = { fullName: "Comprador Dois" };
@@ -741,7 +733,7 @@ test("SendChatMessageUseCase logs recognized buyer after email OTP and skips to 
   }));
   const useCase = createTestUseCase(repository, conversation, undefined, undefined, undefined, undefined, buyerAccounts);
 
-  await new StartCheckoutUseCase(repository, repository, repository).execute(
+  await createStartCheckoutUseCase(repository, repository).execute(
     startCheckoutRequest({ session_id: "chk_account_only", customer: undefined, shipping: undefined })
   );
 
@@ -771,7 +763,7 @@ test("SendChatMessageUseCase skips cadastro after OTP when older session has com
   const conversation = new RecordingConversationPort();
   const useCase = createTestUseCase(repository, conversation);
 
-  await new StartCheckoutUseCase(repository, repository, repository).execute(
+  await createStartCheckoutUseCase(repository, repository).execute(
     startCheckoutRequest({ session_id: "chk_old_complete", customer: undefined, shipping: undefined })
   );
   const oldSession = await repository.getSession("mrc_1", "chk_old_complete");
@@ -798,7 +790,7 @@ test("SendChatMessageUseCase skips cadastro after OTP when older session has com
     await repository.saveSession(oldSession);
   }
 
-  await new StartCheckoutUseCase(repository, repository, repository).execute(
+  await createStartCheckoutUseCase(repository, repository).execute(
     startCheckoutRequest({ session_id: "chk_new_returning", customer: undefined, shipping: undefined })
   );
   const newSession = await repository.getSession("mrc_1", "chk_new_returning");
@@ -853,7 +845,7 @@ test("SendChatMessageUseCase rechecks existing buyer after OTP even when email t
   }));
   const useCase = createTestUseCase(repository, conversation, undefined, undefined, undefined, undefined, buyerAccounts);
 
-  await new StartCheckoutUseCase(repository, repository, repository).execute(
+  await createStartCheckoutUseCase(repository, repository).execute(
     startCheckoutRequest({ session_id: "chk_otp_recheck", customer: undefined, shipping: undefined })
   );
   const session = await repository.getSession("mrc_1", "chk_otp_recheck");
@@ -890,7 +882,7 @@ test("SendChatMessageUseCase blocks mismatched email OTP validation and returns 
   const conversation = new RecordingConversationPort();
   const useCase = createTestUseCase(repository, conversation);
 
-  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_otp" }));
+  await createStartCheckoutUseCase(repository, repository).execute(startCheckoutRequest({ session_id: "chk_otp" }));
   const session = await repository.getSession("mrc_1", "chk_otp");
   if (session) {
     session.customer = { email: "user@aacp.io", fullName: "User Test", otp_code: "123456", email_verified: false };
@@ -914,7 +906,7 @@ test("SendChatMessageUseCase does not treat a non-code reply as invalid email OT
   const conversation = new RecordingConversationPort();
   const useCase = createTestUseCase(repository, conversation);
 
-  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_otp_text" }));
+  await createStartCheckoutUseCase(repository, repository).execute(startCheckoutRequest({ session_id: "chk_otp_text" }));
   const session = await repository.getSession("mrc_1", "chk_otp_text");
   if (session) {
     session.customer = { email: "user@aacp.io", otp_code: "123456", email_verified: false };
@@ -945,7 +937,7 @@ test("SendChatMessageUseCase keeps email OTP error active even when phone was al
   const conversation = new RecordingConversationPort();
   const useCase = createTestUseCase(repository, conversation);
 
-  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_otp_phone_verified" }));
+  await createStartCheckoutUseCase(repository, repository).execute(startCheckoutRequest({ session_id: "chk_otp_phone_verified" }));
   const session = await repository.getSession("mrc_1", "chk_otp_phone_verified");
   if (session) {
     session.customer = {
@@ -976,7 +968,7 @@ test("SendChatMessageUseCase accepts email OTP pasted with API log metadata", as
   const conversation = new RecordingConversationPort();
   const useCase = createTestUseCase(repository, conversation);
 
-  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_otp_log" }));
+  await createStartCheckoutUseCase(repository, repository).execute(startCheckoutRequest({ session_id: "chk_otp_log" }));
   const session = await repository.getSession("mrc_1", "chk_otp_log");
   if (session) {
     session.customer = { email: "user@aacp.io", fullName: "User Test", otp_code: "776655", email_verified: false };
@@ -1001,7 +993,7 @@ test("SendChatMessageUseCase handles phone input, SMS OTP generation, and valida
   const conversation = new RecordingConversationPort();
   const useCase = createTestUseCase(repository, conversation);
 
-  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_phone" }));
+  await createStartCheckoutUseCase(repository, repository).execute(startCheckoutRequest({ session_id: "chk_phone" }));
   const session = await repository.getSession("mrc_1", "chk_phone");
   if (session) {
     session.customer = {
@@ -1053,7 +1045,7 @@ test("SendChatMessageUseCase handles address rejection 'Não', clearing fields a
   const conversation = new RecordingConversationPort();
   const useCase = createTestUseCase(repository, conversation);
 
-  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_addr" }));
+  await createStartCheckoutUseCase(repository, repository).execute(startCheckoutRequest({ session_id: "chk_addr" }));
   const session = await repository.getSession("mrc_1", "chk_addr");
   if (session) {
     session.customer = {

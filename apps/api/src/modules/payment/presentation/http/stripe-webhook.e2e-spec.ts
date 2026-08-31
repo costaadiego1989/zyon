@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type Stripe from "stripe";
-import { StartCheckoutUseCase } from "../../../checkout/application/use-cases/start-checkout.use-case.js";
+import { createStartCheckoutUseCase } from "../../../checkout/application/use-cases/start-checkout.fixture.js";
 import { CompleteOrderUseCase } from "../../../checkout/application/use-cases/complete-order.use-case.js";
 import { InMemoryCheckoutRepository } from "../../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
 import { CreatePaymentIntentUseCase } from "../../application/create-payment-intent.use-case.js";
@@ -64,7 +64,7 @@ async function setupSession(
   sessionId: string,
   amountBrl: number
 ) {
-  await new StartCheckoutUseCase(checkout, checkout, checkout).execute({
+  await createStartCheckoutUseCase(checkout, checkout).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     cart: {

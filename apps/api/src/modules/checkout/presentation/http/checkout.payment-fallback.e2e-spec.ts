@@ -14,7 +14,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { CheckoutEventName, CheckoutSettingsContext } from "@zyon/shared-types";
-import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
+import { createStartCheckoutUseCase } from "../../application/use-cases/start-checkout.fixture.js";
 import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-checkout-event.use-case.js";
 import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
 
@@ -46,7 +46,7 @@ test("PAYMENT-001 payment_failed trigger fires agent when mode=silent_until_trig
   const repo = new InMemoryCheckoutRepository();
   const sessionId = `chk_pf_${Date.now()}`;
 
-  await new StartCheckoutUseCase(repo, repo, repo).execute({
+  await createStartCheckoutUseCase(repo, repo).execute({
     merchant_id: MERCHANT,
     session_id: sessionId,
     cart: { currency: "BRL", total: 200_00, items: [{ sku: "p1", name: "Produto", price: 200_00, quantity: 1 }] },
@@ -67,7 +67,7 @@ test("PAYMENT-002 payment_failed does NOT trigger agent in manual_only mode", as
   const repo = new InMemoryCheckoutRepository();
   const sessionId = `chk_pf_m_${Date.now()}`;
 
-  await new StartCheckoutUseCase(repo, repo, repo).execute({
+  await createStartCheckoutUseCase(repo, repo).execute({
     merchant_id: MERCHANT,
     session_id: sessionId,
     cart: { currency: "BRL", total: 100_00, items: [{ sku: "p2", name: "Item", price: 100_00, quantity: 1 }] },
@@ -87,7 +87,7 @@ test("PAYMENT-003 payment_failed trigger respects maxInterventionsPerSession", a
   const repo = new InMemoryCheckoutRepository();
   const sessionId = `chk_pf_max_${Date.now()}`;
 
-  await new StartCheckoutUseCase(repo, repo, repo).execute({
+  await createStartCheckoutUseCase(repo, repo).execute({
     merchant_id: MERCHANT,
     session_id: sessionId,
     cart: { currency: "BRL", total: 300_00, items: [{ sku: "p3", name: "Produto", price: 300_00, quantity: 1 }] },

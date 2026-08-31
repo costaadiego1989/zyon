@@ -12,8 +12,8 @@ import { EvaluateShippingUseCase } from "../../application/use-cases/evaluate-sh
 import { GetCheckoutSessionUseCase } from "../../application/use-cases/get-checkout-session.use-case.js";
 import { GetDecisionUseCase } from "../../application/use-cases/get-decision.use-case.js";
 import { GetMerchantRulesUseCase, UpdateMerchantRulesUseCase } from "../../application/use-cases/dashboard.use-cases.js";
-import { SendChatMessageUseCase } from "../../application/use-cases/send-chat-message.use-case.js";
-import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
+import { createStartCheckoutUseCase } from "../../application/use-cases/start-checkout.fixture.js";
+import { createSendChatUseCase } from "../../application/use-cases/send-chat-message.fixture.js";
 import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-checkout-event.use-case.js";
 import { CheckoutCustomerService } from "../../application/services/checkout-customer.service.js";
 import { CheckoutShippingService } from "../../application/services/checkout-shipping.service.js";
@@ -86,15 +86,17 @@ function buildFullStack(repo: InMemoryCheckoutRepository) {
   const createPaymentIntent = new CreatePaymentIntentUseCase(
     repo, merchantRepo, payments, new FakePaymentProvider()
   );
-  const chat = new SendChatMessageUseCase(
-    repo, conv, custService, shipService, offerService,
-    new FakeAgent(), merchantRepo,
-    undefined, undefined, undefined,
-    undefined, undefined, undefined, undefined,
+  const chat = createSendChatUseCase(repo, {
+    conversation: conv,
+    customerService: custService,
+    shippingService: shipService,
+    offerService,
+    agentContext: new FakeAgent(),
+    merchantRepository: merchantRepo,
     createPaymentIntent
-  );
+  });
   const ctrl = new CheckoutController(
-    new StartCheckoutUseCase(repo, repo, repo, undefined, repo),
+    createStartCheckoutUseCase(repo, repo, { merchantRepository: repo }),
     new TrackCheckoutEventUseCase(repo, repo),
     new GetCheckoutSessionUseCase(repo),
     new GetDecisionUseCase(repo),

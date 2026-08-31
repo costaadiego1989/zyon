@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
+import { createStartCheckoutUseCase } from "../../application/use-cases/start-checkout.fixture.js";
 import { EvaluateShippingUseCase } from "../../application/use-cases/evaluate-shipping.use-case.js";
 import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
 import { InMemoryMerchantRepository } from "../../../merchant/infrastructure/in-memory-merchant.repository.js";
@@ -19,7 +19,7 @@ async function startSession(
   sessionId: string,
   total = 300
 ) {
-  await new StartCheckoutUseCase(checkout, checkout, checkout).execute({
+  await createStartCheckoutUseCase(checkout, checkout).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     cart: {

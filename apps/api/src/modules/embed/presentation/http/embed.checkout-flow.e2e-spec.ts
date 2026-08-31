@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { EmbedTokenService } from "../../domain/embed-token.service.js";
 import { EmbedCheckoutController, EmbedCheckoutGuardHelper } from "./embed-checkout.controller.js";
-import { StartCheckoutUseCase } from "../../../checkout/application/use-cases/start-checkout.use-case.js";
+import { createStartCheckoutUseCase } from "../../../checkout/application/use-cases/start-checkout.fixture.js";
 import { TrackCheckoutEventUseCase } from "../../../checkout/application/use-cases/track-checkout-event.use-case.js";
 import { InMemoryCheckoutRepository } from "../../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
 
@@ -23,7 +23,7 @@ test("embed smoke: start checkout then track with token-bound merchant", async (
     })
   );
 
-  const start = new StartCheckoutUseCase(repo, repo, repo);
+  const start = createStartCheckoutUseCase(repo, repo);
   const track = new TrackCheckoutEventUseCase(repo, repo);
   const helper = new EmbedCheckoutGuardHelper(repo);
   const c = new EmbedCheckoutController(start, track, {} as never, helper, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);

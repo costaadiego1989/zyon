@@ -5,7 +5,7 @@ import type { AgentContext, AuthorizedOffer } from "@zyon/shared-types";
 import type { ConversationPort } from "../../domain/ports/conversation.port.js";
 import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
 import { SendChatMessageUseCase } from "../../application/use-cases/send-chat-message.use-case.js";
-import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
+import { createStartCheckoutUseCase } from "../../application/use-cases/start-checkout.fixture.js";
 import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-checkout-event.use-case.js";
 import { CheckoutController } from "./checkout.controller.js";
 import { GetCheckoutSessionUseCase } from "../../application/use-cases/get-checkout-session.use-case.js";
@@ -24,6 +24,17 @@ import { merchantRules } from "../../__tests__/checkout-test-fixtures.js";
 import { CheckoutCustomerService } from "../../application/services/checkout-customer.service.js";
 import { CheckoutShippingService } from "../../application/services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "../../application/services/checkout-offer.service.js";
+import { ChatContextService } from "../../application/services/chat-context.service.js";
+import { ChatResponseBuilder } from "../../application/services/chat-response.builder.js";
+import { InterventionRuleTextBuilder } from "../../application/services/intervention-rule-text.builder.js";
+
+const liveAgentContextPort = { async get() { return liveAgentContext(); } };
+function makeLiveSendChat(repository: InMemoryCheckoutRepository, custService: CheckoutCustomerService, shipService: CheckoutShippingService, offerService: CheckoutOfferService) {
+  const ruleBuilder = new InterventionRuleTextBuilder();
+  const contextService = new ChatContextService(repository, ruleBuilder, liveAgentContextPort);
+  const responseBuilder = new ChatResponseBuilder(repository);
+  return new SendChatMessageUseCase(repository, new LiveAiConversationPort(), custService, shipService, offerService, contextService, responseBuilder, ruleBuilder, { platformFeeBrl: 1.99 }, liveAgentContextPort);
+}
 
 const runLiveAi =
   process.env.RUN_REAL_AI_E2E === "true" && Boolean(process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY);
@@ -66,15 +77,11 @@ test(
     const shipService = new CheckoutShippingService(repository, custService);
     const offerService = new CheckoutOfferService(repository);
     const controller = new CheckoutController(
-      new StartCheckoutUseCase(repository, repository, repository),
+      createStartCheckoutUseCase(repository, repository),
       new TrackCheckoutEventUseCase(repository, repository),
       new GetCheckoutSessionUseCase(repository),
       new GetDecisionUseCase(repository),
-      new SendChatMessageUseCase(repository, new LiveAiConversationPort(), custService, shipService, offerService, {
-        async get() {
-          return liveAgentContext();
-        }
-      }),
+      makeLiveSendChat(repository, custService, shipService, offerService),
       new EvaluateShippingUseCase(repository, repository, repository),
       new ApplyOfferUseCase(repository, repository, new FakeCommerceOfferPort(), acceptOffer),
       new CompleteOrderUseCase(repository, repository, repository),
@@ -131,15 +138,11 @@ test(
     const shipService = new CheckoutShippingService(repository, custService);
     const offerService = new CheckoutOfferService(repository);
     const controller = new CheckoutController(
-      new StartCheckoutUseCase(repository, repository, repository),
+      createStartCheckoutUseCase(repository, repository),
       new TrackCheckoutEventUseCase(repository, repository),
       new GetCheckoutSessionUseCase(repository),
       new GetDecisionUseCase(repository),
-      new SendChatMessageUseCase(repository, new LiveAiConversationPort(), custService, shipService, offerService, {
-        async get() {
-          return liveAgentContext();
-        }
-      }),
+      makeLiveSendChat(repository, custService, shipService, offerService),
       new EvaluateShippingUseCase(repository, repository, repository),
       new ApplyOfferUseCase(repository, repository, new FakeCommerceOfferPort(), acceptOffer),
       new CompleteOrderUseCase(repository, repository, repository),
@@ -242,15 +245,11 @@ test(
     const shipService = new CheckoutShippingService(repository, custService);
     const offerService = new CheckoutOfferService(repository);
     const controller = new CheckoutController(
-      new StartCheckoutUseCase(repository, repository, repository),
+      createStartCheckoutUseCase(repository, repository),
       new TrackCheckoutEventUseCase(repository, repository),
       new GetCheckoutSessionUseCase(repository),
       new GetDecisionUseCase(repository),
-      new SendChatMessageUseCase(repository, new LiveAiConversationPort(), custService, shipService, offerService, {
-        async get() {
-          return liveAgentContext();
-        }
-      }),
+      makeLiveSendChat(repository, custService, shipService, offerService),
       new EvaluateShippingUseCase(repository, repository, repository),
       new ApplyOfferUseCase(repository, repository, new FakeCommerceOfferPort(), acceptOffer),
       new CompleteOrderUseCase(repository, repository, repository),

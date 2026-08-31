@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { ConversationPort } from "../domain/ports/conversation.port.js";
 import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-memory-checkout.repository.js";
-import { StartCheckoutUseCase } from "../application/use-cases/start-checkout.use-case.js";
-import { SendChatMessageUseCase } from "../application/use-cases/send-chat-message.use-case.js";
+import { createStartCheckoutUseCase } from "../application/use-cases/start-checkout.fixture.js";
+import { createSendChatUseCase } from "../application/use-cases/send-chat-message.fixture.js";
 import { CheckoutCustomerService } from "../application/services/checkout-customer.service.js";
 import { CheckoutShippingService } from "../application/services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "../application/services/checkout-offer.service.js";
@@ -37,20 +37,7 @@ class TrackingConversationPort implements ConversationPort {
  * Helper: creates a StartCheckoutUseCase with holdout service.
  */
 function createStartUseCase(repo: InMemoryCheckoutRepository, holdout?: HoldoutGroupService) {
-  return new StartCheckoutUseCase(
-    repo,
-    repo,
-    repo,
-    undefined, // checkoutSettings
-    undefined, // merchantRepository
-    undefined, // agentContext
-    undefined, // metrics
-    undefined, // customerService
-    { platformFeeBrl: 1.99 },
-    undefined, // crossSell
-    undefined, // prisma
-    holdout
-  );
+  return createStartCheckoutUseCase(repo, repo, { holdoutGroupService: holdout });
 }
 
 /**
@@ -63,13 +50,12 @@ function createChatUseCase(repo: InMemoryCheckoutRepository, conversation: Conve
   const custService = new CheckoutCustomerService(repo, undefined, otpService, recognitionService, persistenceService);
   const shipService = new CheckoutShippingService(repo, custService);
   const offerService = new CheckoutOfferService(repo);
-  return new SendChatMessageUseCase(
-    repo,
+  return createSendChatUseCase(repo, {
     conversation,
-    custService,
-    shipService,
+    customerService: custService,
+    shippingService: shipService,
     offerService
-  );
+  });
 }
 
 test("Revenue Lift: holdout user gets deterministic reply (no LLM)", async () => {
@@ -219,7 +205,7 @@ test("Deal Engine: CheckoutOfferService authorizes without NegotiateDiscount whe
   const repo = new InMemoryCheckoutRepository();
   const offerService = new CheckoutOfferService(repo);
 
-  const startUC = new StartCheckoutUseCase(repo, repo, repo);
+  const startUC = createStartCheckoutUseCase(repo, repo);
   await startUC.execute(startCheckoutRequest({ session_id: "chk_negotiate_1" }));
   const session = await repo.getSession("mrc_1", "chk_negotiate_1");
   assert.ok(session);

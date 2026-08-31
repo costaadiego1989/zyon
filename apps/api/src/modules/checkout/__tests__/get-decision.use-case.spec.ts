@@ -24,6 +24,10 @@ class StrictCheckoutSettingsPort implements CheckoutSettingsPort {
       operational_constraints: []
     };
   }
+
+  async getInterventionConfig() {
+    return { advancedRules: null, interventionPolicy: null };
+  }
 }
 
 test("GetDecisionUseCase stays silent when checkout-settings is manual-only", async () => {
@@ -56,6 +60,9 @@ test("GetDecisionUseCase keeps deterministic scoring but respects configured tri
         merchant_rules: [],
         operational_constraints: []
       };
+    },
+    async getInterventionConfig() {
+      return { advancedRules: null, interventionPolicy: null };
     }
   });
 
@@ -93,6 +100,10 @@ class LedgerMaxTwoSettings implements CheckoutSettingsPort {
       merchant_rules: [],
       operational_constraints: []
     };
+  }
+
+  async getInterventionConfig() {
+    return { advancedRules: null, interventionPolicy: null };
   }
 }
 

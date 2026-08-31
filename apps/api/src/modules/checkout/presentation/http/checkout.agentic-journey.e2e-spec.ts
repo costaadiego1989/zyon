@@ -15,8 +15,8 @@ import {
 import { EvaluateShippingUseCase } from "../../application/use-cases/evaluate-shipping.use-case.js";
 import { GetCheckoutSessionUseCase } from "../../application/use-cases/get-checkout-session.use-case.js";
 import { GetDecisionUseCase } from "../../application/use-cases/get-decision.use-case.js";
-import { SendChatMessageUseCase } from "../../application/use-cases/send-chat-message.use-case.js";
-import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
+import { createStartCheckoutUseCase } from "../../application/use-cases/start-checkout.fixture.js";
+import { createSendChatUseCase } from "../../application/use-cases/send-chat-message.fixture.js";
 import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-checkout-event.use-case.js";
 import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
 import { CheckoutController } from "./checkout.controller.js";
@@ -135,19 +135,18 @@ function makeController(repository: InMemoryCheckoutRepository, conversation?: C
   const shipService = new CheckoutShippingService(repository, custService);
   const offerService = new CheckoutOfferService(repository);
   return new CheckoutController(
-    new StartCheckoutUseCase(repository, repository, repository, undefined, repository),
+    createStartCheckoutUseCase(repository, repository, { merchantRepository: repository }),
     new TrackCheckoutEventUseCase(repository, repository),
     new GetCheckoutSessionUseCase(repository),
     new GetDecisionUseCase(repository),
-    new SendChatMessageUseCase(
-      repository,
-      conv,
-      custService,
-      shipService,
+    createSendChatUseCase(repository, {
+      conversation: conv,
+      customerService: custService,
+      shippingService: shipService,
       offerService,
-      new StaticAgentContextPort(agentContext({ machineToMachineNegotiation: Boolean(m2m) })),
-      repository
-    ),
+      agentContext: new StaticAgentContextPort(agentContext({ machineToMachineNegotiation: Boolean(m2m) })),
+      merchantRepository: repository
+    }),
     new EvaluateShippingUseCase(repository, repository, repository),
     new ApplyOfferUseCase(repository, repository, new FakeCommerceOfferPort(), acceptOffer),
     new CompleteOrderUseCase(repository, repository, repository),
