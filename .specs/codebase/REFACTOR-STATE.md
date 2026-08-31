@@ -53,8 +53,19 @@ None yet. Awaiting agent results.
   - [x] complete-order.use-case execute() 264→178L: extracted sendWhatsAppConfirmation, tagAttributionForOrder, recordConversionAnalytics (private methods, behavior identical, typecheck 0). Test 3 (WhatsApp) pre-existing mismatch: test expects whatsapp.message.requested outbox event but code uses BubbleWhats fetch — spec unchanged by me, code path predates session.
   - NOTE: audit LOC numbers were stale — storefront files already refactored by earlier commits (langgraph 597→286, adapter 1206→299). Current >200L methods: create-payment-intent execute() 226L, langgraph run() 286L, send-store execute() 178L. Each is payment/AI-critical — do individually with care, not batched.
 - [x] T1.2 knowledge-base repo: typed $queryRaw rows, 12 any removed (caught 2 latent mismatches: null metadata, unconstrained source_type)
+- [x] T1.2 checkout repo: 10 decimal-column `any` fields → DecimalLike (exported from decimal.util). 0 errors.
+- [x] T1.2 inventory repo: removed 10 stale casts ((item as any).salePriceCents — column is typed; QueryMode "insensitive" as any). 0 errors.
 - SKIPPED create-payment-intent + langgraph extraction: dense money/AI logic with interwoven mutable session state; extraction risk (wrong charges) outweighs readability gain. KISS + safety mandate.
-- [ ] Wave 6 REMAINING: T4.3 rest (create-payment-intent, langgraph run) + repo-any sweep (checkout-repo 13, knowledge-base 12, inventory 10) + T1.3 (http any ~280) + T3.2 (billing-guard, 38 importers) + T3.3 (11 infra imports) + T4.4 (fat controllers) + T4.5 (repo-in-controller writes)
+- T3.3 ASSESSED = mostly FALSE POSITIVE: pure functions (cipher/parser/provider-check) need no port; the 4 injectable services (queue/quote/dispatcher/deduplicator) are already DI-injected via constructor (concrete-type-as-token is idiomatic NestJS, zero `new`-instantiation). Forcing ports = ceremony (KISS violation). Only genuine hard-dep was S3Client (C2) — self-contained SDK client from env with graceful null fallback, also low-value to wrap. Skipped both.
+
+## T1.2 repo-any sweep: COMPLETE for identified modules
+revenue-lift, integrations, knowledge-base, checkout, inventory — all typed, 0 errors, committed + pushed.
+
+## Remaining (large / higher-risk / interleaves with other agent — deferred)
+- T1.3 (http/presentation ~280 `any`) — dominated by `@Req() req: any`. NOT mechanical: each handler consumes req.user/req.tenantPrincipal differently; needs per-controller narrowing. Multi-session effort; low ROI (extraction is guarded). Do incrementally per-controller, not batched.
+- T4.3 rest (create-payment-intent, langgraph run) — SKIP recommended (money/AI, mutable state).
+- T3.2 (billing-guard, 38 importers) — cross-cutting, high blast radius.
+- T4.4 (fat controllers), T4.5 (repo-in-controller writes) — touch request handling; interleave with other agent's active work.
 
 ## Lesson reinforced (2nd pass — the migration was NOT actually done)
 First "done" claim was false: `npx tsc`/`node ./node_modules/.bin/tsc` CRASH silently (missing `apps/api/node_modules/typescript/lib/tsc.js`), so `grep -cE "error TS"` returned 0 on a crash log with no errors. User's tsc-watch showed the truth: 24 errors. My perl bulk-replace renamed CALLS without adding IMPORTS; subagent hallucinated a `createPaymentIntent: payments` override that never existed in the original.
