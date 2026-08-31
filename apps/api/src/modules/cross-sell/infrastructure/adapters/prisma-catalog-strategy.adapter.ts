@@ -1,6 +1,5 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
-import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import type { CatalogStrategyRecommenderPort } from "../../domain/ports/catalog-strategy.port.js";
 
 /**
  * Catalog-driven cross-sell strategies. Unlike promotion-based strategies (which
@@ -13,14 +12,12 @@ import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module
  * cart. Empty array when no signal exists. Results are lightly cached per
  * merchant + cart shape to avoid re-scanning the catalog on every add-to-cart.
  */
-@Injectable()
-export class CatalogStrategyRecommender {
-  private readonly logger = new Logger(CatalogStrategyRecommender.name);
+export class PrismaCatalogStrategyAdapter implements CatalogStrategyRecommenderPort {
   private readonly cache = new Map<string, { skus: string[]; expiresAt: number }>();
   private static readonly TTL_MS = 10 * 60 * 1000;
   private static readonly MAX_SCAN = 200;
 
-  constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaClient) {}
 
   /**
    * same_category: products in the same category as the cart items. Excludes
@@ -35,7 +32,6 @@ export class CatalogStrategyRecommender {
 
     try {
       const cartSet = new Set(cartSkus.map((s) => s.toLowerCase()));
-      // Categories present in the cart.
       const cartVariants = await this.prisma.productVariant.findMany({
         where: { sku: { in: cartSkus }, product: { merchantId } },
         select: { product: { select: { categoryId: true } } },
@@ -51,7 +47,7 @@ export class CatalogStrategyRecommender {
           product: { merchantId, isActive: true, categoryId: { in: categoryIds } },
         },
         select: { sku: true, price: { select: { basePriceInCents: true } }, stock: { select: { quantity: true } } },
-        take: CatalogStrategyRecommender.MAX_SCAN,
+        take: PrismaCatalogStrategyAdapter.MAX_SCAN,
       });
 
       const ranked = variants
@@ -67,7 +63,10 @@ export class CatalogStrategyRecommender {
 
       return this.store(key, ranked);
     } catch (err) {
-      this.logger.warn(`[cross-sell] sameCategory failed for merchant=${merchantId}`, err as Error);
+      console.warn(
+        `[cross-sell] sameCategory failed for merchant=${merchantId}:`,
+        err instanceof Error ? err.message : String(err)
+      );
       return [];
     }
   }
@@ -95,7 +94,7 @@ export class CatalogStrategyRecommender {
         },
         select: { sku: true, price: { select: { basePriceInCents: true } } },
         orderBy: { price: { basePriceInCents: "asc" } },
-        take: CatalogStrategyRecommender.MAX_SCAN,
+        take: PrismaCatalogStrategyAdapter.MAX_SCAN,
       });
 
       const ranked = variants
@@ -105,7 +104,10 @@ export class CatalogStrategyRecommender {
 
       return this.store(key, ranked);
     } catch (err) {
-      this.logger.warn(`[cross-sell] cartValueUpgrade failed for merchant=${merchantId}`, err as Error);
+      console.warn(
+        `[cross-sell] cartValueUpgrade failed for merchant=${merchantId}:`,
+        err instanceof Error ? err.message : String(err)
+      );
       return [];
     }
   }
@@ -121,7 +123,7 @@ export class CatalogStrategyRecommender {
   }
 
   private store(key: string, skus: string[]): string[] {
-    this.cache.set(key, { skus, expiresAt: Date.now() + CatalogStrategyRecommender.TTL_MS });
+    this.cache.set(key, { skus, expiresAt: Date.now() + PrismaCatalogStrategyAdapter.TTL_MS });
     return skus;
   }
 }

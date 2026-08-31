@@ -3,20 +3,22 @@ import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { CROSS_SELL_PROMOTION_REPOSITORY } from "./domain/ports/cross-sell-promotion-repository.port.js";
 import { CROSS_SELL_SUGGESTION_REPOSITORY } from "./domain/ports/cross-sell-suggestion-repository.port.js";
+import { CROSS_SELL_CO_OCCURRENCE } from "./domain/ports/co-occurrence.port.js";
+import { CROSS_SELL_CATALOG_STRATEGY } from "./domain/ports/catalog-strategy.port.js";
 import { PrismaCrossSellPromotionRepository } from "./infrastructure/repositories/prisma-cross-sell-promotion.repository.js";
 import { PrismaCrossSellSuggestionRepository } from "./infrastructure/repositories/prisma-cross-sell-suggestion.repository.js";
+import { PrismaCrossSellCoOccurrenceAdapter } from "./infrastructure/adapters/prisma-co-occurrence.adapter.js";
+import { PrismaCatalogStrategyAdapter } from "./infrastructure/adapters/prisma-catalog-strategy.adapter.js";
 import { CreateCrossSellPromotionUseCase } from "./application/use-cases/create-cross-sell-promotion.use-case.js";
 import { UpdateCrossSellPromotionUseCase } from "./application/use-cases/update-cross-sell-promotion.use-case.js";
 import { ArchiveCrossSellPromotionUseCase } from "./application/use-cases/archive-cross-sell-promotion.use-case.js";
-import { CrossSellCoOccurrenceService } from "./domain/services/co-occurrence.service.js";
-import { CatalogStrategyRecommender } from "./domain/services/catalog-strategy-recommender.js";
 import { ListEligibleCrossSellsUseCase } from "./application/use-cases/list-eligible-cross-sells.use-case.js";
 import { ListCrossSellPromotionsUseCase } from "./application/use-cases/list-cross-sell-promotions.use-case.js";
 import { AcceptCrossSellSuggestionUseCase } from "./application/use-cases/accept-cross-sell-suggestion.use-case.js";
 import { AcceptCrossSellFromWidgetUseCase } from "./application/use-cases/accept-cross-sell-from-widget.use-case.js";
 import { DeclineCrossSellSuggestionUseCase } from "./application/use-cases/decline-cross-sell-suggestion.use-case.js";
 import { CheckoutCrossSellRecommender } from "./application/services/checkout-cross-sell-recommender.js";
-import { CrossSellContextResolverService } from "./domain/services/cross-sell-context-resolver.service.js";
+import { CrossSellContextResolverService } from "./application/services/cross-sell-context-resolver.service.js";
 import { CHECKOUT_CROSS_SELL_RECOMMENDER } from "../checkout/domain/ports/cross-sell-recommender.port.js";
 import { MerchantCrossSellController } from "./presentation/http/merchant-cross-sell.controller.js";
 import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
@@ -29,7 +31,7 @@ import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purc
   imports: [CheckoutPersistenceModule, MerchantModule, BuyerPurchaseHistoryModule],
   controllers: [MerchantCrossSellController],
   providers: [
-    // P0 fix: wire Prisma repositories for production persistence
+    // Repository ports
     {
       provide: CROSS_SELL_PROMOTION_REPOSITORY,
       useFactory: (prisma: PrismaClient) => new PrismaCrossSellPromotionRepository(prisma),
@@ -40,6 +42,18 @@ import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purc
       useFactory: (prisma: PrismaClient) => new PrismaCrossSellSuggestionRepository(prisma),
       inject: [PRISMA_CLIENT]
     },
+    // Strategy/recommendation ports
+    {
+      provide: CROSS_SELL_CO_OCCURRENCE,
+      useFactory: (prisma: PrismaClient) => new PrismaCrossSellCoOccurrenceAdapter(prisma),
+      inject: [PRISMA_CLIENT]
+    },
+    {
+      provide: CROSS_SELL_CATALOG_STRATEGY,
+      useFactory: (prisma: PrismaClient) => new PrismaCatalogStrategyAdapter(prisma),
+      inject: [PRISMA_CLIENT]
+    },
+    // Use cases
     CreateCrossSellPromotionUseCase,
     UpdateCrossSellPromotionUseCase,
     ArchiveCrossSellPromotionUseCase,
@@ -49,8 +63,13 @@ import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purc
     AcceptCrossSellFromWidgetUseCase,
     DeclineCrossSellSuggestionUseCase,
     CheckoutCrossSellRecommender,
-    CrossSellCoOccurrenceService,
-    CatalogStrategyRecommender,
+    // Application services
+    {
+      provide: CrossSellContextResolverService,
+      useFactory: (prisma: PrismaClient) => new CrossSellContextResolverService(prisma),
+      inject: [PRISMA_CLIENT]
+    },
+    // Guards
     BillingPlanMeteringService,
     PlanLimitGuard,
     {

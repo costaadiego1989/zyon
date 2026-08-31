@@ -1,6 +1,5 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
-import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import type { CrossSellCoOccurrencePort } from "../../domain/ports/co-occurrence.port.js";
 
 /**
  * Collaborative-filtering cross-sell: "buyers who bought X also bought Y".
@@ -9,9 +8,7 @@ import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module
  * `buyer_purchase_records` — no manually-configured CrossSellPromotion needed.
  * Used as the intelligent fallback for the `ai_personalized` strategy.
  */
-@Injectable()
-export class CrossSellCoOccurrenceService {
-  private readonly logger = new Logger(CrossSellCoOccurrenceService.name);
+export class PrismaCrossSellCoOccurrenceAdapter implements CrossSellCoOccurrencePort {
 
   // Small in-memory cache: merchant + sorted cart SKUs → recommended SKUs.
   // Avoids re-scanning purchase history on every add-to-cart. TTL 15 min.
@@ -20,7 +17,7 @@ export class CrossSellCoOccurrenceService {
   private static readonly LOOKBACK_MONTHS = 6;
   private static readonly MAX_ORDERS = 500;
 
-  constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaClient) {}
 
   /**
    * Given commercial SKUs currently in the cart, return the commercial SKUs
@@ -38,13 +35,13 @@ export class CrossSellCoOccurrenceService {
 
     try {
       const since = new Date();
-      since.setMonth(since.getMonth() - CrossSellCoOccurrenceService.LOOKBACK_MONTHS);
+      since.setMonth(since.getMonth() - PrismaCrossSellCoOccurrenceAdapter.LOOKBACK_MONTHS);
 
       const rows = await this.prisma.buyerPurchaseRecord.findMany({
         where: { merchantId, completedAt: { gte: since } },
         select: { items: true },
         orderBy: { completedAt: "desc" },
-        take: CrossSellCoOccurrenceService.MAX_ORDERS,
+        take: PrismaCrossSellCoOccurrenceAdapter.MAX_ORDERS,
       });
 
       // Collect the raw variant IDs used across all orders so we can resolve
@@ -78,7 +75,7 @@ export class CrossSellCoOccurrenceService {
         const hasCartItem = normalized.some((s) => cartSet.has(s));
         if (!hasCartItem) continue;
         for (const s of normalized) {
-          if (cartSet.has(s)) continue; // exclude items already in cart
+          if (cartSet.has(s)) continue;
           coCounts.set(s, (coCounts.get(s) ?? 0) + 1);
         }
       }
@@ -90,13 +87,16 @@ export class CrossSellCoOccurrenceService {
 
       return this.store(cacheKey, ranked);
     } catch (err) {
-      this.logger.warn(`co-occurrence recommend failed: ${err instanceof Error ? err.message : String(err)}`);
+      console.warn(
+        `[cross-sell] co-occurrence recommend failed for merchant=${merchantId}:`,
+        err instanceof Error ? err.message : String(err)
+      );
       return [];
     }
   }
 
   private store(key: string, skus: string[]): string[] {
-    this.cache.set(key, { skus, expiresAt: Date.now() + CrossSellCoOccurrenceService.TTL_MS });
+    this.cache.set(key, { skus, expiresAt: Date.now() + PrismaCrossSellCoOccurrenceAdapter.TTL_MS });
     return skus;
   }
 }

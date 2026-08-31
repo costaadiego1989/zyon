@@ -2,6 +2,8 @@ import { Injectable, Inject , Logger, Optional} from "@nestjs/common";
 import type { Cart, CrossSellStrategy } from "@zyon/shared-types";
 import { CROSS_SELL_PROMOTION_REPOSITORY, type CrossSellPromotionRepository } from "../../domain/ports/cross-sell-promotion-repository.port.js";
 import { CROSS_SELL_SUGGESTION_REPOSITORY, type CrossSellSuggestionRepository } from "../../domain/ports/cross-sell-suggestion-repository.port.js";
+import { CROSS_SELL_CO_OCCURRENCE, type CrossSellCoOccurrencePort } from "../../domain/ports/co-occurrence.port.js";
+import { CROSS_SELL_CATALOG_STRATEGY, type CatalogStrategyRecommenderPort } from "../../domain/ports/catalog-strategy.port.js";
 import { CrossSellSuggestionEntity } from "../../domain/entities/cross-sell-suggestion.entity.js";
 import type { CrossSellPromotionEntity } from "../../domain/entities/cross-sell-promotion.entity.js";
 import { rankEligiblePromotions, type PurchaseHistoryBias } from "../../domain/services/cross-sell-recommender.service.js";
@@ -9,8 +11,6 @@ import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/mes
 import { createCrossSellEventEnvelope } from "../../domain/events/cross-sell-domain-event.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 import { GetBuyerPurchaseContextUseCase } from "../../../buyer-purchase-history/application/buyer-purchase-history.use-cases.js";
-import { CrossSellCoOccurrenceService } from "../../domain/services/co-occurrence.service.js";
-import { CatalogStrategyRecommender } from "../../domain/services/catalog-strategy-recommender.js";
 
 export type ListEligibleCrossSellsInput = {
   session_id: string;
@@ -34,8 +34,8 @@ export class ListEligibleCrossSellsUseCase {
     @Inject(CROSS_SELL_SUGGESTION_REPOSITORY) private readonly suggestions: CrossSellSuggestionRepository,
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
     @Optional() private readonly getBuyerContext?: GetBuyerPurchaseContextUseCase,
-    @Optional() private readonly coOccurrence?: CrossSellCoOccurrenceService,
-    @Optional() private readonly catalogStrategy?: CatalogStrategyRecommender,
+    @Optional() @Inject(CROSS_SELL_CO_OCCURRENCE) private readonly coOccurrence?: CrossSellCoOccurrencePort,
+    @Optional() @Inject(CROSS_SELL_CATALOG_STRATEGY) private readonly catalogStrategy?: CatalogStrategyRecommenderPort,
   ) {}
 
   async execute(input: ListEligibleCrossSellsInput) {
