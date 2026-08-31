@@ -23,12 +23,34 @@ export interface DailyTrendPoint {
   treatmentSessions: number;
 }
 
+interface CohortAggregationRow {
+  cohort: string;
+  sessions: number;
+  orders: number;
+  total_revenue_cents: number;
+  total_ai_cost_cents: number;
+}
+
+interface FeatureBreakoutRow {
+  feature: string;
+  orders: number;
+  revenue_cents: number;
+}
+
+interface DailyTrendRow {
+  date: string;
+  holdout_revenue_cents: number;
+  treatment_revenue_cents: number;
+  holdout_sessions: number;
+  treatment_sessions: number;
+}
+
 @Injectable()
 export class RevenueLiftRepository {
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   async aggregateByCohort(merchantId: string, from: Date, to: Date): Promise<{ holdout: CohortAggregation; treatment: CohortAggregation }> {
-    const rows = await (this.prisma as any).$queryRaw`
+    const rows = await this.prisma.$queryRaw<CohortAggregationRow[]>`
       SELECT
         cohort,
         COUNT(DISTINCT session_id)::int AS sessions,
@@ -46,7 +68,7 @@ export class RevenueLiftRepository {
     const holdout = { ...empty };
     const treatment = { ...empty };
 
-    for (const row of rows as any[]) {
+    for (const row of rows) {
       const target = row.cohort === "holdout" ? holdout : treatment;
       target.sessions = row.sessions;
       target.orders = row.orders;
@@ -58,7 +80,7 @@ export class RevenueLiftRepository {
   }
 
   async getFeatureBreakout(merchantId: string, from: Date, to: Date): Promise<FeatureBreakout[]> {
-    const rows = await (this.prisma as any).$queryRaw`
+    const rows = await this.prisma.$queryRaw<FeatureBreakoutRow[]>`
       SELECT
         CASE
           WHEN negotiation_applied THEN 'negotiation'
@@ -79,7 +101,7 @@ export class RevenueLiftRepository {
       ORDER BY revenue_cents DESC
     `;
 
-    return (rows as any[]).map((r) => ({
+    return rows.map((r) => ({
       feature: r.feature,
       orders: r.orders,
       revenueCents: r.revenue_cents,
@@ -87,7 +109,7 @@ export class RevenueLiftRepository {
   }
 
   async getDailyTrend(merchantId: string, from: Date, to: Date): Promise<DailyTrendPoint[]> {
-    const rows = await (this.prisma as any).$queryRaw`
+    const rows = await this.prisma.$queryRaw<DailyTrendRow[]>`
       SELECT
         DATE(created_at)::text AS date,
         COALESCE(SUM(CASE WHEN cohort = 'holdout' THEN order_value_cents ELSE 0 END), 0)::int AS holdout_revenue_cents,
@@ -102,7 +124,7 @@ export class RevenueLiftRepository {
       ORDER BY date ASC
     `;
 
-    return (rows as any[]).map((r) => ({
+    return rows.map((r) => ({
       date: r.date,
       holdoutRevenueCents: r.holdout_revenue_cents,
       treatmentRevenueCents: r.treatment_revenue_cents,
