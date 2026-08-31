@@ -4,6 +4,7 @@ import { Inject } from "@nestjs/common";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import { CreateCouponUseCase } from "../../application/use-cases/create-coupon.use-case.js";
 import { ArchiveCouponUseCase } from "../../application/use-cases/archive-coupon.use-case.js";
+import { ToggleCouponActiveUseCase } from "../../application/use-cases/toggle-coupon-active.use-case.js";
 import { COUPON_REPOSITORY, type CouponRepository } from "../../domain/ports/coupon-repository.port.js";
 
 @UseGuards(AuthGuard)
@@ -12,6 +13,7 @@ export class MerchantCouponsController {
   constructor(
     private readonly createCoupon: CreateCouponUseCase,
     private readonly archiveCoupon: ArchiveCouponUseCase,
+    private readonly toggleCouponActive: ToggleCouponActiveUseCase,
     @Inject(COUPON_REPOSITORY) private readonly repo: CouponRepository
   ) {}
 
@@ -33,7 +35,7 @@ export class MerchantCouponsController {
   @Patch(":id")
   async toggle(@Req() req: unknown, @Param("id") id: string, @Body() body: { is_active: boolean }) {
     const { merchantId } = currentUser(req as { user?: unknown });
-    return this.repo.updateActive(merchantId, id, body.is_active);
+    return this.toggleCouponActive.execute({ id, merchant_id: merchantId, is_active: body.is_active });
   }
 
   @Delete(":id")

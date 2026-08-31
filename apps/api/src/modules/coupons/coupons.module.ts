@@ -13,6 +13,7 @@ import { PrismaCouponRedemptionRepository } from "./infrastructure/repositories/
 import { RulesEngineDiscountAdapter } from "./infrastructure/adapters/rules-engine-discount.adapter.js";
 import { CreateCouponUseCase } from "./application/use-cases/create-coupon.use-case.js";
 import { ArchiveCouponUseCase } from "./application/use-cases/archive-coupon.use-case.js";
+import { ToggleCouponActiveUseCase } from "./application/use-cases/toggle-coupon-active.use-case.js";
 import { ApplyCouponUseCase } from "./application/use-cases/apply-coupon.use-case.js";
 import { RedeemCouponUseCase } from "./application/use-cases/redeem-coupon.use-case.js";
 import { CouponsOnOrderCompletedHandler } from "./infrastructure/event-handlers/on-order-completed.handler.js";
@@ -41,6 +42,7 @@ import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/bi
     { provide: DISCOUNT_RULES_ENGINE, useExisting: RulesEngineDiscountAdapter },
     CreateCouponUseCase,
     ArchiveCouponUseCase,
+    ToggleCouponActiveUseCase,
     ApplyCouponUseCase,
     RedeemCouponUseCase,
     CouponsOnOrderCompletedHandler,

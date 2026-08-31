@@ -5,6 +5,7 @@ import { InMemoryCouponRepository } from "../../infrastructure/repositories/in-m
 import { InMemoryCouponRedemptionRepository } from "../../infrastructure/repositories/in-memory-coupon-redemption.repository.js";
 import { CreateCouponUseCase } from "../../application/use-cases/create-coupon.use-case.js";
 import { ArchiveCouponUseCase } from "../../application/use-cases/archive-coupon.use-case.js";
+import { ToggleCouponActiveUseCase } from "../../application/use-cases/toggle-coupon-active.use-case.js";
 import { MerchantCouponsController } from "./merchant-coupons.controller.js";
 
 function makeAuthRequest(merchantId: string) {
@@ -19,8 +20,9 @@ describe("MerchantCouponsController", () => {
     const redemptionRepo = new InMemoryCouponRedemptionRepository();
     const createUseCase = new CreateCouponUseCase(couponRepo);
     const archiveUseCase = new ArchiveCouponUseCase(couponRepo, redemptionRepo);
-    const controller = new MerchantCouponsController(createUseCase, archiveUseCase, couponRepo);
-    return { couponRepo, redemptionRepo, createUseCase, archiveUseCase, controller };
+    const toggleUseCase = new ToggleCouponActiveUseCase(couponRepo);
+    const controller = new MerchantCouponsController(createUseCase, archiveUseCase, toggleUseCase, couponRepo);
+    return { couponRepo, redemptionRepo, createUseCase, archiveUseCase, toggleUseCase, controller };
   }
 
   it("create derives merchant_id from authenticated user, ignoring body", async () => {
