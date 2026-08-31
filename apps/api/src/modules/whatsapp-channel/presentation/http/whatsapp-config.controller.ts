@@ -128,13 +128,7 @@ export class WhatsAppConfigController {
   @Post("disconnect")
   @HttpCode(200)
   async disconnect(@Param("merchantId") merchantId: string) {
-    await this.configRepo.upsert(merchantId, {
-      enabled: false,
-      status: "DISCONNECTED",
-    });
-
-    this.logger.log(`WhatsApp disconnected for merchant ${merchantId}`);
-    return { status: "disconnected", enabled: false };
+    return this.configureWhatsApp.disconnect(merchantId);
   }
 
   /**
@@ -149,10 +143,9 @@ export class WhatsAppConfigController {
     const config = await this.configRepo.findByMerchantId(merchantId);
     if (!config) return { status: "disconnected", enabled: false };
 
-    await this.configRepo.upsert(merchantId, { enabled: body.enabled });
+    const result = await this.configureWhatsApp.setEnabled(merchantId, body.enabled);
     return {
-      status: config.status?.toLowerCase() ?? "disconnected",
-      enabled: body.enabled,
+      ...result,
       whatsappNumber: config.whatsappNumber,
       connectedAt: config.connectedAt,
     };

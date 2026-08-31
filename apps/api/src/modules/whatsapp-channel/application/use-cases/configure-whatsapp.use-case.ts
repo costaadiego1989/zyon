@@ -432,4 +432,20 @@ export class ConfigureWhatsAppUseCase {
     if (digits.length === 10 || digits.length === 11) return `55${digits}`;
     return digits;
   }
+
+  async disconnect(merchantId: string): Promise<{ status: string; enabled: boolean }> {
+    await this.configRepo.upsert(merchantId, { enabled: false, status: "DISCONNECTED" });
+    this.logger.log(`WhatsApp disconnected for merchant ${merchantId}`);
+    return { status: "disconnected", enabled: false };
+  }
+
+  async setEnabled(merchantId: string, enabled: boolean): Promise<{ status: string; enabled: boolean }> {
+    const config = await this.configRepo.findByMerchantId(merchantId);
+    if (!config) return { status: "disconnected", enabled: false };
+    await this.configRepo.upsert(merchantId, { enabled });
+    return {
+      status: config.status?.toLowerCase() ?? "disconnected",
+      enabled,
+    };
+  }
 }
