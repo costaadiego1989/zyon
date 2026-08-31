@@ -38,6 +38,7 @@ scripts/*
 .codex/
 .cursor/
 .github/
+!.github/workflows/
 
 # Local WooCommerce installation (E2E test environment)
 woocommerce/

@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const config: NextConfig = {
+  output: "standalone",
   reactStrictMode: true,
   transpilePackages: ["@zyon/checkout-ui", "@zyon/widget-v2"],
   serverExternalPackages: ["jsdom", "isomorphic-dompurify"],

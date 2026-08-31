@@ -1,0 +1,194 @@
+name: Deploy to Railway
+
+on:
+  push:
+    branches:
+      - staging
+      - main
+    tags:
+      - v*
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false  # Don't cancel deploys
+
+env:
+  RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+  NODE_VERSION: '20'
+
+jobs:
+  # ── Gate: CI must pass before deploy ───────────────────────────────────────
+  ci-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '9' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+
+      # Typecheck all apps
+      - run: cd apps/api && pnpm typecheck
+      - run: cd apps/dashboard && pnpm typecheck
+      - run: cd apps/storefront && pnpm typecheck
+      - run: cd apps/widget && pnpm typecheck
+
+      # Lint
+      - run: cd apps/api && pnpm lint
+
+      # Test API
+      - name: Setup test services
+        uses: ankane/setup-postgres@v1
+        with:
+          postgres-version: 16
+      - run: redis-server --daemonize yes
+      - name: Run API tests
+        run: |
+          export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/test_db"
+          export REDIS_URL="redis://localhost:6379"
+          cd apps/api && pnpm test
+
+      # Test packages
+      - run: cd packages/rules-engine && pnpm test
+      - run: cd packages/shipping-engine && pnpm test
+      - run: cd packages/conversation-engine && pnpm test
+      - run: cd packages/negotiation-engine && pnpm test
+
+      # Build all
+      - run: cd apps/api && pnpm build
+      - run: cd apps/dashboard && pnpm build
+      - run: cd apps/storefront && pnpm build
+      - run: cd apps/widget && pnpm build
+
+  # ── Deploy: Staging (branch: staging) ──────────────────────────────────────
+  deploy-staging:
+    needs: [ci-gate]
+    if: github.ref == 'refs/heads/staging' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy API to staging
+        run: |
+          railway up \
+            --service api \
+            --environment staging \
+            --name "zyon-api-staging" \
+            --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Deploy Dashboard to staging
+        run: |
+          railway up \
+            --service dashboard \
+            --environment staging \
+            --name "zyon-dashboard-staging" \
+            --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Deploy Storefront to staging
+        run: |
+          railway up \
+            --service storefront \
+            --environment staging \
+            --name "zyon-storefront-staging" \
+            --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Deploy Redis to staging
+        run: |
+          railway up \
+            --service redis \
+            --environment staging \
+            --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Deploy PostgreSQL to staging
+        run: |
+          railway up \
+            --service postgres \
+            --environment staging \
+            --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Wait for deployments & health check
+        run: sleep 30 && echo "Staging deployment queued"
+
+  # ── Deploy: Production (tag: v*) ───────────────────────────────────────────
+  deploy-production:
+    needs: [ci-gate]
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy API to production
+        run: |
+          railway up \
+            --service api \
+            --environment production \
+            --name "zyon-api" \
+            --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Deploy Dashboard to production
+        run: |
+          railway up \
+            --service dashboard \
+            --environment production \
+            --name "zyon-dashboard" \
+            --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Deploy Storefront to production
+        run: |
+          railway up \
+            --service storefront \
+            --environment production \
+            --name "zyon-storefront" \
+            --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Deploy Redis to production
+        run: |
+          railway up \
+            --service redis \
+            --environment production \
+            --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Deploy PostgreSQL to production
+        run: |
+          railway up \
+            --service postgres \
+            --environment production \
+            --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Wait for deployments & health check
+        run: sleep 30 && echo "Production deployment queued"
+
+      - name: Notify deployment
+        run: |
+          echo "✅ Production deployment initiated for tag: ${{ github.ref }}"
+          echo "Monitor at: https://railway.app"

@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1.7
 #
-# Multi-stage Dockerfile for @zyon/dashboard (Vite + React SPA).
+# Multi-stage Dockerfile for @zyon/storefront (Next.js).
 # Build context: monorepo root.
-#   docker build -f apps/dashboard/Dockerfile -t zyon-dashboard .
+#   docker build -f apps/storefront/Dockerfile -t zyon-storefront .
 
 # ---------------------------------------------------------------------------
 # Stage 1: builder
@@ -16,38 +16,41 @@ WORKDIR /repo
 # 1) Workspace config
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 
-# 2) Package manifests (only what the dashboard needs)
+# 2) Package manifests
 COPY packages/shared-types/package.json     packages/shared-types/package.json
 COPY packages/contracts/package.json        packages/contracts/package.json
-COPY apps/dashboard/package.json            apps/dashboard/package.json
+COPY apps/storefront/package.json           apps/storefront/package.json
 
 # 3) Full source
 COPY packages/shared-types/ packages/shared-types/
 COPY packages/contracts/    packages/contracts/
-COPY apps/dashboard/        apps/dashboard/
+COPY apps/storefront/       apps/storefront/
 
 # 4) Install deps
 RUN pnpm install --frozen-lockfile
 
-# 5) Build shared packages + dashboard
+# 5) Build
 RUN pnpm --filter @zyon/shared-types build \
  && pnpm --filter @zyon/contracts build \
- && pnpm --filter @zyon/dashboard build
+ && pnpm --filter @zyon/storefront build
 
 # ---------------------------------------------------------------------------
-# Stage 2: runner (static files served by nginx)
+# Stage 2: runner
 # ---------------------------------------------------------------------------
-FROM nginx:1.27-alpine AS runner
+FROM node:20-alpine AS runner
 
-# Remove default nginx config
-RUN rm /etc/nginx/conf.d/default.conf
+ENV NODE_ENV=production
+ENV PORT=3001
 
-# Add custom nginx config for SPA routing
-COPY apps/dashboard/nginx.conf /etc/nginx/conf.d/default.conf
+WORKDIR /app
 
-# Copy built assets
-COPY --from=builder /repo/apps/dashboard/dist /usr/share/nginx/html
+USER node
 
-EXPOSE 80
+# Next.js standalone output
+COPY --from=builder --chown=node:node /repo/apps/storefront/.next/standalone ./
+COPY --from=builder --chown=node:node /repo/apps/storefront/.next/static ./.next/static
+COPY --from=builder --chown=node:node /repo/apps/storefront/public ./public
 
-CMD ["nginx", "-g", "daemon off;"]
+EXPOSE 3001
+
+CMD ["node", "server.js"]

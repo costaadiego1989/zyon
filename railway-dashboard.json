@@ -1,0 +1,23 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "dockerfile": "apps/dashboard/Dockerfile"
+  },
+  "deploy": {
+    "numReplicas": 2,
+    "restartPolicyType": "on-failure",
+    "restartPolicyMaxRetries": 3,
+    "healthchecks": {
+      "http": {
+        "path": "/healthz",
+        "port": 80
+      }
+    }
+  },
+  "variables": {
+    "PORT": {
+      "description": "Nginx port",
+      "value": "80"
+    }
+  }
+}
