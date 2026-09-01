@@ -18,6 +18,7 @@ export const DEFAULT_RULES: MerchantRules = {
   blockedRegions: [],
   brandVoice: "consultative",
   couponBoxEnabled: true,
+  autonomousEngineEnabled: true,
   originZip: undefined,
   quickReplies: undefined,
   cryptoPayments: undefined,

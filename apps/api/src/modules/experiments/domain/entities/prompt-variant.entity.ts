@@ -7,6 +7,7 @@ export type PromptVariantSnapshot = {
   system_prompt: string;
   weight: number;
   is_control: boolean;
+  applied_rule_id?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -20,6 +21,7 @@ export class PromptVariantEntity {
     system_prompt: string;
     weight: number;
     is_control: boolean;
+    applied_rule_id?: string;
   }): PromptVariantEntity {
     if (!input.name || input.name.trim().length === 0) {
       throw new Error("VARIANT_NAME_REQUIRED");
@@ -38,6 +40,7 @@ export class PromptVariantEntity {
       system_prompt: input.system_prompt.trim(),
       weight: input.weight,
       is_control: input.is_control,
+      applied_rule_id: input.applied_rule_id ?? null,
       created_at: now,
       updated_at: now,
     });
@@ -72,4 +75,5 @@ export class PromptVariantEntity {
   get system_prompt(): string { return this.s.system_prompt; }
   get weight(): number { return this.s.weight; }
   get is_control(): boolean { return this.s.is_control; }
+  get applied_rule_id(): string | null | undefined { return this.s.applied_rule_id; }
 }

@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient, Prisma } from "@prisma/client";
 import { HypothesisEntity, type HypothesisSnapshot } from "../domain/entities/hypothesis.entity.js";
 import type { HypothesisRepositoryPort } from "../domain/ports/hypothesis-repository.port.js";
 
@@ -7,6 +7,13 @@ export class PrismaHypothesisRepository implements HypothesisRepositoryPort {
 
   async save(hypothesis: HypothesisEntity): Promise<void> {
     const snap = hypothesis.snapshot();
+    // F2-T03: hypothesis_type + discount_rule_json embedded in the existing
+    // templateJson column (no schema migration; backward-compat on rehydrate).
+    const templateJson = {
+      ...snap.template,
+      hypothesis_type: snap.hypothesis_type ?? "prompt",
+      ...(snap.discount_rule_json ? { discount_rule_json: snap.discount_rule_json } : {}),
+    } as unknown as Prisma.InputJsonValue;
     await this.prisma.revenueManagerHypothesis.upsert({
       where: { id: snap.id },
       create: {
@@ -17,7 +24,7 @@ export class PrismaHypothesisRepository implements HypothesisRepositoryPort {
         reasoning: snap.reasoning,
         expectedLiftPercent: snap.expected_lift_percent,
         riskLevel: snap.risk_level,
-        templateJson: snap.template,
+        templateJson,
         status: snap.status,
         approvalStrategy: snap.approval_strategy,
         merchantApprovedAt: snap.merchant_approved_at ? new Date(snap.merchant_approved_at) : null,
@@ -88,6 +95,11 @@ export class PrismaHypothesisRepository implements HypothesisRepositoryPort {
     createdAt: Date;
     updatedAt: Date;
   }): HypothesisSnapshot {
+    // F2-T03: extract embedded hypothesis_type + discount_rule_json from
+    // templateJson. Backward-compat: legacy snapshots lack these keys → default.
+    const tpl = (rec.templateJson ?? {}) as Record<string, unknown>;
+    const hypothesisType = (tpl.hypothesis_type as HypothesisSnapshot["hypothesis_type"]) ?? "prompt";
+    const discountRuleJson = tpl.discount_rule_json as HypothesisSnapshot["discount_rule_json"] | undefined;
     return {
       id: rec.id,
       merchant_id: rec.merchantId,
@@ -96,7 +108,9 @@ export class PrismaHypothesisRepository implements HypothesisRepositoryPort {
       reasoning: rec.reasoning,
       expected_lift_percent: Number(rec.expectedLiftPercent),
       risk_level: rec.riskLevel as HypothesisSnapshot["risk_level"],
-      template: rec.templateJson as HypothesisSnapshot["template"],
+      template: tpl as HypothesisSnapshot["template"],
+      hypothesis_type: hypothesisType,
+      ...(discountRuleJson ? { discount_rule_json: discountRuleJson } : {}),
       status: rec.status as HypothesisSnapshot["status"],
       approval_strategy: rec.approvalStrategy as HypothesisSnapshot["approval_strategy"],
       merchant_approved_at: rec.merchantApprovedAt?.toISOString(),

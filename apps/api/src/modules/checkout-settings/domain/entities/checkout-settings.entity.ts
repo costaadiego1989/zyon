@@ -344,5 +344,23 @@ function validateAdvancedRules(rules: AdvancedRule[]): void {
     if (!rule.action) {
       throw new CheckoutSettingsValidationError("advanced_rule_action_required");
     }
+    if (rule.action.type === "offer_discount") {
+      const percent = rule.action.params.percent;
+      if (
+        typeof percent !== "number" ||
+        Number.isNaN(percent) ||
+        percent < 0 ||
+        percent > 100
+      ) {
+        throw new CheckoutSettingsValidationError("advanced_rule_percent_out_of_range");
+      }
+      const cap = rule.action.params.maxDiscountReais;
+      if (
+        cap !== undefined &&
+        (typeof cap !== "number" || Number.isNaN(cap) || cap < 0)
+      ) {
+        throw new CheckoutSettingsValidationError("advanced_rule_max_discount_reais_invalid");
+      }
+    }
   }
 }

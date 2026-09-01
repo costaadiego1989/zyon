@@ -1,18 +1,33 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { IsIn, IsOptional, IsString } from "class-validator";
 
 // ===== Approval DTOs =====
 
 export class ApproveHypothesisDto {
-  @ApiProperty({ description: "ID of the user approving the hypothesis" })
-  approved_by!: string;
+  // Optional: defaults to the authenticated merchant user when omitted.
+  @ApiPropertyOptional({ description: "ID of the user approving the hypothesis" })
+  @IsOptional()
+  @IsString()
+  approved_by?: string;
 
   @ApiPropertyOptional({ description: "Reason for approval" })
+  @IsOptional()
+  @IsString()
   approval_reason?: string;
+
+  @ApiProperty({
+    description: "Approval mode: apply_direct activates the rule immediately, test_ab creates an A/B experiment",
+    enum: ["apply_direct", "test_ab"],
+  })
+  @IsIn(["apply_direct", "test_ab"])
+  mode!: "apply_direct" | "test_ab";
 }
 
 export class RejectHypothesisDto {
-  @ApiProperty({ description: "Reason for rejecting the hypothesis" })
-  reason!: string;
+  @ApiPropertyOptional({ description: "Reason for rejecting the hypothesis" })
+  @IsOptional()
+  @IsString()
+  reason?: string;
 }
 
 // ===== Response DTOs =====
@@ -75,6 +90,10 @@ export class ApproveHypothesisResponseDto {
   @ApiProperty() hypothesis_id!: string;
   @ApiProperty() status!: string;
   @ApiProperty() approved_at!: string;
+  @ApiProperty({ description: "Approval mode: apply_direct or test_ab" })
+  mode!: "apply_direct" | "test_ab";
+  @ApiPropertyOptional() experiment_id?: string;
+  @ApiPropertyOptional() rule_id?: string;
 }
 
 export class RejectHypothesisResponseDto {

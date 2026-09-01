@@ -16,6 +16,7 @@ export interface CreateExperimentInput {
     system_prompt: string;
     weight: number;
     is_control: boolean;
+    applied_rule_id?: string;
   }>;
 }
 

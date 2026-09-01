@@ -14,6 +14,12 @@ export interface AssignVariantOutput {
   variant_id: string;
   variant_name: string;
   system_prompt: string;
+  /**
+   * F4-T04: id da AdvancedRule carregada pela variant (treatment). `null` no
+   * control (INV-07: holdout nunca recebe variant, então nunca chega aqui).
+   * checkout-offer usa este id como regra ativa no AdvancedRuleEvaluator.
+   */
+  applied_rule_id: string | null;
 }
 
 @Injectable()
@@ -42,22 +48,25 @@ export class AssignVariantToSessionUseCase {
       variant_id: selected.id,
       variant_name: selected.name,
       system_prompt: selected.system_prompt,
+      applied_rule_id: selected.applied_rule_id ?? null,
     };
   }
 
-  private weightedRandom(variants: Array<{ id: string; name: string; system_prompt: string; weight: number }>): { id: string; name: string; system_prompt: string } {
+  private weightedRandom(
+    variants: Array<{ id: string; name: string; system_prompt: string; weight: number; applied_rule_id?: string | null }>,
+  ): { id: string; name: string; system_prompt: string; applied_rule_id: string | null } {
     const totalWeight = variants.reduce((sum, v) => sum + v.weight, 0);
     let random = Math.random() * totalWeight;
 
     for (const variant of variants) {
       random -= variant.weight;
       if (random <= 0) {
-        return { id: variant.id, name: variant.name, system_prompt: variant.system_prompt };
+        return { id: variant.id, name: variant.name, system_prompt: variant.system_prompt, applied_rule_id: variant.applied_rule_id ?? null };
       }
     }
 
     // Fallback to last variant (should never happen with valid weights)
     const last = variants[variants.length - 1];
-    return { id: last.id, name: last.name, system_prompt: last.system_prompt };
+    return { id: last.id, name: last.name, system_prompt: last.system_prompt, applied_rule_id: last.applied_rule_id ?? null };
   }
 }

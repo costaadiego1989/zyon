@@ -134,6 +134,7 @@ function toUpdate(rules: MerchantRules) {
     allowBonusItem: rules.allowBonusItem ?? false,
     allowStackDiscountAndFreeShipping: rules.allowStackDiscountAndFreeShipping ?? false,
     couponBoxEnabled: rules.couponBoxEnabled ?? true,
+    autonomousEngineEnabled: rules.autonomousEngineEnabled ?? true,
     freeShippingMinCartValue: rules.freeShippingMinCartValue ?? 250,
     maxShippingSubsidy: rules.maxShippingSubsidy ?? 45,
     maxPartialShippingDiscount: rules.maxPartialShippingDiscount ?? 20,
@@ -166,6 +167,7 @@ function toRules(row: {
   blockedRegions: string[];
   brandVoice: string;
   couponBoxEnabled?: boolean | null;
+  autonomousEngineEnabled?: boolean | null;
   originZip?: string | null;
   quickReplies?: unknown;
   cryptoPayments?: unknown;
@@ -184,6 +186,7 @@ function toRules(row: {
     blockedRegions: row.blockedRegions,
     brandVoice: row.brandVoice as MerchantRules["brandVoice"],
     couponBoxEnabled: row.couponBoxEnabled ?? true,
+    autonomousEngineEnabled: row.autonomousEngineEnabled ?? true,
     originZip: row.originZip ?? undefined,
     quickReplies: row.quickReplies != null
       ? (row.quickReplies as unknown as StageQuickReplies)

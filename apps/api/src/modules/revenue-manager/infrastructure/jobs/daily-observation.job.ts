@@ -6,6 +6,9 @@ import type { PrismaClient } from "@prisma/client";
 import { ObserveMetricsUseCase } from "../../application/use-cases/observe-metrics.use-case.js";
 import { GenerateHypothesisUseCase } from "../../application/use-cases/generate-hypothesis.use-case.js";
 import { CreateExperimentFromHypothesisUseCase } from "../../application/use-cases/create-experiment-from-hypothesis.use-case.js";
+import { DiscountRuleHypothesisService } from "../../domain/services/discount-rule-hypothesis.service.js";
+import { HypothesisEntity } from "../../domain/entities/hypothesis.entity.js";
+import { HYPOTHESIS_REPOSITORY_PORT, type HypothesisRepositoryPort } from "../../domain/ports/hypothesis-repository.port.js";
 
 export const REVENUE_MANAGER_OBSERVATION_QUEUE = "revenue-manager-observations";
 const JOB_NAME = "daily-observation-compile";
@@ -91,6 +94,8 @@ export class DailyObservationWorker implements OnModuleInit, OnModuleDestroy {
     private readonly observeMetricsUseCase: ObserveMetricsUseCase,
     private readonly generateHypothesisUseCase: GenerateHypothesisUseCase,
     private readonly createExperimentUseCase: CreateExperimentFromHypothesisUseCase,
+    private readonly discountRuleHypothesisService: DiscountRuleHypothesisService,
+    @Inject(HYPOTHESIS_REPOSITORY_PORT) private readonly hypothesisRepository: HypothesisRepositoryPort,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -162,6 +167,7 @@ export class DailyObservationWorker implements OnModuleInit, OnModuleDestroy {
    * 1. Observe metrics → deduplicate by fingerprint
    * 2. Generate hypothesis → LLM call (skip if fails)
    * 3. If auto-approved → create experiment (skip if running experiment exists)
+   * 4. (F2-T05) Generate discount rule hypothesis if enabled
    */
   private async processMerchant(merchantId: string): Promise<void> {
     // Calculate observation window (last 24 hours)
@@ -218,5 +224,114 @@ export class DailyObservationWorker implements OnModuleInit, OnModuleDestroy {
     } else {
       this.logger.log(`Merchant ${merchantId}: hypothesis ${hypothesis.hypothesis_id} needs manual approval (risk=${hypothesis.risk_level})`);
     }
+
+    // Step 4: (F2-T05) Generate discount rule hypothesis if autonomous engine enabled
+    await this.generateDiscountRuleHypothesis(merchantId, observation.observation_id);
+  }
+
+  /**
+   * F2-T05: Generate discount rule hypothesis.
+   *
+   * 1. Fetch merchant rules (kill-switch check)
+   * 2. If autonomousEngineEnabled=false, skip
+   * 3. Fetch cohort stats (reuse observation metrics)
+   * 4. Call DiscountRuleHypothesisService.generate()
+   * 5. If candidate: create HypothesisEntity type='discount_rule' status='pending_review'
+   * 6. Create MerchantNotification type='ai_rule_suggestion'
+   */
+  private async generateDiscountRuleHypothesis(merchantId: string, observationId: string): Promise<void> {
+    try {
+      // Fetch merchant rules to check kill-switch
+      const merchantRules = await this.prisma.merchantRule.findUnique({
+        where: { merchantId },
+      });
+
+      if (!merchantRules) {
+        this.logger.debug(`Merchant ${merchantId}: no rules configured, skipping discount rule generation`);
+        return;
+      }
+
+      // ADI-F2-05: kill-switch — skip if disabled
+      if (!merchantRules.autonomousEngineEnabled) {
+        this.logger.debug(`Merchant ${merchantId}: autonomous engine disabled (kill-switch), skipping discount rule generation`);
+        return;
+      }
+
+      // Fetch cohort stats aggregated by intent (conversion × margin per cohort).
+      const cohortStats = await this.loadCohortStats(merchantId);
+
+      // ADI-F2-01..03: call DiscountRuleHypothesisService to generate a safe candidate.
+      // Prisma Decimal caps are coerced to number for the pure domain service.
+      const candidate = this.discountRuleHypothesisService.generate(
+        cohortStats,
+        {
+          maxDiscountPercent: Number(merchantRules.maxDiscountPercent),
+          minimumMarginPercent: Number(merchantRules.minimumMarginPercent),
+          autonomousEngineEnabled: merchantRules.autonomousEngineEnabled,
+        } as unknown as Parameters<DiscountRuleHypothesisService["generate"]>[1],
+        parseInt(process.env.RULE_OPTIMIZER_MIN_SAMPLES ?? "30", 10)
+      );
+
+      if (!candidate) {
+        this.logger.debug(`Merchant ${merchantId}: no discount rule candidate generated (no eligible cohorts or all rejected)`);
+        return;
+      }
+
+      // ADI-F2-04: candidate → HypothesisEntity type='discount_rule', pending_review.
+      const hypothesisEntity = HypothesisEntity.create({
+        merchant_id: merchantId,
+        observation_id: observationId,
+        hypothesis_text: candidate.rationale,
+        reasoning: `Auto-generated discount rule for ${candidate.rule.name}`,
+        expected_lift_percent: candidate.projectedLiftPercent,
+        risk_level: "low",
+        approval_strategy: "manual", // ADI-F3-01/INV-08: always merchant-approved
+        hypothesis_type: "discount_rule",
+        discount_rule_json: candidate.rule,
+        template: {
+          name: "discount_rule_system",
+          description: "System-generated discount rule",
+          variant_a: { name: "control", system_prompt: "", weight: 0.5, is_control: true },
+          variant_b: { name: "treatment", system_prompt: "", weight: 0.5, is_control: false },
+        },
+      });
+
+      // Persist via repository (embeds hypothesis_type + discount_rule_json in templateJson).
+      await this.hypothesisRepository.save(hypothesisEntity);
+
+      // ADI-F3-01: notify merchant — same pattern as handle-asaas-webhook.use-case.ts.
+      await this.prisma.merchantNotification.create({
+        data: {
+          merchantId,
+          type: "ai_rule_suggestion",
+          title: "Sugestão de IA: Regra de Desconto",
+          body: candidate.rationale,
+          metadata: { hypothesisId: hypothesisEntity.id },
+        },
+      });
+
+      this.logger.log(
+        `Merchant ${merchantId}: generated discount rule hypothesis ${hypothesisEntity.id} (${candidate.rule.name}), sent notification`
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Merchant ${merchantId}: discount rule generation failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+      // Don't throw — allow observation cycle to continue
+    }
+  }
+
+  /**
+   * Load cohort stats (conversion × margin per intent) for the discount rule
+   * generator. Returns empty when analytics are unavailable, in which case the
+   * generator produces no candidate (safe no-op).
+   *
+   * TODO: wire to a real cohort-stats query once the intent × conversion read
+   * model is available. Kept as a seam so the integration is testable now.
+   */
+  private async loadCohortStats(
+    _merchantId: string,
+  ): Promise<Parameters<DiscountRuleHypothesisService["generate"]>[0]> {
+    return [];
   }
 }

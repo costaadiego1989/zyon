@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import type { AdvancedRule } from "@zyon/shared-types";
+
+export type HypothesisType = "prompt" | "discount_rule";
 
 export type HypothesisSnapshot = {
   id: string;
@@ -8,6 +11,17 @@ export type HypothesisSnapshot = {
   reasoning: string;
   expected_lift_percent: number;
   risk_level: "low" | "medium" | "high";
+  /**
+   * F2-T03: tipo da hipótese. Default "prompt" (backward-compat: snapshots
+   * antigos sem o campo são reidratados como "prompt").
+   */
+  hypothesis_type?: HypothesisType;
+  /**
+   * F2-T03: regra de desconto candidata (JSON), presente apenas quando
+   * hypothesis_type === "discount_rule". Persistida na coluna Json existente,
+   * sem migration de coluna.
+   */
+  discount_rule_json?: AdvancedRule;
   template: {
     name: string;
     description: string;
@@ -38,10 +52,13 @@ export class HypothesisEntity {
     risk_level: "low" | "medium" | "high";
     template: HypothesisSnapshot["template"];
     approval_strategy: "auto" | "manual";
+    hypothesis_type?: HypothesisType;
+    discount_rule_json?: AdvancedRule;
   }): HypothesisEntity {
     const id = randomUUID();
     const now = new Date().toISOString();
     const isAutoApproved = input.approval_strategy === "auto";
+    const hypothesisType: HypothesisType = input.hypothesis_type ?? "prompt";
     return new HypothesisEntity({
       id,
       merchant_id: input.merchant_id,
@@ -50,6 +67,8 @@ export class HypothesisEntity {
       reasoning: input.reasoning,
       expected_lift_percent: input.expected_lift_percent,
       risk_level: input.risk_level,
+      hypothesis_type: hypothesisType,
+      ...(input.discount_rule_json ? { discount_rule_json: input.discount_rule_json } : {}),
       template: input.template,
       status: isAutoApproved ? "approved" : "pending_review",
       approval_strategy: input.approval_strategy,
@@ -60,7 +79,8 @@ export class HypothesisEntity {
   }
 
   static rehydrate(snap: HypothesisSnapshot): HypothesisEntity {
-    return new HypothesisEntity(snap);
+    // Backward-compat: snapshots persistidos antes de F2-T03 não têm o campo.
+    return new HypothesisEntity({ ...snap, hypothesis_type: snap.hypothesis_type ?? "prompt" });
   }
 
   autoApprove(): HypothesisEntity {
@@ -97,6 +117,8 @@ export class HypothesisEntity {
   get template() { return this._snapshot.template; }
   get hypothesis_text() { return this._snapshot.hypothesis_text; }
   get expected_lift_percent() { return this._snapshot.expected_lift_percent; }
+  get hypothesis_type(): HypothesisType { return this._snapshot.hypothesis_type ?? "prompt"; }
+  get discount_rule_json(): AdvancedRule | undefined { return this._snapshot.discount_rule_json; }
 
   snapshot(): HypothesisSnapshot { return { ...this._snapshot }; }
 }

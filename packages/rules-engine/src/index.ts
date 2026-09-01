@@ -40,13 +40,36 @@ export function estimateMargin(
 export function evaluateDiscountOffer(
   cart: Cart,
   rules: MerchantRules,
-  requestedPercent: number
+  requestedPercent: number,
+  maxReaisCap?: number
 ): OfferEvaluation {
-  const percent = Math.min(requestedPercent, rules.maxDiscountPercent);
-  const subsidy = cart.total * (percent / 100);
-  const margin = estimateMargin(cart, subsidy);
+  const percentCap = Math.min(requestedPercent, rules.maxDiscountPercent);
+  const cartTotal = cart.total ?? 0;
 
-  if (percent <= 0) {
+  // Guard: cart.total <= 0 → no offer possible (avoids /0 on percent recompute).
+  if (cartTotal <= 0) {
+    const margin = estimateMargin(cart, 0);
+    return {
+      approved: false,
+      type: "none",
+      value: 0,
+      reason: "discount_not_requested",
+      marginAfterOffer: margin.marginPercent
+    };
+  }
+
+  const rawValue = cartTotal * (percentCap / 100);
+  let effectiveValue = rawValue;
+  let effectivePercent = percentCap;
+
+  if (maxReaisCap != null) {
+    effectiveValue = Math.min(rawValue, maxReaisCap);
+    effectivePercent = (effectiveValue / cartTotal) * 100;
+  }
+
+  const margin = estimateMargin(cart, effectiveValue);
+
+  if (effectivePercent <= 0) {
     return {
       approved: false,
       type: "none",
@@ -66,11 +89,19 @@ export function evaluateDiscountOffer(
     };
   }
 
+  const reaisCapBit = maxReaisCap != null && effectiveValue < rawValue;
+  const percentCapBit = percentCap < requestedPercent;
+  const reason = reaisCapBit
+    ? "capped_by_reais_limit"
+    : percentCapBit
+      ? "capped_by_max_discount_rule"
+      : "discount_allowed";
+
   return {
     approved: true,
     type: "discount_percent",
-    value: percent,
-    reason: percent < requestedPercent ? "capped_by_max_discount_rule" : "discount_allowed",
+    value: effectivePercent,
+    reason,
     marginAfterOffer: margin.marginPercent
   };
 }

@@ -5,6 +5,9 @@ import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/bi
 import { RedisModule } from "../../shared/cache/redis.module.js";
 import { MessagingModule } from "../../shared/messaging/messaging.module.js";
 import { ExperimentsModule } from "../experiments/experiments.module.js";
+import { CHECKOUT_SETTINGS_REPOSITORY } from "../checkout-settings/domain/ports/checkout-settings-repository.port.js";
+import { PrismaCheckoutSettingsRepository } from "../checkout-settings/infrastructure/prisma-checkout-settings.repository.js";
+import { CheckoutSettingsModule } from "../checkout-settings/checkout-settings.module.js";
 
 // Ports
 import { OBSERVATION_REPOSITORY_PORT } from "./domain/ports/observation-repository.port.js";
@@ -19,6 +22,9 @@ import { PrismaStrategyLessonRepository } from "./infrastructure/prisma-strategy
 
 // Adapters
 import { LLMHypothesisGenerator } from "./infrastructure/hypothesis-generator.adapter.js";
+
+// Domain Services
+import { DiscountRuleHypothesisService } from "./domain/services/discount-rule-hypothesis.service.js";
 
 // Use Cases
 import { ApproveHypothesisUseCase } from "./application/use-cases/approve-hypothesis.use-case.js";
@@ -36,7 +42,7 @@ import { DailyObservationScheduler, DailyObservationWorker } from "./infrastruct
 import { RevenueManagerController } from "./presentation/http/revenue-manager.controller.js";
 
 @Module({
-  imports: [PersistenceModule, RedisModule, MessagingModule, ExperimentsModule],
+  imports: [PersistenceModule, RedisModule, MessagingModule, ExperimentsModule, CheckoutSettingsModule],
   controllers: [RevenueManagerController],
   providers: [
     BillingPlanMeteringService,
@@ -61,6 +67,14 @@ import { RevenueManagerController } from "./presentation/http/revenue-manager.co
       provide: HYPOTHESIS_GENERATOR_PORT,
       useClass: LLMHypothesisGenerator,
     },
+    // F4-T03: checkout-settings repo to persist discount-rule drafts
+    {
+      provide: CHECKOUT_SETTINGS_REPOSITORY,
+      useFactory: (prisma: PrismaClient) => new PrismaCheckoutSettingsRepository(prisma),
+      inject: [PRISMA_CLIENT],
+    },
+    // F2-T02: Domain service for discount rule hypothesis generation
+    DiscountRuleHypothesisService,
     ApproveHypothesisUseCase,
     RejectHypothesisUseCase,
     RecordStrategyLessonUseCase,

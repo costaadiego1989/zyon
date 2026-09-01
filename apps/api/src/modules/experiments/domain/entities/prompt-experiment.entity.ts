@@ -36,6 +36,7 @@ export class PromptExperimentEntity {
       system_prompt: string;
       weight: number;
       is_control: boolean;
+      applied_rule_id?: string;
     }>;
   }): PromptExperimentEntity {
     if (!input.name || input.name.trim().length === 0) {
@@ -68,6 +69,7 @@ export class PromptExperimentEntity {
         system_prompt: v.system_prompt,
         weight: v.weight,
         is_control: v.is_control,
+        applied_rule_id: v.applied_rule_id,
       }).snapshot()
     );
 
@@ -155,6 +157,7 @@ export class PromptExperimentEntity {
     system_prompt: string;
     weight: number;
     is_control: boolean;
+    applied_rule_id?: string;
   }>): PromptExperimentEntity {
     if (this.s.status !== "draft") {
       throw new Error("CANNOT_UPDATE_NON_DRAFT_EXPERIMENT");
@@ -188,6 +191,7 @@ export class PromptExperimentEntity {
         system_prompt: v.system_prompt,
         weight: v.weight,
         is_control: v.is_control,
+        applied_rule_id: v.applied_rule_id,
       }).snapshot();
     });
 

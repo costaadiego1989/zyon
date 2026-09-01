@@ -68,6 +68,20 @@ export class InterventionRuleTextBuilder {
       };
 
       for (const r of advancedRules.filter(r => r.enabled).sort((a, b) => a.priority - b.priority)) {
+        // F0-T07: Skip value-action rules (offer_discount, offer_free_shipping, offer_coupon)
+        // These are deterministically evaluated by rules-engine, not advisory instructions for LLM.
+        // Only advisory rules (show_message, suggest_product, do_nothing, offer_installments) generate text.
+        const isValueAction = ["offer_discount", "offer_free_shipping", "offer_coupon"].includes(r.action.type);
+        if (isValueAction) {
+          // Track triggers even for skipped value-action rules to avoid progressive duplicate
+          for (const c of r.conditions) {
+            if (c.field === "trigger_fired") {
+              advancedTriggers.add(String(c.value));
+            }
+          }
+          continue; // Skip text generation for value-actions
+        }
+
         const conds = r.conditions.map(c => `${fieldLabels[c.field] || c.field} ${c.operator} ${c.value}`).join(" E ");
         advancedNlRules.push(`SE ${conds} ENTÃO ${actionLabels(r.action)}`);
         for (const c of r.conditions) {

@@ -136,8 +136,9 @@ export class RevenueManagerController {
       return await this.approveHypothesis.execute({
         hypothesis_id: id,
         merchant_id: user.merchantId,
-        approved_by: body.approved_by,
+        approved_by: body.approved_by ?? user.email ?? user.merchantId,
         approval_reason: body.approval_reason,
+        mode: body.mode,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -156,14 +157,11 @@ export class RevenueManagerController {
     @Req() req: any,
   ): Promise<RejectHypothesisResponseDto> {
     const user = currentUser(req);
-    if (!body.reason || body.reason.trim().length === 0) {
-      throw new BadRequestException("Rejection reason is required");
-    }
     try {
       return await this.rejectHypothesis.execute({
         hypothesis_id: id,
         merchant_id: user.merchantId,
-        reason: body.reason,
+        reason: body.reason ?? "No reason provided",
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

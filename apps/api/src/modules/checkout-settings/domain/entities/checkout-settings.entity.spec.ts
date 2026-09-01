@@ -76,3 +76,109 @@ test("CheckoutSettingsEntity rejects commercial authorization fields", () => {
     /checkout_settings_cannot_authorize_commercial_terms/
   );
 });
+
+test("CheckoutSettingsEntity validates offer_discount percent and maxDiscountReais", () => {
+  const settings = CheckoutSettingsEntity.createDefault({ merchantId: "mrc_1" });
+
+  // valid: percent 0–100, no cap
+  const validRule = settings.update({
+    advancedRules: [
+      {
+        id: "rule_1",
+        name: "Valid discount",
+        enabled: true,
+        priority: 50,
+        conditions: [{ field: "cart_total", operator: "gte" as const, value: 100 }],
+        action: { type: "offer_discount" as const, params: { percent: 25 } }
+      }
+    ]
+  });
+  assert.ok(validRule);
+
+  // valid: with positive maxDiscountReais
+  const validWithCap = settings.update({
+    advancedRules: [
+      {
+        id: "rule_2",
+        name: "Valid with cap",
+        enabled: true,
+        priority: 50,
+        conditions: [{ field: "cart_total", operator: "gte" as const, value: 100 }],
+        action: { type: "offer_discount" as const, params: { percent: 30, maxDiscountReais: 16.0 } }
+      }
+    ]
+  });
+  assert.ok(validWithCap);
+
+  // invalid: percent > 100
+  assert.throws(
+    () =>
+      settings.update({
+        advancedRules: [
+          {
+            id: "rule_3",
+            name: "Invalid: percent > 100",
+            enabled: true,
+            priority: 50,
+            conditions: [{ field: "cart_total", operator: "gte" as const, value: 100 }],
+            action: { type: "offer_discount" as const, params: { percent: 101 } }
+          }
+        ]
+      }),
+    /advanced_rule_percent_out_of_range/
+  );
+
+  // invalid: percent < 0
+  assert.throws(
+    () =>
+      settings.update({
+        advancedRules: [
+          {
+            id: "rule_4",
+            name: "Invalid: percent < 0",
+            enabled: true,
+            priority: 50,
+            conditions: [{ field: "cart_total", operator: "gte" as const, value: 100 }],
+            action: { type: "offer_discount" as const, params: { percent: -5 } }
+          }
+        ]
+      }),
+    /advanced_rule_percent_out_of_range/
+  );
+
+  // invalid: maxDiscountReais < 0
+  assert.throws(
+    () =>
+      settings.update({
+        advancedRules: [
+          {
+            id: "rule_5",
+            name: "Invalid: negative cap",
+            enabled: true,
+            priority: 50,
+            conditions: [{ field: "cart_total", operator: "gte" as const, value: 100 }],
+            action: { type: "offer_discount" as const, params: { percent: 30, maxDiscountReais: -10 } }
+          }
+        ]
+      }),
+    /advanced_rule_max_discount_reais_invalid/
+  );
+
+  // invalid: maxDiscountReais is NaN
+  assert.throws(
+    () =>
+      settings.update({
+        advancedRules: [
+          {
+            id: "rule_6",
+            name: "Invalid: NaN cap",
+            enabled: true,
+            priority: 50,
+            conditions: [{ field: "cart_total", operator: "gte" as const, value: 100 }],
+            action: { type: "offer_discount" as const, params: { percent: 30, maxDiscountReais: NaN } }
+          }
+        ]
+      }),
+    /advanced_rule_max_discount_reais_invalid/
+  );
+});
