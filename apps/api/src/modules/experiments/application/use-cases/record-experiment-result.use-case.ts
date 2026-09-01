@@ -34,8 +34,18 @@ export class RecordExperimentResultUseCase {
       return;
     }
 
-    if (!session.promptVariantId) {
-      this.logger.debug(`Session has no promptVariantId: ${sessionId}`);
+    // Resolve the variant this session belongs to. Prefer the persisted
+    // promptVariantId; when absent (storefront sessions never persisted it),
+    // fall back to the SAME deterministic djb2 hash used at assignment time
+    // (start-store-conversation, storefront /events, send-chat-message). This
+    // closes the A/B loop so a real conversion + revenue is credited to the
+    // exact variant the buyer experienced.
+    let variantId = session.promptVariantId ?? undefined;
+    if (!variantId) {
+      variantId = await this.resolveVariantByHash(merchantId, sessionId);
+    }
+    if (!variantId) {
+      this.logger.debug(`No variant resolvable for session: ${sessionId} (no running experiment)`);
       return;
     }
 
@@ -44,12 +54,12 @@ export class RecordExperimentResultUseCase {
       await (this.prisma as any).promptVariantResult.upsert({
         where: {
           variantId_sessionId: {
-            variantId: session.promptVariantId,
+            variantId,
             sessionId,
           },
         },
         create: {
-          variantId: session.promptVariantId,
+          variantId,
           sessionId,
           converted,
           revenue: revenue ?? null,
@@ -67,7 +77,7 @@ export class RecordExperimentResultUseCase {
       });
 
       this.logger.log(
-        `Recorded experiment result: variant=${session.promptVariantId} session=${sessionId} converted=${converted}`,
+        `Recorded experiment result: variant=${variantId} session=${sessionId} converted=${converted}`,
       );
     } catch (err) {
       this.logger.error(
@@ -75,5 +85,32 @@ export class RecordExperimentResultUseCase {
       );
       throw err;
     }
+  }
+
+  /**
+   * Fallback variant resolution for sessions without a persisted promptVariantId.
+   * Finds the running experiment and picks a variant with the SAME djb2 hash used
+   * at assignment time (start-store-conversation / storefront /events /
+   * send-chat-message), so the credited variant matches the one the buyer saw.
+   */
+  private async resolveVariantByHash(merchantId: string, sessionId: string): Promise<string | undefined> {
+    const running = await (this.prisma as any).promptExperiment.findFirst({
+      where: { merchantId, status: "running" },
+      include: { variants: true },
+    });
+    if (!running || !running.variants?.length) return undefined;
+
+    let hash = 0;
+    for (let i = 0; i < sessionId.length; i++) {
+      hash = ((hash << 5) - hash) + sessionId.charCodeAt(i);
+      hash |= 0;
+    }
+    const totalWeight = running.variants.reduce((sum: number, v: any) => sum + (v.weight || 1), 0);
+    let target = Math.abs(hash) % totalWeight;
+    for (const variant of running.variants) {
+      target -= (variant.weight || 1);
+      if (target <= 0) return variant.id;
+    }
+    return running.variants[running.variants.length - 1].id;
   }
 }
