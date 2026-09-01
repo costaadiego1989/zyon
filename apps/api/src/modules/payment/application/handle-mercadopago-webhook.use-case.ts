@@ -137,7 +137,12 @@ export class HandleMercadoPagoWebhookUseCase {
     }
 
     const paymentId = String(body.data.id);
-    const eventKey: ProviderEventKey = { provider: "mercadopago", merchantId: null, eventId: paymentId };
+
+    // Resolve merchant BEFORE idempotency gate to ensure tenant scoping
+    // (ADR 0001 #3: do not gate on external ID alone).
+    const ref = await this.payments.getIntentByExternalReference(paymentId);
+    const merchantId = ref?.merchantId ?? null;
+    const eventKey: ProviderEventKey = { provider: "mercadopago", merchantId, eventId: paymentId };
 
     // Atomic idempotency gate: record the marker BEFORE any side effect.
     const reserved = await this.payments.recordProcessedProviderEvent(eventKey);
@@ -146,7 +151,7 @@ export class HandleMercadoPagoWebhookUseCase {
     }
 
     try {
-      const effect = await this.dispatch(body, paymentId);
+      const effect = await this.dispatch(body, paymentId, ref);
       return { outcome: "processed", effect };
     } catch (e) {
       const msg = e instanceof Error ? e.message : "unknown_error";
@@ -154,6 +159,7 @@ export class HandleMercadoPagoWebhookUseCase {
         this.metrics?.paymentWebhookAnomaly.inc({ provider: "mercadopago", kind: "illegal_transition" });
         this.logger.error("mercadopago.webhook.illegal_transition", {
           paymentId,
+          merchantId,
           action: body.action
         });
         return { outcome: "ignored", reason: "illegal_transition_alerted" };
@@ -166,7 +172,8 @@ export class HandleMercadoPagoWebhookUseCase {
 
   private async dispatch(
     body: MercadoPagoWebhookInbound,
-    paymentId: string
+    paymentId: string,
+    ref: { id: string; merchantId: string } | null
   ): Promise<string> {
     // MercadoPago sends action="payment.updated" for most payment events.
     // Fetch payment status via provider to determine authoritative state.
@@ -174,8 +181,7 @@ export class HandleMercadoPagoWebhookUseCase {
       return "ignored_event_action";
     }
 
-    // Look up the payment intent by MercadoPago's external ID to get merchant context
-    const ref = await this.payments.getIntentByExternalReference(paymentId);
+    // Intent was already resolved before idempotency gate; use it directly
     if (!ref) {
       return "ignored_intent_not_found";
     }
