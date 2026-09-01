@@ -173,9 +173,18 @@ model MerchantBillingSubscription {
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
 
+  // Asaas billing (primary provider) — see subscription-billing-asaas spec.
+  provider              String?   @default("asaas") @map("provider")
+  planKey               String?   @map("plan_key")
+  asaasCustomerId       String?   @map("asaas_customer_id")
+  asaasSubscriptionId   String?   @map("asaas_subscription_id")
+  pendingPlanKey        String?   @map("pending_plan_key")
+  pendingPlanEffectiveAt DateTime? @map("pending_plan_effective_at")
+
   merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 
   @@index([status, trialEndsAt])
+  @@index([asaasSubscriptionId])
   @@map("merchant_billing_subscriptions")
 }
 

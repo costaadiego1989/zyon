@@ -31,6 +31,7 @@ import { CryptoQuoteController } from "./presentation/http/crypto-quote.controll
 import { CryptoQuoteService } from "./infrastructure/crypto-quote.service.js";
 import { StripePaymentController } from "./presentation/http/stripe-payment.controller.js";
 import { AsaasWebhookController } from "./presentation/http/asaas-webhook.controller.js";
+import { AsaasBillingWebhookController } from "./presentation/http/asaas-billing-webhook.controller.js";
 import { StripeWebhookController } from "./presentation/http/stripe-webhook.controller.js";
 import { MercadoPagoWebhookController } from "./presentation/http/mercadopago-webhook.controller.js";
 import { CRYPTO_VERIFIER } from "./domain/ports/crypto-verifier.port.js";
@@ -70,7 +71,14 @@ import {
   SaveAsaasConnectionConfigUseCase,
   SyncAsaasSubaccountUseCase,
   SyncStripeConnectUseCase,
+  StartTrialUseCase,
+  SubscribeToPlanUseCase,
+  ChangeSubscriptionPlanUseCase,
+  CancelSubscriptionUseCase,
+  HandleAsaasBillingWebhookUseCase,
 } from "./application/payment-platform.use-cases.js";
+import { BILLING_PROVIDER } from "./domain/ports/billing-provider.port.js";
+import { AsaasBillingProvider } from "./infrastructure/asaas-billing.provider.js";
 import {
   BillingController,
   PaymentPlatformController,
@@ -102,6 +110,7 @@ import {
     CryptoQuoteController,
     StripePaymentController,
     AsaasWebhookController,
+    AsaasBillingWebhookController,
     StripeWebhookController,
     MercadoPagoWebhookController,
     PaymentPlatformController,
@@ -133,6 +142,11 @@ import {
     CreateBillingCheckoutUseCase,
     CreateBillingPortalUseCase,
     HandleStripePlatformEventUseCase,
+    StartTrialUseCase,
+    SubscribeToPlanUseCase,
+    ChangeSubscriptionPlanUseCase,
+    CancelSubscriptionUseCase,
+    HandleAsaasBillingWebhookUseCase,
     CreateMercadoPagoOAuthLinkUseCase,
     HandleMercadoPagoOAuthCallbackUseCase,
     SyncMercadoPagoConnectionUseCase,
@@ -258,6 +272,14 @@ import {
       provide: BILLING_CONFIG_PORT,
       useClass: EnvironmentBillingConfig,
     },
+    {
+      provide: BILLING_PROVIDER,
+      useFactory: (http: HttpClientService) => {
+        const { apiKey, baseUrl } = readAsaasConnection();
+        return new AsaasBillingProvider(baseUrl, apiKey ?? "__missing_api_key__", http.toFetch());
+      },
+      inject: [HttpClientService],
+    },
   ],
   exports: [
     CreatePaymentIntentUseCase,
@@ -267,6 +289,13 @@ import {
     PAYMENT_PLATFORM_REPOSITORY,
     BillingPlanMeteringService,
     PaymentEventPublisher,
+    // Billing subscription lifecycle — consumed by PublicApiBillingModule's controller.
+    GetBillingSubscriptionUseCase,
+    StartTrialUseCase,
+    SubscribeToPlanUseCase,
+    ChangeSubscriptionPlanUseCase,
+    CancelSubscriptionUseCase,
+    HandleAsaasBillingWebhookUseCase,
   ]
 })
 export class PaymentModule {}

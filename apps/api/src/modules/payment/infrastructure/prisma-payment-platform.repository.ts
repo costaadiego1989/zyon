@@ -170,6 +170,24 @@ export class PrismaPaymentPlatformRepository
       ...(input.cancelAtPeriodEnd !== undefined
         ? { cancelAtPeriodEnd: input.cancelAtPeriodEnd }
         : {}),
+      ...(input.provider !== undefined ? { provider: input.provider } : {}),
+      ...(input.planKey !== undefined ? { planKey: input.planKey ?? null } : {}),
+      ...(input.asaasCustomerId !== undefined
+        ? { asaasCustomerId: input.asaasCustomerId || null }
+        : {}),
+      ...(input.asaasSubscriptionId !== undefined
+        ? { asaasSubscriptionId: input.asaasSubscriptionId || null }
+        : {}),
+      ...(input.pendingPlanKey !== undefined
+        ? { pendingPlanKey: input.pendingPlanKey ?? null }
+        : {}),
+      ...(input.pendingPlanEffectiveAt !== undefined
+        ? {
+            pendingPlanEffectiveAt: input.pendingPlanEffectiveAt
+              ? new Date(input.pendingPlanEffectiveAt)
+              : null,
+          }
+        : {}),
     };
     await this.prisma.merchantBillingSubscription.upsert({
       where: { merchantId: input.merchantId.trim() },
@@ -258,6 +276,16 @@ export class PrismaPaymentPlatformRepository
     });
     return row?.merchantId;
   }
+
+  async findMerchantByAsaasSubscriptionId(
+    subscriptionId: string,
+  ): Promise<string | undefined> {
+    const row = await this.prisma.merchantBillingSubscription.findFirst({
+      where: { asaasSubscriptionId: subscriptionId.trim() },
+      select: { merchantId: true },
+    });
+    return row?.merchantId ?? undefined;
+  }
 }
 
 function toConnection(row: {
@@ -323,6 +351,12 @@ function toBilling(row: {
   cancelAtPeriodEnd: boolean;
   createdAt: Date;
   updatedAt: Date;
+  provider?: string | null;
+  planKey?: string | null;
+  asaasCustomerId?: string | null;
+  asaasSubscriptionId?: string | null;
+  pendingPlanKey?: string | null;
+  pendingPlanEffectiveAt?: Date | null;
 }): BillingSubscriptionSnapshot {
   return {
     merchantId: row.merchantId,
@@ -335,7 +369,17 @@ function toBilling(row: {
     cancelAtPeriodEnd: row.cancelAtPeriodEnd,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    provider: row.provider === "stripe" ? "stripe" : row.provider === "asaas" ? "asaas" : undefined,
+    planKey: toPlanKey(row.planKey),
+    asaasCustomerId: row.asaasCustomerId ?? undefined,
+    asaasSubscriptionId: row.asaasSubscriptionId ?? undefined,
+    pendingPlanKey: toPlanKey(row.pendingPlanKey),
+    pendingPlanEffectiveAt: row.pendingPlanEffectiveAt?.toISOString(),
   };
+}
+
+function toPlanKey(v: string | null | undefined): BillingSubscriptionSnapshot["planKey"] {
+  return v === "starter" || v === "growth" || v === "scale" ? v : undefined;
 }
 
 function toBillingStatus(

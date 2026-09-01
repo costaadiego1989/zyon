@@ -128,3 +128,102 @@ export class InvoiceResponse {
   @ApiPropertyOptional({ example: 'https://billing.example.com/inv/abc123' })
   invoice_url?: string;
 }
+
+export class CreditCardDto {
+  @ApiProperty({ example: 'John Doe' })
+  @IsString()
+  @IsNotEmpty()
+  holderName!: string;
+
+  @ApiProperty({ example: '4111111111111111' })
+  @IsString()
+  @IsNotEmpty()
+  number!: string;
+
+  @ApiProperty({ example: '12' })
+  @IsString()
+  @IsNotEmpty()
+  expiryMonth!: string;
+
+  @ApiProperty({ example: '2026' })
+  @IsString()
+  @IsNotEmpty()
+  expiryYear!: string;
+
+  @ApiProperty({ example: '123' })
+  @IsString()
+  @IsNotEmpty()
+  ccv!: string;
+}
+
+export class BillingHolderInfoDto {
+  @ApiProperty({ example: 'John Doe' })
+  @IsString()
+  @IsNotEmpty()
+  name!: string;
+
+  @ApiProperty({ example: 'john@example.com' })
+  @IsString()
+  @IsNotEmpty()
+  email!: string;
+
+  @ApiProperty({ example: '12345678901234' })
+  @IsString()
+  @IsNotEmpty()
+  cpfCnpj!: string;
+
+  @ApiProperty({ example: '12345678' })
+  @IsString()
+  @IsNotEmpty()
+  postalCode!: string;
+
+  @ApiProperty({ example: '100' })
+  @IsString()
+  @IsNotEmpty()
+  addressNumber!: string;
+
+  @ApiProperty({ example: '+5511999999999' })
+  @IsString()
+  @IsNotEmpty()
+  phone!: string;
+}
+
+export class SubscribeToPlanDto {
+  @ApiProperty({ example: 'growth', enum: ['growth', 'scale'] })
+  @IsEnum(['growth', 'scale'])
+  @IsNotEmpty()
+  planKey!: 'growth' | 'scale';
+
+  @ApiProperty({ type: CreditCardDto })
+  @IsNotEmpty()
+  card!: CreditCardDto;
+
+  @ApiProperty({ type: BillingHolderInfoDto })
+  @IsNotEmpty()
+  holderInfo!: BillingHolderInfoDto;
+
+  @ApiPropertyOptional({ example: '192.168.1.1' })
+  @IsString()
+  @IsOptional()
+  remoteIp?: string;
+}
+
+export class CancelSubscriptionDto {
+  @ApiPropertyOptional({ example: false, description: 'Cancel immediately (default) or at period end' })
+  @IsOptional()
+  immediate?: boolean;
+}
+
+export class PlansListResponse {
+  @ApiProperty({ example: [{ key: 'starter', name: 'Starter', priceBrl: 0 }] })
+  plans!: Array<{
+    key: string;
+    name: string;
+    priceBrl: number;
+    trialDays: number;
+    badge?: string;
+    recommended?: boolean;
+    features: string[];
+    ctaLabel: string;
+  }>;
+}

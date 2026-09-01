@@ -44,6 +44,12 @@ export interface BillingSubscriptionSnapshot {
   cancelAtPeriodEnd: boolean;
   createdAt: string;
   updatedAt: string;
+  provider?: "asaas" | "stripe";
+  planKey?: BillingPlan;
+  asaasCustomerId?: string;
+  asaasSubscriptionId?: string;
+  pendingPlanKey?: BillingPlan;
+  pendingPlanEffectiveAt?: string;
 }
 
 export interface BillingUsageSnapshot {

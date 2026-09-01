@@ -44,8 +44,52 @@ import {
   CreateAsaasSubaccountDto,
   CreateBillingCheckoutDto,
 } from "./payment-platform.dto.js";
+import { StartTrialUseCase } from "../../application/payment-platform/billing/start-trial.use-case.js";
+import { SubscribeToPlanUseCase } from "../../application/payment-platform/billing/subscribe-to-plan.use-case.js";
+import { ChangeSubscriptionPlanUseCase } from "../../application/payment-platform/billing/change-subscription-plan.use-case.js";
+import { CancelSubscriptionUseCase } from "../../application/payment-platform/billing/cancel-subscription.use-case.js";
+import { BILLING_PLANS } from "../../domain/billing-plans.js";
+import type { BillingPlan } from "../../domain/payment-platform.types.js";
 
-import { IsString, IsOptional, IsBoolean } from "class-validator";
+import { IsString, IsOptional, IsBoolean, ValidateNested, IsIn } from "class-validator";
+import { Type } from "class-transformer";
+
+// Plan cards for the onboarding/billing UI, derived from BILLING_PLANS.
+const enabledFeatures = (plan: BillingPlan): string[] =>
+  Object.entries(BILLING_PLANS[plan].features).filter(([, on]) => on).map(([k]) => k);
+
+const BILLING_PLAN_CARDS = [
+  { key: "starter", name: BILLING_PLANS.starter.name, priceBrl: BILLING_PLANS.starter.monthlyPriceBrl, trialDays: 14, badge: "14 dias grátis", recommended: false, ctaLabel: "Começar grátis", features: enabledFeatures("starter") },
+  { key: "growth", name: BILLING_PLANS.growth.name, priceBrl: BILLING_PLANS.growth.monthlyPriceBrl, trialDays: 0, badge: null, recommended: true, ctaLabel: "Assinar", features: enabledFeatures("growth") },
+  { key: "scale", name: BILLING_PLANS.scale.name, priceBrl: BILLING_PLANS.scale.monthlyPriceBrl, trialDays: 0, badge: null, recommended: false, ctaLabel: "Assinar", features: enabledFeatures("scale") },
+];
+
+class BillingCardDto {
+  @IsString() holderName!: string;
+  @IsString() number!: string;
+  @IsString() expiryMonth!: string;
+  @IsString() expiryYear!: string;
+  @IsString() ccv!: string;
+}
+class BillingHolderInfoDto {
+  @IsString() name!: string;
+  @IsString() email!: string;
+  @IsString() cpfCnpj!: string;
+  @IsString() postalCode!: string;
+  @IsString() addressNumber!: string;
+  @IsString() phone!: string;
+}
+class SubscribeToPlanHttpDto {
+  @IsIn(["growth", "scale"]) planKey!: "growth" | "scale";
+  @ValidateNested() @Type(() => BillingCardDto) card!: BillingCardDto;
+  @ValidateNested() @Type(() => BillingHolderInfoDto) holderInfo!: BillingHolderInfoDto;
+}
+class ChangePlanHttpDto {
+  @IsIn(["starter", "growth", "scale"]) targetPlan!: "starter" | "growth" | "scale";
+}
+class CancelSubscriptionHttpDto {
+  @IsOptional() @IsBoolean() immediate?: boolean;
+}
 
 class SaveAsaasConfigDto {
   @IsString()
@@ -367,13 +411,70 @@ export class MerchantPaymentConnectionsController {
   humanOnly: true,
   humanRoles: ["owner", "admin"],
 })
+// Billing controller (payment module — the active one; PublicApiModule is
+// currently disabled). Owns `/billing`. Asaas is the active subscription
+// provider (subscription-billing-asaas spec, GA4); the Stripe checkout/portal
+// routes remain for backwards compat but the subscription lifecycle
+// (start-trial, subscribe, change, cancel) goes through Asaas use-cases.
 @Controller("billing")
 export class BillingController {
   constructor(
     private readonly getSubscription: GetBillingSubscriptionUseCase,
     private readonly createCheckout: CreateBillingCheckoutUseCase,
     private readonly createPortal: CreateBillingPortalUseCase,
+    private readonly startTrial: StartTrialUseCase,
+    private readonly subscribeToPlan: SubscribeToPlanUseCase,
+    private readonly changePlan: ChangeSubscriptionPlanUseCase,
+    private readonly cancelSubscription: CancelSubscriptionUseCase,
   ) {}
+
+  @ApiOperation({ summary: "List billing plans (cards)" })
+  @Get("plans")
+  listPlans() {
+    return BILLING_PLAN_CARDS;
+  }
+
+  @ApiOperation({ summary: "Start 14-day free trial (Starter)" })
+  @Post("subscription/start-trial")
+  @Idempotent()
+  async startTrialRoute(@Req() request: unknown) {
+    const merchantId = humanPrincipal(request).tenantId;
+    await this.startTrial.execute(merchantId);
+    return toBillingResponse(await this.getSubscription.execute(merchantId));
+  }
+
+  @ApiOperation({ summary: "Subscribe to a paid plan (Asaas, credit card)" })
+  @Post("subscription")
+  @Idempotent()
+  async subscribeRoute(@Req() request: unknown, @Body() body: SubscribeToPlanHttpDto) {
+    const merchantId = humanPrincipal(request).tenantId;
+    await this.subscribeToPlan.execute({
+      merchantId,
+      planKey: body.planKey,
+      card: body.card,
+      holderInfo: body.holderInfo,
+      remoteIp: (request as { ip?: string }).ip,
+    });
+    return toBillingResponse(await this.getSubscription.execute(merchantId));
+  }
+
+  @ApiOperation({ summary: "Change plan (upgrade immediate / downgrade at period end)" })
+  @Post("subscription/change")
+  @Idempotent()
+  async changePlanRoute(@Req() request: unknown, @Body() body: ChangePlanHttpDto) {
+    const merchantId = humanPrincipal(request).tenantId;
+    await this.changePlan.execute({ merchantId, targetPlanKey: body.targetPlan });
+    return toBillingResponse(await this.getSubscription.execute(merchantId));
+  }
+
+  @ApiOperation({ summary: "Cancel subscription (at period end by default)" })
+  @Post("subscription/cancel")
+  @Idempotent()
+  async cancelRoute(@Req() request: unknown, @Body() body: CancelSubscriptionHttpDto) {
+    const merchantId = humanPrincipal(request).tenantId;
+    await this.cancelSubscription.execute({ merchantId, immediate: body?.immediate });
+    return toBillingResponse(await this.getSubscription.execute(merchantId));
+  }
 
   @ApiOperation({
     summary: "Get billing subscription",

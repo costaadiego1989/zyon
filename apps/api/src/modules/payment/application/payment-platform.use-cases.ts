@@ -12,6 +12,11 @@ export * from "./payment-platform/billing/expire-billing-trial.use-case.js";
 export * from "./payment-platform/billing/expire-billing-trials.use-case.js";
 export * from "./payment-platform/billing/create-billing-checkout.use-case.js";
 export * from "./payment-platform/billing/create-billing-portal.use-case.js";
+export * from "./payment-platform/billing/start-trial.use-case.js";
+export * from "./payment-platform/billing/subscribe-to-plan.use-case.js";
+export * from "./payment-platform/billing/change-subscription-plan.use-case.js";
+export * from "./payment-platform/billing/cancel-subscription.use-case.js";
+export * from "./payment-platform/billing/handle-asaas-billing-webhook.use-case.js";
 
 export * from "./payment-platform/platform-events/handle-stripe-platform-event.use-case.js";
 

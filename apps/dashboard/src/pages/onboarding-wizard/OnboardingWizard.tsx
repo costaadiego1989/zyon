@@ -5,6 +5,7 @@ import { StepRail } from "./components/StepRail.js";
 import { StepFooter } from "./components/StepFooter.js";
 import { LivePreview } from "./components/LivePreview.js";
 import { CompletedView } from "./steps/CompletedView.js";
+import { PlanSelection } from "./steps/PlanSelection.js";
 import { StepIdentity } from "./steps/StepIdentity.js";
 import { StepAddress } from "./steps/StepAddress.js";
 import { StepPayment } from "./steps/StepPayment.js";
@@ -21,6 +22,7 @@ export interface OnboardingWizardProps {
 
 export function OnboardingWizard(props: OnboardingWizardProps) {
   const vm = useOnboardingWizard(props);
+  const [planChosen, setPlanChosen] = React.useState(false);
 
   if (!vm.onboardingState) {
     return (
@@ -32,6 +34,15 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
   }
 
   if (vm.onboardingState.completed) {
+    if (!planChosen) {
+      return (
+        <PlanSelection
+          merchantName={vm.me.name}
+          merchantEmail={(vm.me as { email?: string }).email}
+          onDone={() => setPlanChosen(true)}
+        />
+      );
+    }
     return <CompletedView name={vm.me.name} onFinished={vm.onFinished} />;
   }
 

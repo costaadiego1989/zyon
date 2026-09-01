@@ -117,9 +117,16 @@ export class InMemoryPaymentPlatformRepository
     const current =
       this.billing.get(input.merchantId) ??
       (await this.getOrCreateTrial(input.merchantId, 14));
+    // SaveBillingSubscriptionInput allows null on pendingPlanEffectiveAt (clear);
+    // the snapshot uses undefined. Normalize: undefined = keep current, null = clear.
+    const pendingEffective =
+      input.pendingPlanEffectiveAt === undefined
+        ? current.pendingPlanEffectiveAt
+        : (input.pendingPlanEffectiveAt ?? undefined);
     this.billing.set(input.merchantId, {
       ...current,
       ...input,
+      pendingPlanEffectiveAt: pendingEffective,
       updatedAt: new Date().toISOString(),
     });
   }
@@ -191,6 +198,14 @@ export class InMemoryPaymentPlatformRepository
   ): Promise<string | undefined> {
     return [...this.billing.values()].find(
       (item) => item.stripeSubscriptionId === subscriptionId,
+    )?.merchantId;
+  }
+
+  async findMerchantByAsaasSubscriptionId(
+    subscriptionId: string,
+  ): Promise<string | undefined> {
+    return [...this.billing.values()].find(
+      (item) => item.asaasSubscriptionId === subscriptionId,
     )?.merchantId;
   }
 }

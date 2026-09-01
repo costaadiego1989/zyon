@@ -141,6 +141,17 @@ export type TenantPayment = {
   updated_at: string;
 };
 
+export type BillingPlanCard = {
+  key: "starter" | "growth" | "scale" | string;
+  name: string;
+  priceBrl: number;
+  trialDays: number;
+  badge?: string | null;
+  recommended?: boolean;
+  features: string[];
+  ctaLabel: string;
+};
+
 export type BillingSubscription = {
   plan: "starter" | "growth" | "scale" | string;
   plan_name?: string;

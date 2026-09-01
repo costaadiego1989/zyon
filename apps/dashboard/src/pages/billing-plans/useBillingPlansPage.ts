@@ -8,6 +8,7 @@ export interface BillingPlansPageVM {
   error: string | null;
   subscription: BillingSubscription | null;
   upgrade: (plan: "starter" | "growth" | "scale") => Promise<void>;
+  cancelSubscription: () => Promise<void>;
   manageSubscription: () => Promise<void>;
   usagePercentages: {
     orders: number;
@@ -53,20 +54,21 @@ export function useBillingPlansPage(): BillingPlansPageVM {
     setUpgrading(true);
     setError(null);
     try {
-      const session = await api.createBillingCheckoutSession({
-        price_id: plan,
-        success_url: window.location.href + "?billing=success",
-        cancel_url: window.location.href + "?billing=cancelled",
-      });
-      if (session.url) {
-        window.location.href = session.url;
-      } else {
-        showToast("error", "Stripe não retornou URL de checkout. Verifique se os planos estão configurados.");
-      }
+      const updated = await api.changeBillingPlan({ targetPlan: plan });
+      setSubscription(updated);
+      const isDowngrade =
+        (updated.plan !== plan) && Boolean((updated as { pending_plan_key?: string }).pending_plan_key);
+      showToast(
+        "success",
+        isDowngrade
+          ? "Downgrade agendado para o fim do período atual."
+          : "Plano atualizado com sucesso!",
+      );
     } catch (err: any) {
-      const msg = err?.responseBody?.includes("billing_plan_not_configured")
-        ? "Plano não configurado no Stripe. Configure STRIPE_BILLING_PRICE_* no servidor."
-        : "Erro ao iniciar upgrade. Tente novamente.";
+      const body = String(err?.responseBody ?? err?.message ?? "");
+      const msg = body.includes("no_active_subscription")
+        ? "Você precisa assinar um plano pago com cartão primeiro (no onboarding ou pelo botão Assinar)."
+        : "Não foi possível alterar o plano. Tente novamente.";
       setError(msg);
       showToast("error", msg);
       console.error(err);
@@ -75,20 +77,25 @@ export function useBillingPlansPage(): BillingPlansPageVM {
     }
   }
 
-  async function manageSubscription() {
+  async function cancelSubscription() {
+    if (!subscription) return;
+    setUpgrading(true);
+    setError(null);
     try {
-      const session = await api.createBillingPortalSession({
-        return_url: window.location.href,
-      });
-      if (session.url) {
-        window.location.href = session.url;
-      } else {
-        showToast("error", "Portal indisponível no momento");
-      }
+      const updated = await api.cancelBillingSubscription({ immediate: false });
+      setSubscription(updated);
+      showToast("success", "Assinatura cancelada. Acesso mantido até o fim do período pago.");
     } catch (err) {
-      showToast("error", "Não foi possível abrir o portal de assinatura");
+      showToast("error", "Não foi possível cancelar a assinatura.");
       console.error(err);
+    } finally {
+      setUpgrading(false);
     }
+  }
+
+  async function manageSubscription() {
+    // Asaas has no hosted portal — management happens in-app via upgrade/cancel.
+    await fetchSubscription();
   }
 
   const currentPlan = (subscription?.plan ?? null) as "starter" | "growth" | "scale" | null;
@@ -118,6 +125,7 @@ export function useBillingPlansPage(): BillingPlansPageVM {
     error,
     subscription,
     upgrade,
+    cancelSubscription,
     manageSubscription,
     usagePercentages,
     daysRemaining,

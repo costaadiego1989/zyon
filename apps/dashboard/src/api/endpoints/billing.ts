@@ -3,6 +3,7 @@ import type {
   PaymentConnection,
   PaymentOnboardingLinkResponse,
   BillingSubscription,
+  BillingPlanCard,
   BillingCheckoutSessionResponse,
   BillingPortalSessionResponse,
 } from "../types.js";
@@ -11,6 +12,26 @@ export function billingEndpoints(base: string, f: typeof fetch) {
   return {
     getBillingSubscription(): Promise<BillingSubscription> {
       return dashboardJson(base, "/billing/subscription", { method: "GET" }, f);
+    },
+    // Asaas subscription lifecycle
+    listBillingPlans(): Promise<BillingPlanCard[]> {
+      return dashboardJson(base, "/billing/plans", { method: "GET" }, f);
+    },
+    startBillingTrial(): Promise<BillingSubscription> {
+      return dashboardJson(base, "/billing/subscription/start-trial", { method: "POST" }, f);
+    },
+    subscribeToPlan(payload: {
+      planKey: "growth" | "scale";
+      card: { holderName: string; number: string; expiryMonth: string; expiryYear: string; ccv: string };
+      holderInfo: { name: string; email: string; cpfCnpj: string; postalCode: string; addressNumber: string; phone: string };
+    }): Promise<BillingSubscription> {
+      return dashboardJson(base, "/billing/subscription", { method: "POST", jsonBody: payload }, f);
+    },
+    changeBillingPlan(payload: { targetPlan: "starter" | "growth" | "scale" }): Promise<BillingSubscription> {
+      return dashboardJson(base, "/billing/subscription/change", { method: "POST", jsonBody: payload }, f);
+    },
+    cancelBillingSubscription(payload?: { immediate?: boolean }): Promise<BillingSubscription> {
+      return dashboardJson(base, "/billing/subscription/cancel", { method: "POST", jsonBody: payload ?? {} }, f);
     },
     createBillingCheckoutSession(payload: { price_id?: string; success_url?: string; cancel_url?: string }): Promise<BillingCheckoutSessionResponse> {
       return dashboardJson(base, "/billing/checkout-session", { method: "POST", jsonBody: payload }, f);
