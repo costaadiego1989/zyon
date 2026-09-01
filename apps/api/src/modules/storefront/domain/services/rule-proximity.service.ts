@@ -62,7 +62,7 @@ const BRL = (reais: number) =>
 export class RuleProximityEngine {
   private readonly evaluator = new AdvancedRuleEvaluator();
 
-  compute(advancedRules: AdvancedRule[], ctx: RuleMatchContext): ProximityResult {
+  compute(advancedRules: AdvancedRule[], ctx: RuleMatchContext, appliedRuleId?: string): ProximityResult {
     const details = this.evaluator.evaluateAll(advancedRules, ctx);
 
     const active: ActiveRuleBadge[] = [];
@@ -70,15 +70,15 @@ export class RuleProximityEngine {
 
     for (const { rule, matched } of details) {
       if (matched) {
-        active.push({ ruleId: rule.id, message: `✅ ${capitalize(actionReward(rule.action))} aplicado` });
+        if (appliedRuleId && rule.id === appliedRuleId) {
+          active.push({ ruleId: rule.id, message: `✅ ${capitalize(actionReward(rule.action))} aplicado` });
+        }
         continue;
       }
       const nudge = this.nudgeForRule(rule, ctx);
       if (nudge) all.push(nudge);
     }
 
-    // Best next nudge: reachable ones ranked by smallest gap; conditional (no
-    // numeric gap) rank last so a concrete "almost there" always wins.
     const ranked = [...all].sort((a, b) => {
       if (a.reachable !== b.reachable) return a.reachable ? -1 : 1;
       return (a.gap ?? Infinity) - (b.gap ?? Infinity);
@@ -87,16 +87,10 @@ export class RuleProximityEngine {
     return { active, nextNudge: ranked[0] ?? null, all };
   }
 
-  /**
-   * Compute the nudge for a single unmet rule. Only the FIRST unmet numeric
-   * condition drives the gap (cart_total or cart_item_count); binary/category
-   * conditions produce a conditional hint with no gap.
-   */
   private nudgeForRule(rule: AdvancedRule, ctx: RuleMatchContext): RuleNudge | null {
     const reward = actionReward(rule.action);
 
     for (const cond of rule.conditions) {
-      // Skip conditions already satisfied — the gap is on the unmet one.
       if (this.evaluator.checkCondition(cond, ctx)) continue;
 
       const target = Number(cond.value);
@@ -125,8 +119,6 @@ export class RuleProximityEngine {
         };
       }
 
-      // Binary / categorical conditions (buyer_type, payment_method,
-      // category_in_cart, coupon_applied): no continuous gap → conditional hint.
       const hint = conditionalHint(cond.field, cond.value, reward);
       if (hint) {
         return { ruleId: rule.id, kind: "conditional", message: hint, reachable: false };
@@ -136,7 +128,6 @@ export class RuleProximityEngine {
   }
 }
 
-/** Operators that mean "cart must reach at least this value" → a gap makes sense. */
 function isLowerBound(operator: string): boolean {
   const op = operator.trim().toLowerCase();
   return op === ">" || op === ">=" || op === "gt" || op === "gte";

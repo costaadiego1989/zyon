@@ -132,19 +132,30 @@ test("proximity: cart_total gap nudge shows reais remaining", () => {
   assert.match(res.nextNudge?.message ?? "", /40/);
 });
 
-test("proximity: satisfied rule appears as active badge, not a nudge", () => {
+test("proximity: applied rule appears as active badge, not a nudge", () => {
   const prox = new RuleProximityEngine();
   const c = cart(25000); // R$250 satisfies free shipping >= 200
-  const res = prox.compute([FREE_SHIPPING_RULE], buildCartRuleContext(c));
+  const res = prox.compute([FREE_SHIPPING_RULE], buildCartRuleContext(c), "r-ship");
   assert.equal(res.active.length, 1);
+  assert.equal(res.active[0].ruleId, "r-ship");
   assert.equal(res.nextNudge, null);
+});
+
+test("proximity: matching-but-not-applied rules do NOT show as active", () => {
+  const prox = new RuleProximityEngine();
+  // Both match at R$250, but only the discount rule was applied (first-match).
+  const c = cart(25000);
+  const res = prox.compute([DISCOUNT_RULE, FREE_SHIPPING_RULE], buildCartRuleContext(c), "r-disc");
+  // Only the applied rule shows active — free shipping matched but lost, no badge.
+  assert.equal(res.active.length, 1);
+  assert.equal(res.active[0].ruleId, "r-disc");
 });
 
 test("proximity: smallest-gap rule wins when multiple unmet", () => {
   const prox = new RuleProximityEngine();
   // cart R$160: discount needs >100 (already met → active), free shipping needs >=200 (gap 40)
   const c = cart(16000);
-  const res = prox.compute([DISCOUNT_RULE, FREE_SHIPPING_RULE], buildCartRuleContext(c));
+  const res = prox.compute([DISCOUNT_RULE, FREE_SHIPPING_RULE], buildCartRuleContext(c), "r-disc");
   // discount rule satisfied (active), free shipping is the next nudge
   assert.equal(res.nextNudge?.ruleId, "r-ship");
   assert.equal(Math.round(res.nextNudge?.gap ?? 0), 40);

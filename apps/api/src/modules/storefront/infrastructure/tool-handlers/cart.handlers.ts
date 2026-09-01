@@ -65,7 +65,10 @@ async function reevaluateCartRules(
       discountCents: outcome.discountCents,
       freeShipping: outcome.freeShipping,
     });
-    const proximity = ruleProximityEngine.compute(advancedRules, buildCartRuleContext(persisted, { categoriesInCart }));
+
+    const hadEffect = outcome.discountCents > 0 || outcome.freeShipping === true;
+    const effectiveRuleId = hadEffect ? outcome.appliedRuleId : undefined;
+    const proximity = ruleProximityEngine.compute(advancedRules, buildCartRuleContext(persisted, { categoriesInCart }), effectiveRuleId);
     return { cart: persisted, nextNudge: proximity.nextNudge, activeRules: proximity.active };
   } catch (err) {
     logger.warn("cart.reevaluateRules.failed", {
