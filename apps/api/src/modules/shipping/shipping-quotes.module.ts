@@ -10,6 +10,7 @@ import { QuoteShippingUseCase } from "./application/use-cases/quote-shipping.use
 import { FlatRateCarrierAdapter } from "./infrastructure/adapters/flat-rate.carrier.js";
 import { MelhorEnvioCarrierAdapter } from "./infrastructure/adapters/melhor-envio.carrier.js";
 import { PrismaMelhorEnvioTokenResolver } from "./infrastructure/adapters/prisma-melhor-envio-token-resolver.js";
+import { MelhorEnvioTokenRefresher } from "./application/melhor-envio-token-refresher.js";
 import { PrismaShippingQuoteRepository } from "./infrastructure/repositories/prisma-shipping-quote.repository.js";
 import { PrismaOwnDeliveryConfigRepository } from "./infrastructure/repositories/prisma-own-delivery-config.repository.js";
 
@@ -19,7 +20,8 @@ import { PrismaOwnDeliveryConfigRepository } from "./infrastructure/repositories
     FlatRateCarrierAdapter,
     {
       provide: MELHOR_ENVIO_TOKEN_RESOLVER,
-      useFactory: (prisma: PrismaClient) => new PrismaMelhorEnvioTokenResolver(prisma),
+      useFactory: (prisma: PrismaClient) =>
+        new PrismaMelhorEnvioTokenResolver(prisma, new MelhorEnvioTokenRefresher(prisma)),
       inject: [PRISMA_CLIENT]
     },
     {
