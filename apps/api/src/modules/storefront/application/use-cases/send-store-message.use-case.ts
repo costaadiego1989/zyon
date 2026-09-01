@@ -101,11 +101,24 @@ export class SendStoreMessageUseCase {
           .filter(r => r.enabled)
           .sort((a, b) => a.priority - b.priority)
           .map(r => {
-            const fieldLabels: Record<string, string> = { cart_total: "carrinho", shipping_cost: "frete", product_in_cart: "produto no carrinho", category_in_cart: "categoria", coupon_applied: "cupom aplicado", buyer_type: "comprador", payment_method: "pagamento", trigger_fired: "trigger", cart_item_count: "itens no carrinho" };
+            const fieldLabels: Record<string, string> = { cart_total: "valor do carrinho", shipping_cost: "frete", product_in_cart: "produto no carrinho", category_in_cart: "categoria", coupon_applied: "cupom aplicado", buyer_type: "tipo de comprador", payment_method: "forma de pagamento", trigger_fired: "gatilho", cart_item_count: "quantidade de itens" };
             const conds = r.conditions.map(c => `${fieldLabels[c.field] || c.field} ${c.operator} ${c.value}`).join(" E ");
-            const actionLabels: Record<string, string> = { offer_discount: `ofereça ${r.action.params.percent || "?"}% de desconto`, offer_free_shipping: "ofereça frete grátis", suggest_product: `sugira o produto ${r.action.params.productName || ""}`, show_message: `diga: "${r.action.params.message || ""}"`, offer_installments: `ofereça ${r.action.params.maxInstallments || "?"}x sem juros`, do_nothing: "não intervenha", offer_coupon: `ofereça o cupom ${r.action.params.code || ""}` };
-            const action = actionLabels[r.action.type] || "aja conforme melhor";
-            return `SE ${conds} ENTÃO ${action}`;
+            // FACTUAL / read-only phrasing: the deterministic cart-rules engine
+            // applies these benefits automatically server-side. The LLM only
+            // NARRATES what already happened — it never decides or authorizes a
+            // discount (invariant: LLM never authorizes offers). So describe the
+            // benefit as an automatic fact, not an instruction to "offer" it.
+            const benefitLabels: Record<string, string> = {
+              offer_discount: `o sistema aplica automaticamente ${r.action.params.percent || "?"}% de desconto`,
+              offer_free_shipping: "o sistema aplica automaticamente frete grátis",
+              suggest_product: `o produto ${r.action.params.productName || ""} pode ser sugerido`,
+              show_message: `informe: "${r.action.params.message || ""}"`,
+              offer_installments: `${r.action.params.maxInstallments || "?"}x sem juros ficam disponíveis`,
+              do_nothing: "nenhum benefício é aplicado",
+              offer_coupon: `o cupom ${r.action.params.code || ""} fica disponível`,
+            };
+            const benefit = benefitLabels[r.action.type] || "um benefício pode ser aplicado";
+            return `QUANDO ${conds}: ${benefit} (você apenas informa o cliente; nunca prometa desconto por conta própria)`;
           });
       }
     } catch (err) {

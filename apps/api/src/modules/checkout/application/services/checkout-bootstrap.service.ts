@@ -48,6 +48,10 @@ export class CheckoutBootstrapService {
               currency: enrichedInput.cart?.currency ?? "BRL",
               source: enrichedInput.cart?.source ?? "storefront",
               total: storefrontCart.total / 100,
+              // Carry the deterministic rule-derived discount (cents → reais) into
+              // the checkout session so the final amount reflects the auto-applied
+              // cart rule — the single source of truth, computed storefront-side.
+              currentDiscount: (storefrontCart.discount ?? 0) / 100,
               items: storefrontCart.items.map((i) => ({
                 sku: i.sku,
                 name: i.name,

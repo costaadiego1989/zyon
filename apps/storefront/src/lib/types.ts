@@ -70,7 +70,10 @@ export interface CartSummaryBlock {
     itemCount: number;
     subtotal: number;
     discount?: number;
+    freeShipping?: boolean;
     total: number;
+    nextNudge?: { kind: string; gap?: number; message: string; reachable: boolean; ruleId?: string };
+    activeRules?: Array<{ ruleId?: string; message: string }>;
   };
 }
 

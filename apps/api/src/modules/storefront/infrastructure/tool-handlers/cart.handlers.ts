@@ -4,19 +4,79 @@ import type { ProductRepositoryPort, StockRepositoryPort } from "../../../catalo
 import type { StorefrontCartPort, StorefrontCartSelectedOption } from "../../domain/ports/storefront-cart.port.js";
 import { extractOptionGroups, resolveSelectedOptions, FoodOptionValidationError } from "../../domain/food-options.js";
 import type { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
+import type { CrossSellPromotionRepository } from "../../../cross-sell/domain/ports/cross-sell-promotion-repository.port.js";
 import type { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
 import type { PrismaClient } from "@prisma/client";
+import type { MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { Logger } from "@nestjs/common";
 import { buildCrossSellSuggestions, type CrossSellConfig, type CrossSellSuggestion } from "./cart-cross-sell.helper.js";
+import { CartRulesEngine, buildCartRuleContext } from "../../domain/services/cart-rules-engine.service.js";
+import { RuleProximityEngine, type RuleNudge, type ActiveRuleBadge } from "../../domain/services/rule-proximity.service.js";
+import type { AdvancedRule } from "../../../checkout/domain/services/advanced-rule-evaluator.service.js";
+import type { StorefrontCart } from "../../domain/ports/storefront-cart.port.js";
 
 const logger = new Logger("CartHandlers");
 
-/**
- * Single cart-line DTO shape used by every cart handler response. Prices are in
- * reais (major units) consistently — a prior bug returned cents from getCart but
- * reais from addItemToCart, drifting Smart Cart totals 100x. Carries the chosen
- * food options so the buyer/merchant see the exact build.
- */
+const cartRulesEngine = new CartRulesEngine();
+const ruleProximityEngine = new RuleProximityEngine();
+
+interface CartRulesOutcome {
+  cart: StorefrontCart;
+  nextNudge?: RuleNudge | null;
+  activeRules?: ActiveRuleBadge[];
+}
+
+async function loadAdvancedRules(prisma: PrismaClient, merchantId: string): Promise<AdvancedRule[]> {
+  try {
+    const setting = await prisma.checkoutSetting.findUnique({
+      where: { merchantId },
+      select: { advancedRules: true },
+    });
+    return ((setting?.advancedRules as unknown as AdvancedRule[]) ?? []).filter((r) => r?.enabled);
+  } catch {
+    return [];
+  }
+}
+
+async function reevaluateCartRules(
+  deps: CartHandlerDeps,
+  merchantId: string,
+  sessionId: string,
+  cart: StorefrontCart,
+): Promise<CartRulesOutcome> {
+  try {
+    const advancedRules = await loadAdvancedRules(deps.prisma, merchantId);
+    if (advancedRules.length === 0) return { cart };
+    const merchantRules = await deps.merchantRepo.getRules(merchantId);
+    if (!merchantRules) return { cart };
+    const categoriesInCart = cart.items
+      .map((i) => (i as { category?: string }).category ?? "")
+      .filter(Boolean);
+    const ctx = buildCartRuleContext(cart, { categoriesInCart });
+    const outcome = cartRulesEngine.evaluate(cart, advancedRules, merchantRules, ctx);
+    logger.debug("cart.rules.applied", {
+      merchantId, sessionId,
+      discountCents: outcome.discountCents,
+      freeShipping: outcome.freeShipping,
+      reason: outcome.reason,
+      ruleId: outcome.appliedRuleId,
+    });
+    const persisted = await deps.cartRepo.applyRuleOutcome(merchantId, sessionId, {
+      discountCents: outcome.discountCents,
+      freeShipping: outcome.freeShipping,
+    });
+    const proximity = ruleProximityEngine.compute(advancedRules, buildCartRuleContext(persisted, { categoriesInCart }));
+    return { cart: persisted, nextNudge: proximity.nextNudge, activeRules: proximity.active };
+  } catch (err) {
+    logger.warn("cart.reevaluateRules.failed", {
+      merchantId,
+      sessionId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { cart };
+  }
+}
+
 function toCartLineDto(i: {
   variantId: string;
   name: string;
@@ -45,9 +105,11 @@ export interface CartHandlerDeps {
   stockRepo: StockRepositoryPort;
   cartRepo: StorefrontCartPort;
   prisma: PrismaClient;
+  merchantRepo: MerchantRepository;
   searchFederatedProducts?: SearchFederatedProductsUseCase;
   listEligibleCrossSells?: ListEligibleCrossSellsUseCase;
   loadCrossSellConfig: (merchantId: string) => Promise<CrossSellConfig>;
+  crossSellPromotionRepo?: CrossSellPromotionRepository;
 }
 
 export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContext): Pick<StoreToolHandlers, "addItemToCart" | "getCart" | "removeCartItem" | "updateCartItem" | "clearCart" | "quoteShipping" | "applyCoupon" | "removeCoupon" | "listPromotions" | "createCheckoutSession"> {
@@ -142,7 +204,68 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
         }
       }
 
-      const cart = await deps.cartRepo.addItem(ctx.merchantId, sessionId, {
+      if (!Number.isFinite(unitPriceCents) || unitPriceCents <= 0) {
+        logger.warn("cart.addItem.unresolved_variant", {
+          merchantId: ctx.merchantId,
+          sessionId,
+          requestedVariantId: args.variantId,
+          resolvedVariantId,
+        });
+        return {
+          error: "variant_not_resolved",
+          detail: `Não encontrei o produto "${args.variantId}" no catálogo para adicionar ao carrinho.`,
+        };
+      }
+
+      let appliedCrossSellDiscountCents = 0;
+      if (args.crossSellPromoId) {
+        try {
+          const crossSellRepo = deps.crossSellPromotionRepo;
+          if (!crossSellRepo) {
+            logger.warn("cart.addItem.crossSellRepo_missing", { merchantId: ctx.merchantId, promoId: args.crossSellPromoId });
+          } else {
+            const promo = await crossSellRepo.findById(args.crossSellPromoId, ctx.merchantId);
+            if (!promo) {
+              logger.warn("cart.addItem.crossSellPromo_notfound", { merchantId: ctx.merchantId, promoId: args.crossSellPromoId });
+            } else if (!promo.isActive()) {
+              logger.log("cart.addItem.crossSellPromo_inactive", { merchantId: ctx.merchantId, promoId: args.crossSellPromoId });
+            } else {
+              const snapRecommendedSkus = new Set(promo.snapshot().recommended_skus.map((s: string) => s.toLowerCase()));
+              if (!snapRecommendedSkus.has(resolvedVariantId.toLowerCase()) && !snapRecommendedSkus.has((args.variantId ?? "").toLowerCase())) {
+                logger.warn("cart.addItem.crossSellPromo_sku_mismatch", {
+                  merchantId: ctx.merchantId,
+                  promoId: args.crossSellPromoId,
+                  requestedSku: args.variantId,
+                  resolvedSku: resolvedVariantId,
+                });
+              } else {
+                const merchantRules = await deps.merchantRepo.getRules(ctx.merchantId);
+                const promoDiscount = promo.snapshot().discount_percent;
+                const promoMaxDiscount = promo.snapshot().max_discount_percent;
+                const merchantMaxDiscount = merchantRules?.maxDiscountPercent ?? 100;
+                const cappedDiscount = Math.min(promoDiscount, promoMaxDiscount, merchantMaxDiscount);
+                appliedCrossSellDiscountCents = Math.round((unitPriceCents * cappedDiscount) / 100);
+                unitPriceCents = unitPriceCents - appliedCrossSellDiscountCents;
+                logger.debug("cart.addItem.crossSellPromo_applied", {
+                  merchantId: ctx.merchantId,
+                  promoId: args.crossSellPromoId,
+                  discountPercent: cappedDiscount,
+                  discountCents: appliedCrossSellDiscountCents,
+                  finalUnitPriceCents: unitPriceCents,
+                });
+              }
+            }
+          }
+        } catch (err) {
+          logger.error("cart.addItem.crossSellPromo_error", {
+            merchantId: ctx.merchantId,
+            promoId: args.crossSellPromoId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
+      const addedCart = await deps.cartRepo.addItem(ctx.merchantId, sessionId, {
         variantId: resolvedVariantId,
         productId: args.variantId,
         name: productName,
@@ -152,7 +275,8 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
         quantity: args.quantity,
         selectedOptions,
       });
-      logger.debug("cart.afterAdd", { sessionId: cart.sessionId, itemCount: cart.items.length, total: cart.total });
+      const { cart, nextNudge, activeRules } = await reevaluateCartRules(deps, ctx.merchantId, sessionId, addedCart);
+      logger.debug("cart.afterAdd", { sessionId: cart.sessionId, itemCount: cart.items.length, total: cart.total, discount: cart.discount, freeShipping: cart.freeShipping });
 
       let crossSellSuggestions: CrossSellSuggestion[] = [];
       try {
@@ -172,7 +296,11 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
         cartId: cart.sessionId,
         items: cart.items.map(toCartLineDto),
         total: cart.total / 100,
+        discount: cart.discount / 100,
+        freeShipping: cart.freeShipping,
         itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0),
+        nextNudge: nextNudge ?? undefined,
+        activeRules: activeRules && activeRules.length > 0 ? activeRules : undefined,
         crossSellSuggestions: crossSellSuggestions.length > 0 ? crossSellSuggestions : undefined,
       };
     },
@@ -184,28 +312,39 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
         items: cart.items.map(toCartLineDto),
         total: cart.total / 100,
         discount: cart.discount / 100,
+        freeShipping: cart.freeShipping,
         couponCode: cart.couponCode,
         itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0)
       };
     },
 
     removeCartItem: async (args) => {
-      const cart = await deps.cartRepo.removeItem(ctx.merchantId, args.cartId, args.variantId);
+      const removed = await deps.cartRepo.removeItem(ctx.merchantId, args.cartId, args.variantId);
+      const { cart, nextNudge, activeRules } = await reevaluateCartRules(deps, ctx.merchantId, args.cartId, removed);
       return {
         cartId: cart.sessionId,
         items: cart.items.map(toCartLineDto),
         total: cart.total / 100,
-        itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0)
+        discount: cart.discount / 100,
+        freeShipping: cart.freeShipping,
+        itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0),
+        nextNudge: nextNudge ?? undefined,
+        activeRules: activeRules && activeRules.length > 0 ? activeRules : undefined,
       };
     },
 
     updateCartItem: async (args) => {
-      const cart = await deps.cartRepo.updateItemQuantity(ctx.merchantId, args.cartId, args.variantId, args.quantity);
+      const updated = await deps.cartRepo.updateItemQuantity(ctx.merchantId, args.cartId, args.variantId, args.quantity);
+      const { cart, nextNudge, activeRules } = await reevaluateCartRules(deps, ctx.merchantId, args.cartId, updated);
       return {
         cartId: cart.sessionId,
         items: cart.items.map(toCartLineDto),
         total: cart.total / 100,
-        itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0)
+        discount: cart.discount / 100,
+        freeShipping: cart.freeShipping,
+        itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0),
+        nextNudge: nextNudge ?? undefined,
+        activeRules: activeRules && activeRules.length > 0 ? activeRules : undefined,
       };
     },
 

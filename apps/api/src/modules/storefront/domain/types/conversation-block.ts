@@ -83,7 +83,13 @@ export interface CartSummaryBlock {
     itemCount: number;
     subtotal: number;
     discount?: number;
+    /** True when a matched advanced rule granted free shipping. */
+    freeShipping?: boolean;
     total: number;
+    /** "Almost there" nudge for the closest unmet rule (e.g. "Faltam R$40 para frete grátis"). */
+    nextNudge?: { kind: string; gap?: number; message: string; reachable: boolean; ruleId?: string };
+    /** Rules already satisfied, rendered as confirmations. */
+    activeRules?: Array<{ ruleId?: string; message: string }>;
   };
 }
 

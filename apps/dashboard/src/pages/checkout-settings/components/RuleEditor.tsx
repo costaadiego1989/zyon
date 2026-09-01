@@ -220,10 +220,29 @@ export function RuleEditor({
             </select>
 
             {actionType === "offer_discount" && (
-              <div className="cfg-rule-param">
-                <label>Desconto (%)</label>
-                <input type="number" min="0" max="50" value={actionParams.percent ?? ""} disabled={busy} onChange={(e) => setActionParams({ ...actionParams, percent: e.target.value ? Number(e.target.value) : "" })} placeholder="10" />
-              </div>
+              <>
+                <div className="cfg-rule-param">
+                  <label>Desconto (%)</label>
+                  <input type="number" min="0" max="50" value={actionParams.percent ?? ""} disabled={busy} onChange={(e) => setActionParams({ ...actionParams, percent: e.target.value ? Number(e.target.value) : "" })} placeholder="10" />
+                </div>
+                <div className="cfg-rule-param">
+                  <label>Teto do desconto (R$) — opcional</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={(actionParams.maxDiscountReais as number | string | undefined) ?? ""}
+                    disabled={busy}
+                    onChange={(e) => {
+                      const next = { ...actionParams };
+                      if (e.target.value) next.maxDiscountReais = Number(e.target.value);
+                      else delete next.maxDiscountReais;
+                      setActionParams(next);
+                    }}
+                    placeholder="Ex: 10 (limita o valor do desconto)"
+                  />
+                </div>
+              </>
             )}
             {actionType === "show_message" && (
               <div className="cfg-rule-param">
@@ -277,6 +296,9 @@ function buildPreview(conditions: Condition[], actionType: string, actionParams:
   if (conditions.length === 0 && !actionType) return "";
   const fieldLabels: Record<string, string> = { cart_total: "carrinho", shipping_cost: "frete", product_in_cart: "produto", category_in_cart: "categoria", coupon_applied: "cupom", buyer_type: "comprador", payment_method: "pagamento", trigger_fired: "trigger", cart_item_count: "itens" };
   const condText = conditions.length === 0 ? "sempre" : conditions.map((c) => `${fieldLabels[c.field] ?? c.field} ${c.operator} ${c.value || "?"}`).join(" E ");
-  const actionLabels: Record<string, string> = { offer_discount: `oferecer ${actionParams.percent || "?"}% desconto`, offer_free_shipping: "oferecer frete grátis", suggest_product: `sugerir ${actionParams.productName || "produto"}`, show_message: `dizer: "${actionParams.message || "..."}"`, offer_installments: `oferecer ${actionParams.maxInstallments || "?"}x`, do_nothing: "não intervir", offer_coupon: `cupom ${actionParams.code || "?"}` };
+  const discountLabel = actionParams.maxDiscountReais
+    ? `oferecer ${actionParams.percent || "?"}% desconto (máx R$${Number(actionParams.maxDiscountReais).toFixed(2)})`
+    : `oferecer ${actionParams.percent || "?"}% desconto`;
+  const actionLabels: Record<string, string> = { offer_discount: discountLabel, offer_free_shipping: "oferecer frete grátis", suggest_product: `sugerir ${actionParams.productName || "produto"}`, show_message: `dizer: "${actionParams.message || "..."}"`, offer_installments: `oferecer ${actionParams.maxInstallments || "?"}x`, do_nothing: "não intervir", offer_coupon: `cupom ${actionParams.code || "?"}` };
   return `SE ${condText} → ${actionLabels[actionType] || actionType}`;
 }

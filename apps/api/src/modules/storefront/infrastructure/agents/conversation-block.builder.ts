@@ -156,7 +156,10 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           itemCount: cartData.itemCount,
           subtotal: cartData.total,
           discount: cartData.discount,
+          freeShipping: cartData.freeShipping ?? false,
           total: cartData.total - (cartData.discount ?? 0),
+          nextNudge: cartData.nextNudge ?? undefined,
+          activeRules: cartData.activeRules ?? undefined,
         }
       });
     }
@@ -177,8 +180,13 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           })),
           itemCount: cartData.itemCount,
           subtotal: cartData.total,
-          discount: 0,
-          total: cartData.total,
+          // Deterministic rule-applied discount + free shipping, computed server-side.
+          discount: cartData.discount ?? 0,
+          freeShipping: cartData.freeShipping ?? false,
+          total: cartData.total - (cartData.discount ?? 0),
+          // "Almost there" nudge (e.g. "Faltam R$40 para frete grátis"), when present.
+          nextNudge: cartData.nextNudge ?? undefined,
+          activeRules: cartData.activeRules ?? undefined,
         }
       });
     }
@@ -196,6 +204,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
             image: p.imageUrl,
             inStock: true,
             discountPercent: p.discountPercent,
+            promoId: p.promoId,
           })),
         }
       } as any);

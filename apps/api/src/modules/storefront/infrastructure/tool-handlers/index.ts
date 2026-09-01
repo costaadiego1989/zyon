@@ -4,6 +4,7 @@ import type { ProductRepositoryPort, StockRepositoryPort } from "../../../catalo
 import type { MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import type { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
 import type { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
+import type { CrossSellPromotionRepository } from "../../../cross-sell/domain/ports/cross-sell-promotion-repository.port.js";
 import type { StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 import type { SupportHandoffService } from "../../../support/application/support-handoff.service.js";
 import type { PrismaClient } from "@prisma/client";
@@ -25,6 +26,7 @@ export interface AllHandlerDeps {
   searchFederatedProducts?: SearchFederatedProductsUseCase;
   listEligibleCrossSells?: ListEligibleCrossSellsUseCase;
   loadCrossSellConfig: (merchantId: string) => Promise<CrossSellConfig>;
+  crossSellPromotionRepo?: CrossSellPromotionRepository;
 }
 
 export function composeStoreToolHandlers(deps: AllHandlerDeps, ctx: ToolRequestContext): StoreToolHandlers {
@@ -41,9 +43,11 @@ export function composeStoreToolHandlers(deps: AllHandlerDeps, ctx: ToolRequestC
     stockRepo: deps.stockRepo,
     cartRepo: deps.cartRepo,
     prisma: deps.prisma,
+    merchantRepo: deps.merchantRepo,
     searchFederatedProducts: deps.searchFederatedProducts,
     listEligibleCrossSells: deps.listEligibleCrossSells,
     loadCrossSellConfig: deps.loadCrossSellConfig,
+    crossSellPromotionRepo: deps.crossSellPromotionRepo,
   };
 
   const reviewDeps: ReviewHandlerDeps = {

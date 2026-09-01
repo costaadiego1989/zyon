@@ -120,6 +120,7 @@ import "./modules/buyer-account/application/use-cases/login-buyer-from-session.u
 import "./modules/buyer-account/application/use-cases/get-buyer-purchases.use-case.spec.js";
 import "./modules/checkout/__tests__/update-order-tracking.use-case.spec.js";
 import "./modules/checkout/application/use-cases/update-cart.use-case.spec.js";
+import "./modules/checkout/application/use-cases/get-funnel.breakdown.spec.js";
 import "./modules/onboarding/application/onboarding.use-cases.spec.js";
 import "./modules/checkout/presentation/http/checkout.prisma-full-flow.e2e-spec.js";
 import "./shared/tenant/tenant-context.service.spec.js";
@@ -191,6 +192,7 @@ import "./modules/intent-memory/__tests__/lgpd-compliance.spec.js";
 import "./modules/intent-memory/__tests__/intent-memory.e2e.spec.js";
 import "./modules/intent-memory/__tests__/intent-memory.int-spec.js";
 import "./modules/negotiation/__tests__/llm-safety.spec.js";
+import "./modules/storefront/domain/services/cart-rules-and-proximity.spec.js";
 if (process.env.E2E_SEED_ENABLED === "true") {
   await import("./modules/__test__/test-seed.controller.spec.js");
 }

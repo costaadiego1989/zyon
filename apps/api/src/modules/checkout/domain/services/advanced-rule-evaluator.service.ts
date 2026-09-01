@@ -43,6 +43,12 @@ export interface RuleMatchResult {
   action?: RuleAction;
 }
 
+/** Per-rule match detail from evaluateAll — used by the proximity engine. */
+export interface RuleEvalDetail {
+  rule: AdvancedRule;
+  matched: boolean;
+}
+
 export class AdvancedRuleEvaluator {
   /**
    * Evaluate rules against context. AND logic between conditions.
@@ -73,6 +79,31 @@ export class AdvancedRuleEvaluator {
     }
 
     return { matched: false };
+  }
+
+  /**
+   * Evaluate EVERY enabled rule (not first-match) and report per-rule whether it
+   * matched. Used by the proximity engine to compute "almost there" nudges for
+   * the rules that did NOT match yet. Priority-sorted ascending, same as evaluate().
+   */
+  evaluateAll(rules: AdvancedRule[], ctx: RuleMatchContext): RuleEvalDetail[] {
+    if (!rules || rules.length === 0) return [];
+    return rules
+      .filter(r => r.enabled)
+      .sort((a, b) => a.priority - b.priority)
+      .map(rule => ({
+        rule,
+        matched: rule.conditions.every(cond => this.matchCondition(cond, ctx)),
+      }));
+  }
+
+  /**
+   * Public single-condition check — lets the proximity engine reason about how
+   * close a single unmet condition is (e.g. cart_total gap) without duplicating
+   * the operator-normalization logic.
+   */
+  checkCondition(condition: RuleCondition, ctx: RuleMatchContext): boolean {
+    return this.matchCondition(condition, ctx);
   }
 
   /**
@@ -116,18 +147,30 @@ export class AdvancedRuleEvaluator {
         return false; // Unknown field → no match
     }
 
-    // Evaluate operator
-    switch (operator.toLowerCase()) {
+    // Normalize operator: the dashboard RuleEditor emits symbolic operators
+    // (>, <, >=, <=, ==) while seed/AI rules use word operators (gt, lt, gte,
+    // lte, eq). Map both vocabularies to a single canonical form so a rule
+    // authored in the UI actually matches at checkout instead of silently
+    // falling through to the default (no-match) branch.
+    const canonical = normalizeOperator(operator);
+
+    // Numeric operators must compare numbers. The UI stores condition values as
+    // strings ("250"), so coerce before comparing — otherwise 250 > "250" style
+    // coercion yields wrong results.
+    const numericValue = typeof value === "number" ? value : Number(value);
+
+    switch (canonical) {
       case "gt":
-        return typeof contextValue === "number" && contextValue > (value as number);
+        return typeof contextValue === "number" && contextValue > numericValue;
       case "lt":
-        return typeof contextValue === "number" && contextValue < (value as number);
+        return typeof contextValue === "number" && contextValue < numericValue;
       case "gte":
-        return typeof contextValue === "number" && contextValue >= (value as number);
+        return typeof contextValue === "number" && contextValue >= numericValue;
       case "lte":
-        return typeof contextValue === "number" && contextValue <= (value as number);
+        return typeof contextValue === "number" && contextValue <= numericValue;
       case "eq":
-        return contextValue === value;
+        // Loose equality across string/number/boolean (UI stores strings).
+        return String(contextValue) === String(value);
       case "contains":
         // For arrays (product_in_cart, category_in_cart)
         return Array.isArray(contextValue) && contextValue.includes(String(value));
@@ -145,5 +188,39 @@ export class AdvancedRuleEvaluator {
   wouldMatch(rule: AdvancedRule, ctx: RuleMatchContext): boolean {
     if (!rule.enabled) return false;
     return rule.conditions.every(cond => this.matchCondition(cond, ctx));
+  }
+}
+
+/**
+ * Map both symbolic (dashboard UI) and word (seed/AI) operator vocabularies to
+ * a single canonical form the evaluator switch understands. Without this, rules
+ * authored in the dashboard (which emits >, <, >=, <=, ==) never matched at
+ * checkout because the switch only handled gt/lt/gte/lte/eq.
+ */
+function normalizeOperator(operator: string): string {
+  switch (operator.trim().toLowerCase()) {
+    case ">":
+    case "gt":
+      return "gt";
+    case "<":
+    case "lt":
+      return "lt";
+    case ">=":
+    case "gte":
+      return "gte";
+    case "<=":
+    case "lte":
+      return "lte";
+    case "==":
+    case "===":
+    case "=":
+    case "eq":
+      return "eq";
+    case "contains":
+      return "contains";
+    case "is":
+      return "is";
+    default:
+      return operator.trim().toLowerCase();
   }
 }

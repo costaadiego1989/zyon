@@ -48,13 +48,46 @@ export default function CartFAB({ onClick }: CartFABProps) {
 
   if (cart.itemCount === 0) return null;
 
+  // Deterministic rule state (computed server-side; never by the LLM).
+  const hasDiscount = (cart.discount ?? 0) > 0;
+  const netTotal = hasDiscount ? Math.max(0, cart.total - cart.discount) : cart.total;
+  const nudgeMessage = cart.nextNudge?.message;
+
   return (
     <>
       <style>{`
         @keyframes cartFabIn { from { transform: scale(0) translateY(10px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
         @keyframes cartPulseRing { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(1.8); opacity: 0; } }
         @keyframes badgePop { 0% { transform: scale(0.5); } 60% { transform: scale(1.2); } 100% { transform: scale(1); } }
+        @keyframes nudgeIn { from { transform: translateY(6px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
       `}</style>
+
+      {/* Proximity nudge bubble — "Faltam R$40 para frete grátis". Conversion lever. */}
+      {nudgeMessage && (
+        <div
+          role="status"
+          style={{
+            position: "fixed",
+            ...(posStyle.bottom ? { bottom: "176px" } : { top: "72px" }),
+            ...(posStyle.right ? { right: "16px" } : { left: "16px" }),
+            zIndex: 9998,
+            maxWidth: "240px",
+            padding: "8px 12px",
+            borderRadius: "12px",
+            background: "var(--aacp-bg-elevated, #16161d)",
+            color: "var(--aacp-text, #f4f4f5)",
+            border: `1px solid color-mix(in srgb, ${fabColor} 40%, transparent)`,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
+            fontFamily: "inherit",
+            fontSize: "12px",
+            fontWeight: 500,
+            lineHeight: 1.4,
+            animation: "nudgeIn 0.3s ease",
+          }}
+        >
+          🎯 {nudgeMessage}
+        </div>
+      )}
 
       <button
         type="button"
@@ -112,9 +145,17 @@ export default function CartFAB({ onClick }: CartFABProps) {
           <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
         </svg>
 
-        {/* Total */}
-        <span style={{ fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}>
-          {formatPrice(cart.total)}
+        {/* Total — struck-through original when a rule discount applies */}
+        <span style={{ fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em", display: "flex", alignItems: "center", gap: "6px" }}>
+          {hasDiscount && (
+            <span style={{ textDecoration: "line-through", opacity: 0.6, fontSize: "11px" }}>
+              {formatPrice(cart.total)}
+            </span>
+          )}
+          <span>{formatPrice(netTotal)}</span>
+          {cart.freeShipping && (
+            <span title="Frete grátis" aria-label="Frete grátis" style={{ fontSize: "13px" }}>🚚</span>
+          )}
         </span>
 
         {/* Item count badge */}

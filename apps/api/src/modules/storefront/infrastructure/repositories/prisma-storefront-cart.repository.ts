@@ -21,6 +21,7 @@ function toCart(row: {
   items: unknown;
   couponCode: string | null;
   discount: number;
+  freeShipping?: boolean;
   total: number;
   createdAt: Date;
   updatedAt: Date;
@@ -32,6 +33,7 @@ function toCart(row: {
     items: (row.items as StorefrontCartItem[]) ?? [],
     couponCode: row.couponCode,
     discount: row.discount,
+    freeShipping: row.freeShipping ?? false,
     total: row.total,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
@@ -137,6 +139,18 @@ export class PrismaStorefrontCartRepository implements StorefrontCartPort {
     const row = await this.prisma.storefrontCart.update({
       where: { merchantId_sessionId: { merchantId, sessionId } },
       data: { couponCode: null, discount: 0 }
+    });
+    return toCart(row);
+  }
+
+  async applyRuleOutcome(
+    merchantId: string,
+    sessionId: string,
+    outcome: { discountCents: number; freeShipping: boolean }
+  ): Promise<StorefrontCart> {
+    const row = await this.prisma.storefrontCart.update({
+      where: { merchantId_sessionId: { merchantId, sessionId } },
+      data: { discount: outcome.discountCents, freeShipping: outcome.freeShipping }
     });
     return toCart(row);
   }

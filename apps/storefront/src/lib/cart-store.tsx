@@ -17,12 +17,23 @@ export interface ActiveOffer {
   reason: string;
 }
 
+export interface RuleNudge {
+  kind: string;
+  gap?: number;
+  message: string;
+  reachable: boolean;
+  ruleId?: string;
+}
+
 export interface CartState {
   cartId: string | null;
   items: CartItem[];
   itemCount: number;
   discount: number;
   total: number;
+  freeShipping?: boolean;
+  nextNudge?: RuleNudge;
+  activeRules?: Array<{ ruleId?: string; message: string }>;
   activeOffer?: ActiveOffer;
   discountedTotal?: number;
 }
@@ -126,7 +137,7 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
     );
     if (!cartBlock) return;
 
-    const { items, itemCount, total, discount, cartId, authorizedOffer, shippingTotal } = cartBlock.data;
+    const { items, itemCount, total, discount, cartId, authorizedOffer, shippingTotal, freeShipping, nextNudge, activeRules } = cartBlock.data;
 
     setCart((prev) => {
       const resolvedCartId = cartId ?? prev.cartId;
@@ -172,6 +183,9 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
           const p = i.price ?? (i.unit_price_cents ? i.unit_price_cents / 100 : 0);
           return sum + (p > 1000 ? p / 100 : p) * (i.quantity ?? 1);
         }, 0),
+        freeShipping: freeShipping ?? false,
+        nextNudge: nextNudge ?? undefined,
+        activeRules: activeRules ?? undefined,
         activeOffer,
         discountedTotal,
       };

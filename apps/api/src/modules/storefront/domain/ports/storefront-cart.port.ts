@@ -26,6 +26,8 @@ export interface StorefrontCart {
   items: StorefrontCartItem[];
   couponCode: string | null;
   discount: number;
+  /** True when a matched advanced rule granted free shipping (rules engine authority). */
+  freeShipping: boolean;
   total: number;
   createdAt: Date;
   updatedAt: Date;
@@ -41,4 +43,14 @@ export interface StorefrontCartPort {
   clear(merchantId: string, sessionId: string): Promise<StorefrontCart>;
   applyCoupon(merchantId: string, sessionId: string, couponCode: string, discountCents: number): Promise<StorefrontCart>;
   removeCoupon(merchantId: string, sessionId: string): Promise<StorefrontCart>;
+  /**
+   * Persist the deterministic cart-rules outcome (discount in cents + free
+   * shipping flag). Idempotent: overwrites the prior rule-derived values rather
+   * than accumulating. Does not touch couponCode (coupon discount is separate).
+   */
+  applyRuleOutcome(
+    merchantId: string,
+    sessionId: string,
+    outcome: { discountCents: number; freeShipping: boolean },
+  ): Promise<StorefrontCart>;
 }
