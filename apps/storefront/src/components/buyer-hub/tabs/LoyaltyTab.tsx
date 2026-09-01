@@ -1,12 +1,13 @@
 "use client";
 
-import type { BuyerLoyalty, BuyerSummary, DiscountRule } from "@/lib/viewmodels/useBuyerHub";
+import type { BuyerLoyalty, BuyerSummary, DiscountRule, BuyerBenefits } from "@/lib/viewmodels/useBuyerHub";
 
 
 export interface LoyaltyTabProps {
   loyalty: BuyerLoyalty | null;
   summary: BuyerSummary | null;
   discountRules: DiscountRule[] | null;
+  benefits: BuyerBenefits | null;
   loading: boolean;
 }
 
@@ -157,6 +158,70 @@ function IconPackage() {
       <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
       <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
       <line x1="12" y1="22.08" x2="12" y2="12" />
+    </svg>
+  );
+}
+
+function IconGift() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <polyline points="20 12 20 22 4 22 4 12" />
+      <rect x="2" y="7" width="20" height="5" />
+      <line x1="12" y1="22" x2="12" y2="7" />
+      <path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z" />
+      <path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z" />
+    </svg>
+  );
+}
+
+function IconAward() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="12" cy="8" r="7" />
+      <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
+    </svg>
+  );
+}
+
+function IconTarget() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="6" />
+      <circle cx="12" cy="12" r="2" />
     </svg>
   );
 }
@@ -312,10 +377,16 @@ function EmptyState() {
 }
 
 
-export default function LoyaltyTab({ loyalty, summary, discountRules, loading }: LoyaltyTabProps) {
+export default function LoyaltyTab({ loyalty, summary, discountRules, benefits, loading }: LoyaltyTabProps) {
   if (loading) return <LoadingSkeleton />;
 
-  if (!loyalty && !summary) return <EmptyState />;
+  const hasBenefits =
+    Boolean(benefits) &&
+    ((benefits?.available?.length ?? 0) > 0 ||
+      (benefits?.earned?.length ?? 0) > 0 ||
+      (benefits?.progress?.length ?? 0) > 0);
+
+  if (!loyalty && !summary && !hasBenefits) return <EmptyState />;
 
   const num = (v: unknown): number => (Number.isFinite(v as number) ? (v as number) : 0);
 
@@ -568,6 +639,303 @@ export default function LoyaltyTab({ loyalty, summary, discountRules, loading }:
           </div>
         )}
       </div>
+
+      {}
+      {benefits && benefits.available.length > 0 && (
+        <div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              marginBottom: "10px",
+              color: "var(--aacp-muted)",
+            }}
+          >
+            <IconGift />
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+              }}
+            >
+              Descontos disponíveis para você
+            </span>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+            }}
+            role="list"
+            aria-label="Descontos disponíveis para você"
+          >
+            {benefits.available.map((benefit) => (
+              <div
+                key={benefit.id}
+                role="listitem"
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--aacp-line)",
+                  background: "var(--aacp-surface-2)",
+                  display: "flex",
+                  gap: "10px",
+                  alignItems: "flex-start",
+                }}
+              >
+                <div style={{ marginTop: "2px", color: "var(--aacp-accent)", flexShrink: 0 }}>
+                  <IconGift />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      color: "var(--aacp-fg)",
+                      marginBottom: "4px",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {benefit.name}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--aacp-muted)",
+                      lineHeight: 1.4,
+                      marginBottom: "4px",
+                    }}
+                  >
+                    {benefit.description}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      color: "var(--aacp-muted)",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Condição: {benefit.condition}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {}
+      {benefits && benefits.earned.length > 0 && (
+        <div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              marginBottom: "10px",
+              color: "var(--aacp-muted)",
+            }}
+          >
+            <IconAward />
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+              }}
+            >
+              Benefícios conquistados
+            </span>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+            }}
+            role="list"
+            aria-label="Benefícios conquistados"
+          >
+            {benefits.earned.map((benefit) => (
+              <div
+                key={benefit.id}
+                role="listitem"
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--aacp-line)",
+                  background: "var(--aacp-surface-2)",
+                  display: "flex",
+                  gap: "10px",
+                  alignItems: "flex-start",
+                }}
+              >
+                <div style={{ marginTop: "2px", color: "var(--aacp-accent)", flexShrink: 0 }}>
+                  <IconAward />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      color: "var(--aacp-fg)",
+                      marginBottom: "4px",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {benefit.name}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--aacp-muted)",
+                      lineHeight: 1.4,
+                      marginBottom: "4px",
+                    }}
+                  >
+                    {benefit.description}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      color: "var(--aacp-muted)",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Origem: {benefit.origin}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {}
+      {benefits && benefits.progress.length > 0 && (
+        <div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              marginBottom: "10px",
+              color: "var(--aacp-muted)",
+            }}
+          >
+            <IconTarget />
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+              }}
+            >
+              Progresso
+            </span>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+            }}
+            role="list"
+            aria-label="Progresso de benefícios"
+          >
+            {benefits.progress.map((progress) => {
+              const remaining = Math.max(0, progress.target_value - progress.current_value);
+              const percentage = progress.target_value > 0 ? (progress.current_value / progress.target_value) * 100 : 0;
+              return (
+                <div
+                  key={progress.id}
+                  role="listitem"
+                  style={{
+                    padding: "12px 14px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--aacp-line)",
+                    background: "var(--aacp-surface-2)",
+                    display: "flex",
+                    gap: "10px",
+                    flexDirection: "column",
+                  }}
+                >
+                  <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+                    <div style={{ marginTop: "2px", color: "var(--aacp-accent)", flexShrink: 0 }}>
+                      <IconTarget />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          color: "var(--aacp-fg)",
+                          marginBottom: "4px",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {progress.name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: "var(--aacp-muted)",
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {progress.description}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px", paddingLeft: "24px" }}>
+                    <div
+                      style={{
+                        width: "100%",
+                        height: "6px",
+                        borderRadius: "3px",
+                        background: "var(--aacp-line)",
+                        overflow: "hidden",
+                      }}
+                      role="progressbar"
+                      aria-valuenow={Math.round(Math.min(100, percentage))}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
+                      <div
+                        style={{
+                          height: "100%",
+                          width: "100%",
+                          background: "var(--aacp-accent)",
+                          transformOrigin: "left center",
+                          transform: `scaleX(${Math.min(1, percentage / 100)})`,
+                          transition: "transform 0.3s ease",
+                        }}
+                      />
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        color: "var(--aacp-muted)",
+                        fontWeight: 500,
+                      }}
+                    >
+                      {remaining > 0
+                        ? `Faltam ${fmtBRL(remaining)} para ${progress.name.toLowerCase()}`
+                        : "Objetivo atingido!"}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

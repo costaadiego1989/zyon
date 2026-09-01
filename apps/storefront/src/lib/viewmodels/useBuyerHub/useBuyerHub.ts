@@ -160,6 +160,9 @@ export function useBuyerHub(): UseBuyerHub {
   const loadLoyalty = useCallback(async () => {
     await runFetch(s.setLoyalty, buyerHub.fetchLoyalty);
   }, []);
+  const loadBenefits = useCallback(async () => {
+    await runFetch(s.setBenefits, buyerHub.fetchBenefits);
+  }, []);
   const loadDiscountRules = useCallback(async (merchantSlug: string) => {
     await runFetch(s.setDiscountRules, () => buyerHub.fetchDiscountRules(merchantSlug));
   }, []);
@@ -213,6 +216,7 @@ export function useBuyerHub(): UseBuyerHub {
         break;
       case "loyalty":
         if (!s.loyalty.data && !s.loyalty.loading) void runFetch(s.setLoyalty, buyerHub.fetchLoyalty);
+        if (!s.benefits.data && !s.benefits.loading) void loadBenefits();
         if (!s.summary.data && !s.summary.loading) void runFetch(s.setSummary, buyerHub.fetchSummary);
         break;
       case "settings":
@@ -243,6 +247,7 @@ export function useBuyerHub(): UseBuyerHub {
         break;
       case "loyalty":
         await loadLoyalty();
+        await loadBenefits();
         await runFetch(s.setSummary, buyerHub.fetchSummary);
         break;
       case "settings":
@@ -287,6 +292,8 @@ export function useBuyerHub(): UseBuyerHub {
     updatePreferences,
     loyalty: s.loyalty,
     loadLoyalty,
+    benefits: s.benefits,
+    loadBenefits,
     discountRules: s.discountRules,
     loadDiscountRules,
     reviews: s.reviews,

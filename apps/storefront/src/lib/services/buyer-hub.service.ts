@@ -9,6 +9,7 @@ import type {
   BuyerPurchase,
   BuyerReview,
   BuyerSummary,
+  BuyerBenefits,
   DiscountRule,
   PurchasePage,
 } from "@/lib/viewmodels/useBuyerHub/types";
@@ -101,6 +102,10 @@ export function updatePreferences(
 
 export function fetchLoyalty(): Promise<BuyerLoyalty> {
   return apiCall<BuyerLoyalty>("/buyer/me/loyalty");
+}
+
+export function fetchBenefits(): Promise<BuyerBenefits> {
+  return apiCall<BuyerBenefits>("/buyer/me/benefits");
 }
 
 export async function fetchDiscountRules(merchantSlug: string): Promise<DiscountRule[]> {

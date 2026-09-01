@@ -4,6 +4,7 @@ import { GetBuyerConversationUseCase } from "../../application/use-cases/buyer-c
 import { RateBuyerConversationMessageUseCase } from "../../application/use-cases/buyer-conversation.use-cases.js";
 import { DeleteBuyerAccountUseCase } from "../../application/use-cases/delete-buyer-account.use-case.js";
 import { ExportBuyerDataUseCase } from "../../application/use-cases/export-buyer-data.use-case.js";
+import { GetBuyerBenefitsUseCase } from "../../application/use-cases/get-buyer-benefits.use-case.js";
 import { BuyerJwtAuthGuard, currentBuyer } from "./buyer-jwt-auth.guard.js";
 import type { BuyerConversation } from "../../domain/ports/buyer-conversation.port.js";
 
@@ -32,8 +33,18 @@ export class BuyerHubController {
     private readonly getConversationUC: GetBuyerConversationUseCase,
     private readonly rateMessage: RateBuyerConversationMessageUseCase,
     private readonly deleteAccountUC: DeleteBuyerAccountUseCase,
-    private readonly exportDataUC: ExportBuyerDataUseCase
+    private readonly exportDataUC: ExportBuyerDataUseCase,
+    private readonly getBenefitsUC: GetBuyerBenefitsUseCase
   ) {}
+
+  @Get("benefits")
+  async getBenefits(@Req() req: { user?: unknown }) {
+    const buyer = currentBuyer(req);
+    return this.getBenefitsUC.execute({
+      globalUserId: buyer.globalUserId,
+      merchantId: buyer.merchantId,
+    });
+  }
 
   @Get("conversations")
   async listConversations(@Req() req: { user?: unknown }) {

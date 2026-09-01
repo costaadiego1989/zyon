@@ -5,6 +5,7 @@ import {
 } from "../../domain/ports/scheduled-message-repository.port.js";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { PrismaBuyerEarnedBenefitRepository } from "../../../buyer-account/infrastructure/prisma-buyer-earned-benefit.repository.js";
 
 export interface CheckLoyaltyMilestoneInput {
   merchantId: string;
@@ -13,6 +14,11 @@ export interface CheckLoyaltyMilestoneInput {
   buyerPhone?: string;
   buyerEmail?: string;
   buyerName?: string;
+  /**
+   * Platform-wide buyer id (INV: global_user_id). Falls back to buyerId when the
+   * caller already passes the global user id (see on-order-completed.handler).
+   */
+  globalUserId?: string;
 }
 
 const MILESTONES: Record<number, number> = {
@@ -84,6 +90,29 @@ export class CheckLoyaltyMilestoneUseCase {
           expiresAt: expiresAt.toISOString(),
         },
       });
+
+      // F5-T03: record the earned benefit so it surfaces in the buyer hub
+      // (GET /buyer/me/benefits → earned). Non-fatal: never breaks the milestone flow.
+      const globalUserId = input.globalUserId ?? input.buyerId;
+      try {
+        const benefits = new PrismaBuyerEarnedBenefitRepository(this.prisma);
+        await benefits.create({
+          merchantId: input.merchantId,
+          globalUserId,
+          benefitType: "discount_percent",
+          value: discountPercent,
+          origin: "loyalty_milestone",
+          reason: `Cliente fiel: ${discountPercent}% de desconto por ${input.purchaseCount} compras`,
+          status: "active",
+          expiresAt,
+        });
+      } catch (benefitErr) {
+        this.logger.warn(
+          `loyalty: earned benefit not recorded for buyer ${input.buyerId}: ${
+            benefitErr instanceof Error ? benefitErr.message : String(benefitErr)
+          }`
+        );
+      }
 
       this.logger.log(
         `loyalty milestone ${input.purchaseCount} hit for buyer ${input.buyerId}`

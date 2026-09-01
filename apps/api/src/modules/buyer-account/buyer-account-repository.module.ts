@@ -9,6 +9,8 @@ import { PrismaBuyerAccountRepository } from "./infrastructure/prisma-buyer-acco
 import { PrismaBuyerAddressRepository } from "./infrastructure/prisma-buyer-address.repository.js";
 import { PrismaBuyerConversationRepository } from "./infrastructure/prisma-buyer-conversation.repository.js";
 import { PrismaBuyerAccountLgpdRepository } from "./infrastructure/prisma-buyer-account-lgpd.repository.js";
+import { BUYER_EARNED_BENEFIT_REPOSITORY } from "./domain/ports/buyer-earned-benefit.repository.port.js";
+import { PrismaBuyerEarnedBenefitRepository } from "./infrastructure/prisma-buyer-earned-benefit.repository.js";
 import { BUYER_ACCOUNT_PRISMA_CLIENT } from "./buyer-account.tokens.js";
 
 @Module({
@@ -37,12 +39,18 @@ import { BUYER_ACCOUNT_PRISMA_CLIENT } from "./buyer-account.tokens.js";
       useFactory: (prisma: PrismaClient) => new PrismaBuyerAccountLgpdRepository(prisma),
       inject: [BUYER_ACCOUNT_PRISMA_CLIENT],
     },
+    {
+      provide: BUYER_EARNED_BENEFIT_REPOSITORY,
+      useFactory: (prisma: PrismaClient) => new PrismaBuyerEarnedBenefitRepository(prisma),
+      inject: [BUYER_ACCOUNT_PRISMA_CLIENT],
+    },
   ],
   exports: [
     BUYER_ACCOUNT_REPOSITORY,
     BUYER_ADDRESS_REPOSITORY,
     BUYER_CONVERSATION_REPOSITORY,
     BUYER_ACCOUNT_PORT,
+    BUYER_EARNED_BENEFIT_REPOSITORY,
     BUYER_ACCOUNT_PRISMA_CLIENT,
   ],
 })

@@ -690,7 +690,8 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
                   loyalty={vm.loyalty.data}
                   summary={vm.summary.data ?? null}
                   discountRules={vm.discountRules.data}
-                  loading={vm.loyalty.loading || vm.discountRules.loading}
+                  benefits={vm.benefits.data ?? null}
+                  loading={vm.loyalty.loading || vm.discountRules.loading || vm.benefits.loading}
                 />
               )}
               {vm.activeTab === "settings" && (

@@ -12,6 +12,7 @@ import type {
   BuyerPurchase,
   BuyerReview,
   BuyerSummary,
+  BuyerBenefits,
   DiscountRule,
   SectionState,
   TabType,
@@ -37,6 +38,7 @@ export function useBuyerHubState() {
   const [conversations, setConversations] = useState<SectionState<BuyerConversation[]>>(EMPTY_SECTION);
   const [preferences, setPreferences] = useState<SectionState<BuyerPreferences>>(EMPTY_SECTION);
   const [loyalty, setLoyalty] = useState<SectionState<BuyerLoyalty>>(EMPTY_SECTION);
+  const [benefits, setBenefits] = useState<SectionState<BuyerBenefits>>(EMPTY_SECTION);
   const [discountRules, setDiscountRules] = useState<SectionState<DiscountRule[]>>(EMPTY_SECTION);
   const [reviews, setReviews] = useState<SectionState<BuyerReview[]>>(EMPTY_SECTION);
   const [intentProfile, setIntentProfile] = useState<SectionState<BuyerIntentProfile>>(EMPTY_SECTION);
@@ -53,6 +55,7 @@ export function useBuyerHubState() {
     setConversations(EMPTY_SECTION);
     setPreferences(EMPTY_SECTION);
     setLoyalty(EMPTY_SECTION);
+    setBenefits(EMPTY_SECTION);
     setDiscountRules(EMPTY_SECTION);
     setReviews(EMPTY_SECTION);
     setIntentProfile(EMPTY_SECTION);
@@ -84,6 +87,8 @@ export function useBuyerHubState() {
     setPreferences,
     loyalty,
     setLoyalty,
+    benefits,
+    setBenefits,
     discountRules,
     setDiscountRules,
     reviews,

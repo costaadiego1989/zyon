@@ -123,6 +123,35 @@ export interface BuyerIntentProfile {
   conversion_likelihood?: number | null;
 }
 
+export interface AvailableBenefit {
+  id: string;
+  name: string;
+  description: string;
+  condition: string;
+}
+
+export interface EarnedBenefit {
+  id: string;
+  name: string;
+  description: string;
+  origin: string;
+}
+
+export interface BenefitProgress {
+  id: string;
+  name: string;
+  description: string;
+  current_value: number;
+  target_value: number;
+  remaining_value?: number;
+}
+
+export interface BuyerBenefits {
+  available: AvailableBenefit[];
+  earned: EarnedBenefit[];
+  progress: BenefitProgress[];
+}
+
 export interface PurchasePage {
   items: BuyerPurchase[];
   next_cursor: string | null;
@@ -180,6 +209,9 @@ export interface UseBuyerHub {
 
   loyalty: SectionState<BuyerLoyalty>;
   loadLoyalty: () => Promise<void>;
+
+  benefits: SectionState<BuyerBenefits>;
+  loadBenefits: () => Promise<void>;
 
   discountRules: SectionState<DiscountRule[]>;
   loadDiscountRules: (merchantSlug: string) => Promise<void>;
