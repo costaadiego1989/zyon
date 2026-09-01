@@ -229,17 +229,33 @@ export class StorefrontController {
 
     try {
       const funnelEvents = new Set([
+        "checkout_started",
         "auth_phone_submitted", "auth_phone_verified", "auth_identity_confirmed",
         "auth_registration_completed", "login_completed", "product_viewed", "cart_viewed",
         "cross_sell_accepted", "cross_sell_added",
+        "shipping_option_selected", "coupon_applied", "payment_method_selected",
       ]);
       if (funnelEvents.has(body.event)) {
+        const session = await this.prisma.checkoutSession.findUnique({
+          where: { merchantId_sessionId: { merchantId: body.merchant_id, sessionId: conversationId } },
+          select: { id: true },
+        });
+        if (!session) {
+          await this.prisma.checkoutSession.create({
+            data: {
+              merchantId: body.merchant_id, sessionId: conversationId,
+              globalUserId: conversationId, conversationId,
+              cart: {}, abandonmentScore: 0, triggerAgent: false, chatHistory: [],
+              createdAt: new Date(), updatedAt: new Date(),
+            },
+          });
+        }
         const existing = await this.prisma.checkoutEvent.findFirst({
           where: { merchantId: body.merchant_id, sessionId: conversationId, eventName: body.event },
         });
         if (!existing) {
           await this.prisma.checkoutEvent.create({
-            data: { merchantId: body.merchant_id, sessionId: conversationId, eventName: body.event, occurredAt: new Date() },
+            data: { merchantId: body.merchant_id, sessionId: conversationId, eventName: body.event, occurredAt: new Date(), metadata: (body.metadata ?? undefined) as any },
           });
         }
       }

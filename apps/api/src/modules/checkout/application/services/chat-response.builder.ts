@@ -11,6 +11,7 @@ import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../
 import { CONVERSATION_PORT, type ConversationPort } from "../../domain/ports/conversation.port.js";
 import { CHECKOUT_CROSS_SELL_RECOMMENDER, type CheckoutCrossSellRecommenderPort } from "../../domain/ports/cross-sell-recommender.port.js";
 import { BUYER_CONVERSATION_REPOSITORY, type BuyerConversationRepository } from "../../../buyer-account/domain/ports/buyer-conversation.port.js";
+import type { ProductRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
 import { buildExperienceFromSession } from "./checkout-experience.service.js";
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
 import { resolveCrossSellProduct } from "../../../cross-sell/application/services/cross-sell-product-resolver.js";
@@ -33,11 +34,6 @@ export interface ChatReplyInput {
   preSearchedProducts: SuggestedProduct[];
 }
 
-/**
- * Assembles the final ChatMessageResponse after LLM routing: persists turns,
- * detects payment method, creates payment intent, loads cross-sell suggestions,
- * and derives final stage.
- */
 @Injectable()
 export class ChatResponseBuilder {
   private readonly logger = new Logger(ChatResponseBuilder.name);
@@ -47,7 +43,8 @@ export class ChatResponseBuilder {
     @Optional() @Inject(CHECKOUT_CROSS_SELL_RECOMMENDER) private readonly crossSellRecommender?: CheckoutCrossSellRecommenderPort,
     @Optional() private readonly createPaymentIntent?: CreatePaymentIntentUseCase,
     @Optional() @Inject(BUYER_CONVERSATION_REPOSITORY) private readonly conversationRepo?: BuyerConversationRepository,
-    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 }
+    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 },
+    @Optional() @Inject("ProductRepositoryPort") private readonly productRepo?: ProductRepositoryPort
   ) {}
 
   async build(input: ChatReplyInput & { merchantId: string; sessionId: string }): Promise<ChatMessageResponse> {
@@ -75,6 +72,7 @@ export class ChatResponseBuilder {
     const wantsPix = /\b(pix|qr code)\b/i.test(input.userMessage) && input.stage === "payment";
     const wantsCard = /\b(cartão|cartao|credito|crédito)\b/i.test(input.userMessage) && input.stage === "payment";
     const wantsBoleto = /\bboleto\b/i.test(input.userMessage) && input.stage === "payment";
+    const wantsCrypto = /\b(crypto|cripto|usdc|usdt|polygon|base|carteira|wallet|metamask)\b/i.test(input.userMessage) && input.stage === "payment";
 
     let suggestedProducts: SuggestedProduct[] = [];
     if (!input.isHoldout && input.stage === "payment" && input.previousStage === "shipping" && this.crossSellRecommender) {
@@ -91,7 +89,14 @@ export class ChatResponseBuilder {
     }
 
     if (!input.isHoldout && input.reply.suggested_skus?.length && suggestedProducts.length === 0) {
-      suggestedProducts = input.reply.suggested_skus.map((sku) => resolveCrossSellProduct(sku, "llm_suggestion"));
+      if (this.productRepo) {
+        const resolved = await Promise.all(
+          input.reply.suggested_skus.map((sku) => resolveCrossSellProduct(sku, this.productRepo!, input.merchantId, "llm_suggestion"))
+        );
+        suggestedProducts = resolved.filter((p): p is SuggestedProduct & { suggestion_id?: string } => p !== null);
+      } else {
+        this.logger.warn("[chat] productRepo not injected; cannot resolve cross-sell suggested_skus");
+      }
     }
 
     if (suggestedProducts.length === 0 && input.preSearchedProducts.length > 0) {
@@ -102,6 +107,7 @@ export class ChatResponseBuilder {
     if (wantsPix) selectedPaymentMethod = "pix";
     else if (wantsCard) selectedPaymentMethod = "credit_card";
     else if (wantsBoleto) selectedPaymentMethod = "boleto";
+    else if (wantsCrypto) selectedPaymentMethod = "crypto";
 
     let workingSession = input.session;
     if (selectedPaymentMethod && !input.session.paymentMethod) {
@@ -112,6 +118,16 @@ export class ChatResponseBuilder {
       } as typeof input.session;
       await this.sessions.saveSession(workingSession);
       this.logger.log(`[chat] payment.method.selected ${selectedPaymentMethod} session=${input.sessionId}`);
+      // Record the funnel event with the chosen method so the "por pagamento"
+      // breakdown reports real segments (pix / credit_card / boleto / crypto).
+      // Deterministic + idempotent (recordEvent no-ops on duplicates per session).
+      try {
+        await this.sessions.recordEvent(input.merchantId, input.sessionId, "payment_method_selected", {
+          payment_method: selectedPaymentMethod,
+        });
+      } catch {
+        /* funnel telemetry is best-effort — never block the checkout reply */
+      }
     }
 
     const responseExperience: typeof experience = suggestedProducts.length > 0

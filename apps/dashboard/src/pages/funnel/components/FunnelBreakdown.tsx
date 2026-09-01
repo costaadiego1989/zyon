@@ -21,13 +21,15 @@ const SEGMENT_LABELS: Record<string, string> = {
   returning: "Recorrente",
   pix: "PIX",
   card: "Cartão",
+  credit_card: "Cartão",
   boleto: "Boleto",
+  crypto: "Crypto (USDC)",
 };
 
 const DIMENSION_DEFAULTS: Record<string, string[]> = {
   device: ["mobile", "desktop", "tablet"],
   buyer_type: ["new", "returning"],
-  payment_method: ["pix", "card", "boleto"],
+  payment_method: ["pix", "credit_card", "boleto", "crypto"],
 };
 
 export function FunnelBreakdown({ breakdowns, dimension }: FunnelBreakdownProps): React.ReactElement {

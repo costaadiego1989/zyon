@@ -298,7 +298,8 @@ export class GetStorefrontFunnelUseCase {
     }
 
     const breakdowns: Record<string, StorefrontFunnelSegment> = {};
-    for (const method of ["pix", "card", "boleto"]) {
+    // Canonical PaymentMethod values as stored on the event metadata.
+    for (const method of ["pix", "credit_card", "boleto", "crypto"]) {
       const sessionIds = sessionsByMethod.get(method) ?? [];
       breakdowns[method] = await this.computeSegmentSteps(merchantId, from, to, sessionIds);
     }
