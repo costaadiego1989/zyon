@@ -28,6 +28,8 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
           displayName: account.displayName,
           phone: pii.phone,
           cpf: pii.cpf,
+          dateOfBirth: account.dateOfBirth ?? null,
+          gender: account.gender ?? null,
           asaasCustomerId: account.asaasCustomerId ?? null,
           address: account.address ?? null,
         },
@@ -37,6 +39,8 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
           displayName: account.displayName,
           phone: pii.phone,
           cpf: pii.cpf,
+          dateOfBirth: account.dateOfBirth ?? null,
+          gender: account.gender ?? null,
           asaasCustomerId: account.asaasCustomerId ?? undefined,
           address: account.address ?? null,
           updatedAt: account.updatedAt,
@@ -126,6 +130,8 @@ type AccountRow = {
   displayName: string;
   phone: string | null;
   cpf: string | null;
+  dateOfBirth?: Date | null;
+  gender?: string | null;
   asaasCustomerId?: string | null;
   address?: unknown;
   createdAt: Date;
@@ -175,6 +181,8 @@ function toDomainAccount(row: AccountRow): BuyerAccount {
     displayName: row.displayName,
     phone: piiForDomain(row.phone),
     cpf: piiForDomain(row.cpf),
+    dateOfBirth: row.dateOfBirth ?? undefined,
+    gender: row.gender ?? undefined,
     asaasCustomerId: row.asaasCustomerId ?? undefined,
     address: toCustomerAddress(row.address),
     createdAt: row.createdAt,

@@ -49,6 +49,7 @@ import {
   DeleteBuyerAddressUseCase,
 } from "./application/use-cases/list-buyer-addresses.use-case.js";
 import { GetBuyerIntentProfileUseCase } from "./application/use-cases/get-buyer-intent-profile.use-case.js";
+import { GetBuyerBenefitsUseCase } from "./application/use-cases/get-buyer-benefits.use-case.js";
 import { ListBuyerReviewsUseCase } from "./application/use-cases/list-buyer-reviews.use-case.js";
 import { ListBuyerConversationsUseCase } from "./application/use-cases/buyer-conversation.use-cases.js";
 import { GetBuyerConversationUseCase } from "./application/use-cases/buyer-conversation.use-cases.js";
@@ -57,6 +58,7 @@ import { DeleteBuyerAccountUseCase } from "./application/use-cases/delete-buyer-
 import { ExportBuyerDataUseCase } from "./application/use-cases/export-buyer-data.use-case.js";
 import { BuyerAccountRepositoryModule } from "./buyer-account-repository.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
+import { SelfCheckoutModule } from "../self-checkout/self-checkout.module.js";
 import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
 import { OTP_STORE } from "./domain/ports/otp-store.port.js";
@@ -67,7 +69,7 @@ import { RedisOtpStore } from "./infrastructure/redis-otp-store.js";
 import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-webauthn-credential.repository.js";
 
 @Module({
-  imports: [BuyerAccountRepositoryModule, BuyerPurchaseHistoryModule, forwardRef(() => CheckoutModule), IntegrationsModule],
+  imports: [BuyerAccountRepositoryModule, BuyerPurchaseHistoryModule, forwardRef(() => CheckoutModule), IntegrationsModule, SelfCheckoutModule],
   controllers: [BuyerAccountController, BuyerAgentController, BuyerHubController, BuyerWebAuthnController, BuyerPreferencesController, BuyerIntentController, BuyerReviewsController, BuyerAddressesController],
   providers: [
     RegisterBuyerUseCase,
@@ -99,6 +101,7 @@ import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-weba
     GetBuyerPreferencesUseCase,
     UpdateBuyerPreferencesUseCase,
     GetBuyerIntentProfileUseCase,
+    GetBuyerBenefitsUseCase,
     ListBuyerReviewsUseCase,
     ListBuyerAddressesUseCase,
     AddBuyerAddressUseCase,

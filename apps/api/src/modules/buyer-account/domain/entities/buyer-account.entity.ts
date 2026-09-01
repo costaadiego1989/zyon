@@ -8,6 +8,8 @@ export interface BuyerAccountProps {
   phone?: string;
   phoneCountryCode?: string;
   cpf?: string;
+  dateOfBirth?: Date;
+  gender?: string;
   asaasCustomerId?: string;
   address?: CustomerAddress;
   createdAt: Date;
@@ -22,6 +24,8 @@ export class BuyerAccount {
   readonly phone?: string;
   readonly phoneCountryCode?: string;
   readonly cpf?: string;
+  readonly dateOfBirth?: Date;
+  readonly gender?: string;
   readonly asaasCustomerId?: string;
   readonly address?: CustomerAddress;
   readonly createdAt: Date;
@@ -47,6 +51,8 @@ export class BuyerAccount {
     this.phone = props.phone;
     this.phoneCountryCode = props.phoneCountryCode; // C3 fix: store country code
     this.cpf = normalizeCpf(props.cpf);
+    this.dateOfBirth = props.dateOfBirth;
+    this.gender = props.gender;
     this.asaasCustomerId = props.asaasCustomerId;
     this.address = props.address;
     this.createdAt = props.createdAt;

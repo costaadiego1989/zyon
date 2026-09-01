@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2, User, Building2, KeyRound, Github } from "lucide-react";
 import { friendlyAuthError } from "./auth-error.js";
-import { maskCNPJ, maskPhone, validateCNPJ } from "../utils/masks.js";
+import { maskPhone, maskCpfCnpj, validateCpfCnpj } from "../utils/masks.js";
 
 const SEGMENTS = ["Moda", "Eletrônicos", "Alimentos", "Cosméticos", "Serviços", "Outro"] as const;
 const VOLUMES = ["Até 50 pedidos", "50–500 pedidos", "500+ pedidos"] as const;
@@ -66,8 +66,8 @@ export function SignupWizard(props: SignupWizardProps) {
     }
     if (step === 2) {
       if (!business.name.trim()) { setError("Informe o nome da loja."); return; }
-      if (!business.taxId.trim()) { setError("Informe o CNPJ."); return; }
-      if (!validateCNPJ(business.taxId)) { setError("CNPJ inválido. Verifique os dígitos."); return; }
+      if (!business.taxId.trim()) { setError("Informe o CPF ou CNPJ."); return; }
+      if (!validateCpfCnpj(business.taxId)) { setError("CPF ou CNPJ inválido. Verifique os dígitos."); return; }
       setStep(3);
       return;
     }
@@ -259,11 +259,11 @@ function BusinessFields({ draft, onChange }: { draft: BusinessDraft; onChange: (
         <input value={draft.url} onChange={(e) => onChange({ ...draft, url: e.target.value })} placeholder="sualoja.com.br" className="auth-field__input" />
       </div>
       <div className="auth-field">
-        <label className="auth-field__label">CNPJ</label>
+        <label className="auth-field__label">CPF ou CNPJ</label>
         <input
           value={draft.taxId}
-          onChange={(e) => onChange({ ...draft, taxId: maskCNPJ(e.target.value) })}
-          placeholder="00.000.000/0000-00"
+          onChange={(e) => onChange({ ...draft, taxId: maskCpfCnpj(e.target.value) })}
+          placeholder="CPF ou CNPJ"
           maxLength={18}
           className="auth-field__input"
         />

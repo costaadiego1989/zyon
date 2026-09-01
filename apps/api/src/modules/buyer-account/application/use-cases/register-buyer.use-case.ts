@@ -10,6 +10,8 @@ export interface RegisterBuyerRequest {
   password: string;
   displayName: string;
   phone?: string;
+  dateOfBirth?: Date;
+  gender?: string;
 }
 
 export interface BuyerAuthResponse {
@@ -48,6 +50,8 @@ export class RegisterBuyerUseCase {
       passwordHash,
       displayName: input.displayName,
       phone: input.phone,
+      dateOfBirth: input.dateOfBirth,
+      gender: input.gender,
       createdAt: now,
       updatedAt: now,
     });

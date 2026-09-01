@@ -826,11 +826,17 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     }
   };
 
-  /** Complete profile: name + CPF + email after phone-only signup. */
-  completeProfile = async (name: string, cpf: string, email: string): Promise<void> => {
+  /** Complete profile: name + CPF + email (+ optional dateOfBirth/gender) after phone-only signup. */
+  completeProfile = async (
+    name: string,
+    cpf: string,
+    email: string,
+    dateOfBirth?: string,
+    gender?: string
+  ): Promise<void> => {
     this.setState({ phoneError: null });
     const api = await this.ensureApi();
-    const result = await api.completeProfile({ name, cpf, email });
+    const result = await api.completeProfile({ name, cpf, email, dateOfBirth, gender });
     if (result.ok) {
       this.setState((s) => ({
         phoneStep: 'done',

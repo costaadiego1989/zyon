@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  Logger,
+  Optional,
   Patch,
   Post,
   Query,
@@ -9,7 +11,10 @@ import {
   UseGuards,
   Ip,
 } from "@nestjs/common";
+import { randomBytes, scrypt } from "node:crypto";
+import { promisify } from "node:util";
 import type { CustomerAddress } from "@zyon/shared-types";
+import { RegisterBuyerUserUseCase } from "../../../self-checkout/application/use-cases/register-buyer-user.use-case.js";
 import { RegisterBuyerUseCase } from "../../application/use-cases/register-buyer.use-case.js";
 import { RegisterBuyerWithRateLimitUseCase } from "../../application/use-cases/register-buyer-with-rate-limit.use-case.js";
 import { LoginBuyerUseCase } from "../../application/use-cases/login-buyer.use-case.js";
@@ -43,14 +48,66 @@ export class BuyerAccountController {
     private readonly verifyPhoneCode: VerifyBuyerPhoneCodeUseCase,
     private readonly sendEmailCode: SendBuyerEmailCodeUseCase,
     private readonly verifyEmailCode: VerifyBuyerEmailCodeUseCase,
+    @Optional() private readonly registerBuyerWallet?: RegisterBuyerUserUseCase,
   ) {}
+
+  private readonly logger = new Logger(BuyerAccountController.name);
 
   @Post("register")
   async register(
-    @Body() body: { email: string; password: string; displayName: string; phone?: string },
+    @Body()
+    body: {
+      email: string;
+      password: string;
+      displayName: string;
+      phone?: string;
+      dateOfBirth?: string;
+      gender?: string;
+      merchantId?: string;
+    },
     @Ip() ip: string
   ) {
-    return this.registerBuyerWithRateLimit.execute(body, ip || "unknown");
+    const result = await this.registerBuyerWithRateLimit.execute(
+      {
+        email: body.email,
+        password: body.password,
+        displayName: body.displayName,
+        phone: body.phone,
+        dateOfBirth: parseDateOfBirth(body.dateOfBirth),
+        gender: normalizeGender(body.gender),
+      },
+      ip || "unknown"
+    );
+
+    await this.provisionWalletBestEffort(body);
+
+    return result;
+  }
+
+  private async provisionWalletBestEffort(body: {
+    email: string;
+    password: string;
+    displayName: string;
+    merchantId?: string;
+  }): Promise<void> {
+    if (!this.registerBuyerWallet) return;
+    if (!body.merchantId) {
+      this.logger.warn("wallet provisioning skipped: no merchant_id");
+      return;
+    }
+    try {
+      const passwordHash = await hashWalletPassword(body.password);
+      await this.registerBuyerWallet.execute({
+        merchant_id: body.merchantId,
+        email: body.email,
+        password: passwordHash,
+        display_name: body.displayName,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `wallet provisioning failed (non-blocking): ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   }
 
   @Post("login")
@@ -91,7 +148,16 @@ export class BuyerAccountController {
   @UseGuards(BuyerJwtAuthGuard)
   async patchProfile(
     @Req() req: { user?: unknown },
-    @Body() body: { display_name?: string; phone?: string; email?: string; cpf?: string; address?: CustomerAddress }
+    @Body()
+    body: {
+      display_name?: string;
+      phone?: string;
+      email?: string;
+      cpf?: string;
+      date_of_birth?: string;
+      gender?: string;
+      address?: CustomerAddress;
+    }
   ) {
     const buyer = currentBuyer(req);
     const updated = await this.updateProfile.execute({
@@ -100,6 +166,8 @@ export class BuyerAccountController {
       phone: body.phone,
       email: body.email,
       cpf: body.cpf,
+      dateOfBirth: parseDateOfBirth(body.date_of_birth),
+      gender: normalizeGender(body.gender),
       address: body.address
     });
     return {
@@ -108,6 +176,8 @@ export class BuyerAccountController {
       email: updated.email,
       phone: updated.phone,
       cpf: updated.cpf ? updated.cpf.replace(/^(\d{3})\d{3}\d{3}(\d{2})$/, "$1.***.***-$2") : null,
+      date_of_birth: updated.dateOfBirth ? updated.dateOfBirth.toISOString().slice(0, 10) : null,
+      gender: updated.gender ?? null,
       address: updated.address
     };
   }
@@ -229,3 +299,28 @@ export class BuyerAccountController {
 }
 
 // H4 fix: purchaseItems extracted to purchase.transformer.ts
+
+const scryptAsync = promisify(scrypt);
+const WALLET_KEY_LEN = 64;
+
+// Wallet passwords must match the self-checkout scrypt format ("scrypt:salt:key")
+// so self-checkout login can verify them. Do NOT reuse the buyer-account hash;
+// hashing the raw password here keeps both stores independently consistent.
+async function hashWalletPassword(password: string): Promise<string> {
+  const salt = randomBytes(16).toString("base64url");
+  const key = (await scryptAsync(password, salt, WALLET_KEY_LEN)) as Buffer;
+  return `scrypt:${salt}:${key.toString("base64url")}`;
+}
+
+const ALLOWED_GENDERS = ["feminino", "masculino", "nao_binario", "outro", "prefiro_nao_informar"] as const;
+
+function parseDateOfBirth(value?: string): Date | undefined {
+  if (!value) return undefined;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
+function normalizeGender(value?: string): string | undefined {
+  if (!value) return undefined;
+  return (ALLOWED_GENDERS as readonly string[]).includes(value) ? value : undefined;
+}

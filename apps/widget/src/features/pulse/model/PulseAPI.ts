@@ -179,13 +179,25 @@ export class PulseAPI {
    * Complete the buyer profile (name + CPF + email) after phone-only OTP signup.
    * Requires the buyer JWT (set by verifyPhoneCode). Returns true on success.
    */
-  async completeProfile(input: { name: string; cpf: string; email: string }): Promise<{ ok: boolean; error?: string }> {
+  async completeProfile(input: {
+    name: string;
+    cpf: string;
+    email: string;
+    dateOfBirth?: string;
+    gender?: string;
+  }): Promise<{ ok: boolean; error?: string }> {
     if (!this.baseUrl) return { ok: false, error: 'no_api' };
     try {
       const r = await fetch(`${this.baseUrl}/buyer/me/profile`, {
         method: 'PATCH',
         headers: this._buyerHeaders(),
-        body: JSON.stringify({ display_name: input.name, cpf: input.cpf, email: input.email }),
+        body: JSON.stringify({
+          display_name: input.name,
+          cpf: input.cpf,
+          email: input.email,
+          ...(input.dateOfBirth ? { date_of_birth: input.dateOfBirth } : {}),
+          ...(input.gender ? { gender: input.gender } : {}),
+        }),
       });
       if (r.ok) return { ok: true };
       const body = await r.json().catch(() => ({})) as { code?: string };

@@ -26,17 +26,35 @@ function formatCpf(value: string): string {
   return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
 }
 
-function CompleteProfileForm({ onSubmit }: { onSubmit: (name: string, cpf: string, email: string) => void }) {
+function CompleteProfileForm({
+  onSubmit,
+}: {
+  onSubmit: (
+    name: string,
+    cpf: string,
+    email: string,
+    dateOfBirth?: string,
+    gender?: string
+  ) => void;
+}) {
   const [name, setName] = useState('');
   const [cpf, setCpf] = useState('');
   const [email, setEmail] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [gender, setGender] = useState('');
   const [cpfError, setCpfError] = useState('');
 
   const handleSubmit = () => {
     const cleanCpf = cpf.replace(/\D/g, '');
     if (!isValidCpf(cleanCpf)) { setCpfError('CPF inválido'); return; }
     setCpfError('');
-    onSubmit(name.trim(), cleanCpf, email.trim());
+    onSubmit(
+      name.trim(),
+      cleanCpf,
+      email.trim(),
+      dateOfBirth || undefined,
+      gender || undefined
+    );
   };
 
   const inputStyle: React.CSSProperties = {
@@ -76,6 +94,26 @@ function CompleteProfileForm({ onSubmit }: { onSubmit: (name: string, cpf: strin
         style={{ ...inputStyle, ...(cpfError ? { borderColor: '#ef4444' } : {}) }}
       />
       {cpfError && <div style={{ fontSize: '11px', color: '#ef4444', textAlign: 'center' }}>{cpfError}</div>}
+      <label style={{ fontSize: '11px', color: 'var(--mut)' }}>Data de nascimento (opcional)</label>
+      <input
+        type="date"
+        value={dateOfBirth}
+        onChange={(e) => setDateOfBirth(e.target.value)}
+        style={inputStyle}
+      />
+      <label style={{ fontSize: '11px', color: 'var(--mut)' }}>Gênero (opcional)</label>
+      <select
+        value={gender}
+        onChange={(e) => setGender(e.target.value)}
+        style={inputStyle}
+      >
+        <option value="">Selecione</option>
+        <option value="feminino">Feminino</option>
+        <option value="masculino">Masculino</option>
+        <option value="nao_binario">Não-binário</option>
+        <option value="outro">Outro</option>
+        <option value="prefiro_nao_informar">Prefiro não informar</option>
+      </select>
       <button
         type="button"
         disabled={!name.trim() || !email.includes('@') || cpf.replace(/\D/g, '').length !== 11}
@@ -409,9 +447,15 @@ export function LoginStage({ s }: StageProps) {
 
           {stateStr(s, 'phoneStep') === 'complete_profile' && (
             <CompleteProfileForm
-              onSubmit={(name, cpf, email) => {
-                const fn = s['completeProfile'] as (n: string, c: string, e: string) => void;
-                fn(name, cpf, email);
+              onSubmit={(name, cpf, email, dateOfBirth, gender) => {
+                const fn = s['completeProfile'] as (
+                  n: string,
+                  c: string,
+                  e: string,
+                  dob?: string,
+                  g?: string
+                ) => void;
+                fn(name, cpf, email, dateOfBirth, gender);
               }}
             />
           )}

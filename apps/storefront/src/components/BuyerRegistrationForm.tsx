@@ -62,6 +62,20 @@ function formatCPF(value: string): string {
   return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
 }
 
+/** Validates CPF check digits (rejects wrong-length, all-equal, and bad checksums). */
+function isValidCPF(value: string): boolean {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(digits)) return false;
+  const calc = (len: number): number => {
+    let sum = 0;
+    for (let i = 0; i < len; i++) sum += Number(digits[i]) * (len + 1 - i);
+    const rest = (sum * 10) % 11;
+    return rest === 10 ? 0 : rest;
+  };
+  return calc(9) === Number(digits[9]) && calc(10) === Number(digits[10]);
+}
+
 function formatCEP(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 8);
   if (digits.length <= 5) return digits;
@@ -79,6 +93,8 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
   const [emailOtp, setEmailOtp] = useState("");
   const [name, setName] = useState("");
   const [cpf, setCpf] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [gender, setGender] = useState("");
   const [cep, setCep] = useState("");
   const [numero, setNumero] = useState("");
   const [complemento, setComplemento] = useState("");
@@ -211,9 +227,8 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
           if (!name.trim() || name.trim().split(" ").length < 2) {
             throw new Error("Informe seu nome completo");
           }
-          const cpfDigits = cpf.replace(/\D/g, "");
-          if (cpfDigits.length !== 11) {
-            throw new Error("CPF precisa ter 11 dígitos");
+          if (!isValidCPF(cpf)) {
+            throw new Error("CPF inválido. Verifique os dígitos.");
           }
           setCurrentStep(6);
           trackRegistrationStep(merchantId, "auth_identity_confirmed");
@@ -237,6 +252,8 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
               email,
               name: name.trim(),
               cpf: cpfDigits,
+              ...(dateOfBirth ? { dateOfBirth } : {}),
+              ...(gender ? { gender } : {}),
               address: {
                 zip: cepDigits,
                 street: address.street,
@@ -461,6 +478,30 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
               aria-label="CPF"
               style={inputStyle}
             />
+          </div>
+          <div style={inputWrapStyle}>
+            <input
+              value={dateOfBirth}
+              onChange={(e) => setDateOfBirth(e.target.value)}
+              type="date"
+              aria-label="Data de nascimento (opcional)"
+              style={inputStyle}
+            />
+          </div>
+          <div style={inputWrapStyle}>
+            <select
+              value={gender}
+              onChange={(e) => setGender(e.target.value)}
+              aria-label="Gênero (opcional)"
+              style={inputStyle}
+            >
+              <option value="">Gênero (opcional)</option>
+              <option value="feminino">Feminino</option>
+              <option value="masculino">Masculino</option>
+              <option value="nao_binario">Não-binário</option>
+              <option value="outro">Outro</option>
+              <option value="prefiro_nao_informar">Prefiro não informar</option>
+            </select>
           </div>
         </>
       )}

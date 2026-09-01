@@ -50,5 +50,6 @@ import { BuyerMeController } from "./presentation/http/buyer-me.controller.js";
     ListTemplatesForBuyerUseCase,
     UpdateConsentUseCase,
   ],
+  exports: [RegisterBuyerUserUseCase],
 })
 export class SelfCheckoutModule {}

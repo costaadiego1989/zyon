@@ -11,6 +11,8 @@ export interface UpdateBuyerProfileRequest {
   phone?: string;
   email?: string;
   cpf?: string;
+  dateOfBirth?: Date;
+  gender?: string;
   address?: CustomerAddress;
 }
 
@@ -62,10 +64,20 @@ export class UpdateBuyerProfileUseCase {
 
     const updated = account.withUpdatedProfile(input.displayName, input.phone, input.address, input.cpf);
 
+    const withOptionalFields =
+      input.dateOfBirth !== undefined || input.gender !== undefined
+        ? new (updated.constructor as any)({
+            ...updated,
+            dateOfBirth: input.dateOfBirth !== undefined ? input.dateOfBirth : updated.dateOfBirth,
+            gender: input.gender !== undefined ? input.gender : updated.gender,
+            updatedAt: new Date(),
+          })
+        : updated;
+
     // If a real email is provided (not the placeholder), update it
     let finalAccount = wantsRealEmail
-      ? new (updated.constructor as any)({ ...updated, email: input.email, updatedAt: new Date() })
-      : updated;
+      ? new (withOptionalFields.constructor as any)({ ...withOptionalFields, email: input.email, updatedAt: new Date() })
+      : withOptionalFields;
 
     // Create Asaas customer when CPF is set and no asaasCustomerId exists yet
     if (input.cpf && !finalAccount.asaasCustomerId && this.paymentProvider?.createCustomer) {
