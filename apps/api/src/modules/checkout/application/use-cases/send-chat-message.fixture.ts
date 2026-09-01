@@ -63,8 +63,7 @@ export function createSendChatUseCase(
     overrides.offerService as CheckoutOfferService,
     chatContextService,
     chatResponseBuilder,
-    ruleBuilder,
-    overrides.experienceConfig,
+    overrides.experienceConfig ?? { platformFeeBrl: 1.99 },
     overrides.agentContext,
     overrides.merchantRepository
   );

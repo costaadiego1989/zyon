@@ -33,7 +33,7 @@ function makeLiveSendChat(repository: InMemoryCheckoutRepository, custService: C
   const ruleBuilder = new InterventionRuleTextBuilder();
   const contextService = new ChatContextService(repository, ruleBuilder, liveAgentContextPort);
   const responseBuilder = new ChatResponseBuilder(repository);
-  return new SendChatMessageUseCase(repository, new LiveAiConversationPort(), custService, shipService, offerService, contextService, responseBuilder, ruleBuilder, { platformFeeBrl: 1.99 }, liveAgentContextPort);
+  return new SendChatMessageUseCase(repository, new LiveAiConversationPort(), custService, shipService, offerService, contextService, responseBuilder, { platformFeeBrl: 1.99 }, liveAgentContextPort);
 }
 
 const runLiveAi =
