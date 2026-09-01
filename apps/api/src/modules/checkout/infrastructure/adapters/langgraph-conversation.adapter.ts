@@ -17,6 +17,7 @@ import {
   OpenRouterProvider,
   validateAssistantMessage,
   buildChatTools,
+  isSafeGeneratedMessage,
   type ChatAgentDeps,
   type ToolHandlers,
   type Objection,
@@ -118,6 +119,13 @@ export class LangGraphConversationAdapter implements ConversationPort {
         history,
         systemPrompt: this.buildContextualSystemPrompt(input)
       });
+
+      // Apply second-layer safety validation to catch any unsafe LLM output
+      // that the internal agent validator may have missed.
+      if (!isSafeGeneratedMessage(result.message, input.authorizedOffer)) {
+        this.logger.warn("langgraph.unsafe_output.fallback", { unsafe: result.message.slice(0, 100) });
+        return this.fallback(input);
+      }
 
       return {
         message: result.message,
