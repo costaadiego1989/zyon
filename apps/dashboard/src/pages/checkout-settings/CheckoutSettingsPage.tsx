@@ -294,9 +294,22 @@ export function CheckoutSettingsPage(props: {
                 </span>
               }
             >
-              <div className="cfg-help" role="note" style={{ backgroundColor: "#fef3c7", borderLeft: "4px solid #f59e0b", padding: "12px" }} data-priority="rules-over-progressive">
-                <strong>Aviso:</strong> Regras avançadas do merchant têm prioridade sobre o desconto progressivo. Se uma regra avançada já ofereceu desconto ao comprador, o desconto progressivo não acumula.
-              </div>
+              {(() => {
+                const hasCommercialRule = vm.draft!.advancedRules.some(
+                  (r) => r.action?.type === "offer_discount" || r.action?.type === "offer_free_shipping"
+                );
+                const cumulative = vm.draft!.progressiveMode === "both";
+                if (!vm.draft!.progressiveDiscountEnabled || !hasCommercialRule) return null;
+                return cumulative ? (
+                  <div className="cfg-help" role="note" style={{ backgroundColor: "#ecfdf5", borderLeft: "4px solid #10b981", padding: "12px" }} data-priority="rules-cumulative">
+                    <strong>Modo cumulativo:</strong> Regras avançadas e desconto progressivo <em>somam</em> para o comprador. O total é limitado ao teto de desconto do merchant (margem sempre respeitada).
+                  </div>
+                ) : (
+                  <div className="cfg-help" role="note" style={{ backgroundColor: "#fef3c7", borderLeft: "4px solid #f59e0b", padding: "12px" }} data-priority="rules-over-progressive">
+                    <strong>Aviso:</strong> Você tem regras avançadas de desconto/frete ativas. Elas têm prioridade e o desconto progressivo <strong>não vai acumular</strong> — para somar os dois, mude o modo para <strong>"Ambos (cumulativo)"</strong>.
+                  </div>
+                );
+              })()}
               <div className="cfg-rows">
                 <SettingRow
                   id="toggle-progressive-discount"
@@ -453,9 +466,31 @@ export function CheckoutSettingsPage(props: {
                 </span>
               }
             >
-              <div className="cfg-help" role="note" data-priority="advanced-over-progressive">
-                <strong>Prioridade:</strong> Regras Avançadas têm preferência. As Regras Progressivas (Descontos) aplicam apenas quando Regras Avançadas não cobrem a situação.
-              </div>
+              {vm.draft!.progressiveDiscountEnabled && (() => {
+                const cumulative = vm.draft!.progressiveMode === "both";
+                return (
+                  <div
+                    className="cfg-help"
+                    role="note"
+                    style={
+                      cumulative
+                        ? { backgroundColor: "#ecfdf5", borderLeft: "4px solid #10b981", padding: "12px" }
+                        : undefined
+                    }
+                    data-priority={cumulative ? "advanced-cumulative" : "advanced-over-progressive"}
+                  >
+                    {cumulative ? (
+                      <>
+                        <strong>Modo cumulativo:</strong> as regras avançadas desta lista <em>combinam</em> com o desconto progressivo (modo "Ambos"). O total respeita o teto e a margem configurados.
+                      </>
+                    ) : (
+                      <>
+                        <strong>Prioridade:</strong> Regras Avançadas têm preferência. O desconto progressivo só dispara quando esta regra não casa.
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
               <RulesList
                 rules={vm.draft!.advancedRules}
                 busy={vm.busy}
