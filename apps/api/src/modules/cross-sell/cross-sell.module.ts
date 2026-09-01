@@ -84,7 +84,8 @@ import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purc
     AcceptCrossSellSuggestionUseCase,
     AcceptCrossSellFromWidgetUseCase,
     DeclineCrossSellSuggestionUseCase,
-    CHECKOUT_CROSS_SELL_RECOMMENDER
+    CHECKOUT_CROSS_SELL_RECOMMENDER,
+    CROSS_SELL_PROMOTION_REPOSITORY,
   ]
 })
 export class CrossSellModule {}

@@ -44,10 +44,11 @@ export class MerchantCrossSellController {
   async updatePromotion(
     @Req() req: unknown,
     @Param("id") id: string,
-    @Body() body: { patch: Record<string, unknown> }
+    @Body() body: { patch?: Record<string, unknown> } & Record<string, unknown>
   ) {
     const { merchantId } = currentUser(req as { user?: unknown });
-    return this.update.execute({ id, merchant_id: merchantId, patch: body.patch as any });
+    const patch = (body.patch ?? body) as Record<string, unknown>;
+    return this.update.execute({ id, merchant_id: merchantId, patch: patch as any });
   }
 
   @Delete("promotions/:id")

@@ -23,6 +23,9 @@ export function isPromotionEligible(promotion: CrossSellPromotionEntity, cart: C
     if (!matches) return false;
   }
 
+  // Cart total threshold: trigger.cart_total_above is in REAIS (major units), matching
+  // cart.total from the storefront helper (which divides by 100 to convert cents→reais).
+  // Always compare reais vs reais; never mix cents with reais.
   if (trigger.cart_total_above !== undefined && cart.total <= trigger.cart_total_above) {
     return false;
   }
