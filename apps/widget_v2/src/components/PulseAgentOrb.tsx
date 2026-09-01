@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { useCheckoutStore } from "@/store/checkout-store";
 
 export type AgentOrbMood = "happy" | "sad" | "neutral";
 
@@ -49,6 +50,7 @@ export interface PulseAgentOrbProps {
   active?: boolean;
   className?: string;
   style?: CSSProperties;
+  avatarUrl?: string;
 }
 
 export function PulseAgentOrb({
@@ -56,7 +58,13 @@ export function PulseAgentOrb({
   active = false,
   className,
   style,
+  avatarUrl,
 }: PulseAgentOrbProps) {
+  // Merchant-branded avatar: prop overrides, otherwise fall back to the theme's
+  // agentAvatarUrl from the store so every orb placement picks it up without
+  // touching each call site.
+  const brandAvatarUrl = useCheckoutStore((s) => s.brand?.agentAvatarUrl);
+  const resolvedAvatarUrl = avatarUrl ?? brandAvatarUrl;
   const preset = AGENT_ORB_PRESETS[placement];
   const { size, mood, muted, ring, float, glow, spin } = preset;
   const ratios = EYE_RATIOS[mood];
@@ -125,17 +133,36 @@ export function PulseAgentOrb({
           }}
         />
       )}
-      <div
-        className="pulse-agent-orb__sphere"
-        style={{
-          animation: spin ? "orbSpin 24s linear infinite" : undefined,
-        }}
-      />
-      <div className="pulse-agent-orb__eyes">
-        <span className="pulse-agent-orb__eye" />
-        <span className="pulse-agent-orb__eye" />
-      </div>
-      {mood === "sad" && (
+      {resolvedAvatarUrl ? (
+        <img
+          className="pulse-agent-orb__avatar"
+          src={resolvedAvatarUrl}
+          alt=""
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            borderRadius: "50%",
+            objectFit: "cover",
+            animation: spin ? "orbSpin 24s linear infinite" : undefined,
+          }}
+        />
+      ) : (
+        <>
+          <div
+            className="pulse-agent-orb__sphere"
+            style={{
+              animation: spin ? "orbSpin 24s linear infinite" : undefined,
+            }}
+          />
+          <div className="pulse-agent-orb__eyes">
+            <span className="pulse-agent-orb__eye" />
+            <span className="pulse-agent-orb__eye" />
+          </div>
+        </>
+      )}
+      {!resolvedAvatarUrl && mood === "sad" && (
         <svg
           className="pulse-agent-orb__mouth"
           width={mouthW}

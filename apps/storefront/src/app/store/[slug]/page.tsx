@@ -276,6 +276,7 @@ export default async function StorePage({
               returnOrderId={order}
               agentName={config?.agentName}
               agentGreeting={config?.agentGreeting}
+              agentAvatarUrl={config?.theme?.agentAvatarUrl}
               quickReplies={config?.quickReplies}
               merchantId={config?.merchantId}
               merchantSlug={slug}

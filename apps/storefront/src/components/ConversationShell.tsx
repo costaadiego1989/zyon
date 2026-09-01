@@ -44,6 +44,7 @@ export default function ConversationShell({
   merchantSlug,
   storeSettings,
   agentGreeting,
+  agentAvatarUrl,
   initialStories,
   themeMode,
   showBranding,
@@ -55,6 +56,7 @@ export default function ConversationShell({
   returnOrderId?: string;
   agentName?: string;
   agentGreeting?: string;
+  agentAvatarUrl?: string;
   quickReplies?: string[];
   merchantId?: string;
   merchantSlug?: string;
@@ -305,7 +307,7 @@ export default function ConversationShell({
           <div style={{ maxWidth: "520px", width: "100%", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
             <div style={{ position: "absolute", top: "-50px", left: "50%", transform: "translateX(-50%)", width: "220px", height: "220px", borderRadius: "50%", background: "var(--aacp-accent, #0f766e)", filter: "blur(80px)", opacity: 0.22, pointerEvents: "none" }} />
             <div style={{ width: "min(100%, 520px)", display: "flex", justifyContent: "center", alignItems: "center", margin: "0 auto 18px", position: "relative", zIndex: 1 }}>
-              <PulseAgentOrb size={96} />
+              <PulseAgentOrb size={96} avatarUrl={agentAvatarUrl} />
             </div>
 
             <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "10px", lineHeight: 1.45, letterSpacing: "2px", textTransform: "uppercase", color: "var(--aacp-muted)", marginBottom: "6px" }}>
@@ -345,7 +347,7 @@ export default function ConversationShell({
             {/* Welcome state — no messages yet */}
             {messages.length === 0 && !isLoading && (
               <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "10px", padding: "16px 20px", textAlign: "center" }}>
-                <PulseAgentOrb size={56} />
+                <PulseAgentOrb size={56} avatarUrl={agentAvatarUrl} />
                 <div style={{ marginTop: "4px", maxWidth: "100%", width: "100%" }}>
                   <div style={{ fontSize: "20px", fontWeight: 700, color: "var(--aacp-fg)", lineHeight: 1.3, letterSpacing: "-0.3px", fontFamily: "var(--aacp-font-display, var(--aacp-font))" }}>Olá! Sou {agent} 👋</div>
                   <div style={{ fontSize: "13px", color: "var(--aacp-muted)", marginTop: "8px", lineHeight: 1.5, maxWidth: "380px", marginLeft: "auto", marginRight: "auto", fontFamily: "var(--aacp-font)", whiteSpace: "pre-line" }}>
@@ -393,12 +395,16 @@ export default function ConversationShell({
                 }
                 return (
                   <div key={m.id} style={{ display: "flex", gap: "9px", alignItems: "flex-start", maxWidth: isFullWidth ? "100%" : "min(82%, 520px)", alignSelf: "flex-start", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both", width: isFullWidth ? "100%" : undefined }}>
-                    <div style={{ width: "26px", height: "26px", borderRadius: "50%", background: `radial-gradient(120% 120% at 30% 25%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0) 42%), var(--aacp-accent)`, flex: "none", position: "relative", marginTop: "4px" }}>
-                      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: "2px" }}>
-                        <span style={{ width: "2px", height: "3px", borderRadius: "50%", background: "#fff" }} />
-                        <span style={{ width: "2px", height: "3px", borderRadius: "50%", background: "#fff" }} />
+                    {agentAvatarUrl ? (
+                      <img src={agentAvatarUrl} alt="" style={{ width: "26px", height: "26px", borderRadius: "50%", objectFit: "cover", flex: "none", marginTop: "4px" }} />
+                    ) : (
+                      <div style={{ width: "26px", height: "26px", borderRadius: "50%", background: `radial-gradient(120% 120% at 30% 25%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0) 42%), var(--aacp-accent)`, flex: "none", position: "relative", marginTop: "4px" }}>
+                        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: "2px" }}>
+                          <span style={{ width: "2px", height: "3px", borderRadius: "50%", background: "#fff" }} />
+                          <span style={{ width: "2px", height: "3px", borderRadius: "50%", background: "#fff" }} />
+                        </div>
                       </div>
-                    </div>
+                    )}
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1, minWidth: 0 }}>
                       {m.text && <div style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", fontSize: "13.5px", lineHeight: 1.55, whiteSpace: "pre-wrap", background: "var(--aacp-card)", color: "var(--aacp-fg)", wordWrap: "break-word", border: "1px solid var(--aacp-line)" }} dangerouslySetInnerHTML={{ __html: renderMarkdownText(m.text) }} />}
                       {m.blocks?.map((block, idx) => (
@@ -419,13 +425,17 @@ export default function ConversationShell({
             })}
             {isLoading && (
               <div style={{ display: "flex", gap: "9px", alignItems: "flex-end", alignSelf: "flex-start", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
-                {/* Thinking orb with eyes looking up */}
-                <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: `radial-gradient(120% 120% at 30% 25%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0) 42%), var(--aacp-accent)`, flex: "none", position: "relative", display: "flex", alignItems: "center", justifyContent: "center", gap: "2.2px" }}>
-                  {/* Left eye — looking up */}
-                  <span style={{ width: "2.5px", height: "3.5px", borderRadius: "50%", background: "#fff", boxShadow: "0 0 8px rgba(0,0,0,0.12)", animation: "eyeThinkUp 2s ease-in-out infinite", flex: "none" }} />
-                  {/* Right eye — looking up */}
-                  <span style={{ width: "2.5px", height: "3.5px", borderRadius: "50%", background: "#fff", boxShadow: "0 0 8px rgba(0,0,0,0.12)", animation: "eyeThinkUp 2s ease-in-out infinite", animationDelay: "0.1s", flex: "none" }} />
-                </div>
+                {/* Thinking orb — branded avatar when set, else CSS orb with eyes looking up */}
+                {agentAvatarUrl ? (
+                  <img src={agentAvatarUrl} alt="" style={{ width: "28px", height: "28px", borderRadius: "50%", objectFit: "cover", flex: "none" }} />
+                ) : (
+                  <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: `radial-gradient(120% 120% at 30% 25%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0) 42%), var(--aacp-accent)`, flex: "none", position: "relative", display: "flex", alignItems: "center", justifyContent: "center", gap: "2.2px" }}>
+                    {/* Left eye — looking up */}
+                    <span style={{ width: "2.5px", height: "3.5px", borderRadius: "50%", background: "#fff", boxShadow: "0 0 8px rgba(0,0,0,0.12)", animation: "eyeThinkUp 2s ease-in-out infinite", flex: "none" }} />
+                    {/* Right eye — looking up */}
+                    <span style={{ width: "2.5px", height: "3.5px", borderRadius: "50%", background: "#fff", boxShadow: "0 0 8px rgba(0,0,0,0.12)", animation: "eyeThinkUp 2s ease-in-out infinite", animationDelay: "0.1s", flex: "none" }} />
+                  </div>
+                )}
                 {/* 3-dot bubble */}
                 <div style={{ padding: "10px 14px", borderRadius: "16px 16px 16px 4px", background: "var(--aacp-card)", border: "1px solid var(--aacp-line)", display: "flex", gap: "3px", alignItems: "center" }}>
                   <span style={{ width: "3px", height: "3px", borderRadius: "50%", background: "var(--aacp-muted)", animation: "dot-pulse 1.2s infinite", animationDelay: "0s" }} />
