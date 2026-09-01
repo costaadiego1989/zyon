@@ -67,9 +67,9 @@ export class GetFunnelUseCase {
   async execute(
     merchantId: string,
     period: FunnelPeriod = "7d",
-    options?: { breakdown?: FunnelBreakdown; compare?: boolean },
+    options?: { breakdown?: FunnelBreakdown; compare?: boolean; range?: { from?: string; to?: string } },
   ): Promise<FunnelResult> {
-    const { from, to } = resolveDateRange(period);
+    const { from, to } = resolveEffectiveRange(period, options?.range);
 
     const currentResult = await this.computeFunnel(merchantId, from, to);
 
@@ -268,32 +268,65 @@ export class GetFunnelUseCase {
   }
 
   private async computeDeviceBreakdown(
-    _merchantId: string,
-    _from: Date,
-    _to: Date,
+    merchantId: string,
+    from: Date,
+    to: Date,
   ): Promise<Record<string, FunnelSegment>> {
-    // TODO: Implement when device tracking is added to checkout_events metadata.
-    // Currently returns mock breakdown structure for UI development.
-    return {
-      mobile: { steps: buildMockSteps(65), overallConversion: 22.5 },
-      desktop: { steps: buildMockSteps(85), overallConversion: 31.2 },
-      tablet: { steps: buildMockSteps(40), overallConversion: 18.0 },
-    };
+    const events = await this.prisma.checkoutEvent.findMany({
+      where: {
+        merchantId,
+        sessionId: { startsWith: "chk_" },
+        occurredAt: { gte: from, lte: to },
+      },
+      select: { sessionId: true, metadata: true },
+    });
+
+    const sessionsByDevice = new Map<string, string[]>();
+    for (const ev of events) {
+      const device = (ev.metadata as any)?.device ?? null;
+      if (!device) continue;
+      const list = sessionsByDevice.get(device) ?? [];
+      if (!list.includes(ev.sessionId)) list.push(ev.sessionId);
+      sessionsByDevice.set(device, list);
+    }
+
+    const breakdowns: Record<string, FunnelSegment> = {};
+    for (const device of ["mobile", "tablet", "desktop"]) {
+      const sessionIds = sessionsByDevice.get(device) ?? [];
+      breakdowns[device] = await this.computeSegmentSteps(merchantId, from, to, sessionIds);
+    }
+    return breakdowns;
   }
 
   private async computePaymentMethodBreakdown(
-    _merchantId: string,
-    _from: Date,
-    _to: Date,
+    merchantId: string,
+    from: Date,
+    to: Date,
   ): Promise<Record<string, FunnelSegment>> {
-    // TODO: Implement when payment method metadata is stored on checkout_events.
-    // Currently CheckoutEvent does not have a metadata column, so we cannot
-    // extract the payment method from event data. Returns mock breakdown for UI development.
-    return {
-      pix: { steps: buildMockSteps(55), overallConversion: 28.0 },
-      card: { steps: buildMockSteps(70), overallConversion: 24.5 },
-      boleto: { steps: buildMockSteps(30), overallConversion: 15.2 },
-    };
+    const events = await this.prisma.checkoutEvent.findMany({
+      where: {
+        merchantId,
+        sessionId: { startsWith: "chk_" },
+        occurredAt: { gte: from, lte: to },
+      },
+      select: { sessionId: true, metadata: true },
+    });
+
+    const sessionsByMethod = new Map<string, string[]>();
+    for (const ev of events) {
+      const method = (ev.metadata as any)?.payment_method ?? null;
+      if (!method) continue;
+      const list = sessionsByMethod.get(method) ?? [];
+      if (!list.includes(ev.sessionId)) list.push(ev.sessionId);
+      sessionsByMethod.set(method, list);
+    }
+
+    const breakdowns: Record<string, FunnelSegment> = {};
+    for (const method of ["pix", "card", "boleto"]) {
+      const sessionIds = sessionsByMethod.get(method) ?? [];
+      breakdowns[method] = await this.computeSegmentSteps(merchantId, from, to, sessionIds);
+    }
+    return breakdowns;
   }
 
   private async computeSegmentSteps(
@@ -350,20 +383,6 @@ export class GetFunnelUseCase {
   }
 }
 
-function buildMockSteps(baseCount: number): FunnelStep[] {
-  // Generate a declining funnel from baseCount for each step definition
-  const counts = STEP_DEFINITIONS.map((_, i) => {
-    const decay = 1 - (i / (STEP_DEFINITIONS.length - 1)) * 0.75;
-    return Math.round(baseCount * decay);
-  });
-  return STEP_DEFINITIONS.map((def, i) => ({
-    name: def.name,
-    label: def.label,
-    count: counts[i],
-    percentage: baseCount > 0 ? Math.round((counts[i] / counts[0]) * 10000) / 100 : 0,
-  }));
-}
-
 function resolveDateRange(period: FunnelPeriod): { from: Date; to: Date } {
   const now = new Date();
   const to = now;
@@ -387,6 +406,27 @@ function resolveDateRange(period: FunnelPeriod): { from: Date; to: Date } {
   }
 
   return { from, to };
+}
+
+/**
+ * When an explicit from/to range is supplied (YYYY-MM-DD or ISO), it overrides
+ * the preset period. Invalid or partial ranges fall back to the preset period.
+ * `from` clamps to start-of-day, `to` clamps to end-of-day.
+ */
+function resolveEffectiveRange(
+  period: FunnelPeriod,
+  range?: { from?: string; to?: string },
+): { from: Date; to: Date } {
+  if (range?.from && range?.to) {
+    const from = new Date(range.from);
+    const to = new Date(range.to);
+    if (!Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime()) && from <= to) {
+      from.setHours(0, 0, 0, 0);
+      to.setHours(23, 59, 59, 999);
+      return { from, to };
+    }
+  }
+  return resolveDateRange(period);
 }
 
 function computeAvgTimeBetweenSteps(

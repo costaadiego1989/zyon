@@ -16,6 +16,9 @@
   justify-content: space-between;
   gap: var(--space-4);
   flex-wrap: wrap;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--color-border);
 }
 .fnl-head-left {
   display: flex;
@@ -52,9 +55,12 @@
   gap: var(--space-3);
 }
 .fnl-select {
-  padding: 6px 28px 6px 12px;
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 170px;
+  padding: 7px 28px 7px 12px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-full);
   background: var(--card);
   color: var(--ink);
   font: 500 12px var(--font-sans);
@@ -87,32 +93,67 @@
 }
 .fnl-export-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+/* ── Filter bar (mirrors Orders & Shipments page) ───────────────────────── */
+.fnl-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  flex-wrap: wrap;
+}
+.fnl-filter-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.fnl-daterange {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fnl-daterange-sep {
+  color: var(--muted);
+  font-size: 12px;
+}
+.fnl-date-input {
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--ink);
+  font: 12px var(--font-sans);
+  color-scheme: dark;
+}
+.fnl-date-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 .fnl-period-bar {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  background: var(--color-surface-alt);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  padding: 3px;
+  gap: 0.5rem;
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 .fnl-period-btn {
   padding: 6px 14px;
-  border: none;
+  border: 1px solid var(--border);
   border-radius: var(--radius-full);
   background: transparent;
   color: var(--muted);
-  font: 600 12px var(--font-sans);
+  font: 500 12px var(--font-sans);
   cursor: pointer;
   white-space: nowrap;
   transition: all var(--duration-base) var(--ease);
 }
-.fnl-period-btn:hover { color: var(--ink); }
+.fnl-period-btn:hover { color: var(--ink); border-color: var(--accent); }
 .fnl-period-btn.active {
   background: var(--accent);
+  border-color: var(--accent);
   color: #fff;
-  box-shadow: 0 2px 8px oklch(74% 0.19 149 / 0.3);
 }
 
 /* ── Period Tabs ──────────────────────────────────────────────────────────── */

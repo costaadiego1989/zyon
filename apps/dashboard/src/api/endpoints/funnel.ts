@@ -33,12 +33,15 @@ export function funnelEndpoints(base: string, f: typeof fetch) {
         period?: "today" | "7d" | "30d" | "90d";
         breakdown?: "none" | "device" | "buyer_type" | "payment_method";
         compare?: boolean;
+        from?: string;
+        to?: string;
       }
     ): Promise<FunnelData> {
       const query = new URLSearchParams();
       if (params.period) query.set("period", params.period);
       if (params.breakdown) query.set("breakdown", params.breakdown);
       if (params.compare) query.set("compare", "true");
+      if (params.from && params.to) { query.set("from", params.from); query.set("to", params.to); }
       const url = query.toString()
         ? `/checkout/funnel/${encodeURIComponent(merchantId)}?${query}`
         : `/checkout/funnel/${encodeURIComponent(merchantId)}`;
@@ -51,12 +54,15 @@ export function funnelEndpoints(base: string, f: typeof fetch) {
         period?: "today" | "7d" | "30d" | "90d";
         breakdown?: "none" | "device" | "buyer_type" | "payment_method";
         compare?: boolean;
+        from?: string;
+        to?: string;
       }
     ): Promise<FunnelData> {
       const query = new URLSearchParams();
       if (params.period) query.set("period", params.period);
       if (params.breakdown) query.set("breakdown", params.breakdown);
       if (params.compare) query.set("compare", "true");
+      if (params.from && params.to) { query.set("from", params.from); query.set("to", params.to); }
       const url = query.toString()
         ? `/storefront/funnel/${encodeURIComponent(merchantId)}?${query}`
         : `/storefront/funnel/${encodeURIComponent(merchantId)}`;

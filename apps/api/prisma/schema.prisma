@@ -312,6 +312,7 @@ model CheckoutEvent {
   sessionId  String   @map("session_id")
   eventName  String   @map("event_name")
   occurredAt DateTime @map("occurred_at")
+  metadata   Json?    @map("metadata")
 
   session CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)
 

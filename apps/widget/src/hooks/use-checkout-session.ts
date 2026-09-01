@@ -23,6 +23,16 @@ export interface SessionStartedEvent {
   ts: number;
 }
 
+type DeviceType = 'mobile' | 'tablet' | 'desktop';
+
+function detectDevice(): DeviceType {
+  if (typeof navigator === 'undefined') return 'desktop';
+  const ua = navigator.userAgent.toLowerCase();
+  if (/ipad|android(?!.*mobi)/.test(ua)) return 'tablet';
+  if (/mobile|android|iphone|ipod|blackberry|iemobile/.test(ua)) return 'mobile';
+  return 'desktop';
+}
+
 /**
  * P1 (ADR 0002): localStorage keys are namespaced by merchantId so two
  * merchants embedded on the same origin cannot share session/identity state.
@@ -153,13 +163,13 @@ export function useCheckoutSession(config: WidgetConfig) {
     }
   }
 
-  async function track(event: CheckoutEventName): Promise<void> {
+  async function track(event: CheckoutEventName, metadata?: Record<string, unknown>): Promise<void> {
     if (!session) return;
     const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
     const body =
       config.mode === "embed"
-        ? { session_id: session.session_id, event }
-        : { merchant_id: config.merchantId, session_id: session.session_id, event };
+        ? { session_id: session.session_id, event, ...(metadata && { metadata }) }
+        : { merchant_id: config.merchantId, session_id: session.session_id, event, ...(metadata && { metadata }) };
     try {
       await checkoutJson<TrackEventResponse>(apiOrigin, paths.track, {
         ...embedOpts,
@@ -221,6 +231,14 @@ export function useCheckoutSession(config: WidgetConfig) {
     return () => { window.clearTimeout(idleTimer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Attach device metadata to the earliest tracked event once the session is
+  // ready. Fires exactly once per session start (keyed on startedEvent.ts).
+  useEffect(() => {
+    if (!startedEvent) return;
+    void track("idle_30_seconds", { device: detectDevice() });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startedEvent?.ts]);
 
   return {
     session,

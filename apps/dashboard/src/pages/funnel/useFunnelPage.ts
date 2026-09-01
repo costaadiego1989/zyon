@@ -244,6 +244,8 @@ export interface FunnelSessionsResponse {
 export interface FunnelPageVM {
   period: FunnelPeriod;
   setPeriod: (p: FunnelPeriod) => void;
+  dateRange: { from: string; to: string };
+  setDateRange: (r: { from: string; to: string }) => void;
   breakdown: FunnelBreakdownDimension;
   setBreakdown: (b: FunnelBreakdownDimension) => void;
   compareEnabled: boolean;
@@ -376,6 +378,7 @@ export function useFunnelPage(props: {
     setData(getEmptyFunnel(source));
   }, []);
   const [period, setPeriod] = useState<FunnelPeriod>("7d");
+  const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: "", to: "" });
   const [breakdown, setBreakdown] = useState<FunnelBreakdownDimension>("none");
   const [compareEnabled, setCompareEnabled] = useState(false);
   const [data, setData] = useState<FunnelData | null>(getEmptyFunnel(initialSource));
@@ -388,7 +391,13 @@ export function useFunnelPage(props: {
     setLoading(true);
     setError(null);
     try {
-      const params = { period, breakdown, compare: compareEnabled };
+      const hasRange = Boolean(dateRange.from && dateRange.to);
+      const params = {
+        period,
+        breakdown,
+        compare: compareEnabled,
+        ...(hasRange ? { from: dateRange.from, to: dateRange.to } : {}),
+      };
       const json: FunnelData = funnelSource === "storefront"
         ? await api.getStorefrontFunnel(merchantId, params)
         : await api.getCheckoutFunnel(merchantId, params);
@@ -412,7 +421,7 @@ export function useFunnelPage(props: {
     } finally {
       setLoading(false);
     }
-  }, [api, merchantId, period, breakdown, compareEnabled, funnelSource]);
+  }, [api, merchantId, period, breakdown, compareEnabled, funnelSource, dateRange.from, dateRange.to]);
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -468,6 +477,8 @@ export function useFunnelPage(props: {
   return {
     period,
     setPeriod,
+    dateRange,
+    setDateRange,
     breakdown,
     setBreakdown,
     compareEnabled,

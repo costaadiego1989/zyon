@@ -38,7 +38,7 @@ export class TrackCheckoutEventUseCase {
     if (!session) {
       throw new NotFoundException("checkout_session_not_found");
     }
-    await this.sessions.recordEvent(input.merchant_id, input.session_id, input.event);
+    await this.sessions.recordEvent(input.merchant_id, input.session_id, input.event, input.metadata);
 
     // Track funnel event for experiment if checkout_started
     if (input.event === 'checkout_started' && session.promptVariantId && this.recordFunnelEvent) {

@@ -53,7 +53,7 @@ export class InMemoryCheckoutRepository
   private acceptedOffers = new Map<string, AcceptedOffer>();
   private completedOrders = new Map<string, CompletedOrder>();
   private outbox: DomainEventEnvelope[] = [];
-  private events: Array<{ merchantId: string; sessionId: string; event: CheckoutEventName; at: string }> = [];
+  private events: Array<{ merchantId: string; sessionId: string; event: CheckoutEventName; at: string; metadata?: Record<string, unknown> }> = [];
 
   async transaction<T>(work: (repository: CheckoutRepository) => Promise<T>): Promise<T> {
     return work(this);
@@ -137,8 +137,8 @@ export class InMemoryCheckoutRepository
     );
   }
 
-  recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName): void {
-    this.events.push({ merchantId, sessionId, event, at: new Date().toISOString() });
+  recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName, metadata?: Record<string, unknown>): void {
+    this.events.push({ merchantId, sessionId, event, at: new Date().toISOString(), metadata: metadata ?? undefined });
     const session = this.getSession(merchantId, sessionId);
     if (!session) return;
     const score = CheckoutAbandonmentService.applyEvent(session.abandonmentScore, event);

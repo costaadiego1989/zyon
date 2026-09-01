@@ -122,14 +122,14 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     return rows.map(toCheckoutSession);
   }
 
-  async recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName): Promise<void> {
+  async recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName, metadata?: Record<string, unknown>): Promise<void> {
     if (!event) return; // Guard: missing event name should not 500
     await this.prisma.$transaction(async (tx) => {
       const session = await tx.checkoutSession.findUnique({
         where: { merchantId_sessionId: { merchantId, sessionId } }
       });
       await tx.checkoutEvent.create({
-        data: { merchantId, sessionId, eventName: event, occurredAt: new Date() }
+        data: { merchantId, sessionId, eventName: event, occurredAt: new Date(), metadata: metadata as any }
       });
       if (!session) return;
       const score = CheckoutAbandonmentService.applyEvent(session.abandonmentScore, event);

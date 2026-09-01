@@ -296,11 +296,22 @@ export class StorefrontController {
   @Get("funnel/:merchantId")
   async getFunnel(
     @Param("merchantId") merchantId: string,
-    @Query("period") period?: string
+    @Query("period") period?: string,
+    @Query("breakdown") breakdown?: string,
+    @Query("compare") compare?: string,
+    @Query("from") from?: string,
+    @Query("to") to?: string
   ) {
     const validPeriods = ["today", "7d", "30d", "90d"];
     const resolvedPeriod = validPeriods.includes(period ?? "") ? (period as "today" | "7d" | "30d" | "90d") : "7d";
-    return this.getStorefrontFunnel.execute(merchantId, resolvedPeriod);
+    const validBreakdowns = ["device", "buyer_type", "payment_method"];
+    const resolvedBreakdown = validBreakdowns.includes(breakdown ?? "") ? (breakdown as "device" | "buyer_type" | "payment_method") : undefined;
+    const resolvedCompare = compare === "true" || compare === "1";
+    return this.getStorefrontFunnel.execute(merchantId, resolvedPeriod, {
+      breakdown: resolvedBreakdown,
+      compare: resolvedCompare,
+      range: from && to ? { from, to } : undefined
+    });
   }
 
   @Get("funnel/:merchantId/sessions")

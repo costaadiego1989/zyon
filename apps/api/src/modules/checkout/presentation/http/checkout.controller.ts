@@ -33,6 +33,8 @@ import { UpdateOrderTrackingUseCase } from "../../application/use-cases/update-o
 import { UpdateCartUseCase } from "../../application/use-cases/update-cart.use-case.js";
 import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
 import { PlanLimitGuard, RequirePlanLimit } from "../../../payment/domain/billing-plan-guard.js";
+import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
+import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-ownership.guard.js";
 
 @NonProductionRoute()
 @Controller("checkout")
@@ -116,11 +118,13 @@ export class CheckoutController {
   }
 
   @Get("dashboard/overview/:merchantId")
+  @UseGuards(AuthGuard, MerchantOwnershipGuard)
   overview(@Param("merchantId") merchantId: string) {
     return this.getDashboardOverview.execute(merchantId);
   }
 
   @Get("dashboard/store-overview/:merchantId")
+  @UseGuards(AuthGuard, MerchantOwnershipGuard)
   storeOverview(
     @Param("merchantId") merchantId: string,
     @Query("period") period?: StorePeriod,
@@ -130,6 +134,7 @@ export class CheckoutController {
   }
 
   @Get("dashboard/overview/timeseries/:merchantId")
+  @UseGuards(AuthGuard, MerchantOwnershipGuard)
   timeseries(
     @Param("merchantId") merchantId: string,
     @Query("period") period?: StorePeriod,
@@ -139,21 +144,26 @@ export class CheckoutController {
   }
 
   @Get("dashboard/rules/:merchantId")
+  @UseGuards(AuthGuard, MerchantOwnershipGuard)
   rules(@Param("merchantId") merchantId: string) {
     return this.getRules.execute(merchantId);
   }
 
   @Put("dashboard/rules/:merchantId")
+  @UseGuards(AuthGuard, MerchantOwnershipGuard)
   update(@Param("merchantId") merchantId: string, @Body() body: Partial<MerchantRules>) {
     return this.updateRules.execute(merchantId, body);
   }
 
   @Get("funnel/:merchantId")
+  @UseGuards(AuthGuard, MerchantOwnershipGuard)
   funnel(
     @Param("merchantId") merchantId: string,
     @Query("period") period?: string,
     @Query("breakdown") breakdown?: string,
     @Query("compare") compare?: string,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
   ) {
     if (!this.getFunnel) throw new Error("funnel_not_configured");
     const validBreakdowns = ["device", "buyer_type", "payment_method"];
@@ -163,11 +173,12 @@ export class CheckoutController {
     return this.getFunnel.execute(
       merchantId,
       (period ?? "7d") as "today" | "7d" | "30d" | "90d",
-      { breakdown: breakdownValue, compare: compare === "true" },
+      { breakdown: breakdownValue, compare: compare === "true", range: from && to ? { from, to } : undefined },
     );
   }
 
   @Get("funnel/:merchantId/sessions")
+  @UseGuards(AuthGuard, MerchantOwnershipGuard)
   funnelSessions(@Param("merchantId") merchantId: string) {
     if (!this.getFunnelSessions) throw new Error("funnel_sessions_not_configured");
     return this.getFunnelSessions.execute(merchantId);

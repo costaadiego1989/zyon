@@ -9,7 +9,7 @@ export interface CheckoutSessionRepository {
   getSession(merchantId: string, sessionId: string): MaybePromise<CheckoutSession | undefined>;
   findSessionsByEmail(merchantId: string, email: string): MaybePromise<CheckoutSession[]>;
   appendChatTurn(merchantId: string, sessionId: string, turn: ChatTurn): MaybePromise<CheckoutSession>;
-  recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName): MaybePromise<void>;
+  recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName, metadata?: Record<string, unknown>): MaybePromise<void>;
   /**
    * Find sessions where triggerAgent=true and abandonmentScore >= threshold.
    * Used by Cart Recovery scanner to find sessions ready for intervention.

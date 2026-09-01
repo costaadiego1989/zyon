@@ -43,41 +43,15 @@ export function FunnelPage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Merchan
           <h1>Funil de Conversão</h1>
           <p className="page-lead">Métricas de progresso dos visitantes em cada etapa</p>
         </div>
-        <div className="fnl-head-right">
-          <div className="fnl-filters-row">
-            <div className="fnl-period-bar">
-              {PERIODS.map(({ key, label }) => (
-                <button
-                  key={key}
-                  type="button"
-                  className={`fnl-period-btn${vm.period === key ? " active" : ""}`}
-                  onClick={() => vm.setPeriod(key)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <select
-              value={vm.breakdown}
-              onChange={(e) => vm.setBreakdown(e.target.value as any)}
-              className="fnl-select"
-            >
-              <option value="none">Sem segmentação</option>
-              <option value="device">Dispositivo</option>
-              <option value="buyer_type">Tipo comprador</option>
-              <option value="payment_method">Pagamento</option>
-            </select>
-            <button
-              type="button"
-              className="fnl-export-btn"
-              onClick={vm.exportCsv}
-              disabled={!vm.data}
-              title="Exportar CSV"
-            >
-              <Download size={13} />
-            </button>
-          </div>
-        </div>
+        <button
+          type="button"
+          className="fnl-export-btn"
+          onClick={vm.exportCsv}
+          disabled={!vm.data}
+          title="Exportar CSV"
+        >
+          <Download size={13} />
+        </button>
       </header>
 
       {/* ── Source Tabs (for BOTH plan) ── */}
@@ -99,6 +73,55 @@ export function FunnelPage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Merchan
 
       {/* ── Metrics (always visible) ── */}
       {vm.data && <FunnelMetrics data={vm.data} />}
+
+      {/* ── Filter bar — pills + segmentation left, date range right (mirrors Orders page) ── */}
+      <div className="fnl-filter-bar">
+        <div className="fnl-filter-bar-left">
+          <div className="fnl-period-bar">
+            {PERIODS.map(({ key, label }) => {
+              const isActive = vm.period === key && !(vm.dateRange.from && vm.dateRange.to);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={`fnl-period-btn${isActive ? " active" : ""}`}
+                  onClick={() => { vm.setPeriod(key); vm.setDateRange({ from: "", to: "" }); }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          <select
+            value={vm.breakdown}
+            onChange={(e) => vm.setBreakdown(e.target.value as any)}
+            className="fnl-select"
+            aria-label="Segmentação"
+          >
+            <option value="none">Sem segmentação</option>
+            <option value="device">Dispositivo</option>
+            <option value="buyer_type">Tipo comprador</option>
+            <option value="payment_method">Pagamento</option>
+          </select>
+        </div>
+        <div className="fnl-daterange">
+          <input
+            type="date"
+            className="fnl-date-input"
+            value={vm.dateRange.from}
+            onChange={(e) => vm.setDateRange({ ...vm.dateRange, from: e.target.value })}
+            aria-label="Data inicial"
+          />
+          <span className="fnl-daterange-sep">até</span>
+          <input
+            type="date"
+            className="fnl-date-input"
+            value={vm.dateRange.to}
+            onChange={(e) => vm.setDateRange({ ...vm.dateRange, to: e.target.value })}
+            aria-label="Data final"
+          />
+        </div>
+      </div>
 
       {/* ── Chart + Breakdown ── */}
       <div className={`fnl-body${vm.breakdown === "none" ? " no-breakdown" : ""}`}>
