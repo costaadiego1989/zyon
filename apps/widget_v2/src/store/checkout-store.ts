@@ -723,7 +723,10 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
           shipping: {
             key,
             label: result.shipping?.method ?? key,
-            cost: Math.round((result.shipping?.customerPrice ?? 0) * 100),
+            // customerPrice is in reais (major units); cart.total and the
+            // SmartCart formatter also work in reais, so keep the same unit.
+            // Multiplying by 100 here inflated shipping and the total 100x.
+            cost: result.shipping?.customerPrice ?? 0,
           },
           status: "shipping_calculated",
         },
