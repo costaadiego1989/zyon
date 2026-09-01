@@ -12,18 +12,24 @@ export function useRevenueManagerPage(me: MerchantProfile | null) {
   const [lessons, setLessons] = useState<StrategyLesson[]>([]);
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState<Set<string>>(new Set());
+  const [engineEnabled, setEngineEnabled] = useState<boolean>(true);
+  const [engineSaving, setEngineSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [hData, oData, lData] = await Promise.all([
+      const [hData, oData, lData, rules] = await Promise.all([
         api.getHypotheses?.().catch(() => null),
         api.getObservations?.().catch(() => null),
         api.getStrategyLessons?.().catch(() => null),
+        api.getMerchantRules?.().catch(() => null),
       ]);
       setHypotheses(hData ?? []);
       setObservations(oData ?? []);
       setLessons(lData ?? []);
+      if (rules && typeof rules.autonomousEngineEnabled === "boolean") {
+        setEngineEnabled(rules.autonomousEngineEnabled);
+      }
     } catch (e) {
       reportError({ source: "revenue-manager.load", error: e });
     } finally {
@@ -31,12 +37,29 @@ export function useRevenueManagerPage(me: MerchantProfile | null) {
     }
   }, [api]);
 
+  // Kill-switch: enable/disable the autonomous engine (persists to MerchantRules).
+  const toggleEngine = async () => {
+    const next = !engineEnabled;
+    setEngineEnabled(next); // optimistic
+    setEngineSaving(true);
+    try {
+      await api.putMerchantRules?.({ autonomousEngineEnabled: next });
+      showToast("success", next ? "Motor autônomo ativado" : "Motor autônomo desativado");
+    } catch (e) {
+      setEngineEnabled(!next); // revert on failure
+      reportError({ source: "revenue-manager.toggle-engine", error: e });
+      showToast("error", "Erro ao alterar o motor autônomo");
+    } finally {
+      setEngineSaving(false);
+    }
+  };
+
   useEffect(() => { void load(); }, [load]);
 
   const approveHypothesis = async (id: string) => {
     setApproving(prev => new Set([...prev, id]));
     try {
-      await api.approveHypothesis?.(id, { approved_by: me?.id ?? "merchant" });
+      await api.approveHypothesis?.(id, { approved_by: me?.id ?? "merchant", mode: "test_ab" });
       setHypotheses(prev => prev.map(h => h.id === id ? { ...h, status: "approved" as const } : h));
       showToast("success", "Hipótese aprovada — experimento será criado automaticamente");
     } catch (e) {
@@ -61,5 +84,5 @@ export function useRevenueManagerPage(me: MerchantProfile | null) {
     }
   };
 
-  return { hypotheses, observations, lessons, loading, approving, approveHypothesis, rejectHypothesis, refresh: load };
+  return { hypotheses, observations, lessons, loading, approving, approveHypothesis, rejectHypothesis, refresh: load, engineEnabled, engineSaving, toggleEngine };
 }

@@ -79,7 +79,7 @@ export class CheckoutBootstrapService {
         sessionId,
         globalUserId,
         conversationId: `conv_${crypto.randomUUID()}`,
-        cart: enrichedInput.cart,
+        cart: enrichedInput.cart ?? { items: [], total: 0, currency: "BRL", source: "storefront" },
         customer: enrichedInput.customer,
         shipping: enrichedInput.shipping
       }).snapshot();

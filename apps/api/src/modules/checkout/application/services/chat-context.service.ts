@@ -16,6 +16,7 @@ import { CHECKOUT_SETTINGS_PORT, type CheckoutSettingsPort } from "../../domain/
 import { PRODUCT_SEARCH_PORT, type ProductSearchPort } from "../../domain/ports/product-search.port.js";
 import { TenantBoundaryGuard } from "../../domain/services/tenant-boundary.guard.js";
 import { InterventionRuleTextBuilder } from "./intervention-rule-text.builder.js";
+import { BuyerContextService } from "./buyer-context.service.js";
 
 export interface ChatContextLoaded {
   session: CheckoutSession;
@@ -41,7 +42,8 @@ export class ChatContextService {
     @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
     @Optional() @Inject(CHECKOUT_SETTINGS_PORT) private readonly checkoutSettings?: CheckoutSettingsPort,
-    @Optional() @Inject(PRODUCT_SEARCH_PORT) private readonly productSearch?: ProductSearchPort
+    @Optional() @Inject(PRODUCT_SEARCH_PORT) private readonly productSearch?: ProductSearchPort,
+    @Optional() private readonly buyerContext?: BuyerContextService
   ) {}
 
   async loadContext(
@@ -69,6 +71,23 @@ export class ChatContextService {
       agentId,
       globalUserId: session.globalUserId
     });
+
+    // F1-T03: Attach buyer intent (LGPD-consent-gated inside BuyerContextService)
+    // onto the session so CheckoutOfferService can modulate the discount cap for
+    // treatment cohort. No consent / no intent → nothing attached (fallback path).
+    if (this.buyerContext && session.globalUserId) {
+      try {
+        const { buyerIntent } = await this.buyerContext.load(merchantId, session.globalUserId);
+        if (buyerIntent) {
+          (session as any).buyerIntent = buyerIntent;
+        }
+      } catch (intentErr) {
+        this.logger.warn("chat.intent.load.failed", {
+          merchantId,
+          error: intentErr instanceof Error ? intentErr.message : String(intentErr)
+        });
+      }
+    }
 
     let preSearchedProducts: SuggestedProduct[] = [];
     if (this.productSearch && this.isCartEmpty(session.cart)) {

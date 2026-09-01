@@ -2,14 +2,48 @@ import { dashboardJson } from "../http/client.js";
 
 const PREFIX = "/revenue-manager";
 
+/** Rule condition embedded in an AI candidate's discount_rule_json. */
+export interface HypothesisRuleCondition {
+  field: string;
+  operator: string;
+  value: string | number | boolean;
+}
+
+/** Rule action embedded in an AI candidate's discount_rule_json. */
+export interface HypothesisRuleAction {
+  type: string;
+  params: Record<string, string | number>;
+}
+
+/** Advanced rule proposed by the AI (embedded inside template.discount_rule_json). */
+export interface HypothesisDiscountRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  priority: number;
+  conditions: HypothesisRuleCondition[];
+  action: HypothesisRuleAction;
+}
+
+/** Template payload; carries the embedded hypothesis_type + discount_rule_json. */
+export interface HypothesisTemplate {
+  hypothesis_type?: string;
+  discount_rule_json?: HypothesisDiscountRule;
+  [key: string]: unknown;
+}
+
 export interface Hypothesis {
   id: string;
   hypothesis_text: string;
+  reasoning: string;
   expected_lift_percent: number;
   risk_level: "low" | "medium" | "high";
   status: "pending_review" | "approved" | "rejected";
+  template: HypothesisTemplate;
   created_at: string;
 }
+
+export type ApproveMode = "apply_direct" | "test_ab";
 
 export interface DailyObservation {
   date: string;
@@ -85,14 +119,18 @@ function mapLesson(raw: StrategyLessonApiResponse): StrategyLesson {
 
 export function revenueManagerEndpoints(base: string, f: typeof fetch) {
   return {
-    async getHypotheses(): Promise<Hypothesis[]> {
+    async getHypotheses(options?: { status?: string; limit?: number }): Promise<Hypothesis[]> {
+      const params = new URLSearchParams();
+      if (options?.status) params.set("status", options.status);
+      if (options?.limit != null) params.set("limit", String(options.limit));
+      const qs = params.toString();
       const res = await dashboardJson<{ data: Hypothesis[] } | Hypothesis[]>(
-        base, `${PREFIX}/hypotheses`, { method: "GET" }, f
+        base, `${PREFIX}/hypotheses${qs ? `?${qs}` : ""}`, { method: "GET" }, f
       );
       return Array.isArray(res) ? res : res.data;
     },
 
-    async approveHypothesis(id: string, payload: { approved_by: string; approval_reason?: string }): Promise<void> {
+    async approveHypothesis(id: string, payload: { approved_by: string; mode: ApproveMode; approval_reason?: string }): Promise<void> {
       await dashboardJson<unknown>(
         base,
         `${PREFIX}/hypotheses/${encodeURIComponent(id)}/approve`,

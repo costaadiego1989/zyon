@@ -10,6 +10,7 @@ import { OrderStatusDonut } from "./components/OrderStatusDonut.js";
 import { TopProducts } from "./components/TopProducts.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
+import { AISuggestionsPanel } from "./sections/AISuggestionsPanel.js";
 import {
   TrendingUp,
   DollarSign,
@@ -284,6 +285,11 @@ export function OverviewPage(props: OverviewPageProps) {
           </button>
         </div>
       </header>
+
+      {/* AI Suggestions — self-hides when there are no pending hypotheses */}
+      <SectionErrorBoundary sectionName="Sugestões de IA">
+        <AISuggestionsPanel me={props.me} />
+      </SectionErrorBoundary>
 
       {/* KPIs — 8 cards, all real data, uniform grid */}
       <SectionErrorBoundary sectionName="KPIs">

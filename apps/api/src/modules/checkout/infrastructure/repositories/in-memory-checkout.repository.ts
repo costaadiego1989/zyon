@@ -39,7 +39,8 @@ const DEFAULT_RULES: MerchantRules = {
   offerExpirationMinutes: 15,
   blockedRegions: [],
   brandVoice: "consultative",
-  couponBoxEnabled: true
+  couponBoxEnabled: true,
+  autonomousEngineEnabled: true
 };
 
 @Injectable()
@@ -147,6 +148,12 @@ export class InMemoryCheckoutRepository
       triggerAgent: score.triggerAgent,
       updatedAt: new Date().toISOString()
     });
+  }
+
+  getSessionEvents(merchantId: string, sessionId: string): CheckoutEventName[] {
+    return this.events
+      .filter((e) => e.merchantId === merchantId && e.sessionId === sessionId)
+      .map((e) => e.event);
   }
 
   appendChatTurn(merchantId: string, sessionId: string, turn: ChatTurn): CheckoutSession {

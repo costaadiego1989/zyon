@@ -5,6 +5,7 @@ import { TabBar } from "../../components/TabBar.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { PageLoader } from "../../components/PageLoader.js";
 import { DataPanel } from "../../components/DataPanel.js";
+import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { useRevenueManagerPage } from "./useRevenueManagerPage.js";
 
 export interface RevenueManagerPageProps {
@@ -93,6 +94,30 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
         gera sugestões de melhoria com estimativa de impacto, e cria testes A/B automaticamente quando você aprova.
         Após o teste terminar, o sistema registra o resultado e usa para gerar sugestões cada vez melhores.
       </div>
+
+      {/* Kill-switch — ativar/desativar o motor autônomo */}
+      <section style={{
+        display: "flex", alignItems: "center", gap: 14,
+        padding: "16px 20px", borderRadius: "var(--radius-md)",
+        background: "var(--surface-2)", border: "1px solid var(--color-border)",
+      }}>
+        <ToggleSwitch
+          id="autonomous-engine-toggle"
+          checked={vm.engineEnabled}
+          disabled={vm.engineSaving}
+          onChange={() => void vm.toggleEngine()}
+        />
+        <label htmlFor="autonomous-engine-toggle" style={{ cursor: "pointer", flex: 1 }}>
+          <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>
+            Motor de IA Autônomo {vm.engineEnabled ? "ativado" : "desativado"}
+          </div>
+          <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 2 }}>
+            {vm.engineEnabled
+              ? "A IA gera sugestões automaticamente. Nenhuma entra em vigor sem a sua aprovação."
+              : "A IA não gera novas sugestões. Regras já ativas continuam valendo; você ainda pode criar regras manualmente."}
+          </div>
+        </label>
+      </section>
 
       {/* KPIs */}
       <div className="grid-4" style={{ gap: 14 }}>

@@ -764,6 +764,7 @@ function toMerchantRules(row: {
   blockedRegions: string[];
   brandVoice: string;
   couponBoxEnabled?: boolean | null;
+  autonomousEngineEnabled?: boolean | null;
 }): MerchantRules {
   return {
     maxDiscountPercent: toNumber(row.maxDiscountPercent),
@@ -778,7 +779,8 @@ function toMerchantRules(row: {
     offerExpirationMinutes: row.offerExpirationMinutes,
     blockedRegions: row.blockedRegions,
     brandVoice: row.brandVoice as MerchantRules["brandVoice"],
-    couponBoxEnabled: row.couponBoxEnabled ?? true
+    couponBoxEnabled: row.couponBoxEnabled ?? true,
+    autonomousEngineEnabled: row.autonomousEngineEnabled ?? true
   };
 }
 

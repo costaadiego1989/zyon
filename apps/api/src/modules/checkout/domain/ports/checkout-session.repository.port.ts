@@ -15,4 +15,9 @@ export interface CheckoutSessionRepository {
    * Used by Cart Recovery scanner to find sessions ready for intervention.
    */
   findSessionsWithTrigger(threshold?: number): MaybePromise<CheckoutSession[]>;
+  /**
+   * Retrieve all checkout events for a session, ordered chronologically.
+   * Used by intent-memory to classify buyer behavior based on session events.
+   */
+  getSessionEvents(merchantId: string, sessionId: string): MaybePromise<CheckoutEventName[]>;
 }

@@ -87,6 +87,7 @@ export function merchantRules(overrides: Partial<MerchantRules> = {}): MerchantR
     blockedRegions: [],
     brandVoice: "consultative",
     couponBoxEnabled: true,
+    autonomousEngineEnabled: true,
     ...overrides
   };
 }

@@ -14,18 +14,6 @@ import { PlaceCrossStoreOrderUseCase } from "../../../marketplace/application/us
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { RecordIntentIfConsentedUseCase } from "../../../intent-memory/application/use-cases/classify-customer-intent.use-case.js";
 import { AttributionTaggerService } from "../../../revenue-lift/domain/services/attribution-tagger.service.js";
-
-/** Persistence surface required to commit an order atomically with its events. */
-interface OrderCommitRepository {
-  saveCompletedOrder(order: CompletedOrder): Promise<{ order: CompletedOrder; idempotent: boolean }> | { order: CompletedOrder; idempotent: boolean };
-  recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName): Promise<void> | void;
-  appendOutbox(event: DomainEventEnvelope): Promise<DomainEventEnvelope> | DomainEventEnvelope;
-}
-
-/** Optional transaction boundary; absent under in-memory test doubles. */
-interface TransactionRunner {
-  transaction?<T>(work: (repository: OrderCommitRepository) => Promise<T>): Promise<T>;
-}
 import {
   PURCHASE_HISTORY_PORT,
   type PurchaseHistoryPort
@@ -33,6 +21,16 @@ import {
 import { MetricsService } from "../../../../shared/observability/metrics.service.js";
 import { RecordExperimentResultUseCase } from "../../../experiments/application/use-cases/record-experiment-result.use-case.js";
 import { RecordFunnelEventUseCase } from "../../../experiments/application/use-cases/record-funnel-event.use-case.js";
+
+interface OrderCommitRepository {
+  saveCompletedOrder(order: CompletedOrder): Promise<{ order: CompletedOrder; idempotent: boolean }> | { order: CompletedOrder; idempotent: boolean };
+  recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName): Promise<void> | void;
+  appendOutbox(event: DomainEventEnvelope): Promise<DomainEventEnvelope> | DomainEventEnvelope;
+}
+
+interface TransactionRunner {
+  transaction?<T>(work: (repository: OrderCommitRepository) => Promise<T>): Promise<T>;
+}
 
 @Injectable()
 export class CompleteOrderUseCase {
@@ -59,23 +57,24 @@ export class CompleteOrderUseCase {
     const session = await this.sessions.getSession(input.merchant_id, input.session_id);
     if (!session) throw new NotFoundException("checkout_session_not_found");
 
-    // Store name for buyer confirmation email + WhatsApp (falls back gracefully).
     let merchantName: string | undefined;
     try {
       merchantName = (await this.merchantRepo?.getProfile(input.merchant_id))?.name;
     } catch { /* non-critical — templates fall back to "nossa loja" */ }
 
-    // P1: server-side recompute and validation — never trust client-supplied totals.
-    // Guards only fire when offerRepository is wired (i.e., production path).
-    // Without offerRepository (in-memory test doubles), we skip to preserve test compatibility.
     if (this.offerRepository) {
       const expectedTotal = computeExpectedTotal(session);
       const TOLERANCE = 0.02; // allow ±2¢ for floating point drift
-      if (Math.abs(input.order_total - expectedTotal) > TOLERANCE) {
+      // The payment amount the buyer is charged includes the fixed platform
+      // buyer service fee (R$0,99), which is NOT part of the cart/order total.
+      // Accept order_total matching either the product total or product + fee.
+      const expectedWithBuyerFee = expectedTotal + BUYER_SERVICE_FEE_MAJOR_UNITS;
+      const matchesTotal = Math.abs(input.order_total - expectedTotal) <= TOLERANCE;
+      const matchesTotalWithFee = Math.abs(input.order_total - expectedWithBuyerFee) <= TOLERANCE;
+      if (!matchesTotal && !matchesTotalWithFee) {
         throw new BadRequestException("order_total_mismatch");
       }
 
-      // P1: validate accepted_offer_id belongs to this session.
       if (input.accepted_offer_id) {
         const acceptedOffer = await this.offerRepository.getAcceptedOffer(
           input.merchant_id,
@@ -94,11 +93,6 @@ export class CompleteOrderUseCase {
         ? `Olá ${session.customer.fullName || "Cliente"}! Seu pagamento foi confirmado com sucesso. Seu pedido foi processado e o código de rastreio é: ${order.trackingCode}. Obrigado por comprar conosco!`
         : undefined;
 
-    // Order aggregate + its outbox events must commit atomically: a crash must
-    // not persist a completed order without emitting order.completed.
-    // FIX R2P-C07: saveCompletedOrder, recordEvent, and appendOutbox are wrapped in
-    // Prisma.$transaction when txRunner is wired (production), ensuring ACID guarantees.
-    // The tx-aware repository instance is passed to commit() and re-used for all three ops.
     const commit = async (repo: OrderCommitRepository): Promise<boolean> => {
       const saved = await repo.saveCompletedOrder(order);
       if (saved.idempotent) return true;
@@ -120,11 +114,7 @@ export class CompleteOrderUseCase {
           causationId: input.external_order_id
         })
       );
-      // Buyer confirmation (email + WhatsApp) via the notifications module.
-      // NotificationListener subscribes to "order.confirmed" and dispatches
-      // SendOrderConfirmationUseCase, which renders and sends both channels.
-      // Emitting here (with the enriched buyer/items payload) is what actually
-      // triggers buyer notifications — previously nothing emitted order.confirmed.
+
       const buyerEmail = session.customer?.email;
       const buyerPhone = session.customer?.phone;
       if (buyerEmail || buyerPhone) {
@@ -141,10 +131,6 @@ export class CompleteOrderUseCase {
               buyerEmail: buyerEmail ?? "",
               buyerName: session.customer?.fullName,
               buyerPhone,
-              // cart item.price and order_total are in major units (reais),
-              // per computeExpectedTotal — do not divide by 100.
-              // Append the product variant (size/color/etc) to the name so the
-              // buyer sees exactly what they bought.
               items: (session.cart?.items ?? []).map((it) => ({
                 name: it.variant ? `${it.name} (${it.variant})` : it.name,
                 quantity: it.quantity,
@@ -174,7 +160,6 @@ export class CompleteOrderUseCase {
 
       await this.recordConversionAnalytics(session, input);
 
-      // Side effects outside the transaction: external calls and cross-aggregate writes.
       await this.sendWhatsAppConfirmation(session, whatsappMessage, input);
       this.tagAttributionForOrder(session, input);
 
@@ -212,13 +197,12 @@ export class CompleteOrderUseCase {
       }
     }
 
-    // Async intent classification (non-blocking): records buyer intent if consented
-    // Runs AFTER order completion so buyer is not blocked
     if (this.recordIntentIfConsented && !idempotent) {
+      const sessionEvents = await this.sessions.getSessionEvents(input.merchant_id, input.session_id);
       this.recordIntentIfConsented.execute({
         merchantId: input.merchant_id,
         globalUserId: session.globalUserId,
-        sessionEvents: [],
+        sessionEvents,
         cart: session.cart
       }).catch((err) => {
         this.logger.warn(`intent-classification.failed (non-blocking)`, {
@@ -317,7 +301,6 @@ export class CompleteOrderUseCase {
       this.logger.debug("attribution.tagged", { sessionId: input.session_id, cohort, tag: attributionTag });
     } catch (err) {
       this.logger.error("attribution.failed", { error: err instanceof Error ? err.message : String(err) });
-      // Non-critical — attribution tagging failure does not block order completion
     }
   }
 
@@ -331,10 +314,11 @@ export class CompleteOrderUseCase {
   }
 }
 
-/**
- * Recompute the expected order total server-side from the session state.
- * cart.total is GROSS (sum of line totals); discount and shipping are applied once here.
- */
+// Fixed platform buyer service fee (R$0,99) added to the payment amount the
+// buyer is charged. Kept in sync with payment module's BUYER_SERVICE_FEE_CENTS
+// (99). Duplicated here to avoid a checkout→payment module dependency.
+const BUYER_SERVICE_FEE_MAJOR_UNITS = 0.99;
+
 function computeExpectedTotal(session: CheckoutSession): number {
   const gross = session.cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const discount = session.cart.currentDiscount ?? 0;
