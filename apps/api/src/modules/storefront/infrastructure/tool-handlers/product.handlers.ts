@@ -4,6 +4,7 @@ import type { ProductRepositoryPort, StockRepositoryPort } from "../../../catalo
 import type { MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import type { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
 import type { PrismaClient } from "@prisma/client";
+import { extractOptionGroups } from "../../domain/food-options.js";
 
 export interface ProductHandlerDeps {
   productRepo: ProductRepositoryPort;
@@ -36,7 +37,16 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
         inStock: p.hasStock,
         rating: p.averageRating,
         reviewCount: p.reviewCount,
-        variants: p.variants.map((v) => ({ id: v.id, sku: v.sku })),
+        // Full variant shape so the storefront can render a variant selector
+        // (attributes/price/stock), not just raw SKUs.
+        variants: p.variants.map((v) => ({
+          id: v.id,
+          sku: v.sku,
+          attributes: v.attributes ?? {},
+          basePriceInCents: v.basePriceInCents,
+          stockQuantity: v.stockQuantity,
+        })),
+        optionGroups: extractOptionGroups(p.metadata),
         source: "local" as const,
       }));
 
@@ -102,6 +112,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
           description: product.description,
           type: product.type,
           variants: product.variants,
+          optionGroups: extractOptionGroups(product.metadata),
           media: product.defaultVariant?.media ?? [],
           stock: product.totalStock,
           inStock: product.hasStock,
@@ -179,14 +190,16 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
         limit: Math.min(args.limit ?? 5, 10)
       });
       return {
+        // "Daily deals" surfaces active products. It must NOT invent a discount:
+        // a hardcoded "-15%" on every product deceived buyers into believing a
+        // promotion that was never configured. No discountPercent is emitted
+        // until a real promotional-price read model exists.
         deals: result.products.slice(0, args.limit ?? 5).map((p) => ({
           id: p.id,
           name: p.name,
           price: p.defaultVariant?.basePriceInCents ?? 0,
           image: p.defaultVariant?.media?.[0]?.url,
           inStock: p.hasStock,
-          discountPercent: 15,
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         }))
       };
     },

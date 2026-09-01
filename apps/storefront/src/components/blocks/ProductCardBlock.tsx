@@ -6,7 +6,10 @@ import { isColorToken } from "@/lib/utils/color";
 import { StarRating } from "./parts/StarRating";
 import { ProductCardMedia } from "./parts/ProductCardMedia";
 import { ProductCardVariants } from "./parts/ProductCardVariants";
+import { ProductCardOptions } from "./parts/ProductCardOptions";
 import { ProductCardCta } from "./parts/ProductCardCta";
+
+type OptionGroup = NonNullable<ProductCardBlockType["data"]["optionGroups"]>[number];
 
 export default function ProductCardBlock({
   block,
@@ -19,6 +22,36 @@ export default function ProductCardBlock({
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
     data.variants && data.variants.length > 0 ? data.variants[0].id : null,
   );
+
+  const optionGroups = data.optionGroups ?? [];
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+
+  const toggleOption = (group: OptionGroup, itemId: string) => {
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      if (group.selectionType === "single") {
+        // Radio semantics: clear the other items in this group, then set this one.
+        for (const it of group.items) next.delete(it.id);
+        next.add(itemId);
+      } else if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  };
+
+  // Required groups must each have a selection before the item can be added.
+  const requiredGroupsSatisfied = optionGroups.every(
+    (g) => !g.required || g.items.some((it) => selectedItemIds.has(it.id)),
+  );
+
+  // Sum of selected option modifiers (buyer-facing display only; server is source of truth).
+  const optionModifierCents = optionGroups
+    .flatMap((g) => g.items)
+    .filter((it) => selectedItemIds.has(it.id))
+    .reduce((sum, it) => sum + it.priceModifierInCents, 0);
 
   const hasDiscount = useMemo(() => {
     return (
@@ -45,6 +78,16 @@ export default function ProductCardBlock({
   }, [selectedVariant, data.price]);
 
   const displayedPriceFormatted = useMemo(() => {
+    const baseCents =
+      selectedVariant?.price !== undefined && selectedVariant.price > 0
+        ? selectedVariant.price
+        : data.price;
+    // Include selected food-option modifiers so the buyer sees the live unit
+    // price (e.g. R$45 + Grande R$10 + Bacon R$5 = R$60).
+    const withOptions = baseCents + optionModifierCents;
+    if (optionModifierCents > 0) {
+      return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(withOptions / 100);
+    }
     if (selectedVariant?.priceFormatted) {
       return selectedVariant.priceFormatted;
     }
@@ -52,7 +95,7 @@ export default function ProductCardBlock({
       return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(selectedVariant.price / 100);
     }
     return data.priceFormatted;
-  }, [selectedVariant, data.priceFormatted, data.price]);
+  }, [selectedVariant, data.priceFormatted, data.price, optionModifierCents]);
 
   const quickReplies = [
     `Calcular frete para ${data.name}`,
@@ -65,7 +108,17 @@ export default function ProductCardBlock({
   const buildCtaText = (verb: string) => {
     const variantSuffix = selectedVariant ? ` (${selectedVariant.name}: ${selectedVariant.value})` : "";
     const variantIdTag = selectedVariantId ? ` [variantId:${selectedVariantId}]` : "";
-    return `${verb} ao carrinho ${data.name}${variantSuffix}${variantIdTag}`;
+    // Embed the chosen option item ids as a structured tag the deterministic
+    // cart handler parses by id — never relies on the LLM to infer selections,
+    // so the server can re-validate and re-price them safely.
+    const chosen = Array.from(selectedItemIds);
+    const optionNames = optionGroups
+      .flatMap((g) => g.items)
+      .filter((it) => selectedItemIds.has(it.id))
+      .map((it) => it.name);
+    const optionSuffix = optionNames.length > 0 ? ` — ${optionNames.join(", ")}` : "";
+    const optionIdTag = chosen.length > 0 ? ` [optionItemIds:${chosen.join(",")}]` : "";
+    return `${verb} ao carrinho ${data.name}${variantSuffix}${optionSuffix}${variantIdTag}${optionIdTag}`;
   };
 
   return (
@@ -302,6 +355,14 @@ export default function ProductCardBlock({
           />
         )}
 
+        {optionGroups.length > 0 && (
+          <ProductCardOptions
+            groups={optionGroups}
+            selectedItemIds={selectedItemIds}
+            onToggle={toggleOption}
+          />
+        )}
+
         {data.source === "marketplace" && data.sellerName && (
           <div
             style={{
@@ -349,6 +410,10 @@ export default function ProductCardBlock({
           selectedVariantId={selectedVariantId}
           buildCtaText={buildCtaText}
           onQuickReply={onQuickReply}
+          addDisabled={!requiredGroupsSatisfied}
+          addDisabledReason={
+            !requiredGroupsSatisfied ? "Escolha as opções obrigatórias" : undefined
+          }
         />
       </div>
 

@@ -1,7 +1,8 @@
 import type { StoreToolHandlers } from "../../domain/tools/types.js";
 import type { ToolRequestContext } from "../../domain/tools/tool-context.js";
 import type { ProductRepositoryPort, StockRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
-import type { StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
+import type { StorefrontCartPort, StorefrontCartSelectedOption } from "../../domain/ports/storefront-cart.port.js";
+import { extractOptionGroups, resolveSelectedOptions, FoodOptionValidationError } from "../../domain/food-options.js";
 import type { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
 import type { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
 import type { PrismaClient } from "@prisma/client";
@@ -9,6 +10,35 @@ import { Logger } from "@nestjs/common";
 import { buildCrossSellSuggestions, type CrossSellConfig, type CrossSellSuggestion } from "./cart-cross-sell.helper.js";
 
 const logger = new Logger("CartHandlers");
+
+/**
+ * Single cart-line DTO shape used by every cart handler response. Prices are in
+ * reais (major units) consistently — a prior bug returned cents from getCart but
+ * reais from addItemToCart, drifting Smart Cart totals 100x. Carries the chosen
+ * food options so the buyer/merchant see the exact build.
+ */
+function toCartLineDto(i: {
+  variantId: string;
+  name: string;
+  quantity: number;
+  unitPriceCents: number;
+  imageUrl?: string;
+  selectedOptions?: StorefrontCartSelectedOption[];
+}) {
+  return {
+    variantId: i.variantId,
+    name: i.name,
+    quantity: i.quantity,
+    unitPrice: i.unitPriceCents / 100,
+    lineTotal: (i.unitPriceCents * i.quantity) / 100,
+    imageUrl: i.imageUrl,
+    selectedOptions: i.selectedOptions?.map((o) => ({
+      groupName: o.groupName,
+      itemName: o.itemName,
+      priceModifier: o.priceModifierInCents / 100,
+    })),
+  };
+}
 
 export interface CartHandlerDeps {
   productRepo: ProductRepositoryPort;
@@ -31,6 +61,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       let unitPriceCents = 0;
       let imageUrl: string | undefined;
       let resolvedVariantId = args.variantId;
+      let resolvedProduct: Awaited<ReturnType<typeof deps.productRepo.findById>> | null = null;
 
       try {
         let product = await deps.productRepo.findById(ctx.merchantId, "dummy").catch(() => null);
@@ -44,6 +75,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
         if (product) {
           foundVariant = product.variants.find(v => v.id === args.variantId || v.sku === args.variantId);
           if (foundVariant) {
+            resolvedProduct = product;
             productName = product.name;
             resolvedVariantId = foundVariant.id;
             unitPriceCents = foundVariant.basePriceInCents;
@@ -54,6 +86,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
         if (!foundVariant) {
           product = await deps.productRepo.findById(ctx.merchantId, args.variantId);
           if (product) {
+            resolvedProduct = product;
             productName = product.name;
             const variant = product.variants[0];
             if (variant) {
@@ -88,6 +121,27 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       } catch {
       }
 
+      // Food option groups: validate the buyer's selection against the product's
+      // stored groups and re-compute the price modifier server-side. The client
+      // never dictates price (deterministic offer-math). A missing required
+      // group, an unknown item id, or multiple picks in a single-select group is
+      // rejected rather than silently priced wrong.
+      let selectedOptions: StorefrontCartSelectedOption[] | undefined;
+      const optionGroups = extractOptionGroups(resolvedProduct?.metadata);
+      const requestedItemIds = Array.isArray(args.selectedOptionItemIds) ? args.selectedOptionItemIds : [];
+      if (optionGroups.length > 0 || requestedItemIds.length > 0) {
+        try {
+          const { selected, priceModifierInCents } = resolveSelectedOptions(optionGroups, requestedItemIds);
+          if (selected.length > 0) selectedOptions = selected;
+          unitPriceCents += priceModifierInCents;
+        } catch (e) {
+          if (e instanceof FoodOptionValidationError) {
+            return { error: e.code, detail: e.message };
+          }
+          throw e;
+        }
+      }
+
       const cart = await deps.cartRepo.addItem(ctx.merchantId, sessionId, {
         variantId: resolvedVariantId,
         productId: args.variantId,
@@ -95,7 +149,8 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
         sku: resolvedVariantId,
         unitPriceCents,
         imageUrl,
-        quantity: args.quantity
+        quantity: args.quantity,
+        selectedOptions,
       });
       logger.debug("cart.afterAdd", { sessionId: cart.sessionId, itemCount: cart.items.length, total: cart.total });
 
@@ -115,13 +170,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
 
       return {
         cartId: cart.sessionId,
-        items: cart.items.map((i) => ({
-          variantId: i.variantId,
-          name: i.name,
-          quantity: i.quantity,
-          unitPrice: i.unitPriceCents / 100,
-          lineTotal: (i.unitPriceCents * i.quantity) / 100
-        })),
+        items: cart.items.map(toCartLineDto),
         total: cart.total / 100,
         itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0),
         crossSellSuggestions: crossSellSuggestions.length > 0 ? crossSellSuggestions : undefined,
@@ -132,16 +181,9 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       const cart = await deps.cartRepo.getOrCreate(ctx.merchantId, args.cartId || ctx.sessionId);
       return {
         cartId: cart.sessionId,
-        items: cart.items.map((i) => ({
-          variantId: i.variantId,
-          name: i.name,
-          quantity: i.quantity,
-          unitPrice: i.unitPriceCents,
-          lineTotal: i.unitPriceCents * i.quantity,
-          imageUrl: i.imageUrl
-        })),
-        total: cart.total,
-        discount: cart.discount,
+        items: cart.items.map(toCartLineDto),
+        total: cart.total / 100,
+        discount: cart.discount / 100,
         couponCode: cart.couponCode,
         itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0)
       };
@@ -151,13 +193,8 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       const cart = await deps.cartRepo.removeItem(ctx.merchantId, args.cartId, args.variantId);
       return {
         cartId: cart.sessionId,
-        items: cart.items.map((i) => ({
-          variantId: i.variantId,
-          name: i.name,
-          quantity: i.quantity,
-          unitPrice: i.unitPriceCents
-        })),
-        total: cart.total,
+        items: cart.items.map(toCartLineDto),
+        total: cart.total / 100,
         itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0)
       };
     },
@@ -166,13 +203,8 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       const cart = await deps.cartRepo.updateItemQuantity(ctx.merchantId, args.cartId, args.variantId, args.quantity);
       return {
         cartId: cart.sessionId,
-        items: cart.items.map((i) => ({
-          variantId: i.variantId,
-          name: i.name,
-          quantity: i.quantity,
-          unitPrice: i.unitPriceCents
-        })),
-        total: cart.total,
+        items: cart.items.map(toCartLineDto),
+        total: cart.total / 100,
         itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0)
       };
     },

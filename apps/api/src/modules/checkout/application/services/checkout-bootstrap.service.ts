@@ -51,8 +51,14 @@ export class CheckoutBootstrapService {
               items: storefrontCart.items.map((i) => ({
                 sku: i.sku,
                 name: i.name,
+                // unitPriceCents already includes any food-option modifiers.
                 price: i.unitPriceCents / 100,
                 quantity: i.quantity,
+                selected_options: i.selectedOptions?.map((o) => ({
+                  group_name: o.groupName,
+                  item_name: o.itemName,
+                  price_modifier: o.priceModifierInCents / 100,
+                })),
               })),
             },
           };

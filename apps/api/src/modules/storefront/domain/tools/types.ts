@@ -32,6 +32,12 @@ export interface StoreToolHandlers {
     cartId?: string;
     variantId: string;
     quantity: number;
+    /**
+     * Food option item ids the buyer selected (size, add-ons). The server
+     * validates them against the product's stored option groups and re-computes
+     * the authoritative unit price — the client price is never trusted.
+     */
+    selectedOptionItemIds?: string[];
   }) => Promise<unknown>;
   getCart: (args: { cartId: string }) => Promise<unknown>;
   removeCartItem: (args: { cartId: string; variantId: string }) => Promise<unknown>;

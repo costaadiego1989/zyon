@@ -20,6 +20,14 @@ export interface ProductCardBlock {
     stock?: number;
     sku?: string;
     detailed?: boolean;
+    /** Food option groups (size, add-ons, ...) — drives the composition selector. */
+    optionGroups?: Array<{
+      id: string;
+      name: string;
+      required: boolean;
+      selectionType: "single" | "multiple";
+      items: Array<{ id: string; name: string; priceModifierInCents: number }>;
+    }>;
   };
 }
 

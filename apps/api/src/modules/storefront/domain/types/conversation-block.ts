@@ -27,6 +27,19 @@ export interface ProductCardBlock {
     sku?: string;
     /** When true, render the full detail view (untruncated description, per-variant stock, SKU) */
     detailed?: boolean;
+    /**
+     * Food option groups (size, add-ons, ...) for `food` products, sourced from
+     * product.metadata.optionGroups. Present only when the product defines them;
+     * drives the buyer-facing composition selector. Server re-computes the
+     * authoritative price from these on add-to-cart.
+     */
+    optionGroups?: Array<{
+      id: string;
+      name: string;
+      required: boolean;
+      selectionType: "single" | "multiple";
+      items: Array<{ id: string; name: string; priceModifierInCents: number }>;
+    }>;
   };
 }
 

@@ -131,11 +131,17 @@ export class CompleteOrderUseCase {
               buyerEmail: buyerEmail ?? "",
               buyerName: session.customer?.fullName,
               buyerPhone,
-              items: (session.cart?.items ?? []).map((it) => ({
-                name: it.variant ? `${it.name} (${it.variant})` : it.name,
-                quantity: it.quantity,
-                price: it.price.toFixed(2),
-              })),
+              items: (session.cart?.items ?? []).map((it) => {
+                const opts = it.selected_options?.length
+                  ? ` — ${it.selected_options.map((o) => o.item_name).join(", ")}`
+                  : "";
+                const base = it.variant ? `${it.name} (${it.variant})` : it.name;
+                return {
+                  name: `${base}${opts}`,
+                  quantity: it.quantity,
+                  price: it.price.toFixed(2),
+                };
+              }),
               total: input.order_total.toFixed(2),
               currency: input.currency,
             },

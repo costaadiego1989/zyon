@@ -49,6 +49,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           const value = Object.values(v.attributes ?? {})[0] as string ?? v.sku ?? v.id;
           return { id: v.id ?? v.sku, name, value, price: v.basePriceInCents ?? v.price ?? undefined, priceFormatted: v.basePriceInCents ? formatPrice(v.basePriceInCents) : undefined };
         }),
+        optionGroups: Array.isArray(p.optionGroups) && p.optionGroups.length > 0 ? p.optionGroups : undefined,
       }
     } as any);
     if (!finalContent || finalContent.trim().length === 0) {
@@ -80,6 +81,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
               const value = Object.values(v.attributes ?? {})[0] as string ?? v.sku ?? v.id;
               return { id: v.id ?? v.sku, name, value, price: v.basePriceInCents ?? v.price ?? undefined };
             }),
+            optionGroups: Array.isArray(p.optionGroups) && p.optionGroups.length > 0 ? p.optionGroups : undefined,
             source: p.source ?? (isMarketplaceSource ? "marketplace" : "local"),
             sellerName: p.sellerName ?? undefined,
             sellerMerchantId: p.sellerMerchantId,
@@ -123,6 +125,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
             const variantStock = isDigitalOrService ? 999 : Math.max(0, (v.stockQuantity ?? 0) - (v.stockReserved ?? 0));
             return { id: v.id ?? v.sku, name, value, sku: v.sku, stock: variantStock, price: v.basePriceInCents ?? undefined, priceFormatted: v.basePriceInCents ? formatPrice(v.basePriceInCents) : undefined };
           }),
+          optionGroups: Array.isArray(p.optionGroups) && p.optionGroups.length > 0 ? p.optionGroups : undefined,
         }
       });
 

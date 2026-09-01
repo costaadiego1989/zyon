@@ -52,6 +52,12 @@ export interface CartItem {
   title?: string;
   /** Alternative price field used by some commerce platforms */
   unit_price?: number;
+  /**
+   * Chosen food options composing this line (size, add-ons). `price` already
+   * includes their modifiers; this is the human-readable breakdown carried into
+   * the order snapshot so the merchant sees the exact build (the iFood ticket).
+   */
+  selected_options?: Array<{ group_name: string; item_name: string; price_modifier: number }>;
 }
 
 export interface PackageDimensions {
@@ -198,6 +204,7 @@ export interface MerchantRules {
   blockedRegions: string[];
   brandVoice: "consultative" | "aggressive" | "premium" | "young" | "technical" | "popular";
   couponBoxEnabled: boolean;
+  autonomousEngineEnabled: boolean;
   originZip?: string;
   quickReplies?: StageQuickReplies;
   cryptoPayments?: MerchantCryptoPayments;
@@ -222,7 +229,8 @@ export const DEFAULT_MERCHANT_RULES: MerchantRules = {
   offerExpirationMinutes: 15,
   blockedRegions: [],
   brandVoice: "consultative",
-  couponBoxEnabled: true
+  couponBoxEnabled: true,
+  autonomousEngineEnabled: true
 };
 
 export type CrossSellTouchpoint = "browsing" | "pre_cart" | "pre_payment" | "post_purchase";
@@ -377,6 +385,34 @@ export interface CheckoutItemSnapshot {
   description?: string;
 }
 
+/**
+ * A single selectable item inside a food option group (e.g. "Grande", "Bacon").
+ * `price_modifier_cents` is added onto the product base price when chosen.
+ * The buyer-facing surface uses this for display only; the server re-computes
+ * the authoritative price from the stored group definition (offer-math is
+ * deterministic and client-supplied prices are never trusted).
+ */
+export interface FoodOptionItem {
+  id: string;
+  name: string;
+  price_modifier_cents: number;
+}
+
+/**
+ * A group of food options a buyer chooses from when composing an order
+ * (iFood/99food style), e.g. "Tamanho" (required, single) or "Adicionais"
+ * (optional, multiple). Authored in the dashboard, stored on
+ * `product.metadata.optionGroups`, and surfaced to the storefront so the buyer
+ * can build the item before adding it to the cart.
+ */
+export interface FoodOptionGroup {
+  id: string;
+  name: string;
+  required: boolean;
+  selection_type: "single" | "multiple";
+  items: FoodOptionItem[];
+}
+
 export interface SuggestedProduct {
   suggestion_id?: string;
   sku: string;
@@ -392,6 +428,8 @@ export interface SuggestedProduct {
   /** Whether the variant has available stock (drives the Add button state). */
   in_stock?: boolean;
   display_mode?: CrossSellDisplayMode;
+  /** Food option groups (size, add-ons, ...) when the product type is `food`. */
+  option_groups?: FoodOptionGroup[];
 }
 
 export interface CheckoutTotalsSnapshot {

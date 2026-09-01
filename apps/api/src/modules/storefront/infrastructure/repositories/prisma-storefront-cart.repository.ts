@@ -58,7 +58,15 @@ export class PrismaStorefrontCartRepository implements StorefrontCartPort {
     item: Omit<StorefrontCartItem, "quantity"> & { quantity?: number }
   ): Promise<StorefrontCart> {
     const cart = await this.getOrCreate(merchantId, sessionId);
-    const existing = cart.items.find((i) => i.variantId === item.variantId);
+    // Merge only lines that are the SAME variant AND the same option selection —
+    // a pizza "Grande + Bacon" and a "Média" are distinct lines even though they
+    // share a variant id. Options are compared by their sorted item ids.
+    const optionKey = (opts?: StorefrontCartItem["selectedOptions"]) =>
+      (opts ?? []).map((o) => o.itemId).sort().join(",");
+    const incomingKey = optionKey(item.selectedOptions);
+    const existing = cart.items.find(
+      (i) => i.variantId === item.variantId && optionKey(i.selectedOptions) === incomingKey,
+    );
     if (existing) {
       existing.quantity += item.quantity ?? 1;
     } else {
