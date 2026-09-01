@@ -183,36 +183,28 @@ export class PrismaOperationsReadRepository
           )`
         : Prisma.empty;
 
-    // P0 fix: group by global_user_id only to avoid duplicates when customer profile
-    // changes between sessions. Subquery picks the latest session per buyer.
+    // P0 fix: one row per buyer (global_user_id), even when the customer profile
+    // changed across sessions. DISTINCT ON picks the latest session per buyer
+    // (tie-break on session id) and window aggregates give stable first/last seen.
+    // A prior CTE attempt left ROW_NUMBER unused (GROUP BY collapsed it) and could
+    // still emit duplicates when two sessions shared the max updated_at.
     const rows = await this.prisma.$queryRaw<CustomerRow[]>(Prisma.sql`
-      WITH customer_agg AS (
-        SELECT
+      WITH buyer_rows AS (
+        SELECT DISTINCT ON ("global_user_id")
           "global_user_id",
-          MIN("created_at") AS "first_seen_at",
-          MAX("updated_at") AS "last_seen_at",
-          ROW_NUMBER() OVER (PARTITION BY "global_user_id" ORDER BY "updated_at" DESC) AS rn
+          "customer",
+          MIN("created_at") OVER (PARTITION BY "global_user_id") AS "first_seen_at",
+          MAX("updated_at") OVER (PARTITION BY "global_user_id") AS "last_seen_at"
         FROM "checkout_sessions"
         WHERE "merchant_id" = ${input.merchantId}
-        GROUP BY "global_user_id"
-      ),
-      latest_customer AS (
-        SELECT
-          cs."global_user_id",
-          cs."customer",
-          ca."first_seen_at",
-          ca."last_seen_at"
-        FROM "checkout_sessions" cs
-        JOIN customer_agg ca ON cs."global_user_id" = ca."global_user_id"
-        WHERE cs."merchant_id" = ${input.merchantId}
-        AND cs."updated_at" = ca."last_seen_at"
+        ORDER BY "global_user_id", "updated_at" DESC, "session_id" DESC
       )
       SELECT
         "global_user_id",
         "customer",
         "first_seen_at",
         "last_seen_at"
-      FROM latest_customer
+      FROM buyer_rows
       WHERE TRUE
       ${cursorFilter}
       ORDER BY "last_seen_at" DESC, "global_user_id" DESC
