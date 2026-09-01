@@ -14,6 +14,7 @@ export class PrismaStockRepository implements StockRepositoryPort {
         variantId: input.variantId,
         cartId: input.idempotencyKey,
         status: "ACTIVE",
+        variant: { product: { merchantId: input.merchantId } },
       },
     });
 
@@ -22,8 +23,15 @@ export class PrismaStockRepository implements StockRepositoryPort {
     }
 
     const result = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // Scope stock lookup to the merchant boundary: a variant's stock is only
+      // reservable by the merchant that owns the parent product. Without this
+      // filter, any merchant could reserve (and via confirm, decrement) another
+      // tenant's stock by guessing a variantId.
       const stock = await tx.productStock.findFirst({
-        where: { variantId: input.variantId },
+        where: {
+          variantId: input.variantId,
+          variant: { product: { merchantId: input.merchantId } },
+        },
       });
 
       if (!stock) {
