@@ -32,7 +32,20 @@ export class SelectShippingMethodUseCase {
     await this.quotes.saveWithEvents(updated);
     const snapshot = updated.snapshot();
     await this.persistSelectionToCheckoutSession(input, snapshot);
-    return snapshot;
+
+    const selected = snapshot.results.find((r) => r.carrier_key === snapshot.selected_carrier_key);
+    const shipping = selected
+      ? {
+          carrier: selected.carrier_key,
+          carrierKey: selected.carrier_key,
+          method: selected.label,
+          customerPrice: Math.round(selected.price) / 100,
+          isFree: selected.is_free ?? false,
+          deliveryDays: selected.eta_days,
+        }
+      : undefined;
+
+    return { ...snapshot, shipping };
   }
 
   private async persistSelectionToCheckoutSession(
