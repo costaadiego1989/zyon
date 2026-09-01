@@ -1,81 +1,66 @@
 import type { CartItem, SuggestedProduct } from "@zyon/shared-types";
+import type { ProductRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
 
-const CATALOG: Record<string, Omit<CartItem, "sku" | "quantity">> = {
-  "NECS-001": {
-    name: "Necessaire Executiva",
-    price: 49.9,
-    cost: 18,
-    category: "acessorios",
-    variant: "preta"
-  },
-  "NECS-002": {
-    name: "Necessaire Compacta",
-    price: 39.9,
-    cost: 14,
-    category: "acessorios",
-    variant: "grafite"
-  },
-  "CART-COE-01": {
-    name: "Carteira Slim RFID",
-    price: 89.9,
-    cost: 34,
-    category: "acessorios",
-    variant: "couro"
-  },
-  "ZYON-HOOD-001": {
-    name: "Hoodie Agentic Checkout",
-    price: 199.9,
-    cost: 95,
-    category: "vestuario",
-    variant: "preto"
+export async function resolveCrossSellProduct(
+  sku: string,
+  productRepo: ProductRepositoryPort,
+  merchantId: string,
+  suggestionId?: string,
+): Promise<(SuggestedProduct & { suggestion_id?: string }) | null> {
+  try {
+    let product = await productRepo.findById(merchantId, sku).catch(() => null);
+    let variant = product?.variants?.find(v => v.sku === sku);
+    if (!product || !variant) {
+      const search = await productRepo.search({ merchantId, limit: 100, isActiveOnly: true });
+      product = search.products.find(p => p.variants?.some(v => v.sku === sku)) ?? null;
+      variant = product?.variants?.find(v => v.sku === sku) ?? undefined;
+    }
+    if (!product || !variant) {
+      return null;
+    }
+    return {
+      suggestion_id: suggestionId,
+      sku,
+      name: product.name,
+      unit_price: (variant.basePriceInCents ?? 0) / 100,
+      category: product.categoryId,
+      variant: variant.sku,
+      image_url: variant.media?.[0]?.url,
+      product_url: undefined,
+    };
+  } catch {
+    return null;
   }
-};
-
-export function resolveCrossSellProduct(sku: string, suggestionId?: string): SuggestedProduct & { suggestion_id?: string } {
-  const item = CATALOG[sku] ?? {
-    name: humanizeSku(sku),
-    price: 59.9,
-    cost: 24,
-    category: "complemento"
-  };
-
-  return {
-    suggestion_id: suggestionId,
-    sku,
-    name: item.name,
-    unit_price: item.price,
-    category: item.category,
-    variant: item.variant,
-    image_url: item.imageUrl,
-    product_url: item.productUrl
-  };
 }
 
-export function resolveCrossSellCartItem(sku: string): CartItem {
-  const item = CATALOG[sku] ?? {
-    name: humanizeSku(sku),
-    price: 59.9,
-    cost: 24,
-    category: "complemento"
-  };
-
-  return {
-    sku,
-    name: item.name,
-    price: item.price,
-    cost: item.cost,
-    quantity: 1,
-    category: item.category,
-    variant: item.variant,
-    imageUrl: item.imageUrl,
-    productUrl: item.productUrl
-  };
-}
-
-function humanizeSku(sku: string): string {
-  return sku
-    .replace(/[-_]+/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (char) => char.toUpperCase())
-    .trim() || "Produto complementar";
+export async function resolveCrossSellCartItem(
+  sku: string,
+  productRepo: ProductRepositoryPort,
+  merchantId: string,
+): Promise<CartItem | null> {
+  try {
+    let product = await productRepo.findById(merchantId, sku).catch(() => null);
+    let variant = product?.variants?.find(v => v.sku === sku);
+    if (!product || !variant) {
+      const search = await productRepo.search({ merchantId, limit: 100, isActiveOnly: true });
+      product = search.products.find(p => p.variants?.some(v => v.sku === sku)) ?? null;
+      variant = product?.variants?.find(v => v.sku === sku) ?? undefined;
+    }
+    if (!product || !variant) {
+      return null;
+    }
+    return {
+      sku,
+      name: product.name,
+      price: (variant.basePriceInCents ?? 0) / 100,
+      cost: ((variant as any).costInCents ?? 0) / 100,
+      quantity: 1,
+      category: product.categoryId,
+      variant: variant.sku,
+      imageUrl: variant.media?.[0]?.url,
+      productUrl: undefined,
+    };
+  } catch {
+    return null;
+  }
 }

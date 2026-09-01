@@ -5,7 +5,6 @@ import { DEFAULT_CROSS_SELL_CONFIG } from "@zyon/shared-types";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { CheckoutCrossSellRecommenderPort } from "../../../checkout/domain/ports/cross-sell-recommender.port.js";
 import { ListEligibleCrossSellsUseCase } from "../use-cases/list-eligible-cross-sells.use-case.js";
-import { resolveCrossSellProduct } from "./cross-sell-product-resolver.js";
 
 @Injectable()
 export class CheckoutCrossSellRecommender implements CheckoutCrossSellRecommenderPort {
@@ -24,7 +23,6 @@ export class CheckoutCrossSellRecommender implements CheckoutCrossSellRecommende
     const touchpoint = (input as any).touchpoint as string | undefined;
     if (touchpoint && !this.isTouchpointActive(config, touchpoint)) return [];
 
-    // Cooldown enforcement: skip if last suggestion for this session is within cooldownSeconds
     if (config.limits.cooldownSeconds > 0) {
       try {
         const lastSuggestion = await this.prisma.crossSellSuggestion.findFirst({
@@ -52,20 +50,25 @@ export class CheckoutCrossSellRecommender implements CheckoutCrossSellRecommende
     });
 
     const max = config.limits.maxSuggestionsPerSession;
-    const limited = suggestions.slice(0, max);
+    // Bug 6 fix: maxSuggestionsPerSession caps the FINAL suggestions the buyer
+    // sees, not the promotions. A single promotion carries many ranked_items,
+    // so slicing promotions let one promo with N skus produce N cards, blowing
+    // past the merchant's configured limit. Expand every promotion, then cap the
+    // flattened, catalog-resolved list.
+    const base: (SuggestedProduct & { suggestion_id?: string; display_mode: CrossSellConfig["display"]["mode"] })[] =
+      suggestions.flatMap((suggestion) =>
+        suggestion.ranked_items.map((sku) => ({
+          suggestion_id: suggestion.id,
+          sku,
+          name: sku,
+          unit_price: undefined as unknown as number,
+          display_mode: config.display.mode,
+        }))
+      );
 
-    const base = limited.flatMap((suggestion) =>
-      suggestion.ranked_items.map((sku) => ({
-        ...resolveCrossSellProduct(sku, suggestion.id),
-        display_mode: config.display.mode
-      }))
-    );
-
-    // Enrich each suggestion with real catalog data (variant id, live price,
-    // image, stock) so the widget renders the same card as the storefront and
-    // the Add button can add the exact variant to the cart. Falls back to the
-    // resolver's values when a SKU isn't found in this merchant's catalog.
-    return Promise.all(base.map((p) => this.enrichFromCatalog(input.merchant_id, p)));
+    const enriched = await Promise.all(base.map((p) => this.enrichFromCatalog(input.merchant_id, p)));
+    const valid = enriched.filter((p) => typeof p.unit_price === "number" && p.unit_price > 0);
+    return valid.slice(0, max);
   }
 
   private async enrichFromCatalog(

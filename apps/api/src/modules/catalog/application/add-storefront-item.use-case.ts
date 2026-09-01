@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException , Logger, Optional} from "@nestjs/common";
-import type { CartItem, ChatTurn, CheckoutExperienceSnapshot, CheckoutSession } from "@zyon/shared-types";
+import type { CartItem, ChatTurn, CheckoutExperienceSnapshot } from "@zyon/shared-types";
 import {
   CHECKOUT_SESSION_REPOSITORY,
   type CheckoutSessionRepository
@@ -10,7 +10,6 @@ import {
 } from "../../merchant/domain/ports/merchant-repository.port.js";
 import { buildExperienceFromSession } from "../../checkout/application/services/checkout-experience.service.js";
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../checkout/domain/checkout-experience.config.js";
-import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 import { STOREFRONT_CATALOG_PORT, type StorefrontCatalogPort } from "../domain/ports/storefront-catalog.port.js";
 import { CROSS_SELL_RESOLVER_PORT, type CrossSellResolverPort } from "../domain/ports/cross-sell-resolver.port.js";
 import { addOrUpdateCartItem } from "../domain/cart-item-updater.js";
@@ -47,14 +46,19 @@ export class AddStorefrontItemUseCase {
     if (!catalogProduct && !this.crossSell.isKnownCrossSellSku(sku)) {
       throw new NotFoundException("storefront_product_not_found");
     }
-    const product = catalogProduct ?? crossSellCartItemToProduct(this.crossSell.resolveCartItem(sku));
+    let product = catalogProduct;
+    if (!product) {
+      const crossSellItem = this.crossSell.resolveCartItem(sku);
+      if (!crossSellItem) {
+        throw new NotFoundException("storefront_product_not_found");
+      }
+      product = crossSellCartItemToProduct(crossSellItem);
+    }
 
     const quantity = Math.max(1, Math.min(Number(input.quantity ?? 1), 99));
-    // CAT-H5: Use extracted CartItemUpdater — immutable, no in-place mutations.
     const next = addOrUpdateCartItem(session, product, quantity);
     await this.sessions.saveSession(next);
 
-    // Track funnel event for experiment
     if (session.promptVariantId && this.recordFunnelEvent) {
       const timeFromStart = session.createdAt
         ? Math.round((Date.now() - new Date(session.createdAt).getTime()) / 1000)

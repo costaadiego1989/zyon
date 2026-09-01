@@ -1,7 +1,8 @@
-import { Injectable, Inject, NotFoundException, BadRequestException , Logger} from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, BadRequestException , Logger, Optional} from "@nestjs/common";
 import type { Cart, CartItem, ChatTurn, CheckoutSession } from "@zyon/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../../checkout/domain/ports/checkout-session.repository.port.js";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
+import type { ProductRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
 import { AcceptCrossSellSuggestionUseCase } from "./accept-cross-sell-suggestion.use-case.js";
 import { buildExperienceFromSession } from "../../../checkout/application/services/checkout-experience.service.js";
 import { resolveCrossSellCartItem } from "../services/cross-sell-product-resolver.js";
@@ -14,7 +15,8 @@ export class AcceptCrossSellFromWidgetUseCase {
   constructor(
     private readonly accept: AcceptCrossSellSuggestionUseCase,
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
-    @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository
+    @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository,
+    @Optional() @Inject("ProductRepositoryPort") private readonly productRepo?: ProductRepositoryPort
   ) {}
 
   async execute(input: {
@@ -49,7 +51,7 @@ export class AcceptCrossSellFromWidgetUseCase {
       merchantRules: rules
     });
 
-    const next = this.addCrossSellItems(session, input.accepted_skus);
+    const next = await this.addCrossSellItems(input.merchant_id, session, input.accepted_skus);
     await this.sessions.saveSession(next);
 
     const agentTurn: ChatTurn = {
@@ -78,10 +80,18 @@ export class AcceptCrossSellFromWidgetUseCase {
     };
   }
 
-  private addCrossSellItems(session: CheckoutSession, skus: string[]): CheckoutSession {
+  private async addCrossSellItems(merchantId: string, session: CheckoutSession, skus: string[]): Promise<CheckoutSession> {
     const items = [...session.cart.items];
     for (const sku of skus.map((value) => value.trim()).filter(Boolean)) {
-      const item = resolveCrossSellCartItem(sku);
+      if (!this.productRepo) {
+        this.logger.warn("cross_sell.accept.productRepo_missing", { merchantId, sku });
+        continue;
+      }
+      const item = await resolveCrossSellCartItem(sku, this.productRepo, merchantId);
+      if (!item) {
+        this.logger.warn("cross_sell.accept.sku_unresolved", { merchantId, sku });
+        continue;
+      }
       const existing = items.find((candidate) => candidate.sku === item.sku);
       if (existing) {
         existing.quantity += 1;
