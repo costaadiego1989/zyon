@@ -232,6 +232,7 @@ function startPolling(): void {
   const state = useCheckoutStore.getState();
   const { api, paymentIntent } = state;
   if (!api || !paymentIntent || !paymentIntent.intent_id) return;
+  if (pollTimer) return; // idempotent — a poll loop is already running
 
   const pollStartTime = Date.now();
   pollTimer = setInterval(async () => {
@@ -890,6 +891,12 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     const { api, paymentIntent } = get();
     if (!api || !paymentIntent || !paymentIntent.intent_id) return;
     set({ paymentPolling: true });
+
+    // Defensive HTTP polling runs alongside the WS: if the WebSocket connects
+    // but never delivers an event (silent channel, proxy buffering), the 3s
+    // HTTP poll still detects approval. startPolling() is idempotent via
+    // pollTimer, and whichever path wins calls stopPolling() to cancel both.
+    startPolling();
 
     wsCleanup = connectPaymentWs({
       apiBaseUrl: api.apiBaseUrl,

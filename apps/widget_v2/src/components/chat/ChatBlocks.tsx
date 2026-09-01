@@ -124,13 +124,28 @@ function PaymentMethodsBlock({ methods }: { methods?: unknown }) {
 
 function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   const pollPayment = useCheckoutStore((s) => s.pollPayment);
+  const stopPolling = useCheckoutStore((s) => s.stopPolling);
+  const status = useCheckoutStore((s) => s.status);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     pollPayment();
-  }, [pollPayment]);
+    return () => stopPolling();
+  }, [pollPayment, stopPolling]);
 
   if (!data) return null;
+
+  if (status === "completed") {
+    return (
+      <div style={{ padding: "16px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)", textAlign: "center" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
+          <div style={{ fontSize: "32px" }}>✓</div>
+          <div style={{ fontSize: "15px", fontWeight: 700, color: "var(--tx)" }}>Pagamento confirmado! 🎉</div>
+          <p style={{ fontSize: "13px", color: "var(--mut)", margin: 0 }}>Seu pedido está sendo processado.</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleCopy = async () => {
     const code = String(data.pix_code ?? "");
