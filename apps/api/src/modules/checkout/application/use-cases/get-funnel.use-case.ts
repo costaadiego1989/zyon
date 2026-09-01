@@ -224,7 +224,8 @@ export class GetFunnelUseCase {
         merchantId,
         createdAt: { gte: from, lte: to },
       },
-      select: { id: true, globalUserId: true },
+      // Business sessionId (not the cuid PK): checkout_events.sessionId matches on it.
+      select: { sessionId: true, globalUserId: true },
     });
 
     // Determine which globalUserIds had sessions BEFORE this period
@@ -250,9 +251,9 @@ export class GetFunnelUseCase {
     const returningSessionIds: string[] = [];
     for (const s of sessions) {
       if (s.globalUserId && returningUserIds.has(s.globalUserId)) {
-        returningSessionIds.push(s.id);
+        returningSessionIds.push(s.sessionId);
       } else {
-        newSessionIds.push(s.id);
+        newSessionIds.push(s.sessionId);
       }
     }
 

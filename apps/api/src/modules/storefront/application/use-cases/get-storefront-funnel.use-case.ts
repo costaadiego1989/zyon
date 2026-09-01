@@ -200,7 +200,9 @@ export class GetStorefrontFunnelUseCase {
         createdAt: { gte: from, lte: to },
         NOT: { sessionId: { startsWith: "chk_" } },
       },
-      select: { id: true, globalUserId: true },
+      // Use the business sessionId (not the cuid PK): checkout_events.sessionId
+      // stores the business sessionId, so segment step-counting must match on it.
+      select: { sessionId: true, globalUserId: true },
     });
 
     const globalUserIds = [...new Set(sessions.map(s => s.globalUserId).filter(Boolean))] as string[];
@@ -224,9 +226,9 @@ export class GetStorefrontFunnelUseCase {
     const returningSessionIds: string[] = [];
     for (const s of sessions) {
       if (s.globalUserId && returningUserIds.has(s.globalUserId)) {
-        returningSessionIds.push(s.id);
+        returningSessionIds.push(s.sessionId);
       } else {
-        newSessionIds.push(s.id);
+        newSessionIds.push(s.sessionId);
       }
     }
 
