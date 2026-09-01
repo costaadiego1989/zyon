@@ -16,6 +16,7 @@ import { SearchMarketplaceProductsStorefrontUseCase } from "../../application/us
 import { AddMarketplaceItemToCartStorefrontUseCase } from "../../application/use-cases/add-marketplace-item-to-cart.use-case.js";
 import { decodePersistedTheme } from "../../../merchant/domain/services/merchant-theme.validators.js";
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
+import { detectDeviceFromUserAgent } from "../../domain/device-detection.js";
 
 export interface StartConversationRequest {
   merchant_id: string;
@@ -173,7 +174,8 @@ export class StorefrontController {
   async sendMessage(
     @Param("conversationId") conversationId: string,
     @Body() body: SendMessageRequest & { merchant_id: string },
-    @Headers("authorization") authorization?: string
+    @Headers("authorization") authorization?: string,
+    @Headers("user-agent") userAgent?: string
   ) {
     let globalUserId: string | undefined;
     const token = authorization?.startsWith("Bearer ") ? authorization.slice(7).trim() : undefined;
@@ -191,6 +193,7 @@ export class StorefrontController {
       cart_id: body.cart_id,
       history: body.history,
       global_user_id: globalUserId,
+      device_type: detectDeviceFromUserAgent(userAgent),
     });
   }
 

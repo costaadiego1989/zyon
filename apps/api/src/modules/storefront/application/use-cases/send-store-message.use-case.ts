@@ -22,6 +22,7 @@ export interface SendStoreMessageInput {
   cart_id?: string;
   global_user_id?: string;
   history?: Array<{ role: "user" | "assistant"; content: string }>;
+  device_type?: "mobile" | "tablet" | "desktop";
 }
 
 export interface SendStoreMessageOutput {
@@ -192,6 +193,7 @@ export class SendStoreMessageUseCase {
       advancedRules,
       experimentSystemPrompt,
       buyerContext,
+      deviceType: input.device_type,
     });
 
     // Persist conversation history (non-blocking, best-effort)

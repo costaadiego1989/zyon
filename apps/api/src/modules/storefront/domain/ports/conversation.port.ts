@@ -1,9 +1,3 @@
-/**
- * Conversation port — interface for storefront agent orchestration.
- *
- * Wraps LangGraph agent and returns structured message + blocks.
- */
-
 import type { ConversationBlock } from "../types/conversation-block.js";
 
 export interface MerchantPolicy {
@@ -34,10 +28,9 @@ export interface StorefrontConversationInput {
   agentIdentity?: { agentName?: string; persona?: string; tone?: string; greeting?: string; language?: string };
   merchantPolicy?: MerchantPolicy;
   advancedRules?: string[];
-  /** Experiment variant system prompt — overrides default when A/B test is running */
   experimentSystemPrompt?: string;
-  /** Identity of the logged-in buyer, when authenticated. Lets tools like create_review skip asking for name/phone. */
   buyerContext?: BuyerContext;
+  deviceType?: "mobile" | "tablet" | "desktop";
 }
 
 export interface StorefrontConversationOutput {

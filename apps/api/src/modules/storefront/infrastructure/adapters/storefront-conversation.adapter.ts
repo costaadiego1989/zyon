@@ -9,6 +9,7 @@ import { OpenRouterProvider } from "@zyon/conversation-engine";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
 import { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
+import { CROSS_SELL_PROMOTION_REPOSITORY, type CrossSellPromotionRepository } from "../../../cross-sell/domain/ports/cross-sell-promotion-repository.port.js";
 import type { ProductRepositoryPort, StockRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 import { storefrontQuickReplies, type StorefrontCartState, type StorefrontShippingOption } from "../../domain/services/storefront-quick-replies.service.js";
@@ -38,6 +39,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     private readonly supportHandoff: SupportHandoffService,
     @Optional() private readonly searchFederatedProducts?: SearchFederatedProductsUseCase,
     @Optional() private readonly listEligibleCrossSells?: ListEligibleCrossSellsUseCase,
+    @Optional() @Inject(CROSS_SELL_PROMOTION_REPOSITORY) private readonly crossSellPromotionRepo?: CrossSellPromotionRepository,
   ) {
     const localApiKey = process.env.LOCAL_LLM_API_KEY || process.env.OPENROUTER_API_KEY || "";
     const localBaseUrl = process.env.LOCAL_LLM_BASE_URL || process.env.OPENROUTER_BASE_URL || undefined;
@@ -68,6 +70,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       searchFederatedProducts: this.searchFederatedProducts,
       listEligibleCrossSells: this.listEligibleCrossSells,
       loadCrossSellConfig: this.loadCrossSellConfig.bind(this),
+      crossSellPromotionRepo: this.crossSellPromotionRepo,
     };
 
     const placeholderHandlers: StoreToolHandlers = {} as any;
@@ -91,7 +94,8 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       sessionId: input.cartId || input.sessionId,
       buyer: input.buyerContext,
     };
-    this.emitFunnelEvent(input.merchantId, input.sessionId, "checkout_started").catch(() => {});
+    const deviceMeta = input.deviceType ? { device: input.deviceType } : undefined;
+    this.emitFunnelEvent(input.merchantId, input.sessionId, "checkout_started", deviceMeta).catch(() => {});
     const shortcut = await resolveDeterministicShortcut(
       {
         productRepo: this.productRepo,
@@ -117,7 +121,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       systemPrompt: input.experimentSystemPrompt,
       toolHandlers: composeStoreToolHandlers(this.handlerDeps, ctx),
     });
-    this.emitToolFunnelEvents(input.merchantId, input.sessionId, result.toolsUsed).catch(() => {});
+    this.emitToolFunnelEvents(input.merchantId, input.sessionId, result.toolsUsed, deviceMeta).catch(() => {});
     let cartState: StorefrontCartState | undefined;
     if (input.cartId) {
       try {
@@ -224,7 +228,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       });
     }
   }
-  private async emitFunnelEvent(merchantId: string, sessionId: string, eventName: string): Promise<void> {
+  private async emitFunnelEvent(merchantId: string, sessionId: string, eventName: string, metadata?: Record<string, unknown>): Promise<void> {
     try {
       await this.ensureCheckoutSession(merchantId, sessionId);
       const existing = await this.prisma.checkoutEvent.findFirst({
@@ -232,26 +236,26 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       });
       if (!existing) {
         await this.prisma.checkoutEvent.create({
-          data: { merchantId, sessionId, eventName, occurredAt: new Date() }
+          data: { merchantId, sessionId, eventName, occurredAt: new Date(), metadata: metadata as any }
         });
       }
     } catch {}
   }
-  private async emitToolFunnelEvents(merchantId: string, sessionId: string, toolsUsed: string[]): Promise<void> {
+  private async emitToolFunnelEvents(merchantId: string, sessionId: string, toolsUsed: string[], meta?: Record<string, unknown>): Promise<void> {
     if (toolsUsed.includes("search_products") || toolsUsed.includes("get_product_details")) {
-      await this.emitFunnelEvent(merchantId, sessionId, "product_viewed");
+      await this.emitFunnelEvent(merchantId, sessionId, "product_viewed", meta);
     }
     if (toolsUsed.includes("add_item_to_cart")) {
-      await this.emitFunnelEvent(merchantId, sessionId, "cart_viewed");
+      await this.emitFunnelEvent(merchantId, sessionId, "cart_viewed", meta);
     }
     if (toolsUsed.includes("quote_shipping")) {
-      await this.emitFunnelEvent(merchantId, sessionId, "shipping_option_selected");
+      await this.emitFunnelEvent(merchantId, sessionId, "shipping_option_selected", meta);
     }
     if (toolsUsed.includes("apply_coupon")) {
-      await this.emitFunnelEvent(merchantId, sessionId, "coupon_applied");
+      await this.emitFunnelEvent(merchantId, sessionId, "coupon_applied", meta);
     }
     if (toolsUsed.includes("create_checkout_session")) {
-      await this.emitFunnelEvent(merchantId, sessionId, "payment_method_selected");
+      await this.emitFunnelEvent(merchantId, sessionId, "payment_method_selected", meta);
     }
   }
   private buildSuggestedActions(toolsUsed: string[], cartId?: string): string[] {
