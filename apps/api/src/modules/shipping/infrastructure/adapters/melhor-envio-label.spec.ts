@@ -1,6 +1,16 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { MelhorEnvioCarrierAdapter } from "./melhor-envio.carrier.js";
+import type { MelhorEnvioTokenResolver } from "../../domain/ports/melhor-envio-token-resolver.port.js";
+
+// Test resolver mirrors the old env behaviour so these tests keep exercising
+// the same token paths after the per-merchant resolver refactor.
+const envTokenResolver: MelhorEnvioTokenResolver = {
+  resolveToken: async () => process.env.MELHOR_ENVIO_TOKEN?.trim() || undefined
+};
+function makeAdapter() {
+  return new MelhorEnvioCarrierAdapter(envTokenResolver);
+}
 
 const BASE_ENV = {
   MELHOR_ENVIO_TOKEN: "test-bearer-token",
@@ -55,8 +65,9 @@ describe("MelhorEnvioCarrierAdapter.purchaseLabel", () => {
     });
 
     try {
-      const adapter = new MelhorEnvioCarrierAdapter();
+      const adapter = makeAdapter();
       const result = await withEnv(BASE_ENV, async () => adapter.purchaseLabel({
+        merchantId: "mrc_1",
         serviceId: 1,
         fromZip: "01000-000",
         toZip: "01310-100",
@@ -78,10 +89,11 @@ describe("MelhorEnvioCarrierAdapter.purchaseLabel", () => {
   });
 
   it("throws when token is missing", async () => {
-    const adapter = new MelhorEnvioCarrierAdapter();
+    const adapter = makeAdapter();
     await assert.rejects(
       withEnv({ ...BASE_ENV, MELHOR_ENVIO_TOKEN: undefined }, async () =>
         adapter.purchaseLabel({
+          merchantId: "mrc_1",
           serviceId: 1,
           fromZip: "01000-000",
           toZip: "01310-100",
@@ -97,10 +109,11 @@ describe("MelhorEnvioCarrierAdapter.purchaseLabel", () => {
   it("throws when cart API fails", async () => {
     const restore = mockFetch(async () => new Response("error", { status: 422 }));
     try {
-      const adapter = new MelhorEnvioCarrierAdapter();
+      const adapter = makeAdapter();
       await assert.rejects(
         withEnv(BASE_ENV, async () =>
           adapter.purchaseLabel({
+            merchantId: "mrc_1",
             serviceId: 1,
             fromZip: "01000-000",
             toZip: "01310-100",
@@ -137,9 +150,9 @@ describe("MelhorEnvioCarrierAdapter.getTracking", () => {
     });
 
     try {
-      const adapter = new MelhorEnvioCarrierAdapter();
+      const adapter = makeAdapter();
       const result = await withEnv(BASE_ENV, async () =>
-        adapter.getTracking("ME123456789BR")
+        adapter.getTracking("ME123456789BR", "mrc_1")
       );
 
       assert.equal(result.status, "delivered");
@@ -157,9 +170,9 @@ describe("MelhorEnvioCarrierAdapter.getTracking", () => {
     );
 
     try {
-      const adapter = new MelhorEnvioCarrierAdapter();
+      const adapter = makeAdapter();
       await assert.rejects(
-        withEnv(BASE_ENV, async () => adapter.getTracking("INVALID")) as Promise<unknown>,
+        withEnv(BASE_ENV, async () => adapter.getTracking("INVALID", "mrc_1")) as Promise<unknown>,
         /melhor_envio_tracking_not_found/
       );
     } finally {
@@ -168,10 +181,10 @@ describe("MelhorEnvioCarrierAdapter.getTracking", () => {
   });
 
   it("throws when token is missing", async () => {
-    const adapter = new MelhorEnvioCarrierAdapter();
+    const adapter = makeAdapter();
     await assert.rejects(
       withEnv({ ...BASE_ENV, MELHOR_ENVIO_TOKEN: undefined }, async () =>
-        adapter.getTracking("ME123")
+        adapter.getTracking("ME123", "mrc_1")
       ) as Promise<unknown>,
       /melhor_envio_token_missing/
     );

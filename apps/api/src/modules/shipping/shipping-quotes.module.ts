@@ -5,9 +5,11 @@ import { MerchantModule } from "../merchant/merchant.module.js";
 import { CARRIER_ADAPTERS } from "./domain/ports/carrier.port.js";
 import { SHIPPING_QUOTE_REPOSITORY } from "./domain/ports/shipping-quote-repository.port.js";
 import { OWN_DELIVERY_CONFIG_REPOSITORY } from "./domain/ports/own-delivery-config.port.js";
+import { MELHOR_ENVIO_TOKEN_RESOLVER, type MelhorEnvioTokenResolver } from "./domain/ports/melhor-envio-token-resolver.port.js";
 import { QuoteShippingUseCase } from "./application/use-cases/quote-shipping.use-case.js";
 import { FlatRateCarrierAdapter } from "./infrastructure/adapters/flat-rate.carrier.js";
 import { MelhorEnvioCarrierAdapter } from "./infrastructure/adapters/melhor-envio.carrier.js";
+import { PrismaMelhorEnvioTokenResolver } from "./infrastructure/adapters/prisma-melhor-envio-token-resolver.js";
 import { PrismaShippingQuoteRepository } from "./infrastructure/repositories/prisma-shipping-quote.repository.js";
 import { PrismaOwnDeliveryConfigRepository } from "./infrastructure/repositories/prisma-own-delivery-config.repository.js";
 
@@ -16,14 +18,19 @@ import { PrismaOwnDeliveryConfigRepository } from "./infrastructure/repositories
   providers: [
     FlatRateCarrierAdapter,
     {
+      provide: MELHOR_ENVIO_TOKEN_RESOLVER,
+      useFactory: (prisma: PrismaClient) => new PrismaMelhorEnvioTokenResolver(prisma),
+      inject: [PRISMA_CLIENT]
+    },
+    {
       provide: MelhorEnvioCarrierAdapter,
-      useFactory: () => {
-        const token = process.env.MELHOR_ENVIO_TOKEN;
-        if (!token) {
-          Logger.warn("MelhorEnvio adapter initialized without MELHOR_ENVIO_TOKEN; quotes will only use flat-rate carrier", "ShippingModule");
+      useFactory: (resolver: MelhorEnvioTokenResolver) => {
+        if (!process.env.MELHOR_ENVIO_TOKEN) {
+          Logger.warn("MelhorEnvio: no global MELHOR_ENVIO_TOKEN fallback; merchants without a connected OAuth account will get flat-rate only", "ShippingModule");
         }
-        return new MelhorEnvioCarrierAdapter();
-      }
+        return new MelhorEnvioCarrierAdapter(resolver);
+      },
+      inject: [MELHOR_ENVIO_TOKEN_RESOLVER]
     },
     {
       provide: SHIPPING_QUOTE_REPOSITORY,

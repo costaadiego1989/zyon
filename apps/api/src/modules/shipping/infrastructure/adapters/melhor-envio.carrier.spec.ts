@@ -1,6 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { MelhorEnvioCarrierAdapter } from "./melhor-envio.carrier.js";
+import type { MelhorEnvioTokenResolver } from "../../domain/ports/melhor-envio-token-resolver.port.js";
+
+// Test resolver mirrors the old env behaviour so these tests keep exercising
+// the same token paths after the per-merchant resolver refactor.
+const envTokenResolver: MelhorEnvioTokenResolver = {
+  resolveToken: async () => process.env.MELHOR_ENVIO_TOKEN?.trim() || undefined
+};
+function makeAdapter() {
+  return new MelhorEnvioCarrierAdapter(envTokenResolver);
+}
 
 const baseCtx = {
   originZip: "01000-000",
@@ -28,18 +38,18 @@ function withEnv<T>(overrides: Record<string, string | undefined>, fn: () => T):
 }
 
 test("MelhorEnvioCarrierAdapter exposes carrierKey 'melhor-envio'", () => {
-  const adapter = new MelhorEnvioCarrierAdapter();
+  const adapter = makeAdapter();
   assert.equal(adapter.carrierKey, "melhor-envio");
 });
 
 test("MelhorEnvioCarrierAdapter returns [] when token missing", async () => {
-  const adapter = new MelhorEnvioCarrierAdapter();
+  const adapter = makeAdapter();
   const out = await withEnv({ MELHOR_ENVIO_TOKEN: undefined }, async () => adapter.fetchQuotes(baseCtx));
   assert.deepEqual(out, []);
 });
 
 test("MelhorEnvioCarrierAdapter returns [] when destination zip missing", async () => {
-  const adapter = new MelhorEnvioCarrierAdapter();
+  const adapter = makeAdapter();
   const out = await withEnv({ MELHOR_ENVIO_TOKEN: "fake-token" }, async () =>
     adapter.fetchQuotes({ ...baseCtx, destinationZip: "" })
   );
@@ -47,7 +57,7 @@ test("MelhorEnvioCarrierAdapter returns [] when destination zip missing", async 
 });
 
 test("MelhorEnvioCarrierAdapter returns [] when no origin zip and no MELHOR_ENVIO_FROM_ZIP", async () => {
-  const adapter = new MelhorEnvioCarrierAdapter();
+  const adapter = makeAdapter();
   const out = await withEnv(
     { MELHOR_ENVIO_TOKEN: "fake-token", MELHOR_ENVIO_FROM_ZIP: undefined },
     async () => adapter.fetchQuotes({ ...baseCtx, originZip: "" })
@@ -56,7 +66,7 @@ test("MelhorEnvioCarrierAdapter returns [] when no origin zip and no MELHOR_ENVI
 });
 
 test("MelhorEnvioCarrierAdapter returns [] for short zips", async () => {
-  const adapter = new MelhorEnvioCarrierAdapter();
+  const adapter = makeAdapter();
   const out = await withEnv({ MELHOR_ENVIO_TOKEN: "fake-token" }, async () =>
     adapter.fetchQuotes({ ...baseCtx, destinationZip: "123" })
   );
@@ -64,7 +74,7 @@ test("MelhorEnvioCarrierAdapter returns [] for short zips", async () => {
 });
 
 test("MelhorEnvioCarrierAdapter throws BadRequestException when no packages provided", async () => {
-  const adapter = new MelhorEnvioCarrierAdapter();
+  const adapter = makeAdapter();
   const err: unknown = await withEnv(
     { MELHOR_ENVIO_TOKEN: "fake-token", MELHOR_ENVIO_FROM_ZIP: "01000-000" },
     async () => {
@@ -89,7 +99,7 @@ test("MelhorEnvioCarrierAdapter returns [] when API responds with non-OK status"
   globalThis.fetch = (async () => new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 })) as typeof fetch;
 
   try {
-    const adapter = new MelhorEnvioCarrierAdapter();
+    const adapter = makeAdapter();
     const out = await withEnv(
       { MELHOR_ENVIO_TOKEN: "fake-token", MELHOR_ENVIO_FROM_ZIP: "01000-000" },
       async () => adapter.fetchQuotes(baseCtx)
@@ -113,7 +123,7 @@ test("MelhorEnvioCarrierAdapter transforms service response into ShippingQuoteRe
     })) as typeof fetch;
 
   try {
-    const adapter = new MelhorEnvioCarrierAdapter();
+    const adapter = makeAdapter();
     const out = await withEnv(
       { MELHOR_ENVIO_TOKEN: "fake-token", MELHOR_ENVIO_FROM_ZIP: "01000-000" },
       async () => adapter.fetchQuotes(baseCtx)
@@ -142,7 +152,7 @@ test("MelhorEnvioCarrierAdapter skips services with missing or NaN price", async
   globalThis.fetch = (async () => new Response(JSON.stringify(services), { status: 200 })) as typeof fetch;
 
   try {
-    const adapter = new MelhorEnvioCarrierAdapter();
+    const adapter = makeAdapter();
     const out = await withEnv(
       { MELHOR_ENVIO_TOKEN: "fake-token", MELHOR_ENVIO_FROM_ZIP: "01000-000" },
       async () => adapter.fetchQuotes(baseCtx)
@@ -162,7 +172,7 @@ test("MelhorEnvioCarrierAdapter swallows network errors and returns []", async (
   }) as typeof fetch;
 
   try {
-    const adapter = new MelhorEnvioCarrierAdapter();
+    const adapter = makeAdapter();
     const out = await withEnv(
       { MELHOR_ENVIO_TOKEN: "fake-token", MELHOR_ENVIO_FROM_ZIP: "01000-000" },
       async () => adapter.fetchQuotes(baseCtx)
@@ -179,7 +189,7 @@ test("MelhorEnvioCarrierAdapter returns [] when API payload is not an array", as
     new Response(JSON.stringify({ error: "internal" }), { status: 200 })) as typeof fetch;
 
   try {
-    const adapter = new MelhorEnvioCarrierAdapter();
+    const adapter = makeAdapter();
     const out = await withEnv(
       { MELHOR_ENVIO_TOKEN: "fake-token", MELHOR_ENVIO_FROM_ZIP: "01000-000" },
       async () => adapter.fetchQuotes(baseCtx)

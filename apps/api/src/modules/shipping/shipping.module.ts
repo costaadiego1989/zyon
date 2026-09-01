@@ -33,7 +33,7 @@ import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
     EmbedAuthGuard,
     SelectShippingMethodUseCase,
     { provide: ORDER_TRACKING_UPDATER, useExisting: UpdateTenantOrderTrackingUseCase },
-    { provide: SHIPPING_CARRIER_ADAPTER, useClass: MelhorEnvioCarrierAdapter },
+    { provide: SHIPPING_CARRIER_ADAPTER, useExisting: MelhorEnvioCarrierAdapter },
     PurchaseShippingLabelUseCase,
     GetShippingTrackingUseCase,
     GetDeliveryConfigUseCase,

@@ -1,6 +1,8 @@
 export const SHIPPING_CARRIER_ADAPTER = Symbol("SHIPPING_CARRIER_ADAPTER");
 
 export interface LabelPurchaseInput {
+  /** Tenant whose Melhor Envio account (OAuth token) must be used. */
+  merchantId: string;
   serviceId: number;
   fromZip: string;
   toZip: string;
@@ -25,5 +27,5 @@ export interface TrackingResult {
 
 export interface ShippingCarrierPort {
   purchaseLabel(input: LabelPurchaseInput): Promise<LabelPurchaseResult>;
-  getTracking(trackingCode: string): Promise<TrackingResult>;
+  getTracking(trackingCode: string, merchantId: string): Promise<TrackingResult>;
 }

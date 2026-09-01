@@ -27,6 +27,7 @@ export class PurchaseShippingLabelUseCase {
     const externalOrderId = required(input.externalOrderId, "order_id");
 
     const label = await this.melhorEnvio.purchaseLabel({
+      merchantId,
       serviceId: input.serviceId,
       fromZip: input.fromZip,
       toZip: input.toZip,
@@ -77,7 +78,7 @@ export class GetShippingTrackingUseCase {
     const snapshot = shipment.snapshot();
     if (!snapshot.tracking_code) throw new BadRequestException("tracking_code_missing");
 
-    const tracking = await this.melhorEnvio.getTracking(snapshot.tracking_code);
+    const tracking = await this.melhorEnvio.getTracking(snapshot.tracking_code, merchantId);
     return {
       shipment_id: snapshot.id,
       order_id: snapshot.order_id,

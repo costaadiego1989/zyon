@@ -4,6 +4,7 @@ import type { PackageDimensions } from "@zyon/shared-types";
 import type { CarrierPort, ShippingContext } from "../../domain/ports/carrier.port.js";
 import type { ShippingQuoteResult } from "../../domain/entities/shipping-quote.entity.js";
 import type { ShippingCarrierPort, LabelPurchaseInput, LabelPurchaseResult, TrackingResult } from "../../domain/ports/shipping-carrier.port.js";
+import type { MelhorEnvioTokenResolver } from "../../domain/ports/melhor-envio-token-resolver.port.js";
 
 interface MelhorEnvioService {
   id: number;
@@ -18,12 +19,14 @@ interface MelhorEnvioService {
 export class MelhorEnvioCarrierAdapter implements CarrierPort, ShippingCarrierPort {
   readonly carrierKey = "melhor-envio";
 
-  private get token(): string | undefined { return process.env.MELHOR_ENVIO_TOKEN; }
+  constructor(private readonly tokenResolver: MelhorEnvioTokenResolver) {}
+
   private get baseUrl(): string { return process.env.MELHOR_ENVIO_BASE_URL ?? "https://sandbox.melhorenvio.com.br"; }
   private get fromZip(): string { return process.env.MELHOR_ENVIO_FROM_ZIP ?? ""; }
 
   async fetchQuotes(ctx: ShippingContext): Promise<ShippingQuoteResult[]> {
-    if (!this.token || !ctx.destinationZip) return [];
+    const token = await this.tokenResolver.resolveToken(ctx.merchantId);
+    if (!token || !ctx.destinationZip) return [];
 
     const fromZipRaw = ctx.originZip || this.fromZip;
     if (!fromZipRaw) return [];
@@ -61,7 +64,7 @@ export class MelhorEnvioCarrierAdapter implements CarrierPort, ShippingCarrierPo
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${this.token}`,
+          "Authorization": `Bearer ${token}`,
           "Accept": "application/json",
           "User-Agent": "AACP/1.0 (checkout@aacp.com)"
         },
@@ -89,7 +92,7 @@ export class MelhorEnvioCarrierAdapter implements CarrierPort, ShippingCarrierPo
   }
 
   async purchaseLabel(input: LabelPurchaseInput): Promise<LabelPurchaseResult> {
-    this.assertConfigured();
+    const token = await this.resolveTokenOrThrow(input.merchantId);
     const fromZip = this.normalizeCepOrThrow(input.fromZip || this.fromZip, "from_zip_invalid");
     const toZip = this.normalizeCepOrThrow(input.toZip, "to_zip_invalid");
     const products = this.normalizeProducts(input.packages);
@@ -114,19 +117,21 @@ export class MelhorEnvioCarrierAdapter implements CarrierPort, ShippingCarrierPo
       },
     };
 
-    const cart = await this.postJson<Record<string, unknown>>("/api/v2/me/cart", cartBody, "melhor_envio_cart_failed");
+    const cart = await this.postJson<Record<string, unknown>>("/api/v2/me/cart", cartBody, "melhor_envio_cart_failed", token);
     const cartItemId = this.extractCartItemId(cart);
 
     const checkout = await this.postJson<Record<string, unknown>>(
       "/api/v2/me/shipment/checkout",
       { orders: [cartItemId] },
       "melhor_envio_checkout_failed",
+      token,
     );
 
     await this.postJson<Record<string, unknown>>(
       "/api/v2/me/shipment/generate",
       { orders: [cartItemId] },
       "melhor_envio_generate_failed",
+      token,
     );
 
     return {
@@ -136,15 +141,15 @@ export class MelhorEnvioCarrierAdapter implements CarrierPort, ShippingCarrierPo
     };
   }
 
-  async getTracking(trackingCode: string): Promise<TrackingResult> {
-    this.assertConfigured();
+  async getTracking(trackingCode: string, merchantId: string): Promise<TrackingResult> {
+    const token = await this.resolveTokenOrThrow(merchantId);
     const code = trackingCode.trim();
     if (!code) throw new BadRequestException("tracking_code_required");
 
     const query = new URLSearchParams({ tracking: code });
     const response = await fetch(`${this.baseUrl}/api/v2/me/shipment/tracking?${query.toString()}`, {
       method: "GET",
-      headers: this.headers(),
+      headers: this.headers(token),
       signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) throw new BadRequestException("melhor_envio_tracking_failed");
@@ -160,8 +165,10 @@ export class MelhorEnvioCarrierAdapter implements CarrierPort, ShippingCarrierPo
     };
   }
 
-  private assertConfigured(): void {
-    if (!this.token) throw new BadRequestException("melhor_envio_token_missing");
+  private async resolveTokenOrThrow(merchantId: string): Promise<string> {
+    const token = await this.tokenResolver.resolveToken(merchantId);
+    if (!token) throw new BadRequestException("melhor_envio_token_missing");
+    return token;
   }
 
   private normalizeCepOrThrow(value: string, error: string): string {
@@ -184,19 +191,19 @@ export class MelhorEnvioCarrierAdapter implements CarrierPort, ShippingCarrierPo
     }));
   }
 
-  private headers(): HeadersInit {
+  private headers(token: string): HeadersInit {
     return {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${this.token}`,
+      "Authorization": `Bearer ${token}`,
       "Accept": "application/json",
       "User-Agent": "AACP/1.0 (checkout@aacp.com)",
     };
   }
 
-  private async postJson<T>(path: string, body: unknown, errorCode: string): Promise<T> {
+  private async postJson<T>(path: string, body: unknown, errorCode: string, token: string): Promise<T> {
     const response = await fetch(`${this.baseUrl}${path}`, {
       method: "POST",
-      headers: this.headers(),
+      headers: this.headers(token),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(5000),
     });

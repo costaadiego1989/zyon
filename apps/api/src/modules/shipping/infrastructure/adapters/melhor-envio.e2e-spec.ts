@@ -9,14 +9,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { MelhorEnvioCarrierAdapter } from "./melhor-envio.carrier.js";
+import type { MelhorEnvioTokenResolver } from "../../domain/ports/melhor-envio-token-resolver.port.js";
+
+// Live E2E uses the env token, resolved through a test resolver so the adapter
+// exercises its real per-merchant code path.
+const envTokenResolver: MelhorEnvioTokenResolver = {
+  resolveToken: async () => process.env.MELHOR_ENVIO_TOKEN?.trim() || undefined
+};
+function makeAdapter() {
+  return new MelhorEnvioCarrierAdapter(envTokenResolver);
+}
 
 const SKIP = !process.env.RUN_SHIPPING_E2E;
 
 test("E2E: Melhor Envio sandbox — calculate shipping for valid packages", { skip: SKIP ? "Set RUN_SHIPPING_E2E=true to run live shipping E2E tests. Requires: MELHOR_ENVIO_TOKEN (sandbox), MELHOR_ENVIO_FROM_ZIP." : false }, async () => {
-  const adapter = new MelhorEnvioCarrierAdapter();
+  const adapter = makeAdapter();
 
   const quotes = await adapter.fetchQuotes({
-    originZip: process.env.MELHOR_ENVIO_FROM_ZIP ?? "01000000",
+    originZip: process.env.MELHOR_ENVIO_FROM_ZIP ?? "01001000",
     destinationZip: "22041-080", // Copacabana, RJ
     cartTotalCents: 15000,
     merchantId: "mrc_e2e_test",
@@ -42,10 +52,10 @@ test("E2E: Melhor Envio sandbox — calculate shipping for valid packages", { sk
 });
 
 test("E2E: Melhor Envio sandbox — heavy package (30kg) returns valid quotes", { skip: SKIP ? "(skipped - need live API)" : false }, async () => {
-  const adapter = new MelhorEnvioCarrierAdapter();
+  const adapter = makeAdapter();
 
   const quotes = await adapter.fetchQuotes({
-    originZip: process.env.MELHOR_ENVIO_FROM_ZIP ?? "01000000",
+    originZip: process.env.MELHOR_ENVIO_FROM_ZIP ?? "01001000",
     destinationZip: "80010-000", // Curitiba, PR
     cartTotalCents: 50000,
     merchantId: "mrc_e2e_test",
@@ -65,7 +75,7 @@ test("E2E: Melhor Envio sandbox — heavy package (30kg) returns valid quotes", 
 });
 
 test("E2E: Melhor Envio sandbox — same origin/destination CEP (0km) returns empty or error-free", { skip: SKIP ? "(skipped - need live API)" : false }, async () => {
-  const adapter = new MelhorEnvioCarrierAdapter();
+  const adapter = makeAdapter();
 
   const quotes = await adapter.fetchQuotes({
     originZip: "01000000",
