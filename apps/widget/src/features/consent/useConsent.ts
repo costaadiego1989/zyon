@@ -30,17 +30,53 @@ export function useConsent(
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Initialize: check localStorage
+  // Initialize: check localStorage. If a prior decision failed to reach the
+  // server (synced:false), re-sync it in the background — the banner stays
+  // hidden (the buyer already decided), we just reconcile the source of truth.
   useEffect(() => {
-    const stored = localStorage.getItem(CONSENT_STORAGE_KEY);
+    let stored: { optedIn?: boolean; synced?: boolean } | null = null;
+    try {
+      const raw = localStorage.getItem(CONSENT_STORAGE_KEY);
+      stored = raw ? JSON.parse(raw) : null;
+    } catch {
+      stored = null;
+    }
+
     if (!stored) {
       setShowBanner(true);
+      return;
     }
-  }, []);
+
+    if (stored.synced === false && typeof stored.optedIn === "boolean" && sessionId && globalUserId) {
+      // Fire-and-forget re-sync; failure just leaves synced:false for next load.
+      void recordConsent(stored.optedIn);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, globalUserId]);
 
   async function recordConsent(optedIn: boolean): Promise<void> {
     setIsLoading(true);
     setError(null);
+
+    // Optimistic local cache FIRST: the buyer's decision is honored immediately
+    // and the banner never re-appears, even if the network call fails. The server
+    // is the source of truth (auditable, cross-device); localStorage is the UX
+    // mirror. `synced` tracks whether the server already has it.
+    const writeLocal = (synced: boolean) => {
+      try {
+        localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify({
+          version: CONSENT_VERSION,
+          optedIn,
+          synced,
+          timestamp: new Date().toISOString(),
+        }));
+      } catch {
+        // localStorage unavailable (private mode) — non-fatal; server call still runs.
+      }
+    };
+
+    writeLocal(false);
+    setShowBanner(false);
 
     try {
       const headers: Record<string, string> = {
@@ -64,15 +100,10 @@ export function useConsent(
         throw new Error(`API error: ${response.status}`);
       }
 
-      // Record consent in localStorage
-      localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify({
-        version: CONSENT_VERSION,
-        optedIn,
-        timestamp: new Date().toISOString(),
-      }));
-
-      setShowBanner(false);
+      // Server confirmed — mark as synced.
+      writeLocal(true);
     } catch (err) {
+      // Local decision stands (synced:false). A later load can re-sync.
       setError(err instanceof Error ? err.message : "Erro desconhecido");
     } finally {
       setIsLoading(false);
