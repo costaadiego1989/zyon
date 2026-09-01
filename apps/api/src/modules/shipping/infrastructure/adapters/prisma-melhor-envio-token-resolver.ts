@@ -16,7 +16,16 @@ export class PrismaMelhorEnvioTokenResolver implements MelhorEnvioTokenResolver 
   constructor(private readonly prisma: PrismaClient) {}
 
   async resolveToken(merchantId: string): Promise<string | undefined> {
-    const envFallback = process.env.MELHOR_ENVIO_TOKEN?.trim() || undefined;
+    // The global MELHOR_ENVIO_TOKEN belongs to the platform owner. Using it for a
+    // merchant that has not connected its own OAuth account would quote and label
+    // freight against the wrong (owner's) account — a cross-tenant credential leak
+    // with financial impact. Allow the fallback for local/dev single-tenant
+    // testing only; in production a merchant without its own token gets no token
+    // (carrier degrades to flat-rate / own delivery). See ADR-004.
+    const envFallback =
+      process.env.NODE_ENV !== "production"
+        ? process.env.MELHOR_ENVIO_TOKEN?.trim() || undefined
+        : undefined;
 
     if (!merchantId) return envFallback;
 
