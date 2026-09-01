@@ -298,15 +298,10 @@ export function CheckoutSettingsPage(props: {
                 const hasCommercialRule = vm.draft!.advancedRules.some(
                   (r) => r.action?.type === "offer_discount" || r.action?.type === "offer_free_shipping"
                 );
-                const cumulative = vm.draft!.progressiveMode === "both";
                 if (!vm.draft!.progressiveDiscountEnabled || !hasCommercialRule) return null;
-                return cumulative ? (
-                  <div className="cfg-help" role="note" style={{ backgroundColor: "#ecfdf5", borderLeft: "4px solid #10b981", padding: "12px" }} data-priority="rules-cumulative">
-                    <strong>Modo cumulativo:</strong> Regras avançadas e desconto progressivo <em>somam</em> para o comprador. O total é limitado ao teto de desconto do merchant (margem sempre respeitada).
-                  </div>
-                ) : (
+                return (
                   <div className="cfg-help" role="note" style={{ backgroundColor: "#fef3c7", borderLeft: "4px solid #f59e0b", padding: "12px" }} data-priority="rules-over-progressive">
-                    <strong>Aviso:</strong> Você tem regras avançadas de desconto/frete ativas. Elas têm prioridade e o desconto progressivo <strong>não vai acumular</strong> — para somar os dois, mude o modo para <strong>"Ambos (cumulativo)"</strong>.
+                    <strong>Aviso:</strong> Você tem regras avançadas de desconto/frete ativas. Elas têm prioridade — se uma regra já aplicou desconto, este desconto progressivo <strong>não acumula</strong>. O motor de regras sempre respeita o teto e a margem.
                   </div>
                 );
               })()}
@@ -326,46 +321,26 @@ export function CheckoutSettingsPage(props: {
                 />
               </div>
 
-              <div className="cfg-grid-2">
-                <div className="cfg-field">
-                  <label htmlFor="cfg-discount-mode">Modo de desconto</label>
-                  <div className="cfg-select">
-                    <select
-                      id="cfg-discount-mode"
-                      value={vm.draft!.progressiveMode}
-                      disabled={vm.busy || !vm.draft!.progressiveDiscountEnabled}
-                      onChange={(e) =>
-                        vm.patchDraft({ progressiveMode: e.target.value as "progressive_only" | "coupon_only" | "both" })
-                      }
-                    >
-                      <option value="progressive_only">Desconto progressivo apenas</option>
-                      <option value="coupon_only">Cupom manual apenas</option>
-                      <option value="both">Ambos (cumulativo)</option>
-                    </select>
-                  </div>
-                </div>
-
+              <div className="cfg-progressive-max" data-disabled={vm.draft!.progressiveDiscountEnabled ? undefined : "true"}>
                 <NumberField
-                  label="Desconto máximo para progressivo"
-                  help="Teto geral para todas as etapas de desconto."
+                  label="Teto geral do desconto progressivo"
+                  help="Limite máximo que qualquer etapa do progressivo pode oferecer. O motor de regras ainda respeita a margem mínima."
                   value={vm.draft!.progressiveMaxPercent}
                   min={5}
                   max={100}
-                  disabled={vm.busy || !vm.draft!.progressiveDiscountEnabled || vm.draft!.progressiveMode === "coupon_only"}
+                  disabled={vm.busy || !vm.draft!.progressiveDiscountEnabled}
                   suffix="%"
                   onChange={(v) => vm.patchDraft({ progressiveMaxPercent: v })}
                 />
               </div>
 
-              {vm.draft!.progressiveMode !== "coupon_only" && (<>
               <div className="cfg-preset-buttons">
                 <span className="cfg-preset-label">Presets:</span>
                 <button
                   type="button"
-                  className={`cfg-preset-btn${vm.draft!.progressiveLevel === "conservative" ? " active" : ""}`}
+                  className="cfg-preset-btn"
                   disabled={vm.busy || !vm.draft!.progressiveDiscountEnabled}
                   onClick={() => vm.patchDraft({
-                    progressiveLevel: "conservative",
                     progressiveInitialCouponPercent: 5,
                     progressiveExitIntentPercent: 7,
                     progressiveAbandonedCartPercent: 10,
@@ -376,10 +351,9 @@ export function CheckoutSettingsPage(props: {
                 </button>
                 <button
                   type="button"
-                  className={`cfg-preset-btn${vm.draft!.progressiveLevel === "moderate" ? " active" : ""}`}
+                  className="cfg-preset-btn"
                   disabled={vm.busy || !vm.draft!.progressiveDiscountEnabled}
                   onClick={() => vm.patchDraft({
-                    progressiveLevel: "moderate",
                     progressiveInitialCouponPercent: 7,
                     progressiveExitIntentPercent: 10,
                     progressiveAbandonedCartPercent: 15,
@@ -390,10 +364,9 @@ export function CheckoutSettingsPage(props: {
                 </button>
                 <button
                   type="button"
-                  className={`cfg-preset-btn${vm.draft!.progressiveLevel === "aggressive" ? " active" : ""}`}
+                  className="cfg-preset-btn"
                   disabled={vm.busy || !vm.draft!.progressiveDiscountEnabled}
                   onClick={() => vm.patchDraft({
-                    progressiveLevel: "aggressive",
                     progressiveInitialCouponPercent: 10,
                     progressiveExitIntentPercent: 15,
                     progressiveAbandonedCartPercent: 20,
@@ -449,7 +422,6 @@ export function CheckoutSettingsPage(props: {
               <p className="cfg-help">
                 Cada valor é o desconto total daquela etapa, não a soma. O motor de regras aplica o teto e a margem mínima.
               </p>
-              </>)}
             </SectionRail>
             </>}
 
@@ -466,31 +438,11 @@ export function CheckoutSettingsPage(props: {
                 </span>
               }
             >
-              {vm.draft!.progressiveDiscountEnabled && (() => {
-                const cumulative = vm.draft!.progressiveMode === "both";
-                return (
-                  <div
-                    className="cfg-help"
-                    role="note"
-                    style={
-                      cumulative
-                        ? { backgroundColor: "#ecfdf5", borderLeft: "4px solid #10b981", padding: "12px" }
-                        : undefined
-                    }
-                    data-priority={cumulative ? "advanced-cumulative" : "advanced-over-progressive"}
-                  >
-                    {cumulative ? (
-                      <>
-                        <strong>Modo cumulativo:</strong> as regras avançadas desta lista <em>combinam</em> com o desconto progressivo (modo "Ambos"). O total respeita o teto e a margem configurados.
-                      </>
-                    ) : (
-                      <>
-                        <strong>Prioridade:</strong> Regras Avançadas têm preferência. O desconto progressivo só dispara quando esta regra não casa.
-                      </>
-                    )}
-                  </div>
-                );
-              })()}
+              {vm.draft!.progressiveDiscountEnabled && (
+                <div className="cfg-help" role="note" data-priority="advanced-over-progressive">
+                  <strong>Prioridade:</strong> Regras Avançadas têm preferência. O desconto progressivo só dispara quando esta regra não casa.
+                </div>
+              )}
               <RulesList
                 rules={vm.draft!.advancedRules}
                 busy={vm.busy}

@@ -5,8 +5,7 @@ import type {
   CheckoutTriggerName,
   CheckoutWidgetPosition,
 } from "@zyon/shared-types";
-import { ALL_TRIGGERS, PROGRESSIVE_PRESETS, TRIGGER_FIXED_PRIORITIES } from "./constants.js";
-import type { ProgressiveLevel } from "./constants.js";
+import { ALL_TRIGGERS, TRIGGER_FIXED_PRIORITIES } from "./constants.js";
 
 export interface AdvancedRule {
   id: string;
@@ -31,8 +30,6 @@ export interface Draft {
   respectBuyerOptOut: boolean;
   minimumCartValue: number;
   progressiveDiscountEnabled: boolean;
-  progressiveLevel: ProgressiveLevel;
-  progressiveMode: "progressive_only" | "coupon_only" | "both";
   progressiveMaxPercent: number;
   progressiveInitialCouponPercent: number;
   progressiveExitIntentPercent: number;
@@ -65,8 +62,6 @@ export const DEFAULT_DRAFT: Draft = {
   respectBuyerOptOut: true,
   minimumCartValue: 0,
   progressiveDiscountEnabled: false,
-  progressiveLevel: "moderate",
-  progressiveMode: "progressive_only",
   progressiveMaxPercent: 20,
   progressiveInitialCouponPercent: 7,
   progressiveExitIntentPercent: 10,
@@ -79,30 +74,6 @@ export const DEFAULT_DRAFT: Draft = {
   advancedRules: [],
 };
 
-function inferProgressiveLevel(stages: {
-  initial_coupon: number;
-  exit_intent: number;
-  abandoned_cart: number;
-  payment_nudge: number;
-}): ProgressiveLevel {
-  let best: ProgressiveLevel = "moderate";
-  let bestDiff = Infinity;
-  for (const [key, preset] of Object.entries(PROGRESSIVE_PRESETS) as [
-    ProgressiveLevel,
-    typeof PROGRESSIVE_PRESETS["conservative"],
-  ][]) {
-    const diff =
-      Math.abs(stages.initial_coupon - preset.initial_coupon) +
-      Math.abs(stages.exit_intent - preset.exit_intent) +
-      Math.abs(stages.abandoned_cart - preset.abandoned_cart) +
-      Math.abs(stages.payment_nudge - preset.payment_nudge);
-    if (diff < bestDiff) {
-      bestDiff = diff;
-      best = key;
-    }
-  }
-  return best;
-}
 
 export function settingsToDraft(s: CheckoutSettings): Draft {
   const triggers = Object.fromEntries(
@@ -133,8 +104,6 @@ export function settingsToDraft(s: CheckoutSettings): Draft {
     respectBuyerOptOut: s.suppressionRules.respectBuyerOptOut,
     minimumCartValue: s.suppressionRules.minimumCartValue ?? 0,
     progressiveDiscountEnabled: s.interventionPolicy.progressiveDiscount?.enabled ?? false,
-    progressiveLevel: inferProgressiveLevel(stages),
-    progressiveMode: s.interventionPolicy.progressiveDiscount?.mode ?? "progressive_only",
     progressiveMaxPercent: s.interventionPolicy.progressiveDiscount?.maxProgressivePercent ?? 20,
     progressiveInitialCouponPercent: stages.initial_coupon,
     progressiveExitIntentPercent: stages.exit_intent,
@@ -163,7 +132,6 @@ export function draftToPatch(d: Draft): CheckoutSettingsPatch {
       maxInterventionsPerSession: d.maxInterventionsPerSession,
       progressiveDiscount: {
         enabled: d.progressiveDiscountEnabled,
-        mode: d.progressiveMode,
         maxProgressivePercent: d.progressiveMaxPercent,
         stages,
       },

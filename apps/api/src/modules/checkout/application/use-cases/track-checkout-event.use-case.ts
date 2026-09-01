@@ -163,42 +163,18 @@ export class TrackCheckoutEventUseCase {
     settingsCtx: CheckoutSettingsContext | undefined
   ): Promise<ProgressiveOfferResponse | undefined> {
     if (!this.merchantRepository) return undefined;
-    const policy = settingsCtx?.checkout_settings.progressive_discount;
     const stage = resolveProgressiveDiscountStage(eventName);
-    const requested = selectProgressiveDiscountPercent(policy, stage);
+    const requested = selectProgressiveDiscountPercent(settingsCtx?.checkout_settings.progressive_discount, stage);
     if (!stage || requested <= 0) return undefined;
     const rules = await this.merchantRepository.getRules(session.merchantId);
     if (!rules || rules.couponBoxEnabled === false) return undefined;
-
-    // Discount already on the cart (e.g. from an advanced rule matched earlier in
-    // the checkout, or a prior progressive stage), expressed as a percent of total.
+    const evaluation = evaluateDiscountOffer(session.cart, rules, requested);
+    if (!evaluation.approved || evaluation.value <= 0) return undefined;
+    // Progressive discount is a TOTAL target, not additive.
+    // If buyer already has a discount >= this stage's approved value, skip.
     const currentDiscountPercent = session.cart.total > 0
       ? ((session.cart.currentDiscount ?? 0) / session.cart.total) * 100
       : 0;
-
-    // CUMULATIVE MODE ("both"): progressive STACKS on top of the discount already
-    // applied. The target percent = existing + this stage's step, hard-capped by
-    // the merchant's maxDiscountPercent (evaluateDiscountOffer enforces it) and by
-    // the optional per-policy maxProgressivePercent ceiling. Margin floor still wins.
-    //
-    // DEFAULT MODE (progressive_only / undefined): progressive is a TOTAL target,
-    // not additive — advanced rules keep priority, so a stage that would not exceed
-    // the discount already applied is skipped.
-    const cumulative = policy?.mode === "both";
-    const stageStep = requested;
-    let targetPercent = cumulative ? currentDiscountPercent + stageStep : stageStep;
-
-    if (cumulative && typeof policy?.maxProgressivePercent === "number" && policy.maxProgressivePercent > 0) {
-      targetPercent = Math.min(targetPercent, policy.maxProgressivePercent);
-    }
-
-    // No-op when the target does not improve on what the buyer already has.
-    if (targetPercent <= currentDiscountPercent) return undefined;
-
-    const evaluation = evaluateDiscountOffer(session.cart, rules, targetPercent);
-    if (!evaluation.approved || evaluation.value <= 0) return undefined;
-    // Guard again after the engine clamps to margin / maxDiscountPercent: if the
-    // approved total is not strictly greater than the current discount, skip.
     if (evaluation.value <= currentDiscountPercent) return undefined;
 
     // Persist the rules-engine-authorized discount to the session cart so the
@@ -216,9 +192,9 @@ export class TrackCheckoutEventUseCase {
 
     return {
       stage,
-      requested_percent: cumulative ? targetPercent : requested,
+      requested_percent: requested,
       approved_percent: evaluation.value,
-      reason: cumulative ? `cumulative_${evaluation.reason}` : evaluation.reason
+      reason: evaluation.reason
     };
   }
 
