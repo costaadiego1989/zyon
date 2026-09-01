@@ -38,7 +38,26 @@ export function integrationEndpoints(base: string, f: typeof fetch) {
       }));
     },
     createCoupon(payload: { code: string; discount_type: string; discount_value: number; min_cart_value?: number; max_uses?: number; starts_at?: string; expires_at?: string; product_id?: string; category_id?: string; is_active?: boolean }): Promise<unknown> {
-      return dashboardJson(base, "/merchant/coupons", { method: "POST", jsonBody: payload }, f);
+      // Boundary mapping: the dashboard form uses UI-oriented field names, but the
+      // API CreateCouponUseCase expects canonical domain names. Without this the
+      // min-cart / usage-limit / expiry fields were silently dropped, deceiving the
+      // merchant (a coupon they configured as limited persisted as unlimited).
+      // The API discount-type enum is shipping_free (not free_shipping).
+      const discount_type = payload.discount_type === "free_shipping" ? "shipping_free" : payload.discount_type;
+      const body: Record<string, unknown> = {
+        code: payload.code,
+        discount_type,
+        discount_value: payload.discount_value,
+        starts_at: payload.starts_at,
+        is_active: payload.is_active,
+      };
+      if (payload.min_cart_value !== undefined) body.min_cart_total = payload.min_cart_value;
+      if (payload.max_uses !== undefined) body.max_usages = payload.max_uses;
+      if (payload.expires_at !== undefined) body.ends_at = payload.expires_at;
+      // NOTE: product_id / category_id restrictions are NOT yet supported by the
+      // coupon API (it exposes allowed_skus/allowed_regions only, and a product id
+      // is not a sku). Dropping them here rather than mapping to the wrong field.
+      return dashboardJson(base, "/merchant/coupons", { method: "POST", jsonBody: body }, f);
     },
     deleteCoupon(id: string): Promise<unknown> {
       return dashboardJson(base, `/merchant/coupons/${encodeURIComponent(id)}`, { method: "DELETE" }, f);

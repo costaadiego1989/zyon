@@ -260,7 +260,7 @@ export function CouponsPage(_props: CouponsPageProps) {
                   <MultiSearchSelect label="Vincular a produtos" placeholder="Buscar produto..." selected={vm.form.productIds} onChange={(ids) => vm.patch({ productIds: ids })} type="products" merchantId={merchantId} />
                   <MultiSearchSelect label="Vincular a categorias" placeholder="Buscar categoria..." selected={vm.form.categoryIds} onChange={(ids) => vm.patch({ categoryIds: ids })} type="categories" merchantId={merchantId} />
                 </div>
-                <span className="field-hint" style={{ marginTop: 8 }}>Se preenchido, cupom só vale para itens vinculados.</span>
+                <span className="field-hint" style={{ marginTop: 8 }}>Em breve: vínculo por produto/categoria. Por enquanto o cupom vale para o carrinho todo.</span>
               </div>
         </div>
       </Modal>
