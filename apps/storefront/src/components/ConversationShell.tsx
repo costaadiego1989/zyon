@@ -2,8 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import DOMPurify from "isomorphic-dompurify";
-import type { ConversationBlock } from "@/lib/types";
-import { useWidgetConfig } from "@/lib/widget-config";
 import { useCart } from "@/lib/cart-store";
 import { useConversationViewModel, type Message } from "@/lib/viewmodels/useConversationViewModel";
 import { getValidBuyer } from "@/lib/buyer-auth";
@@ -18,7 +16,7 @@ import WhitelabelBadge from "./WhitelabelBadge";
 import BuyerAuthGate from "./BuyerAuthGate";
 import CrossSellInterstitial from "./CrossSellInterstitial";
 import { PulseAgentOrb } from "./conversation/PulseAgentOrb";
-import { THEME_TOKENS, type Theme } from "./conversation/theme-tokens";
+import { type Theme } from "./conversation/theme-tokens";
 
 type Channel = "chat" | "voice";
 
@@ -551,9 +549,13 @@ export default function ConversationShell({
           dismissCrossSell();
           setCartDrawerForceOpen(true);
         }}
-        onAddItem={(_id, name) => {
+        onAddItem={(id, name, promoId, couponCode) => {
           dismissCrossSell();
-          handleQuickReply(`Adicionar ${name} ao carrinho`);
+          const tags = `[variantId:${id}]${promoId ? `[crossSellPromoId:${promoId}]` : ""}`;
+          handleQuickReply(`Adicionar ${name} ao carrinho ${tags}`);
+          if (couponCode) {
+            setTimeout(() => handleQuickReply(`Aplicar cupom ${couponCode}`), 400);
+          }
         }}
       />
       {/* Buyer Hub Panel */}

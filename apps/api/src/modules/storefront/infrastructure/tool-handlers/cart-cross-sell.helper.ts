@@ -8,6 +8,7 @@ export interface CrossSellConfig {
   discount: { enabled: boolean; mode: string; percent: number; couponCode?: string };
   limits: { maxSuggestionsPerSession: number; cooldownSeconds: number };
   strategies: string[];
+  display?: { mode: string };
 }
 
 export interface CrossSellSuggestion {
@@ -17,6 +18,7 @@ export interface CrossSellSuggestion {
   imageUrl?: string;
   discountPercent?: number;
   couponCode?: string;
+  promoId?: string;
 }
 
 export interface CartLineItem {
@@ -112,6 +114,8 @@ export async function buildCrossSellSuggestions(
               price: (p.variants?.[0]?.basePriceInCents ?? 0) / 100,
               imageUrl: p.variants?.[0]?.media?.[0]?.url,
               discountPercent: suggestion.computed_discount > 0 ? suggestion.computed_discount : undefined,
+              promoId: suggestion.promo_id || undefined,
+              couponCode: crossSellConfig.discount.enabled && crossSellConfig.discount.mode === "coupon" ? crossSellConfig.discount.couponCode : undefined,
             });
           }
         }

@@ -38,13 +38,19 @@ export interface StoreToolHandlers {
      * the authoritative unit price — the client price is never trusted.
      */
     selectedOptionItemIds?: string[];
+    /**
+     * Cross-sell promotion id when the buyer accepted a cross-sell suggestion.
+     * The server validates the sku is in the promo's recommended_skus and applies
+     * the authorized discount server-side (never trust client-sent prices).
+     */
+    crossSellPromoId?: string;
   }) => Promise<unknown>;
   getCart: (args: { cartId: string }) => Promise<unknown>;
   removeCartItem: (args: { cartId: string; variantId: string }) => Promise<unknown>;
   updateCartItem: (args: { cartId: string; variantId: string; quantity: number }) => Promise<unknown>;
   clearCart: (args: { cartId: string }) => Promise<unknown>;
   quoteShipping: (args: { cartId?: string; productId?: string; zipCode: string }) => Promise<unknown>;
-  applyCoupon: (args: { cartId: string; couponCode: string }) => Promise<unknown>;
+  applyCoupon: (args: { cartId?: string; couponCode: string }) => Promise<unknown>;
   listPromotions: (args: { cartId: string }) => Promise<unknown>;
   listCategories: () => Promise<unknown>;
   removeCoupon: (args: { cartId: string }) => Promise<unknown>;

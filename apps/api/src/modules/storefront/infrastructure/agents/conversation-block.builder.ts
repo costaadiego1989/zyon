@@ -180,11 +180,9 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           })),
           itemCount: cartData.itemCount,
           subtotal: cartData.total,
-          // Deterministic rule-applied discount + free shipping, computed server-side.
           discount: cartData.discount ?? 0,
           freeShipping: cartData.freeShipping ?? false,
           total: cartData.total - (cartData.discount ?? 0),
-          // "Almost there" nudge (e.g. "Faltam R$40 para frete grátis"), when present.
           nextNudge: cartData.nextNudge ?? undefined,
           activeRules: cartData.activeRules ?? undefined,
         }
@@ -196,6 +194,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
         type: "cross_sell",
         data: {
           trigger: "Complete seu pedido e economize — quem levou este produto também garantiu:",
+          displayMode: cartData.crossSellDisplayMode ?? "interstitial",
           products: cartData.crossSellSuggestions.map((p: any) => ({
             id: p.sku,
             name: p.name,
@@ -205,6 +204,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
             inStock: true,
             discountPercent: p.discountPercent,
             promoId: p.promoId,
+            couponCode: p.couponCode,
           })),
         }
       } as any);

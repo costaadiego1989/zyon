@@ -6,7 +6,7 @@ interface CrossSellInterstitialProps {
   data: CrossSellInterstitialData | null;
   onClose: () => void;
   onViewCart: () => void;
-  onAddItem: (productId: string, productName: string) => void;
+  onAddItem: (productId: string, productName: string, promoId?: string, couponCode?: string) => void;
 }
 
 export default function CrossSellInterstitial({
@@ -261,7 +261,7 @@ export default function CrossSellInterstitial({
                 {}
                 <button
                   type="button"
-                  onClick={() => onAddItem(product.id, product.name)}
+                  onClick={() => onAddItem(product.id, product.name, product.promoId, (product as any).couponCode)}
                   disabled={!product.inStock}
                   style={{
                     width: "100%",

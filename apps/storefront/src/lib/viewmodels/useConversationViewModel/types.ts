@@ -51,6 +51,8 @@ export interface CrossSellInterstitialData {
     image?: string;
     inStock: boolean;
     discountPercent?: number;
+    promoId?: string;
+    couponCode?: string;
   }>;
 }
 

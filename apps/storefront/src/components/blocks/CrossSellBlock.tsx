@@ -8,6 +8,8 @@ interface CrossSellProduct {
   image?: string;
   inStock: boolean;
   discountPercent?: number;
+  promoId?: string;
+  couponCode?: string;
 }
 
 interface CrossSellBlockProps {
@@ -16,6 +18,7 @@ interface CrossSellBlockProps {
     data: {
       trigger: string;
       products: CrossSellProduct[];
+      displayMode?: string;
     };
   };
   onQuickReply?: (text: string) => void;
@@ -32,12 +35,17 @@ export default function CrossSellBlock({
   onQuickReply,
 }: CrossSellBlockProps) {
   const { data } = block;
+  const isBanner = data.displayMode === "banner";
 
   return (
     <article
       style={{
-        background: "var(--aacp-surface)",
-        border: "1px solid var(--aacp-line)",
+        background: isBanner
+          ? "linear-gradient(180deg, color-mix(in srgb, var(--aacp-accent) 8%, var(--aacp-surface)) 0%, var(--aacp-surface) 100%)"
+          : "var(--aacp-surface)",
+        border: isBanner
+          ? "1.5px solid var(--aacp-accent)"
+          : "1px solid var(--aacp-line)",
         borderRadius: "14px",
         overflow: "hidden",
         boxShadow: "0 1px 2px rgba(0,0,0,0.04), 0 12px 32px rgba(0,0,0,0.10)",
@@ -246,7 +254,12 @@ export default function CrossSellBlock({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onQuickReply?.(`Adicionar ${product.name} ao carrinho`);
+                  const tags = `[variantId:${product.id}]${product.promoId ? `[crossSellPromoId:${product.promoId}]` : ""}`;
+                  onQuickReply?.(`Adicionar ${product.name} ao carrinho ${tags}`);
+                  // Gap C: coupon-mode — apply the store coupon the card promised.
+                  if (product.couponCode) {
+                    setTimeout(() => onQuickReply?.(`Aplicar cupom ${product.couponCode}`), 400);
+                  }
                 }}
                 disabled={!product.inStock}
                 style={{
