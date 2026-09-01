@@ -1,6 +1,6 @@
 import { dashboardJson } from "../http/client.js";
 import type { MerchantProfile, MerchantRules, MerchantTheme } from "../types.js";
-import type { SeoSettings, GtmSettings, GenerateSeoSuggestionsRequest, GenerateSeoSuggestionsResponse } from "@zyon/shared-types";
+import type { SeoSettings, GtmSettings, GenerateSeoSuggestionsRequest, GenerateSeoSuggestionsResponse, CrossSellConfig } from "@zyon/shared-types";
 
 export interface SeoGtmConfig {
   seo: SeoSettings;
@@ -102,11 +102,11 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
       return dashboardJson(base, `/storage/object?url=${encodeURIComponent(url)}`, { method: "DELETE" }, f);
     },
 
-    getCrossSellConfig(): Promise<any> {
+    getCrossSellConfig(): Promise<CrossSellConfig> {
       return dashboardJson(base, "/merchants/me/cross-sell-config", { method: "GET" }, f);
     },
 
-    putCrossSellConfig(config: any): Promise<any> {
+    putCrossSellConfig(config: CrossSellConfig): Promise<CrossSellConfig> {
       return dashboardJson(base, "/merchants/me/cross-sell-config", { method: "PUT", jsonBody: config }, f);
     },
 

@@ -7,6 +7,8 @@ export interface DeterministicShortcutDeps {
   productRepo: ProductRepositoryPort;
   copyService: AgentCopyService;
   emitFunnelEvent: (merchantId: string, sessionId: string, event: string) => Promise<void>;
+  applyCoupon?: (args: { cartId?: string; couponCode: string }) => Promise<any>;
+  getCartBlock?: (cartId: string) => Promise<ConversationBlock | null>;
 }
 
 const formatPrice = (cents: number) =>
@@ -141,6 +143,54 @@ async function resolveDetailsShortcut(
   }
 }
 
+/**
+ * Deterministic coupon apply. Matches "aplicar cupom X" / "usar cupom X" /
+ * "cupom X" and routes straight to the real applyCoupon handler — never the LLM
+ * (which sometimes fails to emit the tool call). The discount is authorized
+ * server-side by the coupon use-case; this shortcut only parses the code.
+ */
+async function resolveCouponShortcut(
+  deps: DeterministicShortcutDeps,
+  input: StorefrontConversationInput,
+  normalizedMsg: string,
+): Promise<StorefrontConversationOutput | null> {
+  if (!deps.applyCoupon) return null;
+  // Accept "aplicar cupom XPTO", "usar cupom XPTO", "cupom XPTO" (code = alnum, 3-32).
+  const m = normalizedMsg.match(/^(?:aplicar|usar|use|quero(?:\s+usar)?)?\s*cupom\s+([a-z0-9][a-z0-9._-]{2,31})$/i);
+  if (!m) return null;
+  const code = m[1].toUpperCase();
+  try {
+    const result = await deps.applyCoupon({ cartId: input.cartId, couponCode: code });
+    const blocks: ConversationBlock[] = [];
+    if (deps.getCartBlock && input.cartId) {
+      const cb = await deps.getCartBlock(input.cartId);
+      if (cb) blocks.push(cb);
+    }
+    if (result?.applied) {
+      const disc = typeof result.discount === "number" ? result.discount : (result.discountCents ?? 0) / 100;
+      return {
+        message: `Cupom ${code} aplicado! Desconto de ${formatPrice(Math.round(disc * 100))}.`,
+        blocks,
+        suggestedNext: ["Ver Carrinho", "Finalizar Compra"],
+      };
+    }
+    // Honest rejection — never claim a discount that wasn't authorized.
+    const reasonMap: Record<string, string> = {
+      cart_empty: "Seu carrinho está vazio. Adicione um produto antes de aplicar o cupom.",
+      COUPON_NOT_FOUND: `Não encontrei o cupom ${code}.`,
+      coupon_not_found: `Não encontrei o cupom ${code}.`,
+      COUPON_MIN_CART_NOT_MET: "O valor do carrinho ainda não atinge o mínimo desse cupom.",
+      COUPON_EXPIRED: `O cupom ${code} está expirado.`,
+      COUPON_ALREADY_APPLIED: `O cupom ${code} já foi aplicado.`,
+      coupon_service_unavailable: "Não consegui validar o cupom agora. Tente novamente em instantes.",
+    };
+    const msg = reasonMap[result?.reason] ?? `Não foi possível aplicar o cupom ${code}.`;
+    return { message: msg, blocks, suggestedNext: ["Ver Carrinho"] };
+  } catch {
+    return null; // fall through to the LLM on unexpected error
+  }
+}
+
 export async function resolveDeterministicShortcut(
   deps: DeterministicShortcutDeps,
   input: StorefrontConversationInput,
@@ -148,6 +198,7 @@ export async function resolveDeterministicShortcut(
   const normalizedMsg = input.userMessage.trim().toLowerCase();
   return (
     (await resolveOffersShortcut(deps, input, normalizedMsg)) ??
-    (await resolveDetailsShortcut(deps, input, normalizedMsg))
+    (await resolveDetailsShortcut(deps, input, normalizedMsg)) ??
+    (await resolveCouponShortcut(deps, input, normalizedMsg))
   );
 }

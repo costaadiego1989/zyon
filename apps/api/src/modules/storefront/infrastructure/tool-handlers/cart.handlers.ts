@@ -5,6 +5,9 @@ import type { StorefrontCartPort, StorefrontCartSelectedOption } from "../../dom
 import { extractOptionGroups, resolveSelectedOptions, FoodOptionValidationError } from "../../domain/food-options.js";
 import type { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
 import type { CrossSellPromotionRepository } from "../../../cross-sell/domain/ports/cross-sell-promotion-repository.port.js";
+import type { ApplyCouponUseCase } from "../../../coupons/application/use-cases/apply-coupon.use-case.js";
+import type { CouponRepository } from "../../../coupons/domain/ports/coupon-repository.port.js";
+import type { Cart } from "@zyon/shared-types";
 import type { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
 import type { PrismaClient } from "@prisma/client";
 import type { MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
@@ -113,6 +116,13 @@ export interface CartHandlerDeps {
   listEligibleCrossSells?: ListEligibleCrossSellsUseCase;
   loadCrossSellConfig: (merchantId: string) => Promise<CrossSellConfig>;
   crossSellPromotionRepo?: CrossSellPromotionRepository;
+  applyCouponUseCase?: ApplyCouponUseCase;
+  /**
+   * Coupon repo — lists the merchant's real active coupons for list_promotions.
+   * Replaces a hardcoded fake "ZYON10" promotion. Optional: when absent,
+   * list_promotions returns an empty list (never an invented coupon).
+   */
+  couponRepo?: CouponRepository;
 }
 
 export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContext): Pick<StoreToolHandlers, "addItemToCart" | "getCart" | "removeCartItem" | "updateCartItem" | "clearCart" | "quoteShipping" | "applyCoupon" | "removeCoupon" | "listPromotions" | "createCheckoutSession"> {
@@ -282,6 +292,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       logger.debug("cart.afterAdd", { sessionId: cart.sessionId, itemCount: cart.items.length, total: cart.total, discount: cart.discount, freeShipping: cart.freeShipping });
 
       let crossSellSuggestions: CrossSellSuggestion[] = [];
+      let crossSellDisplayMode: string | undefined;
       try {
         const crossSellConfig = await deps.loadCrossSellConfig(ctx.merchantId);
         if (crossSellConfig.enabled && crossSellConfig.touchpoints.pre_cart) {
@@ -292,6 +303,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
             crossSellConfig,
             productName,
           );
+          crossSellDisplayMode = crossSellConfig.display?.mode;
         }
       } catch { }
 
@@ -305,6 +317,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
         nextNudge: nextNudge ?? undefined,
         activeRules: activeRules && activeRules.length > 0 ? activeRules : undefined,
         crossSellSuggestions: crossSellSuggestions.length > 0 ? crossSellSuggestions : undefined,
+        crossSellDisplayMode: crossSellSuggestions.length > 0 ? crossSellDisplayMode : undefined,
       };
     },
 
@@ -384,38 +397,95 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
     },
 
     applyCoupon: async (args) => {
-      const cart = await deps.cartRepo.getOrCreate(ctx.merchantId, args.cartId);
+      const sessionId = args.cartId || ctx.sessionId;
+      const cart = await deps.cartRepo.getOrCreate(ctx.merchantId, sessionId);
       if (cart.items.length === 0) {
         return { applied: false, reason: "cart_empty" };
       }
       const code = args.couponCode.toUpperCase().trim();
-      if (code.startsWith("ZYON")) {
-        const discountCents = Math.round(cart.total * 0.1);
-        const updated = await deps.cartRepo.applyCoupon(ctx.merchantId, args.cartId, code, discountCents);
+
+      if (!deps.applyCouponUseCase) {
+        logger.warn("cart.applyCoupon.useCase_missing", { merchantId: ctx.merchantId, code });
+        return { applied: false, reason: "coupon_service_unavailable" };
+      }
+
+      const merchantRules = await deps.merchantRepo.getRules(ctx.merchantId);
+      if (!merchantRules) {
+        return { applied: false, reason: "merchant_rules_unavailable" };
+      }
+
+      const engineCart: Cart = {
+        currency: "BRL",
+        total: cart.total / 100,
+        items: cart.items.map((i) => ({
+          sku: i.sku,
+          name: i.name,
+          price: i.unitPriceCents / 100,
+          quantity: i.quantity,
+          category: (i as { category?: string }).category,
+        })) as Cart["items"],
+        source: "storefront",
+      };
+
+      try {
+        const result = await deps.applyCouponUseCase.execute({
+          merchant_id: ctx.merchantId,
+          session_id: sessionId,
+          code,
+          cart: engineCart,
+          merchantRules,
+          source: "manual",
+        });
+        const discountCents = Math.round((result.discount_applied ?? 0) * 100);
+        const updated = await deps.cartRepo.applyCoupon(ctx.merchantId, sessionId, code, discountCents);
+        logger.debug("cart.applyCoupon.applied", { merchantId: ctx.merchantId, sessionId, code, discountCents });
         return {
           applied: true,
           couponCode: code,
           discountCents,
-          newTotal: updated.total - discountCents,
-          reason: "success"
+          discount: discountCents / 100,
+          newTotal: (updated.total - discountCents) / 100,
+          reason: "success",
         };
+      } catch (err) {
+        const reason = err instanceof Error ? (err.message || "coupon_invalid") : "coupon_invalid";
+        logger.log("cart.applyCoupon.rejected " + JSON.stringify({ merchantId: ctx.merchantId, sessionId, code, reason }));
+        return { applied: false, reason };
       }
-      return { applied: false, reason: "coupon_not_found" };
     },
 
     listPromotions: async (_args) => {
-      return {
-        promotions: [
-          {
-            code: "ZYON10",
-            type: "percent",
-            value: 10,
-            description: "10% de desconto em todo o site",
-            minCartValue: 5000,
-            expiresAt: null
-          }
-        ]
-      };
+      if (!deps.couponRepo) {
+        logger.warn("cart.listPromotions.couponRepo_missing", { merchantId: ctx.merchantId });
+        return { promotions: [] };
+      }
+      try {
+        const coupons = await deps.couponRepo.findAllByMerchant(ctx.merchantId);
+        const now = Date.now();
+        const promotions = coupons
+          .map((c) => c.snapshot())
+          .filter((s) => s.status === "active")
+          .filter((s) => !s.ends_at || new Date(s.ends_at).getTime() > now)
+          .map((s) => {
+            const typeLabel =
+              s.discount_type === "percent" ? `${s.discount_value}% de desconto`
+              : s.discount_type === "fixed" ? `${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(s.discount_value)} de desconto`
+              : s.discount_type.startsWith("shipping") ? "Frete grátis"
+              : "Desconto";
+            return {
+              code: s.code,
+              type: s.discount_type,
+              value: s.discount_value,
+              description: typeLabel,
+              minCartValue: s.min_cart_total ?? undefined, // reais, not cents
+              expiresAt: s.ends_at ?? null,
+            };
+          });
+        return { promotions };
+      } catch (err) {
+        logger.warn("cart.listPromotions.failed " + (err instanceof Error ? err.message : String(err)));
+        return { promotions: [] };
+      }
     },
 
     removeCoupon: async (args) => {

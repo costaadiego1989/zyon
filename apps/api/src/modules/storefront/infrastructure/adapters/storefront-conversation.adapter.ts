@@ -10,6 +10,8 @@ import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/
 import { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
 import { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
 import { CROSS_SELL_PROMOTION_REPOSITORY, type CrossSellPromotionRepository } from "../../../cross-sell/domain/ports/cross-sell-promotion-repository.port.js";
+import { ApplyCouponUseCase } from "../../../coupons/application/use-cases/apply-coupon.use-case.js";
+import { COUPON_REPOSITORY, type CouponRepository } from "../../../coupons/domain/ports/coupon-repository.port.js";
 import type { ProductRepositoryPort, StockRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 import { storefrontQuickReplies, type StorefrontCartState, type StorefrontShippingOption } from "../../domain/services/storefront-quick-replies.service.js";
@@ -40,6 +42,8 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     @Optional() private readonly searchFederatedProducts?: SearchFederatedProductsUseCase,
     @Optional() private readonly listEligibleCrossSells?: ListEligibleCrossSellsUseCase,
     @Optional() @Inject(CROSS_SELL_PROMOTION_REPOSITORY) private readonly crossSellPromotionRepo?: CrossSellPromotionRepository,
+    @Optional() private readonly applyCouponUseCase?: ApplyCouponUseCase,
+    @Optional() @Inject(COUPON_REPOSITORY) private readonly couponRepo?: CouponRepository,
   ) {
     const localApiKey = process.env.LOCAL_LLM_API_KEY || process.env.OPENROUTER_API_KEY || "";
     const localBaseUrl = process.env.LOCAL_LLM_BASE_URL || process.env.OPENROUTER_BASE_URL || undefined;
@@ -71,6 +75,8 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       listEligibleCrossSells: this.listEligibleCrossSells,
       loadCrossSellConfig: this.loadCrossSellConfig.bind(this),
       crossSellPromotionRepo: this.crossSellPromotionRepo,
+      applyCouponUseCase: this.applyCouponUseCase,
+      couponRepo: this.couponRepo,
     };
 
     const placeholderHandlers: StoreToolHandlers = {} as any;
@@ -96,11 +102,13 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     };
     const deviceMeta = input.deviceType ? { device: input.deviceType } : undefined;
     this.emitFunnelEvent(input.merchantId, input.sessionId, "checkout_started", deviceMeta).catch(() => {});
+    const shortcutHandlers = composeStoreToolHandlers(this.handlerDeps, ctx);
     const shortcut = await resolveDeterministicShortcut(
       {
         productRepo: this.productRepo,
         copyService: this.copyService,
         emitFunnelEvent: this.emitFunnelEvent.bind(this),
+        applyCoupon: (args) => shortcutHandlers.applyCoupon(args),
       },
       input,
     );
@@ -277,14 +285,16 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       case "clear_cart":
         return ["Buscar produtos", "Ver promoções"];
       case "list_promotions":
-        return ["Aplicar cupom ZYON10", "Ver carrinho"];
+        // No hardcoded coupon code (was a fake "ZYON10"). Codes vary per merchant
+        // and come from the real list_promotions result, not a canned quick-reply.
+        return ["Ver carrinho", "Finalizar compra"];
       default:
         return cartId
           ? ["Ver meu carrinho", "Buscar produtos", "Promoções disponíveis"]
           : ["O que vocês vendem?", "Tem promoção?", "Buscar produto"];
     }
   }
-  private async loadCrossSellConfig(merchantId: string): Promise<{ enabled: boolean; touchpoints: { browsing: boolean; pre_cart: boolean; pre_payment: boolean; post_purchase: boolean }; discount: { enabled: boolean; mode: string; percent: number; couponCode?: string }; limits: { maxSuggestionsPerSession: number; cooldownSeconds: number }; strategies: string[] }> {
+  private async loadCrossSellConfig(merchantId: string): Promise<{ enabled: boolean; touchpoints: { browsing: boolean; pre_cart: boolean; pre_payment: boolean; post_purchase: boolean }; discount: { enabled: boolean; mode: string; percent: number; couponCode?: string }; limits: { maxSuggestionsPerSession: number; cooldownSeconds: number }; strategies: string[]; display: { mode: string } }> {
     try {
       const merchant = await this.prisma.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true } });
       const settings = (merchant?.storeSettings as Record<string, any>) ?? {};
@@ -295,9 +305,10 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         discount: { enabled: cs.discount?.enabled ?? false, mode: cs.discount?.mode ?? "percent", percent: cs.discount?.percent ?? 10, couponCode: cs.discount?.couponCode },
         limits: { maxSuggestionsPerSession: cs.limits?.maxSuggestionsPerSession ?? 2, cooldownSeconds: cs.limits?.cooldownSeconds ?? 120 },
         strategies: cs.strategies ?? ["same_category", "ai_personalized"],
+        display: { mode: cs.display?.mode ?? "interstitial" },
       };
     } catch {
-      return { enabled: false, touchpoints: { browsing: true, pre_cart: false, pre_payment: true, post_purchase: false }, discount: { enabled: false, mode: "percent", percent: 10 }, limits: { maxSuggestionsPerSession: 2, cooldownSeconds: 120 }, strategies: ["same_category", "ai_personalized"] };
+      return { enabled: false, touchpoints: { browsing: true, pre_cart: false, pre_payment: true, post_purchase: false }, discount: { enabled: false, mode: "percent", percent: 10 }, limits: { maxSuggestionsPerSession: 2, cooldownSeconds: 120 }, strategies: ["same_category", "ai_personalized"], display: { mode: "interstitial" } };
     }
   }
 }

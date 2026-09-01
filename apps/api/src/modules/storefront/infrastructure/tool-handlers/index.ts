@@ -5,6 +5,8 @@ import type { MerchantRepository } from "../../../merchant/domain/ports/merchant
 import type { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
 import type { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
 import type { CrossSellPromotionRepository } from "../../../cross-sell/domain/ports/cross-sell-promotion-repository.port.js";
+import type { ApplyCouponUseCase } from "../../../coupons/application/use-cases/apply-coupon.use-case.js";
+import type { CouponRepository } from "../../../coupons/domain/ports/coupon-repository.port.js";
 import type { StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 import type { SupportHandoffService } from "../../../support/application/support-handoff.service.js";
 import type { PrismaClient } from "@prisma/client";
@@ -27,6 +29,8 @@ export interface AllHandlerDeps {
   listEligibleCrossSells?: ListEligibleCrossSellsUseCase;
   loadCrossSellConfig: (merchantId: string) => Promise<CrossSellConfig>;
   crossSellPromotionRepo?: CrossSellPromotionRepository;
+  applyCouponUseCase?: ApplyCouponUseCase;
+  couponRepo?: CouponRepository;
 }
 
 export function composeStoreToolHandlers(deps: AllHandlerDeps, ctx: ToolRequestContext): StoreToolHandlers {
@@ -48,6 +52,8 @@ export function composeStoreToolHandlers(deps: AllHandlerDeps, ctx: ToolRequestC
     listEligibleCrossSells: deps.listEligibleCrossSells,
     loadCrossSellConfig: deps.loadCrossSellConfig,
     crossSellPromotionRepo: deps.crossSellPromotionRepo,
+    applyCouponUseCase: deps.applyCouponUseCase,
+    couponRepo: deps.couponRepo,
   };
 
   const reviewDeps: ReviewHandlerDeps = {

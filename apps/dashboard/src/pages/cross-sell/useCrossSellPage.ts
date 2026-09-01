@@ -5,7 +5,7 @@ import type { CrossSellConfig, CrossSellTouchpoint, CrossSellStrategy } from "@z
 
 const DEFAULT: CrossSellConfig = {
   enabled: false,
-  touchpoints: { browsing: true, pre_cart: false, pre_payment: true, post_purchase: false },
+  touchpoints: { browsing: false, pre_cart: true, pre_payment: true, post_purchase: false },
   strategies: ["same_category", "ai_personalized"],
   limits: { maxSuggestionsPerSession: 2, cooldownSeconds: 120 },
   discount: { enabled: false, percent: 10 },
@@ -43,7 +43,7 @@ export function useCrossSellPage(context: CrossSellContext) {
   }, [api]);
 
   const visibleTouchpoints: CrossSellTouchpoint[] = context === "store"
-    ? ["browsing", "pre_cart"]
+    ? ["pre_cart"]
     : ["pre_payment", "post_purchase"];
 
   function patchConfig(partial: Partial<CrossSellConfig>) {
@@ -70,11 +70,6 @@ export function useCrossSellPage(context: CrossSellContext) {
     }));
   }
 
-  /**
-   * Select a single touchpoint within the current context (mutually exclusive):
-   * enables `tp` and disables the other touchpoints visible in this context.
-   * Touchpoints from the other context are left untouched.
-   */
   function selectTouchpoint(tp: CrossSellTouchpoint) {
     setState((p) => {
       const next = { ...p.config.touchpoints };
@@ -101,9 +96,15 @@ export function useCrossSellPage(context: CrossSellContext) {
   }
 
   async function save() {
-    setState((p) => ({ ...p, saving: true }));
+    let latest: CrossSellConfig = state.config;
+    setState((p) => {
+      latest = p.config;
+      return { ...p, saving: true };
+    });
     try {
-      await api.putCrossSellConfig(state.config);
+      const saved = await api.putCrossSellConfig(latest);
+      // Reconcile local state with what the server actually persisted.
+      setState((p) => ({ ...p, config: { ...DEFAULT, ...saved } }));
       showToast("success", "Configurações de Cross Sell salvas");
     } catch {
       showToast("error", "Erro ao salvar configurações");
