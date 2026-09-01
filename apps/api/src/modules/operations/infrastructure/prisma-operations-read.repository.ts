@@ -183,18 +183,37 @@ export class PrismaOperationsReadRepository
           )`
         : Prisma.empty;
 
-    // P2 fix: compute MIN(created_at) as first_seen_at and MAX(updated_at) as
-    // last_seen_at per global_user_id — consistent with getCustomer's detail view.
+    // P0 fix: group by global_user_id only to avoid duplicates when customer profile
+    // changes between sessions. Subquery picks the latest session per buyer.
     const rows = await this.prisma.$queryRaw<CustomerRow[]>(Prisma.sql`
+      WITH customer_agg AS (
+        SELECT
+          "global_user_id",
+          MIN("created_at") AS "first_seen_at",
+          MAX("updated_at") AS "last_seen_at",
+          ROW_NUMBER() OVER (PARTITION BY "global_user_id" ORDER BY "updated_at" DESC) AS rn
+        FROM "checkout_sessions"
+        WHERE "merchant_id" = ${input.merchantId}
+        GROUP BY "global_user_id"
+      ),
+      latest_customer AS (
+        SELECT
+          cs."global_user_id",
+          cs."customer",
+          ca."first_seen_at",
+          ca."last_seen_at"
+        FROM "checkout_sessions" cs
+        JOIN customer_agg ca ON cs."global_user_id" = ca."global_user_id"
+        WHERE cs."merchant_id" = ${input.merchantId}
+        AND cs."updated_at" = ca."last_seen_at"
+      )
       SELECT
         "global_user_id",
         "customer",
-        MIN("created_at") AS "first_seen_at",
-        MAX("updated_at") AS "last_seen_at"
-      FROM "checkout_sessions"
-      WHERE "merchant_id" = ${input.merchantId}
-      GROUP BY "global_user_id", "customer"
-      HAVING TRUE
+        "first_seen_at",
+        "last_seen_at"
+      FROM latest_customer
+      WHERE TRUE
       ${cursorFilter}
       ORDER BY "last_seen_at" DESC, "global_user_id" DESC
       LIMIT ${input.limit}
