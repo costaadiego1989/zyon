@@ -32,7 +32,19 @@ export class PrismaStoreOverviewRepository implements StoreOverviewReadModel {
     ]);
 
     if (orders.length === 0 && sessions.length === 0) {
-      return buildDeterministicFallback(merchantId, period);
+      return {
+        merchant_id: merchantId,
+        period,
+        revenue: 0,
+        orders_count: 0,
+        average_ticket: 0,
+        products_sold: 0,
+        new_customers: 0,
+        abandonment_rate: 0,
+        orders_by_status: {},
+        top_products: [],
+        recent_orders: [],
+      };
     }
 
     const revenue = orders.reduce((sum, o) => sum + toNumber(o.orderTotal), 0);
@@ -127,7 +139,21 @@ export class PrismaStoreOverviewRepository implements StoreOverviewReadModel {
     ]);
 
     if (orders.length === 0 && sessions.length === 0) {
-      return buildDeterministicTimeseriesFallback(merchantId, period);
+      const zeroPoints: TimeseriesDataPoint[] = [];
+      const now = new Date();
+      for (let i = 0; i < days; i++) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - (days - 1 - i));
+        zeroPoints.push({ date: toDateKey(d), value: 0 });
+      }
+      return {
+        merchant_id: merchantId,
+        period,
+        revenue_daily: zeroPoints.map((p) => ({ ...p })),
+        orders_daily: zeroPoints.map((p) => ({ ...p })),
+        sessions_daily: zeroPoints.map((p) => ({ ...p })),
+        conversion_daily: zeroPoints.map((p) => ({ ...p })),
+      };
     }
 
     const revenueDailyMap = new Map<string, number>();
@@ -212,109 +238,4 @@ function resolveDateRange(period: StorePeriod): { from: Date; to: Date; days: nu
 
 function toDateKey(date: Date): string {
   return date.toISOString().slice(0, 10);
-}
-
-function deterministicHash(input: string): number {
-  let hash = 5381;
-  for (let i = 0; i < input.length; i++) {
-    hash = ((hash << 5) + hash + input.charCodeAt(i)) & 0x7fffffff;
-  }
-  return hash;
-}
-
-function seededRandom(seed: number, index: number): number {
-  const x = Math.sin(seed + index) * 10000;
-  return x - Math.floor(x);
-}
-
-function buildDeterministicFallback(merchantId: string, period: StorePeriod): StoreOverview {
-  const seed = deterministicHash(merchantId);
-  const baseRevenue = 5000 + (seed % 15000);
-  const ordersCount = 20 + (seed % 80);
-  const averageTicket = baseRevenue / ordersCount;
-  const productsSold = ordersCount + Math.floor(ordersCount * 0.4);
-  const newCustomers = Math.floor(ordersCount * 0.3);
-  const abandonmentRate = 0.4 + (seed % 30) / 100;
-
-  const statuses = ["approved", "shipped", "delivered", "cancelled"];
-  const ordersByStatus: Record<string, number> = {};
-  let remaining = ordersCount;
-  for (let i = 0; i < statuses.length - 1; i++) {
-    const portion = Math.floor(remaining * seededRandom(seed, i + 100));
-    ordersByStatus[statuses[i]] = portion;
-    remaining -= portion;
-  }
-  ordersByStatus[statuses[statuses.length - 1]] = remaining;
-
-  const productNames = ["Premium T-Shirt", "Running Shoes", "Wireless Earbuds", "Backpack Pro", "Sunglasses"];
-  const topProducts: StoreOverviewTopProduct[] = productNames.slice(0, 5).map((name, i) => ({
-    product_id: `prod_${(seed + i).toString(16).slice(0, 8)}`,
-    name,
-    quantity: Math.floor(5 + seededRandom(seed, i + 200) * 20),
-    revenue: Math.round((200 + seededRandom(seed, i + 300) * 2000) * 100) / 100,
-  }));
-
-  const buyerNames = ["João Silva", "Maria Santos", "Pedro Oliveira", "Ana Costa", "Lucas Pereira"];
-  const recentOrders: StoreOverviewRecentOrder[] = buyerNames.slice(0, 5).map((buyer_name, i) => {
-    const dayOffset = Math.floor(seededRandom(seed, i + 400) * 7);
-    const d = new Date();
-    d.setDate(d.getDate() - dayOffset);
-    return {
-      id: `ord_${(seed + i * 7).toString(16).slice(0, 8)}`,
-      buyer_name,
-      total: Math.round((50 + seededRandom(seed, i + 500) * 500) * 100) / 100,
-      status: statuses[i % statuses.length],
-      created_at: d.toISOString(),
-    };
-  });
-
-  return {
-    merchant_id: merchantId,
-    period,
-    revenue: Math.round(baseRevenue * 100) / 100,
-    orders_count: ordersCount,
-    average_ticket: Math.round(averageTicket * 100) / 100,
-    products_sold: productsSold,
-    new_customers: newCustomers,
-    abandonment_rate: Math.round(abandonmentRate * 10000) / 10000,
-    orders_by_status: ordersByStatus,
-    top_products: topProducts,
-    recent_orders: recentOrders,
-  };
-}
-
-function buildDeterministicTimeseriesFallback(merchantId: string, period: StorePeriod): TimeseriesResponse {
-  const seed = deterministicHash(merchantId);
-  const { days } = resolveDateRange(period);
-
-  const revenueDailyArr: TimeseriesDataPoint[] = [];
-  const ordersDailyArr: TimeseriesDataPoint[] = [];
-  const sessionsDailyArr: TimeseriesDataPoint[] = [];
-  const conversionDailyArr: TimeseriesDataPoint[] = [];
-
-  const now = new Date();
-  for (let i = 0; i < days; i++) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - (days - 1 - i));
-    const date = toDateKey(d);
-
-    const dayRevenue = Math.round((300 + seededRandom(seed, i) * 1200) * 100) / 100;
-    const dayOrders = Math.floor(3 + seededRandom(seed, i + 1000) * 12);
-    const daySessions = dayOrders + Math.floor(seededRandom(seed, i + 2000) * 15);
-    const conversion = daySessions > 0 ? Math.round((dayOrders / daySessions) * 10000) / 10000 : 0;
-
-    revenueDailyArr.push({ date, value: dayRevenue });
-    ordersDailyArr.push({ date, value: dayOrders });
-    sessionsDailyArr.push({ date, value: daySessions });
-    conversionDailyArr.push({ date, value: conversion });
-  }
-
-  return {
-    merchant_id: merchantId,
-    period,
-    revenue_daily: revenueDailyArr,
-    orders_daily: ordersDailyArr,
-    sessions_daily: sessionsDailyArr,
-    conversion_daily: conversionDailyArr,
-  };
 }
