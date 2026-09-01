@@ -21,10 +21,10 @@ export class CheckoutPage {
     this.page = page;
     // Pulse renders chat inside a scrollable div that contains message divs
     this.thread = page.locator("div[style*='overflow']").first();
-    this.composer = page.locator("input[placeholder*='Mensagem']").or(page.locator("input[placeholder*='para o assistente']")).first();
+    this.composer = page.getByLabel("Mensagem para o assistente").or(page.locator("input.zyon-input")).first();
     this.input = this.composer;
-    // Send button is typically a button near the input, or identified by aria-label
-    this.sendButton = page.locator("button").filter({ has: page.locator("svg") }).last();
+    // Send button — stable aria-label on the Composer send control.
+    this.sendButton = page.getByRole("button", { name: "Enviar mensagem" }).or(page.locator("button.zyon-send")).first();
     this.quickReplies = page.locator("button").filter({ hasText: /Sim|Não|Continuar|Pular/ });
     this.channelGate = page.getByRole("dialog");
     this.cartSummary = page.locator("[data-testid='cart-summary']");
@@ -37,15 +37,33 @@ export class CheckoutPage {
   }
 
   async dismissChannelGate() {
-    if (await this.channelGate.isVisible({ timeout: 5_000 }).catch(() => false)) {
-      await this.page.getByRole("button", { name: /Comprar por chat/i }).click();
+    // 1) Cookie-consent banner (overlays everything). Click and wait for it to go.
+    const cookieBtn = this.page.getByRole("button", { name: /Aceitar todos|Apenas essenciais/i }).first();
+    if (await cookieBtn.isVisible({ timeout: 4_000 }).catch(() => false)) {
+      await cookieBtn.click({ force: true }).catch(() => {});
+      await cookieBtn.waitFor({ state: "hidden", timeout: 6_000 }).catch(() => {});
+    }
+    // 2) Channel gate: choose the chat channel ("Por chat / Converse digitando").
+    const chatBtn = this.page
+      .getByRole("button", { name: /Por chat|Comprar por chat|Converse digitando/i })
+      .first();
+    if (await chatBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await chatBtn.click().catch(() => {});
+    }
+    // 3) Smart-cart step: advance to the conversation with "Continuar".
+    const continuar = this.page.getByRole("button", { name: /^Continuar$/ }).first();
+    if (await continuar.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await continuar.click().catch(() => {});
     }
   }
 
   async waitForGreeting() {
     await this.dismissChannelGate();
-    // In Pulse, the thread is visible when messages appear
-    await expect(this.page.locator("div").filter({ hasText: /Olá|oi|bem-vindo/i }).first()).toBeVisible({ timeout: 10_000 });
+    // Current widget thread is `.aacp-thread` (role=log, aria-label="Conversa").
+    // The agent greeting renders as `.aacp-chat-text` inside a bubble stack.
+    const thread = this.page.getByRole("log", { name: "Conversa" }).or(this.page.locator(".aacp-thread")).first();
+    await expect(thread).toBeVisible({ timeout: 10_000 });
+    await expect(this.page.locator(".aacp-chat-text").first()).toBeVisible({ timeout: 10_000 });
   }
 
   async waitForStreamingDone() {

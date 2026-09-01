@@ -29,6 +29,7 @@ const baseRules: MerchantRules = {
   blockedRegions: [],
   brandVoice: "consultative",
   couponBoxEnabled: false,
+  autonomousEngineEnabled: true,
 };
 
 function makeCart(overrides: Partial<Cart> = {}): Cart {
