@@ -27,15 +27,31 @@ export function integrationEndpoints(base: string, f: typeof fetch) {
     },
 
     // Coupons
-    async listCoupons(): Promise<Array<{ id: string; code: string; type: string; value: number; isActive: boolean }>> {
+    async listCoupons(): Promise<Array<Record<string, unknown>>> {
       const raw = await dashboardJson<any[]>(base, "/merchant/coupons", { method: "GET" }, f);
-      return (raw ?? []).map((c: any) => ({
-        id: c.id,
-        code: c.code,
-        type: c.discount_type ?? c.discountType ?? c.type ?? "percent",
-        value: c.discount_value ?? c.discountValue ?? c.value ?? 0,
-        isActive: c.status === "active" || c.is_active === true || c.isActive === true,
-      }));
+      // Map the API snapshot (snake_case, canonical domain names) to the camelCase
+      // shape the CouponsPage view-model reads. Without discountType/discountValue/
+      // usedCount/maxUses/expiresAt the UI rendered "R$ 0,00" and "0/∞" for every
+      // coupon even though the backend held the real values.
+      const API_TO_UI_TYPE: Record<string, string> = { shipping_free: "free_shipping" };
+      return (raw ?? []).map((c: any) => {
+        const apiType = c.discount_type ?? c.discountType ?? c.type ?? "percent";
+        return {
+          id: c.id,
+          code: c.code,
+          discountType: API_TO_UI_TYPE[apiType] ?? apiType,
+          discountValue: c.discount_value ?? c.discountValue ?? c.value ?? 0,
+          minCartValue: c.min_cart_total ?? c.minCartValue ?? undefined,
+          maxUses: c.max_usages ?? c.maxUses ?? undefined,
+          usedCount: c.usages_count ?? c.usedCount ?? 0,
+          startsAt: c.starts_at ?? c.startsAt ?? undefined,
+          expiresAt: c.ends_at ?? c.expiresAt ?? undefined,
+          isActive: c.status === "active" || c.is_active === true || c.isActive === true,
+          // keep legacy aliases so any other consumer still works
+          type: API_TO_UI_TYPE[apiType] ?? apiType,
+          value: c.discount_value ?? c.discountValue ?? c.value ?? 0,
+        };
+      });
     },
     createCoupon(payload: { code: string; discount_type: string; discount_value: number; min_cart_value?: number; max_uses?: number; starts_at?: string; expires_at?: string; product_id?: string; category_id?: string; is_active?: boolean }): Promise<unknown> {
       // Boundary mapping: the dashboard form uses UI-oriented field names, but the

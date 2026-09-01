@@ -58,7 +58,7 @@ export function useCouponsPage() {
     setLoading(true);
     try {
       const data = await api.listCoupons();
-      setCoupons(data ?? []);
+      setCoupons((data ?? []) as unknown as Coupon[]);
     } catch {
       setCoupons([]);
     } finally {

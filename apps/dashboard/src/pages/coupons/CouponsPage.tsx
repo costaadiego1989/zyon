@@ -222,16 +222,16 @@ export function CouponsPage(_props: CouponsPageProps) {
                 </label>
                 {vm.form.discountType !== "free_shipping" && (
                   <label>
-                    <span className="field-label">{vm.form.discountType === "percent" ? "Percentual *" : "Valor (centavos) *"}</span>
-                    <input type="number" value={vm.form.discountValue} onChange={(e) => vm.patch({ discountValue: e.target.value })} placeholder={vm.form.discountType === "percent" ? "10" : "1000"} min={1} className="field-input" />
+                    <span className="field-label">{vm.form.discountType === "percent" ? "Percentual *" : "Valor (R$) *"}</span>
+                    <input type="number" step={vm.form.discountType === "percent" ? "1" : "0.01"} value={vm.form.discountValue} onChange={(e) => vm.patch({ discountValue: e.target.value })} placeholder={vm.form.discountType === "percent" ? "10" : "50"} min={1} className="field-input" />
                   </label>
                 )}
               </div>
 
               {/* Carrinho mínimo */}
               <label>
-                <span className="field-label">Valor mínimo do carrinho (centavos)</span>
-                <input type="number" value={vm.form.minCartValue} onChange={(e) => vm.patch({ minCartValue: e.target.value })} placeholder="Ex: 10000 (= R$ 100,00)" className="field-input" />
+                <span className="field-label">Valor mínimo do carrinho (R$)</span>
+                <input type="number" step="0.01" value={vm.form.minCartValue} onChange={(e) => vm.patch({ minCartValue: e.target.value })} placeholder="Ex: 100 (= R$ 100,00)" className="field-input" />
                 <span className="field-hint">Deixe vazio para sem mínimo</span>
               </label>
 
