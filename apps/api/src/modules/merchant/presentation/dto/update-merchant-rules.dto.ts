@@ -97,6 +97,10 @@ export class UpdateMerchantRulesDto {
   @IsOptional()
   couponBoxEnabled?: boolean;
 
+  @IsBoolean()
+  @IsOptional()
+  autonomousEngineEnabled?: boolean;
+
   @IsIn(["consultative", "aggressive", "premium", "young", "technical", "popular"])
   @IsOptional()
   brandVoice?: "consultative" | "aggressive" | "premium" | "young" | "technical" | "popular";

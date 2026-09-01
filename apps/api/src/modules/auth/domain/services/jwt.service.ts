@@ -116,7 +116,7 @@ export class JwtService {
    * Verifica assinatura mas permite tokens expirados dentro de uma janela de graça.
    * Usado para refresh: aceita tokens expirados há até `graceSeconds` (padrão 7 dias).
    */
-  verifyForRefresh(token: string, graceSeconds = 7 * 24 * 3600, nowSeconds = Math.floor(Date.now() / 1000)): AuthenticatedPrincipal {
+  verifyForRefresh(token: string, graceSeconds = 30 * 24 * 3600, nowSeconds = Math.floor(Date.now() / 1000)): AuthenticatedPrincipal {
     return this.verifyCore(token, nowSeconds, { graceSeconds });
   }
 

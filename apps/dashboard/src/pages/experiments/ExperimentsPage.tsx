@@ -9,6 +9,7 @@ import { useExperimentsPage } from "./hooks/useExperimentsPage.js";
 import { ExperimentCard } from "./components/ExperimentCard.js";
 import { ExperimentDetail } from "./components/ExperimentDetail.js";
 import { ExperimentForm } from "./components/ExperimentForm.js";
+import { ConfirmDialog } from "../../components/ConfirmDialog.js";
 
 export interface ExperimentsPageProps {
   apiBaseUrl: string;
@@ -40,8 +41,8 @@ const FILTER_CHIP_ACTIVE: React.CSSProperties = {
 
 export function ExperimentsPage(props: ExperimentsPageProps) {
   const vm = useExperimentsPage({ me: props.me });
-  // TODO: wire to API endpoint for auto-enable persistence (when backend supports it)
-  const [autoEnabled, setAutoEnabled] = React.useState(true);
+  const autoEnabled = vm.autoEnabled;
+  const handleToggleAuto = vm.handleToggleAuto;
 
   if (!props.me) {
     return (
@@ -81,7 +82,7 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
           <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>Testes automáticos</div>
           <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 2 }}>Revenue Manager cria experimentos automaticamente a partir de hipóteses aprovadas</div>
         </div>
-        <ToggleSwitch checked={autoEnabled} onChange={setAutoEnabled} />
+        <ToggleSwitch checked={autoEnabled} disabled={vm.autoToggleBusy} onChange={handleToggleAuto} />
       </div>
       <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 8 }}>
         Experimentos com significância estatística são promovidos automaticamente a cada 6 horas.
@@ -166,7 +167,7 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
                   onStart={() => vm.handleStartExperiment(vm.selectedId!)}
                   onStop={() => vm.handleStopExperiment(vm.selectedId!)}
                   onPromote={(variantId) => vm.handlePromoteVariant(vm.selectedId!, variantId)}
-                  onArchive={() => vm.handleArchiveExperiment(vm.selectedId!)}
+                  onArchive={() => vm.requestArchive(vm.selectedId!)}
                 />
               ) : (
                 <div className="panel" style={{ padding: "48px 24px" }}>
@@ -194,8 +195,21 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
           addVariant={vm.addVariant}
           removeVariant={vm.removeVariant}
           updateVariant={vm.updateVariant}
+          onGenerateVariants={vm.handleGenerateVariants}
+          generatingVariants={vm.generatingVariants}
         />
       )}
+
+      <ConfirmDialog
+        open={vm.archiveConfirmId !== null}
+        title="Arquivar experimento?"
+        description="O experimento sairá da lista de ativos. Você poderá consultá-lo no filtro Concluído/Arquivado, mas não voltará a rodar."
+        confirmLabel="Arquivar"
+        cancelLabel="Cancelar"
+        variant="danger"
+        onConfirm={vm.confirmArchive}
+        onCancel={vm.cancelArchive}
+      />
     </div>
   );
 }

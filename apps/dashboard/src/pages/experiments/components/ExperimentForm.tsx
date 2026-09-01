@@ -13,6 +13,10 @@ interface ExperimentFormProps {
   addVariant: () => void;
   removeVariant: (idx: number) => void;
   updateVariant: (idx: number, updates: Partial<Variant>) => void;
+  /** Generate the challenger variant prompt via the real LLM endpoint. */
+  onGenerateVariants?: () => void | Promise<void>;
+  /** True while the LLM call is in flight. */
+  generatingVariants?: boolean;
 }
 
 
@@ -110,11 +114,15 @@ export function ExperimentForm({
   addVariant,
   removeVariant,
   updateVariant,
+  onGenerateVariants,
+  generatingVariants,
 }: ExperimentFormProps) {
-  const [generating, setGenerating] = useState(false);
+  const [templateGenerating, setTemplateGenerating] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
 
-  function handleAiGenerate() {
+  // Deterministic template fallback — used only when the real LLM handler
+  // is not wired (kept so the form still works offline / without an API key).
+  function fillFromTemplate() {
     const weight = Math.round(100 / form.variants.length);
     const name = form.name.trim();
     const desc = form.description?.trim() || "";
@@ -133,12 +141,23 @@ export function ExperimentForm({
         weight,
       });
     }
-
-    setGenerating(true);
+    setTemplateGenerating(true);
     setHasGenerated(true);
-    setTimeout(() => setGenerating(false), 600);
+    setTimeout(() => setTemplateGenerating(false), 400);
   }
 
+  async function handleAiGenerate() {
+    if (onGenerateVariants) {
+      // Real LLM path (same engine as product catalog description generator).
+      await onGenerateVariants();
+      setHasGenerated(true);
+      return;
+    }
+    // Fallback: deterministic local template.
+    fillFromTemplate();
+  }
+
+  const generating = Boolean(generatingVariants) || templateGenerating;
   const canGenerate = form.name.trim().length >= 3;
 
   return (
@@ -156,7 +175,7 @@ export function ExperimentForm({
               Novo Teste A/B
             </h2>
             <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", margin: "4px 0 0" }}>
-              Compare estratÃ©gias de abordagem do agente IA
+              Compare estratégias de abordagem do agente IA
             </p>
           </div>
           <button type="button" onClick={onClose} aria-label="Fechar" className="experiment-drawer__close">
@@ -170,12 +189,12 @@ export function ExperimentForm({
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
               <span style={{ width: 20, height: 20, borderRadius: "50%", background: "var(--color-brand)", color: "#fff", font: "700 11px var(--font-mono)", display: "flex", alignItems: "center", justifyContent: "center" }}>1</span>
-              <span style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>O que vocÃª quer testar?</span>
+              <span style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>O que você quer testar?</span>
             </div>
 
             <label>
               <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 4 }}>
-                TÃ­tulo do teste
+                Título do teste
               </span>
               <input
                 value={form.name}
@@ -205,7 +224,7 @@ export function ExperimentForm({
               <textarea
                 value={form.description ?? ""}
                 onChange={(e) => patch({ description: e.target.value })}
-                placeholder="Ex: Quero testar se um tom mais direto aumenta conversÃ£o em 15% vs o tom atual"
+                placeholder="Ex: Quero testar se um tom mais direto aumenta conversão em 15% vs o tom atual"
                 rows={2}
                 style={{
                   width: "100%",
@@ -219,7 +238,7 @@ export function ExperimentForm({
                 }}
               />
               <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4, display: "block" }}>
-                Isso ajuda a IA a sugerir variantes relevantes para seu cenÃ¡rio
+                Isso ajuda a IA a sugerir variantes relevantes para seu cenário
               </span>
             </label>
 
@@ -236,7 +255,7 @@ export function ExperimentForm({
             </Button>
             {hasGenerated && (
               <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>
-                NÃ£o gostou? Ajuste o tÃ­tulo/contexto e clique novamente
+                Não gostou? Ajuste o título/contexto e clique novamente
               </span>
             )}
           </div>
@@ -288,7 +307,7 @@ export function ExperimentForm({
                     borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.06em",
                     border: `1px solid ${isControl ? "var(--color-brand)" : "var(--warning, #f59e0b)"}`,
                   }}>
-                    {isControl ? "â— Atual (controle)" : "â—† Desafiante"}
+                    {isControl ? "● Atual (controle)" : "◆ Desafiante"}
                   </span>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
@@ -296,7 +315,7 @@ export function ExperimentForm({
                     <input
                       value={v.name}
                       onChange={(e) => updateVariant(idx, { name: e.target.value })}
-                      placeholder={isControl ? "Ex: Consultivo, paciente, sem pressÃ£o" : "Ex: Direto, agressivo, usa urgÃªncia"}
+                      placeholder={isControl ? "Ex: Consultivo, paciente, sem pressão" : "Ex: Direto, agressivo, usa urgência"}
                       style={{
                         width: "100%",
                         padding: "9px 12px",
@@ -318,7 +337,7 @@ export function ExperimentForm({
                         onChange={(e) => updateVariant(idx, { description: e.target.value })}
                         placeholder={isControl
                           ? "Descreva o comportamento atual do agente. Ex: 'Atende de forma consultiva, pergunta antes de oferecer desconto, tom educado e paciente...'"
-                          : "Descreva a nova abordagem. Ex: 'Seja direto, ofereÃ§a 15% logo de inÃ­cio, mencione que Ã© oferta exclusiva do chat, use escassez...'"
+                          : "Descreva a nova abordagem. Ex: 'Seja direto, ofereça 15% logo de início, mencione que é oferta exclusiva do chat, use escassez...'"
                         }
                         rows={4}
                         style={{
@@ -345,7 +364,7 @@ export function ExperimentForm({
                         borderRadius: 6,
                         border: "1px solid var(--color-border)",
                       }}>
-                        {Math.round(100 / form.variants.length)}% do pÃºblico
+                        {Math.round(100 / form.variants.length)}% do público
                       </span>
                       <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)", marginLeft: 8 }}>
                         {variantLabel}
@@ -391,7 +410,7 @@ export function ExperimentForm({
 
             <label>
               <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 4 }}>
-                SessÃµes por variante (mÃ­n. para significÃ¢ncia)
+                Sessões por variante (mín. para significância)
               </span>
               <input
                 type="number"
@@ -415,7 +434,7 @@ export function ExperimentForm({
                 </span>
               )}
               <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 6, display: "block" }}>
-                Recomendado: 100+ sessÃµes por variante para confianÃ§a â‰¥ 95%
+                Recomendado: 100+ sessões por variante para confiança ≥ 95%
               </span>
             </label>
           </div>
@@ -424,9 +443,9 @@ export function ExperimentForm({
           <div style={{ display: "flex", gap: 10, padding: "12px 14px", background: "oklch(50% 0.04 240 / 0.12)", borderRadius: 8, marginTop: 8 }}>
             <Info size={16} style={{ color: "var(--color-brand)", flexShrink: 0, marginTop: 2 }} />
             <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.5 }}>
-              <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong> Ao iniciar, cada sessÃ£o de compra recebe uma variante aleatÃ³ria.
-              O agente IA usa a instruÃ§Ã£o (prompt) daquela variante para conduzir toda a conversa.
-              Ao final, comparamos taxa de conversÃ£o e ticket mÃ©dio entre variantes.
+              <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong> Ao iniciar, cada sessão de compra recebe uma variante aleatória.
+              O agente IA usa a instrução (prompt) daquela variante para conduzir toda a conversa.
+              Ao final, comparamos taxa de conversão e ticket médio entre variantes.
             </div>
           </div>
         </div>
