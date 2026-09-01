@@ -3,6 +3,7 @@ import { evaluateDiscountOffer } from "@zyon/rules-engine";
 import { evaluateShippingOffer } from "@zyon/shipping-engine";
 import type { ChatStage, CheckoutSession, MerchantRules } from "@zyon/shared-types";
 import { CHECKOUT_REPOSITORY, type CheckoutRepository } from "../../domain/ports/checkout-repository.port.js";
+import { PROMPT_EXPERIMENT_PORT, type PromptExperimentPort } from "../../domain/ports/prompt-experiment.port.js";
 import { createAuthorizedOffer } from "../use-cases/offer-factory.js";
 import { SafeAuthorizedOffer } from "../../domain/types/safe-authorized-offer.js";
 import { EvaluateNegotiationUseCase } from "../../../negotiation/application/evaluate-negotiation.use-case.js";
@@ -47,8 +48,84 @@ export class CheckoutOfferService {
     @Inject(CHECKOUT_REPOSITORY) private readonly repository: CheckoutRepository,
     @Optional() private readonly evaluateNegotiation?: EvaluateNegotiationUseCase,
     @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: any,
-    @Optional() private readonly intentModulatedCap?: IntentModulatedCapService
+    @Optional() private readonly intentModulatedCap?: IntentModulatedCapService,
+    @Optional() @Inject(PROMPT_EXPERIMENT_PORT) private readonly promptExperiment?: PromptExperimentPort
   ) { }
+
+  /**
+   * Deterministic variant selection by session id — MUST match
+   * send-chat-message.hashSessionId, storefront /events, and
+   * start-store-conversation, so the arm that drove the chat is the arm whose
+   * rule is applied and whose conversion is credited.
+   */
+  private hashSessionId(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash) + str.charCodeAt(i);
+      hash |= 0;
+    }
+    return hash;
+  }
+
+  /**
+   * Resolve the running experiment's variant for this session and shape the
+   * advancedRules the checkout will evaluate:
+   *  - control arm  → strip the experiment's applied rule (control gets NO rule).
+   *  - treatment arm → ensure its applied rule is present AND force it to match
+   *    (bypass conditions) so the treatment actually delivers what the experiment
+   *    promises. Value/cap/margin STILL go through the rules-engine downstream.
+   * Returns the advancedRules list to use, and the appliedRuleId that was forced.
+   */
+  private async shapeAdvancedRulesForExperiment(
+    merchantId: string,
+    sessionId: string,
+    advancedRules: any[]
+  ): Promise<{ rules: any[]; forcedRuleId: string | null }> {
+    if (!this.promptExperiment) return { rules: advancedRules, forcedRuleId: null };
+    let running;
+    try {
+      running = await this.promptExperiment.findRunningExperiment(merchantId);
+    } catch {
+      return { rules: advancedRules, forcedRuleId: null };
+    }
+    if (!running || running.variants.length === 0) return { rules: advancedRules, forcedRuleId: null };
+
+    // Pick the same variant the chat/attribution picked (weighted djb2 hash).
+    const totalWeight = running.variants.reduce((sum, v) => sum + v.weight, 0);
+    if (totalWeight <= 0) return { rules: advancedRules, forcedRuleId: null };
+    let target = Math.abs(this.hashSessionId(sessionId)) % totalWeight;
+    let selected = running.variants[running.variants.length - 1];
+    for (const v of running.variants) {
+      target -= v.weight;
+      if (target <= 0) { selected = v; break; }
+    }
+
+    // All rule ids referenced by any treatment arm of this experiment.
+    const experimentRuleIds = new Set(
+      running.variants.map((v) => v.appliedRuleId).filter((id): id is string => Boolean(id))
+    );
+
+    if (selected.isControl) {
+      // Control must NOT receive any experiment-scoped rule.
+      const filtered = advancedRules.filter((r) => !experimentRuleIds.has(r?.id));
+      this.logger.log("offer.experiment.control_arm", { merchantId, sessionId, strippedRuleIds: [...experimentRuleIds] });
+      return { rules: filtered, forcedRuleId: null };
+    }
+
+    if (selected.appliedRuleId) {
+      // Treatment: ensure the rule is present and will match (force conditions).
+      const rules = advancedRules.map((r) =>
+        r?.id === selected.appliedRuleId ? { ...r, __experimentForced: true } : r
+      );
+      const present = rules.some((r) => r?.id === selected.appliedRuleId);
+      this.logger.log("offer.experiment.treatment_arm", {
+        merchantId, sessionId, variant: selected.name, appliedRuleId: selected.appliedRuleId, rulePresent: present
+      });
+      return { rules, forcedRuleId: selected.appliedRuleId };
+    }
+
+    return { rules: advancedRules, forcedRuleId: null };
+  }
 
   /**
    * Normalize a loosely-typed buyer intent (from BuyerContextService, attached
@@ -68,13 +145,6 @@ export class CheckoutOfferService {
     };
   }
 
-  /**
-   * Authorize an offer using ONLY the rules-engine or shipping-engine.
-   * Returns SafeAuthorizedOffer — a type-system barrier that guarantees
-   * this offer was authorized by a deterministic engine, NEVER by the LLM.
-   *
-   * INVARIANT: LLM never authorizes offers. Conversation port writes copy only.
-   */
   async authorizeOffer(
     userMessage: string,
     sessionObj: CheckoutSession,
@@ -84,9 +154,6 @@ export class CheckoutOfferService {
   ): Promise<SafeAuthorizedOffer> {
     const isDataCollection = stage === "data_collection";
     const isIncompleteShipping = stage === "shipping";
-
-    // MARKETPLACE GUARD: cross-store items NEVER receive discounts, free shipping, or coupons.
-    // Host merchant cannot subsidize another seller's product margin.
     const hasCrossStoreItems = Boolean((sessionObj as any).crossStoreItems?.length > 0);
     const hasOnlyCrossStoreItems = hasCrossStoreItems && (!sessionObj.cart.items || sessionObj.cart.items.length === 0);
     if (hasOnlyCrossStoreItems) {
@@ -129,17 +196,6 @@ export class CheckoutOfferService {
       return SafeAuthorizedOffer.fromRulesEngine(saved);
     }
 
-    // INVARIANT: discount cap comes from `rules.maxDiscountPercent` only.
-    // The rules-engine is the sole authority for approving discounts.
-    // Conversation-derived signals (objection count, chat history) MUST NOT
-    // shape the cap — that would let LLM-influenced state leak into offer math.
-    // Objection handling belongs to `conversation-engine` (copy only).
-    //
-    // F1-T03: Intent-modulated cap (ADI-F1-05, F1-06, INV-07).
-    // ONLY for cohort=="treatment" AND when a buyer intent snapshot is available.
-    // Holdout / no-intent / service-not-wired → current behavior (maxDiscountPercent).
-    // The modulated value is still a *cap*: the rules-engine remains the sole
-    // authority — this never raises the cap above rules.maxDiscountPercent.
     const cohort = (sessionObj as any).cohort;
     const buyerIntent = this.resolveIntentSnapshot(sessionObj);
     let discountCapPercent = rules.maxDiscountPercent;
@@ -157,7 +213,6 @@ export class CheckoutOfferService {
       discountCapPercent = modulated;
     }
 
-    // Load negotiation policy (if any) to clip discount to merchant min/max bounds.
     let negotiationRange: NegotiationPolicyRange | null = null;
     if (this.prisma?.merchantNegotiationPolicy) {
       try {
@@ -173,7 +228,6 @@ export class CheckoutOfferService {
       }
     }
 
-    // Deal Engine: at payment stage, attempt negotiation if merchant has policy
     if (stage === "payment" && this.evaluateNegotiation && this.prisma) {
       try {
         const negotiationPolicy = await this.prisma.merchantNegotiationPolicy?.findUnique?.({
@@ -274,7 +328,15 @@ export class CheckoutOfferService {
     // Check for matching advanced rules before standard progressive discount.
     // If rule matches with value action (offer_discount, offer_free_shipping, offer_coupon),
     // route through rules-engine/shipping-engine directly.
-    const advancedRules = (rules as any).advancedRules ?? [];
+    const allAdvancedRules = (rules as any).advancedRules ?? [];
+    // Experiment-aware shaping: control arm loses the experiment rule; treatment
+    // arm gets its rule forced (bypass conditions) so the A/B actually delivers
+    // what it promises. Non-experiment rules pass through untouched.
+    const { rules: advancedRules, forcedRuleId } = await this.shapeAdvancedRulesForExperiment(
+      sessionObj.merchantId,
+      sessionObj.sessionId,
+      allAdvancedRules
+    );
     if (advancedRules.length > 0 && !wantsShipping) {
       const ruleContext = {
         cartTotal: sessionObj.cart.total ?? 0,
@@ -288,7 +350,29 @@ export class CheckoutOfferService {
         triggerFired: (sessionObj as any).triggerFired
       };
 
-      const ruleMatch = this.advancedRuleEvaluator.evaluate(advancedRules, ruleContext);
+      // Force-match: if the treatment arm's rule is in the list but did not match
+      // the ruleContext (e.g. cohort not price_sensitive), pretend it matched so
+      // the experiment delivers the promised discount. Value still goes through
+      // the rules-engine below (hard cap + margin floor).
+      let ruleMatch = this.advancedRuleEvaluator.evaluate(advancedRules, ruleContext);
+      if ((!ruleMatch.matched || ruleMatch.rule?.id !== forcedRuleId) && forcedRuleId) {
+        const forced = advancedRules.find((r: any) => r?.id === forcedRuleId);
+        if (forced && forced.action) {
+          this.logger.log("offer.experiment.forced_rule", {
+            merchantId: sessionObj.merchantId,
+            sessionId: sessionObj.sessionId,
+            ruleId: forced.id,
+            actionType: forced.action.type,
+          });
+          ruleMatch = {
+            matched: true,
+            rule: forced,
+            action: forced.action,
+            conditions: forced.conditions ?? [],
+            reason: "experiment_forced_treatment_arm",
+          } as any;
+        }
+      }
 
       if (ruleMatch.matched && ruleMatch.action) {
         const actionType = ruleMatch.action.type;
