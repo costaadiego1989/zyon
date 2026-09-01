@@ -143,8 +143,8 @@ async function main() {
     const merchantId = merchantUser.merchantId;
     console.log(`Found merchant: ${merchantId} (${merchantUser.merchant.name})`);
 
-    // 2. Create demo purchase records and intent records
-    console.log("Creating demo purchase records and intent memory...");
+    // 2. Create demo purchase records, intent records, and LGPD consent
+    console.log("Creating demo purchase records, intent memory, and LGPD consent...");
 
     for (let i = 0; i < INTENT_PROFILES.length; i++) {
       const profile = INTENT_PROFILES[i];
@@ -172,6 +172,25 @@ async function main() {
               price: Math.random() * 300 + 20,
             },
           ],
+        },
+      });
+
+      // Create LGPD consent record (BEFORE intent so it gates recording)
+      const expiresAt = new Date();
+      expiresAt.setFullYear(expiresAt.getFullYear() + 1); // 1 year
+      await prisma.buyerIntentMemoryConsent.upsert({
+        where: {
+          merchantId_globalUserId: { merchantId, globalUserId },
+        },
+        create: {
+          merchantId,
+          globalUserId,
+          optedIn: true, // Active consent
+          expiresAt,
+        },
+        update: {
+          optedIn: true,
+          expiresAt,
         },
       });
 
@@ -203,7 +222,7 @@ async function main() {
       });
 
       console.log(
-        `[${i + 1}/${INTENT_PROFILES.length}] Created intent record for ${buyerName} (${profile.primaryIntent})`
+        `[${i + 1}/${INTENT_PROFILES.length}] Created intent + consent for ${buyerName} (${profile.primaryIntent})`
       );
     }
 
