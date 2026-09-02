@@ -12,6 +12,7 @@ function makePortDouble(overrides: Partial<StockRepositoryPort> = {}): StockRepo
     getAvailableStock: async () => ({ quantity: 0, reserved: 0 }),
     decrementBySku: async () => ({ ok: true, quantity: 0 }),
     getStockBySku: async () => null,
+    setQuantityBySku: async () => ({ ok: true }),
     ...overrides,
   };
 }

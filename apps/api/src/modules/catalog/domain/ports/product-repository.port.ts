@@ -80,4 +80,10 @@ export interface StockRepositoryPort {
   getAvailableStock(variantId: string): Promise<{ quantity: number; reserved: number }>;
   decrementBySku(merchantId: string, sku: string, quantity: number): Promise<{ ok: boolean; quantity?: number }>;
   getStockBySku(merchantId: string, sku: string): Promise<{ variantId: string; quantity: number; reserved: number } | null>;
+  /**
+   * Sets catalog stock to an absolute quantity by SKU (merchant-scoped). Used by
+   * the reconciliation job to converge catalog stock toward the inventory ledger
+   * (source of truth). Returns whether a row was updated.
+   */
+  setQuantityBySku(merchantId: string, sku: string, quantity: number): Promise<{ ok: boolean }>;
 }

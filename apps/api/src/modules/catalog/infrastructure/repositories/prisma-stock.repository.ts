@@ -173,4 +173,18 @@ export class PrismaStockRepository implements StockRepositoryPort {
     const s = variant.stock?.[0];
     return { variantId: variant.id, quantity: s?.quantity ?? 0, reserved: s?.reserved ?? 0 };
   }
+
+  async setQuantityBySku(merchantId: string, sku: string, quantity: number): Promise<{ ok: boolean }> {
+    if (quantity < 0) return { ok: false };
+    const variant = await this.prisma.productVariant.findFirst({
+      where: { sku, product: { merchantId } },
+      select: { id: true },
+    });
+    if (!variant) return { ok: false };
+    const updated = await this.prisma.productStock.updateMany({
+      where: { variantId: variant.id },
+      data: { quantity },
+    });
+    return { ok: updated.count > 0 };
+  }
 }

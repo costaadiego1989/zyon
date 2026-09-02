@@ -41,6 +41,9 @@ import { PrismaErpRepository } from "./infrastructure/repositories/prisma-erp.re
 import { NoopCrmAdapter } from "./infrastructure/adapters/noop-crm.adapter.js";
 import { CrmAdapterFactory } from "./infrastructure/adapters/crm-adapter.factory.js";
 import { OnSaleCompletedHandler } from "./infrastructure/event-handlers/on-sale-completed.handler.js";
+import { ReconcileCatalogStockUseCase } from "./application/use-cases/reconcile-catalog-stock.use-case.js";
+import { InventoryReconciliationScheduler } from "./infrastructure/jobs/inventory-reconciliation.scheduler.js";
+import { InventoryReconciliationWorker } from "./infrastructure/jobs/inventory-reconciliation.worker.js";
 import { InventoryOnOrderCompletedHandler } from "./infrastructure/event-handlers/on-order-completed.handler.js";
 import { ErpStockPushService } from "./application/services/erp-stock-push.service.js";
 import { InventoryWebhookEmitterService } from "./application/services/inventory-webhook-emitter.service.js";
@@ -115,6 +118,9 @@ import { MarketplaceWebhookController } from "./presentation/http/marketplace-we
     OnCatalogProductSavedHandler,
     GetProductDetailBySkuUseCase,
     OnSaleCompletedHandler,
+    ReconcileCatalogStockUseCase,
+    InventoryReconciliationScheduler,
+    InventoryReconciliationWorker,
     ErpStockPushService,
     InventoryWebhookEmitterService,
     CrmSyncService,
