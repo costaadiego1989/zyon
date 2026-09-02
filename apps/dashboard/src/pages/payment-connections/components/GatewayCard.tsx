@@ -19,6 +19,8 @@ interface GatewayCardProps {
   onConnect: () => void;
   onSync: () => void;
   onDisconnect?: () => void;
+  /** Secondary action for a pending connection (e.g. Asaas: complete onboarding docs). */
+  onOnboard?: () => void;
   comingSoon?: boolean;
   configureUrl?: string;
 }
@@ -36,6 +38,7 @@ export function GatewayCard({
   onConnect,
   onSync,
   onDisconnect,
+  onOnboard,
   comingSoon,
   configureUrl,
 }: GatewayCardProps) {
@@ -115,30 +118,45 @@ export function GatewayCard({
             Configurar
           </a>
         ) : isConnected ? (
-          <div style={{ display: "flex", gap: 8, width: "100%" }}>
-            <Button
-              variant="outline"
-              disabled={!!disabled}
-              onClick={onSync}
-              aria-busy={isMySyncing}
-              aria-label={`Sincronizar ${name}`}
-              loading={isMySyncing}
-              fullWidth
-            >
-              <RefreshCw size={14} aria-hidden="true" />
-              {isMySyncing ? "Sincronizando..." : "Sincronizar"}
-            </Button>
-            {onDisconnect ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
+            {onOnboard ? (
               <Button
-                variant="outline"
+                variant="primary"
+                arrow
                 disabled={operation !== "idle"}
-                onClick={onDisconnect}
-                aria-label={`Desconectar ${name}`}
+                onClick={onOnboard}
+                aria-label={`Completar cadastro ${name}`}
+                fullWidth
               >
-                <Trash2 size={14} aria-hidden="true" />
-                Desconectar
+                <ExternalLink size={14} aria-hidden="true" />
+                Completar cadastro
               </Button>
             ) : null}
+            <div style={{ display: "flex", gap: 8, width: "100%" }}>
+              <Button
+                variant="outline"
+                disabled={!!disabled}
+                onClick={onSync}
+                aria-busy={isMySyncing}
+                aria-label={`Sincronizar ${name}`}
+                loading={isMySyncing}
+                fullWidth
+              >
+                <RefreshCw size={14} aria-hidden="true" />
+                {isMySyncing ? "Sincronizando..." : "Sincronizar"}
+              </Button>
+              {onDisconnect ? (
+                <Button
+                  variant="outline"
+                  disabled={operation !== "idle"}
+                  onClick={onDisconnect}
+                  aria-label={`Desconectar ${name}`}
+                >
+                  <Trash2 size={14} aria-hidden="true" />
+                  Desconectar
+                </Button>
+              ) : null}
+            </div>
           </div>
         ) : (
           <Button

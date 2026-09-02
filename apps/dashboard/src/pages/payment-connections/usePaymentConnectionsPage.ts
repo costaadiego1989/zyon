@@ -32,13 +32,6 @@ export interface CryptoWalletState {
   saved: boolean;
 }
 
-export interface AsaasState {
-  apiKey: string;
-  webhookToken: string;
-  sandbox: boolean;
-  saving: boolean;
-}
-
 export function usePaymentConnectionsPage(me: MerchantProfile | null) {
   const api = useApi();
 
@@ -48,14 +41,6 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
   // UI state
   const [operation, setOperation] = useState<Operation>("idle");
   const [alert, setAlert] = useState<{ message: string; kind: AlertKind } | null>(null);
-
-  // Asaas modal state
-  const [asaas, setAsaas] = useState<AsaasState>({
-    apiKey: "",
-    webhookToken: "",
-    sandbox: true,
-    saving: false,
-  });
 
   // Crypto wallet state
   const [crypto, setCrypto] = useState<CryptoWalletState>({
@@ -69,12 +54,22 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     saved: false,
   });
 
+  // storeSettings.company prefill for the Asaas subaccount form (cnpj, address,
+  // phone, email already collected at signup/onboarding — no need to re-type).
+  const [companyPrefill, setCompanyPrefill] = useState<Record<string, any> | null>(null);
+
   useEffect(() => {
     if (!me) {
       setConnections([]);
       return;
     }
     void load();
+    void (async () => {
+      try {
+        const settings = await api.getStoreSettings();
+        setCompanyPrefill((settings?.company as Record<string, any>) ?? null);
+      } catch { setCompanyPrefill(null); }
+    })();
   }, [me]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Post-OAuth return: Mercado Pago's callback redirects back with a flag.
@@ -170,8 +165,33 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     }
   }
 
-  async function onboardAsaas() {
+  // Creates an Asaas white-label subaccount (BaaS) from the merchant-provided
+  // data, then opens the document-onboarding link (Asaas requires ~15s after
+  // creation before the onboarding docs are discoverable).
+  async function createAsaasSubaccount(payload: Record<string, unknown>): Promise<boolean> {
     setOperation("connecting-asaas");
+    setAlert(null);
+    try {
+      const created = await api.createAsaasSubaccount(payload);
+      setConnections((prev) => {
+        const idx = prev.findIndex((c) => c.provider === "asaas");
+        return idx >= 0 ? prev.map((c, i) => (i === idx ? created : c)) : [created, ...prev];
+      });
+      showToast("success", "Subconta criada — complete o cadastro no Asaas para ativar.");
+      // Give Asaas a moment, then open the onboarding link (best-effort).
+      setTimeout(() => { void openAsaasOnboarding(); }, 15500);
+      return true;
+    } catch (e) {
+      console.error("[payment-connections]", e);
+      setAlert({ message: sanitizeError(e), kind: "error" });
+      return false;
+    } finally {
+      setOperation("idle");
+    }
+  }
+
+  // Opens (or re-opens) the Asaas document-onboarding link for a pending subaccount.
+  async function openAsaasOnboarding(): Promise<void> {
     setAlert(null);
     try {
       const { url } = await api.createAsaasOnboardingLink({ return_url: window.location.href });
@@ -179,30 +199,6 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     } catch (e) {
       console.error("[payment-connections]", e);
       setAlert({ message: sanitizeError(e), kind: "error" });
-    } finally {
-      setOperation("idle");
-    }
-  }
-
-  async function saveAsaasConfig() {
-    setAsaas((prev) => ({ ...prev, saving: true }));
-    setAlert(null);
-    try {
-      const updated = await api.connectAsaas({
-        api_key: asaas.apiKey.trim(),
-        webhook_token: asaas.webhookToken.trim(),
-        sandbox: asaas.sandbox,
-      });
-      setConnections((prev) => {
-        const idx = prev.findIndex((c) => c.provider === "asaas");
-        return idx >= 0 ? prev.map((c, i) => (i === idx ? updated : c)) : [updated, ...prev];
-      });
-      showToast("success", "Asaas configurado com sucesso");
-    } catch (e) {
-      console.error("[payment-connections]", e);
-      setAlert({ message: sanitizeError(e), kind: "error" });
-    } finally {
-      setAsaas((prev) => ({ ...prev, saving: false }));
     }
   }
 
@@ -306,20 +302,19 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     connections,
     operation,
     alert,
-    asaas,
     crypto,
+    companyPrefill,
 
     // Setters
     setAlert,
-    setAsaas,
     setCrypto,
 
     // Actions
     load,
     onboardStripe,
     syncStripe,
-    onboardAsaas,
-    saveAsaasConfig,
+    createAsaasSubaccount,
+    openAsaasOnboarding,
     syncAsaas,
     onboardMercadoPago,
     syncMercadoPago,

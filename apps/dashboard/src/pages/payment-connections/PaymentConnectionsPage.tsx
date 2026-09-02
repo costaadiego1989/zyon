@@ -9,6 +9,8 @@ import { usePaymentConnectionsPage, formatDate, type CryptoWalletState } from ".
 import type { MerchantProfile } from "../../api-client.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
 import { ConfirmDialog } from "../../components/ConfirmDialog.js";
+import { SidePanel } from "../../components/SidePanel.js";
+import { AsaasSubaccountForm, type AsaasSubaccountPayload } from "./components/AsaasSubaccountForm.js";
 import "./payment-connections-page.css";
 
 type DisconnectProvider = "stripe" | "asaas" | "mercadopago";
@@ -46,11 +48,13 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
     operation,
     alert,
     crypto,
+    companyPrefill,
     setCrypto,
     load,
     onboardStripe,
     syncStripe,
-    onboardAsaas,
+    createAsaasSubaccount,
+    openAsaasOnboarding,
     syncAsaas,
     onboardMercadoPago,
     syncMercadoPago,
@@ -59,6 +63,8 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
   } = usePaymentConnectionsPage(me);
 
   const [pendingDisconnect, setPendingDisconnect] = useState<DisconnectProvider | null>(null);
+  const [asaasFormOpen, setAsaasFormOpen] = useState(false);
+  const asaasSaving = operation === "connecting-asaas";
 
   if (!me) {
     return (
@@ -152,9 +158,10 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
             operation={operation}
             connectingOperation="connecting-asaas"
             syncingOperation="syncing-asaas"
-            onConnect={() => void onboardAsaas()}
+            onConnect={() => setAsaasFormOpen(true)}
             onSync={() => void syncAsaas()}
             onDisconnect={() => setPendingDisconnect("asaas")}
+            onOnboard={asaasConn && asaasConn.status !== "active" ? () => void openAsaasOnboarding() : undefined}
           />
           <GatewayCard
             provider="mercadopago"
@@ -265,6 +272,20 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
         }}
         onCancel={() => setPendingDisconnect(null)}
       />
+
+      <SidePanel isOpen={asaasFormOpen} title="Conectar Asaas" onClose={() => setAsaasFormOpen(false)}>
+        <AsaasSubaccountForm
+          company={companyPrefill}
+          defaultName={me?.name ?? undefined}
+          saving={asaasSaving}
+          onCancel={() => setAsaasFormOpen(false)}
+          onSubmit={(payload: AsaasSubaccountPayload) => {
+            void createAsaasSubaccount(payload as unknown as Record<string, unknown>).then((ok) => {
+              if (ok) setAsaasFormOpen(false);
+            });
+          }}
+        />
+      </SidePanel>
     </div>
   );
 }
