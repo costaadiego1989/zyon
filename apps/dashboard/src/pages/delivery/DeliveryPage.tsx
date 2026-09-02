@@ -1,7 +1,6 @@
 import React from "react";
 import { Package, Link2 } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
-import { Button } from "../../components/Button.js";
 import { DataPanel } from "../../components/DataPanel.js";
 import { SidePanel } from "../../components/SidePanel.js";
 import { useDeliveryPage } from "./useDeliveryPage.js";
@@ -80,23 +79,26 @@ export function DeliveryPage(props: DeliveryPageProps) {
       {/* Entregas list */}
       <DataPanel
         title="Entregas Recentes"
+        trailing={
+          <select
+            value={vm.shipmentsFilter}
+            onChange={(e) => vm.setShipmentsFilter(e.target.value)}
+            style={{ width: 150, flex: "0 0 auto", padding: "6px 10px", borderRadius: 7, border: "1px solid var(--color-border)", background: "var(--surface-1)", font: "12px var(--font-sans)", color: "var(--color-text)", cursor: "pointer" }}
+          >
+            {SHIPMENT_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
+        }
         isEmpty={vm.shipments.length === 0}
         empty={{
           icon: Package,
           title: "Nenhuma entrega registrada",
           description: "As entregas aparecerão aqui conforme pedidos forem concluídos.",
         }}
+        page={vm.shipmentsPage}
+        pageSize={vm.shipmentsPageSize}
+        total={vm.shipmentsTotal}
+        onPageChange={vm.setShipmentsPage}
       >
-        <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "center", justifyContent: "space-between" }}>
-          <select
-            value={vm.shipmentsFilter}
-            onChange={(e) => vm.setShipmentsFilter(e.target.value)}
-            style={{ padding: "6px 10px", borderRadius: 7, border: "1px solid var(--color-border)", background: "var(--surface-1)", font: "12px var(--font-sans)", color: "var(--color-text)", cursor: "pointer" }}
-          >
-            {SHIPMENT_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-        </div>
-
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
@@ -135,14 +137,6 @@ export function DeliveryPage(props: DeliveryPageProps) {
             ))}
           </tbody>
         </table>
-
-        {vm.hasMore && (
-          <div style={{ marginTop: 16, textAlign: "center" }}>
-            <Button variant="outline" size="sm" onClick={vm.loadMoreShipments} disabled={vm.shipmentsLoading}>
-              {vm.shipmentsLoading ? "Carregando..." : "Carregar mais"}
-            </Button>
-          </div>
-        )}
       </DataPanel>
 
       {/* Side panel for own delivery config */}

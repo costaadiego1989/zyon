@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
-import { reportError } from "../../hooks/useErrorReporter.js";
 import { showToast } from "../../components/Toast.js";
 import type { DeliveryConfig, OwnDeliveryConfig, Shipment } from "../../api/endpoints/delivery.js";
 
@@ -50,36 +49,53 @@ export function useDeliveryPage() {
   const [saving, setSaving] = useState(false);
   const [ownDeliveryPanelOpen, setOwnDeliveryPanelOpen] = useState(false);
   const configRef = useRef(config);
+
   configRef.current = config;
 
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [shipmentsLoading, setShipmentsLoading] = useState(false);
   const [shipmentsFilter, setShipmentsFilter] = useState("all");
-  const [shipmentsOffset, setShipmentsOffset] = useState(0);
+  const [shipmentsPage, setShipmentsPage] = useState(1); // 1-based
   const [shipmentsTotal, setShipmentsTotal] = useState(0);
-  const PAGE_SIZE = 20;
+  const PAGE_SIZE = 10;
 
-  // Initial load — once
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       try {
-        const [cfgData, shipData] = await Promise.all([
-          api.getDeliveryConfig?.().catch(() => null),
-          api.getShipments?.().catch(() => null),
-        ]);
-        if (cancelled) return;
-        if (cfgData) setConfig(normalizeConfig(cfgData));
-        if (shipData) {
-          setShipments(shipData.items ?? []);
-          setShipmentsTotal(shipData.total ?? 0);
-        }
+        const cfgData = await api.getDeliveryConfig?.().catch(() => null);
+        if (!cancelled && cfgData) setConfig(normalizeConfig(cfgData));
       } catch { /* silently use defaults */ }
       finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setShipmentsLoading(true);
+      try {
+        const status = shipmentsFilter !== "all" ? shipmentsFilter : undefined;
+        const offset = (shipmentsPage - 1) * PAGE_SIZE;
+        const data = await api.getShipments?.(status, PAGE_SIZE, offset).catch(() => null);
+        if (cancelled || !data) return;
+        setShipments(data.items ?? []);
+        setShipmentsTotal(data.total ?? 0);
+      } catch {
+        if (!cancelled) showToast("error", "Erro ao carregar entregas");
+      } finally {
+        if (!cancelled) setShipmentsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [api, shipmentsFilter, shipmentsPage]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const changeFilter = useCallback((value: string) => {
+    setShipmentsFilter(value);
+    setShipmentsPage(1);
+  }, []);
 
   // Toggle Melhor Envio
   const toggleMelhorEnvio = useCallback(async (enabled: boolean) => {
@@ -155,24 +171,6 @@ export function useDeliveryPage() {
     if (url) window.open(url, "_blank", "width=600,height=700");
   }, [api]);
 
-  // Shipments
-  const loadMoreShipments = useCallback(async () => {
-    if (shipmentsLoading) return;
-    setShipmentsLoading(true);
-    try {
-      const status = shipmentsFilter !== "all" ? shipmentsFilter : undefined;
-      const data = await api.getShipments?.(status, PAGE_SIZE, shipmentsOffset + PAGE_SIZE);
-      if (data) {
-        setShipments((prev) => [...prev, ...data.items]);
-        setShipmentsOffset((prev) => prev + PAGE_SIZE);
-      }
-    } catch {
-      showToast("error", "Erro ao carregar entregas");
-    } finally {
-      setShipmentsLoading(false);
-    }
-  }, [api, shipmentsFilter, shipmentsOffset, shipmentsLoading]);
-
   const buyLabel = useCallback(async (shipmentId: string) => {
     try {
       const result = await api.buyShippingLabel?.(shipmentId);
@@ -198,9 +196,11 @@ export function useDeliveryPage() {
     shipments,
     shipmentsLoading,
     shipmentsFilter,
-    setShipmentsFilter,
-    loadMoreShipments,
-    hasMore: shipments.length < shipmentsTotal,
+    setShipmentsFilter: changeFilter,
+    shipmentsPage,
+    setShipmentsPage,
+    shipmentsTotal,
+    shipmentsPageSize: PAGE_SIZE,
     buyLabel,
   };
 }
