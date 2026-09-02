@@ -162,9 +162,8 @@ export const NAV_ITEMS: NavItem[] = [
 
   // ─── INTEGRAÇÕES ─── conexões técnicas
   { key: "payment-connections", label: "Pagamentos", section: "integrations", icon: CreditCard, keywords: ["pagamentos", "payments", "asaas", "stripe", "mercado pago", "gateway"] },
-  { key: "integrations", label: "E-commerce", section: "integrations", icon: Plug, keywords: ["shopify", "woocommerce", "nuvemshop", "vtex", "e-commerce", "loja"] },
+  { key: "integrations", label: "API & Webhooks", section: "integrations", icon: Webhook, keywords: ["api", "webhooks", "chaves", "keys", "desenvolvedor", "integração", "shopify", "woocommerce", "vtex"] },
   { key: "crm-integrations", label: "CRM & Marketing", section: "integrations", icon: Plug, keywords: ["crm", "marketing", "hubspot", "pipedrive", "rd station"] },
-  { key: "integrations-api", label: "API & Webhooks", section: "integrations", icon: Webhook, keywords: ["api", "webhooks", "chaves", "keys", "desenvolvedor", "integração"] },
 
   // ─── INTELIGÊNCIA IA ─── features avançadas/analytics
   { key: "revenue-manager", label: "Otimizador IA", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["otimizador", "revenue manager", "ia", "hipóteses", "otimização"] },

@@ -186,7 +186,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
             </div>
           </details>
           <div className="table-wrap">
-            <table className="data-table">
+            <table className={`data-table${apiKeys.length === 0 ? " data-table--empty" : ""}`}>
               <thead>
                 <tr>
                   <th>Nome</th>
