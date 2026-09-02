@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { AlertCircle, CheckCircle2, CreditCard, PlugZap, RefreshCw } from "lucide-react";
 import type { PaymentConnection } from "../../api-client.js";
 import { StatusBadge } from "./components/StatusBadge.js";
@@ -8,7 +8,15 @@ import { StripeLogo, AsaasLogo, MercadoPagoLogo } from "./components/ProviderLog
 import { usePaymentConnectionsPage, formatDate, type CryptoWalletState } from "./usePaymentConnectionsPage.js";
 import type { MerchantProfile } from "../../api-client.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
+import { ConfirmDialog } from "../../components/ConfirmDialog.js";
 import "./payment-connections-page.css";
+
+type DisconnectProvider = "stripe" | "asaas" | "mercadopago";
+const PROVIDER_LABELS: Record<DisconnectProvider, string> = {
+  stripe: "Stripe",
+  asaas: "Asaas",
+  mercadopago: "Mercado Pago",
+};
 
 interface PaymentConnectionsPageProps {
   apiBaseUrl: string;
@@ -38,7 +46,6 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
     operation,
     alert,
     crypto,
-    setAlert,
     setCrypto,
     load,
     onboardStripe,
@@ -47,10 +54,11 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
     syncAsaas,
     onboardMercadoPago,
     syncMercadoPago,
+    disconnect,
     saveCryptoWallet,
   } = usePaymentConnectionsPage(me);
 
-  // ── Unauthenticated state ─────────────────────────────────────────────────
+  const [pendingDisconnect, setPendingDisconnect] = useState<DisconnectProvider | null>(null);
 
   if (!me) {
     return (
@@ -70,8 +78,6 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
       </div>
     );
   }
-
-  // ── Authenticated state ───────────────────────────────────────────────────
 
   const isLoading = operation === "loading";
   const stripeConn = connections.find((c) => c.provider === "stripe");
@@ -134,6 +140,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
             syncingOperation="syncing-stripe"
             onConnect={() => void onboardStripe()}
             onSync={() => void syncStripe()}
+            onDisconnect={() => setPendingDisconnect("stripe")}
           />
           <GatewayCard
             provider="asaas"
@@ -147,6 +154,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
             syncingOperation="syncing-asaas"
             onConnect={() => void onboardAsaas()}
             onSync={() => void syncAsaas()}
+            onDisconnect={() => setPendingDisconnect("asaas")}
           />
           <GatewayCard
             provider="mercadopago"
@@ -160,6 +168,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
             syncingOperation="syncing-mercadopago"
             onConnect={() => void onboardMercadoPago()}
             onSync={() => void syncMercadoPago()}
+            onDisconnect={() => setPendingDisconnect("mercadopago")}
           />
           <WalletSection
             crypto={crypto}
@@ -242,6 +251,20 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
         </div>
       ) : null}
 
+      <ConfirmDialog
+        open={pendingDisconnect != null}
+        variant="danger"
+        title={pendingDisconnect ? `Desconectar ${PROVIDER_LABELS[pendingDisconnect]}?` : ""}
+        description="A conexão atual será removida. Você poderá conectar novamente do zero em seguida. Cobranças por este provedor deixam de funcionar até reconectar."
+        confirmLabel="Desconectar"
+        cancelLabel="Cancelar"
+        onConfirm={() => {
+          const p = pendingDisconnect;
+          setPendingDisconnect(null);
+          if (p) void disconnect(p);
+        }}
+        onCancel={() => setPendingDisconnect(null)}
+      />
     </div>
   );
 }

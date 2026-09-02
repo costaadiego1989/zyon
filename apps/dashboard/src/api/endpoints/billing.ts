@@ -69,6 +69,9 @@ export function billingEndpoints(base: string, f: typeof fetch) {
     syncMercadoPagoConnection(): Promise<PaymentConnection> {
       return dashboardJson(base, "/merchants/me/payment-connections/mercadopago/sync", { method: "POST" }, f);
     },
+    disconnectPaymentConnection(provider: "stripe" | "asaas" | "mercadopago"): Promise<{ success: boolean }> {
+      return dashboardJson(base, `/payments/connections/${encodeURIComponent(provider)}`, { method: "DELETE" }, f);
+    },
     enableCryptoPayments(payload: { enabled: boolean; chain: "polygon" | "base"; network: "mainnet" | "testnet"; treasuryAddress: string; token: "USDC" }): Promise<{ success: boolean }> {
       return dashboardJson(base, "/merchants/me/crypto-payments/enable", { method: "POST", jsonBody: payload }, f);
     },

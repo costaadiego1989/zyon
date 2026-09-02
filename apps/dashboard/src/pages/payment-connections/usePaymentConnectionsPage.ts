@@ -273,6 +273,23 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     }
   }
 
+  async function disconnect(provider: "stripe" | "asaas" | "mercadopago") {
+    setOperation("loading");
+    setAlert(null);
+    try {
+      await api.disconnectPaymentConnection(provider);
+      setConnections((prev) => prev.filter((c) => c.provider !== provider));
+      showToast("success", "Provedor desconectado");
+    } catch (e) {
+      console.error("[payment-connections]", e);
+      setAlert({ message: sanitizeError(e), kind: "error" });
+    } finally {
+      setOperation("idle");
+      // Re-sync from server so status reflects reality.
+      void load();
+    }
+  }
+
   return {
     // State
     connections,
@@ -296,6 +313,7 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     onboardMercadoPago,
     syncMercadoPago,
     saveCryptoWallet,
+    disconnect,
   };
 }
 

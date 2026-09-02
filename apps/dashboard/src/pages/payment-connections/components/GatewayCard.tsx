@@ -3,7 +3,7 @@ import type { PaymentConnection } from "../../../api-client.js";
 import { formatDate } from "../usePaymentConnectionsPage.js";
 import type { Operation } from "../usePaymentConnectionsPage.js";
 import { StatusBadge } from "./StatusBadge.js";
-import { ExternalLink, RefreshCw, PlugZap, Settings } from "lucide-react";
+import { ExternalLink, RefreshCw, PlugZap, Settings, Trash2 } from "lucide-react";
 import { Button } from "../../../components/Button.js";
 
 interface GatewayCardProps {
@@ -18,6 +18,7 @@ interface GatewayCardProps {
   syncingOperation: Operation;
   onConnect: () => void;
   onSync: () => void;
+  onDisconnect?: () => void;
   comingSoon?: boolean;
   configureUrl?: string;
 }
@@ -34,6 +35,7 @@ export function GatewayCard({
   syncingOperation,
   onConnect,
   onSync,
+  onDisconnect,
   comingSoon,
   configureUrl,
 }: GatewayCardProps) {
@@ -113,18 +115,31 @@ export function GatewayCard({
             Configurar
           </a>
         ) : isConnected ? (
-          <Button
-            variant="outline"
-            disabled={!!disabled}
-            onClick={onSync}
-            aria-busy={isMySyncing}
-            aria-label={`Sincronizar ${name}`}
-            loading={isMySyncing}
-            fullWidth
-          >
-            <RefreshCw size={14} aria-hidden="true" />
-            {isMySyncing ? "Sincronizando..." : "Sincronizar"}
-          </Button>
+          <div style={{ display: "flex", gap: 8, width: "100%" }}>
+            <Button
+              variant="outline"
+              disabled={!!disabled}
+              onClick={onSync}
+              aria-busy={isMySyncing}
+              aria-label={`Sincronizar ${name}`}
+              loading={isMySyncing}
+              fullWidth
+            >
+              <RefreshCw size={14} aria-hidden="true" />
+              {isMySyncing ? "Sincronizando..." : "Sincronizar"}
+            </Button>
+            {onDisconnect ? (
+              <Button
+                variant="outline"
+                disabled={operation !== "idle"}
+                onClick={onDisconnect}
+                aria-label={`Desconectar ${name}`}
+              >
+                <Trash2 size={14} aria-hidden="true" />
+                Desconectar
+              </Button>
+            ) : null}
+          </div>
         ) : (
           <Button
             variant="primary"
