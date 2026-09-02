@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -15,7 +16,6 @@ import { randomBytes, scrypt } from "node:crypto";
 import { promisify } from "node:util";
 import type { CustomerAddress } from "@zyon/shared-types";
 import { RegisterBuyerUserUseCase } from "../../../self-checkout/application/use-cases/register-buyer-user.use-case.js";
-import { RegisterBuyerUseCase } from "../../application/use-cases/register-buyer.use-case.js";
 import { RegisterBuyerWithRateLimitUseCase } from "../../application/use-cases/register-buyer-with-rate-limit.use-case.js";
 import { LoginBuyerUseCase } from "../../application/use-cases/login-buyer.use-case.js";
 import { LoginBuyerFromSessionUseCase } from "../../application/use-cases/login-buyer-from-session.use-case.js";
@@ -58,28 +58,48 @@ export class BuyerAccountController {
     @Body()
     body: {
       email: string;
-      password: string;
-      displayName: string;
+      password?: string;
+      displayName?: string;
+      name?: string;
       phone?: string;
+      cpf?: string;
+      address?: CustomerAddress;
       dateOfBirth?: string;
       gender?: string;
       merchantId?: string;
     },
     @Ip() ip: string
   ) {
+    const displayName = (body.displayName ?? body.name ?? "").trim();
+    const missing: string[] = [];
+
+    if (!body.email?.trim()) missing.push("email");
+    if (!displayName || displayName.split(/\s+/).length < 2) missing.push("name");
+    if (!body.phone?.replace(/\D/g, "")) missing.push("phone");
+    if (!body.cpf?.replace(/\D/g, "")) missing.push("cpf");
+    const addr = body.address;
+    if (!addr || !addr.zip || !addr.number || !addr.street || !addr.city || !addr.state) {
+      missing.push("address");
+    }
+    if (missing.length > 0) {
+      throw new BadRequestException(`missing_required_fields: ${missing.join(", ")}`);
+    }
+
     const result = await this.registerBuyerWithRateLimit.execute(
       {
         email: body.email,
         password: body.password,
-        displayName: body.displayName,
+        displayName,
         phone: body.phone,
+        cpf: body.cpf,
+        address: body.address,
         dateOfBirth: parseDateOfBirth(body.dateOfBirth),
         gender: normalizeGender(body.gender),
       },
       ip || "unknown"
     );
 
-    await this.provisionWalletBestEffort(body);
+    await this.provisionWalletBestEffort({ ...body, displayName, password: body.password ?? "" });
 
     return result;
   }
@@ -298,14 +318,9 @@ export class BuyerAccountController {
   }
 }
 
-// H4 fix: purchaseItems extracted to purchase.transformer.ts
-
 const scryptAsync = promisify(scrypt);
 const WALLET_KEY_LEN = 64;
 
-// Wallet passwords must match the self-checkout scrypt format ("scrypt:salt:key")
-// so self-checkout login can verify them. Do NOT reuse the buyer-account hash;
-// hashing the raw password here keeps both stores independently consistent.
 async function hashWalletPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString("base64url");
   const key = (await scryptAsync(password, salt, WALLET_KEY_LEN)) as Buffer;

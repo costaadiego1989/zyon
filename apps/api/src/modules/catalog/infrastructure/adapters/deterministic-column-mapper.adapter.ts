@@ -49,6 +49,13 @@ const ALIASES: Record<CanonicalField, readonly string[]> = {
     "gramas",
     "weight g",
     "peso em gramas",
+    // kg variants (value is converted to grams via the weightInKg unit hint)
+    "peso kg",
+    "peso em kg",
+    "weight kg",
+    "peso quilos",
+    "quilos",
+    "kg",
   ],
   length_cm: [
     "comprimento",
@@ -106,18 +113,23 @@ export class DeterministicColumnMapper implements ColumnMapperPort {
   async mapColumns(
     headers: string[],
     _sampleRows: Array<Record<string, string>>,
-  ): Promise<{ mapping: ColumnMapping; unitHints?: { priceInReais?: boolean } }> {
+  ): Promise<{ mapping: ColumnMapping; unitHints?: { priceInReais?: boolean; weightInKg?: boolean } }> {
     const mapping: ColumnMapping = {};
+    let weightInKg = false;
     for (const header of headers) {
       const field = this.aliasIndex.get(normalize(header));
       if (!field) continue;
       // First-occurrence wins for duplicate canonical targets
       if (Object.values(mapping).includes(field)) continue;
       mapping[header] = field;
+      // Infer the weight unit from the header text: "Peso (kg)" → values are in
+      // kilograms and must be ×1000 to grams by the normalizer.
+      if (field === "weight_grams" && /\bkg\b|quilo/i.test(header.normalize("NFD").replace(/[̀-ͯ]/g, ""))) {
+        weightInKg = true;
+      }
     }
     // Default unit hint: spreadsheet prices are assumed to be in BRL.
-    // Callers may override downstream based on merchant currency.
-    return { mapping, unitHints: { priceInReais: true } };
+    return { mapping, unitHints: { priceInReais: true, weightInKg } };
   }
 }
 

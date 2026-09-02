@@ -38,7 +38,7 @@ export interface Hypothesis {
   reasoning: string;
   expected_lift_percent: number;
   risk_level: "low" | "medium" | "high";
-  status: "pending_review" | "approved" | "rejected";
+  status: "pending_review" | "approved" | "rejected" | "experiment_created" | "experiment_failed";
   template: HypothesisTemplate;
   created_at: string;
 }

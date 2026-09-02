@@ -9,6 +9,18 @@ import { PlanProvider } from "../components/FeatureGate.js";
 import { PremiumFeatureGate } from "../components/PremiumFeatureGate.js";
 import { NotificationBell, type NotificationItem } from "../components/NotificationBell.js";
 import { useSupportSocket } from "../hooks/useSupportSocket.js";
+import { ImportProgressProvider } from "../components/spreadsheet-import/ImportProgressProvider.js";
+import { ImportProgressBanner } from "../components/spreadsheet-import/ImportProgressBanner.js";
+import { useCatalogApi } from "../hooks/api/useCatalogApi.js";
+
+function ShellImportProgressProvider({ children }: { children: React.ReactNode }) {
+  const catalog = useCatalogApi();
+  return (
+    <ImportProgressProvider getImportJob={catalog.getImportJob}>
+      {children}
+    </ImportProgressProvider>
+  );
+}
 
 const API_BASE_URL = resolveDashboardApiBaseUrl(import.meta.env);
 
@@ -230,6 +242,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
 
   return (
     <PlanProvider merchantPlan={me.plan}>
+      <ShellImportProgressProvider>
       <div style={{ "--ink": "oklch(96% 0.002 145)", "--muted": "oklch(70% 0.006 145)", "--faint": "oklch(52% 0.006 145)", "--border": "oklch(27% 0.006 145)", "--bg": "oklch(13% 0.002 145)", "--card": "oklch(18.5% 0.004 145)", "--accent": "oklch(74% 0.19 149)", "--accent-dark": "oklch(60% 0.17 149)", "--accent-soft": "oklch(26% 0.05 149)", "--accent-line": "oklch(42% 0.1 149)", "--warn": "oklch(76% 0.15 80)", "--warn-soft": "oklch(26% 0.05 80)", "--good": "oklch(74% 0.17 149)", "--good-soft": "oklch(26% 0.05 149)", "--danger": "oklch(68% 0.18 25)", "--danger-soft": "oklch(28% 0.06 25)", "--sidebar-bg": "oklch(8% 0.002 145)", "--sidebar-border": "oklch(20% 0.006 145)", "--sidebar-text": "oklch(96% 0.002 145)", "--sidebar-muted": "oklch(58% 0.008 145)", "--sidebar-active": "oklch(23% 0.045 149)", "--serif": "'Source Serif 4', Georgia, 'Times New Roman', serif", "--mono": "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", "--sans": "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif", display: "flex", width: "100%", minWidth: 1320, height: "100vh", minHeight: 720, background: "var(--bg)", fontFamily: "var(--sans)", color: "var(--ink)", letterSpacing: "-0.001em" } as React.CSSProperties}>
       {/* ── SIDEBAR ── */}
       <aside style={{ width: 252, flex: "none", background: "var(--sidebar-bg)", display: "flex", flexDirection: "column", padding: "20px 14px", overflowY: "auto" }}>
@@ -591,7 +604,9 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
         </section>
       </main>
       <ToastContainer />
+      <ImportProgressBanner />
       </div>
+      </ShellImportProgressProvider>
     </PlanProvider>
   );
 }

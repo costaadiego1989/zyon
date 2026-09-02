@@ -1,21 +1,18 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
+import { X, Upload, FileSpreadsheet, AlertTriangle, Loader2 } from "lucide-react";
 import { useCatalogApi } from "../../hooks/api/useCatalogApi.js";
-import type { ImportJobStatus } from "../../api/endpoints/catalog.js";
 
 export interface AiSpreadsheetImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   merchantId: string;
-  onImported?: () => void;
+  /** Fired after the upload succeeds and we have a jobId. Modal closes immediately. */
+  onImportStarted: (jobId: string, fileName: string) => void;
 }
 
 type Phase =
   | { kind: "idle" }
-  | { kind: "uploading" }
-  | { kind: "polling"; jobId: string }
-  | { kind: "completed"; job: ImportJobStatus }
-  | { kind: "failed"; job: ImportJobStatus; reason: string };
+  | { kind: "uploading" };
 
 const ACCEPTED_MIMES = [
   "text/csv",
@@ -24,8 +21,6 @@ const ACCEPTED_MIMES = [
   "application/octet-stream",
 ];
 const ACCEPTED_EXT_LABEL = ".csv, .xls, .xlsx";
-const POLL_INTERVAL_MS = 1500;
-const MAX_POLLS = 40;
 
 function readFileAsBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -53,7 +48,7 @@ function classifyError(err: unknown): string {
   return String(err);
 }
 
-export function AiSpreadsheetImportModal({ isOpen, onClose, merchantId, onImported }: AiSpreadsheetImportModalProps) {
+export function AiSpreadsheetImportModal({ isOpen, onClose, merchantId, onImportStarted }: AiSpreadsheetImportModalProps) {
   const catalog = useCatalogApi();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -67,50 +62,9 @@ export function AiSpreadsheetImportModal({ isOpen, onClose, merchantId, onImport
     setErrorMsg(null);
   }, [isOpen]);
 
-  // Polling loop
-  useEffect(() => {
-    if (phase.kind !== "polling") return;
-    const jobId = phase.jobId;
-    let cancelled = false;
-    let attempts = 0;
-
-    void (async () => {
-      while (!cancelled && attempts < MAX_POLLS) {
-        attempts += 1;
-        try {
-          const job = await catalog.getImportJob(merchantId, jobId);
-          if (cancelled) return;
-          if (job.status === "completed") {
-            setPhase({ kind: "completed", job });
-            return;
-          }
-          if (job.status === "failed") {
-            const first = job.errors?.[0]?.reason ?? "Falha ao processar planilha";
-            setPhase({ kind: "failed", job, reason: first });
-            return;
-          }
-        } catch (err) {
-          if (cancelled) return;
-          setErrorMsg(classifyError(err));
-          setPhase({ kind: "idle" });
-          return;
-        }
-        await new Promise<void>((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-      }
-      if (!cancelled) {
-        setErrorMsg("Tempo limite excedido. Tente novamente em alguns minutos.");
-        setPhase({ kind: "idle" });
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [phase, catalog, merchantId]);
-
   if (!isOpen) return null;
 
-  const closeable = phase.kind === "idle" || phase.kind === "completed" || phase.kind === "failed";
+  const closeable = phase.kind === "idle";
 
   function handleFileSelection(selected: File | null) {
     if (!selected) {
@@ -138,21 +92,21 @@ export function AiSpreadsheetImportModal({ isOpen, onClose, merchantId, onImport
         mimeType: file.type || "application/octet-stream",
         base64,
       });
-      setPhase({ kind: "polling", jobId: result.jobId });
+      // Upload accepted — hand off to the page and close. Polling lives in the VM hook.
+      const jobId = result.jobId;
+      const fileName = file.name;
+      setFile(null);
+      setPhase({ kind: "idle" });
+      setErrorMsg(null);
+      onImportStarted(jobId, fileName);
+      onClose();
     } catch (err) {
       setErrorMsg(classifyError(err));
       setPhase({ kind: "idle" });
     }
   }
 
-  function handleConclude() {
-    if (phase.kind === "completed") {
-      onImported?.();
-    }
-    onClose();
-  }
-
-  const inFlight = phase.kind === "uploading" || phase.kind === "polling";
+  const inFlight = phase.kind === "uploading";
 
   return (
     <div
@@ -266,24 +220,16 @@ export function AiSpreadsheetImportModal({ isOpen, onClose, merchantId, onImport
             </>
           )}
 
-          {(phase.kind === "uploading" || phase.kind === "polling") && (
+          {phase.kind === "uploading" && (
             <div style={{ padding: "32px 16px", textAlign: "center" }}>
               <Loader2 size={36} style={{ color: "var(--color-brand)", margin: "0 auto 16px", animation: "spin 1s linear infinite" }} />
               <div style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)", marginBottom: 6 }}>
-                {phase.kind === "uploading" ? "Enviando planilha..." : "IA analisando sua planilha"}
+                Enviando planilha...
               </div>
               <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)" }}>
-                {phase.kind === "polling" ? "Isso pode levar alguns segundos." : "Aguarde enquanto o arquivo é preparado."}
+                Aguarde enquanto o arquivo é preparado. O processamento continua em segundo plano após o envio.
               </div>
             </div>
-          )}
-
-          {phase.kind === "completed" && (
-            <CompletedSummary job={phase.job} />
-          )}
-
-          {phase.kind === "failed" && (
-            <FailedSummary reason={phase.reason} errors={phase.job.errors} />
           )}
         </div>
 
@@ -331,66 +277,6 @@ export function AiSpreadsheetImportModal({ isOpen, onClose, merchantId, onImport
               </button>
             </>
           )}
-
-          {phase.kind === "completed" && (
-            <button
-              type="button"
-              onClick={handleConclude}
-              style={{
-                flex: 1,
-                padding: "10px 14px",
-                borderRadius: 8,
-                border: "1px solid var(--color-brand-hover)",
-                background: "var(--color-brand-hover)",
-                font: "600 12.5px var(--font-sans)",
-                color: "white",
-                cursor: "pointer",
-              }}
-            >
-              Concluir
-            </button>
-          )}
-
-          {phase.kind === "failed" && (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  setErrorMsg(null);
-                  setPhase({ kind: "idle" });
-                  setFile(null);
-                }}
-                style={{
-                  flex: 1,
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid var(--color-border)",
-                  background: "var(--surface-1)",
-                  font: "600 12.5px var(--font-sans)",
-                  color: "var(--color-text)",
-                  cursor: "pointer",
-                }}
-              >
-                Tentar novamente
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                style={{
-                  flex: 1,
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid var(--color-border)",
-                  background: "var(--surface-1)",
-                  font: "600 12.5px var(--font-sans)",
-                  color: "var(--color-text)",
-                  cursor: "pointer",
-                }}
-              >
-                Fechar
-              </button>
-            </>
-          )}
         </div>
 
         <style>{`
@@ -405,141 +291,5 @@ export function AiSpreadsheetImportModal({ isOpen, onClose, merchantId, onImport
         `}</style>
       </div>
     </div>
-  );
-}
-
-function CompletedSummary({ job }: { job: ImportJobStatus }) {
-  const total = job.totalRows ?? 0;
-  const success = job.successRows ?? 0;
-  const failed = job.failedRows ?? 0;
-  const errors = job.errors ?? [];
-  const mapping = job.columnMapping ?? {};
-
-  return (
-    <>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          background: "var(--color-success-bg, rgba(34,197,94,0.08))",
-          border: "1px solid var(--color-success, #22c55e)",
-          borderRadius: 10,
-          padding: "14px 16px",
-          marginBottom: 16,
-        }}
-      >
-        <CheckCircle2 size={20} style={{ color: "var(--color-success, #22c55e)" }} />
-        <div>
-          <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>
-            Importação concluída
-          </div>
-          <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
-            {success} de {total} produto{success !== 1 ? "s" : ""} importado{success !== 1 ? "s" : ""}{failed > 0 ? ` • ${failed} com erro` : ""}
-          </div>
-        </div>
-      </div>
-
-      {Object.keys(mapping).length > 0 && (
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ font: "600 11px var(--font-mono)", letterSpacing: "0.05em", color: "var(--color-text-faint)", textTransform: "uppercase", marginBottom: 8 }}>
-            Mapeamento detectado
-          </div>
-          <div style={{ background: "var(--surface-1)", border: "1px solid var(--color-border)", borderRadius: 8, padding: "10px 12px" }}>
-            {Object.entries(mapping).map(([src, dst]) => (
-              <div key={src} style={{ display: "flex", justifyContent: "space-between", font: "12px var(--font-mono)", color: "var(--color-text-muted)", padding: "3px 0" }}>
-                <span>{src}</span>
-                <span style={{ color: "var(--color-text-faint)" }}>→ {dst}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {errors.length > 0 && (
-        <div>
-          <div style={{ font: "600 11px var(--font-mono)", letterSpacing: "0.05em", color: "var(--color-text-faint)", textTransform: "uppercase", marginBottom: 8 }}>
-            Erros por linha ({errors.length})
-          </div>
-          <div style={{ maxHeight: 220, overflowY: "auto", border: "1px solid var(--color-border)", borderRadius: 8 }}>
-            {errors.map((e, i) => (
-              <div
-                key={`${e.row}-${i}`}
-                style={{
-                  display: "flex",
-                  gap: 12,
-                  padding: "8px 12px",
-                  borderBottom: i === errors.length - 1 ? "none" : "1px solid var(--color-border)",
-                  font: "12px var(--font-sans)",
-                  color: "var(--color-text-muted)",
-                }}
-              >
-                <span style={{ font: "12px var(--font-mono)", color: "var(--color-text-faint)", minWidth: 56 }}>
-                  Linha {e.row}
-                </span>
-                {e.sku && (
-                  <span style={{ font: "12px var(--font-mono)", color: "var(--color-text-faint)", minWidth: 80 }}>
-                    {e.sku}
-                  </span>
-                )}
-                <span style={{ flex: 1 }}>{e.reason}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-function FailedSummary({ reason, errors }: { reason: string; errors?: ImportJobStatus["errors"] }) {
-  return (
-    <>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          background: "var(--color-error-bg)",
-          border: "1px solid var(--color-error)",
-          borderRadius: 10,
-          padding: "14px 16px",
-          marginBottom: 16,
-        }}
-      >
-        <AlertTriangle size={20} style={{ color: "var(--color-error)" }} />
-        <div>
-          <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-error)" }}>
-            Não foi possível processar a planilha
-          </div>
-          <div style={{ font: "12px var(--font-sans)", color: "var(--color-error)", marginTop: 4 }}>
-            {reason}
-          </div>
-        </div>
-      </div>
-
-      {errors && errors.length > 0 && (
-        <div style={{ maxHeight: 220, overflowY: "auto", border: "1px solid var(--color-border)", borderRadius: 8 }}>
-          {errors.map((e, i) => (
-            <div
-              key={`${e.row}-${i}`}
-              style={{
-                display: "flex",
-                gap: 12,
-                padding: "8px 12px",
-                borderBottom: i === errors.length - 1 ? "none" : "1px solid var(--color-border)",
-                font: "12px var(--font-sans)",
-                color: "var(--color-text-muted)",
-              }}
-            >
-              <span style={{ font: "12px var(--font-mono)", color: "var(--color-text-faint)", minWidth: 56 }}>
-                Linha {e.row}
-              </span>
-              <span style={{ flex: 1 }}>{e.reason}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </>
   );
 }

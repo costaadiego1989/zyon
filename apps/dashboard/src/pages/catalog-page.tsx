@@ -204,7 +204,7 @@ export function CatalogPage(props: CatalogPageProps) {
           isOpen={vm.showCsvModal}
           onClose={() => vm.setShowCsvModal(false)}
           merchantId={props.me.id}
-          onImported={() => void vm.reload()}
+          onImportStarted={vm.onImportStarted}
         />
       ) : (
         <CsvImportModal

@@ -7,11 +7,13 @@ import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.s
 
 export interface RegisterBuyerRequest {
   email: string;
-  password: string;
+  password?: string;
   displayName: string;
   phone?: string;
   dateOfBirth?: Date;
   gender?: string;
+  cpf?: string;
+  address?: import("@zyon/shared-types").CustomerAddress;
 }
 
 export interface BuyerAuthResponse {
@@ -35,14 +37,18 @@ export class RegisterBuyerUseCase {
   ) {}
 
   async execute(input: RegisterBuyerRequest): Promise<BuyerAuthResponse> {
-    if (!input.password || input.password.length < 8) {
+    // OTP-verified checkout registration does not collect a password. When one
+    // is supplied it must be strong; when absent we mint a random unusable
+    // password so the account exists and can be logged into via OTP/session.
+    if (input.password && input.password.length < 8) {
       throw new Error("buyer_password_too_short");
     }
+    const rawPassword = input.password ?? crypto.randomUUID() + crypto.randomUUID();
     const email = input.email.trim().toLowerCase();
     const existing = await this.repo.findByEmail(email);
     if (existing) throw new ConflictException("email_already_registered");
 
-    const passwordHash = await this.hasher.hash(input.password);
+    const passwordHash = await this.hasher.hash(rawPassword);
     const now = new Date();
     const account = new BuyerAccount({
       globalUserId: `buyer_${crypto.randomUUID().replace(/-/g, "")}`,
@@ -50,6 +56,8 @@ export class RegisterBuyerUseCase {
       passwordHash,
       displayName: input.displayName,
       phone: input.phone,
+      cpf: input.cpf,
+      address: input.address,
       dateOfBirth: input.dateOfBirth,
       gender: input.gender,
       createdAt: now,

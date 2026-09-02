@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MerchantProfile, Product } from "../../api-client.js";
 import { useCatalogApi } from "../../hooks/api/useCatalogApi.js";
 import { usePlanFeatures } from "../../hooks/api/usePlanFeatures.js";
 import type { CsvRow } from "../../components/CsvImportModal.js";
+import { useImportProgress } from "../../components/spreadsheet-import/ImportProgressProvider.js";
 
 export type StatusFilter = "all" | "active" | "inactive";
 
@@ -46,6 +47,8 @@ export interface CatalogPageVM {
   setHoveredRow: (v: string | null) => void;
   showCsvModal: boolean;
   setShowCsvModal: (v: boolean) => void;
+  // background AI imports (now backed by global ImportProgressProvider)
+  onImportStarted: (jobId: string, fileName: string) => void;
   // actions
   confirmDelete: (product: Product) => void;
   cancelDelete: () => void;
@@ -62,6 +65,7 @@ export function useCatalogPage({ me }: UseCatalogPageArgs): CatalogPageVM {
   const catalog = useCatalogApi();
   const { hasFeature } = usePlanFeatures();
   const aiImportEnabled = hasFeature("aiSpreadsheetImport");
+  const { imports, startImport } = useImportProgress();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -114,6 +118,22 @@ export function useCatalogPage({ me }: UseCatalogPageArgs): CatalogPageVM {
   useEffect(() => {
     setPage(1);
   }, [search, categoryFilter, statusFilter]);
+
+  // Refresh product list when a tracked import finishes. The provider owns the
+  // banner + toasts; we just observe completed transitions.
+  const seenCompletedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    let mutated = false;
+    for (const job of imports) {
+      if (job.status === "completed") {
+        if (!seenCompletedRef.current.has(job.jobId)) {
+          seenCompletedRef.current.add(job.jobId);
+          mutated = true;
+        }
+      }
+    }
+    if (mutated) void load();
+  }, [imports, load]);
 
   const filteredItems = useMemo(() => {
     if (statusFilter === "all") return items;
@@ -194,6 +214,14 @@ export function useCatalogPage({ me }: UseCatalogPageArgs): CatalogPageVM {
     await load();
   }, [catalog, merchantId, load]);
 
+  const onImportStarted = useCallback(
+    (jobId: string, fileName: string) => {
+      if (!merchantId) return;
+      startImport(jobId, fileName, merchantId);
+    },
+    [startImport, merchantId],
+  );
+
   return {
     items,
     filteredItems,
@@ -219,6 +247,7 @@ export function useCatalogPage({ me }: UseCatalogPageArgs): CatalogPageVM {
     setHoveredRow,
     showCsvModal,
     setShowCsvModal,
+    onImportStarted,
     confirmDelete,
     cancelDelete,
     executeDelete,

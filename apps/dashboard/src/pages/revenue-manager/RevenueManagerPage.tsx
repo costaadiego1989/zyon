@@ -33,6 +33,8 @@ const STATUS_COLORS: Record<string, { bg: string; color: string; label: string }
   pending_review: { bg: "var(--color-warning-bg)", color: "var(--color-warning)", label: "Aguardando" },
   approved: { bg: "var(--color-success-bg)", color: "var(--color-success)", label: "Aprovada" },
   rejected: { bg: "var(--color-error-bg)", color: "var(--color-error)", label: "Rejeitada" },
+  experiment_created: { bg: "var(--color-info-bg)", color: "var(--color-info)", label: "Teste criado" },
+  experiment_failed: { bg: "var(--color-error-bg)", color: "var(--color-error)", label: "Teste falhou" },
 };
 
 export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
