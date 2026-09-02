@@ -119,6 +119,54 @@ export interface UpdateProductPayload {
   keywords?: string[];
 }
 
+export type PromotionDiscountType = "percent" | "fixed";
+
+export interface CreatePromotionPayload {
+  variantId?: string;
+  categoryId?: string;
+  couponId?: string;
+  discountType?: PromotionDiscountType;
+  /** For "fixed" this is in CENTS; for "percent" it is 0-100. */
+  discountValue?: number;
+  promoPriceInCents?: number;
+  isActive?: boolean;
+  startsAt: string;
+  endsAt: string;
+}
+
+export type UpdatePromotionPayload = Partial<CreatePromotionPayload>;
+
+export interface ProductPromotion {
+  id: string;
+  productId?: string;
+  variantId?: string | null;
+  categoryId?: string | null;
+  couponId?: string | null;
+  discountType?: PromotionDiscountType | null;
+  discountValue?: number | null;
+  promoPriceInCents?: number | null;
+  isActive: boolean;
+  startsAt: string;
+  endsAt: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** An advanced rule as consumed by the product advanced-rules endpoint. */
+export interface ProductAdvancedRule {
+  id: string;
+  name: string;
+  conditions: Array<{ field: string; operator: string; value: string | number | boolean }>;
+  action: { type: string; params: Record<string, string | number> };
+  enabled: boolean;
+  priority: number;
+}
+
+export interface UpsertProductAdvancedRulesPayload {
+  rules: ProductAdvancedRule[];
+  productSkus: string[];
+}
+
 export function catalogEndpoints(base: string, f: typeof fetch) {
   return {
     listProducts(
@@ -249,6 +297,46 @@ export function catalogEndpoints(base: string, f: typeof fetch) {
         base,
         `/merchants/${encodeURIComponent(merchantId)}/products/${encodeURIComponent(productId)}/generate-seo`,
         { method: "POST", jsonBody: { tone } },
+        f,
+      );
+    },
+    createPromotion(merchantId: string, productId: string, payload: CreatePromotionPayload): Promise<ProductPromotion> {
+      return dashboardJson<ProductPromotion>(
+        base,
+        `/merchants/${encodeURIComponent(merchantId)}/products/${encodeURIComponent(productId)}/promotion`,
+        { method: "POST", jsonBody: payload },
+        f,
+      );
+    },
+    updatePromotion(merchantId: string, productId: string, promoId: string, payload: UpdatePromotionPayload): Promise<ProductPromotion> {
+      return dashboardJson<ProductPromotion>(
+        base,
+        `/merchants/${encodeURIComponent(merchantId)}/products/${encodeURIComponent(productId)}/promotion/${encodeURIComponent(promoId)}`,
+        { method: "PUT", jsonBody: payload },
+        f,
+      );
+    },
+    togglePromotion(merchantId: string, productId: string, promoId: string, isActive: boolean): Promise<ProductPromotion> {
+      return dashboardJson<ProductPromotion>(
+        base,
+        `/merchants/${encodeURIComponent(merchantId)}/products/${encodeURIComponent(productId)}/promotion/${encodeURIComponent(promoId)}/toggle`,
+        { method: "PATCH", jsonBody: { isActive } },
+        f,
+      );
+    },
+    deletePromotion(merchantId: string, productId: string, promoId: string): Promise<{ deleted: boolean }> {
+      return dashboardJson<{ deleted: boolean }>(
+        base,
+        `/merchants/${encodeURIComponent(merchantId)}/products/${encodeURIComponent(productId)}/promotion/${encodeURIComponent(promoId)}`,
+        { method: "DELETE" },
+        f,
+      );
+    },
+    upsertProductAdvancedRules(merchantId: string, productId: string, payload: UpsertProductAdvancedRulesPayload): Promise<unknown> {
+      return dashboardJson<unknown>(
+        base,
+        `/merchants/${encodeURIComponent(merchantId)}/products/${encodeURIComponent(productId)}/advanced-rules`,
+        { method: "PUT", jsonBody: payload },
         f,
       );
     },

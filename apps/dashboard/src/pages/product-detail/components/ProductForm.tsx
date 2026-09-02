@@ -1,6 +1,7 @@
 import React from "react";
 import { Package, Download, Clock, Utensils, Plus, Trash2 } from "lucide-react";
 import { PrefixInput } from "../../../components/PrefixInput.js";
+import { CategoryCombobox } from "./CategoryCombobox.js";
 import type { ProductMetadata } from "../ProductDetailPage.js";
 import type { FoodOptionGroupDraft } from "../hooks/useProductForm.js";
 import { MAX_OPTION_GROUPS, MAX_ITEMS_PER_GROUP, emptyFoodOptionGroup, emptyFoodOptionItem } from "../hooks/useProductForm.js";
@@ -137,28 +138,10 @@ export function ProductForm(props: ProductFormProps) {
             style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--color-border)", font: "13px var(--font-sans)", color: "var(--color-text)", outline: "none", background: "var(--surface-1)", resize: "vertical" }}
           />
         </div>
-        <label style={{ display: "block", marginBottom: 12 }}>
+        <div style={{ marginBottom: 12 }}>
           <span style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 4 }}>Categoria</span>
-          {categories.length > 0 ? (
-            <select
-              value={categoryId}
-              onChange={(e) => onCategoryIdChange(e.target.value)}
-              style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--color-border)", font: "13px var(--font-sans)", color: "var(--color-text)", outline: "none", background: "var(--surface-1)" }}
-            >
-              <option value="">Sem categoria</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </select>
-          ) : (
-            <input
-              value={categoryId}
-              onChange={(e) => onCategoryIdChange(e.target.value)}
-              placeholder="Ex: cat_abc123"
-              style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--color-border)", font: "13px var(--font-mono)", color: "var(--color-text)", outline: "none", background: "var(--surface-1)" }}
-            />
-          )}
-        </label>
+          <CategoryCombobox categoryId={categoryId} onCategoryIdChange={onCategoryIdChange} categories={categories} />
+        </div>
         {isEditing && (
           <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
             <span style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>Ativo</span>

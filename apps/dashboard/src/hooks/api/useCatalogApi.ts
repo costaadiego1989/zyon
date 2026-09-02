@@ -30,6 +30,11 @@ export function useCatalogApi() {
       createCategory: api.createCategory,
       updateCategory: api.updateCategory,
       deleteCategory: api.deleteCategory,
+      createPromotion: api.createPromotion,
+      updatePromotion: api.updatePromotion,
+      togglePromotion: api.togglePromotion,
+      deletePromotion: api.deletePromotion,
+      upsertProductAdvancedRules: api.upsertProductAdvancedRules,
     }),
     [api],
   );

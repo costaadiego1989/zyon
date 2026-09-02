@@ -5,7 +5,7 @@ import { useApi } from "../../../hooks/useApi.js";
 import type { AdvancedRule } from "../lib/draft.js";
 
 /** Dropdown that loads active coupons from API */
-function CouponDropdown({ value, onChange, disabled }: { value: string; onChange: (code: string) => void; disabled?: boolean }) {
+export function CouponDropdown({ value, onChange, disabled }: { value: string; onChange: (code: string) => void; disabled?: boolean }) {
   const api = useApi();
   const [open, setOpen] = useState(false);
   const [coupons, setCoupons] = useState<Array<{ code: string; discountType: string; discountValue: number }>>([]);

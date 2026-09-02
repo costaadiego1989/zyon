@@ -8,6 +8,7 @@ import { ProductForm } from "./components/ProductForm.js";
 import { VariantManager } from "./components/VariantManager.js";
 import { MediaUploader } from "./components/MediaUploader.js";
 import { SeoSection } from "./components/SeoSection.js";
+import { PromotionSection } from "./components/PromotionSection.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
 
 export type ProductType = "physical" | "digital" | "service" | "food";
@@ -46,7 +47,12 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
   // Save result → toast
   useEffect(() => {
     if (page.saveResult === "success") {
-      showToast("success", page.isEditing ? "Produto atualizado" : "Produto criado");
+      if (page.postSaveNotice) {
+        showToast(page.postSaveNotice.kind === "partial" ? "error" : "success", page.postSaveNotice.message);
+        page.setPostSaveNotice(null);
+      } else {
+        showToast("success", page.isEditing ? "Produto atualizado" : "Produto criado");
+      }
       page.setSaveResult(null);
     } else if (page.saveResult === "error") {
       showToast("error", page.saveErrorMsg ?? "Erro ao salvar produto");
@@ -170,6 +176,18 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
                 page.seo.setSeoOgDesc(seo.ogDescription);
                 page.seo.setSeoKeywords(seo.keywords);
               }}
+            />
+            </SectionErrorBoundary>
+          )}
+
+          {page.merchantId && (
+            <SectionErrorBoundary sectionName="Promoção">
+            <PromotionSection
+              merchantId={page.merchantId}
+              productId={page.createdProductId || props.productId}
+              variantSkus={page.variantManager.variants.map((v) => v.sku.trim()).filter(Boolean)}
+              onPendingPromoChange={page.setPendingPromoConfig}
+              onPendingRulesChange={page.setPendingRulesConfig}
             />
             </SectionErrorBoundary>
           )}

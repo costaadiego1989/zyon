@@ -8,6 +8,8 @@ import { useMediaUploader } from "./useMediaUploader.js";
 import { useProductSeo } from "./useProductSeo.js";
 import { validateVariants, validateSimpleProduct, parseInteger, parseFloatSafe } from "../utils/product-validation.js";
 import type { MerchantProfile } from "../../../api-client.js";
+import type { CreatePromotionPayload, UpsertProductAdvancedRulesPayload } from "../../../api/endpoints/catalog.js";
+import type { AdvancedRule } from "../../checkout-settings/lib/draft.js";
 
 export interface UseProductDetailPageOptions {
   me: MerchantProfile | null;
@@ -36,6 +38,12 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
   const [loaded, setLoaded] = useState(false);
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
   const [createdProductId, setCreatedProductId] = useState<string | null>(null);
+
+  // Pending promo/rules config (used only in create mode before product is saved)
+  const [pendingPromoConfig, setPendingPromoConfig] = useState<CreatePromotionPayload | null>(null);
+  const [pendingRulesConfig, setPendingRulesConfig] = useState<{ rules: AdvancedRule[]; productSkus: string[] } | null>(null);
+  // Post-save notice for partial-failure/success extras (promo/rules in create mode)
+  const [postSaveNotice, setPostSaveNotice] = useState<{ kind: "success" | "partial"; message: string } | null>(null);
 
   // Load categories
   useEffect(() => {
@@ -238,8 +246,44 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
         );
       }
 
+      // Post-save: create promotion (create mode only, after product is saved)
+      let promoCreationError: string | null = null;
+      let rulesCreationError: string | null = null;
+      if (!isEditing && savedProductId && pendingPromoConfig) {
+        try {
+          await api.createPromotion(merchantId, savedProductId, pendingPromoConfig);
+        } catch (e) {
+          promoCreationError = e instanceof Error ? e.message : String(e);
+          reportError({ source: "ProductDetailPage.createPromotion", error: e });
+        }
+      }
+
+      // Post-save: create advanced rules (create mode only, after product is saved)
+      if (!isEditing && savedProductId && pendingRulesConfig && pendingRulesConfig.rules.length > 0) {
+        try {
+          await api.upsertProductAdvancedRules(merchantId, savedProductId, pendingRulesConfig);
+        } catch (e) {
+          rulesCreationError = e instanceof Error ? e.message : String(e);
+          reportError({ source: "ProductDetailPage.upsertAdvancedRules", error: e });
+        }
+      }
+
+      // Compose post-save status for the toast (create mode extras).
+      if (promoCreationError) {
+        setPostSaveNotice({ kind: "partial", message: `Produto criado, mas a promoção falhou: ${promoCreationError}` });
+      } else if (rulesCreationError) {
+        setPostSaveNotice({ kind: "partial", message: `Produto criado, mas as regras avançadas falharam: ${rulesCreationError}` });
+      } else if (!isEditing && pendingPromoConfig) {
+        setPostSaveNotice({ kind: "success", message: "Produto criado com promoção" });
+      } else {
+        setPostSaveNotice(null);
+      }
+
       setSaveResult("success");
       setSaveErrorMsg(null);
+      // Clear pending config on success
+      setPendingPromoConfig(null);
+      setPendingRulesConfig(null);
       onSaved?.();
     } catch (e) {
       setSaveResult("error");
@@ -310,6 +354,14 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
     createdProductId,
     formErrors,
     canSave,
+
+    // Pending promo/rules (create mode)
+    pendingPromoConfig,
+    setPendingPromoConfig,
+    pendingRulesConfig,
+    setPendingRulesConfig,
+    postSaveNotice,
+    setPostSaveNotice,
 
     // Actions
     handleSave,
