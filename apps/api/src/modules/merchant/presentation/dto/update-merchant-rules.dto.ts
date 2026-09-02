@@ -3,6 +3,7 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsObject,
   IsOptional,
   IsString,
   Matches,
@@ -127,4 +128,10 @@ export class UpdateMerchantRulesDto {
   @Type(() => CryptoPaymentsDto)
   @IsOptional()
   cryptoPayments?: CryptoPaymentsDto;
+
+  // Stage-keyed quick replies (welcome, browsing, ...) → string[]. Stored as JSON;
+  // structure validated loosely since it is a free-form per-stage suggestion map.
+  @IsOptional()
+  @IsObject()
+  quickReplies?: Record<string, string[]>;
 }
