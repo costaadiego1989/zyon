@@ -8,6 +8,7 @@ import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
 import { PageLoader } from "../../components/PageLoader.js";
 import { DataPanel } from "../../components/DataPanel.js";
 import { StatCard } from "../overview/components/StatCard.js";
+import { FilterToolbar } from "../../components/FilterToolbar.js";
 import { useMarketplacePage } from "./useMarketplacePage.js";
 import { OrderRow } from "./components/OrderRow.js";
 import { SettlementDetailPanel } from "./components/SettlementDetailPanel.js";
@@ -39,6 +40,22 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
   const { state, actions } = useMarketplacePage(me);
   const { config, orders, stats, loading, saving, tab, settlements, chargebacks, chargebackStats, selectedSettlementId } = state;
   const { saveConfig, markShipped, markDelivered, setTab, setSelectedSettlementId } = actions;
+
+  // Page-based pagination for the data lists, matching the Produtos/Estoque layout.
+  const LIST_PAGE_SIZE = 10;
+  const [ordersPage, setOrdersPage] = React.useState(1);
+  const [settlementsPage, setSettlementsPage] = React.useState(1);
+  const [returnsPage, setReturnsPage] = React.useState(1);
+  const [chargebacksPage, setChargebacksPage] = React.useState(1);
+  const pageSlice = <T,>(arr: T[], page: number): T[] => arr.slice((page - 1) * LIST_PAGE_SIZE, page * LIST_PAGE_SIZE);
+
+  // Filters (FilterToolbar) per data list — status chips + search, like the Produtos screen.
+  const [ordersStatus, setOrdersStatus] = React.useState("all");
+  const [ordersSearch, setOrdersSearch] = React.useState("");
+  const [settlementsStatus, setSettlementsStatus] = React.useState("all");
+  const [settlementsSearch, setSettlementsSearch] = React.useState("");
+  const [returnsSearch, setReturnsSearch] = React.useState("");
+  const [chargebacksSearch, setChargebacksSearch] = React.useState("");
 
   if (!me) {
     return (
@@ -288,30 +305,51 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
             </div>
           )}
 
-          {orders.length === 0 ? (
-            <div className="panel">
-              <EmptyState
-                icon={ShoppingBag}
-                title="Você ainda não recebeu pedidos via marketplace"
-                description="Quando lojas parceiras venderem seus produtos, os pedidos aparecerão aqui."
-              />
-            </div>
-          ) : (
-            <div className="panel">
-              <table className="marketplace-orders__table">
-                <thead>
-                  <tr>
-                    <th>Pedido</th>
-                    <th>Loja Host</th>
-                    <th>Produto</th>
-                    <th>Valor</th>
-                    <th>Status</th>
-                    <th>Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.flatMap((order) =>
-                    (order.line_items ?? []).map((item) => (
+          {(() => {
+            const q = ordersSearch.trim().toLowerCase();
+            const rows = orders.flatMap((order) =>
+              (order.line_items ?? []).map((item) => ({ order, item }))
+            ).filter(({ order, item }) => {
+              if (ordersStatus !== "all" && item.status !== ordersStatus) return false;
+              if (q && !(`${order.id} ${item.product_name ?? ""} ${order.host_store_name ?? ""}`.toLowerCase().includes(q))) return false;
+              return true;
+            });
+            return (
+              <DataPanel
+                title="Pedidos Recebidos"
+                isEmpty={rows.length === 0}
+                empty={{ icon: ShoppingBag, title: "Você ainda não recebeu pedidos via marketplace", description: "Quando lojas parceiras venderem seus produtos, os pedidos aparecerão aqui." }}
+                page={ordersPage}
+                pageSize={LIST_PAGE_SIZE}
+                total={rows.length}
+                onPageChange={setOrdersPage}
+              >
+                <FilterToolbar
+                  tabs={[
+                    { key: "all", label: "Todos" },
+                    { key: "pending", label: "Pendente" },
+                    { key: "shipped", label: "Enviado" },
+                    { key: "delivered", label: "Entregue" },
+                  ]}
+                  activeTab={ordersStatus}
+                  onTabChange={(k) => { setOrdersStatus(k); setOrdersPage(1); }}
+                  search={ordersSearch}
+                  onSearchChange={(v) => { setOrdersSearch(v); setOrdersPage(1); }}
+                  searchPlaceholder="Buscar por pedido, produto ou loja..."
+                />
+                <table className="marketplace-orders__table">
+                  <thead>
+                    <tr>
+                      <th>Pedido</th>
+                      <th>Loja Host</th>
+                      <th>Produto</th>
+                      <th>Valor</th>
+                      <th>Status</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageSlice(rows, ordersPage).map(({ order, item }) => (
                       <OrderRow
                         key={item.id}
                         orderId={order.id}
@@ -320,12 +358,12 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                         onMarkShipped={markShipped}
                         onMarkDelivered={markDelivered}
                       />
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+                    ))}
+                  </tbody>
+                </table>
+              </DataPanel>
+            );
+          })()}
         </div>
         </SectionErrorBoundary>
       )}
@@ -364,70 +402,91 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
               accent="var(--color-success)"
             />
           </div>
-          {settlements.length === 0 ? (
-            <div className="panel">
-              <EmptyState
-                icon={Clock}
-                title="Nenhum repasse registrado"
-                description="Quando pedidos forem finalizados, os repasses aparecerão aqui com a timeline completa."
-              />
-            </div>
-          ) : (
-            <div className="panel">
-              <table className="marketplace-orders__table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Pedido</th>
-                    <th>Valor Líquido</th>
-                    <th>Status</th>
-                    <th>Criado</th>
-                    <th>Ações</th>
+          {(() => {
+          const sq = settlementsSearch.trim().toLowerCase();
+          const filteredSettlements = settlements.filter((s) => {
+            if (settlementsStatus !== "all" && s.status !== settlementsStatus) return false;
+            if (sq && !(`${s.id} ${s.orderId}`.toLowerCase().includes(sq))) return false;
+            return true;
+          });
+          return (
+          <DataPanel
+            title="Repasses"
+            isEmpty={filteredSettlements.length === 0}
+            empty={{ icon: Clock, title: "Nenhum repasse registrado", description: "Quando pedidos forem finalizados, os repasses aparecerão aqui com a timeline completa." }}
+            page={settlementsPage}
+            pageSize={LIST_PAGE_SIZE}
+            total={filteredSettlements.length}
+            onPageChange={setSettlementsPage}
+          >
+            <FilterToolbar
+              tabs={[
+                { key: "all", label: "Todos" },
+                { key: "awaiting_return_window", label: "Aguardando devolução" },
+                { key: "transfer_scheduled", label: "Agendado" },
+                { key: "transferred", label: "Transferido" },
+                { key: "finalized", label: "Finalizado" },
+              ]}
+              activeTab={settlementsStatus}
+              onTabChange={(k) => { setSettlementsStatus(k); setSettlementsPage(1); }}
+              search={settlementsSearch}
+              onSearchChange={(v) => { setSettlementsSearch(v); setSettlementsPage(1); }}
+              searchPlaceholder="Buscar por ID ou pedido..."
+            />
+            <table className="marketplace-orders__table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Pedido</th>
+                  <th>Valor Líquido</th>
+                  <th>Status</th>
+                  <th>Criado</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pageSlice(filteredSettlements, settlementsPage).map((s) => (
+                  <tr key={s.id}>
+                    <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{s.id.slice(0, 8)}...</td>
+                    <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{s.orderId.slice(0, 8)}...</td>
+                    <td style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>
+                      R$ {(s.sellerNetCents / 100).toFixed(2)}
+                    </td>
+                    <td>
+                      <span className={`settlement-status settlement-status--${s.status}`}>
+                        {settlementStatusLabel(s.status)}
+                      </span>
+                    </td>
+                    <td style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
+                      {new Date(s.createdAt).toLocaleDateString("pt-BR")}
+                    </td>
+                    <td>
+                      <button className="btn-sm" onClick={() => setSelectedSettlementId(s.id)}>
+                        Detalhes
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {settlements.map((s) => (
-                    <tr key={s.id}>
-                      <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{s.id.slice(0, 8)}...</td>
-                      <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{s.orderId.slice(0, 8)}...</td>
-                      <td style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>
-                        R$ {(s.sellerNetCents / 100).toFixed(2)}
-                      </td>
-                      <td>
-                        <span className={`settlement-status settlement-status--${s.status}`}>
-                          {settlementStatusLabel(s.status)}
-                        </span>
-                      </td>
-                      <td style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
-                        {new Date(s.createdAt).toLocaleDateString("pt-BR")}
-                      </td>
-                      <td>
-                        <button
-                          className="btn-sm"
-                          onClick={() => setSelectedSettlementId(s.id)}
-                        >
-                          Detalhes
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                ))}
+              </tbody>
+            </table>
+          </DataPanel>
+          );
+          })()}
         </div>
         </SectionErrorBoundary>
       )}
 
       {tab === "returns" && (() => {
-        const returned = settlements.filter((s) => s.status === "return_cancelled");
-        const returnedValueCents = returned.reduce((sum, s) => sum + s.sellerNetCents, 0);
-        const returnRate = settlements.length > 0 ? returned.length / settlements.length : 0;
+        const allReturned = settlements.filter((s) => s.status === "return_cancelled");
+        const rq = returnsSearch.trim().toLowerCase();
+        const returned = rq ? allReturned.filter((s) => `${s.id} ${s.orderId}`.toLowerCase().includes(rq)) : allReturned;
+        const returnedValueCents = allReturned.reduce((sum, s) => sum + s.sellerNetCents, 0);
+        const returnRate = settlements.length > 0 ? allReturned.length / settlements.length : 0;
         return (
-          <div className="marketplace-page__returns">
+          <div className="marketplace-page__returns" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {/* KPIs — padronizado com as demais abas */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-              <StatCard label="Devoluções" value={returned.length} icon={<Store size={16} />} accent="var(--warning)" />
+              <StatCard label="Devoluções" value={allReturned.length} icon={<Store size={16} />} accent="var(--warning)" />
               <StatCard
                 label="Valor Devolvido"
                 value={new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(returnedValueCents / 100)}
@@ -437,40 +496,46 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
               <StatCard label="Taxa de Devolução" value={`${Math.round(returnRate * 100)}%`} icon={<BarChart3 size={16} />} accent="var(--info)" />
             </div>
 
-            {returned.length === 0 ? (
-              <div className="panel">
-                <EmptyState
-                  icon={Store}
-                  title="Nenhuma devolução de marketplace"
-                  description="Quando compradores de pedidos cross-store solicitarem devoluções, elas aparecerão aqui."
-                />
-              </div>
-            ) : (
-              <div className="panel">
-                <table className="marketplace-orders__table">
-                  <thead>
-                    <tr><th>Settlement</th><th>Pedido</th><th>Valor</th><th>Status</th><th>Data</th></tr>
-                  </thead>
-                  <tbody>
-                    {returned.map((s) => (
-                      <tr key={s.id}>
-                        <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{s.id.slice(0, 8)}...</td>
-                        <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{s.orderId.slice(0, 8)}...</td>
-                        <td style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>R$ {(s.sellerNetCents / 100).toFixed(2)}</td>
-                        <td><span className={`settlement-status settlement-status--${s.status}`}>{settlementStatusLabel(s.status)}</span></td>
-                        <td style={{ fontSize: 12, color: "var(--color-text-muted)" }}>{new Date(s.createdAt).toLocaleDateString("pt-BR")}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <DataPanel
+              title="Devoluções de Marketplace"
+              isEmpty={returned.length === 0}
+              empty={{ icon: Store, title: "Nenhuma devolução de marketplace", description: "Quando compradores de pedidos cross-store solicitarem devoluções, elas aparecerão aqui." }}
+              page={returnsPage}
+              pageSize={LIST_PAGE_SIZE}
+              total={returned.length}
+              onPageChange={setReturnsPage}
+            >
+              <FilterToolbar
+                tabs={[{ key: "all", label: "Todas" }]}
+                activeTab="all"
+                onTabChange={() => {}}
+                search={returnsSearch}
+                onSearchChange={(v) => { setReturnsSearch(v); setReturnsPage(1); }}
+                searchPlaceholder="Buscar por settlement ou pedido..."
+              />
+              <table className="marketplace-orders__table">
+                <thead>
+                  <tr><th>Settlement</th><th>Pedido</th><th>Valor</th><th>Status</th><th>Data</th></tr>
+                </thead>
+                <tbody>
+                  {pageSlice(returned, returnsPage).map((s) => (
+                    <tr key={s.id}>
+                      <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{s.id.slice(0, 8)}...</td>
+                      <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{s.orderId.slice(0, 8)}...</td>
+                      <td style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>R$ {(s.sellerNetCents / 100).toFixed(2)}</td>
+                      <td><span className={`settlement-status settlement-status--${s.status}`}>{settlementStatusLabel(s.status)}</span></td>
+                      <td style={{ fontSize: 12, color: "var(--color-text-muted)" }}>{new Date(s.createdAt).toLocaleDateString("pt-BR")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </DataPanel>
           </div>
         );
       })()}
 
       {tab === "chargebacks" && (
-        <div className="marketplace-page__chargebacks">
+        <div className="marketplace-page__chargebacks" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {/* Stats Cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
             <StatCard
@@ -496,16 +561,29 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
             />
           </div>
 
-          {chargebacks.length === 0 ? (
-            <div className="panel">
-              <EmptyState
-                icon={Zap}
-                title="Nenhum chargeback registrado"
-                description="Chargebacks recebidos de pedidos cross-store aparecerão aqui."
+          {(() => {
+          const cq = chargebacksSearch.trim().toLowerCase();
+          const filteredChargebacks = cq
+            ? chargebacks.filter((cb) => `${cb.settlement.id} ${cb.settlement.orderId}`.toLowerCase().includes(cq))
+            : chargebacks;
+          return (
+          <DataPanel
+            title="Chargebacks"
+            isEmpty={filteredChargebacks.length === 0}
+            empty={{ icon: Zap, title: "Nenhum chargeback registrado", description: "Chargebacks recebidos de pedidos cross-store aparecerão aqui." }}
+            page={chargebacksPage}
+            pageSize={LIST_PAGE_SIZE}
+            total={filteredChargebacks.length}
+            onPageChange={setChargebacksPage}
+          >
+              <FilterToolbar
+                tabs={[{ key: "all", label: "Todos" }]}
+                activeTab="all"
+                onTabChange={() => {}}
+                search={chargebacksSearch}
+                onSearchChange={(v) => { setChargebacksSearch(v); setChargebacksPage(1); }}
+                searchPlaceholder="Buscar por settlement ou pedido..."
               />
-            </div>
-          ) : (
-            <div className="panel">
               <table className="marketplace-orders__table">
                 <thead>
                   <tr>
@@ -518,7 +596,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {chargebacks.map((cb) => (
+                  {pageSlice(filteredChargebacks, chargebacksPage).map((cb) => (
                     <tr key={cb.settlement.id}>
                       <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>
                         {cb.settlement.id.slice(0, 8)}...
@@ -546,8 +624,9 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                   ))}
                 </tbody>
               </table>
-            </div>
-          )}
+          </DataPanel>
+          );
+          })()}
         </div>
       )}
 

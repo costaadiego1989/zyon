@@ -1,16 +1,10 @@
-/**
- * FederatedSearchService — Cross-Merchant Product Discovery
- *
- * Implements federated product search with ranking, filtering, and blocking logic.
- * Pure domain service: no framework imports, no I/O (search is mocked via port).
- */
-
 export interface FederatedSearchParams {
   hostMerchantId: string;
   query: string;
   category?: string;
   limit: number;
   excludeMerchants: string[];
+  includeMerchants?: string[];
 }
 
 export interface FederatedProductResult {
@@ -45,16 +39,7 @@ export interface RawFederatedProduct {
   tsRank: number;
 }
 
-/**
- * Search repository port: returns raw products from full-text search.
- * Implementation layer handles the actual database query.
- */
 export type FederatedSearchRepositoryPort = {
-  /**
-   * Search products by query, returning results with full-text rank.
-   * Implementation filters by: not merchant's own products, stock_available = true.
-   * Limit applied after ranking.
-   */
   searchByQuery(
     query: string,
     category: string | undefined,
@@ -81,7 +66,10 @@ export class FederatedSearchService {
       params.limit
     );
 
-    const filtered = rawResults.filter((p) => !excludeSet.has(p.sourceMerchantId));
+    const includeSet = params.includeMerchants ? new Set(params.includeMerchants) : null;
+    const filtered = rawResults.filter(
+      (p) => !excludeSet.has(p.sourceMerchantId) && (includeSet === null || includeSet.has(p.sourceMerchantId))
+    );
 
     return filtered.slice(0, params.limit).map((p) => this.mapToResult(p));
   }
