@@ -78,6 +78,28 @@ export interface ProductRepositoryPort {
    * categories are conceptually a denormalized view of products.
    */
   listCategories(merchantId: string): Promise<Array<{ id: string; name: string; slug: string; productCount: number }>>;
+  /**
+   * Update an existing variant (and its owning product's basic fields) matched by
+   * SKU, merchant-scoped. Used by idempotent spreadsheet re-imports so re-uploading
+   * the same catalog updates price/weight/dimensions/stock/name instead of failing
+   * on sku_already_exists. Returns the affected productId, or null when no variant
+   * with that SKU exists (caller should then create).
+   */
+  updateVariantBySku(
+    merchantId: string,
+    sku: string,
+    data: {
+      productName?: string;
+      description?: string;
+      categoryId?: string;
+      basePriceInCents?: number;
+      weightGrams?: number;
+      lengthCm?: number;
+      widthCm?: number;
+      heightCm?: number;
+      stockQuantity?: number;
+    },
+  ): Promise<{ productId: string } | null>;
 }
 
 export interface StockRepositoryPort {

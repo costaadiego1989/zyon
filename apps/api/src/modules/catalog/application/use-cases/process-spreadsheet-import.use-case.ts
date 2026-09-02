@@ -128,8 +128,33 @@ export class ProcessSpreadsheetImportUseCase {
         await this.addProduct.execute(input);
         successCount++;
       } catch (err) {
-        failedCount++;
         const message = err instanceof Error ? err.message : String(err);
+        // Idempotent re-import: when the SKU already exists, update the existing
+        // variant (price/weight/dimensions/stock/name) instead of failing, so
+        // re-uploading the same catalog restates it rather than erroring out.
+        if (message.startsWith("sku_already_exists")) {
+          const v = input.variants[0];
+          const updated = v
+            ? await this.productRepo
+                .updateVariantBySku(merchantId, v.sku, {
+                  productName: input.name,
+                  description: input.description,
+                  categoryId: input.categoryId,
+                  basePriceInCents: v.basePriceInCents,
+                  weightGrams: v.weightGrams,
+                  lengthCm: v.lengthCm,
+                  widthCm: v.widthCm,
+                  heightCm: v.heightCm,
+                  stockQuantity: v.stockQuantity,
+                })
+                .catch(() => null)
+            : null;
+          if (updated) {
+            successCount++;
+            continue;
+          }
+        }
+        failedCount++;
         errors.push({
           row: rowIndex,
           sku: input.variants[0]?.sku,

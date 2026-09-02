@@ -43,6 +43,7 @@ function makePortDouble(overrides: Partial<ProductRepositoryPort> = {}): Product
       media: [],
     }),
     listCategories: async () => [],
+    updateVariantBySku: async () => null,
     ...overrides,
   };
 }

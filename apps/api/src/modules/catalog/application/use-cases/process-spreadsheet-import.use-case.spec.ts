@@ -118,6 +118,7 @@ function makeProductRepoDouble(opts: {
       throw new Error("not used");
     },
     listCategories: async () => opts.categories ?? [],
+    updateVariantBySku: async () => null,
     created,
   };
 }
@@ -190,7 +191,7 @@ describe("ProcessSpreadsheetImportUseCase", () => {
     assert.ok(lastUpdate.finishedAt instanceof Date);
   });
 
-  it("isolates per-row failure: row 2 conflict → row 1 imported, successRows 1, failedRows 1, error captured for row 2", async () => {
+  it("idempotent re-import: an existing SKU is UPDATED (not failed) — successRows 2, failedRows 0", async () => {
     const jobRepo = makeJobRepoDouble();
     const parser = makeParserDouble(baseSheet);
     const mapper = makeMapperDouble(baseMapping);
@@ -198,42 +199,63 @@ describe("ProcessSpreadsheetImportUseCase", () => {
       categories: [{ id: "cat_tees", name: "Camisetas", slug: "camisetas", productCount: 0 }],
     });
     const seoStub = { execute: async () => ({ seoTitle: null, metaDescription: null, slug: null, ogTitle: null, ogDescription: null, keywords: [] }) };
-    const addProduct = new AddProductUseCase(
-      productRepo,
-      seoStub as unknown as GenerateProductSeoUseCase,
-    );
 
-    // Force addProduct to throw for SKU-B by pre-marking it as existing.
+    const updatedSkus: string[] = [];
+    // SKU-B pre-exists AND can be updated → idempotent path: row 2 updates instead of failing.
     const existingSkuRepo: ProductRepositoryPort & { created: CreateProductInput[] } = {
       ...productRepo,
-      findExistingVariantSkus: async (_mid, skus) => {
-        // First row goes through; second row's SKU pre-exists.
-        if (skus.includes("SKU-B")) return ["SKU-B"];
-        return [];
+      findExistingVariantSkus: async (_mid, skus) => (skus.includes("SKU-B") ? ["SKU-B"] : []),
+      updateVariantBySku: async (_mid, sku) => {
+        if (sku === "SKU-B") {
+          updatedSkus.push(sku);
+          return { productId: "prod_existing_b" };
+        }
+        return null;
       },
     };
-    // Replace repo on the addProduct (it was constructed with productRepo).
     const addProduct2 = new AddProductUseCase(existingSkuRepo, seoStub as unknown as GenerateProductSeoUseCase);
 
-    const useCase = new ProcessSpreadsheetImportUseCase(jobRepo, parser, mapper, addProduct2, productRepo);
+    const useCase = new ProcessSpreadsheetImportUseCase(jobRepo, parser, mapper, addProduct2, existingSkuRepo);
     await useCase.execute(baseInput);
 
-    // One row succeeded — the other conflict prevented creation.
-    assert.equal(productRepo.created.length, 1, "only one row should be created");
-    assert.equal(productRepo.created[0].variants[0].sku, "SKU-A");
+    // Row 1 created, row 2 (existing SKU) updated → both count as success, zero failures.
+    assert.equal(existingSkuRepo.created.length, 1, "only the new SKU should be created");
+    assert.equal(existingSkuRepo.created[0].variants[0].sku, "SKU-A");
+    assert.deepEqual(updatedSkus, ["SKU-B"], "existing SKU-B should be updated");
 
     const lastUpdate = jobRepo.updates[jobRepo.updates.length - 1];
     assert.equal(lastUpdate.status, "completed");
     assert.equal(lastUpdate.totalRows, 2);
+    assert.equal(lastUpdate.successRows, 2);
+    assert.equal(lastUpdate.failedRows, 0);
+    assert.deepEqual(lastUpdate.errors!, []);
+  });
+
+  it("existing SKU that cannot be updated (updateVariantBySku → null) is counted as failed", async () => {
+    const jobRepo = makeJobRepoDouble();
+    const parser = makeParserDouble(baseSheet);
+    const mapper = makeMapperDouble(baseMapping);
+    const productRepo = makeProductRepoDouble({
+      categories: [{ id: "cat_tees", name: "Camisetas", slug: "camisetas", productCount: 0 }],
+    });
+    const seoStub = { execute: async () => ({ seoTitle: null, metaDescription: null, slug: null, ogTitle: null, ogDescription: null, keywords: [] }) };
+
+    const existingSkuRepo: ProductRepositoryPort & { created: CreateProductInput[] } = {
+      ...productRepo,
+      findExistingVariantSkus: async (_mid, skus) => (skus.includes("SKU-B") ? ["SKU-B"] : []),
+      updateVariantBySku: async () => null, // update finds nothing → genuine failure
+    };
+    const addProduct2 = new AddProductUseCase(existingSkuRepo, seoStub as unknown as GenerateProductSeoUseCase);
+
+    const useCase = new ProcessSpreadsheetImportUseCase(jobRepo, parser, mapper, addProduct2, existingSkuRepo);
+    await useCase.execute(baseInput);
+
+    assert.equal(existingSkuRepo.created.length, 1);
+    const lastUpdate = jobRepo.updates[jobRepo.updates.length - 1];
     assert.equal(lastUpdate.successRows, 1);
     assert.equal(lastUpdate.failedRows, 1);
-    assert.equal(lastUpdate.errors!.length, 1);
-    assert.equal(lastUpdate.errors![0].row, 2);
     assert.equal(lastUpdate.errors![0].sku, "SKU-B");
-    assert.ok(/sku_already_exists/i.test(lastUpdate.errors![0].reason), `reason was: ${lastUpdate.errors![0].reason}`);
-
-    // Silence unused-var lint.
-    void addProduct;
+    assert.ok(/sku_already_exists/i.test(lastUpdate.errors![0].reason));
   });
 
   it("normalize failure (missing name) is counted as failed, others still import", async () => {

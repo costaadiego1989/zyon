@@ -309,6 +309,70 @@ export class PrismaProductRepository implements ProductRepositoryPort {
     return this.mapVariant(created);
   }
 
+  async updateVariantBySku(
+    merchantId: string,
+    sku: string,
+    data: {
+      productName?: string;
+      description?: string;
+      categoryId?: string;
+      basePriceInCents?: number;
+      weightGrams?: number;
+      lengthCm?: number;
+      widthCm?: number;
+      heightCm?: number;
+      stockQuantity?: number;
+    },
+  ): Promise<{ productId: string } | null> {
+    // Find the variant by SKU, scoped to the merchant via its product.
+    const variant = await this.prisma.productVariant.findFirst({
+      where: { sku, product: { merchantId } },
+      select: { id: true, productId: true, stock: { select: { id: true } } },
+    });
+    if (!variant) return null;
+
+    await this.prisma.$transaction(async (tx) => {
+      // Variant physical attributes
+      const variantData: Prisma.ProductVariantUpdateInput = {};
+      if (data.weightGrams !== undefined) variantData.weightGrams = data.weightGrams;
+      if (data.lengthCm !== undefined) variantData.lengthCm = data.lengthCm;
+      if (data.widthCm !== undefined) variantData.widthCm = data.widthCm;
+      if (data.heightCm !== undefined) variantData.heightCm = data.heightCm;
+      if (Object.keys(variantData).length > 0) {
+        await tx.productVariant.update({ where: { id: variant.id }, data: variantData });
+      }
+
+      // Price (1-1 relation)
+      if (data.basePriceInCents !== undefined) {
+        await tx.productPrice.updateMany({
+          where: { variantId: variant.id },
+          data: { basePriceInCents: data.basePriceInCents },
+        });
+      }
+
+      // Stock (absolute set — a re-import restates the catalog quantity)
+      if (data.stockQuantity !== undefined) {
+        const stockRow = variant.stock?.[0];
+        if (stockRow) {
+          await tx.productStock.update({ where: { id: stockRow.id }, data: { quantity: data.stockQuantity } });
+        } else {
+          await tx.productStock.create({ data: { variantId: variant.id, quantity: data.stockQuantity, reserved: 0 } });
+        }
+      }
+
+      // Owning product basic fields
+      const productData: Prisma.ProductUpdateInput = {};
+      if (data.productName !== undefined) productData.name = data.productName;
+      if (data.description !== undefined) productData.description = data.description;
+      if (data.categoryId !== undefined) productData.category = data.categoryId ? { connect: { id: data.categoryId } } : { disconnect: true };
+      if (Object.keys(productData).length > 0) {
+        await tx.product.update({ where: { id: variant.productId }, data: productData });
+      }
+    });
+
+    return { productId: variant.productId };
+  }
+
   private toEntity(raw: any): ProductEntity {
     const reviews = raw.reviews ?? [];
     const avgRating = reviews.length > 0 ? reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length : undefined;
