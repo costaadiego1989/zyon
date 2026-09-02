@@ -77,9 +77,9 @@ export function ThemePreviewCard({ theme, storeName }: ThemePreviewCardProps) {
     "--aacp-bg": md?.bg ?? theme.backgroundColor ?? "#f7f8fa",
     "--aacp-fg": md?.fg ?? theme.textColor ?? "#111827",
     "--aacp-card": md?.card ?? theme.surfaceColor ?? "#ffffff",
-    // Only dark/grey get an elevated header surface; light keeps the bg (white)
-    // so the header reads clean with just the subtle border-bottom below it.
-    "--aacp-header-bg": md?.surface ?? (md?.bg ?? theme.backgroundColor ?? "#f7f8fa"),
+    // Dark/grey get an elevated header surface; light forces white so the header
+    // reads clean with just the subtle border-bottom separating it from the body.
+    "--aacp-header-bg": md?.surface ?? "#ffffff",
     "--aacp-line": md?.line ?? theme.borderColor ?? "#e5e7eb",
     "--aacp-muted": md?.muted ?? theme.mutedTextColor ?? "#6b7280",
     "--aacp-font": theme.fontFamily || "Inter, ui-sans-serif, system-ui, sans-serif",

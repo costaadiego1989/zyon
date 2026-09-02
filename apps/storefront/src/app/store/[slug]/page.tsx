@@ -180,7 +180,7 @@ export default async function StorePage({
       ${themeColors.backgroundColor ? `--aacp-bg: ${themeColors.backgroundColor};` : ""}
       ${themeColors.backgroundColor ? `--aacp-shell-bg: ${themeColors.backgroundColor};` : ""}
       ${themeColors.backgroundColor ? `--aacp-panel-bg: ${themeColors.backgroundColor};` : ""}
-      ${modeDefaults?.surface ? `--aacp-header-bg: ${modeDefaults.surface};` : ""}
+      --aacp-header-bg: ${modeDefaults?.surface ?? "#ffffff"};
       ${derivedColors.surface ? `--aacp-surface: ${derivedColors.surface};` : ""}
       ${derivedColors.surface2 ? `--aacp-surface-2: ${derivedColors.surface2};` : ""}
       ${derivedColors.surface3 ? `--aacp-surface-3: ${derivedColors.surface3};` : ""}
