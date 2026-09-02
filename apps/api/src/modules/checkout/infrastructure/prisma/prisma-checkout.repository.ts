@@ -542,6 +542,10 @@ function toCheckoutSessionCreate(session: CheckoutSession) {
     abandonmentScore: session.abandonmentScore,
     triggerAgent: session.triggerAgent,
     chatHistory: (session.chatHistory ?? []) as unknown as Prisma.InputJsonValue,
+    promptVariantId: session.promptVariantId ?? null,
+    cohort: session.cohort ?? null,
+    featuresApplied: (session.featuresApplied ?? undefined) as unknown as Prisma.InputJsonValue,
+    aiCostCents: session.aiCostCents ?? 0,
     createdAt: new Date(session.createdAt),
     updatedAt: new Date(session.updatedAt)
   };
@@ -558,6 +562,10 @@ function toCheckoutSessionUpdate(session: CheckoutSession) {
     abandonmentScore: session.abandonmentScore,
     triggerAgent: session.triggerAgent,
     chatHistory: (session.chatHistory ?? []) as unknown as Prisma.InputJsonValue,
+    promptVariantId: session.promptVariantId ?? null,
+    cohort: session.cohort ?? null,
+    featuresApplied: (session.featuresApplied ?? undefined) as unknown as Prisma.InputJsonValue,
+    aiCostCents: session.aiCostCents ?? 0,
     updatedAt: new Date(session.updatedAt)
   };
 }
@@ -574,6 +582,10 @@ function toCheckoutSession(row: {
   abandonmentScore: number;
   triggerAgent: boolean;
   chatHistory?: unknown | null;
+  promptVariantId?: string | null;
+  cohort?: string | null;
+  featuresApplied?: unknown | null;
+  aiCostCents?: number | null;
   createdAt: Date;
   updatedAt: Date;
 }): CheckoutSession {
@@ -589,6 +601,10 @@ function toCheckoutSession(row: {
     abandonmentScore: row.abandonmentScore,
     triggerAgent: row.triggerAgent,
     chatHistory: ((row.chatHistory ?? []) as ChatTurn[]),
+    promptVariantId: row.promptVariantId ?? undefined,
+    cohort: (row.cohort ?? undefined) as "holdout" | "treatment" | undefined,
+    featuresApplied: (row.featuresApplied ?? undefined) as CheckoutSession["featuresApplied"],
+    aiCostCents: row.aiCostCents ?? 0,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString()
   };

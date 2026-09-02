@@ -46,17 +46,9 @@ export interface CartItem {
   category?: string;
   variant?: string;
   description?: string;
-  /** Alternative product identifier used by some commerce platforms */
   product_id?: string;
-  /** Alternative product name used by some commerce platforms */
   title?: string;
-  /** Alternative price field used by some commerce platforms */
   unit_price?: number;
-  /**
-   * Chosen food options composing this line (size, add-ons). `price` already
-   * includes their modifiers; this is the human-readable breakdown carried into
-   * the order snapshot so the merchant sees the exact build (the iFood ticket).
-   */
   selected_options?: Array<{ group_name: string; item_name: string; price_modifier: number }>;
 }
 
@@ -211,11 +203,6 @@ export interface MerchantRules {
   policies?: MerchantPolicies;
 }
 
-/**
- * Single canonical default for MerchantRules used across all paths.
- * All use-cases and the Prisma repository must reference this constant
- * instead of inlining their own defaults (P2 — prevents divergence).
- */
 export const DEFAULT_MERCHANT_RULES: MerchantRules = {
   maxDiscountPercent: 10,
   minimumMarginPercent: 38,
@@ -247,10 +234,8 @@ export interface CrossSellConfig {
   };
   discount: {
     enabled: boolean;
-    /** Discount type: "percent" applies `percent`; "coupon" applies the merchant coupon `couponCode`. */
     mode?: "percent" | "coupon";
     percent: number;
-    /** When mode === "coupon", the code of an existing merchant coupon to apply/surface. */
     couponCode?: string;
   };
   display: {
@@ -306,6 +291,15 @@ export interface CheckoutSession {
   paymentMethod?: PaymentMethod;
   promptVariantId?: string;
   crossStoreItems?: CrossStoreLineItem[];
+  cohort?: "holdout" | "treatment";
+  featuresApplied?: {
+    negotiation?: boolean;
+    crossSell?: boolean;
+    progressiveDiscount?: boolean;
+    cartRecovery?: boolean;
+    intentPersonalization?: boolean;
+  };
+  aiCostCents?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -385,26 +379,12 @@ export interface CheckoutItemSnapshot {
   description?: string;
 }
 
-/**
- * A single selectable item inside a food option group (e.g. "Grande", "Bacon").
- * `price_modifier_cents` is added onto the product base price when chosen.
- * The buyer-facing surface uses this for display only; the server re-computes
- * the authoritative price from the stored group definition (offer-math is
- * deterministic and client-supplied prices are never trusted).
- */
 export interface FoodOptionItem {
   id: string;
   name: string;
   price_modifier_cents: number;
 }
 
-/**
- * A group of food options a buyer chooses from when composing an order
- * (iFood/99food style), e.g. "Tamanho" (required, single) or "Adicionais"
- * (optional, multiple). Authored in the dashboard, stored on
- * `product.metadata.optionGroups`, and surfaced to the storefront so the buyer
- * can build the item before adding it to the cart.
- */
 export interface FoodOptionGroup {
   id: string;
   name: string;
@@ -416,7 +396,6 @@ export interface FoodOptionGroup {
 export interface SuggestedProduct {
   suggestion_id?: string;
   sku: string;
-  /** Catalog ProductVariant id — required to add the item to the cart. */
   variant_id?: string;
   name: string;
   unit_price: number;
@@ -425,10 +404,8 @@ export interface SuggestedProduct {
   category?: string;
   variant?: string;
   description?: string;
-  /** Whether the variant has available stock (drives the Add button state). */
   in_stock?: boolean;
   display_mode?: CrossSellDisplayMode;
-  /** Food option groups (size, add-ons, ...) when the product type is `food`. */
   option_groups?: FoodOptionGroup[];
 }
 
@@ -493,11 +470,9 @@ export interface CheckoutExperienceSnapshot {
     fontFamily?: string;
     fontDisplay?: string;
   };
-  /** Payment methods available for this merchant — flags only, never credentials */
   stripeEnabled?: boolean;
   cryptoPaymentsEnabled?: boolean;
   cryptoPayments?: MerchantCryptoPayments | Record<string, unknown> | null;
-  /** Active payment intent created when buyer selected a method. Snapshot only, no secrets. */
   payment_intent?: {
     id: string;
     status: string;
@@ -572,11 +547,6 @@ export interface DecisionResponse {
   reason: string;
   abandonment_score: number;
 }
-
-/**
- * Feature 4: Customer Intent Memory
- * LGPD Art. 8 (consent), Art. 18 (erasure), Art. 6 (minimization)
- */
 
 export interface BuyerIntentMemoryConsent {
   merchant_id: string;
@@ -791,10 +761,6 @@ export type DomainEventProducer =
   | "experiments"
   | "revenue-manager";
 
-/**
- * Self-serve tenant onboarding (ADR 0015/0024). Resumable provisioning steps,
- * persisted server-side so the guided wizard can resume across sessions.
- */
 export type OnboardingStepId = "account" | "checkout_config" | "embed" | "publish";
 
 export type OnboardingStepStatus = "pending" | "completed";
@@ -1073,7 +1039,6 @@ export interface ChatMessageResponse {
   expected_input_type?: string;
   ssml?: string;
   voice_config?: { speed: number; pitch: number };
-  /** UI components the widget should render, emitted by LLM navigation tools. */
   blocks?: ChatUiBlock[];
 }
 
@@ -1110,7 +1075,6 @@ export interface ApplyOfferResponse {
   expires_at?: string;
   reason?: string;
   experience?: CheckoutExperienceSnapshot;
-  /** Turno do agente acrescentado quando a oferta foi aplicada com sucesso. */
   agent_turn?: ChatTurn;
 }
 
@@ -1346,8 +1310,6 @@ export interface AdvancedRule {
   priority: number;
 }
 
-// ── SEO & GTM ───────────────────────────────────────────────────────────────
-
 export type TwitterCardType = "summary" | "summary_large_image";
 
 export type SeoTone = "profissional" | "casual" | "luxo" | "técnico";
@@ -1390,8 +1352,6 @@ export interface GenerateSeoSuggestionsResponse {
   descriptions: [string, string, string];
   keywords: string[];
 }
-
-// ── OAuth ───────────────────────────────────────────────────────────────────
 
 export type OAuthProvider = "github" | "google";
 

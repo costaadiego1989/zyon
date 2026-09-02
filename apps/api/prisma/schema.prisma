@@ -290,6 +290,9 @@ model CheckoutSession {
   triggerAgent     Boolean  @default(false) @map("trigger_agent")
   chatHistory      Json     @default("[]") @map("chat_history")
   promptVariantId  String?  @map("prompt_variant_id")
+  cohort           String?
+  featuresApplied  Json?    @map("features_applied")
+  aiCostCents      Int      @default(0) @map("ai_cost_cents")
   version          Int      @default(0)
   createdAt        DateTime @map("created_at")
   updatedAt        DateTime @map("updated_at")

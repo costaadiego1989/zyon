@@ -30,7 +30,6 @@ import { ChatToolExecutorService } from "../services/chat-tool-executor.service.
 import { ChatLlmGatewayService } from "../services/chat-llm-gateway.service.js";
 import { ChatContextService, type ChatContextLoaded } from "../services/chat-context.service.js";
 import { ChatResponseBuilder } from "../services/chat-response.builder.js";
-import { InterventionRuleTextBuilder } from "../services/intervention-rule-text.builder.js";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -112,6 +111,25 @@ export class SendChatMessageUseCase {
       );
     } else if (forceDeterministic) {
       this.logger.debug("chat.routing.forced-deterministic", { stage, missingFields });
+    }
+
+    if (!isHoldout) {
+      const features = { ...(working.featuresApplied ?? {}) };
+      if (offer?.approved && offer.type && offer.type !== "none") {
+        features.negotiation = true;
+      }
+      if ((working.cart.currentDiscount ?? 0) > 0) {
+        features.progressiveDiscount = true;
+      }
+      working.featuresApplied = features;
+      if (llmReply) {
+        working.aiCostCents = (working.aiCostCents ?? 0) + this.estimateTurnCostCents();
+      }
+      try {
+        await this.sessions.saveSession(working);
+      } catch (err) {
+        this.logger.warn("[revenue-lift] failed to persist attribution flags", err as Error);
+      }
     }
 
     if (llmReply && llmReply.message && llmReply.message !== "Como posso ajudar com o seu pedido?") {
@@ -252,6 +270,11 @@ export class SendChatMessageUseCase {
     };
   }
 
+  private estimateTurnCostCents(): number {
+    const raw = Number(process.env.CHECKOUT_AI_TURN_COST_CENTS);
+    return Number.isFinite(raw) && raw >= 0 ? raw : 3;
+  }
+
   private async callLocalLlm(
     userMessage: string,
     merchantRules: string[],
@@ -369,6 +392,7 @@ export class SendChatMessageUseCase {
     working.cart = { ...working.cart, items, total };
     working.shipping = undefined;
     working.updatedAt = new Date().toISOString();
+    working.featuresApplied = { ...(working.featuresApplied ?? {}), crossSell: true };
     try {
       await this.sessions.saveSession(working);
     } catch (err) {

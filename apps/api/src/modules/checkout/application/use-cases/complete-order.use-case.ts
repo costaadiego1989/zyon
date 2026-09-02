@@ -14,6 +14,8 @@ import { PlaceCrossStoreOrderUseCase } from "../../../marketplace/application/us
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { RecordIntentIfConsentedUseCase } from "../../../intent-memory/application/use-cases/classify-customer-intent.use-case.js";
 import { AttributionTaggerService } from "../../../revenue-lift/domain/services/attribution-tagger.service.js";
+import { HoldoutGroupService } from "../../../revenue-lift/domain/services/holdout-group.service.js";
+import { RevenueLiftRepository } from "../../../revenue-lift/infrastructure/revenue-lift.repository.js";
 import {
   PURCHASE_HISTORY_PORT,
   type PurchaseHistoryPort
@@ -48,7 +50,9 @@ export class CompleteOrderUseCase {
     @Optional() private readonly placeCrossStoreOrder?: PlaceCrossStoreOrderUseCase,
     @Optional() private readonly attributionTagger?: AttributionTaggerService,
     @Optional() private readonly recordIntentIfConsented?: RecordIntentIfConsentedUseCase,
-    @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository
+    @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
+    @Optional() private readonly holdoutGroup?: HoldoutGroupService,
+    @Optional() private readonly revenueLiftRepo?: RevenueLiftRepository
   ) { }
 
   private readonly logger = new Logger(CompleteOrderUseCase.name);
@@ -167,9 +171,9 @@ export class CompleteOrderUseCase {
       await this.recordConversionAnalytics(session, input);
 
       await this.sendWhatsAppConfirmation(session, whatsappMessage, input);
-      this.tagAttributionForOrder(session, input);
 
       const globalUserId = await this.resolveBuyerGlobalUserId(session);
+      await this.tagAttributionForOrder(session, input, globalUserId);
       if (globalUserId) {
         await this.purchaseHistory?.recordCheckoutPurchase({
           merchantId: input.merchant_id,
@@ -281,20 +285,37 @@ export class CompleteOrderUseCase {
     }
   }
 
-  private tagAttributionForOrder(session: CheckoutSession, input: CompleteOrderRequest): void {
+  private async tagAttributionForOrder(
+    session: CheckoutSession,
+    input: CompleteOrderRequest,
+    globalUserId?: string
+  ): Promise<void> {
     if (!this.attributionTagger) return;
     try {
-      const cohort = (session as any).cohort || "treatment";
+      // Deterministic cohort assignment (5% holdout) keyed on the buyer.
+      // Falls back to treatment when the buyer is anonymous or the holdout
+      // service is unavailable, and honours an explicit session cohort override.
+      const effectiveUserId = globalUserId ?? session.customer?.email?.trim().toLowerCase();
+      const cohort: "holdout" | "treatment" =
+        session.cohort ??
+        (effectiveUserId && this.holdoutGroup
+          ? this.holdoutGroup.assignCohort(effectiveUserId, input.merchant_id)
+          : "treatment");
+
+      // Real per-feature attribution flags accumulated during the session
+      // (flipped true at each feature's fire-point). The tagger's holdout guard
+      // still forces all of these to false for the control cohort.
+      const applied = session.featuresApplied ?? {};
       const attributionTag = this.attributionTagger.tag({
         sessionId: input.session_id,
         orderId: input.external_order_id,
-        cohort: cohort as "holdout" | "treatment",
+        cohort,
         features: {
-          negotiation: false, // TODO: detect if negotiation was applied
-          crossSell: false, // TODO: detect if cross-sell was applied
-          progressiveDiscount: (session.cart.currentDiscount ?? 0) > 0,
-          cartRecovery: false, // TODO: detect if recovery was applied
-          intentPersonalization: false, // TODO: detect if intent was applied
+          negotiation: applied.negotiation ?? false,
+          crossSell: applied.crossSell ?? false,
+          progressiveDiscount: (applied.progressiveDiscount ?? false) || (session.cart.currentDiscount ?? 0) > 0,
+          cartRecovery: applied.cartRecovery ?? false,
+          intentPersonalization: applied.intentPersonalization ?? false,
           experimentVariantId: session.promptVariantId
         },
         revenue: {
@@ -302,8 +323,29 @@ export class CompleteOrderUseCase {
           discountCents: session.cart.currentDiscount ?? 0,
           shippingSubsidyCents: 0 // TODO: calculate from shipping realCost vs customerPrice
         },
-        aiCostCents: 0 // TODO: track LLM costs per session
+        aiCostCents: session.aiCostCents ?? 0
       });
+
+      // Persist so the Revenue Lift dashboard has data to aggregate.
+      // Idempotent per (merchant, order); silently degrades if repo is absent.
+      await this.revenueLiftRepo?.saveTag({
+        merchantId: input.merchant_id,
+        orderId: attributionTag.orderId,
+        sessionId: attributionTag.sessionId,
+        globalUserId: effectiveUserId ?? attributionTag.sessionId,
+        cohort: attributionTag.cohort,
+        negotiationApplied: attributionTag.negotiationApplied,
+        crossSellApplied: attributionTag.crossSellApplied,
+        progressiveDiscountApplied: attributionTag.progressiveDiscountApplied,
+        cartRecoveryApplied: attributionTag.cartRecoveryApplied,
+        intentPersonalizationApplied: attributionTag.intentPersonalizationApplied,
+        experimentVariantId: attributionTag.experimentVariantId,
+        orderValueCents: attributionTag.orderValueCents,
+        discountGivenCents: attributionTag.discountGivenCents,
+        shippingSubsidyCents: attributionTag.shippingSubsidyCents,
+        aiCostCents: attributionTag.aiCostCents,
+      });
+
       this.logger.debug("attribution.tagged", { sessionId: input.session_id, cohort, tag: attributionTag });
     } catch (err) {
       this.logger.error("attribution.failed", { error: err instanceof Error ? err.message : String(err) });

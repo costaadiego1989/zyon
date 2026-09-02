@@ -25,6 +25,7 @@ import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/bi
     HoldoutGroupService,
     AttributionTaggerService,
     RevenueLiftCalculatorService,
+    RevenueLiftRepository,
   ]
 })
 export class RevenueLiftModule {}

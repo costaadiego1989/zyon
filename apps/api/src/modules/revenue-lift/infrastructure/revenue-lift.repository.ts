@@ -132,4 +132,50 @@ export class RevenueLiftRepository {
       treatmentSessions: r.treatment_sessions,
     }));
   }
+
+  /**
+   * Persist an attribution tag for a paid order. Idempotent per (merchantId, orderId):
+   * a repeated completion for the same order is a no-op, never a duplicate row.
+   */
+  async saveTag(input: SaveAttributionTagInput): Promise<void> {
+    await this.prisma.attributionTag.upsert({
+      where: { merchantId_orderId: { merchantId: input.merchantId, orderId: input.orderId } },
+      update: {},
+      create: {
+        merchantId: input.merchantId,
+        orderId: input.orderId,
+        sessionId: input.sessionId,
+        globalUserId: input.globalUserId,
+        cohort: input.cohort,
+        negotiationApplied: input.negotiationApplied,
+        crossSellApplied: input.crossSellApplied,
+        progressiveDiscountApplied: input.progressiveDiscountApplied,
+        cartRecoveryApplied: input.cartRecoveryApplied,
+        intentPersonalizationApplied: input.intentPersonalizationApplied,
+        experimentVariantId: input.experimentVariantId ?? null,
+        orderValueCents: input.orderValueCents,
+        discountGivenCents: input.discountGivenCents,
+        shippingSubsidyCents: input.shippingSubsidyCents,
+        aiCostCents: input.aiCostCents,
+      },
+    });
+  }
+}
+
+export interface SaveAttributionTagInput {
+  merchantId: string;
+  orderId: string;
+  sessionId: string;
+  globalUserId: string;
+  cohort: "holdout" | "treatment";
+  negotiationApplied: boolean;
+  crossSellApplied: boolean;
+  progressiveDiscountApplied: boolean;
+  cartRecoveryApplied: boolean;
+  intentPersonalizationApplied: boolean;
+  experimentVariantId?: string;
+  orderValueCents: number;
+  discountGivenCents: number;
+  shippingSubsidyCents: number;
+  aiCostCents: number;
 }

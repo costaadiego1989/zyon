@@ -15,7 +15,6 @@ interface BootstrapResult {
   suggestedProductsRequest?: { merchant_id: string; session_id: string; cart: any };
 }
 
-/** Handles cart hydration, session creation/rehydration, and cohort assignment. */
 @Injectable()
 export class CheckoutBootstrapService {
   private readonly logger = new Logger(CheckoutBootstrapService.name);
@@ -30,15 +29,9 @@ export class CheckoutBootstrapService {
     @Optional() private readonly promoResolution?: CartPromoResolutionService
   ) {}
 
-  /**
-   * Bootstraps checkout session: hydrates cart from storefront, creates/rehydrates session,
-   * assigns cohort, and records events. Returns the persisted session.
-   */
   async bootstrap(input: StartCheckoutRequest, globalUserId: string): Promise<BootstrapResult> {
     let enrichedInput = input;
 
-    // Cart hydration from storefront: if a cart_ref is provided and no items are in the input,
-    // try to load the storefront cart and merge its items into the request.
     const cartRef = (input as any).cart_ref?.trim?.();
     if (this.storefrontCart && cartRef && (!input.cart?.items || input.cart.items.length === 0)) {
       try {
@@ -50,14 +43,10 @@ export class CheckoutBootstrapService {
               currency: enrichedInput.cart?.currency ?? "BRL",
               source: enrichedInput.cart?.source ?? "storefront",
               total: storefrontCart.total / 100,
-              // Carry the deterministic rule-derived discount (cents → reais) into
-              // the checkout session so the final amount reflects the auto-applied
-              // cart rule — the single source of truth, computed storefront-side.
               currentDiscount: (storefrontCart.discount ?? 0) / 100,
               items: storefrontCart.items.map((i) => ({
                 sku: i.sku,
                 name: i.name,
-                // unitPriceCents already includes any food-option modifiers.
                 price: i.unitPriceCents / 100,
                 quantity: i.quantity,
                 selected_options: i.selectedOptions?.map((o) => ({
@@ -75,7 +64,6 @@ export class CheckoutBootstrapService {
       }
     }
 
-    // Resolve product promotion prices for cart items
     if (enrichedInput.cart) {
       enrichedInput.cart = await this.promoResolution?.resolveCartPromos(
         enrichedInput.cart,
@@ -113,14 +101,13 @@ export class CheckoutBootstrapService {
       session = await this.customerService.hydrateReturningBuyerFromEmailHint(session);
     }
 
-    // Revenue Lift: assign holdout cohort deterministically.
-    // Default to "treatment" if HoldoutGroupService is not available (graceful degradation).
     const cohort = this.holdoutGroupService
       ? this.holdoutGroupService.assignCohort(session.globalUserId, session.merchantId)
       : ("treatment" as const);
-    (session as any).cohort = cohort;
+    session.cohort = cohort;
+    session.featuresApplied = session.featuresApplied ?? {};
+    session.aiCostCents = session.aiCostCents ?? 0;
 
-    // Persist cohort assignment for new and existing sessions
     await this.sessions.saveSession(session);
 
     await this.outbox.appendOutbox(
