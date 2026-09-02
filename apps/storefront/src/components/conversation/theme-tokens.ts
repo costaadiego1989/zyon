@@ -13,6 +13,7 @@ export const THEME_TOKENS = {
     "--aacp-success": "#34d399",
     "--aacp-panel-bg": "#0f0f16",
     "--aacp-shell-bg": "#08080c",
+    "--aacp-header-bg": "#18181b",
   },
   light: {
     "--aacp-bg": "#ffffff",
@@ -28,6 +29,7 @@ export const THEME_TOKENS = {
     "--aacp-success": "#10b981",
     "--aacp-panel-bg": "#ffffff",
     "--aacp-shell-bg": "#ffffff",
+    "--aacp-header-bg": "#ffffff",
   },
 } as const;
 
