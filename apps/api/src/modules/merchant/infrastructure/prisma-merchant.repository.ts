@@ -82,8 +82,22 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
       where: { id: merchantId },
       select: { storeSettings: true },
     });
-    const existing = (current?.storeSettings as import("../domain/merchant.types.js").MerchantStoreSettings) ?? {};
-    const merged = { ...existing, ...settings };
+    const existing = (current?.storeSettings as Record<string, unknown>) ?? {};
+    // Deep-merge one level into nested plain objects (e.g. `company`, `styles`)
+    // so a partial update like { company: { address } } does not wipe sibling
+    // fields (cnpj, phone) written by an earlier update. Arrays/primitives are
+    // replaced as-is.
+    const incoming = settings as unknown as Record<string, unknown>;
+    const merged: Record<string, unknown> = { ...existing };
+    for (const [key, value] of Object.entries(incoming)) {
+      const prev = existing[key];
+      const bothPlainObjects =
+        prev != null && typeof prev === "object" && !Array.isArray(prev) &&
+        value != null && typeof value === "object" && !Array.isArray(value);
+      merged[key] = bothPlainObjects
+        ? { ...(prev as Record<string, unknown>), ...(value as Record<string, unknown>) }
+        : value;
+    }
 
     const updated = await this.prisma.merchant.update({
       where: { id: merchantId },
