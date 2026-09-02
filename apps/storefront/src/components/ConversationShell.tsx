@@ -220,7 +220,7 @@ export default function ConversationShell({
       `}</style>
       {effectiveMode === "chat" && (
         <>
-        <header style={{ display: "flex", alignItems: "center", gap: "11px", padding: "8px 14px", borderBottom: "none", zIndex: 9, background: "var(--aacp-bg)", flex: "none" }}>
+        <header style={{ display: "flex", alignItems: "center", gap: "11px", padding: "8px 14px", borderBottom: "none", zIndex: 9, background: "var(--aacp-header-bg, var(--aacp-bg))", flex: "none" }}>
           {logo && !logoError ? (
             <img
               src={logo}
@@ -401,16 +401,12 @@ export default function ConversationShell({
                 }
                 return (
                   <div key={m.id} style={{ display: "flex", gap: "9px", alignItems: "flex-start", maxWidth: isFullWidth ? "100%" : "min(82%, 520px)", alignSelf: "flex-start", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both", width: isFullWidth ? "100%" : undefined }}>
-                    {agentAvatarUrl ? (
-                      <img src={agentAvatarUrl} alt="" style={{ width: "26px", height: "26px", borderRadius: "50%", objectFit: "cover", flex: "none", marginTop: "4px" }} />
-                    ) : (
-                      <div style={{ width: "26px", height: "26px", borderRadius: "50%", background: `radial-gradient(120% 120% at 30% 25%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0) 42%), var(--aacp-accent)`, flex: "none", position: "relative", marginTop: "4px" }}>
-                        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: "2px" }}>
-                          <span style={{ width: "2px", height: "3px", borderRadius: "50%", background: "#fff" }} />
-                          <span style={{ width: "2px", height: "3px", borderRadius: "50%", background: "#fff" }} />
-                        </div>
-                      </div>
-                    )}
+                    {/* Per-message agent orb — use the animated PulseAgentOrb (float +
+                        ring + blinking eyes) so it moves like the widget, instead of a
+                        static gradient dot. */}
+                    <div style={{ flex: "none", marginTop: "4px" }}>
+                      <PulseAgentOrb size={26} avatarUrl={agentAvatarUrl} />
+                    </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1, minWidth: 0 }}>
                       {m.text && <div style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", fontSize: "13.5px", lineHeight: 1.55, whiteSpace: "pre-wrap", background: "var(--aacp-card)", color: "var(--aacp-fg)", wordWrap: "break-word", border: "1px solid var(--aacp-line)" }} dangerouslySetInnerHTML={{ __html: renderMarkdownText(m.text) }} />}
                       {m.blocks?.map((block, idx) => (

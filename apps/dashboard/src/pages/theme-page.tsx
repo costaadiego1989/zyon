@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { RotateCcw, Save, X, Type, Shield, Palette, Image, Layout } from "lucide-react";
 import { DEFAULT_MERCHANT_THEME, type MerchantTheme } from "@zyon/shared-types";
 import { createDashboardApi, DashboardHttpError, type MerchantProfile } from "../api-client.js";
-import { LivePreviewPanel } from "../components/LivePreviewPanel.js";
+import { ThemePreviewCard } from "./theme-page/components/ThemePreviewCard.js";
 import { ImageUploader } from "../components/ImageUploader.js";
 import { SectionHeader } from "../components/SectionHeader.js";
 import { showToast } from "../components/Toast.js";
@@ -495,15 +495,9 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
           </div>
 
-          {/* ── Preview ── */}
+          {/* ── Preview — native replica of the storefront intro, updates live ── */}
           <div className="split-panel-preview">
-            <LivePreviewPanel
-              apiBaseUrl={props.apiBaseUrl}
-              me={props.me}
-              presentation="floating"
-              hideControls
-              width="100%"
-            />
+            <ThemePreviewCard theme={theme} storeName={props.me?.name ?? "Sua loja"} />
           </div>
         </div>
       )}
