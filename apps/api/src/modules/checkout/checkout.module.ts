@@ -205,6 +205,7 @@ import { PaymentModule } from "../payment/payment.module.js";
     AcceptCheckoutOfferUseCase,
     GetCheckoutSessionUseCase,
     EvaluateShippingUseCase,
+    CheckoutCustomerService,
   ]
 })
 export class CheckoutModule {}
