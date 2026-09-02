@@ -11,6 +11,7 @@ import { ShippingModule } from "../shipping/shipping.module.js";
 import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
 import { MarketplaceModule } from "../marketplace/marketplace.module.js";
 import { RevenueLiftModule } from "../revenue-lift/revenue-lift.module.js";
+import { CatalogModule } from "../catalog/catalog.module.js";
 import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 import { AcceptCheckoutOfferUseCase } from "./application/use-cases/accept-checkout-offer.use-case.js";
 import { ApplyOfferUseCase } from "./application/use-cases/apply-offer.use-case.js";
@@ -41,6 +42,7 @@ import { CheckoutOfferService } from "./application/services/checkout-offer.serv
 import { BuyerResolutionService } from "./application/services/buyer-resolution.service.js";
 import { BuyerContextService } from "./application/services/buyer-context.service.js";
 import { CheckoutBootstrapService } from "./application/services/checkout-bootstrap.service.js";
+import { CartPromoResolutionService } from "./application/services/cart-promo-resolution.service.js";
 import { InterventionRuleTextBuilder } from "./application/services/intervention-rule-text.builder.js";
 import { ChatContextService } from "./application/services/chat-context.service.js";
 import { ChatResponseBuilder } from "./application/services/chat-response.builder.js";
@@ -93,6 +95,7 @@ import { PaymentModule } from "../payment/payment.module.js";
     forwardRef(() => ShippingModule),
     forwardRef(() => MarketplaceModule),
     forwardRef(() => PaymentModule),
+    forwardRef(() => CatalogModule),
     BuyerAccountRepositoryModule,
     ExperimentsModule,
     RevenueLiftModule,
@@ -113,6 +116,7 @@ import { PaymentModule } from "../payment/payment.module.js";
     BuyerResolutionService,
     BuyerContextService,
     CheckoutBootstrapService,
+    CartPromoResolutionService,
     InterventionRuleTextBuilder,
     ChatContextService,
     ChatResponseBuilder,

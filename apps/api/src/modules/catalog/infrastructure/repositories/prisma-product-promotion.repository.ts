@@ -106,6 +106,34 @@ export class PrismaProductPromotionRepository
     return rows.map((r) => this.mapToDomain(r));
   }
 
+  async findActiveBySku(
+    merchantId: string,
+    sku: string,
+    now: Date = new Date()
+  ): Promise<ProductPromotionEntity[]> {
+    // Resolve SKU to variantId, then find promos by variantId or the variant's productId
+    const variant = await this.prisma.productVariant.findFirst({
+      where: { sku },
+      select: { id: true, productId: true },
+    });
+
+    if (!variant) return [];
+
+    const rows = await this.prisma.productPromotion.findMany({
+      where: {
+        merchantId,
+        isActive: true,
+        startsAt: { lte: now },
+        endsAt: { gt: now },
+        OR: [
+          { variantId: variant.id }, // variant-level promo
+          { productId: variant.productId }, // product-level promo
+        ],
+      },
+    });
+    return rows.map((r) => this.mapToDomain(r));
+  }
+
   private mapToDomain(row: any): ProductPromotionEntity {
     return {
       id: row.id,
