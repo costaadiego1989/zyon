@@ -284,6 +284,23 @@ export function inventoryEndpoints(base: string, f: typeof fetch) {
       );
     },
 
+    getCrmSyncLog(limit = 50): Promise<Array<{
+      id: string;
+      provider: string;
+      email: string;
+      stage: "lead" | "customer";
+      status: "success" | "failed";
+      error_code: string | null;
+      created_at: string;
+    }>> {
+      return dashboardJson(
+        base,
+        `/dashboard/inventory/crm-sync-log?limit=${encodeURIComponent(String(limit))}`,
+        { method: "GET" },
+        f,
+      );
+    },
+
     getErpOAuthUrl(merchantId: string, provider: string): Promise<{ url: string }> {
       return dashboardJson<{ url: string }>(
         base,

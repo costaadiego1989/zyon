@@ -149,6 +149,65 @@ export function IntegrationsPage(props: IntegrationsPageProps) {
         </div>
       </div>
 
+      {/* Section: Leads sincronizados */}
+      <div className="panel" style={{ padding: "20px 24px" }}>
+        <SectionHeader
+          icon={<Users size={16} />}
+          title="Leads sincronizados"
+          subtitle="Cada contato enviado ao CRM — lead (só se cadastrou) ou cliente (comprou)"
+        />
+        {vm.syncLog.length === 0 ? (
+          <p style={{ margin: 0, font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>
+            Nenhum lead sincronizado ainda. Conecte um CRM — os contatos aparecem aqui conforme os compradores se identificam e compram.
+          </p>
+        ) : (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Contato</th>
+                  <th>Tipo</th>
+                  <th>CRM</th>
+                  <th>Status</th>
+                  <th>Quando</th>
+                </tr>
+              </thead>
+              <tbody>
+                {vm.syncLog.map((row) => (
+                  <tr key={row.id}>
+                    <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{row.email}</td>
+                    <td>
+                      <span
+                        style={{
+                          display: "inline-block",
+                          padding: "2px 8px",
+                          borderRadius: 999,
+                          font: "600 11px var(--font-sans)",
+                          background: row.stage === "customer" ? "var(--accent-soft)" : "var(--surface-2)",
+                          color: row.stage === "customer" ? "var(--color-brand)" : "var(--color-text-muted)",
+                          border: "1px solid var(--color-border)",
+                        }}
+                      >
+                        {row.stage === "customer" ? "Cliente" : "Lead"}
+                      </span>
+                    </td>
+                    <td style={{ textTransform: "capitalize" }}>{row.provider}</td>
+                    <td>
+                      <span style={{ color: row.status === "success" ? "var(--color-brand)" : "var(--color-danger, #dc2626)" }}>
+                        {row.status === "success" ? "OK" : "Falhou"}
+                      </span>
+                    </td>
+                    <td style={{ color: "var(--color-text-muted)", fontSize: 12 }}>
+                      {new Date(row.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       {/* Side panel: connect CRM */}
       <SidePanel
         isOpen={panelProvider != null}

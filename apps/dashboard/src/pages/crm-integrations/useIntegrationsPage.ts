@@ -10,9 +10,20 @@ export interface CrmConnectionDTO {
   lastSyncAt?: string | null;
 }
 
+export interface CrmSyncLogDTO {
+  id: string;
+  provider: string;
+  email: string;
+  stage: "lead" | "customer";
+  status: "success" | "failed";
+  error_code: string | null;
+  created_at: string;
+}
+
 export function useIntegrationsPage(options: { me: MerchantProfile | null }) {
   const api = useApi();
   const [crmConnections, setCrmConnections] = useState<CrmConnectionDTO[]>([]);
+  const [syncLog, setSyncLog] = useState<CrmSyncLogDTO[]>([]);
   const [loading, setLoading] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -21,8 +32,11 @@ export function useIntegrationsPage(options: { me: MerchantProfile | null }) {
     try {
       const list = await (api as any).getCrmConnections?.(options.me.id)?.catch?.(() => []) ?? [];
       setCrmConnections(Array.isArray(list) ? list : []);
+      const log = await (api as any).getCrmSyncLog?.(50)?.catch?.(() => []) ?? [];
+      setSyncLog(Array.isArray(log) ? log : []);
     } catch {
       setCrmConnections([]);
+      setSyncLog([]);
     } finally {
       setLoading(false);
     }
@@ -56,6 +70,7 @@ export function useIntegrationsPage(options: { me: MerchantProfile | null }) {
 
   return {
     crmConnections,
+    syncLog,
     loading,
     connectCrm,
     disconnectCrm,
