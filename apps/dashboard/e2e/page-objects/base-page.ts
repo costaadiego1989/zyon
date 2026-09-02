@@ -5,6 +5,7 @@
 
 import { type Page, type Locator, expect } from "@playwright/test";
 import { TIMEOUTS } from "../config";
+import { gotoTab } from "../utils/nav";
 
 export abstract class BasePage {
   constructor(protected readonly page: Page) {}
@@ -21,11 +22,9 @@ export abstract class BasePage {
     await this.nav.waitFor({ state: "visible", timeout: TIMEOUTS.auth });
   }
 
-  /** Navigate to a section by clicking its nav label */
+  /** Navigate to a section by its exact sidebar item label (expands section if collapsed). */
   async navigateTo(label: string): Promise<void> {
-    await this.nav.locator(`text=${label}`).first().click();
-    // Wait for content to settle
-    await this.page.waitForLoadState("domcontentloaded");
+    await gotoTab(this.page, label);
   }
 
   /* ── Common locators ────────────────────────────────────────────── */

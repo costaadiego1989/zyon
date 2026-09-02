@@ -8,6 +8,7 @@ import { composeStoreToolHandlers, type AllHandlerDeps } from "../tool-handlers/
 import { OpenRouterProvider } from "@zyon/conversation-engine";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
+import { AddMarketplaceItemToCartStorefrontUseCase } from "../../application/use-cases/add-marketplace-item-to-cart.use-case.js";
 import { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
 import { CROSS_SELL_PROMOTION_REPOSITORY, type CrossSellPromotionRepository } from "../../../cross-sell/domain/ports/cross-sell-promotion-repository.port.js";
 import { ApplyCouponUseCase } from "../../../coupons/application/use-cases/apply-coupon.use-case.js";
@@ -40,6 +41,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     private readonly supportHandoff: SupportHandoffService,
     @Optional() private readonly searchFederatedProducts?: SearchFederatedProductsUseCase,
+    @Optional() private readonly addMarketplaceItemToCart?: AddMarketplaceItemToCartStorefrontUseCase,
     @Optional() private readonly listEligibleCrossSells?: ListEligibleCrossSellsUseCase,
     @Optional() @Inject(CROSS_SELL_PROMOTION_REPOSITORY) private readonly crossSellPromotionRepo?: CrossSellPromotionRepository,
     @Optional() private readonly applyCouponUseCase?: ApplyCouponUseCase,
@@ -72,6 +74,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       merchantRepo: this.merchantRepo,
       supportHandoff: this.supportHandoff,
       searchFederatedProducts: this.searchFederatedProducts,
+      addMarketplaceItemToCart: this.addMarketplaceItemToCart,
       listEligibleCrossSells: this.listEligibleCrossSells,
       loadCrossSellConfig: this.loadCrossSellConfig.bind(this),
       crossSellPromotionRepo: this.crossSellPromotionRepo,

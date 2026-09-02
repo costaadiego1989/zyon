@@ -256,6 +256,22 @@ function systemPrompt(input: ConversationInput, objection: Objection): string {
         "NUNCA revele dados privados."
       );
     }
+    const intent = input.agentContext.intent;
+    if (intent) {
+      lines.push(
+        `PERSONALIZAÇÃO POR INTENT: Comprador classificado como "${intent.primary_intent}", ` +
+        `urgência "${intent.urgency}", faixa "${intent.budget_tier}". ` +
+        `Pain points: ${intent.pain_points?.join(", ") || "nenhum"}. ` +
+        `Adapte tom: price_sensitive=destaque economia/custo-benefício; ` +
+        `ready_to_buy=direto/confiante/feche rápido; ` +
+        `browsing=informativo/sem pressão; ` +
+        `quality_seeker=destaque qualidade/garantia; ` +
+        `speed_focused=urgência/entrega rápida. ` +
+        `Para urgência high, seja conciso e orientado à ação. ` +
+        `Para urgência low, seja informativo e paciente. ` +
+        `NUNCA revele a classificação ao comprador. NUNCA invente ofertas baseado no intent.`
+      );
+    }
   }
   if (input.shippingPolicy) {
     const sp = input.shippingPolicy;

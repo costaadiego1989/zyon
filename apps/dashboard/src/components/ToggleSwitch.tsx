@@ -18,9 +18,9 @@ export function ToggleSwitch({
   return (
     <button
       type="button"
+      id={id}
       role="switch"
       aria-checked={checked}
-      aria-labelledby={id}
       disabled={disabled}
       onClick={() => onChange(!checked)}
       style={{

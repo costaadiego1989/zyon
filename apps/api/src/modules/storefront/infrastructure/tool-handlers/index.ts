@@ -3,6 +3,7 @@ import type { ToolRequestContext } from "../../domain/tools/tool-context.js";
 import type { ProductRepositoryPort, StockRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
 import type { MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import type { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
+import type { AddMarketplaceItemToCartStorefrontUseCase } from "../../application/use-cases/add-marketplace-item-to-cart.use-case.js";
 import type { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
 import type { CrossSellPromotionRepository } from "../../../cross-sell/domain/ports/cross-sell-promotion-repository.port.js";
 import type { ApplyCouponUseCase } from "../../../coupons/application/use-cases/apply-coupon.use-case.js";
@@ -26,6 +27,7 @@ export interface AllHandlerDeps {
   merchantRepo: MerchantRepository;
   supportHandoff: SupportHandoffService;
   searchFederatedProducts?: SearchFederatedProductsUseCase;
+  addMarketplaceItemToCart?: AddMarketplaceItemToCartStorefrontUseCase;
   listEligibleCrossSells?: ListEligibleCrossSellsUseCase;
   loadCrossSellConfig: (merchantId: string) => Promise<CrossSellConfig>;
   crossSellPromotionRepo?: CrossSellPromotionRepository;
@@ -49,6 +51,7 @@ export function composeStoreToolHandlers(deps: AllHandlerDeps, ctx: ToolRequestC
     prisma: deps.prisma,
     merchantRepo: deps.merchantRepo,
     searchFederatedProducts: deps.searchFederatedProducts,
+    addMarketplaceItemToCart: deps.addMarketplaceItemToCart,
     listEligibleCrossSells: deps.listEligibleCrossSells,
     loadCrossSellConfig: deps.loadCrossSellConfig,
     crossSellPromotionRepo: deps.crossSellPromotionRepo,

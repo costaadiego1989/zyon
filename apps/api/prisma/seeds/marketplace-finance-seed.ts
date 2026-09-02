@@ -96,7 +96,7 @@ async function seed() {
     const bp = orderBlueprints[o];
     const host = merchantIds[bp.idx];
     const orderId = `mkt_order_${String(o + 1).padStart(3, '0')}`;
-    const buyer = BRAZIL_BUYERS[o % BRAZIL_BUYERS.length];
+    const buyer = BRAZILIAN_BUYERS[o % BRAZILIAN_BUYERS.length];
 
     const lineItems = bp.lines.map((sellerIdxSlot, liIdx) => {
       // Pick seller merchant distinct from host
@@ -121,7 +121,7 @@ async function seed() {
     orderSpecs.push({
       orderId,
       hostMerchantId: host,
-      buyerIdx: o % BRAZIL_BUYERS.length,
+      buyerIdx: o % BRAZILIAN_BUYERS.length,
       lineItems,
     });
 

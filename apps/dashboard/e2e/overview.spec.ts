@@ -1,33 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
+import { gotoTab } from "./utils/nav";
 
-/* ── Login helper ──────────────────────────────────────────────── */
-
-async function loginIfNeeded(page: Page) {
-  const emailInput = page.locator("input[placeholder='owner@loja.com']");
-  const isLoginPage = await emailInput.isVisible({ timeout: 2000 }).catch(() => false);
-  if (isLoginPage) {
-    await emailInput.click();
-    await emailInput.pressSequentially("demo@zyon.com", { delay: 50 });
-    await page.waitForTimeout(300);
-    const passwordInput = page.locator("input[type='password']");
-    await passwordInput.click();
-    await passwordInput.pressSequentially("demo1234", { delay: 50 });
-    await page.waitForTimeout(300);
-    await page.locator("button[type='submit']").click();
-    await page.waitForTimeout(3000);
-  }
-}
-
-/* ── Navigate to Overview (Operação) ──────────────────────────── */
+/* ── Navigate to Overview (Visão Geral) ──────────────────────────── */
 
 async function navigateToOverview(page: Page) {
-  await page.goto("/", { waitUntil: "networkidle" });
-  await loginIfNeeded(page);
-  // Wait for nav shell to render
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page.locator("nav")).toBeVisible({ timeout: 10_000 });
-  // Click Operação nav item
-  await page.locator("text=Operação").first().click();
-  await page.waitForTimeout(1500);
+  await gotoTab(page, "Visão Geral");
 }
 
 /* ── Tests ─────────────────────────────────────────────────────── */

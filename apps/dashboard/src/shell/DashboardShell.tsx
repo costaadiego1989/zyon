@@ -3,26 +3,25 @@ import { LogOut, ShieldCheck, ExternalLink, ChevronDown, Search, X } from "lucid
 import { PageErrorBoundary } from "./PageErrorBoundary.js";
 import { NAV_ITEMS, NAV_SECTIONS, visibleItemsForPlan, type TabKey } from "./nav-config.js";
 import { resolveDashboardApiBaseUrl, type MerchantProfile as MerchantDashboardProfile } from "../api-client.js";
+import { dashboardFetch } from "../api/http/client.js";
 import { ToastContainer } from "../components/Toast.js";
-import { FeatureGate, PlanProvider } from "../components/FeatureGate.js";
+import { PlanProvider } from "../components/FeatureGate.js";
+import { PremiumFeatureGate } from "../components/PremiumFeatureGate.js";
 import { NotificationBell, type NotificationItem } from "../components/NotificationBell.js";
 import { useSupportSocket } from "../hooks/useSupportSocket.js";
 
 const API_BASE_URL = resolveDashboardApiBaseUrl(import.meta.env);
 
-// Construct storefront URL
-function getStorefrontUrl(merchantId: string): string {
+function getStorefrontUrl(slugOrId: string): string {
   const env = import.meta.env;
   const storefrontUrl = (env.VITE_STOREFRONT_URL as string | undefined)?.trim();
-  if (storefrontUrl) return `${storefrontUrl}/store/${merchantId}`;
+  if (storefrontUrl) return `${storefrontUrl}/store/${slugOrId}`;
 
-  // Fallback: derive from API base URL
   const apiUrl = new URL(API_BASE_URL);
-  apiUrl.port = "3001"; // storefront typically runs on 3001
-  return `${apiUrl.origin}/store/${merchantId}`;
+  apiUrl.port = "3001";
+  return `${apiUrl.origin}/store/${slugOrId}`;
 }
 
-// Lazy-loaded pages
 const OverviewPage = lazy(() => import("../pages/overview/index.js").then(m => ({ default: m.OverviewPage })));
 const MerchantRulesAuthenticatedPage = lazy(() => import("../pages/merchant-rules-page.js").then(m => ({ default: m.MerchantRulesAuthenticatedPage })));
 const CheckoutSettingsPage = lazy(() => import("../pages/checkout-settings/index.js").then(m => ({ default: m.CheckoutSettingsPage })));
@@ -35,7 +34,6 @@ const FunnelPage = lazy(() => import("../pages/funnel/index.js").then(m => ({ de
 const EmbedPage = lazy(() => import("../pages/embed-page.js").then(m => ({ default: m.EmbedPage })));
 const ThemePage = lazy(() => import("../pages/theme-page.js").then(m => ({ default: m.ThemePage })));
 const OnboardingWizard = lazy(() => import("../pages/onboarding-wizard/index.js").then(m => ({ default: m.OnboardingWizard })));
-const CheckoutPreviewPage = lazy(() => import("../pages/preview-page.js").then(m => ({ default: m.CheckoutPreviewPage })));
 const BillingPage = lazy(() => import("../pages/billing-page.js").then(m => ({ default: m.BillingPage })));
 const PaymentConnectionsPage = lazy(() => import("../pages/payment-connections/index.js").then(m => ({ default: m.PaymentConnectionsPage })));
 const AuditLogPage = lazy(() => import("../pages/audit-log-page.js").then(m => ({ default: m.AuditLogPage })));
@@ -83,7 +81,6 @@ export interface DashboardShellProps {
 }
 
 export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: initialOnboardingCompleted }: DashboardShellProps) {
-  // DASH-017/018: URL hash-based routing for deep links & back button
   const resolveInitialTab = (): TabKey => {
     const hash = window.location.hash.slice(1);
     if (hash) return hash as TabKey;
@@ -93,8 +90,6 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [hideOnboarding, setHideOnboarding] = useState(initialOnboardingCompleted !== false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-
-  // Sidebar: collapsible sections state
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
     const saved = localStorage.getItem("aacp_nav_collapsed");
     if (saved) {
@@ -104,15 +99,12 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
         return new Set();
       }
     }
-    // Default: collapse sections with defaultOpen: false
     return new Set(NAV_SECTIONS.filter((s) => !s.defaultOpen).map((s) => s.id));
   });
 
-  // Sidebar: search state
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = React.useRef<HTMLInputElement>(null);
 
-  // Sync hash → tab on popstate / hashchange
   useEffect(() => {
     const onHashChange = () => {
       const hash = window.location.hash.slice(1);
@@ -122,12 +114,10 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
-  // Persist collapsed sections to localStorage
   useEffect(() => {
     localStorage.setItem("aacp_nav_collapsed", JSON.stringify(Array.from(collapsedSections)));
   }, [collapsedSections]);
 
-  // Keyboard shortcut: Cmd+K or Ctrl+K focuses search
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -143,13 +133,11 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [searchQuery]);
 
-  // changeTab: update state + hash in one call
   const changeTab = useCallback((next: TabKey) => {
     setTab(next);
     window.location.hash = next;
   }, []);
 
-  // Toggle section collapse
   const toggleSectionCollapse = useCallback((sectionId: string) => {
     setCollapsedSections((prev) => {
       const next = new Set(prev);
@@ -162,10 +150,8 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     });
   }, []);
 
-  // Connect to support socket for real-time handoff notifications
   const socket = useSupportSocket(API_BASE_URL, me.id, me.name || undefined);
 
-  // Convert new tickets from socket into notifications
   React.useEffect(() => {
     if (socket.newTickets.length === 0) return;
     const newNotifs: NotificationItem[] = socket.newTickets.map((t) => ({
@@ -179,14 +165,15 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     socket.clearNewTickets();
   }, [socket.newTickets]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Poll for return/chargeback notifications every 30s
   React.useEffect(() => {
     let lastCheck = new Date().toISOString();
+    let stopped = false;
     const poll = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/merchants/${me.id}/notifications?since=${encodeURIComponent(lastCheck)}`, {
-          credentials: "include",
-        });
+        const res = await dashboardFetch(
+          API_BASE_URL,
+          `/merchants/${me.id}/notifications?since=${encodeURIComponent(lastCheck)}`,
+        );
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data.items) && data.items.length > 0) {
@@ -202,17 +189,16 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
         lastCheck = new Date().toISOString();
       } catch { /* non-blocking */ }
     };
-    const timer = setInterval(poll, 30_000);
-    return () => clearInterval(timer);
+    void poll(); // immediate first check, then every 30s
+    const timer = setInterval(() => { if (!stopped) void poll(); }, 30_000);
+    return () => { stopped = true; clearInterval(timer); };
   }, [me.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const visibleNavItems = useMemo(
     () => {
       let items = hideOnboarding ? NAV_ITEMS.filter((item) => item.key !== "onboarding") : NAV_ITEMS;
-      // Filter by plan
       items = visibleItemsForPlan(items, me.plan);
 
-      // If searching, filter by label + keywords
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         items = items.filter((item) => {
@@ -227,13 +213,11 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     [hideOnboarding, me.plan, searchQuery]
   );
 
-  // Collect sections that have at least one visible item
   const visibleSectionIds = useMemo(
     () => new Set(visibleNavItems.map((item) => item.section)),
     [visibleNavItems]
   );
 
-  // Sort sections by order
   const orderedSections = useMemo(
     () =>
       NAV_SECTIONS.filter((s) => visibleSectionIds.has(s.id)).sort((a, b) => a.order - b.order),
@@ -453,7 +437,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {(me.plan === "STORE_ONLY" || me.plan === "BOTH") && (
               <a
-                href={getStorefrontUrl(me.id)}
+                href={getStorefrontUrl(me.slug ?? me.id)}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: "1px solid var(--color-border)", background: "var(--surface-2)", font: "12.5px var(--font-sans)", color: "var(--color-brand)", textDecoration: "none", cursor: "pointer", transition: "background 0.15s" }}
@@ -496,12 +480,20 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "settings" ? <CheckoutSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "support" ? <SupportSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {(tab === "integrations" || tab === "integrations-api") ? <IntegrationsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "crm-integrations" ? <CrmIntegrationsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "crm-integrations" ? (
+              <PremiumFeatureGate
+                feature="crmIntegrations"
+                requiredPlan="Growth"
+                featureLabel="CRM & Marketing"
+                description="Conecte sua loja a CRMs (HubSpot, Pipedrive, RD Station) e ferramentas de marketing automation para sincronizar leads e clientes."
+              >
+                <CrmIntegrationsPage apiBaseUrl={API_BASE_URL} me={me} />
+              </PremiumFeatureGate>
+            ) : null}
             {tab === "shipments" ? <OrdersShipmentsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "customers" ? <CustomersPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "funnel" ? <FunnelPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "embed" ? <EmbedPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "preview" ? <CheckoutPreviewPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "theme" ? <ThemePage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "theme-checkout" ? <ThemePage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "billing" ? <BillingPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
@@ -535,24 +527,65 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "stories" ? <StoriesPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "team" ? <TeamPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "account-settings" ? <AccountSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "marketplace" ? <MarketplacePage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "marketplace" ? (
+              <PremiumFeatureGate feature="marketplace" requiredPlan="Scale" featureLabel="Marketplace" description="Venda em rede com outras lojas, catálogo federado e settlement automático entre vendedores.">
+                <MarketplacePage apiBaseUrl={API_BASE_URL} me={me} />
+              </PremiumFeatureGate>
+            ) : null}
             {tab === "whatsapp-seller" ? <WhatsAppSellerPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "coupons" ? <CouponsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "experiments" ? <ExperimentsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "revenue-lift" ? <RevenueLiftPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "revenue-manager" ? <RevenueManagerPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "experiments" ? (
+              <PremiumFeatureGate feature="abTests" requiredPlan="Scale" featureLabel="Testes A/B" description="Experimente variações de prompts e estratégias do agente com significância estatística e promoção automática do vencedor.">
+                <ExperimentsPage apiBaseUrl={API_BASE_URL} me={me} />
+              </PremiumFeatureGate>
+            ) : null}
+            {tab === "revenue-lift" ? (
+              <PremiumFeatureGate feature="revenueLift" requiredPlan="Scale" featureLabel="Impacto no Revenue" description="Meça o incremento real de receita gerado pela IA com grupos de holdout e atribuição científica.">
+                <RevenueLiftPage apiBaseUrl={API_BASE_URL} me={me} />
+              </PremiumFeatureGate>
+            ) : null}
+            {tab === "revenue-manager" ? (
+              <PremiumFeatureGate feature="revenueManager" requiredPlan="Scale" featureLabel="Otimizador IA" description="IA autônoma que gera hipóteses de otimização e ajusta estratégias de conversão continuamente.">
+                <RevenueManagerPage apiBaseUrl={API_BASE_URL} me={me} />
+              </PremiumFeatureGate>
+            ) : null}
             {tab === "cart-recovery" ? <CartRecoveryPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "m2m-agents" ? <M2MAgentsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "m2m-agents" ? (
+              <PremiumFeatureGate feature="m2mAgents" requiredPlan="Scale" featureLabel="Agentes M2M" description="Negociação máquina-a-máquina: agentes autônomos que negociam com compradores via protocolo dedicado.">
+                <M2MAgentsPage apiBaseUrl={API_BASE_URL} me={me} />
+              </PremiumFeatureGate>
+            ) : null}
             {tab === "checkout-protocol" ? <ProtocolPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "checkout-programavel" ? <CheckoutProgramavelPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "intent-memory" ? <IntentMemoryPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "intent-memory" ? (
+              <PremiumFeatureGate feature="intentMemory" requiredPlan="Scale" featureLabel="Memória de Intenção" description="IA personalizada que lembra o perfil e a intenção de compra de cada cliente (LGPD-compliant).">
+                <IntentMemoryPage apiBaseUrl={API_BASE_URL} me={me} />
+              </PremiumFeatureGate>
+            ) : null}
             {tab === "inventory" ? <InventoryPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "negotiation-policy" ? <NegotiationPolicyPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "negotiation-policy" ? (
+              <PremiumFeatureGate feature="advancedRules" requiredPlan="Growth" featureLabel="Negociação" description="Política de negociação e barganha: o agente negocia descontos dentro dos limites que você define.">
+                <NegotiationPolicyPage apiBaseUrl={API_BASE_URL} me={me} />
+              </PremiumFeatureGate>
+            ) : null}
             {tab === "chargebacks" ? <ChargebacksPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "returns" ? <ReturnExchangesPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "delivery" ? <DeliveryPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "post-sale" ? <PostSalePage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "knowledge" ? <KnowledgePage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "post-sale" ? (
+              <PremiumFeatureGate feature="postSale" requiredPlan="Growth" featureLabel="Pós-Venda" description="NPS, reviews, win-back, programa de fidelidade e reativação automática de clientes.">
+                <PostSalePage apiBaseUrl={API_BASE_URL} me={me} />
+              </PremiumFeatureGate>
+            ) : null}
+            {tab === "knowledge" ? (
+              <PremiumFeatureGate
+                feature="knowledgeBase"
+                requiredPlan="Growth"
+                featureLabel="Base de Conhecimento"
+                description="Alimente seu agente com FAQs, políticas e documentos da loja para respostas mais precisas e personalizadas."
+              >
+                <KnowledgePage apiBaseUrl={API_BASE_URL} me={me} />
+              </PremiumFeatureGate>
+            ) : null}
             </Suspense>
           </PageErrorBoundary>
         </section>

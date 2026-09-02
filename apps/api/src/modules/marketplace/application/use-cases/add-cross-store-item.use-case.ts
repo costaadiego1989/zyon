@@ -44,7 +44,7 @@ export class AddCrossStoreItemUseCase {
       throw new Error("Product not found");
     }
 
-    if (product.sourceMerchantId === input.sellerMerchantId) {
+    if (product.sourceMerchantId === input.hostMerchantId) {
       throw new Error("Cannot add own products to cross-store cart");
     }
 

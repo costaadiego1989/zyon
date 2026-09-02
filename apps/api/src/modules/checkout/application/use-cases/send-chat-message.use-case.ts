@@ -1,13 +1,11 @@
-import { Inject, Injectable, NotFoundException, Optional , Logger} from "@nestjs/common";
+import { Inject, Injectable, Optional , Logger} from "@nestjs/common";
 import type {
   ChatMessageRequest,
   ChatMessageResponse,
   ChatUiBlock,
   CartItem,
   CheckoutSession,
-  SuggestedProduct
 } from "@zyon/shared-types";
-import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { AGENT_CONTEXT_PORT, type AgentContextPort } from "../../domain/ports/agent-context.port.js";
 import { CONVERSATION_PORT, type ConversationPort } from "../../domain/ports/conversation.port.js";
@@ -21,27 +19,18 @@ import {
 } from "../../domain/services/customer-extraction.service.js";
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
-import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 import { CheckoutCustomerService } from "../services/checkout-customer.service.js";
 import { CheckoutShippingService } from "../services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "../services/checkout-offer.service.js";
-import { CHECKOUT_CROSS_SELL_RECOMMENDER, type CheckoutCrossSellRecommenderPort } from "../../domain/ports/cross-sell-recommender.port.js";
-import { resolveCrossSellProduct, resolveCrossSellCartItem } from "../../../cross-sell/application/services/cross-sell-product-resolver.js";
-import { PRODUCT_SEARCH_PORT, type ProductSearchPort } from "../../domain/ports/product-search.port.js";
-import { CHECKOUT_SETTINGS_PORT, type CheckoutSettingsPort } from "../../domain/ports/checkout-settings.port.js";
-import { TenantBoundaryGuard } from "../../domain/services/tenant-boundary.guard.js";
 import { isSafeGeneratedMessage } from "../../domain/types/safe-generated-message.js";
 import { SafeAuthorizedOffer } from "../../domain/types/safe-authorized-offer.js";
-import { BUYER_CONVERSATION_REPOSITORY, type BuyerConversationRepository } from "../../../buyer-account/domain/ports/buyer-conversation.port.js";
 import { PROMPT_EXPERIMENT_PORT, type PromptExperimentPort } from "../../domain/ports/prompt-experiment.port.js";
 import { PRODUCT_VARIANT_LOOKUP_PORT, type ProductVariantLookupPort } from "../../domain/ports/product-variant-lookup.port.js";
 import { ChatToolExecutorService } from "../services/chat-tool-executor.service.js";
 import { ChatLlmGatewayService } from "../services/chat-llm-gateway.service.js";
-import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
 import { ChatContextService, type ChatContextLoaded } from "../services/chat-context.service.js";
 import { ChatResponseBuilder } from "../services/chat-response.builder.js";
 import { InterventionRuleTextBuilder } from "../services/intervention-rule-text.builder.js";
-import { randomUUID } from "node:crypto";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -60,7 +49,6 @@ export class SendChatMessageUseCase {
     private readonly offerService: CheckoutOfferService,
     private readonly chatContextService: ChatContextService,
     private readonly chatResponseBuilder: ChatResponseBuilder,
-    private readonly interventionBuilder: InterventionRuleTextBuilder,
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 },
     @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
@@ -242,7 +230,6 @@ export class SendChatMessageUseCase {
     rules: import("@zyon/shared-types").MerchantRules,
     stage: import("@zyon/shared-types").ChatStage
   ) {
-    // Build UI context so the LLM's navigation tools can emit the right blocks.
     const custAddr = (working.customer as any)?.address;
     const addressFormatted = custAddr?.street
       ? `${custAddr.street}, ${custAddr.number ?? ""}${custAddr.complement ? ", " + custAddr.complement : ""} - ${custAddr.city ?? ""}/${custAddr.state ?? ""}`
@@ -321,19 +308,15 @@ export class SendChatMessageUseCase {
       );
       const textContent = result.content?.trim() || "";
       const hasUiBlocks = execution.blocks && execution.blocks.length > 0;
-      // Navigation tools (show_shipping_options, show_payment_methods) emit blocks
-      // without text messages — use a neutral prompt, not "Benefício aplicado".
       const fallbackMsg = hasUiBlocks ? "" : "Como posso ajudar com o seu pedido?";
       const finalMsg = execution.message
         ? `${textContent ? textContent + "\n" : ""}${execution.message}`
         : textContent || fallbackMsg;
-      // FIX R2P-C04: Validate FINAL assembled message (tool output + LLM reply)
       const safetyCheck = isSafeGeneratedMessage(finalMsg || "ok");
       const safeMsg = safetyCheck.safe ? finalMsg : fallbackMsg;
       return { message: safeMsg, objection: "unknown" as any, blocks: execution.blocks };
     }
 
-    // FIX R2P-C04: Validate LLM reply before returning
     const safetyCheck = isSafeGeneratedMessage(result.content || "");
     const safeContent = safetyCheck.safe
       ? result.content || "Como posso ajudar com o seu pedido?"
@@ -341,13 +324,6 @@ export class SendChatMessageUseCase {
     return { message: safeContent, objection: "unknown" as any };
   }
 
-  /**
-   * Adds a cross-sell suggestion to the checkout session cart. Resolves the
-   * product from the real catalog (price/name) by SKU, appends/increments the
-   * line, recomputes the gross total, invalidates any prior shipping quote
-   * (cart changed → freight must be re-selected), persists the session, and
-   * returns an updated cart_summary block for the widget.
-   */
   private async addCrossSellItemToCart(
     working: CheckoutSession,
     sku: string,
@@ -370,12 +346,15 @@ export class SendChatMessageUseCase {
     } catch { /* fall back below */ }
 
     if (price == null || !name) {
-      const resolved = resolveCrossSellCartItem(sku);
-      name = name ?? resolved.name;
-      price = price ?? resolved.price;
-      category = resolved.category;
-      variant = resolved.variant;
-      imageUrl = imageUrl ?? resolved.imageUrl;
+      try {
+        const variantData = await this.productVariantLookup?.findBySku(working.merchantId, sku);
+        if (variantData) {
+          name = name ?? variantData.name;
+          price = price ?? variantData.price;
+          imageUrl = imageUrl ?? variantData.imageUrl;
+        }
+      } catch { /* keep previous values */ }
+      if (!name) name = `Produto ${sku}`;
     }
 
     const items = [...working.cart.items];
@@ -388,7 +367,6 @@ export class SendChatMessageUseCase {
     const total = Math.round(items.reduce((s, it) => s + it.price * it.quantity, 0) * 100) / 100;
 
     working.cart = { ...working.cart, items, total };
-    // Cart changed → prior freight quote is stale; force re-selection.
     working.shipping = undefined;
     working.updatedAt = new Date().toISOString();
     try {

@@ -38,6 +38,7 @@ test("quickRepliesForStage includes crypto chip when merchant enabled", () => {
     blockedRegions: [],
     brandVoice: "consultative",
     couponBoxEnabled: false,
+    autonomousEngineEnabled: true,
     cryptoPayments: {
       enabled: true,
       chain: "polygon",

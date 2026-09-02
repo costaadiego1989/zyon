@@ -9,6 +9,7 @@ import { LivePreviewPanel, type LivePreviewPanelRef } from "../components/LivePr
 import { SaveFeedbackBanner } from "../components/save-feedback-banner.js";
 import { RulesSkeleton } from "../components/rules-skeleton.js";
 import { AgentRulesForm } from "../components/agent-rules-form.js";
+import { ToggleSwitch } from "../components/ToggleSwitch.js";
 import {
   validateOriginZip,
   validateTreasuryAddress,
@@ -278,6 +279,37 @@ export function MerchantRulesAuthenticatedPage(props: {
                 >
                   Recarregar
                 </button>
+              </div>
+            </section>
+
+            <section className="panel stacked rules-section-gap">
+              <SectionHeader title="Motor de IA Autônomo" subtitle="A IA analisa suas conversões e sugere regras de desconto — você decide o que ativar" />
+
+              {/* Como funciona — ciclo completo, deixa claro que nada é automático */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "4px 0 12px", font: "12px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.5 }}>
+                <div><strong style={{ color: "var(--color-text)" }}>1. Analisa</strong> — a IA observa taxas de conversão por perfil de comprador (ex: sensível a preço, foco em qualidade) e onde há carrinho abandonado.</div>
+                <div><strong style={{ color: "var(--color-text)" }}>2. Sugere</strong> — gera regras candidatas de desconto ou frete que podem converter mais, sempre dentro dos seus limites (desconto máximo em % e em R$, e margem mínima).</div>
+                <div><strong style={{ color: "var(--color-text)" }}>3. Você aprova</strong> — cada sugestão chega como notificação e aparece na Visão Geral. <strong style={{ color: "var(--color-text)" }}>Nenhum desconto é aplicado ao carrinho sem a sua aprovação.</strong> Você pode aplicar direto ou testar em A/B.</div>
+                <div><strong style={{ color: "var(--color-text)" }}>4. Mede</strong> — após ativar, a IA acompanha o resultado e aprende para as próximas sugestões.</div>
+                <div style={{ marginTop: 2 }}>O comprador nunca é informado da classificação, e toda oferta passa pela validação determinística de margem antes de existir — a IA nunca autoriza um desconto sozinha.</div>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderTop: "1px solid var(--color-border)" }}>
+                <ToggleSwitch
+                  id="autonomous-engine-toggle"
+                  checked={rules.autonomousEngineEnabled}
+                  onChange={(checked) => handleRulesChange({ ...rules, autonomousEngineEnabled: checked })}
+                />
+                <label htmlFor="autonomous-engine-toggle" style={{ cursor: "pointer", flex: 1 }}>
+                  <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>
+                    Gerar sugestões de regras automaticamente
+                  </div>
+                  <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 2 }}>
+                    {rules.autonomousEngineEnabled
+                      ? "Ativado — a IA gera sugestões para você revisar e aprovar. Elas não entram em vigor até você aprovar."
+                      : "Desativado — a IA não gera novas sugestões. Regras já ativas continuam valendo; você ainda pode criar regras manualmente."}
+                  </div>
+                </label>
               </div>
             </section>
           </div>

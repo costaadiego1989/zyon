@@ -109,28 +109,33 @@ export const LivePreviewPanel = forwardRef<LivePreviewPanelRef, LivePreviewPanel
         '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8" />',
         '<meta name="viewport" content="width=device-width, initial-scale=1" />',
         `<link rel="stylesheet" href="${bundleBase}/widget.css" />`,
-        '<style>html,body{margin:0;padding:0;background:#0d1117;font-family:ui-sans-serif,system-ui,sans-serif;height:100%;overflow:hidden;display:flex;align-items:stretch}</style>',
+        '<style>html,body{margin:0;padding:0;background:#0d1117;font-family:ui-sans-serif,system-ui,sans-serif;height:100%;overflow:hidden}body{display:flex;flex-direction:column}</style>',
         "</head><body>",
         `<script defer src="${bundleBase}/aacp.js"></script>`,
+        // Give the host element a definite box that fills the iframe — the widget's
+        // internal `height:100%` chain (shell→frame→inner) needs a sized host to
+        // resolve against. This mirrors the working embed contract in the widget's
+        // own test-embed.html, which sizes the element via an inline style box (there
+        // a fixed 380x640; here fill the preview iframe). Without a definite host size
+        // the frame/inner collapse to 0 and the hero clips to black.
         "<zyon-checkout-agent",
+        `  style="position:relative;display:block;width:100%;height:100%;overflow:hidden"`,
         `  embed-session-token="${token}"`,
         `  api-base-url="${apiBase}"`,
-        // Pass the real merchant id so the widget's buyer-scoped calls resolve to
-        // this merchant. Without it the element defaults to "mrc_demo", producing
-        // 401s on buyer/me/* against the wrong tenant.
+        // Real merchant id so buyer-scoped calls resolve to this merchant (else the
+        // element defaults to "mrc_demo" → 401s on buyer/me/* against the wrong tenant).
         me?.id ? `  merchant-id="${me.id}"` : "",
         `  ui-presentation="${presentation}"`,
         "></zyon-checkout-agent>",
         `<style>`,
-        // Fit the embedded widget into the preview iframe. The widget uses
-        // `pulse-*` classes (the old `zyon-*` overrides were dead after the
-        // rebrand, leaving the widget at its natural floating size → blank frame).
-        // Neutralize floating/fixed positioning, let the shell fill the iframe,
-        // drop the frame's max-width so the hero fits, and allow vertical scroll.
-        `zyon-checkout-agent{display:block!important;width:100%!important;height:100%!important}`,
-        `.pulse-widget-shell,.pulse-widget-frame,.pulse-widget-inner{position:relative!important;inset:auto!important;width:100%!important;max-width:none!important;height:100%!important;min-height:0!important;border-radius:0!important;border:none!important;box-shadow:none!important;margin:0!important}`,
-        `.pulse-widget-inner{overflow-y:auto!important}`,
-        `.pulse-hero{min-height:100%!important;display:flex!important;flex-direction:column!important;justify-content:center!important}`,
+        // Establish an unbroken height chain host→shell→frame→inner. The IntroStage
+        // root is `position:absolute; inset:0`, so it fills its nearest positioned
+        // ancestor (pulse-widget-inner) — if that ancestor has 0 height (the collapse
+        // we saw in embed mode), the whole intro clips to nothing (black body). Force
+        // each link to a definite height and make inner the positioning context.
+        `.pulse-widget-shell{height:100%!important;min-height:0!important;display:flex!important;flex-direction:column!important}`,
+        `.pulse-widget-frame{flex:1 1 auto!important;height:auto!important;min-height:0!important;max-width:none!important;border-radius:0!important;border:none!important;box-shadow:none!important;filter:none!important;display:flex!important;flex-direction:column!important}`,
+        `.pulse-widget-inner{flex:1 1 auto!important;height:auto!important;min-height:0!important;position:relative!important;overflow:hidden!important}`,
         `</style>`,
         "</body></html>",
       ].join("\n");

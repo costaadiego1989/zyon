@@ -2,7 +2,7 @@
   "mcpServers": {
     "playwright": {
       "command": "npx",
-      "args": ["-y", "@playwright/mcp", "--headless"]
+      "args": ["-y", "@playwright/mcp", "--headless", "--user-data-dir=C:/Users/Admin/AppData/Local/ms-playwright-mcp/mcp-chrome-sessionA"]
     }
   }
 }

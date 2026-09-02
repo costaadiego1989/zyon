@@ -27,7 +27,7 @@ export default defineConfig({
   projects: [
     {
       name: "widget-mocked",
-      testMatch: /widget\.spec\.ts|cross-sell-combo\.spec\.ts|checkout-shipping-flow\.spec\.ts|quick-replies\.spec\.ts|shipping-selection\.spec\.ts|checkout-flow-e2e\.spec\.ts|checkout-integration\.spec\.ts|voice-checkout\.spec\.ts|phone-login\.spec\.ts|voice-phone-login\.spec\.ts|chat-purchase-flow\.spec\.ts|voice-purchase-flow\.spec\.ts|checkout-full-journey\.spec\.ts|add-to-cart\.spec\.ts|agent-conversation\.spec\.ts|discount-rules\.spec\.ts|cart-persistence\.spec\.ts|duplicate-protection\.spec\.ts/,
+      testMatch: /widget\.spec\.ts|cross-sell-combo\.spec\.ts|checkout-shipping-flow\.spec\.ts|quick-replies\.spec\.ts|shipping-selection\.spec\.ts|checkout-flow-e2e\.spec\.ts|checkout-integration\.spec\.ts|voice-checkout\.spec\.ts|phone-login\.spec\.ts|voice-phone-login\.spec\.ts|chat-purchase-flow\.spec\.ts|voice-purchase-flow\.spec\.ts|checkout-full-journey\.spec\.ts|add-to-cart\.spec\.ts|agent-conversation\.spec\.ts|discount-rules\.spec\.ts|adi-advanced-rule-cap\.spec\.ts|adi-intent-modulation\.spec\.ts|cart-persistence\.spec\.ts|duplicate-protection\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] }
     },
     {

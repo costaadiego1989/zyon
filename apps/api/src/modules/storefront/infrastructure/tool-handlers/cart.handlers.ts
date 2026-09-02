@@ -9,6 +9,7 @@ import type { ApplyCouponUseCase } from "../../../coupons/application/use-cases/
 import type { CouponRepository } from "../../../coupons/domain/ports/coupon-repository.port.js";
 import type { Cart } from "@zyon/shared-types";
 import type { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
+import type { AddMarketplaceItemToCartStorefrontUseCase } from "../../application/use-cases/add-marketplace-item-to-cart.use-case.js";
 import type { PrismaClient } from "@prisma/client";
 import type { MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { Logger } from "@nestjs/common";
@@ -113,6 +114,13 @@ export interface CartHandlerDeps {
   prisma: PrismaClient;
   merchantRepo: MerchantRepository;
   searchFederatedProducts?: SearchFederatedProductsUseCase;
+  /**
+   * Cross-store add: when a federated (other-store) product is added, this
+   * use-case creates the cross_store_line_items row with frozen commission so
+   * PlaceCrossStoreOrder can build settlements at checkout. Optional: when
+   * absent, the item still lands in the local cart but no settlement is created.
+   */
+  addMarketplaceItemToCart?: AddMarketplaceItemToCartStorefrontUseCase;
   listEligibleCrossSells?: ListEligibleCrossSellsUseCase;
   loadCrossSellConfig: (merchantId: string) => Promise<CrossSellConfig>;
   crossSellPromotionRepo?: CrossSellPromotionRepository;
@@ -137,6 +145,9 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       let imageUrl: string | undefined;
       let resolvedVariantId = args.variantId;
       let resolvedProduct: Awaited<ReturnType<typeof deps.productRepo.findById>> | null = null;
+      // Cross-store: set when the resolved product is federated (another store's).
+      let crossStoreSellerId: string | undefined;
+      let crossStoreFederatedProductId: string | undefined;
 
       try {
         let product = await deps.productRepo.findById(ctx.merchantId, "dummy").catch(() => null);
@@ -203,6 +214,8 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
               unitPriceCents = fedProduct.priceCents;
               imageUrl = fedProduct.imageUrl ?? undefined;
               resolvedVariantId = fedProduct.id;
+              crossStoreSellerId = fedProduct.sourceMerchantId;
+              crossStoreFederatedProductId = fedProduct.id;
             }
           } catch { }
         }
@@ -309,6 +322,31 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
         quantity: args.quantity,
         selectedOptions,
       });
+
+      // Cross-store: mirror the federated item into cross_store_line_items with
+      // frozen commission so PlaceCrossStoreOrder can build the seller settlement
+      // at checkout. The local cart item above is what the buyer sees/pays; this
+      // parallel row is the marketplace ledger input. Failure here must not block
+      // the add (graceful degradation) — logged for follow-up.
+      if (crossStoreSellerId && crossStoreFederatedProductId && deps.addMarketplaceItemToCart) {
+        try {
+          const res = await deps.addMarketplaceItemToCart.execute({
+            merchantId: ctx.merchantId,
+            checkoutSessionId: sessionId,
+            sellerMerchantId: crossStoreSellerId,
+            federatedProductId: crossStoreFederatedProductId,
+            quantity: args.quantity,
+            unitPriceCents,
+          });
+          if (!res.success) {
+            logger.warn("cart.addItem.crossStore_failed", { merchantId: ctx.merchantId, sessionId, sellerMerchantId: crossStoreSellerId, message: res.message });
+          } else {
+            logger.log("cart.addItem.crossStore_ok", { merchantId: ctx.merchantId, sessionId, sellerMerchantId: crossStoreSellerId, lineItemId: res.lineItemId });
+          }
+        } catch (err) {
+          logger.error("cart.addItem.crossStore_error", { merchantId: ctx.merchantId, sessionId, error: err instanceof Error ? err.message : String(err) });
+        }
+      }
       const { cart, nextNudge, activeRules } = await reevaluateCartRules(deps, ctx.merchantId, sessionId, addedCart);
       logger.debug("cart.afterAdd", { sessionId: cart.sessionId, itemCount: cart.items.length, total: cart.total, discount: cart.discount, freeShipping: cart.freeShipping });
 

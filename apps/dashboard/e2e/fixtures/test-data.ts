@@ -48,20 +48,20 @@ export const ROUTES = {
 /* ── Navigation labels (PT-BR) ──────────────────────────────────── */
 
 export const NAV_LABELS = {
-  overview: "Operação",
-  orders: "Pedidos",
+  overview: "Visão Geral",
+  orders: "Pedidos & Envios",
   customers: "Clientes",
-  integrations: "Integrações",
+  integrations: "E-commerce",
   checkoutSettings: "Checkout",
-  theme: "Aparência",
-  embed: "Embed",
-  billing: "Planos",
+  theme: "Tema & Aparência",
+  embed: "API & Webhooks",
+  billing: "Planos & Faturamento",
   payments: "Pagamentos",
-  audit: "Logs",
-  support: "Suporte",
+  audit: "Auditoria",
+  support: "Atendimento",
   negotiation: "Negociação",
-  commerce: "Comércio",
-  preview: "Preview",
+  commerce: "E-commerce",
+  preview: "Visão Geral",
 } as const;
 
 /* ── Test data factories ────────────────────────────────────────── */

@@ -73,8 +73,26 @@ export class GetStoreConfigUseCase {
   ) {}
 
   async execute(slug: string): Promise<StoreConfigOutput> {
-    // Try by ID first
-    let row = await this.prisma.merchant.findUnique({ where: { id: slug } });
+    // Custom domain resolution — the storefront middleware rewrites a request to
+    // a custom host (e.g. loja.cliente.com.br) to /store/{host}, so a slug that
+    // looks like a hostname is resolved against verified MerchantDomain records
+    // before the id/slug/name lookups. Only VERIFIED domains resolve; an
+    // unverified (DNS not yet pointed) domain must not serve a store.
+    let row: Awaited<ReturnType<typeof this.prisma.merchant.findUnique>> = null;
+    if (slug.includes(".")) {
+      const domainRecord = await this.prisma.merchantDomain.findUnique({
+        where: { domain: slug.toLowerCase() },
+        select: { merchantId: true, verified: true },
+      });
+      if (domainRecord?.verified) {
+        row = await this.prisma.merchant.findUnique({ where: { id: domainRecord.merchantId } });
+      }
+    }
+
+    // Try by ID
+    if (!row) {
+      row = await this.prisma.merchant.findUnique({ where: { id: slug } });
+    }
 
     // If not found, try persisted slug in storeSettings, then slugified name
     if (!row) {

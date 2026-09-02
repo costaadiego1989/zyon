@@ -37,10 +37,10 @@ export function CustomDomainPage() {
         ) : null}
       </header>
 
-      <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
-        <div style={{ padding: "20px 22px" }}>
+      <div className="panel" style={{ marginBottom: 24 }}>
+        <div>
           <div style={{ marginBottom: 28 }}>
-            <h3 style={{ font: "600 11px var(--font-mono)", letterSpacing: "0.06em", marginBottom: 14, color: "var(--color-text-faint)", textTransform: "uppercase" }}>Adicionar domínio</h3>
+            <SectionHeader title="Adicionar domínio" variant="secondary" icon={<Globe size={15} />} />
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               <input
                 type="text"
@@ -73,7 +73,7 @@ export function CustomDomainPage() {
             />
           ) : (
             <div>
-              <h3 style={{ font: "600 13px var(--font-sans)", letterSpacing: "0.08em", marginBottom: 12, color: "var(--color-text-muted)", textTransform: "uppercase" }}>Domínios registrados</h3>
+              <SectionHeader title="Domínios registrados" variant="secondary" icon={<CheckCircle2 size={15} />} />
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 {state.domains.map((domain) => {
                   const isVerifying = state.verifying === domain.id;
@@ -173,13 +173,12 @@ export function CustomDomainPage() {
         </div>
       </div>
 
-      <SectionHeader
-        title="Como funciona"
-        subtitle="Em poucos minutos sua loja fica no seu domínio"
-        variant="secondary"
-      />
-
-      <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: 20, marginBottom: 24 }}>
+      <div className="panel" style={{ marginBottom: 24 }}>
+        <SectionHeader
+          title="Como funciona"
+          subtitle="Em poucos minutos sua loja fica no seu domínio"
+          variant="secondary"
+        />
         <ol style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 16 }}>
           <li style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
             <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--color-brand-subtle, rgba(15,118,110,0.08))", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -228,9 +227,10 @@ export function CustomDomainPage() {
         </ol>
       </div>
 
-      <div style={{ padding: 14, background: "var(--surface-1)", borderRadius: 8, border: "1px solid var(--color-border)", fontSize: 12, lineHeight: 1.6 }}>
-        <p style={{ margin: "0 0 6px", color: "var(--color-text)", fontWeight: 500 }}>Posso usar um subdomínio?</p>
-        <p style={{ margin: 0, color: "var(--color-text-muted)" }}>
+      <div className="panel">
+        <SectionHeader title="Dúvidas frequentes" variant="secondary" />
+        <p style={{ margin: "0 0 6px", color: "var(--color-text)", fontWeight: 500, fontSize: 13 }}>Posso usar um subdomínio?</p>
+        <p style={{ margin: 0, color: "var(--color-text-muted)", fontSize: 12, lineHeight: 1.6 }}>
           Sim! Você pode adicionar quantos subdomínios quiser, por exemplo <code style={{ background: "var(--surface-2)", padding: "1px 5px", borderRadius: 3, color: "var(--color-brand)", fontFamily: "monospace", fontSize: 11 }}>loja.seusite.com.br</code> ou <code style={{ background: "var(--surface-2)", padding: "1px 5px", borderRadius: 3, color: "var(--color-brand)", fontFamily: "monospace", fontSize: 11 }}>www.seusite.com.br</code>. Cada um segue o mesmo passo a passo.
         </p>
       </div>
