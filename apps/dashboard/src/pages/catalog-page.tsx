@@ -62,14 +62,12 @@ export function CatalogPage(props: CatalogPageProps) {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <header className="page-head">
-          <div>
-            <span className="eyebrow">Loja</span>
-            <h1>Catálogo</h1>
-            <p className="page-lead">Gerencie os produtos disponíveis na sua loja</p>
-          </div>
-        </header>
+      <header className="page-head">
+        <div>
+          <span className="eyebrow">Loja</span>
+          <h1>Catálogo</h1>
+          <p className="page-lead">Gerencie os produtos disponíveis na sua loja</p>
+        </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <Button variant="outline" size="sm" onClick={() => vm.setShowCsvModal(true)}>
             <Upload size={14} /> Importar CSV
@@ -78,7 +76,7 @@ export function CatalogPage(props: CatalogPageProps) {
             <Plus size={14} /> Novo produto
           </Button>
         </div>
-      </div>
+      </header>
 
       {vm.pageError || vm.error ? (
         <div style={{ padding: "12px 16px", borderRadius: 8, background: "var(--color-error-bg)", border: "1px solid var(--color-error)", font: "13px var(--font-sans)", color: "var(--color-error)", marginBottom: 16 }}>
