@@ -39,11 +39,11 @@ const CRM_PROVIDERS: CrmProviderMeta[] = [
   },
   {
     provider: "rdstation",
-    name: "RD Station",
-    description: "Marketing e CRM brasileiro. Rastreia leads até conversão.",
-    tokenLabel: "Token",
-    tokenPlaceholder: "Ex: seu token RD Station",
-    generateUrl: "https://app.rdstation.com.br/integracoes",
+    name: "RD Station CRM",
+    description: "CRM brasileiro. Cria contato + negócio (deal) a cada venda.",
+    tokenLabel: "Token de API (RD Station CRM)",
+    tokenPlaceholder: "Ex: seu token do RD CRM",
+    generateUrl: "https://crm.rdstation.com/",
   },
 ];
 
