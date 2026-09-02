@@ -1,15 +1,17 @@
 import React, { useState } from "react";
 import { Button } from "../../../components/Button.js";
+import { maskCpfCnpj, maskPhone, maskCEP, validateCpfCnpj } from "../../../utils/masks.js";
+import { lookupViaCep } from "../../../api/external/via-cep.js";
 
 /**
  * Asaas subaccount (BaaS) form. Asaas has no OAuth — a white-label subaccount is
  * created via API with the 9 required fields, then the merchant completes
  * document onboarding through a link.
  *
- * Most fields are pre-filled from storeSettings.company (collected at signup /
- * onboarding: cnpj, razaoSocial, email, phone, address). The two fields never
- * collected anywhere — income_value and birth_date — default to hardcoded values
- * so the merchant can connect in one click and adjust later if needed.
+ * Pre-filled from storeSettings.company. CEP comes first in the address block and
+ * autofills street/neighborhood via ViaCEP. Inputs are masked (CNPJ/phone/CEP);
+ * the payload is normalized (digits only) on submit. income_value/birth_date are
+ * hardcoded defaults (never collected anywhere).
  */
 
 export interface AsaasSubaccountPayload {
@@ -26,7 +28,6 @@ export interface AsaasSubaccountPayload {
   complement?: string;
 }
 
-// Hardcoded defaults for data not collected anywhere in the system.
 const DEFAULT_INCOME_VALUE = 10000;
 const DEFAULT_BIRTH_DATE = "1990-01-01";
 
@@ -79,30 +80,50 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+const digits = (s: string) => s.replace(/\D+/g, "");
+
 export function AsaasSubaccountForm({ company, defaultName, saving, onSubmit, onCancel }: AsaasSubaccountFormProps) {
   const addr = company?.address ?? {};
   const [name, setName] = useState(company?.razaoSocial ?? defaultName ?? "");
   const [email, setEmail] = useState(company?.email ?? "");
-  const [cpfCnpj, setCpfCnpj] = useState(company?.cnpj ?? "");
-  const [mobilePhone, setMobilePhone] = useState(company?.phone ?? "");
+  const [cpfCnpj, setCpfCnpj] = useState(company?.cnpj ? maskCpfCnpj(company.cnpj) : "");
+  const [mobilePhone, setMobilePhone] = useState(company?.phone ? maskPhone(company.phone) : "");
+  const [postalCode, setPostalCode] = useState(addr.zip ? maskCEP(addr.zip) : "");
   const [address, setAddress] = useState(addr.street ?? "");
   const [addressNumber, setAddressNumber] = useState(addr.number ?? "");
   const [province, setProvince] = useState(addr.neighborhood ?? "");
-  const [postalCode, setPostalCode] = useState(addr.zip ?? "");
+  const [cepLoading, setCepLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const digits = (s: string) => s.replace(/\D+/g, "");
+  async function onCepChange(raw: string) {
+    const masked = maskCEP(raw);
+    setPostalCode(masked);
+    const cep = digits(masked);
+    if (cep.length === 8) {
+      setCepLoading(true);
+      try {
+        const info = await lookupViaCep(cep);
+        if (info) {
+          if (info.logradouro) setAddress(info.logradouro);
+          if (info.bairro) setProvince(info.bairro);
+        }
+      } finally {
+        setCepLoading(false);
+      }
+    }
+  }
 
   function validateAndSubmit() {
     setError(null);
     const cpf = digits(cpfCnpj);
     if (!name.trim()) return setError("Informe o nome / razão social.");
     if (!/^[^@]+@[^@]+\.[^@]+$/.test(email.trim())) return setError("E-mail inválido.");
-    if (cpf.length !== 11 && cpf.length !== 14) return setError("CPF (11) ou CNPJ (14) inválido.");
+    if (!validateCpfCnpj(cpf)) return setError("CPF/CNPJ inválido.");
     if (digits(mobilePhone).length < 10) return setError("Celular inválido (com DDD).");
-    if (!address.trim() || !addressNumber.trim() || !province.trim()) return setError("Preencha o endereço completo.");
     if (digits(postalCode).length !== 8) return setError("CEP inválido (8 dígitos).");
+    if (!address.trim() || !addressNumber.trim() || !province.trim()) return setError("Preencha o endereço completo.");
 
+    // Payload is fully normalized: digits-only where applicable, trimmed text.
     onSubmit({
       name: name.trim(),
       email: email.trim(),
@@ -110,10 +131,10 @@ export function AsaasSubaccountForm({ company, defaultName, saving, onSubmit, on
       mobile_phone: digits(mobilePhone),
       income_value: DEFAULT_INCOME_VALUE,
       birth_date: DEFAULT_BIRTH_DATE,
+      postal_code: digits(postalCode),
       address: address.trim(),
       address_number: addressNumber.trim(),
       province: province.trim(),
-      postal_code: digits(postalCode),
       ...(addr.complement ? { complement: addr.complement } : {}),
     });
   }
@@ -132,30 +153,28 @@ export function AsaasSubaccountForm({ company, defaultName, saving, onSubmit, on
       </Field>
       <div style={{ display: "flex", gap: 10 }}>
         <Field label="CPF ou CNPJ">
-          <input style={inputStyle} value={cpfCnpj} onChange={(e) => setCpfCnpj(e.target.value)} placeholder="Somente números" inputMode="numeric" />
+          <input style={inputStyle} value={cpfCnpj} onChange={(e) => setCpfCnpj(maskCpfCnpj(e.target.value))} placeholder="00.000.000/0000-00" inputMode="numeric" maxLength={18} />
         </Field>
         <Field label="Celular (com DDD)">
-          <input style={inputStyle} value={mobilePhone} onChange={(e) => setMobilePhone(e.target.value)} placeholder="11999999999" inputMode="numeric" />
+          <input style={inputStyle} value={mobilePhone} onChange={(e) => setMobilePhone(maskPhone(e.target.value))} placeholder="(11) 99999-9999" inputMode="numeric" maxLength={15} />
         </Field>
       </div>
 
       <div style={{ display: "flex", gap: 10 }}>
-        <Field label="Endereço">
-          <input style={inputStyle} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Rua/Av." />
+        <Field label={cepLoading ? "CEP (buscando...)" : "CEP"}>
+          <input style={inputStyle} value={postalCode} onChange={(e) => void onCepChange(e.target.value)} placeholder="00000-000" inputMode="numeric" maxLength={9} />
         </Field>
         <div style={{ width: 90 }}>
           <label style={labelStyle}>Número</label>
           <input style={inputStyle} value={addressNumber} onChange={(e) => setAddressNumber(e.target.value)} placeholder="123" />
         </div>
       </div>
-      <div style={{ display: "flex", gap: 10 }}>
-        <Field label="Bairro">
-          <input style={inputStyle} value={province} onChange={(e) => setProvince(e.target.value)} placeholder="Bairro" />
-        </Field>
-        <Field label="CEP">
-          <input style={inputStyle} value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="00000000" inputMode="numeric" />
-        </Field>
-      </div>
+      <Field label="Endereço">
+        <input style={inputStyle} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Rua/Av. (preenchido pelo CEP)" />
+      </Field>
+      <Field label="Bairro">
+        <input style={inputStyle} value={province} onChange={(e) => setProvince(e.target.value)} placeholder="Bairro (preenchido pelo CEP)" />
+      </Field>
 
       {error ? (
         <div style={{ font: "12px var(--font-sans)", color: "var(--color-danger, #dc2626)" }}>{error}</div>
