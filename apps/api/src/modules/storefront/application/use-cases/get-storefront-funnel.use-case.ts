@@ -43,16 +43,30 @@ export interface StorefrontFunnelResult {
   previous?: StorefrontFunnelPreviousPeriod;
 }
 
+// `linear: true` = the ordered acquisition cascade a NEW visitor passes through
+// in sequence (browsing → phone signup → registration complete). Counts over
+// these are made monotonic by the "furthest linear step reached" rule so a later
+// step can never out-count an earlier one.
+//
+// `login_completed` is a RETURNING-user branch, not step 8 of the new-user
+// signup: a returning buyer logs in without ever emitting the phone-signup
+// events. Treating it as the terminal step produced the nonsensical
+// "78 → 0 → 0 → 0 → 20" cascade (four zero signup steps then a nonzero login).
+// It is reported as an informational side-metric, excluded from the linear
+// cascade so it never distorts transitions/drop-off.
 const STOREFRONT_STEP_DEFINITIONS = [
-  { name: "checkout_started", label: "Sessão iniciada", events: ["checkout_started"] },
-  { name: "product_viewed", label: "Produto visualizado", events: ["product_viewed"] },
-  { name: "cart_viewed", label: "Produto adicionado ao carrinho", events: ["cart_viewed"] },
-  { name: "auth_phone_submitted", label: "Cadastro iniciado", events: ["auth_phone_submitted"] },
-  { name: "auth_phone_verified", label: "Verificou telefone", events: ["auth_phone_verified"] },
-  { name: "auth_identity_confirmed", label: "Confirmou identidade", events: ["auth_identity_confirmed"] },
-  { name: "auth_registration_completed", label: "Cadastro completo", events: ["auth_registration_completed"] },
-  { name: "login_completed", label: "Login realizado", events: ["login_completed"] },
+  { name: "checkout_started", label: "Sessão iniciada", events: ["checkout_started"], linear: true },
+  { name: "product_viewed", label: "Produto visualizado", events: ["product_viewed"], linear: true },
+  { name: "cart_viewed", label: "Produto adicionado ao carrinho", events: ["cart_viewed"], linear: true },
+  { name: "auth_phone_submitted", label: "Cadastro iniciado", events: ["auth_phone_submitted"], linear: true },
+  { name: "auth_phone_verified", label: "Verificou telefone", events: ["auth_phone_verified"], linear: true },
+  { name: "auth_identity_confirmed", label: "Confirmou identidade", events: ["auth_identity_confirmed"], linear: true },
+  { name: "auth_registration_completed", label: "Cadastro completo", events: ["auth_registration_completed"], linear: true },
+  { name: "login_completed", label: "Login realizado", events: ["login_completed"], linear: false },
 ] as const;
+
+// Ordered linear cascade, in sequence. Index = funnel depth.
+const STOREFRONT_LINEAR_STEPS = STOREFRONT_STEP_DEFINITIONS.filter((d) => d.linear);
 
 @Injectable()
 export class GetStorefrontFunnelUseCase {
@@ -107,32 +121,51 @@ export class GetStorefrontFunnelUseCase {
 
     const totalSessions = sessionEvents.size;
 
-    const stepCounts = STOREFRONT_STEP_DEFINITIONS.map((def) => {
-      let count = 0;
-      for (const [, eventMap] of sessionEvents) {
-        if (def.events.some((e) => eventMap.has(e))) {
-          count++;
-        }
+    // Monotonic linear counts via "furthest linear step reached": a session that
+    // reached linear step N is counted in every linear step 0..N, so counts only
+    // decrease down the cascade (rate ≤ 100%, valid drop-off).
+    const linearReachedCount = new Array(STOREFRONT_LINEAR_STEPS.length).fill(0);
+    for (const [, eventMap] of sessionEvents) {
+      let furthest = -1;
+      for (let i = 0; i < STOREFRONT_LINEAR_STEPS.length; i++) {
+        if (STOREFRONT_LINEAR_STEPS[i].events.some((e) => eventMap.has(e))) furthest = i;
       }
-      return count;
+      for (let i = 0; i <= furthest; i++) linearReachedCount[i]++;
+    }
+
+    // Branch / side-metric steps report their own raw share of sessions.
+    const rawStepCount = (def: (typeof STOREFRONT_STEP_DEFINITIONS)[number]): number => {
+      let c = 0;
+      for (const [, eventMap] of sessionEvents) {
+        if (def.events.some((e) => eventMap.has(e))) c++;
+      }
+      return c;
+    };
+
+    const linearIndexByName = new Map<string, number>(
+      STOREFRONT_LINEAR_STEPS.map((d, i) => [d.name as string, i]),
+    );
+    const steps: StorefrontFunnelStep[] = STOREFRONT_STEP_DEFINITIONS.map((def) => {
+      const li = linearIndexByName.get(def.name);
+      const count = li !== undefined ? linearReachedCount[li] : rawStepCount(def);
+      return {
+        name: def.name,
+        label: def.label,
+        count,
+        percentage: totalSessions > 0 ? Math.round((count / totalSessions) * 10000) / 100 : 0,
+      };
     });
 
-    const steps: StorefrontFunnelStep[] = STOREFRONT_STEP_DEFINITIONS.map((def, i) => ({
-      name: def.name,
-      label: def.label,
-      count: stepCounts[i],
-      percentage: totalSessions > 0 ? Math.round((stepCounts[i] / totalSessions) * 10000) / 100 : 0,
-    }));
-
+    // Transitions over the linear cascade only.
     const transitions: StorefrontFunnelTransition[] = [];
-    for (let i = 0; i < stepCounts.length - 1; i++) {
-      const fromCount = stepCounts[i];
-      const toCount = stepCounts[i + 1];
+    for (let i = 0; i < STOREFRONT_LINEAR_STEPS.length - 1; i++) {
+      const fromCount = linearReachedCount[i];
+      const toCount = linearReachedCount[i + 1];
       const rate = fromCount > 0 ? Math.round((toCount / fromCount) * 10000) / 100 : 0;
       const dropOff = fromCount > 0 ? Math.round(((fromCount - toCount) / fromCount) * 10000) / 100 : 0;
 
-      const fromEvents = STOREFRONT_STEP_DEFINITIONS[i].events;
-      const toEvents = STOREFRONT_STEP_DEFINITIONS[i + 1].events;
+      const fromEvents = STOREFRONT_LINEAR_STEPS[i].events;
+      const toEvents = STOREFRONT_LINEAR_STEPS[i + 1].events;
       let totalTimeSec = 0;
       let timeCount = 0;
       for (const [, eventMap] of sessionEvents) {
@@ -152,15 +185,16 @@ export class GetStorefrontFunnelUseCase {
       const avgTimeSeconds = timeCount > 0 ? Math.round(totalTimeSec / timeCount) : 0;
 
       transitions.push({
-        from: STOREFRONT_STEP_DEFINITIONS[i].name,
-        to: STOREFRONT_STEP_DEFINITIONS[i + 1].name,
+        from: STOREFRONT_LINEAR_STEPS[i].name,
+        to: STOREFRONT_LINEAR_STEPS[i + 1].name,
         rate,
         dropOff,
         avgTimeSeconds,
       });
     }
 
-    const completedCount = stepCounts[stepCounts.length - 1];
+    // Overall conversion = reached the end of the linear signup cascade.
+    const completedCount = linearReachedCount[STOREFRONT_LINEAR_STEPS.length - 1] ?? 0;
     const overallConversion = totalSessions > 0
       ? Math.round((completedCount / totalSessions) * 10000) / 100
       : 0;
@@ -338,19 +372,33 @@ export class GetStorefrontFunnelUseCase {
     const total = sessionEventNames.size;
     const allSets = [...sessionEventNames.values()];
 
-    const stepCounts = STOREFRONT_STEP_DEFINITIONS.map((def) => {
-      return allSets.filter(s => def.events.some(e => s.has(e))).length;
+    // Monotonic linear counts (same "furthest reached" rule as the main funnel).
+    const linearReached = new Array(STOREFRONT_LINEAR_STEPS.length).fill(0);
+    for (const s of allSets) {
+      let furthest = -1;
+      for (let i = 0; i < STOREFRONT_LINEAR_STEPS.length; i++) {
+        if (STOREFRONT_LINEAR_STEPS[i].events.some((e) => s.has(e))) furthest = i;
+      }
+      for (let i = 0; i <= furthest; i++) linearReached[i]++;
+    }
+    const linearIdxByName = new Map<string, number>(
+      STOREFRONT_LINEAR_STEPS.map((d, i) => [d.name as string, i]),
+    );
+
+    const steps: StorefrontFunnelStep[] = STOREFRONT_STEP_DEFINITIONS.map((def) => {
+      const li = linearIdxByName.get(def.name);
+      const count = li !== undefined
+        ? linearReached[li]
+        : allSets.filter(s => def.events.some(e => s.has(e))).length;
+      return {
+        name: def.name,
+        label: def.label,
+        count,
+        percentage: total > 0 ? Math.round((count / total) * 10000) / 100 : 0,
+      };
     });
 
-    const steps: StorefrontFunnelStep[] = STOREFRONT_STEP_DEFINITIONS.map((def, i) => ({
-      name: def.name,
-      label: def.label,
-      count: stepCounts[i],
-      percentage: total > 0 ? Math.round((stepCounts[i] / total) * 10000) / 100 : 0,
-    }));
-
-    const completedIdx = STOREFRONT_STEP_DEFINITIONS.length - 1;
-    const completedCount = stepCounts[completedIdx];
+    const completedCount = linearReached[STOREFRONT_LINEAR_STEPS.length - 1] ?? 0;
 
     return {
       steps,

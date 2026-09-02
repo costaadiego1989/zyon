@@ -172,6 +172,27 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
           }
         }
 
+        // Last-resort resolution by PRODUCT ID or NAME against the catalog. The
+        // LLM sometimes passes the product id (not a variant id) or even the
+        // product NAME as `variantId` (e.g. "RTP-PRODUCT-001") — a known
+        // model-reliability gap. Rather than reject a real, in-catalog product,
+        // match it deterministically and use its default (first) variant. Price
+        // is still taken server-side from the resolved variant (never the client).
+        if (!foundVariant && unitPriceCents === 0) {
+          const needle = (args.variantId ?? "").trim().toLowerCase();
+          const byIdOrName = searchResult.products.find(p =>
+            p.id === args.variantId || p.name.trim().toLowerCase() === needle,
+          );
+          const variant = byIdOrName?.variants[0];
+          if (byIdOrName && variant) {
+            resolvedProduct = byIdOrName;
+            productName = byIdOrName.name;
+            resolvedVariantId = variant.id;
+            unitPriceCents = variant.basePriceInCents;
+            imageUrl = variant.media?.[0]?.url;
+          }
+        }
+
         if (unitPriceCents === 0 && deps.searchFederatedProducts) {
           try {
             const fedProduct = await deps.prisma.federatedProduct.findUnique({

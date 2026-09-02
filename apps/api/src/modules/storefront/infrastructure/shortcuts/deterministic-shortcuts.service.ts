@@ -36,6 +36,11 @@ async function resolveOffersShortcut(
     const blocks: ConversationBlock[] = [{
       type: "product_carousel",
       data: {
+        // No fabricated discount/badge. The catalog search carries no authorized
+        // promo, so a hardcoded `badge: "Oferta"` + `discountPercent: 15` on every
+        // product was a deceive-the-buyer fake (card promised 15% off that
+        // checkout never honored — buyer pays full price). A discount/badge is
+        // shown ONLY when a real, authorized promotion supplies it.
         products: result.products.map((p) => ({
           id: p.id,
           name: p.name,
@@ -43,8 +48,6 @@ async function resolveOffersShortcut(
           priceFormatted: formatPrice(p.defaultVariant?.basePriceInCents ?? 0),
           image: p.defaultVariant?.media?.[0]?.url,
           inStock: p.hasStock,
-          badge: "Oferta",
-          discountPercent: 15,
         })),
       },
     } as ConversationBlock];

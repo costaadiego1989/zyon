@@ -109,6 +109,38 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         copyService: this.copyService,
         emitFunnelEvent: this.emitFunnelEvent.bind(this),
         applyCoupon: (args) => shortcutHandlers.applyCoupon(args),
+        // Build an updated cart_summary block after a deterministic coupon apply
+        // so the storefront cart store (CartFAB drawer) refreshes its discount /
+        // net total. Without this the coupon persists server-side but the drawer
+        // shows the stale pre-discount total (buyer told "applied", sees full price).
+        getCartBlock: async (cartId: string) => {
+          try {
+            const cart = await shortcutHandlers.getCart({ cartId }) as any;
+            if (!cart?.items?.length) return null;
+            const discount = cart.discount ?? 0;
+            return {
+              type: "cart_summary",
+              data: {
+                cartId: cart.cartId ?? cartId,
+                items: cart.items.map((i: any) => ({
+                  variantId: i.variantId,
+                  productName: i.name,
+                  quantity: i.quantity,
+                  price: i.unitPrice,
+                  subtotal: i.lineTotal ?? (i.unitPrice ?? 0) * (i.quantity ?? 1),
+                })),
+                itemCount: cart.itemCount,
+                subtotal: cart.total,
+                discount,
+                couponCode: cart.couponCode ?? null,
+                freeShipping: cart.freeShipping ?? false,
+                total: (cart.total ?? 0) - discount,
+              },
+            } as ConversationBlock;
+          } catch {
+            return null;
+          }
+        },
       },
       input,
     );
