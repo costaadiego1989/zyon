@@ -20,6 +20,7 @@ export interface StoreConfigOutput {
     accentColor: string;
     secondaryColor?: string;
     textColor: string;
+    mutedTextColor?: string;
     backgroundColor: string;
     fontFamily: string;
     fontDisplay?: string;
@@ -28,6 +29,8 @@ export interface StoreConfigOutput {
     surfaceColor?: string;
     surfaceElevatedColor?: string;
     borderColor?: string;
+    successColor?: string;
+    warningColor?: string;
     borderRadius?: number;
     mode?: string;
     density?: string;
@@ -163,11 +166,13 @@ export class GetStoreConfigUseCase {
       merchantId: row.id,
       name: row.name,
       logo: theme?.logoUrl ?? undefined,
-      favicon: theme?.logoUrl ?? undefined,
+      // Prefer the dedicated favicon; fall back to the logo when none was set.
+      favicon: (theme as any)?.faviconUrl ?? theme?.logoUrl ?? undefined,
       theme: {
         accentColor: theme?.accentColor ?? "#0F766E",
         secondaryColor: theme?.secondaryColor,
         textColor: theme?.textColor ?? "#111827",
+        mutedTextColor: (theme as any)?.mutedTextColor,
         backgroundColor: theme?.backgroundColor ?? "#F7F8FA",
         fontFamily: theme?.fontFamily ?? "Inter, ui-sans-serif, system-ui, sans-serif",
         fontDisplay: (theme as any)?.fontDisplay ?? undefined,
@@ -176,6 +181,8 @@ export class GetStoreConfigUseCase {
         surfaceColor: theme?.surfaceColor,
         surfaceElevatedColor: theme?.surfaceElevatedColor,
         borderColor: theme?.borderColor,
+        successColor: (theme as any)?.successColor,
+        warningColor: (theme as any)?.warningColor,
         borderRadius: (theme as any)?.borderRadius,
         mode: (theme as any)?.mode,
         density: (theme as any)?.density,

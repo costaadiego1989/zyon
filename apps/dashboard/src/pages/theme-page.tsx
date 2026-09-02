@@ -191,14 +191,22 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
     setBusy(true);
     try {
       const payload = normalizedTheme();
-      // Upload logo to S3 if it's a base64 data URI
-      if (payload.logoUrl && payload.logoUrl.startsWith("data:")) {
-        try {
-          const { logoUrl } = await api.uploadLogo(payload.logoUrl);
-          payload.logoUrl = logoUrl;
-        } catch (e) {
-          reportError({ source: "theme-page-logo-upload", error: e });
-          // S3 failed — save inline as fallback
+      // Upload every image data URI to S3 so the theme stores hosted URLs, not
+      // multi-hundred-KB base64 blobs. All four image fields (logo, favicon,
+      // avatar, background) go through the same uploader — previously only the
+      // logo was uploaded and the other three persisted inline as data URIs,
+      // bloating the theme row and risking validation/size limits.
+      const imageFields = ["logoUrl", "faviconUrl", "agentAvatarUrl", "backgroundImageUrl"] as const;
+      for (const field of imageFields) {
+        const value = payload[field];
+        if (typeof value === "string" && value.startsWith("data:")) {
+          try {
+            const { logoUrl } = await api.uploadLogo(value);
+            payload[field] = logoUrl;
+          } catch (e) {
+            reportError({ source: `theme-page-${field}-upload`, error: e });
+            // S3 failed — save inline as fallback (keeps the data URI).
+          }
         }
       }
       const saved = mergeTheme(await api.putMerchantTheme(payload));
