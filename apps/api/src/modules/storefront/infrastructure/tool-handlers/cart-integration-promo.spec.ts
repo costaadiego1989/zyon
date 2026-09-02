@@ -231,6 +231,22 @@ class InMemoryProductPromotionRepo implements ProductPromotionRepositoryPort {
         now < p.endsAt
     );
   }
+
+  async findActiveBySku(
+    merchantId: string,
+    sku: string,
+    now: Date = new Date()
+  ): Promise<ProductPromotionEntity[]> {
+    // Test double: SKU maps to a promo whose productId or variantId equals the sku.
+    return Array.from(this.promos.values()).filter(
+      (p) =>
+        p.merchantId === merchantId &&
+        (p.productId === sku || p.variantId === sku) &&
+        p.isActive &&
+        p.startsAt <= now &&
+        now < p.endsAt
+    );
+  }
 }
 
 /**

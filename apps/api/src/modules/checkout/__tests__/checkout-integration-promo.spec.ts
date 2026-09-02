@@ -69,6 +69,20 @@ class InMemoryProductPromotionRepository implements ProductPromotionRepositoryPo
         checkDate < p.endsAt
     );
   }
+
+  async findActiveBySku(merchantId: string, sku: string, now?: Date): Promise<ProductPromotionEntity[]> {
+    // Test double: SKU maps to a promo whose productId or variantId equals the sku.
+    const key = `${merchantId}`;
+    const promos = this.promotions.get(key) ?? [];
+    const checkDate = now ?? new Date();
+    return promos.filter(
+      (p) =>
+        (p.productId === sku || p.variantId === sku) &&
+        p.isActive &&
+        p.startsAt <= checkDate &&
+        checkDate < p.endsAt
+    );
+  }
 }
 
 test("StartCheckout with product promo: resolves unit_price via promo resolver", async () => {
@@ -214,12 +228,12 @@ test("StartCheckout with multiple lines: each resolved independently", async () 
     endsAt: tomorrow,
   });
 
-  // Promo 2: Fixed 10 reais off ZYON-PANTS-001
+  // Promo 2: Fixed R$10 off ZYON-PANTS-001 — discountValue is in CENTS (1000 = R$10)
   await promoRepo.create({
     merchantId: "mrc_1",
     productId: "ZYON-PANTS-001",
     discountType: "fixed",
-    discountValue: 10,
+    discountValue: 1000,
     isActive: true,
     startsAt: now,
     endsAt: tomorrow,

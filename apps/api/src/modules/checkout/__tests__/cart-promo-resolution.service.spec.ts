@@ -36,6 +36,18 @@ class TestPromoRepo implements ProductPromotionRepositoryPort {
       checkDate < p.endsAt
     );
   }
+
+  async findActiveBySku(merchantId: string, sku: string, now?: Date): Promise<ProductPromotionEntity[]> {
+    // Test double: SKU maps to a promo whose productId or variantId equals the sku.
+    const promos = this.data.get(merchantId) ?? [];
+    const checkDate = now ?? new Date();
+    return promos.filter(p =>
+      (p.productId === sku || p.variantId === sku) &&
+      p.isActive &&
+      p.startsAt <= checkDate &&
+      checkDate < p.endsAt
+    );
+  }
 }
 
 test("CartPromoResolutionService: applies percent discount", async () => {

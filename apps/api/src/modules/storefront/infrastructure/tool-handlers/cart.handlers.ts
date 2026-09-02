@@ -19,7 +19,7 @@ import { CartRulesEngine, buildCartRuleContext } from "../../domain/services/car
 import { RuleProximityEngine, type RuleNudge, type ActiveRuleBadge } from "../../domain/services/rule-proximity.service.js";
 import type { AdvancedRule } from "../../../checkout/domain/services/advanced-rule-evaluator.service.js";
 import type { StorefrontCart } from "../../domain/ports/storefront-cart.port.js";
-import { resolveEffectiveUnitPrice, type ActivePromotion } from "../../../catalog/domain/services/product-price-resolver.service.js";
+import { applyProductPromoPricing, type ProductPromoMeta } from "../pricing/storefront-cart-promo.pricing.js";
 
 const logger = new Logger("CartHandlers");
 
@@ -30,6 +30,7 @@ interface CartRulesOutcome {
   cart: StorefrontCart;
   nextNudge?: RuleNudge | null;
   activeRules?: ActiveRuleBadge[];
+  promoMeta?: ProductPromoMeta;
 }
 
 async function loadAdvancedRules(prisma: PrismaClient, merchantId: string): Promise<AdvancedRule[]> {
@@ -51,67 +52,19 @@ async function reevaluateCartRules(
   cart: StorefrontCart,
 ): Promise<CartRulesOutcome> {
   try {
-    // T14: Before CartRulesEngine, resolve product promotions on each cart line.
-    // Apply promo-adjusted prices to line.unitPriceCents, then proceed with cart rules.
-    if (deps.productPromotionRepo) {
-      for (const item of cart.items) {
-        try {
-          // Look up active product promo by variantId, then productId (fallback to category if needed)
-          let promos = await deps.productPromotionRepo.findByVariant(merchantId, item.variantId);
-
-          // If no variant-level promo, look for product-level (if we have productId)
-          if (promos.length === 0 && (item as any).productId) {
-            promos = await deps.productPromotionRepo.findActiveByProduct(
-              merchantId,
-              (item as any).productId
-            );
-          }
-
-          // Use the first active promo (FIFO; real impl could prioritize by discount amount)
-          if (promos.length > 0) {
-            const promo = promos[0];
-            let activePromo: ActivePromotion | undefined;
-
-            if (promo.couponId) {
-              // Coupon-linked: badge only, no price change
-              activePromo = { kind: "coupon", couponId: promo.couponId };
-            } else if (promo.discountType === "percent" && promo.discountValue !== undefined && promo.discountValue !== null) {
-              activePromo = { kind: "inline_percent", percent: promo.discountValue };
-            } else if (promo.discountType === "fixed" && promo.discountValue !== undefined && promo.discountValue !== null) {
-              activePromo = { kind: "inline_fixed", amountCents: promo.discountValue };
-            } else if (promo.promoPriceInCents !== undefined && promo.promoPriceInCents !== null) {
-              activePromo = { kind: "inline_price", promoPriceCents: promo.promoPriceInCents };
-            }
-
-            if (activePromo) {
-              const resolved = resolveEffectiveUnitPrice(item.unitPriceCents, activePromo);
-              item.unitPriceCents = resolved.unitPriceCents;
-              logger.debug("cart.promo.applied", {
-                merchantId,
-                variantId: item.variantId,
-                originalPrice: resolved.originalPriceCents,
-                adjustedPrice: resolved.unitPriceCents,
-                discountPercent: resolved.discountPercent,
-              });
-            }
-          }
-        } catch (err) {
-          logger.warn("cart.promo.resolution_failed", {
-            merchantId,
-            variantId: item.variantId,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }
-
-      // Recalculate cart total after promo adjustments
-      cart.total = cart.items.reduce((sum, i) => sum + i.unitPriceCents * i.quantity, 0);
-    }
+    // Product promotions adjust each LINE price first (from the original base
+    // price, idempotently), so the cart-level rules engine evaluates on the
+    // promo-adjusted subtotal.
+    await applyProductPromoPricing(deps.productPromotionRepo, merchantId, cart);
 
     const advancedRules = await loadAdvancedRules(deps.prisma, merchantId);
-    if (advancedRules.length === 0) return { cart };
-    const merchantRules = await deps.merchantRepo.getRules(merchantId);
-    if (!merchantRules) return { cart };
+    const merchantRules = advancedRules.length > 0 ? await deps.merchantRepo.getRules(merchantId) : null;
+
+    // No cart-level rules → still return the promo-adjusted cart (+ badge meta).
+    if (advancedRules.length === 0 || !merchantRules) {
+      const meta = await applyProductPromoPricing(deps.productPromotionRepo, merchantId, cart);
+      return { cart, promoMeta: meta };
+    }
     const categoriesInCart = cart.items
       .map((i) => (i as { category?: string }).category ?? "")
       .filter(Boolean);
@@ -129,10 +82,14 @@ async function reevaluateCartRules(
       freeShipping: outcome.freeShipping,
     });
 
+    // applyRuleOutcome re-reads the cart from the DB with ORIGINAL line prices,
+    // so re-apply product-promo pricing to the persisted cart before returning.
+    const promoMeta = await applyProductPromoPricing(deps.productPromotionRepo, merchantId, persisted);
+
     const hadEffect = outcome.discountCents > 0 || outcome.freeShipping === true;
     const effectiveRuleId = hadEffect ? outcome.appliedRuleId : undefined;
     const proximity = ruleProximityEngine.compute(advancedRules, buildCartRuleContext(persisted, { categoriesInCart }), effectiveRuleId);
-    return { cart: persisted, nextNudge: proximity.nextNudge, activeRules: proximity.active };
+    return { cart: persisted, nextNudge: proximity.nextNudge, activeRules: proximity.active, promoMeta };
   } catch (err) {
     logger.warn("cart.reevaluateRules.failed", {
       merchantId,
@@ -143,14 +100,18 @@ async function reevaluateCartRules(
   }
 }
 
-function toCartLineDto(i: {
-  variantId: string;
-  name: string;
-  quantity: number;
-  unitPriceCents: number;
-  imageUrl?: string;
-  selectedOptions?: StorefrontCartSelectedOption[];
-}) {
+function toCartLineDto(
+  i: {
+    variantId: string;
+    name: string;
+    quantity: number;
+    unitPriceCents: number;
+    imageUrl?: string;
+    selectedOptions?: StorefrontCartSelectedOption[];
+  },
+  meta?: ProductPromoMeta,
+) {
+  const badge = meta?.get(i.variantId);
   return {
     variantId: i.variantId,
     name: i.name,
@@ -158,6 +119,14 @@ function toCartLineDto(i: {
     unitPrice: i.unitPriceCents / 100,
     lineTotal: (i.unitPriceCents * i.quantity) / 100,
     imageUrl: i.imageUrl,
+    // Promo badge metadata (present only when an active product promotion applied).
+    ...(badge
+      ? {
+          originalPrice: badge.originalPriceCents / 100,
+          discountPercent: badge.discountPercent,
+          coupon: badge.coupon,
+        }
+      : {}),
     selectedOptions: i.selectedOptions?.map((o) => ({
       groupName: o.groupName,
       itemName: o.itemName,
@@ -208,6 +177,10 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       let unitPriceCents = 0;
       let imageUrl: string | undefined;
       let resolvedVariantId = args.variantId;
+      // Real SKU + productId of the resolved variant — needed so cart lines carry
+      // the true SKU (not the variantId) for promo lookup + product_in_cart rules.
+      let resolvedSku: string | undefined;
+      let resolvedProductId: string | undefined;
       let resolvedProduct: Awaited<ReturnType<typeof deps.productRepo.findById>> | null = null;
       // Cross-store: set when the resolved product is federated (another store's).
       let crossStoreSellerId: string | undefined;
@@ -228,6 +201,8 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
             resolvedProduct = product;
             productName = product.name;
             resolvedVariantId = foundVariant.id;
+            resolvedSku = foundVariant.sku;
+            resolvedProductId = product.id;
             unitPriceCents = foundVariant.basePriceInCents;
             imageUrl = foundVariant.media?.[0]?.url;
           }
@@ -241,6 +216,8 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
             const variant = product.variants[0];
             if (variant) {
               resolvedVariantId = variant.id;
+              resolvedSku = variant.sku;
+              resolvedProductId = product.id;
               unitPriceCents = variant.basePriceInCents;
               imageUrl = variant.media?.[0]?.url;
             }
@@ -263,6 +240,8 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
             resolvedProduct = byIdOrName;
             productName = byIdOrName.name;
             resolvedVariantId = variant.id;
+            resolvedSku = variant.sku;
+            resolvedProductId = byIdOrName.id;
             unitPriceCents = variant.basePriceInCents;
             imageUrl = variant.media?.[0]?.url;
           }
@@ -378,9 +357,9 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
 
       const addedCart = await deps.cartRepo.addItem(ctx.merchantId, sessionId, {
         variantId: resolvedVariantId,
-        productId: args.variantId,
+        productId: resolvedProductId ?? args.variantId,
         name: productName,
-        sku: resolvedVariantId,
+        sku: resolvedSku ?? resolvedVariantId,
         unitPriceCents,
         imageUrl,
         quantity: args.quantity,
@@ -411,7 +390,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
           logger.error("cart.addItem.crossStore_error", { merchantId: ctx.merchantId, sessionId, error: err instanceof Error ? err.message : String(err) });
         }
       }
-      const { cart, nextNudge, activeRules } = await reevaluateCartRules(deps, ctx.merchantId, sessionId, addedCart);
+      const { cart, nextNudge, activeRules, promoMeta } = await reevaluateCartRules(deps, ctx.merchantId, sessionId, addedCart);
       logger.debug("cart.afterAdd", { sessionId: cart.sessionId, itemCount: cart.items.length, total: cart.total, discount: cart.discount, freeShipping: cart.freeShipping });
 
       let crossSellSuggestions: CrossSellSuggestion[] = [];
@@ -432,7 +411,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
 
       return {
         cartId: cart.sessionId,
-        items: cart.items.map(toCartLineDto),
+        items: cart.items.map((i) => toCartLineDto(i, promoMeta)),
         total: cart.total / 100,
         discount: cart.discount / 100,
         freeShipping: cart.freeShipping,
@@ -446,9 +425,11 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
 
     getCart: async (args) => {
       const cart = await deps.cartRepo.getOrCreate(ctx.merchantId, args.cartId || ctx.sessionId);
+      // Apply product-promo pricing on read (idempotent — base price comes fresh from DB).
+      const promoMeta = await applyProductPromoPricing(deps.productPromotionRepo, ctx.merchantId, cart);
       return {
         cartId: cart.sessionId,
-        items: cart.items.map(toCartLineDto),
+        items: cart.items.map((i) => toCartLineDto(i, promoMeta)),
         total: cart.total / 100,
         discount: cart.discount / 100,
         freeShipping: cart.freeShipping,
@@ -459,10 +440,10 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
 
     removeCartItem: async (args) => {
       const removed = await deps.cartRepo.removeItem(ctx.merchantId, args.cartId, args.variantId);
-      const { cart, nextNudge, activeRules } = await reevaluateCartRules(deps, ctx.merchantId, args.cartId, removed);
+      const { cart, nextNudge, activeRules, promoMeta } = await reevaluateCartRules(deps, ctx.merchantId, args.cartId, removed);
       return {
         cartId: cart.sessionId,
-        items: cart.items.map(toCartLineDto),
+        items: cart.items.map((i) => toCartLineDto(i, promoMeta)),
         total: cart.total / 100,
         discount: cart.discount / 100,
         freeShipping: cart.freeShipping,
@@ -474,10 +455,10 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
 
     updateCartItem: async (args) => {
       const updated = await deps.cartRepo.updateItemQuantity(ctx.merchantId, args.cartId, args.variantId, args.quantity);
-      const { cart, nextNudge, activeRules } = await reevaluateCartRules(deps, ctx.merchantId, args.cartId, updated);
+      const { cart, nextNudge, activeRules, promoMeta } = await reevaluateCartRules(deps, ctx.merchantId, args.cartId, updated);
       return {
         cartId: cart.sessionId,
-        items: cart.items.map(toCartLineDto),
+        items: cart.items.map((i) => toCartLineDto(i, promoMeta)),
         total: cart.total / 100,
         discount: cart.discount / 100,
         freeShipping: cart.freeShipping,
@@ -570,7 +551,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
           newTotal: (updated.total - discountCents) / 100,
           reason: "success",
           cartId: updated.sessionId,
-          items: updated.items.map(toCartLineDto),
+          items: updated.items.map((i) => toCartLineDto(i)),
           total: updated.total / 100,
           itemCount: updated.items.reduce((sum, i) => sum + i.quantity, 0),
         };

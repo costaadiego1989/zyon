@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Headers, Inject, NotFoundException, Param, Patch, Post, Query, Res } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Headers, Inject, NotFoundException, Optional, Param, Patch, Post, Query, Res } from "@nestjs/common";
 import { BuyerJwtService } from "../../../buyer-account/domain/services/buyer-jwt.service.js";
 import type { PrismaClient } from "@prisma/client";
 import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
@@ -16,6 +16,8 @@ import { SearchMarketplaceProductsStorefrontUseCase } from "../../application/us
 import { AddMarketplaceItemToCartStorefrontUseCase } from "../../application/use-cases/add-marketplace-item-to-cart.use-case.js";
 import { decodePersistedTheme } from "../../../merchant/domain/services/merchant-theme.validators.js";
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
+import { PRODUCT_PROMOTION_REPOSITORY, type ProductPromotionRepositoryPort } from "../../../catalog/domain/ports/product-promotion-repository.port.js";
+import { applyProductPromoPricing } from "../../infrastructure/pricing/storefront-cart-promo.pricing.js";
 import { detectDeviceFromUserAgent } from "../../domain/device-detection.js";
 
 export interface StartConversationRequest {
@@ -45,7 +47,8 @@ export class StorefrontController {
     private readonly searchMarketplace: SearchMarketplaceProductsStorefrontUseCase,
     private readonly addMarketplaceItem: AddMarketplaceItemToCartStorefrontUseCase,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
-    @Inject(STOREFRONT_CART_PORT) private readonly cartRepo: StorefrontCartPort
+    @Inject(STOREFRONT_CART_PORT) private readonly cartRepo: StorefrontCartPort,
+    @Optional() @Inject(PRODUCT_PROMOTION_REPOSITORY) private readonly productPromotionRepo?: ProductPromotionRepositoryPort
   ) {}
 
   @Get("index")
@@ -364,16 +367,22 @@ export class StorefrontController {
   ) {
     if (!merchantId) throw new NotFoundException("merchantId query param required");
     const cart = await this.cartRepo.getOrCreate(merchantId, cartId);
+    // Apply product-promo pricing on read (idempotent — base price is fresh from DB).
+    const promoMeta = await applyProductPromoPricing(this.productPromotionRepo, merchantId, cart);
     return {
       cartId: cart.sessionId,
-      items: cart.items.map((i) => ({
-        variantId: i.variantId,
-        productName: i.name,
-        quantity: i.quantity,
-        price: i.unitPriceCents / 100,
-        subtotal: (i.unitPriceCents * i.quantity) / 100,
-        imageUrl: i.imageUrl ?? undefined,
-      })),
+      items: cart.items.map((i) => {
+        const badge = promoMeta.get(i.variantId);
+        return {
+          variantId: i.variantId,
+          productName: i.name,
+          quantity: i.quantity,
+          price: i.unitPriceCents / 100,
+          subtotal: (i.unitPriceCents * i.quantity) / 100,
+          imageUrl: i.imageUrl ?? undefined,
+          ...(badge ? { originalPrice: badge.originalPriceCents / 100, discountPercent: badge.discountPercent, coupon: badge.coupon } : {}),
+        };
+      }),
       itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0),
       discount: cart.discount ? cart.discount / 100 : 0,
       total: cart.total / 100,
@@ -392,16 +401,21 @@ export class StorefrontController {
       throw new BadRequestException("quantity must be an integer between 0 and 99");
     }
     const cart = await this.cartRepo.updateItemQuantity(merchantId, cartId, variantId, body.quantity);
+    const promoMeta = await applyProductPromoPricing(this.productPromotionRepo, merchantId, cart);
     return {
       cartId: cart.sessionId,
-      items: cart.items.map((i) => ({
-        variantId: i.variantId,
-        productName: i.name,
-        quantity: i.quantity,
-        price: i.unitPriceCents / 100,
-        subtotal: (i.unitPriceCents * i.quantity) / 100,
-        imageUrl: i.imageUrl ?? undefined,
-      })),
+      items: cart.items.map((i) => {
+        const badge = promoMeta.get(i.variantId);
+        return {
+          variantId: i.variantId,
+          productName: i.name,
+          quantity: i.quantity,
+          price: i.unitPriceCents / 100,
+          subtotal: (i.unitPriceCents * i.quantity) / 100,
+          imageUrl: i.imageUrl ?? undefined,
+          ...(badge ? { originalPrice: badge.originalPriceCents / 100, discountPercent: badge.discountPercent, coupon: badge.coupon } : {}),
+        };
+      }),
       itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0),
       discount: cart.discount ? cart.discount / 100 : 0,
       total: cart.total / 100,

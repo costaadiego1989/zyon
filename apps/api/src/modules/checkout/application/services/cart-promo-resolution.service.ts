@@ -31,8 +31,10 @@ export class CartPromoResolutionService {
       const mutatedCart = { ...cart };
       const mutatedItems = await Promise.all(
         cart.items.map(async (item) => {
-          // Look up active promos for this product
-          const promos = await this.promoRepo!.findActiveByProduct(merchantId, item.sku, now);
+          // Look up active promos for this cart line by SKU. CartItem carries
+          // sku but not stable productId/variantId, so we resolve through the
+          // repo's SKU-aware lookup which joins to variant + product.
+          const promos = await this.promoRepo!.findActiveBySku(merchantId, item.sku, now);
 
           if (!promos || promos.length === 0) {
             // No promo: keep item unchanged
@@ -46,8 +48,8 @@ export class CartPromoResolutionService {
             : promo.discountType === "percent"
             ? ({ kind: "inline_percent", percent: promo.discountValue ?? 0 } as ActivePromotion)
             : promo.discountType === "fixed"
-            ? ({ kind: "inline_fixed", amountCents: Math.round((promo.discountValue ?? 0) * 100) } as ActivePromotion)
-            : promo.promoPriceInCents
+            ? ({ kind: "inline_fixed", amountCents: promo.discountValue ?? 0 } as ActivePromotion)
+            : promo.promoPriceInCents != null
             ? ({ kind: "inline_price", promoPriceCents: promo.promoPriceInCents } as ActivePromotion)
             : undefined;
 
