@@ -220,7 +220,7 @@ export default function ConversationShell({
       `}</style>
       {effectiveMode === "chat" && (
         <>
-        <header style={{ display: "flex", alignItems: "center", gap: "11px", padding: "8px 14px", borderBottom: "none", zIndex: 9, background: "var(--aacp-header-bg, var(--aacp-bg))", flex: "none" }}>
+        <header style={{ display: "flex", alignItems: "center", gap: "11px", padding: "8px 14px", borderBottom: "1px solid var(--aacp-line)", zIndex: 9, background: "var(--aacp-header-bg, var(--aacp-bg))", flex: "none" }}>
           {logo && !logoError ? (
             <img
               src={logo}

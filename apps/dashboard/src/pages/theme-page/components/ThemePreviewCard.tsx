@@ -77,7 +77,9 @@ export function ThemePreviewCard({ theme, storeName }: ThemePreviewCardProps) {
     "--aacp-bg": md?.bg ?? theme.backgroundColor ?? "#f7f8fa",
     "--aacp-fg": md?.fg ?? theme.textColor ?? "#111827",
     "--aacp-card": md?.card ?? theme.surfaceColor ?? "#ffffff",
-    "--aacp-header-bg": md?.surface ?? theme.surfaceColor ?? (md?.bg ?? theme.backgroundColor ?? "#f7f8fa"),
+    // Only dark/grey get an elevated header surface; light keeps the bg (white)
+    // so the header reads clean with just the subtle border-bottom below it.
+    "--aacp-header-bg": md?.surface ?? (md?.bg ?? theme.backgroundColor ?? "#f7f8fa"),
     "--aacp-line": md?.line ?? theme.borderColor ?? "#e5e7eb",
     "--aacp-muted": md?.muted ?? theme.mutedTextColor ?? "#6b7280",
     "--aacp-font": theme.fontFamily || "Inter, ui-sans-serif, system-ui, sans-serif",
@@ -109,7 +111,7 @@ export function ThemePreviewCard({ theme, storeName }: ThemePreviewCardProps) {
         @keyframes tpEyeLookLR { 0%,100%{transform:translateX(-2.5px)} 50%{transform:translateX(2.5px)} }
       `}</style>
       {/* Header — matches the storefront chrome (avatar + store + agent · Checkout seguro) */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", borderBottom: "1px solid var(--aacp-line)", flex: "none" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", background: "var(--aacp-header-bg, var(--aacp-bg))", borderBottom: "1px solid var(--aacp-line)", flex: "none" }}>
         {theme.logoUrl ? (
           // Logo keeps its natural aspect (not forced round) — contain within a
           // fixed-height box so wordmark/rectangular logos aren't distorted.
