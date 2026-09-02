@@ -147,6 +147,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
             onConnect={() => void onboardStripe()}
             onSync={() => void syncStripe()}
             onDisconnect={() => setPendingDisconnect("stripe")}
+            onOnboard={stripeConn && stripeConn.status !== "active" ? () => void onboardStripe() : undefined}
           />
           <GatewayCard
             provider="asaas"
