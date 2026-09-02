@@ -21,7 +21,8 @@ export class AuthCookieService {
         secure: secure ?? process.env.NODE_ENV === "production",
         sameSite: "Lax",
         domain: undefined,
-        partitioned: undefined
+        partitioned: undefined,
+        cookieMaxAgeSeconds: 30 * 24 * 3600, // 30d — matches the refresh grace window
       };
     }
   }
@@ -32,7 +33,10 @@ export class AuthCookieService {
       "HttpOnly",
       `SameSite=${this.config.sameSite}`,
       "Path=/",
-      `Max-Age=${auth.expires_in}`
+      // Cookie lives as long as the refresh window (default 30d), NOT the 1h token
+      // exp, so the browser keeps the cookie and /auth/refresh can mint a fresh
+      // token while the old one is expired-but-within-grace.
+      `Max-Age=${this.config.cookieMaxAgeSeconds ?? auth.expires_in}`
     ];
     if (this.config.secure) parts.push("Secure");
     if (this.config.domain) parts.push(`Domain=${this.config.domain}`);
