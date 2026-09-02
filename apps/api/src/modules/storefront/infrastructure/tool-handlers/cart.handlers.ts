@@ -476,37 +476,80 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
     },
 
     listPromotions: async (_args) => {
-      if (!deps.couponRepo) {
+      const now = Date.now();
+
+      // 1. Active coupons (real, from the coupon repo — never invented)
+      let coupons: Array<{ code: string; type: string; value: number; description: string; minCartValue?: number; expiresAt: string | null }> = [];
+      if (deps.couponRepo) {
+        try {
+          const rows = await deps.couponRepo.findAllByMerchant(ctx.merchantId);
+          coupons = rows
+            .map((c) => c.snapshot())
+            .filter((s) => s.status === "active")
+            .filter((s) => !s.starts_at || new Date(s.starts_at).getTime() <= now)
+            .filter((s) => !s.ends_at || new Date(s.ends_at).getTime() > now)
+            .filter((s) => s.max_usages === null || s.usages_count < s.max_usages)
+            .map((s) => {
+              const typeLabel =
+                s.discount_type === "percent" ? `${s.discount_value}% de desconto`
+                : s.discount_type === "fixed" ? `${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(s.discount_value)} de desconto`
+                : s.discount_type.startsWith("shipping") ? "Frete grátis"
+                : "Desconto";
+              return {
+                code: s.code,
+                type: s.discount_type,
+                value: s.discount_value,
+                description: typeLabel,
+                minCartValue: s.min_cart_total ?? undefined, // reais, not cents
+                expiresAt: s.ends_at ?? null,
+              };
+            });
+        } catch (err) {
+          logger.warn("cart.listPromotions.coupons_failed " + (err instanceof Error ? err.message : String(err)));
+        }
+      } else {
         logger.warn("cart.listPromotions.couponRepo_missing", { merchantId: ctx.merchantId });
-        return { promotions: [] };
       }
+
+      // 2. Progressive discount (from checkout_settings.interventionPolicy) — only when
+      //    the merchant's progressive mode allows advertising it (not coupon_only).
+      let progressive: { maxPercent: number; description: string } | undefined;
       try {
-        const coupons = await deps.couponRepo.findAllByMerchant(ctx.merchantId);
-        const now = Date.now();
-        const promotions = coupons
-          .map((c) => c.snapshot())
-          .filter((s) => s.status === "active")
-          .filter((s) => !s.ends_at || new Date(s.ends_at).getTime() > now)
-          .map((s) => {
-            const typeLabel =
-              s.discount_type === "percent" ? `${s.discount_value}% de desconto`
-              : s.discount_type === "fixed" ? `${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(s.discount_value)} de desconto`
-              : s.discount_type.startsWith("shipping") ? "Frete grátis"
-              : "Desconto";
-            return {
-              code: s.code,
-              type: s.discount_type,
-              value: s.discount_value,
-              description: typeLabel,
-              minCartValue: s.min_cart_total ?? undefined, // reais, not cents
-              expiresAt: s.ends_at ?? null,
-            };
-          });
-        return { promotions };
+        const setting = await deps.prisma.checkoutSetting.findUnique({
+          where: { merchantId: ctx.merchantId },
+          select: { interventionPolicy: true },
+        });
+        const pd = (setting?.interventionPolicy as { progressiveDiscount?: { enabled?: boolean; maxProgressivePercent?: number; mode?: string } } | null)?.progressiveDiscount;
+        const merchantRules = await deps.merchantRepo.getRules(ctx.merchantId).catch(() => null);
+        const maxDiscount = Number(merchantRules?.maxDiscountPercent ?? 0) || 100;
+        if (pd?.enabled && (pd.maxProgressivePercent ?? 0) > 0 && pd.mode !== "coupon_only") {
+          const capped = Math.min(pd.maxProgressivePercent ?? 0, maxDiscount);
+          if (capped > 0) {
+            progressive = { maxPercent: capped, description: `Desconto progressivo de até ${capped}% ao concluir a compra` };
+          }
+        }
       } catch (err) {
-        logger.warn("cart.listPromotions.failed " + (err instanceof Error ? err.message : String(err)));
-        return { promotions: [] };
+        logger.warn("cart.listPromotions.progressive_failed " + (err instanceof Error ? err.message : String(err)));
       }
+
+      // 3. Advanced cart rules (enabled) — surface their labels so the buyer knows
+      //    e.g. "compre 2 leve 3", tiered discounts. loadAdvancedRules already filters enabled.
+      let advancedRules: Array<{ label: string }> = [];
+      try {
+        const rules = await loadAdvancedRules(deps.prisma, ctx.merchantId);
+        advancedRules = rules
+          .map((r) => {
+            const anyR = r as unknown as { label?: string; name?: string; description?: string };
+            const label = anyR.label || anyR.name || anyR.description;
+            return label ? { label } : null;
+          })
+          .filter((x): x is { label: string } => x !== null);
+      } catch (err) {
+        logger.warn("cart.listPromotions.advancedRules_failed " + (err instanceof Error ? err.message : String(err)));
+      }
+
+      // `promotions` kept for backward compatibility (coupons only); new consumers read coupons/progressive/advancedRules.
+      return { promotions: coupons, coupons, progressive, advancedRules };
     },
 
     removeCoupon: async (args) => {

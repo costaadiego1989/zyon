@@ -51,7 +51,7 @@ export interface StoreToolHandlers {
   clearCart: (args: { cartId: string }) => Promise<unknown>;
   quoteShipping: (args: { cartId?: string; productId?: string; zipCode: string }) => Promise<unknown>;
   applyCoupon: (args: { cartId?: string; couponCode: string }) => Promise<unknown>;
-  listPromotions: (args: { cartId: string }) => Promise<unknown>;
+  listPromotions: (args: { cartId?: string }) => Promise<unknown>;
   listCategories: () => Promise<unknown>;
   removeCoupon: (args: { cartId: string }) => Promise<unknown>;
   createCheckoutSession: (args: { cartId: string }) => Promise<unknown>;

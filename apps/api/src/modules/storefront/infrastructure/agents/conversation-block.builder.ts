@@ -318,9 +318,11 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
             name: p.name,
             price: p.price,
             priceFormatted: formatPrice(p.price),
+            originalPrice: p.originalPrice,
+            originalPriceFormatted: p.originalPrice ? formatPrice(p.originalPrice) : undefined,
+            discountPercent: p.discountPercent,
             image: p.image,
             inStock: p.inStock ?? true,
-            discountPercent: p.discountPercent,
           })),
           merchantId: input.merchantId,
         }
@@ -335,6 +337,31 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
         data: {
           url: checkoutData.checkoutUrl,
           sessionId: checkoutData.sessionId ?? "",
+        }
+      } as any);
+    }
+  }
+
+  // Coupons + progressive + advanced rules → coupon_list card block.
+  if (toolResults["list_promotions"]) {
+    const promoData = toolResults["list_promotions"] as any;
+    const coupons = Array.isArray(promoData?.coupons) ? promoData.coupons : (Array.isArray(promoData?.promotions) ? promoData.promotions : []);
+    const progressive = promoData?.progressive;
+    const advancedRules = Array.isArray(promoData?.advancedRules) ? promoData.advancedRules : [];
+    if (coupons.length > 0 || progressive || advancedRules.length > 0) {
+      const fmt = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+      blocks.push({
+        type: "coupon_list",
+        data: {
+          coupons: coupons.map((c: any) => ({
+            code: c.code,
+            description: c.description,
+            minCartValue: typeof c.minCartValue === "number" ? c.minCartValue : undefined,
+            minCartValueFormatted: typeof c.minCartValue === "number" && c.minCartValue > 0 ? fmt(c.minCartValue) : undefined,
+            expiresAt: c.expiresAt ?? null,
+          })),
+          progressive: progressive ? { maxPercent: progressive.maxPercent, description: progressive.description } : undefined,
+          advancedRules: advancedRules.map((r: any) => ({ label: r.label })),
         }
       } as any);
     }

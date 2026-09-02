@@ -4,16 +4,16 @@ import { wrapHandler } from "../types.js";
 export const LIST_PROMOTIONS: ToolDefinition = {
   name: "list_promotions",
   description:
-    "List active promotions and coupons available for this merchant. Returns available discount codes, minimum cart value requirements, and expiration.",
+    "List the active coupons, progressive discounts and advanced cart rules available for this merchant. Use whenever the buyer asks about coupons, discounts, promo codes or 'what deals do you have'. Works with or without a cart — cartId is optional and only used to check eligibility against the current cart total.",
   parameters: {
     type: "object",
     properties: {
       cartId: {
         type: "string",
-        description: "Cart ID (to check eligibility)"
+        description: "Optional cart ID, to check eligibility against the current cart total"
       }
     },
-    required: ["cartId"]
+    required: []
   }
 };
 

@@ -396,11 +396,38 @@ export class StorefrontLangGraphAgent {
 
     const messageToValidate = finalContent || FALLBACK_MESSAGE;
 
+    // When list_promotions / get_daily_deals ran, the discounts they returned are
+    // REAL (from the coupon repo / active product promotions). Authorize those
+    // percentages so the safety validator doesn't reject the agent mentioning them
+    // as if they were fabricated. Coupons/promos are authorized-by-existence.
+    let authorizedDiscountPercent = 0;
+    let freeShippingAuthorized = false;
+    const promoResult = toolResults["list_promotions"] as
+      | { coupons?: Array<{ type?: string; value?: number }>; progressive?: { maxPercent?: number } }
+      | undefined;
+    if (promoResult) {
+      for (const c of promoResult.coupons ?? []) {
+        if (c.type === "percent" && typeof c.value === "number") {
+          authorizedDiscountPercent = Math.max(authorizedDiscountPercent, c.value);
+        }
+        if (typeof c.type === "string" && c.type.startsWith("shipping")) freeShippingAuthorized = true;
+      }
+      if (promoResult.progressive?.maxPercent) {
+        authorizedDiscountPercent = Math.max(authorizedDiscountPercent, promoResult.progressive.maxPercent);
+      }
+    }
+    const dealsResult = toolResults["get_daily_deals"] as { deals?: Array<{ discountPercent?: number }> } | undefined;
+    if (dealsResult?.deals) {
+      for (const d of dealsResult.deals) {
+        if (typeof d.discountPercent === "number") authorizedDiscountPercent = Math.max(authorizedDiscountPercent, d.discountPercent);
+      }
+    }
+
     const safetyContext: StorefrontMessageContext = {
       toolResults,
-      authorizedDiscountPercent: 0,
-      freeShippingAuthorized: false,
-      shippingDiscountAuthorized: false
+      authorizedDiscountPercent,
+      freeShippingAuthorized,
+      shippingDiscountAuthorized: freeShippingAuthorized
     };
 
     const validation = validateStorefrontMessage(messageToValidate, safetyContext);

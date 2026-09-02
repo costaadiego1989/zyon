@@ -201,6 +201,21 @@ export interface CrossSellBlock {
   };
 }
 
+export interface CouponListBlock {
+  type: "coupon_list";
+  data: {
+    coupons: Array<{
+      code: string;
+      description: string;
+      minCartValue?: number;
+      minCartValueFormatted?: string;
+      expiresAt: string | null;
+    }>;
+    progressive?: { maxPercent: number; description: string };
+    advancedRules?: Array<{ label: string }>;
+  };
+}
+
 export type ConversationBlock =
   | ProductCardBlock
   | ProductCarouselBlock
@@ -215,4 +230,5 @@ export type ConversationBlock =
   | ProductComparisonBlock
   | ReviewsBlock
   | AddReviewBlock
-  | CrossSellBlock;
+  | CrossSellBlock
+  | CouponListBlock;
