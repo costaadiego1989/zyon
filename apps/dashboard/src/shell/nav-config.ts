@@ -6,7 +6,6 @@ import {
   Code2,
   CreditCard,
   Crown,
-  Eye,
   FolderTree,
   Globe,
   Handshake,
@@ -140,12 +139,12 @@ export const NAV_ITEMS: NavItem[] = [
   // ─── VENDAS ─── otimização de conversão
   { key: "funnel", label: "Funil de Conversão", section: "sales", icon: BarChart3, requiredPlan: STORE, keywords: ["funil", "funnel", "conversão", "conversion"] },
   { key: "settings", label: "Checkout", section: "sales", icon: Settings2, requiredPlan: STORE, keywords: ["checkout", "configurações checkout", "widget config"] },
-  { key: "preview", label: "Preview do Checkout", section: "sales", icon: Eye, requiredPlan: STORE, keywords: ["preview", "prévia", "testar checkout"] },
   { key: "coupons", label: "Cupons", section: "sales", icon: Tag, requiredPlan: STORE, keywords: ["cupons", "coupons", "desconto", "discount", "promoção"] },
   { key: "cross-sell", label: "Cross Sell", section: "sales", icon: Sparkles, requiredPlan: STORE, keywords: ["cross-sell", "cross sell", "venda cruzada", "sugestões"] },
   { key: "experiments", label: "Testes A/B", section: "sales", icon: Zap, requiredPlan: STORE, keywords: ["testes", "experimentos", "a/b", "experiments", "ab test"] },
   { key: "negotiation-policy", label: "Negociação", section: "sales", icon: Handshake, requiredPlan: STORE, keywords: ["negociação", "negotiation", "barganha", "oferta"] },
-  { key: "checkout-programavel", label: "Automações", section: "sales", icon: Code2, requiredPlan: STORE, keywords: ["automações", "programável", "regras", "rules", "automation"] },
+  // Disabled: M2M / Checkout Programável hidden — no market applicability at this stage. Route + page code retained; re-enable when ACP/M2M becomes a strategy priority.
+  // { key: "checkout-programavel", label: "Automações", section: "sales", icon: Code2, requiredPlan: STORE, keywords: ["automações", "programável", "regras", "rules", "automation"] },
 
   // ─── CATÁLOGO ─── gestão de produtos
   { key: "catalog", label: "Produtos", section: "catalog", icon: ShoppingBag, requiredPlan: STORE, keywords: ["produtos", "products", "catálogo", "catalog", "itens"] },
