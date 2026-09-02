@@ -115,6 +115,10 @@ export const LivePreviewPanel = forwardRef<LivePreviewPanelRef, LivePreviewPanel
         "<zyon-checkout-agent",
         `  embed-session-token="${token}"`,
         `  api-base-url="${apiBase}"`,
+        // Pass the real merchant id so the widget's buyer-scoped calls resolve to
+        // this merchant. Without it the element defaults to "mrc_demo", producing
+        // 401s on buyer/me/* against the wrong tenant.
+        me?.id ? `  merchant-id="${me.id}"` : "",
         `  ui-presentation="${presentation}"`,
         "></zyon-checkout-agent>",
         `<style>`,
@@ -130,7 +134,7 @@ export const LivePreviewPanel = forwardRef<LivePreviewPanelRef, LivePreviewPanel
         `</style>`,
         "</body></html>",
       ].join("\n");
-    }, [token, apiBase, bundleBase, presentation]);
+    }, [token, apiBase, bundleBase, presentation, me?.id]);
 
     if (!me) {
       return <WidgetFallback className={className} />;
