@@ -135,17 +135,29 @@ export class GetStoreConfigUseCase {
       }
     } catch {}
 
-    // Load quick replies from merchant config, or use default welcome stage
+    // Load quick replies from merchant_rules (source of truth — the dashboard agent
+    // config saves them there as a stage→replies map, e.g. { welcome: [...] }).
+    // Legacy fallback also reads the older storeSettings.quick_replies.stages shape.
     let quickReplies: string[] | undefined;
     try {
-      const settings = row.storeSettings as any;
-      if (settings?.quick_replies?.stages) {
-        const welcomeStage = settings.quick_replies.stages.find((s: any) => s.stage === "welcome");
-        if (welcomeStage?.replies?.length) {
-          quickReplies = welcomeStage.replies;
-        }
+      const rules = await this.prisma.merchantRule.findUnique({
+        where: { merchantId: row.id },
+        select: { quickReplies: true },
+      });
+      const qr = rules?.quickReplies as Record<string, string[]> | null;
+      if (qr && Array.isArray(qr.welcome) && qr.welcome.length) {
+        quickReplies = qr.welcome;
       }
     } catch {}
+
+    // Legacy shape fallback: storeSettings.quick_replies.stages[]
+    if (!quickReplies) {
+      try {
+        const settings = row.storeSettings as any;
+        const welcomeStage = settings?.quick_replies?.stages?.find((s: any) => s.stage === "welcome");
+        if (welcomeStage?.replies?.length) quickReplies = welcomeStage.replies;
+      } catch {}
+    }
 
     // Fallback to default welcome replies if not configured
     if (!quickReplies) {
