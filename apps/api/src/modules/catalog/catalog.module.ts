@@ -2,7 +2,7 @@ import { Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { CommerceModule } from "../commerce/commerce.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
-import { CheckoutModule } from "../checkout/checkout.module.js";
+import { CheckoutPersistenceModule } from "../checkout/checkout-persistence.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { ExperimentsModule } from "../experiments/experiments.module.js";
 import { PersistenceModule, PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
@@ -40,18 +40,23 @@ import { StockExpiryWorker, CatalogStockExpiryScheduler } from "./infrastructure
 import { PromotionExpiryScheduler, PromotionExpiryWorker } from "./infrastructure/jobs/promotion-expiry.job.js";
 import { WidgetCatalogController } from "./presentation/http/widget-catalog.controller.js";
 import { StoreBuilderCatalogController } from "./presentation/http/catalog.controller.js";
+import { ProductPromotionController } from "./presentation/http/product-promotion.controller.js";
+import { CreateProductPromotionUseCase } from "./application/use-cases/create-product-promotion.use-case.js";
+import { UpdateProductPromotionUseCase } from "./application/use-cases/update-product-promotion.use-case.js";
+import { ToggleProductPromotionUseCase } from "./application/use-cases/toggle-product-promotion.use-case.js";
+import { DeleteProductPromotionUseCase } from "./application/use-cases/delete-product-promotion.use-case.js";
 
 @Module({
   imports: [
     CommerceModule,
     IntegrationsModule,
-    CheckoutModule,
+    CheckoutPersistenceModule,
     MerchantModule,
     PersistenceModule,
     RedisModule,
     ExperimentsModule,
   ],
-  controllers: [WidgetCatalogController, StoreBuilderCatalogController],
+  controllers: [WidgetCatalogController, StoreBuilderCatalogController, ProductPromotionController],
   providers: [
     EmbedTokenService,
     EmbedAuthGuard,
@@ -103,6 +108,10 @@ import { StoreBuilderCatalogController } from "./presentation/http/catalog.contr
     StockExpiryWorker,
     PromotionExpiryScheduler,
     PromotionExpiryWorker,
+    CreateProductPromotionUseCase,
+    UpdateProductPromotionUseCase,
+    ToggleProductPromotionUseCase,
+    DeleteProductPromotionUseCase,
   ],
   exports: [
     SearchStorefrontProductsUseCase,

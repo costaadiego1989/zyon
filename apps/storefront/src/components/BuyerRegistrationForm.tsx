@@ -193,7 +193,7 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
           const res = await fetch(`${API_BASE}/buyer/email/send`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email }),
+            body: JSON.stringify({ email, merchant_id: merchantId }),
           });
           if (!res.ok && res.status !== 404) {
             const errData = await res.json().catch(() => null);
@@ -204,13 +204,15 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
               throw new Error("Serviço de verificação indisponível");
             }
           }
+          setCurrentStep(4);
+          trackRegistrationStep(merchantId, "auth_email_submitted");
           break;
         }
         case 4: {
           const res = await fetch(`${API_BASE}/buyer/email/verify`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, code: emailOtp }),
+            body: JSON.stringify({ email, code: emailOtp, merchant_id: merchantId }),
           });
           if (!res.ok && res.status !== 404) {
             const errData = await res.json().catch(() => null);
@@ -221,6 +223,8 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
               throw new Error("Serviço de verificação indisponível");
             }
           }
+          setCurrentStep(5);
+          trackRegistrationStep(merchantId, "auth_email_verified");
           break;
         }
         case 5: {

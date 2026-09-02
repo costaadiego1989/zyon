@@ -95,7 +95,7 @@ import { PaymentModule } from "../payment/payment.module.js";
     forwardRef(() => ShippingModule),
     forwardRef(() => MarketplaceModule),
     forwardRef(() => PaymentModule),
-    forwardRef(() => CatalogModule),
+    CatalogModule,
     BuyerAccountRepositoryModule,
     ExperimentsModule,
     RevenueLiftModule,
