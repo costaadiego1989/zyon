@@ -1,10 +1,3 @@
-/**
- * Conversation block types for structured UI rendering in storefront.
- *
- * Blocks allow the agent to return rich, renderable content alongside text messages:
- * product cards, carousels, shipping options, quick replies, etc.
- */
-
 export interface ProductCardBlock {
   type: "product_card";
   data: {
@@ -21,18 +14,9 @@ export interface ProductCardBlock {
     originalPrice?: number;
     originalPriceFormatted?: string;
     discountPercent?: number;
-    /** Total available stock across variants (shown in detailed view) */
     stock?: number;
-    /** Primary variant SKU (shown in detailed view) */
     sku?: string;
-    /** When true, render the full detail view (untruncated description, per-variant stock, SKU) */
     detailed?: boolean;
-    /**
-     * Food option groups (size, add-ons, ...) for `food` products, sourced from
-     * product.metadata.optionGroups. Present only when the product defines them;
-     * drives the buyer-facing composition selector. Server re-computes the
-     * authoritative price from these on add-to-cart.
-     */
     optionGroups?: Array<{
       id: string;
       name: string;
@@ -83,12 +67,10 @@ export interface CartSummaryBlock {
     itemCount: number;
     subtotal: number;
     discount?: number;
-    /** True when a matched advanced rule granted free shipping. */
+    couponCode?: string | null;
     freeShipping?: boolean;
     total: number;
-    /** "Almost there" nudge for the closest unmet rule (e.g. "Faltam R$40 para frete grátis"). */
     nextNudge?: { kind: string; gap?: number; message: string; reachable: boolean; ruleId?: string };
-    /** Rules already satisfied, rendered as confirmations. */
     activeRules?: Array<{ ruleId?: string; message: string }>;
   };
 }

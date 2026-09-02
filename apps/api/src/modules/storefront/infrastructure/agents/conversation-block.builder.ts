@@ -164,6 +164,30 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
       });
     }
   }
+ 
+  const couponResult = (toolResults["apply_coupon"] ?? toolResults["remove_coupon"]) as any;
+  if (couponResult?.applied && couponResult?.items?.length > 0 && !skipCartBlock) {
+    blocks.push({
+      type: "cart_summary",
+      data: {
+        cartId: couponResult.cartId,
+        items: couponResult.items.map((i: any) => ({
+          variantId: i.variantId,
+          productName: i.name,
+          quantity: i.quantity,
+          price: i.unitPrice,
+          subtotal: i.lineTotal ?? i.unitPrice * i.quantity,
+        })),
+        itemCount: couponResult.itemCount,
+        subtotal: couponResult.total,
+        discount: couponResult.discount ?? 0,
+        couponCode: couponResult.couponCode ?? null,
+        freeShipping: false,
+        total: (couponResult.total ?? 0) - (couponResult.discount ?? 0),
+      }
+    });
+  }
+
   if (toolResults["add_item_to_cart"] && !skipCartBlock) {
     const cartData = toolResults["add_item_to_cart"] as any;
     if (cartData?.items?.length > 0) {

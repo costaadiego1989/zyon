@@ -467,6 +467,10 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
           discount: discountCents / 100,
           newTotal: (updated.total - discountCents) / 100,
           reason: "success",
+          cartId: updated.sessionId,
+          items: updated.items.map(toCartLineDto),
+          total: updated.total / 100,
+          itemCount: updated.items.reduce((sum, i) => sum + i.quantity, 0),
         };
       } catch (err) {
         const reason = err instanceof Error ? (err.message || "coupon_invalid") : "coupon_invalid";
