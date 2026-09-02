@@ -27,6 +27,7 @@ export type StoreStage =
   | "welcome" | "browsing" | "filter" | "categories"
   | "product_detail" | "more_info" | "reviews" | "review_card"
   | "questions" | "compare" | "wishlist" | "added_to_cart"
+  | "promotions"
   | "post_purchase" | "support";
 
 /**
@@ -86,7 +87,7 @@ export function detectStoreStage(lastToolUsed: string | null | undefined, contex
     quote_shipping: "added_to_cart",
     apply_coupon: "added_to_cart",
     remove_coupon: "added_to_cart",
-    list_promotions: "added_to_cart",
+    list_promotions: "promotions",
     create_checkout_session: "added_to_cart",
     // Categories
     list_categories: "categories",
@@ -119,14 +120,11 @@ export function storefrontQuickReplies(
   config?: StoreQuickRepliesConfig | null,
   cartState?: StorefrontCartState,
   shippingOptions?: StorefrontShippingOption[],
-  userMessage?: string
+  userMessage?: string,
+  listedCouponCodes?: string[]
 ): string[] {
   const cfg = config ?? DEFAULT_STORE_QUICK_REPLIES;
   const stage = detectStoreStage(lastToolUsed, { cartItemCount: cartState?.itemCount, userMessage });
-
-  // Find stage configuration
-  const stageConfig = cfg.stages.find(s => s.stage === stage);
-  if (!stageConfig) return cfg.fallback.slice(0, 5);
 
   // For shipping stage, inject dynamic carrier options if available
   if (lastToolUsed === "quote_shipping" && shippingOptions?.length) {
@@ -138,6 +136,24 @@ export function storefrontQuickReplies(
       })
       .slice(0, 5);
   }
+
+  // Promotions stage: offer to APPLY the listed coupon(s) — the previous mapping
+  // fell through to generic cart replies ("Produtos Semelhantes" etc.) that had
+  // nothing to do with the coupon just shown. When a coupon isn't yet applied,
+  // lead with a concrete "Aplicar cupom <CODE>" (parsed deterministically on send).
+  if (stage === "promotions") {
+    const codes = (listedCouponCodes ?? []).filter(Boolean);
+    const notApplied = codes.filter((c) => c.toUpperCase() !== (cartState?.couponCode ?? "").toUpperCase());
+    const replies = notApplied.slice(0, 2).map((c) => `Aplicar cupom ${c}`);
+    replies.push("Ver Carrinho");
+    if ((cartState?.itemCount ?? 0) > 0) replies.push("Finalizar Compra");
+    else replies.push("Ver Produtos");
+    return [...new Set(replies)].slice(0, 5);
+  }
+
+  // Find stage configuration
+  const stageConfig = cfg.stages.find(s => s.stage === stage);
+  if (!stageConfig) return cfg.fallback.slice(0, 5);
 
   return stageConfig.replies.slice(0, 8);
 }

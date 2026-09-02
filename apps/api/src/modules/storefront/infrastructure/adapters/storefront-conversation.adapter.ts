@@ -204,7 +204,6 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     }
     let finalMessage = result.message;
     if ((!finalMessage || finalMessage.trim().length === 0) && result.blocks && result.blocks.length > 0) {
-      const blockTypes = result.blocks.map((b: any) => b.type).join(", ");
       const contextHint = this.blockContextHint(result.blocks, result.toolsUsed);
       finalMessage = await this.copyService.generateVariantCopy(
         input.experimentSystemPrompt,
@@ -212,11 +211,15 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         this.defaultBlockIntro(result.toolsUsed),
       );
     }
+    const couponListBlock = (result.blocks ?? []).find((b: any) => b.type === "coupon_list") as any;
+    const listedCouponCodes: string[] | undefined = couponListBlock?.data?.coupons
+      ?.map((c: any) => c.code)
+      .filter(Boolean);
     return {
       message: finalMessage,
       blocks: result.blocks,
       cartId: result.cartId,
-      suggestedNext: storefrontQuickReplies(lastTool, quickRepliesConfig, cartState, shippingOptions, input.userMessage)
+      suggestedNext: storefrontQuickReplies(lastTool, quickRepliesConfig, cartState, shippingOptions, input.userMessage, listedCouponCodes)
     };
   }
   private blockContextHint(blocks: any[], toolsUsed: string[]): string {
