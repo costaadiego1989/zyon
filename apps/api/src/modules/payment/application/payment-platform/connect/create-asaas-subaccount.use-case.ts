@@ -25,8 +25,21 @@ export class CreateAsaasSubaccountUseCase {
 
   async execute(
     merchantId: string,
-    input: AsaasSubaccountInput,
+    rawInput: AsaasSubaccountInput,
   ): Promise<PaymentConnectionSnapshot> {
+    // Asaas requires companyType for CNPJ (PJ) accounts and birthDate for CPF
+    // (PF). Default the fields that aren't collected in our system so creation
+    // doesn't fail with "É necessário informar o tipo de empresa".
+    const cpfCnpjDigits = rawInput.cpfCnpj.replace(/\D+/g, "");
+    const isCnpj = cpfCnpjDigits.length === 14;
+    const input: AsaasSubaccountInput = {
+      ...rawInput,
+      cpfCnpj: cpfCnpjDigits,
+      ...(isCnpj
+        ? { companyType: rawInput.companyType ?? "LIMITED" }
+        : { companyType: undefined, birthDate: rawInput.birthDate ?? "1990-01-01" }),
+    };
+
     // Already linked locally → idempotent, return the existing connection.
     const existing = await this.repository.getConnection(merchantId, "asaas");
     if (existing) {

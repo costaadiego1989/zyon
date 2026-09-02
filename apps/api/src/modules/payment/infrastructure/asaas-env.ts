@@ -1,9 +1,11 @@
-// Asaas canonical sandbox/production origins (origin only — the adapter appends /v3).
-// The legacy `api-sandbox.asaas.com` (without `.br`) is the historical hostname;
-// the current canonical hostname is `api-sandbox.asaas.com.br` per
-// https://docs.asaas.com/reference/ambiente-de-teste
-const DEFAULT_ASAAS_SANDBOX_ORIGIN = "https://sandbox.asaas.com/api";
-const DEFAULT_ASAAS_PRODUCTION_ORIGIN = "https://www.asaas.com/api";
+// Asaas canonical API origins (origin only — the adapter appends /v3).
+// Must be the API host (`api-sandbox.asaas.com` / `api.asaas.com`), NOT the web
+// panel (`sandbox.asaas.com` / `www.asaas.com`) which serves the login page and
+// makes POST /v3/accounts return HTML instead of JSON.
+// Per https://docs.asaas.com/reference/comece-por-aqui : Produção
+// https://api.asaas.com/ · Sandbox https://api-sandbox.asaas.com/
+const DEFAULT_ASAAS_SANDBOX_ORIGIN = "https://api-sandbox.asaas.com";
+const DEFAULT_ASAAS_PRODUCTION_ORIGIN = "https://api.asaas.com";
 
 /** Strips trailing slash + any trailing `/v3` or `/api/v3` so the adapter can
  * safely append `/v3/...`. A config value like `https://www.asaas.com/api/v3`

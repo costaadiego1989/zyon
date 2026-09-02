@@ -63,11 +63,33 @@ export function providerGatewayError(
   provider: "stripe" | "asaas" | "mercadopago",
   error: unknown,
 ): BadGatewayException {
+  // Surface the provider's own message so the merchant sees WHY it failed
+  // (e.g. invalid CNPJ, evaluation-period limit) instead of a generic gateway
+  // error. The adapter throws `..._request_failed_{status}:{body}`.
+  const raw = error instanceof Error ? error.message : String(error);
+  const providerDetail = extractProviderDetail(raw);
   return new BadGatewayException({
     code: `${provider}_platform_failed`,
-    detail: `${provider} rejected the request or could not be reached.`,
+    detail: providerDetail
+      ? `${provider}: ${providerDetail}`
+      : `${provider} rejected the request or could not be reached.`,
     provider_code: providerErrorCode(error),
   });
+}
+
+/** Pulls a human-readable reason out of the adapter's raw error string, parsing
+ * an Asaas error body `{ errors: [{ code, description }] }` when present. */
+function extractProviderDetail(raw: string): string | null {
+  const colon = raw.indexOf(":");
+  const body = colon >= 0 ? raw.slice(colon + 1).trim() : "";
+  if (body.startsWith("{") || body.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(body) as { errors?: Array<{ code?: string; description?: string }> };
+      const first = parsed.errors?.[0];
+      if (first?.description) return `${first.description}${first.code ? ` (${first.code})` : ""}`;
+    } catch { /* fall through */ }
+  }
+  return body || null;
 }
 
 export function providerErrorCode(error: unknown): string {
