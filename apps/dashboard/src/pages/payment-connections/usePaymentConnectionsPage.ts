@@ -77,6 +77,23 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     void load();
   }, [me]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Post-OAuth return: Mercado Pago's callback redirects back with a flag.
+  // Toast the outcome and clear the query param so a refresh doesn't re-toast.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get("mercadopago_connected");
+    const errored = params.get("mercadopago_error");
+    if (!connected && !errored) return;
+    if (connected) showToast("success", "Mercado Pago conectado");
+    if (errored) showToast("error", "Falha ao conectar o Mercado Pago");
+    params.delete("mercadopago_connected");
+    params.delete("mercadopago_error");
+    const qs = params.toString();
+    const url = window.location.pathname + (qs ? `?${qs}` : "") + window.location.hash;
+    window.history.replaceState({}, "", url);
+  }, []);
+
   async function load() {
     setOperation("loading");
     setAlert(null);
@@ -201,7 +218,9 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     setAlert(null);
     try {
       const { url } = await api.createMercadoPagoOAuthLink();
-      window.open(url, "_blank", "noopener,noreferrer");
+      // Same-tab redirect so MP's callback returns to this page with the
+      // ?mercadopago_connected flag (a new tab would leave this one stale).
+      window.location.href = url;
     } catch (e) {
       console.error("[payment-connections]", e);
       setAlert({ message: sanitizeError(e), kind: "error" });

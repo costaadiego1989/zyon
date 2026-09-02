@@ -5,8 +5,7 @@ import { StatusBadge } from "./components/StatusBadge.js";
 import { GatewayCard } from "./components/GatewayCard.js";
 import { WalletSection } from "./components/WalletSection.js";
 import { StripeLogo, AsaasLogo, MercadoPagoLogo } from "./components/ProviderLogos.js";
-import { SectionHeader } from "../../components/SectionHeader.js";
-import { usePaymentConnectionsPage, formatDate, type Operation, type CryptoWalletState, type AsaasState } from "./usePaymentConnectionsPage.js";
+import { usePaymentConnectionsPage, formatDate, type CryptoWalletState } from "./usePaymentConnectionsPage.js";
 import type { MerchantProfile } from "../../api-client.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
 import "./payment-connections-page.css";
@@ -38,16 +37,13 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
     connections,
     operation,
     alert,
-    asaas,
     crypto,
     setAlert,
-    setAsaas,
     setCrypto,
     load,
     onboardStripe,
     syncStripe,
     onboardAsaas,
-    saveAsaasConfig,
     syncAsaas,
     onboardMercadoPago,
     syncMercadoPago,
@@ -58,12 +54,14 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
 
   if (!me) {
     return (
-      <div className="payment-connections-page__login-required">
-        <div className="payment-connections-page__title-group">
-          <span className="eyebrow">Pagamentos</span>
-          <h1>Conexões de pagamento</h1>
-          <p className="page-lead">Faça login para gerenciar suas conexões de pagamento</p>
-        </div>
+      <div className="page-container payment-connections-page__login-required">
+        <header className="page-head">
+          <div>
+            <span className="eyebrow">Loja</span>
+            <h1>Conexões de pagamento</h1>
+            <p className="page-lead">Faça login para gerenciar suas conexões de pagamento</p>
+          </div>
+        </header>
         <div className="payment-connections-page__login-card">
           <CreditCard size={22} aria-hidden="true" />
           <h3 className="payment-connections-page__login-title">Login necessário</h3>
@@ -86,15 +84,12 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
   const activeCount = connections.filter((c) => c.status === "active").length + (crypto.config.enabled ? 1 : 0);
 
   return (
-    <div className="payment-connections-page">
-      {/* Header */}
-      <div className="payment-connections-page__header">
-        <div className="payment-connections-page__title-group">
-          <span className="eyebrow">Pagamentos</span>
+    <div className="page-container payment-connections-page">
+      <header className="page-head">
+        <div>
+          <span className="eyebrow">Loja</span>
           <h1>Conexões de pagamento</h1>
-          <p className="page-lead">
-            Configure gateways e carteiras para receber pagamentos
-          </p>
+          <p className="page-lead">Configure gateways e carteiras para receber pagamentos</p>
         </div>
         <button
           type="button"
@@ -106,7 +101,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
           <RefreshCw size={14} aria-hidden="true" />
           Atualizar
         </button>
-      </div>
+      </header>
 
       {/* Alert */}
       {alert ? (
@@ -131,8 +126,8 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
             provider="stripe"
             name="Stripe"
             description="Cartão internacional"
-            iconBg="#635BFF"
-            icon={<StripeLogo size={20} />}
+            iconBg="#fff"
+            icon={<StripeLogo size={52} />}
             connection={stripeConn}
             operation={operation}
             connectingOperation="connecting-stripe"
@@ -144,8 +139,8 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
             provider="asaas"
             name="Asaas"
             description="PIX, boleto e cartão Brasil"
-            iconBg="#0052FF"
-            icon={<AsaasLogo size={20} />}
+            iconBg="#fff"
+            icon={<AsaasLogo size={52} />}
             connection={asaasConn}
             operation={operation}
             connectingOperation="connecting-asaas"
@@ -157,8 +152,8 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
             provider="mercadopago"
             name="Mercado Pago"
             description="PIX, cartão e boleto — América Latina"
-            iconBg="#009EE3"
-            icon={<MercadoPagoLogo size={20} />}
+            iconBg="#fff"
+            icon={<MercadoPagoLogo size={52} />}
             connection={mercadopagoConn}
             operation={operation}
             connectingOperation="connecting-mercadopago"
@@ -174,56 +169,6 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
           />
         </div>
         </SectionErrorBoundary>
-      ) : null}
-
-      {/* Asaas Config Card — only show when NOT connected */}
-      {!isLoading && !asaasConn ? (
-        <div className="asaas-config">
-          <SectionHeader
-            title="Conectar Asaas"
-            subtitle="Insira sua API Key para ativar PIX, boleto e cartão."
-            variant="primary"
-            icon={<AsaasLogo size={16} color="currentColor" />}
-          />
-          <div className="asaas-config__grid">
-            <div className="asaas-config__form-group">
-              <label className="asaas-config__label">API Key</label>
-              <input
-                type="password"
-                value={asaas.apiKey}
-                onChange={(e) => setAsaas({ ...asaas, apiKey: e.target.value })}
-                placeholder="$aact_..."
-                className="asaas-config__input"
-              />
-            </div>
-            <div className="asaas-config__form-group">
-              <label className="asaas-config__label">Webhook Token</label>
-              <input
-                type="password"
-                value={asaas.webhookToken}
-                onChange={(e) => setAsaas({ ...asaas, webhookToken: e.target.value })}
-                placeholder="token do webhook"
-                className="asaas-config__input"
-              />
-            </div>
-            <label className="asaas-config__checkbox">
-              <input
-                type="checkbox"
-                checked={asaas.sandbox}
-                onChange={(e) => setAsaas({ ...asaas, sandbox: e.target.checked })}
-              />
-              Sandbox
-            </label>
-            <button
-              type="button"
-              disabled={!asaas.apiKey.trim() || asaas.saving}
-              onClick={() => void saveAsaasConfig()}
-              className="asaas-config__button"
-            >
-              {asaas.saving ? "Conectando..." : "Conectar"}
-            </button>
-          </div>
-        </div>
       ) : null}
 
       {/* Other Providers Table */}
