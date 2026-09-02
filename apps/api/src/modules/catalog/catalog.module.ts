@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/infrastructure/billing/billing-plan-guard.js";
 import { CommerceModule } from "../commerce/commerce.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
 import { CheckoutPersistenceModule } from "../checkout/checkout-persistence.module.js";
@@ -45,6 +46,8 @@ import { CreateProductPromotionUseCase } from "./application/use-cases/create-pr
 import { UpdateProductPromotionUseCase } from "./application/use-cases/update-product-promotion.use-case.js";
 import { ToggleProductPromotionUseCase } from "./application/use-cases/toggle-product-promotion.use-case.js";
 import { DeleteProductPromotionUseCase } from "./application/use-cases/delete-product-promotion.use-case.js";
+import { UpsertProductAdvancedRulesUseCase } from "./application/use-cases/upsert-product-advanced-rules.use-case.js";
+import { CheckoutSettingsModule } from "../checkout-settings/checkout-settings.module.js";
 
 @Module({
   imports: [
@@ -55,9 +58,12 @@ import { DeleteProductPromotionUseCase } from "./application/use-cases/delete-pr
     PersistenceModule,
     RedisModule,
     ExperimentsModule,
+    CheckoutSettingsModule,
   ],
   controllers: [WidgetCatalogController, StoreBuilderCatalogController, ProductPromotionController],
   providers: [
+    BillingPlanMeteringService,
+    PlanLimitGuard,
     EmbedTokenService,
     EmbedAuthGuard,
     EmbedCheckoutGuardHelper,
@@ -112,6 +118,7 @@ import { DeleteProductPromotionUseCase } from "./application/use-cases/delete-pr
     UpdateProductPromotionUseCase,
     ToggleProductPromotionUseCase,
     DeleteProductPromotionUseCase,
+    UpsertProductAdvancedRulesUseCase,
   ],
   exports: [
     SearchStorefrontProductsUseCase,

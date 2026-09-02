@@ -2,26 +2,26 @@ export const PRODUCT_PROMOTION_REPOSITORY = Symbol("ProductPromotionRepositoryPo
 
 export interface CreateProductPromotionInput {
   merchantId: string;
-  productId?: string;
-  variantId?: string;
-  categoryId?: string;
-  couponId?: string;
-  discountType?: string;
-  discountValue?: number;
-  promoPriceInCents?: number;
+  productId?: string | null;
+  variantId?: string | null;
+  categoryId?: string | null;
+  couponId?: string | null;
+  discountType?: string | null;
+  discountValue?: number | null;
+  promoPriceInCents?: number | null;
   isActive?: boolean;
   startsAt: Date;
   endsAt: Date;
 }
 
 export interface UpdateProductPromotionInput {
-  productId?: string;
-  variantId?: string;
-  categoryId?: string;
-  couponId?: string;
-  discountType?: string;
-  discountValue?: number;
-  promoPriceInCents?: number;
+  productId?: string | null;
+  variantId?: string | null;
+  categoryId?: string | null;
+  couponId?: string | null;
+  discountType?: string | null;
+  discountValue?: number | null;
+  promoPriceInCents?: number | null;
   isActive?: boolean;
   startsAt?: Date;
   endsAt?: Date;
@@ -52,4 +52,5 @@ export interface ProductPromotionRepositoryPort {
   findByProduct(merchantId: string, productId: string): Promise<ProductPromotionEntity[]>;
   findByVariant(merchantId: string, variantId: string): Promise<ProductPromotionEntity[]>;
   findActiveByProduct(merchantId: string, productId: string, now?: Date): Promise<ProductPromotionEntity[]>;
+  findActiveBySku(merchantId: string, sku: string, now?: Date): Promise<ProductPromotionEntity[]>;
 }

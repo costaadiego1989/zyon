@@ -108,12 +108,11 @@ export class PrismaProductPromotionRepository
 
   async findActiveBySku(
     merchantId: string,
-    sku: string,
+    skuOrVariantId: string,
     now: Date = new Date()
   ): Promise<ProductPromotionEntity[]> {
-    // Resolve SKU to variantId, then find promos by variantId or the variant's productId
     const variant = await this.prisma.productVariant.findFirst({
-      where: { sku },
+      where: { OR: [{ sku: skuOrVariantId }, { id: skuOrVariantId }] },
       select: { id: true, productId: true },
     });
 
