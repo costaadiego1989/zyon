@@ -5,6 +5,8 @@ import { SectionHeader } from "../../components/SectionHeader.js";
 import { SidePanel } from "../../components/SidePanel.js";
 import { Button } from "../../components/Button.js";
 import { useIntegrationsPage, type CrmConnectionDTO } from "./useIntegrationsPage.js";
+import { TabBar } from "../../components/TabBar.js";
+import { CrmLeadsTab } from "./tabs/CrmLeadsTab.js";
 
 export interface IntegrationsPageProps {
   apiBaseUrl: string;
@@ -55,6 +57,7 @@ const MARKETING_PROVIDERS = [
 
 export function IntegrationsPage(props: IntegrationsPageProps) {
   const vm = useIntegrationsPage({ me: props.me });
+  const [activeTab, setActiveTab] = useState<"connections" | "leads">("connections");
   const [panelProvider, setPanelProvider] = useState<CrmProviderMeta | null>(null);
   const [token, setToken] = useState("");
   const [saving, setSaving] = useState(false);
@@ -104,109 +107,62 @@ export function IntegrationsPage(props: IntegrationsPageProps) {
         </div>
       </header>
 
-      {/* Explanation Card */}
-      <div style={{
-        padding: "16px 20px",
-        borderRadius: "var(--radius-md)",
-        background: "var(--accent-soft)",
-        border: "1px solid var(--accent-line)",
-        font: "13px var(--font-sans)",
-        color: "var(--color-brand)",
-        lineHeight: 1.65,
-      }}>
-        <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong> quando um comprador finaliza uma compra ou é identificado, o sistema sincroniza automaticamente o contato e cria um negócio (deal) no CRM conectado. Ideal para nutrir leads e acompanhar conversões.
-      </div>
+      <TabBar
+        tabs={[{ key: "connections", label: "Integrações" }, { key: "leads", label: "Leads sincronizados" }]}
+        activeTab={activeTab}
+        onTabChange={(k) => setActiveTab(k as "connections" | "leads")}
+      />
 
-      {/* Section: CRM */}
-      <div className="panel" style={{ padding: "20px 24px" }}>
-        <SectionHeader icon={<Users size={16} />} title="CRM" subtitle="Sincronize contatos e negócios com seu CRM automaticamente" />
-        <div className="grid-3" style={{ gap: 14 }}>
-          {CRM_PROVIDERS.map((meta) => (
-            <CrmProviderCard
-              key={meta.provider}
-              name={meta.name}
-              description={meta.description}
-              connection={vm.crmConnections.find((c) => c.provider === meta.provider)}
-              onConnect={() => openPanel(meta)}
-              onDisconnect={(id) => vm.disconnectCrm(id)}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Section: Marketing */}
-      <div className="panel" style={{ padding: "20px 24px" }}>
-        <SectionHeader icon={<ExternalLink size={16} />} title="Marketing" subtitle="Ferramentas de email e automação de marketing" />
-        <div className="grid-3" style={{ gap: 14 }}>
-          {MARKETING_PROVIDERS.map((m) => (
-            <CrmProviderCard
-              key={m.name}
-              name={m.name}
-              description={m.description}
-              comingSoon
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Section: Leads sincronizados */}
-      <div className="panel" style={{ padding: "20px 24px" }}>
-        <SectionHeader
-          icon={<Users size={16} />}
-          title="Leads sincronizados"
-          subtitle="Cada contato enviado ao CRM — lead (só se cadastrou) ou cliente (comprou)"
-        />
-        {vm.syncLog.length === 0 ? (
-          <p style={{ margin: 0, font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>
-            Nenhum lead sincronizado ainda. Conecte um CRM — os contatos aparecem aqui conforme os compradores se identificam e compram.
-          </p>
-        ) : (
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Contato</th>
-                  <th>Tipo</th>
-                  <th>CRM</th>
-                  <th>Status</th>
-                  <th>Quando</th>
-                </tr>
-              </thead>
-              <tbody>
-                {vm.syncLog.map((row) => (
-                  <tr key={row.id}>
-                    <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{row.email}</td>
-                    <td>
-                      <span
-                        style={{
-                          display: "inline-block",
-                          padding: "2px 8px",
-                          borderRadius: 999,
-                          font: "600 11px var(--font-sans)",
-                          background: row.stage === "customer" ? "var(--accent-soft)" : "var(--surface-2)",
-                          color: row.stage === "customer" ? "var(--color-brand)" : "var(--color-text-muted)",
-                          border: "1px solid var(--color-border)",
-                        }}
-                      >
-                        {row.stage === "customer" ? "Cliente" : "Lead"}
-                      </span>
-                    </td>
-                    <td style={{ textTransform: "capitalize" }}>{row.provider}</td>
-                    <td>
-                      <span style={{ color: row.status === "success" ? "var(--color-brand)" : "var(--color-danger, #dc2626)" }}>
-                        {row.status === "success" ? "OK" : "Falhou"}
-                      </span>
-                    </td>
-                    <td style={{ color: "var(--color-text-muted)", fontSize: 12 }}>
-                      {new Date(row.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {activeTab === "connections" ? (
+        <>
+          {/* Explanation Card */}
+          <div style={{
+            padding: "16px 20px",
+            borderRadius: "var(--radius-md)",
+            background: "var(--accent-soft)",
+            border: "1px solid var(--accent-line)",
+            font: "13px var(--font-sans)",
+            color: "var(--color-brand)",
+            lineHeight: 1.65,
+          }}>
+            <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong> quando um comprador se identifica no checkout ele vira um lead no CRM; quando finaliza a compra vira cliente. O contato e o negócio (deal) são criados automaticamente. Acompanhe cada um na aba "Leads sincronizados".
           </div>
-        )}
-      </div>
+
+          {/* Section: CRM */}
+          <div className="panel" style={{ padding: "20px 24px" }}>
+            <SectionHeader icon={<Users size={16} />} title="CRM" subtitle="Sincronize contatos e negócios com seu CRM automaticamente" />
+            <div className="grid-3" style={{ gap: 14 }}>
+              {CRM_PROVIDERS.map((meta) => (
+                <CrmProviderCard
+                  key={meta.provider}
+                  name={meta.name}
+                  description={meta.description}
+                  connection={vm.crmConnections.find((c) => c.provider === meta.provider)}
+                  onConnect={() => openPanel(meta)}
+                  onDisconnect={(id) => vm.disconnectCrm(id)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Section: Marketing */}
+          <div className="panel" style={{ padding: "20px 24px" }}>
+            <SectionHeader icon={<ExternalLink size={16} />} title="Marketing" subtitle="Ferramentas de email e automação de marketing" />
+            <div className="grid-3" style={{ gap: 14 }}>
+              {MARKETING_PROVIDERS.map((m) => (
+                <CrmProviderCard
+                  key={m.name}
+                  name={m.name}
+                  description={m.description}
+                  comingSoon
+                />
+              ))}
+            </div>
+          </div>
+        </>
+      ) : (
+        <CrmLeadsTab syncLog={vm.syncLog} />
+      )}
 
       {/* Side panel: connect CRM */}
       <SidePanel
