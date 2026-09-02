@@ -80,7 +80,7 @@ export class RdStationCrmAdapter implements CrmProviderPort {
         name: deal.title,
         amount_montly: deal.valueCents / 100, // RD uses amount_montly (their typo, not ours)
         amount_unique: deal.valueCents / 100,
-        win: true,
+        win: deal.open ? false : true,
       };
       if (contactId) {
         dealPayload.contacts = [{ _id: contactId }];

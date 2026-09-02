@@ -4,6 +4,8 @@ import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../
 import { TenantWebhookPublisher } from "../../integrations/application/integrations.use-cases.js";
 import { WebhookDeliveryDispatcher } from "../../integrations/application/webhook-delivery-dispatcher.service.js";
 import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
+import { Optional } from "@nestjs/common";
+import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../../shared/events/domain-event-bus.port.js";
 
 @Injectable()
 export class UpdateEmbedCustomerUseCase {
@@ -12,7 +14,8 @@ export class UpdateEmbedCustomerUseCase {
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     private readonly webhookPublisher: TenantWebhookPublisher,
-    private readonly webhookDispatcher: WebhookDeliveryDispatcher
+    private readonly webhookDispatcher: WebhookDeliveryDispatcher,
+    @Optional() @Inject(DOMAIN_EVENT_BUS) private readonly eventBus?: DomainEventBus,
   ) {}
 
   async execute(input: {
@@ -126,6 +129,24 @@ export class UpdateEmbedCustomerUseCase {
         }
       });
       await this.dispatchDeliveries(deliveries);
+
+      // Also emit on the domain bus (unmasked email/phone/name) so subscribers
+      // like the CRM lead-sync can create the lead. Best-effort; never blocks.
+      if (current.email) {
+        try {
+          await this.eventBus?.publish({
+            eventType: "customer.registered",
+            merchantId,
+            payload: {
+              session_id: sessionId,
+              global_user_id: globalUserId,
+              email: current.email,
+              full_name: current.fullName ?? null,
+              phone: current.phone ?? null,
+            },
+          });
+        } catch { /* domain event is best-effort */ }
+      }
     }
   }
 

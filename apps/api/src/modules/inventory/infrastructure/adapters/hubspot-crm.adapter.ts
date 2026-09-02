@@ -98,10 +98,12 @@ export class HubSpotCrmAdapter implements CrmProviderPort {
         contactId = ((await contactLookup.json()) as { id?: string }).id;
       }
 
+      // Open lead deals land in the first default-pipeline stage; sales are won.
+      const dealstage = deal.stage || (deal.open ? "appointmentscheduled" : "closedwon");
       const body: Record<string, unknown> = {
         properties: {
           dealname: deal.title,
-          dealstage: deal.stage || "closedwon",
+          dealstage,
           amount: String((deal.valueCents / 100).toFixed(2)),
           pipeline: "default",
         },

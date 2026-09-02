@@ -2405,6 +2405,24 @@ model CrmConnection {
   @@map("crm_connections")
 }
 
+/// Per-sync audit trail of contacts/deals pushed to a merchant's CRM.
+/// stage distinguishes a lead (identified, not yet purchased) from a customer
+/// (completed a sale). Powers the "Leads sincronizados" panel in the dashboard.
+model CrmSyncLog {
+  id         String   @id @default(cuid())
+  merchantId String   @map("merchant_id")
+  provider   String // hubspot | pipedrive | rdstation
+  email      String
+  stage      String // lead | customer
+  status     String // success | failed
+  errorCode  String?  @map("error_code")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([merchantId, createdAt])
+  @@index([merchantId, email])
+  @@map("crm_sync_log")
+}
+
 model OwnDeliveryConfig {
   id             String   @id @default(cuid())
   merchantId     String   @unique @map("merchant_id")

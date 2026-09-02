@@ -17,6 +17,7 @@ import { ListLocationsUseCase } from "../../application/use-cases/list-locations
 import { CreateLocationUseCase } from "../../application/use-cases/create-location.use-case.js";
 import { CreateInventoryItemUseCase } from "../../application/use-cases/create-inventory-item.use-case.js";
 import { ListCrmConnectionsUseCase } from "../../application/use-cases/list-crm-connections.use-case.js";
+import { ListCrmSyncLogUseCase } from "../../application/use-cases/list-crm-sync-log.use-case.js";
 import { ConnectCrmUseCase } from "../../application/use-cases/connect-crm.use-case.js";
 import { DisconnectCrmUseCase } from "../../application/use-cases/disconnect-crm.use-case.js";
 import { ListErpConnectionsUseCase } from "../../application/use-cases/list-erp-connections.use-case.js";
@@ -41,6 +42,7 @@ export class InventoryDashboardController {
     private readonly createLocation: CreateLocationUseCase,
     private readonly createItem: CreateInventoryItemUseCase,
     private readonly listCrmConnections: ListCrmConnectionsUseCase,
+    private readonly listCrmSyncLog: ListCrmSyncLogUseCase,
     private readonly connectCrm: ConnectCrmUseCase,
     private readonly disconnectCrm: DisconnectCrmUseCase,
     private readonly listErpConnections: ListErpConnectionsUseCase,
@@ -274,6 +276,15 @@ export class InventoryDashboardController {
   async listCrmConnectionsAction(@Req() req: any) {
     const user = currentUser(req);
     return this.listCrmConnections.execute(user.merchantId);
+  }
+
+  @Get("crm-sync-log")
+  @ApiOperation({ summary: "List recent CRM lead/customer syncs" })
+  @ApiOkResponse({ description: "CRM sync log entries (leads and customers)" })
+  async listCrmSyncLogAction(@Req() req: any, @Query("limit") limit?: string) {
+    const user = currentUser(req);
+    const n = limit ? Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200) : 50;
+    return this.listCrmSyncLog.execute(user.merchantId, n);
   }
 
   @Post("crm-connections/:provider/connect")

@@ -103,7 +103,7 @@ export class PipedriveCrmAdapter implements CrmProviderPort {
         title: deal.title,
         value: deal.valueCents / 100,
         currency: "BRL",
-        status: "won",
+        status: deal.open ? "open" : "won",
       };
       if (personId) dealPayload.person_id = personId;
 

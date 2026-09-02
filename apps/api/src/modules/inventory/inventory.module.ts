@@ -16,6 +16,10 @@ import { CreateLocationUseCase } from "./application/use-cases/create-location.u
 import { CreateInventoryItemUseCase } from "./application/use-cases/create-inventory-item.use-case.js";
 import { HandleSaleCompletedUseCase } from "./application/use-cases/handle-sale-completed.use-case.js";
 import { ListCrmConnectionsUseCase } from "./application/use-cases/list-crm-connections.use-case.js";
+import { ListCrmSyncLogUseCase } from "./application/use-cases/list-crm-sync-log.use-case.js";
+import { CRM_SYNC_LOG_REPOSITORY } from "./domain/ports/crm-sync-log-repository.port.js";
+import { PrismaCrmSyncLogRepository } from "./infrastructure/repositories/prisma-crm-sync-log.repository.js";
+import { InventoryOnCustomerRegisteredHandler } from "./infrastructure/event-handlers/on-customer-registered.handler.js";
 import { ConnectCrmUseCase } from "./application/use-cases/connect-crm.use-case.js";
 import { DisconnectCrmUseCase } from "./application/use-cases/disconnect-crm.use-case.js";
 import { ListErpConnectionsUseCase } from "./application/use-cases/list-erp-connections.use-case.js";
@@ -89,6 +93,11 @@ import { MarketplaceWebhookController } from "./presentation/http/marketplace-we
       inject: [PRISMA_CLIENT],
     },
     {
+      provide: CRM_SYNC_LOG_REPOSITORY,
+      useFactory: (prisma: PrismaClient) => new PrismaCrmSyncLogRepository(prisma),
+      inject: [PRISMA_CLIENT],
+    },
+    {
       provide: ERP_REPOSITORY,
       useFactory: (prisma: PrismaClient) => new PrismaErpRepository(prisma),
       inject: [PRISMA_CLIENT],
@@ -108,6 +117,7 @@ import { MarketplaceWebhookController } from "./presentation/http/marketplace-we
     CreateLocationUseCase,
     CreateInventoryItemUseCase,
     ListCrmConnectionsUseCase,
+    ListCrmSyncLogUseCase,
     ConnectCrmUseCase,
     DisconnectCrmUseCase,
     ListErpConnectionsUseCase,
@@ -127,6 +137,7 @@ import { MarketplaceWebhookController } from "./presentation/http/marketplace-we
     CrmAdapterFactory,
     HandleSaleCompletedUseCase,
     InventoryOnOrderCompletedHandler,
+    InventoryOnCustomerRegisteredHandler,
   ],
   exports: [
     INVENTORY_REPOSITORY,

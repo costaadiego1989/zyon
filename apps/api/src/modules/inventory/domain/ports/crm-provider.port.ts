@@ -12,6 +12,8 @@ export interface CrmDeal {
   title: string;
   valueCents: number;
   stage?: string;
+  /** true = deal still open (lead not yet purchased); false/undefined = won (sale). */
+  open?: boolean;
   metadata?: Record<string, unknown>;
 }
 
