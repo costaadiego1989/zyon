@@ -35,6 +35,8 @@ export function useCatalogApi() {
       togglePromotion: api.togglePromotion,
       deletePromotion: api.deletePromotion,
       upsertProductAdvancedRules: api.upsertProductAdvancedRules,
+      uploadSpreadsheetImport: api.uploadSpreadsheetImport,
+      getImportJob: api.getImportJob,
     }),
     [api],
   );

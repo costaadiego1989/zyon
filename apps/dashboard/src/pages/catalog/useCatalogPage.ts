@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MerchantProfile, Product } from "../../api-client.js";
 import { useCatalogApi } from "../../hooks/api/useCatalogApi.js";
+import { usePlanFeatures } from "../../hooks/api/usePlanFeatures.js";
 import type { CsvRow } from "../../components/CsvImportModal.js";
 
 export type StatusFilter = "all" | "active" | "inactive";
@@ -52,12 +53,15 @@ export interface CatalogPageVM {
   toggleActive: (product: Product) => Promise<void>;
   handleCsvImport: (rows: CsvRow[]) => Promise<void>;
   reload: () => Promise<void>;
+  aiImportEnabled: boolean;
 }
 
 const PAGE_SIZE = 20;
 
 export function useCatalogPage({ me }: UseCatalogPageArgs): CatalogPageVM {
   const catalog = useCatalogApi();
+  const { hasFeature } = usePlanFeatures();
+  const aiImportEnabled = hasFeature("aiSpreadsheetImport");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -221,5 +225,6 @@ export function useCatalogPage({ me }: UseCatalogPageArgs): CatalogPageVM {
     toggleActive,
     handleCsvImport,
     reload: load,
+    aiImportEnabled,
   };
 }

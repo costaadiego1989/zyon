@@ -1,5 +1,5 @@
 import React from "react";
-import { Plus, ShoppingBag, Trash2, Pencil, Upload, Pause, Play, Package } from "lucide-react";
+import { Plus, ShoppingBag, Trash2, Pencil, Upload, Pause, Play, Package, Sparkles } from "lucide-react";
 import type { MerchantProfile, Product } from "../api-client.js";
 import { DataPanel } from "../components/DataPanel.js";
 import { Button } from "../components/Button.js";
@@ -7,6 +7,7 @@ import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { FilterToolbar, FilterSelect } from "../components/FilterToolbar.js";
 import { StatCard } from "./overview/components/StatCard.js";
 import { CsvImportModal } from "../components/CsvImportModal.js";
+import { AiSpreadsheetImportModal } from "../components/spreadsheet-import/AiSpreadsheetImportModal.js";
 import { SectionErrorBoundary } from "../components/PageErrorBoundary.js";
 import { useCatalogPage, totalStock } from "./catalog/useCatalogPage.js";
 
@@ -69,9 +70,15 @@ export function CatalogPage(props: CatalogPageProps) {
           <p className="page-lead">Gerencie os produtos disponíveis na sua loja</p>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <Button variant="outline" size="sm" onClick={() => vm.setShowCsvModal(true)}>
-            <Upload size={14} /> Importar CSV
-          </Button>
+          {vm.aiImportEnabled ? (
+            <Button variant="outline" size="sm" onClick={() => vm.setShowCsvModal(true)}>
+              <Sparkles size={14} /> Importar planilha (IA)
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => vm.setShowCsvModal(true)}>
+              <Upload size={14} /> Importar CSV
+            </Button>
+          )}
           <Button variant="primary" size="sm" arrow onClick={() => props.onCreate?.()}>
             <Plus size={14} /> Novo produto
           </Button>
@@ -192,11 +199,20 @@ export function CatalogPage(props: CatalogPageProps) {
       </div>
       </SectionErrorBoundary>
 
-      <CsvImportModal
-        isOpen={vm.showCsvModal}
-        onClose={() => vm.setShowCsvModal(false)}
-        onImport={vm.handleCsvImport}
-      />
+      {vm.aiImportEnabled ? (
+        <AiSpreadsheetImportModal
+          isOpen={vm.showCsvModal}
+          onClose={() => vm.setShowCsvModal(false)}
+          merchantId={props.me.id}
+          onImported={() => void vm.reload()}
+        />
+      ) : (
+        <CsvImportModal
+          isOpen={vm.showCsvModal}
+          onClose={() => vm.setShowCsvModal(false)}
+          onImport={vm.handleCsvImport}
+        />
+      )}
 
       <ConfirmDialog
         open={!!vm.deleteTarget}

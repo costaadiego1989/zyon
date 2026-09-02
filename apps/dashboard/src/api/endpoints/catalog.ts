@@ -167,6 +167,37 @@ export interface UpsertProductAdvancedRulesPayload {
   productSkus: string[];
 }
 
+export interface UploadSpreadsheetImportInput {
+  fileName: string;
+  mimeType: string;
+  base64: string;
+}
+
+export interface UploadSpreadsheetImportResult {
+  jobId: string;
+  status: string;
+}
+
+export type ImportJobStatusValue = "queued" | "processing" | "completed" | "failed";
+
+export interface ImportJobError {
+  row: number;
+  sku?: string;
+  reason: string;
+}
+
+export interface ImportJobStatus {
+  id: string;
+  status: ImportJobStatusValue;
+  totalRows?: number;
+  successRows?: number;
+  failedRows?: number;
+  columnMapping?: Record<string, string>;
+  errors?: ImportJobError[];
+  fileName?: string;
+  finishedAt?: string | null;
+}
+
 export function catalogEndpoints(base: string, f: typeof fetch) {
   return {
     listProducts(
@@ -337,6 +368,22 @@ export function catalogEndpoints(base: string, f: typeof fetch) {
         base,
         `/merchants/${encodeURIComponent(merchantId)}/products/${encodeURIComponent(productId)}/advanced-rules`,
         { method: "PUT", jsonBody: payload },
+        f,
+      );
+    },
+    uploadSpreadsheetImport(merchantId: string, payload: UploadSpreadsheetImportInput): Promise<UploadSpreadsheetImportResult> {
+      return dashboardJson<UploadSpreadsheetImportResult>(
+        base,
+        `/merchants/${encodeURIComponent(merchantId)}/products/import`,
+        { method: "POST", jsonBody: payload },
+        f,
+      );
+    },
+    getImportJob(merchantId: string, jobId: string): Promise<ImportJobStatus> {
+      return dashboardJson<ImportJobStatus>(
+        base,
+        `/merchants/${encodeURIComponent(merchantId)}/products/import/${encodeURIComponent(jobId)}`,
+        { method: "GET" },
         f,
       );
     },
