@@ -21,6 +21,10 @@ const SHIPMENT_STATUSES = [
   { value: "delivered", label: "Entregue" },
 ];
 
+const OWN_DELIVERY_CARRIERS = new Set(["flat-rate", "flat_rate", "flat", "own", "own-delivery", "local", "motoboy"]);
+const isCarrierShipment = (carrier: string | null | undefined): boolean =>
+  !!carrier && !OWN_DELIVERY_CARRIERS.has(carrier.trim().toLowerCase());
+
 export function DeliveryPage(props: DeliveryPageProps) {
   const vm = useDeliveryPage();
 
@@ -109,7 +113,7 @@ export function DeliveryPage(props: DeliveryPageProps) {
                   </span>
                 </td>
                 <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                  {s.status === "created" ? (
+                  {s.status === "created" && isCarrierShipment(s.carrier) ? (
                     <button onClick={() => vm.buyLabel(s.id)} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid var(--color-brand)", background: "transparent", color: "var(--color-brand)", font: "11px var(--font-sans)", cursor: "pointer" }}>
                       Gerar etiqueta
                     </button>
@@ -117,7 +121,9 @@ export function DeliveryPage(props: DeliveryPageProps) {
                     <button onClick={() => navigator.clipboard.writeText(s.trackingCode!)} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid var(--color-border)", background: "transparent", color: "var(--color-text-muted)", font: "11px var(--font-sans)", cursor: "pointer" }}>
                       <Link2 size={11} /> Copiar
                     </button>
-                  ) : null}
+                  ) : (
+                    <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>Entrega própria</span>
+                  )}
                 </td>
               </tr>
             ))}
