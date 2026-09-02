@@ -8,6 +8,7 @@ import { CheckoutCustomerService } from "./checkout-customer.service.js";
 import { HoldoutGroupService } from "../../../revenue-lift/domain/services/holdout-group.service.js";
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../../storefront/domain/ports/storefront-cart.port.js";
 import { MetricsService } from "../../../../shared/observability/metrics.service.js";
+import { CartPromoResolutionService } from "./cart-promo-resolution.service.js";
 
 interface BootstrapResult {
   session: CheckoutSession;
@@ -25,7 +26,8 @@ export class CheckoutBootstrapService {
     @Optional() private readonly customerService?: CheckoutCustomerService,
     @Optional() private readonly holdoutGroupService?: HoldoutGroupService,
     @Optional() @Inject(STOREFRONT_CART_PORT) private readonly storefrontCart?: StorefrontCartPort,
-    @Optional() private readonly metrics?: MetricsService
+    @Optional() private readonly metrics?: MetricsService,
+    @Optional() private readonly promoResolution?: CartPromoResolutionService
   ) {}
 
   /**
@@ -71,6 +73,14 @@ export class CheckoutBootstrapService {
       } catch (err) {
         this.logger.warn(`Failed to hydrate cart from storefront (non-blocking): ${err instanceof Error ? err.message : String(err)}`);
       }
+    }
+
+    // Resolve product promotion prices for cart items
+    if (enrichedInput.cart) {
+      enrichedInput.cart = await this.promoResolution?.resolveCartPromos(
+        enrichedInput.cart,
+        input.merchant_id
+      ) ?? enrichedInput.cart;
     }
 
     this.metrics?.checkoutStarted.inc({ merchant_id: input.merchant_id });

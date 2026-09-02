@@ -10,6 +10,7 @@ import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-rep
 import { SupportModule } from "../support/support.module.js";
 import { MarketplaceModule } from "../marketplace/marketplace.module.js";
 import { SearchFederatedProductsUseCase } from "../marketplace/application/use-cases/search-federated-products.use-case.js";
+import { PRODUCT_PROMOTION_REPOSITORY } from "../catalog/domain/ports/product-promotion-repository.port.js";
 import { StartStoreConversationUseCase } from "./application/use-cases/start-store-conversation.use-case.js";
 import { SendStoreMessageUseCase } from "./application/use-cases/send-store-message.use-case.js";
 import { GenerateNudgeUseCase } from "./application/use-cases/generate-nudge.use-case.js";

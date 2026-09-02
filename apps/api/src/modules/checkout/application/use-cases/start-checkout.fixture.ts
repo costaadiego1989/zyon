@@ -2,6 +2,7 @@ import { StartCheckoutUseCase } from "./start-checkout.use-case.js";
 import { BuyerResolutionService } from "../services/buyer-resolution.service.js";
 import { BuyerContextService } from "../services/buyer-context.service.js";
 import { CheckoutBootstrapService } from "../services/checkout-bootstrap.service.js";
+import { CartPromoResolutionService } from "../services/cart-promo-resolution.service.js";
 import { InterventionRuleTextBuilder } from "../services/intervention-rule-text.builder.js";
 import type { CheckoutCustomerService } from "../services/checkout-customer.service.js";
 import type { CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
@@ -13,6 +14,7 @@ import type { CheckoutExperienceConfig } from "../../domain/checkout-experience.
 import type { AgentContextPort } from "../../domain/ports/agent-context.port.js";
 import type { IntentMemoryRepositoryPort, BuyerIntentConsentRepositoryPort } from "../../../intent-memory/domain/ports/intent-memory-repository.port.js";
 import type { HoldoutGroupService } from "../../../revenue-lift/domain/services/holdout-group.service.js";
+import type { ProductPromotionRepositoryPort } from "../../../catalog/domain/ports/product-promotion-repository.port.js";
 
 interface FixtureOverrides {
   checkoutSettings?: CheckoutSettingsPort;
@@ -25,6 +27,7 @@ interface FixtureOverrides {
   intentMemory?: IntentMemoryRepositoryPort;
   intentConsent?: BuyerIntentConsentRepositoryPort;
   holdoutGroupService?: HoldoutGroupService;
+  promoRepository?: ProductPromotionRepositoryPort;
 }
 
 /**
@@ -42,7 +45,16 @@ export function createStartCheckoutUseCase(
     overrides?.intentMemory,
     overrides?.intentConsent
   );
-  const bootstrap = new CheckoutBootstrapService(sessions, outbox, overrides?.customerService, overrides?.holdoutGroupService);
+  const promoResolution = new CartPromoResolutionService(overrides?.promoRepository);
+  const bootstrap = new CheckoutBootstrapService(
+    sessions,
+    outbox,
+    overrides?.customerService,
+    overrides?.holdoutGroupService,
+    undefined,
+    undefined,
+    promoResolution
+  );
   const ruleBuilder = new InterventionRuleTextBuilder();
 
   return new StartCheckoutUseCase(

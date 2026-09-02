@@ -1653,10 +1653,12 @@ model StorefrontCart {
 model ProductPromotion {
   id                String   @id @default(cuid())
   merchantId        String   @map("merchant_id")
+  productId         String?  @map("product_id")
   variantId         String?  @map("variant_id")
   categoryId        String?  @map("category_id")
-  discountType      String   @map("discount_type") // "percent" | "fixed"
-  discountValue     Int      @map("discount_value") // percent (0-100) or cents
+  couponId          String?  @map("coupon_id")
+  discountType      String?  @map("discount_type") // "percent" | "fixed"; null when couponId set
+  discountValue     Int?     @map("discount_value") // percent (0-100) or cents; null when couponId set
   promoPriceInCents Int?     @map("promo_price_in_cents")
   isActive          Boolean  @default(true) @map("is_active")
   startsAt          DateTime @map("starts_at")
@@ -1665,6 +1667,7 @@ model ProductPromotion {
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@index([merchantId, isActive, endsAt])
+  @@index([merchantId, productId, isActive])
   @@index([variantId, isActive])
   @@index([categoryId, isActive])
   @@map("product_promotions")

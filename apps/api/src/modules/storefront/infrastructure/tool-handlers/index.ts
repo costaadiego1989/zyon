@@ -1,6 +1,7 @@
 import type { StoreToolHandlers } from "../../domain/tools/types.js";
 import type { ToolRequestContext } from "../../domain/tools/tool-context.js";
 import type { ProductRepositoryPort, StockRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
+import type { ProductPromotionRepositoryPort } from "../../../catalog/domain/ports/product-promotion-repository.port.js";
 import type { MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import type { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
 import type { AddMarketplaceItemToCartStorefrontUseCase } from "../../application/use-cases/add-marketplace-item-to-cart.use-case.js";
@@ -33,6 +34,7 @@ export interface AllHandlerDeps {
   crossSellPromotionRepo?: CrossSellPromotionRepository;
   applyCouponUseCase?: ApplyCouponUseCase;
   couponRepo?: CouponRepository;
+  productPromotionRepo?: ProductPromotionRepositoryPort;
 }
 
 export function composeStoreToolHandlers(deps: AllHandlerDeps, ctx: ToolRequestContext): StoreToolHandlers {
@@ -57,6 +59,7 @@ export function composeStoreToolHandlers(deps: AllHandlerDeps, ctx: ToolRequestC
     crossSellPromotionRepo: deps.crossSellPromotionRepo,
     applyCouponUseCase: deps.applyCouponUseCase,
     couponRepo: deps.couponRepo,
+    productPromotionRepo: deps.productPromotionRepo,
   };
 
   const reviewDeps: ReviewHandlerDeps = {

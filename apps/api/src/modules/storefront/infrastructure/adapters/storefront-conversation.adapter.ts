@@ -14,6 +14,7 @@ import { CROSS_SELL_PROMOTION_REPOSITORY, type CrossSellPromotionRepository } fr
 import { ApplyCouponUseCase } from "../../../coupons/application/use-cases/apply-coupon.use-case.js";
 import { COUPON_REPOSITORY, type CouponRepository } from "../../../coupons/domain/ports/coupon-repository.port.js";
 import type { ProductRepositoryPort, StockRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
+import { PRODUCT_PROMOTION_REPOSITORY, type ProductPromotionRepositoryPort } from "../../../catalog/domain/ports/product-promotion-repository.port.js";
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 import { storefrontQuickReplies, type StorefrontCartState, type StorefrontShippingOption } from "../../domain/services/storefront-quick-replies.service.js";
 import type { StoreQuickRepliesConfig } from "@zyon/shared-types";
@@ -46,6 +47,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     @Optional() @Inject(CROSS_SELL_PROMOTION_REPOSITORY) private readonly crossSellPromotionRepo?: CrossSellPromotionRepository,
     @Optional() private readonly applyCouponUseCase?: ApplyCouponUseCase,
     @Optional() @Inject(COUPON_REPOSITORY) private readonly couponRepo?: CouponRepository,
+    @Optional() @Inject(PRODUCT_PROMOTION_REPOSITORY) private readonly productPromotionRepo?: ProductPromotionRepositoryPort,
   ) {
     const localApiKey = process.env.LOCAL_LLM_API_KEY || process.env.OPENROUTER_API_KEY || "";
     const localBaseUrl = process.env.LOCAL_LLM_BASE_URL || process.env.OPENROUTER_BASE_URL || undefined;
@@ -80,6 +82,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       crossSellPromotionRepo: this.crossSellPromotionRepo,
       applyCouponUseCase: this.applyCouponUseCase,
       couponRepo: this.couponRepo,
+      productPromotionRepo: this.productPromotionRepo,
     };
 
     const placeholderHandlers: StoreToolHandlers = {} as any;

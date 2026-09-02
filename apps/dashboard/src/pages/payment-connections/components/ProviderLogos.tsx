@@ -4,8 +4,8 @@ interface LogoProps {
   size?: number;
 }
 
-function LogoImg({ src, alt }: { src: string; alt: string }) {
-  return <img src={src} alt={alt} style={{ objectFit: "contain", display: "block", margin: "0 auto" }} />;
+function LogoImg({ src, alt, style }: { src: string; alt: string; style?: React.CSSProperties }) {
+  return <img src={src} alt={alt} style={{ objectFit: "contain", display: "block", margin: "0 auto", ...style }} />;
 }
 
 export function AsaasLogo(_props: LogoProps) {
@@ -13,7 +13,8 @@ export function AsaasLogo(_props: LogoProps) {
 }
 
 export function MercadoPagoLogo(_props: LogoProps) {
-  return <LogoImg src="/logo-mercadopago.png" alt="Mercado Pago" />;
+
+  return <LogoImg src="/logo-mercadopago.png" alt="Mercado Pago" style={{ transform: "translateY(-80%)" }} />;
 }
 
 export function StripeLogo(_props: LogoProps) {

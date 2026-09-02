@@ -2,6 +2,7 @@ import type { StoreToolHandlers } from "../../domain/tools/types.js";
 import type { ToolRequestContext } from "../../domain/tools/tool-context.js";
 import type { ProductRepositoryPort, StockRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
 import type { StorefrontCartPort, StorefrontCartSelectedOption } from "../../domain/ports/storefront-cart.port.js";
+import type { ProductPromotionRepositoryPort } from "../../../catalog/domain/ports/product-promotion-repository.port.js";
 import { extractOptionGroups, resolveSelectedOptions, FoodOptionValidationError } from "../../domain/food-options.js";
 import type { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
 import type { CrossSellPromotionRepository } from "../../../cross-sell/domain/ports/cross-sell-promotion-repository.port.js";
@@ -18,6 +19,7 @@ import { CartRulesEngine, buildCartRuleContext } from "../../domain/services/car
 import { RuleProximityEngine, type RuleNudge, type ActiveRuleBadge } from "../../domain/services/rule-proximity.service.js";
 import type { AdvancedRule } from "../../../checkout/domain/services/advanced-rule-evaluator.service.js";
 import type { StorefrontCart } from "../../domain/ports/storefront-cart.port.js";
+import { resolveEffectiveUnitPrice, type ActivePromotion } from "../../../catalog/domain/services/product-price-resolver.service.js";
 
 const logger = new Logger("CartHandlers");
 
@@ -49,6 +51,63 @@ async function reevaluateCartRules(
   cart: StorefrontCart,
 ): Promise<CartRulesOutcome> {
   try {
+    // T14: Before CartRulesEngine, resolve product promotions on each cart line.
+    // Apply promo-adjusted prices to line.unitPriceCents, then proceed with cart rules.
+    if (deps.productPromotionRepo) {
+      for (const item of cart.items) {
+        try {
+          // Look up active product promo by variantId, then productId (fallback to category if needed)
+          let promos = await deps.productPromotionRepo.findByVariant(merchantId, item.variantId);
+
+          // If no variant-level promo, look for product-level (if we have productId)
+          if (promos.length === 0 && (item as any).productId) {
+            promos = await deps.productPromotionRepo.findActiveByProduct(
+              merchantId,
+              (item as any).productId
+            );
+          }
+
+          // Use the first active promo (FIFO; real impl could prioritize by discount amount)
+          if (promos.length > 0) {
+            const promo = promos[0];
+            let activePromo: ActivePromotion | undefined;
+
+            if (promo.couponId) {
+              // Coupon-linked: badge only, no price change
+              activePromo = { kind: "coupon", couponId: promo.couponId };
+            } else if (promo.discountType === "percent" && promo.discountValue !== undefined && promo.discountValue !== null) {
+              activePromo = { kind: "inline_percent", percent: promo.discountValue };
+            } else if (promo.discountType === "fixed" && promo.discountValue !== undefined && promo.discountValue !== null) {
+              activePromo = { kind: "inline_fixed", amountCents: promo.discountValue };
+            } else if (promo.promoPriceInCents !== undefined && promo.promoPriceInCents !== null) {
+              activePromo = { kind: "inline_price", promoPriceCents: promo.promoPriceInCents };
+            }
+
+            if (activePromo) {
+              const resolved = resolveEffectiveUnitPrice(item.unitPriceCents, activePromo);
+              item.unitPriceCents = resolved.unitPriceCents;
+              logger.debug("cart.promo.applied", {
+                merchantId,
+                variantId: item.variantId,
+                originalPrice: resolved.originalPriceCents,
+                adjustedPrice: resolved.unitPriceCents,
+                discountPercent: resolved.discountPercent,
+              });
+            }
+          }
+        } catch (err) {
+          logger.warn("cart.promo.resolution_failed", {
+            merchantId,
+            variantId: item.variantId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
+      // Recalculate cart total after promo adjustments
+      cart.total = cart.items.reduce((sum, i) => sum + i.unitPriceCents * i.quantity, 0);
+    }
+
     const advancedRules = await loadAdvancedRules(deps.prisma, merchantId);
     if (advancedRules.length === 0) return { cart };
     const merchantRules = await deps.merchantRepo.getRules(merchantId);
@@ -131,6 +190,11 @@ export interface CartHandlerDeps {
    * list_promotions returns an empty list (never an invented coupon).
    */
   couponRepo?: CouponRepository;
+  /**
+   * Product promotion repository — for resolving active product-level promos
+   * before cart-rules evaluation. Optional: when absent, no product promos apply.
+   */
+  productPromotionRepo?: ProductPromotionRepositoryPort;
 }
 
 export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContext): Pick<StoreToolHandlers, "addItemToCart" | "getCart" | "removeCartItem" | "updateCartItem" | "clearCart" | "quoteShipping" | "applyCoupon" | "removeCoupon" | "listPromotions" | "createCheckoutSession"> {

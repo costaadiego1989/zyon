@@ -195,30 +195,50 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
       // that are active and within their window. NEVER invent a discount — a product
       // with no matching promo simply does not appear in deals.
       const now = new Date();
-      let promos: Array<{ variantId: string | null; categoryId: string | null; discountType: string; discountValue: number; promoPriceInCents: number | null }> = [];
+      type PromoRow = { productId: string | null; variantId: string | null; categoryId: string | null; couponId: string | null; discountType: string | null; discountValue: number | null; promoPriceInCents: number | null };
+      let promos: Array<PromoRow> = [];
       try {
         promos = await deps.prisma.productPromotion.findMany({
           where: { merchantId: ctx.merchantId, isActive: true, startsAt: { lte: now }, endsAt: { gt: now } },
-          select: { variantId: true, categoryId: true, discountType: true, discountValue: true, promoPriceInCents: true },
+          select: { productId: true, variantId: true, categoryId: true, couponId: true, discountType: true, discountValue: true, promoPriceInCents: true },
         });
       } catch { promos = []; }
 
+      const byProduct = new Map(promos.filter((p) => p.productId).map((p) => [p.productId as string, p]));
       const byVariant = new Map(promos.filter((p) => p.variantId).map((p) => [p.variantId as string, p]));
       const byCategory = new Map(promos.filter((p) => p.categoryId).map((p) => [p.categoryId as string, p]));
 
-      const computeSale = (base: number, promo: { discountType: string; discountValue: number; promoPriceInCents: number | null }): number | null => {
+      const computeSale = (base: number, promo: { discountType: string | null; discountValue: number | null; promoPriceInCents: number | null }): number | null => {
         if (promo.promoPriceInCents != null && promo.promoPriceInCents > 0 && promo.promoPriceInCents < base) return promo.promoPriceInCents;
-        if (promo.discountType === "percent" && promo.discountValue > 0) return Math.round(base * (1 - promo.discountValue / 100));
-        if (promo.discountType === "fixed" && promo.discountValue > 0) return Math.max(0, base - promo.discountValue);
+        if (promo.discountType === "percent" && promo.discountValue && promo.discountValue > 0) return Math.round(base * (1 - promo.discountValue / 100));
+        if (promo.discountType === "fixed" && promo.discountValue && promo.discountValue > 0) return Math.max(0, base - promo.discountValue);
         return null;
       };
 
-      const deals: Array<{ id: string; name: string; price: number; originalPrice?: number; discountPercent?: number; image?: string; inStock: boolean }> = [];
+      const deals: Array<{ id: string; name: string; price: number; originalPrice?: number; discountPercent?: number; image?: string; inStock: boolean; coupon?: boolean }> = [];
       for (const p of result.products) {
         const variant = p.defaultVariant;
         const base = variant?.basePriceInCents ?? 0;
-        const promo = (variant && byVariant.get(variant.id)) || (p.categoryId && byCategory.get(p.categoryId)) || null;
+        // Match priority: product-level > variant-level > category-level.
+        const promo = byProduct.get(p.id) || (variant && byVariant.get(variant.id)) || (p.categoryId && byCategory.get(p.categoryId)) || null;
         if (!promo || base <= 0) continue; // no real promo → not a deal
+
+        // Coupon-linked promo: discount applies at coupon redemption, not inline.
+        // NEVER fabricate a sale price here — surface the item at its real price
+        // with a badge so the UI can show "com cupom" without a fake discount.
+        if (promo.couponId) {
+          deals.push({
+            id: p.id,
+            name: p.name,
+            price: base,
+            image: variant?.media?.[0]?.url,
+            inStock: p.hasStock,
+            coupon: true,
+          });
+          if (deals.length >= limit) break;
+          continue;
+        }
+
         const sale = computeSale(base, promo);
         if (sale == null || sale >= base) continue;
         deals.push({

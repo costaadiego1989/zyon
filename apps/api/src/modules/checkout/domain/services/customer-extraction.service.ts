@@ -196,8 +196,8 @@ export function isShippingQuickReplyQuestion(text: string): boolean {
   );
 }
 
-const EMAIL_OTP_FIELD = DATA_FIELD_ORDER[1]!.label;
-const PHONE_OTP_FIELD = DATA_FIELD_ORDER[5]!.label;
+const PHONE_OTP_FIELD = DATA_FIELD_ORDER[1]!.label;
+const EMAIL_OTP_FIELD = DATA_FIELD_ORDER[3]!.label;
 
 export function missingFieldsForStage(session: CheckoutSession, stage: ChatStage): string[] {
   if (stage === "data_collection") {

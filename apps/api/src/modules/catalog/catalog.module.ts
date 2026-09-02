@@ -28,11 +28,13 @@ import { ReorderCategoriesUseCase } from "./application/use-cases/reorder-catego
 import { GenerateProductSeoUseCase } from "./application/use-cases/generate-product-seo.use-case.js";
 import { STOREFRONT_CATALOG_PORT } from "./domain/ports/storefront-catalog.port.js";
 import { CROSS_SELL_RESOLVER_PORT } from "./domain/ports/cross-sell-resolver.port.js";
+import { PRODUCT_PROMOTION_REPOSITORY } from "./domain/ports/product-promotion-repository.port.js";
 import { TenantStorefrontCatalogAdapter } from "./infrastructure/tenant-storefront-catalog.adapter.js";
 import { DefaultCrossSellResolverAdapter } from "./infrastructure/default-cross-sell-resolver.adapter.js";
 import { CatalogCacheService } from "./infrastructure/cache/catalog-cache.service.js";
 import { PrismaProductRepository } from "./infrastructure/repositories/prisma-product.repository.js";
 import { PrismaStockRepository } from "./infrastructure/repositories/prisma-stock.repository.js";
+import { PrismaProductPromotionRepository } from "./infrastructure/repositories/prisma-product-promotion.repository.js";
 import { EmbeddingService } from "./infrastructure/services/embedding.service.js";
 import { StockExpiryWorker, CatalogStockExpiryScheduler } from "./infrastructure/jobs/stock-expiry.job.js";
 import { PromotionExpiryScheduler, PromotionExpiryWorker } from "./infrastructure/jobs/promotion-expiry.job.js";
@@ -78,6 +80,11 @@ import { StoreBuilderCatalogController } from "./presentation/http/catalog.contr
       useFactory: (prisma: PrismaClient) => new PrismaStockRepository(prisma),
       inject: [PRISMA_CLIENT],
     },
+    {
+      provide: PRODUCT_PROMOTION_REPOSITORY,
+      useFactory: (prisma: PrismaClient) => new PrismaProductPromotionRepository(prisma),
+      inject: [PRISMA_CLIENT],
+    },
     AddProductUseCase,
     SearchProductsUseCase,
     ReserveStockUseCase,
@@ -117,6 +124,7 @@ import { StoreBuilderCatalogController } from "./presentation/http/catalog.contr
     EmbeddingService,
     "ProductRepositoryPort",
     "StockRepositoryPort",
+    PRODUCT_PROMOTION_REPOSITORY,
   ]
 })
 export class CatalogModule {}

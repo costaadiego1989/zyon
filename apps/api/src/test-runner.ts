@@ -142,6 +142,8 @@ import "./modules/catalog/application/use-cases/add-product.use-case.spec.js";
 import "./modules/catalog/application/use-cases/search-products.use-case.spec.js";
 import "./modules/catalog/application/use-cases/reserve-stock.use-case.spec.js";
 import "./modules/catalog/application/use-cases/confirm-stock.use-case.spec.js";
+import "./modules/catalog/domain/services/product-price-resolver.service.spec.js";
+import "./modules/catalog/domain/entities/product-promotion.entity.spec.js";
 import "./shared/config/security-headers-config.spec.js";
 import "./shared/crypto/pii-cipher.service.spec.js";
 import "./shared/messaging/outbox-dispatcher.service.spec.js";
