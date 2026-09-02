@@ -1379,6 +1379,11 @@ button.chip.selected {
 .split-panel-preview {
   position: sticky;
   top: 16px;
+  /* Definite height so the embedded widget iframe (height:100%) fills it and its
+     content scrolls internally, instead of the iframe auto-growing to the full
+     widget content height (which pushed the hero out of view — blank preview). */
+  height: calc(100vh - 32px);
+  max-height: 820px;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -1387,7 +1392,7 @@ button.chip.selected {
 
 @media (max-width: 1024px) {
   .split-panel { grid-template-columns: 1fr; }
-  .split-panel-preview { position: static; }
+  .split-panel-preview { position: static; height: 640px; }
 }
 
 /* ── Misc Helpers ─────────────────────────────────────────────── */

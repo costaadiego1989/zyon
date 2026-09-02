@@ -118,9 +118,15 @@ export const LivePreviewPanel = forwardRef<LivePreviewPanelRef, LivePreviewPanel
         `  ui-presentation="${presentation}"`,
         "></zyon-checkout-agent>",
         `<style>`,
-        presentation === "conversational"
-          ? `.zyon-widget{position:relative!important;inset:auto!important;width:100%!important;height:100%!important;display:flex!important;align-items:center!important;justify-content:center!important} .zyon-panel{width:100%!important;height:100%!important;max-width:none!important;border-radius:0!important;border:none!important;box-shadow:none!important} .zyon-channel-gate{position:absolute!important;inset:0!important;display:grid!important;place-items:center!important;padding:0!important} .zyon-channel-gate__panel{width:100%!important;max-width:none!important;border-radius:0!important;height:100%!important;border:none!important}`
-          : `.zyon-widget{position:relative!important;inset:auto!important;width:100%!important;height:100%!important;display:flex!important;align-items:center!important;justify-content:center!important} .zyon-panel{height:100%!important;max-width:none!important;border-radius:0!important} .zyon-channel-gate{position:absolute!important;inset:0!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:0!important} .zyon-channel-gate__backdrop{display:none!important} .zyon-channel-gate__panel{max-width:none!important;width:100%!important;height:100%!important;border-radius:0!important;overflow-y:auto!important;border:none!important}`,
+        // Fit the embedded widget into the preview iframe. The widget uses
+        // `pulse-*` classes (the old `zyon-*` overrides were dead after the
+        // rebrand, leaving the widget at its natural floating size → blank frame).
+        // Neutralize floating/fixed positioning, let the shell fill the iframe,
+        // drop the frame's max-width so the hero fits, and allow vertical scroll.
+        `zyon-checkout-agent{display:block!important;width:100%!important;height:100%!important}`,
+        `.pulse-widget-shell,.pulse-widget-frame,.pulse-widget-inner{position:relative!important;inset:auto!important;width:100%!important;max-width:none!important;height:100%!important;min-height:0!important;border-radius:0!important;border:none!important;box-shadow:none!important;margin:0!important}`,
+        `.pulse-widget-inner{overflow-y:auto!important}`,
+        `.pulse-hero{min-height:100%!important;display:flex!important;flex-direction:column!important;justify-content:center!important}`,
         `</style>`,
         "</body></html>",
       ].join("\n");
