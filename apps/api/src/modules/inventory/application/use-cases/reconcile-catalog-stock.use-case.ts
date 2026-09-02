@@ -4,6 +4,7 @@ import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module
 import { INVENTORY_REPOSITORY, type InventoryRepositoryPort } from "../../domain/ports/inventory-repository.port.js";
 import { INVENTORY_MOVEMENT_REPOSITORY, type InventoryMovementRepositoryPort } from "../../domain/ports/inventory-movement-repository.port.js";
 import type { StockRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
+import { OnCatalogProductSavedHandler } from "../../infrastructure/event-handlers/on-catalog-product-saved.handler.js";
 
 /**
  * Reconciles catalog ProductStock against the InventoryItem ledger.
@@ -26,10 +27,18 @@ export class ReconcileCatalogStockUseCase {
     @Inject(INVENTORY_MOVEMENT_REPOSITORY) private readonly movementRepo: InventoryMovementRepositoryPort,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     @Optional() @Inject("StockRepositoryPort") private readonly catalogStock?: StockRepositoryPort,
+    @Optional() private readonly catalogSync?: OnCatalogProductSavedHandler,
   ) {}
 
   /** Runs one reconciliation sweep. Returns how many catalog rows were corrected. */
   async execute(): Promise<number> {
+    // Phase 0: backfill missing snapshots (catalog → inventory). Products created
+    // outside the product.upserted event (seeds, bulk imports, legacy data) never
+    // got an InventoryItem; this ensures every catalog variant with a SKU has one.
+    await this.backfillMissingSnapshots().catch((err) => {
+      this.logger.warn(`Snapshot backfill failed: ${err instanceof Error ? err.message : String(err)}`);
+    });
+
     if (!this.catalogStock) return 0;
 
     // Enumerate merchants that have inventory, then reconcile each.
@@ -79,5 +88,51 @@ export class ReconcileCatalogStockUseCase {
 
     if (corrected > 0) this.logger.log(`Reconciliation corrected ${corrected} catalog stock row(s)`);
     return corrected;
+  }
+
+  /**
+   * Create InventoryItem snapshots for catalog variants (with a SKU) that have
+   * none yet. Reuses the catalog→inventory sync handler so the snapshot shape and
+   * movement bookkeeping stay identical to the event-driven path. Idempotent:
+   * the handler upserts, so already-synced products are a no-op.
+   */
+  private async backfillMissingSnapshots(): Promise<void> {
+    if (!this.catalogSync) return;
+
+    // SKUs that already have a snapshot, per merchant, so we only re-sync products
+    // that are actually missing (avoids re-touching the whole catalog every sweep).
+    const existing = await this.prisma.inventoryItem.findMany({ select: { merchantId: true, sku: true } });
+    const haveByMerchant = new Map<string, Set<string>>();
+    for (const it of existing) {
+      if (!haveByMerchant.has(it.merchantId)) haveByMerchant.set(it.merchantId, new Set());
+      haveByMerchant.get(it.merchantId)!.add(it.sku);
+    }
+
+    // Products whose variants include at least one SKU without a snapshot.
+    const variants = await this.prisma.productVariant.findMany({
+      where: { sku: { not: "" } },
+      select: { sku: true, productId: true, product: { select: { id: true, merchantId: true, name: true } } },
+    });
+
+    const productsToSync = new Map<string, { merchantId: string; name: string }>();
+    for (const v of variants) {
+      const p = v.product;
+      if (!p) continue;
+      const have = haveByMerchant.get(p.merchantId);
+      if (have?.has(v.sku)) continue; // already has a snapshot
+      productsToSync.set(p.id, { merchantId: p.merchantId, name: p.name });
+    }
+
+    if (productsToSync.size === 0) return;
+    let synced = 0;
+    for (const [productId, { merchantId, name }] of productsToSync) {
+      try {
+        await this.catalogSync.handle(merchantId, { id: productId, name });
+        synced++;
+      } catch (err) {
+        this.logger.warn(`Backfill sync failed for product=${productId}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    this.logger.log(`Backfilled inventory snapshots for ${synced} product(s) missing them`);
   }
 }
