@@ -27,6 +27,7 @@ function makePortDouble(overrides: Partial<ProductRepositoryPort> = {}): Product
     create: async () => makeProduct(),
     findById: async () => null,
     search: async (): Promise<SearchProductsResult> => ({ products: [], total: 0 }),
+    findExistingVariantSkus: async () => [],
     update: async () => makeProduct(),
     softDelete: async () => undefined,
     addVariant: async () => ({

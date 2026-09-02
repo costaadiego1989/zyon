@@ -67,6 +67,7 @@ export interface ProductRepositoryPort {
   create(input: CreateProductInput): Promise<ProductEntity>;
   findById(merchantId: string, productId: string): Promise<ProductEntity | null>;
   search(input: SearchProductsInput): Promise<SearchProductsResult>;
+  findExistingVariantSkus(merchantId: string, skus: string[], excludeProductId?: string): Promise<string[]>;
   update(merchantId: string, productId: string, data: Partial<{ name: string; description: string; type: string; metadata: Record<string, unknown>; categoryId: string; isActive: boolean; seoTitle: string; metaDescription: string; slug: string; ogTitle: string; ogDescription: string; twitterCard: string; keywords: string[] }>): Promise<ProductEntity>;
   softDelete(merchantId: string, productId: string): Promise<void>;
   addVariant(merchantId: string, productId: string, variant: CreateProductInput["variants"][0]): Promise<ProductVariantProps>;

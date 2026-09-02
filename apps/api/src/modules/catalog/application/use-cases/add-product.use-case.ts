@@ -28,6 +28,21 @@ export class AddProductUseCase {
       if (variant.basePriceInCents <= 0) throw new ConflictException("price_must_be_positive");
     }
 
+    // SKU is the inventory/ERP key — it must be unique per merchant. Reject
+    // duplicates both WITHIN this payload and against SKUs already used by other
+    // products of the merchant. Without this, two products can share a SKU, the
+    // inventory snapshot (keyed by merchant+sku) collapses them into one, and a
+    // sale decrements the wrong stock / collides on ERP sync.
+    const skus = input.variants.map((v) => v.sku.trim());
+    const dupInPayload = skus.find((s, i) => skus.indexOf(s) !== i);
+    if (dupInPayload) {
+      throw new ConflictException(`duplicate_sku_in_product:${dupInPayload}`);
+    }
+    const existing = await this.productRepo.findExistingVariantSkus(input.merchantId, skus);
+    if (existing.length > 0) {
+      throw new ConflictException(`sku_already_exists:${existing.join(",")}`);
+    }
+
     // Physical products require dimensions for shipping calculation
     const productType = input.type ?? "physical";
     const requiresDimensions = productType === "physical";

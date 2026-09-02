@@ -101,6 +101,26 @@ export class PrismaProductRepository implements ProductRepositoryPort {
     return this.toEntity(product);
   }
 
+  async findExistingVariantSkus(
+    merchantId: string,
+    skus: string[],
+    excludeProductId?: string,
+  ): Promise<string[]> {
+    const wanted = skus.map((s) => s.trim()).filter((s) => s.length > 0);
+    if (wanted.length === 0) return [];
+    const rows = await this.prisma.productVariant.findMany({
+      where: {
+        sku: { in: wanted },
+        product: {
+          merchantId,
+          ...(excludeProductId ? { id: { not: excludeProductId } } : {}),
+        },
+      },
+      select: { sku: true },
+    });
+    return [...new Set(rows.map((r) => r.sku))];
+  }
+
   async search(input: SearchProductsInput): Promise<SearchProductsResult> {
     const where: Prisma.ProductWhereInput = {
       merchantId: input.merchantId,

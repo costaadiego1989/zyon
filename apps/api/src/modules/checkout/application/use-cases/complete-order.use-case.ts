@@ -326,8 +326,14 @@ export class CompleteOrderUseCase {
 const BUYER_SERVICE_FEE_MAJOR_UNITS = 0.99;
 
 function computeExpectedTotal(session: CheckoutSession): number {
-  const gross = session.cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const discount = session.cart.currentDiscount ?? 0;
+  // Defensive: a session whose cart was never populated (e.g. a storefront
+  // conversation session that never became a checkout session, or a partially
+  // persisted row) must not crash order completion — this is a money-critical
+  // path. Treat a missing/empty cart as gross 0 rather than throwing on
+  // `undefined.reduce`, so the caller's total-mismatch guard rejects cleanly.
+  const items = Array.isArray(session.cart?.items) ? session.cart.items : [];
+  const gross = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const discount = session.cart?.currentDiscount ?? 0;
   const shipping = session.shipping?.customerPrice ?? 0;
   const total = gross + shipping - discount;
   return Math.round(Math.max(0, total) * 100) / 100;
