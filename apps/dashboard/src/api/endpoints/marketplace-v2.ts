@@ -13,6 +13,7 @@ export interface AvailableStore {
   category: string;
   commissionPercent: number;
   logoUrl: string | null;
+  description?: string | null;
   connected: boolean;
 }
 

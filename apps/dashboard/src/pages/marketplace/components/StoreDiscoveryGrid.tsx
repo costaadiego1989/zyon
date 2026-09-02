@@ -183,7 +183,7 @@ export function StoreDiscoveryGrid({ apiBaseUrl }: StoreDiscoveryGridProps) {
         ))}
       </div>
 
-      {/* Stores Grid or Empty */}
+      {/* Stores Grid or Empty — wrapped in the standard dark container */}
       {stores.length === 0 ? (
         <EmptyState
           icon={Store}
@@ -191,7 +191,7 @@ export function StoreDiscoveryGrid({ apiBaseUrl }: StoreDiscoveryGridProps) {
           description={searchTerm || selectedCategory ? "Tente ajustar seus filtros de busca" : "Não há lojas parceiras disponíveis no momento"}
         />
       ) : (
-        <>
+        <div className="panel" style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
             {stores.map((store) => (
               <div key={store.id} style={{ padding: "16px", background: "var(--surface-1)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -206,6 +206,26 @@ export function StoreDiscoveryGrid({ apiBaseUrl }: StoreDiscoveryGridProps) {
                       {store.category} · {store.commissionPercent}% comissão
                     </div>
                   </div>
+                </div>
+
+                {/* Description */}
+                {store.description && (
+                  <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", margin: 0, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                    {store.description}
+                  </p>
+                )}
+
+                {/* Store code (copy to blocklist) */}
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ font: "10px var(--font-mono)", color: "var(--color-text-faint)" }}>Código:</span>
+                  <button
+                    type="button"
+                    onClick={() => { try { navigator.clipboard.writeText(store.id); showToast("success", "Código copiado"); } catch { /* clipboard off */ } }}
+                    title="Copiar código da loja (para bloquear)"
+                    style={{ flex: 1, minWidth: 0, textAlign: "left", padding: "4px 8px", borderRadius: "var(--radius-sm)", border: "1px dashed var(--color-border)", background: "transparent", color: "var(--color-text-muted)", font: "11px var(--font-mono)", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                  >
+                    {store.id}
+                  </button>
                 </div>
 
                 {/* Status + Action */}
@@ -236,7 +256,7 @@ export function StoreDiscoveryGrid({ apiBaseUrl }: StoreDiscoveryGridProps) {
             ))}
           </div>
 
-          {/* Load More */}
+          {/* Pagination — load more */}
           {nextCursor && (
             <div style={{ display: "flex", justifyContent: "center", paddingTop: 8 }}>
               <button
@@ -246,11 +266,11 @@ export function StoreDiscoveryGrid({ apiBaseUrl }: StoreDiscoveryGridProps) {
                 disabled={searching}
                 style={{ padding: "8px 20px", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", background: "var(--surface-2)", color: "var(--color-text-muted)", font: "500 12px var(--font-sans)", cursor: "pointer" }}
               >
-                {searching ? "Carregando..." : "Carregar mais"}
+                {searching ? "Carregando..." : "Carregar mais lojas"}
               </button>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

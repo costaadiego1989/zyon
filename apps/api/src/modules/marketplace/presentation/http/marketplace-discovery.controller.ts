@@ -93,6 +93,7 @@ export class MarketplaceDiscoveryController {
         name: true,
         storeCategory: true,
         theme: true,
+        storeSettings: true,
         marketplaceConfig: {
           select: { commissionRateBps: true },
         },
@@ -121,6 +122,7 @@ export class MarketplaceDiscoveryController {
         commissionPercent:
           (m.marketplaceConfig?.commissionRateBps ?? 1500) / 100,
         logoUrl: (m.theme as any)?.logoUrl ?? null,
+        description: (m.storeSettings as any)?.company?.description ?? (m.theme as any)?.storeDescription ?? null,
         connected: connMap.get(m.id) === "active",
       })),
       nextCursor: hasMore ? stores[stores.length - 1].id : null,

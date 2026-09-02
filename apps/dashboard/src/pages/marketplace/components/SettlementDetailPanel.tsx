@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { X, ExternalLink } from "lucide-react";
 import { useApi } from "../../../hooks/useApi.js";
+import { SidePanel } from "../../../components/SidePanel.js";
 import { reportError } from "../../../hooks/useErrorReporter.js";
 import type { SettlementDetail } from "../../../api/endpoints/marketplace-v2.js";
 import { SettlementTimeline } from "./SettlementTimeline.js";
@@ -40,32 +40,7 @@ export function SettlementDetailPanel({
   }, [fetchDetail]);
 
   return (
-    <div className="settlement-panel-backdrop" onClick={onClose}>
-      <div
-        className="settlement-panel"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label="Detalhe do Settlement"
-      >
-        {/* Header */}
-        <div className="settlement-panel__header">
-          <div>
-            <div style={{ fontSize: 12, color: "var(--color-text-muted)", textTransform: "uppercase" }}>
-              Settlement
-            </div>
-            <div style={{ fontSize: 16, fontFamily: "var(--font-mono)", fontWeight: 600 }}>
-              {settlementId.slice(0, 12)}...
-            </div>
-          </div>
-          <button
-            className="settlement-panel__close"
-            onClick={onClose}
-            aria-label="Fechar"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
+    <SidePanel isOpen title={`Repasse ${settlementId.slice(0, 12)}…`} onClose={onClose}>
         {/* Content */}
         <div className="settlement-panel__body">
           {loading && (
@@ -161,7 +136,6 @@ export function SettlementDetailPanel({
             </>
           )}
         </div>
-      </div>
-    </div>
+    </SidePanel>
   );
 }

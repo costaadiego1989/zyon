@@ -15,6 +15,21 @@ import { BlockedMerchantForm } from "./components/BlockedMerchantForm.js";
 import { StoreDiscoveryGrid } from "./components/StoreDiscoveryGrid.js";
 import "./marketplace-page.css";
 
+const SETTLEMENT_STATUS_PT: Record<string, string> = {
+  awaiting_return_window: "Aguardando devolução",
+  awaiting_chargeback_window: "Aguardando chargeback",
+  transfer_scheduled: "Repasse agendado",
+  transferred: "Repasse executado",
+  finalized: "Finalizado",
+  return_cancelled: "Devolvido",
+  chargeback_cancelled: "Chargeback cancelado",
+  chargeback_debt: "Débito por chargeback",
+  chargeback_filed: "Chargeback aberto",
+  chargeback_resolved: "Chargeback resolvido",
+};
+const settlementStatusLabel = (status: string): string =>
+  SETTLEMENT_STATUS_PT[status] ?? status.replace(/_/g, " ");
+
 interface MarketplacePageProps {
   apiBaseUrl: string;
   me: MerchantProfile | null;
@@ -380,7 +395,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                       </td>
                       <td>
                         <span className={`settlement-status settlement-status--${s.status}`}>
-                          {s.status.replace(/_/g, " ")}
+                          {settlementStatusLabel(s.status)}
                         </span>
                       </td>
                       <td style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
@@ -404,15 +419,55 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
         </SectionErrorBoundary>
       )}
 
-      {tab === "returns" && (
-        <DataPanel
-          title="Devoluções de Marketplace"
-          isEmpty={true}
-          empty={{ icon: Store, title: "Nenhuma devolução de marketplace", description: "Quando compradores de pedidos cross-store solicitarem devoluções, elas aparecerão aqui." }}
-        >
-          {null}
-        </DataPanel>
-      )}
+      {tab === "returns" && (() => {
+        const returned = settlements.filter((s) => s.status === "return_cancelled");
+        const returnedValueCents = returned.reduce((sum, s) => sum + s.sellerNetCents, 0);
+        const returnRate = settlements.length > 0 ? returned.length / settlements.length : 0;
+        return (
+          <div className="marketplace-page__returns">
+            {/* KPIs — padronizado com as demais abas */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+              <StatCard label="Devoluções" value={returned.length} icon={<Store size={16} />} accent="var(--warning)" />
+              <StatCard
+                label="Valor Devolvido"
+                value={new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(returnedValueCents / 100)}
+                icon={<TrendingUp size={16} />}
+                accent="var(--color-error)"
+              />
+              <StatCard label="Taxa de Devolução" value={`${Math.round(returnRate * 100)}%`} icon={<BarChart3 size={16} />} accent="var(--info)" />
+            </div>
+
+            {returned.length === 0 ? (
+              <div className="panel">
+                <EmptyState
+                  icon={Store}
+                  title="Nenhuma devolução de marketplace"
+                  description="Quando compradores de pedidos cross-store solicitarem devoluções, elas aparecerão aqui."
+                />
+              </div>
+            ) : (
+              <div className="panel">
+                <table className="marketplace-orders__table">
+                  <thead>
+                    <tr><th>Settlement</th><th>Pedido</th><th>Valor</th><th>Status</th><th>Data</th></tr>
+                  </thead>
+                  <tbody>
+                    {returned.map((s) => (
+                      <tr key={s.id}>
+                        <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{s.id.slice(0, 8)}...</td>
+                        <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{s.orderId.slice(0, 8)}...</td>
+                        <td style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>R$ {(s.sellerNetCents / 100).toFixed(2)}</td>
+                        <td><span className={`settlement-status settlement-status--${s.status}`}>{settlementStatusLabel(s.status)}</span></td>
+                        <td style={{ fontSize: 12, color: "var(--color-text-muted)" }}>{new Date(s.createdAt).toLocaleDateString("pt-BR")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {tab === "chargebacks" && (
         <div className="marketplace-page__chargebacks">
