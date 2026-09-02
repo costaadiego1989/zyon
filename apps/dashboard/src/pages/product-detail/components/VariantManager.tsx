@@ -52,6 +52,9 @@ export function VariantManager(props: VariantManagerProps) {
               <Field label="Estoque" value={variants[0].stockInput} onChange={(val) => onUpdateVariant(0, { stockInput: val })} placeholder="0" />
             )}
           </div>
+          <p style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 10, lineHeight: 1.5 }}>
+            Sem custo informado, a margem de negociação e descontos assume custo = 50% do preço. Informe o custo real depois em Estoque para cálculos precisos.
+          </p>
         </section>
       )}
 

@@ -29,6 +29,29 @@ const MOVEMENT_KIND_COLORS: Record<string, { bg: string; color: string; label: s
   TRANSFER_OUT: { bg: "var(--color-warning-bg)", color: "var(--color-warning)", label: "Transfer. saída" },
 };
 
+const MOVEMENT_SOURCE_LABELS: Record<string, string> = {
+  commerce: "Venda",
+  catalog: "Catálogo",
+  manual: "Manual",
+  native: "Manual",
+  dashboard: "Manual",
+  erp: "ERP",
+  marketplace: "Marketplace",
+  reconciliation: "Reconciliação",
+  system: "Sistema",
+};
+
+const MOVEMENT_REASON_LABELS: Record<string, string> = {
+  sale_completed: "Venda concluída",
+  reconciliation: "Reconciliação de estoque",
+  manual_adjustment: "Ajuste manual",
+  stock_received: "Entrada de mercadoria",
+  damaged: "Baixa por avaria",
+  returned: "Devolução",
+};
+const labelSource = (s?: string | null): string => (s ? (MOVEMENT_SOURCE_LABELS[s] ?? s) : "—");
+const labelReason = (r?: string | null): string => (r ? (MOVEMENT_REASON_LABELS[r] ?? r) : "—");
+
 const STOCK_STATUS_COLORS: Record<string, { bg: string; color: string; label: string }> = {
   in_stock: { bg: "var(--color-success-bg)", color: "var(--color-success)", label: "Em estoque" },
   low_stock: { bg: "var(--color-warning-bg)", color: "var(--color-warning)", label: "Baixo" },
@@ -60,6 +83,31 @@ export function InventoryPage(props: InventoryPageProps) {
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
   const [productDetail, setProductDetail] = useState<any | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  // Manual stock adjustment (records a movement instead of editing the product qty)
+  const [adjustQty, setAdjustQty] = useState<string>("");
+  const [adjustReason, setAdjustReason] = useState<string>("");
+  const [adjustBusy, setAdjustBusy] = useState(false);
+
+  const submitAdjustment = async () => {
+    if (!selectedItem) return;
+    const delta = parseInt(adjustQty, 10);
+    if (!Number.isFinite(delta) || delta === 0) return;
+    setAdjustBusy(true);
+    try {
+      // Positive delta = ENTRY, negative = ADJUSTMENT (write-off/correction).
+      await vm.recordMovement?.({
+        itemId: selectedItem.id,
+        kind: delta > 0 ? "ENTRY" : "ADJUSTMENT",
+        quantity: Math.abs(delta),
+        reason: adjustReason.trim() || "manual_adjustment",
+      });
+      setAdjustQty("");
+      setAdjustReason("");
+      setSelectedItem(null); // close; list refetched by the vm action
+    } finally {
+      setAdjustBusy(false);
+    }
+  };
 
   const openItemDetail = async (item: any) => {
     setSelectedItem(item);
@@ -108,7 +156,6 @@ export function InventoryPage(props: InventoryPageProps) {
 
   const itemStartIdx = (itemPage - 1) * PAGE_SIZE;
   const paginatedItems = filteredItems.slice(itemStartIdx, itemStartIdx + PAGE_SIZE);
-
   const movementStartIdx = (movementPage - 1) * PAGE_SIZE;
   const paginatedMovements = vm.movements.slice(movementStartIdx, movementStartIdx + PAGE_SIZE);
 
@@ -309,8 +356,8 @@ export function InventoryPage(props: InventoryPageProps) {
                         <td style={{ padding: "12px 20px", font: "600 13px var(--font-data)", color: kindInfo.color, textAlign: "right" }}>
                           {qtdSign}{m.quantity ?? 0}
                         </td>
-                        <td style={{ padding: "12px 20px", font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>{m.source ?? "—"}</td>
-                        <td style={{ padding: "12px 20px", font: "12px var(--font-sans)", color: "var(--color-text-faint)" }}>{m.reason ?? "—"}</td>
+                        <td style={{ padding: "12px 20px", font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>{labelSource(m.source)}</td>
+                        <td style={{ padding: "12px 20px", font: "12px var(--font-sans)", color: "var(--color-text-faint)" }}>{labelReason(m.reason)}</td>
                       </tr>
                     );
                   })}
@@ -601,6 +648,36 @@ export function InventoryPage(props: InventoryPageProps) {
                 )}
               </div>
             )}
+
+            {/* Ajustar estoque — records an auditable movement (never edits the
+                product quantity field directly). Positive = entrada, negative = baixa. */}
+            <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
+              <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, display: "block" }}>Ajustar estoque</label>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <input
+                  type="number"
+                  value={adjustQty}
+                  onChange={(e) => setAdjustQty(e.target.value)}
+                  placeholder="+/− qtd"
+                  aria-label="Quantidade do ajuste"
+                  style={{ width: 90, padding: "8px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-1)", color: "var(--color-text)", font: "13px var(--font-data)" }}
+                />
+                <input
+                  type="text"
+                  value={adjustReason}
+                  onChange={(e) => setAdjustReason(e.target.value)}
+                  placeholder="Motivo (ex: entrada de mercadoria, avaria)"
+                  aria-label="Motivo do ajuste"
+                  style={{ flex: 1, minWidth: 160, padding: "8px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-1)", color: "var(--color-text)", font: "13px var(--font-sans)" }}
+                />
+                <Button onClick={submitAdjustment} disabled={adjustBusy || !adjustQty.trim()}>
+                  {adjustBusy ? "Aplicando..." : "Aplicar"}
+                </Button>
+              </div>
+              <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 6 }}>
+                Positivo adiciona (entrada), negativo remove (baixa). Gera uma movimentação rastreável — não edite a quantidade pelo cadastro do produto.
+              </div>
+            </div>
 
             {/* Metadata */}
             <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16, font: "11px var(--font-mono)", color: "var(--color-text-faint)", display: "flex", flexDirection: "column", gap: 4 }}>
