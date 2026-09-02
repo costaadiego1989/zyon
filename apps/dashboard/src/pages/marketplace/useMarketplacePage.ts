@@ -64,9 +64,50 @@ export function useMarketplacePage(me: MerchantProfile | null) {
         api.getMarketplaceOrders(),
         api.getMarketplaceStats(),
       ]);
-      if (Array.isArray(orderList)) setOrders(orderList);
-      else if (orderList && Array.isArray((orderList as any).orders)) setOrders((orderList as any).orders);
-      if (orderStats) setStats(orderStats);
+      // Backend returns FLAT cross-store line items (camelCase); the UI expects
+      // grouped MarketplaceOrder rows with a snake_case line_items[] array. Normalize.
+      const raw = Array.isArray(orderList)
+        ? orderList
+        : (orderList && Array.isArray((orderList as any).orders) ? (orderList as any).orders : []);
+      const normalized = raw.map((li: any) => {
+        // Already grouped? keep as-is.
+        if (Array.isArray(li.line_items)) return li;
+        const statusMap: Record<string, string> = { fulfilled: "delivered", shipped: "shipped", pending: "pending", created: "pending" };
+        const qty = li.quantity ?? 1;
+        const unit = (li.unitPriceCents ?? 0) / 100;
+        return {
+          id: li.orderId ?? li.id,
+          seller_merchant_id: li.sellerMerchantId,
+          host_merchant_id: li.hostMerchantId,
+          host_store_name: li.hostStoreName ?? li.host_store_name ?? li.hostMerchantId,
+          total_amount: (li.unitPriceCents ?? 0) * qty / 100,
+          status: statusMap[li.fulfillmentStatus] ?? "pending",
+          created_at: li.createdAt ?? new Date().toISOString(),
+          updated_at: li.updatedAt ?? new Date().toISOString(),
+          line_items: [{
+            id: li.id,
+            order_id: li.orderId ?? li.id,
+            product_id: li.federatedProductId ?? "",
+            product_name: li.productName ?? li.federatedProductId ?? "Produto",
+            quantity: qty,
+            unit_price: unit,
+            total_price: unit * qty,
+            status: statusMap[li.fulfillmentStatus] ?? "pending",
+            tracking_number: li.fulfillmentReference ?? undefined,
+          }],
+        };
+      });
+      setOrders(normalized);
+      if (orderStats) {
+        const s = orderStats as any;
+        // Backend stats are camelCase with cents; UI expects snake_case in reais.
+        setStats({
+          pending_orders: s.pending_orders ?? s.pendingOrders ?? 0,
+          monthly_revenue: s.monthly_revenue ?? (s.monthlyRevenueCents ?? 0) / 100,
+          items_shipped: s.items_shipped ?? s.itemsShipped ?? 0,
+          fulfillment_rate: s.fulfillment_rate ?? s.fulfillmentRate ?? 0,
+        });
+      }
     } catch (err) {
       // Use defaults
       reportError({ source: "marketplace.loadOrders", error: err, severity: "warning" });

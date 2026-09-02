@@ -296,7 +296,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                 </thead>
                 <tbody>
                   {orders.flatMap((order) =>
-                    order.line_items.map((item) => (
+                    (order.line_items ?? []).map((item) => (
                       <OrderRow
                         key={item.id}
                         orderId={order.id}
