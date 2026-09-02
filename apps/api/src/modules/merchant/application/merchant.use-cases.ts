@@ -11,8 +11,20 @@ export class GetMerchantProfileUseCase {
   async execute(merchantId: string): Promise<MerchantProfile> {
     const profile = await this.repository.getProfile(merchantId);
     if (!profile) throw new NotFoundException("merchant_not_found");
-    return profile;
+    const slug = profile.storeSettings?.slug?.trim() || slugifyStoreName(profile.name);
+    return { ...profile, slug };
   }
+}
+
+function slugifyStoreName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .trim();
 }
 
 @Injectable()
@@ -34,7 +46,6 @@ export class UpdateMerchantRulesUseCase {
   async execute(merchantId: string, rules: Partial<MerchantRules>): Promise<MerchantRules> {
     const patch = { ...rules };
 
-    // Domain-level bounds guard (belt-and-suspenders below DTO validation).
     if (patch.minimumMarginPercent !== undefined && patch.minimumMarginPercent < 5) {
       throw new BadRequestException("minimum_margin_percent_below_floor");
     }
@@ -52,8 +63,6 @@ export class UpdateMerchantRulesUseCase {
     }
     const updated = await this.repository.updateRules(merchantId, patch);
 
-    // Emit config-updated so the knowledge base re-indexes store config chunks.
-    // Fire-and-forget: indexing failure must not block the rules update.
     void this.eventBus.publish({
       eventType: "merchant.config_updated",
       merchantId,

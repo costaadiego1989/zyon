@@ -52,6 +52,7 @@ export interface MerchantStoreSettings {
 export interface MerchantProfile {
   id: string;
   name: string;
+  slug?: string;
   theme?: MerchantTheme;
   storeCategory?: string;
   plan?: string;

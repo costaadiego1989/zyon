@@ -1,22 +1,3 @@
-/**
- * All dashboard API types — domain models returned from endpoints.
- * Types from shared-types are re-exported for convenience.
- */
-import type {
-  CheckoutSettings,
-  CheckoutSettingsPatch,
-  DashboardOverview,
-  MerchantRules,
-  MerchantTheme,
-  OnboardingStateResponse,
-  OnboardingStepId,
-  SupportSettings,
-  SupportSettingsPatch,
-  SupportTicket,
-  SupportTicketStatus,
-  SupportTicketStatusPatch,
-} from "@zyon/shared-types";
-
 export type {
   CheckoutSettings,
   CheckoutSettingsPatch,
@@ -51,6 +32,7 @@ export type DashboardRegisterPayload = {
 export type MerchantProfile = {
   id: string;
   name: string;
+  slug?: string;
   plan?: "STORE_ONLY" | "BOTH" | "API";
 };
 
@@ -156,9 +138,7 @@ export type BillingSubscription = {
   plan: "starter" | "growth" | "scale" | string;
   plan_name?: string;
   monthly_price_brl?: number;
-  /** Fee do merchant por transação, fixo em centavos (sai do repasse). */
   transaction_fee_cents?: number;
-  /** Taxa de serviço do buyer, fixo em centavos (somada ao total do pedido). */
   buyer_service_fee_cents?: number;
   limits?: Record<string, number | null>;
   features?: Record<string, boolean>;
