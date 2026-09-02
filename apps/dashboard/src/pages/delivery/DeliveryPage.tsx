@@ -25,6 +25,12 @@ const OWN_DELIVERY_CARRIERS = new Set(["flat-rate", "flat_rate", "flat", "own", 
 const isCarrierShipment = (carrier: string | null | undefined): boolean =>
   !!carrier && !OWN_DELIVERY_CARRIERS.has(carrier.trim().toLowerCase());
 
+const isRealTrackingCode = (code: string | null | undefined): boolean =>
+  !!code && !/^pending:/i.test(code.trim());
+
+const carrierLabel = (carrier: string | null | undefined): string =>
+  isCarrierShipment(carrier) ? carrier!.trim() : "Entrega própria";
+
 export function DeliveryPage(props: DeliveryPageProps) {
   const vm = useDeliveryPage();
 
@@ -105,8 +111,8 @@ export function DeliveryPage(props: DeliveryPageProps) {
             {vm.shipments.map((s) => (
               <tr key={s.id} style={{ borderBottom: "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" }}>
                 <td style={{ padding: "12px 16px", font: "12px var(--font-mono)", color: "var(--color-text-muted)" }}>#{(s.orderId ?? s.externalOrderId ?? s.id).slice(0, 8)}</td>
-                <td style={{ padding: "12px 16px", font: "13px var(--font-sans)", color: "var(--color-text)" }}>{s.carrier || "—"}</td>
-                <td style={{ padding: "12px 16px", font: "12px var(--font-mono)", color: "var(--color-text-muted)" }}>{s.trackingCode || "—"}</td>
+                <td style={{ padding: "12px 16px", font: "13px var(--font-sans)", color: "var(--color-text)" }}>{carrierLabel(s.carrier)}</td>
+                <td style={{ padding: "12px 16px", font: "12px var(--font-mono)", color: "var(--color-text-muted)" }}>{isRealTrackingCode(s.trackingCode) ? s.trackingCode : "—"}</td>
                 <td style={{ padding: "12px 16px" }}>
                   <span style={{ padding: "3px 8px", borderRadius: 99, font: "11px var(--font-mono)", fontWeight: 600, background: s.status === "delivered" ? "var(--good-soft)" : "var(--surface-2)", color: s.status === "delivered" ? "var(--good)" : "var(--color-text-muted)" }}>
                     {s.status === "created" ? "Criado" : s.status === "sent" ? "Enviado" : s.status === "in_transit" ? "Em trânsito" : "Entregue"}
@@ -117,7 +123,7 @@ export function DeliveryPage(props: DeliveryPageProps) {
                     <button onClick={() => vm.buyLabel(s.id)} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid var(--color-brand)", background: "transparent", color: "var(--color-brand)", font: "11px var(--font-sans)", cursor: "pointer" }}>
                       Gerar etiqueta
                     </button>
-                  ) : s.trackingCode ? (
+                  ) : isRealTrackingCode(s.trackingCode) ? (
                     <button onClick={() => navigator.clipboard.writeText(s.trackingCode!)} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid var(--color-border)", background: "transparent", color: "var(--color-text-muted)", font: "11px var(--font-sans)", cursor: "pointer" }}>
                       <Link2 size={11} /> Copiar
                     </button>
