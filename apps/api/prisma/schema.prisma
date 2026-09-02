@@ -1650,6 +1650,25 @@ model StorefrontCart {
 
 // ─── Product Promotions (scheduled discounts per variant or category) ─────────
 
+model ImportJob {
+  id            String    @id @default(cuid())
+  merchantId    String    @map("merchant_id")
+  kind          String    @default("product_spreadsheet")
+  status        String    @default("queued") // queued | processing | completed | failed
+  fileName      String    @map("file_name")
+  totalRows     Int       @default(0) @map("total_rows")
+  successRows   Int       @default(0) @map("success_rows")
+  failedRows    Int       @default(0) @map("failed_rows")
+  columnMapping Json      @default("{}") @map("column_mapping")
+  errors        Json      @default("[]") // [{ row, sku?, reason }]
+  fileRef       String?   @map("file_ref") // S3 url when the sheet is offloaded
+  createdAt     DateTime  @default(now()) @map("created_at")
+  finishedAt    DateTime? @map("finished_at")
+
+  @@index([merchantId, status, createdAt])
+  @@map("import_jobs")
+}
+
 model ProductPromotion {
   id                String   @id @default(cuid())
   merchantId        String   @map("merchant_id")

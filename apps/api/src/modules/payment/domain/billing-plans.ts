@@ -28,6 +28,7 @@ export type BillingPlanFeatureKey =
   | "postSale"
   | "customDomain"
   | "crmIntegrations"
+  | "aiSpreadsheetImport"
   // Scale (otimização autônoma + M2M)
   | "revenueManager"
   | "m2mAgents";
@@ -86,6 +87,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       postSale: false,
       customDomain: false,
       crmIntegrations: false,
+      aiSpreadsheetImport: false,
       revenueManager: false,
       m2mAgents: false,
     },
@@ -121,6 +123,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       postSale: true,
       customDomain: true,
       crmIntegrations: true,
+      aiSpreadsheetImport: true,
       revenueManager: false,
       m2mAgents: false,
     },
@@ -156,6 +159,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       postSale: true,
       customDomain: true,
       crmIntegrations: true,
+      aiSpreadsheetImport: true,
       revenueManager: true,
       m2mAgents: true,
     },

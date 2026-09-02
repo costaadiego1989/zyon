@@ -71,6 +71,13 @@ export interface ProductRepositoryPort {
   update(merchantId: string, productId: string, data: Partial<{ name: string; description: string; type: string; metadata: Record<string, unknown>; categoryId: string; isActive: boolean; seoTitle: string; metaDescription: string; slug: string; ogTitle: string; ogDescription: string; twitterCard: string; keywords: string[] }>): Promise<ProductEntity>;
   softDelete(merchantId: string, productId: string): Promise<void>;
   addVariant(merchantId: string, productId: string, variant: CreateProductInput["variants"][0]): Promise<ProductVariantProps>;
+  /**
+   * List a merchant's product categories as plain {id,name,slug} tuples. Used by
+   * the spreadsheet import to resolve category names in the sheet to their
+   * canonical ids. Kept here (vs. a separate CategoryRepositoryPort) because
+   * categories are conceptually a denormalized view of products.
+   */
+  listCategories(merchantId: string): Promise<Array<{ id: string; name: string; slug: string; productCount: number }>>;
 }
 
 export interface StockRepositoryPort {

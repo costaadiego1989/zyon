@@ -42,6 +42,7 @@ function makePortDouble(overrides: Partial<ProductRepositoryPort> = {}): Product
       stockReserved: 0,
       media: [],
     }),
+    listCategories: async () => [],
     ...overrides,
   };
 }

@@ -14,6 +14,23 @@ import { EmbedCheckoutGuardHelper } from "../embed/presentation/http/embed-check
 import { AddStorefrontItemUseCase } from "./application/add-storefront-item.use-case.js";
 import { SearchStorefrontProductsUseCase } from "./application/search-storefront-products.use-case.js";
 import { AddProductUseCase } from "./application/use-cases/add-product.use-case.js";
+import { ProcessSpreadsheetImportUseCase } from "./application/use-cases/process-spreadsheet-import.use-case.js";
+import { EnqueueSpreadsheetImportUseCase } from "./application/use-cases/enqueue-spreadsheet-import.use-case.js";
+import { GetImportJobUseCase } from "./application/use-cases/get-import-job.use-case.js";
+import { IMPORT_JOB_REPOSITORY } from "./domain/ports/import-job-repository.port.js";
+import { IMPORT_QUEUE } from "./domain/ports/import-queue.port.js";
+import { SPREADSHEET_PARSER } from "./domain/ports/spreadsheet-parser.port.js";
+import { COLUMN_MAPPER } from "./domain/ports/column-mapper.port.js";
+import { PrismaImportJobRepository } from "./infrastructure/repositories/prisma-import-job.repository.js";
+import { CsvXlsxParserAdapter } from "./infrastructure/csv-xlsx-parser.adapter.js";
+import { DeterministicColumnMapper } from "./infrastructure/adapters/deterministic-column-mapper.adapter.js";
+import { LlmColumnMapper } from "./infrastructure/adapters/llm-column-mapper.adapter.js";
+import { CompositeColumnMapper } from "./infrastructure/adapters/composite-column-mapper.adapter.js";
+import { SpreadsheetImportScheduler, SpreadsheetImportWorker } from "./infrastructure/jobs/spreadsheet-import.job.js";
+import { SpreadsheetImportController } from "./presentation/http/spreadsheet-import.controller.js";
+import { CHAT_COMPLETION_PORT } from "../support/domain/ports/chat-completion.port.js";
+import { OpenAIChatAdapter } from "../support/infrastructure/openai-chat.adapter.js";
+import { S3UploadService } from "../../shared/storage/s3-upload.service.js";
 import { SearchProductsUseCase } from "./application/use-cases/search-products.use-case.js";
 import { ReserveStockUseCase } from "./application/use-cases/reserve-stock.use-case.js";
 import { ConfirmStockUseCase } from "./application/use-cases/confirm-stock.use-case.js";
@@ -60,7 +77,7 @@ import { CheckoutSettingsModule } from "../checkout-settings/checkout-settings.m
     ExperimentsModule,
     CheckoutSettingsModule,
   ],
-  controllers: [WidgetCatalogController, StoreBuilderCatalogController, ProductPromotionController],
+  controllers: [WidgetCatalogController, StoreBuilderCatalogController, ProductPromotionController, SpreadsheetImportController],
   providers: [
     BillingPlanMeteringService,
     PlanLimitGuard,
@@ -119,6 +136,25 @@ import { CheckoutSettingsModule } from "../checkout-settings/checkout-settings.m
     ToggleProductPromotionUseCase,
     DeleteProductPromotionUseCase,
     UpsertProductAdvancedRulesUseCase,
+    // ── AI spreadsheet import (Growth+) ──────────────────────────────────
+    S3UploadService,
+    OpenAIChatAdapter,
+    {
+      provide: IMPORT_JOB_REPOSITORY,
+      useFactory: (prisma: PrismaClient) => new PrismaImportJobRepository(prisma),
+      inject: [PRISMA_CLIENT],
+    },
+    { provide: SPREADSHEET_PARSER, useClass: CsvXlsxParserAdapter },
+    DeterministicColumnMapper,
+    { provide: CHAT_COMPLETION_PORT, useClass: OpenAIChatAdapter },
+    LlmColumnMapper,
+    { provide: COLUMN_MAPPER, useClass: CompositeColumnMapper },
+    ProcessSpreadsheetImportUseCase,
+    SpreadsheetImportWorker,
+    SpreadsheetImportScheduler,
+    { provide: IMPORT_QUEUE, useExisting: SpreadsheetImportScheduler },
+    EnqueueSpreadsheetImportUseCase,
+    GetImportJobUseCase,
   ],
   exports: [
     SearchStorefrontProductsUseCase,
