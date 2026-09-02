@@ -49,14 +49,28 @@ export interface FunnelResult {
   previous?: FunnelPreviousPeriod;
 }
 
+// `linear: true` marks the ordered cascade a session must pass through in
+// sequence (started → shipping → payment → completed). Transitions, drop-off
+// and the bottleneck are computed ONLY over linear steps, and counts are made
+// monotonic by the "furthest linear step reached" rule so a later step can
+// never out-count an earlier one (which produced impossible >100% rates and a
+// false "order_completed 100% drop-off" bottleneck).
+//
+// `coupon_applied` is optional (a buyer can pay without a coupon) and
+// `payment_failed` is a branch outcome, not a forward step — both are reported
+// as informational side-metrics (their raw share of total sessions) but are
+// excluded from the linear cascade so they never distort the funnel.
 const STEP_DEFINITIONS = [
-  { name: "checkout_started", label: "Checkout iniciado", events: [] as string[] },
-  { name: "shipping_calculated", label: "Frete selecionado", events: ["shipping_calculated", "shipping_option_selected"] },
-  { name: "coupon_applied", label: "Cupom aplicado", events: ["coupon_applied", "coupon_field_clicked"] },
-  { name: "payment_method_selected", label: "Pagamento selecionado", events: ["payment_method_selected"] },
-  { name: "order_completed", label: "Pagamento concluído", events: ["order_completed"] },
-  { name: "payment_failed", label: "Pagamento falhado", events: ["payment_failed"] },
+  { name: "checkout_started", label: "Checkout iniciado", events: [] as string[], linear: true },
+  { name: "shipping_calculated", label: "Frete selecionado", events: ["shipping_calculated", "shipping_option_selected"], linear: true },
+  { name: "coupon_applied", label: "Cupom aplicado", events: ["coupon_applied", "coupon_field_clicked"], linear: false },
+  { name: "payment_method_selected", label: "Pagamento selecionado", events: ["payment_method_selected"], linear: true },
+  { name: "order_completed", label: "Pagamento concluído", events: ["order_completed"], linear: true },
+  { name: "payment_failed", label: "Pagamento falhado", events: ["payment_failed"], linear: false },
 ] as const;
+
+// The ordered linear cascade, in sequence. Index in this array = funnel depth.
+const LINEAR_STEPS = STEP_DEFINITIONS.filter((d) => d.linear);
 
 @Injectable()
 export class GetFunnelUseCase {
@@ -118,58 +132,75 @@ export class GetFunnelUseCase {
 
     const totalSessions = sessionEvents.size;
 
-    // Compute step counts dynamically for all steps
-    const stepCounts = STEP_DEFINITIONS.map((def) => {
-      let count = 0;
-      for (const [, evts] of sessionEvents) {
-        // For checkout_started, count is total sessions (any event = started)
-        if (def.name === "checkout_started") {
-          count = totalSessions;
-        } else if (def.events.some(e => evts.some(ev => ev.eventName === e))) {
-          count++;
-        }
+    // Which linear-cascade events each session emitted (as a Set for lookup).
+    const sessionEventSets = new Map<string, Set<string>>();
+    for (const [sid, evts] of sessionEvents) {
+      sessionEventSets.set(sid, new Set(evts.map((e) => e.eventName)));
+    }
+
+    // Monotonic linear counts via "furthest linear step reached". A session that
+    // reached linear step N is counted in every linear step 0..N, so counts can
+    // only decrease down the cascade — rate ≤ 100% and drop-off stays valid even
+    // when a completed order never emitted an intermediate step (e.g. free
+    // shipping skips shipping_calculated).
+    const linearReachedCount = new Array(LINEAR_STEPS.length).fill(0);
+    for (const [, evtSet] of sessionEventSets) {
+      let furthest = 0; // index 0 = checkout_started, reached by every session
+      for (let i = 1; i < LINEAR_STEPS.length; i++) {
+        if (LINEAR_STEPS[i].events.some((e) => evtSet.has(e))) furthest = i;
       }
-      return count;
+      for (let i = 0; i <= furthest; i++) linearReachedCount[i]++;
+    }
+
+    // Optional / branch steps report their own raw share of total sessions —
+    // they are NOT part of the cascade, so they never affect transitions.
+    const rawStepCount = (def: (typeof STEP_DEFINITIONS)[number]): number => {
+      if (def.name === "checkout_started") return totalSessions;
+      let c = 0;
+      for (const [, evtSet] of sessionEventSets) {
+        if (def.events.some((e) => evtSet.has(e))) c++;
+      }
+      return c;
+    };
+
+    const linearIndexByName = new Map<string, number>(LINEAR_STEPS.map((d, i) => [d.name as string, i]));
+    const stepCountByName = new Map<string, number>();
+    const steps: FunnelStep[] = STEP_DEFINITIONS.map((def) => {
+      const li = linearIndexByName.get(def.name);
+      const count = li !== undefined ? linearReachedCount[li] : rawStepCount(def);
+      stepCountByName.set(def.name, count);
+      return {
+        name: def.name,
+        label: def.label,
+        count,
+        percentage: totalSessions > 0 ? Math.round((count / totalSessions) * 10000) / 100 : 0,
+      };
     });
 
-    const steps: FunnelStep[] = STEP_DEFINITIONS.map((def, i) => ({
-      name: def.name,
-      label: def.label,
-      count: stepCounts[i],
-      percentage: totalSessions > 0 ? Math.round((stepCounts[i] / totalSessions) * 10000) / 100 : 0,
-    }));
-
-    // Compute transitions
+    // Transitions computed ONLY over the linear cascade (monotonic counts).
     const transitions: FunnelTransition[] = [];
-
-    for (let i = 0; i < stepCounts.length - 1; i++) {
-      const fromCount = stepCounts[i];
-      const toCount = stepCounts[i + 1];
+    for (let i = 0; i < LINEAR_STEPS.length - 1; i++) {
+      const fromCount = linearReachedCount[i];
+      const toCount = linearReachedCount[i + 1];
       const rate = fromCount > 0 ? Math.round((toCount / fromCount) * 10000) / 100 : 0;
-      // Drop-off is only meaningful when the next step is a strict subset of the
-      // current one (linear funnel). Optional steps (coupon) or non-monotonic
-      // ordering (order_completed counted separately from payment) can make
-      // toCount > fromCount, which would yield a nonsensical negative drop-off.
-      // Clamp to [0, 100] so the UI never shows "-250% saiu".
-      const rawDropOff = fromCount > 0 ? ((fromCount - toCount) / fromCount) * 100 : 0;
-      const dropOff = Math.round(Math.max(0, Math.min(100, rawDropOff)) * 100) / 100;
+      const dropOff = fromCount > 0
+        ? Math.round(((fromCount - toCount) / fromCount) * 10000) / 100
+        : 0;
 
-      const avgTimeSeconds = computeAvgTimeBetweenSteps(
-        sessionEvents,
-        i,
-        STEP_DEFINITIONS,
-      );
+      const avgTimeSeconds = computeAvgTimeBetweenLinearSteps(sessionEvents, i);
 
       transitions.push({
-        from: STEP_DEFINITIONS[i].name,
-        to: STEP_DEFINITIONS[i + 1].name,
+        from: LINEAR_STEPS[i].name,
+        to: LINEAR_STEPS[i + 1].name,
         rate,
         dropOff,
         avgTimeSeconds,
       });
     }
 
-    // Identify bottleneck (worst drop-off)
+    // Bottleneck = worst drop-off across linear transitions only. `payment_failed`
+    // is no longer a "next step", so the success terminal (order_completed) can
+    // never be falsely flagged as a 100%-drop bottleneck.
     let bottleneck: FunnelBottleneck | null = null;
     if (transitions.length > 0) {
       const worst = transitions.reduce((max, t) => t.dropOff > max.dropOff ? t : max, transitions[0]);
@@ -182,8 +213,7 @@ export class GetFunnelUseCase {
       }
     }
 
-    const completedStepIdx = STEP_DEFINITIONS.findIndex(d => d.name === "order_completed");
-    const completedCount = completedStepIdx >= 0 ? stepCounts[completedStepIdx] : 0;
+    const completedCount = stepCountByName.get("order_completed") ?? 0;
     const overallConversion = totalSessions > 0
       ? Math.round((completedCount / totalSessions) * 10000) / 100
       : 0;
@@ -363,20 +393,32 @@ export class GetFunnelUseCase {
     const total = sessionEventNames.size;
     const allSets = [...sessionEventNames.values()];
 
-    const stepCounts = STEP_DEFINITIONS.map((def) => {
-      if (def.name === "checkout_started") return total;
-      return allSets.filter(s => def.events.some(e => s.has(e))).length;
+    // Monotonic linear counts (same "furthest reached" rule as the main funnel).
+    const linearReached = new Array(LINEAR_STEPS.length).fill(0);
+    for (const s of allSets) {
+      let furthest = 0;
+      for (let i = 1; i < LINEAR_STEPS.length; i++) {
+        if (LINEAR_STEPS[i].events.some((e) => s.has(e))) furthest = i;
+      }
+      for (let i = 0; i <= furthest; i++) linearReached[i]++;
+    }
+    const linearIdxByName = new Map<string, number>(LINEAR_STEPS.map((d, i) => [d.name as string, i]));
+
+    const steps: FunnelStep[] = STEP_DEFINITIONS.map((def) => {
+      const li = linearIdxByName.get(def.name);
+      const count = li !== undefined
+        ? linearReached[li]
+        : (def.name === "checkout_started" ? total : allSets.filter(s => def.events.some(e => s.has(e))).length);
+      return {
+        name: def.name,
+        label: def.label,
+        count,
+        percentage: total > 0 ? Math.round((count / total) * 10000) / 100 : 0,
+      };
     });
 
-    const steps: FunnelStep[] = STEP_DEFINITIONS.map((def, i) => ({
-      name: def.name,
-      label: def.label,
-      count: stepCounts[i],
-      percentage: total > 0 ? Math.round((stepCounts[i] / total) * 10000) / 100 : 0,
-    }));
-
-    const completedIdx = STEP_DEFINITIONS.findIndex(d => d.name === "order_completed");
-    const completedCount = completedIdx >= 0 ? stepCounts[completedIdx] : 0;
+    const completedIdx = linearIdxByName.get("order_completed");
+    const completedCount = completedIdx !== undefined ? linearReached[completedIdx] : 0;
 
     return {
       steps,
@@ -431,14 +473,13 @@ function resolveEffectiveRange(
   return resolveDateRange(period);
 }
 
-function computeAvgTimeBetweenSteps(
+function computeAvgTimeBetweenLinearSteps(
   sessionEvents: Map<string, Array<{ eventName: string; occurredAt: Date }>>,
   stepIndex: number,
-  stepDefs: typeof STEP_DEFINITIONS,
 ): number {
   const timeDiffs: number[] = [];
-  const fromEvents = stepIndex === 0 ? null : stepDefs[stepIndex].events;
-  const toEvents = stepDefs[stepIndex + 1].events;
+  const fromEvents = stepIndex === 0 ? null : LINEAR_STEPS[stepIndex].events;
+  const toEvents = LINEAR_STEPS[stepIndex + 1].events;
 
   for (const [, evts] of sessionEvents) {
     // First occurrence of "from" step event
