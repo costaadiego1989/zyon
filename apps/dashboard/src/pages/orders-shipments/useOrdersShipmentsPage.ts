@@ -7,6 +7,13 @@ import { showToast } from "../../components/Toast.js";
 import { downloadCsv } from "../../hooks/useCsvExport.js";
 
 const PAGE_SIZE = 10;
+// KPI tiles (Pedidos/Receita/Ticket) and the period tabs filter client-side over
+// the loaded set, so the whole order set must be in memory or the totals reflect
+// only page 1 (a merchant with 33 orders showed "Pedidos 10 / R$5.124"). Load all
+// pages up to this cap so the numbers are truthful; beyond the cap the tiles would
+// undercount, which is acceptable for very large merchants (rare) and far better
+// than always capping at 10.
+const MAX_ORDERS_LOAD = 1000;
 
 export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
   const api = useApi();
@@ -52,14 +59,48 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
     }
   }, [api]);
 
+  // Fetch every order page (up to the cap) so KPI tiles and period filters reflect
+  // the full set, not just the first page. Fixes the "Pedidos 10 / R$5.124" undercount.
+  const loadAll = useCallback(async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const all: TenantOrder[] = [];
+      let cursor: string | undefined = undefined;
+      // Larger server page reduces round-trips; the API caps at its own max.
+      const PER_REQUEST = 100;
+      do {
+        const result: CursorPage<TenantOrder> = await api.getOrders(PER_REQUEST, cursor);
+        const items = Array.isArray(result?.data) ? result.data : Array.isArray(result) ? result as unknown as TenantOrder[] : [];
+        all.push(...items);
+        cursor = result?.next_cursor ?? undefined;
+      } while (cursor && all.length < MAX_ORDERS_LOAD);
+
+      setOrders(all);
+      setNextCursor(null);
+      setHasMore(false);
+      setHasLoaded(true);
+    } catch (e) {
+      setMessage(
+        e instanceof DashboardHttpError
+          ? e.responseBody.slice(0, 160)
+          : e instanceof Error
+            ? e.message
+            : String(e),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, [api]);
+
   useEffect(() => {
     if (!props.me) {
       setOrders([]);
       setHasLoaded(false);
       return;
     }
-    void load();
-  }, [props.me, load]);
+    void loadAll();
+  }, [props.me, loadAll]);
 
   const metrics = useMemo(() => computeOrderMetrics(orders), [orders]);
   const filteredOrders = useMemo(

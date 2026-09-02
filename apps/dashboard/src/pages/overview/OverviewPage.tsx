@@ -216,13 +216,17 @@ export function OverviewPage(props: OverviewPageProps) {
 
   // FUNIL DE CHECKOUT: jornada de compra (nomes batem com get-funnel.use-case.ts STEP_DEFINITIONS)
   // OTP não entra aqui — buyer já chega logado no checkout (OTP é etapa do funil da loja).
+  // Only the linear cascade — the widget computes step-to-step conversion from
+  // adjacent entries, so optional (coupon_applied) or branch (payment_failed)
+  // steps must NOT sit between cascade steps or they produce impossible >100%
+  // conversion (e.g. payment/coupon = 613%). They are shown as side-metrics on
+  // the dedicated Funnel page, not in this cascade widget. Matches the API's
+  // linear transitions in get-funnel.use-case.ts.
   const CHECKOUT_FUNNEL = [
     { name: "checkout_started", label: "Checkout iniciado", color: "var(--color-brand)" },
     { name: "shipping_calculated", label: "Frete selecionado", color: "oklch(70% 0.14 250)" },
-    { name: "coupon_applied", label: "Cupom aplicado", color: "var(--color-warning)" },
     { name: "payment_method_selected", label: "Pagamento selecionado", color: "oklch(65% 0.16 200)" },
     { name: "order_completed", label: "Pagamento concluído", color: "var(--color-success)" },
-    { name: "payment_failed", label: "Pagamento falhado", color: "var(--color-error)" },
   ];
 
   const storefrontRaw = vm.storefrontFunnelData?.steps ?? vm.funnelData?.steps ?? [];

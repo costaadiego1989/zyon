@@ -39,6 +39,14 @@ export type OrderMetrics = {
 
 // ── Pure utility functions ───────────────────────────────────────────────────
 
+// A paid/realized order contributes to revenue at every lifecycle stage AFTER
+// payment — not just the moment it is "approved". An order that moved on to
+// shipped/delivered is still paid revenue; counting only `approved` under-reports
+// GMV and diverges from the overview read model (which counts all paid orders).
+// Excludes only non-realized/reversed states: pending, processing, failed,
+// cancelled, refunded, returned.
+const PAID_STATUSES = new Set(["approved", "paid", "shipped", "delivered"]);
+
 export function computeOrderMetrics(orders: TenantOrder[]): OrderMetrics {
   if (orders.length === 0) {
     return {
@@ -51,17 +59,17 @@ export function computeOrderMetrics(orders: TenantOrder[]): OrderMetrics {
     };
   }
 
-  const approved = orders.filter((o) => o.status === "approved");
-  const totalRevenue = approved.reduce((sum, o) => sum + o.total, 0);
+  const paid = orders.filter((o) => PAID_STATUSES.has(o.status));
+  const totalRevenue = paid.reduce((sum, o) => sum + o.total, 0);
   const trackedCount = orders.filter((o) => o.tracking_code !== null).length;
 
   return {
     totalOrders: orders.length,
-    approvedCount: approved.length,
-    approvalRate: approved.length / orders.length,
+    approvedCount: paid.length,
+    approvalRate: paid.length / orders.length,
     totalRevenue,
     trackedCount,
-    averageOrderValue: approved.length > 0 ? totalRevenue / approved.length : 0,
+    averageOrderValue: paid.length > 0 ? totalRevenue / paid.length : 0,
   };
 }
 
