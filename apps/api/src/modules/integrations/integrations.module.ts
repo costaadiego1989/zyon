@@ -24,6 +24,7 @@ import {
 } from "./application/integrations.use-cases.js";
 import { WebhookDeliveryDispatcher } from "./application/webhook-delivery-dispatcher.service.js";
 import { TenantWebhooksOnCheckoutHandler } from "./infrastructure/event-handlers/tenant-webhooks-on-checkout.handler.js";
+import { TenantWebhooksBridgeHandler } from "./infrastructure/event-handlers/tenant-webhooks-bridge.handler.js";
 import { IntegrationsController } from "./presentation/http/integrations.controller.js";
 import { MerchantApiKeyGuard } from "./presentation/http/merchant-api-key.guard.js";
 import { ApiKeyScopeGuard } from "./presentation/http/api-key-scope.guard.js";
@@ -70,6 +71,7 @@ import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/bi
     GetTrackingTimelineUseCase,
     WebhookDeliveryDispatcher,
     TenantWebhooksOnCheckoutHandler,
+    TenantWebhooksBridgeHandler,
     MerchantApiKeyGuard,
     ApiKeyScopeGuard,
     BillingPlanMeteringService,

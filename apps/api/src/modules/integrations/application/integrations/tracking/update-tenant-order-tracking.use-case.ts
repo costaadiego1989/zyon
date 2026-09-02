@@ -85,25 +85,25 @@ export class UpdateTenantOrderTrackingUseCase {
     }
 
     const session = await this.sessions.getSession(merchantId, order.sessionId);
-    await this.publisher.publish({
-      merchantId,
-      eventType: "order.tracking.updated",
-      data: {
-        order: {
-          external_order_id: order.externalOrderId,
-          session_id: order.sessionId,
-          status: "tracking_updated"
-        },
-        customer: session?.customer ?? null,
-        tracking: {
-          tracking_code: trackingCode,
-          carrier: shipment.carrier,
-          tracking_url: shipment.trackingUrl ?? null,
-          status: shipment.status,
-          events
-        }
+    const trackingData = {
+      order: {
+        external_order_id: order.externalOrderId,
+        session_id: order.sessionId,
+        status: "tracking_updated"
+      },
+      customer: session?.customer ?? null,
+      tracking: {
+        tracking_code: trackingCode,
+        carrier: shipment.carrier,
+        tracking_url: shipment.trackingUrl ?? null,
+        status: shipment.status,
+        events
       }
-    });
+    };
+    // Emit both the order-scoped event and the generic tracking.updated the
+    // dashboard exposes as a subscribable event (same payload).
+    await this.publisher.publish({ merchantId, eventType: "order.tracking.updated", data: trackingData });
+    await this.publisher.publish({ merchantId, eventType: "tracking.updated", data: trackingData });
 
     return {
       updated: true,
