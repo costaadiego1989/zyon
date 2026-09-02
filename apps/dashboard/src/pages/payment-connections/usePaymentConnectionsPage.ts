@@ -84,11 +84,21 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     const params = new URLSearchParams(window.location.search);
     const connected = params.get("mercadopago_connected");
     const errored = params.get("mercadopago_error");
-    if (!connected && !errored) return;
+    const stripeConnected = params.get("stripe_connected");
+    const stripeRefresh = params.get("stripe_refresh");
+    if (!connected && !errored && !stripeConnected && !stripeRefresh) return;
     if (connected) showToast("success", "Mercado Pago conectado");
     if (errored) showToast("error", "Falha ao conectar o Mercado Pago");
+    // Stripe onboarding finished — sync the account so status leaves "pending".
+    if (stripeConnected) {
+      showToast("success", "Stripe conectado — sincronizando status...");
+      void syncStripe();
+    }
+    if (stripeRefresh) showToast("error", "Link do Stripe expirou. Tente conectar novamente.");
     params.delete("mercadopago_connected");
     params.delete("mercadopago_error");
+    params.delete("stripe_connected");
+    params.delete("stripe_refresh");
     const qs = params.toString();
     const url = window.location.pathname + (qs ? `?${qs}` : "") + window.location.hash;
     window.history.replaceState({}, "", url);
@@ -132,7 +142,8 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
         return_url: window.location.href,
         refresh_url: window.location.href,
       });
-      window.open(url, "_blank", "noopener,noreferrer");
+      // Same-tab so Stripe's return_url lands back on this page with the flag.
+      window.location.href = url;
     } catch (e) {
       console.error("[payment-connections]", e);
       setAlert({ message: sanitizeError(e), kind: "error" });

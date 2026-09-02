@@ -28,7 +28,7 @@ export function billingPriceId(
 export function merchantConsoleUrl(
   env: NodeJS.ProcessEnv = process.env,
 ): string {
-  const raw = env.MERCHANT_CONSOLE_URL?.trim() || "http://localhost:5173";
+  const raw = env.MERCHANT_CONSOLE_URL?.trim() || env.DASHBOARD_URL?.trim() || "http://localhost:5175";
   const url = new URL(raw);
   if (
     env.NODE_ENV === "production" &&

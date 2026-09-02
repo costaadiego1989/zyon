@@ -74,11 +74,14 @@ export class CreateStripeConnectOnboardingLinkUseCase {
       );
     }
 
-    const consoleUrl = this.billingConfig.consoleUrl();
+    const consoleUrl = this.billingConfig.consoleUrl().replace(/\/+$/, "");
+    // The dashboard is a hash-routed SPA — return the buyer to the payment
+    // connections tab with a flag (not a nonexistent /settings/... path).
+    // refresh_url is hit if the link expires; send them back to retry.
     const link = await this.stripe.createConnectOnboardingLink({
       accountId,
-      refreshUrl: `${consoleUrl}/settings/payments/stripe/refresh`,
-      returnUrl: `${consoleUrl}/settings/payments/stripe/return`,
+      refreshUrl: `${consoleUrl}/?stripe_refresh=1#payment-connections`,
+      returnUrl: `${consoleUrl}/?stripe_connected=1#payment-connections`,
     });
     return {
       ...link,
