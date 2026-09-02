@@ -49,6 +49,7 @@ interface UseSupportPanelReturn {
   inputRef: React.RefObject<HTMLInputElement>;
   handleSubmit: (e: React.FormEvent) => void;
   handleFaqClick: (label: string) => void;
+  resetToWelcome: () => void;
 }
 
 export function useSupportPanel({
@@ -280,6 +281,16 @@ export function useSupportPanel({
     void sendMessage(label, true);
   };
 
+  // Return the support hub to its initial welcome/FAQ state (local UI only —
+  // does not close a server-side ticket). Lets the buyer back out of a chat
+  // thread instead of being stuck in "chat" view after sending a message.
+  const resetToWelcome = () => {
+    setMessages([]);
+    setInput("");
+    setView("welcome");
+    setReturnDone(false);
+  };
+
   return {
     messages,
     input,
@@ -294,5 +305,6 @@ export function useSupportPanel({
     inputRef,
     handleSubmit,
     handleFaqClick,
+    resetToWelcome,
   };
 }

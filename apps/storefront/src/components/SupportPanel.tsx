@@ -26,7 +26,10 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
     inputRef,
     handleSubmit,
     handleFaqClick,
+    resetToWelcome,
   } = useSupportPanel({ open, merchantId, agentName });
+
+  const showBack = view !== "welcome" || messages.length > 0;
 
   return (
     <>
@@ -113,6 +116,36 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
               </div>
             </div>
           </div>
+
+          {/* Back to menu — only when in a chat/return view so the buyer isn't stuck */}
+          {showBack && (
+            <button
+              type="button"
+              onClick={resetToWelcome}
+              aria-label="Voltar ao menu"
+              style={{
+                background: "none",
+                border: "none",
+                padding: "4px 8px",
+                cursor: "pointer",
+                color: "var(--aacp-muted, #8b8b95)",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                flex: "none",
+                fontSize: "11px",
+                fontFamily: "inherit",
+                transition: "color 0.15s ease",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "var(--aacp-fg)")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = "var(--aacp-muted)")}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              </svg>
+              Voltar
+            </button>
+          )}
 
           {/* Close button */}
           <button

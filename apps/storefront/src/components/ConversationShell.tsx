@@ -369,7 +369,15 @@ export default function ConversationShell({
               if (m.role === "agent") {
                 const hasProductCard = m.blocks?.some((b) => b.type === "product_card");
                 const hasOnlyBlocks = !m.text && m.blocks?.length;
-                const isFullWidth = hasOnlyBlocks || hasProductCard;
+                // Wide block types stretch the message to the full chat width even
+                // when they arrive alongside agent text (e.g. "aqui estão as promoções" + carousel).
+                const hasWideBlock = m.blocks?.some((b) =>
+                  b.type === "product_carousel" ||
+                  b.type === "coupon_list" ||
+                  b.type === "category_carousel" ||
+                  b.type === "marketplace_products"
+                );
+                const isFullWidth = hasOnlyBlocks || hasProductCard || hasWideBlock;
                 if (hasProductCard) {
                   const cardBlock = m.blocks!.find((b) => b.type === "product_card")!;
                   const otherBlocks = (m.blocks ?? []).filter((b) => b.type !== "product_card");

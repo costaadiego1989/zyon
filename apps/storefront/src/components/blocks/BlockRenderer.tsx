@@ -15,6 +15,7 @@ import ProductComparisonBlock from "./ProductComparisonBlock";
 import CategoryCarouselBlock from "./CategoryCarouselBlock";
 import MarketplaceProductsBlock from "./MarketplaceProductsBlock";
 import CrossSellBlock from "./CrossSellBlock";
+import CouponListBlock from "./CouponListBlock";
 
 export default function BlockRenderer({
   block,
@@ -56,6 +57,8 @@ export default function BlockRenderer({
       return <CategoryCarouselBlock block={block as any} onQuickReply={onQuickReply} />;
     case "marketplace_products":
       return <MarketplaceProductsBlock block={block as any} onQuickReply={onQuickReply} />;
+    case "coupon_list":
+      return <CouponListBlock block={block as any} onQuickReply={onQuickReply} />;
     default:
       return null;
   }
