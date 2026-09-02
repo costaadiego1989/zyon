@@ -1,9 +1,11 @@
 import React from "react";
-import { AlertCircle, CheckCircle2, CreditCard, ExternalLink, PlugZap, RefreshCw, Settings, Zap, ArrowRight } from "lucide-react";
+import { AlertCircle, CheckCircle2, CreditCard, PlugZap, RefreshCw } from "lucide-react";
 import type { PaymentConnection } from "../../api-client.js";
 import { StatusBadge } from "./components/StatusBadge.js";
 import { GatewayCard } from "./components/GatewayCard.js";
 import { WalletSection } from "./components/WalletSection.js";
+import { StripeLogo, AsaasLogo, MercadoPagoLogo } from "./components/ProviderLogos.js";
+import { SectionHeader } from "../../components/SectionHeader.js";
 import { usePaymentConnectionsPage, formatDate, type Operation, type CryptoWalletState, type AsaasState } from "./usePaymentConnectionsPage.js";
 import type { MerchantProfile } from "../../api-client.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
@@ -130,7 +132,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
             name="Stripe"
             description="Cartão internacional"
             iconBg="#635BFF"
-            icon={<Zap size={18} color="#fff" aria-hidden="true" />}
+            icon={<StripeLogo size={20} />}
             connection={stripeConn}
             operation={operation}
             connectingOperation="connecting-stripe"
@@ -142,8 +144,8 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
             provider="asaas"
             name="Asaas"
             description="PIX, boleto e cartão Brasil"
-            iconBg="var(--color-brand)"
-            icon={<CreditCard size={18} color="#fff" aria-hidden="true" />}
+            iconBg="#0052FF"
+            icon={<AsaasLogo size={20} />}
             connection={asaasConn}
             operation={operation}
             connectingOperation="connecting-asaas"
@@ -156,7 +158,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
             name="Mercado Pago"
             description="PIX, cartão e boleto — América Latina"
             iconBg="#009EE3"
-            icon={<CreditCard size={18} color="#fff" aria-hidden="true" />}
+            icon={<MercadoPagoLogo size={20} />}
             connection={mercadopagoConn}
             operation={operation}
             connectingOperation="connecting-mercadopago"
@@ -177,12 +179,12 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
       {/* Asaas Config Card — only show when NOT connected */}
       {!isLoading && !asaasConn ? (
         <div className="asaas-config">
-          <div className="asaas-config__header">
-            <div className="asaas-config__title-group">
-              <h3 className="asaas-config__title">Conectar Asaas</h3>
-              <p className="asaas-config__subtitle">Insira sua API Key para ativar PIX, boleto e cartão.</p>
-            </div>
-          </div>
+          <SectionHeader
+            title="Conectar Asaas"
+            subtitle="Insira sua API Key para ativar PIX, boleto e cartão."
+            variant="primary"
+            icon={<AsaasLogo size={16} color="currentColor" />}
+          />
           <div className="asaas-config__grid">
             <div className="asaas-config__form-group">
               <label className="asaas-config__label">API Key</label>
@@ -295,16 +297,6 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
         </div>
       ) : null}
 
-      {/* Empty State */}
-      {!isLoading && connections.length === 0 ? (
-        <div className="payment-connections-page__empty">
-          <PlugZap size={22} aria-hidden="true" />
-          <h3 className="payment-connections-page__empty-title">Nenhum provedor conectado</h3>
-          <p className="payment-connections-page__empty-text">
-            Adicione um provedor de pagamento para aceitar cobranças no checkout.
-          </p>
-        </div>
-      ) : null}
     </div>
   );
 }

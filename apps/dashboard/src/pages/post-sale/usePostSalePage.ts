@@ -35,6 +35,14 @@ export interface NpsItem {
   createdAt: string;
 }
 
+export interface PostSaleTemplate {
+  type: string;
+  channel: string;
+  name: string;
+  body: string;
+  subject?: string;
+}
+
 export function usePostSalePage(props: { me: MerchantProfile | null }) {
   const api = useApi();
   const [stats, setStats] = useState<PostSaleStats | null>(null);
