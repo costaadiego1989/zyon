@@ -205,6 +205,19 @@ class StubAsaasPlatform implements AsaasPlatformPort {
   async listOnboardingLinks() {
     return ["https://cadastro.asaas.com/onboarding/test"];
   }
+
+  async findSubaccountByCpfCnpj(_cpfCnpj: string) {
+    // Default: no pre-existing subaccount, so the create path runs.
+    return null;
+  }
+
+  async createSubaccountApiKey(_accountId: string) {
+    return { apiKey: "asaas_subaccount_secret" };
+  }
+
+  async retrieveWalletId(_apiKey: string) {
+    return "wallet_1";
+  }
 }
 
 class StubBillingConfig implements BillingConfigPort {

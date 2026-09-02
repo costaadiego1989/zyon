@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import {
   ASAAS_PLATFORM_PORT,
   PAYMENT_PLATFORM_ENVIRONMENT,
@@ -27,14 +27,34 @@ export class CreateAsaasSubaccountUseCase {
     merchantId: string,
     input: AsaasSubaccountInput,
   ): Promise<PaymentConnectionSnapshot> {
-    const existing = await this.repository.getConnection(
-      merchantId,
-      "asaas",
-    );
+    // Already linked locally → idempotent, return the existing connection.
+    const existing = await this.repository.getConnection(merchantId, "asaas");
     if (existing) {
-      throw new ConflictException("asaas_subaccount_already_exists");
+      return requiredConnection(this.repository, merchantId, "asaas");
     }
+
     try {
+      // A merchant may already have a subaccount on the root account (created
+      // earlier, or its local record was lost). Recover it instead of trying to
+      // create a duplicate (Asaas rejects duplicate CPF/CNPJ).
+      const found = await this.asaas.findSubaccountByCpfCnpj(input.cpfCnpj);
+      if (found) {
+        const { apiKey } = await this.asaas.createSubaccountApiKey(found.accountId);
+        const walletId = (await this.asaas.retrieveWalletId(apiKey)) ?? undefined;
+        await this.repository.saveConnection({
+          merchantId,
+          provider: "asaas",
+          environment: this.environment.asaas,
+          status: "pending",
+          externalAccountId: found.accountId,
+          walletId,
+          secret: apiKey,
+          requirements: ["documentation"],
+        });
+        return requiredConnection(this.repository, merchantId, "asaas");
+      }
+
+      // No subaccount yet → create a new one.
       const created = await this.asaas.createSubaccount(input);
       await this.repository.saveConnection({
         merchantId,

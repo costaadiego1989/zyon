@@ -55,6 +55,38 @@ export class AsaasPlatformAdapter implements AsaasPlatformPort {
       .filter((url): url is string => Boolean(url));
   }
 
+  async findSubaccountByCpfCnpj(cpfCnpj: string): Promise<{ accountId: string } | null> {
+    const digits = cpfCnpj.replace(/\D+/g, "");
+    if (!digits) return null;
+    const response = await this.request<{
+      data?: Array<{ id?: string }>;
+    }>(`/v3/accounts?cpfCnpj=${encodeURIComponent(digits)}&limit=1`, this.rootApiKey, { method: "GET" });
+    const id = response.data?.[0]?.id;
+    return id ? { accountId: id } : null;
+  }
+
+  async createSubaccountApiKey(accountId: string): Promise<{ apiKey: string }> {
+    // apiKey is only returned once at creation; for an existing subaccount we
+    // mint a fresh access token to be able to operate on its behalf.
+    const response = await this.request<{ apiKey?: string; access_token?: string }>(
+      `/v3/accounts/${encodeURIComponent(accountId)}/accessTokens`,
+      this.rootApiKey,
+      { method: "POST", body: JSON.stringify({ name: "zyon-integration" }) },
+    );
+    const apiKey = response.apiKey ?? response.access_token;
+    if (!apiKey) throw new Error("asaas_subaccount_api_key_missing");
+    return { apiKey };
+  }
+
+  async retrieveWalletId(apiKey: string): Promise<string | null> {
+    // GET /v3/wallets with the subaccount's own apiKey returns its wallet(s).
+    const response = await this.request<{
+      data?: Array<{ id?: string; walletId?: string }>;
+    }>("/v3/wallets/", apiKey, { method: "GET" });
+    const w = response.data?.[0];
+    return w?.walletId ?? w?.id ?? null;
+  }
+
   private async request<T>(
     path: string,
     apiKey: string,
