@@ -92,10 +92,14 @@ export class AsaasPlatformAdapter implements AsaasPlatformPort {
     apiKey: string,
     init: RequestInit,
   ): Promise<T> {
+    // Hard timeout so a slow/hung Asaas call never pins the request (a
+    // subaccount create fans out to 3 sequential calls). AbortSignal.timeout
+    // rejects with a TimeoutError that bubbles up as a gateway error.
     const response = await this.fetchImpl(
       `${this.baseUrl.replace(/\/+$/, "")}${path}`,
       {
         ...init,
+        signal: (init as { signal?: AbortSignal }).signal ?? AbortSignal.timeout(10000),
         headers: {
           accept: "application/json",
           "content-type": "application/json",
