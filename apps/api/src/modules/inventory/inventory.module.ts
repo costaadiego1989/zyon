@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
+import { CatalogModule } from "../catalog/catalog.module.js";
 import { CHECKOUT_SESSION_REPOSITORY } from "../checkout/domain/ports/checkout-session.repository.port.js";
 import { PrismaCheckoutRepository } from "../checkout/infrastructure/prisma/prisma-checkout.repository.js";
 import { ListInventoryUseCase } from "./application/use-cases/list-inventory.use-case.js";
@@ -49,6 +50,7 @@ import { ErpOAuthController } from "./presentation/http/erp-oauth.controller.js"
 import { MarketplaceWebhookController } from "./presentation/http/marketplace-webhook.controller.js";
 
 @Module({
+  imports: [CatalogModule],
   controllers: [InventoryDashboardController, ErpOAuthController, MarketplaceWebhookController],
   providers: [
     {

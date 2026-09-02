@@ -78,4 +78,6 @@ export interface StockRepositoryPort {
   confirm(merchantId: string, reservationId: string): Promise<void>;
   releaseExpired(): Promise<number>;
   getAvailableStock(variantId: string): Promise<{ quantity: number; reserved: number }>;
+  decrementBySku(merchantId: string, sku: string, quantity: number): Promise<{ ok: boolean; quantity?: number }>;
+  getStockBySku(merchantId: string, sku: string): Promise<{ variantId: string; quantity: number; reserved: number } | null>;
 }

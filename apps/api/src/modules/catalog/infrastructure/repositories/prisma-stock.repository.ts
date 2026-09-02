@@ -134,4 +134,43 @@ export class PrismaStockRepository implements StockRepositoryPort {
 
     return { quantity: stock?.quantity ?? 0, reserved: stock?.reserved ?? 0 };
   }
+
+  async decrementBySku(
+    merchantId: string,
+    sku: string,
+    quantity: number,
+  ): Promise<{ ok: boolean; quantity?: number }> {
+    if (quantity <= 0) return { ok: false };
+    // Resolve the merchant's variant for this sku (tenant boundary).
+    const variant = await this.prisma.productVariant.findFirst({
+      where: { sku, product: { merchantId } },
+      select: { id: true },
+    });
+    if (!variant) return { ok: false };
+
+    // Atomic, never-negative decrement (same conditional-where guard as confirm).
+    const updated = await this.prisma.productStock.updateMany({
+      where: { variantId: variant.id, quantity: { gte: quantity } },
+      data: { quantity: { decrement: quantity } },
+    });
+    if (updated.count === 0) {
+      this.logger.warn("stock.decrementBySku.insufficient", { merchantId, sku, quantity });
+      return { ok: false };
+    }
+    const row = await this.prisma.productStock.findFirst({ where: { variantId: variant.id } });
+    return { ok: true, quantity: row?.quantity };
+  }
+
+  async getStockBySku(
+    merchantId: string,
+    sku: string,
+  ): Promise<{ variantId: string; quantity: number; reserved: number } | null> {
+    const variant = await this.prisma.productVariant.findFirst({
+      where: { sku, product: { merchantId } },
+      select: { id: true, stock: true },
+    });
+    if (!variant) return null;
+    const s = variant.stock?.[0];
+    return { variantId: variant.id, quantity: s?.quantity ?? 0, reserved: s?.reserved ?? 0 };
+  }
 }
