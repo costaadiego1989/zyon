@@ -82,15 +82,16 @@ export class MercadoPagoOAuthController {
         `OAuth callback succeeded for merchant=${result.merchantId}`,
       );
 
-      // Redirect to dashboard payment connections page
+      // Redirect back to the dashboard's payment-connections tab (hash route)
+      // with a success flag the page reads to toast + refresh the list.
       return {
-        url: `${this.getConsoleUrl()}/settings/payments/mercadopago/success`,
+        url: `${this.getConsoleUrl()}/?mercadopago_connected=1#payment-connections`,
         statusCode: 302,
       };
     } catch (error) {
       this.logger.error(`OAuth callback failed: ${String(error)}`);
       return {
-        url: `${this.getConsoleUrl()}/settings/payments/mercadopago/error`,
+        url: `${this.getConsoleUrl()}/?mercadopago_error=1#payment-connections`,
         statusCode: 302,
       };
     }
@@ -99,7 +100,7 @@ export class MercadoPagoOAuthController {
   private getConsoleUrl(): string {
     const raw = process.env.DASHBOARD_URL?.trim();
     if (raw) return raw.replace(/\/+$/, "");
-    return "https://dashboard.athom.com";
+    return "http://localhost:5175";
   }
 }
 
