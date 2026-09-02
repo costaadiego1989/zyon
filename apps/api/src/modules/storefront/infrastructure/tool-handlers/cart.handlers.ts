@@ -605,45 +605,9 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
     },
 
     createCheckoutSession: async (args) => {
-      const cartId = args.cartId || ctx.sessionId;
-
-      // Fetch current cart from storefront to pass to checkout creation
-      let cart = null;
-      try {
-        cart = await deps.cartRepo.getOrCreate(ctx.merchantId, cartId);
-      } catch (err) {
-        logger.warn("checkout.cart_fetch_failed", { merchantId: ctx.merchantId, cartId });
-      }
-
-      // Create checkout session via API (StartCheckoutUseCase)
-      // The use-case will create a fresh session + initialize with cart data
-      try {
-        const response = await fetch("http://localhost:3009/checkout/start-checkout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            merchant_id: ctx.merchantId,
-            cart_id: cartId
-            // Note: StartCheckout will resolve buyer + cart internally
-          })
-        });
-        if (!response.ok) {
-          logger.warn("checkout.start_failed", { status: response.status, cartId });
-        } else {
-          const result = await response.json();
-          const widgetBaseUrl = process.env.WIDGET_BASE_URL ?? "http://localhost:5173";
-          const checkoutUrl = `${widgetBaseUrl}/embed/checkout/${result.session_id}?cartId=${cartId}`;
-          return { checkoutUrl, sessionId: result.session_id };
-        }
-      } catch (err) {
-        logger.warn("checkout.start_error", { error: err instanceof Error ? err.message : String(err) });
-      }
-
-      // Fallback: return simple redirect (won't have cart synced, but won't crash)
       const sessionId = `chk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const widgetBaseUrl = process.env.WIDGET_BASE_URL ?? "http://localhost:5173";
-      const checkoutUrl = `${widgetBaseUrl}/embed/checkout/${sessionId}?cartId=${cartId}`;
-      logger.warn("checkout.fallback_session", { sessionId, cartId, itemCount: cart?.items?.length || 0 });
+      const checkoutUrl = `${widgetBaseUrl}/embed/checkout/${sessionId}?cartId=${args.cartId}`;
       return { checkoutUrl, sessionId };
     }
   };
