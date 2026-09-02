@@ -13,8 +13,7 @@ export function AsaasLogo(_props: LogoProps) {
 }
 
 export function MercadoPagoLogo(_props: LogoProps) {
-
-  return <LogoImg src="/logo-mercadopago.png" alt="Mercado Pago" style={{ transform: "translateY(-80%)" }} />;
+  return <LogoImg src="/logo-mercadopago.png" alt="Mercado Pago"  />;
 }
 
 export function StripeLogo(_props: LogoProps) {
