@@ -96,6 +96,26 @@ export const TONE_PT_TO_EN: Record<string, AgentTone> = {
   "Técnico": "technical",
 };
 
+// Backend stores quick replies as a stage→replies map ({ welcome: [...], browsing: [...] }).
+// The editor works on DEFAULT_STAGE_QR's ordered/labelled stages. These bridge the two:
+// merge the saved map over the default stages (preserving labels/order), and flatten back.
+function stageConfigFromMap(saved: Record<string, string[]> | undefined): StageQrConfig {
+  if (!saved || typeof saved !== "object") return DEFAULT_STAGE_QR;
+  return {
+    stages: DEFAULT_STAGE_QR.stages.map((s) =>
+      Array.isArray(saved[s.stage]) ? { ...s, replies: saved[s.stage] } : s
+    ),
+    fallback: Array.isArray(saved.fallback) ? saved.fallback : DEFAULT_STAGE_QR.fallback,
+  };
+}
+
+function stageConfigToMap(config: StageQrConfig): Record<string, string[]> {
+  const map: Record<string, string[]> = {};
+  for (const s of config.stages) map[s.stage] = s.replies;
+  map.fallback = config.fallback;
+  return map;
+}
+
 export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
   const api = useApi();
   const [form, setForm] = useState<AgentConfigForm>(DEFAULT_FORM);
@@ -145,6 +165,7 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
           quickReplies: (rulesUnknown.quickReplies as unknown as StageQuickReplies | undefined) ?? undefined,
           agentMode,
         });
+        setStageQrConfig(stageConfigFromMap(rulesUnknown.quickReplies as Record<string, string[]> | undefined));
       } catch {
         // silent — form stays at defaults
       } finally {
@@ -174,7 +195,7 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
         freeShippingMinCartValue: Number(form.freeShippingMinCartValue),
         maxPartialShippingDiscount: Number(form.maxPartialShippingDiscount),
         offerExpirationMinutes: Number(form.offerExpirationMinutes),
-        quickReplies: form.quickReplies,
+        quickReplies: stageConfigToMap(stageQrConfig),
       } as never);
 
       await api.putAgentRules({
