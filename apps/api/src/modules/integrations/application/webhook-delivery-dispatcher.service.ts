@@ -6,8 +6,8 @@ import {
   OnModuleInit,
   Optional,
 } from "@nestjs/common";
-import { Agent as HttpAgent } from "node:http";
-import { Agent as HttpsAgent } from "node:https";
+import { Agent as HttpAgent, request as httpRequest } from "node:http";
+import { Agent as HttpsAgent, request as httpsRequest } from "node:https";
 import { INTEGRATIONS_REPOSITORY, type IntegrationsRepository } from "../domain/ports/integrations.repository.port.js";
 import { WebhookSignatureService } from "../domain/webhook-signature.service.js";
 import type { MerchantWebhookDelivery } from "../domain/integrations.types.js";
@@ -121,25 +121,33 @@ export class WebhookDeliveryDispatcher implements OnModuleInit, OnModuleDestroy 
     }
 
     try {
-      const fetchOptions: RequestInit & { dispatcher?: unknown } = {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "User-Agent": "AACP-Webhooks/1.0",
-          "X-AACP-Event-Id": claimed.eventId,
-          "X-AACP-Event-Type": claimed.eventType,
-          "X-AACP-Timestamp": timestamp,
-          "X-AACP-Signature": signature
-        },
-        body,
-        signal: AbortSignal.timeout(5000),
+      const headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "AACP-Webhooks/1.0",
+        "X-AACP-Event-Id": claimed.eventId,
+        "X-AACP-Event-Type": claimed.eventType,
+        "X-AACP-Timestamp": timestamp,
+        "X-AACP-Signature": signature,
       };
+
+      // When the target policy pins IPs (SSRF protection), send via node:http(s)
+      // with a custom-lookup Agent. The global fetch (undici) does NOT accept a
+      // node http.Agent in `dispatcher`, so a pinned fetch silently fails with a
+      // network error — every external HTTPS webhook would never deliver.
+      let response: { status: number; ok: boolean; body: string };
       if (pinnedAddresses) {
-        const protocol = endpointUrl.startsWith("https") ? "https:" : "http:";
-        fetchOptions.dispatcher = createPinnedAgent(pinnedAddresses, protocol);
+        response = await sendViaNodeHttp(endpointUrl, headers, body, pinnedAddresses, 5000);
+      } else {
+        const res = await fetch(endpointUrl, {
+          method: "POST",
+          headers,
+          body,
+          signal: AbortSignal.timeout(5000),
+        });
+        response = { status: res.status, ok: res.ok, body: await res.text().catch(() => "") };
       }
-      const response = await fetch(endpointUrl, fetchOptions);
-      const responseBody = await response.text().catch(() => "");
+
+      const responseBody = response.body;
       if (response.ok) {
         const completedAt = new Date().toISOString();
         await this.repo.updateWebhookDelivery({
@@ -232,13 +240,72 @@ function createPinnedAgent(pinnedAddresses: string[], protocol: "http:" | "https
   const primaryAddress = pinnedAddresses[0];
   if (!primaryAddress) throw new Error("no_pinned_addresses");
 
-  const customLookup = (_hostname: string, _options: unknown, callback: (err: Error | null, address: string, family: number) => void): void => {
-    const isIpv6 = primaryAddress.includes(":");
-    callback(null, primaryAddress, isIpv6 ? 6 : 4);
+  const family = primaryAddress.includes(":") ? 6 : 4;
+  const customLookup = (_hostname: string, options: any, callback: any): void => {
+    // node:net may call lookup as (host, cb) or (host, opts, cb), and expects an
+    // array when opts.all is set. Handle both to avoid "Invalid IP address".
+    if (typeof options === "function") {
+      callback = options;
+      options = {};
+    }
+    if (options && options.all) {
+      callback(null, [{ address: primaryAddress, family }]);
+      return;
+    }
+    callback(null, primaryAddress, family);
   };
 
   if (protocol === "http:") {
     return new HttpAgent({ lookup: customLookup as any });
   }
   return new HttpsAgent({ lookup: customLookup as any });
+}
+
+/**
+ * Sends a webhook via node:http(s) using a pinned-IP Agent. Used instead of the
+ * global fetch when the target policy pins addresses for SSRF protection —
+ * undici's `dispatcher` does not accept a node http.Agent, so pinned fetches
+ * would silently fail. TLS SNI/cert validation still uses the original hostname
+ * (agent only overrides DNS resolution to the pinned IP).
+ */
+function sendViaNodeHttp(
+  endpointUrl: string,
+  headers: Record<string, string>,
+  body: string,
+  pinnedAddresses: string[],
+  timeoutMs: number,
+): Promise<{ status: number; ok: boolean; body: string }> {
+  const url = new URL(endpointUrl);
+  const isHttps = url.protocol === "https:";
+  const agent = createPinnedAgent(pinnedAddresses, isHttps ? "https:" : "http:");
+  const requestFn = isHttps ? httpsRequest : httpRequest;
+
+  return new Promise((resolve, reject) => {
+    const req = requestFn(
+      url,
+      {
+        method: "POST",
+        agent,
+        headers: { ...headers, "Content-Length": Buffer.byteLength(body).toString() },
+        // Preserve TLS validation against the real hostname despite the pinned IP.
+        servername: isHttps ? url.hostname : undefined,
+      } as any,
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (c: Buffer) => chunks.push(c));
+        res.on("end", () => {
+          const status = res.statusCode ?? 0;
+          resolve({
+            status,
+            ok: status >= 200 && status < 300,
+            body: Buffer.concat(chunks).toString("utf8"),
+          });
+        });
+      },
+    );
+    req.setTimeout(timeoutMs, () => req.destroy(new Error("webhook_request_timeout")));
+    req.on("error", reject);
+    req.write(body);
+    req.end();
+  });
 }
