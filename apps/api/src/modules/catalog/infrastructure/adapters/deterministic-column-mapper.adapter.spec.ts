@@ -27,6 +27,27 @@ test("maps en headers to canonical fields", async () => {
   });
 });
 
+test("maps 'Peso (kg)' to weight_grams and infers weightInKg unit hint", async () => {
+  // Regression: a real merchant CSV had "Peso (kg)" which previously did not map,
+  // causing every physical-product row to fail (physical_product_requires_weight).
+  const mapper = new DeterministicColumnMapper();
+  const headers = ["Produto", "SKU", "Preço (R$)", "Peso (kg)", "Altura (cm)", "Largura (cm)", "Comprimento (cm)"];
+  const result = await mapper.mapColumns(headers, []);
+  assert.equal(result.mapping["Produto"], "name");
+  assert.equal(result.mapping["Peso (kg)"], "weight_grams");
+  assert.equal(result.mapping["Altura (cm)"], "height_cm");
+  assert.equal(result.mapping["Largura (cm)"], "width_cm");
+  assert.equal(result.mapping["Comprimento (cm)"], "length_cm");
+  assert.equal(result.unitHints?.weightInKg, true, "kg header must set weightInKg so the normalizer converts to grams");
+});
+
+test("grams header does NOT set weightInKg", async () => {
+  const mapper = new DeterministicColumnMapper();
+  const result = await mapper.mapColumns(["Nome", "Peso (g)"], []);
+  assert.equal(result.mapping["Peso (g)"], "weight_grams");
+  assert.equal(result.unitHints?.weightInKg, false);
+});
+
 test("case-insensitive matching preserves the original header as key", async () => {
   const mapper = new DeterministicColumnMapper();
   const headers = ["NOME", "sku", "PrEcO"];
