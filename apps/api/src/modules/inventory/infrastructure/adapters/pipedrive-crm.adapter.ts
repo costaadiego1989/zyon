@@ -23,6 +23,18 @@ export class PipedriveCrmAdapter implements CrmProviderPort {
     return `${this.baseUrl}${path}${sep}api_token=${this.apiToken}`;
   }
 
+  async validateCredentials(): Promise<boolean> {
+    try {
+      // /users/me is the canonical token check for Pipedrive api_token auth.
+      const res = await fetch(this.url("/api/v1/users/me"), {
+        signal: AbortSignal.timeout(8000),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
   async upsertContact(merchantId: string, contact: CrmContact): Promise<void> {
     try {
       // Search person by email (v2 endpoint)
@@ -86,7 +98,7 @@ export class PipedriveCrmAdapter implements CrmProviderPort {
         personId = searchData.data?.items?.[0]?.item?.id ?? null;
       }
 
-      // Create deal (v1 — deals v2 not yet stable in Pipedrive)
+      // Create deal (v2 — POST /api/v2/deals: value/currency/status/person_id)
       const dealPayload: Record<string, unknown> = {
         title: deal.title,
         value: deal.valueCents / 100,
@@ -95,7 +107,7 @@ export class PipedriveCrmAdapter implements CrmProviderPort {
       };
       if (personId) dealPayload.person_id = personId;
 
-      const dealRes = await fetch(this.url("/api/v1/deals"), {
+      const dealRes = await fetch(this.url("/api/v2/deals"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(dealPayload),

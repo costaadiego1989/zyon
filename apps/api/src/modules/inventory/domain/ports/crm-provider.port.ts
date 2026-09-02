@@ -18,4 +18,10 @@ export interface CrmDeal {
 export interface CrmProviderPort {
   upsertContact(merchantId: string, contact: CrmContact): Promise<void>;
   createDeal(merchantId: string, deal: CrmDeal): Promise<void>;
+  /**
+   * Lightweight authenticated call to verify the credentials are valid before a
+   * connection is persisted as "connected". Returns true if the CRM accepts the
+   * token, false otherwise. Must not throw.
+   */
+  validateCredentials(): Promise<boolean>;
 }

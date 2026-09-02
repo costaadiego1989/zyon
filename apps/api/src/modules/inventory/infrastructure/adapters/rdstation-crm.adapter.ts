@@ -24,6 +24,16 @@ export class RdStationCrmAdapter implements CrmProviderPort {
     return `${this.baseUrl}${path}${sep}token=${encodeURIComponent(this.token)}`;
   }
 
+  async validateCredentials(): Promise<boolean> {
+    try {
+      // List deal pipelines (deal_stages) — small authenticated read.
+      const res = await fetch(this.url("/deal_stages"), { signal: AbortSignal.timeout(8000) });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
   async upsertContact(merchantId: string, contact: CrmContact): Promise<void> {
     try {
       // RD CRM: POST /contacts — if email exists, it updates (native upsert by email)

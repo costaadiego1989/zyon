@@ -16,6 +16,19 @@ export class HubSpotCrmAdapter implements CrmProviderPort {
 
   constructor(private readonly accessToken: string) {}
 
+  async validateCredentials(): Promise<boolean> {
+    try {
+      // Minimal authenticated read: list 1 contact. 200 => token valid.
+      const res = await fetch(`${this.baseUrl}/crm/v3/objects/contacts?limit=1`, {
+        headers: { Authorization: `Bearer ${this.accessToken}` },
+        signal: AbortSignal.timeout(8000),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
   async upsertContact(merchantId: string, contact: CrmContact): Promise<void> {
     try {
       // Try to update by email first (idProperty=email)
@@ -74,50 +87,48 @@ export class HubSpotCrmAdapter implements CrmProviderPort {
 
   async createDeal(merchantId: string, deal: CrmDeal): Promise<void> {
     try {
-      // Create deal
+      // Look up the contact id first so the deal can be created with the
+      // association inline (one call instead of POST deal + PUT association).
+      let contactId: string | undefined;
+      const contactLookup = await fetch(
+        `${this.baseUrl}/crm/v3/objects/contacts/${encodeURIComponent(deal.contactEmail)}?idProperty=email`,
+        { headers: { Authorization: `Bearer ${this.accessToken}` } },
+      );
+      if (contactLookup.ok) {
+        contactId = ((await contactLookup.json()) as { id?: string }).id;
+      }
+
+      const body: Record<string, unknown> = {
+        properties: {
+          dealname: deal.title,
+          dealstage: deal.stage || "closedwon",
+          amount: String((deal.valueCents / 100).toFixed(2)),
+          pipeline: "default",
+        },
+      };
+      // associationTypeId 3 = deal → contact (HUBSPOT_DEFINED)
+      if (contactId) {
+        body.associations = [
+          {
+            to: { id: contactId },
+            types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: 3 }],
+          },
+        ];
+      }
+
       const dealRes = await fetch(`${this.baseUrl}/crm/v3/objects/deals`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${this.accessToken}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          properties: {
-            dealname: deal.title,
-            dealstage: deal.stage || "closedwon",
-            amount: String((deal.valueCents / 100).toFixed(2)),
-            pipeline: "default",
-          },
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!dealRes.ok) {
         const err = await dealRes.text();
         this.logger.warn(`[HubSpot] createDeal failed: ${dealRes.status} — ${err.slice(0, 200)}`);
         return;
-      }
-
-      const dealData = (await dealRes.json()) as { id: string };
-
-      // Associate deal → contact (associationTypeId 3 = deal_to_contact)
-      const contactLookup = await fetch(
-        `${this.baseUrl}/crm/v3/objects/contacts/${encodeURIComponent(deal.contactEmail)}?idProperty=email`,
-        { headers: { Authorization: `Bearer ${this.accessToken}` } },
-      );
-
-      if (contactLookup.ok) {
-        const contactData = (await contactLookup.json()) as { id: string };
-        await fetch(
-          `${this.baseUrl}/crm/v4/objects/deals/${dealData.id}/associations/contacts/${contactData.id}`,
-          {
-            method: "PUT",
-            headers: {
-              Authorization: `Bearer ${this.accessToken}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify([{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: 3 }]),
-          },
-        );
       }
 
       this.logger.debug(`[HubSpot] Deal created: ${deal.title}`);

@@ -16,4 +16,10 @@ export class NoopCrmAdapter implements CrmProviderPort {
   async createDeal(merchantId: string, deal: CrmDeal): Promise<void> {
     this.logger.debug(`[NOOP] createDeal: merchantId=${merchantId}, contactEmail=${deal.contactEmail}, title=${deal.title}, valueCents=${deal.valueCents}`);
   }
+
+  async validateCredentials(): Promise<boolean> {
+    // No credentials to validate for the noop adapter (unknown provider or
+    // missing token). Treated as invalid so it never reports a false "connected".
+    return false;
+  }
 }
