@@ -43,26 +43,13 @@ export function DeliveryPage(props: DeliveryPageProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Header */}
-      <div>
-        <div style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-faint)", textTransform: "uppercase", marginBottom: 4 }}>
-          Logística
+      <header className="page-head">
+        <div>
+          <span className="eyebrow">Logística</span>
+          <h1>Frete & Entregas</h1>
+          <p className="page-lead">Configure transportadoras, entrega própria e gerencie envios</p>
         </div>
-        <h1 style={{ font: "600 22px var(--font-serif)", color: "var(--color-text)", margin: 0, letterSpacing: "-0.005em" }}>
-          Frete & Entregas
-        </h1>
-        <p style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", margin: "6px 0 0" }}>
-          Configure transportadoras, entrega própria e gerencie envios
-        </p>
-      </div>
-
-      {/* Info banner */}
-      <div style={{
-        padding: "14px 18px", borderRadius: 10,
-        background: "var(--accent-soft)", border: "1px solid var(--accent-line)",
-        font: "13px var(--font-sans)", color: "var(--color-text)", lineHeight: 1.6,
-      }}>
-        <strong>Atenção:</strong> Apenas um modo pode estar ativo por vez. Ao ativar Melhor Envio, a entrega própria é desativada e vice-versa.
-      </div>
+      </header>
 
       {/* Cards side by side */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
