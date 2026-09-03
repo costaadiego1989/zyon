@@ -6,6 +6,7 @@ import { CommerceModule } from "../commerce/commerce.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
 import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
+import { MarketplaceModule } from "../marketplace/marketplace.module.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { CreatePaymentIntentUseCase } from "./application/create-payment-intent.use-case.js";
 import { RefundPaymentService } from "./application/services/refund-payment.service.js";
@@ -105,6 +106,7 @@ import {
     MerchantModule,
     IntegrationsModule,
     BuyerAccountRepositoryModule,
+    MarketplaceModule,
   ],
   controllers: [
     PaymentHttpController,

@@ -10,7 +10,13 @@ export type PaymentIntentStatus =
   | "approved"
   | "failed"
   | "cancelled"
-  | "refunded";
+  | "refunded"
+  // Chargeback lifecycle (buyer-initiated dispute at the PSP). The `chargeback_`
+  // prefix is what the dashboard chargeback list filters on (listByMerchantId).
+  | "chargeback_pending"
+  | "chargeback_disputed"
+  | "chargeback_lost"
+  | "chargeback_won";
 
 export type PaymentIntentStatusHistoryEntry = {
   status: PaymentIntentStatus;
@@ -177,6 +183,19 @@ export class PaymentIntentEntity {
     if (this.s.status !== "approved") throw new Error("illegal_transition");
     this.s.status = "refunded";
     this.pushStatus("refunded", reason);
+  }
+
+  /**
+   * Buyer opened a dispute at the PSP (Stripe charge.dispute.created / Asaas
+   * chargeback). The money is being pulled back by the card network; we record
+   * it as a chargeback so it surfaces in the dashboard chargeback list. Allowed
+   * from `approved` (the normal case) — idempotent if already a chargeback.
+   */
+  markChargebacked(reason?: string): void {
+    if (this.s.status.startsWith("chargeback_")) return;
+    if (this.s.status !== "approved") throw new Error("illegal_transition");
+    this.s.status = "chargeback_pending";
+    this.pushStatus("chargeback_pending", reason);
   }
 
   private pushStatus(status: PaymentIntentStatus, reason?: string): void {

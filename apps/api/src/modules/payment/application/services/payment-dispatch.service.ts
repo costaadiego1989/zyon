@@ -136,6 +136,32 @@ export class PaymentDispatchService {
     });
   }
 
+  /**
+   * Buyer opened a chargeback/dispute at the PSP. Moves the intent to a
+   * `chargeback_` status so it surfaces in the dashboard chargeback list, and
+   * records the checkout status change. Idempotent: no-op when the intent is
+   * not `approved` (already refunded/chargebacked or never captured).
+   */
+  async markChargebacked(
+    intentEntity: PaymentIntentEntity,
+    reason: string
+  ): Promise<void> {
+    const snap = intentEntity.snapshot();
+    if (snap.status !== "approved") return;
+
+    intentEntity.markChargebacked(reason);
+    await this.payments.saveIntent({ intent: intentEntity });
+
+    await this.checkoutPayment.recordPaymentStatusChanged({
+      merchantId: snap.merchantId,
+      sessionId: snap.sessionId,
+      paymentIntentId: snap.id,
+      status: "refunded",
+      reason,
+      commerceOrderId: snap.commerceOrderId
+    });
+  }
+
   private async markLinkedCommerceOrderPaid(
     snap: PaymentIntentSnapshot,
     paymentReference: string

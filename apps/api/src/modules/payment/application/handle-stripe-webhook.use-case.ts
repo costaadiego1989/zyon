@@ -10,6 +10,7 @@ import { readStripeConnection } from "../infrastructure/stripe-env.js";
 import { PaymentDispatchService } from "./services/payment-dispatch.service.js";
 import { HandleStripePlatformEventUseCase } from "./payment-platform.use-cases.js";
 import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
+import { HandleMarketplaceChargebackUseCase } from "../../marketplace/application/use-cases/handle-marketplace-chargeback.use-case.js";
 
 export type HandleStripeWebhookResult =
   | { outcome: "duplicate" }
@@ -36,6 +37,7 @@ export class HandleStripeWebhookUseCase {
     @Optional() private readonly metrics?: MetricsService,
     @Optional() private readonly platformEvents?: HandleStripePlatformEventUseCase,
     @Optional() @Inject("PRISMA_CLIENT") private readonly prisma?: any,
+    @Optional() private readonly marketplaceChargeback?: HandleMarketplaceChargebackUseCase,
   ) {
     const { secretKey } = readStripeConnection();
     if (!secretKey) {
@@ -279,7 +281,11 @@ export class HandleStripeWebhookUseCase {
     if (!intentEntity) return "intent_not_found";
 
     const reason = `dispute_created:${dispute.reason ?? "unknown"}`;
-    await this.paymentDispatch.markRefunded(intentEntity, reason);
+    // Move the intent to a chargeback_ status so it surfaces in the dashboard
+    // chargeback list (previously this called markRefunded → status 'refunded',
+    // which the chargeback list — filtering on the `chargeback_` prefix — never
+    // showed).
+    await this.paymentDispatch.markChargebacked(intentEntity, reason);
 
     // Mark PaymentHold as chargebacked (if held)
     try {
@@ -289,6 +295,26 @@ export class HandleStripeWebhookUseCase {
       });
     } catch {
       // PaymentHold table may not exist yet — graceful degradation
+    }
+
+    // Cross-store (marketplace) settlements of this order must be charged back
+    // too: cancel the seller repasse if still scheduled, or open a seller debt
+    // if the money was already transferred. No-op for pure own-store orders.
+    const snap = intentEntity.snapshot();
+    const orderId = snap.commerceOrderId ?? snap.sessionId;
+    if (this.marketplaceChargeback && orderId) {
+      try {
+        const results = await this.marketplaceChargeback.executeForOrder(orderId);
+        if (results.length > 0) {
+          this.logger.log(
+            `Marketplace chargeback processed for order ${orderId}: ${results.length} settlement(s)`,
+          );
+        }
+      } catch (err) {
+        this.logger.error(
+          `Marketplace chargeback failed for order ${orderId}: ${(err as Error).message}`,
+        );
+      }
     }
 
     return "payment_disputed";
