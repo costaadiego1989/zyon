@@ -15,7 +15,7 @@ import { BuyerOrderContextService } from "./application/services/buyer-order-con
 import { KNOWLEDGE_REPOSITORY } from "./domain/ports/knowledge-repository.port.js";
 import { POLICY_REPOSITORY } from "./domain/ports/policy-repository.port.js";
 import { EMBEDDING_PORT } from "./domain/ports/embedding.port.js";
-import { EmbeddingService } from "../catalog/infrastructure/services/embedding.service.js";
+import { LocalEmbeddingService } from "./infrastructure/services/local-embedding.service.js";
 import { PrismaKnowledgeRepository } from "./infrastructure/repositories/prisma-knowledge.repository.js";
 import { PrismaPolicyRepository } from "./infrastructure/repositories/prisma-policy.repository.js";
 import { OnProductUpsertedHandler } from "./infrastructure/event-handlers/on-product-upserted.handler.js";
@@ -51,7 +51,11 @@ import { KnowledgeAdminController } from "./presentation/http/knowledge-admin.co
       useFactory: (prisma: PrismaClient) => new PrismaPolicyRepository(prisma),
       inject: [PRISMA_CLIENT],
     },
-    { provide: EMBEDDING_PORT, useExisting: EmbeddingService },
+    // Knowledge base uses a local offline embedding model (384 dims) so RAG
+    // works without an OpenAI key. Catalog product search keeps its own
+    // EmbeddingService (OpenAI/ILIKE) — the two indexes are independent.
+    LocalEmbeddingService,
+    { provide: EMBEDDING_PORT, useExisting: LocalEmbeddingService },
   ],
   exports: [QueryKnowledgeUseCase, IndexFaqUseCase, IndexProductUseCase, IndexPolicyUseCase, IndexConfigUseCase, BuyerOrderContextService],
 })

@@ -50,24 +50,25 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
         const embeddingStr = JSON.stringify(chunk.embedding);
         const id = randomUUID();
 
-        // Try to use pgvector if available, fallback to base64
+        // Try to use pgvector if available, fallback to base64.
+        // Vector dimension is taken from the embedding itself so the cast always
+        // matches the active provider (384 local / 1536 OpenAI). length is a
+        // trusted integer, safe to inline in the raw cast.
+        const dim = chunk.embedding.length;
         try {
-          await this.prisma.$executeRaw`
-            INSERT INTO knowledge_chunks (
+          await this.prisma.$executeRawUnsafe(
+            `INSERT INTO knowledge_chunks (
               id, merchant_id, source_type, source_id, content, embedding, embedding_vec, metadata, created_at, updated_at
-            ) VALUES (
-              ${id},
-              ${merchantId},
-              ${sourceType},
-              ${sourceId},
-              ${chunk.content},
-              ${embeddingStr},
-              ${embeddingStr}::vector(1536),
-              ${chunk.metadata ? JSON.stringify(chunk.metadata) : null}::jsonb,
-              NOW(),
-              NOW()
-            )
-          `;
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7::vector(${dim}), $8::jsonb, NOW(), NOW())`,
+            id,
+            merchantId,
+            sourceType,
+            sourceId,
+            chunk.content,
+            embeddingStr,
+            embeddingStr,
+            chunk.metadata ? JSON.stringify(chunk.metadata) : null,
+          );
         } catch {
           // Fallback: pgvector not available, use base64 only
           await this.prisma.$executeRaw`
@@ -165,19 +166,25 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
     try {
       const embeddingStr = JSON.stringify(queryEmbedding);
 
-      // Try pgvector similarity search first
+      // Try pgvector similarity search first. Dimension comes from the query
+      // vector so it matches the active provider (384 local / 1536 OpenAI);
+      // length is a trusted integer, safe to inline in the cast.
+      const dim = queryEmbedding.length;
       let results: KnowledgeChunkRow[] = [];
       try {
-        results = await this.prisma.$queryRaw<KnowledgeChunkRow[]>`
-          SELECT
+        results = await this.prisma.$queryRawUnsafe<KnowledgeChunkRow[]>(
+          `SELECT
             id, merchant_id, source_type, source_id, content, metadata,
-            1 - (embedding_vec <=> ${embeddingStr}::vector(1536)) as similarity
+            1 - (embedding_vec <=> $1::vector(${dim})) as similarity
           FROM knowledge_chunks
-          WHERE merchant_id = ${merchantId}
+          WHERE merchant_id = $2
           AND embedding_vec IS NOT NULL
-          ORDER BY embedding_vec <=> ${embeddingStr}::vector(1536)
-          LIMIT ${limit}
-        `;
+          ORDER BY embedding_vec <=> $1::vector(${dim})
+          LIMIT $3`,
+          embeddingStr,
+          merchantId,
+          limit,
+        );
       } catch {
         // pgvector not available, fall back to base64 + JS cosine similarity
         this.logger.debug("pgvector unavailable, using base64 cosine fallback");
