@@ -25,9 +25,8 @@ export interface AcpMerchantProfileLike {
 export class AcpStoreDomainService {
   private readonly storeDomain: string;
 
-  constructor(env: NodeJS.ProcessEnv = process.env) {
-    const fromEnv = env.AACP_STORE_DOMAIN?.trim();
-    this.storeDomain = fromEnv && fromEnv.length > 0 ? fromEnv : DEFAULT_STORE_DOMAIN;
+  constructor() {
+    this.storeDomain = resolveStoreDomain(process.env);
   }
 
   buildConfirmationUrl(

@@ -42,23 +42,36 @@ test("buildConfirmationUrl: encodes order id", () => {
 });
 
 test("AcpStoreDomainService.buildConfirmationUrl reads env at construction", () => {
-  const svc = new AcpStoreDomainService({ AACP_STORE_DOMAIN: "x.com" });
-  assert.equal(
-    svc.buildConfirmationUrl({ id: "m" }, "o"),
-    "https://m.x.com/orders/o",
-  );
+  const saved = process.env.AACP_STORE_DOMAIN;
+  process.env.AACP_STORE_DOMAIN = "x.com";
+  try {
+    const svc = new AcpStoreDomainService();
+    assert.equal(
+      svc.buildConfirmationUrl({ id: "m" }, "o"),
+      "https://m.x.com/orders/o",
+    );
+  } finally {
+    if (saved === undefined) delete process.env.AACP_STORE_DOMAIN;
+    else process.env.AACP_STORE_DOMAIN = saved;
+  }
 });
 
 test("AcpStoreDomainService falls back to default when env empty", () => {
-  const svc = new AcpStoreDomainService({});
-  assert.equal(
-    svc.buildConfirmationUrl({ id: "m" }, "o"),
-    `https://m.${DEFAULT_STORE_DOMAIN}/orders/o`,
-  );
+  const saved = process.env.AACP_STORE_DOMAIN;
+  delete process.env.AACP_STORE_DOMAIN;
+  try {
+    const svc = new AcpStoreDomainService();
+    assert.equal(
+      svc.buildConfirmationUrl({ id: "m" }, "o"),
+      `https://m.${DEFAULT_STORE_DOMAIN}/orders/o`,
+    );
+  } finally {
+    if (saved !== undefined) process.env.AACP_STORE_DOMAIN = saved;
+  }
 });
 
 test("AcpStoreDomainService.buildConfirmationUrl allows override at call site", () => {
-  const svc = new AcpStoreDomainService({});
+  const svc = new AcpStoreDomainService();
   assert.equal(
     svc.buildConfirmationUrl({ id: "m" }, "o", "override.com"),
     "https://m.override.com/orders/o",
