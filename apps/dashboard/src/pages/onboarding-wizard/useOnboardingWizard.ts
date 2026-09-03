@@ -18,26 +18,22 @@ import type {
   IntegrationDraft,
   StepMeta,
 } from "./types.js";
-import { Palette, MapPin, CreditCard, Key, MessageCircle, Sparkles } from "lucide-react";
+import { Palette, MapPin, CreditCard, MessageCircle, Sparkles } from "lucide-react";
 import { useStepIdentity } from "./hooks/useStepIdentity.js";
 import { useStepAddress } from "./hooks/useStepAddress.js";
 import { useStepPayment } from "./hooks/useStepPayment.js";
 import { useStepApiKey } from "./hooks/useStepApiKey.js";
 import { useStepReview } from "./hooks/useStepReview.js";
 
-// Re-exports for backward compatibility with step components
 export type { ThemeDraft, AddressDraft, PaymentDraft, IntegrationDraft, PlatformChoice } from "./types.js";
 export { isValidEvmAddress } from "./types.js";
-
-// ── Constants ────────────────────────────────────────────────────────────────
 
 export const STEPS: StepMeta[] = [
   { id: 1, label: "Identidade", caption: "Logo, cores, tipografia e agente", icon: Palette },
   { id: 2, label: "Endereço", caption: "CEP e localização da loja", icon: MapPin },
   { id: 3, label: "Pagamento", caption: "Como você vai receber", icon: CreditCard },
-  { id: 4, label: "API Key", caption: "Credenciais de integração", icon: Key },
-  { id: 5, label: "WhatsApp", caption: "Conecte seu WhatsApp Business", icon: MessageCircle },
-  { id: 6, label: "Motor de IA", caption: "Ative a IA autônoma de vendas", icon: Sparkles },
+  { id: 4, label: "WhatsApp", caption: "Conecte seu WhatsApp Business", icon: MessageCircle },
+  { id: 5, label: "Motor de IA", caption: "Ative a IA autônoma de vendas", icon: Sparkles },
 ];
 
 export const TOTAL_STEPS = STEPS.length;
@@ -95,8 +91,6 @@ export const STORE_CATEGORIES: { value: string; label: string; emoji: string }[]
   { value: "others", label: "Outros", emoji: "📋" },
 ];
 
-// ── Defaults ─────────────────────────────────────────────────────────────────
-
 const DEFAULT_THEME_DRAFT: ThemeDraft = {
   accentColor: "#0F766E",
   secondaryColor: "#1E40AF",
@@ -125,8 +119,6 @@ const DEFAULT_INTEGRATION_DRAFT: IntegrationDraft = {
   platform: "native",
 };
 
-// ── ViewModel Interface ──────────────────────────────────────────────────────
-
 export interface OnboardingWizardVM {
   currentStep: number;
   setCurrentStep: React.Dispatch<React.SetStateAction<number>>;
@@ -152,7 +144,6 @@ export interface OnboardingWizardVM {
   saveStep3: () => Promise<void>;
   initiateStripeOnboarding: () => Promise<void>;
   initiateAsaasOnboarding: () => Promise<void>;
-  advanceToWhatsApp: () => void;
   completeWhatsAppStep: () => Promise<void>;
   finish: () => Promise<void>;
   goBack: () => void;
@@ -172,15 +163,11 @@ export interface OnboardingWizardVM {
   onFinished: () => void;
 }
 
-// ── Hook Props ───────────────────────────────────────────────────────────────
-
 export interface OnboardingWizardProps {
   apiBaseUrl: string;
   me: MerchantProfile;
   onFinished: () => void;
 }
-
-// ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWizardVM {
   const api = useApi();
@@ -199,22 +186,16 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
   }
 
   const saved = loadDrafts();
-
-  // ── State ────────────────────────────────────────────────────────────────
-
   const [currentStep, setCurrentStep] = useState(saved?.step ?? 1);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [onboardingState, setOnboardingState] = useState<OnboardingStateResponse | null>(null);
-
   const [themeDraft, setThemeDraft] = useState<ThemeDraft>(saved?.theme ?? { ...DEFAULT_THEME_DRAFT, headerTitle: props.me.name });
   const [addressDraft, setAddressDraft] = useState<AddressDraft>(saved?.address ?? DEFAULT_ADDRESS_DRAFT);
   const [paymentDraft, setPaymentDraft] = useState<PaymentDraft>(saved?.payment ?? DEFAULT_PAYMENT_DRAFT);
   const [integrationDraft, setIntegrationDraft] = useState<IntegrationDraft>(saved?.integration ?? DEFAULT_INTEGRATION_DRAFT);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [generatedApiKey, setGeneratedApiKey] = useState<{ id: string; secretKey: string; name: string } | null>(null);
-
-  // ── Effects ──────────────────────────────────────────────────────────────
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: currentStep, theme: themeDraft, address: addressDraft, payment: paymentDraft }));
@@ -286,8 +267,6 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
     return () => { active = false; };
   }, [api]);
 
-  // ── Step handlers ────────────────────────────────────────────────────────
-
   async function markOnboardingStep(step: OnboardingStepId) {
     try {
       const next = await api.completeOnboardingStep(step);
@@ -350,32 +329,22 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
     setCurrentStep((s: number) => Math.max(1, s - 1));
   }
 
-  // Step 4 (API Key) → step 5 (WhatsApp). No onboarding id here — API key is
-  // optional infra within its own step.
-  function advanceToWhatsApp() {
-    setMessage(null);
-    setFieldErrors({});
-    setCurrentStep(5);
-  }
-
-  // Step 5 (WhatsApp) → mark whatsapp complete, then go to step 6 (AI engine).
-  // Lower plans have no AI step, so completing WhatsApp finishes onboarding.
   async function completeWhatsAppStep() {
     await markOnboardingStep("whatsapp");
     if (isGrowthPlus) {
-      setCurrentStep(6);
+      setCurrentStep(5);
     } else {
-      // No AI step for this plan — mark it done to satisfy the required step
-      // set and finish.
+      // No AI step for this plan — finish() marks ai_engine to satisfy the
+      // required step set.
       await finish();
     }
   }
 
   // ── Derived ──────────────────────────────────────────────────────────────
 
-  // Step 6 (Motor de IA) is Growth+ only; lower plans skip it entirely.
+  // Step 5 (Motor de IA) is Growth+ only; lower plans skip it entirely.
   const isGrowthPlus = plan === "growth" || plan === "scale";
-  const visibleSteps = isGrowthPlus ? STEPS : STEPS.slice(0, 5);
+  const visibleSteps = isGrowthPlus ? STEPS : STEPS.slice(0, 4);
   const totalSteps = visibleSteps.length;
   const activeMeta = STEPS[currentStep - 1];
 
@@ -404,7 +373,6 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
     saveStep3,
     initiateStripeOnboarding,
     initiateAsaasOnboarding,
-    advanceToWhatsApp,
     completeWhatsAppStep,
     finish,
     goBack,

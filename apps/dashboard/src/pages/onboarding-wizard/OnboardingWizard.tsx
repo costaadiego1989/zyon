@@ -9,7 +9,6 @@ import { PlanSelection } from "./steps/PlanSelection.js";
 import { StepIdentity } from "./steps/StepIdentity.js";
 import { StepAddress } from "./steps/StepAddress.js";
 import { StepPayment } from "./steps/StepPayment.js";
-import { StepApiKey } from "./steps/StepApiKey.js";
 import { StepWhatsApp } from "./steps/StepWhatsApp.js";
 import { StepAiEngine } from "./steps/StepAiEngine.js";
 import "./onboarding-wizard.css";
@@ -51,8 +50,7 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
     if (vm.currentStep === 1) void vm.saveStep1();
     else if (vm.currentStep === 2) void vm.saveStep2();
     else if (vm.currentStep === 3) void vm.saveStep3();
-    else if (vm.currentStep === 4) vm.advanceToWhatsApp();
-    else if (vm.currentStep === 5) void vm.completeWhatsAppStep();
+    else if (vm.currentStep === 4) void vm.completeWhatsAppStep();
     else void vm.finish();
   };
 
@@ -107,18 +105,9 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
                 />
               )}
 
-              {vm.currentStep === 4 && (
-                <StepApiKey
-                  me={vm.me}
-                  generatedApiKey={vm.generatedApiKey}
-                  busy={vm.busy}
-                  onGenerateKey={vm.generateApiKey}
-                />
-              )}
+              {vm.currentStep === 4 && <StepWhatsApp me={vm.me} />}
 
-              {vm.currentStep === 5 && <StepWhatsApp me={vm.me} />}
-
-              {vm.currentStep === 6 && <StepAiEngine />}
+              {vm.currentStep === 5 && <StepAiEngine />}
             </div>
           </div>
 

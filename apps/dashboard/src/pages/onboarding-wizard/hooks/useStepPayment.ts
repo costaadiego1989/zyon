@@ -50,7 +50,7 @@ export function useStepPayment(deps: UseStepPaymentDeps) {
         });
       }
       await deps.markOnboardingStep("checkout_config");
-      // Continue to the API Key step; WhatsApp + AI engine follow as steps 5/6.
+      // Continue to the WhatsApp step (4); Motor de IA follows as step 5.
       deps.setCurrentStep(4);
     } catch (e) {
       deps.setMessage(friendlyError(e));
