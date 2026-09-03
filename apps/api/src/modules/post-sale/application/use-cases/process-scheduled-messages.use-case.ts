@@ -10,6 +10,27 @@ import {
   WHATSAPP_POST_SALE_CONTEXT_PORT,
   type WhatsAppPostSaleContextPort,
 } from "../../../whatsapp-channel/domain/ports/whatsapp-post-sale-context.port.js";
+import {
+  POST_SALE_WHATSAPP_SENDER,
+  type PostSaleWhatsAppSenderPort,
+} from "../../domain/ports/post-sale-whatsapp-sender.port.js";
+import {
+  POST_SALE_TEMPLATE_REPOSITORY,
+  type PostSaleTemplateRepositoryPort,
+  type PostSaleTemplate,
+} from "../../domain/ports/post-sale-template-repository.port.js";
+
+/**
+ * Transport for business-initiated WhatsApp. Default `email` is the safe choice
+ * (no Meta ban risk). `twilio` uses Meta-approved templates; `bubblewhats` is
+ * the legacy informal path (risky, kept only for explicit opt-in).
+ */
+type PostSaleWhatsAppProvider = "email" | "bubblewhats" | "twilio";
+
+function resolveProvider(): PostSaleWhatsAppProvider {
+  const raw = (process.env.POST_SALE_WHATSAPP_PROVIDER || "email").trim().toLowerCase();
+  return raw === "twilio" || raw === "bubblewhats" ? raw : "email";
+}
 
 @Injectable()
 export class ProcessScheduledMessagesUseCase {
@@ -25,6 +46,10 @@ export class ProcessScheduledMessagesUseCase {
     private readonly copywriter: PostSaleAiCopywriterService,
     @Optional() @Inject(WHATSAPP_POST_SALE_CONTEXT_PORT)
     private readonly contextPort?: WhatsAppPostSaleContextPort,
+    @Optional() @Inject(POST_SALE_WHATSAPP_SENDER)
+    private readonly templateSender?: PostSaleWhatsAppSenderPort,
+    @Optional() @Inject(POST_SALE_TEMPLATE_REPOSITORY)
+    private readonly templates?: PostSaleTemplateRepositoryPort,
   ) {}
 
   async execute(): Promise<{ processed: number; sent: number; failed: number }> {
@@ -37,6 +62,22 @@ export class ProcessScheduledMessagesUseCase {
 
       for (const msg of pending) {
         try {
+          // Surface coupon/link data carried in metadata so loyalty, win-back,
+          // cross-sell and reorder messages actually contain the coupon the
+          // system already created (was dropped before — dead "#" link).
+          const meta = (msg.metadata ?? {}) as Record<string, unknown>;
+          const couponCode = typeof meta["couponCode"] === "string" ? (meta["couponCode"] as string) : undefined;
+          const discountPercent =
+            typeof meta["discountPercent"] === "number" ? (meta["discountPercent"] as number) : undefined;
+          const freeShipping = meta["freeShipping"] === true;
+          const expiresAt = typeof meta["expiresAt"] === "string" ? (meta["expiresAt"] as string) : undefined;
+          const metaLink =
+            typeof meta["reorderLink"] === "string"
+              ? (meta["reorderLink"] as string)
+              : typeof meta["link"] === "string"
+                ? (meta["link"] as string)
+                : undefined;
+
           // Generate personalized message content
           const content = await this.copywriter.generate({
             type: msg.type,
@@ -44,32 +85,30 @@ export class ProcessScheduledMessagesUseCase {
             productName: msg.productName || "seu pedido",
             merchantId: msg.merchantId,
             buyerId: msg.buyerId,
+            couponCode,
+            discountPercent,
+            freeShipping,
+            expiresAt,
+            link: metaLink,
           });
 
-          // Send based on channel
-          if (msg.channel === "whatsapp" && msg.buyerPhone) {
-            await this.whatsapp.send({
-              phone: msg.buyerPhone,
-              message: content,
+          // Route the send. WhatsApp business-initiated must use a Meta-approved
+          // template (Twilio) — never informal freeform (ban risk). When no
+          // approved template exists, fall back to email so the buyer is still
+          // reached and nothing risks the number.
+          const outcome = await this.route({
+            msg,
+            content,
+            couponCode,
+            discountPercent,
+          });
+
+          if (outcome === "skipped") {
+            this.logger.warn(`No valid channel/contact for message`, {
+              messageId: msg.id,
+              channel: msg.channel,
+              merchantId: msg.merchantId,
             });
-          } else if (msg.channel === "email" && msg.buyerEmail) {
-            await this.email.send({
-              to: msg.buyerEmail,
-              subject: this.subjectForType(msg.type),
-              html: `<p>${content.replace(/\n/g, "<br>")}</p>`,
-              // Omit `from` so ResendEmailAdapter uses its verified RESEND_FROM_EMAIL.
-              // The old hardcoded "noreply@aacp.local" is an unverified domain that
-              // Resend rejects (400), silently dropping every post-sale email.
-            });
-          } else {
-            this.logger.warn(
-              `No valid channel/contact for message`,
-              {
-                messageId: msg.id,
-                channel: msg.channel,
-                merchantId: msg.merchantId,
-              }
-            );
             continue;
           }
 
@@ -147,6 +186,108 @@ export class ProcessScheduledMessagesUseCase {
     }
 
     return stats;
+  }
+
+  /**
+   * Deliver one message on the safest available channel.
+   * Returns "sent" or "skipped" (no reachable channel). Throws on transient
+   * transport errors so the outer catch requeues for retry.
+   */
+  private async route(args: {
+    msg: {
+      id: string;
+      merchantId: string;
+      type: string;
+      channel: string;
+      buyerPhone: string | null;
+      buyerEmail: string | null;
+      buyerName: string | null;
+      productName: string | null;
+    };
+    content: string;
+    couponCode?: string;
+    discountPercent?: number;
+  }): Promise<"sent" | "skipped"> {
+    const { msg, content } = args;
+    const provider = resolveProvider();
+    const wantsWhatsApp = msg.channel === "whatsapp" && !!msg.buyerPhone;
+
+    if (wantsWhatsApp && provider === "twilio" && this.templateSender && this.templates) {
+      const tpl = await this.templates
+        .findByMerchantAndType(msg.merchantId, msg.type, "whatsapp")
+        .catch(() => null);
+      if (tpl && tpl.metaStatus === "approved" && tpl.twilioContentSid) {
+        const result = await this.templateSender.sendTemplate({
+          merchantId: msg.merchantId,
+          toNumber: msg.buyerPhone!,
+          contentSid: tpl.twilioContentSid,
+          contentVariables: this.resolveContentVariables(tpl, args),
+        });
+        if (result.status === "sent" || result.status === "queued") {
+          return "sent";
+        }
+        // Template send skipped (missing creds) or permanently failed → fall
+        // through to email so the buyer is still reached.
+        this.logger.warn(
+          `WhatsApp template send ${result.status} (${result.reason ?? "n/a"}) — falling back to email`,
+          { messageId: msg.id, merchantId: msg.merchantId }
+        );
+      } else {
+        this.logger.debug(
+          `No approved WhatsApp template for ${msg.type} — falling back to email`,
+          { messageId: msg.id, merchantId: msg.merchantId }
+        );
+      }
+    } else if (wantsWhatsApp && provider === "bubblewhats") {
+      // Explicit legacy opt-in only. Ban risk acknowledged by config.
+      await this.whatsapp.send({ phone: msg.buyerPhone!, message: content });
+      return "sent";
+    }
+
+    // Email fallback (also the default channel when no phone).
+    if (msg.buyerEmail) {
+      await this.email.send({
+        to: msg.buyerEmail,
+        subject: this.subjectForType(msg.type),
+        html: `<p>${content.replace(/\n/g, "<br>")}</p>`,
+        // Omit `from` so ResendEmailAdapter uses its verified RESEND_FROM_EMAIL.
+      });
+      return "sent";
+    }
+
+    return "skipped";
+  }
+
+  /**
+   * Map the template's positional variable slots to runtime values.
+   * variableMap is {"1":"buyerName","2":"couponCode",...}; we look each name up
+   * against the message + coupon data.
+   */
+  private resolveContentVariables(
+    tpl: PostSaleTemplate,
+    args: {
+      msg: { buyerName: string | null; productName: string | null };
+      content: string;
+      couponCode?: string;
+      discountPercent?: number;
+    }
+  ): Record<string, string> {
+    const map = tpl.metaVariableMap ?? {};
+    const values: Record<string, string> = {
+      buyerName: args.msg.buyerName || "Cliente",
+      productName: args.msg.productName || "seu pedido",
+      coupon: args.couponCode || "",
+      couponBlock: args.couponCode
+        ? `${args.couponCode}${args.discountPercent ? ` (${args.discountPercent}% OFF)` : ""}`
+        : "",
+      discount: args.discountPercent ? `${args.discountPercent}%` : "",
+      link: "",
+    };
+    const out: Record<string, string> = {};
+    for (const [pos, name] of Object.entries(map)) {
+      out[pos] = values[name] ?? "";
+    }
+    return out;
   }
 
   private subjectForType(type: string): string {
