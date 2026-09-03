@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Ip, Post, Req, Res, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, Body, Controller, HttpCode, Ip, Post, Req, Res, UnauthorizedException } from "@nestjs/common";
 import {
   ApiOperation,
   ApiResponse,
@@ -11,6 +11,7 @@ import { RefreshTokenUseCase } from "../application/refresh-token.use-case.js";
 import { RegisterMerchantUseCase, type RegisterMerchantRequest } from "../application/register-merchant.use-case.js";
 import { RequestPasswordResetUseCase } from "../application/request-password-reset.use-case.js";
 import { ResetPasswordUseCase } from "../application/reset-password.use-case.js";
+import { VerifyCaptchaUseCase } from "../application/verify-captcha.use-case.js";
 import { AuthCookieService } from "../domain/services/auth-cookie.service.js";
 import { InvalidCredentialsError, LoginRateLimitedError, RefreshTokenExpiredError } from "../domain/errors.js";
 import { normalizeEmail } from "../domain/validators.js";
@@ -32,6 +33,7 @@ export class AuthController {
     private readonly requestPasswordReset: RequestPasswordResetUseCase,
     private readonly resetPassword: ResetPasswordUseCase,
     private readonly oauthCallback: OAuthCallbackUseCase,
+    private readonly verifyCaptcha: VerifyCaptchaUseCase,
     private readonly cookies: AuthCookieService
   ) {}
 
@@ -71,7 +73,23 @@ export class AuthController {
     status: 409,
     description: "Email already registered",
   })
-  async register(@Body() body: RegisterMerchantRequest, @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void }) {
+  async register(
+    @Body() body: RegisterMerchantRequest,
+    @Ip() ip: string,
+    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void }
+  ) {
+    const captcha = await this.verifyCaptcha.execute({
+      token: body.turnstile_token,
+      remoteIp: ip || undefined,
+    });
+    if (!captcha.allowed) {
+      throw new BadRequestException({
+        statusCode: 400,
+        code: "captcha_invalid",
+        message: "captcha_invalid",
+        reason: captcha.reason,
+      });
+    }
     const auth = await this.registerMerchant.execute(body);
     response.setHeader("Set-Cookie", this.cookies.create(auth));
     return auth;
@@ -120,10 +138,24 @@ export class AuthController {
     },
   })
   async loginWithPassword(
-    @Body() body: { email: string; password: string },
+    @Body() body: { email: string; password: string; turnstile_token?: string },
     @Ip() ip: string,
     @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void }
   ) {
+    // Captcha first — block bot traffic before we hit the rate limiter / DB.
+    const captcha = await this.verifyCaptcha.execute({
+      token: body.turnstile_token,
+      remoteIp: ip || undefined,
+    });
+    if (!captcha.allowed) {
+      throw new BadRequestException({
+        statusCode: 400,
+        code: "captcha_invalid",
+        message: "captcha_invalid",
+        reason: captcha.reason,
+      });
+    }
+
     // Build scope from trusted identifiers
     const scope: LoginAttemptScope = { ip: ip || "unknown", email: normalizeEmail(body.email ?? "") };
     try {

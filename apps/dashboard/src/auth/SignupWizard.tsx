@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2, User, Building2, KeyRound, Github } from "lucide-react";
 import { friendlyAuthError } from "./auth-error.js";
+import { Turnstile } from "./Turnstile.js";
 import { maskPhone, maskCpfCnpj, validateCpfCnpj } from "../utils/masks.js";
 
 const SEGMENTS = ["Moda", "Eletrônicos", "Alimentos", "Cosméticos", "Serviços", "Outro"] as const;
@@ -10,13 +11,17 @@ const ROLES = ["Proprietário(a)", "CEO / Diretor(a)", "Gerente", "Desenvolvedor
 export interface SignupWizardProps {
   busy: boolean;
   hint: string | null;
-  onRegister: (payload: { merchant_name: string; email: string; password: string }) => Promise<void>;
+  onRegister: (payload: { merchant_name: string; email: string; password: string; turnstile_token?: string }) => Promise<void>;
   onSaveTheme: (theme: { accentColor: string; logoUrl: string; headerTitle: string; agentName: string }) => Promise<void>;
   onSaveCompanyData?: (data: { slug?: string; company: Record<string, unknown>; social?: Record<string, unknown> }) => Promise<void>;
   onComplete: () => Promise<void>;
   onSwitchToLogin: () => void;
   onGithubClick?: () => void;
   onGoogleClick?: () => void;
+  // Cloudflare Turnstile: site key ("" disables) + controlled token from parent.
+  turnstileSiteKey: string;
+  captchaToken: string | null;
+  setCaptchaToken: (token: string | null) => void;
 }
 
 interface PersonDraft {
@@ -85,6 +90,7 @@ export function SignupWizard(props: SignupWizardProps) {
     if (account.password.length < 8) { setError("Mínimo 8 caracteres, com letra e número."); return; }
     if (account.password !== account.confirmPassword) { setError("As senhas não coincidem."); return; }
     if (!account.phone.trim() || account.phone.replace(/\D/g, "").length < 10) { setError("Informe um celular válido."); return; }
+    if (props.turnstileSiteKey && !props.captchaToken) { setError("Confirme que você não é um robô."); return; }
 
     setLocalBusy(true);
     try {
@@ -92,6 +98,7 @@ export function SignupWizard(props: SignupWizardProps) {
         merchant_name: business.name.trim(),
         email: account.email.trim(),
         password: account.password,
+        turnstile_token: props.captchaToken ?? undefined,
       });
       await props.onSaveTheme({
         accentColor: "#0F766E",
@@ -157,6 +164,12 @@ export function SignupWizard(props: SignupWizardProps) {
       {step === 2 && <BusinessFields draft={business} onChange={setBusiness} />}
       {step === 3 && <AccountFields draft={account} onChange={setAccount} />}
 
+      {step === 3 && props.turnstileSiteKey ? (
+        <div style={{ marginTop: 8 }}>
+          <Turnstile siteKey={props.turnstileSiteKey} onChange={props.setCaptchaToken} />
+        </div>
+      ) : null}
+
       {hint ? <div className="auth-hint">{hint}</div> : null}
 
       {step < 3 ? (
@@ -164,7 +177,12 @@ export function SignupWizard(props: SignupWizardProps) {
           Continuar <ArrowRight size={16} />
         </button>
       ) : (
-        <button type="button" onClick={handleSubmit} disabled={busy} className="auth-cta">
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={busy || (Boolean(props.turnstileSiteKey) && !props.captchaToken)}
+          className="auth-cta"
+        >
           {busy ? "Criando..." : "Criar conta"}
         </button>
       )}

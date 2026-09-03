@@ -9,7 +9,10 @@ import { RegisterMerchantUseCase } from "./application/register-merchant.use-cas
 import { RefreshTokenUseCase } from "./application/refresh-token.use-case.js";
 import { RequestPasswordResetUseCase } from "./application/request-password-reset.use-case.js";
 import { ResetPasswordUseCase } from "./application/reset-password.use-case.js";
+import { VerifyCaptchaUseCase } from "./application/verify-captcha.use-case.js";
 import { AUTH_REPOSITORY } from "./domain/ports/auth-repository.port.js";
+import { CAPTCHA_VERIFIER } from "./domain/ports/captcha-verifier.port.js";
+import { CloudflareTurnstileAdapter } from "./infrastructure/cloudflare-turnstile.adapter.js";
 import { MERCHANT_ID_GENERATOR, DefaultMerchantIdGenerator } from "./domain/ports/merchant-id-generator.port.js";
 import { OAUTH_PROVIDER_PORT } from "./domain/ports/oauth-provider.port.js";
 import { RATE_LIMITER } from "./domain/ports/rate-limiter.port.js";
@@ -39,6 +42,10 @@ import { TenantRoleGuard } from "./presentation/tenant-role.guard.js";
     RequestPasswordResetUseCase,
     ResetPasswordUseCase,
     OAuthCallbackUseCase,
+    VerifyCaptchaUseCase,
+    // Captcha (Cloudflare Turnstile). Adapter self-disables when
+    // TURNSTILE_SECRET_KEY is unset, so this is safe to always wire.
+    { provide: CAPTCHA_VERIFIER, useClass: CloudflareTurnstileAdapter },
     // Domain services
     PasswordHasher,
     JwtService,

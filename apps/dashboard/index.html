@@ -5,5 +5,9 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <!-- Cloudflare Turnstile. The widget is rendered imperatively by the
+         Turnstile component (which polls for window.turnstile), so no onload
+         callback is needed. Harmless when no site key is configured. -->
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   </body>
 </html>

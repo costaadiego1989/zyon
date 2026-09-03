@@ -18,6 +18,12 @@ import "./styles.css";
 
 const API_BASE_URL = resolveDashboardApiBaseUrl(import.meta.env);
 
+// Cloudflare Turnstile site key. Empty string disables the widget; the auth
+// forms will skip sending `turnstile_token` and the API is configured the
+// same way (skips verification when the secret is unset).
+const TURNSTILE_SITE_KEY =
+  (import.meta.env as Record<string, string | undefined>).VITE_TURNSTILE_SITE_KEY ?? "";
+
 const BASE_THEME: MerchantTheme = {
   accentColor: "#0F766E",
   textColor: "#F7FAF7",
@@ -40,6 +46,7 @@ function App({ api }: AppProps) {
   const [password, setPassword] = useState("");
   const [merchantName, setMerchantName] = useState("");
   const [authHint, setAuthHint] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [initialTab, setInitialTab] = useState<TabKey | undefined>(undefined);
@@ -100,15 +107,18 @@ function App({ api }: AppProps) {
         await api.register({
           merchant_name: merchantName.trim(),
           email: email.trim(),
-          password
+          password,
+          turnstile_token: captchaToken ?? undefined,
         });
       } else {
-        await api.login(email.trim(), password);
+        await api.login(email.trim(), password, captchaToken ?? undefined);
       }
       setPassword("");
+      setCaptchaToken(null);
       await refreshSession();
     } catch (e) {
       setMe(null);
+      setCaptchaToken(null);
       setAuthHint(friendlyAuthError(e));
     } finally {
       setBusy(false);
@@ -116,7 +126,7 @@ function App({ api }: AppProps) {
     }
   }
 
-  async function handleRegister(payload: { merchant_name: string; email: string; password: string }) {
+  async function handleRegister(payload: { merchant_name: string; email: string; password: string; turnstile_token?: string }) {
     await api.register(payload);
   }
 
@@ -187,6 +197,9 @@ function App({ api }: AppProps) {
         onSaveTheme={handleSaveTheme}
         onSaveCompanyData={handleSaveCompanyData}
         onComplete={handleSignupComplete}
+        turnstileSiteKey={TURNSTILE_SITE_KEY}
+        captchaToken={captchaToken}
+        setCaptchaToken={setCaptchaToken}
       />
     );
   }

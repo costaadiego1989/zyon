@@ -21,6 +21,11 @@ export interface RegisterMerchantRequest {
   merchant_name: string;
   email: string;
   password: string;
+  /**
+   * Cloudflare Turnstile token from the front-end widget. Optional — when
+   * absent the controller's captcha check rejects the request with 400.
+   */
+  turnstile_token?: string;
 }
 
 export type { AuthResponse };

@@ -27,6 +27,7 @@ export type DashboardRegisterPayload = {
   email: string;
   password: string;
   merchant_id?: string;
+  turnstile_token?: string;
 };
 
 export type MerchantProfile = {

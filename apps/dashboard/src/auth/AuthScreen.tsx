@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { KeyRound, UserPlus, Github, Code2, Eye, EyeOff } from "lucide-react";
 import { SignupWizard } from "./SignupWizard.js";
+import { Turnstile } from "./Turnstile.js";
 import { WavesBackground } from "./WavesBackground.js";
 import { useApi } from "../hooks/useApi.js";
 import { readError } from "../utils/read-error.js";
@@ -21,10 +22,14 @@ export interface AuthScreenProps {
   merchantName: string;
   setMerchantName: (value: string) => void;
   onSubmit: (event: React.FormEvent) => void;
-  onRegister: (payload: { merchant_name: string; email: string; password: string }) => Promise<void>;
+  onRegister: (payload: { merchant_name: string; email: string; password: string; turnstile_token?: string }) => Promise<void>;
   onSaveTheme: (theme: { accentColor: string; logoUrl: string; headerTitle: string; agentName: string }) => Promise<void>;
   onSaveCompanyData?: (data: { company: Record<string, unknown>; social?: Record<string, unknown> }) => Promise<void>;
   onComplete: () => Promise<void>;
+  // Cloudflare Turnstile: site key ("" disables the widget) + controlled token.
+  turnstileSiteKey: string;
+  captchaToken: string | null;
+  setCaptchaToken: (token: string | null) => void;
 }
 
 function generateOAuthState(): string {
@@ -96,6 +101,9 @@ export function AuthScreen(props: AuthScreenProps) {
                 onSwitchToLogin={() => props.setMode("login")}
                 onGithubClick={() => startOAuthFlow("github")}
                 onGoogleClick={() => startOAuthFlow("google")}
+                turnstileSiteKey={props.turnstileSiteKey}
+                captchaToken={props.captchaToken}
+                setCaptchaToken={props.setCaptchaToken}
               />
             ) : (
               <LoginForm {...props} onGithubClick={() => startOAuthFlow("github")} onGoogleClick={() => startOAuthFlow("google")} />
@@ -196,9 +204,22 @@ function LoginForm(props: AuthScreenProps & { onGithubClick: () => void; onGoogl
         </div>
       </div>
 
+      {props.turnstileSiteKey ? (
+        <div className="auth-field">
+          <Turnstile
+            siteKey={props.turnstileSiteKey}
+            onChange={props.setCaptchaToken}
+          />
+        </div>
+      ) : null}
+
       {props.hint ? <div className="auth-hint">{props.hint}</div> : null}
 
-      <button type="submit" disabled={props.busy} className="auth-cta">
+      <button
+        type="submit"
+        disabled={props.busy || (Boolean(props.turnstileSiteKey) && !props.captchaToken)}
+        className="auth-cta"
+      >
         {props.busy ? "Aguarde..." : "Entrar"}
       </button>
 

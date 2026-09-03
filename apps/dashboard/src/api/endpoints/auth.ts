@@ -3,11 +3,11 @@ import type { DashboardLoginAuth, DashboardRegisterPayload } from "../types.js";
 
 export function authEndpoints(base: string, f: typeof fetch) {
   return {
-    login(email: string, password: string): Promise<DashboardLoginAuth> {
+    login(email: string, password: string, turnstileToken?: string): Promise<DashboardLoginAuth> {
       return dashboardJson<DashboardLoginAuth>(
         base,
         "/auth/login",
-        { method: "POST", jsonBody: { email, password } },
+        { method: "POST", jsonBody: { email, password, turnstile_token: turnstileToken } },
         f
       );
     },
