@@ -526,125 +526,153 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
           <PageErrorBoundary key={tab}>
             <Suspense fallback={<LoadingFallback />}>
             {tab === "onboarding" ? (
-              <OnboardingWizard
-                apiBaseUrl={API_BASE_URL}
-                me={me}
-                onNavigate={(target: TabKey) => changeTab(target)}
-                onFinished={() => { setHideOnboarding(true); changeTab("overview"); }}
-              />
+              <RouteGuard me={me} require="onboarding">
+                <OnboardingWizard
+                  apiBaseUrl={API_BASE_URL}
+                  me={me}
+                  onNavigate={(target: TabKey) => changeTab(target)}
+                  onFinished={() => { setHideOnboarding(true); changeTab("overview"); }}
+                />
+              </RouteGuard>
             ) : null}
             {tab === "overview" ? (
-              <OverviewPage apiBaseUrl={API_BASE_URL} defaultMerchantId={me.id} me={me} />
+              <RouteGuard me={me} require="overview">
+                <OverviewPage apiBaseUrl={API_BASE_URL} defaultMerchantId={me.id} me={me} />
+              </RouteGuard>
             ) : null}
-            {tab === "rules" ? <MerchantRulesAuthenticatedPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "settings" ? <CheckoutSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "support" ? <SupportSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {(tab === "integrations" || tab === "integrations-api") ? <IntegrationsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "rules" ? <RouteGuard me={me} require="rules"><MerchantRulesAuthenticatedPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "settings" ? <RouteGuard me={me} require="settings"><CheckoutSettingsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "support" ? <RouteGuard me={me} require="support"><SupportSettingsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {(tab === "integrations" || tab === "integrations-api") ? <RouteGuard me={me} require="integrations"><IntegrationsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "crm-integrations" ? (
-              <PremiumFeatureGate
-                feature="crmIntegrations"
-                requiredPlan="Growth"
-                featureLabel="CRM & Marketing"
-                description="Conecte sua loja a CRMs (HubSpot, Pipedrive, RD Station) e ferramentas de marketing automation para sincronizar leads e clientes."
-              >
-                <CrmIntegrationsPage apiBaseUrl={API_BASE_URL} me={me} />
-              </PremiumFeatureGate>
+              <RouteGuard me={me} require="crm-integrations">
+                <PremiumFeatureGate
+                  feature="crmIntegrations"
+                  requiredPlan="Growth"
+                  featureLabel="CRM & Marketing"
+                  description="Conecte sua loja a CRMs (HubSpot, Pipedrive, RD Station) e ferramentas de marketing automation para sincronizar leads e clientes."
+                >
+                  <CrmIntegrationsPage apiBaseUrl={API_BASE_URL} me={me} />
+                </PremiumFeatureGate>
+              </RouteGuard>
             ) : null}
-            {tab === "shipments" ? <OrdersShipmentsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "customers" ? <CustomersPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "funnel" ? <FunnelPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "embed" ? <EmbedPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "theme" ? <ThemePage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "theme-checkout" ? <ThemePage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "billing" ? <BillingPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "billing-plans" ? <BillingPlansPage /> : null}
-            {tab === "payment-connections" ? <PaymentConnectionsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "audit-log" ? <AuditLogPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "shipments" ? <RouteGuard me={me} require="shipments"><OrdersShipmentsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "customers" ? <RouteGuard me={me} require="customers"><CustomersPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "funnel" ? <RouteGuard me={me} require="funnel"><FunnelPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "embed" ? <RouteGuard me={me} require="embed"><EmbedPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "theme" ? <RouteGuard me={me} require="theme"><ThemePage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "theme-checkout" ? <RouteGuard me={me} require="theme-checkout"><ThemePage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "billing" ? <RouteGuard me={me} require="billing"><BillingPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "billing-plans" ? <RouteGuard me={me} require="billing-plans"><BillingPlansPage /></RouteGuard> : null}
+            {tab === "payment-connections" ? <RouteGuard me={me} require="payment-connections"><PaymentConnectionsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "audit-log" ? <RouteGuard me={me} require="audit-log"><AuditLogPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "catalog" ? (
-              <CatalogPage
-                apiBaseUrl={API_BASE_URL}
-                me={me}
-                onCreate={() => { setEditingProductId(null); changeTab("product-detail"); }}
-                onEdit={(id) => { setEditingProductId(id); changeTab("product-detail"); }}
-              />
+              <RouteGuard me={me} require="catalog">
+                <CatalogPage
+                  apiBaseUrl={API_BASE_URL}
+                  me={me}
+                  onCreate={() => { setEditingProductId(null); changeTab("product-detail"); }}
+                  onEdit={(id) => { setEditingProductId(id); changeTab("product-detail"); }}
+                />
+              </RouteGuard>
             ) : null}
             {tab === "product-detail" ? (
-              <ProductDetailPage
-                apiBaseUrl={API_BASE_URL}
-                me={me}
-                productId={editingProductId}
-                onBack={() => changeTab("catalog")}
-                onSaved={() => changeTab("catalog")}
-              />
+              <RouteGuard me={me} require="product-detail">
+                <ProductDetailPage
+                  apiBaseUrl={API_BASE_URL}
+                  me={me}
+                  productId={editingProductId}
+                  onBack={() => changeTab("catalog")}
+                  onSaved={() => changeTab("catalog")}
+                />
+              </RouteGuard>
             ) : null}
-            {tab === "categories" ? <CategoriesPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "store-settings" ? <StoreSettingsPage /> : null}
-            {tab === "custom-domain" ? <CustomDomainPage /> : null}
-            {tab === "cross-sell" ? <CrossSellPage context="store" /> : null}
-            {tab === "cross-sell-checkout" ? <CrossSellPage context="checkout" /> : null}
-            {tab === "agent-config" ? <AgentConfigPage apiBaseUrl={API_BASE_URL} me={me} context="storefront" /> : null}
-            {tab === "agent-config-checkout" ? <AgentConfigPage apiBaseUrl={API_BASE_URL} me={me} context="checkout" /> : null}
-            {tab === "stories" ? <StoriesPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "team" ? <TeamPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "account-settings" ? <AccountSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "categories" ? <RouteGuard me={me} require="categories"><CategoriesPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "store-settings" ? <RouteGuard me={me} require="store-settings"><StoreSettingsPage /></RouteGuard> : null}
+            {tab === "custom-domain" ? <RouteGuard me={me} require="custom-domain"><CustomDomainPage /></RouteGuard> : null}
+            {tab === "cross-sell" ? <RouteGuard me={me} require="cross-sell"><CrossSellPage context="store" /></RouteGuard> : null}
+            {tab === "cross-sell-checkout" ? <RouteGuard me={me} require="cross-sell-checkout"><CrossSellPage context="checkout" /></RouteGuard> : null}
+            {tab === "agent-config" ? <RouteGuard me={me} require="agent-config"><AgentConfigPage apiBaseUrl={API_BASE_URL} me={me} context="storefront" /></RouteGuard> : null}
+            {tab === "agent-config-checkout" ? <RouteGuard me={me} require="agent-config-checkout"><AgentConfigPage apiBaseUrl={API_BASE_URL} me={me} context="checkout" /></RouteGuard> : null}
+            {tab === "stories" ? <RouteGuard me={me} require="stories"><StoriesPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "team" ? <RouteGuard me={me} require="team"><TeamPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "account-settings" ? <RouteGuard me={me} require="account-settings"><AccountSettingsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "marketplace" ? (
-              <PremiumFeatureGate feature="marketplace" requiredPlan="Scale" featureLabel="Marketplace" description="Venda em rede com outras lojas, catálogo federado e settlement automático entre vendedores.">
-                <MarketplacePage apiBaseUrl={API_BASE_URL} me={me} />
-              </PremiumFeatureGate>
+              <RouteGuard me={me} require="marketplace">
+                <PremiumFeatureGate feature="marketplace" requiredPlan="Scale" featureLabel="Marketplace" description="Venda em rede com outras lojas, catálogo federado e settlement automático entre vendedores.">
+                  <MarketplacePage apiBaseUrl={API_BASE_URL} me={me} />
+                </PremiumFeatureGate>
+              </RouteGuard>
             ) : null}
-            {tab === "whatsapp-seller" ? <WhatsAppSellerPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "coupons" ? <CouponsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "whatsapp-seller" ? <RouteGuard me={me} require="whatsapp-seller"><WhatsAppSellerPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "coupons" ? <RouteGuard me={me} require="coupons"><CouponsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "experiments" ? (
-              <PremiumFeatureGate feature="abTests" requiredPlan="Scale" featureLabel="Testes A/B" description="Experimente variações de prompts e estratégias do agente com significância estatística e promoção automática do vencedor.">
-                <ExperimentsPage apiBaseUrl={API_BASE_URL} me={me} />
-              </PremiumFeatureGate>
+              <RouteGuard me={me} require="experiments">
+                <PremiumFeatureGate feature="abTests" requiredPlan="Scale" featureLabel="Testes A/B" description="Experimente variações de prompts e estratégias do agente com significância estatística e promoção automática do vencedor.">
+                  <ExperimentsPage apiBaseUrl={API_BASE_URL} me={me} />
+                </PremiumFeatureGate>
+              </RouteGuard>
             ) : null}
             {tab === "revenue-lift" ? (
-              <PremiumFeatureGate feature="revenueLift" requiredPlan="Scale" featureLabel="Impacto no Revenue" description="Meça o incremento real de receita gerado pela IA com grupos de holdout e atribuição científica.">
-                <RevenueLiftPage apiBaseUrl={API_BASE_URL} me={me} />
-              </PremiumFeatureGate>
+              <RouteGuard me={me} require="revenue-lift">
+                <PremiumFeatureGate feature="revenueLift" requiredPlan="Scale" featureLabel="Impacto no Revenue" description="Meça o incremento real de receita gerado pela IA com grupos de holdout e atribuição científica.">
+                  <RevenueLiftPage apiBaseUrl={API_BASE_URL} me={me} />
+                </PremiumFeatureGate>
+              </RouteGuard>
             ) : null}
             {tab === "revenue-manager" ? (
-              <PremiumFeatureGate feature="revenueManager" requiredPlan="Scale" featureLabel="Otimizador IA" description="IA autônoma que gera hipóteses de otimização e ajusta estratégias de conversão continuamente.">
-                <RevenueManagerPage apiBaseUrl={API_BASE_URL} me={me} />
-              </PremiumFeatureGate>
+              <RouteGuard me={me} require="revenue-manager">
+                <PremiumFeatureGate feature="revenueManager" requiredPlan="Scale" featureLabel="Otimizador IA" description="IA autônoma que gera hipóteses de otimização e ajusta estratégias de conversão continuamente.">
+                  <RevenueManagerPage apiBaseUrl={API_BASE_URL} me={me} />
+                </PremiumFeatureGate>
+              </RouteGuard>
             ) : null}
-            {tab === "cart-recovery" ? <CartRecoveryPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "cart-recovery" ? <RouteGuard me={me} require="cart-recovery"><CartRecoveryPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "m2m-agents" ? (
-              <PremiumFeatureGate feature="m2mAgents" requiredPlan="Scale" featureLabel="Agentes M2M" description="Negociação máquina-a-máquina: agentes autônomos que negociam com compradores via protocolo dedicado.">
-                <M2MAgentsPage apiBaseUrl={API_BASE_URL} me={me} />
-              </PremiumFeatureGate>
+              <RouteGuard me={me} require="m2m-agents">
+                <PremiumFeatureGate feature="m2mAgents" requiredPlan="Scale" featureLabel="Agentes M2M" description="Negociação máquina-a-máquina: agentes autônomos que negociam com compradores via protocolo dedicado.">
+                  <M2MAgentsPage apiBaseUrl={API_BASE_URL} me={me} />
+                </PremiumFeatureGate>
+              </RouteGuard>
             ) : null}
-            {tab === "checkout-protocol" ? <ProtocolPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "checkout-programavel" ? <CheckoutProgramavelPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "checkout-protocol" ? <RouteGuard me={me} require="checkout-protocol"><ProtocolPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "checkout-programavel" ? <RouteGuard me={me} require="checkout-programavel"><CheckoutProgramavelPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "intent-memory" ? (
-              <PremiumFeatureGate feature="intentMemory" requiredPlan="Scale" featureLabel="Memória de Intenção" description="IA personalizada que lembra o perfil e a intenção de compra de cada cliente (LGPD-compliant).">
-                <IntentMemoryPage apiBaseUrl={API_BASE_URL} me={me} />
-              </PremiumFeatureGate>
+              <RouteGuard me={me} require="intent-memory">
+                <PremiumFeatureGate feature="intentMemory" requiredPlan="Scale" featureLabel="Memória de Intenção" description="IA personalizada que lembra o perfil e a intenção de compra de cada cliente (LGPD-compliant).">
+                  <IntentMemoryPage apiBaseUrl={API_BASE_URL} me={me} />
+                </PremiumFeatureGate>
+              </RouteGuard>
             ) : null}
-            {tab === "inventory" ? <InventoryPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "inventory" ? <RouteGuard me={me} require="inventory"><InventoryPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "negotiation-policy" ? (
-              <PremiumFeatureGate feature="advancedRules" requiredPlan="Growth" featureLabel="Negociação" description="Política de negociação e barganha: o agente negocia descontos dentro dos limites que você define.">
-                <NegotiationPolicyPage apiBaseUrl={API_BASE_URL} me={me} />
-              </PremiumFeatureGate>
+              <RouteGuard me={me} require="negotiation-policy">
+                <PremiumFeatureGate feature="advancedRules" requiredPlan="Growth" featureLabel="Negociação" description="Política de negociação e barganha: o agente negocia descontos dentro dos limites que você define.">
+                  <NegotiationPolicyPage apiBaseUrl={API_BASE_URL} me={me} />
+                </PremiumFeatureGate>
+              </RouteGuard>
             ) : null}
-            {tab === "chargebacks" ? <ChargebacksPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "returns" ? <ReturnExchangesPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "delivery" ? <DeliveryPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "chargebacks" ? <RouteGuard me={me} require="chargebacks"><ChargebacksPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "returns" ? <RouteGuard me={me} require="returns"><ReturnExchangesPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "delivery" ? <RouteGuard me={me} require="delivery"><DeliveryPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "post-sale" ? (
-              <PremiumFeatureGate feature="postSale" requiredPlan="Growth" featureLabel="Pós-Venda" description="NPS, reviews, win-back, programa de fidelidade e reativação automática de clientes.">
-                <PostSalePage apiBaseUrl={API_BASE_URL} me={me} />
-              </PremiumFeatureGate>
+              <RouteGuard me={me} require="post-sale">
+                <PremiumFeatureGate feature="postSale" requiredPlan="Growth" featureLabel="Pós-Venda" description="NPS, reviews, win-back, programa de fidelidade e reativação automática de clientes.">
+                  <PostSalePage apiBaseUrl={API_BASE_URL} me={me} />
+                </PremiumFeatureGate>
+              </RouteGuard>
             ) : null}
             {tab === "knowledge" ? (
-              <PremiumFeatureGate
-                feature="knowledgeBase"
-                requiredPlan="Growth"
-                featureLabel="Base de Conhecimento"
-                description="Alimente seu agente com FAQs, políticas e documentos da loja para respostas mais precisas e personalizadas."
-              >
-                <KnowledgePage apiBaseUrl={API_BASE_URL} me={me} />
-              </PremiumFeatureGate>
+              <RouteGuard me={me} require="knowledge">
+                <PremiumFeatureGate
+                  feature="knowledgeBase"
+                  requiredPlan="Growth"
+                  featureLabel="Base de Conhecimento"
+                  description="Alimente seu agente com FAQs, políticas e documentos da loja para respostas mais precisas e personalizadas."
+                >
+                  <KnowledgePage apiBaseUrl={API_BASE_URL} me={me} />
+                </PremiumFeatureGate>
+              </RouteGuard>
             ) : null}
             </Suspense>
           </PageErrorBoundary>
