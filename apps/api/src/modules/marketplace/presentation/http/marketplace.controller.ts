@@ -107,11 +107,12 @@ export class MarketplaceController {
   @Post("returns")
   async registerReturnEndpoint(
     @Req() request: AuthenticatedRequest,
-    @Body() body: { order_id?: string; settlement_id?: string },
+    @Body() body: { order_id?: string; settlement_id?: string; variant_ids?: string[] },
   ) {
     return this.registerReturn.execute({
       orderId: body.order_id,
       settlementId: body.settlement_id,
+      variantIds: body.variant_ids,
     });
   }
 

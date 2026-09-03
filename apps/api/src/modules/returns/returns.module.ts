@@ -15,11 +15,13 @@ import { ProcessRefundUseCase } from "./application/use-cases/process-refund.use
 import { RestockInventoryUseCase } from "./application/use-cases/restock-inventory.use-case.js";
 import { ListReturnsUseCase } from "./application/use-cases/list-returns.use-case.js";
 import { CancelReturnUseCase } from "./application/use-cases/cancel-return.use-case.js";
+import { AcceptMarketplaceReturnUseCase } from "./application/use-cases/accept-marketplace-return.use-case.js";
 import { ReturnsController } from "./presentation/http/returns.controller.js";
 import { BuyerReturnsController } from "./presentation/http/buyer-returns.controller.js";
+import { MarketplaceModule } from "../marketplace/marketplace.module.js";
 
 @Module({
-  imports: [PersistenceModule, BuyerAccountModule, SupportModule, StorageModule],
+  imports: [PersistenceModule, BuyerAccountModule, SupportModule, StorageModule, MarketplaceModule],
   controllers: [ReturnsController, BuyerReturnsController],
   providers: [
     {
@@ -36,6 +38,7 @@ import { BuyerReturnsController } from "./presentation/http/buyer-returns.contro
     RestockInventoryUseCase,
     ListReturnsUseCase,
     CancelReturnUseCase,
+    AcceptMarketplaceReturnUseCase,
   ],
   exports: [
     RETURN_REPOSITORY_PORT,

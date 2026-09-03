@@ -198,9 +198,14 @@ const prismaProvider = {
       useFactory: (
         settlementRepo: PrismaMarketplaceSettlementRepository,
         stateMachine: SettlementStateMachineService,
+        orderRepo: PrismaCrossStoreOrderRepository,
       ) =>
-        new RegisterMarketplaceReturnUseCase(settlementRepo, stateMachine),
-      inject: [MARKETPLACE_SETTLEMENT_REPOSITORY, SettlementStateMachineService],
+        new RegisterMarketplaceReturnUseCase(settlementRepo, stateMachine, orderRepo),
+      inject: [
+        MARKETPLACE_SETTLEMENT_REPOSITORY,
+        SettlementStateMachineService,
+        CROSS_STORE_ORDER_REPOSITORY,
+      ],
     },
     {
       provide: GetSellerOrdersUseCase,

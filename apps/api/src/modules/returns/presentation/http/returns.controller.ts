@@ -10,6 +10,7 @@ import { ProcessRefundUseCase } from "../../application/use-cases/process-refund
 import { RestockInventoryUseCase } from "../../application/use-cases/restock-inventory.use-case.js";
 import { ListReturnsUseCase } from "../../application/use-cases/list-returns.use-case.js";
 import { CancelReturnUseCase } from "../../application/use-cases/cancel-return.use-case.js";
+import { AcceptMarketplaceReturnUseCase } from "../../application/use-cases/accept-marketplace-return.use-case.js";
 import { RETURN_REPOSITORY_PORT, ReturnRepositoryPort } from "../../domain/ports/return-repository.port.js";
 import { ReturnStatus, ItemCondition } from "../../domain/entities/return.entity.js";
 
@@ -25,6 +26,7 @@ export class ReturnsController {
     private readonly restockInventory: RestockInventoryUseCase,
     private readonly listReturns: ListReturnsUseCase,
     private readonly cancelReturn: CancelReturnUseCase,
+    private readonly acceptMarketplaceReturn: AcceptMarketplaceReturnUseCase,
     @Inject(RETURN_REPOSITORY_PORT) private readonly returnRepo: ReturnRepositoryPort,
   ) {}
 
@@ -84,6 +86,12 @@ export class ReturnsController {
   @RequirePlan("STORE_ONLY", "BOTH")
   async receive(@Param("mid") merchantId: string, @Param("rid") returnId: string) {
     return this.markReceived.execute(merchantId, returnId);
+  }
+
+  @Post(":mid/returns/:rid/accept")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  async accept(@Param("mid") merchantId: string, @Param("rid") returnId: string) {
+    return this.acceptMarketplaceReturn.execute({ merchantId, returnId });
   }
 
   @Post(":mid/returns/:rid/inspect")
