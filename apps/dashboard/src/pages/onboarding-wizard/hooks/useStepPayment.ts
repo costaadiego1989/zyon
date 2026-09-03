@@ -122,5 +122,23 @@ export function useStepPayment(deps: UseStepPaymentDeps) {
     }
   }
 
-  return { saveStep3, initiateStripeOnboarding, initiateAsaasOnboarding };
+  // Mercado Pago: OAuth link → redirect to Mercado Pago; on return the
+  // ?mercadopago_connected=1 param is picked up by the wizard hook.
+  async function initiateMercadoPagoOnboarding() {
+    deps.setBusy(true);
+    deps.setMessage(null);
+    deps.setPaymentDraft((d) => ({ ...d, mercadopagoStatus: "connecting" }));
+    try {
+      const { url } = await api.createMercadoPagoOAuthLink();
+      window.location.href = url;
+    } catch (err) {
+      reportError({ source: "onboarding.mercadopago.oauthLink", error: err, severity: "warning" });
+      deps.setPaymentDraft((d) => ({ ...d, mercadopagoStatus: "idle" }));
+      deps.setMessage("Não foi possível conectar o Mercado Pago. Tente novamente.");
+    } finally {
+      deps.setBusy(false);
+    }
+  }
+
+  return { saveStep3, initiateStripeOnboarding, initiateAsaasOnboarding, initiateMercadoPagoOnboarding };
 }

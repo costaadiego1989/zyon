@@ -25,6 +25,7 @@ export type PaymentDraft = {
   stripeStatus: "idle" | "pending" | "active";
   asaasApiKey: string;
   asaasStatus: "idle" | "testing" | "pending" | "active" | "error";
+  mercadopagoStatus: "idle" | "connecting" | "pending" | "active";
   cryptoEnabled: boolean;
   walletAddress: string;
 };

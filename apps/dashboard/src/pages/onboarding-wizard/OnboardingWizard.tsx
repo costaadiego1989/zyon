@@ -60,6 +60,7 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
         <StepRail
           steps={vm.steps}
           currentStep={vm.currentStep}
+          progress={Math.round(((vm.currentStep - 1) / Math.max(1, vm.totalSteps - 1)) * 100)}
         />
 
         <section className="onb-stage">
@@ -102,6 +103,7 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
                   busy={vm.busy}
                   initiateStripeOnboarding={vm.initiateStripeOnboarding}
                   initiateAsaasOnboarding={vm.initiateAsaasOnboarding}
+                  initiateMercadoPagoOnboarding={vm.initiateMercadoPagoOnboarding}
                 />
               )}
 

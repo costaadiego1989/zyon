@@ -15,14 +15,12 @@ import type {
   ThemeDraft,
   AddressDraft,
   PaymentDraft,
-  IntegrationDraft,
   StepMeta,
 } from "./types.js";
 import { Palette, MapPin, CreditCard, MessageCircle, Sparkles } from "lucide-react";
 import { useStepIdentity } from "./hooks/useStepIdentity.js";
 import { useStepAddress } from "./hooks/useStepAddress.js";
 import { useStepPayment } from "./hooks/useStepPayment.js";
-import { useStepApiKey } from "./hooks/useStepApiKey.js";
 import { useStepReview } from "./hooks/useStepReview.js";
 
 export type { ThemeDraft, AddressDraft, PaymentDraft, IntegrationDraft, PlatformChoice } from "./types.js";
@@ -111,13 +109,11 @@ const DEFAULT_PAYMENT_DRAFT: PaymentDraft = {
   stripeStatus: "idle",
   asaasApiKey: "",
   asaasStatus: "idle",
+  mercadopagoStatus: "idle",
   cryptoEnabled: false,
   walletAddress: "",
 };
 
-const DEFAULT_INTEGRATION_DRAFT: IntegrationDraft = {
-  platform: "native",
-};
 
 export interface OnboardingWizardVM {
   currentStep: number;
@@ -130,12 +126,8 @@ export interface OnboardingWizardVM {
   setAddressDraft: React.Dispatch<React.SetStateAction<AddressDraft>>;
   paymentDraft: PaymentDraft;
   setPaymentDraft: React.Dispatch<React.SetStateAction<PaymentDraft>>;
-  integrationDraft: IntegrationDraft;
-  setIntegrationDraft: React.Dispatch<React.SetStateAction<IntegrationDraft>>;
   fieldErrors: Record<string, string>;
   setFieldErrors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  generatedApiKey: { id: string; secretKey: string; name: string } | null;
-  setGeneratedApiKey: React.Dispatch<React.SetStateAction<{ id: string; secretKey: string; name: string } | null>>;
   onboardingState: OnboardingStateResponse | null;
   setOnboardingState: React.Dispatch<React.SetStateAction<OnboardingStateResponse | null>>;
 
@@ -144,11 +136,11 @@ export interface OnboardingWizardVM {
   saveStep3: () => Promise<void>;
   initiateStripeOnboarding: () => Promise<void>;
   initiateAsaasOnboarding: () => Promise<void>;
+  initiateMercadoPagoOnboarding: () => Promise<void>;
   completeWhatsAppStep: () => Promise<void>;
   finish: () => Promise<void>;
   goBack: () => void;
   markOnboardingStep: (step: OnboardingStepId) => Promise<void>;
-  generateApiKey: () => Promise<void>;
 
   activeMeta: StepMeta | undefined;
   totalSteps: number;
@@ -193,9 +185,7 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
   const [themeDraft, setThemeDraft] = useState<ThemeDraft>(saved?.theme ?? { ...DEFAULT_THEME_DRAFT, headerTitle: props.me.name });
   const [addressDraft, setAddressDraft] = useState<AddressDraft>(saved?.address ?? DEFAULT_ADDRESS_DRAFT);
   const [paymentDraft, setPaymentDraft] = useState<PaymentDraft>(saved?.payment ?? DEFAULT_PAYMENT_DRAFT);
-  const [integrationDraft, setIntegrationDraft] = useState<IntegrationDraft>(saved?.integration ?? DEFAULT_INTEGRATION_DRAFT);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [generatedApiKey, setGeneratedApiKey] = useState<{ id: string; secretKey: string; name: string } | null>(null);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: currentStep, theme: themeDraft, address: addressDraft, payment: paymentDraft }));
@@ -224,17 +214,46 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
         const connections = await api.getPaymentConnections();
         if (!active) return;
         const stripe = connections.find((c) => c.provider === "stripe");
-        if (stripe && stripe.account_id) {
-          setPaymentDraft((d) => ({ ...d, stripeStatus: "active" }));
+        if (stripe) {
+          // Only "active" is truly usable. A restricted/incomplete Stripe
+          // account still has an account_id but status !== "active", so keying
+          // off account_id alone falsely showed "Ativo". Mirror asaas/mp.
+          setPaymentDraft((d) => ({ ...d, stripeStatus: stripe.status === "active" ? "active" : "pending" }));
         }
         const asaas = connections.find((c) => c.provider === "asaas");
         if (asaas) {
           setPaymentDraft((d) => ({ ...d, asaasStatus: asaas.status === "active" ? "active" : "idle" }));
         }
+        const mp = connections.find((c) => c.provider === "mercadopago");
+        if (mp) {
+          setPaymentDraft((d) => ({ ...d, mercadopagoStatus: mp.status === "active" ? "active" : "pending" }));
+        }
       } catch (err) {
         reportError({ source: "onboarding.loadPaymentConnections", error: err, severity: "warning" });
       }
     })();
+    return () => { active = false; };
+  }, [api]);
+
+  // Mercado Pago connects via OAuth redirect back to the dashboard with a
+  // ?mercadopago_connected=1 param. Detect it, sync the connection, reflect
+  // active, and clean the URL.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.get("mercadopago_connected")) return;
+    let active = true;
+    void (async () => {
+      try {
+        await api.syncMercadoPagoConnection?.();
+        if (active) setPaymentDraft((d) => ({ ...d, mercadopagoStatus: "active" }));
+      } catch (err) {
+        reportError({ source: "onboarding.syncMercadoPago", error: err, severity: "warning" });
+      }
+    })();
+    params.delete("mercadopago_connected");
+    params.delete("mercadopago_error");
+    const qs = params.toString();
+    window.history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash}`);
     return () => { active = false; };
   }, [api]);
 
@@ -294,7 +313,7 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
     setCurrentStep,
   });
 
-  const { saveStep3, initiateStripeOnboarding, initiateAsaasOnboarding } = useStepPayment({
+  const { saveStep3, initiateStripeOnboarding, initiateAsaasOnboarding, initiateMercadoPagoOnboarding } = useStepPayment({
     paymentDraft,
     setPaymentDraft,
     addressDraft,
@@ -306,13 +325,6 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
     setOnboardingState,
     me: props.me,
     storageKey: STORAGE_KEY,
-  });
-
-  const { generateApiKey } = useStepApiKey({
-    setGeneratedApiKey,
-    setMessage,
-    setBusy,
-    markOnboardingStep,
   });
 
   const { finish } = useStepReview({
@@ -359,12 +371,8 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
     setAddressDraft,
     paymentDraft,
     setPaymentDraft,
-    integrationDraft,
-    setIntegrationDraft,
     fieldErrors,
     setFieldErrors,
-    generatedApiKey,
-    setGeneratedApiKey,
     onboardingState,
     setOnboardingState,
 
@@ -373,11 +381,11 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
     saveStep3,
     initiateStripeOnboarding,
     initiateAsaasOnboarding,
+    initiateMercadoPagoOnboarding,
     completeWhatsAppStep,
     finish,
     goBack,
     markOnboardingStep,
-    generateApiKey,
 
     activeMeta,
     totalSteps,

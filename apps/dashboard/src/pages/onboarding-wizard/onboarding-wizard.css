@@ -3,10 +3,6 @@
         max-width: 1360px;
         margin: 0 auto;
       }
-
-      /* Three-column layout: progress rail | current step | live preview.
-         The grid lives on .onb-main (the actual parent of the three columns);
-         .onb is just the centering wrapper. */
       .onb-main {
         display: grid;
         grid-template-columns: 264px minmax(0, 1fr) minmax(300px, 400px);
@@ -14,23 +10,17 @@
         align-items: start;
       }
 
-      .onb-stage-content {
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-4);
-        min-width: 0;
-        width: 100%;
-      }
-
-      /* ── Progress rail (double-bezel surface) ──────────────────────── */
       .onb-rail {
         position: sticky;
         top: 20px;
         display: flex;
         flex-direction: column;
         gap: var(--space-4);
-        max-height: calc(100vh - 40px);
-        padding: var(--space-4);
+        /* Same fixed height as the stage + preview so the three cards share the
+           exact top and bottom edges. */
+        height: calc(100vh - 40px);
+        max-height: 820px;
+        padding: var(--space-5);
         border: 1px solid var(--color-border);
         border-radius: var(--radius-lg);
         background: var(--color-surface);
@@ -42,8 +32,7 @@
         display: flex;
         align-items: center;
         gap: var(--space-3);
-        padding-bottom: var(--space-4);
-        border-bottom: 1px solid var(--color-border);
+        padding-bottom: var(--space-2);
       }
 
       .onb-rail-mark {
@@ -214,11 +203,31 @@
         display: flex;
         flex-direction: column;
         min-width: 0;
-        padding: var(--space-4);
+        /* Same fixed height as the rail + preview so the three cards align top
+           and bottom. Uniform padding on all four sides; content and footer sit
+           inside it with no side padding of their own, so everything lines up. */
+        height: calc(100vh - 40px);
+        max-height: 820px;
+        padding: var(--space-5);
         border: 1px solid var(--color-border);
         border-radius: var(--radius-lg);
         background: var(--color-surface);
         box-shadow: var(--shadow-sm);
+      }
+
+      .onb-stage-content {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-4);
+        width: 100%;
+        min-width: 0;
+        min-height: 0;
+        flex: 1;
+        overflow-y: auto;
+        /* The scrollbar took space only on the right, making the left padding
+           look smaller. Reserve the gutter on BOTH sides so left and right stay
+           equal, with or without a visible scrollbar. */
+        scrollbar-gutter: stable both-edges;
       }
 
       /* JSX renders .onb-stage-header > .onb-stage-title + .onb-stage-caption. */
@@ -263,8 +272,12 @@
         display: flex;
         flex-direction: column;
         gap: var(--space-4);
-        align-items: flex-start;
+        align-items: stretch;
+        width: 100%;
       }
+      /* The hero icon and plan badge shouldn't stretch to full width. */
+      .onb-field-group .onb-hero-icon,
+      .onb-field-group .onb-plan-badge { align-self: flex-start; }
 
       .onb-hero-icon {
         width: 48px;
@@ -355,11 +368,13 @@
       }
 
       /* ── Body layout: controls + preview ────────────────────────────── */
+      /* Single full-width column: the live preview is now its own grid column
+         to the right, so the step form fills the entire stage. The old
+         two-column (form + inline preview) layout squeezed the form into a
+         narrow track. */
       .onb-stage-body {
-        display: grid;
-        grid-template-columns: minmax(360px, 0.96fr) minmax(280px, 340px);
-        gap: var(--space-5);
-        align-items: stretch;
+        display: block;
+        width: 100%;
         animation: onb-enter 260ms var(--ease) both;
       }
 
@@ -383,9 +398,21 @@
         padding: var(--space-5);
       }
 
-      .onb-fields { display: flex; flex-direction: column; gap: var(--space-4); }
+      .onb-fields { display: flex; flex-direction: column; gap: var(--space-4); width: 100%; }
 
-      .onb-field { display: flex; flex-direction: column; gap: var(--space-2); }
+      .onb-field { display: flex; flex-direction: column; gap: var(--space-2); width: 100%; }
+
+      /* Form controls fill the full width of their field so they line up with
+         the card edges instead of collapsing to their intrinsic width. */
+      .onb-field input:not([type="color"]):not([type="file"]),
+      .onb-field select,
+      .onb-field textarea,
+      .onb-field .form-field,
+      .onb-field .form-field input,
+      .onb-field .form-field select {
+        width: 100%;
+        box-sizing: border-box;
+      }
 
       .onb-field-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
 
@@ -707,8 +734,11 @@
         justify-content: space-between;
         align-items: center;
         gap: var(--space-4);
-        margin-top: var(--space-5);
-        padding-top: var(--space-4);
+        margin-top: var(--space-4);
+        /* Same horizontal padding as .onb-stage-content so the Voltar/Continuar
+           buttons line up with the form fields; the card itself has no side
+           padding (padding: space-5 0). */
+        padding: var(--space-4) var(--space-5) 0;
         border-top: 1px solid var(--color-border);
       }
       .onb-footer-left { display: flex; align-items: center; }
@@ -875,7 +905,7 @@
       }
 
       @media (max-width: 1080px) {
-        .onb-stage-body { grid-template-columns: 1fr; }
+        /* .onb-stage-body is single-column (block) at all sizes now. */
       }
 
       @media (max-width: 860px) {

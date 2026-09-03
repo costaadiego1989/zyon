@@ -12,6 +12,7 @@ type StepPaymentProps = {
   busy: boolean;
   initiateStripeOnboarding: () => void;
   initiateAsaasOnboarding: () => void;
+  initiateMercadoPagoOnboarding: () => void;
 };
 
 export function StepPayment({
@@ -22,6 +23,7 @@ export function StepPayment({
   busy,
   initiateStripeOnboarding,
   initiateAsaasOnboarding,
+  initiateMercadoPagoOnboarding,
 }: StepPaymentProps) {
   return (
     <div className="onb-fields">
@@ -32,12 +34,12 @@ export function StepPayment({
           <div style={{ flex: 1 }}>
             <strong style={{ fontSize: "14px", color: "var(--color-text)" }}>Stripe Connect</strong>
             <span style={{ fontSize: "11px", marginLeft: 8, padding: "2px 6px", borderRadius: "3px", background: paymentDraft.stripeStatus === "active" ? "var(--color-success-bg)" : "var(--color-border)", color: paymentDraft.stripeStatus === "active" ? "var(--color-success)" : "var(--color-text-muted)" }}>
-              {paymentDraft.stripeStatus === "active" ? "Ativo" : "Não configurado"}
+              {paymentDraft.stripeStatus === "active" ? "Ativo" : paymentDraft.stripeStatus === "pending" ? "Pendente" : "Não configurado"}
             </span>
             <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "4px 0 0" }}>Cartão de crédito e débito internacionais</p>
           </div>
           <Button variant="outline" size="sm" disabled={busy || paymentDraft.stripeStatus === "active"} onClick={() => void initiateStripeOnboarding()}>
-            {paymentDraft.stripeStatus === "active" ? "Ativo" : "Configurar"}
+            {paymentDraft.stripeStatus === "active" ? "Ativo" : paymentDraft.stripeStatus === "pending" ? "Continuar" : "Configurar"}
           </Button>
         </div>
       </div>
@@ -56,6 +58,22 @@ export function StepPayment({
           </Button>
         </div>
         {paymentDraft.asaasStatus === "active" && <span style={{ fontSize: "12px", color: "var(--color-success)", marginTop: "4px", display: "block" }}>✓ Subconta Asaas ativa</span>}
+      </div>
+
+      <div className="onb-field" style={{ padding: "var(--space-4)", background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--space-3)" }}>
+          <div style={{ flex: 1 }}>
+            <strong style={{ fontSize: "14px", color: "var(--color-text)" }}>Mercado Pago</strong>
+            <span style={{ fontSize: "11px", marginLeft: 8, padding: "2px 6px", borderRadius: "3px", background: paymentDraft.mercadopagoStatus === "active" ? "var(--color-success-bg)" : "var(--color-border)", color: paymentDraft.mercadopagoStatus === "active" ? "var(--color-success)" : "var(--color-text-muted)" }}>
+              {paymentDraft.mercadopagoStatus === "active" ? "Ativo" : paymentDraft.mercadopagoStatus === "pending" ? "Pendente" : "Não configurado"}
+            </span>
+            <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "4px 0 0" }}>Cartão, PIX e boleto via sua conta Mercado Pago.</p>
+          </div>
+          <Button variant="outline" size="sm" disabled={busy || paymentDraft.mercadopagoStatus === "active"} onClick={() => void initiateMercadoPagoOnboarding()}>
+            {paymentDraft.mercadopagoStatus === "connecting" ? "Conectando..." : paymentDraft.mercadopagoStatus === "active" ? "Ativo" : "Conectar"}
+          </Button>
+        </div>
+        {paymentDraft.mercadopagoStatus === "active" && <span style={{ fontSize: "12px", color: "var(--color-success)", marginTop: "4px", display: "block" }}>✓ Mercado Pago conectado</span>}
       </div>
 
       <label className="onb-switch">

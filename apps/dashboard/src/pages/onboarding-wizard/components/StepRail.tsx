@@ -19,7 +19,6 @@ export function StepRail({ steps, currentStep, onStepClick, progress }: StepRail
   return (
     <aside className="onb-rail" aria-label="Progresso do onboarding">
       <div className="onb-rail-head">
-        <span className="onb-rail-mark" aria-hidden="true">Z</span>
         <div>
           <strong>Ative seu checkout assistido</strong>
           <small>Configure tudo em poucos minutos. Você pode alterar qualquer configuração depois.</small>
