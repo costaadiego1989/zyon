@@ -95,7 +95,7 @@ export class OrdersController {
   })
   @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
   @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
-  @RequireTenantAccess({ serviceScopes: ["orders:read"] })
+  @RequireTenantAccess({ serviceScopes: ["orders:read"], humanRoles: ["owner", "admin", "staff"] })
   async list(
     @Req() request: unknown,
     @Query("limit") limit?: string,
@@ -161,7 +161,7 @@ export class OrdersController {
   @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
   @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
   @ApiResponse({ status: 404, description: "Order not found" })
-  @RequireTenantAccess({ serviceScopes: ["orders:read"] })
+  @RequireTenantAccess({ serviceScopes: ["orders:read"], humanRoles: ["owner", "admin", "staff"] })
   async get(
     @Req() request: unknown,
     @Param("orderId") orderId: string,
@@ -262,7 +262,7 @@ export class OrdersController {
   @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
   @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
   @ApiResponse({ status: 404, description: "Order not found" })
-  @RequireTenantAccess({ serviceScopes: ["orders:read"] })
+  @RequireTenantAccess({ serviceScopes: ["orders:read"], humanRoles: ["owner", "admin", "staff"] })
   async timeline(
     @Req() request: unknown,
     @Param("orderId") orderId: string,
@@ -292,7 +292,7 @@ export class OrdersController {
   @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
   @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
   @ApiResponse({ status: 404, description: "Order not found" })
-  @RequireTenantAccess({ serviceScopes: ["tracking:read"] })
+  @RequireTenantAccess({ serviceScopes: ["tracking:read"], humanRoles: ["owner", "admin", "staff"] })
   async tracking(
     @Req() request: unknown,
     @Param("orderId") orderId: string,
@@ -396,6 +396,7 @@ export class CustomersController {
   })
   @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
   @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
+  @RequireTenantAccess({ serviceScopes: ["customers:read"], humanRoles: ["owner", "admin", "staff"] })
   async list(
     @Req() request: unknown,
     @Query("limit") limit?: string,
@@ -423,6 +424,7 @@ export class CustomersController {
   @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
   @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
   @ApiResponse({ status: 404, description: "Customer not found" })
+  @RequireTenantAccess({ serviceScopes: ["customers:read"], humanRoles: ["owner", "admin", "staff"] })
   async get(
     @Req() request: unknown,
     @Param("customerId") customerId: string,
@@ -465,6 +467,7 @@ export class PaymentsController {
   })
   @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
   @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
+  @RequireTenantAccess({ serviceScopes: ["payments:read"], humanRoles: ["owner", "admin", "staff"] })
   async list(
     @Req() request: unknown,
     @Query("limit") limit?: string,
@@ -492,6 +495,7 @@ export class PaymentsController {
   @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
   @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
   @ApiResponse({ status: 404, description: "Payment not found" })
+  @RequireTenantAccess({ serviceScopes: ["payments:read"], humanRoles: ["owner", "admin", "staff"] })
   async get(
     @Req() request: unknown,
     @Param("paymentId") paymentId: string,
