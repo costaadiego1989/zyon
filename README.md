@@ -10,6 +10,7 @@ AACP é uma plataforma SaaS completa de e-commerce pensada para pequenas e médi
 - **Buyer Hub** — Comprador acessa histórico de pedidos, rastreia, salva endereços, conversa com IA
 - **Pagamentos multi-forma** — PIX, boleto (Asaas), cartão (Stripe), cripto
 - **Dashboard completo** — Visão de pedidos, integrações (Shopify/VTEX opcional), clientes, promoções, faturamento
+- **🚀 Agentic Commerce Ready** — Detectável por agentes de IA (Opus 5, Gemini, Perplexity); checkout em 1-click dentro de chats; suporta ACP/UCP/AP2 protocols
 
 ## Stack & Arquitetura
 
@@ -56,6 +57,14 @@ Por pedido:
 - `checkout` — Sessão, eventos, scoring, chat, ofertas, read model
 - `agent-rules` — Identidade do agente, capabilities, guardrails
 - `conversation-engine` — Classifica objeções, escreve copy segura
+
+**Agentic Commerce (ACP/UCP):**
+- **`agentic-protocol-adapter`** — Expõe AACP para agentes IA (Opus 5, Gemini, Perplexity)
+  - `GET /.well-known/ucp` — Discovery (AACP é ACP-ready?)
+  - `GET /v1/acp/products/feed` — Google Merchant Feed (CSV/JSON)
+  - `POST /v1/acp/checkout_sessions` — Checkout em 1-click dentro de chat
+  - Webhooks de pedido + Payment mandates (AP2)
+  - [ADR-025](docs/adr/0025-agentic-commerce-protocol.md) | [Spec](specs/features/agentic-commerce-protocol-compliance)
 
 **PME:**
 - `merchant` — Regras, configurações, tema
@@ -198,6 +207,10 @@ refactor(auth): extract buyer session guard to hook
 
 - **Stack Docs**: `.specs/codebase/STACK.md`
 - **ADRs**: `.specs/features/*/spec.md` (decisões arquitetônicas)
+  - **ADR-025**: [Agentic Commerce Protocol (ACP) Compliance](docs/adr/0025-agentic-commerce-protocol.md) — Strategic decision to implement ACP/UCP/AP2 adapter
+- **Agentic Commerce**: [Analysis + Roadmap](specs/features/agentic-commerce-protocol-compliance/spec.md)
+  - Gap analysis vs ACP/UCP/AP2 standards
+  - 6–8 week implementation roadmap (Phase 1–3)
 - **Referência API**: Será gerada via OpenAPI (em progresso, REQ-001 audit)
 - **Roadmap Produto**: 120+ specs documentadas em `.specs/features/`
 

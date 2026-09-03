@@ -52,7 +52,8 @@ import { PostSaleModule } from "./modules/post-sale/post-sale.module.js";
 import { WhatsAppTemplatesModule } from "./modules/whatsapp-templates/whatsapp-templates.module.js";
 import { KnowledgeBaseModule } from "./modules/knowledge-base/knowledge-base.module.js";
 import { CrossSellModule } from "./modules/cross-sell/cross-sell.module.js";
-// import { PublicApiModule } from "./modules/public-api/public-api.module.js"; // TODO: fix DI (AuthenticateMerchantApiKeyService)
+import { UcpDiscoveryModule } from "./modules/public-api/ucp-discovery/ucp-discovery.module.js";
+import { AgenticProtocolModule } from "./modules/public-api/agentic-protocol/agentic-protocol.module.js";
 
 const REDACTED_LOG_PATHS = [
   "req.headers.authorization",
@@ -151,7 +152,8 @@ const REDACTED_LOG_PATHS = [
     WhatsAppTemplatesModule,
     KnowledgeBaseModule,
     CrossSellModule,
-    // PublicApiModule, // TODO: fix DI (CommerceV1Controller, InstallationsModule)
+    UcpDiscoveryModule,
+    AgenticProtocolModule,
   ],
   providers: [
     { provide: APP_INTERCEPTOR, useClass: MetricsInterceptor },

@@ -711,4 +711,62 @@ test.describe("Public API v1 E2E", async () => {
       }
     });
   });
+
+  test.describe("Agentic Protocol Module", async () => {
+    test("GET /acp/agent-card returns 200 with canonical A2A card (no auth required)", async () => {
+      const res = await requestNoAuth("GET", "/acp/agent-card");
+      assert.equal(
+        res.status,
+        200,
+        `Expected 200; got ${res.status}`,
+      );
+      assert(typeof res.data === "object" && res.data !== null);
+      const card = res.data as Record<string, unknown>;
+
+      assert.equal(card.version, "1.0");
+      assert(typeof card.agent === "object" && card.agent !== null);
+      assert.equal(typeof (card.agent as Record<string, unknown>).id, "string");
+      assert.equal(typeof (card.agent as Record<string, unknown>).name, "string");
+
+      assert(Array.isArray(card.capabilities));
+      assert(
+        (card.capabilities as Array<unknown>).length >= 4,
+        "Expected at least 4 capabilities (checkout, offers, payment, post-sale)",
+      );
+
+      const capabilityNames = (card.capabilities as Array<Record<string, unknown>>).map(
+        (c) => c.name,
+      );
+      assert(capabilityNames.includes("checkout"));
+      assert(capabilityNames.includes("offers"));
+      assert(capabilityNames.includes("payment"));
+      assert(capabilityNames.includes("post-sale"));
+
+      for (const cap of card.capabilities as Array<Record<string, unknown>>) {
+        assert(Array.isArray(cap.scopes), "Each capability must have scopes array");
+        assert(
+          (cap.scopes as Array<unknown>).length > 0,
+          `Capability ${cap.name} must have at least one scope`,
+        );
+      }
+
+      assert(typeof card.endpoints === "object" && card.endpoints !== null);
+      const endpoints = card.endpoints as Record<string, unknown>;
+      assert.equal(endpoints.checkout_sessions, "/v1/acp/checkout_sessions");
+      assert.equal(endpoints.products_feed, "/v1/acp/products/feed");
+      assert.equal(endpoints.webhooks, "/v1/acp/webhooks");
+
+      assert.equal(typeof card.created_at, "string");
+      assert(!Number.isNaN(Date.parse(card.created_at as string)));
+    });
+
+    test("GET /acp/agent-card?merchant_id=merchant_xyz returns tenant-scoped agent_id", async () => {
+      const res = await requestNoAuth("GET", "/acp/agent-card?merchant_id=merchant_xyz");
+      assert.equal(res.status, 200);
+      assert(typeof res.data === "object" && res.data !== null);
+      const card = res.data as Record<string, unknown>;
+      const agent = card.agent as Record<string, unknown>;
+      assert.equal(agent.id, "aacp-merchant-agent-merchant_xyz");
+    });
+  });
 });
