@@ -16,31 +16,40 @@ export interface IntentMemoryPageProps {
 
 const INTENT_LABELS: Record<string, string> = {
   price_sensitive: "Sensível a preço",
-  quality_seeker: "Buscador de qualidade",
+  ready_to_buy: "Pronto para comprar",
   speed_focused: "Focado em velocidade",
-  sustainability_conscious: "Consciente sustentável",
-  other: "Outro",
+  browsing: "Navegando",
+  exploring: "Explorando",
 };
 
 const INTENT_COLORS: Record<string, string> = {
   price_sensitive: "var(--color-warning)",
-  quality_seeker: "var(--color-success)",
+  ready_to_buy: "var(--color-success)",
   speed_focused: "var(--color-brand)",
-  sustainability_conscious: "var(--color-brand)",
-  other: "var(--color-text-faint)",
+  browsing: "var(--color-brand)",
+  exploring: "var(--color-text-faint)",
 };
 
 const INTENT_DESCRIPTIONS: Record<string, string> = {
   price_sensitive:
-    "Compradores que respondem melhor a descontos, frete grátis e bundles. Use gatilhos de economia e ofertas com limite de tempo.",
-  quality_seeker:
-    "Compradores que valorizam materiais premium, garantias e prova social. Destaque certificações, reviews e durabilidade.",
+    "Compradores que pedem cupom ou reclamam do frete. Respondem a descontos, frete grátis e ofertas com limite de tempo.",
+  ready_to_buy:
+    "Compradores que iniciaram e concluíram o checkout com fluidez. Preserve margem — não é necessário descontar.",
   speed_focused:
-    "Compradores que priorizam entrega rápida e checkout enxuto. Ofereça frete expresso e reduza etapas do funil.",
-  sustainability_conscious:
-    "Compradores que valorizam origem ética, embalagens eco e impacto ambiental. Mostre certificações e selos verdes.",
-  other:
-    "Perfis sem classificação dominante. Continuam aprendendo conforme mais sessões acontecem.",
+    "Compradores que escolhem frete expresso e checkout enxuto. Ofereça entrega rápida e reduza etapas do funil.",
+  browsing:
+    "Compradores que demonstram hesitação (saída iminente ou inatividade). Use gatilhos de retenção.",
+  exploring:
+    "Perfis ainda sem sinal dominante. Continuam aprendendo conforme mais sessões acontecem.",
+};
+
+// Human-readable labels for the classifier's pain-point codes.
+const PAIN_POINT_LABELS: Record<string, string> = {
+  shipping_cost: "Preço do frete",
+  price: "Preço do produto",
+  payment_friction: "Dificuldade no pagamento",
+  trust: "Confiança na loja",
+  hesitation: "Indecisão",
 };
 
 const EXAMPLE_BUYER = {
@@ -49,13 +58,16 @@ const EXAMPLE_BUYER = {
     '"Vi um cupom de 10% que expirava em 2h — fechei a compra na hora, senão ia abandonar."',
 };
 
-const RECENT_SIGNALS = [
-  { intent: "price_sensitive", text: "Maria S. — usou cupom e fechou em 1m12s", time: "há 4 min" },
-  { intent: "quality_seeker", text: "Rafael T. — pediu garantia estendida", time: "há 12 min" },
-  { intent: "speed_focused", text: "Loja SP — selecionou frete expresso", time: "há 18 min" },
-  { intent: "sustainability_conscious", text: "Carla P. — clicou no selo CO₂ neutro", time: "há 27 min" },
-  { intent: "quality_seeker", text: "Diego A. — leu 3 reviews antes de pagar", time: "há 41 min" },
-];
+function relativeTime(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const diffMin = Math.max(0, Math.round((Date.now() - then) / 60000));
+  if (diffMin < 1) return "agora";
+  if (diffMin < 60) return `há ${diffMin} min`;
+  const diffH = Math.round(diffMin / 60);
+  if (diffH < 24) return `há ${diffH}h`;
+  return new Date(iso).toLocaleDateString("pt-BR");
+}
 
 export function IntentMemoryPage(props: IntentMemoryPageProps) {
   const vm = useIntentMemoryPage({ me: props.me });
@@ -66,17 +78,18 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
       <header className="page-head">
         <div>
           <span className="eyebrow">Inteligência IA</span>
-          <h1>Intent Memory</h1>
+          <h1>Memória de Intenção</h1>
           <p className="page-lead">Login necessário</p>
         </div>
       </header>
     );
   }
 
-  const total = Object.values(vm.distribution).reduce((a, b) => a + b, 0) || 1;
+  const total = Object.values(vm.distribution).reduce((a, b) => a + b, 0);
+  const distTotal = total || 1; // divisor guard only — never shown as a count
   const dominant = Object.entries(vm.distribution).sort((a, b) => b[1] - a[1])[0];
-  const dominantKey = dominant?.[0] ?? "other";
   const dominantCount = dominant?.[1] ?? 0;
+  const dominantKey = dominantCount > 0 ? (dominant?.[0] ?? "exploring") : null;
   const trackedSessions = vm.config.intent_tracking_enabled ? total : 0;
 
   return (
@@ -85,8 +98,8 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
       <header className="page-head">
         <div>
           <span className="eyebrow">Inteligência IA</span>
-          <h1 style={{ color: "var(--color-brand)" }}>Intent Memory</h1>
-          <p className="page-lead">Memória comercial dos seus compradores. Após a primeira compra, o sistema classifica intenção, urgência e orçamento de cada buyer para personalizar abordagens futuras.</p>
+          <h1 style={{ color: "var(--color-brand)" }}>Memória de Intenção</h1>
+          <p className="page-lead">Descubra o que cada cliente valoriza — preço, rapidez ou confiança — e deixe o agente adaptar a conversa para vender mais.</p>
         </div>
       </header>
 
@@ -100,14 +113,14 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
         color: "var(--color-brand)",
         lineHeight: 1.65,
       }}>
-        <strong style={{ color: "var(--color-text)" }}>O que é Intent Memory?</strong>
-        <br />Memória comercial dos seus compradores. Após a primeira compra, o sistema classifica intenção, urgência e orçamento de cada buyer para personalizar abordagens futuras.
+        <strong style={{ color: "var(--color-text)" }}>O que é a Memória de Intenção?</strong>
+        <br />Enquanto o cliente conversa e compra, o sistema aprende o que motiva a compra dele. Com isso, o agente sabe se deve oferecer um desconto, destacar a entrega rápida ou reforçar a segurança — em vez de tratar todo mundo igual.
         <div style={{ marginTop: 10 }}>
           <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong>
           <ol style={{ margin: "6px 0 0 18px", padding: 0, lineHeight: 1.6 }}>
-            <li>Coletamos sinais durante a sessão (LGPD opt-in obrigatório).</li>
-            <li>Classificamos em 5 perfis de intenção.</li>
-            <li>O agente usa o perfil para escolher copy, oferta e gatilho.</li>
+            <li>Observamos o comportamento durante a conversa (só com autorização do cliente, conforme a LGPD).</li>
+            <li>Identificamos o perfil de compra entre 5 tipos.</li>
+            <li>O agente usa o perfil para escolher a mensagem, a oferta e o melhor momento de fechar a venda.</li>
           </ol>
         </div>
       </div>
@@ -117,12 +130,12 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)", marginBottom: 4 }}>
-              Rastreamento de intenção
+              Identificar o perfil dos clientes
             </div>
             <div style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>
               {vm.config.intent_tracking_enabled
-                ? "Rastreamento ativo. Dados coletados com consentimento LGPD do comprador."
-                : "Intent Memory desativado. Ative para personalizar conversas com base na intenção."}
+                ? "Ativo. O agente adapta a conversa ao perfil de cada cliente (com autorização, conforme a LGPD)."
+                : "Desativado. Ative para o agente personalizar cada conversa conforme o perfil do cliente."}
             </div>
           </div>
           <ToggleSwitch
@@ -138,24 +151,24 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
         <StatCard
           icon={<Brain size={16} />}
           value={trackedSessions}
-          label="Sessões rastreadas"
+          label="Clientes analisados"
           accent="var(--color-brand)"
         />
         <StatCard
           icon={<Target size={16} />}
-          value={INTENT_LABELS[dominantKey] ?? "—"}
-          label="Perfil dominante"
+          value={dominantKey ? (INTENT_LABELS[dominantKey] ?? "—") : "—"}
+          label="Perfil mais comum"
           accent="var(--color-brand)"
         />
         <StatCard
           icon={<Sparkles size={16} />}
           value={`${vm.config.intent_tracking_enabled ? Object.keys(vm.distribution).filter((k) => vm.distribution[k as keyof typeof vm.distribution] > 0).length : 0}/5`}
-          label="Perfis ativos"
+          label="Perfis identificados"
         />
         <StatCard
           icon={<Activity size={16} />}
           value={vm.signals.length}
-          label="Sinais coletados"
+          label="Clientes com perfil"
           accent="var(--color-success)"
         />
       </div>
@@ -164,7 +177,7 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
       <TabBar
         tabs={[
           { key: "overview", label: "Visão geral" },
-          { key: "signals", label: `Sinais recentes (${vm.signals.length})` },
+          { key: "signals", label: `Atividade recente (${vm.signals.length})` },
         ]}
         activeTab={tab}
         onTabChange={(k) => setTab(k as "overview" | "signals")}
@@ -175,7 +188,7 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
 
       {/* Analytics Section */}
       <div className="panel" style={{ padding: "20px 24px" }}>
-        <SectionHeader title="Distribuição de intenção" variant="secondary" />
+        <SectionHeader title="Perfis dos seus clientes" variant="secondary" />
 
         {vm.loading ? (
           <div style={{ padding: "40px 0", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>
@@ -191,13 +204,13 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
           }}>
             <Brain size={32} color="var(--color-brand)" style={{ margin: "0 auto 12px" }} />
             <div style={{ font: "14px var(--font-sans)", color: "var(--color-brand)", marginBottom: 8 }}>
-              Intent Memory está desativado
+              Memória de Intenção desativada
             </div>
             <div style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 16 }}>
-              Ative o rastreamento de intenção para começar a personalizar as conversas
+              Ative para o agente começar a entender e personalizar cada conversa
             </div>
             <Button variant="primary" size="sm" onClick={() => vm.handleToggleTracking(true)}>
-              Ativar rastreamento
+              Ativar agora
             </Button>
           </div>
         ) : (
@@ -209,7 +222,7 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
                     {INTENT_LABELS[key] || key}
                   </span>
                   <span style={{ font: "600 13px var(--font-mono)", color: INTENT_COLORS[key] }}>
-                    {count} ({((count / total) * 100).toFixed(0)}%)
+                    {count} ({((count / distTotal) * 100).toFixed(0)}%)
                   </span>
                 </div>
                 <div style={{
@@ -221,7 +234,7 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
                   <div
                     style={{
                       height: "100%",
-                      width: `${(count / total) * 100}%`,
+                      width: `${(count / distTotal) * 100}%`,
                       background: INTENT_COLORS[key],
                       transition: "width 0.3s ease",
                     }}
@@ -289,33 +302,40 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
             <strong style={{ color: INTENT_COLORS[EXAMPLE_BUYER.intent] }}>
               {INTENT_LABELS[EXAMPLE_BUYER.intent]}
             </strong>
-            . O agente enviou um gatilho de cupom com expiração curta após detectar 3 buscas por "desconto" na sessão.
-            Resultado: conversão em 1m12s vs. média de 6m40s.
+            . Como o cliente demonstrou que buscava preço, o agente ofereceu um cupom por tempo limitado.
+            Resultado: a compra fechou em 1min12 (a média é 6min40).
           </div>
         </div>
 
         <div className="panel" style={{ padding: "20px 24px" }}>
-          <SectionHeader title="Sinais recentes" variant="secondary" />
-          {vm.config.intent_tracking_enabled ? (
+          <SectionHeader title="Atividade recente" variant="secondary" />
+          {!vm.config.intent_tracking_enabled ? (
+            <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
+              Ative para ver os perfis dos clientes mais recentes.
+            </div>
+          ) : vm.signals.length === 0 ? (
+            <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
+              Nenhum cliente com perfil ainda. Os perfis aparecem depois das primeiras conversas (com autorização do cliente).
+            </div>
+          ) : (
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-              {RECENT_SIGNALS.map((s, i) => (
+              {vm.signals.slice(0, 5).map((s, i) => (
                 <li key={i} style={{ display: "flex", alignItems: "center", gap: 10, font: "12px var(--font-sans)" }}>
                   <span style={{
                     width: 6,
                     height: 6,
                     borderRadius: 999,
-                    background: INTENT_COLORS[s.intent],
+                    background: INTENT_COLORS[s.intent] ?? "var(--color-text-faint)",
                     flex: "none",
                   }} />
-                  <span style={{ color: "var(--color-text)", flex: 1 }}>{s.text}</span>
-                  <span style={{ color: "var(--color-text-faint)", font: "11px var(--font-mono)" }}>{s.time}</span>
+                  <span style={{ color: "var(--color-text)", flex: 1 }}>
+                    {INTENT_LABELS[s.intent] ?? s.intent}
+                    {s.pain_points.length > 0 ? ` — ${s.pain_points.map((p) => PAIN_POINT_LABELS[p] ?? p).join(", ")}` : ""}
+                  </span>
+                  <span style={{ color: "var(--color-text-faint)", font: "11px var(--font-mono)" }}>{relativeTime(s.created_at)}</span>
                 </li>
               ))}
             </ul>
-          ) : (
-            <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
-              Ative o rastreamento para ver os sinais mais recentes do seu checkout.
-            </div>
           )}
         </div>
       </div>
@@ -335,9 +355,9 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
       }}>
         <TrendingUp size={16} color="var(--color-brand)" style={{ flex: "none", marginTop: 2 }} />
         <div>
-          <strong style={{ color: "var(--color-text)" }}>Onde ver o impacto:</strong>{" "}
-          os perfis entram na conversa como variável de personalização. Compare a taxa de conversão entre sessões
-          com perfil atribuído e sessões genéricas na aba <em>Observações</em> do Revenue Manager.
+          <strong style={{ color: "var(--color-text)" }}>Onde ver o resultado:</strong>{" "}
+          o agente adapta cada conversa ao perfil do cliente. Compare quantas vendas fecham com clientes que já têm perfil
+          contra os que ainda não têm na aba <em>Observações</em> do Gerente de Receita.
         </div>
       </div>
 
@@ -351,8 +371,8 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
         color: "var(--color-brand)",
         lineHeight: 1.6,
       }}>
-        <strong>Conformidade LGPD:</strong> Dados de intenção são coletados apenas com consentimento explícito do comprador.
-        Todos os dados são armazenados com encriptação em repouso e acesso restrito.
+        <strong>Privacidade e LGPD:</strong> os perfis só são criados com a autorização do cliente.
+        Todos os dados ficam guardados de forma segura, com acesso restrito.
       </div>
       </>
       )}
@@ -360,19 +380,19 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
       {/* Signals Tab */}
       {tab === "signals" && (
         <DataPanel
-          title="Sinais recentes"
+          title="Clientes com perfil identificado"
           isEmpty={vm.signals.length === 0}
-          empty={{ icon: Brain, title: "Nenhum sinal registrado", description: "Sinais aparecem após pedidos concluídos com consent LGPD ativo." }}
+          empty={{ icon: Brain, title: "Nenhum cliente com perfil ainda", description: "Os perfis aparecem depois de pedidos concluídos, com autorização do cliente." }}
         >
           {vm.signals.length > 0 && (
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr>
-                    <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Intenção</th>
+                    <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Perfil</th>
                     <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Urgência</th>
                     <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Orçamento</th>
-                    <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Objeções</th>
+                    <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Preocupações</th>
                     <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Data</th>
                   </tr>
                 </thead>
@@ -381,8 +401,8 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
                     <tr key={i} style={{ borderBottom: i < vm.signals.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined }}>
                       <td style={{ padding: "12px 20px", font: "500 13px var(--font-sans)", color: "var(--color-text)" }}>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-brand)", flexShrink: 0 }} />
-                          {s.intent}
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: INTENT_COLORS[s.intent] ?? "var(--color-brand)", flexShrink: 0 }} />
+                          {INTENT_LABELS[s.intent] ?? s.intent}
                         </span>
                       </td>
                       <td style={{ padding: "12px 20px" }}>
@@ -396,7 +416,7 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
                         </span>
                       </td>
                       <td style={{ padding: "12px 20px", font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
-                        {s.pain_points.length > 0 ? s.pain_points.join(", ") : "—"}
+                        {s.pain_points.length > 0 ? s.pain_points.map((p) => PAIN_POINT_LABELS[p] ?? p).join(", ") : "—"}
                       </td>
                       <td style={{ padding: "12px 20px", font: "11px var(--font-mono)", color: "var(--color-text-faint)" }}>
                         {new Date(s.created_at).toLocaleDateString("pt-BR")}

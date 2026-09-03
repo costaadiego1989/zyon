@@ -6,10 +6,18 @@ import type { MerchantProfile } from "../../api-client.js";
 
 export interface IntentDistribution {
   price_sensitive: number;
-  quality_seeker: number;
+  ready_to_buy: number;
   speed_focused: number;
-  sustainability_conscious: number;
-  other: number;
+  browsing: number;
+  exploring: number;
+}
+
+export interface IntentSignal {
+  intent: string;
+  urgency: string;
+  budget: string;
+  pain_points: string[];
+  created_at: string;
 }
 
 export interface IntentMemoryConfig {
@@ -20,10 +28,10 @@ export function useIntentMemoryPage(props: { me: MerchantProfile | null }) {
   const api = useApi();
   const [distribution, setDistribution] = useState<IntentDistribution>({
     price_sensitive: 0,
-    quality_seeker: 0,
+    ready_to_buy: 0,
     speed_focused: 0,
-    sustainability_conscious: 0,
-    other: 0,
+    browsing: 0,
+    exploring: 0,
   });
   const [config, setConfig] = useState<IntentMemoryConfig>({ intent_tracking_enabled: false });
   const [loading, setLoading] = useState(false);
@@ -51,22 +59,21 @@ export function useIntentMemoryPage(props: { me: MerchantProfile | null }) {
 
         setConfig(intentConfig ?? { intent_tracking_enabled: false });
 
-        // Compute distribution from real records
+        // Compute distribution from real records, keyed by the backend's
+        // canonical primary_intent enum (no substring guessing — the API is
+        // the source of truth). Unknown/legacy values fall into `exploring`.
         if (records && records.length > 0) {
           const dist: IntentDistribution = {
             price_sensitive: 0,
-            quality_seeker: 0,
+            ready_to_buy: 0,
             speed_focused: 0,
-            sustainability_conscious: 0,
-            other: 0,
+            browsing: 0,
+            exploring: 0,
           };
           for (const r of records) {
-            const intent = r.primary_intent?.toLowerCase() ?? "";
-            if (intent.includes("preco") || intent.includes("price") || intent.includes("barato") || intent.includes("desconto")) dist.price_sensitive++;
-            else if (intent.includes("qualidade") || intent.includes("quality") || intent.includes("premium") || intent.includes("melhor")) dist.quality_seeker++;
-            else if (intent.includes("rapido") || intent.includes("urgente") || intent.includes("speed") || intent.includes("entrega")) dist.speed_focused++;
-            else if (intent.includes("sustent") || intent.includes("eco") || intent.includes("green")) dist.sustainability_conscious++;
-            else dist.other++;
+            const key = r.primary_intent as keyof IntentDistribution;
+            if (key in dist) dist[key]++;
+            else dist.exploring++;
           }
           setDistribution(dist);
           setSignals(records.map(r => ({
