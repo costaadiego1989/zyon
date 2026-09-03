@@ -51,6 +51,27 @@ export interface MerchantStoreSettings {
   intentMemory?: {
     intent_tracking_enabled?: boolean;
   };
+  /**
+   * Post-sale campaign toggles + timings. Persisted by the dashboard
+   * (Pós-Venda → Configurações) and read by the scheduling use-cases so a
+   * disabled campaign is actually skipped server-side.
+   */
+  postSaleCampaigns?: PostSaleCampaignSettings;
+}
+
+export interface PostSaleCampaignSettings {
+  followUpEnabled?: boolean;
+  reviewEnabled?: boolean;
+  reviewDelayDays?: number;
+  npsEnabled?: boolean;
+  npsDelayDays?: number;
+  crossSellEnabled?: boolean;
+  crossSellDelayDays?: number;
+  winBackEnabled?: boolean;
+  winBackThresholdDays?: number;
+  loyaltyEnabled?: boolean;
+  loyaltyMilestones?: string;
+  reorderEnabled?: boolean;
 }
 
 export interface MerchantProfile {

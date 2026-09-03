@@ -5,6 +5,7 @@ import {
 } from "../../domain/ports/scheduled-message-repository.port.js";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { PostSaleConfigService } from "../services/post-sale-config.service.js";
 
 const MAX_PER_RUN = 50;
 
@@ -26,12 +27,24 @@ export class ScanConsumableReordersUseCase {
     @Inject(SCHEDULED_MESSAGE_REPOSITORY)
     private readonly messages: ScheduledMessageRepositoryPort,
     @Inject(PRISMA_CLIENT)
-    private readonly prisma: PrismaClient
+    private readonly prisma: PrismaClient,
+    private readonly config: PostSaleConfigService
   ) {}
 
   async execute(): Promise<{ processed: number; scheduled: number }> {
     const prisma = this.prisma as any;
     const now = new Date();
+
+    // Per-merchant reorder toggle: only schedule for merchants that enabled it.
+    const reorderEnabledByMerchant = new Map<string, boolean>();
+    const isReorderEnabled = async (merchantId: string): Promise<boolean> => {
+      if (reorderEnabledByMerchant.has(merchantId)) {
+        return reorderEnabledByMerchant.get(merchantId)!;
+      }
+      const cfg = await this.config.getConfig(merchantId);
+      reorderEnabledByMerchant.set(merchantId, cfg.reorderEnabled);
+      return cfg.reorderEnabled;
+    };
 
     // Build a map of consumable SKUs -> { productName, reorderCycleDays }
     const consumableMap = await this.loadConsumableSkus(prisma);
@@ -52,6 +65,7 @@ export class ScanConsumableReordersUseCase {
 
     for (const order of orders) {
       if (scheduled >= MAX_PER_RUN) break;
+      if (!(await isReorderEnabled(order.merchantId))) continue;
       const cart = (order.session?.cart ?? null) as CartLike | null;
       const items = cart?.items ?? [];
 

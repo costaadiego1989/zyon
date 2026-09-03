@@ -6,6 +6,7 @@ import {
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { PrismaBuyerEarnedBenefitRepository } from "../../../buyer-account/infrastructure/prisma-buyer-earned-benefit.repository.js";
+import { PostSaleConfigService } from "../services/post-sale-config.service.js";
 
 export interface CheckLoyaltyMilestoneInput {
   merchantId: string;
@@ -21,11 +22,41 @@ export interface CheckLoyaltyMilestoneInput {
   globalUserId?: string;
 }
 
-const MILESTONES: Record<number, number> = {
+const DEFAULT_MILESTONES: Record<number, number> = {
   3: 5,
   5: 10,
   10: 15,
 };
+
+/**
+ * Parse a comma-separated milestone list like "3,5,10" into a record of
+ * milestone → discount percent. Each milestone defaults to a base discount
+ * if no explicit percent is given (e.g. "3" → 3%, "5" → 5%, "10" → 10%).
+ * Returns the platform defaults when the input is empty/malformed.
+ */
+function parseMilestones(raw: string | undefined): Record<number, number> {
+  const fallback = { ...DEFAULT_MILESTONES };
+  if (!raw || typeof raw !== "string") return fallback;
+  const tokens = raw
+    .split(",")
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+  if (tokens.length === 0) return fallback;
+  const out: Record<number, number> = {};
+  for (const t of tokens) {
+    // Accept "3", "3=7" (count=3, 7% off), "3:7" (same).
+    const eq = t.split(/[=:]/);
+    const count = Number(eq[0]);
+    if (!Number.isInteger(count) || count <= 0) continue;
+    // Explicit percent wins; otherwise reuse the platform default for that
+    // milestone (3→5%, 5→10%, 10→15%); last resort, discount = count.
+    const explicit = eq.length > 1 ? Number(eq[1]) : NaN;
+    const pct = Number.isFinite(explicit) ? explicit : (DEFAULT_MILESTONES[count] ?? count);
+    if (!Number.isFinite(pct) || pct <= 0 || pct > 100) continue;
+    out[count] = Math.round(pct);
+  }
+  return Object.keys(out).length > 0 ? out : fallback;
+}
 
 function generateCouponCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -44,11 +75,18 @@ export class CheckLoyaltyMilestoneUseCase {
     @Inject(SCHEDULED_MESSAGE_REPOSITORY)
     private readonly messages: ScheduledMessageRepositoryPort,
     @Inject(PRISMA_CLIENT)
-    private readonly prisma: PrismaClient
+    private readonly prisma: PrismaClient,
+    private readonly config: PostSaleConfigService
   ) {}
 
-  async execute(input: CheckLoyaltyMilestoneInput): Promise<{ milestoneHit: boolean }> {
-    const discountPercent = MILESTONES[input.purchaseCount];
+  async execute(input: CheckLoyaltyMilestoneInput): Promise<{ milestoneHit: boolean; skipped?: string }> {
+    const cfg = await this.config.getConfig(input.merchantId);
+    if (!cfg.loyaltyEnabled) {
+      return { milestoneHit: false, skipped: "loyalty_disabled" };
+    }
+
+    const milestones = parseMilestones(cfg.loyaltyMilestones);
+    const discountPercent = milestones[input.purchaseCount];
     if (!discountPercent) {
       return { milestoneHit: false };
     }

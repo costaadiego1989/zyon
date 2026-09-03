@@ -3,7 +3,9 @@ import { Inject } from "@nestjs/common";
 import {
   SCHEDULED_MESSAGE_REPOSITORY,
   type ScheduledMessageRepositoryPort,
+  type ScheduledMessage,
 } from "../../domain/ports/scheduled-message-repository.port.js";
+import { PostSaleConfigService } from "../services/post-sale-config.service.js";
 
 export interface SchedulePostDeliveryFlowInput {
   merchantId: string;
@@ -15,48 +17,52 @@ export interface SchedulePostDeliveryFlowInput {
   productName?: string;
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 @Injectable()
 export class SchedulePostDeliveryFlowUseCase {
   private readonly logger = new Logger(SchedulePostDeliveryFlowUseCase.name);
 
   constructor(
     @Inject(SCHEDULED_MESSAGE_REPOSITORY)
-    private readonly messages: ScheduledMessageRepositoryPort
+    private readonly messages: ScheduledMessageRepositoryPort,
+    private readonly config: PostSaleConfigService
   ) {}
 
-  async execute(input: SchedulePostDeliveryFlowInput): Promise<{ scheduled: number }> {
+  async execute(input: SchedulePostDeliveryFlowInput): Promise<{ scheduled: number; skipped: string[] }> {
     const now = new Date();
+    const cfg = await this.config.getConfig(input.merchantId);
 
-    // Create 4 scheduled messages: follow-up (D+0), review (D+3), cross-sell (D+5), nps (D+7)
-    const schedules = [
-      {
-        type: "follow_up" as const,
-        sendAt: now,
-      },
-      {
-        type: "review_request" as const,
-        sendAt: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
-      },
-      {
-        type: "cross_sell" as const,
-        sendAt: new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000),
-      },
-      {
-        type: "nps" as const,
-        sendAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
-      },
+    // Build the candidate flow, then gate each entry on the merchant's config.
+    // Disabling a campaign in the dashboard now actually skips it here.
+    const candidates: Array<{
+      type: ScheduledMessage["type"];
+      enabled: boolean;
+      delayDays: number;
+    }> = [
+      { type: "follow_up", enabled: cfg.followUpEnabled, delayDays: 0 },
+      { type: "review_request", enabled: cfg.reviewEnabled, delayDays: cfg.reviewDelayDays },
+      { type: "cross_sell", enabled: cfg.crossSellEnabled, delayDays: cfg.crossSellDelayDays },
+      { type: "nps", enabled: cfg.npsEnabled, delayDays: cfg.npsDelayDays },
     ];
 
+    const channel: ScheduledMessage["channel"] = input.buyerPhone ? "whatsapp" : "email";
     let count = 0;
-    for (const schedule of schedules) {
+    const skipped: string[] = [];
+
+    for (const candidate of candidates) {
+      if (!candidate.enabled) {
+        skipped.push(candidate.type);
+        continue;
+      }
       try {
         await this.messages.create({
           merchantId: input.merchantId,
           orderId: input.orderId,
           buyerId: input.buyerId,
-          type: schedule.type,
-          channel: input.buyerPhone ? "whatsapp" : "email",
-          sendAt: schedule.sendAt,
+          type: candidate.type,
+          channel,
+          sendAt: new Date(now.getTime() + candidate.delayDays * DAY_MS),
           buyerPhone: input.buyerPhone,
           buyerEmail: input.buyerEmail,
           buyerName: input.buyerName,
@@ -64,26 +70,21 @@ export class SchedulePostDeliveryFlowUseCase {
         });
         count++;
       } catch (err) {
-        this.logger.error(
-          `Failed to schedule ${schedule.type} message`,
-          {
-            merchantId: input.merchantId,
-            orderId: input.orderId,
-            error: err instanceof Error ? err.message : String(err),
-          }
-        );
+        this.logger.error(`Failed to schedule ${candidate.type} message`, {
+          merchantId: input.merchantId,
+          orderId: input.orderId,
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }
 
-    this.logger.log(
-      `Scheduled ${count} post-delivery messages`,
-      {
-        merchantId: input.merchantId,
-        orderId: input.orderId,
-        buyerId: input.buyerId,
-      }
-    );
+    this.logger.log(`Scheduled ${count} post-delivery messages`, {
+      merchantId: input.merchantId,
+      orderId: input.orderId,
+      buyerId: input.buyerId,
+      skipped,
+    });
 
-    return { scheduled: count };
+    return { scheduled: count, skipped };
   }
 }

@@ -10,6 +10,7 @@ import {
 } from "../../domain/ports/scheduled-message-repository.port.js";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { PostSaleConfigService } from "../services/post-sale-config.service.js";
 
 const MAX_PER_RUN = 50;
 const DAYS_30 = 30 * 24 * 60 * 60 * 1000;
@@ -51,39 +52,67 @@ export class ScanInactiveBuyersUseCase {
     @Inject(SCHEDULED_MESSAGE_REPOSITORY)
     private readonly messages: ScheduledMessageRepositoryPort,
     @Inject(PRISMA_CLIENT)
-    private readonly prisma: PrismaClient
+    private readonly prisma: PrismaClient,
+    private readonly config: PostSaleConfigService
   ) {}
 
-  async execute(): Promise<{ processed: number; couponsCreated: number }> {
+  async execute(): Promise<{ processed: number; couponsCreated: number; skipped: number; merchantsScanned: number }> {
     const now = new Date();
-    const inactiveBefore = new Date(now.getTime() - DAYS_30);
-    const winBackBefore = new Date(now.getTime() - DAYS_30);
-
-    const inactive = await this.trackers.findInactive({
-      inactiveBefore,
-      winBackBefore,
-      limit: MAX_PER_RUN,
+    const merchants = await (this.prisma as any).merchant.findMany({
+      where: { status: { not: "deleted" } },
+      select: { id: true },
+      take: 200,
     });
 
+    let processed = 0;
     let couponsCreated = 0;
+    let skipped = 0;
+    let merchantsScanned = 0;
 
-    for (const tracker of inactive) {
+    for (const { id: merchantId } of merchants) {
       try {
-        await this.processInactiveBuyer(tracker);
-        couponsCreated++;
+        const cfg = await this.config.getConfig(merchantId);
+        if (!cfg.winBackEnabled) {
+          skipped++;
+          continue;
+        }
+        merchantsScanned++;
+        const thresholdDays = Math.max(1, cfg.winBackThresholdDays);
+        const inactiveBefore = new Date(now.getTime() - thresholdDays * 24 * 60 * 60 * 1000);
+
+        const inactive = await this.trackers.findInactive({
+          inactiveBefore,
+          winBackBefore: inactiveBefore,
+          limit: MAX_PER_RUN,
+        });
+
+        for (const tracker of inactive) {
+          processed++;
+          try {
+            await this.processInactiveBuyer(tracker);
+            couponsCreated++;
+          } catch (err) {
+            this.logger.error(
+              `win-back: failed for buyer ${tracker.buyerId}`,
+              { merchantId, error: err instanceof Error ? err.message : String(err) }
+            );
+          }
+        }
       } catch (err) {
         this.logger.error(
-          `win-back: failed for buyer ${tracker.buyerId}`,
-          { error: err instanceof Error ? err.message : String(err) }
+          `win-back: merchant loop failed`,
+          { merchantId, error: err instanceof Error ? err.message : String(err) }
         );
       }
     }
 
     if (couponsCreated > 0) {
-      this.logger.log(`win-back scanner: processed ${couponsCreated}/${inactive.length}`);
+      this.logger.log(
+        `win-back scanner: merchants=${merchantsScanned} processed=${processed} coupons=${couponsCreated} skipped=${skipped}`
+      );
     }
 
-    return { processed: inactive.length, couponsCreated };
+    return { processed, couponsCreated, skipped, merchantsScanned };
   }
 
   private async processInactiveBuyer(tracker: BuyerLoyaltyTracker): Promise<void> {

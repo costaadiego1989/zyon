@@ -2,6 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { CheckLoyaltyMilestoneUseCase } from "./check-loyalty-milestone.use-case.js";
 import type { ScheduledMessageRepositoryPort } from "../../domain/ports/scheduled-message-repository.port.js";
+import { DEFAULT_POST_SALE_CONFIG, type PostSaleConfigService } from "../services/post-sale-config.service.js";
+
+// Loyalty is opt-in; these specs assert the milestone logic itself, so the
+// config stub enables it with the default milestones ("3,5,10").
+const loyaltyEnabledConfig = {
+  async getConfig() {
+    return { ...DEFAULT_POST_SALE_CONFIG, loyaltyEnabled: true };
+  },
+} as unknown as PostSaleConfigService;
 
 function makeDeps() {
   const created: Array<Record<string, unknown>> = [];
@@ -37,7 +46,7 @@ function makeDeps() {
 
 test("check-loyalty-milestone: milestone hit records a loyalty_milestone earned benefit (ADI-F5-02)", async () => {
   const { created, messages, prisma } = makeDeps();
-  const uc = new CheckLoyaltyMilestoneUseCase(messages, prisma);
+  const uc = new CheckLoyaltyMilestoneUseCase(messages, prisma, loyaltyEnabledConfig);
 
   const res = await uc.execute({
     merchantId: "m1",
@@ -59,7 +68,7 @@ test("check-loyalty-milestone: milestone hit records a loyalty_milestone earned 
 
 test("check-loyalty-milestone: no milestone → no benefit recorded", async () => {
   const { created, messages, prisma } = makeDeps();
-  const uc = new CheckLoyaltyMilestoneUseCase(messages, prisma);
+  const uc = new CheckLoyaltyMilestoneUseCase(messages, prisma, loyaltyEnabledConfig);
 
   const res = await uc.execute({
     merchantId: "m1",
@@ -73,7 +82,7 @@ test("check-loyalty-milestone: no milestone → no benefit recorded", async () =
 
 test("check-loyalty-milestone: globalUserId falls back to buyerId when omitted", async () => {
   const { created, messages, prisma } = makeDeps();
-  const uc = new CheckLoyaltyMilestoneUseCase(messages, prisma);
+  const uc = new CheckLoyaltyMilestoneUseCase(messages, prisma, loyaltyEnabledConfig);
 
   await uc.execute({ merchantId: "m1", buyerId: "buyer-42", purchaseCount: 3 });
 
