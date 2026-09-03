@@ -102,14 +102,23 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
   async function load() {
     setOperation("loading");
     setAlert(null);
-    try {
-      const [paymentConnections, rules] = await Promise.all([
-        api.getPaymentConnections(),
-        api.getMerchantRules(),
-      ]);
-      setConnections(paymentConnections);
+    // Load connections and rules independently: a failure fetching rules must
+    // not blank out the connections list (and vice-versa). A transient error on
+    // one shouldn't make every gateway look "Desconectado".
+    const [connRes, rulesRes] = await Promise.allSettled([
+      api.getPaymentConnections(),
+      api.getMerchantRules(),
+    ]);
 
-      const cryptoRules = rules.cryptoPayments;
+    if (connRes.status === "fulfilled") {
+      setConnections(connRes.value);
+    } else {
+      console.error("[payment-connections] connections", connRes.reason);
+      setAlert({ message: sanitizeError(connRes.reason), kind: "error" });
+    }
+
+    if (rulesRes.status === "fulfilled") {
+      const cryptoRules = rulesRes.value.cryptoPayments;
       if (cryptoRules) {
         setCrypto((prev) => ({
           ...prev,
@@ -121,12 +130,11 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
           },
         }));
       }
-    } catch (e) {
-      console.error("[payment-connections]", e);
-      setAlert({ message: sanitizeError(e), kind: "error" });
-    } finally {
-      setOperation("idle");
+    } else {
+      console.error("[payment-connections] rules", rulesRes.reason);
     }
+
+    setOperation("idle");
   }
 
   async function onboardStripe() {
