@@ -32,7 +32,7 @@ declare global {
           callback: (token: string) => void;
           "expired-callback"?: () => void;
           "error-callback"?: () => void;
-          appearance?: "always" | "execute" | "managed";
+          appearance?: "always" | "execute" | "interaction-only";
           theme?: "light" | "dark" | "auto";
           size?: "normal" | "flexible" | "compact";
         }
@@ -73,7 +73,7 @@ export function Turnstile(props: TurnstileProps) {
           props.onExpire?.();
         },
         "error-callback": () => props.onChange(null),
-        appearance: "managed",
+        appearance: "interaction-only",
         theme: "auto",
         size: "normal",
       });
