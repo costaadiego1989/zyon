@@ -160,6 +160,20 @@ export class RevenueLiftRepository {
       },
     });
   }
+
+  /**
+   * Credit cart recovery on an already-written attribution tag. Called when the
+   * cart-recovery module confirms (post-completion, within the attribution
+   * window) that a paid order was pulled back by a recovery campaign. Scoped to
+   * the tenant + order; a missing tag (holdout, or completion not yet tagged) is
+   * a no-op rather than an error.
+   */
+  async markCartRecovery(merchantId: string, orderId: string): Promise<void> {
+    await this.prisma.attributionTag.updateMany({
+      where: { merchantId, orderId },
+      data: { cartRecoveryApplied: true },
+    });
+  }
 }
 
 export interface SaveAttributionTagInput {

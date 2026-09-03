@@ -208,12 +208,18 @@ export class CompleteOrderUseCase {
     }
 
     if (this.recordIntentIfConsented && !idempotent) {
-      const sessionEvents = await this.sessions.getSessionEvents(input.merchant_id, input.session_id);
-      this.recordIntentIfConsented.execute({
-        merchantId: input.merchant_id,
-        globalUserId: session.globalUserId,
-        sessionEvents,
-        cart: session.cart
+      // Gate on the merchant's Intent Memory toggle in addition to the buyer's
+      // LGPD consent (checked inside recordIntentIfConsented). If tracking is
+      // disabled for the merchant, do not classify or persist any intent.
+      void this.intentTrackingEnabled(input.merchant_id).then(async (enabled) => {
+        if (!enabled) return;
+        const sessionEvents = await this.sessions.getSessionEvents(input.merchant_id, input.session_id);
+        await this.recordIntentIfConsented!.execute({
+          merchantId: input.merchant_id,
+          globalUserId: session.globalUserId,
+          sessionEvents,
+          cart: session.cart
+        });
       }).catch((err) => {
         this.logger.warn(`intent-classification.failed (non-blocking)`, {
           merchantId: input.merchant_id,
@@ -227,6 +233,21 @@ export class CompleteOrderUseCase {
       idempotent,
       event_type: "order.completed"
     };
+  }
+
+  /**
+   * Reads the merchant's Intent Memory toggle. Fails open (returns true) when
+   * the repository or setting is absent, preserving prior behaviour where
+   * intent was always classified — only an explicit `false` disables it.
+   */
+  private async intentTrackingEnabled(merchantId: string): Promise<boolean> {
+    if (!this.merchantRepo?.getStoreSettings) return true;
+    try {
+      const settings = await this.merchantRepo.getStoreSettings(merchantId);
+      return settings?.intentMemory?.intent_tracking_enabled !== false;
+    } catch {
+      return true;
+    }
   }
 
   private async recordConversionAnalytics(session: CheckoutSession, input: CompleteOrderRequest): Promise<void> {
@@ -305,7 +326,11 @@ export class CompleteOrderUseCase {
       // Real per-feature attribution flags accumulated during the session
       // (flipped true at each feature's fire-point). The tagger's holdout guard
       // still forces all of these to false for the control cohort.
+      // Feature flags accumulated on the session at each feature's fire-point.
+      // cartRecovery is stamped by the cart-recovery module when it pulls a buyer
+      // back (correct dependency direction: cart-recovery → checkout session).
       const applied = session.featuresApplied ?? {};
+
       const attributionTag = this.attributionTagger.tag({
         sessionId: input.session_id,
         orderId: input.external_order_id,

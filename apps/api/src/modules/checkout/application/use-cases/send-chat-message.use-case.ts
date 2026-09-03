@@ -86,6 +86,17 @@ export class SendChatMessageUseCase {
 
     working = await this.shippingService.processShippingState(working, input.user_message);
 
+    // Intent Memory signal: a buyer asking about a coupon/discount is the
+    // strongest price-sensitivity signal the classifier consumes. Emit it
+    // non-blockingly so it never affects the chat reply.
+    if (this.looksLikeCouponRequest(input.user_message)) {
+      void Promise.resolve(
+        this.sessions.recordEvent(input.merchant_id, input.session_id, "coupon_field_clicked"),
+      ).catch((err) =>
+        this.logger.warn("coupon_field_clicked.record_failed", err as Error),
+      );
+    }
+
     const stage = deriveChatStage(working);
     const missingFields = missingFieldsForStage(working, stage);
     const cohortForOffer = (working as any).cohort;
@@ -121,10 +132,12 @@ export class SendChatMessageUseCase {
       if ((working.cart.currentDiscount ?? 0) > 0) {
         features.progressiveDiscount = true;
       }
-      working.featuresApplied = features;
-      if (llmReply) {
-        working.aiCostCents = (working.aiCostCents ?? 0) + this.estimateTurnCostCents();
+      // Intent personalization = the AI had consented buyer-intent memory to
+      // personalize this turn (attached by ChatContextService under LGPD consent).
+      if ((working as any).buyerIntent) {
+        features.intentPersonalization = true;
       }
+      working.featuresApplied = features;
       try {
         await this.sessions.saveSession(working);
       } catch (err) {
@@ -270,11 +283,6 @@ export class SendChatMessageUseCase {
     };
   }
 
-  private estimateTurnCostCents(): number {
-    const raw = Number(process.env.CHECKOUT_AI_TURN_COST_CENTS);
-    return Number.isFinite(raw) && raw >= 0 ? raw : 3;
-  }
-
   private async callLocalLlm(
     userMessage: string,
     merchantRules: string[],
@@ -418,6 +426,17 @@ export class SendChatMessageUseCase {
       hash |= 0;
     }
     return hash;
+  }
+
+  /** True when the buyer message reads as a coupon / discount request. */
+  private looksLikeCouponRequest(message: string): boolean {
+    const normalized = message
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .toLowerCase();
+    return /\b(cupom|cupons|codigo\s+de\s+desconto|desconto|promocao|promocode|voucher|tem\s+algum\s+codigo)\b/.test(
+      normalized,
+    );
   }
 
 }

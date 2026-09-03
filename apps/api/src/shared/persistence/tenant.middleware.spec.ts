@@ -81,6 +81,32 @@ describe("registerTenantMiddleware", () => {
     }
   });
 
+  it("pins the tenant inside a composite unique key without adding a sibling merchantId", () => {
+    // Prisma compound keys (e.g. @@unique([merchantId, orderId]) -> merchantId_orderId)
+    // must stay a single nested identifier; a top-level merchantId would be invalid args.
+    for (const operation of ["findUnique", "update", "delete", "upsert"]) {
+      const result = scopeTenantArgs(
+        {
+          where: { merchantId_orderId: { merchantId: "mrc_hostile", orderId: "o1" } },
+          ...(operation === "upsert" ? { create: { orderId: "o1" }, update: {} } : {}),
+          ...(operation === "update" ? { data: { status: "x" } } : {}),
+        },
+        operation,
+        "mrc_1",
+      );
+      assert.deepEqual(
+        result.where,
+        { merchantId_orderId: { merchantId: "mrc_1", orderId: "o1" } },
+        `${operation}: composite key must be pinned to the caller tenant`,
+      );
+      assert.equal(
+        (result.where as Record<string, unknown>).merchantId,
+        undefined,
+        `${operation}: must not add a sibling top-level merchantId`,
+      );
+    }
+  });
+
   it("scopes every where mutation and prevents tenant reassignment", () => {
     for (const operation of TENANT_SCOPED_WHERE_MUTATIONS) {
       const deletes = operation === "delete" || operation === "deleteMany";

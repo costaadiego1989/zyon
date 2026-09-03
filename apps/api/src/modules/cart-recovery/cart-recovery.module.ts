@@ -21,6 +21,7 @@ import { MerchantModule } from "../merchant/merchant.module.js";
 import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
 import { NotificationsModule } from "../notifications/notifications.module.js";
 import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
+import { RevenueLiftModule } from "../revenue-lift/revenue-lift.module.js";
 import { CartRecoveryController } from "./presentation/http/cart-recovery.controller.js";
 import { CartRecoveryDashboardController } from "./presentation/http/cart-recovery-dashboard.controller.js";
 import { WHATSAPP_SENDER_PORT } from "../notifications/domain/ports/whatsapp-sender.port.js";
@@ -48,6 +49,7 @@ export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_US
     BuyerPurchaseHistoryModule,
     NotificationsModule,
     BuyerAccountRepositoryModule,
+    RevenueLiftModule,
   ],
   controllers: [CartRecoveryController, CartRecoveryDashboardController],
   providers: [
