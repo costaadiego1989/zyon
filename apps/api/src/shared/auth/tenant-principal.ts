@@ -40,7 +40,7 @@ export const TENANT_API_SCOPES = [
 ] as const;
 
 export type TenantApiScope = (typeof TENANT_API_SCOPES)[number];
-export type TenantRole = "owner" | "admin";
+export type TenantRole = "owner" | "admin" | "staff";
 
 export type HumanTenantPrincipal = {
   kind: "human";
