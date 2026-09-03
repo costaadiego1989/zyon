@@ -116,7 +116,7 @@ export class InviteMemberUseCase {
     try {
       await this.emailSender.send({
         to: email,
-        subject: `${name}, você foi convidado para ${merchantName}`,
+        subject: `🔐 Bem-vindo(a) à ${merchantName}, ${name} — defina sua senha`,
         html: `
 <!DOCTYPE html>
 <html>
