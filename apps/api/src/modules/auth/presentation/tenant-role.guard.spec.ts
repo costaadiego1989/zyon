@@ -29,7 +29,7 @@ describe("TenantRoleGuard", () => {
   });
 });
 
-function contextFor(controller: Function, role: "owner" | "admin") {
+function contextFor(controller: Function, role: "owner" | "admin" | "staff") {
   return {
     getClass: () => controller,
     getHandler: () => function handler() {},
