@@ -89,7 +89,7 @@ export function useCartRecoveryPage() {
 
         // Load available coupons (only active)
         if (couponData) {
-          setCoupons(couponData.filter((c: CouponOption) => c.isActive));
+          setCoupons((couponData as unknown as CouponOption[]).filter((c) => c.isActive));
         }
 
         // Load available rules from checkout settings

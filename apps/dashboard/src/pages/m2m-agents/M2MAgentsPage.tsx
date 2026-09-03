@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Bot, ShieldOff, ShieldCheck, Plus, Cpu, Activity, CheckCircle2, Users } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { Button } from "../../components/Button.js";
 import { EmptyState } from "../../components/EmptyState.js";
@@ -55,7 +56,7 @@ const STAT_CARD: React.CSSProperties = {
   transition: "var(--card-transition)",
 };
 
-function StatCard({ label, value, icon: Icon, color }: { label: string; value: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string }) {
+function StatCard({ label, value, icon: Icon, color }: { label: string; value: string; icon: LucideIcon; color: string }) {
   return (
     <div style={STAT_CARD} className="stat-card">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>

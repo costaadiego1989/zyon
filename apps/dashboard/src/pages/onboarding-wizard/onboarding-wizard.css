@@ -1,11 +1,38 @@
 
       .onb {
+        max-width: 1360px;
+        margin: 0 auto;
+      }
+
+      /* Three-column layout: progress rail | current step | live preview.
+         The grid lives on .onb-main (the actual parent of the three columns);
+         .onb is just the centering wrapper. */
+      .onb-main {
         display: grid;
-        grid-template-columns: 264px minmax(0, 1fr);
+        grid-template-columns: 264px minmax(0, 1fr) minmax(300px, 400px);
         gap: var(--space-6);
         align-items: start;
-        max-width: 1120px;
-        margin: 0 auto;
+      }
+
+      .onb-stage-content {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-4);
+        min-width: 0;
+      }
+
+      .onb-stage-header { margin-bottom: var(--space-2); }
+      .onb-stage-title {
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: -0.3px;
+        color: var(--color-text);
+        margin: 0;
+      }
+      .onb-stage-caption {
+        font-size: 13px;
+        color: var(--color-text-secondary);
+        margin: 4px 0 0;
       }
 
       /* ── Progress rail (double-bezel surface) ──────────────────────── */
@@ -512,15 +539,17 @@
          scrolls internally, instead of auto-growing to the full widget content
          height (which left the preview blank/dark). Mirrors .split-panel-preview. */
       .onb-preview { position: sticky; top: 20px; height: calc(100vh - 40px); max-height: 820px; }
+      /* Fills the sticky column with a definite height so ThemePreviewCard
+         (height:100%) renders the hero; no padding — the card owns its chrome.
+         Mirrors .split-panel-preview on the theme page. */
       .onb-preview-frame {
         position: relative;
+        height: 100%;
         border: 1px solid var(--color-border);
         border-radius: var(--radius-lg);
         background: var(--color-surface);
         box-shadow: var(--shadow-sm);
-        padding: var(--space-3);
         overflow: hidden;
-        text-align: center;
       }
       .onb-preview-tag {
         display: block;
@@ -764,14 +793,23 @@
       }
 
       /* ── Responsive ─────────────────────────────────────────────────── */
+      @media (max-width: 1180px) {
+        /* Drop the preview column; it stacks under the step content. */
+        .onb-main { grid-template-columns: 264px minmax(0, 1fr); }
+        .onb-preview {
+          grid-column: 1 / -1;
+          position: static;
+          height: 440px;
+          max-height: 440px;
+        }
+      }
+
       @media (max-width: 1080px) {
         .onb-stage-body { grid-template-columns: 1fr; }
-        .onb-preview { position: static; order: -1; }
-        .onb-preview-frame { }
       }
 
       @media (max-width: 860px) {
-        .onb { grid-template-columns: 1fr; gap: var(--space-6); }
+        .onb-main { grid-template-columns: 1fr; gap: var(--space-6); }
         .onb-rail { position: static; }
         .onb-rail-steps {
           grid-auto-flow: column;

@@ -52,7 +52,7 @@ export function useKnowledgePage() {
       setForm(toForm(policy));
       setStatus(statusData);
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Falha ao carregar", "error");
+      showToast("error", e instanceof Error ? e.message : "Falha ao carregar");
     } finally {
       setLoading(false);
     }
@@ -77,7 +77,7 @@ export function useKnowledgePage() {
         payment: form.payment,
         general: form.general,
       });
-      showToast("Políticas salvas", "success");
+      showToast("success", "Políticas salvas");
       setIndexing(true);
       // Refresh status after indexing kicks off
       try {
@@ -87,7 +87,7 @@ export function useKnowledgePage() {
         // non-fatal
       }
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Falha ao salvar", "error");
+      showToast("error", e instanceof Error ? e.message : "Falha ao salvar");
     } finally {
       setSaving(false);
     }
@@ -97,11 +97,11 @@ export function useKnowledgePage() {
     setReindexing(true);
     try {
       await api.postKnowledgeReindex();
-      showToast("Reindexação iniciada", "success");
+      showToast("success", "Reindexação iniciada");
       const statusData = await api.getKnowledgeStatus();
       setStatus(statusData);
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Falha ao reindexar", "error");
+      showToast("error", e instanceof Error ? e.message : "Falha ao reindexar");
     } finally {
       setReindexing(false);
     }

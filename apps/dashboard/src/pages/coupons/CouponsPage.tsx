@@ -193,7 +193,7 @@ export function CouponsPage(_props: CouponsPageProps) {
         onClose={() => vm.setShowForm(false)}
         footer={
           <>
-            <Button variant="secondary" size="sm" onClick={() => vm.setShowForm(false)}>Cancelar</Button>
+            <Button variant="outline" size="sm" onClick={() => vm.setShowForm(false)}>Cancelar</Button>
             <Button variant="primary" size="sm" onClick={() => void vm.handleCreate()} disabled={vm.creating} loading={vm.creating}>
               Criar cupom
             </Button>

@@ -71,12 +71,12 @@ describe("validateEmbedForm", () => {
 
   it("rejects TTL below 60", () => {
     const result = validateEmbedForm({ ...validParams, ttl: 30 });
-    expect(result.ttl).toBe("TTL deve estar entre 60 e 86400 segundos");
+    expect(result.ttl).toBe("Selecione uma validade válida");
   });
 
-  it("rejects TTL above 86400", () => {
-    const result = validateEmbedForm({ ...validParams, ttl: 100000 });
-    expect(result.ttl).toBe("TTL deve estar entre 60 e 86400 segundos");
+  it("rejects TTL above the max (31536000)", () => {
+    const result = validateEmbedForm({ ...validParams, ttl: 31536001 });
+    expect(result.ttl).toBe("Selecione uma validade válida");
   });
 
   it("accepts TTL at boundary 60", () => {
@@ -84,14 +84,14 @@ describe("validateEmbedForm", () => {
     expect(result.ttl).toBeUndefined();
   });
 
-  it("accepts TTL at boundary 86400", () => {
-    const result = validateEmbedForm({ ...validParams, ttl: 86400 });
+  it("accepts TTL at the max boundary (31536000)", () => {
+    const result = validateEmbedForm({ ...validParams, ttl: 31536000 });
     expect(result.ttl).toBeUndefined();
   });
 
   it("rejects empty scopes array", () => {
     const result = validateEmbedForm({ ...validParams, scopes: [] });
-    expect(result.scopes).toBe("Selecione ao menos um escopo");
+    expect(result.scopes).toBe("Selecione ao menos uma permissão");
   });
 
   it("can return multiple errors at once", () => {

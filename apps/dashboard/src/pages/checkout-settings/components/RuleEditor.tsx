@@ -258,7 +258,7 @@ export function RuleEditor({
             )}
             {actionType === "offer_coupon" && (
               <CouponDropdown
-                value={actionParams.code ?? ""}
+                value={String(actionParams.code ?? "")}
                 onChange={(code) => setActionParams({ ...actionParams, code })}
                 disabled={busy}
               />

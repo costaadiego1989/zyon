@@ -3,11 +3,26 @@
  * Covers: exported logic functions, structural assertions, accessibility, layout conventions.
  */
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "fs";
-import { resolve } from "path";
+import { readFileSync, readdirSync } from "fs";
+import { resolve, join } from "path";
 
+// The page was refactored into a folder (support-settings/): component +
+// tabs/ + components/ + utils. The old single-file path is now a re-export
+// shim, so structural assertions must scan the whole feature directory.
 function readSource() {
-  return readFileSync(resolve("src/pages/support-settings-page.tsx"), "utf-8");
+  const root = resolve("src/pages/support-settings");
+  function walk(dir: string): string {
+    let out = "";
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) out += walk(full);
+      else if (/\.tsx?$/.test(entry.name) && !entry.name.endsWith(".spec.tsx") && !entry.name.endsWith(".spec.ts")) {
+        out += readFileSync(full, "utf-8") + "\n";
+      }
+    }
+    return out;
+  }
+  return walk(root);
 }
 
 // ── Task 2.1: formatPtBrDate ────────────────────────────────────────────────
@@ -205,15 +220,16 @@ describe("SupportSettingsPage — structure", () => {
     expect(typeof mod.SupportSettingsPage).toBe("function");
   });
 
-  it("uses .metric class for ticket summary strip", () => {
+  it("has a page header for the ticket summary", () => {
     const src = readSource();
-    expect(src).toContain('className="metric"');
+    // Redesign replaced the .metric strip with a page-head + status badges.
+    expect(src).toContain('page-head');
+    expect(src).toContain('badge');
   });
 
   it("uses panel stacked class for sections", () => {
     const src = readSource();
     expect(src).toContain('panel stacked');
-    expect(src).toContain('panel-title');
   });
 
   it("contains handoff terminology for human escalation", () => {

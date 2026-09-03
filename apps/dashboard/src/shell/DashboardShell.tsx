@@ -102,6 +102,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   const [tab, setTab] = useState<TabKey>(resolveInitialTab);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [hideOnboarding, setHideOnboarding] = useState(initialOnboardingCompleted !== false);
+  const appliedOnboardingTabRef = React.useRef(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
     const saved = localStorage.getItem("aacp_nav_collapsed");
@@ -126,6 +127,25 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
+
+  // Onboarding state resolves asynchronously in the parent (after
+  // getOnboardingState). useState reads props only on mount, so react to
+  // initialTab/onboardingCompleted landing after mount: reveal the nav item and
+  // jump to the wizard once. One-shot ref keeps later manual navigation intact.
+  useEffect(() => {
+    if (initialOnboardingCompleted === false) {
+      setHideOnboarding(false);
+    }
+    if (initialTab === "onboarding" && !appliedOnboardingTabRef.current) {
+      appliedOnboardingTabRef.current = true;
+      const hash = window.location.hash.slice(1);
+      // Don't override an explicit hash the user landed on (e.g. deep link).
+      if (!hash || hash === "onboarding") {
+        setTab("onboarding");
+        window.location.hash = "onboarding";
+      }
+    }
+  }, [initialTab, initialOnboardingCompleted]);
 
   useEffect(() => {
     localStorage.setItem("aacp_nav_collapsed", JSON.stringify(Array.from(collapsedSections)));
@@ -211,7 +231,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   const visibleNavItems = useMemo(
     () => {
       let items = hideOnboarding ? NAV_ITEMS.filter((item) => item.key !== "onboarding") : NAV_ITEMS;
-      items = visibleItemsForPlan(items, me.plan);
+      items = visibleItemsForPlan(items, me.plan ?? "BOTH");
 
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();

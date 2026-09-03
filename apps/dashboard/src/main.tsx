@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   type MerchantProfile as MerchantDashboardProfile,
@@ -44,6 +44,7 @@ function App({ api }: AppProps) {
   const [checkingSession, setCheckingSession] = useState(true);
   const [initialTab, setInitialTab] = useState<TabKey | undefined>(undefined);
   const [onboardingCompleted, setOnboardingCompleted] = useState(true);
+  const onboardingRedirectedRef = useRef(false);
 
   async function refreshSession() {
     try {
@@ -53,7 +54,12 @@ function App({ api }: AppProps) {
       try {
         const onboarding = await api.getOnboardingState();
         setOnboardingCompleted(onboarding.completed);
-        if (!onboarding.completed && checkingSession) setInitialTab("onboarding");
+        // Open onboarding on first session resolution if incomplete.
+        // One-shot flag prevents re-directing when user manually navigates away.
+        if (!onboarding.completed && !onboardingRedirectedRef.current) {
+          onboardingRedirectedRef.current = true;
+          setInitialTab("onboarding");
+        }
       } catch (err) {
         // Onboarding state is best-effort; never block console access.
         reportError({ source: "main.refreshSession.onboarding", error: err, severity: "warning" });

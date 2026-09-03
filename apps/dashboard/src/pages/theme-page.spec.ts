@@ -139,9 +139,9 @@ describe("DENSITY_OPTIONS", () => {
 
   it("uses Portuguese labels", () => {
     const labels = DENSITY_OPTIONS.map((o) => o.label);
-    expect(labels).toContain("Compacto");
-    expect(labels).toContain("Normal");
-    expect(labels).toContain("Amplo");
+    expect(labels).toContain("Estreito");
+    expect(labels).toContain("Médio");
+    expect(labels).toContain("Full");
   });
 
   it("maps to correct density values", () => {

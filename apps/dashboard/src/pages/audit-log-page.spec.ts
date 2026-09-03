@@ -71,8 +71,10 @@ describe("AuditLogPage — API contract alignment", () => {
 // ── Pagination — Carregar mais ───────────────────────────────────────────────
 
 describe("AuditLogPage — pagination", () => {
-  it("contains 'Carregar mais' load-more button text", () => {
-    expect(source).toContain("Carregar mais");
+  it("exposes a loadMore handler for progressive loading", () => {
+    // Redesign replaced the explicit "Carregar mais" button with
+    // infinite-scroll driven by loadMore()/hasMore.
+    expect(source).toContain("loadMore");
   });
 
   it("uses cursor-based pagination (nextCursor state)", () => {
@@ -176,8 +178,10 @@ describe("AuditLogPage — accessibility", () => {
     expect(source).toContain("aria-busy");
   });
 
-  it("refresh button has aria-label", () => {
-    expect(source).toContain('aria-label="Atualizar log de auditoria"');
+  it("export button has an accessible aria-label", () => {
+    // The manual refresh button was removed (data auto-loads); export remains
+    // the primary labelled action in the header.
+    expect(source).toContain('aria-label="Exportar registros"');
   });
 
   it("export button has aria-label", () => {
@@ -223,11 +227,13 @@ describe("AuditLogPage — actor type display", () => {
   });
 });
 
-// ── Refresh button ───────────────────────────────────────────────────────────
+// ── Header action ────────────────────────────────────────────────────────────
 
-describe("AuditLogPage — refresh", () => {
-  it("has Atualizar button", () => {
-    expect(source).toContain("Atualizar");
+describe("AuditLogPage — header action", () => {
+  it("has an Exportar action in the header", () => {
+    // The manual "Atualizar" refresh was dropped in favor of auto-loading;
+    // Exportar is the header's primary action now.
+    expect(source).toContain("Exportar");
   });
 });
 

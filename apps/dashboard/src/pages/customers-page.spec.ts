@@ -56,7 +56,7 @@ describe("toCustomerRows", () => {
     });
   });
 
-  it("returns '?' initials for missing name", () => {
+  it("falls back to a placeholder name and its initials when name is missing", () => {
     const noName: TenantCustomer = {
       id: "u2",
       profile: {},
@@ -64,11 +64,13 @@ describe("toCustomerRows", () => {
       last_seen_at: "2026-06-01T10:00:00Z",
     };
     const rows = toCustomerRows([noName]);
-    expect(rows[0].initials).toBe("?");
-    expect(rows[0].name).toBe("-");
+    // Empty profiles render a friendly placeholder ("Cliente sem nome" → "CN")
+    // instead of a bare dash, so the row still reads as a person.
+    expect(rows[0].name).toBe("Cliente sem nome");
+    expect(rows[0].initials).toBe("CN");
   });
 
-  it("returns '-' for missing profile fields", () => {
+  it("uses placeholders for missing email and phone", () => {
     const empty: TenantCustomer = {
       id: "u3",
       profile: {},
@@ -76,8 +78,8 @@ describe("toCustomerRows", () => {
       last_seen_at: "2026-06-10T00:00:00Z",
     };
     const rows = toCustomerRows([empty]);
-    expect(rows[0].email).toBe("-");
-    expect(rows[0].phone).toBe("-");
+    expect(rows[0].email).toBe("email@exemplo.com");
+    expect(rows[0].phone).toBe("(00) 00000-0000");
   });
 });
 

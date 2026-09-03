@@ -97,8 +97,12 @@ export function filterOrders(
   }
 
   if (startDate || endDate) {
-    const start = startDate ? new Date(startDate).getTime() : -Infinity;
-    const end = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : Infinity;
+    // Parse date-only bounds as UTC to avoid a timezone bug: `new Date("YYYY-MM-DD")`
+    // is UTC midnight, but `.setHours()` mutates in LOCAL time, which in negative
+    // offsets (e.g. UTC-3) rolled the end bound back to the previous day and
+    // silently dropped same-day orders. Build explicit UTC instants instead.
+    const start = startDate ? Date.parse(`${startDate}T00:00:00.000Z`) : -Infinity;
+    const end = endDate ? Date.parse(`${endDate}T23:59:59.999Z`) : Infinity;
     filtered = filtered.filter((o) => {
       const raw = o.completed_at ?? o.cancelled_at ?? "";
       if (!raw) return false;

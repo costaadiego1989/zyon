@@ -136,7 +136,7 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
           <span className="onb-stage-index" aria-hidden="true">{vm.activeMeta?.label}</span>
         </section>
 
-        <LivePreview apiBaseUrl={vm.apiBaseUrl} me={vm.me} />
+        <LivePreview apiBaseUrl={vm.apiBaseUrl} me={vm.me} themeDraft={vm.themeDraft} />
       </div>
     </div>
   );

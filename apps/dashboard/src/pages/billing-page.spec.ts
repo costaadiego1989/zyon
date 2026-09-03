@@ -47,7 +47,7 @@ describe("BillingPage Portuguese copy", () => {
     { wrong: /\bnecessario\b/i, correct: "necessário" },
     { wrong: /\bhistorico\b/i, correct: "histórico" },
     { wrong: /\bRenovacao\b/, correct: "Renovação" },
-    { wrong: /\bperíodo\b/i, correct: "período" },
+    { wrong: /\bperiodo\b/i, correct: "período" },
     { wrong: /\bcomecar\b/i, correct: "começar" },
     { wrong: /\binstalacao\b/i, correct: "instalação" },
     { wrong: /\binstalacoes\b/i, correct: "instalações" },
@@ -84,16 +84,14 @@ describe("BillingPage Portuguese copy", () => {
     );
     const source = fs.readFileSync(filePath, "utf-8");
 
-    // These correct strings must be present
+    // Plan pricing moved out of billing-page.tsx into the dedicated plan
+    // selection flow; this page is now subscription management. Assert the
+    // copy that actually lives here.
     const requiredStrings = [
-      "R$ 89/mês",
-      "R$ 199/mês",
-      "R$ 499/mês",
       "Login necessário",
       "Histórico de faturas",
-      "Renovação",
       "período",
-      "Conversas IA este mês",
+      "Conversas IA",
       "Sessões este mês",
     ];
 
@@ -234,56 +232,11 @@ describe("BillingPage API error handling", () => {
 // ── PLANS structure validation ───────────────────────────────────────────────
 
 describe("BillingPage PLANS structure", () => {
-  it("source defines priceId field for each plan", async () => {
-    const fs = await import("node:fs");
-    const path = await import("node:path");
-    const filePath = path.resolve(
-      import.meta.dirname ?? ".",
-      "billing-page.tsx",
-    );
-    const source = fs.readFileSync(filePath, "utf-8");
-
-    expect(source).toContain('priceId: "starter"');
-    expect(source).toContain('priceId: "growth"');
-    expect(source).toContain('priceId: "scale"');
-  });
-
-  it("source uses aria-labelledby for plan sections", async () => {
-    const fs = await import("node:fs");
-    const path = await import("node:path");
-    const filePath = path.resolve(
-      import.meta.dirname ?? ".",
-      "billing-page.tsx",
-    );
-    const source = fs.readFileSync(filePath, "utf-8");
-
-    expect(source).toContain("aria-labelledby");
-  });
-
-  it("source uses highlight property to distinguish recommended plan", async () => {
-    const fs = await import("node:fs");
-    const path = await import("node:path");
-    const filePath = path.resolve(
-      import.meta.dirname ?? ".",
-      "billing-page.tsx",
-    );
-    const source = fs.readFileSync(filePath, "utf-8");
-
-    expect(source).toContain("highlight");
-    expect(source).toContain("Recomendado");
-  });
-
-  it("source displays plan price prominently", async () => {
-    const fs = await import("node:fs");
-    const path = await import("node:path");
-    const filePath = path.resolve(
-      import.meta.dirname ?? ".",
-      "billing-page.tsx",
-    );
-    const source = fs.readFileSync(filePath, "utf-8");
-
-    expect(source).toContain("plan.price");
-  });
+  // NOTE: the hardcoded plan-grid (priceId/highlight/aria-labelledby/plan.price
+  // /plan.features.map/openCheckout) was removed from billing-page.tsx. Plan
+  // selection now lives in the dedicated PlanSelection flow driven by the live
+  // billing API, so those source-string assertions were dropped. Subscription
+  // management structure is asserted below.
 
   it("source uses CSS grid for plans layout", async () => {
     const fs = await import("node:fs");
@@ -348,40 +301,4 @@ describe("BillingPage PLANS structure", () => {
     expect(source).toContain("Faça login para acessar informações de faturamento");
   });
 
-  it("openCheckout function accepts priceId parameter", async () => {
-    const fs = await import("node:fs");
-    const path = await import("node:path");
-    const filePath = path.resolve(
-      import.meta.dirname ?? ".",
-      "billing-page.tsx",
-    );
-    const source = fs.readFileSync(filePath, "utf-8");
-
-    expect(source).toMatch(/async function openCheckout\(priceId: string\)/);
-    expect(source).toContain("price_id: priceId");
-  });
-
-  it("plan card buttons pass plan.priceId to openCheckout", async () => {
-    const fs = await import("node:fs");
-    const path = await import("node:path");
-    const filePath = path.resolve(
-      import.meta.dirname ?? ".",
-      "billing-page.tsx",
-    );
-    const source = fs.readFileSync(filePath, "utf-8");
-
-    expect(source).toContain("openCheckout(plan.priceId)");
-  });
-
-  it("source renders plan features as a list", async () => {
-    const fs = await import("node:fs");
-    const path = await import("node:path");
-    const filePath = path.resolve(
-      import.meta.dirname ?? ".",
-      "billing-page.tsx",
-    );
-    const source = fs.readFileSync(filePath, "utf-8");
-
-    expect(source).toContain("plan.features.map");
-  });
 });

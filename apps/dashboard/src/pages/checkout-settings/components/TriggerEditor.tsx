@@ -202,8 +202,8 @@ export function TriggerEditor({
   const [couponsLoaded, setCouponsLoaded] = useState(false);
 
   useEffect(() => {
-    api.listCoupons?.().then((list: CouponOption[]) => {
-      setCoupons(list.filter((c) => c.isActive && typeof c.code === "string"));
+    api.listCoupons?.().then((list) => {
+      setCoupons((list as unknown as CouponOption[]).filter((c) => c.isActive && typeof c.code === "string"));
       setCouponsLoaded(true);
     }).catch(() => setCouponsLoaded(true));
   }, [api]);

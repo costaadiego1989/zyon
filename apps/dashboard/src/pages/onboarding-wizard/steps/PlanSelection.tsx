@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Check, Sparkles, CreditCard, ShieldCheck } from "lucide-react";
 import { Button } from "../../../components/Button.js";
-import { useApi } from "../../../api/hooks.js";
+import { useApi } from "../../../hooks/useApi.js";
 import type { BillingPlanCard } from "../../../api/types.js";
 
 type Props = {
