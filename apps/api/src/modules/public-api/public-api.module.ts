@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { AcpWebhooksModule } from './acp-webhooks/acp-webhooks.module.js';
+import { AcpMandatesModule } from './acp-mandates/acp-mandates.module.js';
 import { PublicApiCheckoutsModule } from './checkouts/public-api-checkouts.module.js';
 import { PublicApiOrdersModule } from './orders/public-api-orders.module.js';
 import { PublicApiProductsModule } from './products/public-api-products.module.js';
@@ -26,6 +28,8 @@ import { PublicApiMarketplaceModule } from './marketplace/public-api-marketplace
 
 @Module({
   imports: [
+    AcpWebhooksModule,
+    AcpMandatesModule,
     PublicApiCheckoutsModule,
     PublicApiOrdersModule,
     PublicApiProductsModule,

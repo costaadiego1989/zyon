@@ -141,6 +141,10 @@ import "./shared/http/api-versioning.spec.js";
 import "./shared/http/http-contract.spec.js";
 import "./modules/public-api/agentic-protocol/agentic-protocol.controller.spec.js";
 import "./modules/public-api/agentic-protocol/acp-checkout-lifecycle.service.spec.js";
+import "./modules/public-api/acp-webhooks/domain/acp-webhook-subscription.entity.spec.js";
+import "./modules/public-api/acp-webhooks/application/acp-webhook-dispatcher.service.spec.js";
+import "./modules/public-api/acp-webhooks/application/acp-webhook-subscription.use-cases.spec.js";
+import "./modules/public-api/acp-webhooks/presentation/acp-webhooks.controller.spec.js";
 import "./modules/public-api/ucp-discovery/ucp-discovery.controller.spec.js";
 import "./shared/http/idempotency/idempotency.interceptor.spec.js";
 import "./shared/observability/metrics.controller.spec.js";
@@ -215,6 +219,7 @@ import "./modules/storefront/domain/services/cart-rules-and-proximity.spec.js";
 import "./modules/public-api/ucp-discovery/ucp-discovery.controller.spec.js";
 import "./modules/public-api/ucp-discovery/ucp-discovery.e2e-spec.js";
 import "./modules/public-api/__tests__/acp-checkout.e2e-spec.js";
+import "./modules/public-api/__tests__/acp-integration.e2e-spec.js";
 import "./modules/public-api/agentic-protocol/product-feed.mapper.spec.js";
 import "./modules/public-api/agentic-protocol/product-feed.exporter.spec.js";
 import "./modules/public-api/agentic-protocol/product-feed.service.spec.js";
@@ -227,6 +232,7 @@ import "./modules/public-api/agentic-protocol/acp-coupon.applier.spec.js";
 import "./modules/public-api/agentic-protocol/acp-fulfillment.selector.spec.js";
 import "./modules/public-api/agentic-protocol/acp-payment.orchestrator.spec.js";
 import "./modules/public-api/agentic-protocol/acp-store-domain.service.spec.js";
+import "./modules/public-api/acp-mandates/acp-mandates.spec.js";
 if (process.env.E2E_SEED_ENABLED === "true") {
   await import("./modules/__test__/test-seed.controller.spec.js");
 }
