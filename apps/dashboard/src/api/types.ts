@@ -30,11 +30,15 @@ export type DashboardRegisterPayload = {
   turnstile_token?: string;
 };
 
+export type MerchantRole = "OWNER" | "ADMIN" | "STAFF";
+
 export type MerchantProfile = {
   id: string;
   name: string;
   slug?: string;
   plan?: "STORE_ONLY" | "BOTH" | "API";
+  role: MerchantRole;
+  user_id: string;
 };
 
 export type NegotiationEvaluateBridgeResponse = Record<string, unknown> & {
