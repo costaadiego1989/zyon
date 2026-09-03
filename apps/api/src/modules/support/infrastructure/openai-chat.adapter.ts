@@ -53,7 +53,9 @@ export class OpenAIChatAdapter implements ChatCompletionPort {
         body: JSON.stringify({
           model: this.model,
           messages,
-          max_tokens: 300,
+          // 600 gives RAG-grounded answers room to include the full policy
+          // (returns/shipping/payment) without truncation.
+          max_tokens: 600,
           temperature: 0.4,
         }),
       });

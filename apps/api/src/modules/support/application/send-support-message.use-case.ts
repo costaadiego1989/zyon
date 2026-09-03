@@ -7,7 +7,6 @@ import { SupportHandoffService } from "./support-handoff.service.js";
 import type { ChatCompletionPort } from "../domain/ports/chat-completion.port.js";
 import { CHAT_COMPLETION_PORT } from "../domain/ports/chat-completion.port.js";
 import { stripHtmlFromReply } from "../domain/services/sanitize-reply.js";
-import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 import { QueryKnowledgeUseCase } from "../../knowledge-base/application/use-cases/query-knowledge.use-case.js";
 import { BuyerOrderContextService } from "../../knowledge-base/application/services/buyer-order-context.service.js";
 
@@ -83,10 +82,6 @@ function buildSystemPrompt(ctx?: SupportMessageContext, knowledgeContext?: strin
   return parts.join("\n");
 }
 
-/**
- * SUPP-H1 refactored: Now orchestrates FAQ lookup, OpenAI, fallback, and handoff.
- * Core logic extracted to support-faq.service, support-fallback.service, support-handoff.service.
- */
 @Injectable()
 export class SendSupportMessageUseCase {
   private readonly logger = new Logger(SendSupportMessageUseCase.name);
@@ -102,11 +97,6 @@ export class SendSupportMessageUseCase {
     input: SupportMessageInput,
     ctx?: SupportMessageContext,
   ): Promise<SupportMessageOutput> {
-    // FAQ lookup first (fastest path)
-    const faqReply = faqLookup(input.message, ctx?.faqItems ?? []);
-    if (faqReply) return { reply: faqReply, safe: true };
-
-    // Query knowledge base (RAG)
     let knowledgeContext: string | undefined;
     if (this.queryKnowledge) {
       try {
@@ -127,7 +117,11 @@ export class SendSupportMessageUseCase {
       }
     }
 
-    // Buyer-specific order context (only if buyer is identified)
+    if (!knowledgeContext) {
+      const faqReply = faqLookup(input.message, ctx?.faqItems ?? []);
+      if (faqReply) return { reply: faqReply, safe: true };
+    }
+
     if (this.buyerOrderContext && ctx?.buyerGlobalUserId) {
       try {
         const orderContext = await this.buyerOrderContext.getRecentOrdersContext(
@@ -143,17 +137,17 @@ export class SendSupportMessageUseCase {
       }
     }
 
-    // OpenAI (configured?)
     const systemPrompt = buildSystemPrompt(ctx, knowledgeContext);
     const rawReply = await this.chat.complete([
       { role: "system", content: systemPrompt },
       { role: "user", content: input.message },
     ]);
-    // SUPP-H5: Strip HTML from AI reply (defense-in-depth against XSS)
     const aiReply = rawReply ? stripHtmlFromReply(rawReply) : null;
 
     if (!aiReply || !isSafeGeneratedMessage(aiReply)) {
-      // Unsafe or no response → handoff with fallback
+      const faqFallback = faqLookup(input.message, ctx?.faqItems ?? []);
+      if (faqFallback) return { reply: faqFallback, safe: true };
+
       const result = await this.handoff.createHandoff(
         { merchantId: input.merchant_id, sessionId: input.session_id, buyerMessage: input.message },
         aiReply ? undefined : smartFallback(input.message),
@@ -165,7 +159,6 @@ export class SendSupportMessageUseCase {
       };
     }
 
-    // Safe AI reply — but does it request handoff?
     if (needsHumanHandoff(aiReply)) {
       const result = await this.handoff.createHandoff(
         { merchantId: input.merchant_id, sessionId: input.session_id, buyerMessage: input.message },
@@ -178,7 +171,6 @@ export class SendSupportMessageUseCase {
       };
     }
 
-    // Safe AI reply, no handoff needed
     return { reply: aiReply, safe: true };
   }
 }
