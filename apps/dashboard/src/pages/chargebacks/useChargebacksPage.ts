@@ -41,7 +41,7 @@ export function useChargebacksPage(apiBaseUrl: string, merchantId?: string) {
       const mapped: Chargeback[] = (data.chargebacks || []).map((c: any) => ({
         id: c.settlement?.id ?? c.id,
         orderId: c.settlement?.orderId ?? c.orderId ?? "N/A",
-        amount: c.settlement?.sellerAmountCents ?? c.amount ?? 0,
+        amount: c.settlement?.sellerNetCents ?? c.amount ?? 0,
         reason: c.type === "chargeback_debt" ? "Chargeback with debt" : "Chargeback cancelled",
         status: c.type === "chargeback_debt" ? "opened" : "resolved",
         createdAt: c.settlement?.chargebackAt ?? c.createdAt ?? new Date().toISOString(),
