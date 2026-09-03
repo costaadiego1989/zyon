@@ -247,7 +247,7 @@ export class SupportController {
     description: "Missing support:read scope",
   })
   @UseGuards(TenantCredentialGuard, TenantAccessGuard)
-  @RequireTenantAccess({ serviceScopes: ["support:read"] })
+  @RequireTenantAccess({ serviceScopes: ["support:read"], humanRoles: ["owner", "admin", "staff"] })
   @Get("tickets")
   async getTickets(
     @Req() request: unknown,
@@ -322,7 +322,7 @@ export class SupportController {
     description: "Ticket not found",
   })
   @UseGuards(TenantCredentialGuard, TenantAccessGuard)
-  @RequireTenantAccess({ serviceScopes: ["support:write"] })
+  @RequireTenantAccess({ serviceScopes: ["support:write"], humanRoles: ["owner", "admin", "staff"] })
   @Patch("tickets/:ticketId")
   @Idempotent()
   updateTicket(
