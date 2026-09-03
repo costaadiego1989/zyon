@@ -18,7 +18,7 @@ import type {
   IntegrationDraft,
   StepMeta,
 } from "./types.js";
-import { Palette, MapPin, Truck, CreditCard, MessageCircle, Sparkles } from "lucide-react";
+import { Palette, MapPin, CreditCard, Key, MessageCircle, Sparkles } from "lucide-react";
 import { useStepIdentity } from "./hooks/useStepIdentity.js";
 import { useStepAddress } from "./hooks/useStepAddress.js";
 import { useStepPayment } from "./hooks/useStepPayment.js";
@@ -34,8 +34,8 @@ export { isValidEvmAddress } from "./types.js";
 export const STEPS: StepMeta[] = [
   { id: 1, label: "Identidade", caption: "Logo, cores, tipografia e agente", icon: Palette },
   { id: 2, label: "Endereço", caption: "CEP e localização da loja", icon: MapPin },
-  { id: 3, label: "Frete", caption: "Conecte sua conta de envios", icon: Truck },
-  { id: 4, label: "Pagamento", caption: "Como você vai receber", icon: CreditCard },
+  { id: 3, label: "Pagamento", caption: "Como você vai receber", icon: CreditCard },
+  { id: 4, label: "API Key", caption: "Credenciais de integração", icon: Key },
   { id: 5, label: "WhatsApp", caption: "Conecte seu WhatsApp Business", icon: MessageCircle },
   { id: 6, label: "Motor de IA", caption: "Ative a IA autônoma de vendas", icon: Sparkles },
 ];
