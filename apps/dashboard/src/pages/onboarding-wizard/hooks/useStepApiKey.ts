@@ -21,7 +21,8 @@ export function useStepApiKey(deps: UseStepApiKeyDeps) {
         scopes: ["checkout:read", "checkout:write", "configuration:read", "embed:sessions:create", "orders:read", "catalog:read", "commerce:read"],
       });
       deps.setGeneratedApiKey({ id: result.api_key.id, secretKey: result.secret_key, name: result.api_key.name });
-      await deps.markOnboardingStep("embed");
+      // API key generation no longer maps to an onboarding step (steps 5/6 are
+      // now WhatsApp + AI engine); it's optional infra within the API Key step.
     } catch (e) {
       deps.setMessage(friendlyError(e));
     } finally {

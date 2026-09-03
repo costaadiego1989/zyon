@@ -11,9 +11,17 @@ import type {
 export const ONBOARDING_STEP_ORDER: readonly OnboardingStepId[] = [
   "account",
   "checkout_config",
-  "embed",
-  "publish"
+  "whatsapp",
+  "ai_engine"
 ] as const;
+
+/**
+ * Legacy step ids that were replaced when the product moved from
+ * embed/publish to whatsapp/ai_engine (steps 5 & 6). Used to grandfather
+ * merchants who already finished the old flow so they aren't dropped back
+ * into onboarding.
+ */
+const LEGACY_COMPLETED_STEP_IDS = ["embed", "publish"] as const;
 
 export interface OnboardingStepSnapshot {
   status: "pending" | "completed";
@@ -61,19 +69,24 @@ export class OnboardingStateEntity {
 
   static rehydrate(snapshot: OnboardingStateSnapshot): OnboardingStateEntity {
     // Backfill any step missing from persisted data (forward-compatible).
-    // ONB-M2: Log warning if backfilling occurs — helps detect data corruption.
+    const persistedSteps = (snapshot.steps ?? {}) as Record<string, OnboardingStepSnapshot>;
+
+    // Grandfather: a merchant who completed the legacy flow (embed + publish)
+    // finished onboarding under the old product, so treat the steps that
+    // replaced them (whatsapp + ai_engine) as completed instead of throwing
+    // them back into the wizard.
+    const finishedLegacyFlow = LEGACY_COMPLETED_STEP_IDS.every(
+      (id) => persistedSteps[id]?.status === "completed"
+    );
+
     const steps = emptySteps();
-    let backfilled = false;
     for (const id of ONBOARDING_STEP_ORDER) {
-      const persisted = snapshot.steps?.[id];
+      const persisted = persistedSteps[id];
       if (persisted) {
         steps[id] = { status: persisted.status, completedAt: persisted.completedAt };
-      } else {
-        backfilled = true;
+      } else if (finishedLegacyFlow && (id === "whatsapp" || id === "ai_engine")) {
+        steps[id] = { status: "completed", completedAt: snapshot.updatedAt };
       }
-    }
-    if (backfilled) {
-      // Backfilled missing steps — expected for legacy merchants without all steps defined
     }
     return new OnboardingStateEntity({ ...snapshot, steps });
   }

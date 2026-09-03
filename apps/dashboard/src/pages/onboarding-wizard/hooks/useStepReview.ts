@@ -14,9 +14,10 @@ export function useStepReview(deps: UseStepReviewDeps) {
     deps.setBusy(true);
     deps.setMessage(null);
     try {
+      // Final step: mark the AI engine step complete (whatsapp was marked when
+      // leaving step 5). checkout_config is idempotent — safe to re-affirm.
       await deps.markOnboardingStep("checkout_config");
-      await deps.markOnboardingStep("embed");
-      await deps.markOnboardingStep("publish");
+      await deps.markOnboardingStep("ai_engine");
       localStorage.removeItem(deps.storageKey);
       deps.setOnboardingState((prev) => prev ? { ...prev, completed: true } : prev);
     } catch (e) {

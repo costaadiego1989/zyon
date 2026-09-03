@@ -19,20 +19,7 @@
         flex-direction: column;
         gap: var(--space-4);
         min-width: 0;
-      }
-
-      .onb-stage-header { margin-bottom: var(--space-2); }
-      .onb-stage-title {
-        font-size: 22px;
-        font-weight: 700;
-        letter-spacing: -0.3px;
-        color: var(--color-text);
-        margin: 0;
-      }
-      .onb-stage-caption {
-        font-size: 13px;
-        color: var(--color-text-secondary);
-        margin: 4px 0 0;
+        width: 100%;
       }
 
       /* ── Progress rail (double-bezel surface) ──────────────────────── */
@@ -218,30 +205,28 @@
       }
 
       /* ── Stage ──────────────────────────────────────────────────────── */
+      /* Card treatment matching the rail + preview so the three columns share
+         the same top edge and inner padding — the step title lines up with the
+         rail head and the preview header instead of floating above them. Fills
+         its grid column, so it stretches to the preview with the same gap. */
       .onb-stage {
         position: relative;
         display: flex;
         flex-direction: column;
         min-width: 0;
+        padding: var(--space-4);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        background: var(--color-surface);
+        box-shadow: var(--shadow-sm);
       }
 
-      .onb-stage-head { margin-bottom: var(--space-5); }
-
-      .onb-kicker {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        font-family: var(--font-mono);
-        font-size: 11px;
-        font-weight: 600;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--color-brand);
-      }
+      /* JSX renders .onb-stage-header > .onb-stage-title + .onb-stage-caption. */
+      .onb-stage-header { margin-bottom: var(--space-4); }
 
       .onb-stage-title {
-        margin-top: var(--space-2);
-        font-size: 28px;
+        margin: 0;
+        font-size: 24px;
         font-weight: 700;
         letter-spacing: -0.028em;
         line-height: 1.16;
@@ -249,8 +234,8 @@
         text-wrap: balance;
       }
 
-      .onb-stage-lead {
-        margin-top: var(--space-2);
+      .onb-stage-caption {
+        margin: var(--space-1) 0 0;
         max-width: 58ch;
         font-size: 13.5px;
         line-height: 1.55;
@@ -271,6 +256,91 @@
         pointer-events: none;
         user-select: none;
         white-space: nowrap;
+      }
+
+      /* ── WhatsApp + AI engine steps ─────────────────────────────────── */
+      .onb-field-group {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-4);
+        align-items: flex-start;
+      }
+
+      .onb-hero-icon {
+        width: 48px;
+        height: 48px;
+        display: grid;
+        place-items: center;
+        border-radius: var(--radius-md, 12px);
+        background: color-mix(in srgb, var(--color-brand) 12%, transparent);
+        color: var(--color-brand);
+      }
+
+      .onb-help {
+        margin: 0;
+        font-size: 13.5px;
+        line-height: 1.55;
+        color: var(--color-text-secondary);
+        max-width: 60ch;
+      }
+      .onb-help-muted { color: var(--color-text-muted); font-size: 12.5px; }
+
+      .onb-connected {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        width: 100%;
+        padding: var(--space-3) var(--space-4);
+        border: 1px solid color-mix(in srgb, var(--color-success) 40%, var(--color-border));
+        border-radius: var(--radius-md, 12px);
+        background: color-mix(in srgb, var(--color-success) 8%, transparent);
+        color: var(--color-success);
+      }
+      .onb-connected strong { display: block; font-size: 14px; color: var(--color-text); }
+      .onb-connected-sub { display: block; font-size: 12px; color: var(--color-text-secondary); margin-top: 2px; }
+
+      .onb-feature-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+        width: 100%;
+      }
+      .onb-feature-list li {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        font-size: 13px;
+        color: var(--color-text-secondary);
+      }
+      .onb-feature-list li svg { color: var(--color-brand); flex: none; }
+
+      .onb-toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-4);
+        width: 100%;
+        padding: var(--space-3) var(--space-4);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md, 12px);
+        background: var(--color-bg);
+      }
+      .onb-toggle-title { font-size: 14px; font-weight: 600; color: var(--color-text); }
+      .onb-toggle-sub { font-size: 12px; color: var(--color-text-muted); margin-top: 2px; }
+
+      .onb-plan-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font: 600 11px var(--font-mono, monospace);
+        letter-spacing: 0.04em;
+        color: var(--color-brand);
+        background: color-mix(in srgb, var(--color-brand) 12%, transparent);
+        border: 1px solid color-mix(in srgb, var(--color-brand) 40%, transparent);
       }
 
       .onb-alert {

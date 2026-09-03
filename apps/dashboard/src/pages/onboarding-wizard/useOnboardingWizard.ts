@@ -5,6 +5,7 @@ import type {
   OnboardingStepId,
 } from "../../api-client.js";
 import { useApi } from "../../hooks/useApi.js";
+import { usePlanFeatures } from "../../hooks/api/usePlanFeatures.js";
 import { reportError } from "../../lib/observability/error-reporter.js";
 import {
   validateThemeDraft,
@@ -17,7 +18,7 @@ import type {
   IntegrationDraft,
   StepMeta,
 } from "./types.js";
-import { Palette, MapPin, Truck, CreditCard, Key, Plug } from "lucide-react";
+import { Palette, MapPin, Truck, CreditCard, MessageCircle, Sparkles } from "lucide-react";
 import { useStepIdentity } from "./hooks/useStepIdentity.js";
 import { useStepAddress } from "./hooks/useStepAddress.js";
 import { useStepPayment } from "./hooks/useStepPayment.js";
@@ -35,8 +36,8 @@ export const STEPS: StepMeta[] = [
   { id: 2, label: "Endereço", caption: "CEP e localização da loja", icon: MapPin },
   { id: 3, label: "Frete", caption: "Conecte sua conta de envios", icon: Truck },
   { id: 4, label: "Pagamento", caption: "Como você vai receber", icon: CreditCard },
-  { id: 5, label: "API Key", caption: "Credenciais de integração", icon: Key },
-  { id: 6, label: "Integração", caption: "Conectar com sua plataforma", icon: Plug },
+  { id: 5, label: "WhatsApp", caption: "Conecte seu WhatsApp Business", icon: MessageCircle },
+  { id: 6, label: "Motor de IA", caption: "Ative a IA autônoma de vendas", icon: Sparkles },
 ];
 
 export const TOTAL_STEPS = STEPS.length;
@@ -151,6 +152,8 @@ export interface OnboardingWizardVM {
   saveStep3: () => Promise<void>;
   initiateStripeOnboarding: () => Promise<void>;
   initiateAsaasOnboarding: () => Promise<void>;
+  advanceToWhatsApp: () => void;
+  completeWhatsAppStep: () => Promise<void>;
   finish: () => Promise<void>;
   goBack: () => void;
   markOnboardingStep: (step: OnboardingStepId) => Promise<void>;
@@ -181,6 +184,7 @@ export interface OnboardingWizardProps {
 
 export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWizardVM {
   const api = useApi();
+  const { plan } = usePlanFeatures();
 
   const STORAGE_KEY = `onb_draft_${props.me.id}`;
 
@@ -346,10 +350,32 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
     setCurrentStep((s: number) => Math.max(1, s - 1));
   }
 
+  // Step 4 (API Key) → step 5 (WhatsApp). No onboarding id here — API key is
+  // optional infra within its own step.
+  function advanceToWhatsApp() {
+    setMessage(null);
+    setFieldErrors({});
+    setCurrentStep(5);
+  }
+
+  // Step 5 (WhatsApp) → mark whatsapp complete, then go to step 6 (AI engine).
+  // Lower plans have no AI step, so completing WhatsApp finishes onboarding.
+  async function completeWhatsAppStep() {
+    await markOnboardingStep("whatsapp");
+    if (isGrowthPlus) {
+      setCurrentStep(6);
+    } else {
+      // No AI step for this plan — mark it done to satisfy the required step
+      // set and finish.
+      await finish();
+    }
+  }
+
   // ── Derived ──────────────────────────────────────────────────────────────
 
-  const isStoreOnly = (props.me as any).plan === "STORE_ONLY";
-  const visibleSteps = isStoreOnly ? STEPS.slice(0, 3) : STEPS;
+  // Step 6 (Motor de IA) is Growth+ only; lower plans skip it entirely.
+  const isGrowthPlus = plan === "growth" || plan === "scale";
+  const visibleSteps = isGrowthPlus ? STEPS : STEPS.slice(0, 5);
   const totalSteps = visibleSteps.length;
   const activeMeta = STEPS[currentStep - 1];
 
@@ -378,6 +404,8 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
     saveStep3,
     initiateStripeOnboarding,
     initiateAsaasOnboarding,
+    advanceToWhatsApp,
+    completeWhatsAppStep,
     finish,
     goBack,
     markOnboardingStep,

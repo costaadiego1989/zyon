@@ -50,16 +50,8 @@ export function useStepPayment(deps: UseStepPaymentDeps) {
         });
       }
       await deps.markOnboardingStep("checkout_config");
-
-      const plan = (deps.me as any).plan;
-      if (plan === "STORE_ONLY") {
-        await deps.markOnboardingStep("embed");
-        await deps.markOnboardingStep("publish");
-        localStorage.removeItem(deps.storageKey);
-        deps.setOnboardingState((prev) => prev ? { ...prev, completed: true } : prev);
-      } else {
-        deps.setCurrentStep(4);
-      }
+      // Continue to the API Key step; WhatsApp + AI engine follow as steps 5/6.
+      deps.setCurrentStep(4);
     } catch (e) {
       deps.setMessage(friendlyError(e));
     } finally {

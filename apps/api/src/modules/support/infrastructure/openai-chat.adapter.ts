@@ -13,9 +13,26 @@ export class OpenAIChatAdapter implements ChatCompletionPort {
   private readonly baseUrl: string;
 
   constructor(@Optional() private readonly http?: HttpClientService) {
-    this.apiKey = process.env.OPENAI_API_KEY ?? "";
-    this.model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
-    this.baseUrl = (process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/$/, "");
+    // OpenAI-compatible endpoint. Prefer OpenAI; fall back to the same
+    // OpenRouter / DeepSeek provider the storefront agent already uses so the
+    // support RAG can synthesize answers without a dedicated OPENAI_API_KEY.
+    if (process.env.OPENAI_API_KEY) {
+      this.apiKey = process.env.OPENAI_API_KEY;
+      this.model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+      this.baseUrl = (process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/$/, "");
+    } else if (process.env.OPENROUTER_API_KEY) {
+      this.apiKey = process.env.OPENROUTER_API_KEY;
+      this.model = process.env.OPENROUTER_MODEL ?? "deepseek/deepseek-chat";
+      this.baseUrl = (process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1").replace(/\/$/, "");
+    } else if (process.env.DEEPSEEK_API_KEY) {
+      this.apiKey = process.env.DEEPSEEK_API_KEY;
+      this.model = process.env.DEEPSEEK_MODEL ?? "deepseek-chat";
+      this.baseUrl = (process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com/v1").replace(/\/$/, "");
+    } else {
+      this.apiKey = "";
+      this.model = "gpt-4o-mini";
+      this.baseUrl = "https://api.openai.com/v1";
+    }
   }
 
   get isConfigured(): boolean {

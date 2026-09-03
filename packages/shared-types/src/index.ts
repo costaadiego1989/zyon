@@ -773,7 +773,7 @@ export type DomainEventProducer =
   | "experiments"
   | "revenue-manager";
 
-export type OnboardingStepId = "account" | "checkout_config" | "embed" | "publish";
+export type OnboardingStepId = "account" | "checkout_config" | "whatsapp" | "ai_engine";
 
 export type OnboardingStepStatus = "pending" | "completed";
 
