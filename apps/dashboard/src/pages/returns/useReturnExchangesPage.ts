@@ -60,6 +60,21 @@ export function useReturnExchangesPage(merchantId: string) {
     } finally { setActing(null); }
   }, [api, merchantId]);
 
+  // Accept a return: refund the buyer and, for cross-store items, cancel the
+  // seller repasse (marketplace settlement → return_cancelled). Mixed orders
+  // only cancel the returned cross-store items, handled server-side by variant.
+  const acceptReturn = useCallback(async (returnId: string) => {
+    setActing(returnId);
+    try {
+      await api.acceptReturn(merchantId, returnId);
+      setReturns((prev) => prev.map((r) => r.id === returnId ? { ...r, status: "REFUND_PROCESSING" as ReturnStatus } : r));
+      showToast("success", "Devolução aceita — reembolso em processamento");
+    } catch (e) {
+      reportError({ source: "returns.acceptReturn", error: e });
+      showToast("error", "Erro ao aceitar devolução");
+    } finally { setActing(null); }
+  }, [api, merchantId]);
+
   const stats = {
     total: returns.length,
     inTransit: returns.filter((r) => r.status === "SHIPPED" || r.status === "LABEL_GENERATED").length,
@@ -67,5 +82,5 @@ export function useReturnExchangesPage(merchantId: string) {
     refunded: returns.filter((r) => r.status === "REFUND_COMPLETED").length,
   };
 
-  return { returns, loading, acting, stats, generateLabel, markReceived, processRefund, refresh: load };
+  return { returns, loading, acting, stats, generateLabel, markReceived, processRefund, acceptReturn, refresh: load };
 }

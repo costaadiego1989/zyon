@@ -147,7 +147,12 @@ function getAction(status: ReturnStatus, returnId: string, vm: any) {
 
   switch (status) {
     case "REQUESTED":
-      return <button type="button" className="zyn-btn zyn-btn--primary" style={{ fontSize: 11, padding: "4px 12px" }} onClick={() => vm.generateLabel(returnId)} disabled={disabled}>Gerar etiqueta</button>;
+      return (
+        <span style={{ display: "inline-flex", gap: 6 }}>
+          <button type="button" className="zyn-btn zyn-btn--primary" style={{ fontSize: 11, padding: "4px 12px" }} onClick={() => vm.acceptReturn(returnId)} disabled={disabled}>Aceitar devolução</button>
+          <button type="button" style={btnStyle} onClick={() => vm.generateLabel(returnId)} disabled={disabled}>Gerar etiqueta</button>
+        </span>
+      );
     case "SHIPPED":
       return <button type="button" style={btnStyle} onClick={() => vm.markReceived(returnId)} disabled={disabled}>Marcar recebido</button>;
     case "RECEIVED":

@@ -58,5 +58,8 @@ export function returnsEndpoints(base: string, f: typeof fetch) {
     async processRefund(merchantId: string, returnId: string): Promise<void> {
       return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/returns/${returnId}/refund`, { method: "POST" }, f);
     },
+    async acceptReturn(merchantId: string, returnId: string): Promise<void> {
+      return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/returns/${returnId}/accept`, { method: "POST" }, f);
+    },
   };
 }
