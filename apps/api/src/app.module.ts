@@ -49,6 +49,7 @@ import { CouponsModule } from "./modules/coupons/coupons.module.js";
 import { WhatsAppChannelModule } from "./modules/whatsapp-channel/whatsapp-channel.module.js";
 import { InventoryModule } from "./modules/inventory/inventory.module.js";
 import { PostSaleModule } from "./modules/post-sale/post-sale.module.js";
+import { WhatsAppTemplatesModule } from "./modules/whatsapp-templates/whatsapp-templates.module.js";
 import { KnowledgeBaseModule } from "./modules/knowledge-base/knowledge-base.module.js";
 import { CrossSellModule } from "./modules/cross-sell/cross-sell.module.js";
 // import { PublicApiModule } from "./modules/public-api/public-api.module.js"; // TODO: fix DI (AuthenticateMerchantApiKeyService)
@@ -147,6 +148,7 @@ const REDACTED_LOG_PATHS = [
     WhatsAppChannelModule,
     InventoryModule,
     PostSaleModule,
+    WhatsAppTemplatesModule,
     KnowledgeBaseModule,
     CrossSellModule,
     // PublicApiModule, // TODO: fix DI (CommerceV1Controller, InstallationsModule)
