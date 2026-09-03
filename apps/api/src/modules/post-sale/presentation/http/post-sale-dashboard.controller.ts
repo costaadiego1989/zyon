@@ -20,6 +20,9 @@ import { GeneratePostSaleTemplateUseCase } from "../../application/use-cases/gen
 import { REVIEW_REPOSITORY, type ReviewRepositoryPort } from "../../domain/ports/review-repository.port.js";
 import { NPS_REPOSITORY, type NpsRepositoryPort } from "../../domain/ports/nps-repository.port.js";
 import { POST_SALE_TEMPLATE_REPOSITORY, type PostSaleTemplateRepositoryPort } from "../../domain/ports/post-sale-template-repository.port.js";
+import { TwilioContentTemplateAdapter } from "../../infrastructure/adapters/twilio-content-template.adapter.js";
+import { SubmitTemplatePackageUseCase } from "../../../whatsapp-templates/application/use-cases/submit-template-package.use-case.js";
+import { SyncTemplateStatusesUseCase } from "../../../whatsapp-templates/application/use-cases/sync-template-statuses.use-case.js";
 import { Inject, Optional } from "@nestjs/common";
 
 @Controller("dashboard/post-sale")
@@ -36,7 +39,13 @@ export class PostSaleDashboardController {
     @Inject(NPS_REPOSITORY)
     private readonly nps: NpsRepositoryPort,
     @Optional() @Inject(POST_SALE_TEMPLATE_REPOSITORY)
-    private readonly templates?: PostSaleTemplateRepositoryPort
+    private readonly templates?: PostSaleTemplateRepositoryPort,
+    @Optional()
+    private readonly twilioContent?: TwilioContentTemplateAdapter,
+    @Optional()
+    private readonly submitPackage?: SubmitTemplatePackageUseCase,
+    @Optional()
+    private readonly syncStatuses?: SyncTemplateStatusesUseCase
   ) {}
 
   @Get("stats")
@@ -136,7 +145,15 @@ export class PostSaleDashboardController {
     @Req() req: TenantPrincipalRequest,
     @Param("type") type: string,
     @Param("channel") channel: string,
-    @Body() body: { name: string; body: string; subject?: string }
+    @Body() body: {
+      name: string;
+      body: string;
+      subject?: string;
+      metaCategory?: string;
+      metaLanguage?: string;
+      metaTemplateBody?: string;
+      metaVariableMap?: Record<string, string>;
+    }
   ) {
     const tenant = currentTenantPrincipal(req);
 
@@ -151,6 +168,10 @@ export class PostSaleDashboardController {
       name: body.name,
       body: body.body,
       subject: body.subject,
+      metaCategory: body.metaCategory,
+      metaLanguage: body.metaLanguage,
+      metaTemplateBody: body.metaTemplateBody,
+      metaVariableMap: body.metaVariableMap,
     });
 
     this.logger.log(`Template upserted`, {
@@ -160,6 +181,85 @@ export class PostSaleDashboardController {
     });
 
     return { template };
+  }
+
+  @Post("templates/:type/:channel/submit-meta")
+  async submitMetaTemplate(
+    @Req() req: TenantPrincipalRequest,
+    @Param("type") type: string,
+    @Param("channel") channel: string
+  ) {
+    const tenant = currentTenantPrincipal(req);
+    if (!this.templates) throw new BadRequestException("Templates feature not available");
+
+    const tpl = await this.templates.findByMerchantAndType(tenant.tenantId, type, channel);
+    if (!tpl) throw new BadRequestException("template_not_found");
+    if (!tpl.metaTemplateBody || !tpl.metaVariableMap) {
+      throw new BadRequestException("meta_template_not_prepared");
+    }
+    if (!this.twilioContent) {
+      return { status: "draft", reason: "twilio_not_available" };
+    }
+
+    const sample: Record<string, string> = {};
+    for (const [pos, name] of Object.entries(tpl.metaVariableMap)) {
+      sample[pos] =
+        name === "buyerName" ? "Ana"
+        : name === "productName" ? "seu pedido"
+        : name === "coupon" ? "LOJA10"
+        : name === "couponBlock" ? "cupom LOJA10 (10% OFF)"
+        : name === "discount" ? "10%"
+        : "https://loja.exemplo";
+    }
+
+    const result = await this.twilioContent.createAndSubmit({
+      merchantId: tenant.tenantId,
+      friendlyName: `${tenant.tenantId}_${type}_${channel}`.slice(0, 64),
+      language: tpl.metaLanguage || "pt_BR",
+      metaBody: tpl.metaTemplateBody,
+      sampleVariables: sample,
+      category: tpl.metaCategory || "UTILITY",
+    });
+
+    const updated = await this.templates.updateMeta({
+      merchantId: tenant.tenantId,
+      type,
+      channel,
+      twilioContentSid: result.contentSid || undefined,
+      metaStatus: result.status,
+      metaRejectionReason: result.rejectionReason ?? null,
+    });
+
+    this.logger.log(`Meta template submitted`, { type, channel, merchantId: tenant.tenantId, status: result.status });
+    return { template: updated, submission: result };
+  }
+
+  @Get("templates/:type/:channel/meta-status")
+  async metaTemplateStatus(
+    @Req() req: TenantPrincipalRequest,
+    @Param("type") type: string,
+    @Param("channel") channel: string
+  ) {
+    const tenant = currentTenantPrincipal(req);
+    if (!this.templates) throw new BadRequestException("Templates feature not available");
+
+    const tpl = await this.templates.findByMerchantAndType(tenant.tenantId, type, channel);
+    if (!tpl) throw new BadRequestException("template_not_found");
+    if (!tpl.twilioContentSid || !this.twilioContent) {
+      return { status: tpl.metaStatus ?? "draft", contentSid: tpl.twilioContentSid ?? null };
+    }
+
+    const synced = await this.twilioContent.syncStatus(tenant.tenantId, tpl.twilioContentSid);
+    if (synced.status !== "unknown" && synced.status !== tpl.metaStatus) {
+      await this.templates.updateMeta({
+        merchantId: tenant.tenantId,
+        type,
+        channel,
+        metaStatus: synced.status,
+        metaRejectionReason: synced.rejectionReason ?? null,
+      });
+    }
+    return { status: synced.status, contentSid: tpl.twilioContentSid, rejectionReason: synced.rejectionReason };
   }
 
   @Post("templates/generate")
@@ -183,6 +283,24 @@ export class PostSaleDashboardController {
     });
 
     return generated;
+  }
+
+  @Post("templates/submit-package")
+  async submitTemplatePackage(@Req() req: TenantPrincipalRequest) {
+    const tenant = currentTenantPrincipal(req);
+    if (!this.submitPackage) throw new BadRequestException("templates_feature_not_available");
+    const result = await this.submitPackage.execute(tenant.tenantId);
+    this.logger.log(`Template package submitted`, { merchantId: tenant.tenantId, submitted: result.submitted });
+    return result;
+  }
+
+  @Get("templates/package-status")
+  async templatePackageStatus(@Req() req: TenantPrincipalRequest) {
+    const tenant = currentTenantPrincipal(req);
+    if (!this.syncStatuses) {
+      return { total: 0, approved: 0, submitted: 0, rejected: 0, draft: 0, perType: [] };
+    }
+    return this.syncStatuses.execute(tenant.tenantId);
   }
 }
 

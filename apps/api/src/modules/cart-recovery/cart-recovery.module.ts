@@ -26,6 +26,8 @@ import { CartRecoveryController } from "./presentation/http/cart-recovery.contro
 import { CartRecoveryDashboardController } from "./presentation/http/cart-recovery-dashboard.controller.js";
 import { WHATSAPP_SENDER_PORT } from "../notifications/domain/ports/whatsapp-sender.port.js";
 import { EMAIL_SENDER_PORT } from "../notifications/domain/ports/email-sender.port.js";
+import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-templates.module.js";
+import { SendWhatsAppMessageUseCase } from "../whatsapp-templates/application/use-cases/send-whatsapp-message.use-case.js";
 
 export const ATTEMPT_CART_RECOVERY_USE_CASE = Symbol("ATTEMPT_CART_RECOVERY_USE_CASE");
 // Imported from tokens file (single source) to avoid the module↔handler cycle;
@@ -50,6 +52,7 @@ export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_US
     NotificationsModule,
     BuyerAccountRepositoryModule,
     RevenueLiftModule,
+    WhatsAppTemplatesModule,
   ],
   controllers: [CartRecoveryController, CartRecoveryDashboardController],
   providers: [
@@ -72,8 +75,9 @@ export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_US
     CartRecoveryOnOrderCompletedHandler,
     {
       provide: ATTEMPT_CART_RECOVERY_USE_CASE,
-      useFactory: (repo: any, whatsapp: any, email: any) => new AttemptCartRecoveryUseCase(repo, undefined, whatsapp, undefined, email),
-      inject: [RECOVERY_ATTEMPT_REPOSITORY, WHATSAPP_SENDER_PORT, EMAIL_SENDER_PORT],
+      useFactory: (repo: any, whatsapp: any, email: any, sendWa: SendWhatsAppMessageUseCase) =>
+        new AttemptCartRecoveryUseCase(repo, undefined, whatsapp, undefined, email, sendWa),
+      inject: [RECOVERY_ATTEMPT_REPOSITORY, WHATSAPP_SENDER_PORT, EMAIL_SENDER_PORT, SendWhatsAppMessageUseCase],
     },
     {
       provide: TRACK_RECOVERY_OUTCOME_USE_CASE,

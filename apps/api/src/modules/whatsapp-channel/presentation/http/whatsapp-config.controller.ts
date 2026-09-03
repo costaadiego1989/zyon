@@ -1,9 +1,3 @@
-/**
- * WhatsApp Config Controller — Dashboard endpoints.
- * Merchant-facing: Embedded Signup via Meta + Twilio integration.
- * Platform credentials from env vars handle the Twilio/Meta integration.
- */
-
 import {
   Controller,
   Get,
@@ -30,9 +24,6 @@ export class WhatsAppConfigController {
     private readonly configRepo: WhatsAppConfigRepository,
   ) {}
 
-  /**
-   * Get current WhatsApp connection status.
-   */
   @Get("connection")
   async getConnection(@Param("merchantId") merchantId: string) {
     const config = await this.configRepo.findByMerchantId(merchantId);
@@ -41,7 +32,7 @@ export class WhatsAppConfigController {
       return {
         status: "disconnected",
         enabled: false,
-        provider: null,
+        provider: "TWILIO",
         whatsappNumber: null,
         connectedAt: null,
       };
@@ -50,16 +41,12 @@ export class WhatsAppConfigController {
     return {
       status: config.status?.toLowerCase() ?? "disconnected",
       enabled: config.enabled,
-      provider: config.provider,
+      provider: config.provider ?? "TWILIO",
       whatsappNumber: config.whatsappNumber,
       connectedAt: config.connectedAt,
     };
   }
 
-  /**
-   * Connect WhatsApp via Meta Embedded Signup (production flow).
-   * Frontend passes OAuth code + WABA/phone IDs from the Meta popup.
-   */
   @Post("meta/connect")
   @HttpCode(200)
   async connectViaEmbeddedSignup(
@@ -84,10 +71,6 @@ export class WhatsAppConfigController {
     });
   }
 
-  /**
-   * Legacy: Connect WhatsApp — merchant provides phone number only.
-   * Kept for backward compatibility; may fail with WABA_ID_REQUIRED.
-   */
   @Post("twilio/connect")
   @HttpCode(200)
   async connectTwilio(
@@ -106,9 +89,6 @@ export class WhatsAppConfigController {
     return result;
   }
 
-  /**
-   * Verify OTP code for WhatsApp sender.
-   */
   @Post("twilio/verify")
   @HttpCode(200)
   async verifyOtp(
@@ -122,18 +102,12 @@ export class WhatsAppConfigController {
     return this.configureWhatsApp.verify({ merchantId, code: body.code.trim() });
   }
 
-  /**
-   * Disconnect WhatsApp channel.
-   */
   @Post("disconnect")
   @HttpCode(200)
   async disconnect(@Param("merchantId") merchantId: string) {
     return this.configureWhatsApp.disconnect(merchantId);
   }
 
-  /**
-   * Toggle WhatsApp enabled/disabled.
-   */
   @Post("toggle")
   @HttpCode(200)
   async toggle(
@@ -151,9 +125,6 @@ export class WhatsAppConfigController {
     };
   }
 
-  /**
-   * Send test message to merchant's own number.
-   */
   @Post("test")
   @HttpCode(200)
   async sendTest(@Param("merchantId") merchantId: string) {
@@ -162,7 +133,6 @@ export class WhatsAppConfigController {
       return { status: "NOT_ACTIVE" };
     }
 
-    // Send test via the existing sender adapter
     const { BubbleWhatsSenderAdapter } = await import("../../infrastructure/adapters/bubblewhats-sender.adapter.js");
     const sender = new BubbleWhatsSenderAdapter();
     const result = await sender.sendText({

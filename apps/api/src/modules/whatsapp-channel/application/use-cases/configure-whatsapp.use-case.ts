@@ -19,6 +19,9 @@
 
 import { Injectable, Inject, Logger } from "@nestjs/common";
 import { WHATSAPP_CONFIG_REPOSITORY, type WhatsAppConfigRepository } from "../../domain/ports/whatsapp-config-repository.port.js";
+import { twilioWhatsAppCallbackUrl } from "../../domain/services/public-url.js";
+import { Optional } from "@nestjs/common";
+import { TEMPLATE_PACKAGE_SUBMITTER, type TemplatePackageSubmitter } from "../../domain/ports/template-package-submitter.port.js";
 
 // ─── Legacy flow (phone-only, kept for backward compat) ───────────────────────
 export interface ConnectWhatsAppInput {
@@ -50,6 +53,8 @@ export class ConfigureWhatsAppUseCase {
   constructor(
     @Inject(WHATSAPP_CONFIG_REPOSITORY)
     private readonly configRepo: WhatsAppConfigRepository,
+    @Optional() @Inject(TEMPLATE_PACKAGE_SUBMITTER)
+    private readonly templatePackage?: TemplatePackageSubmitter,
   ) {
     this.accountSid = process.env.TWILIO_ACCOUNT_SID ?? "";
     this.authToken = process.env.TWILIO_AUTH_TOKEN ?? "";
@@ -111,6 +116,11 @@ export class ConfigureWhatsAppUseCase {
         connectedAt: registerResult.alreadyActive ? new Date() : undefined,
       });
 
+      // Auto-submit the platform's WhatsApp template package to Meta for this
+      // merchant's new WABA. Non-blocking: a submission failure never breaks the
+      // connection flow.
+      this.autoSubmitTemplatePackage(input.merchantId);
+
       if (registerResult.alreadyActive) {
         this.logger.log(`WhatsApp connected (already active) for merchant ${input.merchantId}`);
         return { status: "active", whatsappNumber: phoneInfo.number };
@@ -122,6 +132,22 @@ export class ConfigureWhatsAppUseCase {
       this.logger.error(`Embedded Signup connect error: ${error instanceof Error ? error.message : String(error)}`);
       return { status: "ERROR" };
     }
+  }
+
+  /**
+   * Fire-and-forget submission of the default template package. Errors are
+   * swallowed (logged) so they never affect the WhatsApp connection result.
+   */
+  private autoSubmitTemplatePackage(merchantId: string): void {
+    if (!this.templatePackage) return;
+    void this.templatePackage
+      .execute(merchantId)
+      .then(() => this.logger.log(`Template package submission triggered for ${merchantId}`))
+      .catch((err) =>
+        this.logger.warn(
+          `Template package submission failed for ${merchantId}: ${err instanceof Error ? err.message : String(err)}`
+        )
+      );
   }
 
   /**
@@ -239,10 +265,11 @@ export class ConfigureWhatsAppUseCase {
             verification_method: "sms",
           },
           profile: { name: "Commerce Bot" },
-          webhook: {
-            callback_url: `${process.env.API_PUBLIC_URL || "https://api.aacp.com"}/v1/webhooks/whatsapp/twilio`,
-            callback_method: "POST",
-          },
+          // Only attach a webhook when a valid public URL is configured; never
+          // point Twilio at a placeholder domain.
+          ...(twilioWhatsAppCallbackUrl()
+            ? { webhook: { callback_url: twilioWhatsAppCallbackUrl()!, callback_method: "POST" } }
+            : {}),
         }),
       });
 
@@ -380,10 +407,11 @@ export class ConfigureWhatsAppUseCase {
           channel: "whatsapp",
           configuration: { verification_method: "sms" },
           profile: { name: "Commerce Bot" },
-          webhook: {
-            callback_url: `${process.env.API_PUBLIC_URL || "https://api.aacp.com"}/v1/webhooks/whatsapp/twilio`,
-            callback_method: "POST",
-          },
+          // Only attach a webhook when a valid public URL is configured; never
+          // point Twilio at a placeholder domain.
+          ...(twilioWhatsAppCallbackUrl()
+            ? { webhook: { callback_url: twilioWhatsAppCallbackUrl()!, callback_method: "POST" } }
+            : {}),
         }),
       });
 

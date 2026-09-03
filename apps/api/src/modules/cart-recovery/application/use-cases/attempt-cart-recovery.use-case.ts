@@ -7,6 +7,22 @@ import type { RecoveryStrategy } from "../../domain/values/recovery-strategy.js"
 import type { WhatsAppSenderPort } from "../../../notifications/domain/ports/whatsapp-sender.port.js";
 import type { EmailSenderPort } from "../../../notifications/domain/ports/email-sender.port.js";
 
+/**
+ * Minimal shape of the shared SendWhatsAppMessageUseCase, to keep cart-recovery
+ * decoupled from its concrete class.
+ */
+export interface CartRecoveryWhatsAppSender {
+  execute(input: {
+    merchantId: string;
+    type: "cart_recovery";
+    toPhone?: string;
+    variables?: Record<string, string | number | undefined>;
+    freeformText?: string;
+    fallbackEmail?: string;
+    emailSubject?: string;
+  }): Promise<unknown>;
+}
+
 export interface AttemptCartRecoveryInput {
   merchantId: string;
   sessionId: string;
@@ -22,7 +38,6 @@ export interface AttemptCartRecoveryInput {
   cartRef?: string | null;
   embedToken?: string | null;
   merchantCheckoutReturnUrl?: string | null;
-  /** Merchant dashboard override — when set, use this instead of the algorithm. */
   forcedStrategy?: RecoveryStrategy;
 }
 
@@ -63,6 +78,7 @@ export class AttemptCartRecoveryUseCase {
     private readonly whatsappSender?: WhatsAppSenderPort,
     private readonly linkGenerator: LinkGenerator = defaultLinkGenerator,
     private readonly emailSender?: EmailSenderPort,
+    private readonly sendWhatsApp?: CartRecoveryWhatsAppSender,
   ) {}
 
   async execute(input: AttemptCartRecoveryInput): Promise<{ created: boolean; attemptId?: string }> {
@@ -120,7 +136,7 @@ export class AttemptCartRecoveryUseCase {
     // whenever the buyer contact is available. Failures are non-blocking.
     let anySent = false;
 
-    if (this.whatsappSender && input.buyerPhone) {
+    if (input.buyerPhone) {
       const storeLabel = input.merchantName ? ` na *${input.merchantName}*` : "";
       const message = `🛒 *Seu carrinho${storeLabel} está te esperando!*
 
@@ -130,11 +146,41 @@ ${offerLine}
 
 ⏰ Por tempo limitado!`;
       anySent = true;
-      this.whatsappSender
-        .send({ phone: input.buyerPhone, message })
-        .catch((err) => {
-          this.logger.error("Failed to send WhatsApp recovery message", { error: err, sessionId: input.sessionId });
-        });
+      // Route WhatsApp through the safe template path (Meta-approved template
+      // via Twilio when available; otherwise skips — email below still covers).
+      // No fallbackEmail here: the email channel is dispatched in parallel below.
+      const couponCode = strategy.type === "offer_coupon" ? strategy.coupon_code : undefined;
+      const discountPercent =
+        strategy.type === "offer_coupon"
+          ? strategy.coupon_percent
+          : strategy.type === "escalate_discount"
+            ? strategy.value_percent
+            : undefined;
+      if (this.sendWhatsApp) {
+        this.sendWhatsApp
+          .execute({
+            merchantId: input.merchantId,
+            type: "cart_recovery",
+            toPhone: input.buyerPhone,
+            variables: {
+              buyerName: input.buyerName,
+              coupon: couponCode,
+              discountPercent,
+              link,
+            },
+            freeformText: message,
+          })
+          .catch((err) => {
+            this.logger.error("Failed to send WhatsApp recovery message", { error: err, sessionId: input.sessionId });
+          });
+      } else if (this.whatsappSender) {
+        // Legacy path (module not migrated yet).
+        this.whatsappSender
+          .send({ phone: input.buyerPhone, message })
+          .catch((err) => {
+            this.logger.error("Failed to send WhatsApp recovery message", { error: err, sessionId: input.sessionId });
+          });
+      }
     }
 
     if (this.emailSender && input.buyerEmail) {

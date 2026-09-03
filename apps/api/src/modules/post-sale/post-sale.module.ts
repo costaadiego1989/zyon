@@ -5,6 +5,7 @@ import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/bi
 import { DOMAIN_EVENT_BUS } from "../../shared/events/domain-event-bus.port.js";
 import { NotificationsModule } from "../notifications/notifications.module.js";
 import { WhatsAppChannelModule } from "../whatsapp-channel/whatsapp-channel.module.js";
+import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-templates.module.js";
 
 // Ports
 import {
@@ -49,6 +50,12 @@ import { GeneratePostSaleTemplateUseCase } from "./application/use-cases/generat
 
 // Services
 import { PostSaleAiCopywriterService } from "./application/services/post-sale-ai-copywriter.service.js";
+import { PostSaleConfigService } from "./application/services/post-sale-config.service.js";
+
+// WhatsApp official template sender (Meta via Twilio) + submission bridge
+import { POST_SALE_WHATSAPP_SENDER } from "./domain/ports/post-sale-whatsapp-sender.port.js";
+import { WhatsAppTemplateSenderAdapter } from "./infrastructure/adapters/whatsapp-template-sender.adapter.js";
+import { TwilioContentTemplateAdapter } from "./infrastructure/adapters/twilio-content-template.adapter.js";
 
 // Jobs (BullMQ queues + workers; setInterval fallback when REDIS_URL absent)
 import { PostSaleMessageScheduler, PostSaleMessageWorker } from "./infrastructure/jobs/post-sale-message.queue.js";
@@ -71,6 +78,7 @@ import { PostSaleDashboardController } from "./presentation/http/post-sale-dashb
   imports: [
     forwardRef(() => NotificationsModule),
     forwardRef(() => WhatsAppChannelModule),
+    WhatsAppTemplatesModule,
   ],
   controllers: [BuyerPostSaleController, PostSaleDashboardController],
   providers: [
@@ -108,6 +116,14 @@ import { PostSaleDashboardController } from "./presentation/http/post-sale-dashb
       inject: [SubmitNpsUseCase, SubmitReviewUseCase, PRISMA_CLIENT],
     },
     PostSaleAiCopywriterService,
+    PostSaleConfigService,
+    TwilioContentTemplateAdapter,
+    {
+      // Optional config repo → adapter falls back to platform Twilio env when
+      // the merchant has no WABA credentials. No cross-module import needed.
+      provide: POST_SALE_WHATSAPP_SENDER,
+      useClass: WhatsAppTemplateSenderAdapter,
+    },
     SchedulePostDeliveryFlowUseCase,
     ProcessScheduledMessagesUseCase,
     SubmitReviewUseCase,
