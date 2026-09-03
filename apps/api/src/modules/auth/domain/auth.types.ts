@@ -1,4 +1,4 @@
-export type TenantRole = "owner" | "admin";
+export type TenantRole = "owner" | "admin" | "staff";
 
 export interface AuthMerchant {
   id: string;

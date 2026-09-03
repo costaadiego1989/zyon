@@ -2,11 +2,11 @@
  * H2: Centralized AuthResponse construction.
  * Used by register, login, and refresh use-cases.
  */
-import type { AuthResponse } from "../domain/auth.types.js";
+import type { AuthResponse, TenantRole } from "../domain/auth.types.js";
 import type { JwtService } from "../domain/services/jwt.service.js";
 
 export function toAuthResponse(
-  user: { id: string; merchantId: string; email: string; role: "owner" | "admin" },
+  user: { id: string; merchantId: string; email: string; role: TenantRole },
   jwt: JwtService
 ): AuthResponse {
   return {

@@ -102,3 +102,18 @@ test("JwtService throws if dev-secret-change-me is used in production", () => {
     process.env.NODE_ENV = originalEnv;
   }
 });
+
+test("JwtService — staff role", () => {
+  const jwt = new JwtService("test-secret-very-long-and-secure");
+  const token = jwt.sign({
+    userId: "usr_1",
+    merchantId: "mrc_1",
+    email: "staff@example.com",
+    role: "staff"
+  });
+  const verified = jwt.verify(token);
+  assert.equal(verified.role, "staff");
+  assert.equal(verified.userId, "usr_1");
+  assert.equal(verified.merchantId, "mrc_1");
+  assert.equal(verified.email, "staff@example.com");
+});

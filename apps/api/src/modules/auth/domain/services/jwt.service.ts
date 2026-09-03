@@ -13,7 +13,7 @@ export interface JwtPayload {
 }
 
 /** Valid roles for merchant JWTs. Closes L12: runtime assertion. */
-const VALID_ROLES: readonly TenantRole[] = ["owner", "admin"];
+const VALID_ROLES: readonly TenantRole[] = ["owner", "admin", "staff"];
 
 function isValidRole(role: string): role is TenantRole {
   return (VALID_ROLES as readonly string[]).includes(role);
