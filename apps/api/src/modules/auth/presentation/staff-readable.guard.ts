@@ -16,7 +16,10 @@ export class StaffReadableGuard implements CanActivate {
     ]);
     if (!flagged) return true; // not decorated — bypass; rely on @RequireTenantRoles if needed
     const principal = currentTenantPrincipal(context.switchToHttp().getRequest());
-    if (principal.kind !== "human" || !ALLOWED.includes(principal.role)) {
+    // Service principals (API key) are governed by their own scopes (TenantAccessGuard).
+    // Only human principals need the role check.
+    if (principal.kind === "service") return true;
+    if (!ALLOWED.includes(principal.role)) {
       throw new ForbiddenException("tenant_role_required");
     }
     return true;
