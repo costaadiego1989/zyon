@@ -303,7 +303,11 @@ function toConnection(row: {
   createdAt: Date;
   updatedAt: Date;
 }): PaymentConnectionSnapshot {
-  if (row.provider !== "stripe" && row.provider !== "asaas") {
+  if (
+    row.provider !== "stripe" &&
+    row.provider !== "asaas" &&
+    row.provider !== "mercadopago"
+  ) {
     throw new Error("payment_connection_provider_invalid");
   }
   return {
