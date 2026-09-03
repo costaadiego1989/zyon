@@ -1,81 +1,106 @@
+import { dashboardJson } from "../http/client.js";
 import type { Review, NpsItem, PostSaleStats, PostSaleTemplate } from "../../pages/post-sale/usePostSalePage.js";
 
 export function postSaleEndpoints(base: string, f: typeof fetch) {
-  const headers = () => ({
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${localStorage.getItem("aacp_token")}`,
-  });
-
   return {
     getPostSaleStats(): Promise<PostSaleStats> {
-      return f(`${base}/dashboard/post-sale/stats`, {
-        headers: headers(),
-      }).then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      });
+      return dashboardJson<PostSaleStats>(base, "/dashboard/post-sale/stats", { method: "GET" }, f);
     },
 
     getPostSaleReviews(page = 1, status?: string): Promise<{ items: Review[]; total: number }> {
       const params = new URLSearchParams({ page: String(page) });
       if (status) params.set("status", status);
-      return f(`${base}/dashboard/post-sale/reviews?${params}`, {
-        headers: headers(),
-      }).then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      });
+      return dashboardJson<{ items: Review[]; total: number }>(
+        base,
+        `/dashboard/post-sale/reviews?${params}`,
+        { method: "GET" },
+        f
+      );
     },
 
     getPostSaleNps(page = 1): Promise<{ items: NpsItem[]; total: number }> {
-      return f(`${base}/dashboard/post-sale/nps?page=${page}`, {
-        headers: headers(),
-      }).then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      });
+      return dashboardJson<{ items: NpsItem[]; total: number }>(
+        base,
+        `/dashboard/post-sale/nps?page=${page}`,
+        { method: "GET" },
+        f
+      );
     },
 
     moderateReview(reviewId: string, status: "approved" | "rejected"): Promise<{ success: boolean }> {
-      return f(`${base}/dashboard/post-sale/reviews/${reviewId}/moderate`, {
-        method: "PATCH",
-        headers: headers(),
-        body: JSON.stringify({ status }),
-      }).then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      });
+      return dashboardJson<{ success: boolean }>(
+        base,
+        `/dashboard/post-sale/reviews/${reviewId}/moderate`,
+        { method: "PATCH", jsonBody: { status } },
+        f
+      );
     },
 
     listTemplates(): Promise<{ templates: PostSaleTemplate[] }> {
-      return f(`${base}/dashboard/post-sale/templates`, {
-        headers: headers(),
-      }).then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      });
+      return dashboardJson<{ templates: PostSaleTemplate[] }>(
+        base,
+        "/dashboard/post-sale/templates",
+        { method: "GET" },
+        f
+      );
     },
 
-    saveTemplate(type: string, channel: string, data: { name: string; body: string; subject?: string }): Promise<{ template: PostSaleTemplate }> {
-      return f(`${base}/dashboard/post-sale/templates/${type}/${channel}`, {
-        method: "PUT",
-        headers: headers(),
-        body: JSON.stringify(data),
-      }).then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      });
+    saveTemplate(type: string, channel: string, data: { name: string; body: string; subject?: string; metaCategory?: string; metaLanguage?: string; metaTemplateBody?: string; metaVariableMap?: Record<string, string> }): Promise<{ template: PostSaleTemplate }> {
+      return dashboardJson<{ template: PostSaleTemplate }>(
+        base,
+        `/dashboard/post-sale/templates/${type}/${channel}`,
+        { method: "PUT", jsonBody: data },
+        f
+      );
     },
 
-    generateTemplate(data: { type: string; channel: string; tone?: string; storeName?: string }): Promise<{ name: string; body: string; subject?: string }> {
-      return f(`${base}/dashboard/post-sale/templates/generate`, {
-        method: "POST",
-        headers: headers(),
-        body: JSON.stringify(data),
-      }).then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      });
+    generateTemplate(data: { type: string; channel: string; tone?: string; storeName?: string }): Promise<GeneratePostSaleTemplateResult> {
+      return dashboardJson<GeneratePostSaleTemplateResult>(
+        base,
+        "/dashboard/post-sale/templates/generate",
+        { method: "POST", jsonBody: data },
+        f
+      );
     },
+
+    submitMetaTemplate(type: string, channel: string): Promise<{ template: PostSaleTemplate; submission: { contentSid: string; status: string; rejectionReason?: string } }> {
+      return dashboardJson(
+        base,
+        `/dashboard/post-sale/templates/${type}/${channel}/submit-meta`,
+        { method: "POST" },
+        f
+      );
+    },
+
+    getMetaTemplateStatus(type: string, channel: string): Promise<{ status: string; contentSid: string | null; rejectionReason?: string }> {
+      return dashboardJson(
+        base,
+        `/dashboard/post-sale/templates/${type}/${channel}/meta-status`,
+        { method: "GET" },
+        f
+      );
+    },
+
+    getTemplatePackageStatus(): Promise<{ total: number; approved: number; submitted: number; rejected: number; draft: number; perType: Array<{ type: string; status: string; rejectionReason?: string | null }> }> {
+      return dashboardJson(
+        base,
+        "/dashboard/post-sale/templates/package-status",
+        { method: "GET" },
+        f
+      );
+    },
+  };
+}
+
+export interface GeneratePostSaleTemplateResult {
+  name: string;
+  body: string;
+  subject?: string;
+  meta: {
+    metaBody: string;
+    variableMap: Record<string, string>;
+    sampleVariables: Record<string, string>;
+    category: "UTILITY" | "MARKETING";
+    language: string;
   };
 }

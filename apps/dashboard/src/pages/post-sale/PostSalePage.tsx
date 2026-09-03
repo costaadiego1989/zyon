@@ -9,6 +9,7 @@ import { Button } from "../../components/Button.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { usePostSalePage } from "./usePostSalePage.js";
 import { usePostSaleConfig } from "./usePostSaleConfig.js";
+import { TemplateEditor } from "./TemplateEditor.js";
 
 export interface PostSalePageProps {
   apiBaseUrl: string;
@@ -394,6 +395,8 @@ export function PostSalePage(props: PostSalePageProps) {
               />
             </div>
           </div>
+
+          <TemplateEditor me={props.me} />
         </div>
       )}
     </div>

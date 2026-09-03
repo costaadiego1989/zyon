@@ -64,6 +64,20 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
             <ToggleSwitch checked={vm.config?.enabled ?? false} onChange={vm.handleToggleEnabled} />
           </div>
 
+          {/* Templates WhatsApp Status */}
+          {vm.templatePackageStatus && (
+            <div className="panel" style={{ padding: "16px 20px" }}>
+              <div style={{ font: "600 14px var(--font-sans)", color: "var(--color-brand)", marginBottom: 12 }}>Templates WhatsApp</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+                <StatCard label="Total" value={String(vm.templatePackageStatus.total)} icon={<Smartphone size={14} />} />
+                <StatCard label="Aprovados" value={String(vm.templatePackageStatus.approved)} icon={<CheckCircle size={14} />} />
+                <StatCard label="Enviados" value={String(vm.templatePackageStatus.submitted)} icon={<Send size={14} />} />
+                <StatCard label="Rejeitados" value={String(vm.templatePackageStatus.rejected)} icon={<XCircle size={14} />} />
+                <StatCard label="Rascunhos" value={String(vm.templatePackageStatus.draft)} icon={<Smartphone size={14} />} />
+              </div>
+            </div>
+          )}
+
           {/* KPIs */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
             <StatCard label="Conversas hoje" value="—" icon={<Smartphone size={16} />} />

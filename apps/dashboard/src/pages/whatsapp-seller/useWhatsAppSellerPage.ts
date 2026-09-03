@@ -52,6 +52,15 @@ interface WhatsAppConfig {
   connectedAt?: string;
 }
 
+interface TemplatePackageStatus {
+  total: number;
+  approved: number;
+  submitted: number;
+  rejected: number;
+  draft: number;
+  perType: Array<{ type: string; status: string; rejectionReason?: string | null }>;
+}
+
 const META_APP_ID = ((import.meta as any).env?.VITE_META_APP_ID as string) || "1350309300356518";
 const EMBEDDED_SIGNUP_CONFIG_ID = ((import.meta as any).env?.VITE_EMBEDDED_SIGNUP_CONFIG_ID as string) || "2347331535755786";
 
@@ -62,6 +71,7 @@ export interface UseWhatsAppSellerPageArgs {
 export interface WhatsAppSellerPageVM {
   // data
   config: WhatsAppConfig | null;
+  templatePackageStatus: TemplatePackageStatus | null;
   // status
   loading: boolean;
   saving: boolean;
@@ -82,6 +92,7 @@ export interface WhatsAppSellerPageVM {
 export function useWhatsAppSellerPage({ me }: UseWhatsAppSellerPageArgs): WhatsAppSellerPageVM {
   const api = useApi();
   const [config, setConfig] = useState<WhatsAppConfig | null>(null);
+  const [templatePackageStatus, setTemplatePackageStatus] = useState<TemplatePackageStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testSending, setTestSending] = useState(false);
@@ -131,6 +142,14 @@ export function useWhatsAppSellerPage({ me }: UseWhatsAppSellerPageArgs): WhatsA
     try {
       const data = await api.getWhatsAppConfig(merchantId!);
       setConfig(data);
+      // Load template package status
+      try {
+        const tplStatus = await api.getTemplatePackageStatus();
+        setTemplatePackageStatus(tplStatus);
+      } catch {
+        // Graceful degradation: if endpoint doesn't exist, just leave it null
+        setTemplatePackageStatus(null);
+      }
     } catch {
       setConfig({ enabled: false, provider: "TWILIO", status: "disconnected" });
     } finally {
@@ -288,6 +307,7 @@ export function useWhatsAppSellerPage({ me }: UseWhatsAppSellerPageArgs): WhatsA
 
   return {
     config,
+    templatePackageStatus,
     loading,
     saving,
     testSending,

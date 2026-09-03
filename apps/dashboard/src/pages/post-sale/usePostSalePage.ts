@@ -41,6 +41,13 @@ export interface PostSaleTemplate {
   name: string;
   body: string;
   subject?: string;
+  metaCategory?: string | null;
+  metaLanguage?: string | null;
+  metaTemplateBody?: string | null;
+  metaVariableMap?: Record<string, string> | null;
+  twilioContentSid?: string | null;
+  metaStatus?: string | null;
+  metaRejectionReason?: string | null;
 }
 
 export function usePostSalePage(props: { me: MerchantProfile | null }) {
