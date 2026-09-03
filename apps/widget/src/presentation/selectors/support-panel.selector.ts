@@ -7,6 +7,7 @@ export function selectSupportPanelModel(vm: CheckoutAgentViewModel): SupportPane
     apiOrigin: vm.apiOrigin,
     merchantId: vm.config.merchantId,
     sessionId: vm.session?.session_id,
+    globalUserId: vm.session?.global_user_id,
     embedToken: vm.config.embedSessionToken,
     brandName: vm.activeExperience?.brand?.name || "a loja",
     onClose: () => vm.setSupportOpen(false),

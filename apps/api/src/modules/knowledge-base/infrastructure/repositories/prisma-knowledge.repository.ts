@@ -113,6 +113,29 @@ export class PrismaKnowledgeRepository implements KnowledgeRepositoryPort {
     }
   }
 
+  async findBySource(merchantId: string, sourceType: string, sourceId: string): Promise<KnowledgeChunk[]> {
+    try {
+      const rows = await this.prisma.$queryRaw<KnowledgeChunkRow[]>`
+        SELECT id, merchant_id, source_type, source_id, content, metadata
+        FROM knowledge_chunks
+        WHERE merchant_id = ${merchantId}
+        AND source_type = ${sourceType}
+        AND source_id = ${sourceId}
+      `;
+      return rows.map((row): KnowledgeChunk => ({
+        id: row.id,
+        merchantId: row.merchant_id,
+        sourceType: row.source_type as KnowledgeChunk["sourceType"],
+        sourceId: row.source_id,
+        content: row.content,
+        metadata: row.metadata ?? undefined,
+      }));
+    } catch (err) {
+      this.logger.error(`Failed to find knowledge chunks: ${err instanceof Error ? err.message : String(err)}`);
+      return [];
+    }
+  }
+
   async countBySource(merchantId: string): Promise<Record<string, number>> {
     try {
       const rows = (await this.prisma.$queryRaw`

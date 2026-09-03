@@ -11,6 +11,7 @@ interface UseSupportChatOptions {
   apiBaseUrl: string;
   merchantId: string;
   sessionId?: string;
+  globalUserId?: string;
   embedToken?: string;
 }
 
@@ -41,7 +42,7 @@ function smartFallback(text: string): string {
   return "Entendo sua dúvida. Nossa equipe responde em até 24h — envie um e-mail para o suporte da loja.";
 }
 
-export function useSupportChat({ apiBaseUrl, sessionId, embedToken }: UseSupportChatOptions): SupportChatState {
+export function useSupportChat({ apiBaseUrl, sessionId, globalUserId, embedToken }: UseSupportChatOptions): SupportChatState {
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,7 +97,7 @@ export function useSupportChat({ apiBaseUrl, sessionId, embedToken }: UseSupport
           method: "POST",
           headers,
           credentials: "include",
-          body: JSON.stringify({ message: text.trim(), session_id: sessionId }),
+          body: JSON.stringify({ message: text.trim(), session_id: sessionId, buyer_global_user_id: globalUserId }),
         });
         const fallback = smartFallback(text);
         if (!res.ok) {
@@ -121,7 +122,7 @@ export function useSupportChat({ apiBaseUrl, sessionId, embedToken }: UseSupport
         setLoading(false);
       }
     },
-    [apiBaseUrl, sessionId, embedToken, loading]
+    [apiBaseUrl, sessionId, globalUserId, embedToken, loading]
   );
 
   const reset = useCallback(() => {

@@ -30,10 +30,12 @@ export interface StoreSystemPromptInput {
   merchantPolicy?: MerchantPolicyPromptInput;
   advancedRules?: string[];
   buyerContext?: BuyerPromptContext;
+  /** RAG: relevant knowledge-base chunks (policies, FAQ, product/config info) for the buyer's message. */
+  knowledgeContext?: string;
 }
 
 export function buildStoreSystemPrompt(input: StoreSystemPromptInput): string {
-  const { merchantName, storeCategory, storeSettings, agentIdentity, merchantPolicy, advancedRules, buyerContext } = input;
+  const { merchantName, storeCategory, storeSettings, agentIdentity, merchantPolicy, advancedRules, buyerContext, knowledgeContext } = input;
 
   const name = merchantName ? ` da loja ${merchantName}` : "";
   const agentNameLabel = agentIdentity?.agentName || "Assistente";
@@ -179,5 +181,9 @@ export function buildStoreSystemPrompt(input: StoreSystemPromptInput): string {
     ? `\n\nCLIENTE AUTENTICADO: ${buyerContext.name} (telefone ${buyerContext.phone}). Para create_review, use estes dados automaticamente como authorName e authorPhone — NÃO peça nome nem telefone ao cliente. Vá direto para nota e comentário.`
     : "";
 
-  return base + buyerIdentityNote;
+  const knowledgeNote = knowledgeContext
+    ? `\n\nINFORMAÇÕES OFICIAIS DA LOJA (base de conhecimento — use como fonte de verdade para políticas, prazos, garantia, pagamento e dúvidas do cliente):\n${knowledgeContext}\n\nBaseie respostas sobre políticas e informações da loja NESTES dados. Se a resposta não estiver aqui nem nas ferramentas, diga que não tem essa informação — NUNCA invente.`
+    : "";
+
+  return base + knowledgeNote + buyerIdentityNote;
 }

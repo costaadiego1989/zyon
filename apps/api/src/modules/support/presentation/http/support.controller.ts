@@ -89,7 +89,7 @@ export class SupportController {
     const faqItems = settings.faqItems.length > 0 ? settings.faqItems : DEFAULT_SUPPORT_FAQ;
     return this.sendSupportMessage.execute(
       { merchant_id: merchantId, session_id: body.session_id, message: body.message },
-      { faqItems, brandName: request.embedClaims!.merchantId },
+      { faqItems, brandName: request.embedClaims!.merchantId, buyerGlobalUserId: body.buyer_global_user_id },
     );
   }
 
@@ -147,7 +147,7 @@ export class SupportController {
     const faqItems = settings.faqItems.length > 0 ? settings.faqItems : DEFAULT_SUPPORT_FAQ;
     return this.sendSupportMessage.execute(
       { merchant_id: merchantId, session_id: body.session_id, message: body.message },
-      { faqItems, brandName: merchantId },
+      { faqItems, brandName: merchantId, buyerGlobalUserId: body.buyer_global_user_id },
     );
   }
 

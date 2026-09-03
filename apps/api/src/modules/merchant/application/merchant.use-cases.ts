@@ -78,8 +78,8 @@ export class UpdateMerchantRulesUseCase {
   }
 }
 
-function extractPaymentMethods(rules: MerchantRules): string[] {
-  const methods: string[] = ["Cartão de crédito", "PIX", "Boleto"];
+export function extractPaymentMethods(rules: MerchantRules): string[] {
+  const methods: string[] = ["PIX", "Cartão de crédito", "Cartão de débito"];
   const crypto = rules.cryptoPayments as { enabled?: boolean } | undefined;
   if (crypto?.enabled) methods.push("Crypto (USDC)");
   return methods;

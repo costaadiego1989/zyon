@@ -24,6 +24,9 @@ export interface KnowledgeRepositoryPort {
 
   deleteBySource(merchantId: string, sourceType: string, sourceId: string): Promise<void>;
 
+  /** Fetch chunks for one (sourceType, sourceId) — used to merge partial config updates. */
+  findBySource(merchantId: string, sourceType: string, sourceId: string): Promise<KnowledgeChunk[]>;
+
   countBySource(merchantId: string): Promise<Record<string, number>>;
 
   similaritySearch(

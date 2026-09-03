@@ -1,7 +1,8 @@
-import { Injectable, Inject, BadRequestException, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, Optional, BadRequestException, NotFoundException } from "@nestjs/common";
 import type { OwnDeliveryNeighborhood, OwnDeliveryRadiusZone, OwnDeliveryConfigRepository } from "../../domain/ports/own-delivery-config.port.js";
 import { OWN_DELIVERY_CONFIG_REPOSITORY } from "../../domain/ports/own-delivery-config.port.js";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
+import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../../../shared/events/domain-event-bus.port.js";
 
 export interface UpdateDeliveryConfigInput {
   merchantId: string;
@@ -22,7 +23,8 @@ export interface UpdateDeliveryConfigInput {
 export class UpdateDeliveryConfigUseCase {
   constructor(
     @Inject(OWN_DELIVERY_CONFIG_REPOSITORY) private readonly ownDeliveryRepo: OwnDeliveryConfigRepository,
-    @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo: MerchantRepository
+    @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo: MerchantRepository,
+    @Optional() @Inject(DOMAIN_EVENT_BUS) private readonly eventBus?: DomainEventBus
   ) {}
 
   async execute(input: UpdateDeliveryConfigInput) {
@@ -112,6 +114,25 @@ export class UpdateDeliveryConfigUseCase {
       } as any;
 
       await this.ownDeliveryRepo.save(configToSave);
+
+      // Reindex knowledge base with delivery coverage so the agent can answer
+      // "vocês entregam no meu bairro?". Only neighborhood mode has named regions;
+      // radius/flat modes carry none. Best-effort — never blocks the save.
+      const deliveryRegions =
+        mode === "neighborhood" && neighborhoods?.length
+          ? neighborhoods.map((n) => n.name).filter(Boolean)
+          : undefined;
+
+      void this.eventBus?.publish({
+        eventType: "merchant.config_updated",
+        merchantId: input.merchantId,
+        payload: {
+          merchantId: input.merchantId,
+          paymentMethods: undefined,
+          installments: undefined,
+          deliveryRegions,
+        },
+      });
     }
 
     return {

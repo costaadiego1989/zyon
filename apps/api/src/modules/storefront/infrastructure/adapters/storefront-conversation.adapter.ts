@@ -23,6 +23,7 @@ import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module
 import { SupportHandoffService } from "../../../support/application/support-handoff.service.js";
 import { AgentCopyService } from "../copy/agent-copy.service.js";
 import { resolveDeterministicShortcut } from "../shortcuts/deterministic-shortcuts.service.js";
+import { QueryKnowledgeUseCase } from "../../../knowledge-base/application/use-cases/query-knowledge.use-case.js";
 
 export const STOREFRONT_CONVERSATION_ADAPTER = Symbol("StorefrontConversationAdapter");
 
@@ -48,6 +49,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     @Optional() private readonly applyCouponUseCase?: ApplyCouponUseCase,
     @Optional() @Inject(COUPON_REPOSITORY) private readonly couponRepo?: CouponRepository,
     @Optional() @Inject(PRODUCT_PROMOTION_REPOSITORY) private readonly productPromotionRepo?: ProductPromotionRepositoryPort,
+    @Optional() private readonly queryKnowledge?: QueryKnowledgeUseCase,
   ) {
     const localApiKey = process.env.LOCAL_LLM_API_KEY || process.env.OPENROUTER_API_KEY || "";
     const localBaseUrl = process.env.LOCAL_LLM_BASE_URL || process.env.OPENROUTER_BASE_URL || undefined;
@@ -151,6 +153,27 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       input,
     );
     if (shortcut) return shortcut;
+
+    // RAG: pull relevant knowledge-base chunks (policies, FAQ, config) for this
+    // message so the sales agent answers policy/store questions from the source
+    // of truth instead of guessing. Best-effort — never blocks the reply.
+    let knowledgeContext: string | undefined;
+    if (this.queryKnowledge) {
+      try {
+        const result = await this.queryKnowledge.execute({
+          merchantId: input.merchantId,
+          queryText: input.userMessage,
+          limit: 5,
+          threshold: 0.65,
+        });
+        if (result.chunks.length > 0) {
+          knowledgeContext = result.chunks.map((c) => `• ${c.content}`).join("\n\n");
+        }
+      } catch (err) {
+        this.logger.warn(`Knowledge base query failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
     const result = await this.agent.run({
       sessionId: input.sessionId,
       merchantId: input.merchantId,
@@ -164,6 +187,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       merchantPolicy: input.merchantPolicy,
       advancedRules: input.advancedRules,
       buyerContext: input.buyerContext,
+      knowledgeContext,
       systemPrompt: input.experimentSystemPrompt,
       toolHandlers: composeStoreToolHandlers(this.handlerDeps, ctx),
     });

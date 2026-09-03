@@ -31,6 +31,7 @@ function SupportPanelView({ model }: { model: SupportPanelModel }) {
     apiBaseUrl: model.apiOrigin,
     merchantId: model.merchantId,
     sessionId: model.sessionId,
+    globalUserId: model.globalUserId,
     embedToken: model.embedToken,
   });
 

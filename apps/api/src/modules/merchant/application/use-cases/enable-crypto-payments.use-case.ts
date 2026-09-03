@@ -1,10 +1,12 @@
-import { BadRequestException, Inject, Injectable , Logger} from "@nestjs/common";
+import { BadRequestException, Inject, Injectable , Logger, Optional} from "@nestjs/common";
 import { normalizeMerchantCryptoPayments } from "../../domain/services/merchant-crypto.validation.js";
 import {
   MERCHANT_RULES_REPOSITORY,
   type MerchantRulesRepository,
 } from "../../domain/ports/merchant-rules.repository.port.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
+import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../../../shared/events/domain-event-bus.port.js";
+import { extractPaymentMethods } from "../merchant.use-cases.js";
 
 export interface EnableCryptoPaymentsInput {
   merchantId: string;
@@ -22,6 +24,8 @@ export class EnableCryptoPaymentsUseCase {
   constructor(
     @Inject(MERCHANT_RULES_REPOSITORY)
     private readonly rulesRepository: MerchantRulesRepository,
+    @Optional() @Inject(DOMAIN_EVENT_BUS)
+    private readonly eventBus?: DomainEventBus,
   ) {}
 
   async execute(input: EnableCryptoPaymentsInput): Promise<{ success: boolean }> {
@@ -34,7 +38,21 @@ export class EnableCryptoPaymentsUseCase {
         token: input.token ?? "USDC",
         quoteTtlSeconds: 900,
       });
-      await this.rulesRepository.updateRules(input.merchantId, { cryptoPayments });
+      const updated = await this.rulesRepository.updateRules(input.merchantId, { cryptoPayments });
+
+      // Toggling crypto changes the buyer-facing payment methods list — reindex
+      // the knowledge base so the agent tells buyers the right payment options.
+      void this.eventBus?.publish({
+        eventType: "merchant.config_updated",
+        merchantId: input.merchantId,
+        payload: {
+          merchantId: input.merchantId,
+          paymentMethods: extractPaymentMethods(updated),
+          installments: undefined,
+          deliveryRegions: undefined,
+        },
+      });
+
       return { success: true };
     } catch (error) {
       throw new BadRequestException(error instanceof Error ? error.message : "crypto_payments_invalid");

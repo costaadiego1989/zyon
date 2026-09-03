@@ -9,6 +9,7 @@ import { MerchantModule } from "../merchant/merchant.module.js";
 import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
 import { SupportModule } from "../support/support.module.js";
 import { MarketplaceModule } from "../marketplace/marketplace.module.js";
+import { KnowledgeBaseModule } from "../knowledge-base/knowledge-base.module.js";
 import { SearchFederatedProductsUseCase } from "../marketplace/application/use-cases/search-federated-products.use-case.js";
 import { PRODUCT_PROMOTION_REPOSITORY } from "../catalog/domain/ports/product-promotion-repository.port.js";
 import { StartStoreConversationUseCase } from "./application/use-cases/start-store-conversation.use-case.js";
@@ -45,6 +46,7 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
     SupportModule,
     MarketplaceModule,
     CrossSellModule,
+    KnowledgeBaseModule,
   ],
   controllers: [StorefrontController],
   providers: [

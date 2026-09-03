@@ -24,7 +24,24 @@ export class IndexConfigUseCase {
   ) {}
 
   async execute(input: IndexConfigInput): Promise<void> {
-    const { merchantId, paymentMethods, deliveryRegions, installments } = input;
+    const { merchantId } = input;
+
+    // Merge with previously indexed config: each producer (payment rules, crypto
+    // toggle, delivery config) emits only its own slice, so we preserve fields it
+    // didn't send. Without this, a delivery update would wipe payment methods and
+    // vice-versa (single "store-config" chunk is replaced on every upsert).
+    let prevMeta: { paymentMethods?: string[]; deliveryRegions?: string[]; installments?: string[] } = {};
+    try {
+      const existing = await this.knowledgeRepository.findBySource(merchantId, "config", "store-config");
+      const meta = existing[0]?.metadata as typeof prevMeta | undefined;
+      if (meta) prevMeta = meta;
+    } catch {
+      // best-effort: fall back to treating as fresh config
+    }
+
+    const paymentMethods = input.paymentMethods ?? prevMeta.paymentMethods;
+    const installments = input.installments ?? prevMeta.installments;
+    const deliveryRegions = input.deliveryRegions ?? prevMeta.deliveryRegions;
 
     // Build human-readable content
     const contentParts: string[] = [];

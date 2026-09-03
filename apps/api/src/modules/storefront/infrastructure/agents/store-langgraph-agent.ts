@@ -64,6 +64,8 @@ export interface StorefrontAgentInput {
   merchantPolicy?: { maxDiscountPercent?: number; allowFreeShipping?: boolean; allowShippingDiscount?: boolean; freeShippingMinCartValue?: number; maxPartialShippingDiscount?: number; offerExpirationMinutes?: number };
   advancedRules?: string[];
   buyerContext?: { globalUserId: string; name?: string; phone?: string; email?: string };
+  /** RAG knowledge context to inject into system prompt — see StorefrontConversationAdapter. */
+  knowledgeContext?: string;
   callbacks?: StorefrontAgentCallbacks;
   toolHandlers?: StoreToolHandlers;
 }
@@ -175,6 +177,7 @@ export class StorefrontLangGraphAgent {
       merchantPolicy: input.merchantPolicy,
       advancedRules: input.advancedRules,
       buyerContext: input.buyerContext,
+      knowledgeContext: input.knowledgeContext,
     });
     const systemContent = input.systemPrompt
       ? `${input.systemPrompt}\n\n${defaultSystem}`
@@ -317,7 +320,7 @@ export class StorefrontLangGraphAgent {
         this.logger.warn("agent.fallback_provider.retry");
         try {
           const fbMessages: OpenRouterChatMessage[] = [
-            { role: "system" as any, content: input.systemPrompt || this.baseSystemPrompt || buildStoreSystemPrompt({ merchantName: input.merchantName, storeCategory: input.storeCategory, storeSettings: input.storeSettings, agentIdentity: input.agentIdentity, merchantPolicy: input.merchantPolicy, advancedRules: input.advancedRules, buyerContext: input.buyerContext }) },
+            { role: "system" as any, content: input.systemPrompt || this.baseSystemPrompt || buildStoreSystemPrompt({ merchantName: input.merchantName, storeCategory: input.storeCategory, storeSettings: input.storeSettings, agentIdentity: input.agentIdentity, merchantPolicy: input.merchantPolicy, advancedRules: input.advancedRules, buyerContext: input.buyerContext, knowledgeContext: input.knowledgeContext }) },
             ...input.history.map((h) => ({ role: h.role as any, content: h.content })),
             { role: "user" as any, content: input.userMessage }
           ];

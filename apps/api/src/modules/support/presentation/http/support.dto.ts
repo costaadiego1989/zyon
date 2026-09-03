@@ -82,6 +82,12 @@ export class SupportChatDto {
   @IsString()
   @MaxLength(120)
   session_id?: string;
+
+  @ApiPropertyOptional({ description: "Authenticated buyer's platform-wide id, for order-aware answers", maxLength: 120 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  buyer_global_user_id?: string;
 }
 
 /**
@@ -108,4 +114,10 @@ export class PublicSupportChatDto {
   @IsString()
   @MaxLength(120)
   session_id?: string;
+
+  @ApiPropertyOptional({ description: "Authenticated buyer's platform-wide id, for order-aware answers", maxLength: 120 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  buyer_global_user_id?: string;
 }
