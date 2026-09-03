@@ -1,15 +1,18 @@
-import React from "react";
+import React, { useState } from "react";
 import { Smartphone, CheckCircle, XCircle, Loader2, Send, ExternalLink } from "lucide-react";
 import { SectionHeader } from "../../components/SectionHeader.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { Button } from "../../components/Button.js";
 import { FormField } from "../../components/FormField.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
+import { TabBar } from "../../components/TabBar.js";
 import type { MerchantProfile } from "../../api-client.js";
 import { useWhatsAppSellerPage } from "./useWhatsAppSellerPage.js";
+import { WhatsAppTemplatesTab } from "./WhatsAppTemplatesTab.js";
 
 export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
   const vm = useWhatsAppSellerPage({ me: props.me });
+  const [tab, setTab] = useState<"connection" | "templates">("connection");
 
   // Guard: no user
   if (!props.me) {
@@ -49,8 +52,20 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
         )}
       </header>
 
+      <TabBar
+        tabs={[
+          { key: "connection", label: "Conexão" },
+          { key: "templates", label: "Templates" },
+        ]}
+        activeTab={tab}
+        onTabChange={(k) => setTab(k as "connection" | "templates")}
+      />
+
+      {/* ── TEMPLATES TAB ── */}
+      {tab === "templates" && <WhatsAppTemplatesTab me={props.me} />}
+
       {/* ── ACTIVE STATE ── */}
-      {status === "active" && (
+      {tab === "connection" && status === "active" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           {/* Toggle + Info */}
           <div className="panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px" }}>
@@ -111,7 +126,7 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
       )}
 
       {/* ── PENDING VERIFICATION ── */}
-      {status === "pending_verification" && (
+      {tab === "connection" && status === "pending_verification" && (
         <div className="panel" style={{ padding: "32px 28px", maxWidth: 480 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
             <Loader2 size={20} className="spin" style={{ color: "var(--color-brand)" }} />
@@ -139,7 +154,7 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
       )}
 
       {/* ── DISCONNECTED — META EMBEDDED SIGNUP ── */}
-      {(status === "disconnected" || status === "inactive" || status === "error") && (
+      {tab === "connection" && (status === "disconnected" || status === "inactive" || status === "error") && (
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           {/* Value proposition */}
           <div className="panel" style={{ padding: "24px 28px" }}>
