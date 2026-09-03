@@ -218,6 +218,10 @@ class StubAsaasPlatform implements AsaasPlatformPort {
   async retrieveWalletId(_apiKey: string) {
     return "wallet_1";
   }
+
+  async approveSandboxAccount(_apiKey: string) {
+    return;
+  }
 }
 
 class StubBillingConfig implements BillingConfigPort {

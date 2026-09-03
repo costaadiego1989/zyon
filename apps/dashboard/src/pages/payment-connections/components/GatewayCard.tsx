@@ -21,6 +21,8 @@ interface GatewayCardProps {
   onDisconnect?: () => void;
   /** Secondary action for a pending connection (e.g. Asaas: complete onboarding docs). */
   onOnboard?: () => void;
+  /** Dev/sandbox-only action (e.g. instantly approve). Rendered subtly. */
+  devAction?: { label: string; onClick: () => void };
   comingSoon?: boolean;
   configureUrl?: string;
 }
@@ -39,6 +41,7 @@ export function GatewayCard({
   onSync,
   onDisconnect,
   onOnboard,
+  devAction,
   comingSoon,
   configureUrl,
 }: GatewayCardProps) {
@@ -157,6 +160,26 @@ export function GatewayCard({
                 </Button>
               ) : null}
             </div>
+            {devAction ? (
+              <button
+                type="button"
+                onClick={devAction.onClick}
+                disabled={operation !== "idle"}
+                style={{
+                  marginTop: 2,
+                  background: "transparent",
+                  border: "1px dashed var(--color-border)",
+                  borderRadius: "var(--radius-sm)",
+                  color: "var(--color-text-muted)",
+                  font: "600 11px var(--font-mono)",
+                  padding: "6px 10px",
+                  cursor: "pointer",
+                }}
+                title="Somente em desenvolvimento"
+              >
+                🧪 {devAction.label}
+              </button>
+            ) : null}
           </div>
         ) : (
           <Button

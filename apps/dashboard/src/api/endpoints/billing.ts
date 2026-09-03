@@ -63,6 +63,9 @@ export function billingEndpoints(base: string, f: typeof fetch) {
     syncAsaasConnection(): Promise<PaymentConnection> {
       return dashboardJson(base, "/payments/connections/asaas/sync", { method: "POST" }, f);
     },
+    approveAsaasSandbox(): Promise<PaymentConnection> {
+      return dashboardJson(base, "/payments/connections/asaas/sandbox-approve", { method: "POST" }, f);
+    },
     createMercadoPagoOAuthLink(): Promise<{ url: string }> {
       return dashboardJson(base, "/merchants/me/payment-connections/mercadopago/oauth-link", { method: "POST" }, f);
     },

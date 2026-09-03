@@ -220,6 +220,25 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     }
   }
 
+  // DEV/SANDBOX only: instantly approve the Asaas subaccount's KYC for testing.
+  async function approveAsaasSandbox() {
+    setOperation("syncing-asaas");
+    setAlert(null);
+    try {
+      const updated = await api.approveAsaasSandbox();
+      setConnections((prev) => {
+        const idx = prev.findIndex((c) => c.id === updated.id);
+        return idx >= 0 ? prev.map((c, i) => (i === idx ? updated : c)) : [updated, ...prev];
+      });
+      showToast("success", "Subconta aprovada (sandbox)");
+    } catch (e) {
+      console.error("[payment-connections]", e);
+      setAlert({ message: sanitizeError(e), kind: "error" });
+    } finally {
+      setOperation("idle");
+    }
+  }
+
   async function onboardMercadoPago() {
     setOperation("connecting-mercadopago");
     setAlert(null);
@@ -320,6 +339,7 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     syncMercadoPago,
     saveCryptoWallet,
     disconnect,
+    approveAsaasSandbox,
   };
 }
 

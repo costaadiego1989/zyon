@@ -87,6 +87,13 @@ export class AsaasPlatformAdapter implements AsaasPlatformPort {
     return w?.walletId ?? w?.id ?? null;
   }
 
+  async approveSandboxAccount(apiKey: string): Promise<void> {
+    // Sandbox-only: approves commercial data + documentation instantly so BaaS
+    // subaccounts (whose onboardingUrl is null in sandbox) can be tested end to
+    // end. https://docs.asaas.com/recipes/aprovação-de-conta-em-sandbox
+    await this.request<unknown>("/v3/sandbox/myAccount/approve", apiKey, { method: "POST", body: "{}" });
+  }
+
   private async request<T>(
     path: string,
     apiKey: string,

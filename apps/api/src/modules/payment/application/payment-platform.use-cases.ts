@@ -6,6 +6,7 @@ export * from "./payment-platform/connect/sync-stripe-connect.use-case.js";
 export * from "./payment-platform/connect/create-asaas-subaccount.use-case.js";
 export * from "./payment-platform/connect/get-asaas-onboarding-link.use-case.js";
 export * from "./payment-platform/connect/sync-asaas-subaccount.use-case.js";
+export * from "./payment-platform/connect/approve-asaas-sandbox.use-case.js";
 
 export * from "./payment-platform/billing/get-billing-subscription.use-case.js";
 export * from "./payment-platform/billing/expire-billing-trial.use-case.js";

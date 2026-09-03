@@ -55,6 +55,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
     syncStripe,
     createAsaasSubaccount,
     openAsaasOnboarding,
+    approveAsaasSandbox,
     syncAsaas,
     onboardMercadoPago,
     syncMercadoPago,
@@ -163,6 +164,11 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
             onSync={() => void syncAsaas()}
             onDisconnect={() => setPendingDisconnect("asaas")}
             onOnboard={asaasConn && asaasConn.status !== "active" ? () => void openAsaasOnboarding() : undefined}
+            devAction={
+              import.meta.env.DEV && asaasConn && asaasConn.status !== "active"
+                ? { label: "Aprovar (sandbox)", onClick: () => void approveAsaasSandbox() }
+                : undefined
+            }
           />
           <GatewayCard
             provider="mercadopago"

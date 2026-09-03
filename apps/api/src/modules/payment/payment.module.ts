@@ -59,6 +59,7 @@ import { PaymentDispatchService } from "./application/services/payment-dispatch.
 import { BillingPlanMeteringService } from "./domain/billing-plan-guard.js";
 import { BILLING_TRIAL_JOB_QUEUE } from "./domain/ports/billing-trial-job-queue.port.js";
 import {
+  ApproveAsaasSandboxUseCase,
   CreateAsaasSubaccountUseCase,
   CreateBillingCheckoutUseCase,
   CreateBillingPortalUseCase,
@@ -136,6 +137,7 @@ import {
     SaveAsaasConnectionConfigUseCase,
     DeletePaymentConnectionUseCase,
     CreateAsaasSubaccountUseCase,
+    ApproveAsaasSandboxUseCase,
     GetAsaasOnboardingLinkUseCase,
     SyncAsaasSubaccountUseCase,
     GetBillingSubscriptionUseCase,

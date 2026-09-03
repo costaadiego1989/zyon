@@ -24,6 +24,7 @@ import { RequireTenantAccess } from "../../../integrations/presentation/http/ten
 import { TenantAccessGuard } from "../../../integrations/presentation/http/tenant-access.guard.js";
 import { TenantCredentialGuard } from "../../../integrations/presentation/http/tenant-credential.guard.js";
 import {
+  ApproveAsaasSandboxUseCase,
   CreateAsaasSubaccountUseCase,
   CreateBillingCheckoutUseCase,
   CreateBillingPortalUseCase,
@@ -118,6 +119,7 @@ export class PaymentPlatformController {
     private readonly stripeOnboarding: CreateStripeConnectOnboardingLinkUseCase,
     private readonly syncStripe: SyncStripeConnectUseCase,
     private readonly createAsaas: CreateAsaasSubaccountUseCase,
+    private readonly approveAsaasSandbox: ApproveAsaasSandboxUseCase,
     private readonly asaasOnboarding: GetAsaasOnboardingLinkUseCase,
     private readonly syncAsaas: SyncAsaasSubaccountUseCase,
   ) {}
@@ -301,6 +303,18 @@ export class PaymentPlatformController {
   async syncAsaasConnection(@Req() request: unknown) {
     return toConnectionResponse(
       await this.syncAsaas.execute(humanPrincipal(request).tenantId),
+    );
+  }
+
+  @ApiOperation({
+    summary: "Approve Asaas subaccount in sandbox (dev only)",
+    description: "Sandbox-only: instantly approves the subaccount's KYC so BaaS can be tested. Refused in production.",
+  })
+  @Post("asaas/sandbox-approve")
+  @Idempotent()
+  async approveAsaasSandboxConnection(@Req() request: unknown) {
+    return toConnectionResponse(
+      await this.approveAsaasSandbox.execute(humanPrincipal(request).tenantId),
     );
   }
 }

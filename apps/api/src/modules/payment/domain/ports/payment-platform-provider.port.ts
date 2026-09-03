@@ -81,4 +81,6 @@ export interface AsaasPlatformPort {
   createSubaccountApiKey(accountId: string): Promise<{ apiKey: string }>;
   /** Retrieves the walletId for a subaccount, called with that subaccount's own apiKey. */
   retrieveWalletId(apiKey: string): Promise<string | null>;
+  /** SANDBOX ONLY: instantly approves the subaccount's commercial data + docs. */
+  approveSandboxAccount(apiKey: string): Promise<void>;
 }
