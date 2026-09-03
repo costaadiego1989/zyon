@@ -8,6 +8,7 @@ import { CompletedView } from "./steps/CompletedView.js";
 import { PlanSelection } from "./steps/PlanSelection.js";
 import { StepIdentity } from "./steps/StepIdentity.js";
 import { StepAddress } from "./steps/StepAddress.js";
+import { StepShipping } from "./steps/StepShipping.js";
 import { StepPayment } from "./steps/StepPayment.js";
 import { StepWhatsApp } from "./steps/StepWhatsApp.js";
 import { StepAiEngine } from "./steps/StepAiEngine.js";
@@ -47,11 +48,12 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
   }
 
   const handleNext = () => {
-    if (vm.currentStep === 1) void vm.saveStep1();
-    else if (vm.currentStep === 2) void vm.saveStep2();
-    else if (vm.currentStep === 3) void vm.saveStep3();
-    else if (vm.currentStep === 4) void vm.completeWhatsAppStep();
-    else void vm.finish();
+    if (vm.currentStep === 1) void vm.saveStep1();       // Identidade
+    else if (vm.currentStep === 2) void vm.saveStep2();  // Endereço → Frete
+    else if (vm.currentStep === 3) vm.advanceFromShipping(); // Frete → Pagamento
+    else if (vm.currentStep === 4) void vm.saveStep3();  // Pagamento → WhatsApp
+    else if (vm.currentStep === 5) void vm.completeWhatsAppStep(); // WhatsApp → Motor IA
+    else void vm.finish();                               // Motor de IA → concluir
   };
 
   return (
@@ -95,6 +97,16 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
               )}
 
               {vm.currentStep === 3 && (
+                <StepShipping
+                  apiBaseUrl={vm.apiBaseUrl}
+                  connected={vm.shippingConnected}
+                  loading={vm.shippingLoading}
+                  onConnect={vm.connectMelhorEnvio}
+                  onSkip={vm.advanceFromShipping}
+                />
+              )}
+
+              {vm.currentStep === 4 && (
                 <StepPayment
                   paymentDraft={vm.paymentDraft}
                   setPaymentDraft={vm.setPaymentDraft}
@@ -107,9 +119,9 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
                 />
               )}
 
-              {vm.currentStep === 4 && <StepWhatsApp me={vm.me} />}
+              {vm.currentStep === 5 && <StepWhatsApp me={vm.me} />}
 
-              {vm.currentStep === 5 && <StepAiEngine />}
+              {vm.currentStep === 6 && <StepAiEngine />}
             </div>
           </div>
 

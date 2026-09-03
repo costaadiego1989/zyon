@@ -121,5 +121,9 @@ export function deliveryEndpoints(base: string, f: typeof fetch) {
     getMelhorEnvioAuthorizeUrl(): string {
       return `${base}/shipping/melhor-envio/authorize`;
     },
+
+    getMelhorEnvioStatus(): Promise<{ connected: boolean; expired: boolean; provider: string }> {
+      return dashboardJson(base, `/shipping/melhor-envio/status`, { method: "GET" }, f);
+    },
   };
 }

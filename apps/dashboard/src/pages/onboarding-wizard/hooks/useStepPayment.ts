@@ -50,8 +50,8 @@ export function useStepPayment(deps: UseStepPaymentDeps) {
         });
       }
       await deps.markOnboardingStep("checkout_config");
-      // Continue to the WhatsApp step (4); Motor de IA follows as step 5.
-      deps.setCurrentStep(4);
+      // Continue to the WhatsApp step (5); Motor de IA follows as step 6.
+      deps.setCurrentStep(5);
     } catch (e) {
       deps.setMessage(friendlyError(e));
     } finally {
