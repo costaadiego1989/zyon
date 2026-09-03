@@ -1,7 +1,8 @@
 import { CanActivate, ExecutionContext, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
 import {
   setTenantPrincipal,
-  type TenantPrincipalRequest
+  type TenantPrincipalRequest,
+  type TenantRole,
 } from "../../../shared/auth/tenant-principal.js";
 import { AuthCookieService } from "../domain/services/auth-cookie.service.js";
 import { JwtService } from "../domain/services/jwt.service.js";
@@ -62,5 +63,5 @@ export class AuthGuard implements CanActivate {
  */
 export function currentUser(request: { user?: unknown }) {
   if (!request.user) throw new UnauthorizedException("missing_authenticated_user");
-  return request.user as { userId: string; merchantId: string; email: string; role: "owner" | "admin" };
+  return request.user as { userId: string; merchantId: string; email: string; role: TenantRole };
 }
