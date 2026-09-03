@@ -10,6 +10,8 @@ import {
 } from "@nestjs/swagger";
 import { AuthGuard } from "../../auth/presentation/auth.guard.js";
 import { CurrentTenant } from "../../../shared/tenant/current-tenant.decorator.js";
+import { currentTenantPrincipal } from "../../../shared/auth/tenant-principal.js";
+import { Req } from "@nestjs/common";
 import {
   GetMerchantProfileUseCase,
   GetMerchantRulesUseCase,
@@ -59,8 +61,11 @@ export class MerchantController {
     description: "Not authenticated",
   })
   @Get()
-  profile(@CurrentTenant() merchantId: string) {
-    return this.getProfile.execute(merchantId);
+  profile(@CurrentTenant() merchantId: string, @Req() req: unknown) {
+    const principal = currentTenantPrincipal(
+      req as Parameters<typeof currentTenantPrincipal>[0],
+    );
+    return this.getProfile.execute(merchantId, principal);
   }
 
   @ApiOperation({

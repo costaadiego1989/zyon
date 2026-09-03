@@ -53,7 +53,18 @@ test(
 
       assert.equal(registered.merchant_id, merchantId);
       assert.equal(principal.merchantId, merchantId);
-      assert.equal((await merchantController.profile(merchantId)).name, "Auth Demo");
+      assert.equal(
+        (await merchantController.profile(merchantId, {
+          tenantPrincipal: {
+            kind: "human",
+            tenantId: merchantId,
+            userId: (principal as { userId: string }).userId,
+            email: (principal as { email: string }).email,
+            role: (principal as { role: "owner" | "admin" | "staff" }).role,
+          },
+        } as never)).name,
+        "Auth Demo",
+      );
       assert.equal((await merchantController.update(merchantId, { maxDiscountPercent: 17 })).maxDiscountPercent, 17);
       assert.equal((await merchantController.rules(merchantId)).maxDiscountPercent, 17);
     } finally {

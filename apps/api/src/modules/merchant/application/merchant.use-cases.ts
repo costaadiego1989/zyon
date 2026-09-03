@@ -3,16 +3,30 @@ import { MERCHANT_REPOSITORY, type MerchantRepository } from "../domain/ports/me
 import type { MerchantProfile, MerchantRules } from "../domain/merchant.types.js";
 import { normalizeMerchantCryptoPayments } from "../domain/services/merchant-crypto.validation.js";
 import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../../shared/events/domain-event-bus.port.js";
+import { type TenantPrincipal, type TenantRole } from "../../../shared/auth/tenant-principal.js";
+
+export interface MerchantProfileWithActor extends MerchantProfile {
+  role: TenantRole;
+  userId: string;
+}
 
 @Injectable()
 export class GetMerchantProfileUseCase {
   constructor(@Inject(MERCHANT_REPOSITORY) private readonly repository: MerchantRepository) {}
 
-  async execute(merchantId: string): Promise<MerchantProfile> {
+  async execute(merchantId: string, principal: TenantPrincipal): Promise<MerchantProfileWithActor> {
+    if (principal.kind !== "human") {
+      throw new BadRequestException("human_principal_required");
+    }
     const profile = await this.repository.getProfile(merchantId);
     if (!profile) throw new NotFoundException("merchant_not_found");
     const slug = profile.storeSettings?.slug?.trim() || slugifyStoreName(profile.name);
-    return { ...profile, slug };
+    return {
+      ...profile,
+      slug,
+      role: principal.role,
+      userId: principal.userId,
+    };
   }
 }
 

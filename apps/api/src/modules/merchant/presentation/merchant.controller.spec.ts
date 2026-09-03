@@ -33,7 +33,15 @@ test("MerchantController reads and updates rules scoped by authenticated merchan
   const controller = buildController(repository);
   const merchantId = "mrc_1";
 
-  assert.equal((await controller.profile(merchantId)).id, "mrc_1");
+  assert.equal((await controller.profile(merchantId, {
+    tenantPrincipal: {
+      kind: "human",
+      tenantId: "mrc_1",
+      userId: "usr_1",
+      email: "owner@example.com",
+      role: "owner",
+    },
+  } as never)).id, "mrc_1");
   assert.equal((await controller.update(merchantId, { maxDiscountPercent: 15 })).maxDiscountPercent, 15);
   assert.equal((await controller.rules(merchantId)).maxDiscountPercent, 15);
 });
