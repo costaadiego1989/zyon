@@ -47,6 +47,10 @@ export interface MerchantStoreSettings {
   seo?: SeoSettings;
   gtm?: GtmSettings;
   slug?: string;
+  /** Intent Memory (behavioral intent tracking) merchant-level config. */
+  intentMemory?: {
+    intent_tracking_enabled?: boolean;
+  };
 }
 
 export interface MerchantProfile {

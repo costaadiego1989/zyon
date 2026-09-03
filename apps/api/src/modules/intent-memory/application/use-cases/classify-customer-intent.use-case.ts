@@ -55,13 +55,22 @@ export class ClassifyCustomerIntentUseCase {
   }
 
   private classifyPrimaryIntent(events: string[], cartTotal: number): string {
+    // Price signals win first: asking for a coupon or objecting to shipping cost
+    // is a stronger intent signal than anything else.
     if (events.includes("coupon_field_clicked") || events.includes("shipping_objection_detected")) {
       return "price_sensitive";
+    }
+    // Selecting a shipping option without any price friction reads as a buyer
+    // who cares about delivery over price → speed_focused.
+    if (events.includes("shipping_option_selected")) {
+      return "speed_focused";
     }
     if (events.includes("checkout_started") && events.includes("order_completed")) {
       return "ready_to_buy";
     }
-    if (events.includes("exit_intent_detected") || events.includes("idle_30s")) {
+    // NOTE: event name must match CheckoutEventName exactly ("idle_30_seconds",
+    // not "idle_30s") — the old value never matched and browsing was unreachable.
+    if (events.includes("exit_intent_detected") || events.includes("idle_30_seconds")) {
       return "browsing";
     }
     return "exploring";

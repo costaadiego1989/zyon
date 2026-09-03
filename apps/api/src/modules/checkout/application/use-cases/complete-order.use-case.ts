@@ -323,13 +323,21 @@ export class CompleteOrderUseCase {
           ? this.holdoutGroup.assignCohort(effectiveUserId, input.merchant_id)
           : "treatment");
 
-      // Real per-feature attribution flags accumulated during the session
-      // (flipped true at each feature's fire-point). The tagger's holdout guard
-      // still forces all of these to false for the control cohort.
       // Feature flags accumulated on the session at each feature's fire-point.
       // cartRecovery is stamped by the cart-recovery module when it pulls a buyer
       // back (correct dependency direction: cart-recovery → checkout session).
       const applied = session.featuresApplied ?? {};
+
+      // Shipping subsidy = what the store absorbed on freight (realCost the store
+      // pays minus what the buyer was charged). Positive only when the merchant
+      // covered part/all of the freight (e.g. an AI free-shipping offer zeroes
+      // customerPrice). Never negative; values are in major units → cents.
+      const shipping = session.shipping;
+      const subsidyMajor =
+        shipping && typeof shipping.realCost === "number"
+          ? Math.max(0, shipping.realCost - (shipping.customerPrice ?? 0))
+          : 0;
+      const shippingSubsidyCents = Math.round(subsidyMajor * 100);
 
       const attributionTag = this.attributionTagger.tag({
         sessionId: input.session_id,
@@ -346,7 +354,7 @@ export class CompleteOrderUseCase {
         revenue: {
           orderValueCents: input.order_total,
           discountCents: session.cart.currentDiscount ?? 0,
-          shippingSubsidyCents: 0 // TODO: calculate from shipping realCost vs customerPrice
+          shippingSubsidyCents
         },
         aiCostCents: session.aiCostCents ?? 0
       });
