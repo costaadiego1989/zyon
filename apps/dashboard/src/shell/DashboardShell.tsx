@@ -9,6 +9,7 @@ import { PlanProvider } from "../components/FeatureGate.js";
 import { PremiumFeatureGate } from "../components/PremiumFeatureGate.js";
 import { NotificationBell, type NotificationItem } from "../components/NotificationBell.js";
 import { useSupportSocket } from "../hooks/useSupportSocket.js";
+import { useNavCounts } from "./useNavCounts.js";
 import { ImportProgressProvider } from "../components/spreadsheet-import/ImportProgressProvider.js";
 import { ImportProgressBanner } from "../components/spreadsheet-import/ImportProgressBanner.js";
 import { useCatalogApi } from "../hooks/api/useCatalogApi.js";
@@ -163,6 +164,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   }, []);
 
   const socket = useSupportSocket(API_BASE_URL, me.id, me.name || undefined);
+  const { counts: navCounts, markViewed: markBadgeViewed } = useNavCounts();
 
   React.useEffect(() => {
     if (socket.newTickets.length === 0) return;
@@ -361,12 +363,23 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                     {sectionItems.map((item) => {
                       const Icon = item.icon;
                       const active = tab === item.key;
+                      const rawCount = item.badgeKey
+                        ? item.badgeKey === "cart-recovery"
+                          ? navCounts.cartRecovery
+                          : navCounts[item.badgeKey]
+                        : 0;
+                      const badgeCount = rawCount > 99 ? "99+" : rawCount > 0 ? String(rawCount) : null;
 
                       return (
                         <button
                           key={item.key}
                           type="button"
-                          onClick={() => changeTab(item.key)}
+                          onClick={() => {
+                            if (item.badgeKey && rawCount > 0) {
+                              markBadgeViewed(item.badgeKey);
+                            }
+                            changeTab(item.key);
+                          }}
                           style={{
                             width: "100%",
                             display: "flex",
@@ -401,14 +414,22 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                           }}>
                             {item.label}
                           </span>
-                          {item.badge && (
+                          {badgeCount && (
                             <span style={{
-                              width: 6,
-                              height: 6,
-                              borderRadius: "50%",
+                              minWidth: 18,
+                              height: 18,
+                              padding: "0 5px",
+                              borderRadius: 9,
                               background: "var(--good)",
+                              color: "oklch(13% 0.002 145)",
+                              font: "600 10.5px var(--font-mono)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
                               flex: "none"
-                            }} />
+                            }}>
+                              {badgeCount}
+                            </span>
                           )}
                         </button>
                       );

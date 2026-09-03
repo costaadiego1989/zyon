@@ -40,6 +40,7 @@ import { StoriesModule } from "./modules/stories/stories.module.js";
 import { ExperimentsModule } from "./modules/experiments/experiments.module.js";
 import { MarketplaceModule } from "./modules/marketplace/marketplace.module.js";
 import { DashboardMarketplaceModule } from "./modules/dashboard/dashboard-marketplace.module.js";
+import { DashboardModule } from "./modules/dashboard/dashboard.module.js";
 import { RevenueManagerModule } from "./modules/revenue-manager/revenue-manager.module.js";
 import { RevenueLiftModule } from "./modules/revenue-lift/revenue-lift.module.js";
 import { CartRecoveryModule } from "./modules/cart-recovery/cart-recovery.module.js";
@@ -139,6 +140,7 @@ const REDACTED_LOG_PATHS = [
     RevenueLiftModule,
     MarketplaceModule,
     DashboardMarketplaceModule,
+    DashboardModule,
     CartRecoveryModule,
     IntentMemoryModule,
     CouponsModule,

@@ -117,8 +117,8 @@ export interface NavItem {
   section: string;
   icon: LucideIcon;
   requiredPlan?: MerchantPlan | MerchantPlan[];
-  /** Optional badge key — resolved at runtime (pending orders, unread messages, etc). */
-  badge?: "orders" | "messages" | "cart-recovery" | "returns";
+  /** Optional badge key — resolved at runtime to a count (pending orders, unread messages, etc). */
+  badgeKey?: "orders" | "messages" | "cart-recovery";
   /** Search keywords for cmd+K filtering (Portuguese + English + old names). */
   keywords?: string[];
 }
@@ -131,10 +131,10 @@ export const NAV_ITEMS: NavItem[] = [
 
   // ─── DIÁRIO ─── operações que o lojista abre todo dia
   { key: "overview", label: "Visão Geral", section: "daily", icon: Activity, keywords: ["dashboard", "home", "resumo", "métricas"] },
-  { key: "shipments", label: "Pedidos & Envios", section: "daily", icon: PackageSearch, requiredPlan: STORE, badge: "orders", keywords: ["pedidos", "orders", "envios", "shipments", "entregas"] },
+  { key: "shipments", label: "Pedidos & Envios", section: "daily", icon: PackageSearch, requiredPlan: STORE, badgeKey: "orders", keywords: ["pedidos", "orders", "envios", "shipments", "entregas"] },
   { key: "customers", label: "Clientes", section: "daily", icon: UsersRound, requiredPlan: STORE, keywords: ["clientes", "customers", "compradores"] },
-  { key: "cart-recovery", label: "Recuperação de Carrinho", section: "daily", icon: ShoppingCart, requiredPlan: STORE, badge: "cart-recovery", keywords: ["carrinho", "cart", "recovery", "abandonado", "recuperação"] },
-  { key: "support", label: "Atendimento", section: "daily", icon: MessageSquare, badge: "messages", keywords: ["suporte", "support", "atendimento", "chamados", "tickets", "mensagens"] },
+  { key: "cart-recovery", label: "Recuperação de Carrinho", section: "daily", icon: ShoppingCart, requiredPlan: STORE, badgeKey: "cart-recovery", keywords: ["carrinho", "cart", "recovery", "abandonado", "recuperação"] },
+  { key: "support", label: "Atendimento", section: "daily", icon: MessageSquare, badgeKey: "messages", keywords: ["suporte", "support", "atendimento", "chamados", "tickets", "mensagens"] },
 
   // ─── VENDAS ─── otimização de conversão
   { key: "funnel", label: "Funil de Conversão", section: "sales", icon: BarChart3, requiredPlan: STORE, keywords: ["funil", "funnel", "conversão", "conversion"] },
