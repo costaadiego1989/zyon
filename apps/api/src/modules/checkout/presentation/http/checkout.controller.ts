@@ -35,6 +35,8 @@ import { NonProductionRoute } from "../../../../shared/http/non-production-route
 import { PlanLimitGuard, RequirePlanLimit } from "../../../payment/domain/billing-plan-guard.js";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-ownership.guard.js";
+import { StaffReadable } from "../../../auth/presentation/staff-readable.decorator.js";
+import { StaffReadableGuard } from "../../../auth/presentation/staff-readable.guard.js";
 
 @NonProductionRoute()
 @Controller("checkout")
@@ -156,7 +158,8 @@ export class CheckoutController {
   }
 
   @Get("funnel/:merchantId")
-  @UseGuards(AuthGuard, MerchantOwnershipGuard)
+  @StaffReadable()
+  @UseGuards(AuthGuard, MerchantOwnershipGuard, StaffReadableGuard)
   funnel(
     @Param("merchantId") merchantId: string,
     @Query("period") period?: string,
@@ -178,7 +181,8 @@ export class CheckoutController {
   }
 
   @Get("funnel/:merchantId/sessions")
-  @UseGuards(AuthGuard, MerchantOwnershipGuard)
+  @StaffReadable()
+  @UseGuards(AuthGuard, MerchantOwnershipGuard, StaffReadableGuard)
   funnelSessions(@Param("merchantId") merchantId: string) {
     if (!this.getFunnelSessions) throw new Error("funnel_sessions_not_configured");
     return this.getFunnelSessions.execute(merchantId);
