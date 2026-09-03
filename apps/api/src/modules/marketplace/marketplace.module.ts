@@ -25,6 +25,7 @@ import { PlaceCrossStoreOrderUseCase } from "./application/use-cases/place-cross
 import { UpdateMarketplaceConfigUseCase } from "./application/use-cases/update-marketplace-config.use-case.js";
 import { SyncMerchantProductsUseCase } from "./application/use-cases/sync-merchant-products.use-case.js";
 import { HandleMarketplaceChargebackUseCase } from "./application/use-cases/handle-marketplace-chargeback.use-case.js";
+import { RegisterMarketplaceReturnUseCase } from "./application/use-cases/register-marketplace-return.use-case.js";
 import { ProcessScheduledTransfersUseCase } from "./application/use-cases/process-scheduled-transfers.use-case.js";
 import { GetSellerOrdersUseCase } from "./application/use-cases/get-seller-orders.use-case.js";
 import { GetSellerStatsUseCase } from "./application/use-cases/get-seller-stats.use-case.js";
@@ -193,6 +194,15 @@ const prismaProvider = {
       inject: [MARKETPLACE_SETTLEMENT_REPOSITORY, SettlementStateMachineService],
     },
     {
+      provide: RegisterMarketplaceReturnUseCase,
+      useFactory: (
+        settlementRepo: PrismaMarketplaceSettlementRepository,
+        stateMachine: SettlementStateMachineService,
+      ) =>
+        new RegisterMarketplaceReturnUseCase(settlementRepo, stateMachine),
+      inject: [MARKETPLACE_SETTLEMENT_REPOSITORY, SettlementStateMachineService],
+    },
+    {
       provide: GetSellerOrdersUseCase,
       useFactory: (orderRepo: PrismaCrossStoreOrderRepository) =>
         new GetSellerOrdersUseCase(orderRepo),
@@ -291,6 +301,7 @@ const prismaProvider = {
     UpdateMarketplaceConfigUseCase,
     SyncMerchantProductsUseCase,
     HandleMarketplaceChargebackUseCase,
+    RegisterMarketplaceReturnUseCase,
     ProcessScheduledTransfersUseCase,
     GetSellerOrdersUseCase,
     GetSellerStatsUseCase,

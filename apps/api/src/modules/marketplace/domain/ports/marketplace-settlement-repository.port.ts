@@ -62,6 +62,7 @@ export interface MarketplaceSettlementRepository {
   ): Promise<MarketplaceSettlementSnapshot>;
   getById(settlementId: string): Promise<MarketplaceSettlementSnapshot | undefined>;
   findByLineItemId(lineItemId: string): Promise<MarketplaceSettlementSnapshot | undefined>;
+  findByOrderId(orderId: string): Promise<MarketplaceSettlementSnapshot[]>;
   findBySellerMerchantId(
     sellerMerchantId: string,
     status?: SettlementStatus,

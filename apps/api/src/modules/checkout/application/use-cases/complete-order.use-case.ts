@@ -68,10 +68,7 @@ export class CompleteOrderUseCase {
 
     if (this.offerRepository) {
       const expectedTotal = computeExpectedTotal(session);
-      const TOLERANCE = 0.02; // allow ±2¢ for floating point drift
-      // The payment amount the buyer is charged includes the fixed platform
-      // buyer service fee (R$0,99), which is NOT part of the cart/order total.
-      // Accept order_total matching either the product total or product + fee.
+      const TOLERANCE = 0.02;
       const expectedWithBuyerFee = expectedTotal + BUYER_SERVICE_FEE_MAJOR_UNITS;
       const matchesTotal = Math.abs(input.order_total - expectedTotal) <= TOLERANCE;
       const matchesTotalWithFee = Math.abs(input.order_total - expectedWithBuyerFee) <= TOLERANCE;
@@ -197,8 +194,9 @@ export class CompleteOrderUseCase {
 
     if (this.placeCrossStoreOrder) {
       try {
+        const crossStoreSessionId = (session.cart as any)?.cart_ref ?? input.session_id;
         await this.placeCrossStoreOrder.execute({
-          checkoutSessionId: input.session_id,
+          checkoutSessionId: crossStoreSessionId,
           orderId: input.external_order_id,
           hostMerchantId: input.merchant_id
         });
@@ -208,9 +206,6 @@ export class CompleteOrderUseCase {
     }
 
     if (this.recordIntentIfConsented && !idempotent) {
-      // Gate on the merchant's Intent Memory toggle in addition to the buyer's
-      // LGPD consent (checked inside recordIntentIfConsented). If tracking is
-      // disabled for the merchant, do not classify or persist any intent.
       void this.intentTrackingEnabled(input.merchant_id).then(async (enabled) => {
         if (!enabled) return;
         const sessionEvents = await this.sessions.getSessionEvents(input.merchant_id, input.session_id);
@@ -313,9 +308,6 @@ export class CompleteOrderUseCase {
   ): Promise<void> {
     if (!this.attributionTagger) return;
     try {
-      // Deterministic cohort assignment (5% holdout) keyed on the buyer.
-      // Falls back to treatment when the buyer is anonymous or the holdout
-      // service is unavailable, and honours an explicit session cohort override.
       const effectiveUserId = globalUserId ?? session.customer?.email?.trim().toLowerCase();
       const cohort: "holdout" | "treatment" =
         session.cohort ??
@@ -323,15 +315,7 @@ export class CompleteOrderUseCase {
           ? this.holdoutGroup.assignCohort(effectiveUserId, input.merchant_id)
           : "treatment");
 
-      // Feature flags accumulated on the session at each feature's fire-point.
-      // cartRecovery is stamped by the cart-recovery module when it pulls a buyer
-      // back (correct dependency direction: cart-recovery → checkout session).
       const applied = session.featuresApplied ?? {};
-
-      // Shipping subsidy = what the store absorbed on freight (realCost the store
-      // pays minus what the buyer was charged). Positive only when the merchant
-      // covered part/all of the freight (e.g. an AI free-shipping offer zeroes
-      // customerPrice). Never negative; values are in major units → cents.
       const shipping = session.shipping;
       const subsidyMajor =
         shipping && typeof shipping.realCost === "number"
@@ -359,8 +343,6 @@ export class CompleteOrderUseCase {
         aiCostCents: session.aiCostCents ?? 0
       });
 
-      // Persist so the Revenue Lift dashboard has data to aggregate.
-      // Idempotent per (merchant, order); silently degrades if repo is absent.
       await this.revenueLiftRepo?.saveTag({
         merchantId: input.merchant_id,
         orderId: attributionTag.orderId,
@@ -395,17 +377,9 @@ export class CompleteOrderUseCase {
   }
 }
 
-// Fixed platform buyer service fee (R$0,99) added to the payment amount the
-// buyer is charged. Kept in sync with payment module's BUYER_SERVICE_FEE_CENTS
-// (99). Duplicated here to avoid a checkout→payment module dependency.
 const BUYER_SERVICE_FEE_MAJOR_UNITS = 0.99;
 
 function computeExpectedTotal(session: CheckoutSession): number {
-  // Defensive: a session whose cart was never populated (e.g. a storefront
-  // conversation session that never became a checkout session, or a partially
-  // persisted row) must not crash order completion — this is a money-critical
-  // path. Treat a missing/empty cart as gross 0 rather than throwing on
-  // `undefined.reduce`, so the caller's total-mismatch guard rejects cleanly.
   const items = Array.isArray(session.cart?.items) ? session.cart.items : [];
   const gross = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const discount = session.cart?.currentDiscount ?? 0;

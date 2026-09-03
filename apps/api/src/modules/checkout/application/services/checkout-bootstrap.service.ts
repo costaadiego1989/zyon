@@ -91,6 +91,10 @@ export class CheckoutBootstrapService {
         customer: enrichedInput.customer,
         shipping: enrichedInput.shipping
       }).snapshot();
+
+      if (cartRef && session.cart) {
+        (session.cart as any).cart_ref = cartRef;
+      }
       await this.sessions.saveSession(session);
       await this.sessions.recordEvent(input.merchant_id, sessionId, "checkout_started");
     }

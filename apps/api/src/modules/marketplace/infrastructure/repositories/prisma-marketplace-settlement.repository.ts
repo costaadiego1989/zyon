@@ -53,6 +53,16 @@ export class PrismaMarketplaceSettlementRepository
     return this.toSnapshot(settlement);
   }
 
+  async findByOrderId(
+    orderId: string,
+  ): Promise<MarketplaceSettlementSnapshot[]> {
+    const settlements = await this.prisma.marketplaceSettlement.findMany({
+      where: { orderId },
+      orderBy: { createdAt: "desc" },
+    });
+    return settlements.map((s: any) => this.toSnapshot(s));
+  }
+
   async findBySellerMerchantId(
     sellerMerchantId: string,
     status?: SettlementStatus,

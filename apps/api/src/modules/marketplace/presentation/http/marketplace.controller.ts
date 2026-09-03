@@ -15,6 +15,7 @@ import { GetSellerOrdersUseCase } from "../../application/use-cases/get-seller-o
 import { GetSellerStatsUseCase } from "../../application/use-cases/get-seller-stats.use-case.js";
 import { UpdateMarketplaceConfigUseCase } from "../../application/use-cases/update-marketplace-config.use-case.js";
 import { HandleMarketplaceChargebackUseCase } from "../../application/use-cases/handle-marketplace-chargeback.use-case.js";
+import { RegisterMarketplaceReturnUseCase } from "../../application/use-cases/register-marketplace-return.use-case.js";
 import { ListSellerSettlementsUseCase } from "../../application/use-cases/list-seller-settlements.use-case.js";
 import { GetSettlementDetailUseCase } from "../../application/use-cases/get-settlement-detail.use-case.js";
 import { ListSellerDebtsUseCase } from "../../application/use-cases/list-seller-debts.use-case.js";
@@ -41,6 +42,7 @@ export class MarketplaceController {
     private readonly getSellerStats: GetSellerStatsUseCase,
     private readonly configUseCase: UpdateMarketplaceConfigUseCase,
     private readonly handleChargeback: HandleMarketplaceChargebackUseCase,
+    private readonly registerReturn: RegisterMarketplaceReturnUseCase,
     private readonly listSettlements: ListSellerSettlementsUseCase,
     private readonly getSettlementDetail: GetSettlementDetailUseCase,
     private readonly listDebts: ListSellerDebtsUseCase,
@@ -99,6 +101,17 @@ export class MarketplaceController {
   ) {
     return this.handleChargeback.execute({
       settlementId,
+    });
+  }
+
+  @Post("returns")
+  async registerReturnEndpoint(
+    @Req() request: AuthenticatedRequest,
+    @Body() body: { order_id?: string; settlement_id?: string },
+  ) {
+    return this.registerReturn.execute({
+      orderId: body.order_id,
+      settlementId: body.settlement_id,
     });
   }
 
