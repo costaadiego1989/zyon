@@ -454,6 +454,12 @@ model CompletedOrder {
   status             String    @default("approved")
   acceptedOfferId    String?   @map("accepted_offer_id")
   trackingCode       String?   @map("tracking_code")
+  // Snapshot of the cart line items at completion time (sku, variantId, name,
+  // unitPriceCents, quantity), used to compute per-item partial refunds. Null
+  // for orders created before this column existed → refund falls back to total.
+  lineItemsJson      Json?     @map("line_items_json")
+  // Shipping the buyer paid, in cents — refunded proportionally with returns.
+  shippingCents      Int?      @map("shipping_cents")
   completedAt        DateTime  @map("completed_at")
   cancelledAt        DateTime? @map("cancelled_at")
   cancellationReason String?   @map("cancellation_reason")
@@ -2072,6 +2078,18 @@ model RecoveryAttempt {
   @@map("recovery_attempts")
 }
 
+/// Tracks when a merchant last viewed each nav-badge section, so the sidebar
+/// badge counts only items that appeared AFTER the last view (unread-only).
+/// Purely a dashboard UI concern — never touches domain entities.
+model NavBadgeView {
+  merchantId   String   @map("merchant_id")
+  badgeKey     String   @map("badge_key")
+  lastViewedAt DateTime @map("last_viewed_at")
+
+  @@id([merchantId, badgeKey])
+  @@map("nav_badge_views")
+}
+
 model BuyerIntentMemoryConsent {
   merchantId   String   @map("merchant_id")
   globalUserId String   @map("global_user_id")
@@ -2263,6 +2281,18 @@ model PostSaleMessageTemplate {
   body        String
   subject     String?
   isActive    Boolean  @default(true) @map("is_active")
+
+  // Meta/WhatsApp official template (business-initiated). Freeform `body` is
+  // used for email + inside the 24h session window; the Meta template is what
+  // Twilio submits to Meta for approval and what we send outside the window.
+  metaCategory        String?  @map("meta_category")        // UTILITY | MARKETING
+  metaLanguage        String?  @default("pt_BR") @map("meta_language")
+  metaTemplateBody    String?  @map("meta_template_body")   // positional {{1}} {{2}} body
+  metaVariableMap     Json?    @map("meta_variable_map")    // {"1":"buyerName","2":"couponCode"}
+  twilioContentSid    String?  @map("twilio_content_sid")   // Twilio Content Template id
+  metaStatus          String?  @default("draft") @map("meta_status") // draft|submitted|approved|rejected
+  metaRejectionReason String?  @map("meta_rejection_reason")
+
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 

@@ -4,6 +4,8 @@ import type {
   CreateProviderPaymentOutput,
   FetchPaymentStatusInput,
   FetchPaymentStatusOutput,
+  RefundPaymentInput,
+  RefundPaymentOutput,
   PaymentProviderPort
 } from "../domain/ports/payment-provider.port.js";
 import { StripePaymentAdapter } from "./stripe-payment.adapter.js";
@@ -94,6 +96,36 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
       return asaas.createCustomer(input);
     }
     throw new Error("payment_provider_not_configured_for_customer_creation");
+  }
+
+  /**
+   * Route the refund to the SAME provider that captured the payment. We select
+   * by the providerPaymentId shape (Stripe intents are `pi_*`), mirroring
+   * fetchPaymentStatus — a merchant may have multiple providers connected, so
+   * the refund must target the one that actually holds the charge, never a
+   * "default" one. Falls back across the merchant's configured providers.
+   */
+  async refundPayment(input: RefundPaymentInput): Promise<RefundPaymentOutput> {
+    const isStripeId = input.providerPaymentId.startsWith("pi_");
+    if (isStripeId) {
+      if (this.stripe?.refundPayment) return this.stripe.refundPayment(input);
+      throw new Error("stripe_refund_unavailable");
+    }
+
+    // Non-Stripe id: try the merchant's active BR providers (mercadopago, then asaas).
+    const mercadopago = await this.resolveMercadoPago(input.merchantId).catch(() => null);
+    if (mercadopago?.refundPayment) {
+      try {
+        return await mercadopago.refundPayment(input);
+      } catch {
+        // fall through to asaas
+      }
+    }
+    const asaas = await this.resolveAsaas(input.merchantId).catch(() => null);
+    if (asaas?.refundPayment) {
+      return asaas.refundPayment(input);
+    }
+    throw new Error("payment_provider_not_configured_for_refund");
   }
 
   private async resolveAsaas(

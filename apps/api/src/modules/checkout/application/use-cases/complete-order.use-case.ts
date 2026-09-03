@@ -88,7 +88,21 @@ export class CompleteOrderUseCase {
       }
     }
 
-    const order = CompletedOrderEntity.complete(input).snapshot();
+    // Snapshot the cart line items + shipping at completion so returns can
+    // compute per-item partial refunds later (the Return only stores variantId
+    // + quantity, not prices).
+    const lineItems = (session.cart?.items ?? []).map((it) => ({
+      sku: it.sku,
+      variantId: (it as { variantId?: string }).variantId ?? it.sku,
+      name: it.name,
+      unitPriceCents: Math.round((it.price ?? 0) * 100),
+      quantity: it.quantity,
+    }));
+    const shippingCents = session.shipping?.customerPrice != null
+      ? Math.round(session.shipping.customerPrice * 100)
+      : undefined;
+
+    const order = CompletedOrderEntity.complete(input, new Date(), { lineItems, shippingCents }).snapshot();
     const whatsappMessage =
       session.customer?.phone && order.trackingCode
         ? `Olá ${session.customer.fullName || "Cliente"}! Seu pagamento foi confirmado com sucesso. Seu pedido foi processado e o código de rastreio é: ${order.trackingCode}. Obrigado por comprar conosco!`

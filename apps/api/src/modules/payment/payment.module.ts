@@ -8,6 +8,7 @@ import { IntegrationsModule } from "../integrations/integrations.module.js";
 import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { CreatePaymentIntentUseCase } from "./application/create-payment-intent.use-case.js";
+import { RefundPaymentService } from "./application/services/refund-payment.service.js";
 import { ConfirmCryptoPaymentUseCase } from "./application/confirm-crypto-payment.use-case.js";
 import { ConfirmStripePaymentUseCase } from "./application/confirm-stripe-payment.use-case.js";
 import { GetPaymentIntentStatusUseCase } from "./application/get-payment-intent-status.use-case.js";
@@ -121,6 +122,7 @@ import {
     MerchantMercadoPagoController,
   ],
   providers: [
+    RefundPaymentService,
     CreatePaymentIntentUseCase,
     ConfirmCryptoPaymentUseCase,
     ConfirmStripePaymentUseCase,
@@ -284,6 +286,7 @@ import {
     },
   ],
   exports: [
+    RefundPaymentService,
     CreatePaymentIntentUseCase,
     ConfirmCryptoPaymentUseCase,
     ConfirmStripePaymentUseCase,

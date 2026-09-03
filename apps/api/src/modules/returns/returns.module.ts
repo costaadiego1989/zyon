@@ -19,9 +19,10 @@ import { AcceptMarketplaceReturnUseCase } from "./application/use-cases/accept-m
 import { ReturnsController } from "./presentation/http/returns.controller.js";
 import { BuyerReturnsController } from "./presentation/http/buyer-returns.controller.js";
 import { MarketplaceModule } from "../marketplace/marketplace.module.js";
+import { PaymentModule } from "../payment/payment.module.js";
 
 @Module({
-  imports: [PersistenceModule, BuyerAccountModule, SupportModule, StorageModule, MarketplaceModule],
+  imports: [PersistenceModule, BuyerAccountModule, SupportModule, StorageModule, MarketplaceModule, PaymentModule],
   controllers: [ReturnsController, BuyerReturnsController],
   providers: [
     {

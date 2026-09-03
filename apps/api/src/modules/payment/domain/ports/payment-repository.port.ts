@@ -49,6 +49,14 @@ export interface PaymentRepository {
     providerPaymentId: string
   ): Promise<PaymentIntentEntity | null>;
   /**
+   * Most recent approved intent for a checkout session. Used by the refund flow
+   * to resolve the provider payment to reverse when a return is refunded.
+   */
+  findApprovedBySessionId(
+    merchantId: string,
+    sessionId: string
+  ): Promise<PaymentIntentEntity | null>;
+  /**
    * Lookup do intent escopado pelo tenant. O `merchantId` é obrigatório e parte
    * do filtro de persistência — o boundary de tenant mora na porta, não em
    * pós-checagens por call site (ADR 0001 #3, ADR 0005).

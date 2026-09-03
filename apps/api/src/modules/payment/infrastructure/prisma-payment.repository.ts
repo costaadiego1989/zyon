@@ -228,6 +228,17 @@ export class PrismaPaymentRepository implements PaymentRepository {
     return row ? PaymentIntentEntity.rehydrate(snapshotFromRecord(row)) : null;
   }
 
+  async findApprovedBySessionId(
+    merchantId: string,
+    sessionId: string
+  ): Promise<PaymentIntentEntity | null> {
+    const row = await this.prisma.paymentIntent.findFirst({
+      where: { merchantId: merchantId.trim(), sessionId: sessionId.trim(), status: "approved" },
+      orderBy: { updatedAt: "desc" },
+    });
+    return row ? PaymentIntentEntity.rehydrate(snapshotFromRecord(row)) : null;
+  }
+
   async getIntentById(merchantId: string, intentBusinessId: string): Promise<PaymentIntentEntity | null> {
     // C2 fix: atomic tenant boundary — scope the query directly with both id and merchantId
     const row = await this.prisma.paymentIntent.findUnique({

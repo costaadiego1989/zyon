@@ -708,6 +708,8 @@ function toCompletedOrderCreate(order: CompletedOrder) {
     status: order.status ?? "approved",
     acceptedOfferId: order.acceptedOfferId,
     trackingCode: order.trackingCode,
+    lineItemsJson: order.lineItems ? (order.lineItems as unknown as object) : undefined,
+    shippingCents: order.shippingCents,
     completedAt: new Date(order.completedAt),
     cancelledAt: order.cancelledAt
       ? new Date(order.cancelledAt)
@@ -725,6 +727,8 @@ function toCompletedOrder(row: {
   status?: string;
   acceptedOfferId: string | null;
   trackingCode?: string | null;
+  lineItemsJson?: unknown;
+  shippingCents?: number | null;
   completedAt: Date;
   cancelledAt?: Date | null;
   cancellationReason?: string | null;
@@ -738,6 +742,10 @@ function toCompletedOrder(row: {
     status: row.status as CompletedOrderStatus,
     acceptedOfferId: row.acceptedOfferId ?? undefined,
     trackingCode: row.trackingCode ?? undefined,
+    lineItems: Array.isArray(row.lineItemsJson)
+      ? (row.lineItemsJson as CompletedOrder["lineItems"])
+      : undefined,
+    shippingCents: row.shippingCents ?? undefined,
     completedAt: row.completedAt.toISOString(),
     cancelledAt: row.cancelledAt?.toISOString(),
     cancellationReason: row.cancellationReason ?? undefined,

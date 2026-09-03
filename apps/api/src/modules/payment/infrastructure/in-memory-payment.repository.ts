@@ -111,6 +111,19 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     return this.byProvider.get(keyProvider(merchantId, providerPaymentId)) ?? null;
   }
 
+  async findApprovedBySessionId(
+    merchantId: string,
+    sessionId: string
+  ): Promise<PaymentIntentEntity | null> {
+    for (const intent of this.byIdempotency.values()) {
+      const s = intent.snapshot();
+      if (s.merchantId === merchantId && s.sessionId === sessionId && s.status === "approved") {
+        return intent;
+      }
+    }
+    return null;
+  }
+
   async hasProcessedProviderEvent(key: ProviderEventKey): Promise<boolean> {
     return this.processedEvents.has(keyEvent(key));
   }

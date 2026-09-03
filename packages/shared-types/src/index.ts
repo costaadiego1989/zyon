@@ -619,6 +619,14 @@ export type CompletedOrderStatus =
   | "cancelled"
   | "returned";
 
+export interface CompletedOrderLineItem {
+  sku: string;
+  variantId?: string;
+  name?: string;
+  unitPriceCents: number;
+  quantity: number;
+}
+
 export interface CompletedOrder {
   merchantId: string;
   sessionId: string;
@@ -628,6 +636,10 @@ export interface CompletedOrder {
   status?: CompletedOrderStatus;
   acceptedOfferId?: string;
   trackingCode?: string;
+  /** Cart line items snapshot at completion — enables per-item partial refunds. */
+  lineItems?: CompletedOrderLineItem[];
+  /** Shipping the buyer paid, in cents. Refunded proportionally on returns. */
+  shippingCents?: number;
   completedAt: string;
   cancelledAt?: string;
   cancellationReason?: string;
