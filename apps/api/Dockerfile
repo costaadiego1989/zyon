@@ -98,8 +98,6 @@ COPY --from=builder --chown=node:node /repo/tsconfig.base.json       /repo/tscon
 
 EXPOSE 3001
 
-HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/ready || exit 1
-
-# Use exec form so SIGTERM propagates to the Node process.
+# No HEALTHCHECK — node:20-alpine minimal lacks wget. Use Railway's HTTP
+# healthcheck on /ready instead (configured in service settings).
 CMD ["node", "dist/main.js"]
