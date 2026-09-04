@@ -58,11 +58,9 @@ COPY apps/dashboard/package.json             apps/dashboard/package.json
 COPY apps/storefront/package.json            apps/storefront/package.json
 COPY apps/web/package.json                   apps/web/package.json
 
-# Mount pnpm store + node_modules as BuildKit caches — survives across builds
-# without invalidating the layer above.
-# Cache mount ID format required by Railway: s/<service-id>-/pnpm/store
-RUN --mount=type=cache,id=s/api-/pnpm/store,target=/pnpm/store \
-    pnpm install --frozen-lockfile --prefer-offline
+# pnpm install — no cache mount (Railway cache mount ID format is unstable;
+# removing this sacrifices incremental build speed but keeps the build working).
+RUN pnpm install --frozen-lockfile --prefer-offline
 
 # =============================================================================
 # Stage 2 — builder (compile NestJS + generate Prisma client)
@@ -76,8 +74,7 @@ COPY packages/ packages/
 COPY apps/api/ apps/api/
 
 # Build chain (contracts → shared-types → commerce-adapters → prisma generate → nest build)
-RUN --mount=type=cache,id=s/api-/pnpm/build,target=/pnpm/store \
-    pnpm --filter @zyon/api build
+RUN pnpm --filter @zyon/api build
 
 # =============================================================================
 # Stage 3 — production-deps (prod-only node_modules for slim runner)
@@ -90,9 +87,8 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/ packages/
 COPY apps/api/ apps/api/
 
-# Cache mount for pnpm store during prod install
-RUN --mount=type=cache,id=s/api-/pnpm/prod,target=/pnpm/store \
-    pnpm install --frozen-lockfile --prod \
+# Production deps install (no cache mount — see note above).
+RUN pnpm install --frozen-lockfile --prod \
       --filter @zyon/api...
 
 # =============================================================================
