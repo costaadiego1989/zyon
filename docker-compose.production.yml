@@ -1,14 +1,7 @@
-# Production docker-compose for custom domains with Caddy reverse proxy.
-# Caddy handles SSL (Let's Encrypt) automatically for merchant custom domains.
-#
-# Usage:
-#   docker compose -f docker-compose.production.yml up -d
-#
-# Ports:
-#   80  → Caddy (HTTP redirect + ACME challenge)
-#   443 → Caddy (HTTPS termination + reverse proxy)
-#   3009 → API (internal, not exposed externally)
-#   3001 → Storefront (internal, not exposed externally)
+# ============================================================================
+# AACP — Production compose with Caddy reverse proxy (auto SSL via Let's Encrypt).
+# Usage: docker compose -f docker-compose.production.yml --env-file .env up -d
+# ============================================================================
 
 services:
   caddy:
@@ -23,8 +16,8 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - storefront
       - api
+      - dashboard
     networks:
       - aacp-net
 
@@ -33,11 +26,11 @@ services:
     container_name: aacp-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USER:-atendeai}
+      POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME:-aacp_prod}
+      POSTGRES_DB: ${DB_NAME}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-atendeai} -d ${DB_NAME:-aacp_prod}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -55,10 +48,13 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3009"
-      DATABASE_URL: postgresql://${DB_USER:-atendeai}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-aacp_prod}?schema=public
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-*}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?schema=public
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      E2E_SEED_ENABLED: "false"
+      WEBHOOK_DISPATCHER_ENABLED: "true"
     depends_on:
       postgres:
         condition: service_healthy
@@ -66,29 +62,35 @@ services:
     networks:
       - aacp-net
 
-  storefront:
-    build:
-      context: .
-      dockerfile: apps/storefront/Dockerfile
-    container_name: aacp-storefront
-    restart: unless-stopped
-    environment:
-      NODE_ENV: production
-      PORT: "3001"
-      NEXT_PUBLIC_API_URL: http://api:3009
-    networks:
-      - aacp-net
-
   dashboard:
     build:
       context: .
       dockerfile: apps/dashboard/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
     container_name: aacp-dashboard
     restart: unless-stopped
     environment:
-      VITE_API_BASE_URL: https://${PLATFORM_DOMAIN:-app.zyon.com}
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL}
     ports:
       - "5175:80"
+    depends_on:
+      - api
+    networks:
+      - aacp-net
+
+  widget:
+    build:
+      context: .
+      dockerfile: apps/widget/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+    container_name: aacp-widget
+    restart: unless-stopped
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+    ports:
+      - "5176:80"
     depends_on:
       - api
     networks:

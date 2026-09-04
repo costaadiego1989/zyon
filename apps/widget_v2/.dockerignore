@@ -1,0 +1,53 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs (rebuilt inside image)
+dist
+**/dist
+.audit
+.impeccable
+
+# VCS
+.git
+.gitignore
+
+# Tests
+**/*.spec.ts
+**/*.spec.tsx
+**/*.test.ts
+**/*.test.tsx
+**/__tests__
+**/__mocks__
+coverage
+**/coverage
+**/e2e
+playwright-report
+test-results
+playwright.config.*
+
+# Env files (NEVER bake secrets)
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Logs / caches
+*.log
+.cache
+.eslintcache
+.turbo
+
+# Docs
+README.md
+*.md
+
+# Docker meta
+Dockerfile*
+.dockerignore
+docker-compose*.yml
