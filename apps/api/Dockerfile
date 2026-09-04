@@ -57,7 +57,7 @@ RUN pnpm install --prefer-offline
 
 # 5) Build the API. apps/api/package.json `build` already chains:
 #      contracts -> shared-types -> commerce-adapters -> prisma generate -> nest build
-RUN pnpm --filter @zyon/api build
+RUN pnpm --filter @zyon/api --workspace-concurrency=1 build
 
 # 6) Drop devDependencies so the runner stage can copy a slim tree.
 RUN pnpm install --prefer-offline --prod \
