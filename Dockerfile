@@ -61,9 +61,9 @@ COPY apps/web/package.json                   apps/web/package.json
 # Mount pnpm store + node_modules as BuildKit caches — survives across builds
 # without invalidating the layer above.
 # Cache mount ID format required by Railway: s/<service-id>-<target-path>
-ARG RAILWAY_SERVICE_ID
-RUN --mount=type=cache,id=s/${RAILWAY_SERVICE_ID:-api}-/pnpm/store,target=/pnpm/store \
-    --mount=type=cache,id=s/${RAILWAY_SERVICE_ID:-api}-/repo/node_modules,target=/repo/node_modules \
+# Service id is known at deploy time — use a stable per-service identifier.
+RUN --mount=type=cache,id=s/api-pnpm-store,target=/pnpm/store \
+    --mount=type=cache,id=s/api-repo-node_modules,target=/repo/node_modules \
     pnpm install --frozen-lockfile --prefer-offline
 
 # =============================================================================
@@ -78,8 +78,7 @@ COPY packages/ packages/
 COPY apps/api/ apps/api/
 
 # Build chain (contracts → shared-types → commerce-adapters → prisma generate → nest build)
-ARG RAILWAY_SERVICE_ID
-RUN --mount=type=cache,id=s/${RAILWAY_SERVICE_ID:-api}-/pnpm/store,target=/pnpm/store \
+RUN --mount=type=cache,id=s/api-pnpm-store,target=/pnpm/store \
     pnpm --filter @zyon/api build
 
 # =============================================================================
@@ -93,8 +92,8 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/ packages/
 COPY apps/api/ apps/api/
 
-ARG RAILWAY_SERVICE_ID
-RUN --mount=type=cache,id=s/${RAILWAY_SERVICE_ID:-api}-/pnpm/store,target=/pnpm/store \
+# Cache mount for pnpm store during prod install
+RUN --mount=type=cache,id=s/api-pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile --prod \
       --filter @zyon/api...
 
