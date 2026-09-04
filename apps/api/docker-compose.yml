@@ -1,37 +1,39 @@
+# ============================================================================
+# API-only sub-stack (postgres + redis) for local API dev.
+# Run from repo root: docker compose -f apps/api/docker-compose.yml up -d
+# ============================================================================
+
 services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: aacp-api-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-atendeai}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-atendeai_dev}
+      POSTGRES_DB: ${DB_NAME:-aacp_dev}
+    ports:
+      - "${DB_PORT_HOST:-5434}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-atendeai} -d ${DB_NAME:-aacp_dev}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - aacp-api-postgres-data:/var/lib/postgresql/data
+
   redis:
     image: redis:7-alpine
-    container_name: aacp-redis
-    env_file: []
+    container_name: aacp-api-redis
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
     volumes:
-      - aacp-redis-data:/data
-    restart: unless-stopped
-
-  postgres:
-    image: pgvector/pgvector:pg16
-    container_name: aacp-postgres
-    environment:
-      POSTGRES_USER: atendeai
-      POSTGRES_PASSWORD: atendeai_dev
-      POSTGRES_DB: aacp_dev
-    ports:
-      - "5434:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U atendeai -d aacp_dev"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-    volumes:
-      - aacp-postgres-data:/var/lib/postgresql/data
-    restart: unless-stopped
+      - aacp-api-redis-data:/data
 
 volumes:
-  aacp-redis-data:
-  aacp-postgres-data:
+  aacp-api-postgres-data:
+  aacp-api-redis-data:
