@@ -4,6 +4,7 @@ import { ForbiddenException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { RequireTenantRoles } from "./tenant-role.decorator.js";
 import { TenantRoleGuard } from "./tenant-role.guard.js";
+import { TenantRolesAnyOf } from "./tenant-roles-any-of.decorator.js";
 
 describe("TenantRoleGuard", () => {
   it("allows a human principal with the declared role", () => {
@@ -25,6 +26,16 @@ describe("TenantRoleGuard", () => {
     assert.throws(
       () => guard.canActivate(serviceContextFor(DeveloperController)),
       ForbiddenException,
+    );
+  });
+
+  it("allows staff when the declared union contains staff", () => {
+    class StaffWriteController {}
+    TenantRolesAnyOf("owner", "admin", "staff")(StaffWriteController);
+    const guard = new TenantRoleGuard(new Reflector());
+    assert.equal(
+      guard.canActivate(contextFor(StaffWriteController, "staff")),
+      true,
     );
   });
 });

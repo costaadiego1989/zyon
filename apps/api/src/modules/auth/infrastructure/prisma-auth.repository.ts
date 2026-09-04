@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import type { AuthMerchant, AuthUser } from "../domain/auth.types.js";
-import type { AuthRepository } from "../domain/ports/auth-repository.port.js";
+import type { AuthRepository, OwnerProfile } from "../domain/ports/auth-repository.port.js";
 import { EmailAlreadyRegisteredError, MerchantOwnerNotCreatedError } from "../domain/errors.js";
 
 /**
@@ -209,6 +209,47 @@ export class PrismaAuthRepository implements AuthRepository {
     await this.prisma.merchant.update({
       where: { id: merchantId },
       data: { storeSettings: { ...existing, ...settings } as any },
+    });
+  }
+
+  async getOwnerProfile(merchantId: string) {
+    const owner = await this.prisma.merchantUser.findFirst({
+      where: { merchantId, role: { in: ["owner", "admin"] } },
+      orderBy: { createdAt: "asc" },
+    });
+    if (!owner) return undefined;
+
+    const merchant = await this.prisma.merchant.findUnique({
+      where: { id: merchantId },
+      select: { storeSettings: true },
+    });
+    const settings = (merchant?.storeSettings as Record<string, unknown>) ?? {};
+
+    return {
+      userId: owner.id,
+      merchantId,
+      email: owner.email,
+      ownerName: (settings["owner_name"] as string) ?? "",
+      ownerPhone: (settings["owner_phone"] as string) ?? "",
+      role: owner.role as "owner" | "admin",
+    };
+  }
+
+  async updateOwnerProfile(
+    _userId: string,
+    merchantId: string,
+    profile: { ownerName: string; ownerPhone: string },
+  ): Promise<void> {
+    await this.setStoreSettings(merchantId, {
+      owner_name: profile.ownerName,
+      owner_phone: profile.ownerPhone,
+    });
+  }
+
+  async updateUserEmail(userId: string, newEmail: string): Promise<void> {
+    await this.prisma.merchantUser.update({
+      where: { id: userId },
+      data: { email: newEmail },
     });
   }
 }

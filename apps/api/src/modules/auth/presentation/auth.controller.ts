@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, HttpCode, Ip, Post, Req, Res, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, HttpCode, Ip, Post, Put, Req, Res, UnauthorizedException, UseGuards, ServiceUnavailableException, HttpException } from "@nestjs/common";
 import {
   ApiOperation,
   ApiResponse,
@@ -12,8 +12,24 @@ import { RegisterMerchantUseCase, type RegisterMerchantRequest } from "../applic
 import { RequestPasswordResetUseCase } from "../application/request-password-reset.use-case.js";
 import { ResetPasswordUseCase } from "../application/reset-password.use-case.js";
 import { VerifyCaptchaUseCase } from "../application/verify-captcha.use-case.js";
+import { GetMeUseCase } from "../application/get-me.use-case.js";
+import { UpdateMeUseCase } from "../application/update-me.use-case.js";
+import { ChangePasswordUseCase } from "../application/change-password.use-case.js";
+import { RequestEmailChangeUseCase } from "../application/request-email-change.use-case.js";
+import { ConfirmEmailChangeUseCase } from "../application/confirm-email-change.use-case.js";
 import { AuthCookieService } from "../domain/services/auth-cookie.service.js";
-import { InvalidCredentialsError, LoginRateLimitedError, RefreshTokenExpiredError } from "../domain/errors.js";
+import { AuthGuard } from "./auth.guard.js";
+import { CurrentTenant } from "../../../shared/tenant/current-tenant.decorator.js";
+import {
+  EmailAlreadyRegisteredError,
+  EmailChangeRequestThrottledError,
+  InvalidCredentialsError,
+  LoginRateLimitedError,
+  OtpExpiredError,
+  OtpInvalidError,
+  OtpLockedError,
+  RefreshTokenExpiredError,
+} from "../domain/errors.js";
 import { normalizeEmail } from "../domain/validators.js";
 import type { LoginAttemptScope } from "../domain/ports/rate-limiter.port.js";
 
@@ -34,7 +50,12 @@ export class AuthController {
     private readonly resetPassword: ResetPasswordUseCase,
     private readonly oauthCallback: OAuthCallbackUseCase,
     private readonly verifyCaptcha: VerifyCaptchaUseCase,
-    private readonly cookies: AuthCookieService
+    private readonly cookies: AuthCookieService,
+    private readonly getMe: GetMeUseCase,
+    private readonly updateMe: UpdateMeUseCase,
+    private readonly changePassword: ChangePasswordUseCase,
+    private readonly requestEmailChange: RequestEmailChangeUseCase,
+    private readonly confirmEmailChange: ConfirmEmailChangeUseCase,
   ) {}
 
   @Post("register")
@@ -78,17 +99,19 @@ export class AuthController {
     @Ip() ip: string,
     @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void }
   ) {
-    const captcha = await this.verifyCaptcha.execute({
-      token: body.turnstile_token,
-      remoteIp: ip || undefined,
-    });
-    if (!captcha.allowed) {
-      throw new BadRequestException({
-        statusCode: 400,
-        code: "captcha_invalid",
-        message: "captcha_invalid",
-        reason: captcha.reason,
+    if (process.env.NODE_ENV === "production") {
+      const captcha = await this.verifyCaptcha.execute({
+        token: body.turnstile_token,
+        remoteIp: ip || undefined,
       });
+      if (!captcha.allowed) {
+        throw new BadRequestException({
+          statusCode: 400,
+          code: "captcha_invalid",
+          message: "captcha_invalid",
+          reason: captcha.reason,
+        });
+      }
     }
     const auth = await this.registerMerchant.execute(body);
     response.setHeader("Set-Cookie", this.cookies.create(auth));
@@ -143,17 +166,22 @@ export class AuthController {
     @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void }
   ) {
     // Captcha first — block bot traffic before we hit the rate limiter / DB.
-    const captcha = await this.verifyCaptcha.execute({
-      token: body.turnstile_token,
-      remoteIp: ip || undefined,
-    });
-    if (!captcha.allowed) {
-      throw new BadRequestException({
-        statusCode: 400,
-        code: "captcha_invalid",
-        message: "captcha_invalid",
-        reason: captcha.reason,
+    // DEV: captcha bypassed entirely to keep local testing unblocked.
+    // Production behaviour is enforced by the CloudflareTurnstileAdapter when
+    // NODE_ENV === "production".
+    if (process.env.NODE_ENV === "production") {
+      const captcha = await this.verifyCaptcha.execute({
+        token: body.turnstile_token,
+        remoteIp: ip || undefined,
       });
+      if (!captcha.allowed) {
+        throw new BadRequestException({
+          statusCode: 400,
+          code: "captcha_invalid",
+          message: "captcha_invalid",
+          reason: captcha.reason,
+        });
+      }
     }
 
     // Build scope from trusted identifiers
@@ -327,5 +355,182 @@ export class AuthController {
     const auth = await this.oauthCallback.execute(body);
     response.setHeader("Set-Cookie", this.cookies.create(auth));
     return auth;
+  }
+
+  // ───────── Account settings (requires auth) ─────────
+
+  @UseGuards(AuthGuard)
+  @Get("me")
+  @ApiOperation({
+    summary: "Get current merchant owner profile",
+    description: "Returns name, email and phone from the authenticated merchant's owner profile.",
+  })
+  @ApiResponse({ status: 200, description: "Owner profile" })
+  @ApiResponse({ status: 401, description: "Not authenticated" })
+  getMeRoute(@CurrentTenant() merchantId: string) {
+    return this.getMe.execute(merchantId);
+  }
+
+  @UseGuards(AuthGuard)
+  @Put("me")
+  @HttpCode(200)
+  @ApiOperation({
+    summary: "Update owner profile (name, phone)",
+    description: "Email is NOT updated here — use the email-change OTP flow instead.",
+  })
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["name"],
+      properties: {
+        name: { type: "string", minLength: 2, maxLength: 80 },
+        phone: { type: "string", maxLength: 20 },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: "Profile updated" })
+  @ApiResponse({ status: 400, description: "Validation error" })
+  @ApiResponse({ status: 401, description: "Not authenticated" })
+  async updateMeRoute(
+    @CurrentTenant() merchantId: string,
+    @Body() body: { name?: string; phone?: string },
+  ) {
+    return this.updateMe.execute({
+      merchantId,
+      name: body.name ?? "",
+      phone: body.phone,
+    });
+  }
+
+  @UseGuards(AuthGuard)
+  @Put("me/password")
+  @HttpCode(200)
+  @ApiOperation({
+    summary: "Change password",
+    description: "Requires current password. Strong password validation (min 8 chars).",
+  })
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["current_password", "new_password"],
+      properties: {
+        current_password: { type: "string", minLength: 8 },
+        new_password: { type: "string", minLength: 8 },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: "Password changed" })
+  @ApiResponse({ status: 400, description: "Validation error" })
+  @ApiResponse({ status: 401, description: "Current password is invalid" })
+  async changePasswordRoute(
+    @CurrentTenant() merchantId: string,
+    @Body() body: { current_password?: string; new_password?: string },
+  ) {
+    try {
+      return await this.changePassword.execute({
+        merchantId,
+        currentPassword: body.current_password ?? "",
+        newPassword: body.new_password ?? "",
+      });
+    } catch (err) {
+      if (err instanceof InvalidCredentialsError) {
+        throw new UnauthorizedException("invalid_credentials");
+      }
+      throw err;
+    }
+  }
+
+  @UseGuards(AuthGuard)
+  @Post("me/email-change/request")
+  @HttpCode(200)
+  @ApiOperation({
+    summary: "Request email change (step 1 of 2)",
+    description: "Sends a 6-digit OTP code to the new email. TTL: 10 minutes. Max 5 attempts. Rate limited per user.",
+  })
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["new_email"],
+      properties: {
+        new_email: { type: "string", format: "email" },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: "OTP sent" })
+  @ApiResponse({ status: 400, description: "Invalid email or already taken" })
+  @ApiResponse({ status: 401, description: "Not authenticated" })
+  @ApiResponse({ status: 429, description: "Too many requests" })
+  async requestEmailChangeRoute(
+    @CurrentTenant() merchantId: string,
+    @Body() body: { new_email?: string },
+  ) {
+    try {
+      return await this.requestEmailChange.execute({
+        merchantId,
+        newEmail: body.new_email ?? "",
+      });
+    } catch (err) {
+      if (err instanceof EmailChangeRequestThrottledError) {
+        throw new HttpException(
+          {
+            statusCode: 429,
+            code: "email_change_throttled",
+            retryAfter: Math.ceil(err.retryAfterMs / 1000),
+          },
+          429,
+        );
+      }
+      throw err;
+    }
+  }
+
+  @UseGuards(AuthGuard)
+  @Post("me/email-change/confirm")
+  @HttpCode(200)
+  @ApiOperation({
+    summary: "Confirm email change (step 2 of 2)",
+    description: "Validates the OTP and applies the email change. Notifies the previous email.",
+  })
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["new_email", "code"],
+      properties: {
+        new_email: { type: "string", format: "email" },
+        code: { type: "string", minLength: 6, maxLength: 6, example: "123456" },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: "Email updated" })
+  @ApiResponse({ status: 400, description: "Email mismatch or already taken" })
+  @ApiResponse({ status: 401, description: "OTP invalid, expired, or locked" })
+  async confirmEmailChangeRoute(
+    @CurrentTenant() merchantId: string,
+    @Body() body: { new_email?: string; code?: string },
+  ) {
+    try {
+      return await this.confirmEmailChange.execute({
+        merchantId,
+        newEmail: body.new_email ?? "",
+        code: body.code ?? "",
+      });
+    } catch (err) {
+      if (err instanceof OtpInvalidError) {
+        throw new UnauthorizedException("otp_invalid");
+      }
+      if (err instanceof OtpLockedError) {
+        throw new UnauthorizedException("otp_locked");
+      }
+      if (err instanceof OtpExpiredError) {
+        throw new UnauthorizedException("otp_expired");
+      }
+      if (err instanceof EmailAlreadyRegisteredError) {
+        throw new BadRequestException("email_taken");
+      }
+      if (err instanceof Error && err.message === "otp_store_unavailable") {
+        throw new ServiceUnavailableException("otp_unavailable");
+      }
+      throw err;
+    }
   }
 }

@@ -1,5 +1,5 @@
 import type { AuthMerchant, AuthUser } from "../domain/auth.types.js";
-import type { AuthRepository } from "../domain/ports/auth-repository.port.js";
+import type { AuthRepository, OwnerProfile } from "../domain/ports/auth-repository.port.js";
 
 /**
  * L8: Removed @Injectable() — test double, never wired via module root.
@@ -9,6 +9,8 @@ export class InMemoryAuthRepository implements AuthRepository {
   private merchants = new Map<string, AuthMerchant>();
   private users = new Map<string, AuthUser>();
   private oauthUsers = new Map<string, AuthUser>(); // provider:id -> user
+  private ownerProfiles = new Map<string, { ownerName: string; ownerPhone: string }>();
+  private usedEmails = new Set<string>(); // for email uniqueness simulation
 
   async createMerchantWithOwner(input: {
     merchantId: string;
@@ -26,6 +28,7 @@ export class InMemoryAuthRepository implements AuthRepository {
     };
     this.merchants.set(merchant.id, merchant);
     this.users.set(user.email, user);
+    this.usedEmails.add(input.email);
     return { merchant, user };
   }
 
@@ -48,6 +51,7 @@ export class InMemoryAuthRepository implements AuthRepository {
     this.merchants.set(merchant.id, merchant);
     this.users.set(user.email, user);
     this.oauthUsers.set(`${input.oauthProvider}:${input.oauthProviderId}`, user);
+    this.usedEmails.add(input.email);
     return { merchant, user };
   }
 
@@ -107,5 +111,55 @@ export class InMemoryAuthRepository implements AuthRepository {
 
   async setStoreSettings(merchantId: string, settings: Record<string, unknown>): Promise<void> {
     if (settings.slug) this.slugs.set(settings.slug as string, merchantId);
+  }
+
+  async getOwnerProfile(merchantId: string): Promise<OwnerProfile | undefined> {
+    let owner: AuthUser | undefined;
+    for (const u of this.users.values()) {
+      if (u.merchantId === merchantId && (u.role === "owner" || u.role === "admin")) {
+        if (!owner || owner.id > u.id) owner = u; // oldest
+      }
+    }
+    if (!owner) return undefined;
+
+    const profile = this.ownerProfiles.get(merchantId) ?? { ownerName: "", ownerPhone: "" };
+    return {
+      userId: owner.id,
+      merchantId,
+      email: owner.email,
+      ownerName: profile.ownerName,
+      ownerPhone: profile.ownerPhone,
+      role: owner.role,
+    };
+  }
+
+  async updateOwnerProfile(
+    _userId: string,
+    merchantId: string,
+    profile: { ownerName: string; ownerPhone: string },
+  ): Promise<void> {
+    this.ownerProfiles.set(merchantId, {
+      ownerName: profile.ownerName,
+      ownerPhone: profile.ownerPhone,
+    });
+  }
+
+  async updateUserEmail(userId: string, newEmail: string): Promise<void> {
+    if (this.usedEmails.has(newEmail)) {
+      const err = new Error("email_taken");
+      (err as any).code = "P2002";
+      throw err;
+    }
+
+    for (const [oldEmail, u] of this.users.entries()) {
+      if (u.id === userId) {
+        this.users.delete(oldEmail);
+        u.email = newEmail;
+        this.users.set(newEmail, u);
+        this.usedEmails.delete(oldEmail);
+        this.usedEmails.add(newEmail);
+        return;
+      }
+    }
   }
 }

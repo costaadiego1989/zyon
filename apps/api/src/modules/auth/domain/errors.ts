@@ -60,3 +60,37 @@ export class RefreshTokenExpiredError extends Error {
     this.name = "RefreshTokenExpiredError";
   }
 }
+
+export class OtpInvalidError extends Error {
+  readonly code = "otp_invalid";
+  constructor() {
+    super("otp_invalid");
+    this.name = "OtpInvalidError";
+  }
+}
+
+export class OtpLockedError extends Error {
+  readonly code = "otp_locked";
+  constructor() {
+    super("otp_locked");
+    this.name = "OtpLockedError";
+  }
+}
+
+export class OtpExpiredError extends Error {
+  readonly code = "otp_expired";
+  constructor() {
+    super("otp_expired");
+    this.name = "OtpExpiredError";
+  }
+}
+
+export class EmailChangeRequestThrottledError extends Error {
+  readonly code = "email_change_throttled";
+  readonly retryAfterMs: number;
+  constructor(retryAfterMs: number) {
+    super("email_change_throttled");
+    this.name = "EmailChangeRequestThrottledError";
+    this.retryAfterMs = retryAfterMs;
+  }
+}

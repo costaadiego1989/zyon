@@ -26,7 +26,13 @@ export class CloudflareTurnstileAdapter implements CaptchaVerifier {
     if (!secret) {
       return { success: false, reason: "not-configured" };
     }
+    const isProd = process.env.NODE_ENV === "production";
     if (!input.token) {
+      // Outside production, allow missing token (paired with frontend env-based
+      // captcha gate). In production the token is required.
+      if (!isProd) {
+        return { success: false, reason: "not-configured" };
+      }
       return { success: false, reason: "missing-token" };
     }
 

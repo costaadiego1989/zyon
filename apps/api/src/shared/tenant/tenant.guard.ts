@@ -81,7 +81,9 @@ export function tenantContextFromPrincipal(
   if (
     !isNormalizedIdentifier(principal.merchantId) ||
     !isNormalizedIdentifier(principal.userId) ||
-    (principal.role !== "owner" && principal.role !== "admin")
+    (principal.role !== "owner" &&
+      principal.role !== "admin" &&
+      principal.role !== "staff")
   ) {
     throw new ForbiddenException("invalid_tenant_principal");
   }

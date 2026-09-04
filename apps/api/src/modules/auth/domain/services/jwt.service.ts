@@ -15,8 +15,15 @@ export interface JwtPayload {
 /** Valid roles for merchant JWTs. Closes L12: runtime assertion. */
 const VALID_ROLES: readonly TenantRole[] = ["owner", "admin", "staff"];
 
+function normalizeRoleForValidation(role: string): TenantRole | null {
+  if (role === "owner" || role === "OWNER") return "owner";
+  if (role === "admin" || role === "ADMIN") return "admin";
+  if (role === "staff" || role === "STAFF") return "staff";
+  return null;
+}
+
 function isValidRole(role: string): role is TenantRole {
-  return (VALID_ROLES as readonly string[]).includes(role);
+  return normalizeRoleForValidation(role) !== null;
 }
 
 /**
@@ -144,6 +151,13 @@ export class JwtService {
     // L12: Validate role is a known TenantRole, not arbitrary string.
     if (!isValidRole(decoded.role)) {
       throw new Error("jwt_invalid_role");
+    }
+    // Normalize role casing so downstream code (auth guard, tenant principal,
+    // TenantRoleGuard) sees the canonical lowercase form regardless of how
+    // the DB row was inserted.
+    const normalized = normalizeRoleForValidation(decoded.role);
+    if (normalized) {
+      (decoded as { role: TenantRole }).role = normalized;
     }
     return { header, payload, signature, decoded };
   }

@@ -8,6 +8,15 @@ export interface PasswordResetRecord {
   expiresAt: Date;
 }
 
+export interface OwnerProfile {
+  userId: string;
+  merchantId: string;
+  email: string;
+  ownerName: string;
+  ownerPhone: string;
+  role: AuthUser["role"];
+}
+
 export interface AuthRepository {
   createMerchantWithOwner(input: {
     merchantId: string;
@@ -36,5 +45,16 @@ export interface AuthRepository {
   // Slug management
   isSlugTaken(slug: string): Promise<boolean>;
   setStoreSettings(merchantId: string, settings: Record<string, unknown>): Promise<void>;
-}
 
+  // Owner profile (account settings)
+  getOwnerProfile(merchantId: string): Promise<OwnerProfile | undefined>;
+  updateOwnerProfile(
+    userId: string,
+    merchantId: string,
+    profile: { ownerName: string; ownerPhone: string },
+  ): Promise<void>;
+  updateUserEmail(
+    userId: string,
+    newEmail: string,
+  ): Promise<void>;
+}
