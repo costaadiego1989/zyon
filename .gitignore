@@ -11,7 +11,19 @@ coverage
 
 # Local editor configs
 .vscode/
+.claude/
+.cursor/
+.agents/
+.vercel/
+.playwright-mcp/
+.playwright-tiktok-profile/
+.github/skills/
 .claude/settings.local.json
+
+# Per-app local artifacts
+apps/api/.audit/
+apps/api/.claude/
+apps/api/.impeccable/
 
 # Test reports and results
 playwright-report/
@@ -25,6 +37,7 @@ scripts/*
 
 # Feature spec directories (auto-generated or WIP)
 .specs/features/
+.specs/codebase/
 
 # Exclude generated/WIP docs, but keep architecture decisions versioned.
 /docs/*
