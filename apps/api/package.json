@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "nest start --watch",
-    "build": "pnpm --filter @zyon/contracts build && pnpm --filter @zyon/shared-types build && pnpm --filter @zyon/commerce-adapters build && prisma generate --schema prisma/schema.prisma && nest build",
+    "build": "pnpm --filter @zyon/contracts --filter @zyon/shared-types --filter @zyon/commerce-adapters --filter @zyon/conversation-engine --filter @zyon/decision-engine --filter @zyon/negotiation-engine --filter @zyon/rules-engine --filter @zyon/shipping-engine build && prisma generate --schema prisma/schema.prisma && nest build",
     "start": "node dist/main.js",
     "lint": "eslint src",
-    "typecheck": "pnpm --filter @zyon/contracts build && pnpm --filter @zyon/shared-types build && pnpm --filter @zyon/commerce-adapters build && tsc -p tsconfig.json --noEmit",
+    "typecheck": "pnpm --filter @zyon/contracts --filter @zyon/shared-types --filter @zyon/commerce-adapters --filter @zyon/conversation-engine --filter @zyon/decision-engine --filter @zyon/negotiation-engine --filter @zyon/rules-engine --filter @zyon/shipping-engine build && tsc -p tsconfig.json --noEmit",
     "test": "pnpm --filter @zyon/contracts build && pnpm --filter @zyon/shared-types build && pnpm build && node dist/test-runner.js",
     "test:prisma": "pnpm --filter @zyon/shared-types build && pnpm build && node dist/test-runner-prisma.js",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",

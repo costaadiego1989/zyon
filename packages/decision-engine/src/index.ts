@@ -3,10 +3,12 @@ import type { CheckoutEventName } from "@zyon/shared-types";
 const EVENT_WEIGHTS: Record<CheckoutEventName, number> = {
   checkout_started: 0.05,
   cart_viewed: 0.05,
+  product_viewed: 0.02,
   shipping_calculated: 0.12,
   shipping_option_selected: 0.08,
   shipping_objection_detected: 0.35,
   coupon_field_clicked: 0.22,
+  coupon_applied: 0,
   payment_method_selected: 0.04,
   payment_failed: 0.3,
   exit_intent_detected: 0.3,
@@ -14,7 +16,19 @@ const EVENT_WEIGHTS: Record<CheckoutEventName, number> = {
   offer_viewed: 0.05,
   offer_accepted: -0.15,
   order_completed: -1,
-  checkout_abandoned: 0.45
+  checkout_abandoned: 0.45,
+  cross_sell_accepted: 0,
+  cross_sell_added: 0,
+  auth_phone_submitted: 0,
+  auth_phone_verified: 0,
+  auth_identity_confirmed: 0,
+  auth_registration_completed: 0,
+  login_completed: 0,
+  channel_selected: 0,
+  item_quantity_updated: 0,
+  item_removed: 0,
+  session_start: 0,
+  message_sent: 0
 };
 
 export function scoreEvent(currentScore: number, event: CheckoutEventName): number {
