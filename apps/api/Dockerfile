@@ -60,10 +60,8 @@ COPY apps/web/package.json                   apps/web/package.json
 
 # Mount pnpm store + node_modules as BuildKit caches — survives across builds
 # without invalidating the layer above.
-# Cache mount ID format required by Railway: s/<service-id>-<target-path>
-# Service id is known at deploy time — use a stable per-service identifier.
-RUN --mount=type=cache,id=s/api-pnpm-store,target=/pnpm/store \
-    --mount=type=cache,id=s/api-repo-node_modules,target=/repo/node_modules \
+# Cache mount ID format required by Railway: s/<service-id>-/pnpm/store
+RUN --mount=type=cache,id=s/api-/pnpm/store,target=/pnpm/store \
     pnpm install --frozen-lockfile --prefer-offline
 
 # =============================================================================
@@ -78,7 +76,7 @@ COPY packages/ packages/
 COPY apps/api/ apps/api/
 
 # Build chain (contracts → shared-types → commerce-adapters → prisma generate → nest build)
-RUN --mount=type=cache,id=s/api-pnpm-store,target=/pnpm/store \
+RUN --mount=type=cache,id=s/api-/pnpm/build,target=/pnpm/store \
     pnpm --filter @zyon/api build
 
 # =============================================================================
@@ -93,7 +91,7 @@ COPY packages/ packages/
 COPY apps/api/ apps/api/
 
 # Cache mount for pnpm store during prod install
-RUN --mount=type=cache,id=s/api-pnpm-store,target=/pnpm/store \
+RUN --mount=type=cache,id=s/api-/pnpm/prod,target=/pnpm/store \
     pnpm install --frozen-lockfile --prod \
       --filter @zyon/api...
 
