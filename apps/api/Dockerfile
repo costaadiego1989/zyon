@@ -69,6 +69,11 @@ FROM deps AS builder
 WORKDIR /repo
 
 # Copy full source AFTER install so cache survives source-only changes.
+# pnpm install created node_modules/ symlinks in deps stage; clean them before
+# overlaying fresh source files (overlayfs can't replace symlinks with directories).
+RUN rm -rf /repo/packages/*/node_modules /repo/packages/*/dist \
+    /repo/apps/api/node_modules /repo/apps/api/dist \
+    /repo/node_modules /repo/apps/*/node_modules 2>/dev/null || true
 COPY packages/ packages/
 COPY apps/api/ apps/api/
 
@@ -83,6 +88,10 @@ FROM toolchain AS prod-deps
 WORKDIR /repo
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+# Clean symlinks from any previous stage before overlaying fresh source.
+RUN rm -rf /repo/packages/*/node_modules /repo/packages/*/dist \
+    /repo/apps/api/node_modules /repo/apps/api/dist \
+    /repo/node_modules /repo/apps/*/node_modules 2>/dev/null || true
 COPY packages/ packages/
 COPY apps/api/ apps/api/
 
