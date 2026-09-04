@@ -1,6 +1,8 @@
 node_modules
 dist
 dist-umd
+dist-int-spec
+dist-test
 .turbo
 .vite
 coverage
