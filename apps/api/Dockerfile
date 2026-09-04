@@ -52,7 +52,6 @@ COPY packages/agentic-checkout-js/package.json packages/agentic-checkout-js/pack
 COPY packages/sdk/package.json               packages/sdk/package.json
 COPY packages/checkout-ui/package.json       packages/checkout-ui/package.json
 COPY apps/api/package.json                   apps/api/package.json
-COPY apps/widget/package.json                apps/widget/package.json
 COPY apps/widget_v2/package.json             apps/widget_v2/package.json
 COPY apps/dashboard/package.json             apps/dashboard/package.json
 COPY apps/storefront/package.json            apps/storefront/package.json
