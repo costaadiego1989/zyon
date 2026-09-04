@@ -51,14 +51,16 @@ COPY apps/api/ apps/api/
 
 # 4) Install full workspace deps (dev included — needed for the build).
 #    Source must be present first so pnpm can create correct workspace symlinks.
-RUN pnpm install --frozen-lockfile
+#    --no-frozen-lockfile because the committed lockfile may drift from local
+#    package.json edits that haven't been reinstalled.
+RUN pnpm install --prefer-offline
 
 # 5) Build the API. apps/api/package.json `build` already chains:
 #      contracts -> shared-types -> commerce-adapters -> prisma generate -> nest build
 RUN pnpm --filter @zyon/api build
 
 # 6) Drop devDependencies so the runner stage can copy a slim tree.
-RUN pnpm install --frozen-lockfile --prod \
+RUN pnpm install --prefer-offline --prod \
       --filter @zyon/api...
 
 # -----------------------------------------------------------------------------
