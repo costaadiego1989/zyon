@@ -131,7 +131,9 @@ function resolveMerchantId(
 ): string {
   const candidate = (fromHeader?.trim() || fromBody?.trim() || "").trim();
   if (!candidate) {
-    throw new BadRequestException("merchant_id_required");
+    throw new BadRequestException(
+      "merchant_id_required: provide X-AACP-Merchant-Id header or merchant_id in body",
+    );
   }
   return candidate;
 }

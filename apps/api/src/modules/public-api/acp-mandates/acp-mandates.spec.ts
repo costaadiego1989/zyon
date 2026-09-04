@@ -226,9 +226,9 @@ test("issuePaymentMandate: disclosure decoded shape = [salt, vct, payload]", asy
   assert.equal(decoded.length, 3);
   assert.equal(typeof decoded[0], "string", "salt");
   assert.equal(decoded[1], "mandate.payment.1", "vct");
-  const payload = decoded[2] as Record<string, unknown>;
+  const payload = decoded[2] as { transaction_id: string; payment_amount: { amount: number; currency: string }; payee: Record<string, unknown> };
   assert.equal(payload.transaction_id, INTENT_ID);
-  const amount = payload.payment_amount as { amount: number; currency: string };
+  const amount = payload.payment_amount;
   assert.equal(amount.amount, 9990);
   assert.equal(amount.currency, "BRL");
   const payee = payload.payee as Record<string, unknown>;

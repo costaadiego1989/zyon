@@ -1,5 +1,6 @@
-import { Controller, Get, Param, Query } from "@nestjs/common";
+import { BadRequestException, Controller, Get, Param, Query } from "@nestjs/common";
 import {
+  ApiBadRequestResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -49,10 +50,14 @@ export class AcpMandatesController {
     description: "AP2 payment mandate.",
     type: AcpMandateResponseDto,
   })
+  @ApiBadRequestResponse({ description: "payment_intent_id_required" })
   @ApiNotFoundResponse({ description: "payment_intent_not_found" })
   async paymentMandate(
     @Param("payment_intent_id") paymentIntentId: string,
   ): Promise<AcpMandateResponseDto> {
+    if (!paymentIntentId || !paymentIntentId.trim()) {
+      throw new BadRequestException("payment_intent_id_required");
+    }
     return (await this.issuer.issuePaymentMandate(paymentIntentId)) as AcpMandateResponseDto;
   }
 
@@ -87,11 +92,15 @@ export class AcpMandatesController {
     description: "AP2 checkout mandate.",
     type: AcpMandateResponseDto,
   })
+  @ApiBadRequestResponse({ description: "merchant_id_required" })
   @ApiNotFoundResponse({ description: "checkout_session_not_found" })
   async checkoutMandate(
     @Param("checkout_session_id") sessionId: string,
     @Query("merchant_id") merchantId: string,
   ): Promise<AcpMandateResponseDto> {
+    if (!merchantId || !merchantId.trim()) {
+      throw new BadRequestException("merchant_id_required");
+    }
     return (await this.issuer.issueCheckoutMandate(merchantId, sessionId)) as AcpMandateResponseDto;
   }
 }
