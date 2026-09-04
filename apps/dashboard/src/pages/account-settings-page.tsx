@@ -2,6 +2,7 @@ import React from "react";
 import { Settings, Lock } from "lucide-react";
 import type { MerchantProfile } from "../api-client.js";
 import { Button } from "../components/Button.js";
+import { OtpModal } from "../components/OtpModal.js";
 import { SectionHeader } from "../components/SectionHeader.js";
 import { FormField } from "../components/FormField.js";
 import { useAccountSettingsPage } from "./useAccountSettingsPage.js";
@@ -20,6 +21,8 @@ export function AccountSettingsPage(props: { apiBaseUrl: string; me: MerchantPro
       </header>
     );
   }
+
+  const otpOpen = vm.otpStep === "confirm";
 
   return (
     <>
@@ -76,8 +79,20 @@ export function AccountSettingsPage(props: { apiBaseUrl: string; me: MerchantPro
 
       {/* Security note */}
       <div style={{ marginTop: 16, padding: "12px 16px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface)", fontSize: 12, color: "var(--color-muted)", lineHeight: 1.5 }}>
-        <strong>Segurança:</strong> Autenticação multifator (2FA/MFA) estará disponível em breve para proteção adicional da sua conta.
+        <strong>Segurança:</strong> Trocar email exige confirmação por código de 6 dígitos enviado para o novo email. Autenticação multifator (2FA/MFA) estará disponível em breve.
       </div>
+
+      <OtpModal
+        open={otpOpen}
+        title="Confirme seu novo email"
+        description="Enviamos um código de 6 dígitos para:"
+        maskedDestination={vm.maskedEmail}
+        onConfirm={vm.handleConfirmOtp}
+        onResend={vm.handleResendOtp}
+        onCancel={vm.handleCancelOtp}
+        busy={vm.saving}
+        errorMessage={vm.otpError}
+      />
     </>
   );
 }

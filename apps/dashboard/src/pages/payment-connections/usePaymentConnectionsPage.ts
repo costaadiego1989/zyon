@@ -34,15 +34,9 @@ export interface CryptoWalletState {
 
 export function usePaymentConnectionsPage(me: MerchantProfile | null) {
   const api = useApi();
-
-  // Connections
   const [connections, setConnections] = useState<PaymentConnection[]>([]);
-
-  // UI state
   const [operation, setOperation] = useState<Operation>("idle");
   const [alert, setAlert] = useState<{ message: string; kind: AlertKind } | null>(null);
-
-  // Crypto wallet state
   const [crypto, setCrypto] = useState<CryptoWalletState>({
     config: {
       enabled: false,
@@ -54,8 +48,6 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     saved: false,
   });
 
-  // storeSettings.company prefill for the Asaas subaccount form (cnpj, address,
-  // phone, email already collected at signup/onboarding — no need to re-type).
   const [companyPrefill, setCompanyPrefill] = useState<Record<string, any> | null>(null);
 
   useEffect(() => {
@@ -72,8 +64,6 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     })();
   }, [me]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Post-OAuth return: Mercado Pago's callback redirects back with a flag.
-  // Toast the outcome and clear the query param so a refresh doesn't re-toast.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
@@ -84,7 +74,6 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     if (!connected && !errored && !stripeConnected && !stripeRefresh) return;
     if (connected) showToast("success", "Mercado Pago conectado");
     if (errored) showToast("error", "Falha ao conectar o Mercado Pago");
-    // Stripe onboarding finished — sync the account so status leaves "pending".
     if (stripeConnected) {
       showToast("success", "Stripe conectado — sincronizando status...");
       void syncStripe();
@@ -102,9 +91,6 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
   async function load() {
     setOperation("loading");
     setAlert(null);
-    // Load connections and rules independently: a failure fetching rules must
-    // not blank out the connections list (and vice-versa). A transient error on
-    // one shouldn't make every gateway look "Desconectado".
     const [connRes, rulesRes] = await Promise.allSettled([
       api.getPaymentConnections(),
       api.getMerchantRules(),
@@ -145,7 +131,6 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
         return_url: window.location.href,
         refresh_url: window.location.href,
       });
-      // Same-tab so Stripe's return_url lands back on this page with the flag.
       window.location.href = url;
     } catch (e) {
       console.error("[payment-connections]", e);
@@ -173,9 +158,6 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     }
   }
 
-  // Creates an Asaas white-label subaccount (BaaS) from the merchant-provided
-  // data, then opens the document-onboarding link (Asaas requires ~15s after
-  // creation before the onboarding docs are discoverable).
   async function createAsaasSubaccount(payload: Record<string, unknown>): Promise<boolean> {
     setOperation("connecting-asaas");
     setAlert(null);
@@ -186,7 +168,6 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
         return idx >= 0 ? prev.map((c, i) => (i === idx ? created : c)) : [created, ...prev];
       });
       showToast("success", "Subconta criada — complete o cadastro no Asaas para ativar.");
-      // Give Asaas a moment, then open the onboarding link (best-effort).
       setTimeout(() => { void openAsaasOnboarding(); }, 15500);
       return true;
     } catch (e) {
@@ -198,7 +179,6 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     }
   }
 
-  // Opens (or re-opens) the Asaas document-onboarding link for a pending subaccount.
   async function openAsaasOnboarding(): Promise<void> {
     setAlert(null);
     try {
@@ -228,7 +208,6 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     }
   }
 
-  // DEV/SANDBOX only: instantly approve the Asaas subaccount's KYC for testing.
   async function approveAsaasSandbox() {
     setOperation("syncing-asaas");
     setAlert(null);
@@ -252,8 +231,6 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     setAlert(null);
     try {
       const { url } = await api.createMercadoPagoOAuthLink();
-      // Same-tab redirect so MP's callback returns to this page with the
-      // ?mercadopago_connected flag (a new tab would leave this one stale).
       window.location.href = url;
     } catch (e) {
       console.error("[payment-connections]", e);
@@ -319,24 +296,18 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
       setAlert({ message: sanitizeError(e), kind: "error" });
     } finally {
       setOperation("idle");
-      // Re-sync from server so status reflects reality.
       void load();
     }
   }
 
   return {
-    // State
     connections,
     operation,
     alert,
     crypto,
     companyPrefill,
-
-    // Setters
     setAlert,
     setCrypto,
-
-    // Actions
     load,
     onboardStripe,
     syncStripe,
