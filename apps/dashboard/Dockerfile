@@ -35,19 +35,26 @@ RUN pnpm --filter @zyon/shared-types build \
  && pnpm --filter @zyon/dashboard build
 
 # ---------------------------------------------------------------------------
-# Stage 2: runner (static files served by nginx)
+# Stage 2: runner (nginx-unprivileged, static SPA)
 # ---------------------------------------------------------------------------
-FROM nginx:1.27-alpine AS runner
+FROM nginxinc/nginx-unprivileged:1.27-alpine AS runner
 
-# Remove default nginx config
-RUN rm /etc/nginx/conf.d/default.conf
+LABEL org.opencontainers.image.title="zyon-dashboard" \
+      org.opencontainers.image.description="AACP merchant dashboard (React SPA)" \
+      org.opencontainers.image.source="https://github.com/costaadiego1989/zyon" \
+      org.opencontainers.image.licenses="UNLICENSED" \
+      org.opencontainers.image.vendor="Zyon"
 
-# Add custom nginx config for SPA routing
+USER root
+RUN rm -f /etc/nginx/conf.d/default.conf
 COPY apps/dashboard/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder --chown=nginx:nginx /repo/apps/dashboard/dist /usr/share/nginx/html
 
-# Copy built assets
-COPY --from=builder /repo/apps/dashboard/dist /usr/share/nginx/html
+USER nginx
 
-EXPOSE 80
+EXPOSE 8080
+
+HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/healthz || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]
