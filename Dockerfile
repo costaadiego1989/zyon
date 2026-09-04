@@ -69,11 +69,8 @@ FROM deps AS builder
 WORKDIR /repo
 
 # Copy full source AFTER install so cache survives source-only changes.
-# pnpm install created node_modules/ symlinks in deps stage; clean them before
-# overlaying fresh source files (overlayfs can't replace symlinks with directories).
-RUN rm -rf /repo/packages/*/node_modules /repo/packages/*/dist \
-    /repo/apps/api/node_modules /repo/apps/api/dist \
-    /repo/node_modules /repo/apps/*/node_modules 2>/dev/null || true
+# We DO NOT delete node_modules here — builder needs devDeps (tsc, nest CLI, prisma)
+# inherited from the deps stage.
 COPY packages/ packages/
 COPY apps/api/ apps/api/
 
