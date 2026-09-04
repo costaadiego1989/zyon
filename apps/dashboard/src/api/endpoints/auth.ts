@@ -46,12 +46,20 @@ export function authEndpoints(base: string, f: typeof fetch) {
       return dashboardJson(base, "/auth/me", { method: "GET" }, f);
     },
 
-    updateMe(payload: { name: string; email: string; phone?: string }): Promise<{ name?: string; email?: string; phone?: string }> {
+    updateMe(payload: { name: string; email?: string; phone?: string }): Promise<{ name?: string; phone?: string }> {
       return dashboardJson(base, "/auth/me", { method: "PUT", jsonBody: payload }, f);
     },
 
     changePassword(currentPassword: string, newPassword: string): Promise<{ ok: true }> {
       return dashboardJson(base, "/auth/me/password", { method: "PUT", jsonBody: { current_password: currentPassword, new_password: newPassword } }, f);
+    },
+
+    requestEmailChange(newEmail: string): Promise<{ sent: true; delivered_to: string }> {
+      return dashboardJson(base, "/auth/me/email-change/request", { method: "POST", jsonBody: { new_email: newEmail } }, f);
+    },
+
+    confirmEmailChange(newEmail: string, code: string): Promise<{ email: string }> {
+      return dashboardJson(base, "/auth/me/email-change/confirm", { method: "POST", jsonBody: { new_email: newEmail, code } }, f);
     },
   };
 }

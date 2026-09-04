@@ -1,5 +1,6 @@
 import { dashboardJson } from "../http/client.js";
 import type { MerchantProfile, MerchantRules, MerchantTheme } from "../types.js";
+import { normalizeRole } from "../../lib/auth/roles.js";
 import type { SeoSettings, GtmSettings, GenerateSeoSuggestionsRequest, GenerateSeoSuggestionsResponse, CrossSellConfig } from "@zyon/shared-types";
 
 export interface SeoGtmConfig {
@@ -43,7 +44,22 @@ export interface VerifyDomainOutput {
 export function merchantEndpoints(base: string, f: typeof fetch) {
   return {
     merchantProfile(): Promise<MerchantProfile> {
-      return dashboardJson<MerchantProfile>(base, "/merchants/me", { method: "GET" }, f);
+      return dashboardJson<MerchantProfile | { data: MerchantProfile }>(
+        base,
+        "/merchants/me",
+        { method: "GET" },
+        f,
+      ).then((res) => {
+        const raw = "data" in res ? res.data : res;
+        const normalizedRole = normalizeRole((raw as { role?: unknown }).role);
+        // Normalize role from lowercase (backend) to uppercase (frontend Role type).
+        // If unrecognized, leave undefined so canAccessTab falls back to permissive mode
+        // (this only happens for admin-bypassed principals / future roles).
+        return {
+          ...raw,
+          role: normalizedRole as MerchantProfile["role"],
+        };
+      });
     },
 
     getMerchantRules(): Promise<MerchantRules> {

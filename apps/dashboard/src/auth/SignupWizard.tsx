@@ -90,7 +90,10 @@ export function SignupWizard(props: SignupWizardProps) {
     if (account.password.length < 8) { setError("Mínimo 8 caracteres, com letra e número."); return; }
     if (account.password !== account.confirmPassword) { setError("As senhas não coincidem."); return; }
     if (!account.phone.trim() || account.phone.replace(/\D/g, "").length < 10) { setError("Informe um celular válido."); return; }
-    if (props.turnstileSiteKey && !props.captchaToken) { setError("Confirme que você não é um robô."); return; }
+    if (import.meta.env.PROD && props.turnstileSiteKey && !props.captchaToken) {
+      setError("Confirme que você não é um robô.");
+      return;
+    }
 
     setLocalBusy(true);
     try {
@@ -180,7 +183,10 @@ export function SignupWizard(props: SignupWizardProps) {
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={busy || (Boolean(props.turnstileSiteKey) && !props.captchaToken)}
+          disabled={
+            busy ||
+            (import.meta.env.PROD && Boolean(props.turnstileSiteKey) && !props.captchaToken)
+          }
           className="auth-cta"
         >
           {busy ? "Criando..." : "Criar conta"}

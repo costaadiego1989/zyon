@@ -217,7 +217,10 @@ function LoginForm(props: AuthScreenProps & { onGithubClick: () => void; onGoogl
 
       <button
         type="submit"
-        disabled={props.busy || (Boolean(props.turnstileSiteKey) && !props.captchaToken)}
+        disabled={
+          props.busy ||
+          (import.meta.env.PROD && Boolean(props.turnstileSiteKey) && !props.captchaToken)
+        }
         className="auth-cta"
       >
         {props.busy ? "Aguarde..." : "Entrar"}
