@@ -1,5 +1,4 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { Type } from "class-transformer";
 import {
   ArrayMinSize,
   IsArray,
@@ -7,7 +6,6 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  ValidateNested,
 } from "class-validator";
 import { ACP_ORDER_EVENT_TYPES } from "../../acp-webhook-event.types.js";
 
@@ -29,8 +27,6 @@ export class CreateAcpWebhookSubscriptionDto {
   @IsArray()
   @ArrayMinSize(1)
   @IsIn(ACP_ORDER_EVENT_TYPES, { each: true })
-  @ValidateNested({ each: true })
-  @Type(() => String)
   events!: string[];
 
   @ApiPropertyOptional({
