@@ -167,7 +167,10 @@ export class OrdersV1Controller {
    */
   @Patch(':orderId/tracking')
   @Idempotent()
-  @RequireTenantAccess({ serviceScopes: ['tracking:write'] })
+  @RequireTenantAccess({
+    serviceScopes: ['tracking:write'],
+    humanRoles: ['owner', 'admin', 'staff'],
+  })
   @ApiOperation({ summary: 'Update order tracking' })
   @ApiBody({ type: UpdateOrderTrackingDto })
   @ApiOkResponse({ type: UpdateTrackingResponse, description: 'Tracking updated' })

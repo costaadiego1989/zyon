@@ -293,6 +293,7 @@ import {
     ConfirmCryptoPaymentUseCase,
     ConfirmStripePaymentUseCase,
     GetPaymentIntentStatusUseCase,
+    PAYMENT_REPOSITORY,
     PAYMENT_PLATFORM_REPOSITORY,
     BillingPlanMeteringService,
     PaymentEventPublisher,
