@@ -9,7 +9,7 @@
 #
 # Design principles:
 #   - Multi-stage build, distroless runtime (~150 MB final image)
-#   - Layer-cache friendly COPY order (manifests → sources → install)
+#   - Layer-cache friendly COPY order (manifests → sources)
 #   - Non-root user, read-only filesystem compatible
 #   - Graceful SIGTERM via exec-form CMD
 #   - OCI labels for image registry / SBOM tooling
@@ -27,16 +27,18 @@ ENV PNPM_HOME=/pnpm \
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 
 # =============================================================================
-# Stage 1 — dependencies (full workspace install, cached for prod rebuilds)
+# Stage 1 — builder (compile NestJS + generate Prisma client)
+# Source is copied FIRST, then pnpm install runs in this stage. This way
+# pnpm creates its symlinks in a clean tree and we don't hit overlay conflicts.
 # =============================================================================
-FROM toolchain AS deps
+FROM toolchain AS builder
 
 WORKDIR /repo
 
-# Copy workspace manifests first to maximize cache hits when only sources change.
+# Copy manifests.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 
-# Copy every package.json in the workspace so pnpm can resolve the dependency graph.
+# Copy every package.json in the workspace so pnpm can resolve the graph.
 COPY packages/contracts/package.json         packages/contracts/package.json
 COPY packages/shared-types/package.json      packages/shared-types/package.json
 COPY packages/commerce-adapters/package.json packages/commerce-adapters/package.json
@@ -55,47 +57,35 @@ COPY apps/dashboard/package.json             apps/dashboard/package.json
 COPY apps/storefront/package.json            apps/storefront/package.json
 COPY apps/web/package.json                   apps/web/package.json
 
-# pnpm install — no cache mount (Railway cache mount ID format is unstable).
+# Install dev deps + workspace packages needed for the build.
+# pnpm install works on the manifests-only tree, then we add sources next.
 RUN pnpm install --frozen-lockfile --prefer-offline
 
-# =============================================================================
-# Stage 2 — builder (compile NestJS + generate Prisma client)
-# Strategy: copy sources OVER the deps stage using COPY --exclude=node_modules,
-# which avoids overlay conflicts with pnpm-created symlinks.
-# =============================================================================
-FROM deps AS builder
-
-WORKDIR /repo
-
-# Copy fresh source over the deps-installed tree.
-# Exclude node_modules so we keep the deps stage's pnpm-installed modules intact.
-COPY --exclude=node_modules --exclude=dist packages/ packages/
-COPY --exclude=node_modules --exclude=dist apps/api/ apps/api/
+# Copy all sources (overlay over manifests-only install).
+COPY packages/ packages/
+COPY apps/api/ apps/api/
 
 # Build chain (contracts → shared-types → commerce-adapters → prisma generate → nest build)
 RUN pnpm --filter @zyon/api build
 
 # =============================================================================
-# Stage 3 — production-deps (prod-only node_modules for slim runner)
-# Fresh install with --prod — no symlink conflicts because we never pnpm install
-# before copying sources here.
+# Stage 2 — production-deps (prod-only node_modules for slim runner)
+# Same approach: copy sources BEFORE install to avoid overlay conflicts.
 # =============================================================================
 FROM toolchain AS prod-deps
 
 WORKDIR /repo
 
-# Copy manifests and full source BEFORE install — pnpm install needs source present
-# to create correct workspace symlinks.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/ packages/
 COPY apps/api/ apps/api/
 
-# Install prod-only deps.
+# Install prod-only deps on a clean tree.
 RUN pnpm install --frozen-lockfile --prod \
       --filter @zyon/api...
 
 # =============================================================================
-# Stage 4 — runner (distroless, ~150 MB)
+# Stage 3 — runner (distroless, ~150 MB)
 # =============================================================================
 FROM gcr.io/distroless/nodejs20-debian12:nonroot AS runner
 
