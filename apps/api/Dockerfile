@@ -9,8 +9,7 @@
 #
 # Design principles:
 #   - Multi-stage build, distroless runtime (~150 MB final image)
-#   - Layer-cache friendly COPY order (manifests → sources)
-#   - BuildKit --mount=type=cache for pnpm store (fastest reinstalls)
+#   - Layer-cache friendly COPY order (manifests → sources → install)
 #   - Non-root user, read-only filesystem compatible
 #   - Graceful SIGTERM via exec-form CMD
 #   - OCI labels for image registry / SBOM tooling
@@ -25,7 +24,6 @@ ENV PNPM_HOME=/pnpm \
     PNPM_VERSION=9.15.0 \
     PATH=/pnpm:$PATH
 
-# corepack ships with node:20-alpine; pinning avoids global npm drift.
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 
 # =============================================================================
@@ -57,42 +55,42 @@ COPY apps/dashboard/package.json             apps/dashboard/package.json
 COPY apps/storefront/package.json            apps/storefront/package.json
 COPY apps/web/package.json                   apps/web/package.json
 
-# pnpm install — no cache mount (Railway cache mount ID format is unstable;
-# removing this sacrifices incremental build speed but keeps the build working).
+# pnpm install — no cache mount (Railway cache mount ID format is unstable).
 RUN pnpm install --frozen-lockfile --prefer-offline
 
 # =============================================================================
 # Stage 2 — builder (compile NestJS + generate Prisma client)
+# Strategy: copy sources OVER the deps stage using COPY --exclude=node_modules,
+# which avoids overlay conflicts with pnpm-created symlinks.
 # =============================================================================
 FROM deps AS builder
 
 WORKDIR /repo
 
-# Copy full source AFTER install so cache survives source-only changes.
-# We DO NOT delete node_modules here — builder needs devDeps (tsc, nest CLI, prisma)
-# inherited from the deps stage.
-COPY packages/ packages/
-COPY apps/api/ apps/api/
+# Copy fresh source over the deps-installed tree.
+# Exclude node_modules so we keep the deps stage's pnpm-installed modules intact.
+COPY --exclude=node_modules --exclude=dist packages/ packages/
+COPY --exclude=node_modules --exclude=dist apps/api/ apps/api/
 
 # Build chain (contracts → shared-types → commerce-adapters → prisma generate → nest build)
 RUN pnpm --filter @zyon/api build
 
 # =============================================================================
 # Stage 3 — production-deps (prod-only node_modules for slim runner)
+# Fresh install with --prod — no symlink conflicts because we never pnpm install
+# before copying sources here.
 # =============================================================================
 FROM toolchain AS prod-deps
 
 WORKDIR /repo
 
+# Copy manifests and full source BEFORE install — pnpm install needs source present
+# to create correct workspace symlinks.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
-# Clean symlinks from any previous stage before overlaying fresh source.
-RUN rm -rf /repo/packages/*/node_modules /repo/packages/*/dist \
-    /repo/apps/api/node_modules /repo/apps/api/dist \
-    /repo/node_modules /repo/apps/*/node_modules 2>/dev/null || true
 COPY packages/ packages/
 COPY apps/api/ apps/api/
 
-# Production deps install (no cache mount — see note above).
+# Install prod-only deps.
 RUN pnpm install --frozen-lockfile --prod \
       --filter @zyon/api...
 
