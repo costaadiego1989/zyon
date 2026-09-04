@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "nest start --watch",
-    "build": "pnpm --filter @zyon/contracts --filter @zyon/shared-types --filter @zyon/commerce-adapters --filter @zyon/conversation-engine --filter @zyon/decision-engine --filter @zyon/negotiation-engine --filter @zyon/rules-engine --filter @zyon/shipping-engine build && prisma generate --schema prisma/schema.prisma && nest build",
+    "build": "pnpm --filter @zyon/contracts build && pnpm --filter @zyon/shared-types build && pnpm --filter @zyon/commerce-adapters build && pnpm --filter @zyon/conversation-engine build && pnpm --filter @zyon/decision-engine build && pnpm --filter @zyon/negotiation-engine build && pnpm --filter @zyon/rules-engine build && pnpm --filter @zyon/shipping-engine build && prisma generate --schema prisma/schema.prisma && nest build",
+    "start": "node dist/main.js",
     "start": "node dist/main.js",
     "lint": "eslint src",
     "typecheck": "pnpm --filter @zyon/contracts --filter @zyon/shared-types --filter @zyon/commerce-adapters --filter @zyon/conversation-engine --filter @zyon/decision-engine --filter @zyon/negotiation-engine --filter @zyon/rules-engine --filter @zyon/shipping-engine build && tsc -p tsconfig.json --noEmit",
@@ -36,6 +37,7 @@
     "@scalar/nestjs-api-reference": "1.0.31",
     "@sentry/node": "^10.66.0",
     "@sentry/profiling-node": "^10.66.0",
+    "@aws-sdk/client-s3": "^3.1111.0",
     "@zyon/commerce-adapters": "workspace:*",
     "@zyon/contracts": "workspace:*",
     "@zyon/conversation-engine": "workspace:*",
@@ -64,7 +66,6 @@
     "viem": "^2.31.0"
   },
   "devDependencies": {
-    "@aws-sdk/client-s3": "^3.1111.0",
     "@nestjs/cli": "^10.4.9",
     "@types/express": "^5.0.6",
     "@types/node": "^22.10.2",
