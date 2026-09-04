@@ -8,6 +8,7 @@ import type {
   AuditRepository,
   MerchantAuditEvent,
 } from "../domain/ports/audit-repository.port.js";
+import { InMemoryAuditRepository } from "../infrastructure/in-memory-audit.repository.js";
 
 describe("merchant audit events", () => {
   it("records the authenticated actor without accepting tenant input", async () => {
@@ -15,13 +16,8 @@ describe("merchant audit events", () => {
     const record = new RecordAuditEventUseCase(repository);
 
     const event = await record.execute({
-      principal: {
-        kind: "service",
-        tenantId: "mrc_a",
-        credentialId: "key_1",
-        environment: "test",
-        scopes: ["audit:read"],
-      },
+      merchantId: "mrc_a",
+      actor: { type: "service", id: "key_1" },
       action: "http.post",
       resourceType: "orders",
       resourceId: "ord_1",
@@ -38,13 +34,8 @@ describe("merchant audit events", () => {
     const record = new RecordAuditEventUseCase(repository);
     for (let index = 0; index < 3; index += 1) {
       await record.execute({
-        principal: {
-          kind: "human",
-          tenantId: "mrc_a",
-          userId: `usr_${index}`,
-          email: "owner@example.com",
-          role: "owner",
-        },
+        merchantId: "mrc_a",
+        actor: { type: "human", id: `usr_${index}` },
         action: "http.put",
         resourceType: "configuration",
       });
@@ -61,41 +52,29 @@ describe("merchant audit events", () => {
     });
     assert.equal(second.data.length, 1);
   });
+
+  it("AUD-M1: filters by action and resourceType", async () => {
+    const repository = new InMemoryAuditRepository();
+    const record = new RecordAuditEventUseCase(repository);
+    await record.execute({
+      merchantId: "mrc_a",
+      actor: { type: "human", id: "usr_1" },
+      action: "http.post",
+      resourceType: "orders",
+    });
+    await record.execute({
+      merchantId: "mrc_a",
+      actor: { type: "human", id: "usr_1" },
+      action: "http.put",
+      resourceType: "configuration",
+    });
+
+    const list = new ListAuditEventsUseCase(repository);
+    const result = await list.execute({
+      merchantId: "mrc_a",
+      action: "http.post",
+    });
+    assert.equal(result.data.length, 1);
+    assert.equal(result.data[0]?.resourceType, "orders");
+  });
 });
-
-class InMemoryAuditRepository implements AuditRepository {
-  private readonly rows: MerchantAuditEvent[] = [];
-
-  async record(
-    event: Omit<MerchantAuditEvent, "id" | "occurredAt">,
-  ): Promise<MerchantAuditEvent> {
-    const row: MerchantAuditEvent = {
-      ...event,
-      id: `aud_${this.rows.length + 1}`,
-      occurredAt: new Date(Date.now() + this.rows.length).toISOString(),
-    };
-    this.rows.push(row);
-    return row;
-  }
-
-  async list(input: {
-    merchantId: string;
-    limit: number;
-    cursor?: { occurredAt: string; id: string };
-  }): Promise<MerchantAuditEvent[]> {
-    return this.rows
-      .filter((row) => row.merchantId === input.merchantId)
-      .sort((left, right) =>
-        right.occurredAt.localeCompare(left.occurredAt) ||
-        right.id.localeCompare(left.id),
-      )
-      .filter(
-        (row) =>
-          !input.cursor ||
-          row.occurredAt < input.cursor.occurredAt ||
-          (row.occurredAt === input.cursor.occurredAt &&
-            row.id < input.cursor.id),
-      )
-      .slice(0, input.limit);
-  }
-}

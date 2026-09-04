@@ -9,13 +9,20 @@ test("encrypt/decrypt round-trips with explicit key", () => {
   assert.equal(decryptCommerceSecret(cipher, env), "shpat_super_secret");
 });
 
-test("ciphertext differs across calls (random IV)", () => {
+test("ciphertext differs across calls (random salt + IV)", () => {
   const env = { NODE_ENV: "test", AACP_COMMERCE_ENC_KEY: "k" } as NodeJS.ProcessEnv;
   const a = encryptCommerceSecret("token", env);
   const b = encryptCommerceSecret("token", env);
   assert.notEqual(a, b);
   assert.equal(decryptCommerceSecret(a, env), "token");
   assert.equal(decryptCommerceSecret(b, env), "token");
+});
+
+test("output format is salt:iv:tag:ciphertext (4 segments)", () => {
+  const env = { NODE_ENV: "test", AACP_COMMERCE_ENC_KEY: "k" } as NodeJS.ProcessEnv;
+  const cipher = encryptCommerceSecret("test", env);
+  const segments = cipher.split(":");
+  assert.equal(segments.length, 4, "expected 4 base64 segments separated by ':'");
 });
 
 test("dev fallback key works without AACP_COMMERCE_ENC_KEY outside production", () => {

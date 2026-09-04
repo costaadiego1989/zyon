@@ -1,5 +1,5 @@
-import { scoreEvent } from "@aacp/decision-engine";
-import type { CheckoutEventName } from "@aacp/shared-types";
+import { scoreEvent } from "@zyon/decision-engine";
+import type { CheckoutEventName } from "@zyon/shared-types";
 
 export const CHECKOUT_TRIGGER_THRESHOLD = 0.55;
 

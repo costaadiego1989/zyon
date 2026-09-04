@@ -5,6 +5,7 @@ import { InMemorySupportTicketRepository } from "../infrastructure/in-memory-sup
 import { ListSupportTicketsUseCase } from "./list-support-tickets.use-case.js";
 import { UpdateSupportTicketStatusUseCase } from "./update-support-ticket-status.use-case.js";
 import { CreateSupportTicketUseCase } from "./create-support-ticket.use-case.js";
+import { SupportTicketEventPublisher } from "./support-ticket-event.publisher.js";
 import {
   TenantWebhookPublisher,
   UpsertWebhookEndpointUseCase,
@@ -56,9 +57,10 @@ test("support ticket creation publishes metadata without the buyer message", asy
     url: "https://example.com/webhooks",
     events: ["support.ticket.created"],
   });
+  const publisher = new SupportTicketEventPublisher(new TenantWebhookPublisher(integrations));
   const create = new CreateSupportTicketUseCase(
     tickets,
-    new TenantWebhookPublisher(integrations),
+    publisher,
   );
 
   const ticket = await create.execute({

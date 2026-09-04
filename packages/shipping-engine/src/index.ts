@@ -1,5 +1,5 @@
-import type { Cart, MerchantRules, ShippingQuote } from "@aacp/shared-types";
-import { estimateMargin, type OfferEvaluation } from "@aacp/rules-engine";
+import type { Cart, MerchantRules, ShippingQuote } from "@zyon/shared-types";
+import { estimateMargin, type OfferEvaluation } from "@zyon/rules-engine";
 
 export interface ShippingDecisionInput {
   cart: Cart;
@@ -98,3 +98,17 @@ export {
   DEFAULT_QUOTE_TTL_SECONDS
 } from "./quote-key.js";
 export type { QuoteKeyInput } from "./quote-key.js";
+
+export {
+  validateCep,
+  assertValidCep,
+} from "./cep-validation.js";
+export type { CepValidationResult } from "./cep-validation.js";
+
+export {
+  validatePackageDimensions,
+  validatePackagesList,
+  assertValidPackages,
+  MELHOR_ENVIO_LIMITS,
+} from "./package-dimensions.js";
+export type { PackageValidationResult, PackageListValidationResult } from "./package-dimensions.js";

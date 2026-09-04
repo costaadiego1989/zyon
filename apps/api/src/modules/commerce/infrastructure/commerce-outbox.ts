@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import type { DomainEventEnvelope } from "@aacp/shared-types";
+import type { DomainEventEnvelope } from "@zyon/shared-types";
 
 type OutboxTransactionClient = Pick<Prisma.TransactionClient, "outboxMessage">;
 

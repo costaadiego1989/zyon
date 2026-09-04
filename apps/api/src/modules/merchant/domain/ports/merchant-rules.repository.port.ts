@@ -1,4 +1,4 @@
-import type { MerchantRules } from "@aacp/shared-types";
+import type { MerchantRules } from "@zyon/shared-types";
 
 export const MERCHANT_RULES_REPOSITORY = Symbol("MERCHANT_RULES_REPOSITORY");
 

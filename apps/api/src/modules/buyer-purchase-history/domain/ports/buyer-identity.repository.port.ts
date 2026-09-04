@@ -1,4 +1,4 @@
-import type { CustomerHints } from "@aacp/shared-types";
+import type { CustomerHints } from "@zyon/shared-types";
 
 export const BUYER_IDENTITY_REPOSITORY = Symbol("BUYER_IDENTITY_REPOSITORY");
 

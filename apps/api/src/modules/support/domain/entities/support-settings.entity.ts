@@ -1,4 +1,4 @@
-import type { SupportFaqItem, SupportSettings, SupportSettingsPatch } from "@aacp/shared-types";
+import type { SupportFaqItem, SupportSettings, SupportSettingsPatch } from "@zyon/shared-types";
 
 const MAX_FAQ_ITEMS = 20;
 const MAX_QUESTION_LENGTH = 200;

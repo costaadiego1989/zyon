@@ -12,6 +12,7 @@ import { COMMERCE_CATALOG_PORT } from "./domain/ports/commerce-catalog.port.js";
 import { COMMERCE_PROVIDER_RUNTIME } from "./domain/ports/commerce-provider-runtime.port.js";
 import { COMMERCE_PAID_WEBHOOK_DEDUP } from "./domain/ports/commerce-paid-webhook-dedup.port.js";
 import { COMMERCE_PENDING_ORDER_INDEX } from "./domain/ports/pending-commerce-order-index.port.js";
+import { COMMERCE_ADAPTER_CACHE_PORT } from "./domain/ports/commerce-adapter-cache.port.js";
 import { PrismaPendingCommerceOrderIndex } from "./infrastructure/prisma-pending-commerce-order-index.repository.js";
 import { PrismaCommercePaidWebhookDedup } from "./infrastructure/prisma-commerce-paid-webhook-dedup.repository.js";
 import { PrismaCommerceConnectionRepository } from "./infrastructure/prisma-commerce-connection.repository.js";
@@ -23,11 +24,23 @@ import {
   SyncCommerceConnectionUseCase,
   TestCommerceConnectionUseCase,
 } from "./application/manage-commerce-connection.use-cases.js";
+import { RegisterNuvemshopWebhooksUseCase } from "./application/register-nuvemshop-webhooks.use-case.js";
 import { CommerceConnectionsController } from "./presentation/http/commerce-connections.controller.js";
+import { WooCommerceWebhookController } from "./presentation/http/woocommerce-webhook.controller.js";
+import { ShopifyWebhookController } from "./presentation/http/shopify-webhook.controller.js";
+import { NuvemshopWebhookController } from "./presentation/http/nuvemshop-webhook.controller.js";
+import { TrayWebhookController } from "./presentation/http/tray-webhook.controller.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 
 @Module({
   imports: [IntegrationsModule],
-  controllers: [CommerceConnectionsController],
+  controllers: [
+    CommerceConnectionsController,
+    WooCommerceWebhookController,
+    ShopifyWebhookController,
+    NuvemshopWebhookController,
+    TrayWebhookController,
+  ],
   providers: [
     TenantCommerceAdapterFactory,
     {
@@ -61,14 +74,21 @@ import { CommerceConnectionsController } from "./presentation/http/commerce-conn
       provide: COMMERCE_PROVIDER_RUNTIME,
       useExisting: TenantCommerceAdapterFactory,
     },
+    {
+      provide: COMMERCE_ADAPTER_CACHE_PORT,
+      useExisting: TenantCommerceAdapterFactory,
+    },
     ValidateCartForPaymentUseCase,
     SyncPendingOrderUseCase,
     MarkCommerceOrderPaidUseCase,
+    RegisterNuvemshopWebhooksUseCase,
     GetCommerceConnectionUseCase,
     ConnectCommerceUseCase,
     TestCommerceConnectionUseCase,
     SyncCommerceConnectionUseCase,
     DisconnectCommerceUseCase,
+    BillingPlanMeteringService,
+    PlanLimitGuard,
   ],
   exports: [
     ValidateCartForPaymentUseCase,
@@ -80,6 +100,10 @@ import { CommerceConnectionsController } from "./presentation/http/commerce-conn
     COMMERCE_CATALOG_PORT,
     COMMERCE_ORDER_PORT,
     TenantCommerceAdapterFactory,
+    GetCommerceConnectionUseCase,
+    ConnectCommerceUseCase,
+    SyncCommerceConnectionUseCase,
+    DisconnectCommerceUseCase,
   ]
 })
 export class CommerceModule {}

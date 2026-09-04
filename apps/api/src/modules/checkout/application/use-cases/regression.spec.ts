@@ -15,7 +15,7 @@ import { CompleteOrderUseCase } from "./complete-order.use-case.js";
 import { EvaluateShippingUseCase } from "./evaluate-shipping.use-case.js";
 import { UpdateCartUseCase } from "./update-cart.use-case.js";
 import { checkoutSession, authorizedOffer, testCart } from "../../__tests__/checkout-test-fixtures.js";
-import type { AuthorizedOffer } from "@aacp/shared-types";
+import type { AuthorizedOffer } from "@zyon/shared-types";
 import type { CommerceOfferPort } from "../../domain/ports/commerce-offer.port.js";
 
 class FakeCommerce implements CommerceOfferPort {

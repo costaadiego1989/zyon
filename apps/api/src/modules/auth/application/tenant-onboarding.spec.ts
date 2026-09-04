@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 import { InMemoryAuthRepository } from "../infrastructure/in-memory-auth.repository.js";
 import { JwtService } from "../domain/services/jwt.service.js";
 import { PasswordHasher } from "../domain/services/password-hasher.service.js";
+import { DefaultMerchantIdGenerator } from "../domain/ports/merchant-id-generator.port.js";
 import { RegisterMerchantUseCase } from "./register-merchant.use-case.js";
 import { LoginUseCase } from "./login.use-case.js";
 import { IssueEmbedSessionUseCase } from "../../embed/application/issue-embed-session.use-case.js";
 import { EmbedTokenService } from "../../embed/domain/embed-token.service.js";
+import { InvalidCredentialsError } from "../domain/errors.js";
 
 const EMBED_SECRET = Buffer.from("athom-tech-embed-secret-32bytes!!");
 const JWT_SECRET = "athom-tech-jwt-secret";
@@ -16,21 +18,20 @@ test("tenant onboarding: register Athom Tech → login → issue embed session",
   const hasher = new PasswordHasher();
   const jwt = new JwtService(JWT_SECRET, 3600);
   const embedTokens = new EmbedTokenService({ value: EMBED_SECRET });
+  const idGen = new DefaultMerchantIdGenerator();
 
-  const register = new RegisterMerchantUseCase(repository, hasher, jwt);
+  const register = new RegisterMerchantUseCase(repository, hasher, jwt, idGen);
   const login = new LoginUseCase(repository, hasher, jwt);
   const issueEmbed = new IssueEmbedSessionUseCase(embedTokens);
 
   // 1. Register tenant
-  // B4 (P2): client-supplied merchant_id is ignored; server generates it.
   const registered = await register.execute({
-    merchant_id: "mrc_athom_tech",
     merchant_name: "Athom Tech",
     email: "costaadiego1989@gmail.com",
     password: "athom2026!",
   });
 
-  // B4: server-generated ID starts with mrc_ but is NOT the client-supplied one.
+  // B4: server-generated ID starts with mrc_ but is NOT client-supplied.
   assert.ok(registered.merchant_id.startsWith("mrc_"), "merchant_id must start with mrc_");
   assert.equal(registered.email, "costaadiego1989@gmail.com");
   assert.ok(registered.access_token, "must return JWT");
@@ -67,7 +68,8 @@ test("tenant onboarding: duplicate email rejected", async () => {
   const repository = new InMemoryAuthRepository();
   const hasher = new PasswordHasher();
   const jwt = new JwtService(JWT_SECRET, 3600);
-  const register = new RegisterMerchantUseCase(repository, hasher, jwt);
+  const idGen = new DefaultMerchantIdGenerator();
+  const register = new RegisterMerchantUseCase(repository, hasher, jwt, idGen);
 
   await register.execute({
     merchant_name: "Athom Tech",
@@ -80,7 +82,7 @@ test("tenant onboarding: duplicate email rejected", async () => {
       register.execute({
         merchant_name: "Athom Tech Duplicate",
         email: "costaadiego1989@gmail.com",
-        password: "other",
+        password: "other-pass-123",
       }),
     { name: "ConflictException" }
   );

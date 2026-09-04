@@ -113,20 +113,33 @@ test("billing creates a local trial and server-configured Stripe checkout", asyn
     config,
   );
 
-  const trial = await get.execute("mrc_bill");
+  const trial = await withCapturedWarnings(() => get.execute("mrc_bill"));
   const session = await checkout.execute({
     merchantId: "mrc_bill",
     email: "billing@example.com",
     plan: "growth",
   });
 
-  assert.equal(trial.status, "trialing");
+  assert.equal(trial.result.status, "trialing");
+  assert.match(trial.warnings.join("\n"), /billing_trial_queue_fallback/);
   assert.equal(session.url, "https://billing.stripe.test/session");
   assert.equal(stripe.lastPriceId, "price_growth_server");
   assert.equal(
     (await repository.getBilling("mrc_bill"))?.stripeCustomerId,
     "cus_mrc_bill",
   );
+});
+
+test("billing trial fails fast when queue is required", async () => {
+  const previous = process.env.BILLING_TRIAL_QUEUE_REQUIRED;
+  process.env.BILLING_TRIAL_QUEUE_REQUIRED = "true";
+  try {
+    const get = new GetBillingSubscriptionUseCase(new InMemoryPaymentPlatformRepository());
+    await assert.rejects(() => get.execute("mrc_bill"), /billing_trial_queue_not_configured/);
+  } finally {
+    if (previous === undefined) delete process.env.BILLING_TRIAL_QUEUE_REQUIRED;
+    else process.env.BILLING_TRIAL_QUEUE_REQUIRED = previous;
+  }
 });
 
 class StubStripePlatform implements StripePlatformPort {
@@ -192,6 +205,23 @@ class StubAsaasPlatform implements AsaasPlatformPort {
   async listOnboardingLinks() {
     return ["https://cadastro.asaas.com/onboarding/test"];
   }
+
+  async findSubaccountByCpfCnpj(_cpfCnpj: string) {
+    // Default: no pre-existing subaccount, so the create path runs.
+    return null;
+  }
+
+  async createSubaccountApiKey(_accountId: string) {
+    return { apiKey: "asaas_subaccount_secret" };
+  }
+
+  async retrieveWalletId(_apiKey: string) {
+    return "wallet_1";
+  }
+
+  async approveSandboxAccount(_apiKey: string) {
+    return;
+  }
 }
 
 class StubBillingConfig implements BillingConfigPort {
@@ -201,6 +231,17 @@ class StubBillingConfig implements BillingConfigPort {
 
   consoleUrl(): string {
     return "https://console.aacp.test";
+  }
+}
+
+async function withCapturedWarnings<T>(fn: () => Promise<T>): Promise<{ result: T; warnings: string[] }> {
+  const previous = console.warn;
+  const warnings: string[] = [];
+  console.warn = (message?: unknown) => { warnings.push(String(message)); };
+  try {
+    return { result: await fn(), warnings };
+  } finally {
+    console.warn = previous;
   }
 }
 

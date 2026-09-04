@@ -27,13 +27,12 @@ function stripeStateFromStatus(status: Stripe.PaymentIntent.Status): FetchPaymen
 
 @Injectable()
 export class StripePaymentAdapter implements PaymentProviderPort {
-  private readonly stripe: Stripe;
-  private readonly publishableKey: string;
+  private stripe?: Stripe;
 
-  constructor(secretKey: string, publishableKey: string) {
-    this.stripe = new Stripe(secretKey, { apiVersion: "2026-04-22.dahlia" });
-    this.publishableKey = publishableKey;
-  }
+  constructor(
+    private readonly secretKey: string | undefined,
+    private readonly publishableKey: string | undefined
+  ) {}
 
   async createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput> {
     if (input.creditCard) {
@@ -57,7 +56,7 @@ export class StripePaymentAdapter implements PaymentProviderPort {
       paymentIntentParams.transfer_data = { destination: input.stripeConnectAccountId };
     }
 
-    const paymentIntent = await this.stripe.paymentIntents.create(
+    const paymentIntent = await this.requireStripe().paymentIntents.create(
       paymentIntentParams,
       { idempotencyKey: input.providerIdempotencyKey ?? input.intentId }
     );
@@ -71,16 +70,37 @@ export class StripePaymentAdapter implements PaymentProviderPort {
       status: "requires_action",
       buyerFacingPayload: {
         clientSecret: paymentIntent.client_secret,
-        stripePublishableKey: this.publishableKey
+        stripePublishableKey: this.requirePublishableKey()
       }
     };
   }
 
   async fetchPaymentStatus(input: FetchPaymentStatusInput): Promise<FetchPaymentStatusOutput> {
-    const pi = await this.stripe.paymentIntents.retrieve(input.providerPaymentId);
+    const pi = await this.requireStripe().paymentIntents.retrieve(input.providerPaymentId);
     return {
       state: stripeStateFromStatus(pi.status),
       approvedAmountCents: pi.amount_received || undefined
     };
+  }
+
+  private requireStripe(): Stripe {
+    if (!this.secretKey) throw new Error("stripe_not_configured");
+    this.stripe ??= new Stripe(this.secretKey, { apiVersion: "2026-04-22.dahlia" });
+    return this.stripe;
+  }
+
+  private requirePublishableKey(): string {
+    if (!this.publishableKey) throw new Error("stripe_publishable_key_missing");
+    return this.publishableKey;
+  }
+
+  async refundPayment(input: { merchantId: string; providerPaymentId: string; amountCents: number; reason?: string }) {
+    const stripe = this.requireStripe();
+    const refund = await stripe.refunds.create({
+      payment_intent: input.providerPaymentId,
+      amount: input.amountCents,
+      reason: "requested_by_customer",
+    });
+    return { refundId: refund.id, status: refund.status === "succeeded" ? "succeeded" as const : "pending" as const };
   }
 }

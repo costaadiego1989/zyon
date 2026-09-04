@@ -1,4 +1,4 @@
-import type { ProblemDetails } from "@aacp/contracts";
+import type { ProblemDetails } from "@zyon/contracts";
 import {
   ArgumentsHost,
   Catch,

@@ -1,11 +1,14 @@
-import { Injectable, Inject, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException , Logger} from "@nestjs/common";
 import { COUPON_REPOSITORY, type CouponRepository } from "../../domain/ports/coupon-repository.port.js";
 import { COUPON_REDEMPTION_REPOSITORY, type CouponRedemptionRepository } from "../../domain/ports/coupon-redemption-repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { createCouponEventEnvelope } from "../../domain/events/coupon-domain-event.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class RedeemCouponUseCase {
+  private readonly logger = new Logger(RedeemCouponUseCase.name);
+
   constructor(
     @Inject(COUPON_REPOSITORY) private readonly coupons: CouponRepository,
     @Inject(COUPON_REDEMPTION_REPOSITORY) private readonly redemptions: CouponRedemptionRepository,

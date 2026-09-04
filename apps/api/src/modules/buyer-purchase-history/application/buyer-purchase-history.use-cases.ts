@@ -1,4 +1,4 @@
-import { Inject, Injectable, Optional } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import type {
   BuyerPurchaseHistoryContext,
   PurchaseHistoryIdentity,
@@ -12,19 +12,33 @@ import {
   PURCHASE_HISTORY_METERING_PORT,
   type PurchaseHistoryMeteringPort
 } from "../domain/ports/purchase-history-metering.port.js";
+import {
+  BUYER_PURCHASE_HISTORY_CONFIG,
+  type BuyerPurchaseHistoryConfig
+} from "../domain/buyer-purchase-history.config.js";
 
 export interface RecordCompletedPurchaseResponse {
   recorded: true;
   idempotent: boolean;
+  order_id: string;
   orders_count: number;
 }
 
 @Injectable()
 export class RecordCompletedPurchaseUseCase {
+  private readonly logger = new Logger(RecordCompletedPurchaseUseCase.name);
+
   constructor(
     @Inject(BUYER_PURCHASE_HISTORY_REPOSITORY) private readonly repository: BuyerPurchaseHistoryRepository,
     @Optional() @Inject(PURCHASE_HISTORY_METERING_PORT) private readonly metering?: PurchaseHistoryMeteringPort
-  ) {}
+  ) {
+    // C3 fix: warn if metering is missing; merchant has no usage visibility
+    if (!this.metering) {
+      this.logger.warn(
+        "[buyer-purchase-history] Metering port not configured; purchase history events will not be recorded"
+      );
+    }
+  }
 
   async execute(input: PurchaseRecord): Promise<RecordCompletedPurchaseResponse> {
     const result = await this.repository.recordPurchase(input);
@@ -41,9 +55,11 @@ export class RecordCompletedPurchaseUseCase {
         }
       });
     }
+    // M1 fix: include order_id in response for caller audit
     return {
       recorded: true,
       idempotent: result.idempotent,
+      order_id: input.orderId,
       orders_count: result.history.stats().ordersCount
     };
   }
@@ -53,7 +69,8 @@ export class RecordCompletedPurchaseUseCase {
 export class GetBuyerPurchaseContextUseCase {
   constructor(
     @Inject(BUYER_PURCHASE_HISTORY_REPOSITORY) private readonly repository: BuyerPurchaseHistoryRepository,
-    @Optional() @Inject(PURCHASE_HISTORY_METERING_PORT) private readonly metering?: PurchaseHistoryMeteringPort
+    @Optional() @Inject(PURCHASE_HISTORY_METERING_PORT) private readonly metering?: PurchaseHistoryMeteringPort,
+    @Inject(BUYER_PURCHASE_HISTORY_CONFIG) private readonly config: BuyerPurchaseHistoryConfig = { meterFirstTimeLookups: false }
   ) {}
 
   async execute(input: PurchaseHistoryIdentity): Promise<BuyerPurchaseHistoryContext> {
@@ -88,6 +105,13 @@ export class GetBuyerPurchaseContextUseCase {
     ordersCount: number,
     knownBuyer: boolean
   ): Promise<void> {
+    // M2 fix: distinguish first-time lookup (knownBuyer=false) from returning buyer
+    // Merchant can enable/disable metering for first-time lookups via injected config
+    const meterFirstTime = this.config.meterFirstTimeLookups === true;
+    if (!knownBuyer && !meterFirstTime) {
+      // Don't meter first-time unknown buyers unless explicitly enabled
+      return;
+    }
     await this.metering?.record({
       eventType: "purchase_history.context_used",
       merchantId: input.merchantId,

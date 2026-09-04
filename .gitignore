@@ -13,21 +13,7 @@ coverage
 
 # Local editor configs
 .vscode/
-.claude/
-.cursor/
-.agents/
-.vercel/
-.playwright-mcp/
-.playwright-tiktok-profile/
-.github/skills/
 .claude/settings.local.json
-
-# Per-app local artifacts
-apps/api/.audit/
-apps/api/.claude/
-apps/api/.impeccable/
-apps/dashboard/.audit/
-apps/dashboard/e2e/
 
 # Test reports and results
 playwright-report/
@@ -41,7 +27,6 @@ scripts/*
 
 # Feature spec directories (auto-generated or WIP)
 .specs/features/
-.specs/codebase/
 
 # Exclude generated/WIP docs, but keep architecture decisions versioned.
 /docs/*
@@ -50,5 +35,32 @@ scripts/*
 !/docs/architecture/adr/
 !/docs/architecture/adr/*.md
 
-.playwright-tiktok-profile/
+.agents/
+.claude/
+.codex/
+.cursor/
+.github/
+!.github/workflows/
+
+# Local WooCommerce installation (E2E test environment)
+woocommerce/
+wp-content/
+wp-config.php
+.wp-cli/
 .playwright-mcp/
+*.png
+!apps/web/assets/*.png
+test-pix-flow.mjs
+apps/widget/verify-widget.mjs
+apps/widget/cart-*.png
+
+# Build artifacts
+*.tsbuildinfo
+.audit/
+nul
+.vercel
+.env*
+
+.playwright-tiktok-profile/
+scripts/tiktok-*.js
+tiktok-*.png

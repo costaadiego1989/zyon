@@ -1,5 +1,5 @@
 import { BadRequestException } from "@nestjs/common";
-import type { MerchantNegotiationPolicy } from "@aacp/negotiation-engine";
+import type { MerchantNegotiationPolicy } from "@zyon/negotiation-engine";
 
 function isValidRange(range: { minOfferDiscountPercent: number; maxDiscountPercent: number }): boolean {
   return (

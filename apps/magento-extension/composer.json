@@ -1,0 +1,16 @@
+{
+  "name": "zyon/checkout-module",
+  "description": "Zyon AI Checkout Widget for Magento 2",
+  "type": "magento2-module",
+  "version": "1.0.0",
+  "license": "proprietary",
+  "require": {
+    "magento/framework": ">=103.0"
+  },
+  "autoload": {
+    "files": ["registration.php"],
+    "psr-4": {
+      "Zyon\\Checkout\\": ""
+    }
+  }
+}

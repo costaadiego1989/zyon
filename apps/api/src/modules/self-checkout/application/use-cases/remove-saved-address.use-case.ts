@@ -1,8 +1,11 @@
-import { Injectable, Inject, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException , Logger} from "@nestjs/common";
 import { BUYER_WALLET_REPOSITORY, type BuyerWalletRepository } from "../../domain/ports/buyer-wallet-repository.port.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class RemoveSavedAddressUseCase {
+  private readonly logger = new Logger(RemoveSavedAddressUseCase.name);
+
   constructor(
     @Inject(BUYER_WALLET_REPOSITORY) private readonly wallets: BuyerWalletRepository
   ) {}

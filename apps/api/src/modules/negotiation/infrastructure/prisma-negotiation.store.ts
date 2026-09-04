@@ -3,7 +3,7 @@ import type {
   BuyerNegotiationPreferences,
   MerchantNegotiationPolicy,
   NegotiationResult
-} from "@aacp/negotiation-engine";
+} from "@zyon/negotiation-engine";
 import type { NegotiationStore } from "../domain/ports/negotiation-store.port.js";
 
 export class PrismaNegotiationStore implements NegotiationStore {
@@ -92,12 +92,18 @@ export class PrismaNegotiationStore implements NegotiationStore {
           resultJson: JSON.parse(JSON.stringify(input.result)) as object
         }
       });
+      // C3 fix: write ledger entry. Populate the semantic column (aiCostCents)
+      // for the negotiation.evaluated event type AND keep amountCents in sync
+      // for backward compatibility with legacy readers during the deprecation
+      // window.
+      const aiCostCents = input.result.estimatedAiCostCents;
       await tx.negotiationCostLedgerEntry.create({
         data: {
           merchantId: input.merchantId,
           negotiationSessionId: row.id,
           eventType: "negotiation.evaluated",
-          amountCents: input.result.estimatedAiCostCents
+          amountCents: aiCostCents,
+          aiCostCents
         }
       });
       return { id: row.id };
@@ -113,9 +119,13 @@ export class PrismaNegotiationStore implements NegotiationStore {
     });
     if (!row) return null;
 
-    // Check if an offer_applied ledger entry exists (idempotency marker)
+    // H2 fix: check for idempotency marker (offer already applied)
+    // Using findFirst until migration adds the composite unique constraint
     const appliedEntry = await this.prisma.negotiationCostLedgerEntry.findFirst({
-      where: { negotiationSessionId, merchantId, eventType: "negotiation.offer_applied" }
+      where: {
+        negotiationSessionId,
+        eventType: "negotiation.offer_applied"
+      }
     });
 
     return {
@@ -137,31 +147,38 @@ export class PrismaNegotiationStore implements NegotiationStore {
     offerData: Record<string, unknown>;
   }): Promise<{ alreadyApplied: boolean; offerId: string }> {
     return this.prisma.$transaction(async (tx) => {
-      // Idempotency check: look for existing offer_applied entry
+      // H2 fix: idempotency check — findFirst protected by $transaction serialization.
+      // After migration applies the composite unique constraint, Prisma will enforce
+      // uniqueness at DB level even in concurrent scenarios.
       const existing = await tx.negotiationCostLedgerEntry.findFirst({
         where: {
           negotiationSessionId: input.negotiationSessionId,
-          merchantId: input.merchantId,
           eventType: "negotiation.offer_applied"
         }
       });
 
       if (existing) {
-        // Return the offer id stored in offerData or a synthetic replay marker
         const offerId = (input.offerData["id"] as string | undefined) ?? `off_replay`;
         return { alreadyApplied: true, offerId };
       }
 
       const offerId = (input.offerData["id"] as string | undefined) ?? `off_${crypto.randomUUID()}`;
 
-      // Append ledger entry recording the actual discount percent (Bug 10 fix)
+      const basisPoints = Math.round(input.discountPercent * 100);
+      // C3 fix: write ledger entry with discount basis points. Populate the
+      // semantic column (discountBasisPoints) AND keep amountCents in sync
+      // for backward compatibility with legacy readers during the deprecation
+      // window. The amountCents column is named for money but historically
+      // held basis points for offer_applied entries; we preserve that legacy
+      // value so older dashboards/queries keep working while new readers
+      // prefer discountBasisPoints.
       await tx.negotiationCostLedgerEntry.create({
         data: {
           merchantId: input.merchantId,
           negotiationSessionId: input.negotiationSessionId,
           eventType: "negotiation.offer_applied",
-          // Store discountPercent * 100 as integer basis points for ledger observability
-          amountCents: Math.round(input.discountPercent * 100)
+          amountCents: basisPoints,
+          discountBasisPoints: basisPoints
         }
       });
 
@@ -176,12 +193,25 @@ export class PrismaNegotiationStore implements NegotiationStore {
     amountCents: number;
     metadata?: Record<string, unknown>;
   }): Promise<void> {
+    // C3 fix: route the legacy amountCents to the correct semantic column
+    // based on eventType so downstream readers (cost-tracker, billing) that
+    // prefer aiCostCents / discountBasisPoints get the right unit. The
+    // amountCents column is kept in sync for backward compatibility during
+    // the deprecation window.
+    const semanticData =
+      input.eventType === "negotiation.evaluated"
+        ? { aiCostCents: input.amountCents }
+        : input.eventType === "negotiation.offer_applied"
+        ? { discountBasisPoints: input.amountCents }
+        : {};
+
     await this.prisma.negotiationCostLedgerEntry.create({
       data: {
         merchantId: input.merchantId,
         negotiationSessionId: input.negotiationSessionId,
         eventType: input.eventType,
-        amountCents: input.amountCents
+        amountCents: input.amountCents,
+        ...semanticData
       }
     });
   }

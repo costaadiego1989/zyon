@@ -1,5 +1,5 @@
 {
-  "name": "@aacp/conversation-engine",
+  "name": "@zyon/conversation-engine",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,9 +8,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "pnpm build && node dist/index.spec.js"
+    "test": "pnpm build && node dist/index.spec.js && node dist/langgraph/openrouter-provider.spec.js && node dist/langgraph/safety-validator.spec.js && node dist/langgraph/cost-tracker.spec.js && node dist/langgraph/context-manager.spec.js && node dist/langgraph/chat-tools.spec.js && node dist/langgraph/langgraph-agent.spec.js && node dist/config-context/__tests__/config-to-agent.e2e.spec.js"
   },
   "dependencies": {
-    "@aacp/shared-types": "workspace:*"
+    "@langchain/core": "^0.3.0",
+    "@langchain/langgraph": "^0.2.0",
+    "@langchain/openai": "^0.5.0",
+    "@zyon/shared-types": "workspace:*"
   }
 }

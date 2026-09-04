@@ -1,11 +1,12 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
-import type { TenantPrincipal } from "../../../shared/auth/tenant-principal.js";
 import {
   AUDIT_REPOSITORY,
   type AuditCursor,
   type AuditRepository,
   type MerchantAuditEvent,
 } from "../domain/ports/audit-repository.port.js";
+import type { AuditActor } from "../domain/audit-actor.js";
+import { InvalidCursorError } from "../domain/errors/invalid-cursor.error.js";
 
 @Injectable()
 export class RecordAuditEventUseCase {
@@ -15,24 +16,28 @@ export class RecordAuditEventUseCase {
   ) {}
 
   execute(input: {
-    principal: TenantPrincipal;
+    merchantId: string;
+    actor: AuditActor;
     action: string;
     resourceType: string;
     resourceId?: string;
     correlationId?: string;
+    ipAddress?: string;
+    userAgent?: string;
+    outcome?: "success" | "failed";
     metadata?: Record<string, unknown>;
   }): Promise<MerchantAuditEvent> {
     return this.repository.record({
-      merchantId: input.principal.tenantId,
-      actorType: input.principal.kind,
-      actorId:
-        input.principal.kind === "human"
-          ? input.principal.userId
-          : input.principal.credentialId,
+      merchantId: input.merchantId,
+      actorType: input.actor.type,
+      actorId: input.actor.id,
       action: required(input.action, "audit_action"),
       resourceType: required(input.resourceType, "audit_resource_type"),
       resourceId: optional(input.resourceId),
       correlationId: optional(input.correlationId),
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent,
+      outcome: input.outcome ?? "success",
       metadata: input.metadata ?? {},
     });
   }
@@ -49,6 +54,11 @@ export class ListAuditEventsUseCase {
     merchantId: string;
     limit?: number;
     cursor?: string;
+    action?: string;
+    resourceType?: string;
+    actorId?: string;
+    since?: string;
+    until?: string;
   }): Promise<{
     data: MerchantAuditEvent[];
     nextCursor: string | null;
@@ -58,6 +68,11 @@ export class ListAuditEventsUseCase {
       merchantId: required(input.merchantId, "merchant_id"),
       limit: limit + 1,
       cursor: decodeCursor(input.cursor),
+      action: optional(input.action),
+      resourceType: optional(input.resourceType),
+      actorId: optional(input.actorId),
+      since: input.since,
+      until: input.until,
     });
     const data = rows.slice(0, limit);
     const last = data.at(-1);
@@ -80,6 +95,10 @@ function encodeCursor(cursor: AuditCursor): string {
   return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
 }
 
+/**
+ * AUD-M4: Throws domain error (InvalidCursorError) instead of BadRequestException.
+ * The controller maps this to HTTP 400.
+ */
 function decodeCursor(value?: string): AuditCursor | undefined {
   if (!value) return undefined;
   try {
@@ -96,7 +115,7 @@ function decodeCursor(value?: string): AuditCursor | undefined {
     }
     return { occurredAt: parsed.occurredAt, id: parsed.id };
   } catch {
-    throw new BadRequestException("cursor_invalid");
+    throw new InvalidCursorError();
   }
 }
 

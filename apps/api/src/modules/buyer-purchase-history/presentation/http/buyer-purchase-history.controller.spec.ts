@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { InMemoryBuyerPurchaseHistoryRepository } from "../../infrastructure/in-memory-buyer-purchase-history.repository.js";
+import { InMemoryBuyerIdentityRepository } from "../../infrastructure/in-memory-buyer-identity.repository.js";
 import {
   GetBuyerPurchaseContextUseCase,
   RecordCompletedPurchaseUseCase
@@ -9,9 +10,10 @@ import { BuyerPurchaseHistoryController } from "./buyer-purchase-history.control
 
 test("BuyerPurchaseHistoryController returns safe context scoped by authenticated merchant", async () => {
   const repository = new InMemoryBuyerPurchaseHistoryRepository();
+  const identityRepo = new InMemoryBuyerIdentityRepository();
   const recordPurchase = new RecordCompletedPurchaseUseCase(repository);
   const getContext = new GetBuyerPurchaseContextUseCase(repository);
-  const controller = new BuyerPurchaseHistoryController(getContext);
+  const controller = new BuyerPurchaseHistoryController(getContext, identityRepo);
 
   await recordPurchase.execute({
     merchantId: "mrc_auth",

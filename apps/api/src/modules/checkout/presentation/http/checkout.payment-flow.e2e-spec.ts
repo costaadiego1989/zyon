@@ -1,16 +1,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
+import { createStartCheckoutUseCase } from "../../application/use-cases/start-checkout.fixture.js";
 import { CompleteOrderUseCase } from "../../application/use-cases/complete-order.use-case.js";
 import { UpdateOrderTrackingUseCase } from "../../application/use-cases/update-order-tracking.use-case.js";
 import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
 import { HandleAsaasWebhookUseCase } from "../../../payment/application/handle-asaas-webhook.use-case.js";
+import { PaymentDispatchService } from "../../../payment/application/services/payment-dispatch.service.js";
 import { InMemoryPaymentRepository } from "../../../payment/infrastructure/in-memory-payment.repository.js";
 import { FakePaymentProvider } from "../../../payment/infrastructure/fake-payment-provider.js";
 import { CheckoutPaymentAdapter } from "../../../payment/infrastructure/checkout-payment.adapter.js";
 import { InMemoryDomainEventBus } from "../../../../shared/events/in-memory-domain-event-bus.js";
 import { PaymentApprovedHandler } from "../../application/handlers/payment-approved.handler.js";
+
+const ASAAS_WEBHOOK_TOKEN = "test-checkout-payment-webhook-token";
+
+// Configure webhook token for all tests in this file (fail-closed requires it).
+test.before(() => {
+  process.env.ASAAS_WEBHOOK_TOKEN = ASAAS_WEBHOOK_TOKEN;
+});
 
 function makeCheckoutPaymentAdapter(checkout: InMemoryCheckoutRepository): CheckoutPaymentAdapter {
   const eventBus = new InMemoryDomainEventBus();
@@ -25,7 +33,7 @@ test("checkout payment happy path: start-checkout → intent → PAYMENT_RECEIVE
   const merchantId = `m_pay_e2e_${crypto.randomUUID().replace(/-/g, "").slice(0, 18)}`;
   const sessionId = `chk_e2e_${crypto.randomUUID().slice(0, 12)}`;
 
-  await new StartCheckoutUseCase(checkout, checkout, checkout).execute({
+  await createStartCheckoutUseCase(checkout, checkout).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     cart: {
@@ -47,9 +55,10 @@ test("checkout payment happy path: start-checkout → intent → PAYMENT_RECEIVE
   assert.equal(intentSnap.amountCents / 100, 300);
 
   const checkoutPayment = makeCheckoutPaymentAdapter(checkout);
-  const webhook = new HandleAsaasWebhookUseCase(payments, checkoutPayment);
+  const paymentDispatch = new PaymentDispatchService(payments, checkoutPayment);
+  const webhook = new HandleAsaasWebhookUseCase(payments, paymentDispatch);
 
-  const processed = await webhook.execute(undefined, {
+  const processed = await webhook.execute(ASAAS_WEBHOOK_TOKEN, {
     id: `evt_e2e_${crypto.randomUUID().replace(/-/g, "").slice(0, 22)}`,
     event: "PAYMENT_RECEIVED",
     payment: {
@@ -98,7 +107,7 @@ test("checkout payment: boleto — intent criado com method=boleto + aprovado vi
   const merchantId = `m_boleto_e2e_${crypto.randomUUID().replace(/-/g, "").slice(0, 14)}`;
   const sessionId = `chk_boleto_${crypto.randomUUID().slice(0, 12)}`;
 
-  await new StartCheckoutUseCase(checkout, checkout, checkout).execute({
+  await createStartCheckoutUseCase(checkout, checkout).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     cart: {
@@ -124,9 +133,10 @@ test("checkout payment: boleto — intent criado com method=boleto + aprovado vi
   assert.equal(intentSnap.amountCents / 100, 450);
 
   const checkoutPayment = makeCheckoutPaymentAdapter(checkout);
-  const webhook = new HandleAsaasWebhookUseCase(payments, checkoutPayment);
+  const paymentDispatch = new PaymentDispatchService(payments, checkoutPayment);
+  const webhook = new HandleAsaasWebhookUseCase(payments, paymentDispatch);
 
-  const processed = await webhook.execute(undefined, {
+  const processed = await webhook.execute(ASAAS_WEBHOOK_TOKEN, {
     id: `evt_boleto_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`,
     event: "PAYMENT_RECEIVED",
     payment: {
@@ -153,7 +163,7 @@ test("checkout payment: webhook PAYMENT_RECEIVED duplicado completa pedido uma �
   const merchantId = `m_dup_e2e_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
   const sessionId = `chk_dup_${crypto.randomUUID().slice(0, 12)}`;
 
-  await new StartCheckoutUseCase(checkout, checkout, checkout).execute({
+  await createStartCheckoutUseCase(checkout, checkout).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     cart: {
@@ -173,15 +183,16 @@ test("checkout payment: webhook PAYMENT_RECEIVED duplicado completa pedido uma �
 
   const providerPaymentId = intentSnap.providerPaymentId!;
   const checkoutPayment = makeCheckoutPaymentAdapter(checkout);
-  const webhook = new HandleAsaasWebhookUseCase(payments, checkoutPayment);
+  const paymentDispatch = new PaymentDispatchService(payments, checkoutPayment);
+  const webhook = new HandleAsaasWebhookUseCase(payments, paymentDispatch);
 
   const payload = {
     event: "PAYMENT_RECEIVED" as const,
     payment: { id: providerPaymentId, value: 300, externalReference: intentSnap.id }
   };
 
-  const first = await webhook.execute(undefined, { id: `evt_dup_1_${crypto.randomUUID().replace(/-/g, "").slice(0, 18)}`, ...payload });
-  const second = await webhook.execute(undefined, { id: `evt_dup_2_${crypto.randomUUID().replace(/-/g, "").slice(0, 18)}`, ...payload });
+  const first = await webhook.execute(ASAAS_WEBHOOK_TOKEN, { id: `evt_dup_1_${crypto.randomUUID().replace(/-/g, "").slice(0, 18)}`, ...payload });
+  const second = await webhook.execute(ASAAS_WEBHOOK_TOKEN, { id: `evt_dup_2_${crypto.randomUUID().replace(/-/g, "").slice(0, 18)}`, ...payload });
 
   assert.equal(first.outcome, "processed");
   assert.equal(second.outcome, "processed");
@@ -199,7 +210,7 @@ test("checkout payment: PAYMENT_REFUNDED → intent refunded após aprovação",
   const merchantId = `m_refund_e2e_${crypto.randomUUID().replace(/-/g, "").slice(0, 13)}`;
   const sessionId = `chk_refund_${crypto.randomUUID().slice(0, 12)}`;
 
-  await new StartCheckoutUseCase(checkout, checkout, checkout).execute({
+  await createStartCheckoutUseCase(checkout, checkout).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     cart: {
@@ -220,11 +231,12 @@ test("checkout payment: PAYMENT_REFUNDED → intent refunded após aprovação",
   });
 
   const checkoutPayment = makeCheckoutPaymentAdapter(checkout);
-  const webhook = new HandleAsaasWebhookUseCase(payments, checkoutPayment);
+  const paymentDispatch = new PaymentDispatchService(payments, checkoutPayment);
+  const webhook = new HandleAsaasWebhookUseCase(payments, paymentDispatch);
   const eventBase = `evt_ref_${crypto.randomUUID().replace(/-/g, "").slice(0, 18)}`;
 
   // First approve
-  await webhook.execute(undefined, {
+  await webhook.execute(ASAAS_WEBHOOK_TOKEN, {
     id: `${eventBase}_recv`,
     event: "PAYMENT_RECEIVED",
     payment: { id: intentSnap.providerPaymentId, value: 200, externalReference: intentSnap.id }
@@ -234,7 +246,7 @@ test("checkout payment: PAYMENT_REFUNDED → intent refunded após aprovação",
   assert.equal(approved?.snapshot().status, "approved");
 
   // Then refund
-  const refundResult = await webhook.execute(undefined, {
+  const refundResult = await webhook.execute(ASAAS_WEBHOOK_TOKEN, {
     id: `${eventBase}_refund`,
     event: "PAYMENT_REFUNDED",
     payment: { id: intentSnap.providerPaymentId, value: 200, externalReference: intentSnap.id }
@@ -257,7 +269,7 @@ test("checkout payment: PAYMENT_DELETED não completa ordem", async () => {
   const merchantId = `m_pay_fail_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
   const sessionId = `chk_fail_${crypto.randomUUID().slice(0, 12)}`;
 
-  await new StartCheckoutUseCase(checkout, checkout, checkout).execute({
+  await createStartCheckoutUseCase(checkout, checkout).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     cart: {
@@ -277,9 +289,10 @@ test("checkout payment: PAYMENT_DELETED não completa ordem", async () => {
 
   const providerPaymentId = intentSnap.providerPaymentId!;
   const checkoutPayment = makeCheckoutPaymentAdapter(checkout);
-  const webhook = new HandleAsaasWebhookUseCase(payments, checkoutPayment);
+  const paymentDispatch = new PaymentDispatchService(payments, checkoutPayment);
+  const webhook = new HandleAsaasWebhookUseCase(payments, paymentDispatch);
 
-  await webhook.execute(undefined, {
+  await webhook.execute(ASAAS_WEBHOOK_TOKEN, {
     id: `evt_del_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`,
     event: "PAYMENT_DELETED",
     payment: {

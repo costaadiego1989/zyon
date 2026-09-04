@@ -12,5 +12,5 @@
 - Events update abandonment score and trigger state.
 - Chat fallback never invents unauthorized offers.
 - Shipping and discount rules block minimum-margin violations.
-- Applying an offer records acceptance and returns Shopify apply URL or dev fallback.
+- Applying an offer records acceptance and returns commerce platform apply URL or dev fallback.
 - Dashboard overview remains scoped by `merchant_id`.

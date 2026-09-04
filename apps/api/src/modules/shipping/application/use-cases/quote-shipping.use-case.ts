@@ -1,14 +1,18 @@
-import { Injectable, Inject, Optional } from "@nestjs/common";
-import { buildQuoteKey } from "@aacp/shipping-engine";
+import { Injectable, Inject, Optional , Logger} from "@nestjs/common";
+import { buildQuoteKey } from "@zyon/shipping-engine";
 import { ShippingQuoteEntity, type ShippingQuoteResult } from "../../domain/entities/shipping-quote.entity.js";
 import { SHIPPING_QUOTE_REPOSITORY, type ShippingQuoteRepository } from "../../domain/ports/shipping-quote-repository.port.js";
 import { CARRIER_ADAPTERS, type CarrierPort } from "../../domain/ports/carrier.port.js";
+import { OWN_DELIVERY_CONFIG_REPOSITORY, type OwnDeliveryConfigRepository } from "../../domain/ports/own-delivery-config.port.js";
 import { applyFreeShippingPolicy } from "../../domain/policies/free-shipping.policy.js";
-import type { PackageDimensions } from "@aacp/shared-types";
+import type { PackageDimensions } from "@zyon/shared-types";
 import {
   MERCHANT_RULES_REPOSITORY,
   type MerchantRulesRepository
 } from "../../../merchant/domain/ports/merchant-rules.repository.port.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
+import { geocodeBrazilianCep, haversineDistance, getPriceForDistance } from "../../domain/services/distance-calculator.service.js";
+import type { OwnDeliveryRadiusZone } from "../../domain/ports/own-delivery-config.port.js";
 
 export interface QuoteShippingInput {
   session_id: string;
@@ -16,9 +20,9 @@ export interface QuoteShippingInput {
   destination_zip: string;
   cart_total: number;
   /**
-   * @deprecated Ignored — the free-shipping threshold is always sourced from
-   * merchant rules (shipping-engine invariant). Kept in the interface for
-   * backward-compat with existing callers; will be removed in a follow-up.
+   * @deprecated C1 fix: IGNORED at runtime. Free-shipping threshold is always
+   * derived from merchant rules. Field kept only for type-level backward compat
+   * with existing callers; will be removed once all callers drop it.
    */
   free_shipping_threshold?: number;
   origin_zip?: string;
@@ -28,6 +32,8 @@ export interface QuoteShippingInput {
 
 @Injectable()
 export class QuoteShippingUseCase {
+  private readonly logger = new Logger(QuoteShippingUseCase.name);
+
   constructor(
     @Inject(SHIPPING_QUOTE_REPOSITORY) private readonly quotes: ShippingQuoteRepository,
     @Inject(CARRIER_ADAPTERS) private readonly carriers: CarrierPort[],
@@ -36,27 +42,40 @@ export class QuoteShippingUseCase {
     // still compile; when absent, free-shipping policy is effectively disabled
     // (threshold = Infinity), which is the safe/conservative default.
     @Optional() @Inject(MERCHANT_RULES_REPOSITORY)
-    private readonly merchantRules?: MerchantRulesRepository
+    private readonly merchantRules?: MerchantRulesRepository,
+    // Own delivery config — optional for backward compat with tests
+    @Optional() @Inject(OWN_DELIVERY_CONFIG_REPOSITORY)
+    private readonly ownDeliveryConfig?: OwnDeliveryConfigRepository
   ) {}
 
   async execute(input: QuoteShippingInput) {
     const cartTotalCents = Math.round(input.cart_total * 100);
-    const quoteKey = buildQuoteKey({
+    const baseKey = buildQuoteKey({
       merchantId: input.merchant_id,
       destinationZip: input.destination_zip,
       cartTotalCents,
       items: input.items
     });
 
+    // M1 fix: append merchant rules hash to quote key so that cache invalidates
+    // when merchant updates free-shipping configuration.
+    const rules = this.merchantRules
+      ? await this.merchantRules.getRules(input.merchant_id)
+      : null;
+    const rulesHash = rules ? computeRulesHash(rules) : "none";
+    const quoteKey = `${baseKey}:rules:${rulesHash}`;
+
     const reusable = await this.quotes.findValidByKey(quoteKey, input.merchant_id);
     if (reusable) {
-      // P3 fix (session_id leak): rebind session_id to the requesting session
-      // so that a reused quote snapshot never carries a foreign session_id.
+      // C2 fix (session_id leak): do NOT rebind session_id on quote reuse.
+      // If the quote belongs to a different session, it is stale in the current
+      // session context and should not be reused. Validate session_id matches;
+      // if not, fall through to generate a fresh quote.
       const snap = reusable.snapshot();
-      if (snap.session_id !== input.session_id) {
-        return { ...snap, session_id: input.session_id };
+      if (snap.session_id === input.session_id) {
+        return snap; // Same session; safe to reuse
       }
-      return snap;
+      // Quote belongs to a different session; ignore cache and create fresh
     }
 
     let quote = ShippingQuoteEntity.create({
@@ -66,12 +85,18 @@ export class QuoteShippingUseCase {
       quote_key: quoteKey
     });
 
+    // Ensure packages is never empty — carriers reject empty arrays.
+    // Use a sensible default (small box, 0.5kg) when caller omits dimensions.
+    const packages = input.packages && input.packages.length > 0
+      ? input.packages
+      : [{ weightKg: 0.5, heightCm: 10, widthCm: 15, lengthCm: 20, quantity: 1 }];
+
     const ctx = {
       originZip: input.origin_zip ?? "",
       destinationZip: input.destination_zip,
       cartTotalCents,
       merchantId: input.merchant_id,
-      packages: input.packages ?? [],
+      packages,
     };
     const allResults = await Promise.allSettled(
       this.carriers.map((c) => c.fetchQuotes(ctx))
@@ -93,10 +118,11 @@ export class QuoteShippingUseCase {
       // P3 fix: log carrier failures (rejected promises) so they are visible
       // in server logs rather than silently discarded.
       if (res.status === "rejected") {
-        console.warn(
-          `[shipping] carrier_quote_failed carrier=${carrier.carrierKey} merchant=${input.merchant_id}`,
-          res.reason instanceof Error ? res.reason.message : String(res.reason)
-        );
+        this.logger.warn("carrier.quote.failed", {
+          carrier: carrier.carrierKey,
+          merchantId: input.merchant_id,
+          error: res.reason instanceof Error ? res.reason.message : String(res.reason),
+        });
       }
     }
 
@@ -106,37 +132,194 @@ export class QuoteShippingUseCase {
     // P0 fix: always derive the free-shipping threshold from merchant rules,
     // never from the caller-supplied input field (which would let a client
     // bypass the shipping-engine subsidy invariant).
-    const rules = this.merchantRules
-      ? await this.merchantRules.getRules(input.merchant_id)
-      : null;
-
+    // Note: `rules` already fetched above (M1 fix) — reuse cached result.
     const freeShippingEnabled = rules?.allowFreeShipping ?? false;
     const freeThreshold = rules?.freeShippingMinCartValue ?? Infinity;
 
-    // P2 fix: applyFreeShippingPolicy can add duplicate free entries when the
-    // same carrier already has a paid entry. Filter strictly: only add a free
-    // variant if the carrier_key doesn't already have one in the current results.
+    // BUG 1 fix: applyFreeShippingPolicy returns the SAME carriers re-priced to
+    // R$0.00. Appending those onto the existing paid entries produced two rows
+    // per carrier (priced + free) in the widget. Instead, merge by carrier_key
+    // keeping exactly one entry per carrier — the free variant replaces the
+    // paid one when free shipping applies. A distinct promo entry (a free
+    // carrier_key that has no paid counterpart) is kept as its own single row.
     const currentResults = quote.snapshot().results;
-    const freeEntriesToAdd = freeShippingEnabled
-      ? applyFreeShippingPolicy(currentResults, input.cart_total, {
-          enabled: true,
-          min_cart_total: freeThreshold
-        }).filter(
-          (r) =>
-            r.is_free &&
-            !currentResults.some(
-              (existing) => existing.carrier_key === r.carrier_key && existing.is_free
-            )
+    const finalResults = freeShippingEnabled
+      ? mergeFreeShipping(
+          currentResults,
+          applyFreeShippingPolicy(currentResults, input.cart_total, {
+            enabled: true,
+            min_cart_total: freeThreshold
+          })
         )
-      : [];
+      : currentResults;
 
-    const withFreeShipping =
-      freeEntriesToAdd.length > 0 ? quote.addResults(freeEntriesToAdd) : quote;
+    // Add own-delivery options if enabled
+    const resultsWithOwnDelivery = await this.appendOwnDeliveryOptions(finalResults, input);
+
+    // Fallback: if no shipping options are available (no carriers responded,
+    // no own-delivery configured), provide a default "Retirada no local" option
+    // so the checkout flow is never blocked by missing shipping quotes.
+    const resultsWithFallback = resultsWithOwnDelivery.length > 0
+      ? resultsWithOwnDelivery
+      : [{
+          carrier_key: "local_pickup",
+          label: "Retirada no local / Combinar entrega",
+          price: 0,
+          eta_days: 1,
+          is_free: true
+        }];
+
+    const withFreeShipping = ShippingQuoteEntity.create({
+      session_id: input.session_id,
+      merchant_id: input.merchant_id,
+      destination_zip: input.destination_zip,
+      quote_key: quoteKey
+    }).addResults(resultsWithFallback);
 
     const finalQuote = withFreeShipping.recordCreated();
     await this.quotes.saveWithEvents(finalQuote);
     return finalQuote.snapshot();
   }
+
+  private async appendOwnDeliveryOptions(
+    currentResults: ShippingQuoteResult[],
+    input: QuoteShippingInput
+  ): Promise<ShippingQuoteResult[]> {
+    if (!this.ownDeliveryConfig) return currentResults;
+
+    try {
+      const config = await this.ownDeliveryConfig.getByMerchantId(input.merchant_id);
+      if (!config?.enabled) return currentResults;
+
+      const ownDeliveryOptions: ShippingQuoteResult[] = [];
+
+      if (config.mode === "flat" && config.flatPriceCents !== null) {
+        const cartTotalCents = Math.round(input.cart_total * 100);
+        const isFree = config.freeAboveCents !== null && cartTotalCents >= config.freeAboveCents;
+        const etaDays = convertToEtaDays(config.estimatedValue, config.estimatedUnit);
+
+        ownDeliveryOptions.push({
+          carrier_key: "own_delivery_flat",
+          label: "Entrega própria",
+          price: isFree ? 0 : config.flatPriceCents,
+          eta_days: etaDays,
+          is_free: isFree
+        });
+      } else if (config.mode === "neighborhood" && config.neighborhoods && config.neighborhoods.length > 0) {
+        // Look up destination neighborhood from ZIP (ViaCEP or from session address)
+        // For MVP, we'll just add all neighborhood options; in production, filter by destination ZIP
+        const cartTotalCents = Math.round(input.cart_total * 100);
+        const etaDays = convertToEtaDays(config.estimatedValue, config.estimatedUnit);
+
+        for (const neighborhood of config.neighborhoods) {
+          const isFree = config.freeAboveCents !== null && cartTotalCents >= config.freeAboveCents;
+
+          ownDeliveryOptions.push({
+            carrier_key: `own_delivery_neighborhood_${neighborhood.name.toLowerCase().replace(/\s+/g, "_")}`,
+            label: `Entrega própria - ${neighborhood.name}`,
+            price: isFree ? 0 : neighborhood.priceCents,
+            eta_days: etaDays,
+            is_free: isFree
+          });
+        }
+      } else if (config.mode === "radius" && config.radiusZones && config.radiusZones.length > 0) {
+        // Radius mode: compute distance (origin → destination CEP) and pick the
+        // matching zone price. Requires origin_zip + destination_zip to geocode.
+        const cartTotalCents = Math.round(input.cart_total * 100);
+        const etaDays = convertToEtaDays(config.estimatedValue, config.estimatedUnit);
+        const isFree = config.freeAboveCents !== null && cartTotalCents >= config.freeAboveCents;
+
+        const priceCents = await this.computeRadiusPrice(
+          input.origin_zip ?? "",
+          input.destination_zip,
+          config.radiusZones
+        );
+
+        if (priceCents !== null) {
+          ownDeliveryOptions.push({
+            carrier_key: "own_delivery_radius",
+            label: "Entrega própria",
+            price: isFree ? 0 : priceCents,
+            eta_days: etaDays,
+            is_free: isFree
+          });
+        }
+        // If priceCents is null, destination is out of delivery range — no option added
+      }
+
+      // Mutual exclusivity: when own delivery is enabled, it is the ONLY
+      // fulfillment method (the dashboard enforces this on the config side).
+      // Return own-delivery options exclusively, discarding carrier quotes.
+      if (ownDeliveryOptions.length > 0) {
+        return ownDeliveryOptions;
+      }
+      return currentResults;
+    } catch (err) {
+      this.logger.warn("own-delivery.append.failed", {
+        merchantId: input.merchant_id,
+        error: err instanceof Error ? err.message : String(err)
+      });
+      return currentResults;
+    }
+  }
+
+  private async computeRadiusPrice(
+    originZip: string,
+    destinationZip: string,
+    zones: OwnDeliveryRadiusZone[]
+  ): Promise<number | null> {
+    const origin = await geocodeBrazilianCep(originZip);
+    const dest = await geocodeBrazilianCep(destinationZip);
+    if (!origin || !dest) {
+      this.logger.warn("radius.geocode.failed", { originZip, destinationZip });
+      return null;
+    }
+    const distanceKm = haversineDistance(origin.lat, origin.lng, dest.lat, dest.lng);
+    return getPriceForDistance(distanceKm, zones);
+  }
+}
+
+/**
+ * Convert estimatedValue and estimatedUnit to eta_days.
+ * minutes → eta_days = Math.ceil(value / 1440)
+ * days → eta_days = value
+ */
+function convertToEtaDays(estimatedValue: number, estimatedUnit: "minutes" | "days"): number {
+  if (estimatedUnit === "days") {
+    return estimatedValue;
+  }
+  // minutes
+  return Math.ceil(estimatedValue / 1440);
+}
+
+/**
+ * Merge the paid quote set with the free-shipping policy output so each
+ * carrier_key appears exactly once. When both a paid and a free variant exist
+ * for the same carrier, the free (cheaper) one wins and replaces the paid one.
+ * Free entries with no paid counterpart (distinct promos) are kept as-is.
+ */
+function mergeFreeShipping(
+  paid: ShippingQuoteResult[],
+  freeVariants: ShippingQuoteResult[]
+): ShippingQuoteResult[] {
+  const byCarrier = new Map<string, ShippingQuoteResult>();
+  for (const r of paid) {
+    byCarrier.set(r.carrier_key, r);
+  }
+  for (const r of freeVariants) {
+    if (!r.is_free) continue;
+    const existing = byCarrier.get(r.carrier_key);
+    // Replace the paid entry with the free one (free is cheaper); for a
+    // brand-new free carrier_key this just inserts it.
+    if (!existing || !existing.is_free || r.price < existing.price) {
+      byCarrier.set(r.carrier_key, r);
+    }
+  }
+  return [...byCarrier.values()].sort((a, b) => {
+    if (a.price !== b.price) return a.price - b.price;
+    if (a.eta_days !== b.eta_days) return a.eta_days - b.eta_days;
+    return a.label.localeCompare(b.label, "pt-BR");
+  });
 }
 
 function dedupeQuoteResults(results: ShippingQuoteResult[]): ShippingQuoteResult[] {
@@ -161,4 +344,14 @@ function normalize(value: string): string {
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase()
     .trim();
+}
+
+/**
+ * M1: Simple deterministic hash from merchant rules relevant to shipping.
+ * Used to bust quote cache when merchant changes free-shipping config.
+ */
+function computeRulesHash(rules: { allowFreeShipping?: boolean; freeShippingMinCartValue?: number }): string {
+  const enabled = rules.allowFreeShipping ? "1" : "0";
+  const threshold = rules.freeShippingMinCartValue ?? 0;
+  return `${enabled}:${threshold}`;
 }

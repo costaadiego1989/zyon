@@ -1,7 +1,7 @@
 import type {
   CheckoutDomainEventType,
   DomainEventEnvelope
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 
 export function createCheckoutEventEnvelope<TPayload extends Record<string, unknown>>(input: {
   eventType: CheckoutDomainEventType;

@@ -1,8 +1,11 @@
-import { Injectable, Inject } from "@nestjs/common";
+import { Injectable, Inject , Logger} from "@nestjs/common";
 import { BUYER_TEMPLATE_REPOSITORY, type BuyerTemplateRepository } from "../../domain/ports/buyer-template-repository.port.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class ListTemplatesForBuyerUseCase {
+  private readonly logger = new Logger(ListTemplatesForBuyerUseCase.name);
+
   constructor(
     @Inject(BUYER_TEMPLATE_REPOSITORY) private readonly templates: BuyerTemplateRepository
   ) {}

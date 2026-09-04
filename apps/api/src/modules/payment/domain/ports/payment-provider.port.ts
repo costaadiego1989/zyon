@@ -36,6 +36,25 @@ export type CreateProviderPaymentInput = {
   remoteIp?: string;
   stripeConnectAccountId?: string;
   platformFeeCents?: number;
+  /**
+   * Crypto-only: buyer-selected chain override. When set (and valid for the
+   * merchant's crypto config), the crypto quote is built on this chain instead
+   * of the merchant's configured default chain.
+   */
+  preferredChain?: "polygon" | "base";
+  /**
+   * Crypto-only: live BRL/USDC rate to use when computing the USDC amount,
+   * overriding the merchant's configured brlPerUsdc. Falls back to the merchant
+   * value when absent.
+   */
+  brlPerUsdcOverride?: number;
+};
+
+export type CryptoTransferQuotePayload = {
+  kind: "merchant" | "platform_fee";
+  destinationAddress: string;
+  amountAtomic: string;
+  amountDisplay: string;
 };
 
 export type CryptoBuyerFacingPayload = {
@@ -48,6 +67,7 @@ export type CryptoBuyerFacingPayload = {
   amountAtomic: string;
   amountDisplay: string;
   destinationAddress: string;
+  transfers?: CryptoTransferQuotePayload[];
   quoteExpiresAt: string;
   walletConnectProjectId?: string;
 };
@@ -76,6 +96,18 @@ export type FetchPaymentStatusOutput = {
   approvedAmountCents?: number;
 };
 
+export type RefundPaymentInput = {
+  merchantId: string;
+  providerPaymentId: string;
+  amountCents: number;
+  reason?: string;
+};
+
+export type RefundPaymentOutput = {
+  refundId: string;
+  status: "succeeded" | "pending" | "failed" | "manual_required";
+};
+
 export interface PaymentProviderPort {
   createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput>;
   createCustomer?(input: {
@@ -90,4 +122,9 @@ export interface PaymentProviderPort {
    * for optimistic confirmation — only to drive the same transitions a webhook would.
    */
   fetchPaymentStatus?(input: FetchPaymentStatusInput): Promise<FetchPaymentStatusOutput>;
+  /**
+   * Refund a previously approved payment. Returns refund ID and status.
+   * Crypto payments return status: "manual_required" (no automated refund).
+   */
+  refundPayment?(input: RefundPaymentInput): Promise<RefundPaymentOutput>;
 }

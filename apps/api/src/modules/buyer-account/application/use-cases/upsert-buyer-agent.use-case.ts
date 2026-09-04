@@ -1,6 +1,7 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException , Logger} from "@nestjs/common";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../domain/ports/buyer-account-repository.port.js";
 import { BuyerAgentProfile, type AgentPersonality } from "../../domain/entities/buyer-agent-profile.entity.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface UpsertBuyerAgentRequest {
   globalUserId: string;
@@ -14,6 +15,8 @@ export interface UpsertBuyerAgentRequest {
 
 @Injectable()
 export class UpsertBuyerAgentUseCase {
+  private readonly logger = new Logger(UpsertBuyerAgentUseCase.name);
+
   constructor(
     @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly repo: BuyerAccountRepository
   ) {}

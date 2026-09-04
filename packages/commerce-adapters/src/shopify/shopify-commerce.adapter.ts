@@ -9,12 +9,27 @@ import type {
   TrustedCartSnapshot,
   TrustedCartLine
 } from "../ports.js";
+import {
+  ShopifyRateLimiter,
+  parseRetryAfterSeconds,
+  retryDelayFromHeaders,
+  type ShopifyGraphqlEnvelope
+} from "./shopify-rate-limiter.js";
 
 export type ShopifyCommerceAdapterConfig = {
   shopDomain: string;
   adminAccessToken: string;
   storefrontAccessToken?: string;
   apiVersion?: string;
+  /**
+   * Feature flag. When true (default) the adapter uses the GraphQL Admin API
+   * for everything that has a GraphQL equivalent (draft order create, price
+   * rules/discount codes). When false the adapter falls back to the legacy
+   * REST endpoints for shops on older API versions that don't yet expose the
+   * GraphQL mutation. Catalog reads have always been GraphQL and are not
+   * affected by this flag.
+   */
+  useGraphqlAdminApi?: boolean;
 };
 
 export type ShopifyFetchFn = typeof fetch;
@@ -42,6 +57,8 @@ export class ShopifyCommerceAdapter
   readonly #token: string;
   readonly #storefrontToken?: string;
   readonly #fetch: ShopifyFetchFn;
+  readonly #useGraphql: boolean;
+  readonly #rateLimiter: ShopifyRateLimiter;
 
   constructor(config: ShopifyCommerceAdapterConfig, fetchImpl?: ShopifyFetchFn) {
     this.#domain = normalizeShopDomain(config.shopDomain);
@@ -49,9 +66,16 @@ export class ShopifyCommerceAdapter
     this.#storefrontToken = config.storefrontAccessToken?.trim() || undefined;
     this.#version = config.apiVersion?.trim() || "2026-04";
     this.#fetch = fetchImpl ?? globalThis.fetch.bind(globalThis);
+    // Default to GraphQL (REST Admin API sunset for public apps on Apr 1, 2025).
+    // Merchants on older API versions can opt back into REST via this flag.
+    this.#useGraphql = config.useGraphqlAdminApi !== false;
+    this.#rateLimiter = new ShopifyRateLimiter();
 
     if (!this.#domain) throw new Error("shopify_commerce_shop_domain_required");
     if (!this.#token) throw new Error("shopify_commerce_admin_token_required");
+    if (!validateShopifyApiVersion(this.#version)) {
+      throw new Error("shopify_api_version_invalid");
+    }
   }
 
   private adminUrl(resourcePath: string): string {
@@ -252,12 +276,37 @@ export class ShopifyCommerceAdapter
       headers: adminHeaders(this.#token),
       body: JSON.stringify({ query, variables }),
     });
+    if (response.status === 429) {
+      const retryAfter = parseRetryAfterSeconds(response.headers.get("Retry-After"));
+      throw new ShopifyRateLimitError(
+        `${errorCode}_throttled_${response.status}`,
+        retryAfter,
+        this.#rateLimiter.available,
+      );
+    }
     if (!response.ok) {
       throw new Error(`${errorCode}_failed_${response.status}`);
     }
-    const payload = (await response.json()) as GraphqlResponse<T>;
+    const payload = (await response.json()) as ShopifyGraphqlEnvelope<T>;
+    // Update the rate-limit snapshot from the response, regardless of success.
+    this.#rateLimiter.updateFromResponse(payload.extensions?.cost);
+
+    // THROTTLED can also appear inside `errors[]` on a 200 response.
+    const throttled = payload.errors?.find(
+      (e) => e.extensions?.code === "THROTTLED",
+    );
+    if (throttled) {
+      throw new ShopifyRateLimitError(
+        `${errorCode}_graphql_throttled`,
+        undefined,
+        this.#rateLimiter.available,
+      );
+    }
     if (payload.errors?.length || !payload.data) {
-      throw new Error(`${errorCode}_graphql_failed`);
+      const detail = payload.errors?.map((e) => e.message).join("; ");
+      throw new Error(
+        detail ? `${errorCode}_graphql_failed: ${detail}` : `${errorCode}_graphql_failed`,
+      );
     }
     return payload.data;
   }
@@ -278,7 +327,7 @@ export class ShopifyCommerceAdapter
     if (!response.ok) {
       throw new Error(`${errorCode}_failed_${response.status}`);
     }
-    const payload = (await response.json()) as GraphqlResponse<T>;
+    const payload = (await response.json()) as ShopifyGraphqlEnvelope<T>;
     if (payload.errors?.length || !payload.data) {
       throw new Error(`${errorCode}_graphql_failed`);
     }
@@ -286,6 +335,80 @@ export class ShopifyCommerceAdapter
   }
 
   async createPendingOrder(input: {
+    merchantId: string;
+    sessionId: string;
+    cart: TrustedCartSnapshot;
+  }): Promise<{ commerceOrderId: string }> {
+    if (this.#useGraphql) {
+      return this.createPendingOrderGraphql(input);
+    }
+    return this.createPendingOrderRest(input);
+  }
+
+  /** GraphQL path: `draftOrderCreate` mutation (preferred). */
+  private async createPendingOrderGraphql(input: {
+    merchantId: string;
+    sessionId: string;
+    cart: TrustedCartSnapshot;
+  }): Promise<{ commerceOrderId: string }> {
+    // Shopify draftOrderCreate requires lineItems to reference existing
+    // variants OR provide custom { title, originalUnitPrice, quantity }.
+    // For carts built from a validated storefront snapshot we have SKUs but
+    // not variant GIDs, so we use the custom lineItem path which Shopify
+    // still supports for draft orders.
+    const data = await this.adminGraphql<ShopifyDraftOrderCreateData>(
+      `mutation AacpDraftOrderCreate($input: DraftOrderInput!) {
+        draftOrderCreate(input: $input) {
+          draftOrder {
+            id
+            legacyResourceId
+          }
+          userErrors { field message }
+        }
+      }`,
+      {
+        input: {
+          currencyCode: input.cart.currency,
+          // Use "AACP checkout session <id>" as the draft order note so the
+          // merchant's Shopify admin shows the checkout session this order
+          // originated from.
+          // Note: draftOrderInput does not have a `note` field in 2026-04;
+          // the GraphQL equivalent is `DraftOrderNoteAttributes` or the
+          // legacy note via `taxExempt` etc. We stash it in customAttributes
+          // so merchants can still trace orders back to AACP sessions.
+          customAttributes: [
+            { key: "_aacp_session_id", value: input.sessionId },
+            { key: "_aacp_source", value: "aacp_checkout" }
+          ],
+          // To work with SKUs without variant GIDs we provide line items by
+          // variantId=null and Shopify fills in via `variantLegacyResourceId`
+          // or rejects — we use the safer custom path:
+          lineItems: input.cart.lines.map((line) => ({
+            title: line.title,
+            quantity: line.quantity,
+            originalUnitPrice: centsToMoneyString(line.unitPriceCents),
+            sku: line.sku
+          }))
+        }
+      },
+      "shopify_draft_order_create"
+    );
+    assertNoShopifyUserErrors(
+      data.draftOrderCreate.userErrors,
+      "shopify_draft_order_create"
+    );
+    const draftOrder = data.draftOrderCreate.draftOrder;
+    // Prefer legacyResourceId (numeric) for REST-style IDs that downstream
+    // code (TenantCommerceAdapter) expects; fall back to GID if absent.
+    const numericId = draftOrder?.legacyResourceId;
+    const gid = draftOrder?.id;
+    const id = numericId ?? gidToNumericSuffix(gid ?? "");
+    if (!id) throw new Error("shopify_draft_order_id_missing");
+    return { commerceOrderId: String(id) };
+  }
+
+  /** REST fallback for merchants on older API versions. Kept for backward compat. */
+  private async createPendingOrderRest(input: {
     merchantId: string;
     sessionId: string;
     cart: TrustedCartSnapshot;
@@ -428,6 +551,30 @@ function centsToMoneyString(cents: number): string {
   return (cents / 100).toFixed(2);
 }
 
+/** Throws if `version` is not a Shopify API version in YYYY-MM format. */
+function validateShopifyApiVersion(version: string): boolean {
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(version);
+}
+
+/** Pulls the numeric suffix out of a Shopify GID (e.g. "gid://shopify/DraftOrder/123" → "123"). */
+function gidToNumericSuffix(gid: string): string | undefined {
+  const match = gid.match(/\/(\d+)$/);
+  return match?.[1];
+}
+
+/** Error raised on a 429 or THROTTLED GraphQL response; carries retry hint. */
+export class ShopifyRateLimitError extends Error {
+  readonly retryAfterSeconds?: number;
+  readonly availablePoints: number;
+
+  constructor(message: string, retryAfterSeconds: number | undefined, availablePoints: number) {
+    super(message);
+    this.name = "ShopifyRateLimitError";
+    this.retryAfterSeconds = retryAfterSeconds;
+    this.availablePoints = availablePoints;
+  }
+}
+
 function moneyToCents(value: string | number): number {
   return Math.round(Number(value) * 100);
 }
@@ -509,9 +656,14 @@ function mapShopifyProduct(
   };
 }
 
-type GraphqlResponse<T> = {
-  data?: T;
-  errors?: Array<{ message?: string }>;
+type ShopifyDraftOrderCreateData = {
+  draftOrderCreate: {
+    draftOrder?: {
+      id: string;
+      legacyResourceId?: string | null;
+    } | null;
+    userErrors: ShopifyUserError[];
+  };
 };
 
 type ShopifyUserError = {

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { NotFoundException } from "@nestjs/common";
 import type { CheckoutSettingsPort } from "../domain/ports/checkout-settings.port.js";
-import type { CheckoutTriggerName } from "@aacp/shared-types";
+import type { CheckoutTriggerName } from "@zyon/shared-types";
 import { checkoutSession } from "./checkout-test-fixtures.js";
 import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-memory-checkout.repository.js";
 import { InMemoryInterventionLedger } from "../infrastructure/in-memory-intervention-ledger.js";
@@ -21,8 +21,45 @@ class PaymentOnlyCheckoutSettingsPort implements CheckoutSettingsPort {
         enabled_triggers: ["payment_failed" as const],
         handoff_enabled: true
       },
+      merchant_rules: [],
       operational_constraints: []
     };
+  }
+
+  async getInterventionConfig() {
+    return { advancedRules: null, interventionPolicy: null };
+  }
+}
+
+class ProgressiveDiscountSettingsPort implements CheckoutSettingsPort {
+  async getContext(merchantId: string) {
+    return {
+      merchant_id: merchantId,
+      checkout_settings: {
+        mode: "silent_until_trigger" as const,
+        open_widget_on_trigger: true,
+        minimum_abandonment_score: 0,
+        cooldown_seconds: 120,
+        max_interventions_per_session: 3,
+        enabled_triggers: ["coupon_field_clicked" as const, "exit_intent_detected" as const, "payment_failed" as const],
+        handoff_enabled: true,
+        progressive_discount: {
+          enabled: true,
+          stages: {
+            initial_coupon: 5,
+            exit_intent: 5,
+            abandoned_cart: 10,
+            payment_nudge: 15
+          }
+        }
+      },
+      merchant_rules: [],
+      operational_constraints: []
+    };
+  }
+
+  async getInterventionConfig() {
+    return { advancedRules: null, interventionPolicy: null };
   }
 }
 
@@ -80,6 +117,94 @@ test("TrackCheckoutEventUseCase emits fake WhatsApp abandonment discount", async
   assert.equal(whatsapp?.payload.phone, "11999998888");
 });
 
+test("TrackCheckoutEventUseCase emits progressive abandoned-cart discount when enabled", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  repository.saveSession(
+    checkoutSession({
+      customer: { phone: "11999998888" }
+    })
+  );
+  repository.setRules("mrc_1", { maxDiscountPercent: 12, couponBoxEnabled: true });
+  const useCase = new TrackCheckoutEventUseCase(
+    repository,
+    repository,
+    new ProgressiveDiscountSettingsPort(),
+    repository
+  );
+
+  const response = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_1",
+    event: "checkout_abandoned"
+  });
+
+  const whatsapp = repository.listOutbox("mrc_1").find((event) => event.event_type === "whatsapp.message.requested");
+  assert.equal(response.progressive_offer?.stage, "abandoned_cart");
+  assert.equal(response.progressive_offer?.requested_percent, 10);
+  assert.equal(response.progressive_offer?.approved_percent, 10);
+  assert.equal(whatsapp?.payload.discount_percent, 10);
+});
+
+test("TrackCheckoutEventUseCase caps progressive discount by merchant max", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  repository.saveSession(checkoutSession());
+  repository.setRules("mrc_1", { maxDiscountPercent: 8, couponBoxEnabled: true });
+  const useCase = new TrackCheckoutEventUseCase(
+    repository,
+    repository,
+    new ProgressiveDiscountSettingsPort(),
+    repository
+  );
+
+  const response = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_1",
+    event: "payment_failed"
+  });
+
+  assert.equal(response.progressive_offer?.stage, "payment_nudge");
+  assert.equal(response.progressive_offer?.requested_percent, 15);
+  assert.equal(response.progressive_offer?.approved_percent, 8);
+});
+
+test("TrackCheckoutEventUseCase skips progressive offer when current discount already >= stage target", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  // Cart total=300, currentDiscount=30 → already 10% applied
+  repository.saveSession(checkoutSession({ cart: { currency: "BRL", total: 300, items: [{ sku: "kit", name: "Kit", price: 300, cost: 120, quantity: 1 }], currentDiscount: 30 } }));
+  repository.setRules("mrc_1", { maxDiscountPercent: 15, couponBoxEnabled: true });
+  const useCase = new TrackCheckoutEventUseCase(
+    repository,
+    repository,
+    new ProgressiveDiscountSettingsPort(),
+    repository
+  );
+
+  // exit_intent configured at 5% — but buyer already has 10%, so no offer
+  const response = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_1",
+    event: "exit_intent_detected"
+  });
+  assert.equal(response.progressive_offer, undefined);
+
+  // abandoned_cart configured at 10% — buyer already has 10%, so no offer
+  const response2 = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_1",
+    event: "checkout_abandoned"
+  });
+  assert.equal(response2.progressive_offer, undefined);
+
+  // payment_nudge configured at 15% — buyer has 10%, this is an upgrade to 15%
+  const response3 = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_1",
+    event: "payment_failed"
+  });
+  assert.equal(response3.progressive_offer?.stage, "payment_nudge");
+  assert.equal(response3.progressive_offer?.approved_percent, 15);
+});
+
 test("TrackCheckoutEventUseCase suppresses trigger when checkout-settings disables the event", async () => {
   const repository = new InMemoryCheckoutRepository();
   repository.saveSession(checkoutSession({ abandonmentScore: 0.5 }));
@@ -118,8 +243,13 @@ class LedgerCapCheckoutSettings implements CheckoutSettingsPort {
         enabled_triggers: TRACK_LEDGER_TRIGGERS,
         handoff_enabled: true
       },
+      merchant_rules: [],
       operational_constraints: []
     };
+  }
+
+  async getInterventionConfig() {
+    return { advancedRules: null, interventionPolicy: null };
   }
 }
 

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "dockerfile": "apps/storefront/Dockerfile"
+  },
+  "deploy": {
+    "numReplicas": 1,
+    "restartPolicyType": "on-failure",
+    "restartPolicyMaxRetries": 3,
+    "startCommand": "node server.js",
+    "healthchecks": {
+      "http": {
+        "path": "/",
+        "port": 3001
+      }
+    }
+  },
+  "variables": {
+    "NODE_ENV": {
+      "description": "Node environment",
+      "value": "production"
+    },
+    "PORT": {
+      "description": "Next.js port",
+      "value": "3001"
+    }
+  }
+}

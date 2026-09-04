@@ -1,5 +1,5 @@
 {
-  "name": "@aacp/rules-engine",
+  "name": "@zyon/rules-engine",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,9 +8,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "echo \"rules-engine: no tests\""
+    "test": "pnpm build && node --test dist/index.spec.js dist/__tests__/rules-engine.spec.js",
+    "test:watch": "node --test --watch src/index.spec.ts"
   },
   "dependencies": {
-    "@aacp/shared-types": "workspace:*"
+    "@zyon/shared-types": "workspace:*"
   }
 }

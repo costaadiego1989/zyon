@@ -1,14 +1,54 @@
 import { Injectable } from "@nestjs/common";
-import { Counter, Histogram, Registry } from "prom-client";
+import { Counter, Histogram, Gauge, Registry, collectDefaultMetrics } from "prom-client";
 
 @Injectable()
 export class MetricsService {
   readonly registry = new Registry();
 
+  constructor() {
+    collectDefaultMetrics({ register: this.registry });
+  }
+
   readonly checkoutStarted = new Counter({
     name: "checkout_started_total",
     help: "Total checkout sessions started",
     labelNames: ["merchant_id"],
+    registers: [this.registry],
+  });
+
+  readonly paymentIntentCreated = new Counter({
+    name: "payment_intent_created_total",
+    help: "Total payment intents created",
+    labelNames: ["method", "merchant_id"],
+    registers: [this.registry],
+  });
+
+  readonly paymentFailed = new Counter({
+    name: "payment_failed_total",
+    help: "Total payments failed",
+    labelNames: ["method", "reason"],
+    registers: [this.registry],
+  });
+
+  readonly webhookProcessingSeconds = new Histogram({
+    name: "webhook_processing_seconds",
+    help: "Time to process an inbound provider webhook end to end",
+    labelNames: ["provider"],
+    buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10],
+    registers: [this.registry],
+  });
+
+  readonly apiRequestDuration = new Histogram({
+    name: "api_request_duration_seconds",
+    help: "Duration of HTTP API requests in seconds",
+    labelNames: ["method", "route", "status"],
+    buckets: [0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10],
+    registers: [this.registry],
+  });
+
+  readonly activeWsConnections = new Gauge({
+    name: "active_ws_connections",
+    help: "Number of active WebSocket connections",
     registers: [this.registry],
   });
 
@@ -22,7 +62,7 @@ export class MetricsService {
   readonly paymentApproved = new Counter({
     name: "payment_approved_total",
     help: "Total payments approved",
-    labelNames: ["merchant_id"],
+    labelNames: ["merchant_id", "method", "provider"],
     registers: [this.registry],
   });
 
@@ -33,10 +73,53 @@ export class MetricsService {
     registers: [this.registry],
   });
 
+  readonly paymentWebhookReceived = new Counter({
+    name: "payment_webhook_received_total",
+    help: "Payment webhooks received by provider",
+    labelNames: ["provider", "event_type"],
+    registers: [this.registry],
+  });
+
+  readonly checkoutDuration = new Histogram({
+    name: "checkout_duration_seconds",
+    help: "Time from session start to order completion",
+    labelNames: ["merchant_id"],
+    buckets: [30, 60, 120, 300, 600, 1800, 3600],
+    registers: [this.registry],
+  });
+
+  readonly chatResponseLatency = new Histogram({
+    name: "chat_response_latency_seconds",
+    help: "Latency of chat message processing (LLM + rules)",
+    labelNames: ["merchant_id", "has_offer"],
+    buckets: [0.3, 0.5, 1, 2, 3, 5, 10, 15],
+    registers: [this.registry],
+  });
+
+  readonly shippingQuoteLatency = new Histogram({
+    name: "shipping_quote_latency_seconds",
+    help: "Time to fetch shipping quotes from carrier",
+    labelNames: ["carrier"],
+    buckets: [0.5, 1, 2, 3, 5, 10],
+    registers: [this.registry],
+  });
+
   readonly outboxLag = new Histogram({
     name: "outbox_lag_seconds",
     help: "Age of oldest pending outbox event in seconds",
     buckets: [0.1, 0.5, 1, 5, 10, 30, 60],
+    registers: [this.registry],
+  });
+
+  readonly outboxPendingCount = new Gauge({
+    name: "outbox_pending_count",
+    help: "Number of pending outbox messages",
+    registers: [this.registry],
+  });
+
+  readonly outboxDeadLetterCount = new Gauge({
+    name: "outbox_dead_letter_count",
+    help: "Number of dead-lettered outbox messages",
     registers: [this.registry],
   });
 
@@ -45,6 +128,36 @@ export class MetricsService {
     help: "Latency of external HTTP client calls in seconds",
     labelNames: ["target", "status"],
     buckets: [0.05, 0.1, 0.3, 0.5, 1, 2, 5, 10],
+    registers: [this.registry],
+  });
+
+  readonly commerceSyncDuration = new Histogram({
+    name: "commerce_sync_duration_seconds",
+    help: "Time to process commerce webhook and sync order",
+    labelNames: ["provider", "outcome"],
+    buckets: [0.1, 0.3, 0.5, 1, 2, 5],
+    registers: [this.registry],
+  });
+
+  readonly activeCheckoutSessions = new Gauge({
+    name: "active_checkout_sessions",
+    help: "Number of checkout sessions active in last 30 minutes",
+    labelNames: ["merchant_id"],
+    registers: [this.registry],
+  });
+
+  readonly apiOperationTotal = new Counter({
+    name: "api_operation_total",
+    help: "Total API operations by handler and result",
+    labelNames: ["operation", "result"],
+    registers: [this.registry],
+  });
+
+  readonly apiOperationDuration = new Histogram({
+    name: "api_operation_duration_ms",
+    help: "API operation duration in milliseconds",
+    labelNames: ["operation", "result"],
+    buckets: [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
     registers: [this.registry],
   });
 

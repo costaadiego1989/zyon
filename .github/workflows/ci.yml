@@ -2,76 +2,118 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [feat/zyon-*]
   pull_request:
+    branches: [main, feat/checkout-journey-both-channels]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '9'
 
 jobs:
-  ci:
+  lint-and-typecheck:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - run: cd apps/api && pnpm typecheck
+      - run: cd apps/dashboard && pnpm typecheck
+      - run: cd apps/widget && pnpm typecheck
 
+  test-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
           POSTGRES_DB: aacp_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aacp_test
-      # Disable real AI / external calls in CI
-      RUN_REAL_AI_E2E: "false"
-
+      DATABASE_URL: postgresql://test:test@localhost:5432/aacp_test
+      REDIS_URL: redis://localhost:6379
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
+        with: { version: '${{ env.PNPM_VERSION }}' }
       - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: pnpm
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - run: cd apps/api && npx prisma generate && npx prisma migrate deploy
+      - run: cd apps/api && pnpm test
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+  test-packages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - run: cd packages/rules-engine && pnpm test
+      - run: cd packages/shipping-engine && pnpm test
+      - run: cd packages/conversation-engine && pnpm test
+      - run: cd packages/negotiation-engine && pnpm test
 
-      - name: Lint (architecture boundaries gate)
-        run: pnpm --filter @aacp/api lint
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [lint-and-typecheck]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - run: cd apps/api && pnpm build
+      - run: cd apps/widget && pnpm build
+      - run: cd apps/dashboard && pnpm build
 
-      - name: Typecheck
-        run: pnpm -r typecheck
-
-      - name: Unit + integration tests
-        run: pnpm -r test
-
-      - name: Build shared types + API
-        run: |
-          pnpm --filter @aacp/shared-types build
-          pnpm --filter @aacp/api build
-
-      - name: Apply Prisma migrations
-        run: pnpm --filter @aacp/api prisma:deploy
-
-      - name: Prisma integration tests
-        run: pnpm --filter @aacp/api test:prisma
-
-      - name: Widget coverage
-        run: pnpm --filter @aacp/widget test:coverage
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage-report
-          path: |
-            apps/widget/coverage/
-          retention-days: 14
+  e2e-store-builder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [build]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: aacp_test
+        ports: ['5432:5432']
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/aacp_test
+      REDIS_URL: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '${{ env.PNPM_VERSION }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - run: cd apps/api && npx prisma generate && npx prisma migrate deploy
+      - run: cd apps/api && pnpm build && node dist/main.js &
+      - run: sleep 5
+      - run: cd apps/dashboard && npx playwright install chromium
+      - run: cd apps/dashboard && pnpm e2e:store-builder

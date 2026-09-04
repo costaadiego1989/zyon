@@ -4,7 +4,7 @@ import type {
   AgentGuardrails,
   AgentIdentity,
   AgentRuleScope
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 
 export type {
   AgentCapabilities,
@@ -15,7 +15,7 @@ export type {
   AgentMode,
   AgentRuleScope,
   AgentTone
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 
 export interface AgentRules {
   agentId: string;

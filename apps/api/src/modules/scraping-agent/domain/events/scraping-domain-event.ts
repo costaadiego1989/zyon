@@ -1,4 +1,4 @@
-import type { ScrapingAgentDomainEventType, DomainEventEnvelope } from "@aacp/shared-types";
+import type { ScrapingAgentDomainEventType, DomainEventEnvelope } from "@zyon/shared-types";
 
 export function createScrapingEventEnvelope<TPayload extends Record<string, unknown>>(input: {
   eventType: ScrapingAgentDomainEventType;

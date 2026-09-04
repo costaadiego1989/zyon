@@ -1,0 +1,455 @@
+- generic [ref=e55]:
+  - complementary [ref=e56]:
+    - generic [ref=e57]:
+      - generic [ref=e58]: Z
+      - generic [ref=e59]:
+        - generic [ref=e60]: Zyon Console
+        - generic [ref=e62]: Zyon Demo Store
+    - generic [ref=e63]:
+      - generic [ref=e64]: PRODUÇÃO
+      - generic [ref=e65]: v2.4
+    - navigation "Módulos do painel" [ref=e66]:
+      - generic [ref=e67]:
+        - generic [ref=e68]: Começar
+        - generic [ref=e69] [cursor=pointer]: Primeiros passos
+      - generic [ref=e77]:
+        - generic [ref=e78]: Hoje
+        - generic [ref=e79] [cursor=pointer]: Operação
+        - generic [ref=e84] [cursor=pointer]: Pedidos e envios
+        - generic [ref=e93] [cursor=pointer]: Clientes
+      - generic [ref=e100]:
+        - generic [ref=e101]: Plataforma
+        - generic [ref=e102] [cursor=pointer]: Desenvolvedores
+        - generic [ref=e109] [cursor=pointer]: Loja / Commerce
+        - generic [ref=e117] [cursor=pointer]: Embed
+        - generic [ref=e124] [cursor=pointer]: Tema
+        - generic [ref=e133] [cursor=pointer]: Preview
+      - generic [ref=e139]:
+        - generic [ref=e140]: Atendimento
+        - generic [ref=e141] [cursor=pointer]: Suporte
+        - generic [ref=e146] [cursor=pointer]: Checkout
+        - generic [ref=e152] [cursor=pointer]: Agente
+        - generic [ref=e158] [cursor=pointer]: Negociação
+      - generic [ref=e162]:
+        - generic [ref=e163]: Conta
+        - generic [ref=e164] [cursor=pointer]: Faturamento
+        - generic [ref=e169] [cursor=pointer]: Pagamentos
+        - generic [ref=e174] [cursor=pointer]: Auditoria
+    - generic [ref=e180]: Sair
+  - main [ref=e186]:
+    - generic [ref=e187]:
+      - generic [ref=e192]:
+        - generic [ref=e193]:
+          - text: Plataforma
+          - generic [ref=e194]: /
+          - generic [ref=e195]: Desenvolvedores
+        - generic [ref=e196]: Desenvolvedores
+      - generic [ref=e197]: Zyon Demo Store
+    - generic [ref=e202]:
+      - generic [ref=e334]:
+        - generic [ref=e335]:
+          - paragraph [ref=e336]: Integration API V1
+          - heading "Desenvolvedores" [level=1] [ref=e337]
+          - paragraph [ref=e338]: Conecte sua plataforma ao Zyon via API, webhooks e tokens de sessão.
+        - generic [ref=e339]:
+          - link "Abrir Scalar" [ref=e340] [cursor=pointer]:
+            - /url: http://localhost:3009/docs
+          - link "Postman" [ref=e348] [cursor=pointer]:
+            - /url: http://localhost:3009/postman.json
+          - button "Atualizar" [ref=e352] [cursor=pointer]
+      - generic [ref=e358]:
+        - generic [ref=e359]:
+          - generic [ref=e360]: API
+          - strong [ref=e363]: Online
+        - generic [ref=e364]:
+          - generic [ref=e365]: Chaves
+          - strong [ref=e369]: "24"
+        - generic [ref=e370]:
+          - generic [ref=e371]: Webhooks
+          - strong [ref=e376]: "15"
+        - generic [ref=e377]:
+          - generic [ref=e378]: Falhas
+          - strong [ref=e382]: "0"
+      - generic [ref=e383]:
+        - generic [ref=e384]:
+          - paragraph [ref=e385]: Backend quickstart
+          - heading "Emita uma sessão curta para o widget" [level=2] [ref=e386]
+          - paragraph [ref=e387]: A chave vive somente no servidor. O navegador recebe apenas o token efemero vinculado ao tenant, origem e escopos permitidos.
+          - list [ref=e388]:
+            - listitem [ref=e389]: Crie uma chave de sandbox com o menor conjunto de escopos.
+            - listitem [ref=e390]: Cadastre a origem permitida em Instalações.
+            - listitem [ref=e391]: Emita a embed session no seu backend.
+            - listitem [ref=e392]: Inicialize o widget com o token retornado.
+          - link "Ver OpenAPI machine-readable" [ref=e393] [cursor=pointer]:
+            - /url: http://localhost:3009/openapi.json
+        - generic [ref=e398]:
+          - generic [ref=e399]:
+            - generic [ref=e400]: cURL
+            - button "Copiar" [ref=e404] [cursor=pointer]
+          - generic [ref=e408]: "curl --request POST 'http://localhost:3009/v1/embed/sessions' \\ --header 'Authorization: Bearer aacp_test_REPLACE_ME' \\ --header 'Content-Type: application/json' \\ --header 'Idempotency-Key: checkout-{{customer_cart_id}}' \\ --data '{ \"allowed_origin\": \"https://checkout.sualoja.com\", \"installation_id\": \"ins_REPLACE_ME\", \"cart_ref\": \"cart_REPLACE_ME\", \"scopes\": [\"checkout:start\", \"checkout:chat\"] }'"
+      - generic [ref=e409]:
+        - generic [ref=e410]:
+          - heading "Chaves de acesso" [level=2] [ref=e412]
+          - paragraph [ref=e416]: Autentique chamadas à API do Zyon
+          - generic [ref=e417]:
+            - generic [ref=e418]:
+              - text: Nome
+              - textbox "Nome" [ref=e419]: Backend principal
+            - button "Gerar nova chave" [ref=e420] [cursor=pointer]
+          - group [ref=e424]:
+            - generic "Escopos da nova chave 5 selecionados" [ref=e425] [cursor=pointer]:
+              - text: Escopos da nova chave
+              - generic [ref=e426]: 5 selecionados
+          - table [ref=e428]:
+            - rowgroup [ref=e429]:
+              - row [ref=e430]:
+                - columnheader "Nome" [ref=e431]
+                - columnheader "Prefixo" [ref=e432]
+                - columnheader "Escopos" [ref=e433]
+                - columnheader "Status" [ref=e434]
+                - columnheader [ref=e435]
+            - rowgroup [ref=e436]:
+              - row [ref=e437]:
+                - cell "Backend principal" [ref=e438]
+                - cell [ref=e439]:
+                  - code [ref=e440]: aacp_test_ssR-ezrI
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read, checkout:read" [ref=e441]
+                - cell "ativa" [ref=e442]
+                - cell [ref=e444]:
+                  - button "Revogar chave" [ref=e445] [cursor=pointer]
+              - row [ref=e449]:
+                - cell "Backend principal" [ref=e450]
+                - cell [ref=e451]:
+                  - code [ref=e452]: aacp_test_lH49ILig
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read" [ref=e453]
+                - cell "ativa" [ref=e454]
+                - cell [ref=e456]:
+                  - button "Revogar chave" [ref=e457] [cursor=pointer]
+              - row [ref=e461]:
+                - cell "Backend principal" [ref=e462]
+                - cell [ref=e463]:
+                  - code [ref=e464]: aacp_test_LPACrX8g
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read, checkout:read" [ref=e465]
+                - cell "ativa" [ref=e466]
+                - cell [ref=e468]:
+                  - button "Revogar chave" [ref=e469] [cursor=pointer]
+              - row [ref=e473]:
+                - cell "Backend principal" [ref=e474]
+                - cell [ref=e475]:
+                  - code [ref=e476]: aacp_test_djJTZbsN
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read" [ref=e477]
+                - cell "ativa" [ref=e478]
+                - cell [ref=e480]:
+                  - button "Revogar chave" [ref=e481] [cursor=pointer]
+              - row [ref=e485]:
+                - cell "Backend principal" [ref=e486]
+                - cell [ref=e487]:
+                  - code [ref=e488]: aacp_test_323KKLui
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read" [ref=e489]
+                - cell "ativa" [ref=e490]
+                - cell [ref=e492]:
+                  - button "Revogar chave" [ref=e493] [cursor=pointer]
+              - row [ref=e497]:
+                - cell "Backend principal" [ref=e498]
+                - cell [ref=e499]:
+                  - code [ref=e500]: aacp_test_nXGnkNAZ
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read" [ref=e501]
+                - cell "ativa" [ref=e502]
+                - cell [ref=e504]:
+                  - button "Revogar chave" [ref=e505] [cursor=pointer]
+              - row [ref=e509]:
+                - cell "Backend principal" [ref=e510]
+                - cell [ref=e511]:
+                  - code [ref=e512]: aacp_test_y9oHhzNi
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read" [ref=e513]
+                - cell "ativa" [ref=e514]
+                - cell [ref=e516]:
+                  - button "Revogar chave" [ref=e517] [cursor=pointer]
+              - row [ref=e521]:
+                - cell "Backend principal" [ref=e522]
+                - cell [ref=e523]:
+                  - code [ref=e524]: aacp_test_7iSw3jL3
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read" [ref=e525]
+                - cell "ativa" [ref=e526]
+                - cell [ref=e528]:
+                  - button "Revogar chave" [ref=e529] [cursor=pointer]
+              - row [ref=e533]:
+                - cell "Backend principal" [ref=e534]
+                - cell [ref=e535]:
+                  - code [ref=e536]: aacp_test_l3Tp32nX
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read, checkout:read" [ref=e537]
+                - cell "revogada" [ref=e538]
+                - cell [ref=e540]:
+                  - button "Revogar chave" [disabled] [ref=e541]
+              - row [ref=e545]:
+                - cell "Backend principal" [ref=e546]
+                - cell [ref=e547]:
+                  - code [ref=e548]: aacp_test_WMLFU5gv
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read" [ref=e549]
+                - cell "ativa" [ref=e550]
+                - cell [ref=e552]:
+                  - button "Revogar chave" [ref=e553] [cursor=pointer]
+              - row [ref=e557]:
+                - cell "Backend principal" [ref=e558]
+                - cell [ref=e559]:
+                  - code [ref=e560]: aacp_test_kCGHhtSC
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read, checkout:read" [ref=e561]
+                - cell "ativa" [ref=e562]
+                - cell [ref=e564]:
+                  - button "Revogar chave" [ref=e565] [cursor=pointer]
+              - row [ref=e569]:
+                - cell "Backend principal" [ref=e570]
+                - cell [ref=e571]:
+                  - code [ref=e572]: aacp_test_2szMtzf6
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read" [ref=e573]
+                - cell "ativa" [ref=e574]
+                - cell [ref=e576]:
+                  - button "Revogar chave" [ref=e577] [cursor=pointer]
+              - row [ref=e581]:
+                - cell "Backend principal" [ref=e582]
+                - cell [ref=e583]:
+                  - code [ref=e584]: aacp_test_n8DwuQBX
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read, checkout:read" [ref=e585]
+                - cell "ativa" [ref=e586]
+                - cell [ref=e588]:
+                  - button "Revogar chave" [ref=e589] [cursor=pointer]
+              - row [ref=e593]:
+                - cell "Backend principal" [ref=e594]
+                - cell [ref=e595]:
+                  - code [ref=e596]: aacp_test_3GOTtFtb
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read, checkout:read" [ref=e597]
+                - cell "ativa" [ref=e598]
+                - cell [ref=e600]:
+                  - button "Revogar chave" [ref=e601] [cursor=pointer]
+              - row [ref=e605]:
+                - cell "Backend principal" [ref=e606]
+                - cell [ref=e607]:
+                  - code [ref=e608]: aacp_test_3H7zA5sK
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read" [ref=e609]
+                - cell "ativa" [ref=e610]
+                - cell [ref=e612]:
+                  - button "Revogar chave" [ref=e613] [cursor=pointer]
+              - row [ref=e617]:
+                - cell "Backend principal" [ref=e618]
+                - cell [ref=e619]:
+                  - code [ref=e620]: aacp_test_r0DqIbZx
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read, checkout:read" [ref=e621]
+                - cell "ativa" [ref=e622]
+                - cell [ref=e624]:
+                  - button "Revogar chave" [ref=e625] [cursor=pointer]
+              - row [ref=e629]:
+                - cell "Backend principal" [ref=e630]
+                - cell [ref=e631]:
+                  - code [ref=e632]: aacp_test_RuUDu0pF
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read" [ref=e633]
+                - cell "ativa" [ref=e634]
+                - cell [ref=e636]:
+                  - button "Revogar chave" [ref=e637] [cursor=pointer]
+              - row [ref=e641]:
+                - cell "Backend principal" [ref=e642]
+                - cell [ref=e643]:
+                  - code [ref=e644]: aacp_test_ZdDAszle
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read, checkout:read" [ref=e645]
+                - cell "ativa" [ref=e646]
+                - cell [ref=e648]:
+                  - button "Revogar chave" [ref=e649] [cursor=pointer]
+              - row [ref=e653]:
+                - cell "Backend principal" [ref=e654]
+                - cell [ref=e655]:
+                  - code [ref=e656]: aacp_test_bgj0N8_S
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read, checkout:read" [ref=e657]
+                - cell "ativa" [ref=e658]
+                - cell [ref=e660]:
+                  - button "Revogar chave" [ref=e661] [cursor=pointer]
+              - row [ref=e665]:
+                - cell "Backend principal" [ref=e666]
+                - cell [ref=e667]:
+                  - code [ref=e668]: aacp_test_6NpzH3nG
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read, checkout:read" [ref=e669]
+                - cell "ativa" [ref=e670]
+                - cell [ref=e672]:
+                  - button "Revogar chave" [ref=e673] [cursor=pointer]
+              - row [ref=e677]:
+                - cell "Backend principal" [ref=e678]
+                - cell [ref=e679]:
+                  - code [ref=e680]: aacp_test_S40sWf67
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read, checkout:read" [ref=e681]
+                - cell "ativa" [ref=e682]
+                - cell [ref=e684]:
+                  - button "Revogar chave" [ref=e685] [cursor=pointer]
+              - row [ref=e689]:
+                - cell "Backend principal" [ref=e690]
+                - cell [ref=e691]:
+                  - code [ref=e692]: aacp_test_2EE61SX2
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read, checkout:read" [ref=e693]
+                - cell "ativa" [ref=e694]
+                - cell [ref=e696]:
+                  - button "Revogar chave" [ref=e697] [cursor=pointer]
+              - row [ref=e701]:
+                - cell "Backend principal" [ref=e702]
+                - cell [ref=e703]:
+                  - code [ref=e704]: aacp_test_3NHzCJcC
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read, checkout:read" [ref=e705]
+                - cell "ativa" [ref=e706]
+                - cell [ref=e708]:
+                  - button "Revogar chave" [ref=e709] [cursor=pointer]
+              - row [ref=e713]:
+                - cell "Backend principal" [ref=e714]
+                - cell [ref=e715]:
+                  - code [ref=e716]: aacp_test_QxVFZC5k
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read, checkout:read" [ref=e717]
+                - cell "ativa" [ref=e718]
+                - cell [ref=e720]:
+                  - button "Revogar chave" [ref=e721] [cursor=pointer]
+              - row [ref=e725]:
+                - cell "Backend principal" [ref=e726]
+                - cell [ref=e727]:
+                  - code [ref=e728]: aacp_test_W1arXLvC
+                - cell "catalog:read, embed:sessions:create, orders:read, tracking:write, webhooks:read" [ref=e729]
+                - cell "ativa" [ref=e730]
+                - cell [ref=e732]:
+                  - button "Revogar chave" [ref=e733] [cursor=pointer]
+        - generic [ref=e737]:
+          - heading "Webhooks" [level=2] [ref=e739]
+          - paragraph [ref=e744]: Receba notificações em tempo real sobre eventos do checkout
+          - generic [ref=e745]:
+            - text: Endpoint
+            - textbox "Endpoint" [ref=e746]:
+              - /placeholder: https://api.sualoja.com/aacp/webhooks
+          - generic [ref=e747]:
+            - button "checkout.started" [ref=e748] [cursor=pointer]
+            - button "checkout.abandoned" [ref=e749] [cursor=pointer]
+            - button "order.created" [ref=e750] [cursor=pointer]
+            - button "order.approved" [pressed] [ref=e751] [cursor=pointer]
+            - button "order.cancelled" [ref=e752] [cursor=pointer]
+            - button "payment.pending" [ref=e753] [cursor=pointer]
+            - button "payment.approved" [ref=e754] [cursor=pointer]
+            - button "payment.failed" [ref=e755] [cursor=pointer]
+            - button "payment.refunded" [ref=e756] [cursor=pointer]
+            - button "customer.upserted" [pressed] [ref=e757] [cursor=pointer]
+            - button "tracking.updated" [pressed] [ref=e758] [cursor=pointer]
+            - button "support.ticket.created" [ref=e759] [cursor=pointer]
+            - button "commerce.connection.degraded" [ref=e760] [cursor=pointer]
+          - button "Adicionar endpoint" [disabled] [ref=e761]
+          - generic [ref=e766]:
+            - article [ref=e767]:
+              - generic [ref=e768]:
+                - strong [ref=e769]: https://httpbin.org/post
+                - text: order.approved, customer.upserted, tracking.updated
+              - generic [ref=e770]: ativo
+              - button "Testar" [ref=e771] [cursor=pointer]
+            - article [ref=e775]:
+              - generic [ref=e776]:
+                - strong [ref=e777]: https://httpbin.org/post
+                - text: order.approved, customer.upserted, tracking.updated
+              - generic [ref=e778]: ativo
+              - button "Testar" [ref=e779] [cursor=pointer]
+            - article [ref=e783]:
+              - generic [ref=e784]:
+                - strong [ref=e785]: https://httpbin.org/anything
+                - text: order.approved, customer.upserted, tracking.updated, checkout.started
+              - generic [ref=e786]: ativo
+              - button "Testar" [ref=e787] [cursor=pointer]
+            - article [ref=e791]:
+              - generic [ref=e792]:
+                - strong [ref=e793]: https://httpbin.org/post
+                - text: order.approved, customer.upserted, tracking.updated
+              - generic [ref=e794]: ativo
+              - button "Testar" [ref=e795] [cursor=pointer]
+            - article [ref=e799]:
+              - generic [ref=e800]:
+                - strong [ref=e801]: https://httpbin.org/post
+                - text: order.approved, customer.upserted, tracking.updated
+              - generic [ref=e802]: ativo
+              - button "Testar" [ref=e803] [cursor=pointer]
+            - article [ref=e807]:
+              - generic [ref=e808]:
+                - strong [ref=e809]: https://httpbin.org/post
+                - text: order.approved, customer.upserted, tracking.updated
+              - generic [ref=e810]: ativo
+              - button "Testar" [ref=e811] [cursor=pointer]
+            - article [ref=e815]:
+              - generic [ref=e816]:
+                - strong [ref=e817]: https://httpbin.org/post
+                - text: order.approved, customer.upserted, tracking.updated
+              - generic [ref=e818]: ativo
+              - button "Testar" [ref=e819] [cursor=pointer]
+            - article [ref=e823]:
+              - generic [ref=e824]:
+                - strong [ref=e825]: https://httpbin.org/post
+                - text: order.approved, customer.upserted, tracking.updated
+              - generic [ref=e826]: ativo
+              - button "Testar" [ref=e827] [cursor=pointer]
+            - article [ref=e831]:
+              - generic [ref=e832]:
+                - strong [ref=e833]: https://httpbin.org/post
+                - text: order.approved, customer.upserted, tracking.updated
+              - generic [ref=e834]: ativo
+              - button "Testar" [ref=e835] [cursor=pointer]
+            - article [ref=e839]:
+              - generic [ref=e840]:
+                - strong [ref=e841]: https://httpbin.org/post
+                - text: order.approved, customer.upserted, tracking.updated
+              - generic [ref=e842]: ativo
+              - button "Testar" [ref=e843] [cursor=pointer]
+            - article [ref=e847]:
+              - generic [ref=e848]:
+                - strong [ref=e849]: https://httpbin.org/post
+                - text: order.approved, customer.upserted, tracking.updated
+              - generic [ref=e850]: ativo
+              - button "Testar" [ref=e851] [cursor=pointer]
+            - article [ref=e855]:
+              - generic [ref=e856]:
+                - strong [ref=e857]: https://httpbin.org/post
+                - text: order.approved, customer.upserted, tracking.updated
+              - generic [ref=e858]: ativo
+              - button "Testar" [ref=e859] [cursor=pointer]
+            - article [ref=e863]:
+              - generic [ref=e864]:
+                - strong [ref=e865]: https://httpbin.org/post
+                - text: order.approved, customer.upserted, tracking.updated
+              - generic [ref=e866]: ativo
+              - button "Testar" [ref=e867] [cursor=pointer]
+            - article [ref=e871]:
+              - generic [ref=e872]:
+                - strong [ref=e873]: https://httpbin.org/post
+                - text: order.approved, customer.upserted, tracking.updated
+              - generic [ref=e874]: ativo
+              - button "Testar" [ref=e875] [cursor=pointer]
+            - article [ref=e879]:
+              - generic [ref=e880]:
+                - strong [ref=e881]: https://httpbin.org/post
+                - text: order.approved, customer.upserted, tracking.updated
+              - generic [ref=e882]: ativo
+              - button "Testar" [ref=e883] [cursor=pointer]
+      - generic [ref=e887]:
+        - generic [ref=e888]:
+          - heading "Delivery log" [level=2] [ref=e889]
+          - button "Recarregar" [ref=e890] [cursor=pointer]
+        - table [ref=e897]:
+          - rowgroup [ref=e898]:
+            - row [ref=e899]:
+              - columnheader "Evento" [ref=e900]
+              - columnheader "Endpoint" [ref=e901]
+              - columnheader "Status" [ref=e902]
+              - columnheader "Tentativas" [ref=e903]
+              - columnheader "Resposta" [ref=e904]
+              - columnheader [ref=e905]
+          - rowgroup [ref=e906]:
+            - row [ref=e907]:
+              - cell "As tentativas de entrega aparecerão aqui após o primeiro evento." [ref=e908]
+      - generic [ref=e913]:
+        - heading "Tokens de sessão" [level=2] [ref=e915]
+        - paragraph [ref=e918]: Autentique o widget no seu site
+        - table [ref=e920]:
+          - rowgroup [ref=e921]:
+            - row [ref=e922]:
+              - columnheader "ID" [ref=e923]
+              - columnheader "Nome" [ref=e924]
+              - columnheader "Plataforma" [ref=e925]
+              - columnheader "Status" [ref=e926]
+              - columnheader "Health" [ref=e927]
+              - columnheader [ref=e928]
+          - rowgroup [ref=e929]:
+            - row [ref=e930]:
+              - cell "Nenhuma instalação encontrada." [ref=e931]

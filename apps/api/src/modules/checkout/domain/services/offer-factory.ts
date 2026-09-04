@@ -1,4 +1,4 @@
-import type { AuthorizedOffer, MerchantRules } from "@aacp/shared-types";
+import type { AuthorizedOffer, MerchantRules } from "@zyon/shared-types";
 
 export function createAuthorizedOffer(input: {
   merchantId: string;

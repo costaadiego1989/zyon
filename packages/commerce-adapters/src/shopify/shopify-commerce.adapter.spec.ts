@@ -67,7 +67,54 @@ test("validateCart maps a Storefront API cart to TrustedCartSnapshot", async () 
   assertNoAsaasBilling(urls);
 });
 
-test("createPendingOrder POST draft_orders carries cart line prices in currency units", async () => {
+test("createPendingOrder uses GraphQL draftOrderCreate by default", async () => {
+  const urls: string[] = [];
+  const fetchImpl: typeof fetch = async (input, init) => {
+    const url = input instanceof Request ? input.url : String(input);
+    urls.push(url);
+    assert.equal(init?.method, "POST");
+    assert.match(url, /\/graphql\.json$/);
+    const body = JSON.parse(init!.body as string) as {
+      query: string;
+      variables: { input: { lineItems: Array<{ originalUnitPrice: string; sku: string }> } };
+    };
+    assert.match(body.query, /mutation AacpDraftOrderCreate/);
+    assert.equal(body.variables.input.lineItems[0]?.originalUnitPrice, "25.75");
+    assert.equal(body.variables.input.lineItems[0]?.sku, "sku_1");
+    return Response.json({
+      data: {
+        draftOrderCreate: {
+          draftOrder: {
+            id: "gid://shopify/DraftOrder/773311",
+            legacyResourceId: "773311"
+          },
+          userErrors: []
+        }
+      },
+      extensions: {
+        cost: { actualQueryCost: 10, throttleStatus: { currentlyAvailable: 990, restoreRate: 50 } }
+      }
+    });
+  };
+
+  const adapter = new ShopifyCommerceAdapter({ shopDomain: MY_SHOP, adminAccessToken: "t" }, fetchImpl);
+
+  const { commerceOrderId } = await adapter.createPendingOrder({
+    merchantId: "m1",
+    sessionId: "sess_99",
+    cart: {
+      currency: "BRL",
+      totalCents: 2575,
+      commerceCartRef: "cref",
+      lines: [{ sku: "sku_1", quantity: 1, unitPriceCents: 2575, title: "One" }]
+    }
+  });
+
+  assert.equal(commerceOrderId, "773311");
+  assertNoAsaasBilling(urls);
+});
+
+test("createPendingOrder REST fallback when useGraphqlAdminApi=false", async () => {
   const urls: string[] = [];
   const fetchImpl: typeof fetch = async (input, init) => {
     const url = input instanceof Request ? input.url : String(input);
@@ -82,7 +129,10 @@ test("createPendingOrder POST draft_orders carries cart line prices in currency 
     return Response.json({ draft_order: { id: 773_311 } });
   };
 
-  const adapter = new ShopifyCommerceAdapter({ shopDomain: MY_SHOP, adminAccessToken: "t" }, fetchImpl);
+  const adapter = new ShopifyCommerceAdapter(
+    { shopDomain: MY_SHOP, adminAccessToken: "t", useGraphqlAdminApi: false },
+    fetchImpl
+  );
 
   const { commerceOrderId } = await adapter.createPendingOrder({
     merchantId: "m1",
@@ -141,13 +191,14 @@ test("markOrderPaid completes the scoped Shopify draft order", async () => {
   assertNoAsaasBilling(urls);
 });
 
-test("full mocked flow uses Storefront cart and Shopify admin order APIs", async () => {
+test("full mocked flow uses Storefront cart + GraphQL admin mutations", async () => {
   const urls: string[] = [];
   let step = 0;
   const fetchImpl: typeof fetch = async (input, init) => {
     const url = input instanceof Request ? input.url : String(input);
     urls.push(url);
     if (step === 0) {
+      // Storefront API for validateCart
       assert.match(url, /\/api\/2026-04\/graphql\.json$/);
       step += 1;
       return Response.json({
@@ -175,18 +226,37 @@ test("full mocked flow uses Storefront cart and Shopify admin order APIs", async
       });
     }
     if (step === 1) {
-      assert.ok(url.endsWith("/draft_orders.json"));
+      // Admin API draftOrderCreate
+      assert.match(url, /\/admin\/api\/2026-04\/graphql\.json$/);
       step += 1;
-      return Response.json({ draft_order: { id: 500 } });
+      return Response.json({
+        data: {
+          draftOrderCreate: {
+            draftOrder: {
+              id: "gid://shopify/DraftOrder/500",
+              legacyResourceId: "500"
+            },
+            userErrors: []
+          }
+        },
+        extensions: {
+          cost: { actualQueryCost: 10, throttleStatus: { currentlyAvailable: 990, restoreRate: 50 } }
+        }
+      });
     }
     if (step === 2) {
-      assert.ok(url.includes("/graphql.json"));
+      // Admin API draft order lookup
+      assert.match(url, /\/admin\/api\/2026-04\/graphql\.json$/);
       step += 1;
       return Response.json({
         data: { draftOrder: { order: null } },
+        extensions: {
+          cost: { actualQueryCost: 5, throttleStatus: { currentlyAvailable: 985, restoreRate: 50 } }
+        }
       });
     }
-    assert.ok(url.includes("/graphql.json"));
+    // Admin API draftOrderComplete
+    assert.match(url, /\/admin\/api\/2026-04\/graphql\.json$/);
     step += 1;
     return Response.json({
       data: {
@@ -198,6 +268,9 @@ test("full mocked flow uses Storefront cart and Shopify admin order APIs", async
           userErrors: [],
         },
       },
+      extensions: {
+        cost: { actualQueryCost: 8, throttleStatus: { currentlyAvailable: 977, restoreRate: 50 } }
+      }
     });
   };
 
@@ -228,6 +301,29 @@ test("full mocked flow uses Storefront cart and Shopify admin order APIs", async
 
   assert.equal(step, 4);
   assertNoAsaasBilling(urls);
+});
+
+test("testConnection handles GraphQL rate limit 429 with Retry-After", async () => {
+  const fetchImpl: typeof fetch = async (input, init) => {
+    const url = input instanceof Request ? input.url : String(input);
+    assert.match(url, /\/admin\/api\/.*\/graphql\.json$/);
+    // Simulate a 429 with Retry-After header.
+    return Response.json(
+      { data: null, errors: [{ message: "Rate limit exceeded" }] },
+      { status: 429, headers: { "Retry-After": "30" } }
+    );
+  };
+
+  const adapter = new ShopifyCommerceAdapter({ shopDomain: MY_SHOP, adminAccessToken: "t" }, fetchImpl);
+
+  try {
+    await adapter.testConnection();
+    assert.fail("should have thrown");
+  } catch (error) {
+    // Verify it's a rate-limit error with the Retry-After hint.
+    assert.ok(error instanceof Error);
+    assert.match(error.message, /throttled/);
+  }
 });
 
 test("cancelOrder resolves the real order and requests cancellation without refund", async () => {

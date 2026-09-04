@@ -7,7 +7,11 @@ import "./modules/checkout/presentation/http/checkout.controller.prisma-e2e-spec
 import "./modules/checkout/presentation/http/checkout.prisma-full-flow.e2e-spec.js";
 import "./modules/payment/infrastructure/prisma-payment.repository.int-spec.js";
 import "./modules/buyer-purchase-history/infrastructure/prisma-buyer-purchase-history.repository.int-spec.js";
+import "./modules/negotiation/__tests__/m2m-session.int-spec.js";
+import "./modules/embed/__tests__/protocol-session.int-spec.js";
+import "./modules/revenue-lift/__tests__/revenue-lift.int-spec.js";
 import "./modules/integrations/infrastructure/prisma-integrations.repository.int-spec.js";
+import "./modules/catalog/infrastructure/repositories/prisma-import-job.repository.int-spec.js";
 import "./modules/buyer-account/presentation/http/buyer-account.e2e-spec.js";
 import "./modules/checkout/presentation/http/checkout.intervention-ledger.prisma-e2e-spec.js";
 import "./modules/checkout/presentation/http/checkout.cross-tenant-fuzz.prisma-e2e-spec.js";

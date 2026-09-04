@@ -1,5 +1,5 @@
-import type { Cart } from "@aacp/shared-types";
-import type { NegotiationCart } from "@aacp/negotiation-engine";
+import type { Cart } from "@zyon/shared-types";
+import type { NegotiationCart } from "@zyon/negotiation-engine";
 
 /** SKU/qty/price/total only so checkout-session cart matches negotiated cart fingerprints. */
 export function negotiationCartFingerprint(cart: NegotiationCart): string {

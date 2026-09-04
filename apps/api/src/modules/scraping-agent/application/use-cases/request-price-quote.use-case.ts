@@ -1,9 +1,10 @@
-import { Injectable, Inject, BadRequestException } from "@nestjs/common";
+import { Injectable, Inject, BadRequestException , Logger} from "@nestjs/common";
 import { PriceQuoteJobEntity } from "../../domain/entities/price-quote-job.entity.js";
 import { PRICE_QUOTE_JOB_REPOSITORY, type PriceQuoteJobRepository } from "../../domain/ports/price-quote-job-repository.port.js";
 import { filterAllowedSources } from "../../domain/policies/source-allow-list.policy.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { createScrapingEventEnvelope } from "../../domain/events/scraping-domain-event.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 /**
  * Platform-level fallback allowlist used when the merchant has not configured a custom list.
@@ -17,6 +18,8 @@ const MAX_RAW_QUERY_LENGTH = 500;
 
 @Injectable()
 export class RequestPriceQuoteUseCase {
+  private readonly logger = new Logger(RequestPriceQuoteUseCase.name);
+
   constructor(
     @Inject(PRICE_QUOTE_JOB_REPOSITORY) private readonly repo: PriceQuoteJobRepository,
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository

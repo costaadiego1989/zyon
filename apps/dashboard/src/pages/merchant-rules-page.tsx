@@ -1,64 +1,85 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { Bot, Save } from "lucide-react";
-import type { MerchantRules } from "@aacp/shared-types";
+import type { MerchantRules } from "@zyon/shared-types";
 import type { AgentRules, MerchantProfile as MerchantMeProfile } from "../api-client.js";
-import { createDashboardApi, DashboardHttpError } from "../api-client.js";
 import { RulesForm } from "../components/rules-form.js";
+import { SectionHeader } from "../components/SectionHeader.js";
 import { QuickRepliesSection } from "../components/quick-replies-section.js";
+import { LivePreviewPanel, type LivePreviewPanelRef } from "../components/LivePreviewPanel.js";
+import { SaveFeedbackBanner } from "../components/save-feedback-banner.js";
+import { RulesSkeleton } from "../components/rules-skeleton.js";
+import { AgentRulesForm } from "../components/agent-rules-form.js";
+import { ToggleSwitch } from "../components/ToggleSwitch.js";
+import {
+  validateOriginZip,
+  validateTreasuryAddress,
+  validateNonNegative,
+  validateMarginConsistency,
+} from "../utils/rules-validation.js";
+import { useApi } from "../hooks/useApi.js";
+import { readError } from "../utils/read-error.js";
+import { DashboardHttpError } from "../api/http/index.js";
 
-function readError(e: unknown): string {
-  return e instanceof DashboardHttpError
-    ? e.responseBody || e.message
-    : e instanceof Error
-      ? e.message
-      : "Erro desconhecido";
+function deepEqual(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 export function MerchantRulesAuthenticatedPage(props: {
   apiBaseUrl: string;
   me: MerchantMeProfile | null;
 }) {
-  const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
+  const api = useApi();
+  const previewRef = useRef<LivePreviewPanelRef>(null);
 
-  // merchant-rules state (existing)
   const [rules, setRules] = useState<MerchantRules | null>(null);
+  const [lastSavedRules, setLastSavedRules] = useState<MerchantRules | null>(null);
   const [saving, setSaving] = useState(false);
   const [gate, setGate] = useState<"idle" | "401" | "error">("idle");
   const [hint, setHint] = useState<string | null>(null);
+  const [saveResult, setSaveResult] = useState<"success" | "error" | null>(null);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
-  // agent-rules state (new)
   const [agentRules, setAgentRules] = useState<AgentRules | null>(null);
-  const [agentRulesJson, setAgentRulesJson] = useState("");
   const [agentBusy, setAgentBusy] = useState(false);
   const [agentMessage, setAgentMessage] = useState<string | null>(null);
   const [agentLoading, setAgentLoading] = useState(false);
+  const [agentRulesMode, setAgentRulesMode] = useState<"form" | "json">("form");
 
-  useEffect(() => {
-    async function fetchRules() {
-      if (!props.me) {
-        setRules(null);
-        setAgentRules(null);
-        setGate("idle");
-        setHint(null);
-        return;
-      }
-      try {
-        const rl = await api.getMerchantRules();
-        setRules(rl);
-        setGate("idle");
-        setHint(null);
-      } catch (e) {
-        setRules(null);
-        setHint(null);
-        if (e instanceof DashboardHttpError && e.status === 401) setGate("401");
-        else {
-          setGate("error");
-          setHint(readError(e));
-        }
+  const isDirty = useMemo(
+    () => rules !== null && lastSavedRules !== null && !deepEqual(rules, lastSavedRules),
+    [rules, lastSavedRules],
+  );
+
+  const hasValidationErrors = Object.keys(validationErrors).length > 0;
+
+  const fetchRules = useCallback(async () => {
+    if (!props.me) {
+      setRules(null);
+      setAgentRules(null);
+      setGate("idle");
+      setHint(null);
+      return;
+    }
+    try {
+      const rl = await api.getMerchantRules();
+      setRules(rl);
+      setLastSavedRules(rl);
+      setGate("idle");
+      setHint(null);
+    } catch (e) {
+      setRules(null);
+      setHint(null);
+      if (e instanceof DashboardHttpError && e.status === 401) setGate("401");
+      else {
+        setGate("error");
+        setHint(readError(e));
       }
     }
-    void fetchRules();
   }, [api, props.me]);
+
+  useEffect(() => {
+    void fetchRules();
+  }, [fetchRules]);
 
   useEffect(() => {
     if (!props.me) return;
@@ -71,7 +92,6 @@ export function MerchantRulesAuthenticatedPage(props: {
     try {
       const ar = await api.getAgentRules();
       setAgentRules(ar);
-      setAgentRulesJson(JSON.stringify(ar, null, 2));
     } catch (e) {
       setAgentMessage(readError(e));
     } finally {
@@ -80,33 +100,71 @@ export function MerchantRulesAuthenticatedPage(props: {
   }
 
   async function saveAgentRules() {
+    if (!agentRules) return;
     setAgentBusy(true);
     setAgentMessage(null);
     try {
-      const parsed = JSON.parse(agentRulesJson) as AgentRules;
-      const saved = await api.putAgentRules(parsed);
+      const saved = await api.putAgentRules(agentRules);
       setAgentRules(saved);
-      setAgentRulesJson(JSON.stringify(saved, null, 2));
       setAgentMessage("Regras do agente salvas.");
     } catch (e) {
       setAgentMessage(
-        e instanceof SyntaxError ? `JSON invalido: ${e.message}` : readError(e),
+        e instanceof SyntaxError ? `JSON inválido: ${e.message}` : readError(e),
       );
     } finally {
       setAgentBusy(false);
     }
   }
 
+  function runValidation(currentRules: MerchantRules) {
+    const errors: Record<string, string> = {};
+
+    const zipErr = validateOriginZip(currentRules.originZip);
+    if (zipErr) errors.originZip = zipErr;
+
+    const addrErr = validateTreasuryAddress(currentRules.cryptoPayments?.treasuryAddress);
+    if (currentRules.cryptoPayments?.enabled && addrErr) errors.treasuryAddress = addrErr;
+
+    const freeShipErr = validateNonNegative(currentRules.freeShippingMinCartValue);
+    if (freeShipErr) errors.freeShippingMinCartValue = freeShipErr;
+
+    const subsidyErr = validateNonNegative(currentRules.maxShippingSubsidy);
+    if (subsidyErr) errors.maxShippingSubsidy = subsidyErr;
+
+    const marginErr = validateMarginConsistency(
+      currentRules.maxDiscountPercent,
+      currentRules.minimumMarginPercent,
+    );
+    if (marginErr) errors.marginConsistency = marginErr;
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  }
+
+  function handleRulesChange(next: MerchantRules) {
+    setRules(next);
+    runValidation(next);
+  }
+
   async function saveRules() {
     if (!rules) return;
+    if (!runValidation(rules)) return;
     setSaving(true);
+    setSaveResult(null);
     try {
       const saved = await api.putMerchantRules(rules);
       setRules(saved);
+      setLastSavedRules(saved);
+      setSaveResult("success");
+    } catch (e) {
+      setSaveResult("error");
+      setHint(readError(e));
     } finally {
       setSaving(false);
     }
   }
+
+  const handleDismissFeedback = useCallback(() => setSaveResult(null), []);
 
   if (!props.me) {
     return (
@@ -121,71 +179,152 @@ export function MerchantRulesAuthenticatedPage(props: {
 
   return (
     <>
-      {/* Merchant rules section */}
       <header className="page-head">
         <div>
-          <h1>Regras do merchant atual</h1>
-          <p className="page-lead">{props.me.name ?? props.me.id} · rotas `/merchants/me/rules`.</p>
+          <span className="eyebrow">Atendimento</span>
+          <h1>Regras do Agente</h1>
+          <p className="page-lead">
+            Defina o comportamento e os limites do agente de checkout.
+          </p>
         </div>
-        <button type="button" disabled={saving || !rules} onClick={() => void saveRules()}>
-          <Save size={16} />
-          Salvar
-        </button>
-      </header>
-      {gate === "401" ? (
-        <p className="panel panel-warn">Sessão invalida ou expirada (401).</p>
-      ) : null}
-      {gate === "error" ? <p className="panel panel-warn">{hint ?? "Falha de rede"}</p> : null}
-      {rules ? (
-        <>
-          <RulesForm rules={rules} onChange={setRules} />
-          <div style={{ marginTop: 24 }}>
-            <QuickRepliesSection
-              value={rules.quickReplies}
-              onChange={(qr) => setRules({ ...rules, quickReplies: qr })}
-            />
-          </div>
-        </>
-      ) : gate === "idle" ? <p>Carregando…</p> : null}
-
-      {/* Agent rules section */}
-      <section className="panel stacked" style={{ marginTop: 32 }}>
-        <div className="panel-title">
-          <h2>Motor de regras do agente</h2>
-          <Bot size={18} />
-        </div>
-        <p className="page-lead" style={{ marginBottom: 8 }}>
-          Configuracao avancada: <code>GET/PUT /agent-rules</code>. Edite o JSON e salve.
-        </p>
-        {agentMessage ? <p className="panel panel-info">{agentMessage}</p> : null}
-        {agentLoading ? <p className="panel panel-info">Carregando regras do agente...</p> : null}
-        <textarea
-          spellCheck={false}
-          disabled={agentBusy || agentLoading}
-          className="mono-textarea"
-          value={agentRulesJson}
-          onChange={(e) => setAgentRulesJson(e.target.value)}
-          rows={12}
-          aria-label="JSON das regras do agente"
-        />
-        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <div className="button-row">
+          {isDirty && <span className="badge-unsaved">Alterações não salvas</span>}
           <button
             type="button"
-            disabled={agentBusy || agentLoading || !agentRules}
-            onClick={() => void saveAgentRules()}
+            className="primary-action"
+            disabled={saving || !rules || !isDirty || hasValidationErrors}
+            onClick={() => void saveRules()}
+            title={hasValidationErrors ? "Corrija os erros antes de salvar" : undefined}
           >
             <Save size={16} />
-            Salvar regras do agente
-          </button>
-          <button
-            type="button"
-            disabled={agentBusy || agentLoading}
-            onClick={() => void loadAgentRules()}
-          >
-            Recarregar
+            {saving ? "Salvando..." : "Salvar regras"}
           </button>
         </div>
-      </section>
+      </header>
+
+      <div aria-live="polite" aria-atomic="true">
+        <SaveFeedbackBanner
+          result={saveResult}
+          onDismiss={handleDismissFeedback}
+        />
+      </div>
+
+      {gate === "401" ? (
+        <div className="panel panel-warn" role="alert">
+          <p>Sessão inválida ou expirada.</p>
+          <button className="btn-sm" onClick={() => window.location.reload()}>
+            Fazer login novamente
+          </button>
+        </div>
+      ) : null}
+      {gate === "error" ? (
+        <div className="panel panel-error" role="alert">
+          <p>{hint ?? "Falha de rede"}</p>
+          <button className="btn-sm" onClick={() => void fetchRules()}>
+            Tentar novamente
+          </button>
+        </div>
+      ) : null}
+
+      {rules ? (
+        <div className="split-panel">
+          <div className="split-panel-controls">
+            <div className="panel stacked">
+              <SectionHeader title="Capacidades" subtitle="O que o agente pode fazer durante a conversa" />
+              <RulesForm
+                rules={rules}
+                onChange={handleRulesChange}
+                validationErrors={validationErrors}
+                onValidationChange={setValidationErrors}
+              />
+            </div>
+
+            <div className="panel stacked rules-section-gap">
+              <QuickRepliesSection
+                value={rules.quickReplies}
+                onChange={(qr) => handleRulesChange({ ...rules, quickReplies: qr })}
+              />
+            </div>
+
+            <section className="panel stacked rules-section-gap">
+              <SectionHeader title="Limites" subtitle="Restrições que o agente deve respeitar sempre" />
+              {agentMessage ? (
+                <p className="panel panel-info">{agentMessage}</p>
+              ) : null}
+              {agentLoading ? (
+                <p className="panel panel-info">Carregando regras do agente...</p>
+              ) : null}
+              <AgentRulesForm
+                rules={agentRules}
+                onChange={setAgentRules}
+                mode={agentRulesMode}
+                onModeChange={setAgentRulesMode}
+                disabled={agentBusy}
+                loading={agentLoading}
+              />
+              <div className="button-row">
+                <button
+                  type="button"
+                  className="primary-action"
+                  disabled={agentBusy || agentLoading || !agentRules}
+                  onClick={() => void saveAgentRules()}
+                >
+                  <Save size={16} />
+                  {agentBusy ? "Salvando..." : "Salvar regras"}
+                </button>
+                <button
+                  type="button"
+                  disabled={agentBusy || agentLoading}
+                  onClick={() => void loadAgentRules()}
+                >
+                  Recarregar
+                </button>
+              </div>
+            </section>
+
+            <section className="panel stacked rules-section-gap">
+              <SectionHeader title="Motor de IA Autônomo" subtitle="A IA analisa suas conversões e sugere regras de desconto — você decide o que ativar" />
+
+              {/* Como funciona — ciclo completo, deixa claro que nada é automático */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "4px 0 12px", font: "12px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.5 }}>
+                <div><strong style={{ color: "var(--color-text)" }}>1. Analisa</strong> — a IA observa taxas de conversão por perfil de comprador (ex: sensível a preço, foco em qualidade) e onde há carrinho abandonado.</div>
+                <div><strong style={{ color: "var(--color-text)" }}>2. Sugere</strong> — gera regras candidatas de desconto ou frete que podem converter mais, sempre dentro dos seus limites (desconto máximo em % e em R$, e margem mínima).</div>
+                <div><strong style={{ color: "var(--color-text)" }}>3. Você aprova</strong> — cada sugestão chega como notificação e aparece na Visão Geral. <strong style={{ color: "var(--color-text)" }}>Nenhum desconto é aplicado ao carrinho sem a sua aprovação.</strong> Você pode aplicar direto ou testar em A/B.</div>
+                <div><strong style={{ color: "var(--color-text)" }}>4. Mede</strong> — após ativar, a IA acompanha o resultado e aprende para as próximas sugestões.</div>
+                <div style={{ marginTop: 2 }}>O comprador nunca é informado da classificação, e toda oferta passa pela validação determinística de margem antes de existir — a IA nunca autoriza um desconto sozinha.</div>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderTop: "1px solid var(--color-border)" }}>
+                <ToggleSwitch
+                  id="autonomous-engine-toggle"
+                  checked={rules.autonomousEngineEnabled}
+                  onChange={(checked) => handleRulesChange({ ...rules, autonomousEngineEnabled: checked })}
+                />
+                <label htmlFor="autonomous-engine-toggle" style={{ cursor: "pointer", flex: 1 }}>
+                  <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>
+                    Gerar sugestões de regras automaticamente
+                  </div>
+                  <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 2 }}>
+                    {rules.autonomousEngineEnabled
+                      ? "Ativado — a IA gera sugestões para você revisar e aprovar. Elas não entram em vigor até você aprovar."
+                      : "Desativado — a IA não gera novas sugestões. Regras já ativas continuam valendo; você ainda pode criar regras manualmente."}
+                  </div>
+                </label>
+              </div>
+            </section>
+          </div>
+
+          <div className="split-panel-preview">
+            <LivePreviewPanel
+              ref={previewRef}
+              apiBaseUrl={props.apiBaseUrl}
+              me={props.me}
+            />
+          </div>
+        </div>
+      ) : gate === "idle" ? (
+        <RulesSkeleton />
+      ) : null}
     </>
   );
 }

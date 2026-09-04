@@ -6,6 +6,6 @@ export default defineConfig({
     path: "prisma/migrations"
   },
   datasource: {
-    url: process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:55432/aacp_test?schema=public"
+    url: process.env.DATABASE_URL ?? "postgresql://atendeai:atendeai_dev@localhost:5434/aacp_dev?schema=public"
   }
 });

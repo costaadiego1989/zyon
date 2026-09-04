@@ -1,33 +1,40 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
-import type { CheckoutSession, CustomerHints } from "@aacp/shared-types";
+import type { CheckoutSession, CustomerHints } from "@zyon/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { BrevoBuyerEmailNotifier } from "../../infrastructure/brevo-buyer-email.notifier.js";
-import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../../buyer-account/domain/ports/buyer-account-repository.port.js";
-import { BuyerAccount } from "../../../buyer-account/domain/entities/buyer-account.entity.js";
 import {
   extractCep,
   extractCpf,
   extractEmail,
   extractName,
   extractStandaloneName,
-  extractOtp,
   extractPhone,
   isBrazilianMobilePhone
 } from "../../domain/services/customer-extraction.service.js";
+import { OtpService, OtpValidationError } from "./otp.service.js";
+import { BuyerRecognitionService } from "./buyer-recognition.service.js";
+import { BuyerAccountPersistenceService } from "./buyer-account-persistence.service.js";
 
-export class OtpValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "OtpValidationError";
-  }
-}
+// Re-export for backwards compatibility
+export { OtpValidationError } from "./otp.service.js";
 
+/**
+ * Orchestrator service for customer input processing.
+ * Delegates to focused services:
+ * - OtpService: OTP generation, validation, resend
+ * - BuyerRecognitionService: find returning buyer, merge profile, resolve global_user_id
+ * - BuyerAccountPersistenceService: ensure account exists, update profile
+ *
+ * Reduced from 460 LOC to ~150 LOC orchestrator.
+ */
 @Injectable()
 export class CheckoutCustomerService {
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly repository: CheckoutSessionRepository,
     @Optional() private readonly buyerEmailNotifier?: BrevoBuyerEmailNotifier,
-    @Optional() @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly buyerAccounts?: BuyerAccountRepository
+    private readonly otpService?: OtpService,
+    private readonly recognitionService?: BuyerRecognitionService,
+    private readonly persistenceService?: BuyerAccountPersistenceService
   ) {}
 
   async processCustomerInput(
@@ -41,27 +48,27 @@ export class CheckoutCustomerService {
 
     let nextGlobalUserId = session.globalUserId;
     let skipEmailCaptureNotify = false;
-    if (patch.email) {
-      const existingSessions = await this.repository.findSessionsByEmail(session.merchantId, patch.email);
-      const previousSession = this.pickBestPriorSession(existingSessions, session.sessionId);
-      const existingAccount = await this.buyerAccounts?.findByEmail(patch.email) ?? null;
-      const recognizedBuyer = Boolean(existingAccount || previousSession);
+    if (patch.email && this.recognitionService) {
+      const recognition = await this.recognitionService.findReturningBuyerByEmail(
+        patch.email,
+        session.merchantId,
+        session.sessionId
+      );
+      const recognizedBuyer = recognition.isReturning;
       patch.recognized_buyer = recognizedBuyer;
       patch.isReturning = recognizedBuyer;
-      const priorEmailVerified = Boolean(
-        existingAccount ||
-        (previousSession?.customer?.email_verified &&
-          previousSession.customer.email?.toLowerCase() === patch.email.toLowerCase())
+      const priorEmailVerified = this.recognitionService.isPriorEmailVerified(
+        patch.email,
+        recognition.account,
+        recognition.previousSession
       );
       skipEmailCaptureNotify = priorEmailVerified;
       if (priorEmailVerified) {
         patch.email_verified = true;
         patch.otp_code = "";
       }
-      if (existingAccount?.globalUserId) {
-        nextGlobalUserId = existingAccount.globalUserId;
-      } else if (previousSession?.globalUserId) {
-        nextGlobalUserId = previousSession.globalUserId;
+      if (recognition.globalUserId) {
+        nextGlobalUserId = recognition.globalUserId;
       }
     }
 
@@ -104,13 +111,13 @@ export class CheckoutCustomerService {
     }
 
     if (patch.email_verified) {
-      working = await this.recognizeVerifiedBuyer(working);
+      working = await this.recognizeAndPersistVerifiedBuyer(working);
       await this.repository.saveSession(working);
-      await this.ensureBuyerAccountPersisted(working, true);
+      await this.persistenceService?.ensureBuyerAccountPersisted(working, true);
     }
 
-    if (this.isRegistrationComplete(working.customer)) {
-      await this.ensureBuyerAccountPersisted(working);
+    if (this.persistenceService?.isRegistrationComplete(working.customer)) {
+      await this.persistenceService.ensureBuyerAccountPersisted(working);
     }
 
     return working;
@@ -119,14 +126,17 @@ export class CheckoutCustomerService {
   async hydrateReturningBuyerFromEmailHint(session: CheckoutSession): Promise<CheckoutSession> {
     const email = session.customer?.email?.trim().toLowerCase();
     if (!email || session.customer?.email_verified) return session;
+    if (!this.recognitionService) return session;
 
-    const existingAccount = await this.buyerAccounts?.findByEmail(email) ?? null;
-    const priorSessions = await this.repository.findSessionsByEmail(session.merchantId, email);
-    const previousSession = this.pickBestPriorSession(priorSessions, session.sessionId);
-    const priorEmailVerified = Boolean(
-      existingAccount ||
-      (previousSession?.customer?.email_verified &&
-        previousSession.customer.email?.toLowerCase() === email)
+    const recognition = await this.recognitionService.findReturningBuyerByEmail(
+      email,
+      session.merchantId,
+      session.sessionId
+    );
+    const priorEmailVerified = this.recognitionService.isPriorEmailVerified(
+      email,
+      recognition.account,
+      recognition.previousSession
     );
     if (!priorEmailVerified) return session;
 
@@ -139,10 +149,8 @@ export class CheckoutCustomerService {
     });
 
     let nextGlobalUserId = working.globalUserId;
-    if (existingAccount?.globalUserId) {
-      nextGlobalUserId = existingAccount.globalUserId;
-    } else if (previousSession?.globalUserId) {
-      nextGlobalUserId = previousSession.globalUserId;
+    if (recognition.globalUserId) {
+      nextGlobalUserId = recognition.globalUserId;
     }
     if (nextGlobalUserId !== working.globalUserId) {
       working = {
@@ -153,11 +161,11 @@ export class CheckoutCustomerService {
     }
 
     await this.repository.saveSession(working);
-    working = await this.recognizeVerifiedBuyer(working);
+    working = await this.recognizeAndPersistVerifiedBuyer(working);
     await this.repository.saveSession(working);
 
-    if (this.isRegistrationComplete(working.customer)) {
-      await this.ensureBuyerAccountPersisted(working);
+    if (this.persistenceService?.isRegistrationComplete(working.customer)) {
+      await this.persistenceService.ensureBuyerAccountPersisted(working);
     }
 
     return working;
@@ -171,9 +179,6 @@ export class CheckoutCustomerService {
     const patch: Partial<CustomerHints> = {};
     const addr = existing?.address ?? {};
 
-    const resendEmail = /reenviar.*(c[oó]digo|email|e-mail)/i.test(userMessage);
-    const resendSms = /reenviar.*(c[oó]digo|sms|celular)/i.test(userMessage);
-
     let currentEmail = existing?.email;
     const otpPending = Boolean(existing?.otp_code);
     if (!currentEmail || (!otpPending && !existing?.email_verified)) {
@@ -184,29 +189,20 @@ export class CheckoutCustomerService {
       }
     }
 
-    if (currentEmail && !existing?.email_verified) {
-      if (resendEmail && existing?.otp_code) {
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
-        patch.otp_code = code;
-        console.log(`\n=========================================\n🔄 OTP REENVIADO PARA ${currentEmail}: ${code}\n=========================================\n`);
-        return patch;
-      } else if (!existing?.otp_code && !patch.otp_code && currentEmail) {
-        const kickoff = /iniciar\s+cadastro|come[cç]ar\s+cadastro|quero\s+cadastrar/i.test(userMessage.trim());
-        if (patch.email || kickoff) {
-          if (!patch.email) patch.email = currentEmail.toLowerCase();
-          const code = Math.floor(100000 + Math.random() * 900000).toString();
-          patch.otp_code = code;
-          console.log(`\n=========================================\n🔐 OTP GERADO PARA ${currentEmail}: ${code}\n=========================================\n`);
-        }
-      } else if (existing?.otp_code && !resendEmail) {
-        const extracted = extractOtp(userMessage);
-        if (extracted === existing.otp_code) {
-          patch.email_verified = true;
-          patch.otp_code = "";
-          patch.email = currentEmail.toLowerCase();
-          return patch;
-        } else if (extracted && this.looksLikeOtpAttempt(userMessage)) {
-          throw new OtpValidationError("Código de verificação inválido. Por favor, confira o código enviado para o seu e-mail e tente novamente.");
+    // Delegate email OTP processing
+    if (currentEmail && !existing?.email_verified && this.otpService) {
+      const isNewEmail = Boolean(patch.email);
+      const otpResult = this.otpService.processEmailOtp(
+        userMessage,
+        existing,
+        currentEmail,
+        isNewEmail
+      );
+      if (otpResult) {
+        Object.assign(patch, otpResult);
+        // If OTP was generated or verified as a terminal action, return early
+        if (otpResult.email_verified || (otpResult.otp_code && !otpResult.email)) {
+          return Object.keys(patch).length === 0 ? null : patch;
         }
       }
     }
@@ -222,7 +218,9 @@ export class CheckoutCustomerService {
       const phone = extractPhone(userMessage);
       const cpfInThisTurn = patch.cpf ?? existing?.cpf;
       if (phone && phone !== cpfInThisTurn) {
-        if (!isBrazilianMobilePhone(phone)) {
+        if (this.otpService) {
+          this.otpService.validateBrazilianMobilePhone(phone);
+        } else if (!isBrazilianMobilePhone(phone)) {
           throw new OtpValidationError(
             "Precisamos de um celular com DDD (ex: 11 98888-7777) para enviar o rastreio pelo WhatsApp."
           );
@@ -232,25 +230,19 @@ export class CheckoutCustomerService {
       }
     }
 
-    if (currentPhone && !existing?.phone_verified) {
-      if (resendSms && existing?.phone_otp_code) {
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
-        patch.phone_otp_code = code;
-        console.log(`\n=========================================\n🔄 SMS OTP REENVIADO PARA ${currentPhone}: ${code}\n=========================================\n`);
-        return patch;
-      } else if (!existing?.phone_otp_code && !patch.phone_otp_code && patch.phone) {
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
-        patch.phone_otp_code = code;
-        console.log(`\n=========================================\n🔐 SMS OTP GERADO PARA ${currentPhone}: ${code}\n=========================================\n`);
-      } else if (existing?.phone_otp_code && !resendSms) {
-        const extracted = extractOtp(userMessage);
-        console.log(`\n🔍 OTP COMPARAÇÃO: extraído="${extracted}" esperado="${existing.phone_otp_code}" match=${extracted === existing.phone_otp_code}\n`);
-        if (extracted === existing.phone_otp_code) {
-          patch.phone_verified = true;
-          patch.phone_otp_code = "";
-          return patch;
-        } else if (extracted && this.looksLikeOtpAttempt(userMessage)) {
-          throw new OtpValidationError("Código de verificação do celular inválido. Por favor, confira o código enviado por SMS e tente novamente.");
+    // Delegate phone OTP processing
+    if (currentPhone && !existing?.phone_verified && this.otpService) {
+      const isNewPhone = Boolean(patch.phone);
+      const phoneOtpResult = this.otpService.processPhoneOtp(
+        userMessage,
+        existing,
+        currentPhone,
+        isNewPhone
+      );
+      if (phoneOtpResult) {
+        Object.assign(patch, phoneOtpResult);
+        if (phoneOtpResult.phone_verified) {
+          return Object.keys(patch).length === 0 ? null : patch;
         }
       }
     }
@@ -295,165 +287,24 @@ export class CheckoutCustomerService {
     };
   }
 
-  private looksLikeOtpAttempt(userMessage: string): boolean {
-    const text = userMessage.trim();
-    const digits = text.replace(/\D/g, "");
-    if (/(?:otp|c[o\u00f3]digo|code)/i.test(text)) return true;
-    if (digits.length < 4 || digits.length > 6) return false;
-    return !extractCpf(text) && !extractPhone(text) && !extractCep(text);
-  }
+  private async recognizeAndPersistVerifiedBuyer(session: CheckoutSession): Promise<CheckoutSession> {
+    if (!this.recognitionService) return session;
 
-  private pickBestPriorSession(sessions: CheckoutSession[], currentSessionId: string): CheckoutSession | null {
-    return sessions
-      .filter((session) => session.sessionId !== currentSessionId)
-      .sort((a, b) => {
-        const scoreDiff = this.profileCompletenessScore(b.customer) - this.profileCompletenessScore(a.customer);
-        if (scoreDiff !== 0) return scoreDiff;
-        return Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
-      })[0] ?? null;
-  }
+    const result = await this.recognitionService.recognizeVerifiedBuyer(
+      session,
+      (s, p) => this.mergeCustomers(s, p)
+    );
 
-  private profileCompletenessScore(customer?: CustomerHints): number {
-    if (!customer) return 0;
-    let score = 0;
-    if (customer.fullName) score += 2;
-    if (customer.email_verified) score += 1;
-    if (customer.cpf) score += 2;
-    if (customer.phone) score += 1;
-    if (customer.phone_verified) score += 2;
-    if (customer.address?.zip) score += 1;
-    if (customer.address?.street) score += 1;
-    if (customer.address?.number) score += 1;
-    if (customer.address?.complement !== undefined) score += 1;
-    if (customer.address_verified) score += 1;
-    if (this.isCompleteAddress(customer.address)) score += 3;
-    return score;
-  }
-
-  private async recognizeVerifiedBuyer(session: CheckoutSession): Promise<CheckoutSession> {
-    const email = session.customer?.email?.trim().toLowerCase();
-    if (!email) return session;
-
-    const account = await this.buyerAccounts?.findByEmail(email) ?? null;
-    const priorSessions = await this.repository.findSessionsByEmail(session.merchantId, email);
-    const previousSession = this.pickBestPriorSession(priorSessions, session.sessionId);
-    if (!account && !previousSession) return session;
-
-    const patch = this.buildRecognizedProfilePatch(session.customer, account, previousSession?.customer);
-
-    let next = this.mergeCustomers(session, patch);
-    const recognizedGlobalUserId = account?.globalUserId ?? previousSession?.globalUserId;
-    if (recognizedGlobalUserId && recognizedGlobalUserId !== next.globalUserId) {
+    let next = result.session;
+    if (result.globalUserId && result.globalUserId !== next.globalUserId) {
       next = {
         ...next,
-        globalUserId: recognizedGlobalUserId,
+        globalUserId: result.globalUserId,
         updatedAt: new Date().toISOString()
       };
     }
     await this.repository.saveSession(next);
-    await this.ensureBuyerAccountPersisted(next);
+    await this.persistenceService?.ensureBuyerAccountPersisted(next);
     return next;
-  }
-
-  private buildRecognizedProfilePatch(
-    current: CustomerHints | undefined,
-    account: BuyerAccount | null,
-    priorCustomer?: CustomerHints
-  ): Partial<CustomerHints> {
-    const phone = current?.phone ?? account?.phone ?? priorCustomer?.phone;
-    const address = this.pickBestAddress(current?.address, account?.address, priorCustomer?.address);
-    return {
-      recognized_buyer: true,
-      isReturning: true,
-      fullName: current?.fullName ?? account?.displayName ?? priorCustomer?.fullName,
-      phone,
-      phone_verified: Boolean(
-        current?.phone_verified ||
-        priorCustomer?.phone_verified ||
-        (phone && account?.phone)
-      ),
-      cpf: current?.cpf ?? account?.cpf ?? priorCustomer?.cpf,
-      address,
-      address_verified:
-        current?.address_verified ??
-        priorCustomer?.address_verified ??
-        Boolean(this.isCompleteAddress(account?.address) || this.isCompleteAddress(priorCustomer?.address))
-    };
-  }
-
-  private isRegistrationComplete(customer?: CustomerHints): boolean {
-    return Boolean(
-      customer?.fullName &&
-      customer.email &&
-      customer.email_verified &&
-      customer.cpf &&
-      customer.phone &&
-      customer.phone_verified
-    );
-  }
-
-  private async ensureBuyerAccountPersisted(session: CheckoutSession, emailVerifiedOnly = false): Promise<void> {
-    if (!this.buyerAccounts) return;
-
-    const customer = session.customer;
-    if (!customer?.email) return;
-
-    if (!emailVerifiedOnly && !this.isRegistrationComplete(customer)) return;
-    if (emailVerifiedOnly && !customer.email_verified) return;
-
-    const email = customer.email.trim().toLowerCase();
-    const existing = await this.buyerAccounts.findByEmail(email);
-    if (existing) {
-      const hydrated = existing.withUpdatedProfile(
-        customer.fullName,
-        customer.phone,
-        customer.address,
-        customer.cpf
-      );
-      if (hydrated !== existing) await this.buyerAccounts.save(hydrated);
-      return;
-    }
-
-    const now = new Date();
-    await this.buyerAccounts.save(
-      new BuyerAccount({
-        globalUserId: session.globalUserId,
-        email,
-        passwordHash: `checkout-auto:${session.globalUserId}`,
-        displayName: customer.fullName ?? email.split("@")[0]!,
-        phone: customer.phone,
-        cpf: customer.cpf,
-        address: customer.address,
-        createdAt: now,
-        updatedAt: now
-      })
-    );
-  }
-
-  private pickBestAddress(
-    current?: CustomerHints["address"],
-    account?: CustomerHints["address"],
-    previous?: CustomerHints["address"]
-  ): CustomerHints["address"] | undefined {
-    for (const candidate of [current, account, previous]) {
-      if (this.isCompleteAddress(candidate)) return candidate;
-    }
-    const merged = {
-      ...(previous ?? {}),
-      ...(account ?? {}),
-      ...(current ?? {})
-    };
-    return Object.keys(merged).length > 0 ? merged : undefined;
-  }
-
-  private isCompleteAddress(address?: CustomerHints["address"]): boolean {
-    return Boolean(
-      address?.zip &&
-      address.street &&
-      address.city &&
-      address.state &&
-      address.number &&
-      address.complement !== undefined
-    );
   }
 }

@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
-import { SendChatMessageUseCase } from "../../application/use-cases/send-chat-message.use-case.js";
 import { InMemoryCheckoutRepository } from "../repositories/in-memory-checkout.repository.js";
 import { DeterministicConversationAdapter } from "./deterministic-conversation.adapter.js";
 import { CheckoutCustomerService } from "../../application/services/checkout-customer.service.js";
 import { CheckoutShippingService } from "../../application/services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "../../application/services/checkout-offer.service.js";
+import { createStartCheckoutUseCase } from "../../application/use-cases/start-checkout.fixture.js";
+import { createSendChatUseCase } from "../../application/use-cases/send-chat-message.fixture.js";
 
 function makeSetup() {
   const checkout = new InMemoryCheckoutRepository();
@@ -14,13 +14,12 @@ function makeSetup() {
   const custService = new CheckoutCustomerService(checkout);
   const shipService = new CheckoutShippingService(checkout, custService);
   const offerService = new CheckoutOfferService(checkout);
-  const useCase = new SendChatMessageUseCase(
-    checkout,
+  const useCase = createSendChatUseCase(checkout, {
     conversation,
-    custService,
-    shipService,
+    customerService: custService,
+    shippingService: shipService,
     offerService
-  );
+  });
   return { checkout, useCase };
 }
 
@@ -33,7 +32,7 @@ test("deterministic-chat e2e: reply returned without calling fetch (no LLM)", as
   const merchantId = makeId("mrc_det");
   const sessionId = makeId("chk_det");
 
-  await new StartCheckoutUseCase(checkout, checkout, checkout).execute({
+  await createStartCheckoutUseCase(checkout, checkout).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     cart: { currency: "BRL", total: 300, items: [{ sku: "s1", name: "Item", price: 300, quantity: 1 }] }
@@ -65,7 +64,7 @@ test("deterministic-chat e2e: price objection produces objection=price in sessio
   const merchantId = makeId("mrc_price");
   const sessionId = makeId("chk_price");
 
-  await new StartCheckoutUseCase(checkout, checkout, checkout).execute({
+  await createStartCheckoutUseCase(checkout, checkout).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     cart: { currency: "BRL", total: 300, items: [{ sku: "s1", name: "Item", price: 300, quantity: 1 }] }
@@ -90,7 +89,7 @@ test("deterministic-chat e2e: shipping objection message contains relevant conte
   const merchantId = makeId("mrc_ship");
   const sessionId = makeId("chk_ship");
 
-  await new StartCheckoutUseCase(checkout, checkout, checkout).execute({
+  await createStartCheckoutUseCase(checkout, checkout).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     cart: { currency: "BRL", total: 300, items: [{ sku: "s1", name: "Item", price: 300, quantity: 1 }] }
@@ -116,7 +115,7 @@ test("deterministic-chat e2e: multiple turns accumulate in chat history", async 
   const sessionId = makeId("chk_multi");
   const convId = makeId("conv");
 
-  await new StartCheckoutUseCase(checkout, checkout, checkout).execute({
+  await createStartCheckoutUseCase(checkout, checkout).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     cart: { currency: "BRL", total: 300, items: [{ sku: "s1", name: "Item", price: 300, quantity: 1 }] }
@@ -135,7 +134,7 @@ test("deterministic-chat e2e: reply includes agent name when agentContext resolv
   const merchantId = makeId("mrc_agent");
   const sessionId = makeId("chk_agent");
 
-  await new StartCheckoutUseCase(checkout, checkout, checkout).execute({
+  await createStartCheckoutUseCase(checkout, checkout).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     cart: { currency: "BRL", total: 300, items: [{ sku: "s1", name: "Item", price: 300, quantity: 1 }] }

@@ -1,4 +1,4 @@
-import type { DomainEventEnvelope } from "@aacp/shared-types";
+import type { DomainEventEnvelope } from "@zyon/shared-types";
 
 /**
  * Evita aplicar `markOrderPaid` duas vezes para o mesmo evento de pagamento
@@ -18,6 +18,15 @@ export interface CommercePaidWebhookDedupPort {
    * resolved `commerceOrderId` and domain event.
    */
   tryReserve(merchantId: string, paymentReference: string): Promise<boolean>;
+
+  /**
+   * Releases an incomplete reserve (commerceOrderId still empty) so the
+   * same paymentReference can be re-attempted. Used for manual recovery
+   * or automatic TTL-based stale-claim cleanup.
+   * Returns true if the reserve was released, false if it didn't exist or
+   * was already completed.
+   */
+  releaseReserve(merchantId: string, paymentReference: string): Promise<boolean>;
 
   /**
    * Updates the dedup row with the resolved commerce order id and appends the

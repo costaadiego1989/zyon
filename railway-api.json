@@ -1,0 +1,41 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "dockerfile": "apps/api/Dockerfile"
+  },
+  "deploy": {
+    "numReplicas": 1,
+    "restartPolicyType": "on-failure",
+    "restartPolicyMaxRetries": 3,
+    "startCommand": "node dist/main.js",
+    "healthchecks": {
+      "tcp": {
+        "port": 3009
+      }
+    }
+  },
+  "variables": {
+    "NODE_ENV": {
+      "description": "Node environment",
+      "value": "production"
+    },
+    "PORT": {
+      "description": "API port",
+      "value": "3009"
+    }
+  },
+  "plugins": [
+    {
+      "source": "${{ plugin.postgres }}",
+      "config": {
+        "version": "16"
+      }
+    },
+    {
+      "source": "${{ plugin.redis }}",
+      "config": {
+        "version": "7"
+      }
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, Get, Inject, NotFoundException, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
+import { Idempotent } from "../../../../shared/http/idempotency/idempotent.decorator.js";
 import { RequestPriceQuoteUseCase } from "../../application/use-cases/request-price-quote.use-case.js";
 import { CancelQuoteJobUseCase } from "../../application/use-cases/cancel-quote-job.use-case.js";
 import { FinalizeQuoteJobUseCase } from "../../application/use-cases/finalize-quote-job.use-case.js";
@@ -28,6 +29,7 @@ export class WidgetPriceQuoteController {
   ) {}
 
   @Post()
+  @Idempotent()
   async request(
     @Req() req: EmbedHttpRequest,
     @Body() body: { session_id: string; query: string; sources?: string[]; buyer_global_user_id?: string }
@@ -76,6 +78,7 @@ export class WidgetPriceQuoteController {
   }
 
   @Post(":job_id/finalize")
+  @Idempotent()
   async finalize(
     @Req() req: EmbedHttpRequest,
     @Param("job_id") jobId: string,

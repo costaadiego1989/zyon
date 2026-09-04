@@ -1,0 +1,4975 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --aacp-bg: #F7F8FA;
+  --aacp-surface: #FFFFFF;
+  --aacp-surface-2: #F8FAFC;
+  --aacp-surface-3: #EEF2F6;
+  --aacp-fg: #111827;
+  --aacp-muted: #64748B;
+  --aacp-faint: #94A3B8;
+  --aacp-line: rgba(15, 23, 42, 0.08);
+  --aacp-line-strong: #D9E2EC;
+
+  --aacp-accent: #0F766E;
+  --aacp-accent-2: #1E40AF;
+  --aacp-accent-strong: #0F766E;
+  --aacp-success: #047857;
+  --aacp-warning: #B45309;
+
+  --aacp-grad-primary: linear-gradient(135deg, #0F766E 0%, #1E40AF 100%);
+  --aacp-grad-soft: linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(30, 64, 175, 0.06));
+  --aacp-grad-bubble-buyer: linear-gradient(135deg, #0F766E 0%, #1E40AF 100%);
+  --aacp-grad-glow: radial-gradient(60% 60% at 50% 0%, rgba(15, 118, 110, 0.12), transparent 70%);
+
+  --aacp-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --aacp-shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --aacp-shadow-lg: 0 24px 64px rgba(15, 23, 42, 0.12);
+  --aacp-glow: 0 0 40px rgba(15, 118, 110, 0.2);
+
+  --aacp-font: 'Geist', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --aacp-font-display: 'Geist', 'Manrope', 'Inter', sans-serif;
+  --aacp-font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', monospace;
+  --aacp-radius: 12px;
+  --aacp-shell-bg: var(--aacp-surface);
+  --aacp-shell-border: var(--aacp-line-strong);
+
+  /* Enterprise spatial + accent system */
+  --aacp-radius-sm: calc(var(--aacp-radius) - 4px);
+  --aacp-radius-md: var(--aacp-radius);
+  --aacp-radius-lg: calc(var(--aacp-radius) + 4px);
+  --aacp-radius-pill: 999px;
+  --aacp-space-1: 4px;
+  --aacp-space-2: 8px;
+  --aacp-space-3: 12px;
+  --aacp-space-4: 16px;
+  --aacp-space-5: 20px;
+  --aacp-space-6: 24px;
+  --aacp-space-8: 32px;
+  --aacp-accent-ring: color-mix(in srgb, var(--aacp-accent) 14%, transparent);
+  --aacp-accent-border: color-mix(in srgb, var(--aacp-accent) 32%, transparent);
+  --aacp-accent-hover-bg: color-mix(in srgb, var(--aacp-accent) 7%, var(--aacp-surface));
+  --aacp-accent-hover-border: color-mix(in srgb, var(--aacp-accent) 42%, var(--aacp-line-strong));
+  --aacp-accent-shadow: color-mix(in srgb, var(--aacp-accent) 26%, transparent);
+  --aacp-accent-shadow-strong: color-mix(in srgb, var(--aacp-accent) 38%, transparent);
+  --aacp-panel-bg: var(--aacp-surface-2);
+  --aacp-inset-bg: color-mix(in srgb, var(--aacp-fg) 3%, var(--aacp-surface));
+
+  /* Short-form aliases for V2 components */
+  --bg: var(--aacp-bg);
+  --tx: var(--aacp-fg);
+  --mut: var(--aacp-muted);
+  --bd: var(--aacp-line-strong);
+  --card: var(--aacp-surface);
+  --chip: var(--aacp-surface-2);
+  --dot: var(--aacp-success);
+  --g2: var(--aacp-faint);
+  --tile1: var(--aacp-surface-3);
+  --tile2: var(--aacp-surface-2);
+  --sheetbd: var(--aacp-line-strong);
+}
+
+/* Dark theme — mirrors the storefront palette (globals.css) so the embedded
+   checkout matches the storefront's dark tone. Applied when CheckoutLayout sets
+   data-theme="dark" on .pulse-widget-shell (brand.mode === "dark"). Merchant
+   brand.* inline overrides still win via App.tsx setProperty. */
+.pulse-widget-shell[data-theme="dark"],
+.zyon-page[data-theme="dark"],
+body.theme-dark {
+  --aacp-bg: #08080c;
+  --aacp-surface: #0f0f16;
+  --aacp-surface-2: rgba(255, 255, 255, 0.05);
+  --aacp-surface-3: rgba(255, 255, 255, 0.08);
+  --aacp-fg: #f5f5f7;
+  --aacp-muted: #8b8b95;
+  --aacp-faint: #6c6a72;
+  --aacp-line: rgba(255, 255, 255, 0.1);
+  --aacp-line-strong: rgba(255, 255, 255, 0.12);
+  --aacp-surface-elevated: #1a1a24;
+  --aacp-success: #34d399;
+  --aacp-warning: #fbbf24;
+  --aacp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --aacp-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --aacp-shadow-lg: 0 34px 70px -28px rgba(0, 0, 0, 0.75);
+
+  /* Short-form aliases resolve from the dark values above */
+  --bg: var(--aacp-bg);
+  --tx: var(--aacp-fg);
+  --mut: var(--aacp-muted);
+  --bd: var(--aacp-line-strong);
+  --card: var(--aacp-surface);
+  --chip: var(--aacp-surface-2);
+  --dot: var(--aacp-success);
+  --tile1: var(--aacp-surface-3);
+  --tile2: var(--aacp-surface-2);
+  --sheetbd: var(--aacp-line-strong);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+*::selection {
+  background: color-mix(in srgb, var(--aacp-accent) 35%, transparent);
+  color: var(--aacp-fg);
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: var(--bg, var(--aacp-bg, #0d1117));
+  color: var(--aacp-fg);
+  font-family: var(--aacp-font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "ss01", "cv11";
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+input,
+textarea {
+  font-family: inherit;
+  color: inherit;
+}
+
+.zyon-page {
+  position: relative;
+  min-height: 100vh;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: hidden;
+}
+
+
+.zyon-shell {
+  position: relative;
+  width: 100%;
+  max-width: 1240px;
+  height: auto;
+  min-height: min(50vh, 520px);
+  max-height: min(92vh, 880px);
+  background: var(--aacp-shell-bg, var(--aacp-surface));
+  border-radius: var(--aacp-radius, 12px);
+  border: 1px solid var(--aacp-shell-border, var(--aacp-line-strong));
+  box-shadow: var(--aacp-shadow-lg);
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(340px, 0.85fr);
+  align-items: stretch;
+}
+
+.zyon-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  position: relative;
+  background: var(--aacp-surface);
+}
+
+/* Top glow */
+.zyon-main::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 180px;
+  background: var(--aacp-grad-glow);
+  opacity: 0.45;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ============ HEADER ============ */
+.zyon-header {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--aacp-space-5) var(--aacp-space-6);
+  border-bottom: 1px solid var(--aacp-line-strong);
+  background: var(--aacp-surface);
+}
+
+.zyon-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  --aacp-header-indent: calc(48px + 14px);
+}
+
+.zyon-avatar {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: calc(var(--aacp-radius, 12px) - 2px);
+  background: var(--aacp-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+  box-shadow: var(--aacp-shadow-sm);
+}
+
+.zyon-status-dot {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 12px;
+  height: 12px;
+  background: var(--aacp-success);
+  border-radius: 999px;
+  border: 2px solid var(--aacp-surface);
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.6);
+}
+
+.zyon-agent-sub {
+  font-size: 11px;
+  color: var(--aacp-faint);
+  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.zyon-agent-sub .live-dot {
+  width: 5px;
+  height: 5px;
+  background: var(--aacp-success);
+  border-radius: 999px;
+  box-shadow: 0 0 6px var(--aacp-success);
+}
+
+.zyon-header-copy {
+  min-width: 0;
+}
+
+/* ============ CHAT HEADER ============ */
+.zyon-chat-header {
+  background: linear-gradient(180deg, var(--aacp-surface) 0%, color-mix(in srgb, var(--aacp-accent) 3%, var(--aacp-surface)) 100%);
+  box-shadow: 0 1px 0 var(--aacp-line-strong);
+}
+
+.zyon-header-agent-avatar {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--aacp-radius-md);
+  background: color-mix(in srgb, var(--aacp-accent) 12%, var(--aacp-surface));
+  border: 1px solid color-mix(in srgb, var(--aacp-accent) 28%, var(--aacp-line-strong));
+  color: var(--aacp-accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: var(--aacp-shadow-sm);
+}
+
+.zyon-header-agent-avatar .zyon-header-agent-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.zyon-header-agent-avatar .zyon-status-dot {
+  bottom: -1px;
+  right: -1px;
+  left: auto;
+}
+
+.zyon-header-monogram {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--aacp-radius-md);
+  background: var(--aacp-accent);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: var(--aacp-shadow-sm), 0 0 0 1px color-mix(in srgb, var(--aacp-accent) 20%, transparent);
+  overflow: visible;
+}
+
+.zyon-header-monogram-text {
+  font-family: var(--aacp-font-display);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 1;
+}
+
+.zyon-header-monogram-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.zyon-header-agent-mark {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 22px;
+  height: 22px;
+  border-radius: calc(var(--aacp-radius-sm));
+  background: var(--aacp-surface);
+  border: 2px solid var(--aacp-surface);
+  color: var(--aacp-accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--aacp-shadow-sm);
+}
+
+.zyon-header-agent-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.zyon-header-monogram .zyon-status-dot {
+  bottom: 2px;
+  left: 2px;
+  right: auto;
+}
+
+.zyon-agent-name {
+  font-family: var(--aacp-font-display);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--aacp-fg);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.zyon-agent-role {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--aacp-muted);
+  letter-spacing: 0.01em;
+}
+
+.zyon-chat-brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.zyon-brand-monogram {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--aacp-radius-md);
+  background: var(--aacp-accent);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--aacp-font-display);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  flex-shrink: 0;
+  box-shadow: var(--aacp-shadow-sm);
+  overflow: hidden;
+}
+
+.zyon-brand-monogram-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.zyon-agent-avatar {
+  width: 38px;
+  height: 38px;
+}
+
+.zyon-agent-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.zyon-header-trust {
+  margin-top: 8px;
+}
+
+.zyon-trust-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.zyon-trust-strip--stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.zyon-trust-seal {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: var(--aacp-radius-sm);
+  border: 1px solid color-mix(in srgb, var(--aacp-success) 24%, var(--aacp-line-strong));
+  background: color-mix(in srgb, var(--aacp-success) 6%, var(--aacp-surface));
+  color: var(--aacp-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.zyon-trust-seal svg {
+  color: var(--aacp-success);
+  flex-shrink: 0;
+}
+
+.zyon-trust-flag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 12px;
+  padding: 0 3px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #009b3a 50%, #ffdf00 50%);
+  color: #002776;
+  font-size: 7px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.zyon-header-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.zyon-header-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border: 1px solid var(--aacp-line);
+  border-radius: 999px;
+  color: var(--aacp-muted);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+[data-theme="light"] .zyon-header-badge {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+.zyon-cart-btn {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: var(--aacp-radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--aacp-fg);
+  transition: all 0.18s ease;
+}
+
+.zyon-cart-btn:hover {
+  border-color: color-mix(in srgb, var(--aacp-accent) 45%, var(--aacp-line-strong));
+  background: color-mix(in srgb, var(--aacp-accent) 8%, var(--aacp-surface));
+}
+
+/* ============ COMMAND STRIP ============ */
+.zyon-command {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 20px;
+  padding: 20px 28px;
+  border-bottom: 1px solid var(--aacp-line);
+  background: rgba(255, 255, 255, 0.015);
+}
+
+/* ============ PROGRESS RAIL (chat) ============ */
+.zyon-progress-rail {
+  border-bottom: 1px solid var(--aacp-line-strong);
+  background: var(--aacp-panel-bg);
+}
+
+.zyon-progress-rail--main {
+  padding: var(--aacp-space-4) var(--aacp-space-6);
+}
+
+.zyon-progress-rail-inner {
+  position: relative;
+}
+
+.zyon-progress-line {
+  position: absolute;
+  left: 36px;
+  right: 36px;
+  top: 15px;
+  height: 3px;
+  border-radius: var(--aacp-radius-pill);
+  background: var(--aacp-line-strong);
+  overflow: hidden;
+  z-index: 0;
+}
+
+.zyon-progress-line-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--aacp-accent), color-mix(in srgb, var(--aacp-accent-2, var(--aacp-accent)) 70%, var(--aacp-accent)));
+  border-radius: inherit;
+  transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.zyon-progress-track {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.zyon-progress-item {
+  display: flex;
+  align-items: flex-start;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.zyon-progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--aacp-space-2);
+  width: 72px;
+  flex-shrink: 0;
+}
+
+.zyon-progress-node {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--aacp-radius-sm);
+  background: var(--aacp-surface);
+  border: 1px solid var(--aacp-line-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--aacp-muted);
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.zyon-progress-step.done .zyon-progress-node {
+  background: color-mix(in srgb, var(--aacp-success) 10%, var(--aacp-surface));
+  border-color: color-mix(in srgb, var(--aacp-success) 35%, var(--aacp-line-strong));
+  color: var(--aacp-success);
+}
+
+.zyon-progress-step.active .zyon-progress-node {
+  background: var(--aacp-accent);
+  border-color: var(--aacp-accent);
+  color: #fff;
+  box-shadow: 0 0 0 3px var(--aacp-accent-ring), var(--aacp-shadow-sm);
+}
+
+.zyon-progress-label {
+  font-family: var(--aacp-font-display);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--aacp-faint);
+  text-align: center;
+  line-height: 1.2;
+}
+
+.zyon-progress-step.active .zyon-progress-label {
+  color: var(--aacp-fg);
+}
+
+.zyon-progress-step.done .zyon-progress-label {
+  color: var(--aacp-muted);
+}
+
+/* ============ STAGE PROGRESS (chat) ============ */
+.zyon-stage-progress {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  padding: var(--aacp-space-4) var(--aacp-space-6) var(--aacp-space-3);
+  border-bottom: 0;
+  background: oklch(99.65% 0.005 232);
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 70%, transparent);
+  --aacp-stage-progress-steps: 4;
+  --aacp-stage-marker-size: 12px;
+  --aacp-stage-head-height: 32px;
+  --aacp-header-indent: calc(48px + 14px);
+}
+
+.zyon-stage-progress-shine {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.zyon-stage-progress-shine::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--aacp-line-strong);
+}
+
+.zyon-stage-progress-shine::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(42%, 220px);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--aacp-success) 40%, white) 50%,
+    transparent 100%
+  );
+  animation: aacp-stage-shine-sweep 2.8s ease-in-out infinite;
+}
+
+.zyon-conversation-divider {
+  width: min(100%, 680px);
+  height: 1px;
+  margin: 18px auto 22px;
+  border: 0;
+  background: var(--aacp-line-strong);
+}
+
+.zyon-stage-progress-body {
+  display: flex;
+  align-items: center;
+  gap: var(--aacp-space-4);
+  width: 100%;
+  min-width: 0;
+}
+
+.zyon-stage-progress-head--indented {
+  padding-left: var(--aacp-header-indent);
+}
+
+.zyon-stage-progress-head {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-width: 0;
+  max-width: min(38%, 220px);
+}
+
+.zyon-stage-progress-lead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.zyon-stage-progress-index {
+  flex-shrink: 0;
+  display: inline-grid;
+  place-items: center;
+  width: var(--aacp-stage-head-height);
+  height: var(--aacp-stage-head-height);
+  border-radius: var(--aacp-radius-md);
+  background: color-mix(in srgb, var(--aacp-accent) 10%, var(--aacp-surface));
+  border: 1px solid color-mix(in srgb, var(--aacp-accent) 28%, var(--aacp-line-strong));
+  color: var(--aacp-accent);
+  font-family: var(--aacp-font-display);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.zyon-stage-progress-current {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.zyon-stage-progress-kicker {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--aacp-muted);
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.zyon-stage-progress-title {
+  overflow: hidden;
+  margin: 0;
+  font-family: var(--aacp-font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--aacp-fg);
+  letter-spacing: -0.02em;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zyon-journey-protocol .zyon-stage-progress-label {
+  display: none;
+}
+
+.zyon-stage-progress-status {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  gap: 6px;
+  height: var(--aacp-stage-head-height);
+  padding: 0 10px;
+  border-radius: var(--aacp-radius-pill);
+  background: color-mix(in srgb, var(--aacp-success) 9%, var(--aacp-surface));
+  border: 1px solid color-mix(in srgb, var(--aacp-success) 22%, transparent);
+  color: var(--aacp-success);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.zyon-stage-progress-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse-ring 2s ease-out infinite;
+}
+
+.zyon-stage-progress-rail-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  align-self: center;
+}
+
+.zyon-stage-progress-track {
+  position: absolute;
+  left: calc(50% / var(--aacp-stage-progress-steps, 4));
+  right: calc(50% / var(--aacp-stage-progress-steps, 4));
+  top: calc(var(--aacp-stage-marker-size) / 2);
+  height: 2px;
+  transform: translateY(-50%);
+  border-radius: var(--aacp-radius-pill);
+  background: var(--aacp-line-strong);
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--aacp-fg) 6%, transparent);
+}
+
+.zyon-stage-progress-track-fill,
+.zyon-cart-journey-track-fill {
+  height: 100%;
+  min-width: 6px;
+  border-radius: inherit;
+  background: var(--aacp-accent);
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.zyon-stage-progress-steps {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.zyon-stage-progress-step {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.zyon-stage-progress-dot {
+  display: inline-grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: var(--aacp-stage-marker-size);
+  height: var(--aacp-stage-marker-size);
+  border-radius: 999px;
+  background: var(--aacp-surface);
+  border: 2px solid var(--aacp-line-strong);
+  flex-shrink: 0;
+  z-index: 1;
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.zyon-stage-progress-step.active .zyon-stage-progress-dot {
+  background: var(--aacp-accent);
+  border-color: var(--aacp-accent);
+  box-shadow: 0 0 0 4px var(--aacp-accent-ring);
+}
+
+.zyon-stage-progress-step.done .zyon-stage-progress-dot {
+  background: var(--aacp-success);
+  border-color: var(--aacp-success);
+}
+
+.zyon-stage-progress-label {
+  width: 100%;
+  max-width: 100%;
+  font-size: clamp(8px, 1.8vw, 9px);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--aacp-faint);
+  text-align: center;
+  line-height: 1.2;
+  padding: 0 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zyon-stage-progress-step.active .zyon-stage-progress-label {
+  color: var(--aacp-fg);
+}
+
+.zyon-stage-progress-step.done .zyon-stage-progress-label {
+  color: var(--aacp-muted);
+}
+
+@media (max-width: 767px) {
+  .zyon-stage-progress-body {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    text-align: center;
+  }
+
+  .zyon-stage-progress-head {
+    width: 100%;
+    max-width: none;
+    justify-content: center;
+  }
+
+  .zyon-stage-progress-lead {
+    justify-content: center;
+  }
+
+  .zyon-stage-progress-current {
+    align-items: center;
+  }
+
+  .zyon-stage-progress-rail-wrap {
+    width: 100%;
+    max-width: 300px;
+  }
+
+  .zyon-stage-progress-status {
+    display: inline-flex;
+    height: auto;
+    padding: 5px 10px;
+  }
+}
+
+/* ============ CART JOURNEY STEPPER (horizontal) ============ */
+.zyon-cart-journey {
+  width: 100%;
+  min-width: 0;
+  padding: var(--aacp-space-3) var(--aacp-space-4);
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: var(--aacp-radius-md);
+  background: var(--aacp-inset-bg);
+}
+
+.zyon-cart-journey-rail-wrap {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.zyon-cart-journey-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 11px;
+  height: 6px;
+  border-radius: var(--aacp-radius-pill);
+  background: var(--aacp-line-strong);
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--aacp-fg) 6%, transparent);
+}
+
+.zyon-cart-journey--horizontal {
+  --aacp-cart-journey-steps: 4;
+}
+
+.zyon-cart-journey--horizontal .zyon-cart-journey-rail {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.zyon-cart-journey-step {
+  flex: 0 0 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.zyon-cart-journey-marker {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--aacp-radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--aacp-surface);
+  border: 1px solid var(--aacp-line-strong);
+  color: var(--aacp-muted);
+  flex-shrink: 0;
+  z-index: 1;
+  transition: all 0.22s ease;
+}
+
+.zyon-cart-journey-step.active .zyon-cart-journey-marker {
+  background: var(--aacp-accent);
+  border-color: var(--aacp-accent);
+  color: #fff;
+  box-shadow: 0 0 0 3px var(--aacp-accent-ring);
+}
+
+.zyon-cart-journey-step.done .zyon-cart-journey-marker {
+  background: color-mix(in srgb, var(--aacp-success) 12%, var(--aacp-surface));
+  border-color: color-mix(in srgb, var(--aacp-success) 35%, var(--aacp-line-strong));
+  color: var(--aacp-success);
+}
+
+.zyon-cart-journey-label {
+  width: 100%;
+  max-width: 100%;
+  font-size: clamp(7px, 1.6vw, 8px);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--aacp-faint);
+  text-align: center;
+  line-height: 1.2;
+  padding: 0 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zyon-cart-journey-step.active .zyon-cart-journey-label {
+  color: var(--aacp-accent);
+}
+
+.zyon-cart-journey-step.done .zyon-cart-journey-label {
+  color: var(--aacp-muted);
+}
+
+/* legacy cart stepper — removed */
+.zyon-cart-stepper {
+  padding: var(--aacp-space-2);
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: var(--aacp-radius-md);
+  background: var(--aacp-surface);
+}
+
+.zyon-cart-stepper-row {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  gap: 2px;
+}
+
+.zyon-cart-stepper-seg {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px 6px;
+  border-radius: calc(var(--aacp-radius-sm));
+  background: var(--aacp-inset-bg);
+  border: 1px solid transparent;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.zyon-cart-stepper-seg.active {
+  background: color-mix(in srgb, var(--aacp-accent) 8%, var(--aacp-surface));
+  border-color: color-mix(in srgb, var(--aacp-accent) 35%, var(--aacp-line-strong));
+  box-shadow: inset 0 -2px 0 var(--aacp-accent);
+}
+
+.zyon-cart-stepper-seg.done {
+  background: color-mix(in srgb, var(--aacp-success) 6%, var(--aacp-surface));
+}
+
+.zyon-cart-stepper-num {
+  width: 20px;
+  height: 20px;
+  border-radius: calc(var(--aacp-radius-sm) - 2px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 800;
+  font-family: var(--aacp-font-display);
+  background: var(--aacp-surface);
+  border: 1px solid var(--aacp-line-strong);
+  color: var(--aacp-muted);
+}
+
+.zyon-cart-stepper-seg.active .zyon-cart-stepper-num {
+  background: var(--aacp-accent);
+  border-color: var(--aacp-accent);
+  color: #fff;
+}
+
+.zyon-cart-stepper-seg.done .zyon-cart-stepper-num {
+  background: color-mix(in srgb, var(--aacp-success) 12%, var(--aacp-surface));
+  border-color: color-mix(in srgb, var(--aacp-success) 35%, var(--aacp-line-strong));
+  color: var(--aacp-success);
+}
+
+.zyon-cart-stepper-label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--aacp-faint);
+  text-align: center;
+  line-height: 1.15;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zyon-cart-stepper-seg.active .zyon-cart-stepper-label {
+  color: var(--aacp-fg);
+}
+
+.zyon-cart-stepper-seg.done .zyon-cart-stepper-label {
+  color: var(--aacp-muted);
+}
+
+.zyon-cart-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--aacp-space-2);
+  padding: var(--aacp-space-3);
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: var(--aacp-radius-md);
+  background: var(--aacp-surface);
+}
+
+.zyon-cart-metrics > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.zyon-cart-metrics span {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--aacp-faint);
+  font-weight: 700;
+}
+
+.zyon-cart-metrics strong {
+  font-family: var(--aacp-font-display);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--aacp-fg);
+}
+
+@keyframes aacp-stage-shine-sweep {
+  0% {
+    transform: translateX(-130%);
+    opacity: 0;
+  }
+
+  18% {
+    opacity: 1;
+  }
+
+  82% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateX(330%);
+    opacity: 0;
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(1.3);
+    opacity: 0;
+  }
+}
+
+@keyframes progress-fill-shimmer {
+  0% {
+    background-position: 120% 0;
+  }
+
+  100% {
+    background-position: -120% 0;
+  }
+}
+
+@keyframes progress-fill-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 6px color-mix(in srgb, var(--aacp-accent) 28%, transparent),
+      0 0 14px color-mix(in srgb, var(--aacp-success) 18%, transparent);
+  }
+
+  50% {
+    box-shadow:
+      0 0 10px color-mix(in srgb, var(--aacp-accent) 45%, transparent),
+      0 0 22px color-mix(in srgb, var(--aacp-success) 28%, transparent);
+  }
+}
+
+.zyon-guardrails {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.zyon-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--aacp-muted);
+  border: 1px solid var(--aacp-line-strong);
+  letter-spacing: 0.01em;
+}
+
+.zyon-badge svg {
+  color: var(--aacp-accent-strong);
+}
+
+.zyon-badge.verified {
+  background: rgba(52, 211, 153, 0.08);
+  border-color: rgba(52, 211, 153, 0.25);
+  color: var(--aacp-success);
+}
+
+.zyon-badge.verified svg {
+  color: var(--aacp-success);
+}
+
+/* ============ CHAT THREAD ============ */
+.zyon-thread {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  min-height: 220px;
+  max-height: calc(min(92vh, 880px) - 230px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--aacp-space-5) var(--aacp-space-6);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  scroll-behavior: smooth;
+}
+
+.zyon-thread::-webkit-scrollbar {
+  width: 6px;
+}
+
+.zyon-thread::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.zyon-thread::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+}
+
+.zyon-thread::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.zyon-bubble-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: min(82%, 520px);
+  animation: bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.zyon-bubble-stack--agent {
+  align-self: flex-start;
+}
+
+.zyon-bubble-stack--buyer {
+  align-self: flex-end;
+}
+
+.zyon-bubble-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.zyon-bubble-meta-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--aacp-surface-2);
+  border: 1px solid var(--aacp-line-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--aacp-accent);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.zyon-bubble-meta-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.zyon-bubble-meta-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--aacp-fg);
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+
+.zyon-bubble-stack .zyon-bubble {
+  max-width: 100%;
+  animation: none;
+}
+
+.zyon-bubble {
+  max-width: min(82%, 520px);
+  padding: 14px 18px;
+  border-radius: var(--aacp-radius-lg);
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  animation: bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  word-wrap: break-word;
+}
+
+.zyon-bubble-agent {
+  align-self: flex-start;
+  background: var(--aacp-surface);
+  border: 1px solid var(--aacp-line-strong);
+  color: var(--aacp-fg);
+  border-top-left-radius: var(--aacp-radius-sm);
+  box-shadow: var(--aacp-shadow-sm);
+}
+
+.zyon-bubble-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--aacp-accent);
+  margin-bottom: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.zyon-bubble-label svg {
+  color: var(--aacp-accent);
+}
+
+.zyon-bubble-buyer {
+  align-self: flex-end;
+  background: var(--aacp-accent);
+  color: #fff;
+  border: 1px solid color-mix(in srgb, var(--aacp-accent) 80%, #000);
+  border-top-right-radius: var(--aacp-radius-sm);
+  box-shadow: var(--aacp-shadow-sm);
+}
+
+.chat-caret {
+  display: inline-block;
+  width: 6px;
+  height: 1em;
+  margin-left: 3px;
+  vertical-align: -2px;
+  background: var(--aacp-accent-strong);
+  border-radius: 2px;
+  animation: caret 0.85s ease-in-out infinite;
+}
+
+@keyframes caret {
+
+  0%,
+  55% {
+    opacity: 1
+  }
+
+  55.01%,
+  100% {
+    opacity: 0
+  }
+}
+
+/* Typing indicator */
+.zyon-typing {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--aacp-surface);
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: var(--aacp-radius-lg);
+  border-top-left-radius: var(--aacp-radius-sm);
+  font-size: 12px;
+  color: var(--aacp-muted);
+  animation: bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.zyon-typing strong {
+  color: var(--aacp-accent);
+  font-weight: 700;
+}
+
+.zyon-dots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.zyon-dots span {
+  width: 6px;
+  height: 6px;
+  background: var(--aacp-accent-strong);
+  border-radius: 999px;
+  animation: dot 1.2s infinite ease-in-out;
+}
+
+.zyon-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.zyon-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes dot {
+
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.65);
+  }
+
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Quick replies */
+.zyon-quick-replies,
+.zyon-quick-replies--in-thread {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 24px;
+  margin-bottom: 8px;
+  animation: bubble-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.zyon-chip {
+  border: 1px solid var(--aacp-line-strong);
+  background: var(--aacp-surface);
+  border-radius: var(--aacp-radius-pill);
+  padding: 9px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--aacp-muted);
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.zyon-chip:hover {
+  border-color: var(--aacp-accent-hover-border);
+  background: var(--aacp-accent-hover-bg);
+  color: var(--aacp-fg);
+}
+
+/* Offer banner */
+.zyon-offer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: var(--aacp-radius-md);
+  background: var(--aacp-accent-hover-bg);
+  border: 1px solid var(--aacp-accent-border);
+  animation: bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.zyon-offer::before {
+  display: none;
+}
+
+.zyon-offer-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--aacp-radius-sm);
+  background: var(--aacp-accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: var(--aacp-shadow-sm);
+}
+
+.zyon-offer-text {
+  flex: 1;
+  position: relative;
+  z-index: 1;
+}
+
+.zyon-offer-text strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--aacp-fg);
+}
+
+.zyon-offer-text span {
+  font-size: 12px;
+  color: var(--aacp-muted);
+}
+
+.zyon-offer-cta {
+  position: relative;
+  background: #fff;
+  color: #1a1530;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 12px;
+  transition: all 0.2s;
+  letter-spacing: 0.01em;
+}
+
+.zyon-offer-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(255, 255, 255, 0.2);
+}
+
+.zyon-offer-banner {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.zyon-offer-banner .zyon-offer-text {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.zyon-offer-banner .zyon-offer-cta {
+  width: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  border: none;
+  cursor: pointer;
+}
+
+.zyon-offer-banner .zyon-offer-cta:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.zyon-pending-offer {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--aacp-accent) 12%, var(--aacp-surface)), color-mix(in srgb, var(--aacp-accent-2) 8%, var(--aacp-surface)));
+  border-color: color-mix(in srgb, var(--aacp-accent) 35%, var(--aacp-line-strong));
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--aacp-accent) 16%, transparent);
+}
+
+.zyon-pending-offer-icon {
+  background: var(--aacp-grad-primary);
+  color: #fff;
+}
+
+.zyon-pending-offer-cta {
+  background: var(--aacp-accent);
+  color: #fff;
+}
+
+.zyon-pending-offer-cta:hover {
+  box-shadow: 0 10px 24px var(--aacp-accent-shadow);
+}
+
+.zyon-cross-sell {
+  border: 1px solid var(--aacp-line);
+  border-radius: var(--aacp-radius-lg);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--aacp-surface-2) 88%, transparent), var(--aacp-surface));
+  padding: 14px;
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--aacp-fg) 6%, transparent);
+}
+
+.zyon-cross-sell-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.zyon-cross-sell-kicker {
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--aacp-muted);
+  margin-bottom: 2px;
+}
+
+.zyon-cross-sell-title {
+  display: block;
+  font-size: 14px;
+  line-height: 1.2;
+  color: var(--aacp-fg);
+}
+
+.zyon-cross-sell-dismiss {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  background: var(--aacp-surface-2);
+  color: var(--aacp-muted);
+  cursor: pointer;
+}
+
+.zyon-cross-sell-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.zyon-cross-sell-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--aacp-radius-md);
+  border: 1px solid var(--aacp-line);
+  background: var(--aacp-surface-2);
+}
+
+.zyon-cross-sell-thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--aacp-surface-3);
+  flex-shrink: 0;
+}
+
+.zyon-cross-sell-thumb-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.zyon-cross-sell-thumb-fallback {
+  opacity: 0.35;
+}
+
+.zyon-cross-sell-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.zyon-cross-sell-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--aacp-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.zyon-cross-sell-variant {
+  font-size: 11px;
+  color: var(--aacp-muted);
+  margin-top: 2px;
+}
+
+.zyon-cross-sell-price {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--aacp-accent);
+  margin-top: 4px;
+}
+
+.zyon-cross-sell-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 104px;
+  padding: 10px 14px;
+  border: none;
+  border-radius: var(--aacp-radius-md);
+  font-size: 12px;
+  font-weight: 800;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.zyon-cross-sell-add:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.zyon-cross-sell-skip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: var(--aacp-radius-md);
+  background: transparent;
+  color: var(--aacp-fg);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.zyon-cross-sell-skip:hover {
+  background: var(--aacp-surface-2);
+  border-color: color-mix(in srgb, var(--aacp-accent) 35%, var(--aacp-line-strong));
+}
+
+.zyon-cross-sell-proceed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 13px 16px;
+  border: none;
+  border-radius: var(--aacp-radius-md);
+  background: var(--aacp-grad-primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  box-shadow: 0 12px 28px var(--aacp-accent-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.zyon-cross-sell-proceed:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 32px var(--aacp-accent-shadow-strong);
+}
+
+/* Cross-sell card reflows to a stacked layout on narrow phones so the
+   "Adicionar" CTA never collides with the truncated product name. Applies in
+   both chat and voice (shared component). */
+@media (max-width: 420px) {
+  .zyon-cross-sell-card {
+    flex-wrap: wrap;
+  }
+
+  .zyon-cross-sell-body {
+    flex: 1 1 100%;
+    order: 2;
+  }
+
+  .zyon-cross-sell-thumb {
+    order: 1;
+  }
+
+  .zyon-cross-sell-add {
+    order: 3;
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+  }
+}
+
+/* Composer */
+.zyon-composer-wrap {
+  position: relative;
+  z-index: 2;
+  padding: 16px 32px 16px;
+  border-top: 1px solid var(--aacp-line);
+  background: var(--aacp-surface-2);
+  margin-top: auto;
+}
+
+.zyon-thread-composer-wrap {
+  margin: 16px 32px 16px;
+  animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.zyon-thread-composer-wrap .zyon-composer-wrap {
+  padding: 0;
+  background: transparent;
+  border: none;
+  margin: 0;
+}
+
+.zyon-thread-composer-wrap .zyon-composer {
+  background: transparent;
+  border: 1px solid var(--aacp-line-strong);
+  box-shadow: var(--aacp-shadow-md);
+}
+
+.zyon-agent-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px 5px 8px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: var(--aacp-grad-primary);
+  border-radius: 999px;
+  box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--aacp-accent) 55%, transparent), inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  width: fit-content;
+}
+
+.zyon-agent-tag svg {
+  opacity: 0.95;
+}
+
+.zyon-composer-hint {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--aacp-faint);
+  margin-bottom: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.zyon-composer-hint::before {
+  content: "";
+  width: 16px;
+  height: 1px;
+  background: var(--aacp-grad-primary);
+}
+
+.zyon-composer {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 6px 6px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: 16px;
+  transition: all 0.2s;
+}
+
+.zyon-input-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--aacp-accent-strong);
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.zyon-composer:focus-within {
+  border-color: var(--aacp-line-strong);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--aacp-fg) 8%, transparent);
+}
+
+.zyon-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 10px 14px;
+  font-size: 14px;
+  outline: none;
+  box-shadow: none;
+  min-width: 0;
+  color: var(--aacp-fg);
+}
+
+.zyon-input:focus,
+.zyon-input:focus-visible {
+  border: none;
+  outline: none;
+  box-shadow: none;
+}
+
+.zyon-input:-webkit-autofill,
+.zyon-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--aacp-fg);
+  caret-color: var(--aacp-fg);
+  -webkit-box-shadow: 0 0 0 1000px var(--aacp-surface) inset;
+  transition: background-color 99999s ease-in-out 0s;
+}
+
+.zyon-input::placeholder {
+  color: var(--aacp-faint);
+}
+
+.zyon-send {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--aacp-grad-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  box-shadow: 0 6px 16px var(--aacp-accent-shadow-strong);
+}
+
+.zyon-send:hover:not(:disabled) {
+  transform: translateY(-1px) scale(1.03);
+  box-shadow: 0 10px 24px var(--aacp-accent-hover-border);
+}
+
+.zyon-send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ============ CART PANEL ============ */
+.zyon-cart {
+  position: relative;
+  min-width: 0;
+  border-left: 1px solid var(--aacp-line-strong);
+  background: var(--aacp-panel-bg);
+  padding: var(--aacp-space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--aacp-space-4);
+  overflow-y: auto;
+}
+
+.zyon-cart::before {
+  display: none;
+}
+
+.zyon-cart::-webkit-scrollbar {
+  width: 4px;
+}
+
+.zyon-cart::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+}
+
+.zyon-cart-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aacp-space-3);
+  padding: var(--aacp-space-4);
+  margin: calc(var(--aacp-space-4) * -1) calc(var(--aacp-space-4) * -1) 0;
+  border-bottom: 1px solid var(--aacp-line-strong);
+  background: linear-gradient(180deg, var(--aacp-surface), color-mix(in srgb, var(--aacp-accent) 4%, var(--aacp-surface)));
+}
+
+.zyon-cart-header-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--aacp-space-3);
+}
+
+.zyon-cart-brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: var(--aacp-space-3);
+  min-width: 0;
+}
+
+.zyon-cart-brand-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--aacp-radius-md);
+  background: var(--aacp-accent);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--aacp-font-display);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  flex-shrink: 0;
+  box-shadow: var(--aacp-shadow-sm);
+  overflow: hidden;
+}
+
+.zyon-cart-brand-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.zyon-cart-brand-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.zyon-cart-order-badge {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: var(--aacp-radius-sm);
+  border: 1px solid var(--aacp-line-strong);
+  background: var(--aacp-inset-bg);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--aacp-muted);
+}
+
+.zyon-cart-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.zyon-cart-header-status {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: var(--aacp-space-3);
+  border-radius: var(--aacp-radius-sm);
+  background: var(--aacp-inset-bg);
+  border: 1px solid var(--aacp-line);
+}
+
+.zyon-cart-status-kicker {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: var(--aacp-radius-sm);
+  background: color-mix(in srgb, var(--aacp-accent) 10%, var(--aacp-surface));
+  border: 1px solid color-mix(in srgb, var(--aacp-accent) 22%, var(--aacp-line-strong));
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--aacp-accent);
+  line-height: 1.2;
+}
+
+.zyon-cart-status-label {
+  flex: 0 1 auto;
+  font-family: var(--aacp-font-display);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--aacp-fg);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.zyon-cart-status-hint {
+  font-size: 11px;
+  color: var(--aacp-muted);
+  line-height: 1.3;
+}
+
+.zyon-cart-trust {
+  flex-wrap: wrap;
+}
+
+.zyon-cart-header--summary .zyon-cart-header-top {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: start;
+  gap: 12px;
+}
+
+.zyon-cart-monogram {
+  width: 44px;
+  height: 44px;
+  font-size: 14px;
+}
+
+.zyon-cart-header-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.zyon-cart-kicker {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--aacp-faint);
+}
+
+.zyon-cart-trust .zyon-trust-seal {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.zyon-cart-logo-wrap {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--aacp-radius-md);
+  background: var(--aacp-accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: var(--aacp-shadow-sm);
+  overflow: hidden;
+}
+
+.zyon-cart-logo {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--aacp-radius-md);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.zyon-cart-store {
+  font-family: var(--aacp-font-display);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--aacp-fg);
+}
+
+.zyon-cart-headline {
+  font-size: 11px;
+  color: var(--aacp-faint);
+  display: block;
+  margin-top: 3px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.zyon-cart-close {
+  display: none;
+  margin-left: auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  align-items: center;
+  justify-content: center;
+  color: var(--aacp-muted);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.zyon-cart-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--aacp-fg);
+}
+
+.zyon-intel {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--aacp-space-1);
+  padding: var(--aacp-space-3);
+  background: var(--aacp-inset-bg);
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: var(--aacp-radius-md);
+}
+
+.zyon-intel>div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 0 8px;
+  border-right: 1px solid var(--aacp-line);
+}
+
+.zyon-intel>div:last-child {
+  border-right: none;
+}
+
+.zyon-intel span {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--aacp-faint);
+  font-weight: 600;
+}
+
+.zyon-intel strong {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--aacp-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.zyon-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--aacp-faint);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.zyon-section-title::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--aacp-line);
+}
+
+.zyon-cart-items-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aacp-space-3);
+}
+
+.zyon-cart-items-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--aacp-space-3);
+  padding-bottom: var(--aacp-space-2);
+  border-bottom: 1px solid var(--aacp-line);
+}
+
+.zyon-cart-items-title {
+  margin: 0;
+  font-family: var(--aacp-font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--aacp-accent);
+}
+
+.zyon-cart-items-count {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--aacp-radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--aacp-font-display);
+  color: var(--aacp-accent);
+  background: color-mix(in srgb, var(--aacp-accent) 10%, var(--aacp-surface));
+  border: 1px solid color-mix(in srgb, var(--aacp-accent) 22%, var(--aacp-line-strong));
+}
+
+.zyon-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.zyon-item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--aacp-space-3);
+  padding: var(--aacp-space-3);
+  background: var(--aacp-surface);
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: var(--aacp-radius-md);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.zyon-cart-item:hover {
+  border-color: var(--aacp-accent-border);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--aacp-accent) 8%, transparent);
+}
+
+.zyon-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.zyon-item-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--aacp-space-3);
+}
+
+.zyon-item-variant {
+  margin: 0;
+  font-size: 11px;
+  color: var(--aacp-muted);
+  line-height: 1.3;
+}
+
+.zyon-item-desc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--aacp-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.zyon-cart-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 28px 20px;
+  text-align: center;
+  border: 1px dashed var(--aacp-line-strong);
+  border-radius: var(--aacp-radius-md);
+  background: color-mix(in srgb, var(--aacp-accent) 4%, var(--aacp-surface));
+}
+
+.zyon-cart-empty-icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--aacp-radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--aacp-accent);
+  background: color-mix(in srgb, var(--aacp-accent) 12%, var(--aacp-surface));
+  border: 1px solid color-mix(in srgb, var(--aacp-accent) 22%, var(--aacp-line-strong));
+}
+
+.zyon-cart-empty-title {
+  margin: 0;
+  font-family: var(--aacp-font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--aacp-fg);
+}
+
+.zyon-cart-empty-copy {
+  margin: 0;
+  max-width: 28ch;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--aacp-muted);
+}
+
+.zyon-cart-empty-link {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--aacp-accent);
+  text-decoration: none;
+}
+
+.zyon-cart-empty-link:hover {
+  text-decoration: underline;
+}
+
+.zyon-catalog-results {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.zyon-catalog-results-head {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--aacp-faint);
+}
+
+.zyon-catalog-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.zyon-catalog-result-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: var(--aacp-radius-md);
+  background: var(--aacp-surface);
+}
+
+.zyon-catalog-result-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--aacp-radius-sm);
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--aacp-surface-2);
+  color: var(--aacp-muted);
+  flex-shrink: 0;
+}
+
+.zyon-catalog-result-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.zyon-catalog-result-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.zyon-catalog-result-name {
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--aacp-fg);
+}
+
+.zyon-catalog-result-desc {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--aacp-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.zyon-catalog-result-price {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--aacp-accent);
+}
+
+.zyon-catalog-result-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: var(--aacp-radius-md);
+  background: var(--aacp-accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.zyon-catalog-result-add:disabled {
+  opacity: 0.6;
+}
+
+.zyon-item-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--aacp-space-3);
+  flex-wrap: wrap;
+}
+
+.zyon-qty-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  padding: 2px;
+  border-radius: var(--aacp-radius-sm);
+  border: 1px solid var(--aacp-line-strong);
+  background: var(--aacp-inset-bg);
+}
+
+.zyon-qty-btn {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: calc(var(--aacp-radius-sm) - 2px);
+  color: var(--aacp-accent);
+  background: var(--aacp-surface);
+  border: 1px solid transparent;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.zyon-qty-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--aacp-accent) 8%, var(--aacp-surface));
+  border-color: color-mix(in srgb, var(--aacp-accent) 25%, var(--aacp-line-strong));
+}
+
+.zyon-qty-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.zyon-qty-value {
+  min-width: 32px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--aacp-font-display);
+  font-variant-numeric: tabular-nums;
+  color: var(--aacp-fg);
+}
+
+.zyon-item-remove {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: var(--aacp-radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--aacp-muted);
+  background: transparent;
+  border: 1px solid var(--aacp-line-strong);
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.zyon-item-remove:hover:not(:disabled) {
+  color: #BE123C;
+  border-color: color-mix(in srgb, #BE123C 35%, var(--aacp-line-strong));
+  background: color-mix(in srgb, #BE123C 6%, var(--aacp-surface));
+}
+
+.zyon-item-remove:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.zyon-item-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  background: var(--aacp-grad-soft);
+  border: 1px solid var(--aacp-line-strong);
+  color: var(--aacp-accent-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.zyon-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.zyon-item-name {
+  margin: 0;
+  font-family: var(--aacp-font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--aacp-accent);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.zyon-item-meta {
+  font-size: 11px;
+  color: var(--aacp-faint);
+  margin-top: 2px;
+}
+
+.zyon-item-price {
+  font-family: var(--aacp-font-display);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--aacp-fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.zyon-totals {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: 10px;
+  column-gap: 16px;
+  padding: var(--aacp-space-4) var(--aacp-space-5);
+  background: var(--aacp-inset-bg);
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: var(--aacp-radius-md);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.zyon-totals dt {
+  color: var(--aacp-muted);
+  font-weight: 500;
+}
+
+.zyon-totals dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+  color: var(--aacp-fg);
+  font-family: var(--aacp-font-display);
+}
+
+.zyon-totals .discount {
+  color: var(--aacp-success);
+}
+
+.zyon-totals .total-row {
+  font-family: var(--aacp-font-display);
+  font-size: 18px;
+  font-weight: 700;
+  padding-top: 12px;
+  border-top: 1px solid var(--aacp-line-strong);
+  margin-top: 2px;
+}
+
+.zyon-totals .total-row.value {
+  color: var(--aacp-accent);
+}
+
+.zyon-cart-total {
+  display: contents;
+}
+
+.zyon-coupon {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: 12px;
+}
+
+.zyon-coupon svg {
+  color: var(--aacp-faint);
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+.zyon-coupon input {
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 8px 6px;
+  font-size: 13px;
+  background: transparent;
+  min-width: 0;
+  color: var(--aacp-fg);
+}
+
+.zyon-coupon input::placeholder {
+  color: var(--aacp-faint);
+}
+
+.zyon-coupon button {
+  padding: 8px 14px;
+  background: var(--aacp-accent-ring);
+  color: var(--aacp-accent-strong);
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.zyon-coupon button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--aacp-accent) 25%, transparent);
+}
+
+.zyon-coupon button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.zyon-cta {
+  position: relative;
+  width: 100%;
+  padding: 14px;
+  background: var(--aacp-grad-primary);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  border-radius: 14px;
+  transition: all 0.2s;
+  letter-spacing: 0.01em;
+  box-shadow: 0 12px 28px var(--aacp-accent-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  overflow: hidden;
+}
+
+.zyon-cta::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 30%, rgba(255, 255, 255, 0.25) 50%, transparent 70%);
+  transform: translateX(-100%);
+  transition: transform 0.6s;
+}
+
+.zyon-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 36px var(--aacp-accent-hover-border);
+}
+
+.zyon-cta:hover::before {
+  transform: translateX(100%);
+}
+
+.zyon-trust {
+  list-style: none;
+  padding: 14px 16px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--aacp-line);
+  border-radius: 12px;
+}
+
+.zyon-trust li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--aacp-muted);
+  line-height: 1.4;
+}
+
+.zyon-trust svg {
+  color: var(--aacp-success);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ============ MOBILE ============ */
+.zyon-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--aacp-fg) 28%, transparent);
+  z-index: 40;
+  animation: fadeIn 0.22s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0
+  }
+
+  to {
+    opacity: 1
+  }
+}
+
+@media (max-width: 960px) {
+  .zyon-page {
+    display: block;
+    padding: 0;
+    height: 100vh;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .zyon-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 100vh;
+    max-width: 100%;
+    border-radius: 0;
+    border: none;
+  }
+
+  .zyon-shell::before {
+    display: none;
+  }
+
+  .zyon-cart-btn {
+    display: inline-flex;
+  }
+
+  .zyon-command {
+    grid-template-columns: 1fr;
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .zyon-guardrails {
+    justify-content: flex-start;
+  }
+
+  .zyon-thread {
+    padding: 20px 16px;
+  }
+
+  .zyon-composer-wrap {
+    padding: 14px 16px 20px;
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+  }
+
+  .zyon-header {
+    padding: 14px 16px;
+  }
+
+  .zyon-cart {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 85vw;
+    max-width: 360px;
+    z-index: 100;
+    border-left: 1px solid var(--aacp-line-strong);
+    border-top: none;
+    border-radius: 0;
+    max-height: 100vh;
+    transform: translateX(100%);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: -24px 0 60px rgba(0, 0, 0, 0.6);
+  }
+
+  .zyon-cart.open {
+    transform: translateX(0);
+  }
+
+  .zyon-backdrop.open {
+    display: block;
+    z-index: 95;
+  }
+
+  .zyon-cart-close {
+    display: flex;
+  }
+
+  /* Touch targets: cart quantity + remove controls reach ≥44px on mobile. */
+  .zyon-qty-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .zyon-item-remove {
+    min-height: 40px;
+  }
+}
+
+/* ============ AI HELPER PANEL ============ */
+.zyon-ai-panel {
+  position: fixed;
+  bottom: 92px;
+  right: 24px;
+  z-index: 105;
+  width: min(400px, calc(100vw - 32px));
+  height: min(640px, calc(100vh - 120px));
+  background: var(--aacp-surface);
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: 22px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--aacp-shadow-lg);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(20px) scale(0.95);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+.zyon-ai-panel.open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+/* ============ BACKDROPS & FABS ============ */
+.zyon-support-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.zyon-support-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.zyon-cart-fab {
+  display: none;
+}
+
+.zyon-fab-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 80;
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-right: 1rem;
+}
+
+.zyon-fab {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: var(--aacp-surface-2);
+  color: var(--aacp-fg);
+  border: 1px solid var(--aacp-line-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--aacp-shadow-md);
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.2s;
+    margin-right: 1rem;
+
+}
+
+.zyon-fab:hover {
+  transform: scale(1.05);
+}
+
+.zyon-cart-fab-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid color-mix(in srgb, var(--aacp-accent) 60%, transparent);
+  animation: pulse-ring 2s infinite ease-out;
+  pointer-events: none;
+}
+
+.zyon-fab-tooltip {
+  background: var(--aacp-surface-2);
+  border: 1px solid var(--aacp-line-strong);
+  padding: 12px 16px;
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--aacp-fg);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: var(--aacp-shadow-md);
+  margin-bottom: 6px;
+  animation: slide-up 0.3s ease;
+}
+
+.zyon-fab-tooltip button {
+  color: var(--aacp-faint);
+  padding: 4px;
+}
+
+@media (max-width: 1024px) {
+  /* Legacy round FAB — ONLY for the standalone floating widget. The
+     conversational + voice channels render their own full-width pill FAB
+     (enterprise.css / voice-checkout-experience.css). This block used to be
+     unscoped and bled into those channels, forcing a broken round circle with
+     pill content (wrong shape + position + colors). Scope it out. */
+  .zyon-widget:not(.zyon-widget--conversational):not(.zyon-widget--voice) .zyon-cart-fab {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    position: fixed !important;
+    bottom: 100px !important;
+    left: auto !important;
+    right: 16px !important;
+    width: 54px;
+    height: 54px;
+    border-radius: 50% !important; /* Totalmente redondo */
+    background: var(--aacp-grad-primary) !important;
+    border: 1px solid var(--aacp-accent-hover-border);
+    color: #fff !important;
+    box-shadow: 0 8px 32px var(--aacp-accent-shadow-strong);
+    z-index: 80;
+    cursor: pointer;
+    margin-right: 1rem !important;
+  }
+
+  .zyon-widget:not(.zyon-widget--conversational):not(.zyon-widget--voice) .zyon-cart-fab-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    background: var(--aacp-surface);
+    color: var(--aacp-fg);
+    border: 1px solid var(--aacp-line);
+    font-size: 11px;
+    font-weight: 700;
+    min-width: 22px;
+    height: 22px;
+    border-radius: 50% !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  }
+
+  .zyon-fab-container {
+    position: fixed !important;
+    bottom: 32px !important;
+    left: auto !important;
+    right: 16px !important;
+    z-index: 80;
+    margin-right: 1rem !important;
+
+  }
+
+  .zyon-fab {
+    width: 54px;
+    height: 54px;
+    border-radius: 50% !important; /* Totalmente redondo */
+    background: #ffffff !important;
+    color: var(--aacp-accent-strong) !important;
+    border: none;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  }
+
+  .zyon-bubble {
+    border-radius: 14px 14px 14px 4px !important;
+  }
+
+  .zyon-bubble.zyon-bubble-user {
+    border-radius: 14px 14px 4px 14px !important;
+  }
+
+  /* Support panel modal on mobile */
+  .zyon-ai-panel {
+    top: 0 !important;
+    bottom: 0 !important;
+    right: 0 !important;
+    left: auto !important;
+    width: 85vw !important;
+    max-width: 360px !important;
+    height: 100vh !important;
+    border-radius: 0 !important;
+    border: none !important;
+    border-left: 1px solid var(--aacp-line-strong) !important;
+    transform: translateX(100%) !important;
+    opacity: 1 !important;
+    pointer-events: none !important;
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    z-index: 105 !important;
+  }
+
+  .zyon-ai-panel.open {
+    transform: translateX(0) !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  /* Compact header on mobile */
+  .zyon-agent-sub {
+    display: none;
+  }
+
+  .zyon-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+
+  .zyon-agent-name {
+    font-size: 14px;
+  }
+
+  .zyon-login-btn {
+    padding: 8px 10px;
+  }
+
+  .zyon-login-btn span {
+    display: none;
+  }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+/* ============ HEADER ACTIONS ============ */
+.zyon-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.zyon-back-to-store {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: var(--aacp-radius-md);
+  border: 1px solid var(--aacp-line-strong);
+  background: var(--aacp-surface);
+  color: var(--aacp-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
+  white-space: nowrap;
+}
+
+.zyon-back-to-store:hover {
+  color: var(--aacp-accent);
+  border-color: var(--aacp-accent-border);
+  background: var(--aacp-accent-hover-bg);
+}
+
+.zyon-login-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--aacp-fg);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--aacp-line-strong);
+  transition: all 0.18s ease;
+}
+
+.zyon-login-btn:hover {
+  border-color: var(--aacp-accent-hover-border);
+  background: color-mix(in srgb, var(--aacp-accent) 10%, var(--aacp-surface));
+  transform: translateY(-1px);
+}
+
+.zyon-login-btn svg {
+  color: var(--aacp-accent-strong);
+}
+
+@media (min-width: 961px) {
+  .zyon-header-actions .zyon-cart-btn {
+    display: inline-flex;
+  }
+}
+
+/* ============ TRUST PILLS (cart) ============ */
+.zyon-trust-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  position: relative;
+}
+
+.zyon-trust-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: rgba(52, 211, 153, 0.08);
+  border: 1px solid rgba(52, 211, 153, 0.22);
+  color: var(--aacp-success);
+}
+
+.zyon-trust-pill svg {
+  color: var(--aacp-success);
+}
+
+/* ============ COUPON APPLIED ============ */
+.zyon-coupon-applied {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(52, 211, 153, 0.12), rgba(52, 211, 153, 0.04));
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  font-size: 12px;
+  color: var(--aacp-fg);
+}
+
+.zyon-coupon-applied svg {
+  color: var(--aacp-success);
+  flex-shrink: 0;
+}
+
+.zyon-coupon-applied strong {
+  color: var(--aacp-success);
+  font-family: var(--aacp-font-display);
+  font-weight: 700;
+}
+
+.zyon-totals .discount-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--aacp-success);
+}
+
+.zyon-totals .discount-label svg {
+  color: var(--aacp-success);
+}
+
+/* ============ LOGIN MODAL ============ */
+.zyon-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--aacp-fg) 35%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 20px;
+  animation: fadeIn 0.2s ease;
+}
+
+.zyon-modal {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  background: linear-gradient(180deg, rgba(28, 24, 48, 0.96), rgba(15, 13, 26, 0.96));
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: 22px;
+  padding: 32px 28px 24px;
+  box-shadow: var(--aacp-shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  animation: bubble-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.zyon-modal::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  background: var(--aacp-grad-glow);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.zyon-modal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--aacp-muted);
+  background: rgba(255, 255, 255, 0.04);
+  z-index: 1;
+}
+
+.zyon-modal-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--aacp-fg);
+}
+
+.zyon-modal-icon {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: var(--aacp-grad-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  box-shadow: 0 10px 28px var(--aacp-accent-shadow-strong);
+}
+
+.zyon-modal-title {
+  position: relative;
+  font-family: var(--aacp-font-display);
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 6px;
+  letter-spacing: -0.02em;
+}
+
+.zyon-modal-sub {
+  position: relative;
+  font-size: 13px;
+  color: var(--aacp-muted);
+  margin: 0 0 22px;
+}
+
+.zyon-google-btn {
+  position: relative;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px;
+  background: #fff;
+  color: #1a1530;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.zyon-google-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px rgba(255, 255, 255, 0.18);
+}
+
+.zyon-modal-sep {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0;
+  font-size: 11px;
+  color: var(--aacp-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+.zyon-modal-sep::before,
+.zyon-modal-sep::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--aacp-line-strong);
+}
+
+.zyon-modal-form {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.zyon-modal-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: 12px;
+  transition: all 0.2s;
+}
+
+.zyon-modal-field:focus-within {
+  border-color: var(--aacp-accent-hover-border);
+  background: var(--aacp-accent-hover-bg);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--aacp-accent) 10%, var(--aacp-surface));
+}
+
+.zyon-modal-field svg {
+  color: var(--aacp-faint);
+  flex-shrink: 0;
+}
+
+.zyon-modal-field input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 12px 0;
+  font-size: 14px;
+  color: var(--aacp-fg);
+  min-width: 0;
+}
+
+.zyon-modal-field input::placeholder {
+  color: var(--aacp-faint);
+}
+
+.zyon-modal-form .zyon-cta {
+  margin-top: 4px;
+}
+
+.zyon-modal-foot {
+  position: relative;
+  text-align: center;
+  margin: 18px 0 0;
+  font-size: 12px;
+  color: var(--aacp-muted);
+}
+
+.zyon-modal-foot a {
+  color: var(--aacp-accent-strong);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.zyon-modal-foot a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 960px) {
+  .zyon-login-btn span {
+    display: none;
+  }
+
+  .zyon-login-btn {
+    padding: 10px;
+  }
+}
+
+/* ============ INLINE COMPOSER (Typebot-style) ============ */
+.zyon-composer-inline {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+  animation: bubble-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.zyon-composer-inline .zyon-composer {
+  background: transparent;
+  border: 1px solid var(--aacp-line-strong);
+  box-shadow: none;
+}
+
+.zyon-composer-inline .zyon-composer:focus-within {
+  border-color: var(--aacp-line-strong);
+  background: transparent;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--aacp-fg) 8%, transparent);
+}
+
+.zyon-composer-hint-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--aacp-faint);
+  letter-spacing: 0.04em;
+  padding-left: 4px;
+}
+
+.zyon-composer-hint-inline svg {
+  color: var(--aacp-accent-strong);
+}
+
+/* ============ FAB AI HELPER ============ */
+.zyon-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 90;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--aacp-radius-md);
+  background: var(--aacp-accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--aacp-accent) 80%, #000);
+  box-shadow: var(--aacp-shadow-md);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.zyon-fab:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--aacp-shadow-lg);
+}
+
+.zyon-fab.active {
+  background: var(--aacp-surface);
+  color: var(--aacp-fg);
+  border: 1px solid var(--aacp-line-strong);
+}
+
+.zyon-fab-pulse {
+  position: absolute;
+  inset: -4px;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--aacp-accent) 45%, transparent);
+  animation: pulse-ring 2s ease-out infinite;
+  pointer-events: none;
+}
+
+.zyon-stepper-pulse {
+  position: absolute;
+  inset: -2px;
+  border-radius: 12px;
+  border: 2px solid var(--aacp-accent);
+  animation: pulse-ring 2s ease-out infinite;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* AI Helper Panel */
+.zyon-ai-panel {
+  position: fixed;
+  bottom: 96px;
+  right: 24px;
+  z-index: 110;
+  width: min(380px, calc(100vw - 32px));
+  height: min(560px, calc(100vh - 140px));
+  display: flex;
+  flex-direction: column;
+  background: var(--aacp-surface);
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: var(--aacp-radius-lg);
+  overflow: hidden;
+  box-shadow: var(--aacp-shadow-lg);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(12px);
+  transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.zyon-ai-panel::before {
+  display: none;
+}
+
+.zyon-ai-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--aacp-line);
+  background: var(--aacp-grad-glow);
+}
+
+.zyon-ai-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--aacp-grad-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 16px var(--aacp-accent-shadow-strong);
+}
+
+.zyon-ai-title {
+  font-family: var(--aacp-font-display);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.zyon-ai-sub {
+  font-size: 10.5px;
+  color: var(--aacp-faint);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.zyon-ai-close {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--aacp-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.zyon-ai-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--aacp-fg);
+}
+
+.zyon-ai-thread {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.zyon-ai-thread::-webkit-scrollbar {
+  width: 4px;
+}
+
+.zyon-ai-thread::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+}
+
+.zyon-ai-thread .zyon-bubble {
+  font-size: 13px;
+  padding: 11px 14px;
+  max-width: 92%;
+}
+
+/* AI Panel welcome */
+.zyon-ai-welcome-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 24px 8px 16px;
+  text-align: center;
+}
+
+.zyon-ai-welcome-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--aacp-grad-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--aacp-accent) 45%, transparent);
+}
+
+.zyon-ai-welcome-title {
+  font-family: var(--aacp-font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--aacp-fg);
+  margin: 0;
+}
+
+.zyon-ai-welcome-desc {
+  font-size: 12px;
+  color: var(--aacp-muted);
+  line-height: 1.5;
+  margin: 0;
+  max-width: 280px;
+}
+
+/* FAQ cards */
+.zyon-ai-faq-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.zyon-ai-faq-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  text-align: left;
+}
+
+.zyon-ai-faq-card:hover {
+  border-color: var(--aacp-accent-shadow-strong);
+  background: var(--aacp-accent-hover-bg);
+  transform: translateX(2px);
+}
+
+.zyon-ai-faq-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--aacp-grad-soft);
+  color: var(--aacp-accent-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.zyon-ai-faq-label {
+  flex: 1;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--aacp-fg);
+  min-width: 0;
+}
+
+.zyon-ai-faq-arrow {
+  color: var(--aacp-faint);
+  flex-shrink: 0;
+  transition: transform 0.18s;
+}
+
+.zyon-ai-faq-card:hover .zyon-ai-faq-arrow {
+  transform: translateX(2px);
+  color: var(--aacp-accent);
+}
+
+/* Trust footer */
+.zyon-ai-trust-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--aacp-faint);
+  margin-top: 8px;
+}
+
+/* AI footer/composer */
+.zyon-ai-footer {
+  border-top: 1px solid var(--aacp-line);
+}
+
+.zyon-ai-composer {
+  display: flex;
+  gap: 6px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.zyon-ai-composer .zyon-input {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: 10px;
+  color: var(--aacp-fg);
+  outline: none;
+  transition: border-color 0.18s;
+}
+
+.zyon-ai-composer .zyon-input:focus {
+  border-color: var(--aacp-accent-hover-border);
+}
+
+.zyon-ai-composer .zyon-send {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+}
+
+@media (max-width: 600px) {
+  .zyon-fab {
+    bottom: 18px;
+    right: 18px;
+    width: 52px;
+    height: 52px;
+  }
+
+  .zyon-ai-panel {
+    right: 12px;
+    left: 12px;
+    width: auto;
+    bottom: 84px;
+    height: min(72vh, 540px);
+  }
+}
+
+/* ============ LIGHT THEME ============ */
+.zyon-page[data-theme="light"],
+.pulse-widget-shell[data-theme="light"] {
+  --aacp-bg: #F4F6F8;
+  --aacp-surface: #FCFCFD;
+  --aacp-surface-2: #F7F9FB;
+  --aacp-surface-3: #EEF2F6;
+  --aacp-fg: #0F172A;
+  --aacp-muted: #64748B;
+  --aacp-faint: #94A3B8;
+  --aacp-line: rgba(15, 23, 42, 0.08);
+  --aacp-line-strong: #D9E2EC;
+  --aacp-grad-glow: radial-gradient(60% 60% at 50% 0%, color-mix(in srgb, var(--aacp-accent) 10%, transparent), transparent 70%);
+}
+
+.zyon-page[data-theme="light"] .zyon-shell {
+  background: var(--aacp-shell-bg);
+}
+
+.zyon-page[data-theme="light"] .zyon-bubble-agent,
+.zyon-page[data-theme="light"] .zyon-typing {
+  background: var(--aacp-surface);
+  color: var(--aacp-fg);
+}
+
+.zyon-page[data-theme="light"] .zyon-cart,
+.zyon-page[data-theme="light"] .zyon-main {
+  background: var(--aacp-surface);
+}
+
+.zyon-page[data-theme="dark"],
+.pulse-widget-shell[data-theme="dark"] {
+  --aacp-bg: #0B1220;
+  --aacp-surface: #111827;
+  --aacp-surface-2: #0F172A;
+  --aacp-surface-3: #1E293B;
+  --aacp-fg: #F1F5F9;
+  --aacp-muted: #94A3B8;
+  --aacp-faint: #64748B;
+  --aacp-line: rgba(241, 245, 249, 0.08);
+  --aacp-line-strong: rgba(241, 245, 249, 0.14);
+  --aacp-inset-bg: color-mix(in srgb, var(--aacp-fg) 4%, var(--aacp-surface));
+  --aacp-panel-bg: var(--aacp-surface-2);
+}
+
+.zyon-page[data-theme="dark"] .zyon-shell,
+.zyon-page[data-theme="dark"] .zyon-main,
+.zyon-page[data-theme="dark"] .zyon-cart {
+  background: var(--aacp-surface);
+}
+
+.zyon-page[data-theme="dark"] .zyon-bubble-agent,
+.zyon-page[data-theme="dark"] .zyon-typing,
+.zyon-page[data-theme="dark"] .zyon-cart-metrics,
+.zyon-page[data-theme="dark"] .zyon-item,
+.zyon-page[data-theme="dark"] .zyon-totals,
+.zyon-page[data-theme="dark"] .zyon-chip,
+.zyon-page[data-theme="dark"] .zyon-icon-btn,
+.zyon-page[data-theme="dark"] .zyon-user-chip {
+  background: var(--aacp-surface-2);
+}
+
+.zyon-page[data-theme="light"] .zyon-ai-composer {
+  background: var(--aacp-surface-2);
+}
+
+.zyon-page[data-theme="light"] .zyon-ai-panel,
+.zyon-page[data-theme="light"] .zyon-side-panel,
+.zyon-page[data-theme="light"] .zyon-modal {
+  background: linear-gradient(180deg, #ffffff, #faf8ff);
+}
+
+.zyon-page[data-theme="light"] .zyon-side-input {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+.zyon-page[data-theme="light"] .zyon-side-input input,
+.zyon-page[data-theme="light"] .zyon-side-input textarea,
+.zyon-page[data-theme="light"] .zyon-side-input select {
+  color: #1a1730;
+}
+
+.zyon-page[data-theme="light"] .zyon-side-section-title,
+.zyon-page[data-theme="light"] .zyon-side-field > span,
+.zyon-page[data-theme="light"] .zyon-toggle-row strong {
+  color: #1a1730;
+}
+
+.zyon-page[data-theme="light"] .zyon-status-dot {
+  border-color: #ffffff;
+}
+
+.zyon-icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--aacp-radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--aacp-surface);
+  border: 1px solid var(--aacp-line-strong);
+  color: var(--aacp-fg);
+  transition: border-color 0.18s ease, background 0.18s ease;
+  flex-shrink: 0;
+}
+
+.zyon-icon-btn:hover {
+  border-color: var(--aacp-accent-hover-border);
+  background: var(--aacp-accent-hover-bg);
+}
+
+/* ============ USER CHIP ============ */
+.zyon-user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px 5px 5px;
+  border-radius: var(--aacp-radius-md);
+  background: var(--aacp-surface);
+  border: 1px solid var(--aacp-line-strong);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--aacp-fg);
+  transition: border-color 0.18s ease, background 0.18s ease;
+  min-height: 38px;
+  line-height: 1.2;
+  max-width: min(220px, 42vw);
+}
+
+.zyon-user-chip-name {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zyon-user-chip:hover {
+  border-color: var(--aacp-accent-hover-border);
+  background: var(--aacp-accent-hover-bg);
+}
+
+.zyon-user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: calc(var(--aacp-radius-md) - 4px);
+  background: var(--aacp-accent);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  font-family: var(--aacp-font-display);
+  box-shadow: var(--aacp-shadow-sm);
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+/* ============ COMMAND STRIP — single-column timeline ============ */
+.zyon-command {
+  grid-template-columns: 1fr !important;
+}
+
+/* Guardrails moved into cart */
+.zyon-guardrails-cart {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ============ SIDE PANEL (User) ============ */
+.zyon-side-backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--aacp-fg) 30%, transparent);
+  z-index: 110;
+  animation: fadeIn 0.2s ease;
+}
+
+.zyon-side-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 120;
+  width: min(440px, 100vw);
+  background: var(--aacp-surface);
+  border-left: 1px solid var(--aacp-line-strong);
+  box-shadow: var(--aacp-shadow-lg);
+  display: flex;
+  flex-direction: column;
+  animation: slideInRight 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(20px);
+    opacity: 0
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1
+  }
+}
+
+.zyon-side-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--aacp-line);
+  background: var(--aacp-grad-glow);
+}
+
+.zyon-side-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.zyon-side-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--aacp-grad-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 18px;
+  font-family: var(--aacp-font-display);
+  box-shadow: 0 8px 22px var(--aacp-accent-shadow-strong);
+  flex-shrink: 0;
+}
+
+.zyon-side-name {
+  font-family: var(--aacp-font-display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.zyon-side-email {
+  font-size: 12px;
+  color: var(--aacp-muted);
+  margin-top: 2px;
+}
+
+.zyon-side-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding: 10px;
+  border-bottom: 1px solid var(--aacp-line);
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.zyon-side-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 4px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--aacp-muted);
+  transition: all 0.18s ease;
+}
+
+.zyon-side-tab:hover {
+  background: var(--aacp-accent-hover-bg);
+  color: var(--aacp-fg);
+}
+
+.zyon-side-tab.active {
+  background: var(--aacp-grad-soft);
+  color: var(--aacp-fg);
+  box-shadow: inset 0 0 0 1px var(--aacp-accent-border);
+}
+
+.zyon-side-tab svg {
+  color: var(--aacp-accent-strong);
+}
+
+.zyon-side-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.zyon-side-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.zyon-side-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+}
+
+.zyon-side-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.zyon-side-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--aacp-faint);
+  margin-bottom: 4px;
+}
+
+.zyon-side-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.zyon-side-field>span {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--aacp-muted);
+  letter-spacing: 0.02em;
+}
+
+.zyon-side-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: 12px;
+  transition: all 0.18s;
+}
+
+.zyon-side-input:focus-within {
+  border-color: var(--aacp-accent-hover-border);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--aacp-accent) 10%, var(--aacp-surface));
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.zyon-side-input input,
+.zyon-side-input textarea,
+.zyon-side-input select {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  color: var(--aacp-fg);
+  min-width: 0;
+}
+
+.zyon-side-input select option {
+  background: var(--aacp-surface);
+  color: var(--aacp-fg);
+}
+
+.zyon-side-input svg {
+  color: var(--aacp-faint);
+}
+
+.zyon-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: 12px;
+}
+
+.zyon-toggle-row>div {
+  flex: 1;
+  min-width: 0;
+}
+
+.zyon-toggle-row strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--aacp-fg);
+}
+
+.zyon-toggle-row p {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--aacp-muted);
+}
+
+/* Switch */
+.zyon-switch {
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.zyon-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.zyon-switch span {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  transition: 0.25s;
+}
+
+.zyon-switch span::before {
+  content: "";
+  position: absolute;
+  height: 16px;
+  width: 16px;
+  left: 3px;
+  top: 3px;
+  background: #fff;
+  border-radius: 999px;
+  transition: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.zyon-switch input:checked+span {
+  background: var(--aacp-grad-primary);
+}
+
+.zyon-switch input:checked+span::before {
+  transform: translateX(16px);
+}
+
+/* Order item */
+.zyon-order {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+
+.zyon-order:hover {
+  border-color: var(--aacp-accent-shadow-strong);
+  transform: translateY(-1px);
+}
+
+.zyon-order-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--aacp-grad-soft);
+  border: 1px solid var(--aacp-line-strong);
+  color: var(--aacp-accent-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.zyon-order-id {
+  font-family: var(--aacp-font-display);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--aacp-fg);
+}
+
+.zyon-order-meta {
+  font-size: 11.5px;
+  color: var(--aacp-muted);
+  margin-top: 2px;
+}
+
+.zyon-order-meta .ok {
+  color: var(--aacp-success);
+  font-weight: 600;
+}
+
+.zyon-order-meta .live {
+  color: var(--aacp-accent-strong);
+  font-weight: 600;
+}
+
+.zyon-order-total {
+  font-family: var(--aacp-font-display);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--aacp-fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.zyon-order-arrow {
+  color: var(--aacp-faint);
+  flex-shrink: 0;
+}
+
+.zyon-side-logout {
+  margin-top: 16px;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(244, 63, 94, 0.08);
+  border: 1px solid rgba(244, 63, 94, 0.25);
+  border-radius: 12px;
+  color: #fb7185;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.18s;
+}
+
+.zyon-side-logout:hover {
+  background: rgba(244, 63, 94, 0.15);
+}
+
+.zyon-side-panel .zyon-cta,
+.zyon-user-panel .zyon-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  white-space: normal;
+  line-height: 1.25;
+  padding: 12px 16px;
+  font-size: 13px;
+}
+
+.zyon-side-panel .zyon-cta svg,
+.zyon-user-panel .zyon-cta svg,
+.zyon-side-logout svg {
+  flex-shrink: 0;
+}
+
+.zyon-side-logout {
+  border: 1px solid rgba(244, 63, 94, 0.25);
+}
+
+/* User chip name hidden on tiny screens */
+@media (max-width: 480px) {
+  .zyon-user-chip-name {
+    display: none;
+  }
+
+  .zyon-user-chip {
+    padding: 4px;
+  }
+
+  .zyon-login-btn span {
+    display: none;
+  }
+
+  .zyon-login-btn {
+    padding: 10px;
+  }
+}
+
+@media (max-width: 600px) {
+  .zyon-side-panel {
+    width: 100vw;
+  }
+}
+
+/* ============ AI HELPER PANEL ============ */
+.zyon-ai-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  padding: 1px;
+  background: var(--aacp-grad-soft);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.zyon-ai-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--aacp-line);
+  background: var(--aacp-grad-glow);
+}
+
+.zyon-ai-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--aacp-grad-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 16px var(--aacp-accent-shadow-strong);
+}
+
+.zyon-ai-title {
+  font-family: var(--aacp-font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--aacp-fg);
+  letter-spacing: -0.01em;
+}
+
+.zyon-ai-sub {
+  font-size: 10.5px;
+  color: var(--aacp-faint);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.zyon-ai-close {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--aacp-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.zyon-ai-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--aacp-fg);
+}
+
+.zyon-ai-thread {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.zyon-ai-thread::-webkit-scrollbar {
+  width: 4px;
+}
+
+.zyon-ai-thread::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+}
+
+.zyon-ai-thread .zyon-bubble {
+  font-size: 13px;
+  padding: 11px 14px;
+  max-width: 92%;
+}
+
+/* AI Panel welcome */
+.zyon-ai-welcome-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 24px 8px 16px;
+  text-align: center;
+}
+
+.zyon-ai-welcome-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--aacp-grad-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--aacp-accent) 45%, transparent);
+}
+
+.zyon-ai-welcome-title {
+  font-family: var(--aacp-font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--aacp-fg);
+  margin: 0;
+}
+
+.zyon-ai-welcome-desc {
+  font-size: 12px;
+  color: var(--aacp-muted);
+  line-height: 1.5;
+  margin: 0;
+  max-width: 280px;
+}
+
+/* FAQ cards */
+.zyon-ai-faq-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.zyon-ai-faq-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  text-align: left;
+}
+
+.zyon-ai-faq-card:hover {
+  border-color: var(--aacp-accent-shadow-strong);
+  background: var(--aacp-accent-hover-bg);
+  transform: translateX(2px);
+}
+
+.zyon-ai-faq-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--aacp-grad-soft);
+  color: var(--aacp-accent-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.zyon-ai-faq-label {
+  flex: 1;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--aacp-fg);
+  min-width: 0;
+}
+
+.zyon-ai-faq-arrow {
+  color: var(--aacp-faint);
+  flex-shrink: 0;
+  transition: transform 0.18s;
+}
+
+.zyon-ai-faq-card:hover .zyon-ai-faq-arrow {
+  transform: translateX(2px);
+  color: var(--aacp-accent);
+}
+
+/* Trust footer */
+.zyon-ai-trust-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--aacp-faint);
+  margin-top: 8px;
+}
+
+/* AI footer/composer */
+.zyon-ai-footer {
+  border-top: 1px solid var(--aacp-line);
+}
+
+.zyon-ai-composer {
+  display: flex;
+  gap: 6px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.zyon-ai-composer .zyon-input {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: 10px;
+  color: var(--aacp-fg);
+  outline: none;
+  transition: border-color 0.18s;
+}
+
+.zyon-ai-composer .zyon-input:focus {
+  border-color: var(--aacp-accent-hover-border);
+}
+
+.zyon-ai-composer .zyon-send {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--aacp-grad-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+}
+
+.zyon-ai-composer .zyon-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.zyon-support-ticket-note {
+  align-self: center;
+  padding: 6px 10px;
+  border: 1px solid rgba(34, 197, 94, 0.24);
+  border-radius: 999px;
+  color: var(--aacp-fg-muted);
+  background: rgba(34, 197, 94, 0.08);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* ============ COUPON BOX ============ */
+.zyon-coupon-box {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  align-items: flex-start;
+}
+
+.zyon-coupon-confirmed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--aacp-success);
+  padding: 8px 12px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 12px;
+  width: 100%;
+  font-weight: 600;
+}
+
+.zyon-coupon-error {
+  font-size: 11px;
+  color: var(--aacp-error, #ef4444);
+  margin-top: 4px;
+}
+
+/* ============ THEME STUDIO ============ */
+.zyon-studio-fab {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  z-index: 90;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  border: 1px solid var(--aacp-line-strong);
+  background: var(--aacp-surface);
+  color: var(--aacp-fg);
+  box-shadow: var(--aacp-shadow-md);
+  display: grid;
+  place-items: center;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.zyon-studio-fab:hover,
+.zyon-studio-fab.active {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--aacp-accent) 40%, var(--aacp-line-strong));
+  background: color-mix(in srgb, var(--aacp-accent) 6%, var(--aacp-surface));
+}
+
+.zyon-studio-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  background: rgba(15, 23, 42, 0.28);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.zyon-studio-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.zyon-studio-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 96;
+  width: min(420px, 100vw);
+  height: 100vh;
+  background: var(--aacp-surface);
+  border-right: 1px solid var(--aacp-line-strong);
+  box-shadow: var(--aacp-shadow-lg);
+  transform: translateX(-104%);
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.zyon-studio-panel.open {
+  transform: translateX(0);
+}
+
+.zyon-studio-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 20px 12px;
+  border-bottom: 1px solid var(--aacp-line);
+}
+
+.zyon-studio-kicker {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--aacp-muted);
+  font-weight: 700;
+}
+
+.zyon-studio-header h2 {
+  margin: 4px 0 0;
+  font-family: var(--aacp-font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--aacp-fg);
+}
+
+.zyon-studio-sub {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--aacp-muted);
+}
+
+.zyon-studio-close {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--aacp-line);
+  background: var(--aacp-surface-2);
+  color: var(--aacp-fg);
+}
+
+.zyon-studio-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 20px 20px;
+}
+
+.zyon-studio-section {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--aacp-line);
+}
+
+.zyon-studio-section:last-child {
+  border-bottom: none;
+}
+
+.zyon-studio-section h3 {
+  margin: 0 0 12px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--aacp-muted);
+  font-weight: 700;
+}
+
+.zyon-studio-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.zyon-studio-field {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.zyon-studio-field > span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--aacp-fg);
+}
+
+.zyon-studio-field input[type="text"],
+.zyon-studio-field select,
+.zyon-studio-field input[type="range"] {
+  width: 100%;
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: 10px;
+  background: var(--aacp-surface-2);
+  color: var(--aacp-fg);
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.zyon-studio-color {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.zyon-studio-color input[type="color"] {
+  width: 42px;
+  height: 38px;
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: 10px;
+  padding: 2px;
+  background: var(--aacp-surface-2);
+}
+
+.zyon-studio-footer {
+  padding: 14px 20px 20px;
+  border-top: 1px solid var(--aacp-line);
+  background: var(--aacp-surface-2);
+}
+
+.zyon-studio-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.zyon-studio-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--aacp-surface);
+  color: var(--aacp-fg);
+}
+
+.zyon-studio-btn.ghost {
+  background: transparent;
+}
+
+.zyon-studio-btn.primary {
+  background: var(--aacp-accent);
+  border-color: var(--aacp-accent);
+  color: #fff;
+}
+
+.zyon-studio-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.zyon-studio-status {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--aacp-success);
+}
+
+.zyon-studio-error {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #B91C1C;
+}
+
+.zyon-studio-presets {
+  display: grid;
+  gap: var(--aacp-space-2);
+}
+
+.zyon-studio-preset {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  padding: var(--aacp-space-3);
+  border: 1px solid var(--aacp-line-strong);
+  border-radius: var(--aacp-radius-md);
+  background: var(--aacp-surface);
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.zyon-studio-preset:hover {
+  border-color: var(--aacp-accent-hover-border);
+  background: var(--aacp-accent-hover-bg);
+}
+
+.zyon-studio-preset strong {
+  font-family: var(--aacp-font-display);
+  font-size: 13px;
+  color: var(--aacp-fg);
+}
+
+.zyon-studio-preset span {
+  font-size: 11px;
+  color: var(--aacp-muted);
+  line-height: 1.4;
+}
+
+@media (max-width: 600px) {
+  .zyon-studio-fab {
+    bottom: 96px;
+    left: 16px;
+    width: 48px;
+    height: 48px;
+  }
+}
+
+.zyon-debug-reset {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: var(--aacp-radius-sm);
+  border: 1px dashed var(--aacp-line-strong);
+  color: var(--aacp-muted);
+  background: transparent;
+}

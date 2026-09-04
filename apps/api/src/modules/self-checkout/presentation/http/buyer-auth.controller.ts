@@ -33,7 +33,7 @@ function issueToken(sub: string, email: string): string {
   return `${header}.${payload}.${signature}`;
 }
 
-@Controller("buyer")
+@Controller("self-checkout/buyer")
 export class BuyerAuthController {
   constructor(
     private readonly register: RegisterBuyerUserUseCase,

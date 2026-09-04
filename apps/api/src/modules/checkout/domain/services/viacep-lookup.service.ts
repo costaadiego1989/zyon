@@ -1,4 +1,4 @@
-import type { CustomerAddress } from "@aacp/shared-types";
+import type { CustomerAddress } from "@zyon/shared-types";
 
 /** Resposta brasileira padrão ViaCEP (sem depender na API oficial dos Correios). */
 export interface ViaCepLookupResult {

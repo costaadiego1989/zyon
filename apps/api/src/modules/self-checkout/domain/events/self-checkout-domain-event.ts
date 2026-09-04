@@ -1,4 +1,4 @@
-import type { SelfCheckoutDomainEventType, DomainEventEnvelope } from "@aacp/shared-types";
+import type { SelfCheckoutDomainEventType, DomainEventEnvelope } from "@zyon/shared-types";
 
 export function createSelfCheckoutEventEnvelope<TPayload extends Record<string, unknown>>(input: {
   eventType: SelfCheckoutDomainEventType;

@@ -1,8 +1,8 @@
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Optional } from "@nestjs/common";
 import {
-  ShopifyCommerceAdapter,
   WooCommerceCommerceAdapter,
-} from "@aacp/commerce-adapters";
+  MagentoCommerceAdapter,
+} from "@zyon/commerce-adapters";
 import type {
   CommerceCatalogPage,
   CommerceCatalogPort,
@@ -12,9 +12,8 @@ import type {
   CommerceOrderPort,
   CommerceProviderPort,
   TrustedCartSnapshot
-} from "@aacp/commerce-adapters";
+} from "@zyon/commerce-adapters";
 import { HttpClientService } from "../../../shared/http/http-client.service.js";
-import { isProduction } from "../../../shared/config/secret-config.js";
 import {
   COMMERCE_CONNECTION_PORT,
   type CommerceConnectionPort
@@ -22,63 +21,81 @@ import {
 import { retryWithBackoff } from "./commerce-retry.js";
 
 /**
- * P2 fix: the global-env Shopify fallback is limited to a single opt-in demo
- * merchant (SHOPIFY_DEMO_MERCHANT_ID) and is disabled in production.
- * Any merchant that doesn't have persisted credentials and isn't the known
- * demo merchant gets a hard "not configured" error regardless of environment.
+ * Noop adapter for merchants without external commerce (Shopify/WooCommerce/Magento).
+ * Returns empty results instead of throwing. The internal catalog (Prisma Product table)
+ * is handled directly by SearchStorefrontProductsUseCase as a separate code path.
  */
-function globalEnvCredentials(merchantId: string):
-  | {
-      shopDomain: string;
-      adminAccessToken: string;
-      storefrontAccessToken?: string;
-      apiVersion?: string;
-    }
-  | undefined {
-  // Fail-closed: no fallback in production under any circumstance.
-  if (isProduction()) return undefined;
-
-  const demoMerchantId = process.env.SHOPIFY_DEMO_MERCHANT_ID?.trim();
-  // If no explicit demo-merchant opt-in is configured, the fallback is disabled.
-  if (!demoMerchantId) return undefined;
-  // Only the single known demo merchant may use the global fallback.
-  if (merchantId.trim() !== demoMerchantId) return undefined;
-
-  const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN?.trim();
-  const adminAccessToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN?.trim();
-  if (!shopDomain || !adminAccessToken) return undefined;
-  return {
-    shopDomain,
-    adminAccessToken,
-    storefrontAccessToken:
-      process.env.SHOPIFY_STOREFRONT_ACCESS_TOKEN?.trim() || undefined,
-    apiVersion: process.env.SHOPIFY_API_VERSION?.trim() || undefined,
-  };
+class NoopCommerceAdapter {
+  async searchCatalog() {
+    return { products: [] } as unknown as CommerceCatalogPage;
+  }
+  async findCatalogProductBySku() {
+    return null as unknown as CommerceCatalogProduct | null;
+  }
+  async validateCart(input: { merchantId: string; commerceCartRef: string }) {
+    return { merchantId: input.merchantId, items: [], total: 0, currency: "BRL", validatedAt: new Date().toISOString() } as unknown as TrustedCartSnapshot;
+  }
+  async createPendingOrder() {
+    return { commerceOrderId: `internal_${Date.now()}` };
+  }
+  async markOrderPaid() {}
+  async cancelOrder() {}
+  async getConnectionHealth() {
+    return { connected: true, provider: "woocommerce", lastSyncAt: null } as unknown as CommerceConnectionHealth;
+  }
+  async testConnection() {
+    return true;
+  }
 }
+
+/** Simple TTL cache entry for resolved adapters. */
+interface CachedAdapter {
+  adapter: CommerceProviderPort;
+  expiresAt: number;
+}
+
+const ADAPTER_CACHE_TTL_MS = 30_000; // 30 seconds
+const ADAPTER_CACHE_MAX_SIZE = 100;
 
 @Injectable()
 export class TenantCommerceAdapterFactory
   implements CommerceCartPort, CommerceOrderPort, CommerceCatalogPort
 {
+  private readonly adapterCache = new Map<string, CachedAdapter>();
+
   constructor(
     @Inject(COMMERCE_CONNECTION_PORT)
     private readonly connections: CommerceConnectionPort,
     private readonly http: HttpClientService
   ) {}
 
+  /** Invalidate the adapter cache for a merchant (e.g., on credential update). */
+  invalidateAdapter(merchantId: string): void {
+    this.adapterCache.delete(merchantId.trim());
+  }
+
   private async resolve(merchantId: string): Promise<CommerceProviderPort> {
-    const tenant = await this.connections.getCredentials(merchantId.trim());
-    if (tenant?.provider === "shopify") {
-      return new ShopifyCommerceAdapter(
-        {
-          shopDomain: tenant.shopDomain,
-          adminAccessToken: tenant.adminAccessToken,
-          storefrontAccessToken: tenant.storefrontAccessToken,
-          apiVersion: tenant.apiVersion
-        },
-        this.http.toFetch()
-      );
+    const key = merchantId.trim();
+    const now = Date.now();
+    const cached = this.adapterCache.get(key);
+    if (cached && cached.expiresAt > now) {
+      // Promote to MRU: delete + re-insert moves key to end of insertion order
+      this.adapterCache.delete(key);
+      this.adapterCache.set(key, cached);
+      return cached.adapter;
     }
+    const adapter = await this.resolveFromSource(key);
+    // Evict LRU (first key in Map insertion order) when cache is full.
+    if (this.adapterCache.size >= ADAPTER_CACHE_MAX_SIZE) {
+      const oldest = this.adapterCache.keys().next().value;
+      if (oldest) this.adapterCache.delete(oldest);
+    }
+    this.adapterCache.set(key, { adapter, expiresAt: now + ADAPTER_CACHE_TTL_MS });
+    return adapter;
+  }
+
+  private async resolveFromSource(merchantId: string): Promise<CommerceProviderPort> {
+    const tenant = await this.connections.getCredentials(merchantId.trim());
     if (tenant?.provider === "woocommerce") {
       return new WooCommerceCommerceAdapter(
         {
@@ -89,17 +106,19 @@ export class TenantCommerceAdapterFactory
         this.http.toFetch(),
       );
     }
-
-    if (isProduction()) {
-      throw new BadRequestException("commerce_connection_not_configured_for_merchant");
+    if (tenant?.provider === "magento") {
+      return new MagentoCommerceAdapter(
+        {
+          baseUrl: tenant.baseUrl,
+          accessToken: tenant.accessToken,
+          storeCode: tenant.storeCode ?? "default",
+        },
+        this.http.toFetch(),
+      );
     }
-
-    // P2 fix: fallback is scoped to the explicit demo merchant only.
-    const fallback = globalEnvCredentials(merchantId);
-    if (!fallback) {
-      throw new BadRequestException("commerce_adapter_not_configured");
-    }
-    return new ShopifyCommerceAdapter(fallback, this.http.toFetch());
+    // No external commerce provider configured — return noop adapter.
+    // Product search will use the internal catalog module (Prisma) as fallback.
+    return new NoopCommerceAdapter() as unknown as CommerceProviderPort;
   }
 
   async validateCart(input: { merchantId: string; commerceCartRef: string }): Promise<TrustedCartSnapshot> {

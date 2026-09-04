@@ -1,6 +1,7 @@
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
-import type { TrustedCartSnapshot } from "@aacp/commerce-adapters";
+import { BadRequestException, Inject, Injectable , Logger} from "@nestjs/common";
+import type { TrustedCartSnapshot } from "@zyon/commerce-adapters";
 import { COMMERCE_CART_PORT, type CommerceCartPort } from "../domain/ports/commerce-cart.port.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 export type ValidateCartForPaymentInput = {
   merchantId: string;
@@ -15,6 +16,8 @@ export type ValidateCartForPaymentOutput = {
 
 @Injectable()
 export class ValidateCartForPaymentUseCase {
+  private readonly logger = new Logger(ValidateCartForPaymentUseCase.name);
+
   constructor(
     @Inject(COMMERCE_CART_PORT)
     private readonly cart: CommerceCartPort

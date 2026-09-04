@@ -1,4 +1,4 @@
-import type { Cart, ChatTurn, CheckoutSession, CustomerHints, ShippingQuote } from "@aacp/shared-types";
+import type { Cart, ChatTurn, CheckoutSession, CrossStoreLineItem, CustomerHints, ShippingQuote } from "@zyon/shared-types";
 import { CHECKOUT_TRIGGER_THRESHOLD } from "../services/checkout-abandonment.service.js";
 
 const CHAT_HISTORY_LIMIT = 50;
@@ -57,6 +57,19 @@ export class CheckoutSessionEntity {
       chatHistory: next,
       updatedAt: new Date().toISOString()
     });
+  }
+
+  addCrossStoreItem(item: CrossStoreLineItem): CheckoutSessionEntity {
+    const existing = this.props.crossStoreItems ?? [];
+    return new CheckoutSessionEntity({
+      ...this.props,
+      crossStoreItems: [...existing, item],
+      updatedAt: new Date().toISOString()
+    });
+  }
+
+  getCrossStoreItems(): CrossStoreLineItem[] {
+    return this.props.crossStoreItems ?? [];
   }
 
   snapshot(): CheckoutSession {

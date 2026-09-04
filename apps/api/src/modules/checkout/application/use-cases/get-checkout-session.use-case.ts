@@ -1,9 +1,12 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { CheckoutSession } from "@aacp/shared-types";
+import { Inject, Injectable, NotFoundException , Logger} from "@nestjs/common";
+import type { CheckoutSession } from "@zyon/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class GetCheckoutSessionUseCase {
+  private readonly logger = new Logger(GetCheckoutSessionUseCase.name);
+
   constructor(@Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository) {}
 
   async execute(merchantId: string, sessionId: string): Promise<CheckoutSession> {

@@ -1,17 +1,22 @@
-import { Injectable, Inject, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, BadRequestException , Logger} from "@nestjs/common";
 import { SHIPMENT_REPOSITORY, type ShipmentRepository } from "../../domain/ports/shipment-repository.port.js";
 import { TRACKING_EVENT_REPOSITORY, type TrackingEventRepository } from "../../domain/ports/tracking-event-repository.port.js";
 import { TrackingEventEntity } from "../../domain/entities/tracking-event.entity.js";
 import type { ShipmentStatus } from "../../domain/entities/shipment.entity.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
+import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../../../shared/events/domain-event-bus.port.js";
 import { createFulfillmentEventEnvelope } from "../../domain/events/fulfillment-domain-event.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class RecordTrackingEventUseCase {
+  private readonly logger = new Logger(RecordTrackingEventUseCase.name);
+
   constructor(
     @Inject(SHIPMENT_REPOSITORY) private readonly shipments: ShipmentRepository,
     @Inject(TRACKING_EVENT_REPOSITORY) private readonly trackingEvents: TrackingEventRepository,
-    @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository
+    @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
+    @Inject(DOMAIN_EVENT_BUS) private readonly eventBus: DomainEventBus
   ) {}
 
   async execute(input: {
@@ -23,6 +28,14 @@ export class RecordTrackingEventUseCase {
     carrier_raw?: Record<string, unknown>;
     occurred_at: Date;
   }) {
+    // L3 fix: validate carrier_raw size to prevent unbounded JSON payloads.
+    if (input.carrier_raw) {
+      const rawSize = JSON.stringify(input.carrier_raw).length;
+      if (rawSize > 16384) {
+        throw new BadRequestException("carrier_raw_payload_too_large");
+      }
+    }
+
     const shipment = await this.shipments.findById(input.shipment_id, input.merchant_id);
     if (!shipment) throw new NotFoundException("shipment_not_found");
 
@@ -33,7 +46,24 @@ export class RecordTrackingEventUseCase {
     // Accept it idempotently: record the tracking event for observability but
     // skip the entity transition (which would throw INVALID_TRANSITION).
     const isSameStatus = oldStatus === input.new_status;
-    const updated = isSameStatus ? shipment : shipment.transition(input.new_status);
+
+    // H2 fix: pre-validate transition before calling entity.transition().
+    // If the status change is invalid, return 400 Bad Request instead of
+    // letting the domain throw an Error that surfaces as 500.
+    let updated: typeof shipment;
+    if (isSameStatus) {
+      updated = shipment;
+    } else {
+      try {
+        updated = shipment.transition(input.new_status);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "shipment_transition_failed";
+        if (msg.startsWith("INVALID_TRANSITION")) {
+          throw new BadRequestException(`invalid_shipment_transition: ${oldStatus} → ${input.new_status}`);
+        }
+        throw err;
+      }
+    }
 
     if (!isSameStatus) {
       await this.shipments.save(updated);
@@ -74,6 +104,17 @@ export class RecordTrackingEventUseCase {
             }
           })
         );
+
+        // Also publish on the in-memory domain bus so OnShipmentDeliveredHandler
+        // updates CompletedOrder status and emits order.delivered for post-sale.
+        await this.eventBus.publish({
+          eventType: "shipment.delivered",
+          merchantId: input.merchant_id,
+          payload: {
+            shipment_id: input.shipment_id,
+            delivered_at: input.occurred_at.toISOString()
+          }
+        });
       }
     }
 

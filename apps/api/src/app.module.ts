@@ -1,10 +1,14 @@
 import { Module } from "@nestjs/common";
+import { APP_INTERCEPTOR } from "@nestjs/core";
 import { LoggerModule } from "nestjs-pino";
+import { MetricsInterceptor } from "./shared/observability/metrics.interceptor.js";
 import { TenantModule } from "./shared/tenant/tenant.module.js";
 import { ObservabilityModule } from "./shared/observability/observability.module.js";
 import { HttpModule } from "./shared/http/http.module.js";
 import { PersistenceModule } from "./shared/persistence/persistence.module.js";
+import { DataRetentionModule } from "./shared/retention/data-retention.module.js";
 import { MessagingModule } from "./shared/messaging/messaging.module.js";
+import { HealthModule } from "./shared/health/health.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
 import { AgentRulesModule } from "./modules/agent-rules/agent-rules.module.js";
 import { BuyerPurchaseHistoryModule } from "./modules/buyer-purchase-history/buyer-purchase-history.module.js";
@@ -23,6 +27,62 @@ import { OnboardingModule } from "./modules/onboarding/onboarding.module.js";
 import { InstallationsModule } from "./modules/installations/installations.module.js";
 import { AuditModule } from "./modules/audit/audit.module.js";
 import { OperationsModule } from "./modules/operations/operations.module.js";
+import { CatalogModule } from "./modules/catalog/catalog.module.js";
+import { StoreSettingsModule } from "./modules/store-settings/store-settings.module.js";
+import { ReturnsModule } from "./modules/returns/returns.module.js";
+import { StoreAnalyticsModule } from "./modules/store-analytics/store-analytics.module.js";
+import { TeamModule } from "./modules/team/team.module.js";
+import { DomainsModule } from "./modules/domains/domains.module.js";
+import { NotificationsModule } from "./modules/notifications/notifications.module.js";
+import { StorefrontModule } from "./modules/storefront/storefront.module.js";
+import { StorageModule } from "./shared/storage/storage.module.js";
+import { StoriesModule } from "./modules/stories/stories.module.js";
+import { ExperimentsModule } from "./modules/experiments/experiments.module.js";
+import { MarketplaceModule } from "./modules/marketplace/marketplace.module.js";
+import { DashboardMarketplaceModule } from "./modules/dashboard/dashboard-marketplace.module.js";
+import { DashboardModule } from "./modules/dashboard/dashboard.module.js";
+import { RevenueManagerModule } from "./modules/revenue-manager/revenue-manager.module.js";
+import { RevenueLiftModule } from "./modules/revenue-lift/revenue-lift.module.js";
+import { CartRecoveryModule } from "./modules/cart-recovery/cart-recovery.module.js";
+import { IntentMemoryModule } from "./modules/intent-memory/intent-memory.module.js";
+import { CouponsModule } from "./modules/coupons/coupons.module.js";
+import { WhatsAppChannelModule } from "./modules/whatsapp-channel/whatsapp-channel.module.js";
+import { InventoryModule } from "./modules/inventory/inventory.module.js";
+import { PostSaleModule } from "./modules/post-sale/post-sale.module.js";
+import { WhatsAppTemplatesModule } from "./modules/whatsapp-templates/whatsapp-templates.module.js";
+import { KnowledgeBaseModule } from "./modules/knowledge-base/knowledge-base.module.js";
+import { CrossSellModule } from "./modules/cross-sell/cross-sell.module.js";
+import { UcpDiscoveryModule } from "./modules/public-api/ucp-discovery/ucp-discovery.module.js";
+import { AgenticProtocolModule } from "./modules/public-api/agentic-protocol/agentic-protocol.module.js";
+import { PublicApiModule } from "./modules/public-api/public-api.module.js";
+
+const REDACTED_LOG_PATHS = [
+  "req.headers.authorization",
+  "req.headers.cookie",
+  "req.headers['asaas-access-token']",
+  "req.headers['stripe-signature']",
+  "req.body.password",
+  "req.body.creditCard",
+  "req.body.cvv",
+  "req.body.ccv",
+  "req.body.email",
+  "req.body.cpf",
+  "req.body.phone",
+  "req.body.customer.email",
+  "req.body.customer.cpf",
+  "req.body.customer.phone",
+  "req.body.customer.fullName",
+  "req.body.customer.address",
+  "req.body.address",
+  "req.body.display_name",
+  "req.body.mobile_phone",
+  "req.body.cpf_cnpj",
+  "res.body.access_token",
+  "res.body.email",
+  "res.body.cpf",
+  "res.body.phone",
+  "res.body.customer",
+];
 
 @Module({
   imports: [
@@ -30,6 +90,7 @@ import { OperationsModule } from "./modules/operations/operations.module.js";
       pinoHttp: {
         autoLogging: true,
         quietReqLogger: true,
+        redact: { paths: REDACTED_LOG_PATHS, censor: "[redacted]" },
         customProps: (req: import("http").IncomingMessage) => ({
           correlationId:
             (req as import("http").IncomingMessage & { correlationId?: string })
@@ -46,7 +107,9 @@ import { OperationsModule } from "./modules/operations/operations.module.js";
     ObservabilityModule,
     HttpModule,
     PersistenceModule,
+    DataRetentionModule,
     MessagingModule,
+    HealthModule,
     AuthModule,
     MerchantModule,
     AgentRulesModule,
@@ -64,7 +127,38 @@ import { OperationsModule } from "./modules/operations/operations.module.js";
     OnboardingModule,
     InstallationsModule,
     AuditModule,
-    OperationsModule
-  ]
+    OperationsModule,
+    StoriesModule,
+    CatalogModule,
+    StoreSettingsModule,
+    ReturnsModule,
+    StoreAnalyticsModule,
+    TeamModule,
+    DomainsModule,
+    NotificationsModule,
+    StorefrontModule,
+    StorageModule,
+    ExperimentsModule,
+    RevenueManagerModule,
+    RevenueLiftModule,
+    MarketplaceModule,
+    DashboardMarketplaceModule,
+    DashboardModule,
+    CartRecoveryModule,
+    IntentMemoryModule,
+    CouponsModule,
+    WhatsAppChannelModule,
+    InventoryModule,
+    PostSaleModule,
+    WhatsAppTemplatesModule,
+    KnowledgeBaseModule,
+    CrossSellModule,
+    UcpDiscoveryModule,
+    AgenticProtocolModule,
+    PublicApiModule,
+  ],
+  providers: [
+    { provide: APP_INTERCEPTOR, useClass: MetricsInterceptor },
+  ],
 })
 export class AppModule {}

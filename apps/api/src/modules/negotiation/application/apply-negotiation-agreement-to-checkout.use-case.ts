@@ -1,6 +1,6 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { AuthorizedOffer } from "@aacp/shared-types";
-import { evaluateDiscountOffer } from "@aacp/rules-engine";
+import { BadRequestException, Inject, Injectable, NotFoundException , Logger} from "@nestjs/common";
+import type { AuthorizedOffer } from "@zyon/shared-types";
+import { evaluateDiscountOffer } from "@zyon/rules-engine";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
 import { MERCHANT_RULES_REPOSITORY, type MerchantRulesRepository } from "../../merchant/domain/ports/merchant-rules.repository.port.js";
 import { OFFER_REPOSITORY, type OfferRepository } from "../../checkout/domain/ports/offer.repository.port.js";
@@ -8,9 +8,12 @@ import { createAuthorizedOffer } from "../../checkout/domain/services/offer-fact
 import { checkoutCartFingerprint } from "../domain/cart-fingerprint.js";
 import { NEGOTIATION_STORE, type NegotiationStore } from "../domain/ports/negotiation-store.port.js";
 import { GetMerchantNegotiationPolicyUseCase } from "./merchant-negotiation-policy.use-cases.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class ApplyNegotiationAgreementToCheckoutUseCase {
+  private readonly logger = new Logger(ApplyNegotiationAgreementToCheckoutUseCase.name);
+
   constructor(
     @Inject(NEGOTIATION_STORE) private readonly store: NegotiationStore,
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
@@ -91,8 +94,11 @@ export class ApplyNegotiationAgreementToCheckoutUseCase {
     if (!evaluation.approved) {
       throw new BadRequestException(`merchant_rules_reject:${evaluation.reason}`);
     }
+    // C2 fix: explicit cap-down error message instead of opaque "not_reproducible"
     if (evaluation.value !== input.requestedDiscountPercent) {
-      throw new BadRequestException("negotiation_discount_not_reproducible_under_rules");
+      throw new BadRequestException(
+        `discount_capped: requested ${input.requestedDiscountPercent}%, rules allow max ${evaluation.value}%`
+      );
     }
 
     const offer = createAuthorizedOffer({

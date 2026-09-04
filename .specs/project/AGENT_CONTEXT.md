@@ -38,9 +38,9 @@ The architecture target is a Clean Architecture modular monolith with tactical D
 ## Non-Negotiable Architecture Rules
 
 - Business policy points inward: `presentation -> application -> domain <- infrastructure`.
-- `domain` cannot import NestJS, Prisma, HTTP, OpenAI, Shopify, RabbitMQ, environment variables, or framework types.
+- `domain` cannot import NestJS, Prisma, HTTP, OpenAI, RabbitMQ, environment variables, or framework types.
 - `application` owns use cases, command/query orchestration, transaction boundaries, and ports.
-- `infrastructure` implements ports for Prisma, RabbitMQ, Shopify, OpenAI, Redis, PostgreSQL, and other vendors.
+- `infrastructure` implements ports for Prisma, RabbitMQ, commerce platform APIs (WooCommerce, Magento, VTEX), OpenAI, Redis, PostgreSQL, and other vendors.
 - `presentation` owns HTTP controllers, request/response transport, and framework validation.
 - Packages under `packages/*` must remain framework-free.
 - Repositories expose intention-revealing methods, not generic ORM leakage.
@@ -71,7 +71,7 @@ Use these bounded contexts for planning and implementation:
 - `decision`: intervention policy, scoring, deterministic offer authorization, and commercial safety gates.
 - `shipping`: shipping subsidy decisions, freight margin checks, blocked regions, free/partial shipping evaluation.
 - `conversation`: objection classification, safe message generation, LLM orchestration, and fallback copy.
-- `commerce`: Shopify/WooCommerce/custom commerce adapters and external offer application.
+- `commerce`: WooCommerce/Magento/VTEX commerce adapters for headless checkout and order sync.
 - `payment`: buyer payment intents, attempts, provider webhooks, selected methods, failures, approvals, and rescue opportunities. Payment is processed by provider adapters such as Asaas, not by commerce adapters.
 - `billing`: merchant SaaS billing, plans, subscriptions, usage metering, quotas, and billing-provider webhooks.
 - `analytics`: dashboard/read models, attribution, conversion, offer, margin, and revenue metrics.
@@ -194,7 +194,7 @@ When implementing future work, create or update a feature folder under `.specs/f
 - In-memory persistence is only for MVP development and resets on restart.
 - Prisma schema and migrations exist for implemented modules; new payment/commerce/billing modules still need schema work.
 - No RabbitMQ topology or outbox publisher exists yet.
-- Shopify credential-less fallback proves offer flow but does not create real commerce orders.
+- Commerce credential-less fallback proves offer flow but does not create real commerce orders.
 - Real commerce sync requires provider credentials and OAuth/install flows.
 - Buyer payment processing requires Asaas credentials and webhook configuration.
 - Merchant billing requires Asaas billing credentials and webhook configuration.

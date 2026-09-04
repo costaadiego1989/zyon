@@ -3,6 +3,8 @@ export type TrustedCartLine = {
   quantity: number;
   unitPriceCents: number;
   title: string;
+  commerceProductId?: string;
+  commerceVariantId?: string;
 };
 
 export type TrustedCartSnapshot = {
@@ -80,7 +82,7 @@ export interface CommerceCatalogPort {
 }
 
 export type CommerceConnectionHealth = {
-  provider: "shopify" | "woocommerce";
+  provider: "shopify" | "woocommerce" | "nuvemshop" | "tray" | "vtex" | "magento";
   storeName: string;
   storeUrl: string;
   currency: string;

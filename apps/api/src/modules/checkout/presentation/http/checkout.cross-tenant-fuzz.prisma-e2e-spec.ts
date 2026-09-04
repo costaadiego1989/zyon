@@ -9,11 +9,11 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { AgentContext, Cart } from "@aacp/shared-types";
+import type { AgentContext, Cart } from "@zyon/shared-types";
 import type { AgentContextPort } from "../../domain/ports/agent-context.port.js";
 import { createPrismaClient } from "../../../../shared/persistence/prisma-client.js";
 import { PrismaCheckoutRepository } from "../../infrastructure/prisma/prisma-checkout.repository.js";
-import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
+import { createStartCheckoutUseCase } from "../../application/use-cases/start-checkout.fixture.js";
 import { GetCheckoutSessionUseCase } from "../../application/use-cases/get-checkout-session.use-case.js";
 
 const runPrisma = process.env.AACP_RUN_PRISMA_TESTS === "1" && Boolean(process.env.DATABASE_URL);
@@ -75,7 +75,7 @@ test(
 
     try {
       const repo = new PrismaCheckoutRepository(prisma);
-      const startA = new StartCheckoutUseCase(repo, repo, repo, undefined, undefined, new FakeAgent(MERCHANT_A));
+      const startA = createStartCheckoutUseCase(repo, repo, { agentContext: new FakeAgent(MERCHANT_A) });
       const getUC = new GetCheckoutSessionUseCase(repo);
 
       const sessionsA: string[] = [];
@@ -122,7 +122,7 @@ test(
 
     try {
       const repo = new PrismaCheckoutRepository(prisma);
-      const startB = new StartCheckoutUseCase(repo, repo, repo, undefined, undefined, new FakeAgent(MERCHANT_B));
+      const startB = createStartCheckoutUseCase(repo, repo, { agentContext: new FakeAgent(MERCHANT_B) });
       const getUC = new GetCheckoutSessionUseCase(repo);
 
       const { session_id: bSessionId } = await startB.execute({

@@ -1,4 +1,4 @@
-import type { MerchantProfile, MerchantRules, MerchantTheme } from "../merchant.types.js";
+import type { MerchantProfile, MerchantRules, MerchantTheme, MerchantStoreSettings } from "../merchant.types.js";
 
 export const MERCHANT_REPOSITORY = Symbol("MERCHANT_REPOSITORY");
 
@@ -9,4 +9,11 @@ export interface MerchantRepository {
   getRules(merchantId: string): Promise<MerchantRules>;
   updateRules(merchantId: string, rules: Partial<MerchantRules>): Promise<MerchantRules>;
   updateTheme(merchantId: string, theme: MerchantTheme): Promise<MerchantTheme>;
+  updateStoreCategory(merchantId: string, storeCategory: string): Promise<void>;
+  getStoreSettings(merchantId: string): Promise<MerchantStoreSettings>;
+  updateStoreSettings(merchantId: string, settings: MerchantStoreSettings): Promise<MerchantStoreSettings>;
+  getById?(merchantId: string): Promise<any | null>;
+  updateMelhorEnvioEnabled?(merchantId: string, enabled: boolean): Promise<void>;
+  findBySlug?(slug: string): Promise<MerchantProfile | undefined>;
+  findByCustomDomain?(host: string): Promise<MerchantProfile | undefined>;
 }

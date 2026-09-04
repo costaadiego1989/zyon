@@ -7,6 +7,7 @@ import type {
   PurchaseRecord
 } from "../domain/buyer-purchase-history.types.js";
 import type { BuyerPurchaseHistoryRepository } from "../domain/ports/buyer-purchase-history-repository.port.js";
+import { toNumber } from "../../../shared/persistence/decimal.util.js";
 
 export class PrismaBuyerPurchaseHistoryRepository implements BuyerPurchaseHistoryRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -99,8 +100,8 @@ function toPurchaseRecord(row: {
   globalUserId: string | null;
   merchantCustomerId: string | null;
   currency: string;
-  totalAmount: number;
-  discountAmount: number;
+  totalAmount: { toNumber(): number } | number;
+  discountAmount: { toNumber(): number } | number;
   completedAt: Date;
   items: unknown;
 }): PurchaseRecord {
@@ -110,8 +111,8 @@ function toPurchaseRecord(row: {
     globalUserId: row.globalUserId ?? undefined,
     merchantCustomerId: row.merchantCustomerId ?? undefined,
     currency: row.currency as PurchaseRecord["currency"],
-    totalAmount: row.totalAmount,
-    discountAmount: row.discountAmount,
+    totalAmount: toNumber(row.totalAmount),
+    discountAmount: toNumber(row.discountAmount),
     completedAt: row.completedAt.toISOString(),
     items: row.items as PurchaseHistoryItem[]
   };

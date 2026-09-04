@@ -1,0 +1,104 @@
+- generic [ref=f3e54]:
+  - complementary [ref=f3e55]:
+    - generic [ref=f3e56]:
+      - generic [ref=f3e57]: Z
+      - generic [ref=f3e58]:
+        - generic [ref=f3e59]: Zyon Console
+        - generic [ref=f3e61]: Zyon WooCommerce Store
+    - generic [ref=f3e62]:
+      - generic [ref=f3e63]: PRODUÇÃO
+      - generic [ref=f3e64]: v2.4
+    - navigation "Módulos do painel" [ref=f3e65]:
+      - generic [ref=f3e66]:
+        - generic [ref=f3e67]: Começar
+        - generic [ref=f3e68] [cursor=pointer]: Primeiros passos
+      - generic [ref=f3e76]:
+        - generic [ref=f3e77]: Hoje
+        - generic [ref=f3e78] [cursor=pointer]: Operação
+        - generic [ref=f3e83] [cursor=pointer]: Pedidos e envios
+        - generic [ref=f3e92] [cursor=pointer]: Clientes
+      - generic [ref=f3e99]:
+        - generic [ref=f3e100]: Plataforma
+        - generic [ref=f3e101] [cursor=pointer]: Desenvolvedores
+        - generic [ref=f3e108] [cursor=pointer]: Loja / Commerce
+        - generic [ref=f3e116] [cursor=pointer]: Embed
+        - generic [ref=f3e123] [cursor=pointer]: Tema
+        - generic [ref=f3e132] [cursor=pointer]: Preview
+      - generic [ref=f3e138]:
+        - generic [ref=f3e139]: Atendimento
+        - generic [ref=f3e140] [cursor=pointer]: Suporte
+        - generic [ref=f3e145] [cursor=pointer]: Checkout
+        - generic [ref=f3e151] [cursor=pointer]: Agente
+        - generic [ref=f3e157] [cursor=pointer]: Negociação
+      - generic [ref=f3e161]:
+        - generic [ref=f3e162]: Conta
+        - generic [ref=f3e163] [cursor=pointer]: Faturamento
+        - generic [ref=f3e168] [cursor=pointer]: Pagamentos
+        - generic [ref=f3e173] [cursor=pointer]: Auditoria
+    - generic [ref=f3e179]: Sair
+  - main [ref=f3e185]:
+    - generic [ref=f3e186]:
+      - generic [ref=f3e191]:
+        - generic [ref=f3e192]:
+          - text: Plataforma
+          - generic [ref=f3e193]: /
+          - generic [ref=f3e194]: Loja / Commerce
+        - generic [ref=f3e195]: Loja / Commerce
+      - generic [ref=f3e196]: Zyon WooCommerce Store
+    - generic [ref=f3e334]:
+      - generic [ref=f3e335]:
+        - generic [ref=f3e336]:
+          - text: Commerce
+          - heading "Conexões de Plataforma" [level=1] [ref=f3e337]
+          - paragraph [ref=f3e338]: Conecte sua loja para sincronizar produtos e pedidos automaticamente.
+        - button "Atualizar" [ref=f3e339] [cursor=pointer]
+      - alert [ref=f3e402]:
+        - generic [ref=f3e405]: Erro interno. Tente novamente em alguns minutos.
+        - button "Fechar alerta" [ref=f3e406] [cursor=pointer]
+      - generic [ref=f3e345]:
+        - generic [ref=f3e355]:
+          - heading "Conectar plataforma" [level=2] [ref=f3e356]
+          - paragraph [ref=f3e357]: Informe as credenciais da sua loja. Dados criptografados em repouso.
+        - generic [ref=f3e358]:
+          - generic [ref=f3e359]:
+            - generic [ref=f3e360]:
+              - text: Plataforma
+              - combobox "Plataforma" [ref=f3e361]:
+                - option "Shopify"
+                - option "WooCommerce" [selected]
+                - option "Nuvemshop"
+                - option "Tray Commerce"
+            - generic [ref=f3e362]:
+              - text: URL da loja
+              - textbox "URL da loja" [ref=f3e395]:
+                - /placeholder: https://minhaloja.com.br
+                - text: http://localhost:8080
+          - generic [ref=f3e396]:
+            - generic [ref=f3e397]:
+              - text: Chave do consumidor (Consumer Key)
+              - textbox "Chave do consumidor (Consumer Key)" [ref=f3e398]:
+                - /placeholder: ck_...
+                - text: ck_2e71212817c7b1a8419b74a641982601043f333e
+            - generic [ref=f3e399]:
+              - text: Segredo do consumidor (Consumer Secret)
+              - textbox "Segredo do consumidor (Consumer Secret)" [ref=f3e400]:
+                - /placeholder: cs_...
+                - text: cs_466e21e0d2137f831aedc6fa8b5d8b950e9b0c87
+          - generic [ref=f3e372]:
+            - link "Documentação WooCommerce ↗" [ref=f3e401] [cursor=pointer]:
+              - /url: https://woocommerce.github.io/woocommerce-rest-api-docs/
+            - generic [ref=f3e374]: Gere as chaves em WooCommerce → Settings → Advanced → REST API
+          - button "Conectar loja" [ref=f3e375] [cursor=pointer]
+      - generic [ref=f3e378]:
+        - heading "Em breve" [level=3] [ref=f3e379]
+        - paragraph [ref=f3e380]: Estamos trabalhando em mais integrações nativas.
+        - generic [ref=f3e381]:
+          - generic [ref=f3e382]: VTEX
+          - generic [ref=f3e383]: Magento
+          - generic [ref=f3e384]: Yampi
+          - generic [ref=f3e385]: Loja Integrada
+      - generic [ref=f3e386]:
+        - heading "Conexão Ativa" [level=2] [ref=f3e387]
+        - generic [ref=f3e388]:
+          - strong [ref=f3e393]: Nenhuma conexão configurada
+          - paragraph [ref=f3e394]: Conecte uma plataforma de e-commerce para importar catálogo e sincronizar pedidos.

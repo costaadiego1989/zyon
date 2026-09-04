@@ -1,6 +1,7 @@
-import { Injectable, Inject, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException , Logger} from "@nestjs/common";
 import type { CrossSellPromotionSnapshot, PromotionTrigger } from "../../domain/entities/cross-sell-promotion.entity.js";
 import { CROSS_SELL_PROMOTION_REPOSITORY, type CrossSellPromotionRepository } from "../../domain/ports/cross-sell-promotion-repository.port.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export type UpdateCrossSellPromotionInput = {
   id: string;
@@ -10,6 +11,8 @@ export type UpdateCrossSellPromotionInput = {
 
 @Injectable()
 export class UpdateCrossSellPromotionUseCase {
+  private readonly logger = new Logger(UpdateCrossSellPromotionUseCase.name);
+
   constructor(
     @Inject(CROSS_SELL_PROMOTION_REPOSITORY) private readonly repo: CrossSellPromotionRepository
   ) {}

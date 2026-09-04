@@ -1,0 +1,12 @@
+<?php
+/** @var \Zyon\Checkout\Block\Widget $block */
+if (!$block->isEnabled()) {
+    return;
+}
+?>
+<script defer src="<?= $block->escapeUrl($block->getWidgetJsUrl()) ?>"></script>
+<zyon-checkout-agent
+    merchant-id="<?= $block->escapeHtmlAttr($block->getMerchantId()) ?>"
+    api-key="<?= $block->escapeHtmlAttr($block->getApiKey()) ?>"
+    api-base-url="<?= $block->escapeUrl($block->getApiBaseUrl()) ?>"
+></zyon-checkout-agent>

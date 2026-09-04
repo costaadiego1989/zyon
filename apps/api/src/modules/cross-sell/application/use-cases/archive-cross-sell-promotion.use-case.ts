@@ -1,8 +1,11 @@
-import { Injectable, Inject, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException , Logger} from "@nestjs/common";
 import { CROSS_SELL_PROMOTION_REPOSITORY, type CrossSellPromotionRepository } from "../../domain/ports/cross-sell-promotion-repository.port.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class ArchiveCrossSellPromotionUseCase {
+  private readonly logger = new Logger(ArchiveCrossSellPromotionUseCase.name);
+
   constructor(
     @Inject(CROSS_SELL_PROMOTION_REPOSITORY) private readonly repo: CrossSellPromotionRepository
   ) {}

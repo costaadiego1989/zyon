@@ -7,8 +7,8 @@ import { CrossSellSuggestionEntity } from "../../domain/entities/cross-sell-sugg
 import { InMemoryCrossSellPromotionRepository } from "../../infrastructure/repositories/in-memory-cross-sell-promotion.repository.js";
 import { InMemoryCrossSellSuggestionRepository } from "../../infrastructure/repositories/in-memory-cross-sell-suggestion.repository.js";
 import { InMemoryOutboxRepository } from "../../../../shared/messaging/infrastructure/in-memory-outbox.repository.js";
-import type { Cart, MerchantRules } from "@aacp/shared-types";
-import { DEFAULT_MERCHANT_RULES } from "@aacp/shared-types";
+import type { Cart, MerchantRules } from "@zyon/shared-types";
+import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
 
 const PERMISSIVE_RULES: MerchantRules = {
   ...DEFAULT_MERCHANT_RULES,
@@ -39,7 +39,8 @@ function makeSuggestionSetup() {
   const promoRepo = new InMemoryCrossSellPromotionRepository();
   const suggestionRepo = new InMemoryCrossSellSuggestionRepository();
   const outbox = new InMemoryOutboxRepository();
-  const acceptUseCase = new AcceptCrossSellSuggestionUseCase(suggestionRepo, promoRepo, outbox);
+  const prismaStub = { checkoutEvent: { findFirst: async () => null, create: async () => ({}) } } as never;
+  const acceptUseCase = new AcceptCrossSellSuggestionUseCase(suggestionRepo, promoRepo, outbox, prismaStub);
   const listUseCase = new ListEligibleCrossSellsUseCase(promoRepo, suggestionRepo, outbox);
   return { promoRepo, suggestionRepo, outbox, acceptUseCase, listUseCase };
 }

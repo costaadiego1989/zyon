@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { CommerceOrderPort } from "@aacp/commerce-adapters";
+import type { CommerceOrderPort } from "@zyon/commerce-adapters";
 import { InMemoryCommercePaidWebhookDedup } from "../infrastructure/in-memory-commerce-paid-webhook-dedup.js";
 import { MarkCommerceOrderPaidUseCase } from "./mark-commerce-order-paid.use-case.js";
 

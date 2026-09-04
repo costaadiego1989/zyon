@@ -2,176 +2,129 @@
 
 ## Decisions
 
-### Architecture Hardening (added 2026-05-09 from `docs/architecture/refactor-plan.md`)
+- [2026-08-19] Marketplace dashboard completion requires 6 phases
+- [2026-08-19] API tests A/B done (chargeback + scheduled transfers), UI pending
+- [2026-08-19] Payment chargeback is a SEPARATE concern from marketplace chargeback — separate page/flow
+- [2026-08-19] Debt management ties into settlement timeline (cross-reference)
+- [2026-08-19] Settlement state machine is source of truth for all transitions
+- [2026-08-19] Polling before WebSocket — simplicity first
 
-- Prisma client will be extracted from `checkout/infrastructure/prisma/` to `apps/api/src/shared/persistence/prisma-client.ts` and exposed via a global `PersistenceModule` (ADR-0004). No bounded context may import the client directly from another context's path.
-- `CheckoutRepository` (17 methods, 6 aggregates) will be split into: `CheckoutSessionRepository`, `OfferRepository`, `OrderRepository`, `MerchantRulesRepository` (owner → `merchant`), `BuyerIdentityRepository` (owner → `buyer-purchase-history`), `OutboxRepository` (new `MessagingModule`), `DashboardReadModel` (future `analytics` module). Each use-case mocks only its own port.
-- `@nestjs/cqrs` EventBus (or a minimal custom implementation) is adopted for all in-process cross-context communication. Payment publishes `payment.approved`; Negotiation publishes `negotiation.agreement.accepted`; Checkout handles both via `@OnEvent` handlers. No bounded context may inject a use-case from another context.
-- `OutboxDispatcher` uses BullMQ + Redis to read `pending` `OutboxMessage` rows in batches, publish to EventBus, mark `delivered`, and route failures to DLQ. Idempotency key: `event_id`. Multi-instance lock: Redis `SET NX EX` on `event_id`.
-- `AsyncLocalStorage` carries `{ merchantId, userId, role }` for the lifetime of each request. A global `TenantGuard` populates it from the authenticated JWT and rejects requests with mismatched tenant. Postgres RLS is optional (`PRISMA_RLS=true` feature flag) and adds a second enforcement layer.
-- Structured logging: `pino` + `nestjs-pino` with correlation-id propagated to all external adapter calls.
-- OpenTelemetry SDK exports traces. Prometheus `/metrics` covers: `checkout_started_total`, `order_completed_total`, `payment_approved_total`, `outbox_lag_seconds`, `llm_latency_seconds`.
-- All external HTTP calls (OpenAI, Shopify, Asaas, Brevo, ViaCEP, future scraper) go through a shared `HttpClient` in `apps/api/src/shared/http/` that enforces 5 s default timeout, 3× exponential retry, and per-provider circuit breaker.
-- `useCheckoutAgentViewModel` (706 lines) will be split into five focused hooks: `useCheckoutSession`, `useCheckoutChat`, `useCheckoutCart`, `useCheckoutPayment`, `useCheckoutPanels`.
-- Widget will add Zod runtime validation of all API responses before rendering, and a Playwright suite covering the 8 critical flows documented in `docs/testing/test-strategy.md`.
-- Wave 7 (new features) may not start before Wave 3 (EventBus) is complete. Cross-sell, buyer wallet, scraping agent, and fulfillment all depend on the event-driven architecture.
+## Current Phase
 
-### Original Decisions
+**Phase 1 COMPLETE**. Ready: Phase 2 (Debt Management), Phase 3 (Marketplace Chargebacks)
 
-- MVP is end-to-end and functional, not documentation-only.
-- Checkout is the first module selected for closure and implementation sequencing.
-- Checkout closure must start with TDD documentation under `.specs/features/checkout-module/` before domain/use case changes.
-- First commerce integration is Shopify dev store.
-- Backend stack is NestJS + TypeScript.
-- Frontend stack is React + Vite.
-- AACP owns the buyer checkout experience; payment providers process buyer payments through payment adapters.
-- Commerce integrations such as Shopify/WooCommerce synchronize catalog/cart/order facts and do not own AACP buyer payment processing.
-- Asaas is the first planned buyer payment provider and may also be used separately for merchant SaaS billing.
-- The platform assigns every buyer a `global_user_id`.
-- `global_user_id` is stable across embedded systems, but history is always filtered by `merchant_id`.
-- LLM can classify and phrase responses, but deterministic engines authorize offers.
-- Future implementation remains a modular monolith, not microservices by default.
-- Prisma/PostgreSQL is the target persistence layer; in-memory repositories are development-only.
-- CQRS separates mutating commands from read-optimized queries and projections.
-- RabbitMQ is used for asynchronous domain facts through an outbox, not synchronous request/response between modules.
-- Event routes describe facts owned by modules; consumers update their own state or projections.
-- TDD is the default implementation style for domain rules, use cases, Prisma repositories, event contracts, workers, and e2e flows.
-- `.specs/project/AGENT_CONTEXT.md` is the bootstrap context file for future agents or resumed sessions.
+## Completed
 
-## Blockers
+✅ **API Layer (Tests A/B)**
+- Settlement state machine service + getAvailableEvents() method + tests A/B
+- HandleMarketplaceChargebackUseCase + tests
+- ProcessScheduledTransfersUseCase + tests
+- GetSellerStatsUseCase + tests
 
-- Real commerce sync requires provider credentials such as Shopify/WooCommerce app credentials.
-- Real buyer payment requires Asaas credentials and webhook configuration.
-- Real merchant billing requires Asaas billing credentials and webhook configuration.
-- Real LLM responses require `OPENAI_API_KEY` or `DEEPSEEK_API_KEY`.
+✅ **Phase 1: Core Settlement Visibility**
+- ListSellerSettlementsUseCase + wired in controller
+- GetSettlementDetailUseCase + wired in controller
+- MarketplaceController: GET /settlements, GET /settlements/:id endpoints
+- SettlementTimeline React component + CSS (visual state machine)
+- SettlementDetailPanel modal component + CSS
+- Dashboard API v2 endpoints (marketplace-v2.ts)
+- useMarketplacePage hook: settlements state + loading
+- MarketplacePage: 4 tabs (Orders, Settlements, Chargebacks, Settings)
+- Settlement status badges + styling
+- Integration: settlement list → click detail → modal panel opens
 
-## Deferred
+## Blocked
 
-- RabbitMQ topology and outbox publisher.
-- Shopify OAuth install flow.
-- Secure embed token runtime.
-- Buyer payment module with Asaas.
-- Merchant billing module with Asaas.
-- Commerce order sync adapters.
-- Checkout intervention ledger for cooldown/max interventions.
-- Machine negotiation policy/preference/session persistence.
-- Recovery channels.
-- A/B testing and holdout attribution.
+(none)
 
-## Verification
+## Todos (Phases 2-6)
 
-- `pnpm build` passed for packages, API, widget, and dashboard.
-- `pnpm typecheck` passed after building workspace packages.
-- `pnpm test` passed with 23 checkout API tests plus existing package smoke scripts.
-- Docker Compose PostgreSQL test database added as `aacp-postgres` on localhost port `55432`.
-- `pnpm db:migrate` applied the checkout Prisma migration against the Docker Compose PostgreSQL database.
-- `pnpm test:prisma` passed with 25 checkout tests, including real Prisma integration and Prisma-backed e2e tests.
-- Modular foundation documentation created under `.specs/features/modular-ddd-foundation/`.
-- Agent context bootstrap created at `.specs/project/AGENT_CONTEXT.md`.
-- Checkout module TDD documentation created under `.specs/features/checkout-module/` with spec, design, test plan, and closure tasks.
-- Checkout module in-memory MVP closure implemented with domain services/entities, event envelope/outbox port, accepted offer/order completion facts, tenant-safe use cases, controller compatibility flow, and Node test runner.
-- Checkout module Prisma persistence implemented with Prisma 7, `@prisma/adapter-pg`, PostgreSQL schema/migration, repository adapter, transaction boundary, and conditional integration/e2e tests.
-- Auth module implemented with JWT HS256, scrypt password hashing, register/login use cases, in-memory and Prisma repositories, and bearer-token guard.
-- Auth now sets JWT in an `HttpOnly`, `SameSite=Lax`, `Path=/` cookie named `aacp_access_token`; `Secure` is added in production.
-- Auth guard accepts JWT from either `Authorization: Bearer ...` or the auth cookie.
-- Login rate limit added in-memory by IP plus `x-device-id`: 5 failed attempts per 15 minutes, reset on successful login.
-- Merchant module implemented with authenticated `GET /merchants/me`, `GET /merchants/me/rules`, and `PUT /merchants/me/rules`, backed by in-memory and Prisma repositories.
-- Auth/merchant Prisma migration applied through `pnpm db:migrate`.
-- Auth/merchant e2e passed through `pnpm test:prisma`; general `pnpm test` and `pnpm typecheck` passed.
-- Agent Rules module planning created under `.specs/features/agent-rules/` with spec, design, and tasks for agent name, guardrails, checkout settings, and conversation context.
-- `pnpm test` passed with 35 API tests in the default suite.
-- `pnpm typecheck` passed after auth cookie/rate-limit changes.
-- Agent Rules module implemented with per-merchant/per-user agent rules, named agents, capabilities/superpowers, guardrails, checkout settings, safe agent context DTO, in-memory and Prisma repositories, protected routes, and Prisma e2e tests.
-- Agent Rules migration applied through `pnpm db:migrate`.
-- `pnpm test:prisma` passed with 41 API tests including real Prisma agent-rules e2e.
-- `pnpm test` passed with 41 API tests in the default suite after agent-rules implementation.
-- `pnpm typecheck` passed after agent-rules implementation.
-- Agent Rules is now connected to checkout conversation through a checkout-owned `AgentContextPort`, an infrastructure adapter over `GetAgentContextUseCase`, and `ConversationPort.agentContext`.
-- `ChatMessageRequest` now accepts optional `agent_id` and `agent_user_id`; public checkout chat defaults to merchant-level agent context when no user identity is supplied.
-- Agent context DTOs were promoted to `@aacp/shared-types` so `conversation-engine` can consume safe context without importing API module code.
-- `conversation-engine` prompt/fallback now receives agent identity, capabilities, guardrails, checkout settings, and copy constraints while deterministic modules remain the only source of offer authorization.
-- Checkout Settings module planning created under `.specs/features/checkout-settings/` with spec, design, and tasks for operational checkout configuration that will feed agent-rules/conversation context.
-- `pnpm test` passed with 44 API tests in the default suite after agent-rules conversation wiring.
-- `pnpm test:prisma` passed with 44 API tests against Docker Compose PostgreSQL after agent-rules conversation wiring.
-- `pnpm typecheck` passed after agent-rules conversation wiring and checkout-settings planning docs.
-- Checkout Settings module implemented through protected API, domain entity, shared DTOs, get/update/reset/context use cases, in-memory repository, Prisma repository, Prisma schema, and migration `20260501133000_checkout_settings_module`.
-- Checkout Settings defaults are safe: silent until trigger, cooldown, max interventions per session, known trigger list, suppression rules, and handoff settings.
-- Checkout Settings validation rejects excessive pressure settings and commercial authorization fields; discounts, free shipping, margin, offers, delivery promises, stock promises, and payment status remain outside this module.
-- Protected Checkout Settings routes are available: `GET /checkout-settings`, `PUT /checkout-settings`, `POST /checkout-settings/reset`, and `GET /checkout-settings/context`.
-- `pnpm db:migrate` applied the checkout-settings migration against Docker Compose PostgreSQL.
-- `pnpm test` passed with 52 API tests in the default suite after checkout-settings implementation.
-- `pnpm test:prisma` passed with 52 API tests against Docker Compose PostgreSQL after checkout-settings implementation.
-- `pnpm typecheck` passed after checkout-settings implementation.
-- Agent Rules context now composes Checkout Settings through a port and includes `checkout_context` plus merged operational constraints.
-- Checkout start/decision/track flows now consume Checkout Settings through a checkout-owned port.
-- Checkout start respects `manual_only` and `proactive` modes for `agent_enabled` and `initial_mode`.
-- Checkout track suppresses `trigger_agent` when the triggering event is disabled or below the configured minimum score.
-- Checkout decision stays silent for `manual_only`, disabled trigger events, or scores below `minimum_abandonment_score`, while deterministic scoring remains the base decision source.
-- Cooldown and max intervention settings are exposed in context but still need an intervention ledger before they can be enforced across repeated triggers.
-- `pnpm test` passed with 57 API tests in the default suite after checkout-settings runtime wiring.
-- `pnpm test:prisma` passed with 57 API tests against Docker Compose PostgreSQL after checkout-settings runtime wiring.
-- `pnpm typecheck` passed after checkout-settings runtime wiring.
-- Conversation engine now supports OpenAI Responses and OpenAI-compatible chat completions for DeepSeek-style providers.
-- Checkout conversation adapter chooses DeepSeek when `DEEPSEEK_API_KEY` is set, otherwise OpenAI via `OPENAI_API_KEY`.
-- Added strict live AI checkout e2e, skipped by default, enabled with `RUN_REAL_AI_E2E=true` plus `DEEPSEEK_API_KEY` or `OPENAI_API_KEY`; it verifies AI phrasing while deterministic checkout rules still cap commercial offers.
-- `pnpm test` passed with conversation-engine provider tests and 58 API tests after live AI e2e wiring.
-- `pnpm test:prisma` passed with 58 API tests against Docker Compose PostgreSQL after live AI e2e wiring.
-- `pnpm typecheck` passed after live AI e2e wiring.
-- Live AI checkout e2e passed against the configured DeepSeek-compatible endpoint after loading `apps/api/.env` and setting `RUN_REAL_AI_E2E=true`.
-- Checkout AI Safety Battery documentation created under `.specs/features/checkout-ai-safety-battery/`.
-- Conversation engine now validates generated provider text before returning it to checkout and falls back when AI output exceeds authorized commercial terms or claims forbidden facts.
-- Deterministic checkout AI safety e2e scenarios added for discount overreach, blocked free shipping, blocked shipping discount, delivery promise, stock reservation promise, payment status claim, and safe trust reassurance.
-- `pnpm test` passed with 4 conversation-engine tests and 65 API tests after the AI safety battery.
-- `pnpm test:prisma` passed with 65 API tests against Docker Compose PostgreSQL after the AI safety battery.
-- `pnpm typecheck` passed after the AI safety battery.
-- Machine Negotiation planning created under `.specs/features/machine-negotiation/` for merchant agent policies, buyer/user agent preferences, machine-to-machine agreement, AI cost caps, and future billing.
-- Added pure `@aacp/negotiation-engine` package with deterministic agreement calculation for global, category, and item discount policies.
-- Machine negotiation engine supports buyer target/minimum acceptable discount, merchant min/max offer ranges, disabled negotiation checks, estimated AI call/cost caps, auto-accept, and human-confirmation thresholds.
-- `pnpm --filter @aacp/negotiation-engine test` passed with 7 negotiation-engine tests.
-- `pnpm test` passed after adding negotiation-engine to the workspace.
-- `pnpm test:prisma` passed with 65 API tests after negotiation-engine addition.
-- `pnpm typecheck` passed after negotiation-engine addition.
-- Protected `POST /negotiations/evaluate` API slice added with deterministic negotiation engine wiring and authenticated merchant scoping.
-- Buyer Purchase History planning created under `.specs/features/buyer-purchase-history/` for merchant-scoped purchase facts, compact agent context, cost-aware AI usage, and future billing hooks.
-- `pnpm --filter @aacp/negotiation-engine test` passed with 7 negotiation-engine tests after negotiation API wiring.
-- `pnpm --filter @aacp/api test` passed with 67 API test entries after negotiation API wiring.
-- `pnpm --filter @aacp/api typecheck` passed after negotiation API wiring.
-- `pnpm --filter @aacp/api test:prisma` passed with 67 API test entries against Docker Compose PostgreSQL after negotiation API wiring.
-- Buyer Purchase History domain implemented with merchant-scoped purchase facts, idempotent order recording, buyer-merchant stats, top categories/SKUs, discount sensitivity, and compact safe context.
-- Buyer Purchase History in-memory repository and use cases implemented through TDD.
-- `pnpm --filter @aacp/api test` passed with 73 API test entries after Buyer Purchase History domain/use-case implementation.
-- Checkout completion now calls a checkout-owned `PurchaseHistoryPort` after a non-idempotent order completion, and the runtime adapter records the purchase into Buyer Purchase History.
-- `pnpm --filter @aacp/api test` passed with 74 API test entries after checkout-to-purchase-history wiring.
-- Buyer Purchase History Prisma persistence implemented with `buyer_purchase_records`, migration `20260502120000_buyer_purchase_history`, repository adapter, and tenant/idempotency integration tests.
-- `pnpm --filter @aacp/api prisma:deploy` applied the Buyer Purchase History migration against Docker Compose PostgreSQL.
-- `pnpm --filter @aacp/api test` passed with 75 API test entries after Buyer Purchase History Prisma implementation.
-- `pnpm --filter @aacp/api typecheck` passed after Buyer Purchase History Prisma implementation.
-- `pnpm --filter @aacp/api test:prisma` passed with 75 API test entries against Docker Compose PostgreSQL after Buyer Purchase History Prisma implementation.
-- Buyer Purchase History safe context is now connected into checkout conversation through `AgentRulesContextAdapter`; `SendChatMessageUseCase` passes the checkout session `globalUserId` to the agent context port.
-- `AgentContext` now includes optional compact `purchase_history` with no PII or raw item timelines, plus an explicit copy constraint preventing disclosure of private purchase details.
-- `pnpm --filter @aacp/api test` passed with 76 API test entries after purchase-history conversation context wiring.
-- `pnpm --filter @aacp/api typecheck` passed after purchase-history conversation context wiring.
-- `pnpm --filter @aacp/api test:prisma` passed with 76 API test entries against Docker Compose PostgreSQL after purchase-history conversation context wiring.
-- `pnpm --filter @aacp/shared-types typecheck` passed after extending `AgentContext`.
-- Buyer Purchase History metering seam added with `PurchaseHistoryMeteringPort` and event types for imported orders, context usage, and future negotiation enrichment.
-- `RecordCompletedPurchaseUseCase` emits `purchase_history.imported_order` only for non-idempotent imports.
-- `GetBuyerPurchaseContextUseCase` emits `purchase_history.context_used` with compact metadata for future billing.
-- `pnpm --filter @aacp/api test` passed with 77 API test entries after purchase-history metering seams.
-- `pnpm --filter @aacp/api typecheck` passed after purchase-history metering seams.
-- `pnpm --filter @aacp/api test:prisma` passed with 77 API test entries against Docker Compose PostgreSQL after purchase-history metering seams.
-- `pnpm --filter @aacp/shared-types typecheck` passed after purchase-history metering seams.
-- Buyer Purchase History protected read API added at `GET /buyer-purchase-history/global-users/:globalUserId/context`; it uses the authenticated merchant from JWT and returns only safe compact context.
-- Buyer Purchase History task list `BPH-T001` through `BPH-T009` is complete.
-- `pnpm --filter @aacp/api test` passed with 78 API test entries after Buyer Purchase History protected read API.
-- `pnpm --filter @aacp/api typecheck` passed after Buyer Purchase History protected read API.
-- `pnpm --filter @aacp/api test:prisma` passed with 78 API test entries against Docker Compose PostgreSQL after Buyer Purchase History protected read API.
-- `pnpm --filter @aacp/shared-types typecheck` passed after Buyer Purchase History protected read API.
-- Project direction corrected: AACP is the owned buyer checkout and payment experience; commerce adapters sync commercial facts, payment adapters charge buyers, and billing charges merchants.
-- Secure Embed Widget planning created under `.specs/features/secure-embed-widget/` for token-only browser embed with no sensitive checkout payloads.
-- Payment Asaas planning created under `.specs/features/payment-asaas/` for buyer payment intents, provider webhooks, and payment-approved checkout completion.
-- Billing Asaas planning created under `.specs/features/billing-asaas/` for merchant SaaS plans, quotas, usage metering, and Asaas billing webhooks.
-- Commerce Sync planning created under `.specs/features/commerce-sync/` for Shopify/WooCommerce-style cart/order sync independent from payment processing.
-- Project/codebase context docs updated to separate checkout, commerce, payment, and billing ownership and to forbid browser exposure of provider secrets, raw card data, CVV, margin, cost, and merchant policy.
-- Machine negotiation persistence and APIs (`MN-T004`–`MN-T007`): `GET`/`PUT /merchant-negotiation-policy`; `GET`/`PUT /buyer-agent/preferences`; `POST /negotiations/evaluate` loads stored policy/preferences when omitted, returns `negotiation_session_id`, appends ledger; `POST /negotiations/apply-checkout-offer` writes `AuthorizedOffer` when fingerprint and discount match snapshot and rules-engine approves; Prisma migration `20260503140000_negotiation_persistence`; in-memory negotiation store default, Prisma when `NEGOTIATION_REPOSITORY=prisma` and `DATABASE_URL`.
-- Secure embed (**API slice**, `SEW-T002`–`SEW-T004` backend): **`POST /embed-sessions`** (JWT) issues signed embed token; public **`POST /embed/start|track|chat`** accept `X-AACP-Embed-Token` / Bearer and bind `merchant_id` from claims; **`EMBED_TOKEN_SECRET`** required in production.
-- `pnpm --filter @aacp/api test` and `pnpm --filter @aacp/api typecheck` passed after negotiation persistence + embed API slice.
+- [ ] Phase 2: Debt Management (repo + API + UI ledger)
+- [ ] Phase 3: Marketplace Chargeback tab
+- [ ] Phase 4: Blocked merchants manager (add/remove UI)
+- [ ] Phase 5: Payment chargeback page (separate)
+- [ ] Phase 6: Notifications (polling + toasts)
+
+## Active: Dashboard Corrections Sprint (2026-08-20)
+
+**31 requirements, ~80 tasks, 4 weeks**
+
+Spec at: `.specs/features/dashboard-corrections-sprint/`
+- `spec.md` — 31 reqs with ACs
+- `tasks.md` — 36 atomic tasks
+- `context.md` — decisions + gray areas
+- `SUMMARY.md` — quickstart
+- `README.md` — navigation
+- `BEST-PRACTICES.md` — coding guide
+
+**Phase 1 (P0 Bugs) — COMPLETE ✅**
+- T-001 ✅ Catalog render loop (useMemo)
+- T-002 ✅ Categories import (default export)
+- T-003 ✅ Signals crash (guard coupon.code)
+- T-004 ✅ Preview rendering (docs + onError)
+- T-005 ✅ Team disconnect (session guard)
+
+**Phase 1 Analysis — COMPLETE ✅**
+- T-006 ✅ Cart Recovery analysis (delivered)
+
+**Phase 2 (P1 Features) — COMPLETE ✅**
+- T-009 ✅ Dashboard metrics (7 StatCards)
+- T-010 ✅ Orders CSV (date filter + UTF-8 BOM)
+- T-011 ✅ Status badges (7 color variants)
+- T-012 ✅ Tracking modal (readonly + status flow)
+- T-013 ✅ Cross-sell store (3 toggles)
+- T-014 ✅ Cross-sell checkout (same component)
+- T-015 ✅ Funnel (11 steps + intelligent insights)
+- T-017 ✅ Marketplace seeds (322 lines)
+- T-018 ✅ M2M redesign (enterprise layout + creation)
+- T-019 ✅ Revenue Manager (fix 404 + tabs + copy)
+
+**Phase 3 (P2 Polish) — COMPLETE ✅**
+- T-020 ✅ Theme store (seal, icons, upload, rounding)
+- T-021 ✅ Phone masks (3 pages)
+- T-022 ✅ Domain UX (SectionHeader + explanation)
+- T-023 ✅ Checkout appearance audit (all options valid)
+- T-024 ✅ Signals validation (priority copy added)
+- T-025 ✅ Theme checkout (seal button primary)
+- T-026 ✅ Protocol copy rewrite
+- T-027 ✅ Intent Memory (KPIs + copy + data)
+- T-028 ✅ Revenue Lift (StatCard + copy + demo badge)
+- T-029 ✅ Cart Recovery std (SectionHeader + StatCard)
+
+**Phase 4 (P3 Final) — COMPLETE ✅**
+- T-030 ✅ AI agent casing
+- T-031 ✅ Developers audit (content accurate)
+- T-032 ✅ Commerce VTEX badge
+- T-033 ✅ Payments crypto layout (2-col)
+- T-034 ✅ Settings phone (covered by T-021)
+- T-035 ✅ Billing button (Button variant outline)
+- T-036 ✅ Food service (nested categories + modifiers)
+
+**Remaining (blocked or deferred):**
+- T-007 ⏸️ Stripe integration (needs credentials)
+- T-008 ⏸️ Split validation (needs T-006 review + implementation)
+- T-016 ⏸️ Negotiation policy fix (blocked by T-006 decision)
+
+**Key blocker:** T-006 analysis delivered but requires team decision before T-008/T-016 implementation
+
+## Pending Verification
+
+- API typecheck (contracts module has issues — defer until tests run cleanly)
+- E2E: navigate settlements tab → list loads → click detail → panel opens
+- Dashboard build + serve
+- **New:** All 5 P0 bugs fixed before Week 2 start
+- **New:** T-006 analysis complete with recommendations
+
+## Deferred Ideas
+
+- WebSocket real-time push
+- Seller analytics
+- Automated debt resolution
+- Chargeback dispute forms
+
+## Lessons
+
+- Keep marketplace and payment chargebacks as separate bounded contexts
+- Settlement state machine validates before UI — never bypass
+- React components for timeline + panel = reusable across dashboard
+- useApi hook auto-includes new endpoints when api/index.ts imports them

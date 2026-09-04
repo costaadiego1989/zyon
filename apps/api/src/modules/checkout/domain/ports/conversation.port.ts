@@ -1,5 +1,5 @@
-import type { AgentContext, AuthorizedOffer, Cart, ChatStage, ChatTurn, MerchantRules, ShippingQuote } from "@aacp/shared-types";
-import type { Objection } from "@aacp/conversation-engine";
+import type { AgentContext, AuthorizedOffer, Cart, ChatStage, ChatTurn, MerchantRules, ShippingQuote } from "@zyon/shared-types";
+import type { Objection } from "@zyon/conversation-engine";
 
 export const CONVERSATION_PORT = Symbol("CONVERSATION_PORT");
 
@@ -15,8 +15,9 @@ export interface ConversationReplyInput {
   missingFields?: string[];
   deliverySummary?: string;
   shippingOptions?: ShippingQuote[];
+  merchantRules?: string[];
 }
 
 export interface ConversationPort {
-  reply(input: ConversationReplyInput): Promise<{ message: string; objection: Objection }>;
+  reply(input: ConversationReplyInput): Promise<{ message: string; objection: Objection; suggested_skus?: string[] }>;
 }

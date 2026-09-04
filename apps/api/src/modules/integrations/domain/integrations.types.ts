@@ -57,9 +57,13 @@ export type TenantWebhookEventType =
   | "order.created"
   | "order.approved"
   | "order.cancelled"
+  | "order.cancellation_provider_failed"
   | "payment.pending"
   | "payment.approved"
   | "customer.upserted"
+  | "customer.phone_collected"
+  | "customer.registered"
+  | "funnel.step_completed"
   | "tracking.updated"
   | "order.tracking.updated"
   | "payment.failed"
@@ -78,6 +82,9 @@ export const TENANT_WEBHOOK_EVENTS: TenantWebhookEventType[] = [
   "payment.failed",
   "payment.refunded",
   "customer.upserted",
+  "customer.phone_collected",
+  "customer.registered",
+  "funnel.step_completed",
   "tracking.updated",
   "order.tracking.updated",
   "support.ticket.created",
@@ -117,7 +124,8 @@ export interface MerchantWebhookDelivery {
   status: WebhookDeliveryStatus;
   attempts: number;
   envelope: TenantWebhookEnvelope;
-  signingSecret: string;
+  /** @deprecated Signing secret is now looked up per-dispatch from the endpoint. */
+  signingSecret?: string;
   nextAttemptAt?: string;
   responseStatus?: number;
   responseBody?: string;

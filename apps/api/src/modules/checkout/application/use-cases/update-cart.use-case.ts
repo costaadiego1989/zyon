@@ -1,11 +1,13 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
-import type { Cart, CartItem, CheckoutSession, UpdateCartRequest, UpdateCartResponse } from "@aacp/shared-types";
+import { BadRequestException, Inject, Injectable, NotFoundException, Optional , Logger} from "@nestjs/common";
+import type { Cart, CartItem, CheckoutSession, UpdateCartRequest, UpdateCartResponse } from "@zyon/shared-types";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { AGENT_CONTEXT_PORT, type AgentContextPort } from "../../domain/ports/agent-context.port.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
+import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 const MAX_ITEM_QUANTITY = 99;
 
@@ -23,11 +25,14 @@ function recomputeTotal(items: CartItem[]): number {
 
 @Injectable()
 export class UpdateCartUseCase {
+  private readonly logger = new Logger(UpdateCartUseCase.name);
+
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchants?: MerchantRepository,
-    @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort
+    @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
+    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 }
   ) {}
 
   async execute(input: UpdateCartRequest): Promise<UpdateCartResponse> {
@@ -107,7 +112,8 @@ export class UpdateCartUseCase {
         theme: merchant?.theme,
         agent,
         couponBoxEnabled: rules?.couponBoxEnabled,
-        rules
+        rules,
+        serviceFee: this.experienceConfig.platformFeeBrl
       })
     };
   }

@@ -4,7 +4,7 @@ import type {
   CommerceCatalogPage,
   CommerceCatalogPort,
   CommerceCatalogProduct,
-} from "@aacp/commerce-adapters";
+} from "@zyon/commerce-adapters";
 import { TenantStorefrontCatalogAdapter } from "./tenant-storefront-catalog.adapter.js";
 
 test("tenant storefront catalog flattens only available variants for the owning merchant", async () => {

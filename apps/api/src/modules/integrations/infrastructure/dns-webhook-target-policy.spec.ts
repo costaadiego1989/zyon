@@ -15,11 +15,10 @@ describe("DnsWebhookTargetPolicy", () => {
     );
   });
 
-  it("accepts a public HTTPS address on the default port", async () => {
+  it("accepts a public HTTPS address and returns pinned addresses", async () => {
     const policy = new DnsWebhookTargetPolicy();
-    assert.equal(
-      await policy.assertAllowed("https://8.8.8.8/hooks"),
-      "https://8.8.8.8/hooks",
-    );
+    const result = await policy.assertAllowed("https://8.8.8.8/hooks");
+    assert.equal(result.url, "https://8.8.8.8/hooks");
+    assert.deepEqual(result.pinnedAddresses, ["8.8.8.8"]);
   });
 });

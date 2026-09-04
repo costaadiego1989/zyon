@@ -1,5 +1,5 @@
-import { Inject, Injectable, Optional } from "@nestjs/common";
-import type { CurrencyCode } from "@aacp/shared-types";
+import { Inject, Injectable, Optional , Logger} from "@nestjs/common";
+import type { CurrencyCode } from "@zyon/shared-types";
 import { PaymentIntentEntity, type PaymentIntentSnapshot } from "../domain/payment-intent.entity.js";
 import {
   PAYMENT_REPOSITORY,
@@ -11,6 +11,7 @@ import {
 } from "../domain/ports/payment-provider.port.js";
 import { CHECKOUT_PAYMENT_PORT, type CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
 import { MetricsService } from "../../../shared/observability/metrics.service.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 import { MarkCommerceOrderPaidUseCase } from "../../commerce/application/mark-commerce-order-paid.use-case.js";
 
 export type ReconcilePaymentIntentsInput = {
@@ -19,7 +20,7 @@ export type ReconcilePaymentIntentsInput = {
   limit?: number;
 };
 
-export type ReconcileOutcome = "approved" | "failed" | "still_pending" | "unknown" | "skipped";
+export type ReconcileOutcome = "approved" | "failed" | "still_pending" | "unknown" | "skipped" | "completion_retried";
 
 export type ReconcilePaymentIntentsResult = {
   scanned: number;
@@ -35,6 +36,8 @@ function majorUnitsFromCents(amountCents: number): number {
 
 @Injectable()
 export class ReconcilePaymentIntentsUseCase {
+  private readonly logger = new Logger(ReconcilePaymentIntentsUseCase.name);
+
   constructor(
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
     @Inject(PAYMENT_PROVIDER_PORT) private readonly provider: PaymentProviderPort,
@@ -69,6 +72,32 @@ export class ReconcilePaymentIntentsUseCase {
 
       const outcome = await this.applyAuthoritativeState(intent, authoritative.state, authoritative.approvedAmountCents);
       reconciled.push({ paymentIntentId: snap.id, outcome });
+    }
+
+    // R2P-P03: Recover intents approved but whose checkout completion was lost
+    // (crash between markApproved and completeAfterApproval). These are no longer
+    // "pending" so listStalePending never picks them up.
+    const staleApproved = await this.payments.listStaleApproved?.({ olderThan, limit });
+    if (staleApproved?.length) {
+      for (const intent of staleApproved) {
+        const snap = intent.snapshot();
+        try {
+          await this.checkoutPayment.completeAfterApproval({
+            merchantId: snap.merchantId,
+            sessionId: snap.sessionId,
+            externalOrderId: snap.providerPaymentId!,
+            orderTotalMajorUnits: majorUnitsFromCents(snap.amountCents),
+            currency: snap.currency as CurrencyCode,
+            acceptedOfferId: snap.acceptedOfferId
+          });
+          await this.markLinkedCommerceOrderPaid(snap, snap.providerPaymentId!);
+          this.logger.log(`reconcile_approved_completion_retried: intent=${snap.id}`);
+          reconciled.push({ paymentIntentId: snap.id, outcome: "completion_retried" });
+        } catch (err) {
+          this.logger.warn(`reconcile_approved_completion_failed: intent=${snap.id} err=${(err as Error).message}`);
+          reconciled.push({ paymentIntentId: snap.id, outcome: "skipped" });
+        }
+      }
     }
 
     return { scanned: candidates.length, reconciled };

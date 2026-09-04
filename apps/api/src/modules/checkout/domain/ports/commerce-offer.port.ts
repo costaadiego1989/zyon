@@ -1,4 +1,4 @@
-import type { ApplyOfferResponse, AuthorizedOffer } from "@aacp/shared-types";
+import type { ApplyOfferResponse, AuthorizedOffer } from "@zyon/shared-types";
 
 export const COMMERCE_OFFER_PORT = Symbol("COMMERCE_OFFER_PORT");
 

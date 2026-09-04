@@ -4,6 +4,8 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { createHmac } from "node:crypto";
+import { requireSecret } from "../../../shared/config/secret-config.js";
 import {
   OPERATIONS_READ_REPOSITORY,
   type OperationsCursor,
@@ -146,16 +148,38 @@ function clampLimit(limit?: number): number {
   return Math.max(1, Math.min(limit!, 100));
 }
 
+// H1 fix: HMAC-signed cursors prevent tampering
+const cursorSecret = requireSecret(
+  "OPERATIONS_CURSOR_SECRET",
+  "dev-cursor-secret-change-me",
+);
+
 function encodeCursor(cursor: OperationsCursor): string {
-  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
+  const json = JSON.stringify(cursor);
+  const hmac = createHmac("sha256", cursorSecret)
+    .update(json)
+    .digest("hex");
+  // Use "~" delimiter because JSON payloads (e.g. ISO timestamps with ".")
+  // may contain "." which would break a naive split.
+  return Buffer.from(`${json}~${hmac}`, "utf8").toString("base64url");
 }
 
 function decodeCursor(value?: string): OperationsCursor | undefined {
   if (!value) return undefined;
   try {
-    const parsed = JSON.parse(
-      Buffer.from(value, "base64url").toString("utf8"),
-    ) as Partial<OperationsCursor>;
+    const decoded = Buffer.from(value, "base64url").toString("utf8");
+    const sepIndex = decoded.lastIndexOf("~");
+    if (sepIndex <= 0) throw new Error("cursor_malformed");
+    const json = decoded.slice(0, sepIndex);
+    const hmac = decoded.slice(sepIndex + 1);
+    if (!json || !hmac) throw new Error("cursor_malformed");
+
+    const expected = createHmac("sha256", cursorSecret)
+      .update(json)
+      .digest("hex");
+    if (hmac !== expected) throw new Error("cursor_tampered");
+
+    const parsed = JSON.parse(json) as Partial<OperationsCursor>;
     if (
       typeof parsed.occurredAt !== "string" ||
       Number.isNaN(new Date(parsed.occurredAt).getTime()) ||

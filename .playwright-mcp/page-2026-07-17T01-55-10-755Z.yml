@@ -1,0 +1,83 @@
+- generic [active] [ref=f5e1]:
+  - link "Skip to content" [ref=f5e2] [cursor=pointer]:
+    - /url: "#wp--skip-link--target"
+  - generic [ref=f5e3]:
+    - banner [ref=f5e4]:
+      - generic [ref=f5e7]:
+        - paragraph [ref=f5e8]:
+          - link "Zyon Test Store" [ref=f5e9] [cursor=pointer]:
+            - /url: https://localhost:8080
+        - generic [ref=f5e10]:
+          - navigation [ref=f5e11]:
+            - list [ref=f5e16]:
+              - list [ref=f5e17]:
+                - listitem [ref=f5e18]:
+                  - link "Cart" [ref=f5e19] [cursor=pointer]:
+                    - /url: https://localhost:8080/cart/
+                - listitem [ref=f5e20]:
+                  - link "Checkout" [ref=f5e21] [cursor=pointer]:
+                    - /url: https://localhost:8080/checkout/
+                - listitem [ref=f5e22]:
+                  - link "My account" [ref=f5e23] [cursor=pointer]:
+                    - /url: https://localhost:8080/my-account/
+                - listitem [ref=f5e24]:
+                  - link "Sample Page" [ref=f5e25] [cursor=pointer]:
+                    - /url: https://localhost:8080/sample-page/
+                - listitem [ref=f5e26]:
+                  - link "Shop" [ref=f5e27] [cursor=pointer]:
+                    - /url: https://localhost:8080/shop/
+          - link "Login" [ref=f5e29] [cursor=pointer]:
+            - /url: https://localhost:8080/my-account/
+    - main [ref=f5e33]:
+      - heading "Blog" [level=1] [ref=f5e34]
+      - list [ref=f5e36]:
+        - listitem [ref=f5e37]:
+          - generic [ref=f5e38]:
+            - heading [level=2] [ref=f5e39]:
+              - link "Hello world!" [ref=f5e40] [cursor=pointer]:
+                - /url: https://localhost:8080/hello-world/
+            - paragraph [ref=f5e42]: Welcome to WordPress. This is your first post. Edit or delete it, then start writing!
+            - time [ref=f5e44]:
+              - link "July 16, 2026" [ref=f5e45] [cursor=pointer]:
+                - /url: https://localhost:8080/hello-world/
+    - contentinfo [ref=f5e47]:
+      - generic [ref=f5e49]:
+        - generic [ref=f5e50]:
+          - heading [level=2] [ref=f5e53]:
+            - link "Zyon Test Store" [ref=f5e54] [cursor=pointer]:
+              - /url: https://localhost:8080
+          - generic [ref=f5e55]:
+            - navigation [ref=f5e56]:
+              - list [ref=f5e57]:
+                - listitem [ref=f5e58]:
+                  - link "Blog" [ref=f5e59] [cursor=pointer]:
+                    - /url: "#"
+                - listitem [ref=f5e60]:
+                  - link "About" [ref=f5e61] [cursor=pointer]:
+                    - /url: "#"
+                - listitem [ref=f5e62]:
+                  - link "FAQs" [ref=f5e63] [cursor=pointer]:
+                    - /url: "#"
+                - listitem [ref=f5e64]:
+                  - link "Authors" [ref=f5e65] [cursor=pointer]:
+                    - /url: "#"
+            - navigation [ref=f5e66]:
+              - list [ref=f5e67]:
+                - listitem [ref=f5e68]:
+                  - link "Events" [ref=f5e69] [cursor=pointer]:
+                    - /url: "#"
+                - listitem [ref=f5e70]:
+                  - link "Shop" [ref=f5e71] [cursor=pointer]:
+                    - /url: "#"
+                - listitem [ref=f5e72]:
+                  - link "Patterns" [ref=f5e73] [cursor=pointer]:
+                    - /url: "#"
+                - listitem [ref=f5e74]:
+                  - link "Themes" [ref=f5e75] [cursor=pointer]:
+                    - /url: "#"
+        - generic [ref=f5e77]:
+          - paragraph [ref=f5e78]: Twenty Twenty-Five
+          - paragraph [ref=f5e79]:
+            - text: Designed with
+            - link "WordPress" [ref=f5e80] [cursor=pointer]:
+              - /url: https://wordpress.org

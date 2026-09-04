@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { isPromotionEligible } from "./eligibility.policy.js";
 import { evaluateStacking } from "./stacking.policy.js";
 import { CrossSellPromotionEntity } from "../entities/cross-sell-promotion.entity.js";
-import type { Cart } from "@aacp/shared-types";
+import type { Cart } from "@zyon/shared-types";
 
 function makePromotion(overrides: {
   trigger?: Parameters<typeof CrossSellPromotionEntity.create>[0]["trigger"];

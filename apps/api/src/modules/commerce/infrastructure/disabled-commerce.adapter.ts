@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
-import type { CommerceCartPort, CommerceOrderPort, TrustedCartSnapshot } from "@aacp/commerce-adapters";
+import type { CommerceCartPort, CommerceOrderPort, TrustedCartSnapshot } from "@zyon/commerce-adapters";
 
 @Injectable()
 export class DisabledCommerceAdapter implements CommerceCartPort, CommerceOrderPort {

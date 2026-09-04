@@ -1,5 +1,5 @@
 import { Injectable, Optional, Inject } from "@nestjs/common";
-import type { DomainEventEnvelope } from "@aacp/shared-types";
+import type { DomainEventEnvelope } from "@zyon/shared-types";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
 import type {
   CryptoTransferKey,
@@ -111,6 +111,19 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     return this.byProvider.get(keyProvider(merchantId, providerPaymentId)) ?? null;
   }
 
+  async findApprovedBySessionId(
+    merchantId: string,
+    sessionId: string
+  ): Promise<PaymentIntentEntity | null> {
+    for (const intent of this.byIdempotency.values()) {
+      const s = intent.snapshot();
+      if (s.merchantId === merchantId && s.sessionId === sessionId && s.status === "approved") {
+        return intent;
+      }
+    }
+    return null;
+  }
+
   async hasProcessedProviderEvent(key: ProviderEventKey): Promise<boolean> {
     return this.processedEvents.has(keyEvent(key));
   }
@@ -135,5 +148,22 @@ export class InMemoryPaymentRepository implements PaymentRepository {
 
   async deleteCryptoTransfer(key: Pick<CryptoTransferKey, "chain" | "txHash">): Promise<void> {
     this.cryptoTransfers.delete(keyCryptoTransfer(key.chain, key.txHash));
+  }
+
+  async reapExpiredCryptoReservations(): Promise<number> {
+    // In-memory implementation: no-op (in-memory doesn't track expires_at)
+    return 0;
+  }
+
+  async listByMerchantId(
+    merchantId: string,
+    statusPrefix?: string,
+  ): Promise<PaymentIntentEntity[]> {
+    return [...this.byIntentId.values()].filter((i: PaymentIntentEntity) => {
+      const snap = i.snapshot();
+      if (snap.merchantId !== merchantId) return false;
+      if (statusPrefix && !snap.status.startsWith(statusPrefix)) return false;
+      return true;
+    });
   }
 }

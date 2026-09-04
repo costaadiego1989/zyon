@@ -1,13 +1,16 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { AcceptedOffer } from "@aacp/shared-types";
+import { Inject, Injectable, NotFoundException , Logger} from "@nestjs/common";
+import type { AcceptedOffer } from "@zyon/shared-types";
 import { AcceptedOfferEntity } from "../../domain/entities/accepted-offer.entity.js";
 import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { OFFER_REPOSITORY, type OfferRepository } from "../../domain/ports/offer.repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class AcceptCheckoutOfferUseCase {
+  private readonly logger = new Logger(AcceptCheckoutOfferUseCase.name);
+
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Inject(OFFER_REPOSITORY) private readonly offers: OfferRepository,

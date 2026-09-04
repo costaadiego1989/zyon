@@ -1,4 +1,4 @@
-import type { CurrencyCode } from "@aacp/shared-types";
+import type { CurrencyCode } from "@zyon/shared-types";
 
 export type DiscountSensitivity = "unknown" | "low" | "medium" | "high";
 

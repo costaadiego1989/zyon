@@ -9,8 +9,11 @@ test("WooCommerce adapter authenticates and reads live catalog data", async () =
     const headers = new Headers(init?.headers);
     seen.push({ url, authorization: headers.get("authorization") ?? undefined });
 
-    if (url.endsWith("/wp-json")) {
-      return json({ name: "AACP Store", url: "https://shop.example.com" });
+    if (url.includes("/system_status")) {
+      return json({
+        environment: { site_title: "AACP Store", site_url: "https://shop.example.com", wc_version: "8.0.0" },
+        settings: { store_name: "AACP Store", currency: "BRL" },
+      });
     }
     if (url.includes("/settings/general/woocommerce_currency")) {
       return json({ value: "BRL" });
@@ -68,13 +71,14 @@ test("WooCommerce adapter validates and marks an existing order paid", async () 
   const fetchImpl: typeof fetch = async (input, init) => {
     const url = String(input);
     calls.push({ url, body: typeof init?.body === "string" ? init.body : undefined });
-    if (init?.method === "PUT") return json({ id: 99, status: "processing" });
+    if (init?.method === "POST") return json({ id: 100, status: "pending" });
+    if (init?.method === "PUT") return json({ id: 100, status: "processing" });
     return json({
       id: 99,
       currency: "BRL",
       total: "120.00",
       line_items: [
-        { name: "Product", sku: "SKU-1", quantity: 2, total: "120.00" },
+        { name: "Product", product_id: 42, variation_id: 0, sku: "SKU-1", quantity: 2, total: "120.00" },
       ],
     });
   };
@@ -109,9 +113,10 @@ test("WooCommerce adapter validates and marks an existing order paid", async () 
 
   assert.equal(cart.totalCents, 12_000);
   assert.equal(cart.lines[0]?.unitPriceCents, 6_000);
-  assert.equal(order.commerceOrderId, "99");
-  assert.match(calls[1]?.body ?? "", /"set_paid":true/);
-  assert.match(calls[2]?.body ?? "", /"status":"cancelled"/);
+  assert.equal(order.commerceOrderId, "100");
+  assert.match(calls[1]?.body ?? "", /"product_id":42/);
+  assert.match(calls[2]?.body ?? "", /"set_paid":true/);
+  assert.match(calls[3]?.body ?? "", /"status":"cancelled"/);
 });
 
 function json(body: unknown, headers?: Record<string, string>): Response {

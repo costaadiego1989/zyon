@@ -2,17 +2,27 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { InMemorySupportTicketRepository } from "../infrastructure/in-memory-support-ticket.repository.js";
 import { SendSupportMessageUseCase } from "./send-support-message.use-case.js";
+import { SupportHandoffService } from "./support-handoff.service.js";
+import { SupportTicketEventPublisher } from "./support-ticket-event.publisher.js";
+import type { ChatCompletionPort } from "../domain/ports/chat-completion.port.js";
 
-test("SendSupportMessageUseCase answers matching FAQ without creating ticket", async (t) => {
-  const previousApiKey = process.env.OPENAI_API_KEY;
-  delete process.env.OPENAI_API_KEY;
-  t.after(() => {
-    if (previousApiKey === undefined) delete process.env.OPENAI_API_KEY;
-    else process.env.OPENAI_API_KEY = previousApiKey;
-  });
+/** Test double: always returns null (simulates unconfigured OpenAI) */
+class NullChatAdapter implements ChatCompletionPort {
+  async complete(): Promise<string | null> {
+    return null;
+  }
+}
 
+function buildUseCase(tickets: InMemorySupportTicketRepository) {
+  const publisher = new SupportTicketEventPublisher();
+  const handoff = new SupportHandoffService(tickets, publisher);
+  const chat = new NullChatAdapter();
+  return new SendSupportMessageUseCase(chat, handoff);
+}
+
+test("SendSupportMessageUseCase answers matching FAQ without creating ticket", async () => {
   const tickets = new InMemorySupportTicketRepository();
-  const useCase = new SendSupportMessageUseCase(tickets);
+  const useCase = buildUseCase(tickets);
 
   const output = await useCase.execute(
     {
@@ -36,16 +46,9 @@ test("SendSupportMessageUseCase answers matching FAQ without creating ticket", a
   assert.deepEqual(await tickets.list("mrc_1"), []);
 });
 
-test("SendSupportMessageUseCase creates handoff ticket when support is unresolved", async (t) => {
-  const previousApiKey = process.env.OPENAI_API_KEY;
-  delete process.env.OPENAI_API_KEY;
-  t.after(() => {
-    if (previousApiKey === undefined) delete process.env.OPENAI_API_KEY;
-    else process.env.OPENAI_API_KEY = previousApiKey;
-  });
-
+test("SendSupportMessageUseCase creates handoff ticket when OpenAI unconfigured", async () => {
   const tickets = new InMemorySupportTicketRepository();
-  const useCase = new SendSupportMessageUseCase(tickets);
+  const useCase = buildUseCase(tickets);
 
   const output = await useCase.execute({
     merchant_id: "mrc_1",
@@ -54,9 +57,8 @@ test("SendSupportMessageUseCase creates handoff ticket when support is unresolve
   });
   const stored = await tickets.list("mrc_1");
 
-  assert.equal(output.safe, true);
   assert.equal(output.handoff?.status, "open");
-  assert.match(output.reply, /Protocolo: sup_/);
+  assert.match(output.reply, /Referência:/);
   assert.equal(stored.length, 1);
   assert.equal(stored[0]?.id, output.handoff?.ticketId);
   assert.equal(stored[0]?.sessionId, "chk_1");

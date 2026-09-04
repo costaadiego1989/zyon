@@ -7,9 +7,13 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
+import { PlanLimitGuard, RequirePlanLimit } from "../../../payment/domain/billing-plan-guard.js";
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiCookieAuth,
+  ApiOperation,
+  ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
 import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
@@ -47,6 +51,26 @@ export class CommerceConnectionsController {
   ) {}
 
   @Get()
+  @ApiOperation({
+    summary: "List commerce connections",
+    description: "Retrieves the merchant's commerce platform connection status and credentials metadata. Returns connection details including provider, status, sync history, and any errors.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Commerce connection retrieved successfully. Returns array with 0 or 1 connection.",
+    schema: {
+      properties: {
+        data: {
+          type: "array",
+          items: { $ref: "#/components/schemas/CommerceConnection" },
+        },
+        next_cursor: { type: "string", nullable: true },
+        has_more: { type: "boolean" },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
   @RequireTenantAccess({ serviceScopes: ["commerce:read"] })
   async list(@Req() request: unknown) {
     const merchantId = tenantId(request);
@@ -60,6 +84,65 @@ export class CommerceConnectionsController {
 
   @Post()
   @Idempotent()
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanLimit("commerceConnections")
+  @ApiOperation({
+    summary: "Connect commerce platform",
+    description: "Connects a new commerce platform (Shopify, WooCommerce, Nuvemshop, or Tray). Requires platform-specific credentials (API keys, tokens, etc.). Replaces any existing connection.",
+  })
+  @ApiBody({
+    description: "Platform-specific connection credentials",
+    schema: {
+      oneOf: [
+        {
+          properties: {
+            provider: { type: "string", enum: ["shopify"] },
+            shop_domain: { type: "string" },
+            admin_access_token: { type: "string" },
+            storefront_access_token: { type: "string" },
+            api_version: { type: "string" },
+            webhook_secret: { type: "string" },
+          },
+        },
+        {
+          properties: {
+            provider: { type: "string", enum: ["woocommerce"] },
+            store_url: { type: "string" },
+            consumer_key: { type: "string" },
+            consumer_secret: { type: "string" },
+            webhook_secret: { type: "string" },
+          },
+        },
+        {
+          properties: {
+            provider: { type: "string", enum: ["nuvemshop"] },
+            store_id: { type: "string" },
+            access_token: { type: "string" },
+            user_agent: { type: "string" },
+          },
+        },
+        {
+          properties: {
+            provider: { type: "string", enum: ["tray"] },
+            api_address: { type: "string" },
+            tray_access_token: { type: "string" },
+            tray_refresh_token: { type: "string" },
+            tray_consumer_key: { type: "string" },
+            tray_consumer_secret: { type: "string" },
+            tray_access_token_expires_at: { type: "string" },
+          },
+        },
+      ],
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: "Connection established successfully",
+    schema: { $ref: "#/components/schemas/CommerceConnection" },
+  })
+  @ApiResponse({ status: 400, description: "Invalid credentials or missing required fields for provider" })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions or plan limit reached" })
   @RequireTenantAccess({ serviceScopes: ["commerce:write"] })
   async connect(
     @Req() request: unknown,
@@ -73,6 +156,25 @@ export class CommerceConnectionsController {
 
   @Post("test")
   @Idempotent()
+  @ApiOperation({
+    summary: "Test commerce connection",
+    description: "Validates the current commerce connection by testing credentials and retrieving store metadata (name, currency). Does not modify state.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Connection test successful",
+    schema: {
+      properties: {
+        connection: { $ref: "#/components/schemas/CommerceConnection" },
+        store_name: { type: "string" },
+        currency: { type: "string" },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: "Connection test failed - invalid credentials or unreachable platform" })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
+  @ApiResponse({ status: 404, description: "No active connection to test" })
   @RequireTenantAccess({ serviceScopes: ["commerce:write"] })
   async test(@Req() request: unknown) {
     const result = await this.testConnection.execute(tenantId(request));
@@ -85,6 +187,19 @@ export class CommerceConnectionsController {
 
   @Post("sync")
   @Idempotent()
+  @ApiOperation({
+    summary: "Synchronize commerce data",
+    description: "Fetches orders, customers, and products from the connected commerce platform and syncs them into the system. Returns updated connection status.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Sync completed successfully",
+    schema: { $ref: "#/components/schemas/CommerceConnection" },
+  })
+  @ApiResponse({ status: 400, description: "Sync failed - invalid connection or platform error" })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
+  @ApiResponse({ status: 404, description: "No active connection to sync" })
   @RequireTenantAccess({ serviceScopes: ["commerce:write"] })
   async sync(@Req() request: unknown) {
     return toResponse(
@@ -94,6 +209,17 @@ export class CommerceConnectionsController {
 
   @Delete()
   @Idempotent()
+  @ApiOperation({
+    summary: "Disconnect commerce platform",
+    description: "Removes stored commerce platform credentials and stops all data synchronization. Orders and customers remain in the system.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Disconnected successfully",
+    schema: { properties: { disconnected: { type: "boolean" } } },
+  })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
   @RequireTenantAccess({ serviceScopes: ["commerce:write"] })
   async disconnect(@Req() request: unknown) {
     await this.disconnectCommerce.execute(tenantId(request));
@@ -119,6 +245,28 @@ function toCredentials(
       adminAccessToken: body.admin_access_token ?? "",
       storefrontAccessToken: body.storefront_access_token ?? "",
       apiVersion: body.api_version,
+      webhookSecret: body.webhook_secret,
+    };
+  }
+  if (body.provider === "nuvemshop") {
+    return {
+      merchantId,
+      provider: "nuvemshop",
+      storeId: body.store_id ?? "",
+      accessToken: body.access_token ?? "",
+      userAgent: body.user_agent,
+    };
+  }
+  if (body.provider === "tray") {
+    return {
+      merchantId,
+      provider: "tray",
+      apiAddress: body.api_address ?? "",
+      accessToken: body.tray_access_token ?? "",
+      refreshToken: body.tray_refresh_token ?? "",
+      consumerKey: body.tray_consumer_key ?? "",
+      consumerSecret: body.tray_consumer_secret ?? "",
+      accessTokenExpiresAt: Number(body.tray_access_token_expires_at ?? 0),
     };
   }
   return {
@@ -127,6 +275,7 @@ function toCredentials(
     storeUrl: body.store_url ?? "",
     consumerKey: body.consumer_key ?? "",
     consumerSecret: body.consumer_secret ?? "",
+    webhookSecret: body.webhook_secret,
   };
 }
 

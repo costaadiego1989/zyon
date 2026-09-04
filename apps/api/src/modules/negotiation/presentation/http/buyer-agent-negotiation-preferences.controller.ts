@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Put, Req, Query, UseGuards, BadRequestException } from "@nestjs/common";
-import type { BuyerNegotiationPreferences } from "@aacp/negotiation-engine";
+import type { BuyerNegotiationPreferences } from "@zyon/negotiation-engine";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import {
   GetBuyerAgentPreferencesUseCase,

@@ -8,11 +8,12 @@ import type {
   CheckoutEventName,
   CheckoutSession,
   CompletedOrder,
+  CompletedOrderStatus,
   CustomerHints,
   DashboardOverview,
   DomainEventEnvelope,
   MerchantRules
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 import type { CheckoutRepository } from "../../domain/ports/checkout-repository.port.js";
 import type { CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import type { OfferRepository } from "../../domain/ports/offer.repository.port.js";
@@ -38,7 +39,8 @@ const DEFAULT_RULES: MerchantRules = {
   offerExpirationMinutes: 15,
   blockedRegions: [],
   brandVoice: "consultative",
-  couponBoxEnabled: true
+  couponBoxEnabled: true,
+  autonomousEngineEnabled: true
 };
 
 @Injectable()
@@ -51,7 +53,7 @@ export class InMemoryCheckoutRepository
   private acceptedOffers = new Map<string, AcceptedOffer>();
   private completedOrders = new Map<string, CompletedOrder>();
   private outbox: DomainEventEnvelope[] = [];
-  private events: Array<{ merchantId: string; sessionId: string; event: CheckoutEventName; at: string }> = [];
+  private events: Array<{ merchantId: string; sessionId: string; event: CheckoutEventName; at: string; metadata?: Record<string, unknown> }> = [];
 
   async transaction<T>(work: (repository: CheckoutRepository) => Promise<T>): Promise<T> {
     return work(this);
@@ -77,7 +79,7 @@ export class InMemoryCheckoutRepository
   }
 
   async getProfile(merchantId: string) {
-    return { id: merchantId, name: merchantId };
+    return { id: merchantId, name: merchantId, plan: "BOTH" };
   }
 
   async getStripeConnectAccountId(_merchantId: string): Promise<string | undefined> {
@@ -89,6 +91,18 @@ export class InMemoryCheckoutRepository
   async updateTheme(_merchantId: string, theme: MerchantTheme): Promise<MerchantTheme> {
     return theme;
   }
+
+  async updateStoreCategory(_merchantId: string, _storeCategory: string): Promise<void> {}
+
+  async getStoreSettings(_merchantId: string): Promise<any> { return {}; }
+
+  async updateStoreSettings(_merchantId: string, settings: any): Promise<any> { return settings; }
+
+  async getById(merchantId: string): Promise<any | null> {
+    return { id: merchantId, name: "test", melhorEnvioEnabled: true, melhorEnvioAccessToken: null, melhorEnvioRefreshToken: null };
+  }
+
+  async updateMelhorEnvioEnabled(_merchantId: string, _enabled: boolean): Promise<void> {}
 
   resolveGlobalUserId(merchantId: string, customer?: CustomerHints): string {
     const identityKey = CheckoutIdentityService.identityKey(merchantId, customer);
@@ -115,8 +129,16 @@ export class InMemoryCheckoutRepository
     );
   }
 
-  recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName): void {
-    this.events.push({ merchantId, sessionId, event, at: new Date().toISOString() });
+  findSessionsWithTrigger(threshold = 0.55): CheckoutSession[] {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    return Array.from(this.sessions.values()).filter(
+      (s) => s.triggerAgent && s.abandonmentScore >= threshold &&
+        (s.updatedAt ? s.updatedAt >= twentyFourHoursAgo : true)
+    );
+  }
+
+  recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName, metadata?: Record<string, unknown>): void {
+    this.events.push({ merchantId, sessionId, event, at: new Date().toISOString(), metadata: metadata ?? undefined });
     const session = this.getSession(merchantId, sessionId);
     if (!session) return;
     const score = CheckoutAbandonmentService.applyEvent(session.abandonmentScore, event);
@@ -126,6 +148,12 @@ export class InMemoryCheckoutRepository
       triggerAgent: score.triggerAgent,
       updatedAt: new Date().toISOString()
     });
+  }
+
+  getSessionEvents(merchantId: string, sessionId: string): CheckoutEventName[] {
+    return this.events
+      .filter((e) => e.merchantId === merchantId && e.sessionId === sessionId)
+      .map((e) => e.event);
   }
 
   appendChatTurn(merchantId: string, sessionId: string, turn: ChatTurn): CheckoutSession {
@@ -187,6 +215,20 @@ export class InMemoryCheckoutRepository
     const existing = this.completedOrders.get(key);
     if (!existing) return undefined;
     const updated = { ...existing, trackingCode: input.trackingCode };
+    this.completedOrders.set(key, updated);
+    return structuredClone(updated);
+  }
+
+  updateCompletedOrderStatus(input: {
+    merchantId: string;
+    sessionId: string;
+    externalOrderId: string;
+    status: CompletedOrderStatus;
+  }): CompletedOrder | undefined {
+    const key = this.orderKey(input.merchantId, input.sessionId, input.externalOrderId);
+    const existing = this.completedOrders.get(key);
+    if (!existing) return undefined;
+    const updated = { ...existing, status: input.status };
     this.completedOrders.set(key, updated);
     return structuredClone(updated);
   }

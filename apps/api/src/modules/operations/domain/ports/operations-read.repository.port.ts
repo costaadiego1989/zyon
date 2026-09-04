@@ -11,7 +11,7 @@ export interface OrderSummary {
   id: string;
   sessionId: string;
   externalOrderId: string;
-  status: "approved" | "cancelled";
+  status: string;
   totalMinor: number;
   currency: string;
   acceptedOfferId?: string;
@@ -21,6 +21,14 @@ export interface OrderSummary {
   completedAt: string;
   cancelledAt?: string;
   cancellationReason?: string;
+  /** Payment method used (pix, credit_card, boleto, crypto) */
+  paymentMethod?: string;
+  /** Payment provider (asaas, stripe, mercado_pago) */
+  paymentProvider?: string;
+  /** When the payment was confirmed */
+  paidAt?: string;
+  /** C1 fix: ISO timestamp of last event processed for this order */
+  lastEventAt?: string;
 }
 
 export interface OrderTimelineEntry {

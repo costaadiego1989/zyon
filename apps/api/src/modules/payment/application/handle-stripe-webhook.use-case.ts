@@ -1,18 +1,16 @@
-import { BadRequestException, Inject, Injectable, Optional } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Optional , Logger} from "@nestjs/common";
 import Stripe from "stripe";
-import type { CurrencyCode } from "@aacp/shared-types";
 import {
   PAYMENT_REPOSITORY,
   type PaymentRepository,
   type ProviderEventKey
 } from "../domain/ports/payment-repository.port.js";
-import type { PaymentIntentSnapshot } from "../domain/payment-intent.entity.js";
-import type { CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
-import { CHECKOUT_PAYMENT_PORT } from "../domain/ports/checkout-payment.port.js";
 import { MetricsService } from "../../../shared/observability/metrics.service.js";
 import { readStripeConnection } from "../infrastructure/stripe-env.js";
-import { MarkCommerceOrderPaidUseCase } from "../../commerce/application/mark-commerce-order-paid.use-case.js";
+import { PaymentDispatchService } from "./services/payment-dispatch.service.js";
 import { HandleStripePlatformEventUseCase } from "./payment-platform.use-cases.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
+import { HandleMarketplaceChargebackUseCase } from "../../marketplace/application/use-cases/handle-marketplace-chargeback.use-case.js";
 
 export type HandleStripeWebhookResult =
   | { outcome: "duplicate" }
@@ -20,6 +18,8 @@ export type HandleStripeWebhookResult =
   | { outcome: "processed"; effect: string };
 
 export class StripeSignatureError extends Error {
+  private readonly logger = new Logger(StripeSignatureError.name);
+
   constructor() {
     super("stripe_webhook_signature_invalid");
     this.name = "StripeSignatureError";
@@ -28,17 +28,24 @@ export class StripeSignatureError extends Error {
 
 @Injectable()
 export class HandleStripeWebhookUseCase {
+  private readonly logger = new Logger(HandleStripeWebhookUseCase.name);
   private readonly stripe: Stripe;
 
   constructor(
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
-    @Inject(CHECKOUT_PAYMENT_PORT) private readonly checkoutPayment: CheckoutPaymentPort,
+    private readonly paymentDispatch: PaymentDispatchService,
     @Optional() private readonly metrics?: MetricsService,
-    @Optional() private readonly markCommerceOrderPaid?: MarkCommerceOrderPaidUseCase,
     @Optional() private readonly platformEvents?: HandleStripePlatformEventUseCase,
+    @Optional() @Inject("PRISMA_CLIENT") private readonly prisma?: any,
+    @Optional() private readonly marketplaceChargeback?: HandleMarketplaceChargebackUseCase,
   ) {
     const { secretKey } = readStripeConnection();
-    this.stripe = new Stripe(secretKey ?? "__missing__", { apiVersion: "2026-04-22.dahlia" });
+    if (!secretKey) {
+      throw new Error(
+        "STRIPE_SECRET_KEY is not configured. HandleStripeWebhookUseCase cannot start without it."
+      );
+    }
+    this.stripe = new Stripe(secretKey, { apiVersion: "2026-04-22.dahlia" });
   }
 
   async execute(rawBody: Buffer, signature: string | undefined): Promise<HandleStripeWebhookResult> {
@@ -84,7 +91,7 @@ export class HandleStripeWebhookUseCase {
         // keep the marker consumed so Stripe's re-delivery does not poison-loop
         // (ADR 0001 #5/#4).
         this.metrics?.paymentWebhookAnomaly.inc({ provider: "stripe", kind: "illegal_transition" });
-        console.error("[payment][stripe-webhook] illegal_transition", {
+        this.logger.error("stripe.webhook.illegal_transition", {
           merchantId,
           eventId: event.id,
           eventType: event.type
@@ -124,6 +131,15 @@ export class HandleStripeWebhookUseCase {
           event.data.object as Stripe.Checkout.Session,
         );
 
+      case "charge.refunded":
+        return this.handleChargeRefunded(event.data.object as Stripe.Charge);
+
+      case "charge.dispute.created":
+        return this.handleDisputeCreated(event.data.object as Stripe.Dispute);
+
+      case "payment_intent.canceled":
+        return this.handleCanceled(event.data.object as Stripe.PaymentIntent);
+
       case "customer.subscription.created":
       case "customer.subscription.updated":
       case "customer.subscription.deleted":
@@ -145,77 +161,15 @@ export class HandleStripeWebhookUseCase {
     if (!intentEntity) return "intent_not_found";
 
     const snap = intentEntity.snapshot();
-    if (snap.status === "approved") {
-      await this.markLinkedCommerceOrderPaid(snap, pi.id);
-      return "already_approved";
-    }
 
-    // Authoritative amount check BEFORE approval, mirroring the Asaas
-    // PAYMENT_RECEIVED path: a value mismatch is a clean failure + alert, not a
-    // poison event that throws out of dispatch forever (ADR 0001 #5).
-    if (pi.amount_received !== snap.amountCents) {
+    // Authoritative amount check BEFORE approval (ADR 0001 #5).
+    if (snap.status !== "approved" && pi.amount_received !== snap.amountCents) {
       this.metrics?.paymentWebhookAnomaly.inc({ provider: "stripe", kind: "value_mismatch" });
-      intentEntity.markFailed("stripe_value_mismatch");
-      await this.payments.saveIntent({ intent: intentEntity });
-      await this.checkoutPayment.recordPaymentStatusChanged({
-        merchantId: snap.merchantId,
-        sessionId: snap.sessionId,
-        paymentIntentId: snap.id,
-        status: "failed",
-        reason: "stripe_value_mismatch",
-        commerceOrderId: snap.commerceOrderId
-      });
-      await this.checkoutPayment.recordPaymentFailure({
-        merchantId: snap.merchantId,
-        sessionId: snap.sessionId,
-        reason: "stripe_value_mismatch"
-      });
+      await this.paymentDispatch.markFailed(intentEntity, "stripe_value_mismatch");
       return "stripe_value_mismatch";
     }
 
-    intentEntity.markApproved({
-      providerPaymentId: pi.id,
-      approvedAmountCents: snap.amountCents
-    });
-    await this.payments.saveIntent({ intent: intentEntity });
-
-    await this.checkoutPayment.recordPaymentStatusChanged({
-      merchantId: snap.merchantId,
-      sessionId: snap.sessionId,
-      paymentIntentId: snap.id,
-      status: "approved",
-      commerceOrderId: snap.commerceOrderId
-    });
-
-    this.metrics?.paymentApproved.inc({ merchant_id: snap.merchantId });
-
-    await this.checkoutPayment.completeAfterApproval({
-      merchantId: snap.merchantId,
-      sessionId: snap.sessionId,
-      externalOrderId: pi.id,
-      orderTotalMajorUnits: snap.amountCents / 100,
-      currency: snap.currency as CurrencyCode,
-      acceptedOfferId: snap.acceptedOfferId
-    });
-
-    const commerceSynced = await this.markLinkedCommerceOrderPaid(snap, pi.id);
-
-    return commerceSynced ? "checkout_completed_after_payment_and_commerce_paid" : "checkout_completed_after_payment";
-  }
-
-  private async markLinkedCommerceOrderPaid(
-    snap: PaymentIntentSnapshot,
-    paymentReference: string
-  ): Promise<boolean> {
-    const commerceOrderId = snap.commerceOrderId?.trim();
-    if (!commerceOrderId || !this.markCommerceOrderPaid) return false;
-
-    const result = await this.markCommerceOrderPaid.execute({
-      merchantId: snap.merchantId,
-      commerceOrderId,
-      paymentReference
-    });
-    return result.invokedCommerceSync;
+    return this.paymentDispatch.markApprovedAndComplete(intentEntity, pi.id);
   }
 
   private async handleFailed(pi: Stripe.PaymentIntent): Promise<string> {
@@ -230,24 +184,7 @@ export class HandleStripeWebhookUseCase {
     if (snap.status === "approved" || snap.status === "failed") return "already_terminal";
 
     const reason = pi.last_payment_error?.message ?? "stripe_payment_failed";
-    intentEntity.markFailed(reason);
-    await this.payments.saveIntent({ intent: intentEntity });
-
-    await this.checkoutPayment.recordPaymentStatusChanged({
-      merchantId: snap.merchantId,
-      sessionId: snap.sessionId,
-      paymentIntentId: snap.id,
-      status: "failed",
-      reason,
-      commerceOrderId: snap.commerceOrderId
-    });
-
-    await this.checkoutPayment.recordPaymentFailure({
-      merchantId: snap.merchantId,
-      sessionId: snap.sessionId,
-      reason
-    });
-
+    await this.paymentDispatch.markFailed(intentEntity, reason);
     return "payment_failed";
   }
 
@@ -311,6 +248,94 @@ export class HandleStripeWebhookUseCase {
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
     });
     return "billing_subscription_updated";
+  }
+
+  private async handleChargeRefunded(charge: Stripe.Charge): Promise<string> {
+    const pi = charge.payment_intent;
+    const piId = typeof pi === "string" ? pi : pi?.id;
+    if (!piId) return "ignored_missing_payment_intent";
+    const metaMerchantId = charge.metadata?.merchant_id;
+    const intentId = charge.metadata?.intent_id;
+    if (!intentId || !metaMerchantId) return "ignored_missing_intent_id";
+
+    const intentEntity = await this.payments.getIntentById(metaMerchantId, intentId);
+    if (!intentEntity) return "intent_not_found";
+
+    await this.paymentDispatch.markRefunded(intentEntity, "charge.refunded");
+    return "payment_refunded";
+  }
+
+  private async handleDisputeCreated(dispute: Stripe.Dispute): Promise<string> {
+    const charge = dispute.charge;
+    const chargeId = typeof charge === "string" ? charge : charge?.id;
+    const piObj = typeof charge === "object" && charge ? charge.payment_intent : undefined;
+    const piId = typeof piObj === "string" ? piObj : piObj?.id;
+    // Try metadata from the dispute's payment_intent if accessible
+    const metaMerchantId = dispute.metadata?.merchant_id;
+    const intentId = dispute.metadata?.intent_id;
+    if (!intentId || !metaMerchantId) {
+      return "ignored_missing_intent_id";
+    }
+
+    const intentEntity = await this.payments.getIntentById(metaMerchantId, intentId);
+    if (!intentEntity) return "intent_not_found";
+
+    const reason = `dispute_created:${dispute.reason ?? "unknown"}`;
+    // Move the intent to a chargeback_ status so it surfaces in the dashboard
+    // chargeback list (previously this called markRefunded → status 'refunded',
+    // which the chargeback list — filtering on the `chargeback_` prefix — never
+    // showed).
+    await this.paymentDispatch.markChargebacked(intentEntity, reason);
+
+    // Mark PaymentHold as chargebacked (if held)
+    try {
+      await (this.prisma as any).paymentHold?.updateMany({
+        where: { paymentIntentId: intentId, status: "held" },
+        data: { status: "chargebacked" },
+      });
+    } catch {
+      // PaymentHold table may not exist yet — graceful degradation
+    }
+
+    // Cross-store (marketplace) settlements of this order must be charged back
+    // too: cancel the seller repasse if still scheduled, or open a seller debt
+    // if the money was already transferred. No-op for pure own-store orders.
+    const snap = intentEntity.snapshot();
+    const orderId = snap.commerceOrderId ?? snap.sessionId;
+    if (this.marketplaceChargeback && orderId) {
+      try {
+        const results = await this.marketplaceChargeback.executeForOrder(orderId);
+        if (results.length > 0) {
+          this.logger.log(
+            `Marketplace chargeback processed for order ${orderId}: ${results.length} settlement(s)`,
+          );
+        }
+      } catch (err) {
+        this.logger.error(
+          `Marketplace chargeback failed for order ${orderId}: ${(err as Error).message}`,
+        );
+      }
+    }
+
+    return "payment_disputed";
+  }
+
+  private async handleCanceled(pi: Stripe.PaymentIntent): Promise<string> {
+    const intentId = pi.metadata?.intent_id;
+    const metaMerchantId = pi.metadata?.merchant_id;
+    if (!intentId || !metaMerchantId) return "ignored_missing_intent_id";
+
+    const intentEntity = await this.payments.getIntentById(metaMerchantId, intentId);
+    if (!intentEntity) return "intent_not_found";
+
+    const snap = intentEntity.snapshot();
+    if (snap.status === "approved" || snap.status === "failed" || snap.status === "cancelled") {
+      return "already_terminal";
+    }
+
+    intentEntity.markCancelled("payment_intent.canceled");
+    await this.payments.saveIntent({ intent: intentEntity });
+    return "payment_canceled";
   }
 }
 

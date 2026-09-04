@@ -24,7 +24,11 @@ export class LoginRateLimiter {
   constructor(
     private readonly maxAttempts = Number(process.env.AUTH_LOGIN_MAX_ATTEMPTS ?? 5),
     private readonly windowMs = Number(process.env.AUTH_LOGIN_WINDOW_MS ?? 15 * 60 * 1000)
-  ) {}
+  ) {
+    if (process.env.NODE_ENV === "production" && process.env.REDIS_ENABLED === "true") {
+      throw new Error("redis_login_rate_limit_store_not_configured");
+    }
+  }
 
   assertAllowed(scope: LoginAttemptScope, now = Date.now()): void {
     const key = this.key(scope);

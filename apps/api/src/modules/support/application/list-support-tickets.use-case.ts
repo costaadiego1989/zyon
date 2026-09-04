@@ -1,11 +1,12 @@
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
-import type { SupportTicket, SupportTicketStatus } from "@aacp/shared-types";
+import { BadRequestException, Inject, Injectable , Logger} from "@nestjs/common";
+import type { SupportTicket, SupportTicketStatus } from "@zyon/shared-types";
 import { isSupportTicketStatus } from "../domain/entities/support-ticket.entity.js";
 import {
   SUPPORT_TICKET_REPOSITORY,
   type SupportTicketRepository,
   encodeSupportTicketCursor,
 } from "../domain/ports/support-ticket-repository.port.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 200;
@@ -18,6 +19,8 @@ export interface ListSupportTicketsResult {
 
 @Injectable()
 export class ListSupportTicketsUseCase {
+  private readonly logger = new Logger(ListSupportTicketsUseCase.name);
+
   constructor(
     @Inject(SUPPORT_TICKET_REPOSITORY)
     private readonly repository: SupportTicketRepository

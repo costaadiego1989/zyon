@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { Prisma, PrismaClient } from "@prisma/client";
-import type { DomainEventEnvelope } from "@aacp/shared-types";
+import { PrismaClient, Prisma } from "@prisma/client";
+import type { DomainEventEnvelope } from "@zyon/shared-types";
 import { PRISMA_CLIENT } from "../../persistence/persistence.module.js";
 import type {
   OutboxClaim,
@@ -45,7 +45,7 @@ export class PrismaOutboxRepository implements OutboxRepository, TransactionalOu
   }
 
   async claimBatch(batchSize = 50): Promise<OutboxClaim[]> {
-    const rows = await this.prisma.$queryRaw<OutboxRow[]>`
+    const rows = await this.prisma.$queryRaw<OutboxRow[]>(Prisma.sql`
       SELECT
         "event_id" AS "eventId",
         "event_type" AS "eventType",
@@ -63,7 +63,7 @@ export class PrismaOutboxRepository implements OutboxRepository, TransactionalOu
       ORDER BY "created_at" ASC
       LIMIT ${batchSize}
       FOR UPDATE SKIP LOCKED
-    `;
+    `);
     return rows.map((row) => ({
       envelope: toEnvelope(row),
       attempts: row.attempts

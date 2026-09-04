@@ -4,6 +4,7 @@ import { requireSecret } from "../../../../shared/config/secret-config.js";
 export interface BuyerJwtPayload {
   sub: string;
   email: string;
+  merchantId?: string; // H3 fix: bind buyer to merchant when issued via session
   role: "buyer";
   aud: "buyer";
   iat: number;
@@ -13,6 +14,13 @@ export interface BuyerJwtPayload {
 export interface BuyerPrincipal {
   globalUserId: string;
   email: string;
+  merchantId?: string; // H3 fix: present when JWT was issued for a specific merchant
+  // The global TenantGuard inspects role/aud to exempt buyer principals from
+  // merchant-tenant validation. Without these it treats the buyer as a
+  // malformed merchant principal and returns 403 invalid_tenant_principal.
+  // Optional on input to sign(); always populated on verify() output.
+  role?: "buyer";
+  aud?: "buyer";
 }
 
 export class BuyerJwtService {
@@ -21,13 +29,14 @@ export class BuyerJwtService {
     // by the merchant AuthGuard (which uses JWT_SECRET). The two secrets are
     // cryptographically independent, preventing audience confusion attacks.
     private readonly secret = requireSecret("BUYER_JWT_SECRET", "buyer-dev-secret-change-me"),
-    private readonly ttlSeconds = Number(process.env.JWT_EXPIRES_IN_SECONDS ?? 3600)
+    private readonly ttlSeconds = Number(process.env.BUYER_JWT_EXPIRES_SECONDS ?? 604800) // 7 days default
   ) {}
 
   sign(principal: BuyerPrincipal, nowSeconds = Math.floor(Date.now() / 1000)): string {
     const payload: BuyerJwtPayload = {
       sub: principal.globalUserId,
       email: principal.email,
+      ...(principal.merchantId ? { merchantId: principal.merchantId } : {}), // H3 fix
       role: "buyer",
       aud: "buyer",
       iat: nowSeconds,
@@ -49,7 +58,8 @@ export class BuyerJwtService {
     const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as BuyerJwtPayload;
     if (decoded.exp <= nowSeconds) throw new Error("jwt_expired");
     if (decoded.aud !== "buyer" || decoded.role !== "buyer") throw new Error("jwt_wrong_audience");
-    return { globalUserId: decoded.sub, email: decoded.email };
+    // H3 fix: include merchantId if present in claims
+    return { globalUserId: decoded.sub, email: decoded.email, merchantId: decoded.merchantId, role: "buyer", aud: "buyer" };
   }
 
   expiresIn(): number {

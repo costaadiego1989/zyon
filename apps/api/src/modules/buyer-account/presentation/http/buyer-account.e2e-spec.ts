@@ -5,6 +5,7 @@ import { PasswordHasher } from "../../../auth/domain/services/password-hasher.se
 import { BuyerJwtService } from "../../domain/services/buyer-jwt.service.js";
 import { M2mTokenService } from "../../domain/services/m2m-token.service.js";
 import { PrismaBuyerAccountRepository } from "../../infrastructure/prisma-buyer-account.repository.js";
+import { PrismaBuyerAccountLgpdRepository } from "../../infrastructure/prisma-buyer-account-lgpd.repository.js";
 import { RegisterBuyerUseCase } from "../../application/use-cases/register-buyer.use-case.js";
 import { LoginBuyerUseCase } from "../../application/use-cases/login-buyer.use-case.js";
 import { GetBuyerProfileUseCase } from "../../application/use-cases/get-buyer-profile.use-case.js";
@@ -25,6 +26,7 @@ test(
   async () => {
     const prisma = createPrismaClient();
     const repo = new PrismaBuyerAccountRepository(prisma);
+    const lgpdPort = new PrismaBuyerAccountLgpdRepository(prisma);
     const hasher = new PasswordHasher();
     const jwt = new BuyerJwtService("test-secret", 3600);
     const m2m = new M2mTokenService();
@@ -38,7 +40,7 @@ test(
     const enableM2m = new EnableM2mAgentUseCase(repo, m2m);
     const revokeM2m = new RevokeM2mAgentUseCase(repo);
     const getPurchases = new GetBuyerPurchasesUseCase(prisma);
-    const getSummary = new GetBuyerSummaryUseCase(repo, prisma);
+    const getSummary = new GetBuyerSummaryUseCase(repo, lgpdPort);
 
     const email = `buyer_e2e_${crypto.randomUUID()}@test.com`;
     let globalUserId: string;

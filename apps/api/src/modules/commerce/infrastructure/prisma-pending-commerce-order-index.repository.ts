@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@prisma/client";
-import type { DomainEventEnvelope } from "@aacp/shared-types";
+import type { DomainEventEnvelope } from "@zyon/shared-types";
 import type { PendingCommerceOrderIndexPort } from "../domain/ports/pending-commerce-order-index.port.js";
 import { appendOutboxInTransaction } from "./commerce-outbox.js";
 
@@ -43,5 +43,20 @@ export class PrismaPendingCommerceOrderIndex implements PendingCommerceOrderInde
       }
       throw error;
     }
+  }
+
+  /**
+   * Releases a pending order index entry so the same session can be re-attempted.
+   * Only releases if the entry has status "pending" (not yet completed).
+   */
+  async release(merchantId: string, sessionId: string): Promise<boolean> {
+    const result = await this.prisma.commercePendingOrder.deleteMany({
+      where: {
+        merchantId: merchantId.trim(),
+        sessionId: sessionId.trim(),
+        status: "pending"
+      }
+    });
+    return result.count > 0;
   }
 }

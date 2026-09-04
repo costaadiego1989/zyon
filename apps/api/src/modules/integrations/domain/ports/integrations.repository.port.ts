@@ -21,6 +21,7 @@ export interface IntegrationsRepository {
   upsertWebhookEndpoint(endpoint: MerchantWebhookEndpoint): Promise<MerchantWebhookEndpoint>;
   listWebhookEndpoints(merchantId: string): Promise<MerchantWebhookEndpoint[]>;
   getWebhookEndpoint(merchantId: string, endpointId: string): Promise<MerchantWebhookEndpoint | undefined>;
+  deleteWebhookEndpoint(merchantId: string, endpointId: string): Promise<boolean>;
 
   saveWebhookDelivery(delivery: MerchantWebhookDelivery): Promise<MerchantWebhookDelivery>;
   updateWebhookDelivery(delivery: MerchantWebhookDelivery): Promise<MerchantWebhookDelivery>;

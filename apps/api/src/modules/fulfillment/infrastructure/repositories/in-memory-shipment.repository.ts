@@ -23,6 +23,40 @@ export class InMemoryShipmentRepository implements ShipmentRepository {
     return null;
   }
 
+  async listByMerchant(input: {
+    merchantId: string;
+    limit: number;
+    cursor?: string;
+    orderId?: string;
+    status?: string;
+  }) {
+    const items = Array.from(this.store.values())
+      .filter((s) => s.merchant_id === input.merchantId)
+      .filter((s) => !input.orderId || s.snapshot().order_id === input.orderId)
+      .filter((s) => !input.status || s.snapshot().status === input.status)
+      .sort(
+        (a, b) =>
+          new Date(b.snapshot().created_at).getTime() -
+          new Date(a.snapshot().created_at).getTime(),
+      );
+
+    const start = 0;
+    const data = items.slice(start, start + input.limit);
+    const hasMore = items.length > start + input.limit;
+
+    return {
+      data,
+      nextCursor: hasMore
+        ? Buffer.from(
+            JSON.stringify({
+              id: data[data.length - 1].id,
+              createdAt: data[data.length - 1].snapshot().created_at,
+            }),
+          ).toString("base64")
+        : null,
+    };
+  }
+
   // P2 fix: scoped by merchantId to enforce tenant boundary invariant.
   async findByTrackingCode(trackingCode: string, merchantId: string): Promise<ShipmentEntity | null> {
     for (const s of this.store.values()) {
@@ -31,3 +65,4 @@ export class InMemoryShipmentRepository implements ShipmentRepository {
     return null;
   }
 }
+

@@ -1,4 +1,4 @@
-import type { CrossSellDomainEventType, DomainEventEnvelope } from "@aacp/shared-types";
+import type { CrossSellDomainEventType, DomainEventEnvelope } from "@zyon/shared-types";
 
 export function createCrossSellEventEnvelope<TPayload extends Record<string, unknown>>(input: {
   eventType: CrossSellDomainEventType;

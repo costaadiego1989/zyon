@@ -1,6 +1,7 @@
-import { Injectable, Inject } from "@nestjs/common";
+import { Injectable, Inject , Logger} from "@nestjs/common";
 import { CouponEntity, type CouponDiscountType } from "../../domain/entities/coupon.entity.js";
 import { COUPON_REPOSITORY, type CouponRepository } from "../../domain/ports/coupon-repository.port.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export type CreateCouponInput = {
   merchant_id: string;
@@ -20,6 +21,8 @@ export type CreateCouponInput = {
 
 @Injectable()
 export class CreateCouponUseCase {
+  private readonly logger = new Logger(CreateCouponUseCase.name);
+
   constructor(@Inject(COUPON_REPOSITORY) private readonly repo: CouponRepository) {}
 
   async execute(input: CreateCouponInput) {

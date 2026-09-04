@@ -1,0 +1,124 @@
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import type { PrismaClient } from "@prisma/client";
+import type { SuggestedProduct, CrossSellConfig } from "@zyon/shared-types";
+import { DEFAULT_CROSS_SELL_CONFIG } from "@zyon/shared-types";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import type { CheckoutCrossSellRecommenderPort } from "../../../checkout/domain/ports/cross-sell-recommender.port.js";
+import { ListEligibleCrossSellsUseCase } from "../use-cases/list-eligible-cross-sells.use-case.js";
+
+@Injectable()
+export class CheckoutCrossSellRecommender implements CheckoutCrossSellRecommenderPort {
+  private readonly logger = new Logger(CheckoutCrossSellRecommender.name);
+
+  constructor(
+    private readonly listEligible: ListEligibleCrossSellsUseCase,
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+  ) {}
+
+  async suggest(input: Parameters<CheckoutCrossSellRecommenderPort["suggest"]>[0]): Promise<SuggestedProduct[]> {
+    const config = await this.loadConfig(input.merchant_id);
+
+    if (!config.enabled) return [];
+
+    const touchpoint = (input as any).touchpoint as string | undefined;
+    if (touchpoint && !this.isTouchpointActive(config, touchpoint)) return [];
+
+    if (config.limits.cooldownSeconds > 0) {
+      try {
+        const lastSuggestion = await this.prisma.crossSellSuggestion.findFirst({
+          where: { sessionId: input.session_id, merchantId: input.merchant_id },
+          orderBy: { suggestedAt: "desc" },
+          select: { suggestedAt: true },
+        });
+        if (lastSuggestion) {
+          const elapsed = Date.now() - lastSuggestion.suggestedAt.getTime();
+          if (elapsed < config.limits.cooldownSeconds * 1000) {
+            this.logger.debug(`[cross-sell] cooldown active (${Math.round(elapsed / 1000)}s / ${config.limits.cooldownSeconds}s)`);
+            return [];
+          }
+        }
+      } catch (err) {
+        this.logger.warn("[cross-sell] cooldown check failed, proceeding without", err);
+      }
+    }
+
+    const suggestions = await this.listEligible.execute({
+      merchant_id: input.merchant_id,
+      session_id: input.session_id,
+      cart: input.cart,
+      enabled_strategies: config.strategies,
+    });
+
+    const max = config.limits.maxSuggestionsPerSession;
+    // Bug 6 fix: maxSuggestionsPerSession caps the FINAL suggestions the buyer
+    // sees, not the promotions. A single promotion carries many ranked_items,
+    // so slicing promotions let one promo with N skus produce N cards, blowing
+    // past the merchant's configured limit. Expand every promotion, then cap the
+    // flattened, catalog-resolved list.
+    const base: (SuggestedProduct & { suggestion_id?: string; display_mode: CrossSellConfig["display"]["mode"] })[] =
+      suggestions.flatMap((suggestion) =>
+        suggestion.ranked_items.map((sku) => ({
+          suggestion_id: suggestion.id,
+          sku,
+          name: sku,
+          unit_price: undefined as unknown as number,
+          display_mode: config.display.mode,
+        }))
+      );
+
+    const enriched = await Promise.all(base.map((p) => this.enrichFromCatalog(input.merchant_id, p)));
+    const valid = enriched.filter((p) => typeof p.unit_price === "number" && p.unit_price > 0);
+    return valid.slice(0, max);
+  }
+
+  private async enrichFromCatalog(
+    merchantId: string,
+    product: SuggestedProduct,
+  ): Promise<SuggestedProduct> {
+    try {
+      const variant = await this.prisma.productVariant.findFirst({
+        where: { sku: product.sku, product: { merchantId } },
+        include: { price: true, media: { orderBy: { order: "asc" }, take: 1 }, stock: true, product: true },
+      });
+      if (!variant) return product;
+      const priceCents = variant.price?.basePriceInCents;
+      const stockQty = (variant.stock ?? []).reduce((sum: number, s: { quantity: number }) => sum + s.quantity, 0);
+      return {
+        ...product,
+        variant_id: variant.id,
+        name: variant.product?.name ?? product.name,
+        unit_price: priceCents != null ? priceCents / 100 : product.unit_price,
+        image_url: variant.media?.[0]?.url ?? product.image_url,
+        in_stock: stockQty > 0,
+      };
+    } catch (err) {
+      this.logger.warn(`[cross-sell] enrich failed for sku=${product.sku}`, err);
+      return product;
+    }
+  }
+
+  private async loadConfig(merchantId: string): Promise<CrossSellConfig> {
+    try {
+      const merchant = await this.prisma.merchant.findUnique({
+        where: { id: merchantId },
+        select: { storeSettings: true },
+      });
+      const settings = (merchant?.storeSettings as Record<string, any>) ?? {};
+      return { ...DEFAULT_CROSS_SELL_CONFIG, ...settings.crossSell };
+    } catch {
+      return DEFAULT_CROSS_SELL_CONFIG;
+    }
+  }
+
+  private isTouchpointActive(config: CrossSellConfig, touchpoint: string): boolean {
+    const map: Record<string, keyof CrossSellConfig["touchpoints"]> = {
+      browsing: "browsing",
+      pre_cart: "pre_cart",
+      pre_payment: "pre_payment",
+      post_purchase: "post_purchase",
+    };
+    const key = map[touchpoint];
+    if (!key) return true;
+    return config.touchpoints[key] !== false;
+  }
+}

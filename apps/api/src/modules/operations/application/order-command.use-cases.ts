@@ -3,8 +3,11 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
+import type { PrismaClient } from "@prisma/client";
+import type { CompletedOrderStatus } from "@zyon/shared-types";
 import { CompleteOrderUseCase } from "../../checkout/application/use-cases/complete-order.use-case.js";
 import {
   COMMERCE_ORDER_PORT,
@@ -19,9 +22,16 @@ import {
   OPERATIONS_READ_REPOSITORY,
   type OperationsReadRepository,
 } from "../domain/ports/operations-read.repository.port.js";
+import {
+  DOMAIN_EVENT_BUS,
+  type DomainEventBus,
+} from "../../../shared/events/domain-event-bus.port.js";
+import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
 
 @Injectable()
 export class CancelOrderUseCase {
+  private readonly logger = new Logger(CancelOrderUseCase.name);
+
   constructor(
     @Inject(OPERATIONS_READ_REPOSITORY)
     private readonly readRepository: OperationsReadRepository,
@@ -44,8 +54,10 @@ export class CancelOrderUseCase {
     const reason = required(input.reason, "cancellation_reason").slice(0, 500);
     const order = await this.readRepository.getOrder(merchantId, orderId);
     if (!order) throw new NotFoundException("order_not_found");
+
+    // C2 fix: idempotency guard — if already cancelled, return cached result
     if (order.status === "cancelled") {
-      return cancellationResponse(order, true, false);
+      return cancellationResponse(order, true, false, null);
     }
 
     // P1 fix: commit the local status change FIRST so the system stays
@@ -61,42 +73,69 @@ export class CancelOrderUseCase {
     });
     if (!cancelled) throw new NotFoundException("order_not_found");
 
-    // Then call the provider.  If this call fails, the local record is
-    // already cancelled and ops can retry the provider side manually.
+    // C2 fix: if another request already cancelled (race condition), return idempotently
+    if (cancelled.idempotent) {
+      return cancellationResponse(
+        { ...order, status: "cancelled", cancelledAt: cancelled.order.cancelledAt, cancellationReason: cancelled.order.cancellationReason },
+        true,
+        false,
+        null,
+      );
+    }
+
+    // C3 fix: wrap provider call in try-catch; emit retry event on failure
     let providerCancellationRequested = false;
+    let providerError: string | null = null;
     if (order.commerceOrderId) {
       if (!this.commerce.cancelOrder) {
         throw new BadRequestException(
           "commerce_order_cancellation_not_supported",
         );
       }
-      await this.commerce.cancelOrder({
-        merchantId,
-        commerceOrderId: order.commerceOrderId,
-        reason,
-        notifyCustomer: input.notifyCustomer,
-        restock: input.restock,
-      });
-      providerCancellationRequested = true;
+      try {
+        await this.commerce.cancelOrder({
+          merchantId,
+          commerceOrderId: order.commerceOrderId,
+          reason,
+          notifyCustomer: input.notifyCustomer,
+          restock: input.restock,
+        });
+        providerCancellationRequested = true;
+      } catch (error) {
+        // C3: do NOT throw — local cancellation is committed; publish retry event
+        providerError = error instanceof Error ? error.message : String(error);
+        this.logger.warn(
+          `[CancelOrder] provider cancellation failed for order=${orderId}: ${providerError}`,
+        );
+        await this.webhooks.publish({
+          merchantId,
+          eventType: "order.cancellation_provider_failed",
+          data: {
+            order_id: orderId,
+            external_order_id: order.externalOrderId,
+            commerce_order_id: order.commerceOrderId,
+            error: providerError,
+          },
+        });
+      }
     }
 
-    if (!cancelled.idempotent) {
-      await this.webhooks.publish({
-        merchantId,
-        eventType: "order.cancelled",
-        occurredAt: cancelled.order.cancelledAt,
-        data: {
-          order: {
-            id: order.id,
-            external_order_id: order.externalOrderId,
-            session_id: order.sessionId,
-            status: "cancelled",
-            cancellation_reason: reason,
-            cancelled_at: cancelled.order.cancelledAt,
-          },
+    // M1 fix: emit audit-grade webhook for cancellation (who/why/when)
+    await this.webhooks.publish({
+      merchantId,
+      eventType: "order.cancelled",
+      occurredAt: cancelled.order.cancelledAt,
+      data: {
+        order: {
+          id: order.id,
+          external_order_id: order.externalOrderId,
+          session_id: order.sessionId,
+          status: "cancelled",
+          cancellation_reason: reason,
+          cancelled_at: cancelled.order.cancelledAt,
         },
-      });
-    }
+      },
+    });
 
     return cancellationResponse(
       {
@@ -105,9 +144,118 @@ export class CancelOrderUseCase {
         cancelledAt: cancelled.order.cancelledAt,
         cancellationReason: cancelled.order.cancellationReason,
       },
-      cancelled.idempotent,
+      false,
       providerCancellationRequested,
+      providerError,
     );
+  }
+}
+
+@Injectable()
+export class UpdateOrderStatusUseCase {
+  constructor(
+    @Inject(OPERATIONS_READ_REPOSITORY)
+    private readonly readRepository: OperationsReadRepository,
+    @Inject(ORDER_REPOSITORY)
+    private readonly orders: OrderRepository,
+    private readonly webhooks: TenantWebhookPublisher,
+    @Inject(DOMAIN_EVENT_BUS)
+    private readonly eventBus: DomainEventBus,
+    @Inject(PRISMA_CLIENT)
+    private readonly prisma: PrismaClient,
+  ) {}
+
+  async execute(input: {
+    merchantId: string;
+    orderId: string;
+    status: string;
+  }) {
+    const merchantId = required(input.merchantId, "merchant_id");
+    const orderId = required(input.orderId, "order_id");
+    const status = normalizeOrderStatus(input.status);
+    const order = await this.readRepository.getOrder(merchantId, orderId);
+    if (!order) throw new NotFoundException("order_not_found");
+
+    if (!canTransitionOrderStatus(order.status, status)) {
+      throw new BadRequestException("order_status_transition_invalid");
+    }
+
+    const updated = await this.orders.updateCompletedOrderStatus({
+      merchantId,
+      sessionId: order.sessionId,
+      externalOrderId: order.externalOrderId,
+      status,
+    });
+    if (!updated) throw new NotFoundException("order_not_found");
+
+    const eventType = status === "cancelled" ? "order.cancelled" : "order.approved";
+    await this.webhooks.publish({
+      merchantId,
+      eventType,
+      data: {
+        order: {
+          id: order.id,
+          external_order_id: order.externalOrderId,
+          session_id: order.sessionId,
+          status,
+        },
+      },
+    });
+
+    // Emit domain events for notification system (email via Resend, WhatsApp)
+    const customerData = order.customer as { email?: string; full_name?: string; phone?: string } | null;
+    const buyerEmail = customerData?.email ?? "";
+    const buyerName = customerData?.full_name;
+    const buyerPhone = customerData?.phone;
+
+    // Get globalUserId from session
+    let globalUserId: string | undefined;
+    try {
+      const session = await this.prisma.checkoutSession.findUnique({
+        where: { merchantId_sessionId: { merchantId, sessionId: order.sessionId } },
+        select: { globalUserId: true },
+      });
+      globalUserId = session?.globalUserId;
+    } catch {
+      // silently fail, globalUserId is optional
+    }
+
+    if (status === "shipped") {
+      await this.eventBus.publish({
+        eventType: "order.shipped",
+        merchantId,
+        payload: {
+          type: "ORDER_SHIPPED",
+          merchantId,
+          orderId: order.id,
+          buyerEmail,
+          buyerName,
+          buyerPhone,
+          trackingNumber: order.trackingCode,
+        },
+      });
+    } else if (status === "delivered") {
+      await this.eventBus.publish({
+        eventType: "order.delivered",
+        merchantId,
+        payload: {
+          type: "ORDER_DELIVERED",
+          merchantId,
+          orderId: order.id,
+          buyerEmail,
+          buyerName,
+          buyerPhone,
+          globalUserId,
+        },
+      });
+    }
+
+    return {
+      id: order.id,
+      external_order_id: order.externalOrderId,
+      status,
+      changed: order.status !== status,
+    };
   }
 }
 
@@ -160,17 +308,42 @@ export class CreateOrderFromPaymentUseCase {
   }
 }
 
+const ORDER_STATUS_TRANSITIONS: Record<CompletedOrderStatus, CompletedOrderStatus[]> = {
+  pending: ["paid", "cancelled"],
+  approved: ["paid", "shipped", "cancelled"],
+  paid: ["shipped", "cancelled"],
+  shipped: ["delivered", "returned"],
+  delivered: [],
+  cancelled: [],
+  returned: [],
+};
+
+function canTransitionOrderStatus(from: string, to: CompletedOrderStatus): boolean {
+  if (from === to) return true;
+  const allowed = ORDER_STATUS_TRANSITIONS[from as CompletedOrderStatus];
+  return allowed ? allowed.includes(to) : false;
+}
+
+function normalizeOrderStatus(value: string): CompletedOrderStatus {
+  const status = required(value, "status") as CompletedOrderStatus;
+  if (!Object.prototype.hasOwnProperty.call(ORDER_STATUS_TRANSITIONS, status)) {
+    throw new BadRequestException("order_status_invalid");
+  }
+  return status;
+}
+
 function cancellationResponse(
   order: {
     id: string;
     externalOrderId: string;
-    status: "approved" | "cancelled";
+    status: string;
     cancelledAt?: string;
     cancellationReason?: string;
     paymentStatus?: string;
   },
   idempotent: boolean,
   providerCancellationRequested: boolean,
+  providerError: string | null,
 ) {
   return {
     id: order.id,
@@ -180,6 +353,7 @@ function cancellationResponse(
     cancellation_reason: order.cancellationReason ?? null,
     idempotent,
     provider_cancellation_requested: providerCancellationRequested,
+    provider_error: providerError ? { message: providerError } : null,
     payment_action_required:
       order.paymentStatus === "approved" ? "refund_separately" : null,
   };

@@ -1,4 +1,4 @@
-import type { DomainEventEnvelope } from "@aacp/shared-types";
+import type { DomainEventEnvelope } from "@zyon/shared-types";
 import type { PaymentIntentEntity } from "../payment-intent.entity.js";
 
 export const PAYMENT_REPOSITORY = Symbol("PAYMENT_REPOSITORY");
@@ -7,7 +7,7 @@ export type SavePaymentIntentInput = {
   intent: PaymentIntentEntity;
 };
 
-export type PaymentProviderName = "asaas" | "stripe";
+export type PaymentProviderName = "asaas" | "stripe" | "mercadopago";
 
 /** Identifies a provider webhook event for idempotent processing, scoped by tenant. */
 export type ProviderEventKey = {
@@ -49,6 +49,14 @@ export interface PaymentRepository {
     providerPaymentId: string
   ): Promise<PaymentIntentEntity | null>;
   /**
+   * Most recent approved intent for a checkout session. Used by the refund flow
+   * to resolve the provider payment to reverse when a return is refunded.
+   */
+  findApprovedBySessionId(
+    merchantId: string,
+    sessionId: string
+  ): Promise<PaymentIntentEntity | null>;
+  /**
    * Lookup do intent escopado pelo tenant. O `merchantId` é obrigatório e parte
    * do filtro de persistência — o boundary de tenant mora na porta, não em
    * pós-checagens por call site (ADR 0001 #3, ADR 0005).
@@ -65,6 +73,13 @@ export interface PaymentRepository {
   ): Promise<{ id: string; merchantId: string } | null>;
   /** Open intents (pending/requires_action) eligible for authoritative-state reconciliation. */
   listStalePending(query: StalePendingQuery): Promise<PaymentIntentEntity[]>;
+  /**
+   * Approved intents that have not been updated since `olderThan`. Used to
+   * recover from a crash between markApproved and completeAfterApproval
+   * (payment charged but checkout/order never completed). Optional: repos that
+   * cannot detect the "approved-but-incomplete" set may omit it.
+   */
+  listStaleApproved?(query: StalePendingQuery): Promise<PaymentIntentEntity[]>;
   hasProcessedProviderEvent(key: ProviderEventKey): Promise<boolean>;
   /**
    * Portão atômico de idempotência: INSERT do marcador, `true` se gravou,
@@ -87,4 +102,17 @@ export interface PaymentRepository {
   recordCryptoTransfer(key: CryptoTransferKey): Promise<boolean>;
   /** Compensa a reserva de `(chain, txHash)` se a aprovação não concluir. */
   deleteCryptoTransfer(key: Pick<CryptoTransferKey, "chain" | "txHash">): Promise<void>;
+  /**
+   * H1 fix: reaps expired crypto transfer reservations (orphaned by worker kills).
+   * Deletes reservations older than their expires_at without a corresponding approved intent.
+   */
+  reapExpiredCryptoReservations(): Promise<number>;
+  /**
+   * Lists payment intents by merchant, optionally filtered by status prefix.
+   * Used by dashboard to render chargeback/dispute lists.
+   */
+  listByMerchantId(
+    merchantId: string,
+    statusPrefix?: string,
+  ): Promise<PaymentIntentEntity[]>;
 }

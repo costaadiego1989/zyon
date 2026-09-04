@@ -1,0 +1,31 @@
+{
+  "name": "@zyon/payments-evm",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "compile": "npx hardhat compile",
+    "deploy:polygon": "npx hardhat run scripts/deploy.ts --network polygon",
+    "deploy:polygon:testnet": "npx hardhat run scripts/deploy.ts --network polygonAmoy",
+    "deploy:base": "npx hardhat run scripts/deploy.ts --network base",
+    "deploy:base:testnet": "npx hardhat run scripts/deploy.ts --network baseSepolia"
+  },
+  "dependencies": {
+    "viem": "^2.31.0"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/contracts": "^5.1.0",
+    "dotenv": "^16.4.5",
+    "hardhat": "^2.22.0",
+    "@vitest/coverage-v8": "^3.2.4",
+    "vitest": "^3.2.4"
+  }
+}

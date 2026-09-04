@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   assertRequiredSecretsInProduction,
   requireSecret,
+  resolveProductionRequiredSecrets,
 } from "./secret-config.js";
 
 describe("requireSecret", () => {
@@ -55,5 +56,49 @@ describe("assertRequiredSecretsInProduction", () => {
     assert.doesNotThrow(() =>
       assertRequiredSecretsInProduction(["JWT_SECRET", "BUYER_JWT_SECRET"], env),
     );
+  });
+});
+
+describe("resolveProductionRequiredSecrets", () => {
+  it("requires only core secrets when optional providers are disabled", () => {
+    const env = { NODE_ENV: "production" } as NodeJS.ProcessEnv;
+    const names = resolveProductionRequiredSecrets(env);
+    assert.deepEqual(names, [
+      "DATABASE_URL",
+      "JWT_SECRET",
+      "BUYER_JWT_SECRET",
+      "EMBED_TOKEN_SECRET",
+      "AACP_PAYMENT_ENC_KEY",
+      "AACP_PII_ENC_KEY",
+    ]);
+  });
+
+  it("requires Stripe webhook secret when Stripe is configured", () => {
+    const env = {
+      NODE_ENV: "production",
+      STRIPE_SECRET_KEY: "sk_live_x",
+    } as NodeJS.ProcessEnv;
+    const names = resolveProductionRequiredSecrets(env);
+    assert.ok(names.includes("STRIPE_WEBHOOK_SECRET"));
+  });
+
+  it("requires Asaas webhook token when Asaas is enabled", () => {
+    const env = {
+      NODE_ENV: "production",
+      ASAAS_ENABLED: "true",
+    } as NodeJS.ProcessEnv;
+    const names = resolveProductionRequiredSecrets(env);
+    assert.ok(names.includes("ASAAS_WEBHOOK_TOKEN"));
+  });
+
+  it("requires Redis and ops secrets only behind feature flags", () => {
+    const env = {
+      NODE_ENV: "production",
+      REDIS_ENABLED: "true",
+      METRICS_ENABLED: "true",
+    } as NodeJS.ProcessEnv;
+    const names = resolveProductionRequiredSecrets(env);
+    assert.ok(names.includes("REDIS_URL"));
+    assert.ok(names.includes("OPS_SHARED_SECRET"));
   });
 });

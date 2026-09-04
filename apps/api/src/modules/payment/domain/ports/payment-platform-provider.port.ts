@@ -75,4 +75,12 @@ export interface AsaasPlatformPort {
     documentation: string;
   }>;
   listOnboardingLinks(apiKey: string): Promise<string[]>;
+  /** Finds an existing subaccount on the root account by CPF/CNPJ (digits only). */
+  findSubaccountByCpfCnpj(cpfCnpj: string): Promise<{ accountId: string } | null>;
+  /** Generates a fresh API key for an existing subaccount (apiKey is only returned once at creation). */
+  createSubaccountApiKey(accountId: string): Promise<{ apiKey: string }>;
+  /** Retrieves the walletId for a subaccount, called with that subaccount's own apiKey. */
+  retrieveWalletId(apiKey: string): Promise<string | null>;
+  /** SANDBOX ONLY: instantly approves the subaccount's commercial data + docs. */
+  approveSandboxAccount(apiKey: string): Promise<void>;
 }

@@ -1,0 +1,46 @@
+- generic [active] [ref=f5e1]:
+  - generic [ref=f5e2]:
+    - heading "Zyon Widget Test" [level=1] [ref=f5e3]
+    - paragraph [ref=f5e4]: O widget deve aparecer no canto inferior direito. Se não aparecer, verifique se a API está rodando em localhost:3009.
+    - paragraph [ref=f5e5]: "Token origin: http://localhost:5173 — sirva esta página nessa porta."
+  - generic [ref=f5e6]:
+    - generic [ref=f5e7]:
+      - generic [ref=f5e8]: 👕
+      - heading "Camiseta Premium Algodão" [level=3] [ref=f5e9]
+      - generic [ref=f5e10]: R$ 89,90 ou 3x de R$ 29,97
+      - generic [ref=f5e11]: Frete grátis
+    - generic [ref=f5e12]:
+      - generic [ref=f5e13]: 👟
+      - heading "Tênis Running Ultra" [level=3] [ref=f5e14]
+      - generic [ref=f5e15]: R$ 349,00 ou 6x de R$ 58,17
+      - generic [ref=f5e16]: "-15% PIX"
+    - generic [ref=f5e17]:
+      - generic [ref=f5e18]: 🎧
+      - heading "Fone Bluetooth NC Pro" [level=3] [ref=f5e19]
+      - generic [ref=f5e20]: R$ 279,90 ou 4x de R$ 69,98
+      - generic [ref=f5e21]: Lançamento
+  - generic [ref=f5e22]:
+    - paragraph [ref=f5e23]: Zyon Demo Store — Checkout Agêntico com IA
+    - paragraph [ref=f5e24]: Widget carrega automaticamente no canto inferior direito →
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - generic [ref=f5e25]:
+            - generic [ref=f5e30]: Gerente de vendas da Loja
+            - generic [ref=f5e31]: Oi, eu sou a Pulse.
+            - generic [ref=f5e32]: Eu cuido da sua compra do início ao fim — acho a melhor opção, aplico promoções, organizo a entrega e finalizo o pagamento com você, passo a passo.
+            - generic:
+              - generic [ref=f5e33]: Acho a melhor opção e aplico promoções
+              - generic [ref=f5e38]: Coleto seus dados e calculo o frete
+              - generic [ref=f5e43]: Pago com Pix, cartão ou crypto
+            - generic [ref=f5e48]: Como você prefere comprar?
+            - generic:
+              - button "Por chat Converse digitando" [ref=f5e49] [cursor=pointer]:
+                - generic [ref=f5e53]: Por chat
+                - generic [ref=f5e54]: Converse digitando
+              - button "IA Por voz Fale com a Pulse" [ref=f5e55] [cursor=pointer]:
+                - generic [ref=f5e56]: IA
+                - generic [ref=f5e61]: Por voz
+                - generic [ref=f5e62]: Fale com a Pulse
+          - button [ref=f5e63] [cursor=pointer]

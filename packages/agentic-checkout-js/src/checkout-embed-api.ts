@@ -7,7 +7,7 @@ import type {
   StartCheckoutResponse,
   TrackEventRequest,
   TrackEventResponse
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 import { normalizeEmbedOrigin } from "./embed-client.js";
 
 export type AgenticCheckoutEmbedClientOptions = {

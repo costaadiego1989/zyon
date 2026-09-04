@@ -27,6 +27,12 @@ export class CheckoutPaymentAdapter implements CheckoutPaymentPort {
         acceptedOfferId: input.acceptedOfferId
       }
     });
+    // Mark session as payment confirmed so deriveChatStage returns "completed"
+    const session = await this.sessions.getSession(input.merchantId, input.sessionId);
+    if (session) {
+      (session as any).paymentConfirmed = true;
+      await this.sessions.saveSession(session);
+    }
     await this.sessions.appendChatTurn(input.merchantId, input.sessionId, {
       role: "agent",
       text: "Pagamento confirmado! Seu pedido foi registrado e voce recebera o codigo de rastreio no WhatsApp.",

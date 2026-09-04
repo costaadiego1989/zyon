@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
-import type { CheckoutSession, CustomerHints, PackageDimensions, ShippingQuote } from "@aacp/shared-types";
+import type { CheckoutSession, CustomerHints, PackageDimensions, ShippingQuote } from "@zyon/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { estimatePacQuote, lookupAddressByViaCep } from "../../domain/services/viacep-lookup.service.js";
 import { extractAddressDetailLine, isShippingQuickReplyQuestion } from "../../domain/services/customer-extraction.service.js";
@@ -235,6 +235,20 @@ export class CheckoutShippingService {
       updatedAt: new Date().toISOString()
     };
     await this.repository.saveSession(next);
+    // Intent Memory signal: a shipping-option selection is a buyer behaviour
+    // signal the intent classifier consumes. Non-blocking — never break the
+    // shipping flow if event recording fails.
+    try {
+      await this.repository.recordEvent(next.merchantId, next.sessionId, "shipping_option_selected", {
+        carrier: selected.carrier,
+        method: selected.method,
+        customerPrice: selected.customerPrice,
+      });
+    } catch (err) {
+      this.logger.warn("shipping_option_selected.record_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
     return next;
   }
 

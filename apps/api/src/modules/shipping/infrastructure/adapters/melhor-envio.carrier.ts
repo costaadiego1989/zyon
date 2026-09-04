@@ -1,6 +1,10 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, BadRequestException } from "@nestjs/common";
+import { validateCep, validatePackagesList } from "@zyon/shipping-engine";
+import type { PackageDimensions } from "@zyon/shared-types";
 import type { CarrierPort, ShippingContext } from "../../domain/ports/carrier.port.js";
 import type { ShippingQuoteResult } from "../../domain/entities/shipping-quote.entity.js";
+import type { ShippingCarrierPort, LabelPurchaseInput, LabelPurchaseResult, TrackingResult } from "../../domain/ports/shipping-carrier.port.js";
+import type { MelhorEnvioTokenResolver } from "../../domain/ports/melhor-envio-token-resolver.port.js";
 
 interface MelhorEnvioService {
   id: number;
@@ -12,34 +16,40 @@ interface MelhorEnvioService {
 }
 
 @Injectable()
-export class MelhorEnvioCarrierAdapter implements CarrierPort {
+export class MelhorEnvioCarrierAdapter implements CarrierPort, ShippingCarrierPort {
   readonly carrierKey = "melhor-envio";
 
-  private get token(): string | undefined { return process.env.MELHOR_ENVIO_TOKEN; }
+  constructor(private readonly tokenResolver: MelhorEnvioTokenResolver) {}
+
   private get baseUrl(): string { return process.env.MELHOR_ENVIO_BASE_URL ?? "https://sandbox.melhorenvio.com.br"; }
   private get fromZip(): string { return process.env.MELHOR_ENVIO_FROM_ZIP ?? ""; }
 
   async fetchQuotes(ctx: ShippingContext): Promise<ShippingQuoteResult[]> {
-    if (!this.token || !ctx.destinationZip) return [];
+    const token = await this.tokenResolver.resolveToken(ctx.merchantId);
+    if (!token || !ctx.destinationZip) return [];
 
     const fromZipRaw = ctx.originZip || this.fromZip;
     if (!fromZipRaw) return [];
 
-    const toZip = ctx.destinationZip.replace(/\D/g, "");
-    const fromZip = fromZipRaw.replace(/\D/g, "");
-    if (toZip.length < 8 || fromZip.length < 8) return [];
+    const toZipResult = validateCep(ctx.destinationZip);
+    const fromZipResult = validateCep(fromZipRaw);
+    if (!toZipResult.valid || !fromZipResult.valid) return [];
 
-    const weightKg = Math.max(0.1, (ctx.packages ?? []).reduce((sum, p) => sum + (p.weightKg ?? 0.3) * (p.quantity ?? 1), 0));
+    const toZip = toZipResult.normalized!;
+    const fromZip = fromZipResult.normalized!;
 
-    const products = (ctx.packages ?? []).length > 0
-      ? ctx.packages.map((p) => ({
-          weight: Math.max(0.1, p.weightKg ?? 0.3),
-          width: Math.max(1, p.widthCm ?? 15),
-          height: Math.max(1, p.heightCm ?? 10),
-          length: Math.max(1, p.lengthCm ?? 20),
-          quantity: p.quantity ?? 1
-        }))
-      : [{ weight: weightKg, width: 15, height: 10, length: 20, quantity: 1 }];
+    const packagesResult = validatePackagesList(ctx.packages);
+    if (!packagesResult.valid) {
+      throw new BadRequestException(`shipping_packages_invalid:${packagesResult.reason}`);
+    }
+
+    const products = (packagesResult.normalized as PackageDimensions[]).map((p) => ({
+      weight: p.weightKg,
+      width: p.widthCm,
+      height: p.heightCm,
+      length: p.lengthCm,
+      quantity: p.quantity
+    }));
 
     const body = {
       from: { postal_code: fromZip },
@@ -54,7 +64,7 @@ export class MelhorEnvioCarrierAdapter implements CarrierPort {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${this.token}`,
+          "Authorization": `Bearer ${token}`,
           "Accept": "application/json",
           "User-Agent": "AACP/1.0 (checkout@aacp.com)"
         },
@@ -80,4 +90,152 @@ export class MelhorEnvioCarrierAdapter implements CarrierPort {
       return [];
     }
   }
+
+  async purchaseLabel(input: LabelPurchaseInput): Promise<LabelPurchaseResult> {
+    const token = await this.resolveTokenOrThrow(input.merchantId);
+    const fromZip = this.normalizeCepOrThrow(input.fromZip || this.fromZip, "from_zip_invalid");
+    const toZip = this.normalizeCepOrThrow(input.toZip, "to_zip_invalid");
+    const products = this.normalizeProducts(input.packages);
+
+    const cartBody = {
+      service: input.serviceId,
+      from: {
+        postal_code: fromZip,
+        name: input.fromName ?? "Zyon Merchant",
+        document: input.fromDocument ?? undefined,
+      },
+      to: {
+        postal_code: toZip,
+        name: input.toName,
+        document: input.toDocument,
+      },
+      products,
+      options: {
+        receipt: false,
+        own_hand: false,
+        invoice: input.invoiceKey ? { key: input.invoiceKey } : undefined,
+      },
+    };
+
+    const cart = await this.postJson<Record<string, unknown>>("/api/v2/me/cart", cartBody, "melhor_envio_cart_failed", token);
+    const cartItemId = this.extractCartItemId(cart);
+
+    const checkout = await this.postJson<Record<string, unknown>>(
+      "/api/v2/me/shipment/checkout",
+      { orders: [cartItemId] },
+      "melhor_envio_checkout_failed",
+      token,
+    );
+
+    await this.postJson<Record<string, unknown>>(
+      "/api/v2/me/shipment/generate",
+      { orders: [cartItemId] },
+      "melhor_envio_generate_failed",
+      token,
+    );
+
+    return {
+      purchaseId: extractString(checkout, ["purchase.id", "id", "order_id"]) ?? cartItemId,
+      trackingCode: extractString(checkout, ["purchase.tracking", "tracking", "tracking_code"]) ?? cartItemId,
+      labelUrl: extractString(checkout, ["purchase.label_url", "label_url", "url"]),
+    };
+  }
+
+  async getTracking(trackingCode: string, merchantId: string): Promise<TrackingResult> {
+    const token = await this.resolveTokenOrThrow(merchantId);
+    const code = trackingCode.trim();
+    if (!code) throw new BadRequestException("tracking_code_required");
+
+    const query = new URLSearchParams({ tracking: code });
+    const response = await fetch(`${this.baseUrl}/api/v2/me/shipment/tracking?${query.toString()}`, {
+      method: "GET",
+      headers: this.headers(token),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) throw new BadRequestException("melhor_envio_tracking_failed");
+    const payload = await response.json() as Record<string, unknown>;
+    const entry = payload[code] as Record<string, unknown> | undefined;
+    if (!entry) throw new BadRequestException("melhor_envio_tracking_not_found");
+    const events = Array.isArray(entry.events)
+      ? entry.events.flatMap((raw) => normalizeTrackingEvent(raw))
+      : [];
+    return {
+      status: typeof entry.status === "string" ? entry.status : "unknown",
+      events,
+    };
+  }
+
+  private async resolveTokenOrThrow(merchantId: string): Promise<string> {
+    const token = await this.tokenResolver.resolveToken(merchantId);
+    if (!token) throw new BadRequestException("melhor_envio_token_missing");
+    return token;
+  }
+
+  private normalizeCepOrThrow(value: string, error: string): string {
+    const result = validateCep(value);
+    if (!result.valid || !result.normalized) throw new BadRequestException(error);
+    return result.normalized;
+  }
+
+  private normalizeProducts(packages: LabelPurchaseInput["packages"]): Array<Record<string, number>> {
+    const packagesResult = validatePackagesList(packages);
+    if (!packagesResult.valid) {
+      throw new BadRequestException(`shipping_packages_invalid:${packagesResult.reason}`);
+    }
+    return (packagesResult.normalized as PackageDimensions[]).map((p) => ({
+      weight: p.weightKg,
+      width: p.widthCm,
+      height: p.heightCm,
+      length: p.lengthCm,
+      quantity: p.quantity,
+    }));
+  }
+
+  private headers(token: string): HeadersInit {
+    return {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+      "Accept": "application/json",
+      "User-Agent": "AACP/1.0 (checkout@aacp.com)",
+    };
+  }
+
+  private async postJson<T>(path: string, body: unknown, errorCode: string, token: string): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method: "POST",
+      headers: this.headers(token),
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) throw new BadRequestException(errorCode);
+    return await response.json() as T;
+  }
+
+  private extractCartItemId(payload: Record<string, unknown>): string {
+    const id = extractString(payload, ["id", "data.id", "order.id"]);
+    if (!id) throw new BadRequestException("melhor_envio_cart_missing_order_id");
+    return id;
+  }
+}
+
+function extractString(payload: Record<string, unknown>, paths: string[]): string | undefined {
+  for (const path of paths) {
+    let current: unknown = payload;
+    for (const segment of path.split(".")) {
+      current = current && typeof current === "object"
+        ? (current as Record<string, unknown>)[segment]
+        : undefined;
+    }
+    if (typeof current === "string" && current.trim()) return current.trim();
+  }
+  return undefined;
+}
+
+function normalizeTrackingEvent(raw: unknown): Array<{ status: string; date: string; description: string }> {
+  if (!raw || typeof raw !== "object") return [];
+  const record = raw as Record<string, unknown>;
+  const status = typeof record.status === "string" ? record.status : undefined;
+  const date = typeof record.date === "string" ? record.date : typeof record.occurred_at === "string" ? record.occurred_at : undefined;
+  const description = typeof record.description === "string" ? record.description : typeof record.message === "string" ? record.message : undefined;
+  return status && date && description ? [{ status, date, description }] : [];
 }

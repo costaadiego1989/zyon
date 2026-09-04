@@ -93,6 +93,15 @@ export class PrismaPaymentPlatformRepository
     });
   }
 
+  async deleteConnection(
+    merchantId: string,
+    provider: "stripe" | "asaas",
+  ): Promise<void> {
+    await this.prisma.merchantPaymentConnection.deleteMany({
+      where: { merchantId: merchantId.trim(), provider },
+    });
+  }
+
   async getOrCreateTrial(
     merchantId: string,
     trialDays: number,
@@ -100,14 +109,34 @@ export class PrismaPaymentPlatformRepository
     const trialEndsAt = new Date(
       Date.now() + Math.max(1, trialDays) * 86_400_000,
     );
-    const row = await this.prisma.merchantBillingSubscription.upsert({
-      where: { merchantId: merchantId.trim() },
-      create: {
-        merchantId: merchantId.trim(),
+    const scopedMerchantId = merchantId.trim();
+    const existing = await this.prisma.merchantBillingSubscription.findUnique({
+      where: { merchantId: scopedMerchantId },
+    });
+    if (
+      existing?.status === "trialing" &&
+      existing.trialEndsAt &&
+      existing.trialEndsAt.getTime() <= Date.now() &&
+      !existing.stripeSubscriptionId
+    ) {
+      const row = await this.prisma.merchantBillingSubscription.update({
+        where: { merchantId: scopedMerchantId },
+        data: {
+          status: "starter",
+          trialEndsAt: null,
+          currentPeriodEnd: null,
+          cancelAtPeriodEnd: false,
+        },
+      });
+      return toBilling(row);
+    }
+    if (existing) return toBilling(existing);
+    const row = await this.prisma.merchantBillingSubscription.create({
+      data: {
+        merchantId: scopedMerchantId,
         status: "trialing",
         trialEndsAt,
       },
-      update: {},
     });
     return toBilling(row);
   }
@@ -141,6 +170,24 @@ export class PrismaPaymentPlatformRepository
       ...(input.cancelAtPeriodEnd !== undefined
         ? { cancelAtPeriodEnd: input.cancelAtPeriodEnd }
         : {}),
+      ...(input.provider !== undefined ? { provider: input.provider } : {}),
+      ...(input.planKey !== undefined ? { planKey: input.planKey ?? null } : {}),
+      ...(input.asaasCustomerId !== undefined
+        ? { asaasCustomerId: input.asaasCustomerId || null }
+        : {}),
+      ...(input.asaasSubscriptionId !== undefined
+        ? { asaasSubscriptionId: input.asaasSubscriptionId || null }
+        : {}),
+      ...(input.pendingPlanKey !== undefined
+        ? { pendingPlanKey: input.pendingPlanKey ?? null }
+        : {}),
+      ...(input.pendingPlanEffectiveAt !== undefined
+        ? {
+            pendingPlanEffectiveAt: input.pendingPlanEffectiveAt
+              ? new Date(input.pendingPlanEffectiveAt)
+              : null,
+          }
+        : {}),
     };
     await this.prisma.merchantBillingSubscription.upsert({
       where: { merchantId: input.merchantId.trim() },
@@ -163,6 +210,53 @@ export class PrismaPaymentPlatformRepository
     return row ? toBilling(row) : undefined;
   }
 
+  async expireTrial(merchantId: string, now: Date): Promise<boolean> {
+    const result = await this.prisma.merchantBillingSubscription.updateMany({
+      where: {
+        merchantId: merchantId.trim(),
+        status: "trialing",
+        stripeSubscriptionId: null,
+        trialEndsAt: { lte: now },
+      },
+      data: {
+        status: "starter",
+        trialEndsAt: null,
+        currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
+      },
+    });
+    return result.count > 0;
+  }
+
+  async expireTrials(now: Date, limit: number): Promise<number> {
+    const rows = await this.prisma.merchantBillingSubscription.findMany({
+      where: {
+        status: "trialing",
+        stripeSubscriptionId: null,
+        trialEndsAt: { lte: now },
+      },
+      select: { merchantId: true },
+      orderBy: { trialEndsAt: "asc" },
+      take: Math.max(1, Math.trunc(limit)),
+    });
+    if (!rows.length) return 0;
+    const result = await this.prisma.merchantBillingSubscription.updateMany({
+      where: {
+        merchantId: { in: rows.map((row) => row.merchantId) },
+        status: "trialing",
+        stripeSubscriptionId: null,
+        trialEndsAt: { lte: now },
+      },
+      data: {
+        status: "starter",
+        trialEndsAt: null,
+        currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
+      },
+    });
+    return result.count;
+  }
+
   async findMerchantByStripeCustomerId(
     customerId: string,
   ): Promise<string | undefined> {
@@ -182,6 +276,16 @@ export class PrismaPaymentPlatformRepository
     });
     return row?.merchantId;
   }
+
+  async findMerchantByAsaasSubscriptionId(
+    subscriptionId: string,
+  ): Promise<string | undefined> {
+    const row = await this.prisma.merchantBillingSubscription.findFirst({
+      where: { asaasSubscriptionId: subscriptionId.trim() },
+      select: { merchantId: true },
+    });
+    return row?.merchantId ?? undefined;
+  }
 }
 
 function toConnection(row: {
@@ -199,7 +303,11 @@ function toConnection(row: {
   createdAt: Date;
   updatedAt: Date;
 }): PaymentConnectionSnapshot {
-  if (row.provider !== "stripe" && row.provider !== "asaas") {
+  if (
+    row.provider !== "stripe" &&
+    row.provider !== "asaas" &&
+    row.provider !== "mercadopago"
+  ) {
     throw new Error("payment_connection_provider_invalid");
   }
   return {
@@ -247,6 +355,12 @@ function toBilling(row: {
   cancelAtPeriodEnd: boolean;
   createdAt: Date;
   updatedAt: Date;
+  provider?: string | null;
+  planKey?: string | null;
+  asaasCustomerId?: string | null;
+  asaasSubscriptionId?: string | null;
+  pendingPlanKey?: string | null;
+  pendingPlanEffectiveAt?: Date | null;
 }): BillingSubscriptionSnapshot {
   return {
     merchantId: row.merchantId,
@@ -259,13 +373,24 @@ function toBilling(row: {
     cancelAtPeriodEnd: row.cancelAtPeriodEnd,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    provider: row.provider === "stripe" ? "stripe" : row.provider === "asaas" ? "asaas" : undefined,
+    planKey: toPlanKey(row.planKey),
+    asaasCustomerId: row.asaasCustomerId ?? undefined,
+    asaasSubscriptionId: row.asaasSubscriptionId ?? undefined,
+    pendingPlanKey: toPlanKey(row.pendingPlanKey),
+    pendingPlanEffectiveAt: row.pendingPlanEffectiveAt?.toISOString(),
   };
+}
+
+function toPlanKey(v: string | null | undefined): BillingSubscriptionSnapshot["planKey"] {
+  return v === "starter" || v === "growth" || v === "scale" ? v : undefined;
 }
 
 function toBillingStatus(
   status: string,
 ): BillingSubscriptionSnapshot["status"] {
   if (
+    status === "starter" ||
     status === "active" ||
     status === "past_due" ||
     status === "unpaid" ||

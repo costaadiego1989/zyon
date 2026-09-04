@@ -1,0 +1,540 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Marketplace — Enterprise Layout
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.marketplace-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.marketplace-page__header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.eyebrow {
+  font: 600 10px var(--font-mono);
+  letter-spacing: 0.06em;
+  color: var(--faint);
+  text-transform: uppercase;
+}
+
+.marketplace-page__title {
+  font: 700 20px var(--font-sans);
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.page-lead {
+  font: 400 13px var(--font-sans);
+  color: var(--muted);
+  margin: 0;
+}
+
+.marketplace-page__tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+.marketplace-page__tab {
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font: 500 13px var(--font-sans);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.marketplace-page__tab:hover {
+  color: var(--ink);
+}
+
+.marketplace-page__tab--active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.marketplace-page__settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.marketplace-page__orders {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* ── Stats Grid ──────────────────────────────────────────────────────────── */
+
+.marketplace-page__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+}
+
+.stat-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stat-card__label {
+  font: 600 10px var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--faint);
+  text-transform: uppercase;
+}
+
+.stat-card__value {
+  font: 700 24px var(--font-data);
+  color: var(--ink);
+}
+
+.stat-card__unit {
+  font: 400 12px var(--font-sans);
+  color: var(--muted);
+}
+
+/* ── Section Headers ─────────────────────────────────────────────────────── */
+
+.marketplace-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.marketplace-section__title {
+  font: 700 14px var(--font-sans);
+  color: var(--ink);
+  margin: 0;
+}
+
+.marketplace-section__subtitle {
+  font: 400 12px var(--font-sans);
+  color: var(--muted);
+  margin: 0;
+}
+
+/* ── Enable Toggle ───────────────────────────────────────────────────────── */
+
+.marketplace-enable {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.marketplace-enable__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 3px;
+}
+
+.marketplace-enable__checkbox input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+.marketplace-enable__content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.marketplace-enable__label {
+  font: 600 13px var(--font-sans);
+  color: var(--ink);
+}
+
+.marketplace-enable__description {
+  font: 400 12px var(--font-sans);
+  color: var(--muted);
+}
+
+.marketplace-enable__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 500 12px var(--font-data);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot--active {
+  background: var(--color-success);
+}
+
+.marketplace-enable__status-active {
+  color: var(--color-success);
+}
+
+/* ── Config Form ─────────────────────────────────────────────────────────── */
+
+.marketplace-config__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+}
+
+.marketplace-config__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.marketplace-config__label {
+  font: 600 10px var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--faint);
+  text-transform: uppercase;
+}
+
+.marketplace-config__input {
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--color-surface-alt);
+  font: 400 12px var(--font-data);
+  color: var(--ink);
+  outline: none;
+  transition: border-color var(--duration-fast) var(--ease);
+}
+
+.marketplace-config__input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--color-brand-ring);
+}
+
+.marketplace-config__input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Settlement Timeline ─────────────────────────────────────────────────── */
+
+.settlement-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: var(--space-4);
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-sm);
+}
+
+.settlement-timeline__title {
+  font: 600 12px var(--font-sans);
+  color: var(--ink);
+  margin: 0;
+}
+
+.settlement-timeline__events {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.timeline-event {
+  display: flex;
+  gap: 12px;
+}
+
+.timeline-event__marker {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--card);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.timeline-event__line {
+  position: absolute;
+  left: 9px;
+  top: 26px;
+  width: 2px;
+  height: 50px;
+  background: var(--border);
+}
+
+.timeline-event__content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.timeline-event__day {
+  font: 600 11px var(--font-data);
+  color: var(--ink);
+}
+
+.timeline-event__description {
+  font: 400 11px var(--font-sans);
+  color: var(--muted);
+}
+
+/* ── Orders Table ────────────────────────────────────────────────────────── */
+
+.marketplace-orders__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.marketplace-orders__table tbody tr {
+  border-bottom: 1px solid var(--border);
+}
+
+.marketplace-orders__table th {
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  font: 600 11px var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--faint);
+  text-transform: uppercase;
+  background: var(--color-surface-alt);
+  border-bottom: 2px solid var(--border);
+}
+
+.marketplace-orders__table td {
+  padding: var(--space-3) var(--space-4);
+  font: 400 12px var(--font-sans);
+  color: var(--ink);
+}
+
+.marketplace-orders__order-id {
+  font: 600 12px var(--font-data);
+  color: var(--accent);
+}
+
+.marketplace-orders__store-name {
+  font: 500 12px var(--font-sans);
+  color: var(--ink);
+}
+
+.marketplace-orders__amount {
+  font: 600 12px var(--font-data);
+  color: var(--ink);
+}
+
+.marketplace-orders__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font: 600 10px var(--font-data);
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.marketplace-orders__status--pending {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.marketplace-orders__status--shipped {
+  background: var(--color-info-bg, rgba(59, 130, 246, 0.1));
+  color: var(--color-info, #3b82f6);
+}
+
+.marketplace-orders__status--delivered {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.marketplace-orders__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.marketplace-orders__action-btn {
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--ink);
+  font: 600 11px var(--font-sans);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease);
+}
+
+.marketplace-orders__action-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.marketplace-orders__action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+
+.marketplace-page__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  border: none;
+  font: 600 12px var(--font-sans);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease);
+  min-height: 36px;
+}
+
+.marketplace-page__button--primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.marketplace-page__button--primary:hover:not(:disabled) {
+  background: var(--color-brand-hover);
+}
+
+.marketplace-page__button--secondary {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--ink);
+}
+
+.marketplace-page__button--secondary:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.marketplace-page__button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Settlement Status Badges ──────────────────────────────────────────────── */
+
+.settlement-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font: 600 11px var(--font-mono);
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+.settlement-status--awaiting_return_window {
+  background: oklch(70% 0.08 245 / 0.2);
+  color: #2563eb;
+}
+
+.settlement-status--transfer_scheduled {
+  background: oklch(70% 0.1 48 / 0.2);
+  color: #f59e0b;
+}
+
+.settlement-status--transferred {
+  background: oklch(72% 0.11 145 / 0.2);
+  color: #10b981;
+}
+
+.settlement-status--finalized {
+  background: oklch(72% 0.11 145 / 0.2);
+  color: #059669;
+}
+
+.settlement-status--return_cancelled,
+.settlement-status--chargeback_cancelled {
+  background: oklch(65% 0.08 260 / 0.2);
+  color: #7c3aed;
+}
+
+.settlement-status--chargeback_debt {
+  background: oklch(70% 0.13 25 / 0.2);
+  color: #dc2626;
+}
+
+.btn-sm {
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--ink);
+  font: 500 11px var(--font-sans);
+  cursor: pointer;
+  transition: all var(--duration-fast, 150ms) ease;
+}
+
+.btn-sm:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.marketplace-page__settlements,
+.marketplace-page__chargebacks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4, 16px);
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+
+@media (max-width: 1024px) {
+  .marketplace-config__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .marketplace-page__stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .marketplace-page__header {
+    align-items: flex-start;
+  }
+  .marketplace-config__grid {
+    grid-template-columns: 1fr;
+  }
+  .marketplace-page__stats {
+    grid-template-columns: 1fr;
+  }
+  .marketplace-orders__table {
+    font-size: 11px;
+  }
+  .marketplace-orders__table th,
+  .marketplace-orders__table td {
+    padding: var(--space-2) var(--space-3);
+  }
+}

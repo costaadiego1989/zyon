@@ -1,5 +1,6 @@
 import { Controller, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
-import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
+import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
+import { currentTenantPrincipal, type TenantPrincipalRequest } from "../../../../shared/auth/tenant-principal.js";
 import { GetOnboardingStateUseCase } from "../../application/get-onboarding-state.use-case.js";
 import { CompleteOnboardingStepUseCase } from "../../application/complete-onboarding-step.use-case.js";
 
@@ -12,14 +13,14 @@ export class OnboardingController {
   ) {}
 
   @Get()
-  state(@Req() request: unknown) {
-    return this.getState.execute(currentUser(request as { user?: unknown }).merchantId);
+  state(@Req() request: TenantPrincipalRequest) {
+    return this.getState.execute(currentTenantPrincipal(request).tenantId);
   }
 
   @Post("steps/:step/complete")
-  complete(@Req() request: unknown, @Param("step") step: string) {
+  complete(@Req() request: TenantPrincipalRequest, @Param("step") step: string) {
     return this.completeStep.execute({
-      merchantId: currentUser(request as { user?: unknown }).merchantId,
+      merchantId: currentTenantPrincipal(request).tenantId,
       step
     });
   }

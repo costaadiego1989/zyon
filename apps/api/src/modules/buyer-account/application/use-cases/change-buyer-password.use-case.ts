@@ -1,6 +1,7 @@
-import { Inject, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException, UnauthorizedException , Logger} from "@nestjs/common";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../domain/ports/buyer-account-repository.port.js";
 import { PasswordHasher } from "../../../auth/domain/services/password-hasher.service.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface ChangeBuyerPasswordRequest {
   globalUserId: string;
@@ -10,6 +11,8 @@ export interface ChangeBuyerPasswordRequest {
 
 @Injectable()
 export class ChangeBuyerPasswordUseCase {
+  private readonly logger = new Logger(ChangeBuyerPasswordUseCase.name);
+
   constructor(
     @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly repo: BuyerAccountRepository,
     private readonly hasher: PasswordHasher
@@ -21,6 +24,10 @@ export class ChangeBuyerPasswordUseCase {
     }
     const account = await this.repo.findByGlobalUserId(input.globalUserId);
     if (!account) throw new NotFoundException("buyer_account_not_found");
+    // C2 fix: phone-only accounts (null passwordHash) cannot change password — they must set one first
+    if (account.passwordHash === null) {
+      throw new UnauthorizedException("phone_only_account_cannot_change_password");
+    }
     const valid = await this.hasher.verify(input.currentPassword, account.passwordHash);
     if (!valid) throw new UnauthorizedException("invalid_current_password");
     const newHash = await this.hasher.hash(input.newPassword);

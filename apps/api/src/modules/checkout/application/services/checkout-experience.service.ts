@@ -8,11 +8,12 @@ import type {
   CurrencyCode,
   CustomerHints,
   MerchantTheme,
-  ShippingQuote
-} from "@aacp/shared-types";
-import { DEFAULT_MERCHANT_THEME } from "@aacp/shared-types";
+  ShippingQuote,
+  SuggestedProduct
+} from "@zyon/shared-types";
+import { DEFAULT_MERCHANT_THEME } from "@zyon/shared-types";
 import { deriveChatStage, missingFieldsForStage } from "../../domain/services/customer-extraction.service.js";
-import type { MerchantRules } from "@aacp/shared-types";
+import type { MerchantRules } from "@zyon/shared-types";
 
 export interface ExperienceInputs {
   merchant_id: string;
@@ -29,9 +30,55 @@ export interface ExperienceDeps {
   chatStage?: ChatStage;
   missingFieldsPreview?: string[];
   rules?: MerchantRules;
+  /**
+   * Platform service fee in BRL. Resolved from the injected
+   * `CheckoutExperienceConfig.platformFeeBrl` by the caller; defaults to 1.99
+   * to preserve the prior `process.env.PLATFORM_FEE_BRL` fallback.
+   */
+  serviceFee?: number;
+  suggestedProducts?: SuggestedProduct[];
+  showBranding?: boolean;
+  /** Voice checkout habilitado (feature voiceCheckout do plano — Growth+). */
+  voiceEnabled?: boolean;
+  /** Payment configuration — which methods the merchant accepts */
+  stripeConnectAccountId?: string | null;
+  cryptoPaymentsEnabled?: boolean;
+  cryptoPayments?: Record<string, unknown> | null;
+  merchantRulesForWidget?: {
+    maxDiscountPercent: number;
+    allowFreeShipping: boolean;
+    allowShippingDiscount: boolean;
+    freeShippingMinCartValue: number;
+    maxShippingSubsidy: number;
+    maxPartialShippingDiscount: number;
+    offerExpirationMinutes: number;
+    blockedRegions: string[];
+    brandVoice: string;
+    originZip?: string;
+  };
+  advancedRules?: string[];
+  visual?: {
+    mode?: string;
+    density?: string;
+    backgroundImageUrl?: string;
+    borderRadius?: number;
+    fontFamily?: string;
+    fontDisplay?: string;
+  };
 }
 
-export function quickRepliesForStage(stage: ChatStage, missingFields: string[] = [], rules?: MerchantRules): string[] {
+export interface CartSnapshot {
+  items: Array<{ name: string; quantity: number }>;
+  total: number;
+  couponCode?: string | null;
+}
+
+export function quickRepliesForStage(
+  stage: ChatStage,
+  missingFields: string[] = [],
+  rules?: MerchantRules,
+  cart?: CartSnapshot
+): string[] {
   const next = missingFields[0];
   if (next === "confirmar endereço") {
     return ["Sim", "Não"];
@@ -39,6 +86,10 @@ export function quickRepliesForStage(stage: ChatStage, missingFields: string[] =
   let customReplies: string[] | undefined;
 
   if (stage === "data_collection") {
+    // Empty cart: show product discovery actions
+    if (cart?.items.length === 0) {
+      return ["Ver produtos", "Buscar por categoria", "Quais as promoções?"];
+    }
     const dRules = rules?.quickReplies?.data_collection;
     if (next === "nome") customReplies = dRules?.nome;
     else if (next === "email") customReplies = dRules?.email;
@@ -46,6 +97,11 @@ export function quickRepliesForStage(stage: ChatStage, missingFields: string[] =
     else if (next === "telefone") customReplies = dRules?.telefone;
     if (!customReplies?.length) customReplies = dRules?.default;
   } else if (stage === "shipping") {
+    // Cart-aware: show carrier options as quick replies when frete stage is ready
+    if (next === "frete" && cart?.items.length) {
+      // Carrier options will be provided separately via shippingOptionReplies
+      return ["Tem frete grátis?", "O prazo está muito longo", "Tem transportadora mais rápida?"];
+    }
     const sRules = rules?.quickReplies?.shipping;
     if (next === "CEP") customReplies = sRules?.CEP;
     else if (next?.includes("confirmar")) customReplies = sRules?.confirmar;
@@ -101,22 +157,34 @@ export function quickRepliesForStage(stage: ChatStage, missingFields: string[] =
       if (rules?.cryptoPayments?.enabled) {
         base.push("Pagar com crypto");
       }
-      if (rules?.couponBoxEnabled !== false && (rules?.maxDiscountPercent ?? 0) > 0) {
-        return ["Tenho um cupom de desconto", ...base];
+      const cartAwareReplies: string[] = [];
+      // Add quantity modification option if any item has qty > 1
+      if (cart?.items.some(item => item.quantity > 1)) {
+        cartAwareReplies.push("Quero alterar quantidade");
       }
-      return base;
+      // Add item removal option if cart has 2+ items
+      if (cart && cart.items.length >= 2) {
+        cartAwareReplies.push("Remover item");
+      }
+      // Filter out coupon mention if not applicable or already applied
+      const couponReplies: string[] = [];
+      if (rules?.couponBoxEnabled !== false && (rules?.maxDiscountPercent ?? 0) > 0 && !cart?.couponCode) {
+        couponReplies.push("Tenho um cupom de desconto");
+      }
+      return [...couponReplies, ...base, ...cartAwareReplies];
     }
     case "completed":
-      return ["Obrigado!"];
+      return ["Obrigado!", "Quero acompanhar o pedido", "Voltar à loja"];
     default:
       return ["Ok"];
   }
 }
 
-function readPlatformServiceFee(): number {
-  const raw = process.env.PLATFORM_FEE_BRL?.trim() || "1.99";
-  const major = Number(raw.replace(",", "."));
-  return Number.isFinite(major) && major >= 0 ? major : 1.99;
+function readPlatformServiceFee(deps: ExperienceDeps): number {
+  if (typeof deps.serviceFee === "number" && Number.isFinite(deps.serviceFee) && deps.serviceFee >= 0) {
+    return deps.serviceFee;
+  }
+  return 1.99;
 }
 
 export function buildCheckoutExperience(input: ExperienceInputs, deps: ExperienceDeps): CheckoutExperienceSnapshot {
@@ -129,12 +197,12 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
   const discount = input.cart.currentDiscount ?? 0;
   const subtotal = input.cart.total;
   const total = Math.max(0, roundMoney(subtotal + shipping - discount));
-  const serviceFee = readPlatformServiceFee();
+  const serviceFee = readPlatformServiceFee(deps);
   const agentIdentity = deps.agent?.agent;
-  const agentName = agentIdentity?.agentName ?? "Assistente AACP";
+  const agentName = deps.theme?.agentName || agentIdentity?.agentName || "Assistente AACP";
   const cartEmpty = input.cart.items.length === 0;
   const greeting = cartEmpty
-    ? "O que você deseja comprar? Digite aqui que encontro para você."
+    ? (agentIdentity?.emptyCartGreeting ?? "O que você deseja comprar? Digite aqui que encontro para você.")
     : (agentIdentity?.greeting ?? "Ola, tudo bem? Sou o seu assistente virtual e vou guiar seu checkout com seguranca.");
 
   let expected_input_type: "text" | "email" | "tel" | "number" = "text";
@@ -147,6 +215,13 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
     const next = deps.missingFieldsPreview?.[0];
     if (next === "CEP" || next?.includes("número")) expected_input_type = "number";
   }
+
+  // Build cart snapshot for cart-aware quick replies
+  const cartSnapshot: CartSnapshot = {
+    items: input.cart.items.map(item => ({ name: item.name, quantity: item.quantity })),
+    total: subtotal,
+    couponCode: (input.cart as any).couponCode ?? null
+  };
 
   return {
     stage: chatStage,
@@ -161,8 +236,12 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
     },
     rules: {
       couponBoxEnabled: deps.couponBoxEnabled ?? true,
-      cryptoPaymentsEnabled: deps.rules?.cryptoPayments?.enabled === true
+      cryptoPaymentsEnabled: deps.rules?.cryptoPayments?.enabled === true,
+      cryptoPayments: deps.rules?.cryptoPayments,
+      showBranding: deps.showBranding ?? false,
+      voiceEnabled: deps.voiceEnabled ?? false,
     },
+    policies: deps.rules?.policies,
     items,
     totals: {
       currency: input.cart.currency,
@@ -174,6 +253,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
     },
     shipping: input.shipping,
     shippingOptions: undefined,
+    suggestedProducts: deps.suggestedProducts?.length ? deps.suggestedProducts : undefined,
     customer: publicCustomerHints(input.customer),
     agent: {
       name: agentName,
@@ -185,7 +265,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
       headline: `${merchantName}: finalize sua compra com ajuda da IA`,
       subheadline: `${items.length} item(ns) no pedido, total ${formatMoney(total, input.cart.currency)} com contexto real do carrinho.`,
       trust_badges: [],
-      quick_replies: quickRepliesForStage(chatStage, deps.missingFieldsPreview ?? [], deps.rules),
+      quick_replies: quickRepliesForStage(chatStage, deps.missingFieldsPreview ?? [], deps.rules, cartSnapshot),
       focus_input: chatStage !== "completed",
       expected_input_type
     }
@@ -214,7 +294,14 @@ export function buildExperienceFromSession(session: CheckoutSession, deps: Exper
     shippingOptions: readyForFrete ? session.shippingOptions : undefined,
     copy: shippingOptionReplies
       ? { ...experience.copy, quick_replies: shippingOptionReplies }
-      : experience.copy
+      : experience.copy,
+    merchant_rules: deps.merchantRulesForWidget,
+    advanced_rules: deps.advancedRules,
+    visual: deps.visual,
+    // Payment methods flags — ONLY booleans, never credentials/IDs
+    stripeEnabled: !!deps.stripeConnectAccountId,
+    cryptoPaymentsEnabled: deps.cryptoPaymentsEnabled ?? false,
+    cryptoPayments: deps.cryptoPayments ? { chain: (deps.cryptoPayments as any).chain, token: (deps.cryptoPayments as any).token, enabled: (deps.cryptoPayments as any).enabled } : null,
   };
 }
 
@@ -255,5 +342,5 @@ function roundMoney(value: number): number {
 }
 
 function formatMoney(value: number, currency: CurrencyCode): string {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(value);
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: currency || "BRL" }).format(value);
 }

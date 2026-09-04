@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Put } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Put, Query, UseGuards } from "@nestjs/common";
 import type {
   ApplyOfferRequest,
   ChatMessageRequest,
@@ -7,15 +7,20 @@ import type {
   MerchantRules,
   ShippingEvaluateRequest,
   StartCheckoutRequest,
+  StorePeriod,
   TrackEventRequest,
   UpdateCartRequest,
   UpdateOrderTrackingRequest
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 import { ApplyOfferUseCase } from "../../application/use-cases/apply-offer.use-case.js";
 import { CompleteOrderUseCase } from "../../application/use-cases/complete-order.use-case.js";
+import { GetFunnelUseCase } from "../../application/use-cases/get-funnel.use-case.js";
+import { GetFunnelSessionsUseCase } from "../../application/use-cases/get-funnel-sessions.use-case.js";
 import {
   GetDashboardOverviewUseCase,
   GetMerchantRulesUseCase,
+  GetStoreOverviewUseCase,
+  GetTimeseriesUseCase,
   UpdateMerchantRulesUseCase
 } from "../../application/use-cases/dashboard.use-cases.js";
 import { EvaluateShippingUseCase } from "../../application/use-cases/evaluate-shipping.use-case.js";
@@ -27,9 +32,14 @@ import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-che
 import { UpdateOrderTrackingUseCase } from "../../application/use-cases/update-order-tracking.use-case.js";
 import { UpdateCartUseCase } from "../../application/use-cases/update-cart.use-case.js";
 import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
+import { PlanLimitGuard, RequirePlanLimit } from "../../../payment/domain/billing-plan-guard.js";
+import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
+import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-ownership.guard.js";
+import { StaffReadable } from "../../../auth/presentation/staff-readable.decorator.js";
+import { StaffReadableGuard } from "../../../auth/presentation/staff-readable.guard.js";
 
 @NonProductionRoute()
-@Controller()
+@Controller("checkout")
 export class CheckoutController {
   constructor(
     private readonly startCheckout: StartCheckoutUseCase,
@@ -44,10 +54,16 @@ export class CheckoutController {
     private readonly getRules: GetMerchantRulesUseCase,
     private readonly updateRules: UpdateMerchantRulesUseCase,
     private readonly updateOrderTracking?: UpdateOrderTrackingUseCase,
-    private readonly updateCart?: UpdateCartUseCase
+    private readonly updateCart?: UpdateCartUseCase,
+    private readonly getStoreOverview?: GetStoreOverviewUseCase,
+    private readonly getTimeseries?: GetTimeseriesUseCase,
+    private readonly getFunnel?: GetFunnelUseCase,
+    private readonly getFunnelSessions?: GetFunnelSessionsUseCase,
   ) {}
 
   @Post("start-checkout")
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanLimit("sessionsPerMonth")
   start(@Body() body: StartCheckoutRequest) {
     return this.startCheckout.execute(body);
   }
@@ -68,6 +84,8 @@ export class CheckoutController {
   }
 
   @Post("chat/message")
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanLimit("aiConversationsPerMonth")
   chat(@Body() body: ChatMessageRequest) {
     return this.sendChatMessage.execute(body);
   }
@@ -83,6 +101,8 @@ export class CheckoutController {
   }
 
   @Post("orders/complete")
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanLimit("ordersPerMonth", 1, { soft: true })
   complete(@Body() body: CompleteOrderRequest) {
     return this.completeOrder.execute(body);
   }
@@ -100,17 +120,71 @@ export class CheckoutController {
   }
 
   @Get("dashboard/overview/:merchantId")
+  @UseGuards(AuthGuard, MerchantOwnershipGuard)
   overview(@Param("merchantId") merchantId: string) {
     return this.getDashboardOverview.execute(merchantId);
   }
 
+  @Get("dashboard/store-overview/:merchantId")
+  @UseGuards(AuthGuard, MerchantOwnershipGuard)
+  storeOverview(
+    @Param("merchantId") merchantId: string,
+    @Query("period") period?: StorePeriod,
+  ) {
+    if (!this.getStoreOverview) throw new Error("store_overview_not_configured");
+    return this.getStoreOverview.execute(merchantId, period ?? "7d");
+  }
+
+  @Get("dashboard/overview/timeseries/:merchantId")
+  @UseGuards(AuthGuard, MerchantOwnershipGuard)
+  timeseries(
+    @Param("merchantId") merchantId: string,
+    @Query("period") period?: StorePeriod,
+  ) {
+    if (!this.getTimeseries) throw new Error("timeseries_not_configured");
+    return this.getTimeseries.execute(merchantId, period ?? "7d");
+  }
+
   @Get("dashboard/rules/:merchantId")
+  @UseGuards(AuthGuard, MerchantOwnershipGuard)
   rules(@Param("merchantId") merchantId: string) {
     return this.getRules.execute(merchantId);
   }
 
   @Put("dashboard/rules/:merchantId")
+  @UseGuards(AuthGuard, MerchantOwnershipGuard)
   update(@Param("merchantId") merchantId: string, @Body() body: Partial<MerchantRules>) {
     return this.updateRules.execute(merchantId, body);
+  }
+
+  @Get("funnel/:merchantId")
+  @StaffReadable()
+  @UseGuards(AuthGuard, MerchantOwnershipGuard, StaffReadableGuard)
+  funnel(
+    @Param("merchantId") merchantId: string,
+    @Query("period") period?: string,
+    @Query("breakdown") breakdown?: string,
+    @Query("compare") compare?: string,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+  ) {
+    if (!this.getFunnel) throw new Error("funnel_not_configured");
+    const validBreakdowns = ["device", "buyer_type", "payment_method"];
+    const breakdownValue = breakdown && validBreakdowns.includes(breakdown)
+      ? breakdown as "device" | "buyer_type" | "payment_method"
+      : undefined;
+    return this.getFunnel.execute(
+      merchantId,
+      (period ?? "7d") as "today" | "7d" | "30d" | "90d",
+      { breakdown: breakdownValue, compare: compare === "true", range: from && to ? { from, to } : undefined },
+    );
+  }
+
+  @Get("funnel/:merchantId/sessions")
+  @StaffReadable()
+  @UseGuards(AuthGuard, MerchantOwnershipGuard, StaffReadableGuard)
+  funnelSessions(@Param("merchantId") merchantId: string) {
+    if (!this.getFunnelSessions) throw new Error("funnel_sessions_not_configured");
+    return this.getFunnelSessions.execute(merchantId);
   }
 }

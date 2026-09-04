@@ -1,5 +1,6 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException , Logger} from "@nestjs/common";
 import { PAYMENT_REPOSITORY, type PaymentRepository } from "../domain/ports/payment-repository.port.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 export type GetPaymentIntentStatusRequest = {
   merchant_id: string;
@@ -26,6 +27,8 @@ export type GetPaymentIntentStatusResponse = {
  */
 @Injectable()
 export class GetPaymentIntentStatusUseCase {
+  private readonly logger = new Logger(GetPaymentIntentStatusUseCase.name);
+
   constructor(@Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository) {}
 
   async execute(input: GetPaymentIntentStatusRequest): Promise<GetPaymentIntentStatusResponse> {

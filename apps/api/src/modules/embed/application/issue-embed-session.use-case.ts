@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger, Optional } from "@nestjs/common";
 import { EmbedTokenService, type EmbedScope, type EmbedTokenClaims } from "../domain/embed-token.service.js";
 
 const EMBED_SCOPES: readonly EmbedScope[] = [
@@ -27,6 +27,8 @@ const TRANSACTIONAL_SCOPES = new Set<EmbedScope>([
 
 @Injectable()
 export class IssueEmbedSessionUseCase {
+  private readonly logger = new Logger(IssueEmbedSessionUseCase.name);
+
   constructor(private readonly tokens: EmbedTokenService) {}
 
   execute(input: {
@@ -51,9 +53,8 @@ export class IssueEmbedSessionUseCase {
     const allowedOrigin = validateAllowedOrigin(input.allowedOrigin);
     const scopes = sanitizeScopes(input.scopes);
 
-    // B2 fix: in `live` mode, transactional scopes require an origin binding.
-    if (input.environment === "live" && !allowedOrigin && scopes?.some((s) => TRANSACTIONAL_SCOPES.has(s))) {
-      throw new BadRequestException("embed_allowed_origin_required_for_live_transactional_scopes");
+    if (!allowedOrigin && scopes?.some((s) => TRANSACTIONAL_SCOPES.has(s))) {
+      throw new BadRequestException("embed_allowed_origin_required_for_transactional_scopes");
     }
 
     const claims: EmbedTokenClaims = {
@@ -70,8 +71,21 @@ export class IssueEmbedSessionUseCase {
       cartRef: sanitizeCartRef(input.cartRef)
     };
 
+    const token = this.tokens.sign(claims);
+
+    // M4: audit log for token issuance
+    this.logger.log({
+      event: "embed.token.issued",
+      merchantId: input.merchantId,
+      installationId: input.installationId ?? null,
+      ttlSeconds: expiresAtUnix - now,
+      scopes: scopes ?? [],
+      allowedOrigin: allowedOrigin ?? null,
+      environment: input.environment ?? null,
+    });
+
     return {
-      embed_session_token: this.tokens.sign(claims),
+      embed_session_token: token,
       expires_at_unix: expiresAtUnix,
       installation_id: input.installationId ?? null,
       environment: input.environment ?? null,
@@ -107,5 +121,10 @@ function sanitizeScopes(scopes: string[] | undefined): EmbedScope[] | undefined 
 
 function sanitizeCartRef(cartRef: string | undefined): string | undefined {
   const trimmed = cartRef?.trim();
-  return trimmed ? trimmed.slice(0, 120) : undefined;
+  if (!trimmed) return undefined;
+  // L3 fix: reject oversized refs with 400 instead of silently truncating.
+  if (trimmed.length > 120) {
+    throw new BadRequestException("embed_cart_ref_too_long");
+  }
+  return trimmed;
 }

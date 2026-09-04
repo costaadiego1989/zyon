@@ -1,0 +1,238 @@
+/**
+ * Page Object Models for E2E checkout tests.
+ * Encapsulates selectors and interactions for reuse across specs.
+ */
+import { expect, type Locator, type Page } from "@playwright/test";
+
+// ─── CheckoutPage ────────────────────────────────────────────────────────────
+
+export class CheckoutPage {
+  readonly page: Page;
+  readonly thread: Locator;
+  readonly composer: Locator;
+  readonly input: Locator;
+  readonly sendButton: Locator;
+  readonly quickReplies: Locator;
+  readonly channelGate: Locator;
+  readonly cartSummary: Locator;
+  readonly shippingSelector: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    // Pulse renders chat inside a scrollable div that contains message divs
+    this.thread = page.locator("div[style*='overflow']").first();
+    this.composer = page.getByLabel("Mensagem para o assistente").or(page.locator("input.zyon-input")).first();
+    this.input = this.composer;
+    // Send button — stable aria-label on the Composer send control.
+    this.sendButton = page.getByRole("button", { name: "Enviar mensagem" }).or(page.locator("button.zyon-send")).first();
+    this.quickReplies = page.locator("button").filter({ hasText: /Sim|Não|Continuar|Pular/ });
+    this.channelGate = page.getByRole("dialog");
+    this.cartSummary = page.locator("[data-testid='cart-summary']");
+    // Shipping selector in Pulse is a group of buttons/clickable divs with shipping options
+    this.shippingSelector = page.locator("div").filter({ hasText: /Correios|PAC|Sedex/ }).first();
+  }
+
+  async goto(url?: string) {
+    await this.page.goto(url ?? process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173");
+  }
+
+  async dismissChannelGate() {
+    // 1) Cookie-consent banner (overlays everything). Click and wait for it to go.
+    const cookieBtn = this.page.getByRole("button", { name: /Aceitar todos|Apenas essenciais/i }).first();
+    if (await cookieBtn.isVisible({ timeout: 4_000 }).catch(() => false)) {
+      await cookieBtn.click({ force: true }).catch(() => {});
+      await cookieBtn.waitFor({ state: "hidden", timeout: 6_000 }).catch(() => {});
+    }
+    // 2) Channel gate: choose the chat channel ("Por chat / Converse digitando").
+    const chatBtn = this.page
+      .getByRole("button", { name: /Por chat|Comprar por chat|Converse digitando/i })
+      .first();
+    if (await chatBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await chatBtn.click().catch(() => {});
+    }
+    // 3) Smart-cart step: advance to the conversation with "Continuar".
+    const continuar = this.page.getByRole("button", { name: /^Continuar$/ }).first();
+    if (await continuar.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await continuar.click().catch(() => {});
+    }
+  }
+
+  async waitForGreeting() {
+    await this.dismissChannelGate();
+    // Current widget thread is `.aacp-thread` (role=log, aria-label="Conversa").
+    // The agent greeting renders as `.aacp-chat-text` inside a bubble stack.
+    const thread = this.page.getByRole("log", { name: "Conversa" }).or(this.page.locator(".aacp-thread")).first();
+    await expect(thread).toBeVisible({ timeout: 10_000 });
+    await expect(this.page.locator(".aacp-chat-text").first()).toBeVisible({ timeout: 10_000 });
+  }
+
+  async waitForStreamingDone() {
+    // Pulse doesn't have a `.chat-caret` — wait for typing animation to disappear
+    // Use a simpler check: no divs with "Carregando" or similar
+    await this.page.locator("div:has-text('Carregando')").or(this.page.locator("span:has-text('digitando')")).last().waitFor({ state: 'hidden', timeout: 15_000 }).catch(() => {});
+  }
+
+  async sendMessage(text: string) {
+    await expect(this.input).toBeVisible({ timeout: 5_000 });
+    await this.input.fill(text);
+    await expect(this.sendButton).toBeEnabled({ timeout: 5_000 });
+    await this.sendButton.click();
+  }
+
+  async tapQuickReply(label: RegExp | string) {
+    const btn = this.page.locator("button").filter({ hasText: label }).first();
+    await expect(btn).toBeVisible({ timeout: 5_000 });
+    await btn.click();
+    await this.waitForStreamingDone();
+  }
+
+  async waitForAgentReply(): Promise<Locator> {
+    await this.page.waitForTimeout(300);
+    // In Pulse, agent messages are in divs; find the last one that contains text
+    const msgs = this.page.locator("div").filter({ hasText: /\w+/ });
+    return msgs.last();
+  }
+
+  getAgentBubbles() {
+    // In Pulse, agent text appears in divs. We can use text content as identifier
+    return this.page.locator("div").filter({ hasText: /\w+/ });
+  }
+
+  getBuyerBubbles() {
+    // Buyer messages typically appear after inputs are sent
+    return this.page.locator("div").filter({ hasText: /\w+/ });
+  }
+
+  async getCartItems() {
+    return this.cartSummary.locator("div").filter({ hasText: /×|x\s/ });
+  }
+
+  async selectShipping(method: RegExp = /PAC/) {
+    const opts = this.page.locator("div").filter({ hasText: method });
+    await expect(opts.first()).toBeVisible({ timeout: 5_000 });
+    await opts.first().click();
+    await this.waitForAgentReply();
+  }
+
+  async continueWithoutCoupon() {
+    const noCoupon = this.page
+      .getByRole("button", { name: /^N[aã]o$/i })
+      .or(this.page.locator("button").filter({ hasText: /N(?:a|ã)o tenho cupom/i }))
+      .first();
+    await expect(noCoupon).toBeVisible({ timeout: 5_000 });
+    await noCoupon.click();
+    await this.waitForStreamingDone();
+  }
+
+  /** Assert no unexpected console errors occurred */
+  async assertNoConsoleErrors(errors: string[]) {
+    const unexpected = errors.filter(
+      (e) =>
+        !e.includes("favicon") &&
+        !e.includes("net::ERR_") && // normal for mocked routes
+        !e.includes("ResizeObserver"),
+    );
+    expect(unexpected).toHaveLength(0);
+  }
+}
+
+// ─── AgentChatPanel ──────────────────────────────────────────────────────────
+
+export class AgentChatPanel {
+  readonly page: Page;
+  readonly panel: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    this.panel = page.locator("div").filter({ hasText: /\w+/ }).first();
+  }
+
+  async getLastAgentMessage(): Promise<string> {
+    const msgs = this.page.locator("div").filter({ hasText: /\w+/ });
+    const count = await msgs.count();
+    return (await msgs.nth(count - 1).textContent()) ?? "";
+  }
+
+  async getMessageCount(): Promise<number> {
+    return this.page.locator("div").filter({ hasText: /\w+/ }).count();
+  }
+
+  async expectAgentAskedFor(field: RegExp) {
+    const lastText = await this.getLastAgentMessage();
+    expect(lastText).toMatch(field);
+  }
+
+  async expectDiscountMentioned() {
+    const lastText = await this.getLastAgentMessage();
+    expect(lastText).toMatch(/desconto|cupom|off|%/i);
+  }
+
+  async expectShippingOptions() {
+    const selector = this.page.locator("div").filter({ hasText: /PAC|Sedex|Correios/ });
+    await expect(selector.first()).toBeVisible({ timeout: 5_000 });
+  }
+}
+
+// ─── PaymentPanel ────────────────────────────────────────────────────────────
+
+export class PaymentPanel {
+  readonly page: Page;
+  readonly pixSection: Locator;
+  readonly cardSection: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    this.pixSection = page.locator("[data-testid='pix-payment'], .zyon-pix-payment");
+    this.cardSection = page.locator("[data-testid='card-payment'], .zyon-card-form, .zyon-stripe-form");
+  }
+
+  async expectPixCodeVisible() {
+    await expect(this.pixSection).toBeVisible({ timeout: 10_000 });
+  }
+
+  async expectCardFormVisible() {
+    await expect(this.cardSection).toBeVisible({ timeout: 10_000 });
+  }
+
+  async getPaymentTotal(): Promise<string> {
+    const total = this.page.locator("[data-testid='payment-total'], .zyon-payment-total");
+    return (await total.textContent()) ?? "";
+  }
+}
+
+// ─── OrderConfirmationPage ───────────────────────────────────────────────────
+
+export class OrderConfirmationPage {
+  readonly page: Page;
+  readonly confirmation: Locator;
+  readonly orderReference: Locator;
+  readonly returnButton: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    this.confirmation = page.locator(".zyon-order-confirmation");
+    this.orderReference = page.locator(".zyon-order-confirmation [data-testid='order-ref'], .zyon-order-confirmation");
+    this.returnButton = page.locator("[data-testid='return-to-store']");
+  }
+
+  async expectVisible() {
+    await expect(this.confirmation).toBeVisible({ timeout: 15_000 });
+  }
+
+  async expectOrderConfirmed() {
+    await this.expectVisible();
+    await expect(this.confirmation).toContainText(/Pedido confirmado/i);
+  }
+
+  async expectOrderReference() {
+    await expect(this.confirmation).toContainText(/Referência da sessão/i);
+  }
+
+  async expectComposerHidden() {
+    await expect(this.page.locator(".zyon-thread-composer-wrap")).toBeHidden({ timeout: 5_000 });
+  }
+
+  async expectReturnButton() {
+    await expect(this.returnButton).toBeVisible({ timeout: 3_000 });
+  }
+}

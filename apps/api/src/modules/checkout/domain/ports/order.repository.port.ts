@@ -1,4 +1,4 @@
-import type { CompletedOrder } from "@aacp/shared-types";
+import type { CompletedOrder, CompletedOrderStatus } from "@zyon/shared-types";
 
 export const ORDER_REPOSITORY = Symbol("ORDER_REPOSITORY");
 
@@ -13,6 +13,12 @@ export interface OrderRepository {
     sessionId: string;
     externalOrderId: string;
     trackingCode: string;
+  }): MaybePromise<CompletedOrder | undefined>;
+  updateCompletedOrderStatus(input: {
+    merchantId: string;
+    sessionId: string;
+    externalOrderId: string;
+    status: CompletedOrderStatus;
   }): MaybePromise<CompletedOrder | undefined>;
   cancelCompletedOrder(input: {
     merchantId: string;

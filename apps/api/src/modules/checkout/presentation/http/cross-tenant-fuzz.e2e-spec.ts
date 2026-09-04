@@ -11,10 +11,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { TenantContextService } from "../../../../shared/tenant/tenant-context.service.js";
 import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
-import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
 import { GetCheckoutSessionUseCase } from "../../application/use-cases/get-checkout-session.use-case.js";
+import { createStartCheckoutUseCase } from "../../application/use-cases/start-checkout.fixture.js";
 import type { AgentContextPort } from "../../domain/ports/agent-context.port.js";
-import type { AgentContext, Cart } from "@aacp/shared-types";
+import type { AgentContext, Cart } from "@zyon/shared-types";
 
 const CART: Cart = {
   currency: "BRL", source: "storefront", total: 200,
@@ -42,7 +42,7 @@ test("FUZZ-001: 1000 cross-tenant session reads return null — no data leakage"
   const MERCHANT_A = "mrc_fuzz_a";
   const MERCHANT_B = "mrc_fuzz_b";
 
-  const startA = new StartCheckoutUseCase(repo, repo, repo, undefined, undefined, new FakeAgent(MERCHANT_A));
+  const startA = createStartCheckoutUseCase(repo, repo, { agentContext: new FakeAgent(MERCHANT_A) });
   const getUC = new GetCheckoutSessionUseCase(repo);
 
   const sessionsA: string[] = [];
@@ -77,7 +77,7 @@ test("FUZZ-002: tenant A cannot read tenant B sessions even with correct session
   const MERCHANT_A = "mrc_fuzz2_a";
   const MERCHANT_B = "mrc_fuzz2_b";
 
-  const startB = new StartCheckoutUseCase(repo, repo, repo, undefined, undefined, new FakeAgent(MERCHANT_B));
+  const startB = createStartCheckoutUseCase(repo, repo, { agentContext: new FakeAgent(MERCHANT_B) });
   const getUC = new GetCheckoutSessionUseCase(repo);
 
   const { session_id: bSessionId } = await startB.execute({ merchant_id: MERCHANT_B, session_id: "sess_b_secret", cart: CART });

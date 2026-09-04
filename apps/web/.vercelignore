@@ -1,0 +1,6 @@
+.env.local
+.impeccable
+.thumbnail
+uploads
+public
+package.json

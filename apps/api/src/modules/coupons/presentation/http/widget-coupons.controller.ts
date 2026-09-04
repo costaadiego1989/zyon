@@ -1,5 +1,6 @@
-import { BadRequestException, Body, Controller, Inject, NotFoundException, Post, Req, UseGuards } from "@nestjs/common";
-import type { Cart } from "@aacp/shared-types";
+import { BadRequestException, Body, Controller, Inject, NotFoundException, Post, Req, UseGuards, Logger } from "@nestjs/common";
+import type { Cart } from "@zyon/shared-types";
+import type { PrismaClient } from "@prisma/client";
 import { ApplyCouponUseCase } from "../../application/use-cases/apply-coupon.use-case.js";
 import type { EmbedHttpRequest } from "../../../embed/presentation/http/embed-checkout.controller.js";
 import { EmbedCheckoutGuardHelper } from "../../../embed/presentation/http/embed-checkout.controller.js";
@@ -7,15 +8,21 @@ import { EmbedAuthGuard } from "../../../embed/presentation/http/embed-auth.guar
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../../checkout/domain/ports/checkout-session.repository.port.js";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { buildExperienceFromSession } from "../../../checkout/application/services/checkout-experience.service.js";
+import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../../checkout/domain/checkout-experience.config.js";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 
 @UseGuards(EmbedAuthGuard)
 @Controller("embed/coupons")
 export class WidgetCouponsController {
+  private readonly logger = new Logger(WidgetCouponsController.name);
+
   constructor(
     private readonly applyCoupon: ApplyCouponUseCase,
     private readonly embedGuards: EmbedCheckoutGuardHelper,
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
-    @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository
+    @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository,
+    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 },
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
   ) {}
 
   @Post("apply")
@@ -54,6 +61,20 @@ export class WidgetCouponsController {
       source: "manual"
     });
 
+    // Emit funnel event for coupon applied analytics
+    try {
+      const existing = await this.prisma.checkoutEvent.findFirst({
+        where: { merchantId: embed.merchantId, sessionId: body.session_id.trim(), eventName: "coupon_applied" },
+      });
+      if (!existing) {
+        await this.prisma.checkoutEvent.create({
+          data: { merchantId: embed.merchantId, sessionId: body.session_id.trim(), eventName: "coupon_applied", occurredAt: new Date() },
+        });
+      }
+    } catch (err) {
+      this.logger.warn(`Failed to record coupon_applied funnel event: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
     const next = {
       ...session,
       cart: {
@@ -69,7 +90,8 @@ export class WidgetCouponsController {
         merchantName: merchant?.name,
         theme: merchant?.theme,
         couponBoxEnabled: rules.couponBoxEnabled,
-        rules
+        rules,
+        serviceFee: this.experienceConfig.platformFeeBrl
       })
     };
   }

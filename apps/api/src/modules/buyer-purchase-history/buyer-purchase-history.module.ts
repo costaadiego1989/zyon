@@ -11,6 +11,9 @@ import { BUYER_IDENTITY_REPOSITORY } from "./domain/ports/buyer-identity.reposit
 import { PrismaBuyerIdentityRepository } from "./infrastructure/prisma-buyer-identity.repository.js";
 import { PrismaBuyerPurchaseHistoryRepository } from "./infrastructure/prisma-buyer-purchase-history.repository.js";
 import { BuyerPurchaseHistoryController } from "./presentation/http/buyer-purchase-history.controller.js";
+import { BUYER_PURCHASE_HISTORY_CONFIG } from "./domain/buyer-purchase-history.config.js";
+import { createBuyerPurchaseHistoryConfig } from "./infrastructure/buyer-purchase-history.config.factory.js";
+import { PURCHASE_HISTORY_STORAGE_MODE, DefaultPurchaseHistoryStorageMode } from "./domain/ports/purchase-history-storage-mode.port.js";
 
 @Module({
   imports: [AuthModule],
@@ -28,13 +31,23 @@ import { BuyerPurchaseHistoryController } from "./presentation/http/buyer-purcha
       provide: BUYER_PURCHASE_HISTORY_REPOSITORY,
       useFactory: (prisma: PrismaClient) => new PrismaBuyerPurchaseHistoryRepository(prisma),
       inject: [PRISMA_CLIENT]
+    },
+    {
+      provide: BUYER_PURCHASE_HISTORY_CONFIG,
+      useFactory: () => createBuyerPurchaseHistoryConfig()
+    },
+    {
+      provide: PURCHASE_HISTORY_STORAGE_MODE,
+      useClass: DefaultPurchaseHistoryStorageMode
     }
   ],
   exports: [
     RecordCompletedPurchaseUseCase,
     GetBuyerPurchaseContextUseCase,
     BUYER_IDENTITY_REPOSITORY,
-    BUYER_PURCHASE_HISTORY_REPOSITORY
+    BUYER_PURCHASE_HISTORY_REPOSITORY,
+    BUYER_PURCHASE_HISTORY_CONFIG,
+    PURCHASE_HISTORY_STORAGE_MODE
   ]
 })
 export class BuyerPurchaseHistoryModule {}

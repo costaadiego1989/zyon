@@ -5,7 +5,7 @@ import {
   type OnboardingStepSnapshot
 } from "../domain/entities/onboarding-state.entity.js";
 import type { OnboardingStateRepository } from "../domain/ports/onboarding-state.repository.port.js";
-import type { OnboardingStepId } from "@aacp/shared-types";
+import type { OnboardingStepId } from "@zyon/shared-types";
 
 export class PrismaOnboardingStateRepository implements OnboardingStateRepository {
   constructor(private readonly prisma: PrismaClient) {}

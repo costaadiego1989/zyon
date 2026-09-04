@@ -1,13 +1,14 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query } from "@nestjs/common";
+import { Controller, Get, Post, Put, Delete, Body, Param, Req, UseGuards } from "@nestjs/common";
 import type { PromotionTrigger } from "../../domain/entities/cross-sell-promotion.entity.js";
 import { CreateCrossSellPromotionUseCase } from "../../application/use-cases/create-cross-sell-promotion.use-case.js";
 import { UpdateCrossSellPromotionUseCase } from "../../application/use-cases/update-cross-sell-promotion.use-case.js";
 import { ArchiveCrossSellPromotionUseCase } from "../../application/use-cases/archive-cross-sell-promotion.use-case.js";
 import { CROSS_SELL_PROMOTION_REPOSITORY, type CrossSellPromotionRepository } from "../../domain/ports/cross-sell-promotion-repository.port.js";
 import { Inject } from "@nestjs/common";
-import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
+import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
+import { PlanLimitGuard, RequirePlanLimit } from "../../../payment/domain/billing-plan-guard.js";
 
-@NonProductionRoute()
+@UseGuards(AuthGuard)
 @Controller("merchant/cross-sell")
 export class MerchantCrossSellController {
   constructor(
@@ -18,31 +19,41 @@ export class MerchantCrossSellController {
   ) {}
 
   @Post("promotions")
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanLimit("crossSellPromotions")
   async createPromotion(
-    @Body() body: { merchant_id: string; name: string; trigger: PromotionTrigger; recommended_skus: string[]; discount_percent: number; max_discount_percent: number; starts_at: string; ends_at?: string }
+    @Req() req: unknown,
+    @Body() body: { name: string; trigger: PromotionTrigger; recommended_skus: string[]; discount_percent: number; max_discount_percent: number; starts_at: string; ends_at?: string }
   ) {
+    const { merchantId } = currentUser(req as { user?: unknown });
     return this.create.execute({
       ...body,
+      merchant_id: merchantId,
       starts_at: new Date(body.starts_at),
       ends_at: body.ends_at ? new Date(body.ends_at) : undefined
     });
   }
 
   @Get("promotions")
-  async listPromotions(@Query("merchant_id") merchantId: string) {
+  async listPromotions(@Req() req: unknown) {
+    const { merchantId } = currentUser(req as { user?: unknown });
     return this.repo.findAllByMerchant(merchantId);
   }
 
   @Put("promotions/:id")
   async updatePromotion(
+    @Req() req: unknown,
     @Param("id") id: string,
-    @Body() body: { merchant_id: string; patch: Record<string, unknown> }
+    @Body() body: { patch?: Record<string, unknown> } & Record<string, unknown>
   ) {
-    return this.update.execute({ id, merchant_id: body.merchant_id, patch: body.patch as any });
+    const { merchantId } = currentUser(req as { user?: unknown });
+    const patch = (body.patch ?? body) as Record<string, unknown>;
+    return this.update.execute({ id, merchant_id: merchantId, patch: patch as any });
   }
 
   @Delete("promotions/:id")
-  async archivePromotion(@Param("id") id: string, @Body() body: { merchant_id: string }) {
-    return this.archive.execute({ id, merchant_id: body.merchant_id });
+  async archivePromotion(@Req() req: unknown, @Param("id") id: string) {
+    const { merchantId } = currentUser(req as { user?: unknown });
+    return this.archive.execute({ id, merchant_id: merchantId });
   }
 }

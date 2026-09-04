@@ -1,0 +1,108 @@
+- generic [ref=e55]:
+  - complementary [ref=e56]:
+    - generic [ref=e57]:
+      - generic [ref=e58]: Z
+      - generic [ref=e59]:
+        - generic [ref=e60]: Zyon Console
+        - generic [ref=e62]: Zyon Demo Store
+    - generic [ref=e63]:
+      - generic [ref=e64]: PRODUÇÃO
+      - generic [ref=e65]: v2.4
+    - navigation "Módulos do painel" [ref=e66]:
+      - generic [ref=e67]:
+        - generic [ref=e68]: Começar
+        - generic [ref=e69] [cursor=pointer]: Primeiros passos
+      - generic [ref=e77]:
+        - generic [ref=e78]: Hoje
+        - generic [ref=e79] [cursor=pointer]: Operação
+        - generic [ref=e84] [cursor=pointer]: Pedidos e envios
+        - generic [ref=e93] [cursor=pointer]: Clientes
+      - generic [ref=e100]:
+        - generic [ref=e101]: Plataforma
+        - generic [ref=e102] [cursor=pointer]: Desenvolvedores
+        - generic [ref=e109] [cursor=pointer]: Loja / Commerce
+        - generic [ref=e117] [cursor=pointer]: Embed
+        - generic [ref=e124] [cursor=pointer]: Tema
+        - generic [ref=e133] [cursor=pointer]: Preview
+      - generic [ref=e139]:
+        - generic [ref=e140]: Atendimento
+        - generic [ref=e141] [cursor=pointer]: Suporte
+        - generic [ref=e146] [cursor=pointer]: Checkout
+        - generic [ref=e152] [cursor=pointer]: Agente
+        - generic [ref=e158] [cursor=pointer]: Negociação
+      - generic [ref=e162]:
+        - generic [ref=e163]: Conta
+        - generic [ref=e164] [cursor=pointer]: Faturamento
+        - generic [ref=e169] [cursor=pointer]: Pagamentos
+        - generic [ref=e174] [cursor=pointer]: Auditoria
+    - generic [ref=e180]: Sair
+  - main [ref=e186]:
+    - generic [ref=e187]:
+      - generic [ref=e192]:
+        - generic [ref=e193]:
+          - text: Plataforma
+          - generic [ref=e194]: /
+          - generic [ref=e195]: Loja / Commerce
+        - generic [ref=e196]: Loja / Commerce
+      - generic [ref=e197]: Zyon Demo Store
+    - generic [ref=e942]:
+      - generic [ref=e943]:
+        - generic [ref=e944]:
+          - text: Commerce
+          - heading "Conexões de Plataforma" [level=1] [ref=e945]
+          - paragraph [ref=e946]: Conecte sua loja para sincronizar produtos e pedidos automaticamente.
+        - button "Atualizar" [ref=e947] [cursor=pointer]
+      - generic [ref=e953]:
+        - generic [ref=e963]:
+          - heading "Conectar plataforma" [level=2] [ref=e964]
+          - paragraph [ref=e965]: Informe as credenciais da sua loja. Dados criptografados em repouso.
+        - generic [ref=e966]:
+          - generic [ref=e967]:
+            - generic [ref=e968]:
+              - text: Plataforma
+              - combobox "Plataforma" [ref=e969]:
+                - option "Shopify" [selected]
+                - option "WooCommerce"
+                - option "Nuvemshop"
+                - option "Tray Commerce"
+            - generic [ref=e970]:
+              - text: Domínio da loja
+              - textbox "Domínio da loja Sem https:// — apenas o subdomínio .myshopify.com" [ref=e971]:
+                - /placeholder: minhaloja.myshopify.com
+              - generic [ref=e972]: Sem https:// — apenas o subdomínio .myshopify.com
+          - generic [ref=e973]:
+            - text: Token de acesso (Admin API)
+            - textbox "Token de acesso (Admin API) Gere em Shopify Admin → Settings → Apps → Develop apps → Admin API access token" [ref=e974]:
+              - /placeholder: shpat_...
+            - generic [ref=e975]: Gere em Shopify Admin → Settings → Apps → Develop apps → Admin API access token
+          - generic [ref=e976]:
+            - text: Token storefront (opcional)
+            - textbox "Token storefront (opcional)" [ref=e977]:
+              - /placeholder: shpat_... (opcional)
+          - generic [ref=e978]:
+            - text: Versão da API
+            - combobox "Versão da API" [ref=e979]:
+              - option "Padrão do servidor" [selected]
+              - option "2024-10"
+              - option "2024-07"
+              - option "2024-04"
+              - option "2024-01"
+              - option "2023-10"
+          - generic [ref=e980]:
+            - link "Documentação Shopify ↗" [ref=e981] [cursor=pointer]:
+              - /url: https://shopify.dev/docs/api/admin-rest
+            - generic [ref=e982]: Gere o token em Settings → Apps → Develop apps → Admin API
+          - button "Conectar loja" [ref=e983] [cursor=pointer]
+      - generic [ref=e986]:
+        - heading "Em breve" [level=3] [ref=e987]
+        - paragraph [ref=e988]: Estamos trabalhando em mais integrações nativas.
+        - generic [ref=e989]:
+          - generic [ref=e990]: VTEX
+          - generic [ref=e991]: Magento
+          - generic [ref=e992]: Yampi
+          - generic [ref=e993]: Loja Integrada
+      - generic [ref=e994]:
+        - heading "Conexão Ativa" [level=2] [ref=e995]
+        - generic [ref=e996]:
+          - strong [ref=e1001]: Nenhuma conexão configurada
+          - paragraph [ref=e1002]: Conecte uma plataforma de e-commerce para importar catálogo e sincronizar pedidos.

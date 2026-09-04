@@ -3,10 +3,12 @@ export type CurrencyCode = "BRL" | "USD" | "EUR";
 export type CheckoutEventName =
   | "checkout_started"
   | "cart_viewed"
+  | "product_viewed"
   | "shipping_calculated"
   | "shipping_option_selected"
   | "shipping_objection_detected"
   | "coupon_field_clicked"
+  | "coupon_applied"
   | "payment_method_selected"
   | "payment_failed"
   | "exit_intent_detected"
@@ -14,7 +16,19 @@ export type CheckoutEventName =
   | "offer_viewed"
   | "offer_accepted"
   | "order_completed"
-  | "checkout_abandoned";
+  | "checkout_abandoned"
+  | "cross_sell_accepted"
+  | "cross_sell_added"
+  | "auth_phone_submitted"
+  | "auth_phone_verified"
+  | "auth_identity_confirmed"
+  | "auth_registration_completed"
+  | "login_completed"
+  | "channel_selected"
+  | "item_quantity_updated"
+  | "item_removed"
+  | "session_start"
+  | "message_sent";
 
 export interface CartItem {
   sku: string;
@@ -32,6 +46,10 @@ export interface CartItem {
   category?: string;
   variant?: string;
   description?: string;
+  product_id?: string;
+  title?: string;
+  unit_price?: number;
+  selected_options?: Array<{ group_name: string; item_name: string; price_modifier: number }>;
 }
 
 export interface PackageDimensions {
@@ -157,6 +175,13 @@ export interface MerchantCryptoPayments {
   brlPerUsdc?: number;
 }
 
+export interface MerchantPolicies {
+  privacyUrl?: string;
+  termsUrl?: string;
+  refundUrl?: string;
+  shippingUrl?: string;
+}
+
 export interface MerchantRules {
   maxDiscountPercent: number;
   minimumMarginPercent: number;
@@ -171,16 +196,13 @@ export interface MerchantRules {
   blockedRegions: string[];
   brandVoice: "consultative" | "aggressive" | "premium" | "young" | "technical" | "popular";
   couponBoxEnabled: boolean;
+  autonomousEngineEnabled: boolean;
   originZip?: string;
   quickReplies?: StageQuickReplies;
   cryptoPayments?: MerchantCryptoPayments;
+  policies?: MerchantPolicies;
 }
 
-/**
- * Single canonical default for MerchantRules used across all paths.
- * All use-cases and the Prisma repository must reference this constant
- * instead of inlining their own defaults (P2 — prevents divergence).
- */
 export const DEFAULT_MERCHANT_RULES: MerchantRules = {
   maxDiscountPercent: 10,
   minimumMarginPercent: 38,
@@ -194,12 +216,45 @@ export const DEFAULT_MERCHANT_RULES: MerchantRules = {
   offerExpirationMinutes: 15,
   blockedRegions: [],
   brandVoice: "consultative",
-  couponBoxEnabled: true
+  couponBoxEnabled: true,
+  autonomousEngineEnabled: true
 };
 
-export type ChatStage = "data_collection" | "shipping" | "payment" | "completed";
+export type CrossSellTouchpoint = "browsing" | "pre_cart" | "pre_payment" | "post_purchase";
+export type CrossSellStrategy = "same_category" | "bought_together" | "cart_value_upgrade" | "complementary" | "ai_personalized";
+export type CrossSellDisplayMode = "inline" | "modal" | "banner" | "interstitial";
 
-export type PaymentMethod = "pix" | "credit_card" | "crypto";
+export interface CrossSellConfig {
+  enabled: boolean;
+  touchpoints: Record<CrossSellTouchpoint, boolean>;
+  strategies: CrossSellStrategy[];
+  limits: {
+    maxSuggestionsPerSession: number;
+    cooldownSeconds: number;
+  };
+  discount: {
+    enabled: boolean;
+    mode?: "percent" | "coupon";
+    percent: number;
+    couponCode?: string;
+  };
+  display: {
+    mode: CrossSellDisplayMode;
+  };
+}
+
+export const DEFAULT_CROSS_SELL_CONFIG: CrossSellConfig = {
+  enabled: false,
+  touchpoints: { browsing: true, pre_cart: false, pre_payment: true, post_purchase: false },
+  strategies: ["same_category", "ai_personalized"],
+  limits: { maxSuggestionsPerSession: 2, cooldownSeconds: 120 },
+  discount: { enabled: false, percent: 10 },
+  display: { mode: "inline" },
+};
+
+export type ChatStage = "data_collection" | "shipping" | "payment" | "payment_pending" | "completed";
+
+export type PaymentMethod = "pix" | "credit_card" | "boleto" | "crypto";
 
 export type ChatTurnRole = "buyer" | "agent";
 
@@ -208,6 +263,17 @@ export interface ChatTurn {
   text: string;
   occurredAt: string;
   authorizedOfferId?: string;
+}
+
+export interface CrossStoreLineItem {
+  lineItemId: string;
+  federatedProductId: string;
+  sourceMerchantId: string;
+  quantity: number;
+  unitPriceCents: number;
+  totalCents: number;
+  commissionCents: number;
+  sellerNetCents: number;
 }
 
 export interface CheckoutSession {
@@ -223,6 +289,17 @@ export interface CheckoutSession {
   triggerAgent: boolean;
   chatHistory: ChatTurn[];
   paymentMethod?: PaymentMethod;
+  promptVariantId?: string;
+  crossStoreItems?: CrossStoreLineItem[];
+  cohort?: "holdout" | "treatment";
+  featuresApplied?: {
+    negotiation?: boolean;
+    crossSell?: boolean;
+    progressiveDiscount?: boolean;
+    cartRecovery?: boolean;
+    intentPersonalization?: boolean;
+  };
+  aiCostCents?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -230,6 +307,7 @@ export interface CheckoutSession {
 export interface StartCheckoutRequest {
   merchant_id: string;
   session_id?: string;
+  cart_ref?: string;
   customer?: CustomerHints;
   cart: Cart;
   shipping?: ShippingQuote;
@@ -242,6 +320,7 @@ export interface MerchantTheme {
   backgroundColor: string;
   fontFamily: string;
   logoUrl?: string;
+  faviconUrl?: string;
   agentAvatarUrl?: string;
   surfaceColor?: string;
   surfaceElevatedColor?: string;
@@ -257,6 +336,7 @@ export interface MerchantTheme {
   headerSubtitle?: string;
   agentName?: string;
   trustBadges?: string[];
+  mode?: "light" | "dark" | "grey";
 }
 
 export const DEFAULT_MERCHANT_THEME: MerchantTheme = {
@@ -299,9 +379,24 @@ export interface CheckoutItemSnapshot {
   description?: string;
 }
 
+export interface FoodOptionItem {
+  id: string;
+  name: string;
+  price_modifier_cents: number;
+}
+
+export interface FoodOptionGroup {
+  id: string;
+  name: string;
+  required: boolean;
+  selection_type: "single" | "multiple";
+  items: FoodOptionItem[];
+}
+
 export interface SuggestedProduct {
   suggestion_id?: string;
   sku: string;
+  variant_id?: string;
   name: string;
   unit_price: number;
   image_url?: string;
@@ -309,6 +404,9 @@ export interface SuggestedProduct {
   category?: string;
   variant?: string;
   description?: string;
+  in_stock?: boolean;
+  display_mode?: CrossSellDisplayMode;
+  option_groups?: FoodOptionGroup[];
 }
 
 export interface CheckoutTotalsSnapshot {
@@ -326,7 +424,11 @@ export interface CheckoutExperienceSnapshot {
   rules?: {
     couponBoxEnabled: boolean;
     cryptoPaymentsEnabled?: boolean;
+    cryptoPayments?: MerchantCryptoPayments;
+    showBranding?: boolean;
+    voiceEnabled?: boolean;
   };
+  policies?: MerchantPolicies;
   items: CheckoutItemSnapshot[];
   totals: CheckoutTotalsSnapshot;
   shipping?: ShippingQuote;
@@ -346,6 +448,42 @@ export interface CheckoutExperienceSnapshot {
     quick_replies: string[];
     focus_input?: boolean;
     expected_input_type?: "text" | "email" | "tel" | "number";
+  };
+  merchant_rules?: {
+    maxDiscountPercent: number;
+    allowFreeShipping: boolean;
+    allowShippingDiscount: boolean;
+    freeShippingMinCartValue: number;
+    maxShippingSubsidy: number;
+    maxPartialShippingDiscount: number;
+    offerExpirationMinutes: number;
+    blockedRegions: string[];
+    brandVoice: string;
+    originZip?: string;
+  };
+  advanced_rules?: string[];
+  visual?: {
+    mode?: string;
+    density?: string;
+    backgroundImageUrl?: string;
+    borderRadius?: number;
+    fontFamily?: string;
+    fontDisplay?: string;
+  };
+  stripeEnabled?: boolean;
+  cryptoPaymentsEnabled?: boolean;
+  cryptoPayments?: MerchantCryptoPayments | Record<string, unknown> | null;
+  payment_intent?: {
+    id: string;
+    status: string;
+    method: PaymentMethod;
+    amount_cents: number;
+    currency: string;
+    expires_at?: string;
+    qr_code?: string;
+    qr_code_image?: string;
+    copy_paste?: string;
+    ticket_url?: string;
   };
 }
 
@@ -367,10 +505,18 @@ export interface TrackEventRequest {
   metadata?: Record<string, unknown>;
 }
 
+export interface ProgressiveOfferResponse {
+  stage: ProgressiveDiscountStage;
+  requested_percent: number;
+  approved_percent: number;
+  reason: string;
+}
+
 export interface TrackEventResponse {
   received: true;
   abandonment_score: number;
   trigger_agent: boolean;
+  progressive_offer?: ProgressiveOfferResponse;
 }
 
 export interface UpdateCartItemInput {
@@ -400,6 +546,37 @@ export interface DecisionResponse {
   action: "trigger_agent" | "stay_silent";
   reason: string;
   abandonment_score: number;
+}
+
+export interface BuyerIntentMemoryConsent {
+  merchant_id: string;
+  global_user_id: string;
+  opted_in: boolean;
+  expires_at: string;
+  updated_at: string;
+}
+
+export interface BehavioralSignals {
+  session_duration_seconds: number;
+  items_viewed: number;
+  comparisons_made: number;
+  objections_raised: number;
+  checkout_stage_reached: number;
+  last_objection_type?: string;
+}
+
+export interface CustomerIntentRecord {
+  id: string;
+  merchant_id: string;
+  global_user_id: string;
+  primary_intent: string;
+  urgency: "low" | "medium" | "high";
+  budget_tier: "budget" | "mid" | "premium";
+  category_focus: string[];
+  pain_points: string[];
+  conversion_likelihood_percent: number;
+  behavioral_signals: BehavioralSignals;
+  generated_at: string;
 }
 
 export type OfferType =
@@ -433,15 +610,36 @@ export interface AcceptedOffer {
   expiresAt: string;
 }
 
+export type CompletedOrderStatus =
+  | "pending"
+  | "approved"
+  | "paid"
+  | "shipped"
+  | "delivered"
+  | "cancelled"
+  | "returned";
+
+export interface CompletedOrderLineItem {
+  sku: string;
+  variantId?: string;
+  name?: string;
+  unitPriceCents: number;
+  quantity: number;
+}
+
 export interface CompletedOrder {
   merchantId: string;
   sessionId: string;
   externalOrderId: string;
   orderTotal: number;
   currency: CurrencyCode;
-  status?: "approved" | "cancelled";
+  status?: CompletedOrderStatus;
   acceptedOfferId?: string;
   trackingCode?: string;
+  /** Cart line items snapshot at completion — enables per-item partial refunds. */
+  lineItems?: CompletedOrderLineItem[];
+  /** Shipping the buyer paid, in cents. Refunded proportionally on returns. */
+  shippingCents?: number;
   completedAt: string;
   cancelledAt?: string;
   cancellationReason?: string;
@@ -482,11 +680,16 @@ export type CheckoutDomainEventType =
   | "checkout.event.tracked"
   | "checkout.abandonment.scored"
   | "checkout.abandoned"
+  | "checkout.intervention_triggered"
   | "checkout.cart.updated"
   | "order.completed"
+  | "order.confirmed"
   | "order.tracking.updated"
   | "whatsapp.message.requested"
-  | "payment.status.changed";
+  | "payment.status.changed"
+  | "customer.phone_collected"
+  | "customer.registered"
+  | "funnel.step_completed";
 
 export type CrossSellDomainEventType =
   | "cross-sell.offer.suggested"
@@ -519,7 +722,8 @@ export type FulfillmentDomainEventType =
   | "shipment.created"
   | "shipment.label-generated"
   | "shipment.status-updated"
-  | "shipment.delivered";
+  | "shipment.delivered"
+  | "shipment.cancelled";
 
 export type CommerceDomainEventType =
   | "commerce.order.pending"
@@ -528,6 +732,20 @@ export type CommerceDomainEventType =
 export type OnboardingDomainEventType =
   | "merchant.onboarding.step.completed"
   | "merchant.onboarding.completed";
+
+export type ExperimentDomainEventType =
+  | "experiment.created"
+  | "experiment.started"
+  | "experiment.completed"
+  | "winner.promoted";
+
+export type RevenueManagerDomainEventType =
+  | "revenue_manager.observation.created"
+  | "revenue_manager.hypothesis.generated"
+  | "revenue_manager.hypothesis.approved"
+  | "revenue_manager.hypothesis.rejected"
+  | "revenue_manager.experiment.created"
+  | "revenue_manager.lesson.recorded";
 
 export type DomainEventType =
   | CheckoutDomainEventType
@@ -538,7 +756,9 @@ export type DomainEventType =
   | ShippingDomainEventType
   | FulfillmentDomainEventType
   | CommerceDomainEventType
-  | OnboardingDomainEventType;
+  | OnboardingDomainEventType
+  | ExperimentDomainEventType
+  | RevenueManagerDomainEventType;
 
 export type DomainEventProducer =
   | "checkout"
@@ -549,13 +769,11 @@ export type DomainEventProducer =
   | "shipping"
   | "fulfillment"
   | "commerce"
-  | "onboarding";
+  | "onboarding"
+  | "experiments"
+  | "revenue-manager";
 
-/**
- * Self-serve tenant onboarding (ADR 0015/0024). Resumable provisioning steps,
- * persisted server-side so the guided wizard can resume across sessions.
- */
-export type OnboardingStepId = "account" | "checkout_config" | "embed" | "publish";
+export type OnboardingStepId = "account" | "checkout_config" | "whatsapp" | "ai_engine";
 
 export type OnboardingStepStatus = "pending" | "completed";
 
@@ -604,6 +822,7 @@ export interface AgentIdentity {
   tone: AgentTone;
   language: string;
   greeting: string;
+  emptyCartGreeting?: string;
 }
 
 export interface AgentCapabilities {
@@ -661,6 +880,12 @@ export interface AgentContext {
   checkout_settings: AgentCheckoutSettings;
   checkout_context?: CheckoutSettingsContext;
   purchase_history?: AgentPurchaseHistoryContext;
+  intent?: {
+    primary_intent: string;
+    urgency: "low" | "medium" | "high";
+    budget_tier: "budget" | "mid" | "premium";
+    pain_points: string[];
+  };
   copy_constraints: string[];
 }
 
@@ -673,23 +898,66 @@ export type CheckoutTriggerName =
   | "exit_intent_detected"
   | "idle_30_seconds";
 
+export type ProgressiveDiscountStage =
+  | "initial_coupon"
+  | "exit_intent"
+  | "abandoned_cart"
+  | "payment_nudge";
+
+export type ProgressiveDiscountMode = "progressive_only" | "coupon_only" | "both";
+
+export interface ProgressiveDiscountPolicy {
+  enabled: boolean;
+  mode?: ProgressiveDiscountMode;
+  maxProgressivePercent?: number;
+  stages: Record<ProgressiveDiscountStage, number>;
+}
+
+export interface ProgressiveDiscountPolicyPatch {
+  enabled?: boolean;
+  mode?: ProgressiveDiscountMode;
+  maxProgressivePercent?: number;
+  stages?: Partial<Record<ProgressiveDiscountStage, number>>;
+}
+
+export type CheckoutWidgetPresentationMode =
+  | "fab"
+  | "mini_card"
+  | "bottom_banner"
+  | "trigger_only"
+  | "inline";
+
+export type CheckoutFabClickAction = "redirect_to_cart" | "open_widget" | "open_new_tab";
+
 export interface CheckoutWidgetBehavior {
   openWidgetOnTrigger: boolean;
   startMinimized: boolean;
   position: CheckoutWidgetPosition;
   initialDelaySeconds: number;
+  presentationMode: CheckoutWidgetPresentationMode;
+  fabColor?: string;
+  inviteText?: string;
+  showCartBadge?: boolean;
+  fabClickAction?: CheckoutFabClickAction;
+  fabRedirectUrl?: string;
+  cartPresentationMode?: "floating" | "page" | "redirect";
+  budgetModeEnabled?: boolean;
 }
 
 export interface CheckoutInterventionPolicy {
   minimumAbandonmentScore: number;
   cooldownSeconds: number;
   maxInterventionsPerSession: number;
+  progressiveDiscount?: ProgressiveDiscountPolicy;
 }
 
 export interface CheckoutTriggerRule {
   trigger: CheckoutTriggerName;
   enabled: boolean;
   priority: number;
+  message?: string;
+  cooldownSeconds?: number;
+  couponCode?: string;
 }
 
 export interface CheckoutSuppressionRules {
@@ -714,6 +982,7 @@ export interface CheckoutSettings {
   triggerRules: CheckoutTriggerRule[];
   suppressionRules: CheckoutSuppressionRules;
   handoff: CheckoutHandoffSettings;
+  advancedRules: AdvancedRule[];
   createdAt: string;
   updatedAt: string;
 }
@@ -721,10 +990,13 @@ export interface CheckoutSettings {
 export interface CheckoutSettingsPatch {
   mode?: CheckoutSettingsMode;
   widgetBehavior?: Partial<CheckoutWidgetBehavior>;
-  interventionPolicy?: Partial<CheckoutInterventionPolicy>;
+  interventionPolicy?: Partial<Omit<CheckoutInterventionPolicy, "progressiveDiscount">> & {
+    progressiveDiscount?: ProgressiveDiscountPolicyPatch;
+  };
   triggerRules?: CheckoutTriggerRule[];
   suppressionRules?: Partial<CheckoutSuppressionRules>;
   handoff?: Partial<CheckoutHandoffSettings>;
+  advancedRules?: AdvancedRule[];
 }
 
 export interface CheckoutSettingsContext {
@@ -732,12 +1004,27 @@ export interface CheckoutSettingsContext {
   checkout_settings: {
     mode: CheckoutSettingsMode;
     open_widget_on_trigger: boolean;
+    position?: CheckoutWidgetPosition;
+    fab_color?: string;
+    invite_text?: string;
+    presentation_mode?: string;
+    start_minimized?: boolean;
+    initial_delay_seconds?: number;
+    show_cart_badge?: boolean;
+    fab_click_action?: string;
+    fab_redirect_url?: string;
     minimum_abandonment_score: number;
     cooldown_seconds: number;
     max_interventions_per_session: number;
     enabled_triggers: CheckoutTriggerName[];
     handoff_enabled: boolean;
+    handoff_message?: string;
+    handoff_channels?: string[];
+    progressive_discount?: ProgressiveDiscountPolicy;
+    suppressed_steps?: string[];
+    blocked_regions?: string[];
   };
+  merchant_rules: string[];
   operational_constraints: string[];
 }
 
@@ -745,6 +1032,11 @@ export interface ChatAction {
   label: string;
   type: "apply_offer" | "show_alternatives" | "continue_checkout";
   offer_id?: string;
+}
+
+export interface ChatUiBlock {
+  type: string;
+  data?: Record<string, unknown>;
 }
 
 export interface ChatMessageResponse {
@@ -757,6 +1049,9 @@ export interface ChatMessageResponse {
   stage?: ChatStage;
   missing_fields?: string[];
   expected_input_type?: string;
+  ssml?: string;
+  voice_config?: { speed: number; pitch: number };
+  blocks?: ChatUiBlock[];
 }
 
 export interface ShippingEvaluateRequest {
@@ -792,7 +1087,6 @@ export interface ApplyOfferResponse {
   expires_at?: string;
   reason?: string;
   experience?: CheckoutExperienceSnapshot;
-  /** Turno do agente acrescentado quando a oferta foi aplicada com sucesso. */
   agent_turn?: ChatTurn;
 }
 
@@ -820,10 +1114,55 @@ export interface SupportTicket {
   sessionId?: string;
   buyerMessage: string;
   status: SupportTicketStatus;
-  source: "widget" | "dashboard" | "system";
+  source: "widget" | "dashboard" | "system" | "return_request";
+  returnId?: string;
+  originMerchantId?: string;
+  transferredAt?: string;
   createdAt: string;
   updatedAt: string;
   resolvedAt?: string;
+}
+
+export type SupportReturnReason =
+  | "DEFECTIVE"
+  | "WRONG_ITEM"
+  | "NOT_AS_DESCRIBED"
+  | "CHANGED_MIND"
+  | "DAMAGED_IN_TRANSIT"
+  | "OTHER";
+
+export interface SupportReturnItem {
+  name: string;
+  variantId: string;
+  quantity: number;
+  imageUrl?: string;
+}
+
+export type SupportMessageMetadata =
+  | { kind: "text" }
+  | {
+      kind: "return_request";
+      returnId: string;
+      reason: SupportReturnReason;
+      reasonLabel: string;
+      items: SupportReturnItem[];
+      imageUrls: string[];
+      orderRef?: string;
+    }
+  | {
+      kind: "ticket_transferred";
+      fromMerchantId: string;
+      toMerchantId: string;
+      toStoreName: string;
+    };
+
+export interface SupportTicketMessage {
+  id: string;
+  ticketId: string;
+  senderType: "buyer" | "merchant";
+  content: string;
+  metadata?: SupportMessageMetadata | null;
+  createdAt: string;
 }
 
 export interface SupportTicketStatusPatch {
@@ -842,4 +1181,194 @@ export interface DashboardOverview {
   incremental_revenue: number;
   recent_sessions: CheckoutSession[];
   recent_offers: AuthorizedOffer[];
+}
+
+export type StorePeriod = "today" | "7d" | "30d" | "90d";
+
+export interface StoreOverviewTopProduct {
+  product_id: string;
+  name: string;
+  image_url?: string;
+  quantity: number;
+  revenue: number;
+}
+
+export interface StoreOverviewRecentOrder {
+  id: string;
+  buyer_name: string;
+  total: number;
+  status: string;
+  created_at: string;
+}
+
+export interface StoreOverview {
+  merchant_id: string;
+  period: string;
+  revenue: number;
+  orders_count: number;
+  average_ticket: number;
+  products_sold: number;
+  new_customers: number;
+  abandonment_rate: number;
+  orders_by_status: Record<string, number>;
+  top_products: StoreOverviewTopProduct[];
+  recent_orders: StoreOverviewRecentOrder[];
+}
+
+export interface TimeseriesDataPoint {
+  date: string;
+  value: number;
+}
+
+export interface TimeseriesResponse {
+  merchant_id: string;
+  period: string;
+  revenue_daily: TimeseriesDataPoint[];
+  orders_daily: TimeseriesDataPoint[];
+  sessions_daily: TimeseriesDataPoint[];
+  conversion_daily: TimeseriesDataPoint[];
+}
+
+export interface ProductCategoryDTO {
+  id: string;
+  merchant_id: string;
+  name: string;
+  slug: string;
+  parent_id: string | null;
+  description: string | null;
+  image_url: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  children?: ProductCategoryDTO[];
+  product_count?: number;
+}
+
+export interface CreateCategoryInput {
+  name: string;
+  slug?: string;
+  parent_id?: string;
+  description?: string;
+  image_url?: string;
+}
+
+export interface UpdateCategoryInput {
+  name?: string;
+  parent_id?: string | null;
+  description?: string;
+  image_url?: string;
+  is_active?: boolean;
+  sort_order?: number;
+}
+
+export interface ReorderCategoryItem {
+  id: string;
+  sort_order: number;
+}
+
+export interface StoreQuickReplyStage {
+  stage: string;
+  label: string;
+  replies: string[];
+}
+
+export interface StoreQuickRepliesConfig {
+  stages: StoreQuickReplyStage[];
+  fallback: string[];
+}
+
+// ── Advanced Rules ──────────────────────────────────────────────────────────
+
+export type ConditionField =
+  | "cart_total"
+  | "shipping_cost"
+  | "product_in_cart"
+  | "category_in_cart"
+  | "coupon_applied"
+  | "buyer_type"
+  | "payment_method"
+  | "trigger_fired"
+  | "cart_item_count";
+
+export type ConditionOperator = "gt" | "lt" | "gte" | "lte" | "eq" | "contains" | "is";
+
+export interface RuleCondition {
+  field: ConditionField;
+  operator: ConditionOperator;
+  value: string | number | boolean;
+}
+
+export type ActionType =
+  | "offer_discount"
+  | "offer_free_shipping"
+  | "suggest_product"
+  | "show_message"
+  | "offer_installments"
+  | "do_nothing"
+  | "offer_coupon";
+
+export interface RuleAction {
+  type: ActionType;
+  params: Record<string, string | number>;
+}
+
+export interface AdvancedRule {
+  id: string;
+  name: string;
+  conditions: RuleCondition[];
+  action: RuleAction;
+  enabled: boolean;
+  priority: number;
+}
+
+export type TwitterCardType = "summary" | "summary_large_image";
+
+export type SeoTone = "profissional" | "casual" | "luxo" | "técnico";
+
+export interface SeoSettings {
+  title?: string;
+  description?: string;
+  keywords?: string[];
+  ogTitle?: string;
+  ogDescription?: string;
+  ogImage?: string;
+  twitterCard?: TwitterCardType;
+  canonicalUrl?: string;
+  generatedAt?: string;
+  generatedBy?: string;
+}
+
+export interface PixelIds {
+  facebook?: string;
+  tiktok?: string;
+  custom?: Record<string, string>;
+}
+
+export interface GtmSettings {
+  gtmId?: string;
+  gaTrackingId?: string;
+  pixelIds?: PixelIds;
+  dataLayerEnabled?: boolean;
+  eventsTracked?: string[];
+}
+
+export interface GenerateSeoSuggestionsRequest {
+  prompt: string;
+  tone: SeoTone;
+  storeCategory?: string;
+}
+
+export interface GenerateSeoSuggestionsResponse {
+  titles: [string, string, string];
+  descriptions: [string, string, string];
+  keywords: string[];
+}
+
+export type OAuthProvider = "github" | "google";
+
+export interface OAuthCallbackPayload {
+  provider: OAuthProvider;
+  code: string;
+  state: string;
 }

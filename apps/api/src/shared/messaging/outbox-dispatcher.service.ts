@@ -7,12 +7,14 @@ const BATCH_SIZE = 50;
 const MAX_ATTEMPTS = 5;
 const BASE_BACKOFF_MS = 1_000;
 const MAX_BACKOFF_MS = 60_000;
+const ERROR_COOLDOWN_MS = 10_000;
 
 @Injectable()
 export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(OutboxDispatcher.name);
   private timer: ReturnType<typeof setInterval> | null = null;
   private running = false;
+  private lastErrorAt = 0;
 
   constructor(
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
@@ -20,7 +22,15 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit(): void {
+    // When REDIS_URL is set, OutboxBullMqRelay drives dispatch() through a
+    // Redis-locked recurring job (single active consumer across all instances).
+    // The in-process setInterval is only the fallback for Redis-less dev/test.
+    if (process.env.REDIS_URL?.trim()) {
+      this.logger.log("Outbox dispatch delegated to BullMQ relay (REDIS_URL present)");
+      return;
+    }
     this.timer = setInterval(() => void this.dispatch(), DISPATCH_INTERVAL_MS);
+    this.logger.log("Outbox dispatch: setInterval fallback (no REDIS_URL)");
   }
 
   onModuleDestroy(): void {
@@ -29,12 +39,16 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
 
   async dispatch(): Promise<void> {
     if (this.running) return;
+    if (Date.now() - this.lastErrorAt < ERROR_COOLDOWN_MS) return;
     this.running = true;
     try {
       const claims = await this.outbox.claimBatch(BATCH_SIZE);
       for (const claim of claims) {
         await this.processOne(claim);
       }
+    } catch (err) {
+      this.lastErrorAt = Date.now();
+      this.logger.warn(`Outbox dispatch failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       this.running = false;
     }

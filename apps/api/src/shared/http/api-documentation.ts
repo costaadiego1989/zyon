@@ -36,7 +36,7 @@ const PUBLIC_OPERATIONS: readonly PublicOperationRule[] = [
   { methods: ["get", "post", "put"], path: /^\/checkout-settings(?:\/.*)?$/, security: "tenant" },
   { methods: ["post"], path: /^\/embed\/sessions$/, security: "tenant" },
   { methods: ["get", "post", "put"], path: /^\/installations(?:\/.*)?$/, security: "tenant" },
-  { methods: ["get", "post", "put"], path: /^\/orders(?:\/.*)?$/, security: "tenant" },
+  { methods: ["get", "post", "put", "patch"], path: /^\/orders(?:\/.*)?$/, security: "tenant" },
   { methods: ["get"], path: /^\/customers(?:\/.*)?$/, security: "tenant" },
   { methods: ["get"], path: /^\/payments(?:\/(?!connections(?:\/|$))[^/]+)?$/, security: "tenant" },
   { methods: ["get"], path: /^\/audit-events$/, security: "tenant" },
@@ -46,13 +46,93 @@ const PUBLIC_OPERATIONS: readonly PublicOperationRule[] = [
     path: /^\/integrations\/api-keys(?:\/[^/]+(?:\/rotate)?)?$/,
     security: "human",
   },
-  { methods: ["get", "post", "delete"], path: /^\/commerce\/connections(?:\/.*)?$/, security: "tenant" },
+  { methods: ["get", "post"], path: /^\/commerce\/connections$/, security: "tenant" },
+  { methods: ["get", "patch", "delete"], path: /^\/commerce\/connections\/[^/]+$/, security: "tenant" },
+  { methods: ["post"], path: /^\/commerce\/connections\/[^/]+\/sync$/, security: "tenant" },
   { methods: ["get"], path: /^\/catalog(?:\/.*)?$/, security: "tenant" },
   { methods: ["get", "post"], path: /^\/payments\/connections(?:\/.*)?$/, security: "human" },
-  { methods: ["get", "post"], path: /^\/billing(?:\/.*)?$/, security: "human" },
+  { methods: ["get"], path: /^\/billing\/plans$/, security: "human" },
+  { methods: ["get"], path: /^\/billing\/subscription$/, security: "human" },
+  { methods: ["post"], path: /^\/billing\/subscription\/change$/, security: "human" },
+  { methods: ["get"], path: /^\/billing\/usage$/, security: "human" },
+  { methods: ["get"], path: /^\/billing\/invoices$/, security: "human" },
   { methods: ["get", "put"], path: /^\/support\/settings$/, security: "tenant" },
   { methods: ["get", "post", "patch"], path: /^\/support\/tickets(?:\/.*)?$/, security: "tenant" },
   { methods: ["get", "post"], path: /^\/onboarding(?:\/.*)?$/, security: "session" },
+  // Public API v1 — Checkouts
+  { methods: ["post"], path: /^\/checkouts$/, security: "tenant" },
+  { methods: ["get"], path: /^\/checkouts\/[^/]+$/, security: "tenant" },
+  { methods: ["post"], path: /^\/checkouts\/[^/]+\/events$/, security: "tenant" },
+  { methods: ["post"], path: /^\/checkouts\/[^/]+\/messages$/, security: "tenant" },
+  { methods: ["post"], path: /^\/checkouts\/[^/]+\/shipping\/evaluate$/, security: "tenant" },
+  { methods: ["post"], path: /^\/checkouts\/[^/]+\/offers$/, security: "tenant" },
+  { methods: ["post"], path: /^\/checkouts\/[^/]+\/complete$/, security: "tenant" },
+  { methods: ["patch"], path: /^\/checkouts\/[^/]+\/cart$/, security: "tenant" },
+  // Public API v1 — Products
+  { methods: ["get", "post"], path: /^\/products$/, security: "tenant" },
+  { methods: ["get", "patch", "delete"], path: /^\/products\/[^/]+$/, security: "tenant" },
+  // Public API v1 — Settings
+  { methods: ["get", "put"], path: /^\/settings\/checkout$/, security: "tenant" },
+  { methods: ["get", "put"], path: /^\/settings\/agent-rules$/, security: "tenant" },
+  { methods: ["get", "put"], path: /^\/settings\/store$/, security: "tenant" },
+  { methods: ["get", "put"], path: /^\/settings\/seo$/, security: "tenant" },
+  // Public API v1 — Payments
+  { methods: ["post"], path: /^\/payments\/intents$/, security: "tenant" },
+  { methods: ["get"], path: /^\/payments\/intents\/[^/]+$/, security: "tenant" },
+  { methods: ["post"], path: /^\/payments\/intents\/[^/]+\/confirm$/, security: "tenant" },
+  // Public API v1 — Categories
+  { methods: ["get", "post"], path: /^\/categories$/, security: "tenant" },
+  { methods: ["get", "patch", "delete"], path: /^\/categories\/[^/]+$/, security: "tenant" },
+  { methods: ["put"], path: /^\/categories\/reorder$/, security: "tenant" },
+  // Public API v1 — Webhooks
+  { methods: ["get", "post"], path: /^\/webhooks$/, security: "tenant" },
+  { methods: ["get", "put", "delete"], path: /^\/webhooks\/[^/]+$/, security: "tenant" },
+  { methods: ["post"], path: /^\/webhooks\/[^/]+\/test$/, security: "tenant" },
+  // Public API v1 — Coupons
+  { methods: ["get", "post"], path: /^\/coupons$/, security: "tenant" },
+  { methods: ["patch", "delete"], path: /^\/coupons\/[^/]+$/, security: "tenant" },
+  { methods: ["post"], path: /^\/coupons\/[^/]+\/validate$/, security: "tenant" },
+  // Public API v1 — Analytics
+  { methods: ["get"], path: /^\/analytics\/dashboard$/, security: "tenant" },
+  { methods: ["get"], path: /^\/analytics\/products(?:\/[^/]+)?$/, security: "tenant" },
+  { methods: ["get"], path: /^\/analytics\/offers\/roi$/, security: "tenant" },
+  { methods: ["get"], path: /^\/analytics\/payments$/, security: "tenant" },
+  { methods: ["get"], path: /^\/analytics\/customers$/, security: "tenant" },
+  // Public API v1 — Team
+  { methods: ["get"], path: /^\/team\/members$/, security: "tenant" },
+  { methods: ["post"], path: /^\/team\/invitations$/, security: "tenant" },
+  { methods: ["post"], path: /^\/team\/invitations\/[^/]+\/accept$/, security: "tenant" },
+  { methods: ["patch"], path: /^\/team\/members\/[^/]+\/role$/, security: "tenant" },
+  { methods: ["delete"], path: /^\/team\/members\/[^/]+$/, security: "tenant" },
+  // Public API v1 — Returns
+  { methods: ["get", "post"], path: /^\/returns$/, security: "tenant" },
+  // Public API v1 — Experiments
+  { methods: ["get", "post"], path: /^\/experiments$/, security: "tenant" },
+  { methods: ["get", "patch"], path: /^\/experiments\/[^/]+$/, security: "tenant" },
+  { methods: ["post"], path: /^\/experiments\/[^/]+\/start$/, security: "tenant" },
+  { methods: ["post"], path: /^\/experiments\/[^/]+\/stop$/, security: "tenant" },
+  { methods: ["post"], path: /^\/experiments\/[^/]+\/archive$/, security: "tenant" },
+  { methods: ["get"], path: /^\/experiments\/[^/]+\/results$/, security: "tenant" },
+  { methods: ["post"], path: /^\/experiments\/[^/]+\/promote$/, security: "tenant" },
+  // Public API v1 — Domains
+  { methods: ["get", "post"], path: /^\/domains$/, security: "tenant" },
+  { methods: ["post"], path: /^\/domains\/[^/]+\/verify$/, security: "tenant" },
+  // Public API v1 — Support
+  { methods: ["get"], path: /^\/support\/settings$/, security: "tenant" },
+  { methods: ["get"], path: /^\/support\/tickets$/, security: "tenant" },
+  // Public API v1 — Shipping
+  { methods: ["post"], path: /^\/shipping\/quotes$/, security: "tenant" },
+  // Public API v1 — Fulfillment
+  { methods: ["post"], path: /^\/fulfillment\/shipments$/, security: "tenant" },
+  { methods: ["get"], path: /^\/fulfillment\/shipments$/, security: "tenant" },
+  // Public API v1 — Notifications
+  { methods: ["post"], path: /^\/notifications\/order-confirmation$/, security: "tenant" },
+  { methods: ["post"], path: /^\/notifications\/order-shipped$/, security: "tenant" },
+  { methods: ["post"], path: /^\/notifications\/order-delivered$/, security: "tenant" },
+  { methods: ["post"], path: /^\/notifications\/return-approved$/, security: "tenant" },
+  // Public API v1 — Cross-Sell
+  { methods: ["get", "post"], path: /^\/cross-sells$/, security: "tenant" },
+  { methods: ["get"], path: /^\/cross-sells\/eligible$/, security: "tenant" },
 ];
 
 const SCALAR_CSS = `
@@ -153,12 +233,31 @@ export function configureApiDocumentation(app: INestApplication): OpenAPIObject 
     )
     .build();
 
-  const generated = SwaggerModule.createDocument(app, config, {
-    deepScanRoutes: true,
-    operationIdFactory: (controllerKey, methodKey) =>
-      `${controllerKey.replace(/Controller$/, "")}_${methodKey}`,
-  });
+  let generated: any;
+  try {
+    generated = SwaggerModule.createDocument(app, config, {
+      deepScanRoutes: true,
+      operationIdFactory: (controllerKey, methodKey) =>
+        `${controllerKey.replace(/Controller$/, "")}_${methodKey}`,
+    });
+  } catch (err: any) {
+    // Swagger circular dependency in DTOs — non-blocking, generate without deep scan
+    generated = SwaggerModule.createDocument(app, config, {
+      deepScanRoutes: false,
+      operationIdFactory: (controllerKey, methodKey) =>
+        `${controllerKey.replace(/Controller$/, "")}_${methodKey}`,
+    });
+    console.warn(`[Swagger] Fallback to shallow scan: ${err.message}`);
+  }
   const publicDocument = createPublicApiDocument(generated);
+
+  app.use("/", (request: Request, response: Response, next: NextFunction) => {
+    if (request.method !== "GET" || request.path !== "/") {
+      next();
+      return;
+    }
+    response.redirect(301, "/docs");
+  });
 
   SwaggerModule.setup("docs", app, publicDocument, {
     ui: false,
@@ -331,7 +430,8 @@ function withPublicHttpContract(
 
   if (
     path.startsWith("/checkout-settings") ||
-    path.startsWith("/webhook-endpoints")
+    path.startsWith("/webhook-endpoints") ||
+    path.startsWith("/settings")
   ) {
     for (const response of Object.values(responses)) {
       if (!response || "$ref" in response) continue;
@@ -393,6 +493,8 @@ function requiresIfMatch(method: HttpMethod, path: string): boolean {
   return (
     (method === "put" && path === "/checkout-settings") ||
     (method === "post" && path === "/checkout-settings/reset") ||
+    (method === "put" && path === "/settings/store") ||
+    (method === "put" && path === "/settings/seo") ||
     (method === "put" && /^\/installations\/[^/]+$/.test(path)) ||
     (method === "put" && /^\/webhook-endpoints\/[^/]+$/.test(path))
   );

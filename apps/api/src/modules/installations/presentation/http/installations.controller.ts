@@ -14,6 +14,10 @@ import {
 import {
   ApiBearerAuth,
   ApiCookieAuth,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
 import type { Response } from "express";
@@ -55,6 +59,26 @@ export class InstallationsController {
 
   @Get()
   @RequireTenantAccess({ serviceScopes: ["configuration:read"] })
+  @ApiOperation({
+    summary: "List installations",
+    description: "Return a paginated list of widget installations for the authenticated merchant. Supports cursor-based pagination with configurable page size (max 200).",
+  })
+  @ApiQuery({ name: "limit", required: false, type: Number, description: "Page size (1-200, default varies)" })
+  @ApiQuery({ name: "cursor", required: false, type: String, description: "Opaque cursor from previous page's next_cursor" })
+  @ApiResponse({
+    status: 200,
+    description: "Paginated list of installations",
+    schema: {
+      type: "object",
+      properties: {
+        data: { type: "array", items: { type: "object" } },
+        next_cursor: { type: "string", nullable: true },
+        has_more: { type: "boolean" },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: "Unauthorized. Invalid or missing credentials." })
+  @ApiResponse({ status: 403, description: "Forbidden. Credential lacks configuration:read scope." })
   async list(
     @Req() request: unknown,
     @Query("limit") limitStr?: string,
@@ -72,6 +96,18 @@ export class InstallationsController {
   @Post()
   @Idempotent()
   @RequireTenantAccess({ serviceScopes: ["configuration:write"] })
+  @ApiOperation({
+    summary: "Create a new installation",
+    description: "Register a new widget installation for the authenticated merchant. Each installation represents a deployment target (e.g. a storefront domain). Returns the created resource with an ETag header for optimistic concurrency.",
+  })
+  @ApiResponse({
+    status: 201,
+    description: "Installation created. ETag header set for conditional updates.",
+  })
+  @ApiResponse({ status: 400, description: "Validation error: invalid name, environment, origins, or widget version." })
+  @ApiResponse({ status: 401, description: "Unauthorized. Invalid or missing credentials." })
+  @ApiResponse({ status: 403, description: "Forbidden. Credential lacks configuration:write scope." })
+  @ApiResponse({ status: 409, description: "Conflict. Idempotency key collision with different payload." })
   async create(
     @Req() request: unknown,
     @Res({ passthrough: true }) response: Response,
@@ -90,6 +126,15 @@ export class InstallationsController {
 
   @Get(":installationId")
   @RequireTenantAccess({ serviceScopes: ["configuration:read"] })
+  @ApiOperation({
+    summary: "Get installation by ID",
+    description: "Retrieve a single installation by its ID within the authenticated merchant's tenant. Returns an ETag header for optimistic concurrency on subsequent updates.",
+  })
+  @ApiParam({ name: "installationId", type: String, description: "Installation unique identifier" })
+  @ApiResponse({ status: 200, description: "Installation details. ETag header included." })
+  @ApiResponse({ status: 401, description: "Unauthorized. Invalid or missing credentials." })
+  @ApiResponse({ status: 403, description: "Forbidden. Credential lacks configuration:read scope." })
+  @ApiResponse({ status: 404, description: "Installation not found within this tenant." })
   async get(
     @Req() request: unknown,
     @Res({ passthrough: true }) response: Response,
@@ -106,6 +151,18 @@ export class InstallationsController {
   @Put(":installationId")
   @Idempotent()
   @RequireTenantAccess({ serviceScopes: ["configuration:write"] })
+  @ApiOperation({
+    summary: "Update an installation",
+    description: "Partially update an installation's name, status, widget version, or allowed origins. Supports optimistic concurrency via If-Match header (ETag). Omitted fields are not changed.",
+  })
+  @ApiParam({ name: "installationId", type: String, description: "Installation unique identifier" })
+  @ApiResponse({ status: 200, description: "Installation updated. New ETag header set." })
+  @ApiResponse({ status: 400, description: "Validation error: invalid field values." })
+  @ApiResponse({ status: 401, description: "Unauthorized. Invalid or missing credentials." })
+  @ApiResponse({ status: 403, description: "Forbidden. Credential lacks configuration:write scope." })
+  @ApiResponse({ status: 404, description: "Installation not found within this tenant." })
+  @ApiResponse({ status: 409, description: "Conflict. If-Match ETag does not match current version (concurrent modification)." })
+  @ApiResponse({ status: 412, description: "Precondition failed. If-Match header required but missing or mismatched." })
   async update(
     @Req() request: unknown,
     @Res({ passthrough: true }) response: Response,
@@ -133,6 +190,29 @@ export class InstallationsController {
 
   @Get(":installationId/health")
   @RequireTenantAccess({ serviceScopes: ["configuration:read"] })
+  @ApiOperation({
+    summary: "Get installation health status",
+    description: "Retrieve the health status and diagnostics for an installation. Returns last health report timestamp, last seen time, widget version, and any error codes reported by the widget runtime.",
+  })
+  @ApiParam({ name: "installationId", type: String, description: "Installation unique identifier" })
+  @ApiResponse({
+    status: 200,
+    description: "Installation health status",
+    schema: {
+      type: "object",
+      properties: {
+        installation_id: { type: "string" },
+        status: { type: "string", enum: ["active", "disabled", "degraded"] },
+        widget_version: { type: "string" },
+        last_health_at: { type: "string", format: "date-time", nullable: true },
+        last_seen_at: { type: "string", format: "date-time", nullable: true },
+        last_error_code: { type: "string", nullable: true },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: "Unauthorized. Invalid or missing credentials." })
+  @ApiResponse({ status: 403, description: "Forbidden. Credential lacks configuration:read scope." })
+  @ApiResponse({ status: 404, description: "Installation not found within this tenant." })
   async health(
     @Req() request: unknown,
     @Param("installationId") installationId: string,
@@ -154,6 +234,16 @@ export class InstallationsController {
   @Post(":installationId/health")
   @Idempotent()
   @RequireTenantAccess({ serviceScopes: ["configuration:write"] })
+  @ApiOperation({
+    summary: "Report installation health",
+    description: "Submit a health check report from a running widget instance. The widget runtime calls this endpoint periodically to report its operational status, origin, and any error codes. Updates the installation's last_health_at, last_seen_at, and status fields.",
+  })
+  @ApiParam({ name: "installationId", type: String, description: "Installation unique identifier" })
+  @ApiResponse({ status: 201, description: "Health report recorded. Updated installation returned." })
+  @ApiResponse({ status: 400, description: "Validation error: invalid body payload." })
+  @ApiResponse({ status: 401, description: "Unauthorized. Invalid or missing credentials." })
+  @ApiResponse({ status: 403, description: "Forbidden. Credential lacks configuration:write scope." })
+  @ApiResponse({ status: 404, description: "Installation not found within this tenant." })
   async updateHealth(
     @Req() request: unknown,
     @Param("installationId") installationId: string,

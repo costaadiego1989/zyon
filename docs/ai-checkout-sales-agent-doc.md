@@ -1,17 +1,17 @@
-# AI Checkout Sales Agent
+# Zyon Agentic Checkout
 
 ## Checkout conversacional, negociador, inteligente em frete e embedável para aumentar conversão em e-commerce
 
 **Versão:** 1.0  
 **Data:** 2026-04-30  
-**Produto:** AI Checkout Sales Agent  
+**Produto:** Zyon Agentic Checkout  
 **Conceito:** um agente de vendas autônomo no checkout, com inteligência de negociação, frete, pagamento, recuperação e proteção de margem.
 
 ---
 
 # 1. Visão geral
 
-O **AI Checkout Sales Agent** é uma camada inteligente e embedável de checkout conversacional que substitui ou complementa o checkout tradicional com um agente autônomo de vendas.
+O **Zyon Agentic Checkout** é uma camada inteligente e embedável de checkout conversacional que substitui ou complementa o checkout tradicional com um agente autônomo de vendas.
 
 Esse agente conversa com o comprador, entende objeções, detecta risco de abandono, negocia ofertas, controla frete, sugere meios de pagamento, aplica descontos autorizados e conduz o usuário até a compra.
 
@@ -50,7 +50,7 @@ E-commerces perdem receita por:
 - Cupons genéricos que reduzem margem sem critério.
 
 O checkout tradicional é estático. Ele espera o usuário comprar.  
-O AI Checkout Sales Agent atua como um vendedor que tenta fechar a venda no momento mais crítico.
+O Zyon Agentic Checkout atua como um vendedor que tenta fechar a venda no momento mais crítico.
 
 ## 2.3 Por que soluções atuais não bastam
 
@@ -95,7 +95,7 @@ Transforme seu checkout em um vendedor IA que conversa, negocia, controla frete,
 
 ## 3.3 Pitch expandido
 
-O AI Checkout Sales Agent é uma camada de checkout inteligente que identifica hesitação, entende objeções como preço, frete e confiança, negocia ofertas autorizadas, sugere meios de pagamento e recupera carrinhos abandonados por WhatsApp, e-mail ou SMS.
+O Zyon Agentic Checkout é uma camada de checkout inteligente que identifica hesitação, entende objeções como preço, frete e confiança, negocia ofertas autorizadas, sugere meios de pagamento e recupera carrinhos abandonados por WhatsApp, e-mail ou SMS.
 
 ## 3.4 Promessa principal
 
@@ -1956,7 +1956,7 @@ Receita incremental recuperada pelo agente.
 
 # 25. PRD inicial recomendado
 
-## PRD-001 — AI Checkout Sales Agent MVP: Conversational Discount & Shipping Closer
+## PRD-001 — Zyon Agentic Checkout MVP: Conversational Discount & Shipping Closer
 
 ### Objetivo
 

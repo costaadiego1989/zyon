@@ -18,6 +18,20 @@ test("LoginRateLimiter blocks the sixth failed attempt per ip+email in the windo
   assert.doesNotThrow(() => limiter.assertAllowed(scope, 1000 + 15 * 60 * 1000 + 1));
 });
 
+test("LoginRateLimiter fails closed when Redis is declared required in production", (t) => {
+  const previousEnv = process.env.NODE_ENV;
+  const previousRedis = process.env.REDIS_ENABLED;
+  t.after(() => {
+    if (previousEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousEnv;
+    if (previousRedis === undefined) delete process.env.REDIS_ENABLED;
+    else process.env.REDIS_ENABLED = previousRedis;
+  });
+  process.env.NODE_ENV = "production";
+  process.env.REDIS_ENABLED = "true";
+  assert.throws(() => new LoginRateLimiter(), /redis_login_rate_limit_store_not_configured/);
+});
+
 test("LoginRateLimiter clears failures after a successful login", () => {
   const limiter = new LoginRateLimiter(5, 15 * 60 * 1000);
   const scope = { ip: "127.0.0.1", email: "user@example.com" };

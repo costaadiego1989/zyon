@@ -1,0 +1,17 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "aacp-api"
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ["host.docker.internal:3001"]
+        labels:
+          service: "zyon-api"
+          environment: "development"
+    # In production, use bearer_token_file or basic_auth with OPS_SHARED_SECRET
+    # authorization:
+    #   type: Bearer
+    #   credentials: "<OPS_SHARED_SECRET>"

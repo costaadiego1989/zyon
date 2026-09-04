@@ -1,127 +1,225 @@
-# AI Checkout Sales Agent MVP
+# AACP — Plataforma de E-commerce para PMEs
 
-Monorepo TypeScript for an end-to-end MVP: NestJS API, React widget, React merchant dashboard, deterministic offer engines, Shopify adapter, and OpenAI Responses API orchestration.
+AACP é uma plataforma SaaS completa de e-commerce pensada para pequenas e médias empresas. PMEs criam sua própria loja virtual, vendem direto ao consumidor ou integram em um marketplace compartilhado com outras marcas. Toda negociação de preço e frete é intermediada por um agente de IA que atua dentro de regras determinísticas aprovadas pelo merchant.
 
-## Apps
+## Core Value Proposition
 
-- `apps/api`: NestJS API for checkout sessions, events, decisions, chat, offers, Shopify, and dashboard data.
-- `apps/widget`: embeddable React/Web Component checkout agent.
-- `apps/dashboard`: merchant dashboard for rules and conversion analytics.
+- **Loja visual autônoma** — Storefront próprio da PME, sem dependência de terceiros (Shopify, VTEX, etc.)
+- **Negociação conversacional com IA** — Agente conversa com o comprador, identifica objeções e negocia desconto/frete dentro dos limites de margem do merchant
+- **Marketplace integrado** — PMEs podem vender em marketplace de outras marcas e receber comissão via settlement organizado
+- **Buyer Hub** — Comprador acessa histórico de pedidos, rastreia, salva endereços, conversa com IA
+- **Pagamentos multi-forma** — PIX, boleto (Asaas), cartão (Stripe), cripto
+- **Dashboard completo** — Visão de pedidos, integrações (Shopify/VTEX opcional), clientes, promoções, faturamento
+- **🚀 Agentic Commerce Ready** — Detectável por agentes de IA (Opus 5, Gemini, Perplexity); checkout em 1-click dentro de chats; suporta ACP/UCP/AP2 protocols
 
-## Packages
+## Stack & Arquitetura
 
-- `@aacp/shared-types`: API contracts and domain types.
-- `@aacp/rules-engine`: deterministic commercial rule evaluation.
-- `@aacp/shipping-engine`: shipping offer evaluator.
-- `@aacp/decision-engine`: abandonment and intervention logic.
-- `@aacp/conversation-engine`: LLM prompt/orchestration with safe fallback.
-- `@aacp/commerce-adapters`: Shopify discount-code adapter.
+```
+apps/
+  api/              — NestJS + Prisma + PostgreSQL (Clean Architecture + DDD modular)
+  widget/           — React/Vite (storefront + buyer hub + conversas IA)
+  dashboard/        — React (console merchant)
+  fake-commerce-api — Mock para dev/E2E
 
-## Run
+packages/
+  shared-types/            — Contratos TypeScript
+  rules-engine/            — Desconto/frete determinístico
+  decision-engine/         — Próximos passos da conversa
+  conversation-engine/     — LLM wrapper + segurança
+  shipping-engine/         — Subsídio e cotação logística
+  commerce-adapters/       — Shopify, Magento, VTEX, WooCommerce
+  agentic-checkout-js/     — SDK público pra checkout programático
+```
+
+## Tenancy & Segurança
+
+- **Merchant** é a fronteira de isolamento (tenant)
+- Todo query/comando escopo por `merchant_id` from JWT principal
+- **Buyer global ID** permite personalização cruzada de histórico
+- **IA nunca autoriza ofertas** — só propõe. `rules-engine` aprova desconto (com cap de margem). `shipping-engine` aprova subsídio frete
+- Toda saída LLM passa por `isSafeGeneratedMessage()` (regex + safety battery) — bloqueia promessas proibidas (frete grátis sem autorização, CVV, etc.)
+- **Idempotência HTTP** em todas escrita; `merchant_id` criptografado em webhook
+
+## Modelo de Receita
+
+Por pedido:
+
+| Quem paga | Valor | Coletado em |
+|-----------|-------|-----------|
+| **Buyer** | R$0,99 | Fatura (todo pedido) |
+| **Merchant (Starter)** | R$1,99 | Settlement (sai do repasse) |
+| **Merchant (Growth)** | R$1,49 | Settlement (sai do repasse) + R$249/mês |
+| **Merchant (Scale)** | R$0,99 | Settlement (sai do repasse) + R$599/mês |
+
+## Contextos & Módulos
+
+**Checkout & IA:**
+- `checkout` — Sessão, eventos, scoring, chat, ofertas, read model
+- `agent-rules` — Identidade do agente, capabilities, guardrails
+- `conversation-engine` — Classifica objeções, escreve copy segura
+
+**Agentic Commerce (ACP/UCP):**
+- **`agentic-protocol-adapter`** — Expõe AACP para agentes IA (Opus 5, Gemini, Perplexity)
+  - `GET /.well-known/ucp` — Discovery (AACP é ACP-ready?)
+  - `GET /v1/acp/products/feed` — Google Merchant Feed (CSV/JSON)
+  - `POST /v1/acp/checkout_sessions` — Checkout em 1-click dentro de chat
+  - Webhooks de pedido + Payment mandates (AP2)
+  - [ADR-025](docs/adr/0025-agentic-commerce-protocol.md) | [Spec](specs/features/agentic-commerce-protocol-compliance)
+
+**PME:**
+- `merchant` — Regras, configurações, tema
+- `buyer-purchase-history` — Personalização por compra anterior
+- `checkout-settings` — Comportamento do widget
+
+**Pagamento & Logística:**
+- `payment` — Intents (Asaas/Stripe/Crypto), webhooks
+- `shipping` — Melhor Envio, cotação real, entrega própria
+- `billing` — Planos Asaas, assinatura recorrente
+
+**Marketplace & Vendas:**
+- `marketplace-discovery` — Discovery de lojas
+- `marketplace-settlement` — Timeline de repasse com chargeback window
+- `inventory` — Multi-warehouse, OMS
+- `erp-crm` — Integração com ERPs/CRMs de vendedor
+
+**Experiência:**
+- `storefront` — Loja visual com Stories (Instagram-style)
+- `buyer-hub` — Dashboard cliente (pedidos, endereços, pagamentos)
+- `negotiation` — M2M sessões com ledger de custo
+- `post-sale` — Entrega, reviews, NPS, win-back, lealdade
+
+## Invariantes Críticos
+
+1. **Desconto**: `rules-engine` é autoridade única. Hard cap em % + reais. Margem nunca abaixo de mínimo.
+2. **Frete**: `shipping-engine` aprova subsídio. Sem "frete grátis" não autorizado.
+3. **IA**: Nunca autoriza oferta. Só propõe. Toda output passa `isSafeGeneratedMessage()`.
+4. **Tenant**: `merchant_id` em toda query. Sem cross-tenant leak.
+5. **LGPD**: Audit log, export de dados, delete conta.
+6. **Ofertas determinísticas**: Sem LLM decide sem passar pelo rules-engine.
+7. **Holdout**: 5% dos buyers (SHA256 hash) nunca recebem regra experimental (validação científica).
+
+## Setup Local
 
 ```bash
+# Instalar deps
 pnpm install
-cp .env.example .env
-pnpm dev:api
-pnpm dev:widget
-pnpm dev:dashboard
+
+# Env (copiar template, preencher credentials)
+cp apps/api/.env.example apps/api/.env
+
+# Dev — todas as apps simultaneamente
+cd apps/api && pnpm dev         # http://localhost:3000
+cd apps/widget && pnpm dev      # http://localhost:5173
+cd apps/dashboard && pnpm dev   # http://localhost:5174
+
+# Typecheck
+cd apps/api && pnpm typecheck
+cd apps/widget && pnpm typecheck
+
+# Build
+cd apps/api && pnpm build
+cd apps/widget && pnpm build
+
+# Testes
+cd apps/api && pnpm test
+cd apps/api && pnpm test:prisma
+cd apps/widget && pnpm test
+cd apps/widget && pnpm test:coverage   # vitest + c8, threshold 70%
+cd apps/widget && pnpm e2e             # Playwright mocked
+cd apps/widget && pnpm e2e:realapi     # Playwright real API
+
+# DB
+cd apps/api && pnpm prisma:generate    # Gera cliente
+cd apps/api && pnpm prisma:migrate:dev # Migra local
+cd apps/api && pnpm prisma:deploy      # Migra prod
 ```
 
-A API persiste estado em PostgreSQL via Prisma. Suba o banco (`docker compose up -d postgres`) e rode as migrations (`cd apps/api && pnpm prisma:deploy`) antes de `pnpm dev:api`.
+## Estrutura de Especificações
 
-## AI conversation provider (DeepSeek / OpenAI)
+Todas features pré-implementação vivem em `.specs/`:
 
-The conversational agent in the widget calls a real LLM through `@aacp/conversation-engine`. Configure one of these in `.env` (or `apps/api/.env`):
-
-- `DEEPSEEK_API_KEY` (preferred) — uses `deepseek-chat` at `https://api.deepseek.com/v1`. Override with `DEEPSEEK_MODEL` and `DEEPSEEK_BASE_URL` if needed.
-- `OPENAI_API_KEY` — fallback, uses the OpenAI Responses API.
-
-`apps/api/src/main.ts` loads `apps/api/.env` first, then the repo-root `.env`, and logs which AI keys were detected on boot. Without a key, `SendChatMessageUseCase` falls back to a deterministic safe reply — fine for smoke tests but not for production.
-
-To run the live AI checkout journey tests against a real LLM:
-
-```bash
-# in apps/api/.env
-DEEPSEEK_API_KEY=sk-deepseek-...
-RUN_REAL_AI_E2E=true
-
-pnpm --filter @aacp/api test
+```
+.specs/features/[feature]/
+  spec.md      — Requirements, contracts, acceptance criteria
+  design.md    — Arquitetura da solução (quando aplica)
+  tasks.md     — Tasks atômicas com verificação
 ```
 
-The two live scenarios (`checkout.ai-live-e2e-spec.ts`) cover a single objection turn and a full multi-turn purchase journey (start → shipping objection → coupon ask → apply offer → complete order), and assert that the AI replies are non-deterministic and that the persisted `chatHistory` grows correctly.
+Referência:
 
-## B2B theme customization
-
-Each merchant can theme the conversational widget — accent colour, text/background colour, font, logo and agent avatar — via the dashboard:
-
-```http
-PUT /merchants/me/theme
-{
-  "accentColor": "#FF0066",
-  "textColor": "#0F172A",
-  "backgroundColor": "#F9FAFB",
-  "fontFamily": "Manrope, system-ui, sans-serif",
-  "logoUrl": "https://cdn.loja.com/logo.png"
-}
+```
+.specs/codebase/
+  STACK.md         — Frontend/backend/database, versões
+  ARCHITECTURE.md  — Clean Architecture + DDD no código
+  STRUCTURE.md     — Organização de pastas
+  TESTING.md       — TDD patterns, cobertura, E2E
+  INTEGRATIONS.md  — Shopify, VTEX, Melhor Envio, etc.
+  CONCERNS.md      — Decisões técnicas abertas
 ```
 
-The theme is returned inside `StartCheckoutResponse.experience.brand.theme` and the widget injects it as CSS custom properties (`--aacp-accent`, `--aacp-fg`, `--aacp-bg`, `--aacp-font`). See [`docs/integrations/checkout-widget-and-api.md`](docs/integrations/checkout-widget-and-api.md) for the full theme contract and validation rules.
+## Convenções de Código
 
-## Premium widget surfaces
+**Git Commits:**
+```
+type(scope): short description
 
-The buyer-facing widget is intentionally not a dashboard. The public surface now follows the Lovable checkout baseline: dark premium shell, mobile-first chat, icon stepper, quick replies, fixed composer and a Stripe-like cart with item removal, totals and payment CTA. Internal telemetry, rule-engine labels and conversion metrics are not rendered to the buyer.
-
-After global login, the same widget can open an authenticated account hub with order history, account metrics, user/merchant configuration and agent configuration. See [`docs/product/premium-widget-ui-system.md`](docs/product/premium-widget-ui-system.md) and [`docs/product/agentic-checkout-differentiation.md`](docs/product/agentic-checkout-differentiation.md).
-
-The widget implementation is split as MVVM: `main.tsx` handles the Web Component bootstrap, `useCheckoutAgentViewModel` owns state/API actions, and checkout components render the public experience. Phone login is the target UX; Google remains visually present but disabled until buyer OAuth is implemented.
-
-## Database (PostgreSQL)
-
-Local development uses Docker Compose (`docker-compose.yml`): Postgres 16 on host port **55432**, database `aacp_test`, user/password `postgres`/`postgres`.
-
-```bash
-pnpm db:up        # requires Docker Desktop running on Windows
-pnpm db:migrate
-pnpm test:prisma  # integration + Prisma e2e (needs DB)
+type: feat|fix|refactor|test|chore|docs|style|perf|ci
+scope: módulo/app — checkout, payment, widget, auth, etc.
+message: Imperative, ≤72 chars, English
 ```
 
-### Windows: `dockerDesktopLinuxEngine` / pipe not found
+**Exemplo:**
+```
+feat(checkout): add scoped mission budget validation
+fix(payment): enforce merchant boundary on webhook lookup
+refactor(auth): extract buyer session guard to hook
+```
 
-That error means the **Docker engine is not running** (not a broken `postgres:16-alpine` image). Open **Docker Desktop**, wait until it says it is running, then run `docker info` — it must succeed. After that, `pnpm db:up` should pull the image and start the container.
+**API Patterns:**
+- DTOs sempre separados do domain
+- Responses envolvidas em `{ data, meta, pagination?, _links? }`
+- Cursor pagination por padrão (offset opt-in)
+- Resource-based REST L2 (não HATEOAS)
+- OpenAPI decorators para SDK generation
 
-If you do not use Docker: install PostgreSQL locally, create database `aacp_test`, set `DATABASE_URL` in `.env` and `apps/api/.env` to match, then `pnpm db:migrate`.
+**Testes:**
+- TDD: red → green → refactor
+- Cobertura mínima 70% (widget + dashboard)
+- E2E em Playwright contra API real (in-memory Prisma)
+- Unit + integration + E2E (não skip E2E)
 
-### Desktop says "running" but `docker ps` fails everywhere (incl. PowerShell)
+## Produção
 
-Typical causes on Windows:
+**Antes de deploy:**
+1. `pnpm typecheck` passa
+2. `pnpm test` passes 100%
+3. `pnpm build` succeeds
+4. Audit log registra mudanças (LGPD)
+5. Merchant não vê dados cruzados
 
-1. **Daemon not fully up** — quit Docker Desktop from the tray (Quit Docker Desktop), wait 10s, open it again and wait until **Engine running** (not only "Starting").
-2. **WSL 2 backend** — Settings → General → confirm **Use WSL 2 backend** matches your setup; Resources → **WSL integration** → enable your distro. Run `wsl --update` then reboot if WSL was never updated.
-3. **Broken named pipe** — after a crash, the pipe `dockerDesktopLinuxEngine` may be missing until a full Desktop restart or **Troubleshoot → Restart** in Docker Desktop.
-4. **`docker context`** — run `docker context ls`. Active should be **`desktop-linux`** with endpoint `dockerDesktopLinuxEngine`. If you switched contexts, run `docker context use desktop-linux`.
-5. **Git Bash quirks** — if `docker` is "not found" only in Git Bash: use **PowerShell** or **CMD** first, or add `C:\Program Files\Docker\Docker\resources\bin` to Bash `PATH`. For path quirks: `MSYS_NO_PATHCONV=1 docker ps` rarely fixes pipes; Connection errors are usually the engine, not MSYS.
+**Monitoramento:**
+- HTTP error rate (5xx)
+- Funnel: sessions → conversations → offers_accepted → orders
+- Settlement pipeline: pending → transfer_scheduled → transferred → finalized
+- IA safety: unsafe_messages_blocked, fallback_count
 
-**Sanity check:** `docker version` must show **Server** section too. If you only see **Client**, the daemon is unreachable — fix Desktop/WSL before `pnpm db:up`.
+## Links & Recursos
 
-Optional **reset** (last resort): Docker Desktop → Troubleshoot → **Reset to factory defaults** (removes volumes/images).
+- **Stack Docs**: `.specs/codebase/STACK.md`
+- **ADRs**: `.specs/features/*/spec.md` (decisões arquitetônicas)
+  - **ADR-025**: [Agentic Commerce Protocol (ACP) Compliance](docs/adr/0025-agentic-commerce-protocol.md) — Strategic decision to implement ACP/UCP/AP2 adapter
+- **Agentic Commerce**: [Analysis + Roadmap](specs/features/agentic-commerce-protocol-compliance/spec.md)
+  - Gap analysis vs ACP/UCP/AP2 standards
+  - 6–8 week implementation roadmap (Phase 1–3)
+- **Referência API**: Será gerada via OpenAPI (em progresso, REQ-001 audit)
+- **Roadmap Produto**: 120+ specs documentadas em `.specs/features/`
 
-## Widget Enterprise Conectado à API
+## Suporte
 
-O demo do widget (`apps/widget/index.html`) não depende mais de carrinho fixo no código React. O host da loja envia `data-cart-json`, `data-customer-json` e `data-shipping-json`; o widget repassa isso para a API em `/checkout/start` ou `/embed/start`, e a API devolve `experience` com marca, resumo do pedido, copy inicial e sugestões.
+- Questões codebase → CLAUDE.md (instrções operacionais)
+- Questões de feature → spec.md na pasta `/features/`
+- Questões de decisão → ADRs (`create-adr` skill)
 
-Smoke test local:
+---
 
-1. Suba o Postgres: `docker compose up -d postgres` (ou `pnpm db:up` na raiz).
-2. Rode as migrations: `cd apps/api && pnpm prisma:deploy`.
-3. Configure `DATABASE_URL` em `apps/api/.env`.
-4. Rode `pnpm dev:api`.
-5. Em outro terminal, rode `pnpm dev:widget`.
-6. Abra `http://localhost:5173`.
-7. Confirme que o painel mostra a marca `Northstar Atelier`, o item `Bolsa Executiva Couro Safiano`, total com frete e mensagem inicial retornada pela API.
-
-Integrações de clientes podem escolher entre dois modelos: **Embed UI**, com a interface enterprise da AACP instalada por script/Web Component, ou **API-only**, em que a loja mantém sua própria UI e consome nossas rotas de sessão, chat, eventos, ofertas e pagamento. Consulte `docs/integrations/checkout-widget-and-api.md` para snippets, payloads e requisitos de segurança.
-
-Para alinhar posicionamento e UI, leia também:
-
-- `docs/product/agentic-checkout-differentiation.md`
-- `docs/product/premium-widget-ui-system.md`
+**AACP v0.1 — Built by Diego & Crew**. Última atualização: Setembro 2026.

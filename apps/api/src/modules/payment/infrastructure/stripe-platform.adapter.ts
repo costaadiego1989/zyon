@@ -5,20 +5,16 @@ import type {
 } from "../domain/ports/payment-platform-provider.port.js";
 
 export class StripePlatformAdapter implements StripePlatformPort {
-  private readonly stripe: Stripe;
+  private stripe?: Stripe;
 
-  constructor(secretKey: string) {
-    this.stripe = new Stripe(secretKey, {
-      apiVersion: "2026-04-22.dahlia",
-    });
-  }
+  constructor(private readonly secretKey: string | undefined) {}
 
   async createConnectAccount(input: {
     merchantId: string;
     merchantName: string;
     email: string;
   }): Promise<{ accountId: string }> {
-    const account = await this.stripe.accounts.create(
+    const account = await this.requireStripe().accounts.create(
       {
         type: "express",
         country: "BR",
@@ -40,7 +36,7 @@ export class StripePlatformAdapter implements StripePlatformPort {
     refreshUrl: string;
     returnUrl: string;
   }): Promise<{ url: string; expiresAt?: string }> {
-    const link = await this.stripe.accountLinks.create({
+    const link = await this.requireStripe().accountLinks.create({
       account: input.accountId,
       refresh_url: input.refreshUrl,
       return_url: input.returnUrl,
@@ -53,7 +49,7 @@ export class StripePlatformAdapter implements StripePlatformPort {
   async retrieveConnectAccount(
     accountId: string,
   ): Promise<StripeConnectAccountStatus> {
-    const account = await this.stripe.accounts.retrieve(accountId);
+    const account = await this.requireStripe().accounts.retrieve(accountId);
     if (account.deleted) {
       throw new Error("stripe_connect_account_deleted");
     }
@@ -74,7 +70,7 @@ export class StripePlatformAdapter implements StripePlatformPort {
     merchantName: string;
     email: string;
   }): Promise<{ customerId: string }> {
-    const customer = await this.stripe.customers.create(
+    const customer = await this.requireStripe().customers.create(
       {
         name: input.merchantName,
         email: input.email,
@@ -92,7 +88,7 @@ export class StripePlatformAdapter implements StripePlatformPort {
     successUrl: string;
     cancelUrl: string;
   }): Promise<{ url: string; sessionId: string }> {
-    const session = await this.stripe.checkout.sessions.create(
+    const session = await this.requireStripe().checkout.sessions.create(
       {
         mode: "subscription",
         customer: input.customerId,
@@ -120,10 +116,18 @@ export class StripePlatformAdapter implements StripePlatformPort {
     customerId: string;
     returnUrl: string;
   }): Promise<{ url: string }> {
-    const session = await this.stripe.billingPortal.sessions.create({
+    const session = await this.requireStripe().billingPortal.sessions.create({
       customer: input.customerId,
       return_url: input.returnUrl,
     });
     return { url: session.url };
+  }
+
+  private requireStripe(): Stripe {
+    if (!this.secretKey) throw new Error("stripe_not_configured");
+    this.stripe ??= new Stripe(this.secretKey, {
+      apiVersion: "2026-04-22.dahlia",
+    });
+    return this.stripe;
   }
 }

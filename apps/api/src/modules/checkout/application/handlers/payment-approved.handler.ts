@@ -1,5 +1,5 @@
 import { Injectable, Inject, OnModuleInit } from "@nestjs/common";
-import type { CurrencyCode } from "@aacp/shared-types";
+import type { CurrencyCode } from "@zyon/shared-types";
 import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../../../shared/events/domain-event-bus.port.js";
 import { PAYMENT_APPROVED_EVENT, type PaymentApprovedEvent } from "../../domain/events/payment-approved.event.js";
 import { CompleteOrderUseCase } from "../use-cases/complete-order.use-case.js";

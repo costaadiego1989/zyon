@@ -5,7 +5,7 @@ import type {
   CompleteOrderRequest,
   MerchantRules,
   StartCheckoutRequest
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 
 export function testCart(overrides: Partial<Cart> = {}): Cart {
   return {
@@ -87,6 +87,7 @@ export function merchantRules(overrides: Partial<MerchantRules> = {}): MerchantR
     blockedRegions: [],
     brandVoice: "consultative",
     couponBoxEnabled: true,
+    autonomousEngineEnabled: true,
     ...overrides
   };
 }

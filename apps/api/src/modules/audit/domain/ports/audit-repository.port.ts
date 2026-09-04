@@ -9,6 +9,9 @@ export interface MerchantAuditEvent {
   resourceType: string;
   resourceId?: string;
   correlationId?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  outcome: "success" | "failed";
   metadata: Record<string, unknown>;
   occurredAt: string;
 }
@@ -26,5 +29,10 @@ export interface AuditRepository {
     merchantId: string;
     limit: number;
     cursor?: AuditCursor;
+    action?: string;
+    resourceType?: string;
+    actorId?: string;
+    since?: string;
+    until?: string;
   }): Promise<MerchantAuditEvent[]>;
 }

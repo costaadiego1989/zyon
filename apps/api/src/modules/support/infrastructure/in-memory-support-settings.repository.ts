@@ -1,4 +1,4 @@
-import type { SupportSettings } from "@aacp/shared-types";
+import type { SupportSettings } from "@zyon/shared-types";
 import type { SupportSettingsRepository } from "../domain/ports/support-settings-repository.port.js";
 
 export class InMemorySupportSettingsRepository implements SupportSettingsRepository {

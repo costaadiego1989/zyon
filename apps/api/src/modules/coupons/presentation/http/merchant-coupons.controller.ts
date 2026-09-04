@@ -1,38 +1,45 @@
-import { Controller, Get, Post, Delete, Body, Param, Req, UseGuards } from "@nestjs/common";
+import { Controller, Get, Post, Patch, Delete, Body, Param, Req, UseGuards } from "@nestjs/common";
+import { PlanLimitGuard, RequirePlanLimit } from "../../../payment/domain/billing-plan-guard.js";
 import { Inject } from "@nestjs/common";
-import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import { CreateCouponUseCase } from "../../application/use-cases/create-coupon.use-case.js";
 import { ArchiveCouponUseCase } from "../../application/use-cases/archive-coupon.use-case.js";
+import { ToggleCouponActiveUseCase } from "../../application/use-cases/toggle-coupon-active.use-case.js";
 import { COUPON_REPOSITORY, type CouponRepository } from "../../domain/ports/coupon-repository.port.js";
 
-@NonProductionRoute()
 @UseGuards(AuthGuard)
 @Controller("merchant/coupons")
 export class MerchantCouponsController {
   constructor(
     private readonly createCoupon: CreateCouponUseCase,
     private readonly archiveCoupon: ArchiveCouponUseCase,
+    private readonly toggleCouponActive: ToggleCouponActiveUseCase,
     @Inject(COUPON_REPOSITORY) private readonly repo: CouponRepository
   ) {}
 
   @Post()
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanLimit("activeCoupons")
   async create(@Req() req: unknown, @Body() body: Omit<Parameters<CreateCouponUseCase["execute"]>[0], "merchant_id">) {
-    // P3 fix: derive merchant_id from authenticated principal, never trust body
     const { merchantId } = currentUser(req as { user?: unknown });
     return this.createCoupon.execute({ ...body, merchant_id: merchantId });
   }
 
   @Get()
   async list(@Req() req: unknown) {
-    // P3 fix: derive merchant_id from authenticated principal
     const { merchantId } = currentUser(req as { user?: unknown });
-    return this.repo.findAllByMerchant(merchantId);
+    const entities = await this.repo.findAllByMerchant(merchantId);
+    return entities.map((c) => c.snapshot());
+  }
+
+  @Patch(":id")
+  async toggle(@Req() req: unknown, @Param("id") id: string, @Body() body: { is_active: boolean }) {
+    const { merchantId } = currentUser(req as { user?: unknown });
+    return this.toggleCouponActive.execute({ id, merchant_id: merchantId, is_active: body.is_active });
   }
 
   @Delete(":id")
   async archive(@Req() req: unknown, @Param("id") id: string) {
-    // P3 fix: derive merchant_id from authenticated principal
     const { merchantId } = currentUser(req as { user?: unknown });
     return this.archiveCoupon.execute({ id, merchant_id: merchantId });
   }

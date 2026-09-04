@@ -5,6 +5,7 @@ import {
   Get,
   Inject,
   Injectable,
+  Logger,
   Post,
   Query,
   Req,
@@ -19,7 +20,7 @@ import type {
   StartCheckoutRequest,
   TrackEventRequest,
   UpdateCartRequest
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 import { ApplyOfferUseCase } from "../../../checkout/application/use-cases/apply-offer.use-case.js";
 import { StartCheckoutUseCase } from "../../../checkout/application/use-cases/start-checkout.use-case.js";
 import { TrackCheckoutEventUseCase } from "../../../checkout/application/use-cases/track-checkout-event.use-case.js";
@@ -36,6 +37,7 @@ import {
 import type { EmbedTokenClaims } from "../../domain/embed-token.service.js";
 import { EmbedAuthGuard } from "./embed-auth.guard.js";
 import { RequireEmbedScope } from "./embed-scope.decorator.js";
+import { UpdateEmbedCustomerUseCase } from "../../application/update-embed-customer.use-case.js";
 
 export type EmbedHttpRequest = {
   embedClaims?: EmbedTokenClaims;
@@ -47,11 +49,27 @@ export class EmbedCheckoutGuardHelper {
   constructor(@Inject(CHECKOUT_REPOSITORY) private readonly checkout: CheckoutRepository) {}
 
   async assertSessionBelongsToEmbedMerchant(embed: EmbedTokenClaims, sessionId: string): Promise<void> {
-    const session = await this.checkout.getSession(embed.merchantId, sessionId);
+    // Retry once on transient DB connection failures (pg-pool timeout)
+    let session: any;
+    try {
+      session = await this.checkout.getSession(embed.merchantId, sessionId);
+    } catch {
+      // Wait 500ms and retry once (connection pool recovery)
+      await new Promise(r => setTimeout(r, 500));
+      session = await this.checkout.getSession(embed.merchantId, sessionId);
+    }
     if (!session) throw new UnauthorizedException("embed_unknown_checkout_session");
     if (session.merchantId !== embed.merchantId) {
       throw new UnauthorizedException("embed_merchant_mismatch_for_checkout_session");
     }
+  }
+
+  async loadSession(merchantId: string, sessionId: string) {
+    return this.checkout.getSession(merchantId, sessionId);
+  }
+
+  async persistSession(session: import("@zyon/shared-types").CheckoutSession): Promise<void> {
+    await this.checkout.saveSession(session);
   }
 }
 
@@ -68,8 +86,11 @@ export class EmbedCheckoutController {
     private readonly confirmCryptoPayment: ConfirmCryptoPaymentUseCase,
     private readonly confirmStripePayment: ConfirmStripePaymentUseCase,
     private readonly getPaymentIntentStatus: GetPaymentIntentStatusUseCase,
-    private readonly updateCart: UpdateCartUseCase
+    private readonly updateCart: UpdateCartUseCase,
+    private readonly updateEmbedCustomer: UpdateEmbedCustomerUseCase
   ) {}
+
+  private readonly logger = new Logger(EmbedCheckoutController.name);
 
   @Post("start")
   @RequireEmbedScope("checkout:start")
@@ -144,6 +165,51 @@ export class EmbedCheckoutController {
     });
   }
 
+  @Post("customer/update")
+  @RequireEmbedScope("checkout:track")
+  async updateCustomer(
+    @Req() request: EmbedHttpRequest,
+    @Body()
+    body: {
+      session_id: string;
+      customer: {
+        fullName?: string;
+        email?: string;
+        cpf?: string;
+        phone?: string;
+      };
+    }
+  ) {
+    const embed = request.embedClaims!;
+    if (typeof body.session_id !== "string") {
+      throw new BadRequestException("session_id_required");
+    }
+    if (!body.customer || typeof body.customer !== "object") {
+      throw new BadRequestException("customer_required");
+    }
+    const c = body.customer;
+    if (typeof c.cpf !== "string" || !c.cpf.trim()) {
+      throw new BadRequestException("cpf_required");
+    }
+    if (typeof c.email !== "string" || !c.email.trim()) {
+      throw new BadRequestException("email_required");
+    }
+    if (typeof c.fullName !== "string" || !c.fullName.trim()) {
+      throw new BadRequestException("full_name_required");
+    }
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
+    return this.updateEmbedCustomer.execute({
+      merchantId: embed.merchantId,
+      sessionId: body.session_id.trim(),
+      customer: {
+        fullName: c.fullName.trim(),
+        email: c.email.trim(),
+        cpf: c.cpf.trim(),
+        phone: typeof c.phone === "string" ? c.phone.trim() : undefined
+      }
+    });
+  }
+
   @Post("payment/intents")
   @RequireEmbedScope("payment:intents:create")
   async intentFromEmbed(
@@ -154,6 +220,7 @@ export class EmbedCheckoutController {
       idempotency_key: string;
       method?: "pix" | "card" | "boleto" | "crypto";
       accepted_offer_id?: string;
+      preferred_chain?: "polygon" | "base";
       credit_card?: {
         holderName: string;
         number: string;
@@ -182,6 +249,10 @@ export class EmbedCheckoutController {
       method: body.method,
       accepted_offer_id:
         typeof body.accepted_offer_id === "string" ? body.accepted_offer_id.trim() || undefined : undefined,
+      preferred_chain:
+        body.preferred_chain === "polygon" || body.preferred_chain === "base"
+          ? body.preferred_chain
+          : undefined,
       credit_card: body.credit_card,
       remote_ip: remoteIp
     });
@@ -250,4 +321,8 @@ export class EmbedCheckoutController {
       intent_id: intentId.trim()
     });
   }
+
+  // NOTE: shipping/select is handled by EmbedShippingController at
+  // @Controller("embed/shipping") using carrier_key + SelectShippingMethodUseCase.
+  // The legacy option_index handler was removed to eliminate the route conflict.
 }

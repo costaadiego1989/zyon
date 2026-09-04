@@ -54,19 +54,26 @@ function defaultDueDate(): string {
 
 @Injectable()
 export class AsaasPaymentAdapter implements PaymentProviderPort {
+  private readonly normalizedBaseUrl: string;
   constructor(
     private readonly apiBaseUrl: string,
     private readonly apiKey: string,
     private readonly fetchImpl: typeof fetch
-  ) { }
+  ) {
+    // Normalize: ASAAS_BASE_URL may already include the /v3 suffix (e.g.
+    // https://www.asaas.com/api/v3). All methods build `${base}/v3/...`, so strip
+    // a trailing /v3 to avoid a duplicated /v3/v3 path. Keep /api intact.
+    this.normalizedBaseUrl = apiBaseUrl.replace(/\/+$/, "").replace(/\/v3$/, "");
+  }
 
   async fetchPaymentStatus(input: FetchPaymentStatusInput): Promise<FetchPaymentStatusOutput> {
-    const base = this.apiBaseUrl.replace(/\/+$/, "");
+    const base = this.normalizedBaseUrl;
     const res = await this.fetchImpl(`${base}/v3/payments/${encodeURIComponent(input.providerPaymentId)}`, {
       headers: {
         accept: "application/json",
         access_token: this.apiKey
-      }
+      },
+      signal: AbortSignal.timeout(15_000)
     });
     if (!res.ok) {
       const errorText = await res.text().catch(() => "");
@@ -88,13 +95,20 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
     cpfCnpj: string;
     phone?: string;
   }): Promise<string> {
-    const base = this.apiBaseUrl.replace(/\/+$/, "");
+    const base = this.normalizedBaseUrl;
     const body: Record<string, unknown> = {
       name: input.name,
       email: input.email,
       cpfCnpj: input.cpfCnpj.replace(/\D/g, "")
     };
     if (input.phone) body.phone = input.phone.replace(/\D/g, "");
+
+    const cpfDigits = input.cpfCnpj.replace(/\D/g, "");
+
+    // Idempotency: if a customer with this CPF already exists in Asaas, reuse it
+    // instead of failing. Asaas rejects duplicate cpfCnpj on create.
+    const existingId = await this.findCustomerByCpf(base, cpfDigits);
+    if (existingId) return existingId;
 
     const res = await this.fetchImpl(`${base}/v3/customers`, {
       method: "POST",
@@ -103,11 +117,16 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
         "content-type": "application/json",
         access_token: this.apiKey
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15_000)
     });
 
     if (!res.ok) {
       const errorText = await res.text().catch(() => "");
+      console.error(`[asaas-adapter] createCustomer failed: status=${res.status} body=${errorText.slice(0, 500)}`);
+      // On duplicate/validation error, try one more lookup before giving up
+      const recovered = await this.findCustomerByCpf(base, cpfDigits);
+      if (recovered) return recovered;
       throw new Error(`asaas_customer_create_failed:${res.status}:${errorText}`);
     }
 
@@ -116,8 +135,30 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
     return result.id;
   }
 
+  /** Look up an existing Asaas customer by CPF. Returns the id or undefined. */
+  private async findCustomerByCpf(base: string, cpfDigits: string): Promise<string | undefined> {
+    if (!cpfDigits) return undefined;
+    try {
+      const res = await this.fetchImpl(`${base}/v3/customers?cpfCnpj=${cpfDigits}`, {
+        method: "GET",
+        headers: {
+          accept: "application/json",
+          access_token: this.apiKey
+        },
+        signal: AbortSignal.timeout(15_000)
+      });
+      if (!res.ok) { console.error(`[asaas-adapter] findCustomerByCpf status=${res.status}`); return undefined; }
+      const data = (await res.json()) as { data?: Array<{ id?: string }> };
+      console.error(`[asaas-adapter] findCustomerByCpf cpf=${cpfDigits} found=${data.data?.length ?? 0} id=${data.data?.[0]?.id}`);
+      return data.data?.[0]?.id ?? undefined;
+    } catch (e) {
+      console.error(`[asaas-adapter] findCustomerByCpf exception: ${e instanceof Error ? e.message : String(e)}`);
+      return undefined;
+    }
+  }
+
   private async tokenizeCreditCard(input: CreateProviderPaymentInput): Promise<string> {
-    const base = this.apiBaseUrl.replace(/\/+$/, "");
+    const base = this.normalizedBaseUrl;
     const tokenizeBody: Record<string, unknown> = {
       customer: input.asaasCustomerId,
       creditCard: {
@@ -148,7 +189,8 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
         "content-type": "application/json",
         access_token: this.apiKey
       },
-      body: JSON.stringify(tokenizeBody)
+      body: JSON.stringify(tokenizeBody),
+      signal: AbortSignal.timeout(15_000)
     });
 
     if (!res.ok) {
@@ -165,7 +207,7 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
   }
 
   async createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput> {
-    const base = this.apiBaseUrl.replace(/\/+$/, "");
+    const base = this.normalizedBaseUrl;
     const billingType = billingFromMethod(input.method);
     const body: Record<string, unknown> = {
       customer: input.asaasCustomerId,
@@ -188,7 +230,8 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
         "content-type": "application/json",
         access_token: this.apiKey
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15_000)
     });
 
     if (!res.ok) {
@@ -209,13 +252,16 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
         headers: {
           accept: "application/json",
           access_token: this.apiKey
-        }
+        },
+        signal: AbortSignal.timeout(15_000)
       });
       if (qr.ok) {
-        const pj = (await qr.json()) as { payload?: string; encodedImage?: string };
+        const pj = (await qr.json()) as { payload?: string; encodedImage?: string; expirationDate?: string };
         if (typeof pj.payload === "string") buyerFacingPayload.qrCodeCopyPaste = pj.payload;
         if (typeof pj.encodedImage === "string") buyerFacingPayload.encodedQrImage = pj.encodedImage;
       }
+      // PIX expires in 30 minutes by default (Asaas standard)
+      buyerFacingPayload.quoteExpiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
     }
 
     const status: CreateProviderPaymentOutput["status"] =
@@ -230,5 +276,21 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
       status,
       buyerFacingPayload
     };
+  }
+
+  async refundPayment(input: { merchantId: string; providerPaymentId: string; amountCents: number; reason?: string }) {
+    const base = this.normalizedBaseUrl;
+    const res = await this.fetchImpl(`${base}/v3/payments/${encodeURIComponent(input.providerPaymentId)}/refund`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", access_token: this.apiKey },
+      body: JSON.stringify({ value: input.amountCents / 100, description: input.reason ?? "Customer requested refund" }),
+      signal: AbortSignal.timeout(15_000)
+    });
+    if (!res.ok) {
+      const err = await res.text().catch(() => "");
+      throw new Error(`asaas_refund_failed: ${res.status} ${err}`);
+    }
+    const data = await res.json();
+    return { refundId: data.id ?? input.providerPaymentId, status: "succeeded" as const };
   }
 }

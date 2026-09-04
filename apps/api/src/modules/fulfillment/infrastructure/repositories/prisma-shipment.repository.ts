@@ -4,7 +4,7 @@ import {
   type ShipmentSnapshot,
   type ShipmentStatus,
 } from "../../domain/entities/shipment.entity.js";
-import type { ShipmentRepository } from "../../domain/ports/shipment-repository.port.js";
+import type { ShipmentRepository, ListShipmentsInput, ListShipmentsResult } from "../../domain/ports/shipment-repository.port.js";
 
 export class PrismaShipmentRepository implements ShipmentRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -58,6 +58,67 @@ export class PrismaShipmentRepository implements ShipmentRepository {
       where: { externalOrderId: orderId, merchantId },
     });
     return row ? ShipmentEntity.rehydrate(toSnapshot(row)) : null;
+  }
+
+  async listByMerchant(input: {
+    merchantId: string;
+    limit: number;
+    cursor?: string;
+    orderId?: string;
+    status?: string;
+  }): Promise<{ data: ShipmentEntity[]; nextCursor: string | null }> {
+    const pageSize = input.limit + 1; // +1 to detect if there's a next page
+
+    let decodedCursor: { id: string; createdAt: string } | null = null;
+    if (input.cursor) {
+      try {
+        const decoded = Buffer.from(input.cursor, "base64").toString("utf-8");
+        decodedCursor = JSON.parse(decoded);
+      } catch {
+        throw new Error("Invalid cursor");
+      }
+    }
+
+    const rows = await this.prisma.shipment.findMany({
+      where: {
+        merchantId: input.merchantId,
+        ...(input.orderId && { externalOrderId: input.orderId }),
+        ...(input.status && { status: input.status }),
+        ...(decodedCursor && {
+          OR: [
+            { createdAt: { lt: new Date(decodedCursor.createdAt) } },
+            {
+              AND: [
+                { createdAt: new Date(decodedCursor.createdAt) },
+                { id: { lt: decodedCursor.id } },
+              ],
+            },
+          ],
+        }),
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: pageSize,
+    });
+
+    const hasNextPage = rows.length > input.limit;
+    if (hasNextPage) {
+      rows.pop();
+    }
+
+    const nextCursor =
+      hasNextPage && rows.length > 0
+        ? Buffer.from(
+            JSON.stringify({
+              id: rows[rows.length - 1].id,
+              createdAt: rows[rows.length - 1].createdAt.toISOString(),
+            }),
+          ).toString("base64")
+        : null;
+
+    return {
+      data: rows.map((row) => ShipmentEntity.rehydrate(toSnapshot(row))),
+      nextCursor,
+    };
   }
 
   // P2 fix: scoped by merchantId to enforce tenant boundary invariant.

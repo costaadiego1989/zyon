@@ -1,6 +1,6 @@
-import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
-import type { CheckoutSettingsContext, TrackEventRequest, TrackEventResponse } from "@aacp/shared-types";
-import { evaluateDiscountOffer } from "@aacp/rules-engine";
+import { Inject, Injectable, NotFoundException, Optional , Logger} from "@nestjs/common";
+import type { CheckoutSettingsContext, ProgressiveOfferResponse, TrackEventRequest, TrackEventResponse } from "@zyon/shared-types";
+import { evaluateDiscountOffer } from "@zyon/rules-engine";
 import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
@@ -11,17 +11,26 @@ import {
   type CheckoutInterventionLedgerPort
 } from "../../domain/ports/checkout-intervention-ledger.port.js";
 import { decideInterventions } from "../../domain/services/intervention-policy.service.js";
-import type { CheckoutSession } from "@aacp/shared-types";
+import {
+  resolveProgressiveDiscountStage,
+  selectProgressiveDiscountPercent
+} from "../../domain/services/progressive-discount-policy.service.js";
+import type { CheckoutSession } from "@zyon/shared-types";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
+import { RecordFunnelEventUseCase } from "../../../experiments/application/use-cases/record-funnel-event.use-case.js";
 
 @Injectable()
 export class TrackCheckoutEventUseCase {
+  private readonly logger = new Logger(TrackCheckoutEventUseCase.name);
+
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
     @Optional() @Inject(CHECKOUT_SETTINGS_PORT) private readonly checkoutSettings?: CheckoutSettingsPort,
     @Optional() @Inject(MERCHANT_RULES_REPOSITORY) private readonly merchantRepository?: MerchantRulesRepository,
     @Optional() @Inject(CHECKOUT_INTERVENTION_LEDGER)
-    private readonly interventionLedger?: CheckoutInterventionLedgerPort
+    private readonly interventionLedger?: CheckoutInterventionLedgerPort,
+    @Optional() private readonly recordFunnelEvent?: RecordFunnelEventUseCase
   ) {}
 
   async execute(input: TrackEventRequest): Promise<TrackEventResponse> {
@@ -29,7 +38,21 @@ export class TrackCheckoutEventUseCase {
     if (!session) {
       throw new NotFoundException("checkout_session_not_found");
     }
-    await this.sessions.recordEvent(input.merchant_id, input.session_id, input.event);
+    await this.sessions.recordEvent(input.merchant_id, input.session_id, input.event, input.metadata);
+
+    // Track funnel event for experiment if checkout_started
+    if (input.event === 'checkout_started' && session.promptVariantId && this.recordFunnelEvent) {
+      const timeFromStart = session.createdAt
+        ? Math.round((Date.now() - new Date(session.createdAt).getTime()) / 1000)
+        : undefined;
+      await this.recordFunnelEvent.execute({
+        merchantId: input.merchant_id,
+        sessionId: input.session_id,
+        stage: 'checkout_started',
+        metadata: { timeFromStart },
+      }).catch((err) => this.logger.warn(`Funnel event failed: ${err}`));
+    }
+
     // Fetch the updated session once after recordEvent (which mutates abandonmentScore/triggerAgent).
     // Reuse that single fetch throughout this handler — avoids redundant round-trips on the hot path.
     const afterRecord = await this.sessions.getSession(input.merchant_id, input.session_id) ?? session;
@@ -79,6 +102,23 @@ export class TrackCheckoutEventUseCase {
         })
       );
     }
+    // Emit intervention_triggered event if decision to intervene was made
+    // Allows CartRecovery scanner to react immediately (not wait 15 min)
+    if (!session.triggerAgent && finalSession.triggerAgent) {
+      await this.outbox.appendOutbox(
+        createCheckoutEventEnvelope({
+          eventType: "checkout.intervention_triggered",
+          merchantId: input.merchant_id,
+          payload: {
+            session_id: input.session_id,
+            abandonment_score: finalSession.abandonmentScore,
+            reason: input.event
+          },
+          causationId: input.event
+        })
+      );
+    }
+    const progressiveOffer = await this.authorizeProgressiveOffer(input.event, finalSession, settingsCtx ?? undefined);
     if (input.event === "checkout_abandoned") {
       await this.outbox.appendOutbox(
         createCheckoutEventEnvelope({
@@ -91,36 +131,84 @@ export class TrackCheckoutEventUseCase {
           causationId: input.event
         })
       );
-      // P1 fix: abandonment WhatsApp message must only quote a discount that has
-      // been authorized by the rules-engine for this session's cart.
-      // Never promise maxDiscountPercent blindly — it may violate minimum margin.
-      if (finalSession.customer?.phone && this.merchantRepository) {
-        const rules = await this.merchantRepository.getRules(input.merchant_id);
-        if (rules && rules.couponBoxEnabled !== false) {
-          const evaluation = evaluateDiscountOffer(finalSession.cart, rules, rules.maxDiscountPercent);
-          if (evaluation.approved && evaluation.value > 0) {
-            await this.outbox.appendOutbox(
-              createCheckoutEventEnvelope({
-                eventType: "whatsapp.message.requested",
-                merchantId: input.merchant_id,
-                payload: {
-                  session_id: input.session_id,
-                  phone: finalSession.customer.phone,
-                  template: "checkout_abandonment_discount",
-                  discount_percent: evaluation.value,
-                  message: `Voce deixou seu pedido no checkout. Mantive ${evaluation.value}% de desconto para voce fechar a compra agora.`
-                },
-                causationId: input.event
-              })
-            );
-          }
-        }
+      const abandonmentOffer = progressiveOffer ?? await this.authorizeFallbackAbandonmentOffer(finalSession);
+      if (finalSession.customer?.phone && abandonmentOffer) {
+        await this.outbox.appendOutbox(
+          createCheckoutEventEnvelope({
+            eventType: "whatsapp.message.requested",
+            merchantId: input.merchant_id,
+            payload: {
+              session_id: input.session_id,
+              phone: finalSession.customer.phone,
+              template: "checkout_abandonment_discount",
+              discount_percent: abandonmentOffer.approved_percent,
+              message: `Voce deixou seu pedido no checkout. Mantive ${abandonmentOffer.approved_percent}% de desconto para voce fechar a compra agora.`
+            },
+            causationId: input.event
+          })
+        );
       }
     }
     return {
       received: true,
       abandonment_score: finalSession.abandonmentScore,
-      trigger_agent: finalSession.triggerAgent
+      trigger_agent: finalSession.triggerAgent,
+      progressive_offer: progressiveOffer
+    };
+  }
+
+  private async authorizeProgressiveOffer(
+    eventName: TrackEventRequest["event"],
+    session: CheckoutSession,
+    settingsCtx: CheckoutSettingsContext | undefined
+  ): Promise<ProgressiveOfferResponse | undefined> {
+    if (!this.merchantRepository) return undefined;
+    const stage = resolveProgressiveDiscountStage(eventName);
+    const requested = selectProgressiveDiscountPercent(settingsCtx?.checkout_settings.progressive_discount, stage);
+    if (!stage || requested <= 0) return undefined;
+    const rules = await this.merchantRepository.getRules(session.merchantId);
+    if (!rules || rules.couponBoxEnabled === false) return undefined;
+    const evaluation = evaluateDiscountOffer(session.cart, rules, requested);
+    if (!evaluation.approved || evaluation.value <= 0) return undefined;
+    // Progressive discount is a TOTAL target, not additive.
+    // If buyer already has a discount >= this stage's approved value, skip.
+    const currentDiscountPercent = session.cart.total > 0
+      ? ((session.cart.currentDiscount ?? 0) / session.cart.total) * 100
+      : 0;
+    if (evaluation.value <= currentDiscountPercent) return undefined;
+
+    // Persist the rules-engine-authorized discount to the session cart so the
+    // payment intent (computed server-side from the session) charges the
+    // discounted amount — not just surface it as a cosmetic banner value.
+    const discountValue = Math.round(session.cart.total * (evaluation.value / 100) * 100) / 100;
+    try {
+      await this.sessions.saveSession({
+        ...session,
+        cart: { ...session.cart, currentDiscount: discountValue },
+      });
+    } catch {
+      // Non-blocking: banner still shows; payment falls back to prior discount.
+    }
+
+    return {
+      stage,
+      requested_percent: requested,
+      approved_percent: evaluation.value,
+      reason: evaluation.reason
+    };
+  }
+
+  private async authorizeFallbackAbandonmentOffer(session: CheckoutSession): Promise<ProgressiveOfferResponse | undefined> {
+    if (!this.merchantRepository) return undefined;
+    const rules = await this.merchantRepository.getRules(session.merchantId);
+    if (!rules || rules.couponBoxEnabled === false) return undefined;
+    const evaluation = evaluateDiscountOffer(session.cart, rules, rules.maxDiscountPercent);
+    if (!evaluation.approved || evaluation.value <= 0) return undefined;
+    return {
+      stage: "abandoned_cart",
+      requested_percent: rules.maxDiscountPercent,
+      approved_percent: evaluation.value,
+      reason: evaluation.reason
     };
   }
 
@@ -170,11 +258,17 @@ export class TrackCheckoutEventUseCase {
     if (!settings) return session;
     const configured = settings.checkout_settings;
     const eventCanTrigger = configured.enabled_triggers.some((trigger) => trigger === eventName);
+
+    // High-priority triggers bypass abandonment score — they represent
+    // critical moments where the agent MUST intervene regardless of score.
+    const HIGH_PRIORITY_TRIGGERS = new Set(["payment_failed", "checkout_abandoned"]);
+    const bypassScore = HIGH_PRIORITY_TRIGGERS.has(eventName);
+
     const shouldTrigger =
       configured.mode !== "manual_only" &&
       eventCanTrigger &&
-      session.abandonmentScore >= configured.minimum_abandonment_score &&
-      session.triggerAgent;
+      (bypassScore || session.abandonmentScore >= configured.minimum_abandonment_score) &&
+      (bypassScore || session.triggerAgent);
     const finalTrigger = shouldTrigger;
     if (session.triggerAgent === finalTrigger) return session;
     const next = { ...session, triggerAgent: finalTrigger, updatedAt: new Date().toISOString() };

@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
-import type { DomainEventEnvelope } from "@aacp/shared-types";
+import type { DomainEventEnvelope } from "@zyon/shared-types";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
 import type {
   CryptoTransferKey,
@@ -78,6 +78,8 @@ function strip(d: PaymentIntentSnapshot) {
   };
 }
 
+type NormalizedCryptoTransfer = NonNullable<NonNullable<PaymentIntentSnapshot["buyerFacing"]>["transfers"]>[number];
+
 function normalizeBuyerFacing(v: unknown): PaymentIntentSnapshot["buyerFacing"] {
   if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
   const rec = v as Record<string, unknown>;
@@ -96,6 +98,17 @@ function normalizeBuyerFacing(v: unknown): PaymentIntentSnapshot["buyerFacing"] 
   if (typeof rec.amountAtomic === "string") out.amountAtomic = rec.amountAtomic;
   if (typeof rec.amountDisplay === "string") out.amountDisplay = rec.amountDisplay;
   if (typeof rec.destinationAddress === "string") out.destinationAddress = rec.destinationAddress;
+  if (Array.isArray(rec.transfers)) {
+    const transfers = rec.transfers.filter((item): item is NormalizedCryptoTransfer => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+      const t = item as Record<string, unknown>;
+      return (t.kind === "merchant" || t.kind === "platform_fee") &&
+        typeof t.destinationAddress === "string" &&
+        typeof t.amountAtomic === "string" &&
+        typeof t.amountDisplay === "string";
+    });
+    if (transfers.length) out.transfers = transfers;
+  }
   if (typeof rec.quoteExpiresAt === "string") out.quoteExpiresAt = rec.quoteExpiresAt;
   if (typeof rec.walletConnectProjectId === "string") out.walletConnectProjectId = rec.walletConnectProjectId;
   return Object.keys(out).length ? out : undefined;
@@ -166,6 +179,25 @@ export class PrismaPaymentRepository implements PaymentRepository {
     return rows.map((row) => PaymentIntentEntity.rehydrate(snapshotFromRecord(row)));
   }
 
+  /**
+   * R2P-P03: Approved intents idle since `olderThan`. A healthy approval flow
+   * finishes completeAfterApproval within seconds, so an intent left `approved`
+   * beyond the stale window signals a crash between markApproved and
+   * completion. Re-driving completeAfterApproval is safe (idempotent via
+   * CompleteOrderUseCase).
+   */
+  async listStaleApproved(query: StalePendingQuery): Promise<PaymentIntentEntity[]> {
+    const rows = await this.prisma.paymentIntent.findMany({
+      where: {
+        status: "approved",
+        updatedAt: { lt: query.olderThan }
+      },
+      orderBy: { updatedAt: "asc" },
+      take: query.limit
+    });
+    return rows.map((row) => PaymentIntentEntity.rehydrate(snapshotFromRecord(row)));
+  }
+
   async getByIdempotency(
     merchantId: string,
     sessionId: string,
@@ -196,11 +228,25 @@ export class PrismaPaymentRepository implements PaymentRepository {
     return row ? PaymentIntentEntity.rehydrate(snapshotFromRecord(row)) : null;
   }
 
+  async findApprovedBySessionId(
+    merchantId: string,
+    sessionId: string
+  ): Promise<PaymentIntentEntity | null> {
+    const row = await this.prisma.paymentIntent.findFirst({
+      where: { merchantId: merchantId.trim(), sessionId: sessionId.trim(), status: "approved" },
+      orderBy: { updatedAt: "desc" },
+    });
+    return row ? PaymentIntentEntity.rehydrate(snapshotFromRecord(row)) : null;
+  }
+
   async getIntentById(merchantId: string, intentBusinessId: string): Promise<PaymentIntentEntity | null> {
+    // C2 fix: atomic tenant boundary — scope the query directly with both id and merchantId
     const row = await this.prisma.paymentIntent.findUnique({
       where: { id: intentBusinessId.trim() }
     });
-    if (!row || row.merchantId !== merchantId.trim()) return null;
+    if (!row) return null;
+    // Post-read verification: query already matched id, verify merchantId atomically
+    if (row.merchantId !== merchantId.trim()) return null;
     return PaymentIntentEntity.rehydrate(snapshotFromRecord(row));
   }
 
@@ -280,5 +326,57 @@ export class PrismaPaymentRepository implements PaymentRepository {
         txHash: key.txHash.trim().toLowerCase()
       }
     });
+  }
+
+  /**
+   * H1 fix: reap expired crypto transfer reservations — orphaned by worker kill mid-RPC.
+   * Deletes reservations past their expires_at that don't have a corresponding approved intent.
+   */
+  async reapExpiredCryptoReservations(): Promise<number> {
+    const now = new Date();
+    // Find expired reservations where the intent is NOT approved
+    const expired = await this.prisma.paymentCryptoTransfer.findMany({
+      where: {
+        expiresAt: { lt: now }
+      },
+      select: { id: true, intentId: true, merchantId: true }
+    });
+
+    if (expired.length === 0) return 0;
+
+    // Check which intents are already approved (those reservations are valid)
+    const intentIds = [...new Set(expired.map(e => e.intentId))];
+    const approvedIntents = await this.prisma.paymentIntent.findMany({
+      where: {
+        id: { in: intentIds },
+        status: "approved"
+      },
+      select: { id: true }
+    });
+    const approvedSet = new Set(approvedIntents.map(i => i.id));
+
+    // Delete only reservations whose intent was never approved
+    const toDelete = expired.filter(e => !approvedSet.has(e.intentId)).map(e => e.id);
+    if (toDelete.length === 0) return 0;
+
+    const result = await this.prisma.paymentCryptoTransfer.deleteMany({
+      where: { id: { in: toDelete } }
+    });
+    return result.count;
+  }
+
+  async listByMerchantId(
+    merchantId: string,
+    statusPrefix?: string,
+  ): Promise<PaymentIntentEntity[]> {
+    const rows = await this.prisma.paymentIntent.findMany({
+      where: {
+        merchantId,
+        ...(statusPrefix && { status: { startsWith: statusPrefix } }),
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 200,
+    });
+    return rows.map((row) => PaymentIntentEntity.rehydrate(snapshotFromRecord(row)));
   }
 }

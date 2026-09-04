@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
-import type { CustomerHints } from "@aacp/shared-types";
+import type { CustomerHints } from "@zyon/shared-types";
 import { CheckoutIdentityService } from "../../checkout/domain/services/checkout-identity.service.js";
 import type { BuyerIdentityRepository } from "../domain/ports/buyer-identity.repository.port.js";
 

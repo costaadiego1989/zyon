@@ -1,57 +1,41 @@
-# AI Checkout Sales Agent
+# Marketplace Dashboard Completion
 
-**Vision:** Turn checkout into an AI sales closer and owned payment flow that negotiates price, shipping, and payment friction while protecting merchant margin.
-**For:** DTC ecommerce merchants integrating commerce platforms and payment providers through adapters.
-**Solves:** Cart abandonment caused by shipping cost, price objections, trust concerns, and passive checkout experiences.
+**Date:** 2026-08-19  
+**Status:** In Progress  
+**Scope:** Complete dashboard UI gaps + payment chargeback tracking (both marketplace and checkout payment chargebacks)
+
+## Vision
+
+Enable sellers to monitor and manage marketplace settlements, chargebacks, and outstanding debts in real-time through the dashboard. Enable merchants to view and resolve payment chargebacks from their checkout flow.
 
 ## Goals
 
-- Increase checkout conversion by intervening only when abandonment signals are present.
-- Preserve margin by making every discount and shipping subsidy deterministic, auditable, and rule-bound.
-- Prove a full end-to-end AACP checkout MVP: configure rules, run widget, negotiate, charge the buyer through a payment provider, sync the order to commerce, and show analytics.
-
-## Tech Stack
-
-**Core:**
-
-- Framework: NestJS API, React widget/dashboard
-- Language: TypeScript
-- Database: PostgreSQL target; in-memory repository for MVP development
-
-**Key dependencies:**
-
-- OpenAI Responses API
-- Shopify Admin API for commerce sync
-- Asaas API for the first buyer payment provider and future merchant billing
-- Vite
-- pnpm workspaces
-
-## Scope
-
-**v1 includes:**
-
-- Embeddable checkout widget.
-- Merchant dashboard for rules and metrics.
-- Checkout sessions with `global_user_id`.
-- Event tracking and abandonment scoring.
-- Deterministic discount and shipping offer decisions.
-- LLM conversation that cannot authorize offers directly.
-- AACP-owned buyer checkout flow with payment-provider adapters.
-- Commerce adapters for Shopify/WooCommerce/etc. that do not own payment processing.
-- Asaas buyer payment adapter as the first real payment provider.
-
-**Explicitly out of scope:**
-
-- Fully conversational checkout replacement.
-- Storing raw card numbers or CVV.
-- Advanced logistics engine.
-- Omnichannel recovery.
-- Custom ML scoring.
+1. **Seller Settlements Dashboard** — visual timeline of settlement states, transfer windows, chargeback windows
+2. **Debt Manager** — outstanding debt ledger, deduction history, resolution tracking
+3. **Blocked Merchants Manager** — add/remove/manage blocked sellers from marketplace
+4. **Marketplace Chargeback UI** — view chargebacks, state transitions, impact on settlements
+5. **Payment Chargeback Dashboard** — merchant payment chargebacks (from checkout), dispute lifecycle
+6. **Real-time Notifications** — toast alerts on settlement state changes, chargebacks, debt events
 
 ## Constraints
 
-- The buyer identity must be stable through `global_user_id`.
-- Merchant isolation is mandatory; global identity cannot leak context across merchants.
-- LLM output is advisory/conversational only. Rules authorize offers.
-- Commerce adapters synchronize cart/order/product facts; payment adapters charge buyers.
-- Payment provider secrets, commerce tokens, margin, cost, and raw customer PII must not be exposed through the browser embed.
+- API layer already built (use-cases, repos, state machine, tests)
+- Dashboard must remain client-side React, no backend rendering
+- Must support both marketplace (seller) and payment (merchant) chargebacks
+- Debt must integrate with settlement view (show deduction impact)
+- All endpoints must be wired in API controller + dashboard client
+
+## Architecture Decisions
+
+- **Settlement Timeline Component** — show date windows, current state, action buttons
+- **Debt Ledger** — outstanding list, deduction history, resolve actions
+- **Chargeback Panel** — separate tab or modal per flow (marketplace vs payment)
+- **Blocked Merchants** — inline manager in settings with search/add/remove
+- **Notifications** — webhook → polling fallback (no real-time initially)
+
+## Non-Goals (Future)
+
+- Automatic debt resolution
+- Seller marketplace analytics
+- Chargeback dispute forms
+- Multi-merchant chargeback aggregation

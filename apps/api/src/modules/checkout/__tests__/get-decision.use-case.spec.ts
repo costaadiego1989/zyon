@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { CheckoutSettingsPort } from "../domain/ports/checkout-settings.port.js";
-import type { CheckoutTriggerName } from "@aacp/shared-types";
+import type { CheckoutTriggerName } from "@zyon/shared-types";
 import { checkoutSession } from "./checkout-test-fixtures.js";
 import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-memory-checkout.repository.js";
 import { InMemoryInterventionLedger } from "../infrastructure/in-memory-intervention-ledger.js";
@@ -20,8 +20,13 @@ class StrictCheckoutSettingsPort implements CheckoutSettingsPort {
         enabled_triggers: ["payment_failed" as const],
         handoff_enabled: false
       },
+      merchant_rules: [],
       operational_constraints: []
     };
+  }
+
+  async getInterventionConfig() {
+    return { advancedRules: null, interventionPolicy: null };
   }
 }
 
@@ -52,8 +57,12 @@ test("GetDecisionUseCase keeps deterministic scoring but respects configured tri
           enabled_triggers: ["payment_failed" as const],
           handoff_enabled: true
         },
+        merchant_rules: [],
         operational_constraints: []
       };
+    },
+    async getInterventionConfig() {
+      return { advancedRules: null, interventionPolicy: null };
     }
   });
 
@@ -88,8 +97,13 @@ class LedgerMaxTwoSettings implements CheckoutSettingsPort {
         enabled_triggers: DECISION_LEDGER_TRIGGERS,
         handoff_enabled: true
       },
+      merchant_rules: [],
       operational_constraints: []
     };
+  }
+
+  async getInterventionConfig() {
+    return { advancedRules: null, interventionPolicy: null };
   }
 }
 

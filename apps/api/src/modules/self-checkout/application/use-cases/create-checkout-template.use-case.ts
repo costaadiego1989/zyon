@@ -1,10 +1,11 @@
-import { Injectable, Inject, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, UnprocessableEntityException , Logger} from "@nestjs/common";
 import { BuyerCheckoutTemplateEntity } from "../../domain/entities/buyer-checkout-template.entity.js";
 import { BUYER_USER_REPOSITORY, type BuyerUserRepository } from "../../domain/ports/buyer-user-repository.port.js";
 import { BUYER_WALLET_REPOSITORY, type BuyerWalletRepository } from "../../domain/ports/buyer-wallet-repository.port.js";
 import { BUYER_TEMPLATE_REPOSITORY, type BuyerTemplateRepository } from "../../domain/ports/buyer-template-repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { createSelfCheckoutEventEnvelope } from "../../domain/events/self-checkout-domain-event.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface CreateCheckoutTemplateInput {
   buyer_user_id: string;
@@ -17,6 +18,8 @@ export interface CreateCheckoutTemplateInput {
 
 @Injectable()
 export class CreateCheckoutTemplateUseCase {
+  private readonly logger = new Logger(CreateCheckoutTemplateUseCase.name);
+
   constructor(
     @Inject(BUYER_USER_REPOSITORY) private readonly users: BuyerUserRepository,
     // P1 fix: inject wallet repo so we can verify address/method belong to the buyer.

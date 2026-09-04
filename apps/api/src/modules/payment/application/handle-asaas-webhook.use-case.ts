@@ -1,15 +1,16 @@
-import { BadRequestException, Inject, Injectable, Optional } from "@nestjs/common";
-import type { CurrencyCode } from "@aacp/shared-types";
-import { PaymentIntentEntity, type PaymentIntentSnapshot } from "../domain/payment-intent.entity.js";
+import { BadRequestException, Inject, Injectable, Optional , Logger} from "@nestjs/common";
+import { timingSafeEqual } from "node:crypto";
+import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
 import {
   PAYMENT_REPOSITORY,
   type PaymentRepository,
   type ProviderEventKey
 } from "../domain/ports/payment-repository.port.js";
-import type { CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
-import { CHECKOUT_PAYMENT_PORT } from "../domain/ports/checkout-payment.port.js";
 import { MetricsService } from "../../../shared/observability/metrics.service.js";
-import { MarkCommerceOrderPaidUseCase } from "../../commerce/application/mark-commerce-order-paid.use-case.js";
+import { PaymentDispatchService } from "./services/payment-dispatch.service.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
+import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
+import type { PrismaClient } from "@prisma/client";
 
 export type AsaasWebhookInbound = {
   id: string;
@@ -53,6 +54,8 @@ function normalizeInbound(body: unknown): AsaasWebhookInbound {
 }
 
 export class UnauthorizedWebhookError extends Error {
+  private readonly logger = new Logger(UnauthorizedWebhookError.name);
+
   constructor() {
     super("asaas_webhook_token_invalid");
     this.name = "UnauthorizedWebhookError";
@@ -61,9 +64,13 @@ export class UnauthorizedWebhookError extends Error {
 
 export function assertWebhookToken(expectedToken: string | undefined, inboundHeader?: string): void {
   const expected = expectedToken?.trim();
-  if (!expected) return;
+  // FAIL-CLOSED: if no webhook token is configured, reject all incoming webhooks.
+  if (!expected) throw new UnauthorizedWebhookError();
   const got = inboundHeader?.trim() ?? "";
-  if (got !== expected) throw new UnauthorizedWebhookError();
+  // M5 fix: constant-time comparison to prevent timing oracle
+  if (got.length !== expected.length) throw new UnauthorizedWebhookError();
+  const equal = timingSafeEqual(Buffer.from(got, "utf8"), Buffer.from(expected, "utf8"));
+  if (!equal) throw new UnauthorizedWebhookError();
 }
 
 function majorUnitsFromCents(amountCents: number): number {
@@ -77,17 +84,21 @@ function paymentValueAsCents(paymentSlice: NonNullable<AsaasWebhookInbound["paym
 
 @Injectable()
 export class HandleAsaasWebhookUseCase {
+  private readonly logger = new Logger(HandleAsaasWebhookUseCase.name);
+
   constructor(
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
-    @Inject(CHECKOUT_PAYMENT_PORT) private readonly checkoutPayment: CheckoutPaymentPort,
+    private readonly paymentDispatch: PaymentDispatchService,
     @Optional() private readonly metrics?: MetricsService,
-    @Optional() private readonly markCommerceOrderPaid?: MarkCommerceOrderPaidUseCase
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
   ) {}
 
-  async execute(inboundAccessTokenHeader: string | undefined, rawBody: unknown): Promise<HandleAsaasWebhookResult> {
-    assertWebhookToken(process.env.ASAAS_WEBHOOK_TOKEN, inboundAccessTokenHeader);
+  async execute(inboundAccessTokenHeader: string | undefined, rawBody: unknown, webhookToken?: string): Promise<HandleAsaasWebhookResult> {
+    const expectedToken = webhookToken ?? process.env.ASAAS_WEBHOOK_TOKEN;
+    assertWebhookToken(expectedToken, inboundAccessTokenHeader);
 
     const body = normalizeInbound(rawBody);
+    this.logger.log(`[WEBHOOK] received event=${body.event} paymentId=${body.payment?.id} extRef=${body.payment?.externalReference}`);
 
     if (!body.id || !body.event) {
       throw new BadRequestException("asaas_webhook_invalid_shape");
@@ -99,6 +110,7 @@ export class HandleAsaasWebhookUseCase {
     // scoped read: the port returns only { id, merchantId }; the authoritative
     // entity is re-fetched scoped below (ADR 0001 #3).
     const ref = extRef ? await this.payments.getIntentByExternalReference(extRef) : null;
+    this.logger.log(`[WEBHOOK] extRef=${extRef} intentFound=${!!ref} intentId=${ref?.id}`);
     const merchantId = ref?.merchantId ?? null;
     const eventKey: ProviderEventKey = { provider: "asaas", merchantId, eventId: body.id };
 
@@ -115,13 +127,16 @@ export class HandleAsaasWebhookUseCase {
     }
 
     if (!ref) {
+      this.logger.warn(`[WEBHOOK] IGNORED intent_not_found extRef=${extRef}`);
       return { outcome: "ignored", reason: "intent_not_found" };
     }
 
     const intentEntity = await this.payments.getIntentById(ref.merchantId, ref.id);
     if (!intentEntity) {
+      this.logger.warn(`[WEBHOOK] IGNORED intent_entity_not_found id=${ref.id}`);
       return { outcome: "ignored", reason: "intent_not_found" };
     }
+    this.logger.log(`[WEBHOOK] dispatching event=${body.event} intentId=${ref.id}`);
 
     try {
       const effect = await this.dispatch(body.event, intentEntity, body.payment);
@@ -135,7 +150,7 @@ export class HandleAsaasWebhookUseCase {
         // keep the marker consumed to avoid a poison re-delivery loop. The
         // anomaly is surfaced for dead-letter/alert review (ADR 0001 #4).
         this.metrics?.paymentWebhookAnomaly.inc({ provider: "asaas", kind: "illegal_transition" });
-        console.error("[payment][asaas-webhook] illegal_transition", {
+        this.logger.error("asaas.webhook.illegal_transition", {
           intentId: ref.id,
           merchantId: ref.merchantId,
           eventId: body.id,
@@ -160,22 +175,11 @@ export class HandleAsaasWebhookUseCase {
         return "noop_created";
 
       case "PAYMENT_RECEIVED":
+      case "PAYMENT_CONFIRMED":
         return await this.handlePaymentReceived(intentEntity, paymentSlice);
 
       case "PAYMENT_REFUNDED": {
-        const snap = intentEntity.snapshot();
-        if (snap.status === "approved") {
-          intentEntity.markRefunded(eventName);
-          await this.payments.saveIntent({ intent: intentEntity });
-          await this.checkoutPayment.recordPaymentStatusChanged({
-            merchantId: snap.merchantId,
-            sessionId: snap.sessionId,
-            paymentIntentId: snap.id,
-            status: "refunded",
-            reason: eventName,
-            commerceOrderId: snap.commerceOrderId
-          });
-        }
+        await this.paymentDispatch.markRefunded(intentEntity, eventName);
         return "payment_refunded";
       }
 
@@ -197,93 +201,42 @@ export class HandleAsaasWebhookUseCase {
     const snap = intentEntity.snapshot();
     const payId = typeof paymentSlice?.id === "string" ? paymentSlice.id.trim() : "";
     const centsFromWebhook = paymentValueAsCents(paymentSlice);
+    this.logger.log(`[WEBHOOK] handlePaymentReceived intentId=${snap.id} status=${snap.status} payId=${payId} webhookCents=${centsFromWebhook} expectedCents=${snap.amountCents}`);
     if (!payId) throw new BadRequestException("payment_id_missing_on_webhook");
     if (typeof centsFromWebhook !== "number") throw new BadRequestException("payment_value_missing_on_webhook");
 
-    if (snap.status === "approved") {
-      await this.markLinkedCommerceOrderPaid(snap, payId);
-      return "already_approved";
-    }
-
-    if (centsFromWebhook !== snap.amountCents) {
-      intentEntity.markFailed("payment_value_mismatch");
-      await this.payments.saveIntent({ intent: intentEntity });
-      await this.checkoutPayment.recordPaymentStatusChanged({
-        merchantId: snap.merchantId,
-        sessionId: snap.sessionId,
-        paymentIntentId: snap.id,
-        status: "failed",
-        reason: "payment_value_mismatch",
-        commerceOrderId: snap.commerceOrderId
-      });
-      await this.checkoutPayment.recordPaymentFailure({
-        merchantId: snap.merchantId,
-        sessionId: snap.sessionId,
-        reason: "payment_value_mismatch"
-      });
+    if (snap.status !== "approved" && centsFromWebhook !== snap.amountCents) {
+      this.metrics?.paymentWebhookAnomaly.inc({ provider: "asaas", kind: "value_mismatch" });
+      await this.paymentDispatch.markFailed(intentEntity, "payment_value_mismatch");
       return "payment_value_mismatch";
     }
 
-    intentEntity.markApproved({ providerPaymentId: payId, approvedAmountCents: snap.amountCents });
-    await this.payments.saveIntent({ intent: intentEntity });
-    await this.checkoutPayment.recordPaymentStatusChanged({
-      merchantId: snap.merchantId,
-      sessionId: snap.sessionId,
-      paymentIntentId: snap.id,
-      status: "approved",
-      commerceOrderId: snap.commerceOrderId
-    });
+    this.logger.log(`[WEBHOOK] markApprovedAndComplete intentId=${snap.id} payId=${payId} → APPROVING`);
+    const result = await this.paymentDispatch.markApprovedAndComplete(intentEntity, payId);
+    this.logger.log(`[WEBHOOK] APPROVED intentId=${snap.id} effect=${result}`);
 
-    this.metrics?.paymentApproved.inc({ merchant_id: snap.merchantId });
-    await this.checkoutPayment.completeAfterApproval({
-      merchantId: snap.merchantId,
-      sessionId: snap.sessionId,
-      externalOrderId: payId,
-      orderTotalMajorUnits: majorUnitsFromCents(snap.amountCents),
-      currency: snap.currency as CurrencyCode,
-      acceptedOfferId: snap.acceptedOfferId
-    });
+    // Create in-app notification for merchant (fire-and-forget)
+    try {
+      if (this.prisma) {
+        const merchantId = snap.merchantId;
+        await this.prisma.merchantNotification.create({
+          data: {
+            merchantId,
+            type: "order_paid",
+            title: `Novo pedido pago! R$ ${(snap.amountCents / 100).toFixed(2)}`,
+            body: `Pagamento confirmado via ${snap.method ?? "PIX"}`,
+            metadata: { intentId: snap.id, amountCents: snap.amountCents, method: snap.method },
+          },
+        });
+      }
+    } catch {
+      // Non-blocking — notification creation must never fail the webhook
+    }
 
-    const commerceSynced = await this.markLinkedCommerceOrderPaid(snap, payId);
-
-    return commerceSynced ? "checkout_completed_after_payment_and_commerce_paid" : "checkout_completed_after_payment";
-  }
-
-  private async markLinkedCommerceOrderPaid(
-    snap: PaymentIntentSnapshot,
-    paymentReference: string
-  ): Promise<boolean> {
-    const commerceOrderId = snap.commerceOrderId?.trim();
-    if (!commerceOrderId || !this.markCommerceOrderPaid) return false;
-
-    const result = await this.markCommerceOrderPaid.execute({
-      merchantId: snap.merchantId,
-      commerceOrderId,
-      paymentReference
-    });
-    return result.invokedCommerceSync;
+    return result;
   }
 
   private async failOpenIntent(intentEntity: PaymentIntentEntity, reason: string): Promise<void> {
-    const snap = intentEntity.snapshot();
-    if (snap.status === "approved") return;
-
-    if (snap.status === "requires_action" || snap.status === "pending") {
-      intentEntity.markFailed(reason);
-      await this.payments.saveIntent({ intent: intentEntity });
-      await this.checkoutPayment.recordPaymentStatusChanged({
-        merchantId: snap.merchantId,
-        sessionId: snap.sessionId,
-        paymentIntentId: snap.id,
-        status: "failed",
-        reason,
-        commerceOrderId: snap.commerceOrderId
-      });
-      await this.checkoutPayment.recordPaymentFailure({
-        merchantId: snap.merchantId,
-        sessionId: snap.sessionId,
-        reason
-      });
-    }
+    await this.paymentDispatch.markFailed(intentEntity, reason);
   }
 }

@@ -1,4 +1,4 @@
-import type { MerchantCryptoPayments } from "@aacp/shared-types";
+import type { MerchantCryptoPayments } from "@zyon/shared-types";
 
 const EVM_ADDRESS = /^0x[a-fA-F0-9]{40}$/;
 
@@ -7,8 +7,6 @@ export function normalizeMerchantCryptoPayments(
 ): MerchantCryptoPayments | undefined {
   if (!input) return undefined;
   if (!input.enabled) {
-    // When disabled, return a normalized object with neutral defaults — do NOT
-    // propagate unvalidated fields that may contain invalid or sensitive data.
     return {
       enabled: false,
       chain: "polygon",
@@ -22,8 +20,8 @@ export function normalizeMerchantCryptoPayments(
   if (!EVM_ADDRESS.test(treasury)) {
     throw new Error("crypto_treasury_address_invalid");
   }
-  const brlPerUsdc = input.brlPerUsdc;
-  if (brlPerUsdc == null || !Number.isFinite(brlPerUsdc) || brlPerUsdc <= 0) {
+  const brlPerUsdc = input.brlPerUsdc ?? 5.5;
+  if (!Number.isFinite(brlPerUsdc) || brlPerUsdc <= 0) {
     throw new Error("crypto_brl_per_usdc_required");
   }
   const quoteTtlSeconds = input.quoteTtlSeconds ?? 900;

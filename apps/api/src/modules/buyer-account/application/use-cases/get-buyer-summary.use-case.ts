@@ -1,15 +1,18 @@
-import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
-import type { PrismaClient } from "@prisma/client";
-import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../domain/ports/buyer-account-repository.port.js";
-import { BUYER_ACCOUNT_PRISMA_CLIENT } from "../../buyer-account.tokens.js";
+import { Inject, Injectable, NotFoundException, Optional , Logger} from "@nestjs/common";
+import {
+  BUYER_ACCOUNT_REPOSITORY,
+  type BuyerAccountRepository,
+} from "../../domain/ports/buyer-account-repository.port.js";
+import { BUYER_ACCOUNT_PORT, type BuyerAccountPort } from "../../domain/ports/buyer-account-port.js";
 import type { BuyerAccount } from "../../domain/entities/buyer-account.entity.js";
 import type { BuyerAgentProfile } from "../../domain/entities/buyer-agent-profile.entity.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 import {
   BUYER_PURCHASE_HISTORY_REPOSITORY,
   type BuyerPurchaseHistoryRepository,
 } from "../../../buyer-purchase-history/domain/ports/buyer-purchase-history-repository.port.js";
 import type { PurchaseRecord } from "../../../buyer-purchase-history/domain/buyer-purchase-history.types.js";
-import { usesPrismaPurchaseHistory } from "../../../buyer-purchase-history/infrastructure/purchase-history-storage-mode.js";
+import { PURCHASE_HISTORY_STORAGE_MODE, type PurchaseHistoryStorageMode } from "../../../buyer-purchase-history/domain/ports/purchase-history-storage-mode.port.js";
 
 export interface BuyerSummary {
   profile: BuyerAccount;
@@ -17,6 +20,7 @@ export interface BuyerSummary {
   stats: {
     totalOrders: number;
     totalSpent: number;
+    averageTicket: number;
     totalSaved: number;
     topMerchants: { merchantId: string; merchantName: string; orderCount: number }[];
   };
@@ -26,13 +30,20 @@ type PurchaseStat = Pick<PurchaseRecord, "merchantId" | "totalAmount" | "discoun
 
 @Injectable()
 export class GetBuyerSummaryUseCase {
+  private readonly logger = new Logger(GetBuyerSummaryUseCase.name);
+
   constructor(
     @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly repo: BuyerAccountRepository,
-    @Inject(BUYER_ACCOUNT_PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    @Inject(BUYER_ACCOUNT_PORT) private readonly port: BuyerAccountPort,
     @Optional()
     @Inject(BUYER_PURCHASE_HISTORY_REPOSITORY)
     private readonly purchaseHistory?: BuyerPurchaseHistoryRepository,
+    @Optional() @Inject(PURCHASE_HISTORY_STORAGE_MODE) private readonly storageMode?: PurchaseHistoryStorageMode
   ) {}
+
+  private usesPrisma(): boolean {
+    return !this.storageMode || this.storageMode.usesPrisma();
+  }
 
   async execute(globalUserId: string): Promise<BuyerSummary> {
     const [profile, agent] = await Promise.all([
@@ -41,13 +52,16 @@ export class GetBuyerSummaryUseCase {
     ]);
     if (!profile) throw new NotFoundException("buyer_account_not_found");
 
-    const records = usesPrismaPurchaseHistory()
-      ? await this.loadRecordsFromPrisma(globalUserId)
+    const records = this.usesPrisma()
+      ? await this.loadRecordsFromPort(globalUserId)
       : await this.loadRecordsFromRepository(globalUserId);
 
+    // totalAmount/discountAmount arrive as Prisma Decimal (string). Coerce to
+    // Number before summing — otherwise `+` concatenates strings.
     const totalOrders = records.length;
-    const totalSpent = records.reduce((s, r) => s + r.totalAmount, 0);
-    const totalSaved = records.reduce((s, r) => s + r.discountAmount, 0);
+    const totalSpent = records.reduce((s, r) => s + Number(r.totalAmount), 0);
+    const averageTicket = totalOrders > 0 ? totalSpent / totalOrders : 0;
+    const totalSaved = records.reduce((s, r) => s + Number(r.discountAmount), 0);
 
     const countByMerchant = new Map<string, number>();
     for (const r of records) {
@@ -59,14 +73,11 @@ export class GetBuyerSummaryUseCase {
       .slice(0, 5)
       .map(([id]) => id);
 
-    const merchantMap = usesPrismaPurchaseHistory()
+    const merchantMap = this.usesPrisma()
       ? new Map(
-          (
-            await this.prisma.merchant.findMany({
-              where: { id: { in: topMerchantIds } },
-              select: { id: true, name: true },
-            })
-          ).map((m) => [m.id, m.name] as const),
+          (await this.port.listMerchantNames(topMerchantIds)).map(
+            (m) => [m.id, m.name] as const,
+          ),
         )
       : new Map<string, string>();
 
@@ -76,14 +87,16 @@ export class GetBuyerSummaryUseCase {
       orderCount: countByMerchant.get(id) ?? 0,
     }));
 
-    return { profile, agent, stats: { totalOrders, totalSpent, totalSaved, topMerchants } };
+    return { profile, agent, stats: { totalOrders, totalSpent, averageTicket, totalSaved, topMerchants } };
   }
 
-  private async loadRecordsFromPrisma(globalUserId: string): Promise<PurchaseStat[]> {
-    return this.prisma.buyerPurchaseRecord.findMany({
-      where: { globalUserId },
-      select: { merchantId: true, totalAmount: true, discountAmount: true },
-    });
+  private async loadRecordsFromPort(globalUserId: string): Promise<PurchaseStat[]> {
+    const rows = await this.port.listPurchaseStatsForBuyer(globalUserId);
+    return rows.map((row) => ({
+      merchantId: row.merchantId,
+      totalAmount: row.totalAmount,
+      discountAmount: row.discountAmount,
+    }));
   }
 
   private async loadRecordsFromRepository(globalUserId: string): Promise<PurchaseStat[]> {

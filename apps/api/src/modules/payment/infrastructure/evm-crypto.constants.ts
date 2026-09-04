@@ -1,4 +1,4 @@
-import type { MerchantCryptoPayments } from "@aacp/shared-types";
+import type { MerchantCryptoPayments } from "@zyon/shared-types";
 
 export type EvmChain = MerchantCryptoPayments["chain"];
 export type EvmNetwork = MerchantCryptoPayments["network"];
@@ -52,6 +52,77 @@ export function resolveRpcUrl(chain: EvmChain, network: EvmNetwork): string | un
     : process.env.BASE_RPC_URL?.trim();
 }
 
+function envRpcPrefix(chain: EvmChain, network: EvmNetwork): string {
+  return `${chain.toUpperCase()}_${network === "testnet" ? "TESTNET" : "MAINNET"}`;
+}
+
+/**
+ * Ordered RPC URL list for fallback: Alchemy → Infura → Public.
+ * First available URL that responds wins; rate-limited URLs are skipped.
+ */
+export function resolveRpcUrls(chain: EvmChain, network: EvmNetwork): string[] {
+  const prefix = envRpcPrefix(chain, network);
+  const urls: string[] = [];
+  const alchemy = process.env[`${prefix}_ALCHEMY_RPC_URL`]?.trim();
+  if (alchemy) urls.push(alchemy);
+  const infura = process.env[`${prefix}_INFURA_RPC_URL`]?.trim();
+  if (infura) urls.push(infura);
+  const pub = resolveRpcUrl(chain, network);
+  if (pub) urls.push(pub);
+  return urls;
+}
+
+// Default public RPC per chain/network (used only if no private RPC configured).
+const PUBLIC_RPC: Record<EvmChain, Record<EvmNetwork, string>> = {
+  polygon: {
+    testnet: "https://rpc-amoy.polygon.technology",
+    mainnet: "https://polygon-rpc.com"
+  },
+  base: {
+    testnet: "https://sepolia.base.org",
+    mainnet: "https://mainnet.base.org"
+  }
+};
+
+const NATIVE_CURRENCY: Record<EvmChain, { name: string; symbol: string; decimals: number }> = {
+  polygon: { name: "POL", symbol: "POL", decimals: 18 },
+  base: { name: "Ether", symbol: "ETH", decimals: 18 }
+};
+
+const BLOCK_EXPLORER: Record<EvmChain, Record<EvmNetwork, string>> = {
+  polygon: {
+    testnet: "https://amoy.polygonscan.com",
+    mainnet: "https://polygonscan.com"
+  },
+  base: {
+    testnet: "https://sepolia.basescan.org",
+    mainnet: "https://basescan.org"
+  }
+};
+
+/**
+ * Buyer-facing wallet RPC: prefers Alchemy (no rate limit), falls back to the
+ * correct public RPC for the chain. Safe to expose — Alchemy app RPCs are
+ * embeddable read endpoints. This is what the widget passes to MetaMask's
+ * wallet_addEthereumChain so the wallet does not use its own rate-limited RPC.
+ */
+export function walletRpcUrl(chain: EvmChain, network: EvmNetwork): string {
+  const prefix = envRpcPrefix(chain, network);
+  return (
+    process.env[`${prefix}_ALCHEMY_RPC_URL`]?.trim() ||
+    resolveRpcUrl(chain, network) ||
+    PUBLIC_RPC[chain][network]
+  );
+}
+
+export function nativeCurrency(chain: EvmChain) {
+  return NATIVE_CURRENCY[chain];
+}
+
+export function blockExplorerUrl(chain: EvmChain, network: EvmNetwork): string {
+  return BLOCK_EXPLORER[chain][network];
+}
+
 export function minConfirmations(network: EvmNetwork): number {
   // Mainnet uses a finality-safe depth (Polygon/Base reorg window exceeds a few
   // blocks); 3 confirmations is within reorg range and unsafe for money
@@ -67,6 +138,13 @@ export function isCryptoQuoteEnabled(): boolean {
   return process.env.CRYPTO_QUOTE_ENABLED !== "false";
 }
 
+export type CryptoTransferQuote = {
+  kind: "merchant" | "platform_fee";
+  destinationAddress: string;
+  amountAtomic: string;
+  amountDisplay: string;
+};
+
 export type CryptoBuyerFacing = {
   chainId: number;
   chain: EvmChain;
@@ -77,8 +155,12 @@ export type CryptoBuyerFacing = {
   amountAtomic: string;
   amountDisplay: string;
   destinationAddress: string;
+  transfers?: CryptoTransferQuote[];
   quoteExpiresAt: string;
   walletConnectProjectId?: string;
+  rpcUrl?: string;
+  blockExplorerUrl?: string;
+  nativeCurrency?: { name: string; symbol: string; decimals: number };
 };
 
 export function quoteExpiresAt(ttlSeconds: number): string {

@@ -1,4 +1,4 @@
-import type { CurrencyCode } from "@aacp/shared-types";
+import type { CurrencyCode } from "@zyon/shared-types";
 import type { PaymentIntentStatus } from "../payment-intent.entity.js";
 
 export const CHECKOUT_PAYMENT_PORT = Symbol("CHECKOUT_PAYMENT_PORT");

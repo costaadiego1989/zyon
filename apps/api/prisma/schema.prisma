@@ -6,28 +6,61 @@ datasource db {
   provider = "postgresql"
 }
 
-model Merchant {
-  id                     String   @id
-  name                   String
-  theme                  Json?
-  stripeConnectAccountId String?  @map("stripe_connect_account_id")
-  createdAt              DateTime @default(now()) @map("created_at")
-  updatedAt              DateTime @updatedAt @map("updated_at")
+enum MerchantPlan {
+  CHECKOUT_ONLY
+  STORE_ONLY
+  BOTH
+  API
+}
 
-  users                  MerchantUser[]
-  apiKeys                MerchantApiKey[]
-  webhookEndpoints       MerchantWebhookEndpoint[]
-  webhookDeliveries      MerchantWebhookDelivery[]
-  shipments              Shipment[]
-  commerceConnection     MerchantCommerceConnection?
-  commercePendingOrders  CommercePendingOrder[]
-  commercePaidEvents     CommercePaidEvent[]
-  httpIdempotencyRecords HttpIdempotencyRecord[]
-  paymentConnections     MerchantPaymentConnection[]
-  billingSubscription    MerchantBillingSubscription?
-  onboardingState        MerchantOnboardingState?
-  installations          MerchantInstallation[]
-  auditEvents            MerchantAuditEvent[]
+model Merchant {
+  id                      String       @id
+  name                    String
+  theme                   Json?
+  storeCategory           String?      @map("store_category")
+  storeSettings           Json?        @map("store_settings")
+  stripeConnectAccountId  String?      @map("stripe_connect_account_id")
+  cryptoPaymentsEnabled   Boolean      @default(false) @map("crypto_payments_enabled")
+  melhorEnvioAccessToken  String?      @map("melhor_envio_access_token")
+  melhorEnvioRefreshToken String?      @map("melhor_envio_refresh_token")
+  melhorEnvioExpiresAt    DateTime?    @map("melhor_envio_expires_at")
+  melhorEnvioEnabled      Boolean      @default(true) @map("melhor_envio_enabled")
+  budgetModeEnabled       Boolean      @default(false) @map("budget_mode_enabled")
+  budgetEmail             String?      @map("budget_email")
+  budgetWhatsapp          String?      @map("budget_whatsapp")
+  checkoutReturnUrl       String?      @map("checkout_return_url")
+  plan                    MerchantPlan @default(BOTH)
+  eventVersion            Int          @default(0) @map("event_version")
+  shardId                 Int?         @map("shard_id")
+  createdAt               DateTime     @default(now()) @map("created_at")
+  updatedAt               DateTime     @updatedAt @map("updated_at")
+
+  users                    MerchantUser[]
+  apiKeys                  MerchantApiKey[]
+  webhookEndpoints         MerchantWebhookEndpoint[]
+  webhookDeliveries        MerchantWebhookDelivery[]
+  shipments                Shipment[]
+  commerceConnection       MerchantCommerceConnection?
+  commercePendingOrders    CommercePendingOrder[]
+  commercePaidEvents       CommercePaidEvent[]
+  httpIdempotencyRecords   HttpIdempotencyRecord[]
+  paymentConnections       MerchantPaymentConnection[]
+  billingSubscription      MerchantBillingSubscription?
+  onboardingState          MerchantOnboardingState?
+  installations            MerchantInstallation[]
+  auditEvents              MerchantAuditEvent[]
+  storyCategories          StoryCategory[]
+  budgetRequests           BudgetRequest[]
+  whatsappChannelConfig    WhatsAppChannelConfig?
+  marketplaceConfig        MarketplaceConfig?
+  cartRecoveryStrategyPref CartRecoveryStrategyPref?    @relation("CartRecoveryStrategyPref")
+  inventoryLocations       InventoryLocation[]          @relation("InventoryLocations")
+  inventoryItems           InventoryItem[]              @relation("InventoryItems")
+  inventoryMovements       InventoryMovement[]          @relation("InventoryMovements")
+  inventoryAlerts          InventoryAlert[]             @relation("InventoryAlerts")
+  erpConnections           ErpConnection[]              @relation("ErpConnections")
+  crmConnections           CrmConnection[]              @relation("CrmConnections")
+  ownDeliveryConfig        OwnDeliveryConfig?           @relation("OwnDeliveryConfig")
 
   @@map("merchants")
 }
@@ -73,6 +106,9 @@ model MerchantAuditEvent {
   resourceType  String   @map("resource_type")
   resourceId    String?  @map("resource_id")
   correlationId String?  @map("correlation_id")
+  ipAddress     String?  @map("ip_address")
+  userAgent     String?  @map("user_agent")
+  outcome       String?  @default("success")
   metadata      Json     @default("{}")
   occurredAt    DateTime @default(now()) @map("occurred_at")
 
@@ -137,9 +173,18 @@ model MerchantBillingSubscription {
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
 
+  // Asaas billing (primary provider) — see subscription-billing-asaas spec.
+  provider              String?   @default("asaas") @map("provider")
+  planKey               String?   @map("plan_key")
+  asaasCustomerId       String?   @map("asaas_customer_id")
+  asaasSubscriptionId   String?   @map("asaas_subscription_id")
+  pendingPlanKey        String?   @map("pending_plan_key")
+  pendingPlanEffectiveAt DateTime? @map("pending_plan_effective_at")
+
   merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 
   @@index([status, trialEndsAt])
+  @@index([asaasSubscriptionId])
   @@map("merchant_billing_subscriptions")
 }
 
@@ -173,19 +218,23 @@ model CommercePaidEvent {
 }
 
 model MerchantUser {
-  id           String   @id @default(cuid())
-  merchantId   String   @map("merchant_id")
-  email        String
-  passwordHash String   @map("password_hash")
-  role         String
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id              String   @id @default(cuid())
+  merchantId      String   @map("merchant_id")
+  email           String
+  passwordHash    String?  @map("password_hash")
+  role            String
+  oauthProvider   String?  @map("oauth_provider")
+  oauthProviderId String?  @map("oauth_provider_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
-  merchant   Merchant    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  agentRules AgentRule[]
+  merchant    Merchant             @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  agentRules  AgentRule[]
+  teamMembers MerchantTeamMember[]
 
   @@unique([email])
   @@index([merchantId])
+  @@index([oauthProvider, oauthProviderId])
   @@map("merchant_users")
 }
 
@@ -219,6 +268,7 @@ model CheckoutSetting {
   triggerRules       Json     @map("trigger_rules")
   suppressionRules   Json     @map("suppression_rules")
   handoff            Json
+  advancedRules      Json     @default("[]") @map("advanced_rules")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
@@ -239,6 +289,10 @@ model CheckoutSession {
   abandonmentScore Float    @default(0) @map("abandonment_score")
   triggerAgent     Boolean  @default(false) @map("trigger_agent")
   chatHistory      Json     @default("[]") @map("chat_history")
+  promptVariantId  String?  @map("prompt_variant_id")
+  cohort           String?
+  featuresApplied  Json?    @map("features_applied")
+  aiCostCents      Int      @default(0) @map("ai_cost_cents")
   version          Int      @default(0)
   createdAt        DateTime @map("created_at")
   updatedAt        DateTime @map("updated_at")
@@ -250,6 +304,8 @@ model CheckoutSession {
 
   @@unique([merchantId, sessionId])
   @@index([merchantId, updatedAt])
+  @@index([merchantId, createdAt])
+  @@index([globalUserId, merchantId, createdAt])
   @@map("checkout_sessions")
 }
 
@@ -259,6 +315,7 @@ model CheckoutEvent {
   sessionId  String   @map("session_id")
   eventName  String   @map("event_name")
   occurredAt DateTime @map("occurred_at")
+  metadata   Json?    @map("metadata")
 
   session CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)
 
@@ -280,16 +337,17 @@ model BuyerIdentity {
 model MerchantRule {
   id                                String   @id @default(cuid())
   merchantId                        String   @unique @map("merchant_id")
-  maxDiscountPercent                Float    @map("max_discount_percent")
-  minimumMarginPercent              Float    @map("minimum_margin_percent")
+  maxDiscountPercent                Decimal  @map("max_discount_percent") @db.Decimal(12, 4)
+  minimumMarginPercent              Decimal  @map("minimum_margin_percent") @db.Decimal(12, 4)
   allowFreeShipping                 Boolean  @map("allow_free_shipping")
   allowShippingDiscount             Boolean  @map("allow_shipping_discount")
   allowBonusItem                    Boolean  @map("allow_bonus_item")
   allowStackDiscountAndFreeShipping Boolean  @map("allow_stack_discount_and_free_shipping")
   couponBoxEnabled                  Boolean  @map("coupon_box_enabled")
-  freeShippingMinCartValue          Float    @map("free_shipping_min_cart_value")
-  maxShippingSubsidy                Float    @map("max_shipping_subsidy")
-  maxPartialShippingDiscount        Float    @map("max_partial_shipping_discount")
+  autonomousEngineEnabled           Boolean  @default(true) @map("autonomous_engine_enabled")
+  freeShippingMinCartValue          Decimal  @map("free_shipping_min_cart_value") @db.Decimal(12, 4)
+  maxShippingSubsidy                Decimal  @map("max_shipping_subsidy") @db.Decimal(12, 4)
+  maxPartialShippingDiscount        Decimal  @map("max_partial_shipping_discount") @db.Decimal(12, 4)
   offerExpirationMinutes            Int      @map("offer_expiration_minutes")
   blockedRegions                    String[] @map("blocked_regions")
   brandVoice                        String   @map("brand_voice")
@@ -313,19 +371,39 @@ model SupportSetting {
 }
 
 model SupportTicket {
-  id           String    @id
-  merchantId   String    @map("merchant_id")
-  sessionId    String?   @map("session_id")
-  buyerMessage String    @map("buyer_message")
-  status       String
-  source       String
-  createdAt    DateTime  @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-  resolvedAt   DateTime? @map("resolved_at")
+  id               String    @id
+  merchantId       String    @map("merchant_id")
+  sessionId        String?   @map("session_id")
+  buyerMessage     String    @map("buyer_message")
+  status           String
+  source           String
+  returnId         String?   @map("return_id")
+  originMerchantId String?   @map("origin_merchant_id")
+  transferredAt    DateTime? @map("transferred_at")
+  createdAt        DateTime  @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  resolvedAt       DateTime? @map("resolved_at")
+
+  messages SupportTicketMessage[]
 
   @@index([merchantId, status, createdAt])
   @@index([merchantId, sessionId])
+  @@index([returnId])
   @@map("support_tickets")
+}
+
+model SupportTicketMessage {
+  id         String   @id @default(cuid())
+  ticketId   String   @map("ticket_id")
+  senderType String   @map("sender_type")
+  content    String
+  metadata   Json?    @map("metadata")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@map("support_ticket_messages")
 }
 
 model AuthorizedOffer {
@@ -333,10 +411,10 @@ model AuthorizedOffer {
   merchantId       String   @map("merchant_id")
   sessionId        String   @map("session_id")
   type             String
-  value            Float
+  value            Decimal  @db.Decimal(12, 4)
   approved         Boolean
   reason           String
-  marginAfterOffer Float    @map("margin_after_offer")
+  marginAfterOffer Decimal  @map("margin_after_offer") @db.Decimal(12, 4)
   expiresAt        DateTime @map("expires_at")
   discountCode     String?  @map("discount_code")
 
@@ -353,8 +431,8 @@ model AcceptedOffer {
   sessionId        String   @map("session_id")
   offerId          String   @map("offer_id")
   type             String
-  value            Float
-  marginAfterOffer Float    @map("margin_after_offer")
+  value            Decimal  @db.Decimal(12, 4)
+  marginAfterOffer Decimal  @map("margin_after_offer") @db.Decimal(12, 4)
   acceptedAt       DateTime @map("accepted_at")
   expiresAt        DateTime @map("expires_at")
 
@@ -371,11 +449,17 @@ model CompletedOrder {
   merchantId         String    @map("merchant_id")
   sessionId          String    @map("session_id")
   externalOrderId    String    @map("external_order_id")
-  orderTotal         Float     @map("order_total")
+  orderTotal         Decimal   @map("order_total") @db.Decimal(12, 4)
   currency           String
   status             String    @default("approved")
   acceptedOfferId    String?   @map("accepted_offer_id")
   trackingCode       String?   @map("tracking_code")
+  // Snapshot of the cart line items at completion time (sku, variantId, name,
+  // unitPriceCents, quantity), used to compute per-item partial refunds. Null
+  // for orders created before this column existed → refund falls back to total.
+  lineItemsJson      Json?     @map("line_items_json")
+  // Shipping the buyer paid, in cents — refunded proportionally with returns.
+  shippingCents      Int?      @map("shipping_cents")
   completedAt        DateTime  @map("completed_at")
   cancelledAt        DateTime? @map("cancelled_at")
   cancellationReason String?   @map("cancellation_reason")
@@ -462,7 +546,7 @@ model MerchantWebhookDelivery {
   status         String
   attempts       Int       @default(0)
   envelope       Json
-  signingSecret  String    @map("signing_secret")
+  signingSecret  String?   @map("signing_secret")
   nextAttemptAt  DateTime? @map("next_attempt_at")
   responseStatus Int?      @map("response_status")
   responseBody   String?   @map("response_body")
@@ -529,8 +613,8 @@ model BuyerPurchaseRecord {
   globalUserId       String?  @map("global_user_id")
   merchantCustomerId String?  @map("merchant_customer_id")
   currency           String
-  totalAmount        Float    @map("total_amount")
-  discountAmount     Float    @map("discount_amount")
+  totalAmount        Decimal  @map("total_amount") @db.Decimal(12, 4)
+  discountAmount     Decimal  @map("discount_amount") @db.Decimal(12, 4)
   completedAt        DateTime @map("completed_at")
   items              Json
   createdAt          DateTime @default(now()) @map("created_at")
@@ -585,13 +669,61 @@ model NegotiationCostLedgerEntry {
   merchantId           String   @map("merchant_id")
   negotiationSessionId String   @map("negotiation_session_id")
   eventType            String   @map("event_type")
-  amountCents          Int      @map("amount_cents")
+  amountCents          Int      @map("amount_cents") // C3 fix: deprecated — use aiCostCents or discountBasisPoints
+  aiCostCents          Int?     @map("ai_cost_cents") // For negotiation.evaluated entries
+  discountBasisPoints  Int?     @map("discount_basis_points") // For negotiation.offer_applied entries
   createdAt            DateTime @default(now()) @map("created_at")
 
   session NegotiationSession @relation(fields: [negotiationSessionId], references: [id], onDelete: Cascade)
 
+  @@unique([negotiationSessionId, eventType]) // H2 fix: concurrent-apply protection
   @@index([merchantId, negotiationSessionId])
   @@map("negotiation_cost_ledger_entries")
+}
+
+model BuyerAgent {
+  id            String    @id @default(cuid())
+  merchantId    String    @map("merchant_id")
+  globalUserId  String    @map("global_user_id")
+  displayName   String    @map("display_name")
+  status        String    @default("active") // active | suspended
+  m2mSecretHash String?   @map("m2m_secret_hash")
+  scopes        String[]  @default(["read", "negotiate"])
+  expiresAt     DateTime? @map("expires_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  reputation AgentReputation?
+
+  @@unique([merchantId, globalUserId])
+  @@index([merchantId, status])
+  @@map("buyer_agents")
+}
+
+model AgentReputation {
+  id               String   @id @default(cuid())
+  agentId          String   @unique @map("agent_id")
+  transactionCount Int      @default(0) @map("transaction_count")
+  disputeCount     Int      @default(0) @map("dispute_count")
+  reputationScore  Int      @default(100) @map("reputation_score")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  agent BuyerAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@map("agent_reputations")
+}
+
+model M2MProtocolConfig {
+  id                   String   @id @default(cuid())
+  merchantId           String   @unique @map("merchant_id")
+  enabled              Boolean  @default(false)
+  webhookUrl           String?  @map("webhook_url")
+  webhookEndpointId    String?  @map("webhook_endpoint_id")
+  maxSessionTtlMinutes Int      @default(30) @map("max_session_ttl_minutes")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@map("m2m_protocol_configs")
 }
 
 model OutboxMessage {
@@ -700,26 +832,96 @@ model PaymentCryptoTransfer {
   merchantId String   @map("merchant_id")
   intentId   String   @map("intent_id")
   observedAt DateTime @default(now()) @map("observed_at")
+  expiresAt  DateTime @default(dbgenerated("CURRENT_TIMESTAMP + INTERVAL '5 minutes'")) @map("expires_at") // H1 fix: reaper pattern
 
   @@unique([chain, txHash])
   @@index([merchantId, intentId])
+  @@index([expiresAt])
   @@map("payment_crypto_transfers")
 }
 
 model BuyerAccount {
-  globalUserId String   @id @default(cuid()) @map("global_user_id")
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  displayName  String   @map("display_name")
-  phone        String?
-  cpf          String?
-  address      Json?
+  globalUserId     String   @id @default(cuid()) @map("global_user_id")
+  email            String   @unique
+  passwordHash     String?  @map("password_hash")
+  displayName      String   @map("display_name")
+  phone            String?
+  cpf              String?
+  dateOfBirth      DateTime? @map("date_of_birth")
+  gender           String?
+  asaasCustomerId  String?  @map("asaas_customer_id")
+  address          Json?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  agentProfile        BuyerAgentProfile?
+  addresses           BuyerAddress[]
+  conversations       BuyerConversation[]
+  buyerPreferences    BuyerPreference[]
+  webauthnCredentials WebAuthnCredential[]
+
+  @@map("buyer_accounts")
+}
+
+/// Saved delivery addresses for a buyer (buyer-hub REQ-BH-004). One default
+/// address per buyer (is_default=true). Hard cap of 5 enforced at the
+/// use-case layer.
+model BuyerAddress {
+  id           String   @id @default(cuid())
+  globalUserId String   @map("global_user_id")
+  zip          String
+  street       String
+  number       String
+  complement   String?
+  neighborhood String
+  city         String
+  state        String
+  isDefault    Boolean  @default(false) @map("is_default")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  agentProfile BuyerAgentProfile?
+  account BuyerAccount @relation(fields: [globalUserId], references: [globalUserId], onDelete: Cascade)
 
-  @@map("buyer_accounts")
+  @@index([globalUserId])
+  @@map("buyer_addresses")
+}
+
+/// Past conversation a buyer had with the agent in a merchant checkout
+/// session (buyer-hub REQ-BH-007). Messages stored as JSONB; rating is
+/// up/down/null per agent message.
+model BuyerConversation {
+  id            String   @id @default(cuid())
+  globalUserId  String   @map("global_user_id")
+  sessionId     String   @map("session_id")
+  merchantId    String   @map("merchant_id")
+  messages      Json
+  startedAt     DateTime @default(now()) @map("started_at")
+  lastMessageAt DateTime @default(now()) @map("last_message_at")
+
+  account BuyerAccount @relation(fields: [globalUserId], references: [globalUserId], onDelete: Cascade)
+
+  @@index([globalUserId, lastMessageAt])
+  @@index([merchantId, sessionId])
+  @@map("buyer_conversations")
+}
+
+/// Buyer communication preferences, agent negotiation preferences and
+/// notification toggles (buyer-hub REQ-BH-006). One row per buyer (global).
+model BuyerPreference {
+  id                       String   @id @default(cuid())
+  globalUserId             String   @unique @map("global_user_id")
+  emailOptIn               Boolean  @default(true) @map("email_opt_in")
+  smsOptIn                 Boolean  @default(false) @map("sms_opt_in")
+  whatsappOptIn            Boolean  @default(false) @map("whatsapp_opt_in")
+  m2mNegotiationEnabled    Boolean  @default(false) @map("m2m_negotiation_enabled")
+  language                 String   @default("pt-BR")
+  pushNotificationsEnabled Boolean  @default(true) @map("push_notifications_enabled")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  account BuyerAccount @relation(fields: [globalUserId], references: [globalUserId], onDelete: Cascade)
+
+  @@map("buyer_preferences")
 }
 
 model BuyerAgentProfile {
@@ -728,9 +930,9 @@ model BuyerAgentProfile {
   name                             String
   personality                      String
   maxRounds                        Int       @map("max_rounds")
-  targetDiscountPercent            Float     @map("target_discount_percent")
-  minimumAcceptableDiscountPercent Float     @map("minimum_acceptable_discount_percent")
-  autoAcceptThreshold              Float?    @map("auto_accept_threshold")
+  targetDiscountPercent            Decimal   @map("target_discount_percent") @db.Decimal(12, 4)
+  minimumAcceptableDiscountPercent Decimal   @map("minimum_acceptable_discount_percent") @db.Decimal(12, 4)
+  autoAcceptThreshold              Decimal?  @map("auto_accept_threshold") @db.Decimal(12, 4)
   m2mEnabled                       Boolean   @default(false) @map("m2m_enabled")
   m2mTokenHash                     String?   @map("m2m_token_hash")
   m2mTokenCreatedAt                DateTime? @map("m2m_token_created_at")
@@ -763,16 +965,39 @@ model BuyerPhoneOtp {
   @@map("buyer_phone_otps")
 }
 
+/// WebAuthn (FIDO2) credential store. Each row is a registered authenticator
+/// bound to a buyer account and origin. The public key material is stored as
+/// a raw ECDSA P-256 uncompressed point (65 bytes). Per spec REQ-WA-005 the
+/// column should be encrypted at rest via Prisma field-level encryption or
+/// column-level database encryption.
+model WebAuthnCredential {
+  id           String    @id @default(cuid())
+  credentialId String    @unique @map("credential_id")
+  globalUserId String    @map("global_user_id")
+  publicKey    Bytes     @map("public_key")
+  counter      Int       @default(0)
+  transports   String[]  @default([])
+  aaguid       String    @default("00000000-0000-0000-0000-000000000000")
+  origin       String
+  createdAt    DateTime  @default(now()) @map("created_at")
+  lastUsedAt   DateTime? @map("last_used_at")
+
+  account BuyerAccount @relation(fields: [globalUserId], references: [globalUserId], onDelete: Cascade)
+
+  @@index([globalUserId])
+  @@map("webauthn_credentials")
+}
+
 /// Persistent, shared login-abuse counter. Replaces the per-instance Map so the
 /// rate limit is global across horizontally-scaled instances (auth ADR B2,
 /// buyer-account ADR B3). Keyed by a trusted identifier (resolved client IP
 /// and/or normalized email), never by a client-controlled header.
 model LoginAttemptCounter {
-  id          String   @id @default(cuid())
-  scopeKey    String   @unique @map("scope_key")
-  count       Int      @default(0)
+  id           String   @id @default(cuid())
+  scopeKey     String   @unique @map("scope_key")
+  count        Int      @default(0)
   windowEndsAt DateTime @map("window_ends_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@index([windowEndsAt])
   @@map("login_attempt_counters")
@@ -781,44 +1006,47 @@ model LoginAttemptCounter {
 // --- Growth context: coupons (coupons ADR) ---
 
 model Coupon {
-  id             String    @id
-  merchantId     String    @map("merchant_id")
-  code           String
-  discountType   String    @map("discount_type")
-  discountValue  Float     @map("discount_value")
-  minCartTotal   Float?    @map("min_cart_total")
-  maxUsages      Int?      @map("max_usages")
-  maxPerBuyer    Int?      @map("max_per_buyer")
-  usagesCount    Int       @default(0) @map("usages_count")
-  allowedSkus    String[]  @default([]) @map("allowed_skus")
-  blockedSkus    String[]  @default([]) @map("blocked_skus")
-  allowedRegions String[]  @default([]) @map("allowed_regions")
-  blockedRegions String[]  @default([]) @map("blocked_regions")
-  status         String    @default("active")
-  startsAt       DateTime  @map("starts_at")
-  endsAt         DateTime? @map("ends_at")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  id                       String    @id
+  merchantId               String    @map("merchant_id")
+  code                     String
+  discountType             String    @map("discount_type")
+  discountValue            Decimal   @map("discount_value") @db.Decimal(12, 4)
+  minCartTotal             Decimal?  @map("min_cart_total") @db.Decimal(12, 4)
+  freeShippingMinCartTotal Decimal?  @map("free_shipping_min_cart_total") @db.Decimal(12, 4)
+  maxUsages                Int?      @map("max_usages")
+  minPerBuyer              Int?      @map("min_per_buyer")
+  maxPerBuyer              Int?      @map("max_per_buyer")
+  usagesCount              Int       @default(0) @map("usages_count")
+  allowedSkus              String[]  @default([]) @map("allowed_skus")
+  blockedSkus              String[]  @default([]) @map("blocked_skus")
+  allowedRegions           String[]  @default([]) @map("allowed_regions")
+  blockedRegions           String[]  @default([]) @map("blocked_regions")
+  status                   String    @default("active")
+  startsAt                 DateTime  @map("starts_at")
+  endsAt                   DateTime? @map("ends_at")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime  @updatedAt @map("updated_at")
 
   redemptions CouponRedemption[]
 
   @@unique([merchantId, code])
   @@index([merchantId, status])
+  @@index([endsAt])
   @@map("coupons")
 }
 
 model CouponRedemption {
-  id                 String    @id
-  couponId           String    @map("coupon_id")
-  merchantId         String    @map("merchant_id")
-  sessionId          String    @map("session_id")
-  buyerGlobalUserId  String?   @map("buyer_global_user_id")
-  discountApplied    Float     @map("discount_applied")
-  source             String
-  status             String    @default("applied")
-  orderId            String?   @map("order_id")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
+  id                String   @id
+  couponId          String   @map("coupon_id")
+  merchantId        String   @map("merchant_id")
+  sessionId         String   @map("session_id")
+  buyerGlobalUserId String?  @map("buyer_global_user_id")
+  discountApplied   Decimal  @map("discount_applied") @db.Decimal(12, 4)
+  source            String
+  status            String   @default("applied")
+  orderId           String?  @map("order_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
 
@@ -838,8 +1066,8 @@ model CrossSellPromotion {
   name               String
   trigger            Json
   recommendedSkus    String[]  @default([]) @map("recommended_skus")
-  discountPercent    Float     @map("discount_percent")
-  maxDiscountPercent Float     @map("max_discount_percent")
+  discountPercent    Decimal   @map("discount_percent") @db.Decimal(12, 4)
+  maxDiscountPercent Decimal   @map("max_discount_percent") @db.Decimal(12, 4)
   status             String    @default("active")
   startsAt           DateTime  @map("starts_at")
   endsAt             DateTime? @map("ends_at")
@@ -859,7 +1087,7 @@ model CrossSellSuggestion {
   promoId          String    @map("promo_id")
   rankedItems      String[]  @default([]) @map("ranked_items")
   agentCopy        String    @map("agent_copy")
-  computedDiscount Float     @map("computed_discount")
+  computedDiscount Decimal   @map("computed_discount") @db.Decimal(12, 4)
   status           String    @default("pending")
   suggestedAt      DateTime  @map("suggested_at")
   resolvedAt       DateTime? @map("resolved_at")
@@ -925,7 +1153,7 @@ model SelfCheckoutWallet {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  buyerUser      SelfCheckoutBuyerUser         @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
+  buyerUser      SelfCheckoutBuyerUser            @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
   addresses      SelfCheckoutSavedAddress[]
   paymentMethods SelfCheckoutSavedPaymentMethod[]
 
@@ -967,15 +1195,15 @@ model SelfCheckoutSavedPaymentMethod {
 }
 
 model SelfCheckoutTemplate {
-  id                       String   @id
-  buyerUserId              String   @map("buyer_user_id")
-  merchantId               String   @map("merchant_id")
-  name                     String
-  savedAddressId           String   @map("saved_address_id")
-  savedPaymentMethodId     String   @map("saved_payment_method_id")
-  preferredShippingMethodId String? @map("preferred_shipping_method_id")
-  isActive                 Boolean  @default(true) @map("is_active")
-  createdAt                DateTime @default(now()) @map("created_at")
+  id                        String   @id
+  buyerUserId               String   @map("buyer_user_id")
+  merchantId                String   @map("merchant_id")
+  name                      String
+  savedAddressId            String   @map("saved_address_id")
+  savedPaymentMethodId      String   @map("saved_payment_method_id")
+  preferredShippingMethodId String?  @map("preferred_shipping_method_id")
+  isActive                  Boolean  @default(true) @map("is_active")
+  createdAt                 DateTime @default(now()) @map("created_at")
 
   buyerUser SelfCheckoutBuyerUser @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
 
@@ -984,3 +1212,1406 @@ model SelfCheckoutTemplate {
   @@map("self_checkout_templates")
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// STORE BUILDER: Catalog Module (ADR-0030)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum StockReservationStatus {
+  ACTIVE
+  CONFIRMED
+  RELEASED
+  EXPIRED
+}
+
+model ProductCategory {
+  id          String   @id @default(cuid())
+  merchantId  String   @map("merchant_id")
+  name        String
+  slug        String
+  parentId    String?  @map("parent_id")
+  description String?
+  imageUrl    String?  @map("image_url")
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  parent   ProductCategory?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children ProductCategory[] @relation("CategoryTree")
+  products Product[]
+
+  @@unique([merchantId, slug])
+  @@index([merchantId])
+  @@map("product_categories")
+}
+
+model Product {
+  id              String    @id @default(cuid())
+  merchantId      String    @map("merchant_id")
+  name            String
+  description     String?
+  type            String    @default("physical")
+  metadata        Json?
+  categoryId      String?   @map("category_id")
+  isActive        Boolean   @default(true) @map("is_active")
+  deletedAt       DateTime? @map("deleted_at")
+  seoTitle        String?   @map("seo_title")
+  metaDescription String?   @map("meta_description")
+  slug            String?   @unique
+  ogTitle         String?   @map("og_title")
+  ogDescription   String?   @map("og_description")
+  twitterCard     String?   @map("twitter_card")
+  keywords        String[]  @default([])
+  seoGeneratedAt  DateTime? @map("seo_generated_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  category    ProductCategory?    @relation(fields: [categoryId], references: [id])
+  variants    ProductVariant[]
+  reviews     ProductReview[]
+  collections CollectionProduct[]
+
+  @@index([merchantId])
+  @@index([merchantId, isActive, createdAt])
+  @@index([merchantId, categoryId, isActive])
+  @@index([slug])
+  @@map("products")
+}
+
+model ProductVariant {
+  id          String   @id @default(cuid())
+  productId   String   @map("product_id")
+  sku         String
+  attributes  Json     @default("{}")
+  barcode     String?
+  weightGrams Int?     @map("weight_grams")
+  lengthCm    Float?   @map("length_cm")
+  widthCm     Float?   @map("width_cm")
+  heightCm    Float?   @map("height_cm")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  product      Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  media        ProductMedia[]
+  price        ProductPrice?
+  stock        ProductStock[]
+  reservations StockReservation[]
+
+  @@unique([productId, sku])
+  @@index([productId])
+  @@map("product_variants")
+}
+
+model ProductMedia {
+  id        String    @id @default(cuid())
+  variantId String    @map("variant_id")
+  url       String
+  type      MediaType @default(IMAGE)
+  alt       String?
+  order     Int       @default(0)
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([variantId])
+  @@map("product_media")
+}
+
+model ProductPrice {
+  id               String   @id @default(cuid())
+  variantId        String   @unique @map("variant_id")
+  basePriceInCents Int      @map("base_price_in_cents")
+  costInCents      Int?     @map("cost_in_cents")
+  taxPercent       Float    @default(0) @map("tax_percent")
+  currency         String   @default("BRL")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@map("product_prices")
+}
+
+model ProductStock {
+  id          String   @id @default(cuid())
+  variantId   String   @map("variant_id")
+  warehouseId String?  @map("warehouse_id")
+  quantity    Int      @default(0)
+  reserved    Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([variantId, warehouseId])
+  @@index([variantId])
+  @@map("product_stock")
+}
+
+model StockReservation {
+  id        String                 @id @default(cuid())
+  variantId String                 @map("variant_id")
+  cartId    String?                @map("cart_id")
+  quantity  Int
+  status    StockReservationStatus @default(ACTIVE)
+  expiresAt DateTime               @map("expires_at")
+  createdAt DateTime               @default(now()) @map("created_at")
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([variantId, status])
+  @@index([expiresAt, status])
+  @@map("stock_reservations")
+}
+
+model ProductReview {
+  id               String   @id @default(cuid())
+  merchantId       String?  @map("merchant_id")
+  productId        String   @map("product_id")
+  buyerId          String   @map("buyer_id")
+  orderId          String?  @map("order_id")
+  rating           Int
+  title            String?
+  body             String?
+  text             String?
+  approved         Boolean  @default(false)
+  verified         Boolean  @default(true)
+  moderationStatus String?  @map("moderation_status") // pending | approved | rejected | null (legacy)
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, approved])
+  @@index([buyerId])
+  @@index([merchantId, moderationStatus])
+  @@map("product_reviews")
+}
+
+
+model ProductCollection {
+  id          String   @id @default(cuid())
+  merchantId  String   @map("merchant_id")
+  name        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  products CollectionProduct[]
+
+  @@index([merchantId])
+  @@map("product_collections")
+}
+
+model CollectionProduct {
+  id           String @id @default(cuid())
+  collectionId String @map("collection_id")
+  productId    String @map("product_id")
+  order        Int    @default(0)
+
+  collection ProductCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  product    Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, productId])
+  @@map("collection_products")
+}
+
+// ─── Returns / RMA ────────────────────────────────────────────────────────────
+
+enum ReturnStatus {
+  REQUESTED
+  LABEL_GENERATED
+  SHIPPED
+  RECEIVED
+  INSPECTED_PASS
+  INSPECTED_FAIL
+  REFUND_PROCESSING
+  REFUND_COMPLETED
+  REJECTED
+  CANCELLED
+}
+
+enum ReturnReason {
+  DEFECTIVE
+  WRONG_ITEM
+  NOT_AS_DESCRIBED
+  CHANGED_MIND
+  DAMAGED_IN_TRANSIT
+  OTHER
+}
+
+enum ItemCondition {
+  NEW
+  GOOD
+  DAMAGED
+  UNUSABLE
+}
+
+model Return {
+  id         String       @id @default(cuid())
+  merchantId String       @map("merchant_id")
+  orderId    String       @map("order_id")
+  buyerId    String       @map("buyer_id")
+  reason     ReturnReason
+  notes      String?
+  imageUrls  String[]     @map("image_urls")
+  status     ReturnStatus @default(REQUESTED)
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+
+  items      ReturnItem[]
+  label      ReturnLabel?
+  inspection ReturnInspection?
+  refund     ReturnRefund?
+
+  @@index([merchantId, status])
+  @@index([merchantId, createdAt])
+  @@index([orderId])
+  @@map("returns")
+}
+
+model ReturnItem {
+  id        String  @id @default(cuid())
+  returnId  String  @map("return_id")
+  variantId String  @map("variant_id")
+  quantity  Int
+  reason    String?
+
+  return Return @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  @@map("return_items")
+}
+
+model ReturnLabel {
+  id             String   @id @default(cuid())
+  returnId       String   @unique @map("return_id")
+  carrier        String
+  trackingNumber String   @map("tracking_number")
+  labelUrl       String?  @map("label_url")
+  expiresAt      DateTime @map("expires_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  return Return @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  @@map("return_labels")
+}
+
+model ReturnInspection {
+  id            String        @id @default(cuid())
+  returnId      String        @unique @map("return_id")
+  inspectedBy   String        @map("inspected_by")
+  itemCondition ItemCondition @map("item_condition")
+  verdict       String
+  notes         String?
+  inspectedAt   DateTime      @default(now()) @map("inspected_at")
+
+  return Return @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  @@map("return_inspections")
+}
+
+model ReturnRefund {
+  id              String    @id @default(cuid())
+  returnId        String    @unique @map("return_id")
+  paymentIntentId String?   @map("payment_intent_id")
+  amountInCents   Int       @map("amount_in_cents")
+  status          String    @default("PENDING")
+  processedAt     DateTime? @map("processed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  return Return @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  @@map("return_refunds")
+}
+
+// ─── Store Analytics ──────────────────────────────────────────────────────────
+
+model StoreMetricDaily {
+  id                 String   @id @default(cuid())
+  merchantId         String   @map("merchant_id")
+  date               DateTime @db.Date
+  conversations      Int      @default(0)
+  orders             Int      @default(0)
+  revenueInCents     Int      @default(0) @map("revenue_in_cents")
+  avgOrderValue      Int      @default(0) @map("avg_order_value")
+  conversionRate     Float    @default(0) @map("conversion_rate")
+  avgSessionDuration Int      @default(0) @map("avg_session_duration_secs")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@unique([merchantId, date])
+  @@index([merchantId, date])
+  @@map("store_metrics_daily")
+}
+
+model StoreProductMetric {
+  id          String   @id @default(cuid())
+  merchantId  String   @map("merchant_id")
+  productId   String   @map("product_id")
+  month       DateTime @db.Date
+  impressions Int      @default(0)
+  addToCart   Int      @default(0) @map("add_to_cart")
+  purchases   Int      @default(0)
+  revenue     Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([merchantId, productId, month])
+  @@index([merchantId, month])
+  @@map("store_product_metrics")
+}
+
+// ─── Semantic Search (pgvector) ──────────────────────────────────────────────
+// NOTE: The `embedding` column is stored as String (base64) in dev mode.
+// In production with pgvector extension installed, a raw migration converts it:
+//   ALTER TABLE product_search_vectors ADD COLUMN embedding_vec vector(1536);
+//   CREATE INDEX idx_psv_embedding ON product_search_vectors USING hnsw (embedding_vec vector_cosine_ops);
+
+model ProductSearchVector {
+  id         String   @id @default(cuid())
+  productId  String   @unique @map("product_id")
+  merchantId String   @map("merchant_id")
+  embedding  String?  @db.Text
+  content    String
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([merchantId])
+  @@map("product_search_vectors")
+}
+
+enum MerchantRole {
+  OWNER
+  ADMIN
+  STAFF
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+}
+
+model MerchantTeamMember {
+  id         String       @id @default(cuid())
+  merchantId String       @map("merchant_id")
+  userId     String       @map("user_id")
+  role       MerchantRole @default(STAFF)
+  invitedBy  String?      @map("invited_by")
+  joinedAt   DateTime     @default(now()) @map("joined_at")
+
+  user MerchantUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, userId])
+  @@index([merchantId])
+  @@map("merchant_team_members")
+}
+
+model MerchantInvite {
+  id         String       @id @default(cuid())
+  merchantId String       @map("merchant_id")
+  email      String
+  role       MerchantRole @default(STAFF)
+  status     InviteStatus @default(PENDING)
+  invitedBy  String       @map("invited_by")
+  expiresAt  DateTime     @map("expires_at")
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  @@index([merchantId])
+  @@index([email, status])
+  @@map("merchant_invites")
+}
+
+model MerchantDomain {
+  id          String    @id @default(cuid())
+  merchantId  String    @map("merchant_id")
+  domain      String    @unique
+  verified    Boolean   @default(false)
+  cnameTarget String    @default("stores.zyon.com") @map("cname_target")
+  verifiedAt  DateTime? @map("verified_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([merchantId])
+  @@map("merchant_domains")
+}
+
+// ─── Storefront Cart (browsing phase before checkout) ─────────────────────────
+
+model StorefrontCart {
+  id         String   @id @default(cuid())
+  merchantId String   @map("merchant_id")
+  sessionId  String   @map("session_id")
+  items      Json     @default("[]")
+  couponCode   String?  @map("coupon_code")
+  discount     Float    @default(0)
+  freeShipping Boolean  @default(false) @map("free_shipping")
+  total        Float    @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  expiresAt    DateTime @map("expires_at")
+
+  @@unique([merchantId, sessionId])
+  @@index([expiresAt])
+  @@map("storefront_carts")
+}
+
+// ─── Product Promotions (scheduled discounts per variant or category) ─────────
+
+model ImportJob {
+  id            String    @id @default(cuid())
+  merchantId    String    @map("merchant_id")
+  kind          String    @default("product_spreadsheet")
+  status        String    @default("queued") // queued | processing | completed | failed
+  fileName      String    @map("file_name")
+  totalRows     Int       @default(0) @map("total_rows")
+  successRows   Int       @default(0) @map("success_rows")
+  failedRows    Int       @default(0) @map("failed_rows")
+  columnMapping Json      @default("{}") @map("column_mapping")
+  errors        Json      @default("[]") // [{ row, sku?, reason }]
+  fileRef       String?   @map("file_ref") // S3 url when the sheet is offloaded
+  createdAt     DateTime  @default(now()) @map("created_at")
+  finishedAt    DateTime? @map("finished_at")
+
+  @@index([merchantId, status, createdAt])
+  @@map("import_jobs")
+}
+
+model ProductPromotion {
+  id                String   @id @default(cuid())
+  merchantId        String   @map("merchant_id")
+  productId         String?  @map("product_id")
+  variantId         String?  @map("variant_id")
+  categoryId        String?  @map("category_id")
+  couponId          String?  @map("coupon_id")
+  discountType      String?  @map("discount_type") // "percent" | "fixed"; null when couponId set
+  discountValue     Int?     @map("discount_value") // percent (0-100) or cents; null when couponId set
+  promoPriceInCents Int?     @map("promo_price_in_cents")
+  isActive          Boolean  @default(true) @map("is_active")
+  startsAt          DateTime @map("starts_at")
+  endsAt            DateTime @map("ends_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([merchantId, isActive, endsAt])
+  @@index([merchantId, productId, isActive])
+  @@index([variantId, isActive])
+  @@index([categoryId, isActive])
+  @@map("product_promotions")
+}
+
+// ─── Stories (Merchant-managed story categories and story content) ─────────────
+
+model StoryCategory {
+  id         String   @id @default(cuid())
+  merchantId String   @map("merchant_id")
+  name       String
+  coverImage String?  @map("cover_image")
+  sortOrder  Int      @default(0) @map("sort_order")
+  isArchived Boolean  @default(false) @map("is_archived")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  stories  Story[]
+
+  @@index([merchantId, isArchived])
+  @@map("story_categories")
+}
+
+model Story {
+  id          String   @id @default(cuid())
+  categoryId  String   @map("category_id")
+  merchantId  String   @map("merchant_id")
+  imageUrl    String   @map("image_url")
+  title       String?
+  titleConfig Json?    @map("title_config")
+  duration    Int      @default(7)
+  sortOrder   Int      @default(0) @map("sort_order")
+  isArchived  Boolean  @default(false) @map("is_archived")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  category StoryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId, isArchived])
+  @@index([merchantId])
+  @@map("stories")
+}
+
+model BudgetRequest {
+  id            String   @id @default(cuid())
+  merchantId    String   @map("merchant_id")
+  customerName  String   @map("customer_name")
+  customerEmail String   @map("customer_email")
+  customerPhone String   @map("customer_phone")
+  items         Json
+  subtotal      Float
+  total         Float
+  note          String?
+  status        String   @default("pending")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, createdAt])
+  @@index([merchantId, status])
+  @@map("budget_requests")
+}
+
+// ─── A/B Testing: Prompt Experiments (ab-testing-prompts spec) ────────────────
+
+model PromptExperiment {
+  id              String    @id @default(cuid())
+  merchantId      String    @map("merchant_id")
+  name            String
+  description     String?
+  status          String    @default("draft") // draft, running, completed, archived
+  startedAt       DateTime? @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+  winnerVariantId String?   @map("winner_variant_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  variants PromptVariant[]
+
+  @@unique([merchantId, name])
+  @@index([merchantId, status])
+  @@index([merchantId, createdAt])
+  @@map("prompt_experiments")
+}
+
+model PromptVariant {
+  id           String   @id @default(cuid())
+  experimentId String   @map("experiment_id")
+  name         String
+  weight       Int      @default(1)
+  isControl    Boolean  @default(false) @map("is_control")
+  systemPrompt String   @map("system_prompt") @db.Text
+  appliedRuleId String? @map("applied_rule_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  experiment PromptExperiment      @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  results    PromptVariantResult[]
+
+  @@unique([experimentId, name])
+  @@index([experimentId])
+  @@map("prompt_variants")
+}
+
+model PromptVariantResult {
+  id              String   @id @default(cuid())
+  variantId       String   @map("variant_id")
+  sessionId       String   @map("session_id")
+  converted       Boolean
+  revenue         Decimal? @db.Decimal(12, 4)
+  offersShown     Int      @default(0) @map("offers_shown")
+  offersAccepted  Int      @default(0) @map("offers_accepted")
+  durationSeconds Int?     @map("duration_seconds")
+
+  // Funnel stages
+  conversationStarted Boolean @default(true) @map("conversation_started")
+  cartViewed          Boolean @default(false) @map("cart_viewed")
+  cartItemsAdded      Int     @default(0) @map("cart_items_added")
+  checkoutStarted     Boolean @default(false) @map("checkout_started")
+  checkoutCompleted   Boolean @default(false) @map("checkout_completed")
+
+  // Stage timing (seconds from session start)
+  timeToCart       Int? @map("time_to_cart")
+  timeToCheckout   Int? @map("time_to_checkout")
+  timeToConversion Int? @map("time_to_conversion")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  variant PromptVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([variantId, sessionId])
+  @@index([variantId, createdAt])
+  @@index([variantId, checkoutCompleted, createdAt], name: "idx_prompt_variant_results_funnel")
+  @@map("prompt_variant_results")
+}
+
+model MarketplaceConfig {
+  id                   String   @id @default(cuid())
+  merchantId           String   @unique @map("merchant_id")
+  enabled              Boolean  @default(false)
+  commissionRateBps    Int      @default(1500) @map("commission_rate_bps")
+  returnWindowDays     Int      @default(7) @map("return_window_days")
+  payoutDelayDays      Int      @default(14) @map("payout_delay_days")
+  chargebackWindowDays Int      @default(30) @map("chargeback_window_days")
+  allowedCategories    String[] @map("allowed_categories")
+  blockedMerchants     String[] @map("blocked_merchants")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@map("marketplace_configs")
+}
+
+model MarketplaceConnection {
+  id               String   @id @default(cuid())
+  buyerMerchantId  String   @map("buyer_merchant_id")
+  sellerMerchantId String   @map("seller_merchant_id")
+  status           String   @default("active")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@unique([buyerMerchantId, sellerMerchantId])
+  @@index([buyerMerchantId, status])
+  @@map("marketplace_connections")
+}
+
+model FederatedProduct {
+  id               String   @id @default(cuid())
+  sourceMerchantId String   @map("source_merchant_id")
+  sourceProductId  String   @map("source_product_id")
+  name             String
+  description      String?
+  category         String?
+  priceCents       Int      @map("price_cents")
+  currency         String   @default("BRL")
+  stockAvailable   Boolean  @default(true) @map("stock_available")
+  imageUrl         String?  @map("image_url")
+  searchableText   String   @map("searchable_text")
+  createdAt        DateTime @default(now()) @map("created_at")
+  syncedAt         DateTime @default(now()) @map("synced_at")
+
+  @@unique([sourceMerchantId, sourceProductId])
+  @@index([category])
+  @@index([sourceMerchantId])
+  @@map("federated_products")
+}
+
+model CrossStoreLineItem {
+  id                   String   @id @default(cuid())
+  checkoutSessionId    String   @map("checkout_session_id")
+  orderId              String?  @map("order_id")
+  hostMerchantId       String   @map("host_merchant_id")
+  sellerMerchantId     String   @map("seller_merchant_id")
+  federatedProductId   String   @map("federated_product_id")
+  quantity             Int
+  unitPriceCents       Int      @map("unit_price_cents")
+  commissionRateBps    Int      @map("commission_rate_bps")
+  commissionCents      Int      @map("commission_cents")
+  sellerNetCents       Int      @map("seller_net_cents")
+  fulfillmentStatus    String   @default("pending") @map("fulfillment_status")
+  fulfillmentReference String?  @map("fulfillment_reference")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@index([hostMerchantId])
+  @@index([sellerMerchantId])
+  @@index([orderId])
+  @@map("cross_store_line_items")
+}
+
+model MarketplaceSettlement {
+  id                    String    @id @default(cuid())
+  hostMerchantId        String    @map("host_merchant_id")
+  sellerMerchantId      String    @map("seller_merchant_id")
+  orderId               String    @map("order_id")
+  lineItemId            String    @map("line_item_id")
+  totalAmountCents      Int       @map("total_amount_cents")
+  commissionCents       Int       @map("commission_cents")
+  sellerNetCents        Int       @map("seller_net_cents")
+  status                String    @default("awaiting_return_window")
+  returnWindowUntil     DateTime  @map("return_window_until")
+  transferScheduledAt   DateTime? @map("transfer_scheduled_at")
+  chargebackWindowUntil DateTime  @map("chargeback_window_until")
+  transferredAt         DateTime? @map("transferred_at")
+  finalizedAt           DateTime? @map("finalized_at")
+  chargebackAt          DateTime? @map("chargeback_at")
+  returnAt              DateTime? @map("return_at")
+  providerTransferId    String?   @map("provider_transfer_id")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@index([hostMerchantId])
+  @@index([sellerMerchantId])
+  @@index([status])
+  @@index([transferScheduledAt])
+  @@map("marketplace_settlements")
+}
+
+model MarketplaceSellerDebt {
+  id                       String    @id @default(cuid())
+  sellerMerchantId         String    @map("seller_merchant_id")
+  settlementId             String    @map("settlement_id")
+  amountCents              Int       @map("amount_cents")
+  status                   String    @default("outstanding")
+  deductedFromSettlementId String?   @map("deducted_from_settlement_id")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  resolvedAt               DateTime? @map("resolved_at")
+
+  @@index([sellerMerchantId])
+  @@index([status])
+  @@map("marketplace_seller_debts")
+}
+
+// ============================================================================
+// AI Revenue Manager (Autonomous) — Feature 2
+// ============================================================================
+
+model RevenueManagerObservation {
+  id                     String   @id @default(cuid())
+  merchantId             String   @map("merchant_id")
+  observationWindowStart DateTime @map("observation_window_start")
+  observationWindowEnd   DateTime @map("observation_window_end")
+
+  funnelJson            Json  @map("funnel_json")
+  abandonmentJson       Json  @map("abandonment_json")
+  objectionsJson        Json  @map("objections_json")
+  crossSellJson         Json  @map("cross_sell_json")
+  currentExperimentJson Json? @map("current_experiment_json")
+  cohortsJson           Json  @map("cohorts_json")
+  revenueJson           Json  @map("revenue_json")
+  aiCostsCents          Int   @map("ai_costs_cents")
+
+  fingerprint String   @unique
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  hypotheses RevenueManagerHypothesis[]
+
+  @@index([merchantId, createdAt])
+  @@index([merchantId, observationWindowStart])
+  @@map("revenue_manager_observations")
+}
+
+model RevenueManagerHypothesis {
+  id            String @id @default(cuid())
+  merchantId    String @map("merchant_id")
+  observationId String @map("observation_id")
+
+  hypothesisText      String  @map("hypothesis_text") @db.Text
+  reasoning           String  @db.Text
+  expectedLiftPercent Decimal @map("expected_lift_percent") @db.Decimal(10, 2)
+  riskLevel           String  @map("risk_level")
+
+  templateJson Json @map("template_json")
+
+  status                 String    @default("pending_review")
+  approvalStrategy       String    @map("approval_strategy")
+  merchantApprovedAt     DateTime? @map("merchant_approved_at")
+  merchantApprovedBy     String?   @map("merchant_approved_by")
+  merchantApprovalReason String?   @map("merchant_approval_reason")
+  rejectionReason        String?   @map("rejection_reason")
+
+  createdExperimentId     String? @map("created_experiment_id")
+  experimentCreationError String? @map("experiment_creation_error")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  observation RevenueManagerObservation      @relation(fields: [observationId], references: [id], onDelete: Cascade)
+  lessons     RevenueManagerStrategyLesson[]
+
+  @@index([merchantId, status])
+  @@index([merchantId, createdAt])
+  @@map("revenue_manager_hypotheses")
+}
+
+model RevenueManagerStrategyLesson {
+  id           String @id @default(cuid())
+  merchantId   String @map("merchant_id")
+  experimentId String @map("experiment_id")
+  hypothesisId String @map("hypothesis_id")
+
+  hypothesisText       String  @map("hypothesis_text") @db.Text
+  actualWinner         String  @map("actual_winner")
+  hypothesisWasCorrect Boolean @map("hypothesis_was_correct")
+
+  controlConversionRate    Decimal @map("control_conversion_rate") @db.Decimal(10, 4)
+  challengerConversionRate Decimal @map("challenger_conversion_rate") @db.Decimal(10, 4)
+  conversionLiftPercent    Decimal @map("conversion_lift_percent") @db.Decimal(10, 2)
+  sessionsPerVariant       Int     @map("sessions_per_variant")
+  statisticalConfidence    Decimal @map("statistical_confidence") @db.Decimal(10, 4)
+
+  insightsJson      Json   @map("insights_json")
+  generatorFeedback String @map("generator_feedback") @db.Text
+
+  recordedAt DateTime @default(now()) @map("recorded_at")
+
+  hypothesis RevenueManagerHypothesis @relation(fields: [hypothesisId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, recordedAt])
+  @@index([experimentId])
+  @@map("revenue_manager_strategy_lessons")
+}
+
+model ProtocolSession {
+  id           String   @id
+  merchantId   String   @map("merchant_id")
+  agentId      String   @map("agent_id")
+  currentState String   @map("current_state")
+  stateHistory Json     @map("state_history")
+  sessionData  Json     @map("session_data")
+  tokenHash    String   @map("token_hash")
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([merchantId, expiresAt])
+  @@index([merchantId, currentState])
+  @@map("protocol_sessions")
+}
+
+model RecoveryAttempt {
+  id                String    @id @default(cuid())
+  merchantId        String    @map("merchant_id")
+  sessionId         String    @map("session_id")
+  globalUserId      String    @map("global_user_id")
+  abandonmentReason String    @map("abandonment_reason")
+  abandonmentScore  Float     @map("abandonment_score")
+  strategyJson      Json      @map("strategy_json")
+  channel           String    @default("in_session")
+  sentAt            DateTime? @map("sent_at")
+  status            String    @default("pending")
+  recoveredAt       DateTime? @map("recovered_at")
+  recoveredOrderId  String?   @map("recovered_order_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  @@index([merchantId, status])
+  @@index([merchantId, createdAt])
+  @@index([sessionId])
+  @@map("recovery_attempts")
+}
+
+/// Tracks when a merchant last viewed each nav-badge section, so the sidebar
+/// badge counts only items that appeared AFTER the last view (unread-only).
+/// Purely a dashboard UI concern — never touches domain entities.
+model NavBadgeView {
+  merchantId   String   @map("merchant_id")
+  badgeKey     String   @map("badge_key")
+  lastViewedAt DateTime @map("last_viewed_at")
+
+  @@id([merchantId, badgeKey])
+  @@map("nav_badge_views")
+}
+
+model BuyerIntentMemoryConsent {
+  merchantId   String   @map("merchant_id")
+  globalUserId String   @map("global_user_id")
+  optedIn      Boolean  @map("opted_in")
+  expiresAt    DateTime @map("expires_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@id([merchantId, globalUserId])
+  @@map("buyer_intent_memory_consents")
+}
+
+model CustomerIntentRecord {
+  id                      String   @id @default(cuid())
+  merchantId              String   @map("merchant_id")
+  globalUserId            String   @map("global_user_id")
+  primaryIntent           String   @map("primary_intent")
+  urgency                 String
+  budgetTier              String   @map("budget_tier")
+  categoryFocus           String[] @map("category_focus")
+  painPoints              String[] @map("pain_points")
+  conversionLikelihoodPct Int      @map("conversion_likelihood_pct")
+  behavioralSignalsJson   Json     @map("behavioral_signals_json")
+  generatedAt             DateTime @map("generated_at")
+
+  @@index([merchantId, globalUserId])
+  @@index([merchantId, generatedAt])
+  @@map("customer_intent_records")
+}
+
+model HoldoutGroupAssignment {
+  globalUserId String   @map("global_user_id")
+  merchantId   String   @map("merchant_id")
+  cohort       String
+  assignedAt   DateTime @default(now()) @map("assigned_at")
+
+  @@id([globalUserId, merchantId])
+  @@index([merchantId, cohort])
+  @@map("holdout_group_assignments")
+}
+
+model AttributionTag {
+  id                           String   @id @default(cuid())
+  merchantId                   String   @map("merchant_id")
+  orderId                      String   @map("order_id")
+  sessionId                    String   @map("session_id")
+  globalUserId                 String   @map("global_user_id")
+  cohort                       String
+  negotiationApplied           Boolean  @default(false) @map("negotiation_applied")
+  crossSellApplied             Boolean  @default(false) @map("cross_sell_applied")
+  progressiveDiscountApplied   Boolean  @default(false) @map("progressive_discount_applied")
+  cartRecoveryApplied          Boolean  @default(false) @map("cart_recovery_applied")
+  intentPersonalizationApplied Boolean  @default(false) @map("intent_personalization_applied")
+  experimentVariantId          String?  @map("experiment_variant_id")
+  orderValueCents              Int      @map("order_value_cents")
+  discountGivenCents           Int      @default(0) @map("discount_given_cents")
+  shippingSubsidyCents         Int      @default(0) @map("shipping_subsidy_cents")
+  aiCostCents                  Int      @default(0) @map("ai_cost_cents")
+  createdAt                    DateTime @default(now()) @map("created_at")
+
+  @@unique([merchantId, orderId])
+  @@index([merchantId, cohort, createdAt])
+  @@map("attribution_tags")
+}
+
+model RevenueLiftSnapshot {
+  id             String   @id @default(cuid())
+  merchantId     String   @map("merchant_id")
+  periodFrom     DateTime @map("period_from")
+  periodTo       DateTime @map("period_to")
+  holdoutJson    Json     @map("holdout_json")
+  treatmentJson  Json     @map("treatment_json")
+  liftJson       Json     @map("lift_json")
+  breakoutJson   Json     @map("breakout_json")
+  confidenceJson Json     @map("confidence_json")
+  calculatedAt   DateTime @default(now()) @map("calculated_at")
+
+  @@index([merchantId, calculatedAt])
+  @@map("revenue_lift_snapshots")
+}
+
+model NegotiationAttempt {
+  id                    String   @id @default(cuid())
+  merchantId            String   @map("merchant_id")
+  sessionId             String   @map("session_id")
+  globalUserId          String   @map("global_user_id")
+  cartFingerprint       String   @map("cart_fingerprint")
+  negotiationResultJson Json     @map("negotiation_result_json")
+  authorizedOfferJson   Json?    @map("authorized_offer_json")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  @@index([merchantId, sessionId])
+  @@index([cartFingerprint, createdAt])
+  @@map("negotiation_attempts")
+}
+
+/// Per-merchant cart recovery strategy toggles. `escalate_discount` is
+/// intentionally excluded — progressive discounts are governed separately by
+/// the negotiation / rules engines, not a binary toggle.
+model CartRecoveryStrategyPref {
+  id         String   @id @default(cuid())
+  merchantId String   @unique @map("merchant_id")
+  strategies Json     @default("{}")
+  config     Json?    @default("{\"active_strategy\":\"offer_coupon\"}")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  merchant Merchant @relation("CartRecoveryStrategyPref", fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId])
+  @@map("cart_recovery_strategy_prefs")
+}
+
+// ─── Cross-Sell Context: Global Buyer Profile ─────────────────────────────────
+
+model BuyerGlobalProfile {
+  globalUserId        String    @id @map("global_user_id")
+  topCategories       String[]  @map("top_categories")
+  recentSkus          String[]  @map("recent_skus")
+  preferredBrands     String[]  @map("preferred_brands")
+  avgOrderValueCents  Int       @map("avg_order_value_cents")
+  totalOrders         Int       @map("total_orders")
+  discountSensitivity String    @map("discount_sensitivity")
+  lastPurchaseAt      DateTime? @map("last_purchase_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@map("buyer_global_profiles")
+}
+
+// ─── WhatsApp Commerce Channel ─────────────────────────────────────────────
+
+model WhatsAppChannelConfig {
+  id         String  @id @default(uuid())
+  merchantId String  @unique @map("merchant_id")
+  enabled    Boolean @default(false)
+  provider   String  @default("BUBBLEWHATS") @map("provider") // TWILIO | BUBBLEWHATS | META_CLOUD
+
+  // Provider credentials (encrypted JSON)
+  credentials Json @default("{}") @map("credentials")
+
+  // WhatsApp number (E.164 format, used for webhook routing)
+  whatsappNumber String? @map("whatsapp_number")
+
+  // Connection status
+  status String @default("DISCONNECTED") @map("status") // DISCONNECTED | PENDING_VERIFICATION | ACTIVE | INACTIVE
+
+  // Legacy BubbleWhats fields (kept for backward compat)
+  deviceId      String? @map("device_id")
+  phoneNumber   String? @map("phone_number")
+  webhookSecret String? @map("webhook_secret")
+
+  connectedAt DateTime? @map("connected_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([whatsappNumber])
+  @@index([deviceId])
+  @@map("whatsapp_channel_configs")
+}
+
+model WhatsAppSession {
+  id                String   @id @default(uuid())
+  merchantId        String   @map("merchant_id")
+  buyerPhone        String   @map("buyer_phone")
+  buyerAlias        String?  @map("buyer_alias")
+  checkoutSessionId String?  @map("checkout_session_id")
+  deviceId          String   @map("device_id")
+  currentOptions    Json     @default("[]") @map("current_options")
+  previousOptions   Json     @default("[]") @map("previous_options")
+  currentPage       Int      @default(0) @map("current_page")
+  lastActivityAt    DateTime @default(now()) @updatedAt @map("last_activity_at")
+  status            String   @default("active")
+  postSaleContext   Json?    @map("post_sale_context")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@unique([merchantId, buyerPhone, deviceId])
+  @@index([merchantId, status])
+  @@index([lastActivityAt])
+  @@map("whatsapp_sessions")
+}
+
+model PostSaleMessageTemplate {
+  id          String   @id @default(cuid())
+  merchantId  String   @map("merchant_id")
+  type        String
+  channel     String   @default("whatsapp")
+  name        String
+  body        String
+  subject     String?
+  isActive    Boolean  @default(true) @map("is_active")
+
+  // Meta/WhatsApp official template (business-initiated). Freeform `body` is
+  // used for email + inside the 24h session window; the Meta template is what
+  // Twilio submits to Meta for approval and what we send outside the window.
+  metaCategory        String?  @map("meta_category")        // UTILITY | MARKETING
+  metaLanguage        String?  @default("pt_BR") @map("meta_language")
+  metaTemplateBody    String?  @map("meta_template_body")   // positional {{1}} {{2}} body
+  metaVariableMap     Json?    @map("meta_variable_map")    // {"1":"buyerName","2":"couponCode"}
+  twilioContentSid    String?  @map("twilio_content_sid")   // Twilio Content Template id
+  metaStatus          String?  @default("draft") @map("meta_status") // draft|submitted|approved|rejected
+  metaRejectionReason String?  @map("meta_rejection_reason")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([merchantId, type, channel])
+  @@index([merchantId])
+  @@map("post_sale_message_templates")
+}
+
+model PaymentHold {
+  id               String    @id @default(cuid())
+  merchantId       String    @map("merchant_id")
+  paymentIntentId  String    @unique @map("payment_intent_id")
+  orderId          String?   @map("order_id")
+  totalAmountCents Int       @map("total_amount_cents")
+  platformFeeCents Int       @map("platform_fee_cents")
+  merchantNetCents Int       @map("merchant_net_cents")
+  status           String    @default("held") // held | released | refunded | chargebacked
+  holdUntil        DateTime  @map("hold_until")
+  releasedAt       DateTime? @map("released_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@index([merchantId, status])
+  @@index([status, holdUntil])
+  @@map("payment_holds")
+}
+
+// ─── Inventory Management ────────────────────────────────────────────────────
+
+enum InventoryMovementKind {
+  ENTRY
+  EXIT
+  ADJUSTMENT
+  RESERVATION
+  RELEASE
+  TRANSFER_IN
+  TRANSFER_OUT
+}
+
+model InventoryLocation {
+  id         String   @id @default(cuid())
+  merchantId String   @map("merchant_id")
+  name       String
+  kind       String   @default("warehouse")
+  isDefault  Boolean  @default(false) @map("is_default")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  merchant Merchant        @relation("InventoryLocations", fields: [merchantId], references: [id], onDelete: Cascade)
+  items    InventoryItem[]
+
+  @@unique([merchantId, name])
+  @@index([merchantId, isActive])
+  @@map("inventory_locations")
+}
+
+model InventoryItem {
+  id                String    @id @default(cuid())
+  merchantId        String    @map("merchant_id")
+  sku               String
+  productName       String    @map("product_name")
+  variantName       String?   @map("variant_name")
+  locationId        String    @map("location_id")
+  quantity          Int       @default(0)
+  reserved          Int       @default(0)
+  reorderPoint      Int?      @map("reorder_point")
+  lowStockThreshold Int?      @map("low_stock_threshold")
+  avgCostCents      Int?      @map("avg_cost_cents")
+  salePriceCents    Int?      @map("sale_price_cents")
+  lastCountedAt     DateTime? @map("last_counted_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  merchant  Merchant            @relation("InventoryItems", fields: [merchantId], references: [id], onDelete: Cascade)
+  location  InventoryLocation   @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  movements InventoryMovement[]
+  alerts    InventoryAlert[]
+
+  @@unique([merchantId, sku, locationId])
+  @@index([merchantId, locationId])
+  @@index([merchantId, sku])
+  @@map("inventory_items")
+}
+
+model InventoryMovement {
+  id          String                @id @default(cuid())
+  merchantId  String                @map("merchant_id")
+  itemId      String                @map("item_id")
+  kind        InventoryMovementKind
+  quantity    Int
+  reason      String?
+  externalRef String?               @map("external_ref")
+  source      String                @default("native")
+  actorUserId String?               @map("actor_user_id")
+  createdAt   DateTime              @default(now()) @map("created_at")
+
+  merchant Merchant      @relation("InventoryMovements", fields: [merchantId], references: [id], onDelete: Cascade)
+  item     InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, itemId, createdAt])
+  @@index([merchantId, kind, createdAt])
+  @@map("inventory_movements")
+}
+
+model InventoryAlert {
+  id             String    @id @default(cuid())
+  merchantId     String    @map("merchant_id")
+  itemId         String    @map("item_id")
+  severity       String
+  message        String
+  acknowledged   Boolean   @default(false)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  acknowledgedAt DateTime? @map("acknowledged_at")
+
+  merchant Merchant      @relation("InventoryAlerts", fields: [merchantId], references: [id], onDelete: Cascade)
+  item     InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, acknowledged, createdAt])
+  @@map("inventory_alerts")
+}
+
+model ErpConnection {
+  id                 String    @id @default(cuid())
+  merchantId         String    @map("merchant_id")
+  provider           String
+  status             String    @default("pending")
+  directionMode      String    @default("erp_source_of_truth") @map("direction_mode")
+  accessTokenCipher  String?   @map("access_token_cipher")
+  refreshTokenCipher String?   @map("refresh_token_cipher")
+  tokenExpiresAt     DateTime? @map("token_expires_at")
+  lastSyncAt         DateTime? @map("last_sync_at")
+  lastErrorCode      String?   @map("last_error_code")
+  config             Json?
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  merchant Merchant @relation("ErpConnections", fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, provider])
+  @@index([merchantId, status])
+  @@map("erp_connections")
+}
+
+model CrmConnection {
+  id                 String    @id @default(cuid())
+  merchantId         String    @map("merchant_id")
+  provider           String // hubspot | pipedrive | rdstation
+  status             String    @default("pending") // pending | connected | error
+  accessTokenCipher  String?   @map("access_token_cipher")
+  refreshTokenCipher String?   @map("refresh_token_cipher")
+  tokenExpiresAt     DateTime? @map("token_expires_at")
+  lastSyncAt         DateTime? @map("last_sync_at")
+  lastErrorCode      String?   @map("last_error_code")
+  config             Json?
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  merchant Merchant @relation("CrmConnections", fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, provider])
+  @@index([merchantId, status])
+  @@map("crm_connections")
+}
+
+/// Per-sync audit trail of contacts/deals pushed to a merchant's CRM.
+/// stage distinguishes a lead (identified, not yet purchased) from a customer
+/// (completed a sale). Powers the "Leads sincronizados" panel in the dashboard.
+model CrmSyncLog {
+  id         String   @id @default(cuid())
+  merchantId String   @map("merchant_id")
+  provider   String // hubspot | pipedrive | rdstation
+  email      String
+  stage      String // lead | customer
+  status     String // success | failed
+  errorCode  String?  @map("error_code")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([merchantId, createdAt])
+  @@index([merchantId, email])
+  @@map("crm_sync_log")
+}
+
+model OwnDeliveryConfig {
+  id             String   @id @default(cuid())
+  merchantId     String   @unique @map("merchant_id")
+  enabled        Boolean  @default(false)
+  mode           String   @default("flat")
+  flatPriceCents Int?     @map("flat_price_cents")
+  freeAboveCents Int?     @map("free_above_cents")
+  neighborhoods  Json?
+  radiusZones    Json?    @map("radius_zones")
+  estimatedValue Int      @default(60) @map("estimated_value")
+  estimatedUnit  String   @default("minutes") @map("estimated_unit")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  merchant Merchant @relation("OwnDeliveryConfig", fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId])
+  @@map("own_delivery_configs")
+}
+
+// Post-Sale Module
+model PostSaleScheduledMessage {
+  id          String   @id @default(cuid())
+  merchantId  String   @map("merchant_id")
+  buyerId     String   @map("buyer_id")
+  orderId     String   @map("order_id")
+  type        String                          // follow_up | review_request | nps | cross_sell | win_back | loyalty | reorder
+  channel     String   @default("whatsapp")   // whatsapp | email
+  sendAt      DateTime @map("send_at")
+  status      String   @default("pending")    // pending | sent | failed | cancelled
+  sentAt      DateTime? @map("sent_at")
+  messageContent String? @map("message_content")
+  buyerPhone  String?  @map("buyer_phone")
+  buyerEmail  String?  @map("buyer_email")
+  buyerName   String?  @map("buyer_name")
+  productName String?  @map("product_name")
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([merchantId, status, sendAt])
+  @@index([merchantId, buyerId])
+  @@map("post_sale_scheduled_messages")
+}
+
+model NpsResponse {
+  id             String   @id @default(cuid())
+  merchantId     String   @map("merchant_id")
+  buyerId        String   @map("buyer_id")
+  orderId        String?  @map("order_id")
+  score          Int                            // 0-10
+  feedback       String?
+  classification String                        // promoter | passive | detractor
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([merchantId, createdAt])
+  @@map("nps_responses")
+}
+
+model BuyerLoyaltyTracker {
+  id              String    @id @default(cuid())
+  merchantId      String    @map("merchant_id")
+  buyerId         String    @map("buyer_id")
+  purchaseCount   Int       @default(0) @map("purchase_count")
+  totalSpentCents Int       @default(0) @map("total_spent_cents")
+  lastPurchaseAt  DateTime? @map("last_purchase_at")
+  lastWinBackAt   DateTime? @map("last_win_back_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([merchantId, buyerId])
+  @@index([merchantId, lastPurchaseAt])
+  @@map("buyer_loyalty_trackers")
+}
+
+// ─── Knowledge Base (RAG support — pgvector) ──────────────────────────────────
+// NOTE: The `embedding` column stores JSON-serialized float32 array as fallback.
+// In production with pgvector, a raw migration adds `embedding_vec vector(1536)`
+// with an HNSW index for cosine similarity search. See migration:
+//   ALTER TABLE knowledge_chunks ADD COLUMN embedding_vec vector(1536);
+//   CREATE INDEX idx_kc_embedding_vec ON knowledge_chunks USING hnsw (embedding_vec vector_cosine_ops);
+
+model KnowledgeChunk {
+  id          String   @id @default(cuid())
+  merchantId  String   @map("merchant_id")
+  sourceType  String   @map("source_type") // product | policy | faq | config
+  sourceId    String?  @map("source_id")
+  content     String   @db.Text
+  embedding   String   @db.Text // JSON-serialized float32 array (fallback; prod uses embedding_vec)
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([merchantId, sourceType])
+  @@map("knowledge_chunks")
+}
+
+model MerchantPolicy {
+  id         String   @id @default(cuid())
+  merchantId String   @unique @map("merchant_id")
+  returns    String?  @db.Text
+  shipping   String?  @db.Text
+  warranty   String?  @db.Text
+  payment    String?  @db.Text
+  general    String?  @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("merchant_policies")
+}
+
+model MerchantNotification {
+  id          String    @id @default(cuid())
+  merchantId  String    @map("merchant_id")
+  type        String
+  title       String
+  body        String?   @db.Text
+  metadata    Json?
+  read        Boolean   @default(false)
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([merchantId, createdAt])
+  @@index([merchantId, read])
+  @@map("merchant_notifications")
+}
+
+model BuyerEarnedBenefit {
+  id           String    @id @default(cuid())
+  merchantId   String    @map("merchant_id")
+  globalUserId String    @map("global_user_id")
+  benefitType  String    @map("benefit_type") // discount_percent | free_shipping | coupon
+  value        Float
+  origin       String // loyalty_milestone | intent_based
+  reason       String
+  status       String    @default("active") // active | redeemed | expired
+  expiresAt    DateTime? @map("expires_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([merchantId, globalUserId, status])
+  @@map("buyer_earned_benefits")
+}

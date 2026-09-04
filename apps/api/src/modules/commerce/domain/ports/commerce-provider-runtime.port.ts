@@ -1,7 +1,7 @@
 import type {
   CommerceCatalogPage,
   CommerceConnectionHealth,
-} from "@aacp/commerce-adapters";
+} from "@zyon/commerce-adapters";
 
 export interface CommerceProviderRuntime {
   testConnection(merchantId: string): Promise<CommerceConnectionHealth>;

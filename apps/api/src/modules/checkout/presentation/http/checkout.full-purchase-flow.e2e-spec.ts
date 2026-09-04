@@ -1,11 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import type { AgentContext, AuthorizedOffer, Cart, CartItem } from "@aacp/shared-types";
+import type { AgentContext, AuthorizedOffer, Cart, CartItem } from "@zyon/shared-types";
 import { InMemoryBuyerPurchaseHistoryRepository } from "../../../buyer-purchase-history/infrastructure/in-memory-buyer-purchase-history.repository.js";
 import { RecordCompletedPurchaseUseCase } from "../../../buyer-purchase-history/application/buyer-purchase-history.use-cases.js";
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
 import { HandleAsaasWebhookUseCase } from "../../../payment/application/handle-asaas-webhook.use-case.js";
+import { PaymentDispatchService } from "../../../payment/application/services/payment-dispatch.service.js";
 import { FakePaymentProvider } from "../../../payment/infrastructure/fake-payment-provider.js";
 import { CheckoutPaymentAdapter } from "../../../payment/infrastructure/checkout-payment.adapter.js";
 import { InMemoryPaymentRepository } from "../../../payment/infrastructure/in-memory-payment.repository.js";
@@ -21,12 +22,13 @@ import {
 import { EvaluateShippingUseCase } from "../../application/use-cases/evaluate-shipping.use-case.js";
 import { GetCheckoutSessionUseCase } from "../../application/use-cases/get-checkout-session.use-case.js";
 import { GetDecisionUseCase } from "../../application/use-cases/get-decision.use-case.js";
-import { SendChatMessageUseCase } from "../../application/use-cases/send-chat-message.use-case.js";
-import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
+import { createStartCheckoutUseCase } from "../../application/use-cases/start-checkout.fixture.js";
+import { createSendChatUseCase } from "../../application/use-cases/send-chat-message.fixture.js";
 import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-checkout-event.use-case.js";
 import { CheckoutCustomerService } from "../../application/services/checkout-customer.service.js";
 import { CheckoutShippingService } from "../../application/services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "../../application/services/checkout-offer.service.js";
+import { OtpService } from "../../application/services/otp.service.js";
 import type { AgentContextPort } from "../../domain/ports/agent-context.port.js";
 import type { CommerceOfferPort } from "../../domain/ports/commerce-offer.port.js";
 import type { ConversationPort } from "../../domain/ports/conversation.port.js";
@@ -255,15 +257,22 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
     );
     const completeOrder = new CompleteOrderUseCase(repo, repo, repo, undefined, purchaseHistoryPort);
     const conv = new RecordingConversationPort();
-    const custService = new CheckoutCustomerService(repo);
+    const custService = new CheckoutCustomerService(repo, undefined, new OtpService());
     const shipService = new CheckoutShippingService(repo, custService);
     const offerService = new CheckoutOfferService(repo);
     const controller = new CheckoutController(
-      new StartCheckoutUseCase(repo, repo, repo, undefined, repo),
+      createStartCheckoutUseCase(repo, repo, { merchantRepository: repo }),
       new TrackCheckoutEventUseCase(repo, repo),
       new GetCheckoutSessionUseCase(repo),
       new GetDecisionUseCase(repo),
-      new SendChatMessageUseCase(repo, conv, custService, shipService, offerService, new FakeAgentContextPort(), repo),
+      createSendChatUseCase(repo, {
+        conversation: conv,
+        customerService: custService,
+        shippingService: shipService,
+        offerService,
+        agentContext: new FakeAgentContextPort(),
+        merchantRepository: repo
+      }),
       new EvaluateShippingUseCase(repo, repo, repo),
       new ApplyOfferUseCase(repo, repo, new FakeCommerceOfferPort(), new AcceptCheckoutOfferUseCase(repo, repo, repo)),
       completeOrder,
@@ -436,8 +445,10 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
 
     const eventBus = new InMemoryDomainEventBus();
     new PaymentApprovedHandler(eventBus, completeOrder).onModuleInit();
-    const webhook = new HandleAsaasWebhookUseCase(payments, new CheckoutPaymentAdapter(repo, repo, eventBus));
-    const processed = await webhook.execute(undefined, {
+    const checkoutPayment = new CheckoutPaymentAdapter(repo, repo, eventBus);
+    const paymentDispatch = new PaymentDispatchService(payments, checkoutPayment);
+    const webhook = new HandleAsaasWebhookUseCase(payments, paymentDispatch);
+    const processed = await webhook.execute("test-token", {
       id: "evt_full_flow_paid",
       event: "PAYMENT_RECEIVED",
       payment: {
@@ -445,7 +456,7 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
         value: intent.amountCents / 100,
         externalReference: intent.id
       }
-    });
+    }, "test-token");
     assert.equal(processed.outcome, "processed");
 
     const paidIntent = await payments.getIntentById(MERCHANT, intent.id);

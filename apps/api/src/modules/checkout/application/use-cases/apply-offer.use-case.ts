@@ -1,26 +1,32 @@
-import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException, Optional , Logger} from "@nestjs/common";
 import type {
   ApplyOfferRequest,
   ApplyOfferResponse,
   AuthorizedOffer,
   CheckoutSession,
   ChatTurn
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { OFFER_REPOSITORY, type OfferRepository } from "../../domain/ports/offer.repository.port.js";
 import { COMMERCE_OFFER_PORT, type CommerceOfferPort } from "../../domain/ports/commerce-offer.port.js";
 import { AcceptCheckoutOfferUseCase } from "./accept-checkout-offer.use-case.js";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
+import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
+import { TenantBoundaryGuard } from "../../domain/services/tenant-boundary.guard.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class ApplyOfferUseCase {
+  private readonly logger = new Logger(ApplyOfferUseCase.name);
+
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Inject(OFFER_REPOSITORY) private readonly offers: OfferRepository,
     @Inject(COMMERCE_OFFER_PORT) private readonly commerce: CommerceOfferPort,
     private readonly acceptCheckoutOffer: AcceptCheckoutOfferUseCase,
-    @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository
+    @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
+    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 }
   ) {}
 
   async execute(input: ApplyOfferRequest): Promise<ApplyOfferResponse> {
@@ -28,6 +34,11 @@ export class ApplyOfferUseCase {
     if (!session) throw new NotFoundException("checkout_session_not_found");
     const offer = await this.offers.getOffer(input.merchant_id, input.offer_id);
     if (!offer || !offer.approved) return { success: false, reason: "offer_not_found_or_not_approved" };
+    // Tenant boundary guard: reject cross-merchant offer reuse.
+    // This enforces the invariant that offers are scoped to (merchantId, sessionId) tuples.
+    if (!TenantBoundaryGuard.matches(offer.merchantId, input.merchant_id)) {
+      return { success: false, reason: "offer_not_found_or_not_approved" };
+    }
     // Invariant: an offer is scoped to the session it was authorized for.
     // Reject cross-session reuse even within the same merchant.
     if (offer.sessionId !== input.session_id) return { success: false, reason: "offer_not_found_or_not_approved" };
@@ -54,7 +65,8 @@ export class ApplyOfferUseCase {
     const experience = buildExperienceFromSession(sessionWithTurn, {
       merchantName: merchant?.name,
       theme: merchant?.theme,
-      couponBoxEnabled: merchantRules?.couponBoxEnabled
+      couponBoxEnabled: merchantRules?.couponBoxEnabled,
+      serviceFee: this.experienceConfig.platformFeeBrl
     });
 
     const subtotal = experience.totals.subtotal;

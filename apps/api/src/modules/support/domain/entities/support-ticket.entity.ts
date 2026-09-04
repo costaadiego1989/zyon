@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { SupportTicket, SupportTicketStatus } from "@aacp/shared-types";
+import type { SupportTicket, SupportTicketStatus } from "@zyon/shared-types";
 
 const SUPPORT_TICKET_STATUSES = new Set<SupportTicketStatus>([
   "open",
@@ -13,6 +13,7 @@ interface CreateSupportTicketInput {
   sessionId?: string;
   buyerMessage: string;
   source?: SupportTicket["source"];
+  returnId?: string;
 }
 
 export class SupportTicketEntity {
@@ -31,6 +32,7 @@ export class SupportTicketEntity {
       buyerMessage,
       status: "open",
       source: input.source ?? "widget",
+      returnId: input.returnId?.trim() || undefined,
       createdAt: now,
       updatedAt: now
     });

@@ -1,4 +1,4 @@
-import type { SuggestedProduct } from "@aacp/shared-types";
+import type { SuggestedProduct } from "@zyon/shared-types";
 
 export const STOREFRONT_CATALOG_PORT = Symbol("STOREFRONT_CATALOG_PORT");
 

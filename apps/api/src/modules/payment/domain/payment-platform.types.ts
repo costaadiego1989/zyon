@@ -1,4 +1,4 @@
-export type PaymentConnectionProvider = "stripe" | "asaas";
+export type PaymentConnectionProvider = "stripe" | "asaas" | "mercadopago";
 export type BillingPlan = "starter" | "growth" | "scale";
 export type PaymentConnectionEnvironment = "test" | "live";
 export type PaymentConnectionStatus =
@@ -25,6 +25,7 @@ export interface PaymentConnectionSnapshot {
 
 export type BillingSubscriptionStatus =
   | "trialing"
+  | "starter"
   | "active"
   | "past_due"
   | "unpaid"
@@ -43,6 +44,35 @@ export interface BillingSubscriptionSnapshot {
   cancelAtPeriodEnd: boolean;
   createdAt: string;
   updatedAt: string;
+  provider?: "asaas" | "stripe";
+  planKey?: BillingPlan;
+  asaasCustomerId?: string;
+  asaasSubscriptionId?: string;
+  pendingPlanKey?: BillingPlan;
+  pendingPlanEffectiveAt?: string;
+}
+
+export interface BillingUsageSnapshot {
+  periodStart: string;
+  ordersPerMonth: number;
+  sessionsPerMonth: number;
+  aiConversationsPerMonth: number;
+  commerceConnections: number;
+  webhookEndpoints: number;
+  teamMembers: number;
+  crossSellPromotions: number;
+  activeCoupons: number;
+}
+
+export interface BillingSubscriptionWithPlanSnapshot extends BillingSubscriptionSnapshot {
+  plan: BillingPlan;
+  planName: string;
+  monthlyPriceBrl: number;
+  transactionFeeCents: number;
+  buyerServiceFeeCents: number;
+  limits: Record<string, number | null>;
+  features: Record<string, boolean>;
+  usage?: BillingUsageSnapshot;
 }
 
 export interface AsaasSubaccountInput {

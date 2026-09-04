@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { of } from "rxjs";
 import type { CallHandler, ExecutionContext } from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
 import { AuditMutationInterceptor } from "./audit-mutation.interceptor.js";
 import type { RecordAuditEventUseCase } from "../application/audit.use-cases.js";
 import type { MerchantAuditEvent } from "../domain/ports/audit-repository.port.js";
@@ -41,6 +42,8 @@ function makeContext(
   };
   return {
     getType: () => "http",
+    getHandler: () => () => {},
+    getClass: () => class {},
     switchToHttp: () => ({
       getRequest: () => request,
       getResponse: () => response,
@@ -50,6 +53,10 @@ function makeContext(
 
 function makeHandler(): CallHandler {
   return { handle: () => of({ ok: true }) };
+}
+
+function makeReflector(): Reflector {
+  return { getAllAndOverride: () => undefined } as unknown as Reflector;
 }
 
 describe("AuditMutationInterceptor", () => {
@@ -62,7 +69,7 @@ describe("AuditMutationInterceptor", () => {
       },
     } as unknown as RecordAuditEventUseCase;
 
-    const interceptor = new AuditMutationInterceptor(record);
+    const interceptor = new AuditMutationInterceptor(record, makeReflector());
     const ctx = makeContext("POST", "/installations", PRINCIPAL, {
       "Idempotency-Replayed": "true",
     });
@@ -84,7 +91,7 @@ describe("AuditMutationInterceptor", () => {
       },
     } as unknown as RecordAuditEventUseCase;
 
-    const interceptor = new AuditMutationInterceptor(record);
+    const interceptor = new AuditMutationInterceptor(record, makeReflector());
     // Override logger to capture errors.
     (interceptor as any).logger = {
       error: (msg: string) => errors.push(msg),
@@ -115,7 +122,7 @@ describe("AuditMutationInterceptor", () => {
       },
     } as unknown as RecordAuditEventUseCase;
 
-    const interceptor = new AuditMutationInterceptor(record);
+    const interceptor = new AuditMutationInterceptor(record, makeReflector());
     const ctx = makeContext("GET", "/installations", PRINCIPAL);
 
     await new Promise<void>((resolve) => {

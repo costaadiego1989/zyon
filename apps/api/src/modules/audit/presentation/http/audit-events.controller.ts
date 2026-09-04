@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Query,
@@ -15,6 +16,8 @@ import { ListAuditEventsUseCase } from "../../application/audit.use-cases.js";
 import { RequireTenantAccess } from "../../../integrations/presentation/http/tenant-access.decorator.js";
 import { TenantAccessGuard } from "../../../integrations/presentation/http/tenant-access.guard.js";
 import { TenantCredentialGuard } from "../../../integrations/presentation/http/tenant-credential.guard.js";
+import { InvalidCursorError } from "../../domain/errors/invalid-cursor.error.js";
+import { toAuditEventResponse } from "./audit-events.mapper.js";
 
 @ApiTags("Audit")
 @ApiBearerAuth("service_api_key")
@@ -30,29 +33,37 @@ export class AuditEventsController {
     @Req() request: unknown,
     @Query("limit") limit?: string,
     @Query("cursor") cursor?: string,
+    @Query("action") action?: string,
+    @Query("resource_type") resourceType?: string,
+    @Query("actor_id") actorId?: string,
+    @Query("since") since?: string,
+    @Query("until") until?: string,
   ) {
-    const page = await this.listAuditEvents.execute({
-      merchantId: currentTenantPrincipal(
-        request as Parameters<typeof currentTenantPrincipal>[0],
-      ).tenantId,
-      limit: parseLimit(limit),
-      cursor,
-    });
-    return {
-      data: page.data.map((event) => ({
-        id: event.id,
-        actor_type: event.actorType,
-        actor_id: event.actorId,
-        action: event.action,
-        resource_type: event.resourceType,
-        resource_id: event.resourceId ?? null,
-        correlation_id: event.correlationId ?? null,
-        metadata: event.metadata,
-        occurred_at: event.occurredAt,
-      })),
-      next_cursor: page.nextCursor,
-      has_more: page.nextCursor !== null,
-    };
+    try {
+      const page = await this.listAuditEvents.execute({
+        merchantId: currentTenantPrincipal(
+          request as Parameters<typeof currentTenantPrincipal>[0],
+        ).tenantId,
+        limit: parseLimit(limit),
+        cursor,
+        action,
+        resourceType,
+        actorId,
+        since,
+        until,
+      });
+      return {
+        data: page.data.map(toAuditEventResponse),
+        next_cursor: page.nextCursor,
+        has_more: page.nextCursor !== null,
+      };
+    } catch (error) {
+      // AUD-M4: Map domain error to HTTP 400.
+      if (error instanceof InvalidCursorError) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
   }
 }
 

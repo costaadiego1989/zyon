@@ -1,4 +1,4 @@
-import { Module, forwardRef } from "@nestjs/common";
+import { Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { AuthModule } from "../auth/auth.module.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
@@ -9,20 +9,26 @@ import {
 } from "./application/merchant.use-cases.js";
 import { GetMerchantThemeUseCase } from "./application/get-merchant-theme.use-case.js";
 import { UpdateMerchantThemeUseCase } from "./application/update-merchant-theme.use-case.js";
+import { EnableCryptoPaymentsUseCase } from "./application/use-cases/enable-crypto-payments.use-case.js";
 import { MERCHANT_REPOSITORY } from "./domain/ports/merchant-repository.port.js";
 import { MERCHANT_RULES_REPOSITORY } from "./domain/ports/merchant-rules.repository.port.js";
 import { PrismaMerchantRepository } from "./infrastructure/prisma-merchant.repository.js";
 import { MerchantController } from "./presentation/merchant.controller.js";
+import { CryptoPaymentsController } from "./presentation/http/crypto-payments.controller.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 
 @Module({
-  imports: [forwardRef(() => AuthModule)],
-  controllers: [MerchantController],
+  imports: [AuthModule],
+  controllers: [MerchantController, CryptoPaymentsController],
   providers: [
     GetMerchantProfileUseCase,
     GetMerchantRulesUseCase,
     UpdateMerchantRulesUseCase,
     GetMerchantThemeUseCase,
     UpdateMerchantThemeUseCase,
+    EnableCryptoPaymentsUseCase,
+    BillingPlanMeteringService,
+    PlanLimitGuard,
     {
       provide: MERCHANT_REPOSITORY,
       useFactory: (prisma: PrismaClient) => new PrismaMerchantRepository(prisma),

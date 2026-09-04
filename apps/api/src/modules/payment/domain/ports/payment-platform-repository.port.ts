@@ -34,6 +34,13 @@ export interface SaveBillingSubscriptionInput {
   trialEndsAt?: string;
   currentPeriodEnd?: string;
   cancelAtPeriodEnd?: boolean;
+  // Asaas billing
+  provider?: "asaas" | "stripe";
+  planKey?: BillingSubscriptionSnapshot["planKey"];
+  asaasCustomerId?: string;
+  asaasSubscriptionId?: string;
+  pendingPlanKey?: BillingSubscriptionSnapshot["planKey"];
+  pendingPlanEffectiveAt?: string | null;
 }
 
 export interface PaymentPlatformRepository {
@@ -47,6 +54,7 @@ export interface PaymentPlatformRepository {
     provider: PaymentConnectionProvider,
   ): Promise<string | undefined>;
   saveConnection(input: SavePaymentConnectionInput): Promise<void>;
+  deleteConnection(merchantId: string, provider: PaymentConnectionProvider): Promise<void>;
   getOrCreateTrial(
     merchantId: string,
     trialDays: number,
@@ -55,10 +63,15 @@ export interface PaymentPlatformRepository {
   getBilling(
     merchantId: string,
   ): Promise<BillingSubscriptionSnapshot | undefined>;
+  expireTrial(merchantId: string, now: Date): Promise<boolean>;
+  expireTrials(now: Date, limit: number): Promise<number>;
   findMerchantByStripeCustomerId(
     customerId: string,
   ): Promise<string | undefined>;
   findMerchantByStripeSubscriptionId(
+    subscriptionId: string,
+  ): Promise<string | undefined>;
+  findMerchantByAsaasSubscriptionId(
     subscriptionId: string,
   ): Promise<string | undefined>;
 }

@@ -1,4 +1,4 @@
-import type { AcceptedOffer, AuthorizedOffer } from "@aacp/shared-types";
+import type { AcceptedOffer, AuthorizedOffer } from "@zyon/shared-types";
 
 export class AcceptedOfferEntity {
   private constructor(private readonly props: AcceptedOffer) {}

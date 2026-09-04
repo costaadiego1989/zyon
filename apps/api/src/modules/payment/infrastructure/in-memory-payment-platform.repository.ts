@@ -65,12 +65,39 @@ export class InMemoryPaymentPlatformRepository
     if (input.secret) this.secrets.set(recordKey, input.secret);
   }
 
+  async deleteConnection(
+    merchantId: string,
+    provider: "stripe" | "asaas",
+  ): Promise<void> {
+    this.connections.delete(key(merchantId, provider));
+    this.secrets.delete(key(merchantId, provider));
+  }
+
   async getOrCreateTrial(
     merchantId: string,
     trialDays: number,
   ): Promise<BillingSubscriptionSnapshot> {
     const existing = this.billing.get(merchantId);
-    if (existing) return existing;
+    if (existing) {
+      if (
+        existing.status === "trialing" &&
+        existing.trialEndsAt &&
+        new Date(existing.trialEndsAt).getTime() <= Date.now() &&
+        !existing.stripeSubscriptionId
+      ) {
+        const expired = {
+          ...existing,
+          status: "starter" as const,
+          trialEndsAt: undefined,
+          currentPeriodEnd: undefined,
+          cancelAtPeriodEnd: false,
+          updatedAt: new Date().toISOString(),
+        };
+        this.billing.set(merchantId, expired);
+        return expired;
+      }
+      return existing;
+    }
     const now = new Date();
     const snapshot: BillingSubscriptionSnapshot = {
       merchantId,
@@ -90,9 +117,16 @@ export class InMemoryPaymentPlatformRepository
     const current =
       this.billing.get(input.merchantId) ??
       (await this.getOrCreateTrial(input.merchantId, 14));
+    // SaveBillingSubscriptionInput allows null on pendingPlanEffectiveAt (clear);
+    // the snapshot uses undefined. Normalize: undefined = keep current, null = clear.
+    const pendingEffective =
+      input.pendingPlanEffectiveAt === undefined
+        ? current.pendingPlanEffectiveAt
+        : (input.pendingPlanEffectiveAt ?? undefined);
     this.billing.set(input.merchantId, {
       ...current,
       ...input,
+      pendingPlanEffectiveAt: pendingEffective,
       updatedAt: new Date().toISOString(),
     });
   }
@@ -101,6 +135,54 @@ export class InMemoryPaymentPlatformRepository
     merchantId: string,
   ): Promise<BillingSubscriptionSnapshot | undefined> {
     return this.billing.get(merchantId);
+  }
+
+  async expireTrial(merchantId: string, now: Date): Promise<boolean> {
+    const billing = this.billing.get(merchantId);
+    if (
+      !billing ||
+      billing.status !== "trialing" ||
+      billing.stripeSubscriptionId ||
+      !billing.trialEndsAt ||
+      new Date(billing.trialEndsAt).getTime() > now.getTime()
+    ) {
+      return false;
+    }
+    this.billing.set(merchantId, {
+      ...billing,
+      status: "starter",
+      trialEndsAt: undefined,
+      currentPeriodEnd: undefined,
+      cancelAtPeriodEnd: false,
+      updatedAt: now.toISOString(),
+    });
+    return true;
+  }
+
+  async expireTrials(now: Date, limit: number): Promise<number> {
+    let count = 0;
+    const max = Math.max(1, Math.trunc(limit));
+    for (const [merchantId, billing] of this.billing.entries()) {
+      if (count >= max) break;
+      if (
+        billing.status !== "trialing" ||
+        billing.stripeSubscriptionId ||
+        !billing.trialEndsAt ||
+        new Date(billing.trialEndsAt).getTime() > now.getTime()
+      ) {
+        continue;
+      }
+      this.billing.set(merchantId, {
+        ...billing,
+        status: "starter",
+        trialEndsAt: undefined,
+        currentPeriodEnd: undefined,
+        cancelAtPeriodEnd: false,
+        updatedAt: now.toISOString(),
+      });
+      count += 1;
+    }
+    return count;
   }
 
   async findMerchantByStripeCustomerId(
@@ -116,6 +198,14 @@ export class InMemoryPaymentPlatformRepository
   ): Promise<string | undefined> {
     return [...this.billing.values()].find(
       (item) => item.stripeSubscriptionId === subscriptionId,
+    )?.merchantId;
+  }
+
+  async findMerchantByAsaasSubscriptionId(
+    subscriptionId: string,
+  ): Promise<string | undefined> {
+    return [...this.billing.values()].find(
+      (item) => item.asaasSubscriptionId === subscriptionId,
     )?.merchantId;
   }
 }

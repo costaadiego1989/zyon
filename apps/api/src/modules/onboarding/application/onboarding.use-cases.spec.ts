@@ -1,19 +1,35 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BadRequestException } from "@nestjs/common";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { GetOnboardingStateUseCase } from "./get-onboarding-state.use-case.js";
 import { CompleteOnboardingStepUseCase } from "./complete-onboarding-step.use-case.js";
 import { InMemoryOnboardingStateRepository } from "../infrastructure/in-memory-onboarding-state.repository.js";
 import { InMemoryOutboxRepository } from "../../../shared/messaging/infrastructure/in-memory-outbox.repository.js";
+import type { MerchantRepository } from "../../merchant/domain/ports/merchant-repository.port.js";
+
+/** Stub merchant repo: all merchants with "mrc_" prefix exist. */
+class StubMerchantRepository {
+  async getProfile(merchantId: string) {
+    if (merchantId.startsWith("mrc_")) return { name: "Test Merchant" };
+    return undefined;
+  }
+  async getRules() { return {}; }
+  async getStripeConnectAccountId() { return undefined; }
+  async setStripeConnectAccountId() {}
+  async updateRules() { return {}; }
+  async updateTheme() { return {}; }
+  async enableCrypto() {}
+}
 
 function setup() {
   const repo = new InMemoryOnboardingStateRepository();
   const outbox = new InMemoryOutboxRepository();
+  const merchants = new StubMerchantRepository() as unknown as MerchantRepository;
   return {
     repo,
     outbox,
     get: new GetOnboardingStateUseCase(repo),
-    complete: new CompleteOnboardingStepUseCase(repo, outbox)
+    complete: new CompleteOnboardingStepUseCase(repo, outbox, merchants)
   };
 }
 
@@ -42,7 +58,7 @@ test("CompleteOnboardingStep advances next_step and emits event", async () => {
   const state = await complete.execute({ merchantId: "mrc_1", step: "checkout_config" });
 
   assert.equal(state.steps.find((s) => s.id === "checkout_config")?.status, "completed");
-  assert.equal(state.next_step, "embed");
+  assert.equal(state.next_step, "whatsapp");
   const events = await outbox.listOutbox("mrc_1");
   assert.equal(events.filter((e) => e.event_type === "merchant.onboarding.step.completed").length, 1);
 });
@@ -61,8 +77,8 @@ test("CompleteOnboardingStep emits onboarding.completed once all steps done", as
   const { complete, outbox } = setup();
 
   await complete.execute({ merchantId: "mrc_1", step: "checkout_config" });
-  await complete.execute({ merchantId: "mrc_1", step: "embed" });
-  const final = await complete.execute({ merchantId: "mrc_1", step: "publish" });
+  await complete.execute({ merchantId: "mrc_1", step: "whatsapp" });
+  const final = await complete.execute({ merchantId: "mrc_1", step: "ai_engine" });
 
   assert.equal(final.completed, true);
   assert.ok(final.completed_at);
@@ -101,10 +117,10 @@ test("GetOnboardingState does NOT persist on first read", async () => {
 
 // --- Regression tests for BUG P3: step order enforcement ---
 
-test("CompleteOnboardingStep rejects out-of-order step (embed before checkout_config)", async () => {
+test("CompleteOnboardingStep rejects out-of-order step (whatsapp before checkout_config)", async () => {
   const { complete } = setup();
   await assert.rejects(
-    () => complete.execute({ merchantId: "mrc_1", step: "embed" }),
+    () => complete.execute({ merchantId: "mrc_1", step: "whatsapp" }),
     (err: unknown) => {
       assert.ok(err instanceof BadRequestException);
       assert.equal((err as BadRequestException).message, "onboarding_step_out_of_order");
@@ -119,6 +135,17 @@ test("CompleteOnboardingStep allows steps completed in canonical order", async (
   const s1 = await complete.execute({ merchantId: "mrc_1", step: "checkout_config" });
   assert.equal(s1.steps.find((s) => s.id === "checkout_config")?.status, "completed");
   // embed second — predecessors satisfied
-  const s2 = await complete.execute({ merchantId: "mrc_1", step: "embed" });
-  assert.equal(s2.steps.find((s) => s.id === "embed")?.status, "completed");
+  const s2 = await complete.execute({ merchantId: "mrc_1", step: "whatsapp" });
+  assert.equal(s2.steps.find((s) => s.id === "whatsapp")?.status, "completed");
+});
+
+test("ONB-H1: CompleteOnboardingStep rejects non-existent merchant", async () => {
+  const { complete } = setup();
+  await assert.rejects(
+    () => complete.execute({ merchantId: "nonexistent", step: "checkout_config" }),
+    (err: unknown) => {
+      assert.ok(err instanceof NotFoundException);
+      return true;
+    }
+  );
 });

@@ -2,6 +2,7 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  Inject,
   Injectable,
   SetMetadata,
 } from "@nestjs/common";
@@ -23,7 +24,7 @@ export type TenantRequest = {
 
 @Injectable()
 export class TenantGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(@Inject(Reflector) private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
@@ -66,6 +67,10 @@ export function tenantContextFromPrincipal(
     throw new ForbiddenException("invalid_tenant_principal");
   }
 
+  // Buyer principals may carry merchantId (H3 fix) but are NOT tenant-scoped
+  // merchant principals — skip tenant validation for them.
+  if (principal.role === "buyer" || principal.aud === "buyer") return null;
+
   const looksLikeMerchantPrincipal =
     hasOwn(principal, "merchantId") ||
     hasOwn(principal, "userId") ||
@@ -76,7 +81,9 @@ export function tenantContextFromPrincipal(
   if (
     !isNormalizedIdentifier(principal.merchantId) ||
     !isNormalizedIdentifier(principal.userId) ||
-    (principal.role !== "owner" && principal.role !== "admin")
+    (principal.role !== "owner" &&
+      principal.role !== "admin" &&
+      principal.role !== "staff")
   ) {
     throw new ForbiddenException("invalid_tenant_principal");
   }
@@ -100,6 +107,10 @@ function merchantIdsFrom(value: unknown): unknown[] {
   }
   if (hasOwn(value, "merchant_id")) {
     candidates.push(...flattenValue(value.merchant_id));
+  }
+  // R2P-CAT01 (P0): Routes using :mid param (catalog, returns) were unprotected.
+  if (hasOwn(value, "mid")) {
+    candidates.push(...flattenValue(value.mid));
   }
   return candidates;
 }

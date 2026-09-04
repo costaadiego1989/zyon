@@ -1,9 +1,16 @@
-import type { CompletedOrder, CompleteOrderRequest } from "@aacp/shared-types";
+import type { CompletedOrder, CompleteOrderRequest } from "@zyon/shared-types";
 
 export class CompletedOrderEntity {
   private constructor(private readonly props: CompletedOrder) {}
 
-  static complete(input: CompleteOrderRequest, now = new Date()): CompletedOrderEntity {
+  static complete(
+    input: CompleteOrderRequest,
+    now = new Date(),
+    extras?: {
+      lineItems?: CompletedOrder["lineItems"];
+      shippingCents?: number;
+    },
+  ): CompletedOrderEntity {
     const trackingCode = input.tracking_code?.trim() || undefined;
 
     return new CompletedOrderEntity({
@@ -15,6 +22,8 @@ export class CompletedOrderEntity {
       status: "approved",
       acceptedOfferId: input.accepted_offer_id,
       trackingCode,
+      lineItems: extras?.lineItems,
+      shippingCents: extras?.shippingCents,
       completedAt: now.toISOString()
     });
   }

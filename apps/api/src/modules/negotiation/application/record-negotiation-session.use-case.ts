@@ -1,9 +1,12 @@
-import { Inject, Injectable } from "@nestjs/common";
-import type { NegotiationResult } from "@aacp/negotiation-engine";
+import { Inject, Injectable , Logger} from "@nestjs/common";
+import type { NegotiationResult } from "@zyon/negotiation-engine";
 import { NEGOTIATION_STORE, type NegotiationStore } from "../domain/ports/negotiation-store.port.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class RecordNegotiationSessionUseCase {
+  private readonly logger = new Logger(RecordNegotiationSessionUseCase.name);
+
   constructor(@Inject(NEGOTIATION_STORE) private readonly store: NegotiationStore) {}
 
   async execute(input: {

@@ -1,5 +1,5 @@
 import React from "react";
-import type { StageQuickReplies } from "@aacp/shared-types";
+import type { StageQuickReplies } from "@zyon/shared-types";
 
 type SubStage = { label: string; key: string };
 

@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
-import type { BuyerNegotiationPreferences } from "@aacp/negotiation-engine";
+import type { BuyerNegotiationPreferences } from "@zyon/negotiation-engine";
 import { DEFAULT_BUYER_NEGOTIATION_PREFERENCES } from "../domain/negotiation-defaults.js";
 import { assertValidBuyerNegotiationPreferences } from "../domain/buyer-agent-preferences.entity.js";
 import { NEGOTIATION_STORE, type NegotiationStore } from "../domain/ports/negotiation-store.port.js";

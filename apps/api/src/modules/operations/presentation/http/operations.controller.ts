@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Inject,
   Param,
   Post,
   Put,
@@ -11,12 +12,20 @@ import {
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiCookieAuth,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
 import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
 import { Idempotent } from "../../../../shared/http/idempotency/idempotent.decorator.js";
-import { UpdateTenantOrderTrackingUseCase } from "../../../integrations/application/integrations.use-cases.js";
+import {
+  ORDER_TRACKING_UPDATER,
+  type OrderTrackingUpdater,
+} from "../../domain/ports/order-tracking.port.js";
 import { RequireTenantAccess } from "../../../integrations/presentation/http/tenant-access.decorator.js";
 import { TenantAccessGuard } from "../../../integrations/presentation/http/tenant-access.guard.js";
 import { TenantCredentialGuard } from "../../../integrations/presentation/http/tenant-credential.guard.js";
@@ -31,6 +40,7 @@ import {
 import {
   CancelOrderUseCase,
   CreateOrderFromPaymentUseCase,
+  UpdateOrderStatusUseCase,
 } from "../../application/order-command.use-cases.js";
 import type {
   CustomerDetail,
@@ -43,6 +53,7 @@ import { UpdateOrderTrackingDto } from "./order-tracking.dto.js";
 import {
   CancelOrderDto,
   CreateOrderDto,
+  UpdateOrderStatusDto,
 } from "./order-command.dto.js";
 
 @ApiTags("Orders")
@@ -54,13 +65,37 @@ export class OrdersController {
   constructor(
     private readonly listOrders: ListOrdersUseCase,
     private readonly getOrder: GetOrderUseCase,
-    private readonly updateOrderTracking: UpdateTenantOrderTrackingUseCase,
+    @Inject(ORDER_TRACKING_UPDATER)
+    private readonly updateOrderTracking: OrderTrackingUpdater,
     private readonly cancelOrder: CancelOrderUseCase,
     private readonly createOrder: CreateOrderFromPaymentUseCase,
+    private readonly updateOrderStatus: UpdateOrderStatusUseCase,
   ) {}
 
   @Get()
-  @RequireTenantAccess({ serviceScopes: ["orders:read"] })
+  @ApiOperation({
+    summary: "List orders",
+    description: "Retrieves paginated list of orders for the merchant. Supports cursor-based pagination. Orders progress through lifecycle: pending → processing → fulfilled or cancelled.",
+  })
+  @ApiQuery({ name: "limit", type: "string", required: false, description: "Items per page (default: 10)" })
+  @ApiQuery({ name: "cursor", type: "string", required: false, description: "Pagination cursor for next page" })
+  @ApiResponse({
+    status: 200,
+    description: "Orders retrieved successfully",
+    schema: {
+      properties: {
+        data: {
+          type: "array",
+          items: { $ref: "#/components/schemas/Order" },
+        },
+        next_cursor: { type: "string", nullable: true },
+        has_more: { type: "boolean" },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
+  @RequireTenantAccess({ serviceScopes: ["orders:read"], humanRoles: ["owner", "admin", "staff"] })
   async list(
     @Req() request: unknown,
     @Query("limit") limit?: string,
@@ -76,6 +111,27 @@ export class OrdersController {
 
   @Post()
   @Idempotent()
+  @ApiOperation({
+    summary: "Create order from payment",
+    description: "Creates a new order from an existing approved payment. Used when payment is approved through an external channel and needs order record.",
+  })
+  @ApiBody({
+    schema: {
+      properties: {
+        payment_id: { type: "string", description: "ID of approved payment" },
+      },
+      required: ["payment_id"],
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: "Order created successfully",
+    schema: { $ref: "#/components/schemas/OrderDetail" },
+  })
+  @ApiResponse({ status: 400, description: "Invalid payment_id or payment not approved" })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
+  @ApiResponse({ status: 404, description: "Payment not found" })
   @RequireTenantAccess({ serviceScopes: ["orders:write"] })
   async create(
     @Req() request: unknown,
@@ -92,7 +148,20 @@ export class OrdersController {
   }
 
   @Get(":orderId")
-  @RequireTenantAccess({ serviceScopes: ["orders:read"] })
+  @ApiOperation({
+    summary: "Get order details",
+    description: "Retrieves full order details including timeline events, customer info, cart items, and any applied offers.",
+  })
+  @ApiParam({ name: "orderId", type: "string", description: "Order ID" })
+  @ApiResponse({
+    status: 200,
+    description: "Order retrieved successfully",
+    schema: { $ref: "#/components/schemas/OrderDetail" },
+  })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
+  @ApiResponse({ status: 404, description: "Order not found" })
+  @RequireTenantAccess({ serviceScopes: ["orders:read"], humanRoles: ["owner", "admin", "staff"] })
   async get(
     @Req() request: unknown,
     @Param("orderId") orderId: string,
@@ -104,6 +173,29 @@ export class OrdersController {
 
   @Post(":orderId/cancel")
   @Idempotent()
+  @ApiOperation({
+    summary: "Cancel order",
+    description: "Cancels an order with optional customer notification and inventory restock. Updates order status to 'cancelled' and records cancellation reason.",
+  })
+  @ApiParam({ name: "orderId", type: "string", description: "Order ID to cancel" })
+  @ApiBody({
+    schema: {
+      properties: {
+        reason: { type: "string", description: "Reason for cancellation" },
+        notify_customer: { type: "boolean", description: "Send cancellation notification to customer" },
+        restock: { type: "boolean", description: "Return items to inventory" },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Order cancelled successfully",
+    schema: { properties: { cancelled: { type: "boolean" } } },
+  })
+  @ApiResponse({ status: 400, description: "Cannot cancel order in current status" })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
+  @ApiResponse({ status: 404, description: "Order not found" })
   @RequireTenantAccess({ serviceScopes: ["orders:write"] })
   cancel(
     @Req() request: unknown,
@@ -119,8 +211,58 @@ export class OrdersController {
     });
   }
 
+  @Put(":orderId/status")
+  @Idempotent()
+  @ApiOperation({
+    summary: "Update order status",
+    description: "Updates order status in the lifecycle: pending → processing → fulfilled (or cancelled at any stage). Invalid transitions are rejected.",
+  })
+  @ApiParam({ name: "orderId", type: "string", description: "Order ID" })
+  @ApiBody({
+    schema: {
+      properties: {
+        status: { type: "string", enum: ["pending", "processing", "fulfilled", "cancelled"] },
+      },
+      required: ["status"],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Status updated successfully",
+    schema: { properties: { status: { type: "string" } } },
+  })
+  @ApiResponse({ status: 400, description: "Invalid status transition" })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
+  @ApiResponse({ status: 404, description: "Order not found" })
+  @RequireTenantAccess({ serviceScopes: ["orders:write"] })
+  updateStatus(
+    @Req() request: unknown,
+    @Param("orderId") orderId: string,
+    @Body() body: UpdateOrderStatusDto,
+  ) {
+    return this.updateOrderStatus.execute({
+      merchantId: tenantId(request),
+      orderId,
+      status: body.status,
+    });
+  }
+
   @Get(":orderId/timeline")
-  @RequireTenantAccess({ serviceScopes: ["orders:read"] })
+  @ApiOperation({
+    summary: "Get order timeline",
+    description: "Retrieves all lifecycle events for an order (status changes, payment events, tracking events) in chronological order.",
+  })
+  @ApiParam({ name: "orderId", type: "string", description: "Order ID" })
+  @ApiResponse({
+    status: 200,
+    description: "Timeline retrieved successfully",
+    schema: { properties: { data: { type: "array" } } },
+  })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
+  @ApiResponse({ status: 404, description: "Order not found" })
+  @RequireTenantAccess({ serviceScopes: ["orders:read"], humanRoles: ["owner", "admin", "staff"] })
   async timeline(
     @Req() request: unknown,
     @Param("orderId") orderId: string,
@@ -130,7 +272,27 @@ export class OrdersController {
   }
 
   @Get(":orderId/tracking")
-  @RequireTenantAccess({ serviceScopes: ["tracking:read"] })
+  @ApiOperation({
+    summary: "Get order tracking info",
+    description: "Retrieves shipment tracking information for the order, including tracking code and tracking-specific timeline events.",
+  })
+  @ApiParam({ name: "orderId", type: "string", description: "Order ID" })
+  @ApiResponse({
+    status: 200,
+    description: "Tracking info retrieved successfully",
+    schema: {
+      properties: {
+        order_id: { type: "string" },
+        external_order_id: { type: "string" },
+        tracking_code: { type: "string", nullable: true },
+        timeline: { type: "array" },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
+  @ApiResponse({ status: 404, description: "Order not found" })
+  @RequireTenantAccess({ serviceScopes: ["tracking:read"], humanRoles: ["owner", "admin", "staff"] })
   async tracking(
     @Req() request: unknown,
     @Param("orderId") orderId: string,
@@ -146,6 +308,30 @@ export class OrdersController {
 
   @Put(":orderId/tracking")
   @Idempotent()
+  @ApiOperation({
+    summary: "Update order tracking",
+    description: "Updates shipment tracking information including tracking code, carrier, URL, delivery status, and tracking events.",
+  })
+  @ApiParam({ name: "orderId", type: "string", description: "Order ID" })
+  @ApiResponse({
+    status: 200,
+    description: "Tracking updated successfully",
+    schema: {
+      properties: {
+        updated: { type: "boolean" },
+        changed: { type: "boolean" },
+        order_id: { type: "string" },
+        external_order_id: { type: "string" },
+        tracking_code: { type: "string", nullable: true },
+        shipment: { type: "object" },
+        events_recorded: { type: "number" },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: "Invalid tracking data" })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
+  @ApiResponse({ status: 404, description: "Order not found" })
   @RequireTenantAccess({ serviceScopes: ["tracking:write"] })
   async updateTracking(
     @Req() request: unknown,
@@ -191,6 +377,26 @@ export class CustomersController {
   ) {}
 
   @Get()
+  @ApiOperation({
+    summary: "List customers",
+    description: "Retrieves paginated list of customers with profile data and first/last seen timestamps. Supports cursor-based pagination.",
+  })
+  @ApiQuery({ name: "limit", type: "string", required: false, description: "Items per page (default: 10)" })
+  @ApiQuery({ name: "cursor", type: "string", required: false, description: "Pagination cursor for next page" })
+  @ApiResponse({
+    status: 200,
+    description: "Customers retrieved successfully",
+    schema: {
+      properties: {
+        data: { type: "array" },
+        next_cursor: { type: "string", nullable: true },
+        has_more: { type: "boolean" },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
+  @RequireTenantAccess({ serviceScopes: ["customers:read"], humanRoles: ["owner", "admin", "staff"] })
   async list(
     @Req() request: unknown,
     @Query("limit") limit?: string,
@@ -205,6 +411,20 @@ export class CustomersController {
   }
 
   @Get(":customerId")
+  @ApiOperation({
+    summary: "Get customer details",
+    description: "Retrieves full customer profile including purchase history for this merchant.",
+  })
+  @ApiParam({ name: "customerId", type: "string", description: "Customer ID" })
+  @ApiResponse({
+    status: 200,
+    description: "Customer retrieved successfully",
+    schema: { $ref: "#/components/schemas/CustomerDetail" },
+  })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
+  @ApiResponse({ status: 404, description: "Customer not found" })
+  @RequireTenantAccess({ serviceScopes: ["customers:read"], humanRoles: ["owner", "admin", "staff"] })
   async get(
     @Req() request: unknown,
     @Param("customerId") customerId: string,
@@ -228,6 +448,26 @@ export class PaymentsController {
   ) {}
 
   @Get()
+  @ApiOperation({
+    summary: "List payments",
+    description: "Retrieves paginated list of payments with status, amount, provider reference, and method info. Supports cursor-based pagination.",
+  })
+  @ApiQuery({ name: "limit", type: "string", required: false, description: "Items per page (default: 10)" })
+  @ApiQuery({ name: "cursor", type: "string", required: false, description: "Pagination cursor for next page" })
+  @ApiResponse({
+    status: 200,
+    description: "Payments retrieved successfully",
+    schema: {
+      properties: {
+        data: { type: "array" },
+        next_cursor: { type: "string", nullable: true },
+        has_more: { type: "boolean" },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
+  @RequireTenantAccess({ serviceScopes: ["payments:read"], humanRoles: ["owner", "admin", "staff"] })
   async list(
     @Req() request: unknown,
     @Query("limit") limit?: string,
@@ -242,6 +482,20 @@ export class PaymentsController {
   }
 
   @Get(":paymentId")
+  @ApiOperation({
+    summary: "Get payment details",
+    description: "Retrieves payment details including amount, status, method, provider reference, and full status history.",
+  })
+  @ApiParam({ name: "paymentId", type: "string", description: "Payment ID" })
+  @ApiResponse({
+    status: 200,
+    description: "Payment retrieved successfully",
+    schema: { $ref: "#/components/schemas/PaymentSummary" },
+  })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
+  @ApiResponse({ status: 404, description: "Payment not found" })
+  @RequireTenantAccess({ serviceScopes: ["payments:read"], humanRoles: ["owner", "admin", "staff"] })
   async get(
     @Req() request: unknown,
     @Param("paymentId") paymentId: string,
@@ -290,6 +544,9 @@ function toOrderResponse(order: OrderSummary) {
     completed_at: order.completedAt,
     cancelled_at: order.cancelledAt ?? null,
     cancellation_reason: order.cancellationReason ?? null,
+    payment_method: order.paymentMethod ?? null,
+    payment_provider: order.paymentProvider ?? null,
+    paid_at: order.paidAt ?? null,
   };
 }
 

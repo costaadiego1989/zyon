@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zyon — AI Checkout Sales Agent</title>
+<meta name="description" content="Zyon é uma gerente de vendas com IA que conversa, negocia dentro das regras da loja e conduz o cliente até o pagamento. Buscamos marcas DTC para pilotos comerciais." />
+<meta property="og:title" content="Zyon — AI Checkout Sales Agent" />
+<meta property="og:description" content="Gerente de vendas com IA para e-commerce: conversa, negocia e finaliza pagamentos." />
+<meta property="og:type" content="website" />
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070a08;
+  --panel:#0f130f;
+  --panel2:#151a15;
+  --card:#121712;
+  --line:rgba(255,255,255,0.08);
+  --line2:rgba(255,255,255,0.14);
+  --ink:#f2f5f2;
+  --muted:#9ba69d;
+  --faint:#67716a;
+  --green:#2fe26e;
+  --green-hi:#7dffab;
+  --green-ink:#04150b;
+}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Manrope',system-ui,sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:var(--ink);text-decoration:none}
+a:hover{color:var(--green-hi)}
+button{font-family:inherit;cursor:pointer}
+::selection{background:rgba(47,226,110,0.35)}
+summary::-webkit-details-marker{display:none}
+summary{list-style:none}
+@keyframes zorb{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-8px) scale(1.02)}}
+@keyframes zblink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(0.1)}}
+@keyframes zpulse{0%,100%{box-shadow:0 0 0 0 rgba(47,226,110,0.5)}70%{box-shadow:0 0 0 7px transparent}}
+@keyframes zbar{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes zfill{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes zshimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes zborderGlow{0%,100%{border-color:rgba(47,226,110,0.15);box-shadow:0 0 0 0 rgba(47,226,110,0)}50%{border-color:rgba(47,226,110,0.45);box-shadow:0 0 20px rgba(47,226,110,0.08)}}
+@keyframes zsweep{0%{left:-100%}100%{left:100%}}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:0.01ms !important;animation-iteration-count:1 !important;transition-duration:0.01ms !important}html{scroll-behavior:auto}}
+/* Mobile-first nav */
+[data-screen-label="Nav"] > div > div:nth-child(2){display:none}
+[data-screen-label="Nav"] > div > div:nth-child(3) > a:first-child{display:none}
+@media (min-width: 768px){
+  [data-screen-label="Nav"] > div > div:nth-child(2){display:flex !important}
+  [data-screen-label="Nav"] > div > div:nth-child(3) > a:first-child{display:block !important}
+}
+</style>
+</helmet>
+
+<div style="min-height:100vh;overflow-x:clip;position:relative">
+
+  <!-- ambient glow -->
+  <div aria-hidden="true" style="position:absolute;inset:0 0 auto 0;height:1100px;pointer-events:none;background:radial-gradient(760px 520px at 72% 6%, rgba(47,226,110,0.12), transparent 62%), radial-gradient(900px 600px at 12% -10%, rgba(47,226,110,0.06), transparent 60%)"></div>
+
+  <!-- ============ PROMO BAR ============ -->
+  <sc-if value="{{ showPromo }}" hint-placeholder-val="{{ true }}">
+    <div data-screen-label="Promo" style="position:relative;z-index:5;display:flex;align-items:center;justify-content:center;gap:12px;padding:9px 16px;background:rgba(47,226,110,0.08);border-bottom:1px solid var(--line)">
+      <span style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:0.2em;text-transform:uppercase;color:var(--green)">Lançamento</span>
+      <span style="font:500 13px 'Manrope',sans-serif;color:var(--muted)">Teste grátis por 14 dias na sua loja</span>
+      <a href="#planos" style="font:700 13px 'Manrope',sans-serif;color:var(--green-hi);border-bottom:1px solid rgba(47,226,110,0.4)">Aproveitar →</a>
+    </div>
+  </sc-if>
+
+  <!-- ============ NAV ============ -->
+  <nav data-screen-label="Nav" style="position:sticky;top:0;z-index:100;border-bottom:1px solid var(--line);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);background:rgba(7,10,8,0.8)">
+    <div style="max-width:1200px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px;justify-content:space-between">
+      <a href="#topo" style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+        <img src="assets/zyon-logo-new.png" alt="Zyon" style="width:112px;height:auto;display:block;max-height:34px;object-fit:contain">
+      </a>
+      <div style="display:none;align-items:center;gap:2px;flex-wrap:nowrap;@media(min-width:768px){display:flex}">
+        <a href="#experiencia" style="font:600 13px 'Manrope',sans-serif;color:var(--muted);padding:8px 10px;border-radius:8px;white-space:nowrap" style-hover="color:var(--ink)">A experiência</a>
+        <a href="https://wa.me/5521993001883?text=Ol%C3%A1%20Zyon%2C%20gostaria%20de%20ver%20a%20Zyon%20em%20a%C3%A7%C3%A3o" target="_blank" rel="noopener" style="font:600 13px 'Manrope',sans-serif;color:var(--muted);padding:8px 10px;border-radius:8px;white-space:nowrap" style-hover="color:var(--ink)">Em ação</a>
+        <a href="#beneficios" style="font:600 13px 'Manrope',sans-serif;color:var(--muted);padding:8px 10px;border-radius:8px;white-space:nowrap" style-hover="color:var(--ink)">Para a loja</a>
+        <a href="#resultados" style="font:600 13px 'Manrope',sans-serif;color:var(--muted);padding:8px 10px;border-radius:8px;white-space:nowrap" style-hover="color:var(--ink)">Resultados</a>
+        <a href="#planos" style="font:600 13px 'Manrope',sans-serif;color:var(--muted);padding:8px 10px;border-radius:8px;white-space:nowrap" style-hover="color:var(--ink)">Planos</a>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-shrink:0">
+        <a href="#planos" style="display:none;font:600 13px 'Manrope',sans-serif;color:var(--muted);white-space:nowrap;@media(min-width:768px){display:block}" style-hover="color:var(--ink)">Entrar</a>
+        <a href="https://wa.me/5521993001883?text=Ol%C3%A1%20Zyon%2C%20quero%20instalar%20a%20Zyon%20na%20minha%20loja" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;height:40px;padding:0 16px;border-radius:999px;font:800 12px 'Manrope',sans-serif;background:var(--green);color:var(--green-ink);white-space:nowrap;box-shadow:0 8px 30px rgba(47,226,110,0.3);@media(min-width:768px){height:42px;padding:0 20px;font-size:14px}" style-hover="filter:brightness(1.1);color:var(--green-ink)">Instalar na loja</a>
+      </div>
+    </div>
+  </nav>
+
+  <main id="topo" style="position:relative;z-index:2">
+
+  <!-- ============ HERO ============ -->
+  <section data-screen-label="Hero" style="max-width:1200px;margin:0 auto;padding:clamp(56px,7vw,96px) 24px 0">
+    <div style="display:flex;flex-wrap:wrap;gap:clamp(40px,5vw,72px);align-items:center">
+      <div style="flex:1 1 500px;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:26px">
+          <span style="display:inline-flex;align-items:center;gap:10px;padding:8px 16px;border:1px solid var(--line2);border-radius:999px;background:rgba(18,23,18,0.7)">
+          <span style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:zpulse 2.2s ease-out infinite"></span>
+          <span style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:0.22em;text-transform:uppercase;color:var(--muted)">Voz · Chat</span>
+        </span>
+        <h1 style="margin:0;font-family:'Sora',sans-serif;font-weight:800;font-size:clamp(40px,5.2vw,70px);line-height:1.04;letter-spacing:-0.04em;max-width:16ch;text-wrap:balance">Zyon veio <span style="color:var(--green)">redefinir</span> a forma de comprar na internet.</h1>
+        <p style="margin:0;font:500 18px/1.65 'Manrope',sans-serif;color:var(--muted);max-width:52ch;text-wrap:pretty">Uma gerente de vendas de IA dentro da sua loja. Ela conversa, negocia frete e desconto dentro das suas regras e fecha o pagamento — por chat, por voz ou com um olhar.</p>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+          <a href="https://wa.me/5521993001883?text=Ol%C3%A1%20Zyon%2C%20quero%20saber%20mais" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;height:54px;padding:0 30px;border-radius:999px;font:800 16px 'Manrope',sans-serif;background:var(--green);color:var(--green-ink);box-shadow:0 12px 44px rgba(47,226,110,0.35)" style-hover="filter:brightness(1.1);color:var(--green-ink)">Instalar na minha loja
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"></path></svg>
+          </a>
+          <a href="https://wa.me/5521993001883?text=Ol%C3%A1%20Zyon%2C%20gostaria%20de%20ver%20uma%20demonstra%C3%A7%C3%A3o" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;height:54px;padding:0 24px;border:1px solid var(--line2);border-radius:999px;font:700 15px 'Manrope',sans-serif;color:var(--ink);background:rgba(18,23,18,0.55)" style-hover="background:var(--panel2);color:var(--ink)">Ver a Zyon em ação</a>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ INTEGRAÇÕES ============ -->
+  <section data-screen-label="Integrações" style="max-width:1200px;margin:clamp(48px,6vw,76px) auto 0;padding:0 24px">
+    <div style="position:relative;border-radius:28px;padding:2px;background:linear-gradient(135deg,rgba(47,226,110,0.2),rgba(47,226,110,0.04) 50%,rgba(47,226,110,0.2));animation:zborderGlow 5s ease-in-out infinite;overflow:hidden">
+      <div style="position:absolute;inset:0;overflow:hidden;border-radius:28px;pointer-events:none"><div style="position:absolute;top:0;left:-100%;width:50%;height:100%;background:linear-gradient(90deg,transparent,rgba(47,226,110,0.1),transparent);animation:zsweep 4s ease-in-out infinite"></div></div>
+    <div style="border-radius:26px;padding:clamp(22px,3vw,30px);background:linear-gradient(180deg,var(--panel),var(--bg));display:flex;flex-direction:column;gap:18px">
+      <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px">
+        <div>
+          <span style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:0.28em;text-transform:uppercase;color:var(--green)">Integrações</span>
+          <h3 style="margin:6px 0 0;font-family:'Sora',sans-serif;font-weight:800;font-size:22px;line-height:1.05;letter-spacing:-0.03em">Pronto para operar em lojas reais</h3>
+        </div>
+        <a href="https://wa.me/5521993001883?text=Ol%C3%A1%20Zyon%2C%20quero%20conhecer%20as%20integra%C3%A7%C3%B5es" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;border:1px solid var(--line2);font:700 13px 'Manrope',sans-serif;color:var(--ink)">Ver opções de implantação</a>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
+        <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border:1px solid var(--line);border-radius:18px;background:var(--card)">
+          <img src="assets/shopify.svg" alt="Shopify" style="width:28px;height:28px;object-fit:contain">
+          <div>
+            <div style="font:800 14px 'Manrope',sans-serif">Shopify</div>
+            <div style="font:500 12px 'Manrope',sans-serif;color:var(--faint)">Pronto</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border:1px solid var(--line);border-radius:18px;background:var(--card)">
+          <img src="assets/woocommerce.svg" alt="WooCommerce" style="width:28px;height:28px;object-fit:contain">
+          <div>
+            <div style="font:800 14px 'Manrope',sans-serif">WooCommerce</div>
+            <div style="font:500 12px 'Manrope',sans-serif;color:var(--faint)">Em implantação</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border:1px solid var(--line);border-radius:18px;background:var(--card)">
+          <img src="assets/nuvemshop.svg" alt="Nuvemshop" style="width:28px;height:28px;object-fit:contain">
+          <div>
+            <div style="font:800 14px 'Manrope',sans-serif">Nuvemshop</div>
+            <div style="font:500 12px 'Manrope',sans-serif;color:var(--faint)">Em implantação</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border:1px solid var(--line);border-radius:18px;background:var(--card)">
+          <img src="assets/tray.svg" alt="Tray" style="width:28px;height:28px;object-fit:contain">
+          <div>
+            <div style="font:800 14px 'Manrope',sans-serif">Tray</div>
+            <div style="font:500 12px 'Manrope',sans-serif;color:var(--faint)">Em implantação</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <!-- ============ PILOT METRICS BAND ============ -->
+  <section data-screen-label="Números" style="max-width:1200px;margin:clamp(72px,9vw,110px) auto 0;padding:0 24px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:24px;overflow:hidden">
+      <div style="background:var(--panel);padding:36px 28px;display:flex;flex-direction:column;gap:6px">
+        <span style="font:800 clamp(24px,3vw,34px) 'Sora',sans-serif;letter-spacing:-0.03em;color:var(--green)">Metas no piloto</span>
+        <span style="font:700 15px 'Manrope',sans-serif">Conversão monitorada</span>
+        <span style="font:500 13px 'Manrope',sans-serif;color:var(--faint)">Métricas definidas e acompanhadas durante o piloto.</span>
+      </div>
+      <div style="background:var(--panel);padding:36px 28px;display:flex;flex-direction:column;gap:6px">
+        <span style="font:800 clamp(24px,3vw,34px) 'Sora',sans-serif;letter-spacing:-0.03em;color:var(--green)">Recuperação</span>
+        <span style="font:700 15px 'Manrope',sans-serif">Carrinhos recuperados</span>
+        <span style="font:500 13px 'Manrope',sans-serif;color:var(--faint)">Comparativo com canais de recuperação tradicionais no piloto.</span>
+      </div>
+      <div style="background:var(--panel);padding:36px 28px;display:flex;flex-direction:column;gap:6px">
+        <span style="font:800 clamp(24px,3vw,34px) 'Sora',sans-serif;letter-spacing:-0.03em;color:var(--green)">SLA de resposta</span>
+        <span style="font:700 15px 'Manrope',sans-serif">Dúvidas resolvidas</span>
+        <span style="font:500 13px 'Manrope',sans-serif;color:var(--faint)">Taxa de resolução medida no piloto e exibida no painel.</span>
+      </div>
+      <div style="background:var(--panel);padding:36px 28px;display:flex;flex-direction:column;gap:6px">
+        <span style="font:800 clamp(24px,3vw,34px) 'Sora',sans-serif;letter-spacing:-0.03em;color:var(--green)">Time to live</span>
+        <span style="font:700 15px 'Manrope',sans-serif">Primeira venda assistida</span>
+        <span style="font:500 13px 'Manrope',sans-serif;color:var(--faint)">Meta operacional: primeira venda visível no painel em até 7 dias.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ A EXPERIÊNCIA ============ -->
+  <section id="experiencia" data-screen-label="A experiência" style="max-width:1200px;margin:0 auto;padding:clamp(96px,11vw,140px) 24px 0">
+    <div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:16px;margin-bottom:52px">
+      <span style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:0.28em;text-transform:uppercase;color:var(--green)">Uma nova forma de comprar</span>
+      <h2 style="margin:0;font-family:'Sora',sans-serif;font-weight:800;font-size:clamp(32px,3.8vw,52px);line-height:1.05;letter-spacing:-0.035em;max-width:22ch;text-wrap:balance">Sem formulário. Sem senha. Sem fricção.</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px">
+      <div style="border:1px solid var(--line);border-radius:22px;padding:34px 30px;background:var(--panel);display:flex;flex-direction:column;gap:16px;transition:border-color 150ms" style-hover="border-color:rgba(47,226,110,0.4)">
+        <span style="display:flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:50%;background:var(--green);color:var(--green-ink);box-shadow:0 8px 30px rgba(47,226,110,0.35)">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5"></path></svg>
+        </span>
+        <span style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:0.26em;text-transform:uppercase;color:var(--green)">Compra por voz</span>
+        <h3 style="margin:0;font:700 21px 'Sora',sans-serif;letter-spacing:-0.02em">O cliente fala. A Zyon compra.</h3>
+        <p style="margin:0;font:500 15px/1.6 'Manrope',sans-serif;color:var(--muted)">"Quero o de sempre, com frete mais barato." A Zyon entende, monta o pedido, cota o frete e confirma antes de pagar.</p>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:22px;padding:34px 30px;background:var(--panel);display:flex;flex-direction:column;gap:16px;transition:border-color 150ms" style-hover="border-color:rgba(47,226,110,0.4)">
+        <span style="display:flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:50%;background:var(--green);color:var(--green-ink);box-shadow:0 8px 30px rgba(47,226,110,0.35)">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-4.4-7.7L21 3l-1 4.6A9 9 0 0 1 21 12z"></path></svg>
+        </span>
+        <span style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:0.26em;text-transform:uppercase;color:var(--green)">Compra por chat</span>
+        <h3 style="margin:0;font:700 21px 'Sora',sans-serif;letter-spacing:-0.02em">Uma conversa que fecha pedido.</h3>
+        <p style="margin:0;font:500 15px/1.6 'Manrope',sans-serif;color:var(--muted)">Nada de 12 campos e 5 telas. A Zyon pergunta uma coisa de cada vez, aplica a promoção certa e conduz até o pagamento.</p>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:22px;padding:34px 30px;background:var(--panel);display:flex;flex-direction:column;gap:16px;transition:border-color 150ms" style-hover="border-color:rgba(47,226,110,0.4)">
+        <span style="display:flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:50%;background:var(--green);color:var(--green-ink);box-shadow:0 8px 30px rgba(47,226,110,0.35)">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"></path><path d="M8 12h8"></path></svg>
+        </span>
+        <span style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:0.26em;text-transform:uppercase;color:var(--green)">Recursos avançados</span>
+        <h3 style="margin:0;font:700 21px 'Sora',sans-serif;letter-spacing:-0.02em">Biometria e pagamentos alternativos</h3>
+        <p style="margin:0;font:500 15px/1.6 'Manrope',sans-serif;color:var(--muted)">Login facial e pagamento por olhar são recursos avançados: disponíveis mediante consentimento, compliance LGPD e implantação técnica. Entre em contato para ativar em piloto.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ EM AÇÃO (widget demo) ============ -->
+  <section id="demo" data-screen-label="Em ação" style="max-width:1200px;margin:0 auto;padding:clamp(96px,11vw,140px) 24px 0">
+    <div style="border:1px solid var(--line);border-radius:32px;background:linear-gradient(180deg,var(--panel2),var(--panel) 60%);padding:clamp(32px,5vw,64px);display:flex;flex-wrap:wrap;gap:clamp(40px,5vw,72px);align-items:center">
+      <div style="flex:1 1 400px;min-width:0;display:flex;flex-direction:column;gap:22px">
+        <span style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:0.28em;text-transform:uppercase;color:var(--green)">A Zyon em ação</span>
+        <h2 style="margin:0;font-family:'Sora',sans-serif;font-weight:800;font-size:clamp(30px,3.4vw,46px);line-height:1.06;letter-spacing:-0.035em;text-wrap:balance">Ela não espera o cliente desistir. Ela fecha.</h2>
+        <p style="margin:0;font:500 16px/1.65 'Manrope',sans-serif;color:var(--muted);max-width:46ch">Enquanto o checkout comum assiste o abandono, a Zyon age: garante a melhor promoção, mostra a economia e cria o momento certo de finalizar.</p>
+        <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:16px">
+          <li style="display:flex;gap:14px;align-items:flex-start">
+            <span style="flex:none;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:rgba(47,226,110,0.12);color:var(--green)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5 5 15M7.5 6.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM18.5 17.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"></path><rect x="2.5" y="2.5" width="19" height="19" rx="4"></rect></svg>
+            </span>
+            <span style="font:500 15px/1.55 'Manrope',sans-serif;color:var(--muted)"><strong style="color:var(--ink)">Promoção aplicada sozinha.</strong> Ela encontra o cupom que vale para o carrinho e já aplica — o cliente vê a economia na hora.</span>
+          </li>
+          <li style="display:flex;gap:14px;align-items:flex-start">
+            <span style="flex:none;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:rgba(47,226,110,0.12);color:var(--green)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3.5 2"></path></svg>
+            </span>
+            <span style="font:500 15px/1.55 'Manrope',sans-serif;color:var(--muted)"><strong style="color:var(--ink)">Urgência de verdade.</strong> Bônus com tempo real de expiração — nada de falso desconto piscando.</span>
+          </li>
+          <li style="display:flex;gap:14px;align-items:flex-start">
+            <span style="flex:none;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:rgba(47,226,110,0.12);color:var(--green)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.6-3 8.1-7 10-4-1.9-7-5.4-7-10V6z"></path><path d="m9 12 2 2 4-4"></path></svg>
+            </span>
+            <span style="font:500 15px/1.55 'Manrope',sans-serif;color:var(--muted)"><strong style="color:var(--ink)">Sempre dentro das suas regras.</strong> Desconto máximo, margem mínima e frete: você define os limites, ela nunca passa deles.</span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- phone: checkout conversation -->
+      <div style="flex:0 1 400px;min-width:300px;margin:0 auto;position:relative;display:flex;justify-content:center">
+        <div aria-hidden="true" style="position:absolute;inset:6%;background:radial-gradient(closest-side, rgba(47,226,110,0.16), transparent 70%);filter:blur(30px)"></div>
+        <div style="position:relative;width:370px;max-width:82vw;border-radius:30px;border:1px solid var(--line2);background:#080b08;box-shadow:0 40px 120px rgba(0,0,0,0.8);display:flex;flex-direction:column;overflow:hidden">
+          <!-- header -->
+          <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)">
+            <div style="position:relative;width:34px;height:34px;flex:none">
+              <div style="width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 36% 28%, #eafff1, #7dffab 24%, #2fe26e 48%, #0d7a3c 78%);box-shadow:0 0 18px rgba(47,226,110,0.5)"></div>
+              <span style="position:absolute;top:13px;left:11px;width:3px;height:6px;border-radius:2px;background:#f4fff8"></span>
+              <span style="position:absolute;top:13px;right:11px;width:3px;height:6px;border-radius:2px;background:#f4fff8"></span>
+            </div>
+            <div style="display:flex;flex-direction:column;min-width:0">
+              <span style="font:800 14px 'Manrope',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Zyon · Gerente de vendas</span>
+              <span style="display:flex;align-items:center;gap:5px;font:600 11px 'Manrope',sans-serif;color:var(--green)"><span style="width:6px;height:6px;border-radius:50%;background:var(--green)"></span>Online · Loja</span>
+            </div>
+            <div style="margin-left:auto;display:flex;gap:6px">
+              <span style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:var(--card);color:var(--muted)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="12" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5"></path></svg></span>
+              <span style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:var(--card);color:var(--muted)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg></span>
+              <span style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:var(--card);color:var(--muted)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path></svg></span>
+            </div>
+          </div>
+          <!-- conversation -->
+          <div style="display:flex;flex-direction:column;gap:12px;padding:16px 14px 18px">
+            <div style="background:var(--card);border:1px solid var(--line);border-radius:4px 16px 16px 16px;padding:13px 15px;max-width:94%">
+              <p style="margin:0;font:500 13.5px/1.55 'Manrope',sans-serif;color:var(--ink)">Oi! Eu sou a Zyon, gerente de vendas da Loja. Vi que você está levando o <strong>Smart Display 8</strong> — já garanti a melhor promoção e apliquei no seu carrinho.</p>
+            </div>
+            <!-- product card -->
+            <div style="border:1px solid rgba(47,226,110,0.35);border-radius:16px;background:rgba(47,226,110,0.05);padding:12px 14px;display:flex;flex-direction:column;gap:10px">
+              <span style="display:flex;align-items:center;gap:6px;font:600 9px 'JetBrains Mono',monospace;letter-spacing:0.22em;text-transform:uppercase;color:var(--green)">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.5"></circle><circle cx="17" cy="20" r="1.5"></circle><path d="M3 4h2l2.5 12h10L20 8H6"></path></svg>No seu carrinho · Loja
+              </span>
+              <div style="display:flex;gap:12px;align-items:center">
+                <span style="flex:none;width:52px;height:52px;border-radius:12px;border:1px solid var(--line);background:repeating-linear-gradient(45deg, rgba(255,255,255,0.07) 0 5px, rgba(255,255,255,0.02) 5px 10px)"></span>
+                <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+                  <span style="font:800 14.5px 'Manrope',sans-serif">Smart Display 8</span>
+                  <span style="font:500 12px 'Manrope',sans-serif;color:var(--faint)">Controla seu speaker por voz e vídeo.</span>
+                </div>
+                <div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex:none">
+                  <span style="font:800 15px 'Manrope',sans-serif;white-space:nowrap">R$ 649,00</span>
+                  <span style="font:500 11px 'Manrope',sans-serif;color:var(--green)">em estoque</span>
+                </div>
+              </div>
+            </div>
+            <!-- promo card -->
+            <div style="border:1px solid rgba(47,226,110,0.4);border-radius:16px;background:rgba(47,226,110,0.07);display:flex;overflow:hidden">
+              <div style="flex:0 0 38%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:16px 10px;border-right:1px dashed rgba(47,226,110,0.4)">
+                <span style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px;background:rgba(47,226,110,0.15);color:var(--green)">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"></rect><path d="m8.5 12.5 2.5 2.5 5-5.5"></path></svg>
+                </span>
+                <span style="font:600 8.5px 'JetBrains Mono',monospace;letter-spacing:0.22em;text-transform:uppercase;color:var(--muted)">Você economiza</span>
+                <span style="font:800 19px 'Sora',sans-serif;color:var(--green)">R$ 32,45</span>
+              </div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:8px;padding:14px 14px">
+                <span style="font:700 13px 'Manrope',sans-serif">Consegui uma promoção pra você</span>
+                <span style="display:flex;align-items:center;gap:8px"><span style="font:700 11px 'JetBrains Mono',monospace;letter-spacing:0.14em;color:var(--green);background:rgba(47,226,110,0.12);border:1px solid rgba(47,226,110,0.35);border-radius:7px;padding:4px 9px">ZYON10</span><span style="font:500 11px 'Manrope',sans-serif;color:var(--faint)">aplicado</span></span>
+                <span style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--line);padding-top:8px"><span style="font:500 12px 'Manrope',sans-serif;color:var(--faint)">Subtotal c/ desconto</span><span style="font:800 14px 'Manrope',sans-serif">R$ 616,55</span></span>
+              </div>
+            </div>
+            <!-- timer -->
+            <div style="display:flex;align-items:center;gap:10px;border:1px solid rgba(47,226,110,0.3);border-radius:12px;background:rgba(47,226,110,0.05);padding:10px 12px">
+              <span style="font:800 13px 'JetBrains Mono',monospace;color:var(--green)" ref="{{ timerRef }}">4:56</span>
+              <span style="font:500 12px/1.45 'Manrope',sans-serif;color:var(--muted)">Se você finalizar dentro do tempo, ganha mais <strong style="color:var(--green)">R$ 32,45</strong> (5% extra).</span>
+            </div>
+            <span style="align-self:flex-start;display:inline-flex;align-items:center;height:40px;padding:0 22px;border-radius:999px;background:var(--green);color:var(--green-ink);font:800 14px 'Manrope',sans-serif;box-shadow:0 8px 26px rgba(47,226,110,0.35)">Continuar</span>
+          </div>
+          <!-- voice fab -->
+          <div style="position:absolute;bottom:14px;right:14px;display:flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:50%;background:var(--green);color:var(--green-ink);box-shadow:0 10px 30px rgba(47,226,110,0.45)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 14v-2a9 9 0 0 1 18 0v2"></path><path d="M21 17a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2h3zM3 17a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2H3z"></path></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PARA A LOJA (benefícios) ============ -->
+  <section id="beneficios" data-screen-label="Para a loja" style="max-width:1200px;margin:0 auto;padding:clamp(96px,11vw,140px) 24px 0">
+    <div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:16px;margin-bottom:52px">
+      <span style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:0.28em;text-transform:uppercase;color:var(--green)">Para a sua loja</span>
+      <h2 style="margin:0;font-family:'Sora',sans-serif;font-weight:800;font-size:clamp(32px,3.8vw,52px);line-height:1.05;letter-spacing:-0.035em;max-width:24ch;text-wrap:balance">Vende como gente. Obedece como máquina.</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px">
+      <div style="border:1px solid var(--line);border-radius:22px;padding:30px;background:var(--panel);display:flex;flex-direction:column;gap:14px;transition:border-color 150ms" style-hover="border-color:rgba(47,226,110,0.4)">
+        <span style="display:flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;background:rgba(47,226,110,0.12);color:var(--green)">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 15h4m6-4-3.5 3.5M12 3v2M5.6 5.6 7 7M3 12h2m14-7-1.4 1.4M21 12h-2"></path><path d="M8 21a4 4 0 1 1 8 0z"></path></svg>
+        </span>
+        <h3 style="margin:0;font:700 20px 'Sora',sans-serif;letter-spacing:-0.02em">Negocia de verdade</h3>
+        <p style="margin:0;font:500 15px/1.6 'Manrope',sans-serif;color:var(--muted)">"Está caro" e "o frete não compensa" viram negociação: desconto, frete grátis ou brinde — o que fechar a venda com a melhor margem.</p>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:22px;padding:30px;background:var(--panel);display:flex;flex-direction:column;gap:14px;transition:border-color 150ms" style-hover="border-color:rgba(47,226,110,0.4)">
+        <span style="display:flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;background:rgba(47,226,110,0.12);color:var(--green)">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.6-3 8.1-7 10-4-1.9-7-5.4-7-10V6z"></path><path d="m9 12 2 2 4-4"></path></svg>
+        </span>
+        <h3 style="margin:0;font:700 20px 'Sora',sans-serif;letter-spacing:-0.02em">Protege sua margem</h3>
+        <p style="margin:0;font:500 15px/1.6 'Manrope',sans-serif;color:var(--muted)">A IA conversa, mas quem decide é a regra: desconto máximo, margem mínima e subsídio de frete que você configurou. Cada decisão fica registrada.</p>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:22px;padding:30px;background:var(--panel);display:flex;flex-direction:column;gap:14px;transition:border-color 150ms" style-hover="border-color:rgba(47,226,110,0.4)">
+        <span style="display:flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;background:rgba(47,226,110,0.12);color:var(--green)">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 17h-2v-6l3-6h9v12h-10"></path><path d="M15 8h4l2 3v6h-2"></path><circle cx="7.5" cy="17.5" r="1.8"></circle><circle cx="17.5" cy="17.5" r="1.8"></circle></svg>
+        </span>
+        <h3 style="margin:0;font:700 20px 'Sora',sans-serif;letter-spacing:-0.02em">Frete que converte</h3>
+        <p style="margin:0;font:500 15px/1.6 'Manrope',sans-serif;color:var(--muted)">Frete é a maior objeção do checkout. A Zyon compara: frete grátis, subsídio parcial ou desconto — e oferece o que converte mais gastando menos.</p>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:22px;padding:30px;background:var(--panel);display:flex;flex-direction:column;gap:14px;transition:border-color 150ms" style-hover="border-color:rgba(47,226,110,0.4)">
+        <span style="display:flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;background:rgba(47,226,110,0.12);color:var(--green)">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path></svg>
+        </span>
+        <h3 style="margin:0;font:700 20px 'Sora',sans-serif;letter-spacing:-0.02em">Recupera quem saiu</h3>
+        <p style="margin:0;font:500 15px/1.6 'Manrope',sans-serif;color:var(--muted)">Abandonou? A Zyon continua a conversa por WhatsApp ou e-mail, com o contexto e uma condição com prazo — não um template frio.</p>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:22px;padding:30px;background:var(--panel);display:flex;flex-direction:column;gap:14px;transition:border-color 150ms" style-hover="border-color:rgba(47,226,110,0.4)">
+        <span style="display:flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;background:rgba(47,226,110,0.12);color:var(--green)">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="3"></rect><path d="M2 10h20M6 15h4"></path></svg>
+        </span>
+        <h3 style="margin:0;font:700 20px 'Sora',sans-serif;letter-spacing:-0.02em">Salva o pagamento</h3>
+        <p style="margin:0;font:500 15px/1.6 'Manrope',sans-serif;color:var(--muted)">Cartão recusado não é venda perdida: ela oferece Pix na hora, outro cartão ou parcelamento — e o pedido continua de onde parou.</p>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:22px;padding:30px;background:var(--panel);display:flex;flex-direction:column;gap:14px;transition:border-color 150ms" style-hover="border-color:rgba(47,226,110,0.4)">
+        <span style="display:flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;background:rgba(47,226,110,0.12);color:var(--green)">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6z"></path></svg>
+        </span>
+        <h3 style="margin:0;font:700 20px 'Sora',sans-serif;letter-spacing:-0.02em">No ar em 1 hora</h3>
+        <p style="margin:0;font:500 15px/1.6 'Manrope',sans-serif;color:var(--muted)">Uma linha de código sobre o checkout que você já tem. Nome, tom de voz e cores da sua marca. Shopify, Woo, Nuvemshop e Tray.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RESULTADOS ============ -->
+  <section id="resultados" data-screen-label="Resultados" style="max-width:1200px;margin:0 auto;padding:clamp(96px,11vw,140px) 24px 0">
+    <div style="border:1px solid var(--line);border-radius:32px;background:linear-gradient(180deg,var(--panel2),var(--panel) 55%);padding:clamp(32px,5vw,64px);display:flex;flex-wrap:wrap;gap:clamp(40px,5vw,72px)">
+      <div style="flex:1 1 380px;min-width:0;display:flex;flex-direction:column;gap:20px;justify-content:center">
+        <span style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:0.28em;text-transform:uppercase;color:var(--green)">Resultados</span>
+        <h2 style="margin:0;font-family:'Sora',sans-serif;font-weight:800;font-size:clamp(30px,3.4vw,46px);line-height:1.06;letter-spacing:-0.035em;text-wrap:balance">Mais gente termina a compra. Simples assim.</h2>
+        <p style="margin:0;font:500 16px/1.65 'Manrope',sans-serif;color:var(--muted);max-width:46ch">Quando alguém acompanha o cliente até o fim — e negocia na hora certa — menos carrinho fica pra trás. Média das lojas nos primeiros 90 dias.</p>
+        <div style="display:flex;flex-direction:column;gap:16px;margin-top:8px">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;justify-content:space-between;gap:12px"><span style="font:600 14px 'Manrope',sans-serif;color:var(--muted)">Dúvidas respondidas sem suporte</span><span style="font:800 14px 'Sora',sans-serif;color:var(--green)">92%</span></div>
+            <div style="height:8px;border-radius:999px;background:rgba(255,255,255,0.06);overflow:hidden"><span style="display:block;height:100%;width:92%;border-radius:999px;background:linear-gradient(90deg,#12b356,var(--green));transform-origin:left;animation:zfill 1.2s cubic-bezier(0.22,1,0.36,1)"></span></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;justify-content:space-between;gap:12px"><span style="font:600 14px 'Manrope',sans-serif;color:var(--muted)">Clientes que aceitam a oferta de retorno</span><span style="font:800 14px 'Sora',sans-serif;color:var(--green)">38%</span></div>
+            <div style="height:8px;border-radius:999px;background:rgba(255,255,255,0.06);overflow:hidden"><span style="display:block;height:100%;width:38%;border-radius:999px;background:linear-gradient(90deg,#12b356,var(--green));transform-origin:left;animation:zfill 1.2s cubic-bezier(0.22,1,0.36,1) 0.15s backwards"></span></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;justify-content:space-between;gap:12px"><span style="font:600 14px 'Manrope',sans-serif;color:var(--muted)">Aumento do ticket com meta de frete grátis</span><span style="font:800 14px 'Sora',sans-serif;color:var(--green)">+19%</span></div>
+            <div style="height:8px;border-radius:999px;background:rgba(255,255,255,0.06);overflow:hidden"><span style="display:block;height:100%;width:19%;border-radius:999px;background:linear-gradient(90deg,#12b356,var(--green));transform-origin:left;animation:zfill 1.2s cubic-bezier(0.22,1,0.36,1) 0.3s backwards"></span></div>
+          </div>
+        </div>
+      </div>
+      <!-- bar chart -->
+      <div style="flex:1 1 340px;min-width:0;display:flex;flex-direction:column;gap:20px;justify-content:flex-end">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+          <span style="font:700 14px 'Manrope',sans-serif;color:var(--muted)">Compras concluídas no checkout</span>
+          <span style="display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;background:rgba(47,226,110,0.1);border:1px solid rgba(47,226,110,0.35);font:800 13px 'Sora',sans-serif;color:var(--green)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6"></path></svg>+18 pontos
+          </span>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:clamp(24px,4vw,48px);height:300px;padding:0 8px;border-bottom:1px solid var(--line2)">
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:12px;height:100%;justify-content:flex-end">
+            <span style="font:800 26px 'Sora',sans-serif;color:var(--faint)">46%</span>
+            <div style="width:100%;max-width:130px;height:46%;border-radius:14px 14px 0 0;background:rgba(255,255,255,0.06);border:1px solid var(--line);border-bottom:none;transform-origin:bottom;animation:zbar 1s cubic-bezier(0.22,1,0.36,1)"></div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:12px;height:100%;justify-content:flex-end">
+            <span style="font:800 26px 'Sora',sans-serif;color:var(--green)">64%</span>
+            <div style="width:100%;max-width:130px;height:64%;border-radius:14px 14px 0 0;background:linear-gradient(180deg,var(--green-hi),var(--green) 40%,#0d7a3c);box-shadow:0 -8px 44px rgba(47,226,110,0.3);transform-origin:bottom;animation:zbar 1.2s cubic-bezier(0.22,1,0.36,1)"></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:clamp(24px,4vw,48px);padding:0 8px">
+          <span style="flex:1;text-align:center;font:600 13px 'Manrope',sans-serif;color:var(--faint)">Checkout tradicional</span>
+          <span style="flex:1;text-align:center;font:700 13px 'Manrope',sans-serif;color:var(--ink)">Com a Zyon</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ COMO FUNCIONA ============ -->
+  <section id="como" data-screen-label="Como funciona" style="max-width:1200px;margin:0 auto;padding:clamp(96px,11vw,140px) 24px 0">
+    <div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:16px;margin-bottom:56px">
+      <span style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:0.28em;text-transform:uppercase;color:var(--green)">Como funciona</span>
+      <h2 style="margin:0;font-family:'Sora',sans-serif;font-weight:800;font-size:clamp(32px,3.8vw,52px);line-height:1.05;letter-spacing:-0.035em;max-width:20ch;text-wrap:balance">Do zero à primeira venda em 3 passos.</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px">
+      <div style="border:1px solid var(--line);border-radius:22px;padding:34px 30px;background:var(--panel);display:flex;flex-direction:column;gap:16px">
+        <span style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:var(--green);color:var(--green-ink);font:800 18px 'Sora',sans-serif;box-shadow:0 6px 24px rgba(47,226,110,0.35)">1</span>
+        <h3 style="margin:0;font:700 21px 'Sora',sans-serif;letter-spacing:-0.02em">Instale</h3>
+        <p style="margin:0;font:500 15px/1.6 'Manrope',sans-serif;color:var(--muted)">Cole uma linha de código na sua loja — ou instale o app da sua plataforma. Sem programador, sem migrar nada.</p>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:22px;padding:34px 30px;background:var(--panel);display:flex;flex-direction:column;gap:16px">
+        <span style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:var(--green);color:var(--green-ink);font:800 18px 'Sora',sans-serif;box-shadow:0 6px 24px rgba(47,226,110,0.35)">2</span>
+        <h3 style="margin:0;font:700 21px 'Sora',sans-serif;letter-spacing:-0.02em">Defina os limites</h3>
+        <p style="margin:0;font:500 15px/1.6 'Manrope',sans-serif;color:var(--muted)">Desconto máximo, margem mínima, regras de frete e tom de voz. A Zyon negocia dentro disso — nunca além.</p>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:22px;padding:34px 30px;background:var(--panel);display:flex;flex-direction:column;gap:16px">
+        <span style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:var(--green);color:var(--green-ink);font:800 18px 'Sora',sans-serif;box-shadow:0 6px 24px rgba(47,226,110,0.35)">3</span>
+        <h3 style="margin:0;font:700 21px 'Sora',sans-serif;letter-spacing:-0.02em">Acompanhe as vendas</h3>
+        <p style="margin:0;font:500 15px/1.6 'Manrope',sans-serif;color:var(--muted)">Cada conversa, cada oferta e cada real recuperado no painel — com o motivo de cada decisão registrado.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PLANOS ============ -->
+  <section id="planos" data-screen-label="Planos" style="max-width:1200px;margin:0 auto;padding:clamp(96px,11vw,140px) 24px 0">
+    <div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:16px;margin-bottom:52px">
+      <span style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:0.28em;text-transform:uppercase;color:var(--green)">Planos</span>
+      <h2 style="margin:0;font-family:'Sora',sans-serif;font-weight:800;font-size:clamp(32px,3.8vw,52px);line-height:1.05;letter-spacing:-0.035em">Comece pequeno. Cresça quando vender mais.</h2>
+      <p style="margin:0;font:500 15px 'Manrope',sans-serif;color:var(--faint)">14 dias grátis em qualquer plano · Sem fidelidade</p>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:stretch;justify-content:center">
+      <div style="flex:1 1 300px;max-width:380px;border:1px solid var(--line);border-radius:24px;padding:36px 32px;background:var(--panel);display:flex;flex-direction:column;gap:22px">
+        <h3 style="margin:0;font:700 18px 'Sora',sans-serif">Starter</h3>
+        <p style="margin:0;display:flex;align-items:baseline;gap:8px"><span style="font:800 44px 'Sora',sans-serif;letter-spacing:-0.03em">R$ 299</span><span style="font:600 14px 'Manrope',sans-serif;color:var(--faint)">/mês</span></p>
+        <p style="margin:0;font:500 14px/1.5 'Manrope',sans-serif;color:var(--faint)">Para provar o resultado na sua loja.</p>
+        <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px">
+          <li style="display:flex;align-items:center;gap:10px;font:600 14px 'Manrope',sans-serif;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12.5 5 5L20 6.5"></path></svg>Até 500 conversas/mês</li>
+          <li style="display:flex;align-items:center;gap:10px;font:600 14px 'Manrope',sans-serif;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12.5 5 5L20 6.5"></path></svg>Chat + regras de desconto e frete</li>
+          <li style="display:flex;align-items:center;gap:10px;font:600 14px 'Manrope',sans-serif;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12.5 5 5L20 6.5"></path></svg>Painel de vendas · 1 loja</li>
+        </ul>
+        <a href="https://wa.me/5521993001883?text=Ol%C3%A1%20Zyon%2C%20quero%20testar%20o%20Starter" target="_blank" rel="noopener" style="margin-top:auto;display:inline-flex;align-items:center;justify-content:center;height:48px;border:1px solid var(--line2);border-radius:999px;font:700 15px 'Manrope',sans-serif;color:var(--ink)" style-hover="background:var(--panel2);color:var(--ink)">Testar grátis</a>
+      </div>
+      <div style="flex:1 1 300px;max-width:380px;border:1px solid rgba(47,226,110,0.55);border-radius:24px;padding:40px 32px;display:flex;flex-direction:column;gap:22px;position:relative;background:linear-gradient(180deg,rgba(47,226,110,0.08),var(--panel2) 45%);box-shadow:0 24px 80px rgba(47,226,110,0.12)">
+        <span style="position:absolute;top:-13px;left:50%;transform:translateX(-50%);font:700 10px 'JetBrains Mono',monospace;letter-spacing:0.16em;background:var(--green);color:var(--green-ink);border-radius:999px;padding:6px 14px;white-space:nowrap">MAIS ESCOLHIDO</span>
+        <h3 style="margin:0;font:700 18px 'Sora',sans-serif">Growth</h3>
+        <p style="margin:0;display:flex;align-items:baseline;gap:8px"><span style="font:800 44px 'Sora',sans-serif;letter-spacing:-0.03em">R$ 999</span><span style="font:600 14px 'Manrope',sans-serif;color:var(--faint)">/mês</span></p>
+        <p style="margin:0;font:500 14px/1.5 'Manrope',sans-serif;color:var(--faint)">Para lojas que querem escalar as vendas.</p>
+        <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px">
+          <li style="display:flex;align-items:center;gap:10px;font:600 14px 'Manrope',sans-serif;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12.5 5 5L20 6.5"></path></svg>Conversas ampliadas + compra por voz</li>
+          <li style="display:flex;align-items:center;gap:10px;font:600 14px 'Manrope',sans-serif;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12.5 5 5L20 6.5"></path></svg>Frete inteligente + comparador de ofertas</li>
+          <li style="display:flex;align-items:center;gap:10px;font:600 14px 'Manrope',sans-serif;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12.5 5 5L20 6.5"></path></svg>Recuperação por WhatsApp e e-mail</li>
+          <li style="display:flex;align-items:center;gap:10px;font:600 14px 'Manrope',sans-serif;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12.5 5 5L20 6.5"></path></svg>Sua marca: nome, tom e cores</li>
+        </ul>
+        <a href="https://wa.me/5521993001883?text=Ol%C3%A1%20Zyon%2C%20quero%20contratar%20o%20Growth" target="_blank" rel="noopener" style="margin-top:auto;display:inline-flex;align-items:center;justify-content:center;height:48px;border-radius:999px;background:var(--green);color:var(--green-ink);font:800 15px 'Manrope',sans-serif;box-shadow:0 10px 34px rgba(47,226,110,0.35)" style-hover="filter:brightness(1.1);color:var(--green-ink)">Escolher Growth</a>
+      </div>
+      <div style="flex:1 1 300px;max-width:380px;border:1px solid var(--line);border-radius:24px;padding:36px 32px;background:var(--panel);display:flex;flex-direction:column;gap:22px">
+        <h3 style="margin:0;font:700 18px 'Sora',sans-serif">Scale</h3>
+        <p style="margin:0;display:flex;align-items:baseline;gap:8px"><span style="font:800 44px 'Sora',sans-serif;letter-spacing:-0.03em">Sob medida</span></p>
+        <p style="margin:0;font:500 14px/1.5 'Manrope',sans-serif;color:var(--faint)">Para operações grandes e multi-loja.</p>
+        <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px">
+          <li style="display:flex;align-items:center;gap:10px;font:600 14px 'Manrope',sans-serif;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12.5 5 5L20 6.5"></path></svg>Conversas ilimitadas</li>
+          <li style="display:flex;align-items:center;gap:10px;font:600 14px 'Manrope',sans-serif;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12.5 5 5L20 6.5"></path></svg>Várias lojas em um painel · SLA</li>
+          <li style="display:flex;align-items:center;gap:10px;font:600 14px 'Manrope',sans-serif;color:var(--muted)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12.5 5 5L20 6.5"></path></svg>Playbooks por segmento + integrações</li>
+        </ul>
+        <a href="https://wa.me/5521993001883?text=Ol%C3%A1%20Zyon%2C%20quero%20falar%20com%20vendas" target="_blank" rel="noopener" style="margin-top:auto;display:inline-flex;align-items:center;justify-content:center;height:48px;border:1px solid var(--line2);border-radius:999px;font:700 15px 'Manrope',sans-serif;color:var(--ink)" style-hover="background:var(--panel2);color:var(--ink)">Falar com vendas</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FAQ ============ -->
+  <section data-screen-label="FAQ" style="max-width:840px;margin:0 auto;padding:clamp(96px,11vw,140px) 24px 0">
+    <div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:16px;margin-bottom:40px">
+      <span style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:0.28em;text-transform:uppercase;color:var(--green)">Dúvidas frequentes</span>
+      <h2 style="margin:0;font-family:'Sora',sans-serif;font-weight:800;font-size:clamp(30px,3.4vw,46px);line-height:1.05;letter-spacing:-0.035em">O que todo lojista pergunta.</h2>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <details name="zyon-faq" style="border:1px solid var(--line);border-radius:18px;background:var(--panel);overflow:hidden">
+        <summary style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:22px 24px;cursor:pointer;font:700 17px 'Manrope',sans-serif" style-hover="color:var(--green-hi)">A Zyon decide o desconto sozinha?<span aria-hidden="true" style="color:var(--faint);font:400 22px 'Sora',sans-serif">+</span></summary>
+        <p style="margin:0;padding:0 24px 22px;font:500 15px/1.65 'Manrope',sans-serif;color:var(--muted)">Não. A IA conversa; quem autoriza é o motor de regras, com o desconto máximo e a margem mínima que você definiu. Cada oferta fica registrada com o motivo da decisão.</p>
+      </details>
+      <details name="zyon-faq" style="border:1px solid var(--line);border-radius:18px;background:var(--panel);overflow:hidden">
+        <summary style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:22px 24px;cursor:pointer;font:700 17px 'Manrope',sans-serif" style-hover="color:var(--green-hi)">Como funciona a compra por voz?<span aria-hidden="true" style="color:var(--faint);font:400 22px 'Sora',sans-serif">+</span></summary>
+        <p style="margin:0;padding:0 24px 22px;font:500 15px/1.65 'Manrope',sans-serif;color:var(--muted)">O cliente toca no microfone e fala normalmente. A Zyon entende, monta o pedido e lê o resumo em voz alta. Nada é cobrado sem confirmação explícita — por voz ou toque.</p>
+      </details>
+      <details name="zyon-faq" style="border:1px solid var(--line);border-radius:18px;background:var(--panel);overflow:hidden">
+        <summary style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:22px 24px;cursor:pointer;font:700 17px 'Manrope',sans-serif" style-hover="color:var(--green-hi)">O login facial é seguro? E a LGPD?<span aria-hidden="true" style="color:var(--faint);font:400 22px 'Sora',sans-serif">+</span></summary>
+        <p style="margin:0;padding:0 24px 22px;font:500 15px/1.65 'Manrope',sans-serif;color:var(--muted)">Sim. O reconhecimento é opcional e exige consentimento explícito; dados biométricos são criptografados e tratados com controles de privacidade. Ativamos mediante contrato e avaliação de compliance.</p>
+      </details>
+      <details name="zyon-faq" style="border:1px solid var(--line);border-radius:18px;background:var(--panel);overflow:hidden">
+        <summary style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:22px 24px;cursor:pointer;font:700 17px 'Manrope',sans-serif" style-hover="color:var(--green-hi)">Funciona com a minha plataforma e meu gateway?<span aria-hidden="true" style="color:var(--faint);font:400 22px 'Sora',sans-serif">+</span></summary>
+        <p style="margin:0;padding:0 24px 22px;font:500 15px/1.65 'Manrope',sans-serif;color:var(--muted)">Shopify: pronto. WooCommerce, Nuvemshop e Tray: em implantação (roadmap). Pix e cartão funcionam com seu gateway atual; crypto é um recurso avançado em roadmap — consulte-nos para ativação.</p>
+      </details>
+      <details name="zyon-faq" style="border:1px solid var(--line);border-radius:18px;background:var(--panel);overflow:hidden">
+        <summary style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:22px 24px;cursor:pointer;font:700 17px 'Manrope',sans-serif" style-hover="color:var(--green-hi)">E se eu quiser cancelar?<span aria-hidden="true" style="color:var(--faint);font:400 22px 'Sora',sans-serif">+</span></summary>
+        <p style="margin:0;padding:0 24px 22px;font:500 15px/1.65 'Manrope',sans-serif;color:var(--muted)">Cancela quando quiser, direto no painel, sem multa. Remover a Zyon é apagar a mesma linha de código.</p>
+      </details>
+    </div>
+  </section>
+
+  <!-- ============ RECURSOS AVANÇADOS ============ -->
+  <section id="advanced" data-screen-label="Recursos Avancados" style="max-width:1200px;margin:0 auto;padding:clamp(72px,8vw,110px) 24px 0">
+    <div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px;margin-bottom:40px">
+      <span style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:0.28em;text-transform:uppercase;color:var(--green)">Recursos avançados</span>
+      <h3 style="margin:0;font-family:'Sora',sans-serif;font-weight:800;font-size:clamp(26px,3.2vw,38px);line-height:1.05;letter-spacing:-0.035em">Biometria, pagamentos alternativos<br>e integrações especiais</h3>
+      <p style="margin:0;font:500 15px/1.6 'Manrope',sans-serif;color:var(--muted);max-width:62ch">Operação que precisa de login por olhar, pagamentos alternativos ou integração sob medida? Montamos com compliance, segurança e cronograma claro.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px">
+      <!-- Card 1: Login facial -->
+      <div style="position:relative;border-radius:22px;padding:2px;background:linear-gradient(135deg,rgba(47,226,110,0.25),rgba(47,226,110,0.05) 40%,rgba(47,226,110,0.25));animation:zborderGlow 4s ease-in-out infinite;overflow:hidden">
+        <div style="position:absolute;inset:0;overflow:hidden;border-radius:22px;pointer-events:none"><div style="position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(47,226,110,0.12),transparent);animation:zsweep 3.5s ease-in-out infinite"></div></div>
+        <div style="border-radius:20px;padding:28px 24px;background:linear-gradient(180deg,var(--panel),var(--bg));display:flex;flex-direction:column;gap:14px;height:100%">
+          <span style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;background:rgba(47,226,110,0.1);color:var(--green)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a5 5 0 0 1 5 5v1a5 5 0 0 1-10 0V7a5 5 0 0 1 5-5z"/><path d="M2 19c0-4 4-6 10-6s10 2 10 6"/><circle cx="9" cy="7" r="0.8" fill="currentColor"/><circle cx="15" cy="7" r="0.8" fill="currentColor"/></svg>
+          </span>
+          <h4 style="margin:0;font:700 18px 'Sora',sans-serif;letter-spacing:-0.02em">Login facial</h4>
+          <p style="margin:0;font:500 14px/1.55 'Manrope',sans-serif;color:var(--muted)">Ativação sob pedido com consentimento explícito, criptografia de ponta e política de retenção definida.</p>
+        </div>
+      </div>
+      <!-- Card 2: Pagamentos alternativos -->
+      <div style="position:relative;border-radius:22px;padding:2px;background:linear-gradient(135deg,rgba(47,226,110,0.25),rgba(47,226,110,0.05) 40%,rgba(47,226,110,0.25));animation:zborderGlow 4s ease-in-out infinite 1.3s;overflow:hidden">
+        <div style="position:absolute;inset:0;overflow:hidden;border-radius:22px;pointer-events:none"><div style="position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(47,226,110,0.12),transparent);animation:zsweep 3.5s ease-in-out infinite 0.8s"></div></div>
+        <div style="border-radius:20px;padding:28px 24px;background:linear-gradient(180deg,var(--panel),var(--bg));display:flex;flex-direction:column;gap:14px;height:100%">
+          <span style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;background:rgba(47,226,110,0.1);color:var(--green)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M2 10h20"/><path d="M6 16h4"/></svg>
+          </span>
+          <h4 style="margin:0;font:700 18px 'Sora',sans-serif;letter-spacing:-0.02em">Pagamentos alternativos</h4>
+          <p style="margin:0;font:500 14px/1.55 'Manrope',sans-serif;color:var(--muted)">Crypto, PIX premium e fluxos especiais para operações com regras mais complexas.</p>
+        </div>
+      </div>
+      <!-- Card 3: Pilotos e integrações -->
+      <div style="position:relative;border-radius:22px;padding:2px;background:linear-gradient(135deg,rgba(47,226,110,0.25),rgba(47,226,110,0.05) 40%,rgba(47,226,110,0.25));animation:zborderGlow 4s ease-in-out infinite 2.6s;overflow:hidden">
+        <div style="position:absolute;inset:0;overflow:hidden;border-radius:22px;pointer-events:none"><div style="position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(47,226,110,0.12),transparent);animation:zsweep 3.5s ease-in-out infinite 1.6s"></div></div>
+        <div style="border-radius:20px;padding:28px 24px;background:linear-gradient(180deg,var(--panel),var(--bg));display:flex;flex-direction:column;justify-content:space-between;gap:14px;height:100%">
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <span style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;background:rgba(47,226,110,0.1);color:var(--green)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/><circle cx="19" cy="17" r="2.5"/><path d="M21.5 19.5 23 21"/></svg>
+            </span>
+            <h4 style="margin:0;font:700 18px 'Sora',sans-serif;letter-spacing:-0.02em">Pilotos e integrações</h4>
+            <p style="margin:0;font:500 14px/1.55 'Manrope',sans-serif;color:var(--muted)">Escopo, SLA e segurança definidos antes da ativação para qualquer projeto especial.</p>
+          </div>
+          <a href="https://wa.me/5521993001883?text=Ol%C3%A1%20Zyon%2C%20quero%20ativar%20um%20recurso%20avancado" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 18px;border-radius:12px;background:var(--green);color:var(--green-ink);font:700 13px 'Manrope',sans-serif;box-shadow:0 8px 24px rgba(47,226,110,0.25);transition:filter 150ms" style-hover="filter:brightness(1.1)">Falar sobre integração</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CTA FINAL ============ -->
+  <section id="cta" data-screen-label="CTA final" style="max-width:1200px;margin:clamp(96px,11vw,140px) auto 0;padding:0 24px">
+    <div style="position:relative;overflow:hidden;border:1px solid var(--line2);border-radius:36px;background:linear-gradient(180deg,#0b100b,#070a08);padding:clamp(56px,8vw,110px) 32px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:26px">
+      <div aria-hidden="true" style="position:absolute;top:-140px;left:50%;transform:translateX(-50%);width:640px;height:460px;background:radial-gradient(closest-side, rgba(47,226,110,0.3), transparent 70%);filter:blur(24px)"></div>
+      <div style="position:relative;width:88px;height:88px;animation:zorb 5s ease-in-out infinite">
+        <div style="width:88px;height:88px;border-radius:50%;background:radial-gradient(circle at 36% 28%, #eafff1, #7dffab 24%, #2fe26e 48%, #0d7a3c 74%, #063b1e 95%);box-shadow:0 0 70px rgba(47,226,110,0.55)"></div>
+        <span style="position:absolute;top:34px;left:30px;width:7px;height:13px;border-radius:4px;background:#f4fff8;animation:zblink 4.5s ease-in-out infinite"></span>
+        <span style="position:absolute;top:34px;right:30px;width:7px;height:13px;border-radius:4px;background:#f4fff8;animation:zblink 4.5s ease-in-out infinite"></span>
+      </div>
+      <h2 style="position:relative;margin:0;font-family:'Sora',sans-serif;font-weight:800;font-size:clamp(38px,5.4vw,72px);line-height:1.03;letter-spacing:-0.04em;max-width:18ch;text-wrap:balance">A Zyon está pronta para <span style="color:var(--green)">vender na sua loja</span>.</h2>
+      <p style="position:relative;margin:0;font:500 18px/1.6 'Manrope',sans-serif;color:var(--muted);max-width:44ch">Instale hoje e veja a primeira venda assistida ainda esta semana. 14 dias grátis, sem cartão de crédito.</p>
+      <div style="position:relative;display:flex;gap:14px;flex-wrap:wrap;justify-content:center">
+        <a href="https://wa.me/5521993001883?text=Ol%C3%A1%20Zyon%2C%20quero%20instalar%20a%20Zyon%20na%20minha%20loja" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;height:56px;padding:0 34px;border-radius:999px;font:800 16px 'Manrope',sans-serif;background:var(--green);color:var(--green-ink);box-shadow:0 14px 48px rgba(47,226,110,0.4)" style-hover="filter:brightness(1.1);color:var(--green-ink)">Instalar na minha loja
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6"></path></svg>
+        </a>
+        <a href="https://wa.me/5521993001883?text=Ol%C3%A1%20Zyon%2C%20gostaria%20de%20agendar%20uma%20demonstra%C3%A7%C3%A3o" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;height:56px;padding:0 26px;border:1px solid var(--line2);border-radius:999px;font:700 15px 'Manrope',sans-serif;color:var(--ink);background:rgba(7,10,8,0.5)" style-hover="background:var(--panel2);color:var(--ink)">Agendar demonstração</a>
+      </div>
+      <!-- Formulário removido: CTAs já direcionam para WhatsApp conforme solicitado -->
+      <p style="position:relative;margin:0;font:600 12px 'JetBrains Mono',monospace;letter-spacing:0.08em;color:var(--faint)">SEM CARTÃO · SEM FIDELIDADE · CANCELE QUANDO QUISER</p>
+    </div>
+  </section>
+
+  </main>
+
+  <!-- ============ FOOTER ============ -->
+  <footer data-screen-label="Footer" style="margin-top:clamp(72px,9vw,110px);border-top:1px solid var(--line)">
+    <div style="max-width:1200px;margin:0 auto;padding:56px 24px 32px;display:flex;flex-direction:column;gap:40px">
+      <div style="display:flex;flex-wrap:wrap;gap:48px">
+        <div style="flex:2 1 260px;display:flex;flex-direction:column;gap:14px">
+          <span style="display:flex;align-items:center;gap:10px">
+            <img src="assets/zyon-logo-new.png" alt="Zyon" style="width:110px;height:auto;display:block;object-fit:contain">
+          </span>
+          <p style="margin:0;font:500 13px/1.6 'Manrope',sans-serif;color:var(--faint);max-width:34ch">A gerente de vendas de IA que veio redefinir a forma de comprar na internet — por voz, por chat e com um olhar.</p>
+        </div>
+        <nav aria-label="Produto" style="flex:1 1 140px;display:flex;flex-direction:column;gap:12px">
+          <span style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:0.24em;color:var(--faint)">PRODUTO</span>
+          <a href="#experiencia" style="font:500 14px 'Manrope',sans-serif;color:var(--muted)" style-hover="color:var(--ink)">A experiência</a>
+          <a href="https://wa.me/5521993001883?text=Ol%C3%A1%20Zyon%2C%20gostaria%20de%20ver%20a%20Zyon%20em%20a%C3%A7%C3%A3o" target="_blank" rel="noopener" style="font:500 14px 'Manrope',sans-serif;color:var(--muted)" style-hover="color:var(--ink)">Em ação</a>
+          <a href="#resultados" style="font:500 14px 'Manrope',sans-serif;color:var(--muted)" style-hover="color:var(--ink)">Resultados</a>
+          <a href="#planos" style="font:500 14px 'Manrope',sans-serif;color:var(--muted)" style-hover="color:var(--ink)">Planos</a>
+        </nav>
+        <nav aria-label="Empresa" style="flex:1 1 140px;display:flex;flex-direction:column;gap:12px">
+          <span style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:0.24em;color:var(--faint)">EMPRESA</span>
+          <a href="#topo" style="font:500 14px 'Manrope',sans-serif;color:var(--muted)" style-hover="color:var(--ink)">Sobre</a>
+          <a href="https://wa.me/5521993001883" target="_blank" rel="noopener" style="font:500 14px 'Manrope',sans-serif;color:var(--muted)" style-hover="color:var(--ink)">Contato · (21) 99300-1883</a>
+          <a href="#topo" style="font:500 14px 'Manrope',sans-serif;color:var(--muted)" style-hover="color:var(--ink)">Blog</a>
+        </nav>
+        <nav aria-label="Legal" style="flex:1 1 140px;display:flex;flex-direction:column;gap:12px">
+          <span style="font:600 10px 'JetBrains Mono',monospace;letter-spacing:0.24em;color:var(--faint)">LEGAL</span>
+          <a href="#topo" style="font:500 14px 'Manrope',sans-serif;color:var(--muted)" style-hover="color:var(--ink)">Privacidade</a>
+          <a href="#topo" style="font:500 14px 'Manrope',sans-serif;color:var(--muted)" style-hover="color:var(--ink)">Termos</a>
+          <a href="#topo" style="font:500 14px 'Manrope',sans-serif;color:var(--muted)" style-hover="color:var(--ink)">LGPD</a>
+        </nav>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:16px;border-top:1px solid var(--line);padding-top:24px">
+        <span style="font:500 12px 'JetBrains Mono',monospace;color:var(--faint)">© 2026 ZYON · FEITO NO BRASIL</span>
+        <div style="display:flex;align-items:center;gap:12px;margin-left:auto">
+          <a href="#topo" aria-label="Zyon no Instagram" style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;border:1px solid var(--line);border-radius:50%;color:var(--muted)" style-hover="color:var(--ink)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"></rect><circle cx="12" cy="12" r="4"></circle><circle cx="17.2" cy="6.8" r="0.6" fill="currentColor"></circle></svg>
+          </a>
+          <a href="#topo" aria-label="Zyon no X" style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;border:1px solid var(--line);border-radius:50%;font:800 13px 'Sora',sans-serif;color:var(--muted)" style-hover="color:var(--ink)">X</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- WhatsApp FAB -->
+  <a href="https://wa.me/5521993001883" target="_blank" rel="noopener" aria-label="Fale conosco no WhatsApp" style="position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:50%;background:#25D366;box-shadow:0 4px 14px rgba(37,211,102,0.4);transition:transform 0.2s ease" onmouseenter="this.style.transform='scale(1.1)'" onmouseleave="this.style.transform='scale(1)'">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="white" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+  </a>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;accent&quot;: { &quot;editor&quot;: &quot;color&quot;, &quot;default&quot;: &quot;#2fe26e&quot;, &quot;options&quot;: [&quot;#2fe26e&quot;, &quot;#22d3ee&quot;, &quot;#a3e635&quot;, &quot;#34d399&quot;], &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Aparência&quot; },
+  &quot;agentName&quot;: { &quot;editor&quot;: &quot;text&quot;, &quot;default&quot;: &quot;Zyon&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Conteúdo&quot; },
+  &quot;showPromo&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Conteúdo&quot; }
+}">
+class Component extends DCLogic {
+  timerRef = React.createRef();
+
+  componentDidMount() {
+    this.applyAccent();
+    this.setupCounters();
+    this.startTimer();
+  }
+
+  componentDidUpdate(prevProps) {
+    if ((prevProps || {}).accent !== this.props.accent) this.applyAccent();
+  }
+
+  applyAccent() {
+    const a = this.props.accent;
+    if (typeof a === 'string' && a) {
+      const root = document.documentElement;
+      root.style.setProperty('--green', a);
+    }
+  }
+
+  startTimer() {
+    let s = 296;
+    this._timer = setInterval(() => {
+      s = s > 0 ? s - 1 : 299;
+      const el = this.timerRef.current;
+      if (el) el.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    }, 1000);
+  }
+
+  setupCounters() {
+    let reduced = false;
+    try { reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+    const els = document.querySelectorAll('[data-zcount]');
+    if (reduced || !('IntersectionObserver' in window)) return;
+    const fmt = (v, dec) => v.toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+    this._io = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        const el = entry.target;
+        this._io.unobserve(el);
+        if (el.__zdone) return;
+        el.__zdone = true;
+        const target = parseFloat(el.getAttribute('data-zcount'));
+        const dec = parseInt(el.getAttribute('data-zdec') || '0', 10);
+        const dur = 1300;
+        const t0 = performance.now();
+        const tick = (t) => {
+          const k = Math.min(1, (t - t0) / dur);
+          const eased = 1 - Math.pow(1 - k, 3);
+          el.textContent = fmt(target * eased, dec);
+          if (k < 1) requestAnimationFrame(tick);
+          else el.textContent = fmt(target, dec);
+        };
+        requestAnimationFrame(tick);
+      });
+    }, { threshold: 0.6 });
+    els.forEach((el) => this._io.observe(el));
+  }
+
+  componentWillUnmount() {
+    if (this._io) this._io.disconnect();
+    clearInterval(this._timer);
+  }
+
+  renderVals() {
+    return {
+      agentName: this.props.agentName ?? 'Zyon',
+      showPromo: this.props.showPromo ?? true,
+      timerRef: this.timerRef
+    };
+  }
+}
+</script>
+</body>
+</html>

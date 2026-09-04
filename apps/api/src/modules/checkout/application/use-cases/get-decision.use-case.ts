@@ -1,6 +1,6 @@
-import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
-import { decideIntervention } from "@aacp/decision-engine";
-import type { DecisionRequest, DecisionResponse } from "@aacp/shared-types";
+import { Inject, Injectable, NotFoundException, Optional , Logger} from "@nestjs/common";
+import { decideIntervention } from "@zyon/decision-engine";
+import type { DecisionRequest, DecisionResponse } from "@zyon/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { CHECKOUT_SETTINGS_PORT, type CheckoutSettingsPort } from "../../domain/ports/checkout-settings.port.js";
 import {
@@ -8,9 +8,12 @@ import {
   type CheckoutInterventionLedgerPort
 } from "../../domain/ports/checkout-intervention-ledger.port.js";
 import { decideInterventions } from "../../domain/services/intervention-policy.service.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class GetDecisionUseCase {
+  private readonly logger = new Logger(GetDecisionUseCase.name);
+
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Optional() @Inject(CHECKOUT_SETTINGS_PORT) private readonly checkoutSettings?: CheckoutSettingsPort,

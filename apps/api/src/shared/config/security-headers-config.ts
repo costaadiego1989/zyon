@@ -19,12 +19,17 @@ export function resolveSecurityHeaders(env: NodeJS.ProcessEnv = process.env): Se
     `frame-ancestors ${frameAncestors}`
   ].join("; ");
 
+  const isProd = (env.NODE_ENV ?? "") === "production";
+
   return {
     "Content-Security-Policy": csp,
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",
     "Cross-Origin-Resource-Policy": "same-origin",
-    "Cross-Origin-Opener-Policy": "same-origin"
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "X-DNS-Prefetch-Control": "off",
+    "X-Permitted-Cross-Domain-Policies": "none",
+    ...(isProd ? { "Strict-Transport-Security": "max-age=31536000; includeSubDomains" } : {}),
   };
 }

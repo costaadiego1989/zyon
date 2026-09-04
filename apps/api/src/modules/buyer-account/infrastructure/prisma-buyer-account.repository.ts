@@ -1,34 +1,59 @@
+import { ConflictException, Logger } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
-import type { CustomerAddress } from "@aacp/shared-types";
+import type { CustomerAddress } from "@zyon/shared-types";
+import {
+  decryptPii,
+  encryptPii,
+  isPiiEncrypted,
+} from "../../../shared/crypto/pii-cipher.service.js";
+import { toNumber, toNumberOrNull } from "../../../shared/persistence/decimal.util.js";
 import { BuyerAccount } from "../domain/entities/buyer-account.entity.js";
 import { BuyerAgentProfile, type AgentPersonality } from "../domain/entities/buyer-agent-profile.entity.js";
 import type { BuyerAccountRepository } from "../domain/ports/buyer-account-repository.port.js";
 
 export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
+  private readonly logger = new Logger(PrismaBuyerAccountRepository.name);
+
   constructor(private readonly prisma: PrismaClient) {}
 
   async save(account: BuyerAccount): Promise<void> {
-    await (this.prisma as any).buyerAccount.upsert({
-      where: { globalUserId: account.globalUserId },
-      create: {
-        globalUserId: account.globalUserId,
-        email: account.email,
-        passwordHash: account.passwordHash,
-        displayName: account.displayName,
-        phone: account.phone ?? null,
-        cpf: account.cpf ?? null,
-        address: account.address ?? null,
-      },
-      update: {
-        email: account.email,
-        passwordHash: account.passwordHash,
-        displayName: account.displayName,
-        phone: account.phone ?? null,
-        cpf: account.cpf ?? null,
-        address: account.address ?? null,
-        updatedAt: account.updatedAt,
-      },
-    });
+    const pii = encryptedBuyerPii(account);
+    try {
+      await (this.prisma as any).buyerAccount.upsert({
+        where: { globalUserId: account.globalUserId },
+        create: {
+          globalUserId: account.globalUserId,
+          email: account.email,
+          passwordHash: account.passwordHash,
+          displayName: account.displayName,
+          phone: pii.phone,
+          cpf: pii.cpf,
+          dateOfBirth: account.dateOfBirth ?? null,
+          gender: account.gender ?? null,
+          asaasCustomerId: account.asaasCustomerId ?? null,
+          address: account.address ?? null,
+        },
+        update: {
+          email: account.email,
+          passwordHash: account.passwordHash,
+          displayName: account.displayName,
+          phone: pii.phone,
+          cpf: pii.cpf,
+          dateOfBirth: account.dateOfBirth ?? null,
+          gender: account.gender ?? null,
+          asaasCustomerId: account.asaasCustomerId ?? undefined,
+          address: account.address ?? null,
+          updatedAt: account.updatedAt,
+        },
+      });
+    } catch (err) {
+      // Convert the unique-email violation into a domain error so callers can
+      // surface a 409 instead of a raw Prisma 500.
+      if (isUniqueEmailViolation(err)) {
+        throw new ConflictException("email_already_in_use");
+      }
+      throw err;
+    }
   }
 
   async findByEmail(email: string): Promise<BuyerAccount | null> {
@@ -37,8 +62,16 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
   }
 
   async findByPhone(phone: string): Promise<BuyerAccount | null> {
-    const row = await (this.prisma as any).buyerAccount.findFirst({ where: { phone: phone.replace(/\D/g, "") } });
-    return row ? toDomainAccount(row) : null;
+    const normalized = phone.replace(/\D/g, "");
+    // Primary: try direct phone field match (works for unencrypted phones)
+    const row = await (this.prisma as any).buyerAccount.findFirst({ where: { phone: normalized } });
+    if (row) return toDomainAccount(row);
+
+    // Fallback: when phone is encrypted (pii_v1:*), direct match fails.
+    // Look up by the deterministic email pattern used for phone-only accounts.
+    const phoneEmail = `phone_${normalized}@buyer.aacp`;
+    const byEmail = await (this.prisma as any).buyerAccount.findUnique({ where: { email: phoneEmail } });
+    return byEmail ? toDomainAccount(byEmail) : null;
   }
 
   async findByGlobalUserId(globalUserId: string): Promise<BuyerAccount | null> {
@@ -88,6 +121,8 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
   }
 }
 
+type BuyerPiiFields = Pick<BuyerAccount, "phone" | "cpf">;
+
 type AccountRow = {
   globalUserId: string;
   email: string;
@@ -95,10 +130,15 @@ type AccountRow = {
   displayName: string;
   phone: string | null;
   cpf: string | null;
+  dateOfBirth?: Date | null;
+  gender?: string | null;
+  asaasCustomerId?: string | null;
   address?: unknown;
   createdAt: Date;
   updatedAt: Date;
 };
+
+type DecimalLike = { toNumber(): number } | number;
 
 type AgentRow = {
   id: string;
@@ -106,9 +146,9 @@ type AgentRow = {
   name: string;
   personality: string;
   maxRounds: number;
-  targetDiscountPercent: number;
-  minimumAcceptableDiscountPercent: number;
-  autoAcceptThreshold: number | null;
+  targetDiscountPercent: DecimalLike;
+  minimumAcceptableDiscountPercent: DecimalLike;
+  autoAcceptThreshold: DecimalLike | null;
   m2mEnabled: boolean;
   m2mTokenHash: string | null;
   m2mTokenCreatedAt: Date | null;
@@ -116,14 +156,34 @@ type AgentRow = {
   updatedAt: Date;
 };
 
+function encryptedBuyerPii(account: BuyerPiiFields): { phone: string | null; cpf: string | null } {
+  return {
+    phone: piiForStorage(account.phone),
+    cpf: piiForStorage(account.cpf),
+  };
+}
+
+function piiForStorage(value?: string): string | null {
+  if (!value) return null;
+  return isPiiEncrypted(value) ? value : encryptPii(value);
+}
+
+function piiForDomain(value: string | null): string | undefined {
+  if (!value) return undefined;
+  return isPiiEncrypted(value) ? decryptPii(value) : value;
+}
+
 function toDomainAccount(row: AccountRow): BuyerAccount {
   return new BuyerAccount({
     globalUserId: row.globalUserId,
     email: row.email,
     passwordHash: row.passwordHash,
     displayName: row.displayName,
-    phone: row.phone ?? undefined,
-    cpf: row.cpf ?? undefined,
+    phone: piiForDomain(row.phone),
+    cpf: piiForDomain(row.cpf),
+    dateOfBirth: row.dateOfBirth ?? undefined,
+    gender: row.gender ?? undefined,
+    asaasCustomerId: row.asaasCustomerId ?? undefined,
     address: toCustomerAddress(row.address),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -147,13 +207,22 @@ function toDomainAgent(row: AgentRow): BuyerAgentProfile {
     name: row.name,
     personality: row.personality as AgentPersonality,
     maxRounds: row.maxRounds,
-    targetDiscountPercent: row.targetDiscountPercent,
-    minimumAcceptableDiscountPercent: row.minimumAcceptableDiscountPercent,
-    autoAcceptThreshold: row.autoAcceptThreshold ?? undefined,
+    targetDiscountPercent: toNumber(row.targetDiscountPercent),
+    minimumAcceptableDiscountPercent: toNumber(row.minimumAcceptableDiscountPercent),
+    autoAcceptThreshold: row.autoAcceptThreshold ? toNumber(row.autoAcceptThreshold) : undefined,
     m2mEnabled: row.m2mEnabled,
     m2mTokenHash: row.m2mTokenHash ?? undefined,
     m2mTokenCreatedAt: row.m2mTokenCreatedAt ?? undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   });
+}
+
+// Detects Prisma's P2002 unique-constraint error scoped to the email field.
+function isUniqueEmailViolation(err: unknown): boolean {
+  const e = err as { code?: string; meta?: { target?: unknown } };
+  if (e?.code !== "P2002") return false;
+  const target = e.meta?.target;
+  if (Array.isArray(target)) return target.some((t) => String(t).toLowerCase().includes("email"));
+  return String(target ?? "").toLowerCase().includes("email");
 }

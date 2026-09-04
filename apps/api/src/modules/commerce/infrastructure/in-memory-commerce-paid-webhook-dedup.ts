@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { DomainEventEnvelope } from "@aacp/shared-types";
+import type { DomainEventEnvelope } from "@zyon/shared-types";
 import type { CommercePaidWebhookDedupPort } from "../domain/ports/commerce-paid-webhook-dedup.port.js";
 
 function dedupKey(merchantId: string, paymentReference: string): string {
@@ -24,6 +24,13 @@ export class InMemoryCommercePaidWebhookDedup implements CommercePaidWebhookDedu
     const key = dedupKey(merchantId, paymentReference);
     if (this.processed.has(key)) return false;
     this.processed.add(key);
+    return true;
+  }
+
+  async releaseReserve(merchantId: string, paymentReference: string): Promise<boolean> {
+    const key = dedupKey(merchantId, paymentReference);
+    if (!this.processed.has(key)) return false;
+    this.processed.delete(key);
     return true;
   }
 

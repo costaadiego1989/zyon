@@ -1,12 +1,15 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { UpdateOrderTrackingRequest, UpdateOrderTrackingResponse } from "@aacp/shared-types";
+import { BadRequestException, Inject, Injectable, NotFoundException , Logger} from "@nestjs/common";
+import type { UpdateOrderTrackingRequest, UpdateOrderTrackingResponse } from "@zyon/shared-types";
 import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { ORDER_REPOSITORY, type OrderRepository } from "../../domain/ports/order.repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class UpdateOrderTrackingUseCase {
+  private readonly logger = new Logger(UpdateOrderTrackingUseCase.name);
+
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Inject(ORDER_REPOSITORY) private readonly orders: OrderRepository,

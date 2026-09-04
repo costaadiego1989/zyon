@@ -1,5 +1,5 @@
 {
-  "name": "@aacp/negotiation-engine",
+  "name": "@zyon/negotiation-engine",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,6 +8,6 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "pnpm build && node dist/index.spec.js"
+    "test": "pnpm build && node --test dist/index.spec.js dist/__tests__/negotiation-engine.spec.js"
   }
 }

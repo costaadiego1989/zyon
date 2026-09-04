@@ -7,6 +7,7 @@ import type {
   CheckoutEventName,
   CheckoutSession,
   CompletedOrder,
+  CompletedOrderStatus,
   CurrencyCode,
   CustomerHints,
   DashboardOverview,
@@ -14,11 +15,12 @@ import type {
   MerchantRules,
   OfferType,
   ShippingQuote
-} from "@aacp/shared-types";
-import { DEFAULT_MERCHANT_RULES } from "@aacp/shared-types";
+} from "@zyon/shared-types";
+import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
 import type { CheckoutRepository } from "../../domain/ports/checkout-repository.port.js";
 import { CheckoutAbandonmentService } from "../../domain/services/checkout-abandonment.service.js";
 import { CheckoutIdentityService } from "../../domain/services/checkout-identity.service.js";
+import { toNumber, toNumberOrNull, type DecimalLike } from "../../../../shared/persistence/decimal.util.js";
 
 // P2 fix: single canonical default — no inline copy here.
 const DEFAULT_RULES: MerchantRules = DEFAULT_MERCHANT_RULES;
@@ -103,13 +105,31 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       .filter((s) => s.customer?.email?.toLowerCase().trim() === normalizedEmail);
   }
 
-  async recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName): Promise<void> {
+  async findSessionsWithTrigger(threshold = 0.55): Promise<CheckoutSession[]> {
+    // Cart Recovery scanner targets recently-triggered sessions. 72h window gives
+    // abandoned carts a realistic chance to be recovered (buyer may return next day).
+    const RECOVERY_WINDOW_HOURS = 72;
+    const twentyFourHoursAgo = new Date(Date.now() - RECOVERY_WINDOW_HOURS * 60 * 60 * 1000);
+    const rows = await this.prisma.checkoutSession.findMany({
+      where: {
+        triggerAgent: true,
+        abandonmentScore: { gte: threshold },
+        updatedAt: { gte: twentyFourHoursAgo }
+      },
+      take: 100,
+      orderBy: { updatedAt: "desc" }
+    });
+    return rows.map(toCheckoutSession);
+  }
+
+  async recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName, metadata?: Record<string, unknown>): Promise<void> {
+    if (!event) return; // Guard: missing event name should not 500
     await this.prisma.$transaction(async (tx) => {
       const session = await tx.checkoutSession.findUnique({
         where: { merchantId_sessionId: { merchantId, sessionId } }
       });
       await tx.checkoutEvent.create({
-        data: { merchantId, sessionId, eventName: event, occurredAt: new Date() }
+        data: { merchantId, sessionId, eventName: event, occurredAt: new Date(), metadata: metadata as any }
       });
       if (!session) return;
       const score = CheckoutAbandonmentService.applyEvent(session.abandonmentScore, event);
@@ -124,18 +144,45 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     });
   }
 
+  async getSessionEvents(merchantId: string, sessionId: string): Promise<CheckoutEventName[]> {
+    const rows = await this.prisma.checkoutEvent.findMany({
+      where: { merchantId, sessionId },
+      orderBy: { occurredAt: "asc" },
+      select: { eventName: true }
+    });
+    return rows.map((r) => r.eventName as CheckoutEventName);
+  }
+
   async appendChatTurn(merchantId: string, sessionId: string, turn: ChatTurn): Promise<CheckoutSession> {
     const current = await this.getSession(merchantId, sessionId);
     if (!current) throw new Error("checkout_session_not_found");
     const next = [...current.chatHistory, turn].slice(-50);
-    const row = await this.prisma.checkoutSession.update({
-      where: { merchantId_sessionId: { merchantId, sessionId } },
+
+    // Optimistic locking: prevent concurrent overwrites using updatedAt timestamp.
+    // If session was updated since we read it, Prisma will return 0 rows and we throw.
+    const currentUpdatedAt = new Date(current.updatedAt);
+    const result = await this.prisma.checkoutSession.updateMany({
+      where: {
+        merchantId,
+        sessionId,
+        updatedAt: currentUpdatedAt
+      },
       data: {
         chatHistory: next as unknown as Prisma.InputJsonValue,
         updatedAt: new Date()
       }
     });
-    return toCheckoutSession(row);
+
+    if (result.count === 0) {
+      throw new Error("session_conflict_concurrent_update");
+    }
+
+    // Re-fetch to return current state (mirrors last-write semantic but safely locked).
+    const updated = await this.prisma.checkoutSession.findUnique({
+      where: { merchantId_sessionId: { merchantId, sessionId } }
+    });
+    if (!updated) throw new Error("checkout_session_not_found");
+    return toCheckoutSession(updated);
   }
 
   async saveOffer(offer: AuthorizedOffer): Promise<AuthorizedOffer> {
@@ -220,6 +267,30 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
           }
         },
         data: { trackingCode: input.trackingCode }
+      });
+      return toCompletedOrder(row);
+    } catch (error) {
+      if (isPrismaRecordNotFound(error)) return undefined;
+      throw error;
+    }
+  }
+
+  async updateCompletedOrderStatus(input: {
+    merchantId: string;
+    sessionId: string;
+    externalOrderId: string;
+    status: CompletedOrderStatus;
+  }): Promise<CompletedOrder | undefined> {
+    try {
+      const row = await this.prisma.completedOrder.update({
+        where: {
+          merchantId_sessionId_externalOrderId: {
+            merchantId: input.merchantId,
+            sessionId: input.sessionId,
+            externalOrderId: input.externalOrderId
+          }
+        },
+        data: { status: input.status }
       });
       return toCompletedOrder(row);
     } catch (error) {
@@ -449,8 +520,8 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       offers_accepted: offersAccepted,
       orders_completed: ordersCompleted,
       conversion_rate_with_agent: conversationsStarted ? ordersCompleted / conversationsStarted : 0,
-      average_discount: avgDiscountResult._avg.value ?? 0,
-      average_shipping_subsidy: avgShippingResult._avg.value ?? 0,
+      average_discount: toNumber(avgDiscountResult._avg.value),
+      average_shipping_subsidy: toNumber(avgShippingResult._avg.value),
       incremental_revenue: ordersCompleted * avgCart,
       recent_sessions: sessions.map(toCheckoutSession),
       recent_offers: offers.map(toAuthorizedOffer)
@@ -471,6 +542,10 @@ function toCheckoutSessionCreate(session: CheckoutSession) {
     abandonmentScore: session.abandonmentScore,
     triggerAgent: session.triggerAgent,
     chatHistory: (session.chatHistory ?? []) as unknown as Prisma.InputJsonValue,
+    promptVariantId: session.promptVariantId ?? null,
+    cohort: session.cohort ?? null,
+    featuresApplied: (session.featuresApplied ?? undefined) as unknown as Prisma.InputJsonValue,
+    aiCostCents: session.aiCostCents ?? 0,
     createdAt: new Date(session.createdAt),
     updatedAt: new Date(session.updatedAt)
   };
@@ -487,6 +562,10 @@ function toCheckoutSessionUpdate(session: CheckoutSession) {
     abandonmentScore: session.abandonmentScore,
     triggerAgent: session.triggerAgent,
     chatHistory: (session.chatHistory ?? []) as unknown as Prisma.InputJsonValue,
+    promptVariantId: session.promptVariantId ?? null,
+    cohort: session.cohort ?? null,
+    featuresApplied: (session.featuresApplied ?? undefined) as unknown as Prisma.InputJsonValue,
+    aiCostCents: session.aiCostCents ?? 0,
     updatedAt: new Date(session.updatedAt)
   };
 }
@@ -503,6 +582,10 @@ function toCheckoutSession(row: {
   abandonmentScore: number;
   triggerAgent: boolean;
   chatHistory?: unknown | null;
+  promptVariantId?: string | null;
+  cohort?: string | null;
+  featuresApplied?: unknown | null;
+  aiCostCents?: number | null;
   createdAt: Date;
   updatedAt: Date;
 }): CheckoutSession {
@@ -518,6 +601,10 @@ function toCheckoutSession(row: {
     abandonmentScore: row.abandonmentScore,
     triggerAgent: row.triggerAgent,
     chatHistory: ((row.chatHistory ?? []) as ChatTurn[]),
+    promptVariantId: row.promptVariantId ?? undefined,
+    cohort: (row.cohort ?? undefined) as "holdout" | "treatment" | undefined,
+    featuresApplied: (row.featuresApplied ?? undefined) as CheckoutSession["featuresApplied"],
+    aiCostCents: row.aiCostCents ?? 0,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString()
   };
@@ -555,10 +642,10 @@ function toAuthorizedOffer(row: {
   merchantId: string;
   sessionId: string;
   type: string;
-  value: number;
+  value: DecimalLike;
   approved: boolean;
   reason: string;
-  marginAfterOffer: number;
+  marginAfterOffer: DecimalLike;
   expiresAt: Date;
   discountCode: string | null;
 }): AuthorizedOffer {
@@ -567,10 +654,10 @@ function toAuthorizedOffer(row: {
     merchantId: row.merchantId,
     sessionId: row.sessionId,
     type: row.type as OfferType,
-    value: row.value,
+    value: toNumber(row.value),
     approved: row.approved,
     reason: row.reason,
-    marginAfterOffer: row.marginAfterOffer,
+    marginAfterOffer: toNumber(row.marginAfterOffer),
     expiresAt: row.expiresAt.toISOString(),
     discountCode: row.discountCode ?? undefined
   };
@@ -594,8 +681,8 @@ function toAcceptedOffer(row: {
   sessionId: string;
   offerId: string;
   type: string;
-  value: number;
-  marginAfterOffer: number;
+  value: DecimalLike;
+  marginAfterOffer: DecimalLike;
   acceptedAt: Date;
   expiresAt: Date;
 }): AcceptedOffer {
@@ -604,8 +691,8 @@ function toAcceptedOffer(row: {
     sessionId: row.sessionId,
     offerId: row.offerId,
     type: row.type as OfferType,
-    value: row.value,
-    marginAfterOffer: row.marginAfterOffer,
+    value: toNumber(row.value),
+    marginAfterOffer: toNumber(row.marginAfterOffer),
     acceptedAt: row.acceptedAt.toISOString(),
     expiresAt: row.expiresAt.toISOString()
   };
@@ -621,6 +708,8 @@ function toCompletedOrderCreate(order: CompletedOrder) {
     status: order.status ?? "approved",
     acceptedOfferId: order.acceptedOfferId,
     trackingCode: order.trackingCode,
+    lineItemsJson: order.lineItems ? (order.lineItems as unknown as object) : undefined,
+    shippingCents: order.shippingCents,
     completedAt: new Date(order.completedAt),
     cancelledAt: order.cancelledAt
       ? new Date(order.cancelledAt)
@@ -633,11 +722,13 @@ function toCompletedOrder(row: {
   merchantId: string;
   sessionId: string;
   externalOrderId: string;
-  orderTotal: number;
+  orderTotal: DecimalLike;
   currency: string;
   status?: string;
   acceptedOfferId: string | null;
   trackingCode?: string | null;
+  lineItemsJson?: unknown;
+  shippingCents?: number | null;
   completedAt: Date;
   cancelledAt?: Date | null;
   cancellationReason?: string | null;
@@ -646,11 +737,15 @@ function toCompletedOrder(row: {
     merchantId: row.merchantId,
     sessionId: row.sessionId,
     externalOrderId: row.externalOrderId,
-    orderTotal: row.orderTotal,
+    orderTotal: toNumber(row.orderTotal),
     currency: row.currency as CurrencyCode,
-    status: row.status === "cancelled" ? "cancelled" : "approved",
+    status: row.status as CompletedOrderStatus,
     acceptedOfferId: row.acceptedOfferId ?? undefined,
     trackingCode: row.trackingCode ?? undefined,
+    lineItems: Array.isArray(row.lineItemsJson)
+      ? (row.lineItemsJson as CompletedOrder["lineItems"])
+      : undefined,
+    shippingCents: row.shippingCents ?? undefined,
     completedAt: row.completedAt.toISOString(),
     cancelledAt: row.cancelledAt?.toISOString(),
     cancellationReason: row.cancellationReason ?? undefined,
@@ -680,34 +775,36 @@ function toMerchantRuleUpdate(rules: MerchantRules) {
 }
 
 function toMerchantRules(row: {
-  maxDiscountPercent: number;
-  minimumMarginPercent: number;
+  maxDiscountPercent: DecimalLike;
+  minimumMarginPercent: DecimalLike;
   allowFreeShipping: boolean;
   allowShippingDiscount: boolean;
   allowBonusItem: boolean;
   allowStackDiscountAndFreeShipping: boolean;
-  freeShippingMinCartValue: number;
-  maxShippingSubsidy: number;
-  maxPartialShippingDiscount: number;
+  freeShippingMinCartValue: DecimalLike;
+  maxShippingSubsidy: DecimalLike;
+  maxPartialShippingDiscount: DecimalLike;
   offerExpirationMinutes: number;
   blockedRegions: string[];
   brandVoice: string;
   couponBoxEnabled?: boolean | null;
+  autonomousEngineEnabled?: boolean | null;
 }): MerchantRules {
   return {
-    maxDiscountPercent: row.maxDiscountPercent,
-    minimumMarginPercent: row.minimumMarginPercent,
+    maxDiscountPercent: toNumber(row.maxDiscountPercent),
+    minimumMarginPercent: toNumber(row.minimumMarginPercent),
     allowFreeShipping: row.allowFreeShipping,
     allowShippingDiscount: row.allowShippingDiscount,
     allowBonusItem: row.allowBonusItem,
     allowStackDiscountAndFreeShipping: row.allowStackDiscountAndFreeShipping,
-    freeShippingMinCartValue: row.freeShippingMinCartValue,
-    maxShippingSubsidy: row.maxShippingSubsidy,
-    maxPartialShippingDiscount: row.maxPartialShippingDiscount,
+    freeShippingMinCartValue: toNumber(row.freeShippingMinCartValue),
+    maxShippingSubsidy: toNumber(row.maxShippingSubsidy),
+    maxPartialShippingDiscount: toNumber(row.maxPartialShippingDiscount),
     offerExpirationMinutes: row.offerExpirationMinutes,
     blockedRegions: row.blockedRegions,
     brandVoice: row.brandVoice as MerchantRules["brandVoice"],
-    couponBoxEnabled: row.couponBoxEnabled ?? true
+    couponBoxEnabled: row.couponBoxEnabled ?? true,
+    autonomousEngineEnabled: row.autonomousEngineEnabled ?? true
   };
 }
 

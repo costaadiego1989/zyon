@@ -1,0 +1,45 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      - source_labels: ["__meta_docker_container_name"]
+        target_label: "container"
+      - source_labels: ["__meta_docker_container_label_com_docker_compose_service"]
+        target_label: "service"
+    pipeline_stages:
+      # Parse JSON logs from NestJS/Pino
+      - json:
+          expressions:
+            level: level
+            msg: msg
+            trace_id: trace_id
+            span_id: span_id
+            merchant_id: merchant_id
+            correlation_id: correlation_id
+            req_method: req.method
+            req_url: req.url
+            res_statusCode: res.statusCode
+            responseTime: responseTime
+      - labels:
+          level:
+          merchant_id:
+          service:
+      - structured_metadata:
+          trace_id:
+          span_id:
+          correlation_id:
+      - timestamp:
+          source: time
+          format: RFC3339Nano

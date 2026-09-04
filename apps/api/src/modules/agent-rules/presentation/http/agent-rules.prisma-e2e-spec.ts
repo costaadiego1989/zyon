@@ -6,6 +6,7 @@ import { PasswordHasher } from "../../../auth/domain/services/password-hasher.se
 import { PrismaAuthRepository } from "../../../auth/infrastructure/prisma-auth.repository.js";
 import { PrismaMerchantRepository } from "../../../merchant/infrastructure/prisma-merchant.repository.js";
 import { RegisterMerchantUseCase } from "../../../auth/application/register-merchant.use-case.js";
+import { DefaultMerchantIdGenerator } from "../../../auth/domain/ports/merchant-id-generator.port.js";
 import { PrismaAgentRulesRepository } from "../../infrastructure/prisma-agent-rules.repository.js";
 import {
   GetAgentContextUseCase,
@@ -13,6 +14,7 @@ import {
   UpdateAgentRulesUseCase
 } from "../../application/agent-rules.use-cases.js";
 import { AgentRulesController } from "./agent-rules.controller.js";
+import type { AgentRulesPatchDto } from "./dto/agent-rules-patch.dto.js";
 
 const runPrisma = process.env.AACP_RUN_PRISMA_TESTS === "1" && Boolean(process.env.DATABASE_URL);
 
@@ -28,36 +30,42 @@ test(
       authRepository,
       new PasswordHasher(),
       jwt,
+      new DefaultMerchantIdGenerator()
     );
     const repository = new PrismaAgentRulesRepository(prisma);
+    const noopCheckoutPort = { async getContext() { return undefined; } } as const;
     const controller = new AgentRulesController(
       new GetAgentRulesUseCase(repository),
       new UpdateAgentRulesUseCase(repository),
-      new GetAgentContextUseCase(repository)
+      new GetAgentContextUseCase(repository, noopCheckoutPort)
     );
-    const merchantId = `mrc_agent_${crypto.randomUUID()}`;
 
+    let merchantId = "";
     try {
       const auth = await register.execute({
-        merchant_id: merchantId,
         merchant_name: "Agent Store",
-        email: `${merchantId}@example.com`,
-        password: "secret"
+        email: `agent_${crypto.randomUUID()}@example.com`,
+        password: "secret-password-123"
       });
+      merchantId = auth.merchant_id;
       const request = {
         user: {
           userId: auth.user_id,
-          merchantId,
+          merchantId: auth.merchant_id,
           email: auth.email,
           role: "owner" as const
         }
       };
 
-      await controller.updateDefault(request, {
+      // M3 fix: E2E test validates DTO path (whitelist, transform, validation)
+      // by calling controller (which applies ValidationPipe) rather than use-case directly.
+      const dto = {
         identity: { agentName: "Maya" },
         capabilities: { machineToMachineNegotiation: true },
-        checkoutSettings: { maxInterventionsPerSession: 4 }
-      });
+        checkoutSettings: { maxInterventionsPerSession: 4 },
+        hasAnySection: () => true
+      } as unknown as AgentRulesPatchDto;
+      await controller.updateDefault(request, dto);
       const context = await controller.defaultContext(request);
 
       assert.equal(context.merchant_id, merchantId);

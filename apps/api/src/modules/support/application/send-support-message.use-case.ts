@@ -1,13 +1,14 @@
-import { Inject, Injectable, Optional } from "@nestjs/common";
-import { isSafeGeneratedMessage } from "@aacp/conversation-engine";
-import type { SupportFaqItem, SupportTicket, SupportTicketStatus } from "@aacp/shared-types";
-import { HttpClientService } from "../../../shared/http/http-client.service.js";
-import { SupportTicketEntity } from "../domain/entities/support-ticket.entity.js";
-import {
-  SUPPORT_TICKET_REPOSITORY,
-  type SupportTicketRepository
-} from "../domain/ports/support-ticket-repository.port.js";
-import { TenantWebhookPublisher } from "../../integrations/application/integrations.use-cases.js";
+import { Inject, Injectable , Logger, Optional} from "@nestjs/common";
+import { isSafeGeneratedMessage } from "@zyon/conversation-engine";
+import type { SupportFaqItem, SupportTicketStatus } from "@zyon/shared-types";
+import { faqLookup } from "./support-faq.service.js";
+import { smartFallback } from "./support-fallback.service.js";
+import { SupportHandoffService } from "./support-handoff.service.js";
+import type { ChatCompletionPort } from "../domain/ports/chat-completion.port.js";
+import { CHAT_COMPLETION_PORT } from "../domain/ports/chat-completion.port.js";
+import { stripHtmlFromReply } from "../domain/services/sanitize-reply.js";
+import { QueryKnowledgeUseCase } from "../../knowledge-base/application/use-cases/query-knowledge.use-case.js";
+import { BuyerOrderContextService } from "../../knowledge-base/application/services/buyer-order-context.service.js";
 
 export interface SupportMessageInput {
   message: string;
@@ -18,6 +19,7 @@ export interface SupportMessageInput {
 export interface SupportMessageContext {
   brandName?: string;
   faqItems?: SupportFaqItem[];
+  buyerGlobalUserId?: string;
 }
 
 export interface SupportMessageOutput {
@@ -29,72 +31,45 @@ export interface SupportMessageOutput {
   };
 }
 
-function smartFallback(text: string): string {
-  const t = text.toLowerCase();
-  if (/(frete|entrega|prazo|rastreio|rastreamento)/.test(t))
-    return "Para dúvidas sobre frete e prazo, consulte o rastreamento no e-mail de confirmação do pedido.";
-  if (/(troca|devolu|reembolso|cancelamento|cancelar)/.test(t))
-    return "Trocas e devoluções podem ser solicitadas em até 7 dias pelo e-mail de atendimento da loja.";
-  if (/(pagamento|cartão|cartao|pix|boleto|recusado|cobrado)/.test(t))
-    return "Para problemas com pagamento, verifique seu extrato ou entre em contato com o banco emissor.";
-  if (/(produto|item|estoque|disponível|disponivel|esgotado)/.test(t))
-    return "Para informações sobre disponibilidade de produto, acesse o site da loja.";
-  if (/(cupom|desconto|promoção|promocao|oferta)/.test(t))
-    return "Cupons são aplicados durante o checkout. Verifique se o código está correto e dentro do prazo de validade.";
-  if (/(conta|senha|login|acesso|cadastro)/.test(t))
-    return "Para problemas de acesso à conta, use a opção 'Esqueci minha senha' na página de login.";
-  return "Entendo sua dúvida. Nossa equipe responde em até 24h — envie um e-mail para o suporte da loja.";
-}
-
-function normalize(text: string): string {
-  return text.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
-}
-
-function faqLookup(message: string, items: SupportFaqItem[]): string | null {
-  if (!items.length) return null;
-  const q = normalize(message);
-  let bestMatch: { answer: string; score: number } | null = null;
-  for (const item of items) {
-    const keywords = normalize(item.question).split(/\W+/).filter((k) => k.length > 3);
-    const score = keywords.filter((k) => q.includes(k)).length;
-    if (score >= 2 && (!bestMatch || score > bestMatch.score)) {
-      bestMatch = { answer: item.answer, score };
-    }
-  }
-  return bestMatch?.answer ?? null;
-}
-
 function needsHumanHandoff(text: string): boolean {
   return /n[aã]o sei|nao tenho certeza|suporte humano|equipe|entrar em contato|contatar o suporte/i.test(
-    normalize(text),
+    text.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, ""),
   );
 }
 
-function formatHandoffReply(ticket: SupportTicket, contextReply?: string): string {
-  const prefix = contextReply?.trim() ? `${contextReply.trim()}\n\n` : "";
-  return `${prefix}Tambem abri um chamado para a equipe da loja acompanhar de perto. Protocolo: ${ticket.id}.`;
-}
+const BASE_SYSTEM_PROMPT = `Você é um assistente de suporte ao cliente de uma loja. Responda dúvidas sobre entrega, pagamento, devoluções e pedidos de forma objetiva e empática.
 
-const BASE_SYSTEM_PROMPT = `Você é um assistente de suporte ao cliente. Responda dúvidas sobre entrega, pagamento, devoluções e pedidos de forma objetiva e empática.
+REGRA FUNDAMENTAL — NÃO INVENTE:
+- Responda APENAS com base nas informações oficiais da loja fornecidas abaixo (FAQ e contexto da loja).
+- Se a resposta NÃO estiver nas informações oficiais, diga que não tem essa informação e ofereça encaminhar para um atendente humano.
+- NUNCA invente prazos, políticas, valores, fatos gerais ou dados que não foram fornecidos pela loja.
+- Não responda perguntas fora do escopo de atendimento da loja (ex: curiosidades, esportes, notícias). Se perguntarem algo fora do escopo, redirecione educadamente para dúvidas sobre a loja e os pedidos.
 
 PROIBIDO:
 - Autorizar descontos, cupons ou promoções
 - Confirmar ou negar status de pagamento
-- Prometer prazos de entrega ou garantir disponibilidade de estoque
+- Prometer prazos de entrega ou garantir disponibilidade de estoque (a menos que conste no FAQ oficial)
 - Solicitar senha, CVV ou dados sensíveis
+- Inventar informações que não foram fornecidas pela loja
 
-Se não souber a resposta com certeza, oriente o cliente a contatar o suporte humano.`;
+Se não souber a resposta com certeza com base nas informações oficiais, oriente o cliente a contatar o suporte humano.`;
 
-function buildSystemPrompt(ctx?: SupportMessageContext): string {
-  if (!ctx?.faqItems?.length && !ctx?.brandName) return BASE_SYSTEM_PROMPT;
+function buildSystemPrompt(ctx?: SupportMessageContext, knowledgeContext?: string): string {
+  if (!ctx?.faqItems?.length && !ctx?.brandName && !knowledgeContext) return BASE_SYSTEM_PROMPT;
 
   const parts: string[] = [BASE_SYSTEM_PROMPT];
 
-  if (ctx.brandName) {
+  if (ctx?.brandName) {
     parts.push(`\nCONTEXTO DA LOJA:\nNome: ${ctx.brandName}`);
   }
 
-  if (ctx.faqItems?.length) {
+  if (knowledgeContext) {
+    parts.push(
+      `\nINFORMAÇÕES RELEVANTES DA BASE DE CONHECIMENTO:\n${knowledgeContext}\n\nUse as informações acima para responder à dúvida do cliente.`,
+    );
+  }
+
+  if (ctx?.faqItems?.length) {
     const faqLines = ctx.faqItems
       .slice(0, 10)
       .map((f) => `P: ${f.question}\nR: ${f.answer}`)
@@ -109,108 +84,93 @@ function buildSystemPrompt(ctx?: SupportMessageContext): string {
 
 @Injectable()
 export class SendSupportMessageUseCase {
+  private readonly logger = new Logger(SendSupportMessageUseCase.name);
+
   constructor(
-    @Inject(SUPPORT_TICKET_REPOSITORY)
-    private readonly tickets: SupportTicketRepository,
-    @Optional() private readonly http?: HttpClientService,
-    @Optional() private readonly webhooks?: TenantWebhookPublisher,
+    @Inject(CHAT_COMPLETION_PORT) private readonly chat: ChatCompletionPort,
+    private readonly handoff: SupportHandoffService,
+    @Optional() private readonly queryKnowledge?: QueryKnowledgeUseCase,
+    @Optional() private readonly buyerOrderContext?: BuyerOrderContextService,
   ) {}
 
   async execute(
     input: SupportMessageInput,
     ctx?: SupportMessageContext,
   ): Promise<SupportMessageOutput> {
-    const faqReply = faqLookup(input.message, ctx?.faqItems ?? []);
-    if (faqReply) return { reply: faqReply, safe: true };
+    let knowledgeContext: string | undefined;
+    if (this.queryKnowledge) {
+      try {
+        const result = await this.queryKnowledge.execute({
+          merchantId: input.merchant_id,
+          queryText: input.message,
+          limit: 5,
+          threshold: 0.65,
+        });
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
-    const baseUrl = (process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/$/, "");
-
-    if (!apiKey) {
-      return this.createHandoff(input, true, smartFallback(input.message));
+        if (result.chunks.length > 0) {
+          knowledgeContext = result.chunks
+            .map((chunk) => `• ${chunk.content}`)
+            .join("\n\n");
+        }
+      } catch (err) {
+        this.logger.warn(`Knowledge base query failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
 
-    try {
-      const fetchFn = this.http?.toFetch() ?? fetch;
-      const response = await fetchFn(`${baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: buildSystemPrompt(ctx) },
-            { role: "user", content: input.message },
-          ],
-          max_tokens: 300,
-          temperature: 0.4,
-        }),
-      });
+    if (!knowledgeContext) {
+      const faqReply = faqLookup(input.message, ctx?.faqItems ?? []);
+      if (faqReply) return { reply: faqReply, safe: true };
+    }
 
-      if (!response.ok) {
-        return this.createHandoff(input, true, smartFallback(input.message));
+    if (this.buyerOrderContext && ctx?.buyerGlobalUserId) {
+      try {
+        const orderContext = await this.buyerOrderContext.getRecentOrdersContext(
+          input.merchant_id,
+          ctx.buyerGlobalUserId,
+        );
+        if (orderContext) {
+          knowledgeContext = (knowledgeContext ? `${knowledgeContext}\n\n` : "")
+            + `PEDIDOS RECENTES DO CLIENTE:\n${orderContext}`;
+        }
+      } catch (err) {
+        this.logger.warn(`Buyer order context failed: ${err instanceof Error ? err.message : String(err)}`);
       }
+    }
 
-      const data = (await response.json()) as {
-        choices?: Array<{ message?: { content?: string } }>;
+    const systemPrompt = buildSystemPrompt(ctx, knowledgeContext);
+    const rawReply = await this.chat.complete([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: input.message },
+    ]);
+    const aiReply = rawReply ? stripHtmlFromReply(rawReply) : null;
+
+    if (!aiReply || !isSafeGeneratedMessage(aiReply)) {
+      const faqFallback = faqLookup(input.message, ctx?.faqItems ?? []);
+      if (faqFallback) return { reply: faqFallback, safe: true };
+
+      const result = await this.handoff.createHandoff(
+        { merchantId: input.merchant_id, sessionId: input.session_id, buyerMessage: input.message },
+        aiReply ? undefined : smartFallback(input.message),
+      );
+      return {
+        reply: result.reply,
+        safe: !!aiReply,
+        handoff: { ticketId: result.ticketId, status: "open" },
       };
-      const text = data.choices?.[0]?.message?.content?.trim() ?? "";
-
-      if (!text || !isSafeGeneratedMessage(text)) {
-        return this.createHandoff(input, false, smartFallback(input.message));
-      }
-
-      if (needsHumanHandoff(text)) {
-        return this.createHandoff(input, true, text);
-      }
-
-      return { reply: text, safe: true };
-    } catch {
-      return this.createHandoff(input, true, smartFallback(input.message));
     }
-  }
 
-  private async createHandoff(
-    input: SupportMessageInput,
-    safe: boolean,
-    contextReply?: string,
-  ): Promise<SupportMessageOutput> {
-    const ticket = await this.tickets.save(
-      SupportTicketEntity.create({
-        merchantId: input.merchant_id,
-        sessionId: input.session_id,
-        buyerMessage: input.message,
-        source: "widget",
-      }).snapshot(),
-    );
-    // Bug P2 fix: webhook publish must not break the chat response.
-    // Ticket is already persisted — a transient webhook failure must not surface
-    // as 500 to the buyer. Fire-and-forget with error swallowed.
-    if (this.webhooks) {
-      this.webhooks.publish({
-        merchantId: ticket.merchantId,
-        eventType: "support.ticket.created",
-        occurredAt: ticket.createdAt,
-        data: {
-          ticket: {
-            id: ticket.id,
-            session_id: ticket.sessionId ?? null,
-            status: ticket.status,
-            source: ticket.source,
-          },
-        },
-      }).catch(() => undefined);
+    if (needsHumanHandoff(aiReply)) {
+      const result = await this.handoff.createHandoff(
+        { merchantId: input.merchant_id, sessionId: input.session_id, buyerMessage: input.message },
+        aiReply,
+      );
+      return {
+        reply: result.reply,
+        safe: true,
+        handoff: { ticketId: result.ticketId, status: "open" },
+      };
     }
-    return {
-      reply: formatHandoffReply(ticket, contextReply),
-      safe,
-      handoff: {
-        ticketId: ticket.id,
-        status: ticket.status,
-      },
-    };
+
+    return { reply: aiReply, safe: true };
   }
 }

@@ -1,4 +1,4 @@
-import type { AgentContext } from "@aacp/shared-types";
+import type { AgentContext } from "@zyon/shared-types";
 
 export const AGENT_CONTEXT_PORT = Symbol("AGENT_CONTEXT_PORT");
 

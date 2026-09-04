@@ -5,6 +5,7 @@ import { RecordTrackingEventUseCase } from "./record-tracking-event.use-case.js"
 import { InMemoryShipmentRepository } from "../../infrastructure/repositories/in-memory-shipment.repository.js";
 import { InMemoryTrackingEventRepository } from "../../infrastructure/repositories/in-memory-tracking-event.repository.js";
 import { InMemoryOutboxRepository } from "../../../../shared/messaging/infrastructure/in-memory-outbox.repository.js";
+import { InMemoryDomainEventBus } from "../../../../shared/events/in-memory-domain-event-bus.js";
 
 function makeSetup() {
   const repo = new InMemoryShipmentRepository();
@@ -18,7 +19,7 @@ function makeTrackingSetup() {
   const trackingRepo = new InMemoryTrackingEventRepository();
   const outbox = new InMemoryOutboxRepository();
   const createUseCase = new CreateShipmentUseCase(repo, outbox);
-  const recordUseCase = new RecordTrackingEventUseCase(repo, trackingRepo, outbox);
+  const recordUseCase = new RecordTrackingEventUseCase(repo, trackingRepo, outbox, new InMemoryDomainEventBus());
   return { repo, trackingRepo, outbox, createUseCase, recordUseCase };
 }
 

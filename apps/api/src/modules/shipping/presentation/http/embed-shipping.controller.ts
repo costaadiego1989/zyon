@@ -12,7 +12,7 @@ import {
 import type {
   ShippingQuoteRequest,
   ShippingSelectRequest
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 import { EmbedAuthGuard } from "../../../embed/presentation/http/embed-auth.guard.js";
 import type { EmbedTokenClaims } from "../../../embed/domain/embed-token.service.js";
 import { QuoteShippingUseCase } from "../../application/use-cases/quote-shipping.use-case.js";

@@ -1,0 +1,46 @@
+# Caddy reverse proxy for custom domains (On-Demand TLS)
+# Automatically issues Let's Encrypt certificates for verified merchant domains.
+#
+# Flow:
+#   1. Request arrives at athom.com.br:443
+#   2. Caddy checks if cert exists → if not, calls "ask" endpoint
+#   3. API returns 200 (domain verified) → Caddy issues cert via Let's Encrypt
+#   4. Request proxied to storefront (Next.js) with original Host header
+#
+# Requirements:
+#   - Port 80 and 443 open (Let's Encrypt HTTP-01 challenge)
+#   - API running on port 3009 (or configured via CADDY_API_URL)
+#   - Storefront running on port 3001 (or configured via CADDY_STOREFRONT_URL)
+
+{
+	on_demand_tls {
+		ask http://api:3009/domains/check
+		interval 5m
+		burst 10
+	}
+}
+
+# Custom merchant domains — On-Demand TLS
+:443 {
+	tls {
+		on_demand
+	}
+
+	# Health check endpoint for ALB/ELB
+	handle /health {
+		respond "ok" 200
+	}
+
+	# Proxy all requests to storefront with original Host header
+	reverse_proxy storefront:3001 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}
+
+# HTTP → HTTPS redirect (also handles Let's Encrypt HTTP-01 challenge)
+:80 {
+	redir https://{host}{uri} permanent
+}

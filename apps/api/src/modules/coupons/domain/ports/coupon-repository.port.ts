@@ -7,4 +7,5 @@ export interface CouponRepository {
   findById(id: string, merchantId: string): Promise<CouponEntity | null>;
   findByCode(merchantId: string, code: string): Promise<CouponEntity | null>;
   findAllByMerchant(merchantId: string): Promise<CouponEntity[]>;
+  updateActive(merchantId: string, id: string, isActive: boolean): Promise<void>;
 }

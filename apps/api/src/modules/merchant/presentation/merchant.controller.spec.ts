@@ -4,7 +4,7 @@ import { BadRequestException, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "../../auth/domain/services/jwt.service.js";
 import { AuthCookieService } from "../../auth/domain/services/auth-cookie.service.js";
 import { AuthGuard } from "../../auth/presentation/auth.guard.js";
-import { DEFAULT_MERCHANT_THEME } from "@aacp/shared-types";
+import { DEFAULT_MERCHANT_THEME } from "@zyon/shared-types";
 import { GetMerchantProfileUseCase, GetMerchantRulesUseCase, UpdateMerchantRulesUseCase } from "../application/merchant.use-cases.js";
 import { GetMerchantThemeUseCase } from "../application/get-merchant-theme.use-case.js";
 import { UpdateMerchantThemeUseCase } from "../application/update-merchant-theme.use-case.js";
@@ -12,13 +12,18 @@ import { InMemoryMerchantRepository } from "../infrastructure/in-memory-merchant
 import { MerchantController } from "./merchant.controller.js";
 import { normalizeMerchantCryptoPayments } from "../domain/services/merchant-crypto.validation.js";
 
+const noopEventBus = { publish: async () => {}, subscribe: () => {}, handlersFor: () => [] } as any;
+
 function buildController(repository: InMemoryMerchantRepository) {
+  const s3Mock = { isConfigured: () => false, upload: async () => ({ url: "", key: "", bucket: "" }), uploadBase64: async () => ({ url: "", key: "", bucket: "" }) } as any;
   return new MerchantController(
     new GetMerchantProfileUseCase(repository),
     new GetMerchantRulesUseCase(repository),
-    new UpdateMerchantRulesUseCase(repository),
-    new GetMerchantThemeUseCase(repository),
-    new UpdateMerchantThemeUseCase(repository)
+    new UpdateMerchantRulesUseCase(repository, noopEventBus),
+    new GetMerchantThemeUseCase(repository, {} as any),
+    new UpdateMerchantThemeUseCase(repository),
+    s3Mock,
+    { merchant: { update: async () => ({}) } } as any
   );
 }
 
@@ -26,20 +31,28 @@ test("MerchantController reads and updates rules scoped by authenticated merchan
   const repository = new InMemoryMerchantRepository();
   repository.seedProfile({ id: "mrc_1", name: "Demo Store" });
   const controller = buildController(repository);
-  const request = { user: { userId: "usr_1", merchantId: "mrc_1", email: "owner@example.com", role: "owner" } };
+  const merchantId = "mrc_1";
 
-  assert.equal((await controller.profile(request)).id, "mrc_1");
-  assert.equal((await controller.update(request, { maxDiscountPercent: 15 })).maxDiscountPercent, 15);
-  assert.equal((await controller.rules(request)).maxDiscountPercent, 15);
+  assert.equal((await controller.profile(merchantId, {
+    tenantPrincipal: {
+      kind: "human",
+      tenantId: "mrc_1",
+      userId: "usr_1",
+      email: "owner@example.com",
+      role: "owner",
+    },
+  } as never)).id, "mrc_1");
+  assert.equal((await controller.update(merchantId, { maxDiscountPercent: 15 })).maxDiscountPercent, 15);
+  assert.equal((await controller.rules(merchantId)).maxDiscountPercent, 15);
 });
 
 test("MerchantController returns default theme and persists overrides per merchant", async () => {
   const repository = new InMemoryMerchantRepository();
   repository.seedProfile({ id: "mrc_1", name: "Demo Store" });
   const controller = buildController(repository);
-  const request = { user: { userId: "usr_1", merchantId: "mrc_1", email: "owner@example.com", role: "owner" } };
+  const merchantId = "mrc_1";
 
-  const initial = await controller.theme(request);
+  const initial = await controller.theme(merchantId);
   assert.deepEqual(initial, DEFAULT_MERCHANT_THEME);
 
   const next = {
@@ -48,10 +61,10 @@ test("MerchantController returns default theme and persists overrides per mercha
     fontFamily: "Manrope, system-ui, sans-serif",
     logoUrl: "https://cdn.example/logo.png"
   };
-  const saved = await controller.putTheme(request, next);
+  const saved = await controller.putTheme(merchantId, next);
   assert.equal(saved.accentColor, "#FF0066");
 
-  const reloaded = await controller.theme(request);
+  const reloaded = await controller.theme(merchantId);
   assert.equal(reloaded.fontFamily, "Manrope, system-ui, sans-serif");
 });
 
@@ -125,7 +138,7 @@ function contextFor(request: Record<string, unknown>) {
 test("UpdateMerchantRules rejects maxDiscountPercent > 50", async () => {
   const repository = new InMemoryMerchantRepository();
   repository.seedProfile({ id: "mrc_1", name: "Demo Store" });
-  const updateRules = new UpdateMerchantRulesUseCase(repository);
+  const updateRules = new UpdateMerchantRulesUseCase(repository, noopEventBus);
   await assert.rejects(
     () => updateRules.execute("mrc_1", { maxDiscountPercent: 100 }),
     BadRequestException
@@ -135,7 +148,7 @@ test("UpdateMerchantRules rejects maxDiscountPercent > 50", async () => {
 test("UpdateMerchantRules rejects minimumMarginPercent below floor (< 5)", async () => {
   const repository = new InMemoryMerchantRepository();
   repository.seedProfile({ id: "mrc_1", name: "Demo Store" });
-  const updateRules = new UpdateMerchantRulesUseCase(repository);
+  const updateRules = new UpdateMerchantRulesUseCase(repository, noopEventBus);
   await assert.rejects(
     () => updateRules.execute("mrc_1", { minimumMarginPercent: 2 }),
     BadRequestException
@@ -148,7 +161,7 @@ test("UpdateMerchantRules rejects invalid brandVoice at DTO level", () => {
   // Verify the use-case itself does not throw for valid enum value.
   const repository = new InMemoryMerchantRepository();
   repository.seedProfile({ id: "mrc_1", name: "Demo Store" });
-  const updateRules = new UpdateMerchantRulesUseCase(repository);
+  const updateRules = new UpdateMerchantRulesUseCase(repository, noopEventBus);
   // Valid value should not throw
   assert.doesNotReject(() => updateRules.execute("mrc_1", { brandVoice: "consultative" }));
 });
@@ -159,7 +172,7 @@ test("UpdateMerchantRules rejects unknown field via use-case (no-op for extra pr
   // (repository merges known fields only). Verify the use-case completes without error.
   const repository = new InMemoryMerchantRepository();
   repository.seedProfile({ id: "mrc_1", name: "Demo Store" });
-  const updateRules = new UpdateMerchantRulesUseCase(repository);
+  const updateRules = new UpdateMerchantRulesUseCase(repository, noopEventBus);
   await assert.doesNotReject(
     () => updateRules.execute("mrc_1", { unknownField: "x" } as never)
   );

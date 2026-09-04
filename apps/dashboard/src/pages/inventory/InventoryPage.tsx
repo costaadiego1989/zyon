@@ -1,0 +1,886 @@
+import React, { useState, useMemo } from "react";
+import { Package, AlertTriangle, DollarSign, Boxes, AlertCircle, RefreshCw, Plug, Unplug, ExternalLink } from "lucide-react";
+import type { MerchantProfile } from "../../api-client.js";
+import type { ErpConnectionDTO } from "../../api/endpoints/inventory.js";
+import { TabBar } from "../../components/TabBar.js";
+import { StatCard } from "../overview/components/StatCard.js";
+import { DataPanel } from "../../components/DataPanel.js";
+import { EmptyState } from "../../components/EmptyState.js";
+import { Button } from "../../components/Button.js";
+import { SectionHeader } from "../../components/SectionHeader.js";
+import { SidePanel } from "../../components/SidePanel.js";
+import { FilterToolbar } from "../../components/FilterToolbar.js";
+import { useInventoryPage } from "./useInventoryPage.js";
+
+export interface InventoryPageProps {
+  apiBaseUrl: string;
+  me: MerchantProfile | null;
+}
+
+type InventoryTab = "overview" | "movements" | "alerts" | "erp";
+
+const MOVEMENT_KIND_COLORS: Record<string, { bg: string; color: string; label: string }> = {
+  ENTRY: { bg: "var(--color-success-bg)", color: "var(--color-success)", label: "Entrada" },
+  EXIT: { bg: "var(--color-error-bg)", color: "var(--color-error)", label: "Saída" },
+  ADJUSTMENT: { bg: "var(--surface-2)", color: "var(--color-text-muted)", label: "Ajuste" },
+  RESERVATION: { bg: "var(--color-brand-subtle)", color: "var(--color-brand)", label: "Reserva" },
+  RELEASE: { bg: "var(--surface-2)", color: "var(--color-text-faint)", label: "Liberação" },
+  TRANSFER_IN: { bg: "var(--color-brand-subtle)", color: "var(--color-brand)", label: "Transfer. entrada" },
+  TRANSFER_OUT: { bg: "var(--color-warning-bg)", color: "var(--color-warning)", label: "Transfer. saída" },
+};
+
+const MOVEMENT_SOURCE_LABELS: Record<string, string> = {
+  commerce: "Venda",
+  catalog: "Catálogo",
+  manual: "Manual",
+  native: "Manual",
+  dashboard: "Manual",
+  erp: "ERP",
+  marketplace: "Marketplace",
+  reconciliation: "Reconciliação",
+  system: "Sistema",
+};
+
+const MOVEMENT_REASON_LABELS: Record<string, string> = {
+  sale_completed: "Venda concluída",
+  reconciliation: "Reconciliação de estoque",
+  manual_adjustment: "Ajuste manual",
+  stock_received: "Entrada de mercadoria",
+  damaged: "Baixa por avaria",
+  returned: "Devolução",
+};
+const labelSource = (s?: string | null): string => (s ? (MOVEMENT_SOURCE_LABELS[s] ?? s) : "—");
+const labelReason = (r?: string | null): string => (r ? (MOVEMENT_REASON_LABELS[r] ?? r) : "—");
+
+const STOCK_STATUS_COLORS: Record<string, { bg: string; color: string; label: string }> = {
+  in_stock: { bg: "var(--color-success-bg)", color: "var(--color-success)", label: "Em estoque" },
+  low_stock: { bg: "var(--color-warning-bg)", color: "var(--color-warning)", label: "Baixo" },
+  out_of_stock: { bg: "var(--color-error-bg)", color: "var(--color-error)", label: "Sem estoque" },
+};
+
+const ALERT_SEVERITY_COLORS: Record<string, { bg: string; color: string; label: string }> = {
+  info: { bg: "var(--surface-2)", color: "var(--color-text-muted)", label: "Info" },
+  low: { bg: "var(--color-warning-bg)", color: "var(--color-warning)", label: "Baixa" },
+  critical: { bg: "var(--color-error-bg)", color: "var(--color-error)", label: "Crítica" },
+  out: { bg: "var(--color-error-bg)", color: "var(--color-error)", label: "Sem estoque" },
+};
+
+function formatCurrency(cents: number | undefined): string {
+  if (!cents) return "R$ 0";
+  const brl = cents / 100;
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(brl);
+}
+
+const PAGE_SIZE = 10;
+
+export function InventoryPage(props: InventoryPageProps) {
+  const vm = useInventoryPage({ me: props.me });
+  const [tab, setTab] = useState<InventoryTab>("overview");
+  const [itemPage, setItemPage] = useState(1);
+  const [movementPage, setMovementPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<"all" | "in_stock" | "low_stock" | "out_of_stock">("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [productDetail, setProductDetail] = useState<any | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  // Manual stock adjustment (records a movement instead of editing the product qty)
+  const [adjustQty, setAdjustQty] = useState<string>("");
+  const [adjustReason, setAdjustReason] = useState<string>("");
+  const [adjustBusy, setAdjustBusy] = useState(false);
+
+  const submitAdjustment = async () => {
+    if (!selectedItem) return;
+    const delta = parseInt(adjustQty, 10);
+    if (!Number.isFinite(delta) || delta === 0) return;
+    setAdjustBusy(true);
+    try {
+      // Positive delta = ENTRY, negative = ADJUSTMENT (write-off/correction).
+      await vm.recordMovement?.({
+        itemId: selectedItem.id,
+        kind: delta > 0 ? "ENTRY" : "ADJUSTMENT",
+        quantity: Math.abs(delta),
+        reason: adjustReason.trim() || "manual_adjustment",
+      });
+      setAdjustQty("");
+      setAdjustReason("");
+      setSelectedItem(null); // close; list refetched by the vm action
+    } finally {
+      setAdjustBusy(false);
+    }
+  };
+
+  const openItemDetail = async (item: any) => {
+    setSelectedItem(item);
+    setProductDetail(null);
+    setLoadingDetail(true);
+    try {
+      const detail = await vm.api?.getProductDetailBySku?.(props.me?.id ?? "", item.sku);
+      if (detail?.found) setProductDetail(detail);
+    } catch { /* non-fatal */ }
+    finally { setLoadingDetail(false); }
+  };
+
+  if (!props.me) {
+    return (
+      <header className="page-head">
+        <div>
+          <span className="eyebrow">Loja</span>
+          <h1>Estoque</h1>
+          <p className="page-lead">Login necessário</p>
+        </div>
+      </header>
+    );
+  }
+
+  const summary = vm.summary ?? {};
+  const totalSkus = summary.totalSkus ?? summary.total_skus ?? 0;
+  const lowStockCount = summary.lowStockCount ?? summary.low_stock_count ?? 0;
+  const outOfStockCount = summary.outOfStockCount ?? summary.out_of_stock_count ?? 0;
+  const totalInventoryValue = summary.totalValueCents ?? summary.total_inventory_value_cents ?? 0;
+
+  const filteredItems = useMemo(() => {
+    return vm.items.filter((item: any) => {
+      const available = (item.quantity ?? 0) - (item.reserved ?? 0);
+      const threshold = item.lowStockThreshold ?? item.low_stock_threshold ?? 0;
+      const itemStatus = available <= 0 ? "out_of_stock" : (threshold > 0 && available <= threshold ? "low_stock" : "in_stock");
+      if (statusFilter !== "all" && itemStatus !== statusFilter) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const name = (item.productName ?? item.product_name ?? "").toLowerCase();
+        const sku = (item.sku ?? "").toLowerCase();
+        if (!name.includes(q) && !sku.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [vm.items, statusFilter, searchQuery]);
+
+  const itemStartIdx = (itemPage - 1) * PAGE_SIZE;
+  const paginatedItems = filteredItems.slice(itemStartIdx, itemStartIdx + PAGE_SIZE);
+  const movementStartIdx = (movementPage - 1) * PAGE_SIZE;
+  const paginatedMovements = vm.movements.slice(movementStartIdx, movementStartIdx + PAGE_SIZE);
+
+  const getItemStatus = (available: number, reserved: number, lowStockThreshold: number): string => {
+    if (available <= 0) return "out_of_stock";
+    if (available <= lowStockThreshold) return "low_stock";
+    return "in_stock";
+  };
+
+  const handleCloseDetail = () => {
+    setSelectedItem(null);
+    setProductDetail(null);
+  };
+
+  return (
+    <div className="page-container">
+      {/* Header */}
+      <header className="page-head">
+        <div>
+          <span className="eyebrow">Loja</span>
+          <h1>Estoque</h1>
+          <p className="page-lead">Gerenciamento centralizado de SKUs, estoque e movimentações. Rastreie em tempo real e receba alertas</p>
+        </div>
+      </header>
+
+      {/* Explanation Card */}
+      <div style={{
+        padding: "16px 20px",
+        borderRadius: "var(--radius-md)",
+        background: "var(--accent-soft)",
+        border: "1px solid var(--accent-line)",
+        font: "13px var(--font-sans)",
+        color: "var(--color-brand)",
+        lineHeight: 1.65,
+      }}>
+        <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong> Controle total do estoque por SKU com visibilidade de quantidade disponível, reservada e custo médio. O sistema avisa quando o estoque fica baixo. Integre seus dados ERP para sincronização automática.
+      </div>
+
+      {/* KPI Stats */}
+      <div className="grid-4" style={{ gap: 14 }}>
+        <StatCard
+          icon={<Package size={16} />}
+          value={totalSkus}
+          label="Total de SKUs"
+          accent="var(--color-brand)"
+        />
+        <StatCard
+          icon={<AlertTriangle size={16} />}
+          value={lowStockCount}
+          label="Estoque baixo"
+          accent="var(--color-warning)"
+        />
+        <StatCard
+          icon={<Boxes size={16} />}
+          value={outOfStockCount}
+          label="Sem estoque"
+          accent="var(--color-error)"
+        />
+        <StatCard
+          icon={<DollarSign size={16} />}
+          value={formatCurrency(totalInventoryValue)}
+          label="Valor total R$"
+          accent="var(--color-success)"
+        />
+      </div>
+
+      {/* Tabs */}
+      <TabBar
+        tabs={[
+          { key: "overview", label: "Visão geral" },
+          { key: "movements", label: "Movimentações" },
+          { key: "alerts", label: "Alertas" },
+          { key: "erp", label: "Conectores ERP" },
+        ]}
+        activeTab={tab}
+        onTabChange={(k) => setTab(k as InventoryTab)}
+      />
+
+      {/* Tab: Visão Geral */}
+      {tab === "overview" && (
+        <>
+          <DataPanel
+            title="Produtos em estoque"
+            page={itemPage}
+            pageSize={PAGE_SIZE}
+            total={filteredItems.length}
+            onPageChange={setItemPage}
+            isEmpty={filteredItems.length === 0}
+            empty={{
+              icon: Package,
+              title: "Nenhum produto registrado",
+              description: "Comece a adicionar SKUs ao seu catálogo de estoque.",
+            }}
+          >
+            <FilterToolbar
+              tabs={[
+                { key: "all", label: "Todos" },
+                { key: "in_stock", label: "Em estoque" },
+                { key: "low_stock", label: "Estoque baixo" },
+                { key: "out_of_stock", label: "Sem estoque" },
+              ]}
+              activeTab={statusFilter}
+              onTabChange={(k) => { setStatusFilter(k as any); setItemPage(1); }}
+              search={searchQuery}
+              onSearchChange={(v) => { setSearchQuery(v); setItemPage(1); }}
+              searchPlaceholder="Buscar por SKU ou nome..."
+            />
+            {filteredItems.length > 0 && (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>SKU</th>
+                      <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Produto</th>
+                      <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Local</th>
+                      <th style={{ textAlign: "right", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Disponível</th>
+                      <th style={{ textAlign: "right", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Reservado</th>
+                      <th style={{ textAlign: "center", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Status</th>
+                      <th style={{ textAlign: "right", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Valor</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedItems.map((item, i) => {
+                      const available = (item.quantity ?? 0) - (item.reserved ?? 0);
+                      const threshold = item.lowStockThreshold ?? item.low_stock_threshold ?? 0;
+                      const status = getItemStatus(available, 0, threshold);
+                      const statusInfo = STOCK_STATUS_COLORS[status] ?? STOCK_STATUS_COLORS.in_stock;
+                      return (
+                        <tr key={item.id} onClick={() => openItemDetail(item)} style={{ borderBottom: i < paginatedItems.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined, cursor: "pointer", transition: "background 0.1s" }} onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-2)"} onMouseLeave={(e) => e.currentTarget.style.background = ""}>
+                          <td style={{ padding: "12px 20px", font: "600 12px var(--font-mono)", color: "var(--color-text)" }}>{item.sku ?? "—"}</td>
+                          <td style={{ padding: "12px 20px", font: "500 13px var(--font-sans)", color: "var(--color-text)" }}>{item.productName ?? item.product_name ?? "—"}</td>
+                          <td style={{ padding: "12px 20px", font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>{item.locationName ?? item.location_name ?? "—"}</td>
+                          <td style={{ padding: "12px 20px", font: "600 13px var(--font-data)", color: "var(--color-text)", textAlign: "right" }}>{available}</td>
+                          <td style={{ padding: "12px 20px", font: "13px var(--font-data)", color: "var(--color-text-muted)", textAlign: "right" }}>{item.reserved ?? 0}</td>
+                          <td style={{ padding: "12px 20px", textAlign: "center" }}>
+                            <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: statusInfo.bg, color: statusInfo.color }}>
+                              {statusInfo.label}
+                            </span>
+                          </td>
+                          <td style={{ padding: "12px 20px", font: "12px var(--font-data)", color: "var(--color-text-muted)", textAlign: "right" }}>
+                            {formatCurrency(item.salePriceCents ?? item.sale_price_cents ?? item.avgCostCents ?? item.avg_cost_cents ?? 0)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </DataPanel>
+        </>
+      )}
+
+      {/* Tab: Movimentações */}
+      {tab === "movements" && (
+        <DataPanel
+          title="Histórico de movimentações"
+          page={movementPage}
+          pageSize={PAGE_SIZE}
+          total={vm.movements.length}
+          onPageChange={setMovementPage}
+          isEmpty={vm.movements.length === 0}
+          empty={{
+            icon: Boxes,
+            title: "Nenhuma movimentação registrada",
+            description: "As movimentações de estoque aparecerão aqui conforme ocorram.",
+          }}
+        >
+          {vm.movements.length > 0 && (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Data</th>
+                    <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>SKU</th>
+                    <th style={{ textAlign: "center", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Tipo</th>
+                    <th style={{ textAlign: "right", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Qtd (+/-)</th>
+                    <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Origem</th>
+                    <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Motivo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedMovements.map((m, i) => {
+                    const kindInfo = MOVEMENT_KIND_COLORS[m.kind ?? "ADJUSTMENT"] ?? MOVEMENT_KIND_COLORS.ADJUSTMENT;
+                    const isIncrease = m.kind === "ENTRY" || m.kind === "RELEASE" || m.kind === "TRANSFER_IN";
+                    const qtdSign = isIncrease ? "+" : "−";
+                    return (
+                      <tr key={m.id} style={{ borderBottom: i < paginatedMovements.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined }}>
+                        <td style={{ padding: "12px 20px", font: "12px var(--font-mono)", color: "var(--color-text-faint)" }}>
+                          {new Date(m.created_at ?? m.createdAt).toLocaleDateString("pt-BR")}
+                        </td>
+                        <td style={{ padding: "12px 20px", font: "600 12px var(--font-mono)", color: "var(--color-text)" }}>{m.sku ?? "—"}</td>
+                        <td style={{ padding: "12px 20px", textAlign: "center" }}>
+                          <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: kindInfo.bg, color: kindInfo.color }}>
+                            {kindInfo.label}
+                          </span>
+                        </td>
+                        <td style={{ padding: "12px 20px", font: "600 13px var(--font-data)", color: kindInfo.color, textAlign: "right" }}>
+                          {qtdSign}{m.quantity ?? 0}
+                        </td>
+                        <td style={{ padding: "12px 20px", font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>{labelSource(m.source)}</td>
+                        <td style={{ padding: "12px 20px", font: "12px var(--font-sans)", color: "var(--color-text-faint)" }}>{labelReason(m.reason)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </DataPanel>
+      )}
+
+      {/* Tab: Alertas */}
+      {tab === "alerts" && (
+        <DataPanel
+          title="Alertas ativos"
+          isEmpty={vm.alerts.length === 0}
+          empty={{
+            icon: AlertCircle,
+            title: "Nenhum alerta ativo",
+            description: "Alertas aparecerão aqui quando houver situações que exijam atenção (estoque baixo e etc).",
+          }}
+        >
+          {vm.alerts.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {vm.alerts.map((alert, i) => {
+                const severityInfo = ALERT_SEVERITY_COLORS[alert.severity ?? "info"] ?? ALERT_SEVERITY_COLORS.info;
+                return (
+                  <div
+                    key={alert.id}
+                    style={{
+                      padding: "16px 20px",
+                      borderBottom: i < vm.alerts.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                    }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                        <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: severityInfo.bg, color: severityInfo.color }}>
+                          {severityInfo.label}
+                        </span>
+                        <span style={{ font: "600 12px var(--font-mono)", color: "var(--color-text)" }}>{alert.sku ?? "—"}</span>
+                        <span style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
+                          {alert.available ?? 0}/{alert.threshold ?? 0} unidades
+                        </span>
+                      </div>
+                      <p style={{ margin: 0, font: "13px var(--font-sans)", color: "var(--color-text)", lineHeight: 1.5 }}>
+                        {alert.message ?? "Sem descrição"}
+                      </p>
+                    </div>
+                    {alert.acknowledged_at == null && (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => vm.acknowledgeAlert(alert.id)}
+                        style={{ flexShrink: 0 }}
+                      >
+                        Reconhecer
+                      </Button>
+                    )}
+                    {alert.acknowledged_at != null && (
+                      <span style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)", flexShrink: 0 }}>
+                        Reconhecido
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </DataPanel>
+      )}
+
+      {/* Tab: Conectores ERP */}
+      {tab === "erp" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          
+          {/* Section 2: Conectar ERP */}
+          <div className="panel" style={{ padding: "20px 24px" }}>
+            <SectionHeader icon={<Package size={16} />} title="Conectar ERP" subtitle="Integre seu sistema de gestão para sincronização automática de estoque" />
+            <div className="grid-3" style={{ gap: 14 }}>
+              <ErpProviderCard
+                provider="bling"
+                name="Bling"
+                description="ERP brasileiro líder em PMEs. Produtos, estoque e NF-e."
+                connection={vm.erpConnections.find((c) => c.provider === "bling")}
+                onConnect={(creds) => vm.connectErp("bling", creds)}
+                onDisconnect={(id) => vm.disconnectErp(id)}
+                onSync={(id) => vm.syncErp(id)}
+              />
+              <ErpProviderCard
+                provider="tiny"
+                name="Tiny"
+                description="ERP by Olist. Gestão de estoque multi-depósito."
+                connection={vm.erpConnections.find((c) => c.provider === "tiny")}
+                onConnect={(creds) => vm.connectErp("tiny", creds)}
+                onDisconnect={(id) => vm.disconnectErp(id)}
+                onSync={(id) => vm.syncErp(id)}
+              />
+              <ErpProviderCard
+                provider="omie"
+                name="Omie"
+                description="ERP em nuvem. Financeiro + estoque integrado."
+                connection={vm.erpConnections.find((c) => c.provider === "omie")}
+                onConnect={(creds) => vm.connectErp("omie", creds)}
+                onDisconnect={(id) => vm.disconnectErp(id)}
+                onSync={(id) => vm.syncErp(id)}
+              />
+            </div>
+          </div>
+
+          {/* Section: Marketplaces */}
+          <div className="panel" style={{ padding: "20px 24px" }}>
+            <SectionHeader icon={<Boxes size={16} />} title="Marketplaces" subtitle="Sincronize produtos e estoque com seus marketplaces" />
+            <div className="grid-3" style={{ gap: 14 }}>
+              <ErpProviderCard
+                provider="mercadolivre"
+                name="Mercado Livre"
+                description="Marketplace líder da América Latina. Sync de produtos e estoque."
+                connection={vm.erpConnections.find((c) => c.provider === "mercadolivre")}
+                onConnect={(creds) => vm.connectErp("mercadolivre", creds)}
+                onDisconnect={(id) => vm.disconnectErp(id)}
+                onSync={(id) => vm.syncErp(id)}
+              />
+              <ErpProviderCard
+                provider="shopee"
+                name="Shopee"
+                description="Marketplace em crescimento. Sync automático de catálogo."
+                connection={vm.erpConnections.find((c) => c.provider === "shopee")}
+                onConnect={(creds) => vm.connectErp("shopee", creds)}
+                onDisconnect={(id) => vm.disconnectErp(id)}
+                onSync={(id) => vm.syncErp(id)}
+              />
+              <ErpProviderCard
+                provider="tiktokshop"
+                name="TikTok Shop"
+                description="Social commerce. Venda direto do TikTok com sync de estoque."
+                connection={vm.erpConnections.find((c) => c.provider === "tiktokshop")}
+                onConnect={(creds) => vm.connectErp("tiktokshop", creds)}
+                onDisconnect={(id) => vm.disconnectErp(id)}
+                onSync={(id) => vm.syncErp(id)}
+              />
+            </div>
+          </div>
+
+          {/* Section 3: Webhooks */}
+          <div style={{
+            padding: "14px 20px",
+            borderRadius: "var(--radius-md)",
+            background: "var(--surface-2)",
+            border: "1px solid var(--color-border)",
+            font: "13px var(--font-sans)",
+            color: "var(--color-text-muted)",
+            lineHeight: 1.65,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+          }}>
+            <span>
+              Quando o estoque é decrementado, o evento <code style={{ font: "12px var(--font-mono)", background: "var(--surface-1)", padding: "1px 4px", borderRadius: 3 }}>inventory.item.decremented</code> é emitido para todos os webhook endpoints cadastrados em <strong>API &amp; Webhooks</strong>.
+            </span>
+            <a
+              href="#"
+              onClick={(e) => e.preventDefault()}
+              style={{ font: "600 12px var(--font-sans)", color: "var(--color-brand)", textDecoration: "none", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4 }}
+            >
+              Configurar webhooks <ExternalLink size={12} />
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* Item Detail SidePanel */}
+      <SidePanel
+        isOpen={selectedItem != null}
+        title="Detalhes do Produto"
+        onClose={handleCloseDetail}
+      >
+        {selectedItem && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Basic info */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>SKU</label>
+                <div style={{ font: "600 14px var(--font-mono)", color: "var(--color-text)", marginTop: 4 }}>{selectedItem.sku}</div>
+              </div>
+              <div>
+                <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Produto</label>
+                <div style={{ font: "500 14px var(--font-sans)", color: "var(--color-text)", marginTop: 4 }}>{selectedItem.productName ?? selectedItem.product_name ?? "—"}</div>
+              </div>
+              {(selectedItem.variantName ?? selectedItem.variant_name) && (
+                <div>
+                  <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Variante</label>
+                  <div style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>{selectedItem.variantName ?? selectedItem.variant_name}</div>
+                </div>
+              )}
+              <div>
+                <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Local</label>
+                <div style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>{selectedItem.locationName ?? selectedItem.location_name ?? "—"}</div>
+              </div>
+            </div>
+
+            {/* Stock KPIs */}
+            <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div style={{ padding: "12px 14px", borderRadius: "var(--radius-sm)", background: "var(--surface-2)" }}>
+                  <div style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>Disponível</div>
+                  <div style={{ font: "700 20px var(--font-data)", color: "var(--color-brand)" }}>{(selectedItem.quantity ?? 0) - (selectedItem.reserved ?? 0)}</div>
+                </div>
+                <div style={{ padding: "12px 14px", borderRadius: "var(--radius-sm)", background: "var(--surface-2)" }}>
+                  <div style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>Reservado</div>
+                  <div style={{ font: "700 20px var(--font-data)", color: "var(--color-warning)" }}>{selectedItem.reserved ?? 0}</div>
+                </div>
+                <div style={{ padding: "12px 14px", borderRadius: "var(--radius-sm)", background: "var(--surface-2)" }}>
+                  <div style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>Custo médio</div>
+                  <div style={{ font: "700 20px var(--font-data)", color: "var(--color-text)" }}>{formatCurrency(selectedItem.avgCostCents ?? selectedItem.avg_cost_cents ?? 0)}</div>
+                </div>
+                <div style={{ padding: "12px 14px", borderRadius: "var(--radius-sm)", background: "var(--surface-2)" }}>
+                  <div style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>Limiar alerta</div>
+                  <div style={{ font: "700 20px var(--font-data)", color: "var(--color-text-muted)" }}>{selectedItem.lowStockThreshold ?? selectedItem.low_stock_threshold ?? "—"}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Product detail from catalog (weight, dimensions, variants) */}
+            {loadingDetail && (
+              <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)", textAlign: "center", padding: 12 }}>Carregando dados do catálogo...</div>
+            )}
+            {productDetail && (
+              <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+                {/* Physical dimensions */}
+                {(productDetail.variant.weightGrams || productDetail.variant.lengthCm) && (
+                  <div>
+                    <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, display: "block" }}>Dimensões físicas</label>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
+                      {productDetail.variant.weightGrams && <span>Peso: <strong>{productDetail.variant.weightGrams}g</strong></span>}
+                      {productDetail.variant.lengthCm && <span>Compr.: <strong>{productDetail.variant.lengthCm}cm</strong></span>}
+                      {productDetail.variant.widthCm && <span>Larg.: <strong>{productDetail.variant.widthCm}cm</strong></span>}
+                      {productDetail.variant.heightCm && <span>Alt.: <strong>{productDetail.variant.heightCm}cm</strong></span>}
+                    </div>
+                  </div>
+                )}
+
+                {/* Price info */}
+                <div>
+                  <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, display: "block" }}>Preço</label>
+                  <div style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>
+                    Venda: <strong style={{ color: "var(--color-brand)" }}>{formatCurrency(productDetail.variant.price)}</strong>
+                    {productDetail.variant.cost != null && <> · Custo: <strong>{formatCurrency(productDetail.variant.cost)}</strong></>}
+                  </div>
+                </div>
+
+                {/* Barcode */}
+                {productDetail.variant.barcode && (
+                  <div>
+                    <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Código de barras</label>
+                    <div style={{ font: "13px var(--font-mono)", color: "var(--color-text-muted)", marginTop: 4 }}>{productDetail.variant.barcode}</div>
+                  </div>
+                )}
+
+                {/* All variants */}
+                {productDetail.allVariants.length > 1 && (
+                  <div>
+                    <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, display: "block" }}>Todas as variantes ({productDetail.allVariants.length})</label>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {productDetail.allVariants.map((v: any) => (
+                        <div key={v.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", borderRadius: "var(--radius-sm)", background: v.sku === selectedItem.sku ? "var(--accent-soft)" : "var(--surface-1)", border: "1px solid var(--color-border)" }}>
+                          <span style={{ font: "12px var(--font-mono)", color: "var(--color-text)" }}>{v.sku}</span>
+                          <span style={{ font: "600 12px var(--font-data)", color: v.stock > 0 ? "var(--color-success)" : "var(--color-error)" }}>{v.stock} un.</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Media */}
+                {productDetail.variant.media?.length > 0 && (
+                  <div>
+                    <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, display: "block" }}>Mídia</label>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {productDetail.variant.media.map((m: any, idx: number) => (
+                        <img key={idx} src={m.url} alt={m.alt || ""} style={{ width: 56, height: 56, borderRadius: "var(--radius-sm)", objectFit: "cover", border: "1px solid var(--color-border)" }} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Ajustar estoque — records an auditable movement (never edits the
+                product quantity field directly). Positive = entrada, negative = baixa. */}
+            <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
+              <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8, display: "block" }}>Ajustar estoque</label>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <input
+                  type="number"
+                  value={adjustQty}
+                  onChange={(e) => setAdjustQty(e.target.value)}
+                  placeholder="+/− qtd"
+                  aria-label="Quantidade do ajuste"
+                  style={{ width: 90, padding: "8px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-1)", color: "var(--color-text)", font: "13px var(--font-data)" }}
+                />
+                <input
+                  type="text"
+                  value={adjustReason}
+                  onChange={(e) => setAdjustReason(e.target.value)}
+                  placeholder="Motivo (ex: entrada de mercadoria, avaria)"
+                  aria-label="Motivo do ajuste"
+                  style={{ flex: 1, minWidth: 160, padding: "8px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-1)", color: "var(--color-text)", font: "13px var(--font-sans)" }}
+                />
+                <Button onClick={submitAdjustment} disabled={adjustBusy || !adjustQty.trim()}>
+                  {adjustBusy ? "Aplicando..." : "Aplicar"}
+                </Button>
+              </div>
+              <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 6 }}>
+                Positivo adiciona (entrada), negativo remove (baixa). Gera uma movimentação rastreável — não edite a quantidade pelo cadastro do produto.
+              </div>
+            </div>
+
+            {/* Metadata */}
+            <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16, font: "11px var(--font-mono)", color: "var(--color-text-faint)", display: "flex", flexDirection: "column", gap: 4 }}>
+              <div>ID: {selectedItem.id}</div>
+              <div>Criado: {selectedItem.createdAt ? new Date(selectedItem.createdAt).toLocaleString("pt-BR") : "—"}</div>
+              <div>Atualizado: {selectedItem.updatedAt ? new Date(selectedItem.updatedAt).toLocaleString("pt-BR") : "—"}</div>
+            </div>
+          </div>
+        )}
+      </SidePanel>
+    </div>
+  );
+}
+
+/* --- Sub-components for ERP tab --- */
+
+interface ErpProviderCardProps {
+  provider: string;
+  name: string;
+  description: string;
+  connection?: ErpConnectionDTO;
+  onConnect: (credentials?: Record<string, string>) => void | Promise<void>;
+  onDisconnect: (id: string) => void;
+  onSync: (id: string) => void;
+}
+
+function ErpProviderCard({ provider, name, description, connection, onConnect, onDisconnect, onSync }: ErpProviderCardProps) {
+  const status = connection?.status ?? "disconnected";
+  const statusConfig: Record<string, { bg: string; color: string; label: string }> = {
+    connected: { bg: "var(--color-success-bg)", color: "var(--color-success)", label: "Conectado" },
+    disconnected: { bg: "var(--surface-2)", color: "var(--color-text-faint)", label: "Não conectado" },
+    error: { bg: "var(--color-error-bg)", color: "var(--color-error)", label: "Erro" },
+  };
+  const statusInfo = statusConfig[status] ?? statusConfig.disconnected;
+  const [showOmieModal, setShowOmieModal] = React.useState(false);
+  const [omieAppKey, setOmieAppKey] = React.useState("");
+  const [omieAppSecret, setOmieAppSecret] = React.useState("");
+  const [omieLoading, setOmieLoading] = React.useState(false);
+
+  const handleOmieConnect = async () => {
+    if (!omieAppKey || !omieAppSecret) {
+      alert("Por favor preencha App Key e App Secret");
+      return;
+    }
+    setOmieLoading(true);
+    try {
+      await onConnect({ appKey: omieAppKey, appSecret: omieAppSecret });
+      setShowOmieModal(false);
+      setOmieAppKey("");
+      setOmieAppSecret("");
+    } finally {
+      setOmieLoading(false);
+    }
+  };
+
+  const handleOAuthConnect = () => {
+    onConnect();
+  };
+
+  return (
+    <div style={{
+      border: "1px solid var(--color-border)",
+      borderRadius: "var(--radius-md)",
+      padding: 20,
+      background: "var(--surface-1)",
+      display: "flex",
+      flexDirection: "column",
+      gap: 12,
+    }}>
+      {/* Header with icon + status */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: "var(--radius-sm)", background: "var(--surface-2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Package size={16} style={{ color: "var(--color-text-muted)" }} />
+          </div>
+          <span style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)" }}>{name}</span>
+        </div>
+        <span style={{
+          padding: "2px 8px",
+          borderRadius: "var(--radius-full)",
+          font: "600 10px var(--font-mono)",
+          background: statusInfo.bg,
+          color: statusInfo.color,
+        }}>
+          {statusInfo.label}
+        </span>
+      </div>
+
+      {/* Description */}
+      <p style={{ margin: 0, font: "13px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.5 }}>
+        {description}
+      </p>
+
+      {/* Last sync */}
+      {connection?.lastSyncAt && (
+        <span style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)" }}>
+          Última sync: {new Date(connection.lastSyncAt).toLocaleString("pt-BR")}
+        </span>
+      )}
+
+      {/* Actions */}
+      <div style={{ display: "flex", gap: 8, marginTop: "auto" }}>
+        {status === "disconnected" || status === "error" ? (
+          <>
+            {provider === "omie" ? (
+              <Button variant="primary" size="sm" onClick={() => setShowOmieModal(true)}>
+                <Plug size={12} style={{ marginRight: 4 }} /> Conectar
+              </Button>
+            ) : (
+              <Button variant="primary" size="sm" onClick={handleOAuthConnect}>
+                <Plug size={12} style={{ marginRight: 4 }} /> Conectar
+              </Button>
+            )}
+          </>
+        ) : (
+          <>
+            <Button variant="outline" size="sm" onClick={() => onSync(connection!.id)}>
+              <RefreshCw size={12} style={{ marginRight: 4 }} /> Sincronizar agora
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => onDisconnect(connection!.id)}>
+              <Unplug size={12} style={{ marginRight: 4 }} /> Desconectar
+            </Button>
+          </>
+        )}
+      </div>
+
+      {/* Omie Modal */}
+      {provider === "omie" && showOmieModal && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.3)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: "var(--surface-1)",
+            border: "1px solid var(--color-border)",
+            borderRadius: "var(--radius-lg)",
+            padding: "24px",
+            width: "100%",
+            maxWidth: "400px",
+            boxShadow: "0 20px 40px rgba(0,0,0,0.1)",
+          }}>
+            <h2 style={{ font: "600 16px var(--font-sans)", marginBottom: 6, color: "var(--color-text)" }}>
+              Conectar Omie
+            </h2>
+            <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.5, marginBottom: 12 }}>
+              Cole as chaves do seu aplicativo Omie. Não tem?{" "}
+              <a
+                href="https://developer.omie.com.br/my-apps/"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "var(--color-brand)", textDecoration: "underline" }}
+              >
+                Gerar chaves no portal Omie →
+              </a>
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 16 }}>
+              <label style={{ font: "600 11px var(--font-sans)", color: "var(--color-text-muted)" }}>App Key</label>
+              <input
+                type="text"
+                placeholder="Ex: 8070492596166"
+                value={omieAppKey}
+                onChange={(e) => setOmieAppKey(e.target.value)}
+                style={{
+                  padding: "8px 12px",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "var(--radius-sm)",
+                  font: "13px var(--font-mono)",
+                  background: "var(--surface-0)",
+                  color: "var(--color-text)",
+                }}
+              />
+              <label style={{ font: "600 11px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 8 }}>App Secret</label>
+              <input
+                type="password"
+                placeholder="Ex: 1d460e07841d8af88a9b5e43aee13c5f"
+                value={omieAppSecret}
+                onChange={(e) => setOmieAppSecret(e.target.value)}
+                style={{
+                  padding: "8px 12px",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "var(--radius-sm)",
+                  font: "13px var(--font-mono)",
+                  background: "var(--surface-0)",
+                  color: "var(--color-text)",
+                }}
+              />
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Button variant="ghost" size="sm" onClick={() => setShowOmieModal(false)} style={{ flex: 1 }}>
+                Cancelar
+              </Button>
+              <Button variant="primary" size="sm" onClick={handleOmieConnect} disabled={omieLoading} style={{ flex: 1 }}>
+                {omieLoading ? "Validando..." : "Conectar"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

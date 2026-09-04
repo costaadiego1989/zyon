@@ -86,6 +86,13 @@ export class InMemoryIntegrationsRepository implements IntegrationsRepository {
     return endpoint?.merchantId === merchantId ? clone(endpoint) : undefined;
   }
 
+  async deleteWebhookEndpoint(merchantId: string, endpointId: string): Promise<boolean> {
+    const endpoint = this.endpoints.get(endpointId);
+    if (!endpoint || endpoint.merchantId !== merchantId) return false;
+    this.endpoints.delete(endpointId);
+    return true;
+  }
+
   async saveWebhookDelivery(delivery: MerchantWebhookDelivery): Promise<MerchantWebhookDelivery> {
     const duplicate = Array.from(this.deliveries.values()).find(
       (current) => current.endpointId === delivery.endpointId && current.eventId === delivery.eventId

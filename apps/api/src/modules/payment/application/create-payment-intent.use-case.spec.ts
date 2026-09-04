@@ -55,23 +55,100 @@ test("CreatePaymentIntentUseCase is idempotent on (merchant, session, idempotenc
   const a = await uc.execute({
     merchant_id: "mrc_1",
     session_id: "chk_1",
-    idempotency_key: "idem_1",
-    accepted_offer_id: "offer_1"
+    idempotency_key: "idem_1"
   });
   const b = await uc.execute({
     merchant_id: "mrc_1",
     session_id: "chk_1",
-    idempotency_key: "idem_1",
-    accepted_offer_id: "offer_1"
+    idempotency_key: "idem_1"
   });
 
   assert.deepEqual(a, b);
   assert.match(a.id, /^pay_int_/);
   assert.equal(a.status, "requires_action");
   assert.equal(a.providerPaymentId, "fake_pay_1");
-  assert.equal(a.acceptedOfferId, "offer_1");
   assert.deepEqual(a.statusHistory.map((entry) => entry.status), ["pending", "requires_action"]);
   assert.equal(checkout.listOutbox("mrc_1").some((event) => event.event_type === "payment.status.changed"), true);
+});
+
+test("CreatePaymentIntentUseCase accepts only applied offer for merchant session", async () => {
+  const checkout = new InMemoryCheckoutRepository();
+  await checkout.saveSession(
+    checkoutSession({
+      customer: { email: "buyer@example.com", asaasCustomerId: "cus_fixture_1" }
+    })
+  );
+  checkout.saveAcceptedOffer({
+    merchantId: "mrc_1",
+    sessionId: "chk_1",
+    offerId: "offer_1",
+    type: "discount_percent",
+    value: 10,
+    marginAfterOffer: 40,
+    acceptedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 60_000).toISOString()
+  });
+  const uc = new CreatePaymentIntentUseCase(
+    checkout,
+    checkout,
+    new InMemoryPaymentRepository(checkout),
+    new FakePaymentProvider(),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    checkout
+  );
+
+  const intent = await uc.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_1",
+    idempotency_key: "idem_offer",
+    accepted_offer_id: "offer_1"
+  });
+
+  assert.equal(intent.acceptedOfferId, "offer_1");
+});
+
+test("CreatePaymentIntentUseCase rejects unaccepted or expired accepted_offer_id", async () => {
+  const checkout = new InMemoryCheckoutRepository();
+  await checkout.saveSession(
+    checkoutSession({
+      customer: { email: "buyer@example.com", asaasCustomerId: "cus_fixture_1" }
+    })
+  );
+  checkout.saveAcceptedOffer({
+    merchantId: "mrc_1",
+    sessionId: "chk_1",
+    offerId: "expired_offer",
+    type: "discount_percent",
+    value: 10,
+    marginAfterOffer: 40,
+    acceptedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() - 1_000).toISOString()
+  });
+  const provider = new CapturingPaymentProvider();
+  const uc = new CreatePaymentIntentUseCase(
+    checkout,
+    checkout,
+    new InMemoryPaymentRepository(checkout),
+    provider,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    checkout
+  );
+
+  await assert.rejects(
+    () => uc.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "idem_missing", accepted_offer_id: "missing_offer" }),
+    /accepted_offer_invalid/
+  );
+  await assert.rejects(
+    () => uc.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "idem_expired", accepted_offer_id: "expired_offer" }),
+    /accepted_offer_invalid/
+  );
+  assert.equal(provider.inputs.length, 0);
 });
 
 test("CreatePaymentIntentUseCase charges cart total with selected shipping and discount", async () => {

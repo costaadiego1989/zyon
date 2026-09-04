@@ -1,4 +1,4 @@
-import type { BuyerNegotiationPreferences, MerchantNegotiationPolicy } from "@aacp/negotiation-engine";
+import type { BuyerNegotiationPreferences, MerchantNegotiationPolicy } from "@zyon/negotiation-engine";
 
 export const DEFAULT_MERCHANT_NEGOTIATION_POLICY: MerchantNegotiationPolicy = {
   enabled: false,

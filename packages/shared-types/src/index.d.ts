@@ -1,5 +1,5 @@
 export type CurrencyCode = "BRL" | "USD" | "EUR";
-export type CheckoutEventName = "checkout_started" | "cart_viewed" | "shipping_calculated" | "shipping_option_selected" | "shipping_objection_detected" | "coupon_field_clicked" | "payment_method_selected" | "payment_failed" | "exit_intent_detected" | "idle_30_seconds" | "offer_viewed" | "offer_accepted" | "order_completed" | "checkout_abandoned";
+export type CheckoutEventName = "checkout_started" | "cart_viewed" | "product_viewed" | "shipping_calculated" | "shipping_option_selected" | "shipping_objection_detected" | "coupon_field_clicked" | "coupon_applied" | "payment_method_selected" | "payment_failed" | "exit_intent_detected" | "idle_30_seconds" | "offer_viewed" | "offer_accepted" | "order_completed" | "checkout_abandoned" | "cross_sell_accepted" | "cross_sell_added" | "auth_phone_submitted" | "auth_phone_verified" | "auth_identity_confirmed" | "auth_registration_completed" | "login_completed";
 export interface CartItem {
     sku: string;
     name: string;
@@ -82,10 +82,17 @@ export interface TrackEventRequest {
     event: CheckoutEventName;
     metadata?: Record<string, unknown>;
 }
+export interface ProgressiveOfferResponse {
+    stage: ProgressiveDiscountStage;
+    requested_percent: number;
+    approved_percent: number;
+    reason: string;
+}
 export interface TrackEventResponse {
     received: true;
     abandonment_score: number;
     trigger_agent: boolean;
+    progressive_offer?: ProgressiveOfferResponse;
 }
 export interface DecisionRequest {
     merchant_id: string;
@@ -170,22 +177,44 @@ export interface AgentContext {
 }
 export type CheckoutSettingsMode = "silent_until_trigger" | "proactive" | "manual_only";
 export type CheckoutWidgetPosition = "bottom_right" | "bottom_left";
+export type CheckoutWidgetPresentationMode = "fab" | "mini_card" | "bottom_banner" | "trigger_only" | "inline";
+export type CheckoutFabClickAction = "open_widget" | "redirect_to_cart" | "open_new_tab";
 export type CheckoutTriggerName = "shipping_objection_detected" | "coupon_field_clicked" | "payment_failed" | "exit_intent_detected" | "idle_30_seconds";
+export type ProgressiveDiscountStage = "initial_coupon" | "exit_intent" | "abandoned_cart" | "payment_nudge";
+export interface ProgressiveDiscountPolicy {
+    enabled: boolean;
+    stages: Record<ProgressiveDiscountStage, number>;
+}
+export interface ProgressiveDiscountPolicyPatch {
+    enabled?: boolean;
+    stages?: Partial<Record<ProgressiveDiscountStage, number>>;
+}
 export interface CheckoutWidgetBehavior {
     openWidgetOnTrigger: boolean;
     startMinimized: boolean;
     position: CheckoutWidgetPosition;
     initialDelaySeconds: number;
+    presentationMode?: CheckoutWidgetPresentationMode;
+    showCartBadge?: boolean;
+    inviteText?: string;
+    fabColor?: string;
+    fabClickAction?: CheckoutFabClickAction;
+    fabRedirectUrl?: string;
+    cartPresentationMode?: "floating" | "page" | "redirect";
 }
 export interface CheckoutInterventionPolicy {
     minimumAbandonmentScore: number;
     cooldownSeconds: number;
     maxInterventionsPerSession: number;
+    progressiveDiscount?: ProgressiveDiscountPolicy;
 }
 export interface CheckoutTriggerRule {
     trigger: CheckoutTriggerName;
     enabled: boolean;
     priority: number;
+    message?: string;
+    cooldownSeconds?: number;
+    couponCode?: string;
 }
 export interface CheckoutSuppressionRules {
     suppressedSteps: string[];
@@ -213,7 +242,9 @@ export interface CheckoutSettings {
 export interface CheckoutSettingsPatch {
     mode?: CheckoutSettingsMode;
     widgetBehavior?: Partial<CheckoutWidgetBehavior>;
-    interventionPolicy?: Partial<CheckoutInterventionPolicy>;
+    interventionPolicy?: Partial<Omit<CheckoutInterventionPolicy, "progressiveDiscount">> & {
+        progressiveDiscount?: ProgressiveDiscountPolicyPatch;
+    };
     triggerRules?: CheckoutTriggerRule[];
     suppressionRules?: Partial<CheckoutSuppressionRules>;
     handoff?: Partial<CheckoutHandoffSettings>;
@@ -228,6 +259,7 @@ export interface CheckoutSettingsContext {
         max_interventions_per_session: number;
         enabled_triggers: CheckoutTriggerName[];
         handoff_enabled: boolean;
+        progressive_discount?: ProgressiveDiscountPolicy;
     };
     operational_constraints: string[];
 }
@@ -241,6 +273,8 @@ export interface ChatMessageResponse {
     objection: "shipping_cost" | "price" | "trust" | "payment" | "unknown";
     authorized_offer?: AuthorizedOffer;
     actions: ChatAction[];
+    ssml?: string;
+    voice_config?: { speed: number; pitch: number };
 }
 export interface ShippingEvaluateRequest {
     merchant_id: string;

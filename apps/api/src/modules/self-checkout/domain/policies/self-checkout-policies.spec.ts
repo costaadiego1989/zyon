@@ -5,8 +5,7 @@ import { evaluateTemplateExecution } from "./template-execution.policy.js";
 import { BuyerUserEntity } from "../entities/buyer-user.entity.js";
 
 function makeBuyer(consent_version: string = CURRENT_CONSENT_VERSION): BuyerUserEntity {
-  return BuyerUserEntity.create({
-    email: "buyer@test.com",
+  return BuyerUserEntity.create({ merchant_id: "test_merchant", email: "buyer@test.com",
     password_hash: "hash",
     consent_version,
     marketing_opt_in: false,

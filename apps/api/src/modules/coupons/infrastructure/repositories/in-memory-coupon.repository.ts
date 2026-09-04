@@ -27,4 +27,11 @@ export class InMemoryCouponRepository implements CouponRepository {
   async findAllByMerchant(merchantId: string): Promise<CouponEntity[]> {
     return [...this.store.values()].filter((c) => c.merchant_id === merchantId);
   }
+
+  async updateActive(_merchantId: string, id: string, isActive: boolean): Promise<void> {
+    const coupon = this.store.get(id);
+    if (coupon) {
+      (coupon as any).is_active = isActive;
+    }
+  }
 }

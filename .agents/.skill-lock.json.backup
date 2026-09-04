@@ -6,7 +6,21 @@
       "source": "local",
       "contentHash": "69867b0e19be1fb556d2e697f0f18f1de0363d1aa2de9d36754d5b107156357c",
       "installedAt": "2026-04-30T16:26:35.722Z",
-      "updatedAt": "2026-04-30T16:26:35.744Z",
+      "updatedAt": "2026-04-30T16:26:35.767Z",
+      "agents": [
+        "cursor",
+        "claude-code",
+        "windsurf"
+      ],
+      "method": "copy",
+      "global": false
+    },
+    "technical-design-doc-creator": {
+      "name": "technical-design-doc-creator",
+      "source": "local",
+      "contentHash": "d05974df076f695f96b4e4c263ad19f2aaffe8ee6248c1b07a634dd9ed0ea51e",
+      "installedAt": "2026-08-20T15:59:38.162Z",
+      "updatedAt": "2026-08-20T15:59:38.170Z",
       "agents": [
         "cursor",
         "claude-code"

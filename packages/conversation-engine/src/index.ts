@@ -1,6 +1,61 @@
-import type { AgentContext, AuthorizedOffer, Cart, ChatStage, ChatTurn, MerchantRules, ShippingQuote } from "@aacp/shared-types";
+import type { AgentContext, AuthorizedOffer, Cart, ChatStage, ChatTurn, MerchantRules, ShippingQuote } from "@zyon/shared-types";
 
 export type Objection = "shipping_cost" | "price" | "trust" | "payment" | "unknown";
+
+import { extractSuggestedSkus, stripSuggestMarker } from "./cross-sell-extraction.js";
+export { extractSuggestedSkus, stripSuggestMarker };
+
+// LangGraph exports
+export { OpenRouterProvider, LangGraphChatAgent } from "./langgraph/index.js";
+export type {
+  OpenRouterProviderOptions,
+  OpenRouterChatMessage,
+  OpenRouterChatRequest,
+  OpenRouterChatResult,
+  ChatAgentDeps,
+  ChatAgentInput,
+  ChatAgentResult,
+  AgentState,
+  SafetyValidator,
+  ChatAgentCallbacks,
+  ToolDefinition,
+  ToolResult,
+  ToolContext,
+  ToolHandlers,
+  ExecutableTool
+} from "./langgraph/index.js";
+export { buildChatTools, buildExecutableTools } from "./langgraph/index.js";
+export {
+  validateAssistantMessage,
+  isSafeGeneratedMessage as isSafeGeneratedMessageV2
+} from "./langgraph/index.js";
+export type { ValidationResult, SafetyValidatorOptions } from "./langgraph/index.js";
+export { CostTracker, estimateTokens, PRICING } from "./langgraph/index.js";
+export type { CostTrackerOptions, CostTrackerSnapshot } from "./langgraph/index.js";
+export { ContextManager, DEFAULT_CONTEXT_WINDOW } from "./langgraph/index.js";
+export type { ContextMessage, ContextManagerOptions } from "./langgraph/index.js";
+
+// Config Context Embedding exports
+export {
+  ConfigDocumentBuilder,
+  EmbeddingService,
+  ConfigRegenerationHandler,
+  injectConfigDocument,
+  InMemoryConfigEmbeddingRepository,
+  CONFIG_EMBEDDING_REPOSITORY
+} from "./config-context/index.js";
+export type {
+  MerchantConfigDocument,
+  EmbeddingResult,
+  EmbeddingServicePort,
+  EmbeddingServiceOptions,
+  ConfigEventType,
+  ConfigRegenerationHandlerDeps,
+  ConfigDocumentBuilderPort,
+  ConfigEmbeddingRepository,
+  MerchantConfigEmbeddingRecord,
+  ConfigSources
+} from "./config-context/index.js";
 
 export interface ConversationInput {
   userMessage: string;
@@ -20,12 +75,20 @@ export interface ConversationInput {
   missingFields?: string[];
   deliverySummary?: string;
   shippingOptions?: ShippingQuote[];
+  shippingPolicy?: {
+    allowFreeShipping?: boolean;
+    allowShippingDiscount?: boolean;
+    freeShippingMinCartValue?: number;
+    maxPartialShippingDiscount?: number;
+  };
+  merchantRules?: string[];
   fetchFn?: typeof fetch;
 }
 
 export interface ConversationOutput {
   message: string;
   objection: Objection;
+  suggested_skus?: string[];
 }
 
 export function generateDeterministicReply(input: ConversationInput): ConversationOutput {
@@ -61,14 +124,20 @@ export async function generateSalesReply(input: ConversationInput): Promise<Conv
   if (!apiKey) return fb();
 
   try {
-    const text =
+    const rawText =
       input.provider === "openai_chat"
         ? await generateChatCompletion(input, apiKey, objection)
         : await generateOpenAiResponse(input, apiKey, objection);
-    if (!isSafeGeneratedMessage(text, input.authorizedOffer)) return fb();
+    // Safety check ALWAYS runs — merchantRules expand LLM's topic scope but
+    // never bypass offer validation. LLM cannot promise discounts/shipping
+    // beyond what authorizedOffer explicitly approves.
+    if (!isSafeGeneratedMessage(rawText, input.authorizedOffer)) return fb();
+    const suggested_skus = extractSuggestedSkus(rawText);
+    const message = stripSuggestMarker(rawText).trim() || fb().message;
     return {
       objection,
-      message: text.trim() || fb().message
+      message,
+      ...(suggested_skus.length > 0 ? { suggested_skus } : {})
     };
   } catch (error) {
     if (input.failOnProviderError) throw error;
@@ -140,10 +209,12 @@ function buildResponsesInput(input: ConversationInput): string {
 }
 
 function systemPrompt(input: ConversationInput, objection: Objection): string {
-  const agent = input.agentContext?.agent ?? { agentName: "Assistente", persona: "ajudante", language: "pt-BR" };
+  const agent = input.agentContext?.agent ?? { agentName: "Assistente", persona: "ajudante", language: "pt-BR", tone: "consultative" as const };
+  // Prefer agent.tone (from agent_rules.identity) over brandVoice (merchant_rules)
+  const voiceDirective = agent.tone ?? input.brandVoice ?? "consultativa";
   const lines = [
     `Você é ${agent.agentName}, persona: ${agent.persona}, atuando para ${input.merchantName || "nossa loja"}.`,
-    `Voz da marca: ${input.brandVoice || "consultativa"}`,
+    `Voz da marca: ${voiceDirective}`,
     `Idioma: ${agent.language}`,
     "Seja breve, direto e focado no checkout. Não perca tempo com conversas fiadas.",
     "NUNCA use formatação markdown (como asteriscos ** para negrito ou itálico) em suas respostas. Use texto puro.",
@@ -177,9 +248,52 @@ function systemPrompt(input: ConversationInput, objection: Objection): string {
   }
   if (input.agentContext) {
     lines.push(`Identidade do agente e guardrails: ${JSON.stringify(input.agentContext)}`);
+    const ph = input.agentContext.purchase_history;
+    if (ph && ph.known_buyer) {
+      lines.push(
+        "CROSS-SELL: Cliente recorrente. Use purchase_history (top_categories, recent_skus, discount_sensitivity) " +
+        "para sugerir produtos complementares. Adapte tom: LOW=exclusividade, MEDIUM=custo-benefício, HIGH=promoções futuras. " +
+        "NUNCA revele dados privados."
+      );
+    }
+    const intent = input.agentContext.intent;
+    if (intent) {
+      lines.push(
+        `PERSONALIZAÇÃO POR INTENT: Comprador classificado como "${intent.primary_intent}", ` +
+        `urgência "${intent.urgency}", faixa "${intent.budget_tier}". ` +
+        `Pain points: ${intent.pain_points?.join(", ") || "nenhum"}. ` +
+        `Adapte tom: price_sensitive=destaque economia/custo-benefício; ` +
+        `ready_to_buy=direto/confiante/feche rápido; ` +
+        `browsing=informativo/sem pressão; ` +
+        `quality_seeker=destaque qualidade/garantia; ` +
+        `speed_focused=urgência/entrega rápida. ` +
+        `Para urgência high, seja conciso e orientado à ação. ` +
+        `Para urgência low, seja informativo e paciente. ` +
+        `NUNCA revele a classificação ao comprador. NUNCA invente ofertas baseado no intent.`
+      );
+    }
+  }
+  if (input.shippingPolicy) {
+    const sp = input.shippingPolicy;
+    const shippingRules: string[] = [];
+    if (!sp.allowFreeShipping) shippingRules.push("NÃO ofereça frete grátis — merchant não permite.");
+    else if (sp.freeShippingMinCartValue) shippingRules.push(`Frete grátis SOMENTE se carrinho >= R$${sp.freeShippingMinCartValue}.`);
+    if (!sp.allowShippingDiscount) shippingRules.push("NÃO ofereça desconto no frete.");
+    else if (sp.maxPartialShippingDiscount) shippingRules.push(`Desconto máximo no frete: ${sp.maxPartialShippingDiscount}%.`);
+    if (shippingRules.length) lines.push("Política de frete do merchant: " + shippingRules.join(" "));
+  }
+  if (input.merchantRules?.length) {
+    lines.push("");
+    lines.push("REGRAS COMERCIAIS DO MERCHANT (siga durante o checkout — primeira que encaixar é a que vale):");
+    input.merchantRules.forEach((r, i) => lines.push(`${i + 1}. ${r}`));
   }
   lines.push(
-    "Regras rígidas: nunca prometa frete grátis, prazo, estoque ou status de pagamento que não estejam explicitamente na oferta autorizada."
+    "Regras rígidas: " +
+    "(1) Nunca prometa frete grátis, prazo, estoque ou status de pagamento que não estejam na oferta autorizada. " +
+    "(2) Quando sugerir um produto, OBRIGATORIAMENTE termine a mensagem com o marcador [SUGGEST:sku1,sku2] contendo os SKUs recomendados. " +
+    "Se não souber o SKU exato, use o padrão da loja: lux_cinto_01, tech_hub_01, fash_tenis_01, etc. " +
+    "Exemplo correto: 'O cinto reversível combina perfeitamente. [SUGGEST:lux_cinto_01]' " +
+    "Esse marcador é INVISÍVEL para o comprador — ele gera cards de produto clicáveis automaticamente."
   );
   return lines.join("\n");
 }
@@ -362,8 +476,8 @@ function fallbackReply(
       return {
         objection,
         message: optionCount > 0
-          ? `Calculei ${optionCount} opçõesde frete. Selecione uma delas para seguirmos.`
-          : `Ja tenho o endereco completo. Vou carregar as opçõesde frete para voce escolher.`
+          ? `Calculei ${optionCount} ${optionCount === 1 ? "opção" : "opções"} de frete. Selecione ${optionCount === 1 ? "ela" : "uma delas"} para seguirmos.`
+          : `Já tenho o endereço completo. Vou carregar as opções de frete para você escolher.`
       };
     }
     if (next === "confirmar endereço") {
@@ -397,7 +511,7 @@ function fallbackReply(
   if (stage === "payment") {
     return {
       objection,
-      message: `Vamos finalizar — prefere pagar com PIX ou cartão de crédito?`
+      message: `Vamos finalizar seu pedido. Prefere pagar com PIX, cartão de crédito ou Crypto?`
     };
   }
 

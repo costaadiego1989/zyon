@@ -9,8 +9,9 @@ import assert from "node:assert/strict";
 import { InMemoryCheckoutRepository } from "../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
 import { AddStorefrontItemUseCase } from "./add-storefront-item.use-case.js";
 import { checkoutSession, testCart } from "../../checkout/__tests__/checkout-test-fixtures.js";
-import type { SuggestedProduct } from "@aacp/shared-types";
+import type { SuggestedProduct, CartItem } from "@zyon/shared-types";
 import type { StorefrontCatalogPort } from "../domain/ports/storefront-catalog.port.js";
+import type { CrossSellResolverPort } from "../domain/ports/cross-sell-resolver.port.js";
 
 class FakeCatalog implements StorefrontCatalogPort {
   async search(_merchantId: string, _query: string): Promise<SuggestedProduct[]> {
@@ -19,6 +20,15 @@ class FakeCatalog implements StorefrontCatalogPort {
   async findBySku(_merchantId: string, sku: string): Promise<SuggestedProduct | null> {
     if (sku === "PROD-1") return { sku: "PROD-1", name: "Product One", unit_price: 50 };
     return null;
+  }
+}
+
+class FakeCrossSell implements CrossSellResolverPort {
+  isKnownCrossSellSku(sku: string): boolean {
+    return false;
+  }
+  resolveCartItem(_sku: string): CartItem {
+    throw new Error("not used in test");
   }
 }
 
@@ -33,7 +43,7 @@ function setup() {
       })
     })
   );
-  return new AddStorefrontItemUseCase(new FakeCatalog(), repo, repo);
+  return new AddStorefrontItemUseCase(new FakeCatalog(), repo, repo, new FakeCrossSell());
 }
 
 describe("P2 — AddStorefrontItemUseCase does not mutate the original session's items in place", () => {
@@ -49,7 +59,7 @@ describe("P2 — AddStorefrontItemUseCase does not mutate the original session's
     repo.saveSession(originalSession);
     const captured = { ...originalSession, cart: { ...originalSession.cart, items: [...originalSession.cart.items] } };
 
-    const useCase = new AddStorefrontItemUseCase(new FakeCatalog(), repo, repo);
+    const useCase = new AddStorefrontItemUseCase(new FakeCatalog(), repo, repo, new FakeCrossSell());
     await useCase.execute({ merchant_id: "mrc_1", session_id: "cat_sess_2", sku: "PROD-1", quantity: 2 });
 
     // The captured original should be unchanged (no in-place mutation)
@@ -64,7 +74,7 @@ describe("P2 — AddStorefrontItemUseCase does not mutate the original session's
         cart: testCart({ total: 0, items: [] })
       })
     );
-    const useCase = new AddStorefrontItemUseCase(new FakeCatalog(), repo, repo);
+    const useCase = new AddStorefrontItemUseCase(new FakeCatalog(), repo, repo, new FakeCrossSell());
 
     await useCase.execute({ merchant_id: "mrc_1", session_id: "cat_sess_3", sku: "PROD-1", quantity: 2 });
     await useCase.execute({ merchant_id: "mrc_1", session_id: "cat_sess_3", sku: "PROD-1", quantity: 3 });
@@ -82,7 +92,7 @@ describe("P2 — AddStorefrontItemUseCase does not mutate the original session's
         cart: testCart({ total: 0, items: [] })
       })
     );
-    const useCase = new AddStorefrontItemUseCase(new FakeCatalog(), repo, repo);
+    const useCase = new AddStorefrontItemUseCase(new FakeCatalog(), repo, repo, new FakeCrossSell());
 
     await useCase.execute({ merchant_id: "mrc_1", session_id: "cat_sess_4", sku: "PROD-1", quantity: 3 });
 

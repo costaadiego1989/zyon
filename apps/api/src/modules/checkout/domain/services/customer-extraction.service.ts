@@ -1,9 +1,10 @@
-import type { ChatStage, CheckoutSession, CustomerAddress } from "@aacp/shared-types";
+import type { ChatStage, CheckoutSession, CustomerAddress } from "@zyon/shared-types";
 
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/;
 const NAME_QUESTION_RE = /\b(nome\s*completo|seu\s+nome|posso\s+te\s+chamar|como\s+(?:te\s+chamar|posso\s+te\s+chamar)|chamo|qual\s+(?:o\s+)?seu\s+nome)\b/i;
 
-export function extractEmail(text: string): string | undefined {
+export function extractEmail(text: string | undefined | null): string | undefined {
+  if (!text) return undefined;
   const match = text.match(EMAIL_RE);
   if (!match) return undefined;
   const value = match[0];
@@ -169,16 +170,18 @@ export function deriveChatStage(session: CheckoutSession, completed = false): Ch
     return "shipping";
   }
   if (!session.paymentMethod) return "payment";
+  // payment_pending: method selected but payment not yet confirmed via webhook
+  if (!(session as any).paymentConfirmed) return "payment_pending" as any;
   return "completed";
 }
 
 const DATA_FIELD_ORDER: Array<{ label: string; has: (s: CheckoutSession) => boolean }> = [
+  { label: "telefone", has: (s) => Boolean(s.customer?.phone && (s.customer?.phone_otp_code || s.customer?.phone_verified)) },
+  { label: "código de verificação do celular", has: (s) => Boolean(s.customer?.phone_verified) },
   { label: "email", has: (s) => Boolean(s.customer?.email && (s.customer?.otp_code || s.customer?.email_verified)) },
   { label: "código de verificação", has: (s) => Boolean(s.customer?.email_verified) },
   { label: "nome", has: (s) => Boolean(s.customer?.fullName) },
-  { label: "CPF", has: (s) => Boolean(s.customer?.cpf) },
-  { label: "telefone", has: (s) => Boolean(s.customer?.phone && (s.customer?.phone_otp_code || s.customer?.phone_verified)) },
-  { label: "código de verificação do celular", has: (s) => Boolean(s.customer?.phone_verified) }
+  { label: "CPF", has: (s) => Boolean(s.customer?.cpf) }
 ];
 
 export function isShippingQuickReplyQuestion(text: string): boolean {
@@ -193,8 +196,8 @@ export function isShippingQuickReplyQuestion(text: string): boolean {
   );
 }
 
-const EMAIL_OTP_FIELD = DATA_FIELD_ORDER[1]!.label;
-const PHONE_OTP_FIELD = DATA_FIELD_ORDER[5]!.label;
+const PHONE_OTP_FIELD = DATA_FIELD_ORDER[1]!.label;
+const EMAIL_OTP_FIELD = DATA_FIELD_ORDER[3]!.label;
 
 export function missingFieldsForStage(session: CheckoutSession, stage: ChatStage): string[] {
   if (stage === "data_collection") {

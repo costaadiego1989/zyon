@@ -68,6 +68,8 @@ export class WooCommerceCommerceAdapter
             ? Math.round(moneyToCents(line.total) / line.quantity)
             : 0,
         title: line.name,
+        commerceProductId: line.product_id ? String(line.product_id) : undefined,
+        commerceVariantId: line.variation_id ? String(line.variation_id) : undefined,
       })),
     };
   }
@@ -77,7 +79,31 @@ export class WooCommerceCommerceAdapter
     sessionId: string;
     cart: TrustedCartSnapshot;
   }): Promise<{ commerceOrderId: string }> {
-    return { commerceOrderId: input.cart.commerceCartRef };
+    const order = await this.request<WooOrder>(
+      "/orders",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          status: "pending",
+          currency: input.cart.currency,
+          customer_note: `AACP checkout session ${input.sessionId}`,
+          meta_data: [
+            { key: "_aacp_session_id", value: input.sessionId },
+            { key: "_aacp_cart_ref", value: input.cart.commerceCartRef },
+          ],
+          line_items: input.cart.lines.map((line) => ({
+            product_id: parsePositiveInteger(line.commerceProductId),
+            variation_id: parsePositiveInteger(line.commerceVariantId),
+            quantity: line.quantity,
+            name: line.title,
+            subtotal: centsToMoneyString(line.unitPriceCents * line.quantity),
+            total: centsToMoneyString(line.unitPriceCents * line.quantity),
+          })).map((line) => stripUndefinedFields(line)),
+        }),
+      },
+      "woocommerce_create_order",
+    );
+    return { commerceOrderId: String(order.id) };
   }
 
   async markOrderPaid(input: {
@@ -117,14 +143,25 @@ export class WooCommerceCommerceAdapter
   }
 
   async testConnection(): Promise<CommerceConnectionHealth> {
-    const [site, currency] = await Promise.all([
-      this.publicRequest<WooSite>("/wp-json", "woocommerce_site"),
-      this.currency(),
-    ]);
+    // Use authenticated /system_status endpoint to validate API credentials
+    // (not just the public /wp-json root which doesn't require auth).
+    const systemStatus = await this.request<WooSystemStatus>(
+      "/system_status",
+      { method: "GET" },
+      "woocommerce_system_status",
+    );
+    const storeName =
+      systemStatus.environment?.site_title ??
+      systemStatus.settings?.store_name ??
+      "";
+    const storeUrl =
+      systemStatus.environment?.site_url ?? this.#storeUrl;
+    const currency =
+      systemStatus.settings?.currency ?? await this.currency();
     return {
       provider: "woocommerce",
-      storeName: site.name,
-      storeUrl: site.url || this.#storeUrl,
+      storeName,
+      storeUrl,
       currency,
     };
   }
@@ -297,7 +334,8 @@ function normalizeStoreUrl(value: string): string {
   const normalized = value.trim().replace(/\/+$/, "");
   if (!normalized) return "";
   const url = new URL(normalized);
-  if (url.protocol !== "https:") {
+  const isLocalDev = (url.hostname === "localhost" || url.hostname === "127.0.0.1") && url.port === "8080";
+  if (!isLocalDev && url.protocol !== "https:") {
     throw new Error("woocommerce_https_required");
   }
   return url.origin + url.pathname.replace(/\/+$/, "");
@@ -316,6 +354,22 @@ function moneyToCents(value: string | number): number {
   return Math.round(Number(value || 0) * 100);
 }
 
+function centsToMoneyString(cents: number): string {
+  return (cents / 100).toFixed(2);
+}
+
+function parsePositiveInteger(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function stripUndefinedFields<T extends Record<string, unknown>>(value: T): T {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, fieldValue]) => fieldValue !== undefined),
+  ) as T;
+}
+
 function stripHtml(value: string): string | undefined {
   const text = value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
   return text || undefined;
@@ -331,12 +385,25 @@ function variationTitle(variation: WooVariation): string {
 
 type WooSite = { name: string; url: string };
 type WooSetting = { value?: string };
+type WooSystemStatus = {
+  environment?: {
+    site_title?: string;
+    site_url?: string;
+    wc_version?: string;
+  };
+  settings?: {
+    store_name?: string;
+    currency?: string;
+  };
+};
 type WooOrder = {
   id: number;
   currency: string;
   total: string;
   line_items: Array<{
     name: string;
+    product_id?: number;
+    variation_id?: number;
     sku: string;
     quantity: number;
     total: string;

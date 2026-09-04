@@ -1,4 +1,4 @@
-import type { Cart, MerchantRules } from "@aacp/shared-types";
+import type { Cart, MerchantRules } from "@zyon/shared-types";
 
 export const DISCOUNT_RULES_ENGINE = Symbol("DISCOUNT_RULES_ENGINE");
 
@@ -10,7 +10,7 @@ export interface DiscountAuthorization {
 }
 
 /**
- * Port over the @aacp/rules-engine evaluateDiscountOffer function.
+ * Port over the @zyon/rules-engine evaluateDiscountOffer function.
  * Validates that a requested discount does not exceed maxDiscountPercent
  * and does not violate minimumMarginPercent.
  */

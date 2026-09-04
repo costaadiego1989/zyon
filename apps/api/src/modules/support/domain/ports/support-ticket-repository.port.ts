@@ -1,4 +1,4 @@
-import type { SupportTicket, SupportTicketStatus } from "@aacp/shared-types";
+import type { SupportTicket, SupportTicketStatus } from "@zyon/shared-types";
 
 export const SUPPORT_TICKET_REPOSITORY = "SUPPORT_TICKET_REPOSITORY";
 

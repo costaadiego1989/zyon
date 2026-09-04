@@ -1,5 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
-import type { CheckoutSettings } from "@aacp/shared-types";
+import type { CheckoutSettings } from "@zyon/shared-types";
 import type { CheckoutSettingsRepository } from "../domain/ports/checkout-settings-repository.port.js";
 import { OptimisticConcurrencyError } from "../../../shared/http/http-contract.errors.js";
 
@@ -61,6 +61,7 @@ function toUpdate(settings: CheckoutSettings) {
     triggerRules: settings.triggerRules as unknown as Prisma.InputJsonValue,
     suppressionRules: settings.suppressionRules as unknown as Prisma.InputJsonValue,
     handoff: settings.handoff as unknown as Prisma.InputJsonValue,
+    advancedRules: settings.advancedRules as unknown as Prisma.InputJsonValue,
     updatedAt: new Date(settings.updatedAt)
   };
 }
@@ -73,6 +74,7 @@ function toCheckoutSettings(row: {
   triggerRules: unknown;
   suppressionRules: unknown;
   handoff: unknown;
+  advancedRules: unknown;
   createdAt: Date;
   updatedAt: Date;
 }): CheckoutSettings {
@@ -84,6 +86,7 @@ function toCheckoutSettings(row: {
     triggerRules: row.triggerRules as CheckoutSettings["triggerRules"],
     suppressionRules: row.suppressionRules as CheckoutSettings["suppressionRules"],
     handoff: row.handoff as CheckoutSettings["handoff"],
+    advancedRules: (row.advancedRules as CheckoutSettings["advancedRules"]) ?? [],
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString()
   };

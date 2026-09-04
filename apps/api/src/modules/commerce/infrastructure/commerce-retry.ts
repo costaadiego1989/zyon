@@ -42,7 +42,11 @@ export async function retryWithBackoff<T>(operation: () => Promise<T>, options: 
       if (attempt >= maxAttempts || !isRetryableCommerceError(error)) {
         throw error;
       }
-      await sleep(baseDelayMs * 2 ** (attempt - 1));
+      // Exponential backoff with +/-20% jitter to reduce thundering herd.
+      const exponentialDelayMs = baseDelayMs * 2 ** (attempt - 1);
+      const jitterFactor = 0.8 + Math.random() * 0.4; // [0.8, 1.2]
+      const delayMs = Math.floor(exponentialDelayMs * jitterFactor);
+      await sleep(delayMs);
     }
   }
   throw lastError;

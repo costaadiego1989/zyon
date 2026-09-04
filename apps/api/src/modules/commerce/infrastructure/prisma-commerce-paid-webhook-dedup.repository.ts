@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@prisma/client";
-import type { DomainEventEnvelope } from "@aacp/shared-types";
+import type { DomainEventEnvelope } from "@zyon/shared-types";
 import type { CommercePaidWebhookDedupPort } from "../domain/ports/commerce-paid-webhook-dedup.port.js";
 import { appendOutboxInTransaction } from "./commerce-outbox.js";
 
@@ -46,6 +46,22 @@ export class PrismaCommercePaidWebhookDedup implements CommercePaidWebhookDedupP
       }
       throw error;
     }
+  }
+
+  /**
+   * Releases an incomplete reserve (commerceOrderId still empty sentinel) so the
+   * same paymentReference can be re-attempted. Used for manual recovery.
+   * Only releases if commerceOrderId is still the empty sentinel (not yet processed).
+   */
+  async releaseReserve(merchantId: string, paymentReference: string): Promise<boolean> {
+    const result = await this.prisma.commercePaidEvent.deleteMany({
+      where: {
+        merchantId: merchantId.trim(),
+        paymentReference: paymentReference.trim(),
+        commerceOrderId: ""
+      }
+    });
+    return result.count > 0;
   }
 
   /**

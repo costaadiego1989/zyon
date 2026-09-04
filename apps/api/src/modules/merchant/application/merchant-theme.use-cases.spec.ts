@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_MERCHANT_THEME } from "@aacp/shared-types";
+import { DEFAULT_MERCHANT_THEME } from "@zyon/shared-types";
 import { GetMerchantThemeUseCase } from "./get-merchant-theme.use-case.js";
 import { UpdateMerchantThemeUseCase } from "./update-merchant-theme.use-case.js";
 import { InMemoryMerchantRepository } from "../infrastructure/in-memory-merchant.repository.js";
@@ -13,7 +13,7 @@ function repoWithMerchant(): InMemoryMerchantRepository {
 
 test("GetMerchantThemeUseCase returns default theme when none stored", async () => {
   const repo = repoWithMerchant();
-  const result = await new GetMerchantThemeUseCase(repo).execute("m1");
+  const result = await new GetMerchantThemeUseCase(repo, {} as any).execute("m1");
   assert.deepEqual(result, DEFAULT_MERCHANT_THEME);
 });
 
@@ -98,7 +98,7 @@ test("UpdateMerchantThemeUseCase persists valid theme and GetMerchantThemeUseCas
   assert.equal(saved.accentColor, "#FF0066");
   assert.equal(saved.borderRadius, 10);
   assert.equal(saved.headerTitle, "Concierge Northstar");
-  const stored = await new GetMerchantThemeUseCase(repo).execute("m1");
+  const stored = await new GetMerchantThemeUseCase(repo, {} as any).execute("m1");
   assert.equal(stored.logoUrl, "https://cdn.example/logo.png");
   assert.equal(stored.fontFamily, "Manrope, system-ui, sans-serif");
   assert.equal(stored.fontDisplay, "Sora, Manrope, sans-serif");

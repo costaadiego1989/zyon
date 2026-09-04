@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
+import {
+  CouponMerchantRequiredError,
+  CouponCodeRequiredError,
+  CouponDiscountValueInvalidError,
+} from "../errors.js";
 
-export type CouponDiscountType = "percent" | "fixed";
+export type CouponDiscountType = "percent" | "fixed" | "shipping_free" | "shipping_percent" | "shipping_fixed";
 export type CouponStatus = "active" | "expired" | "archived";
 
 export type CouponSnapshot = {
@@ -28,9 +33,10 @@ export class CouponEntity {
   private constructor(private readonly s: CouponSnapshot) {}
 
   static create(input: Omit<CouponSnapshot, "id" | "usages_count" | "status" | "created_at" | "updated_at">): CouponEntity {
-    if (!input.merchant_id.trim()) throw new Error("coupon_merchant_required");
-    if (!input.code.trim()) throw new Error("coupon_code_required");
-    if (input.discount_value <= 0) throw new Error("coupon_discount_value_invalid");
+    if (!input.merchant_id.trim()) throw new CouponMerchantRequiredError();
+    if (!input.code.trim()) throw new CouponCodeRequiredError();
+    if (input.discount_value < 0) throw new CouponDiscountValueInvalidError(input.discount_value);
+    if (input.discount_type !== "shipping_free" && input.discount_value <= 0) throw new CouponDiscountValueInvalidError(input.discount_value);
     const now = new Date().toISOString();
     return new CouponEntity({
       ...input,

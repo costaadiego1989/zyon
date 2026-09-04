@@ -13,6 +13,7 @@ const transitionalInfrastructureConsumers = [
   'src/modules/checkout/application/services/checkout-customer.service.ts',
   'src/modules/payment/application/create-payment-intent.use-case.ts',
   'src/modules/payment/application/handle-stripe-webhook.use-case.ts',
+  'src/modules/payment/application/confirm-stripe-payment.use-case.ts',
 ];
 
 export default tseslint.config(
@@ -169,6 +170,21 @@ export default tseslint.config(
               ],
               allow: [
                 ['infrastructure', { context: 'payment', internal: 'stripe-env.ts' }],
+              ],
+            },
+            {
+              from: [
+                [
+                  'application',
+                  {
+                    context: 'payment',
+                    internal: 'confirm-stripe-payment.use-case.ts',
+                  },
+                ],
+              ],
+              allow: [
+                ['infrastructure', { context: 'payment', internal: 'stripe-env.ts' }],
+                ['infrastructure', { context: 'payment', internal: 'e2e-payment-provider.ts' }],
               ],
             },
           ],
