@@ -12,8 +12,8 @@ export interface MerchantRepository {
   updateStoreCategory(merchantId: string, storeCategory: string): Promise<void>;
   getStoreSettings(merchantId: string): Promise<MerchantStoreSettings>;
   updateStoreSettings(merchantId: string, settings: MerchantStoreSettings): Promise<MerchantStoreSettings>;
-  /** Delivery feature: fetch raw merchant row (includes Melhor Envio token fields). Optional for test stubs. */
   getById?(merchantId: string): Promise<any | null>;
-  /** Delivery feature: toggle Melhor Envio carrier. Optional for test stubs. */
   updateMelhorEnvioEnabled?(merchantId: string, enabled: boolean): Promise<void>;
+  findBySlug?(slug: string): Promise<MerchantProfile | undefined>;
+  findByCustomDomain?(host: string): Promise<MerchantProfile | undefined>;
 }

@@ -41,10 +41,6 @@ export class SyncStripeConnectUseCase {
         status.payoutsEnabled &&
         status.detailsSubmitted &&
         status.requirements.length === 0;
-      // Distinguish "under review" from "restricted": if the merchant already
-      // submitted all details and nothing is currently/past due, Stripe is
-      // still enabling charges/payouts on its side → show pending, not
-      // restricted (which reads as the merchant still owing information).
       const underReview =
         !active && status.detailsSubmitted && status.requirements.length === 0;
       await this.repository.saveConnection({

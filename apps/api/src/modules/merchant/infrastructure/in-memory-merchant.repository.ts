@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { MerchantProfile, MerchantRules, MerchantTheme } from "../domain/merchant.types.js";
+import type { MerchantProfile, MerchantRules, MerchantTheme, MerchantStoreSettings } from "../domain/merchant.types.js";
 import type { MerchantRepository } from "../domain/ports/merchant-repository.port.js";
 import type { MerchantRulesRepository } from "../domain/ports/merchant-rules.repository.port.js";
 import { DEFAULT_RULES } from "../domain/merchant-rules.defaults.js";
@@ -9,12 +9,19 @@ export class InMemoryMerchantRepository implements MerchantRepository, MerchantR
   private profiles = new Map<string, MerchantProfile>();
   private rules = new Map<string, MerchantRules>();
   private stripeAccounts = new Map<string, string>();
+  /** host (lowercased) -> merchantId for findByCustomDomain lookups. */
+  private customDomains = new Map<string, string>();
 
   seedProfile(profile: MerchantProfile): void {
     this.profiles.set(profile.id, profile);
     if (profile.stripeConnectAccountId) {
       this.stripeAccounts.set(profile.id, profile.stripeConnectAccountId);
     }
+  }
+
+  /** Test helper: bind a custom domain (hostname) to a merchant id. */
+  seedCustomDomain(host: string, merchantId: string): void {
+    this.customDomains.set(host.trim().toLowerCase(), merchantId);
   }
 
   async getProfile(merchantId: string): Promise<MerchantProfile | undefined> {
@@ -66,8 +73,8 @@ export class InMemoryMerchantRepository implements MerchantRepository, MerchantR
     this.profiles.set(merchantId, { ...existing, storeCategory });
   }
 
-  async getStoreSettings(_merchantId: string): Promise<import("../domain/merchant.types.js").MerchantStoreSettings> {
-    return {};
+  async getStoreSettings(merchantId: string): Promise<MerchantStoreSettings> {
+    return this.profiles.get(merchantId)?.storeSettings ?? {};
   }
 
   async updateStoreSettings(_merchantId: string, settings: import("../domain/merchant.types.js").MerchantStoreSettings): Promise<import("../domain/merchant.types.js").MerchantStoreSettings> {
@@ -81,4 +88,22 @@ export class InMemoryMerchantRepository implements MerchantRepository, MerchantR
   }
 
   async updateMelhorEnvioEnabled(_merchantId: string, _enabled: boolean): Promise<void> {}
+
+  async findBySlug(slug: string): Promise<MerchantProfile | undefined> {
+    const normalized = slug?.trim().toLowerCase();
+    if (!normalized) return undefined;
+    for (const profile of this.profiles.values()) {
+      const candidate = profile.storeSettings?.slug?.trim().toLowerCase();
+      if (candidate === normalized) return profile;
+    }
+    return undefined;
+  }
+
+  async findByCustomDomain(host: string): Promise<MerchantProfile | undefined> {
+    const normalized = host?.trim().toLowerCase();
+    if (!normalized) return undefined;
+    const merchantId = this.customDomains.get(normalized);
+    if (!merchantId) return undefined;
+    return this.profiles.get(merchantId);
+  }
 }

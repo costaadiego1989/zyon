@@ -76,17 +76,11 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
   }
 
   async updateStoreSettings(merchantId: string, settings: import("../domain/merchant.types.js").MerchantStoreSettings): Promise<import("../domain/merchant.types.js").MerchantStoreSettings> {
-    // Merge with existing settings — partial updates (e.g. { slug }) must not
-    // wipe other fields (theme, domain, seo). PUT here is upsert-merge semantics.
     const current = await this.prisma.merchant.findUnique({
       where: { id: merchantId },
       select: { storeSettings: true },
     });
     const existing = (current?.storeSettings as Record<string, unknown>) ?? {};
-    // Deep-merge one level into nested plain objects (e.g. `company`, `styles`)
-    // so a partial update like { company: { address } } does not wipe sibling
-    // fields (cnpj, phone) written by an earlier update. Arrays/primitives are
-    // replaced as-is.
     const incoming = settings as unknown as Record<string, unknown>;
     const merged: Record<string, unknown> = { ...existing };
     for (const [key, value] of Object.entries(incoming)) {
@@ -132,6 +126,49 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
       where: { id: merchantId },
       data: { melhorEnvioEnabled: enabled }
     });
+  }
+
+  async findBySlug(slug: string): Promise<MerchantProfile | undefined> {
+    const normalized = slug?.trim().toLowerCase();
+    if (!normalized) return undefined;
+
+    const rows = await (this.prisma.merchant as any).findMany({
+      where: { storeSettings: { not: Prisma.JsonNull } },
+      select: { id: true, name: true, storeSettings: true }
+    });
+    for (const row of rows) {
+      const settings = row.storeSettings as MerchantStoreSettings | null;
+      const candidate = settings?.slug?.trim().toLowerCase();
+      if (candidate === normalized) {
+        return {
+          id: row.id,
+          name: row.name,
+          storeSettings: settings ?? undefined,
+        };
+      }
+    }
+    return undefined;
+  }
+
+  async findByCustomDomain(host: string): Promise<MerchantProfile | undefined> {
+    const normalized = host?.trim().toLowerCase();
+    if (!normalized) return undefined;
+
+    const link = await (this.prisma as any).merchantDomain?.findUnique?.({
+      where: { domain: normalized }
+    });
+    if (!link || link.verified !== true) return undefined;
+
+    const row = await this.prisma.merchant.findUnique({
+      where: { id: link.merchantId }
+    });
+    if (!row) return undefined;
+
+    return {
+      id: row.id,
+      name: row.name,
+      storeSettings: (row.storeSettings as MerchantStoreSettings) ?? undefined,
+    };
   }
 }
 

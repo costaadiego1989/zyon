@@ -54,6 +54,7 @@ import { KnowledgeBaseModule } from "./modules/knowledge-base/knowledge-base.mod
 import { CrossSellModule } from "./modules/cross-sell/cross-sell.module.js";
 import { UcpDiscoveryModule } from "./modules/public-api/ucp-discovery/ucp-discovery.module.js";
 import { AgenticProtocolModule } from "./modules/public-api/agentic-protocol/agentic-protocol.module.js";
+import { PublicApiModule } from "./modules/public-api/public-api.module.js";
 
 const REDACTED_LOG_PATHS = [
   "req.headers.authorization",
@@ -154,6 +155,7 @@ const REDACTED_LOG_PATHS = [
     CrossSellModule,
     UcpDiscoveryModule,
     AgenticProtocolModule,
+    PublicApiModule,
   ],
   providers: [
     { provide: APP_INTERCEPTOR, useClass: MetricsInterceptor },

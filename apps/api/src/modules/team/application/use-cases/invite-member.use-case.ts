@@ -101,6 +101,11 @@ export class InviteMemberUseCase {
     });
 
     const dashboardUrl = process.env.DASHBOARD_URL || "http://localhost:5175";
+    // DEV ONLY: surface the provisional password so the dashboard operator
+    // can hand it to the new teammate. Remove once email delivery is reliable.
+    this.logger.log(
+      `[DEV-INVITE] ${input.email} role=${input.role} password=${provisionalPassword}`,
+    );
     void this.sendWelcomeEmail(input.email, input.name || input.email, merchant.name, provisionalPassword, input.role, dashboardUrl);
 
     return {
