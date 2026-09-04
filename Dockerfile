@@ -9,7 +9,7 @@
 #
 # Design principles:
 #   - Multi-stage build, distroless runtime (~150 MB final image)
-#   - Layer-cache friendly COPY order (manifests → sources)
+#   - Layer-cache friendly: sources copied together before pnpm install
 #   - Non-root user, read-only filesystem compatible
 #   - Graceful SIGTERM via exec-form CMD
 #   - OCI labels for image registry / SBOM tooling
@@ -28,59 +28,48 @@ RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 
 # =============================================================================
 # Stage 1 — builder (compile NestJS + generate Prisma client)
-# Source is copied FIRST, then pnpm install runs in this stage. This way
-# pnpm creates its symlinks in a clean tree and we don't hit overlay conflicts.
+# Copy sources FIRST, then pnpm install. pnpm creates symlinks in the source
+# tree; subsequent COPYs in the same stage don't conflict because no COPY
+# follows after pnpm install.
 # =============================================================================
 FROM toolchain AS builder
 
 WORKDIR /repo
 
-# Copy manifests.
+# Copy everything in one go — manifests + sources + packages.
+# Single layer for all sources = maximum cache efficiency.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
-
-# Copy every package.json in the workspace so pnpm can resolve the graph.
-COPY packages/contracts/package.json         packages/contracts/package.json
-COPY packages/shared-types/package.json      packages/shared-types/package.json
-COPY packages/commerce-adapters/package.json packages/commerce-adapters/package.json
-COPY packages/payments-evm/package.json      packages/payments-evm/package.json
-COPY packages/conversation-engine/package.json packages/conversation-engine/package.json
-COPY packages/decision-engine/package.json   packages/decision-engine/package.json
-COPY packages/negotiation-engine/package.json packages/negotiation-engine/package.json
-COPY packages/rules-engine/package.json      packages/rules-engine/package.json
-COPY packages/shipping-engine/package.json   packages/shipping-engine/package.json
-COPY packages/agentic-checkout-js/package.json packages/agentic-checkout-js/package.json
-COPY packages/sdk/package.json               packages/sdk/package.json
-COPY packages/checkout-ui/package.json       packages/checkout-ui/package.json
-COPY apps/api/package.json                   apps/api/package.json
-COPY apps/widget_v2/package.json             apps/widget_v2/package.json
-COPY apps/dashboard/package.json             apps/dashboard/package.json
-COPY apps/storefront/package.json            apps/storefront/package.json
-COPY apps/web/package.json                   apps/web/package.json
-
-# Install dev deps + workspace packages needed for the build.
-# pnpm install works on the manifests-only tree, then we add sources next.
-RUN pnpm install --frozen-lockfile --prefer-offline
-
-# Copy all sources (overlay over manifests-only install).
 COPY packages/ packages/
 COPY apps/api/ apps/api/
+COPY apps/widget_v2/ apps/widget_v2/
+COPY apps/dashboard/ apps/dashboard/
+COPY apps/storefront/ apps/storefront/
+COPY apps/web/ apps/web/
+
+# Install dev + workspace deps (this creates symlinks; no COPY after this point
+# in this stage, so no overlay conflicts).
+RUN pnpm install --frozen-lockfile --prefer-offline
 
 # Build chain (contracts → shared-types → commerce-adapters → prisma generate → nest build)
 RUN pnpm --filter @zyon/api build
 
 # =============================================================================
 # Stage 2 — production-deps (prod-only node_modules for slim runner)
-# Same approach: copy sources BEFORE install to avoid overlay conflicts.
 # =============================================================================
 FROM toolchain AS prod-deps
 
 WORKDIR /repo
 
+# Copy manifests + sources before install.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/ packages/
 COPY apps/api/ apps/api/
+COPY apps/widget_v2/ apps/widget_v2/
+COPY apps/dashboard/ apps/dashboard/
+COPY apps/storefront/ apps/storefront/
+COPY apps/web/ apps/web/
 
-# Install prod-only deps on a clean tree.
+# Install prod-only deps (no COPY after this point).
 RUN pnpm install --frozen-lockfile --prod \
       --filter @zyon/api...
 
@@ -99,7 +88,6 @@ LABEL org.opencontainers.image.title="zyon-api" \
 WORKDIR /app
 
 # distroless image already runs as nonroot (uid 65532). No USER directive needed.
-# Read-only filesystem friendly: only /tmp writable; logs go to stdout.
 
 # Compiled NestJS output.
 COPY --from=builder --chown=nonroot:nonroot /repo/apps/api/dist          ./dist
