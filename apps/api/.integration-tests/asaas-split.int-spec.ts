@@ -26,8 +26,12 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 
 const ASAAS_TOKEN = process.env.ASAAS_API_KEY_SANDBOX?.trim();
-const ASAAS_BASE = process.env.ASAAS_BASE_URL_SANDBOX?.trim()
-  || "https://api-sandbox.asaas.com";
+const _rawBase = process.env.ASAAS_BASE_URL_SANDBOX?.trim() || "";
+// Auto-correct common misconfig: `sandbox.asaas.com` (web panel) →
+// `api-sandbox.asaas.com` (API host). See [asaas-api-host-gotcha].
+const ASAAS_BASE = _rawBase.includes("sandbox.asaas.com") && !_rawBase.includes("api-sandbox.asaas.com")
+  ? _rawBase.replace(/sandbox\.asaas\.com/, "api-sandbox.asaas.com")
+  : _rawBase || "https://api-sandbox.asaas.com";
 const AACP_API_URL = process.env.AACP_API_URL?.trim() || "http://localhost:3009";
 const AACP_MERCHANT_ID = process.env.AACP_MERCHANT_ID?.trim() || "mrc_test";
 
@@ -101,7 +105,9 @@ test(
 
     await t.test("findOrCreateCustomer", async () => {
       // 11-digit CPF (PF) — Asaas requires birthDate for PF.
-      const cpf = "11144477735";
+      // Allow override via ASAAS_TEST_CPF env var (sandbox may have
+      // different customers pre-seeded). Defaults to a placeholder.
+      const cpf = process.env.ASAAS_TEST_CPF?.trim() || "11144477735";
       customer = await findOrCreateCustomer(cpf);
       assert.ok(customer?.id, "customer id required");
     });

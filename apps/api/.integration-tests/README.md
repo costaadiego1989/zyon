@@ -56,6 +56,10 @@ STRIPE_PUBLISHABLE_KEY_TEST=pk_test_...
 # Asaas sandbox token (NOT the production token). See [asaas-api-host-gotcha].
 ASAAS_API_KEY_SANDBOX=$aact_...
 
+# Optional: 11-digit CPF of an existing Asaas sandbox customer. Defaults to a
+# placeholder; override with a real customer CPF in your sandbox.
+ASAAS_TEST_CPF=05178178700
+
 # Path to the compiled AACP MCP server. Built via
 #   pnpm --filter @zyon/aacp-mcp-server build
 # Result is packages/aacp-mcp-server/dist/index.js.
