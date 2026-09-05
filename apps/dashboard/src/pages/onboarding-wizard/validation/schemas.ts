@@ -1,4 +1,5 @@
 import { DashboardHttpError } from "../../../api-client.js";
+import { paymentConnectionError } from "../../../lib/payment-connection-error.js";
 
 export type ValidationResult =
   | { valid: true }
@@ -72,6 +73,8 @@ export function validateCheckoutDraft(_draft: CheckoutDraft): ValidationResult[]
 }
 
 export function friendlyError(e: unknown): string {
+  const connectionError = paymentConnectionError(e);
+  if (connectionError) return connectionError;
   if (e instanceof DashboardHttpError) {
     if (e.status === 401) return "Sessão expirada. Faça login novamente.";
     if (e.status === 422) return "Dados inválidos. Verifique os campos.";

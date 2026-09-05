@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Logger } from "@nestjs/common";
+import { toProblemDetails } from "../../../shared/http/problem-details.filter.js";
 import { InMemoryMerchantRepository } from "../../merchant/infrastructure/in-memory-merchant.repository.js";
 import type {
   AsaasPlatformPort,
@@ -75,6 +76,58 @@ test("Stripe sync records restricted requirements before activation", async () =
   assert.deepEqual(connection.requirements, [
     "individual.verification.document",
   ]);
+});
+
+test("Stripe Connect activation error is actionable and never persists a connection", async () => {
+  const repository = new InMemoryPaymentPlatformRepository();
+  const merchants = new InMemoryMerchantRepository();
+  merchants.seedProfile({ id: "mrc_stripe_error", name: "Test" });
+  const stripe = new StubStripePlatform();
+  stripe.createConnectAccount = async () => { throw new Error("You can only create new accounts if you've signed up for Connect, which you can do at https://dashboard.stripe.com/connect."); };
+  const useCase = new CreateStripeConnectOnboardingLinkUseCase(repository, stripe, environment, merchants, new StubBillingConfig());
+  await assert.rejects(() => useCase.execute({ merchantId: "mrc_stripe_error", email: "owner@example.com" }), error => {
+    const problem = toProblemDetails(error, "test");
+    assert.equal(problem.status, 503);
+    assert.equal(problem.code, "stripe_connect_not_enabled");
+    return true;
+  });
+  assert.equal(await repository.getConnection("mrc_stripe_error", "stripe"), undefined);
+});
+
+test("Stripe returns to onboarding and keeps the pending account when a link must be retried", async () => {
+  const repository = new InMemoryPaymentPlatformRepository();
+  const merchants = new InMemoryMerchantRepository();
+  merchants.seedProfile({ id: "mrc_return", name: "Test" });
+  const stripe = new StubStripePlatform();
+  let fail = true;
+  stripe.createConnectOnboardingLink = async (input) => {
+    assert.equal(input.returnUrl, "https://console.aacp.test/?stripe_connected=1#onboarding");
+    assert.equal(input.refreshUrl, "https://console.aacp.test/?stripe_refresh=1#onboarding");
+    if (fail) throw new Error("network failed with sensitive provider data");
+    return { url: "https://connect.stripe.test/onboard" };
+  };
+  const useCase = new CreateStripeConnectOnboardingLinkUseCase(repository, stripe, environment, merchants, new StubBillingConfig());
+  const input = { merchantId: "mrc_return", email: "owner@example.com", returnTo: "onboarding" as const };
+  await assert.rejects(() => useCase.execute(input), error => {
+    assert.equal(toProblemDetails(error, "test").code, "stripe_connect_unavailable");
+    assert.doesNotMatch(JSON.stringify(toProblemDetails(error, "test")), /sensitive/);
+    return true;
+  });
+  assert.equal((await repository.getConnection("mrc_return", "stripe"))?.status, "pending");
+  fail = false;
+  await useCase.execute(input);
+  assert.equal(stripe.accountCreations, 1);
+});
+
+test("Asaas never fabricates identity fields or persists a failed account creation", async () => {
+  const repository = new InMemoryPaymentPlatformRepository();
+  const asaas = new StubAsaasPlatform();
+  const create = new CreateAsaasSubaccountUseCase(repository, asaas, environment);
+  await assert.rejects(() => create.execute("mrc_asaas", { ...asaasInput(), birthDate: undefined }), /asaas_birth_date_required/);
+  await assert.rejects(() => create.execute("mrc_asaas", { ...asaasInput(), cpfCnpj: "11222333000181", companyType: undefined }), /asaas_company_type_required/);
+  asaas.createSubaccount = async () => { throw new Error("provider denied creation"); };
+  await assert.rejects(() => create.execute("mrc_asaas", asaasInput()));
+  assert.equal(await repository.getConnection("mrc_asaas", "asaas"), undefined);
 });
 
 test("Asaas subaccount credentials remain encrypted behind the repository and drive tenant status", async () => {
@@ -159,7 +212,7 @@ class StubStripePlatform implements StripePlatformPort {
     return { accountId: `acct_${input.merchantId}` };
   }
 
-  async createConnectOnboardingLink() {
+  async createConnectOnboardingLink(_input: { accountId: string; refreshUrl: string; returnUrl: string }) {
     return { url: "https://connect.stripe.test/onboard" };
   }
 
@@ -257,6 +310,7 @@ function asaasInput(): AsaasSubaccountInput {
     name: "AACP Merchant",
     email: "owner@example.com",
     cpfCnpj: "12345678901",
+    birthDate: "1990-01-31",
     mobilePhone: "11999999999",
     incomeValue: 10_000,
     address: "Rua Principal",

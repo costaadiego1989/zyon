@@ -10,8 +10,8 @@ import { lookupViaCep } from "../../../api/external/via-cep.js";
  *
  * Pre-filled from storeSettings.company. CEP comes first in the address block and
  * autofills street/neighborhood via ViaCEP. Inputs are masked (CNPJ/phone/CEP);
- * the payload is normalized (digits only) on submit. income_value/birth_date are
- * hardcoded defaults (never collected anywhere).
+ * the payload is normalized (digits only) on submit. Financial and identity
+ * details are supplied by the account holder.
  */
 
 export interface AsaasSubaccountPayload {
@@ -25,13 +25,11 @@ export interface AsaasSubaccountPayload {
   province: string;
   postal_code: string;
   birth_date?: string;
+  company_type?: "MEI" | "LIMITED" | "INDIVIDUAL" | "ASSOCIATION";
   complement?: string;
 }
 
-const DEFAULT_INCOME_VALUE = 10000;
-const DEFAULT_BIRTH_DATE = "1990-01-01";
-
-interface CompanyPrefill {
+export interface CompanyPrefill {
   cnpj?: string;
   razaoSocial?: string;
   email?: string;
@@ -74,8 +72,7 @@ const labelStyle: React.CSSProperties = {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ flex: 1, minWidth: 0 }}>
-      <label style={labelStyle}>{label}</label>
-      {children}
+      <label style={labelStyle}>{label}{children}</label>
     </div>
   );
 }
@@ -92,6 +89,9 @@ export function AsaasSubaccountForm({ company, defaultName, saving, onSubmit, on
   const [address, setAddress] = useState(addr.street ?? "");
   const [addressNumber, setAddressNumber] = useState(addr.number ?? "");
   const [province, setProvince] = useState(addr.neighborhood ?? "");
+  const [birthDate, setBirthDate] = useState("");
+  const [companyType, setCompanyType] = useState<NonNullable<AsaasSubaccountPayload["company_type"]> | "">("");
+  const [incomeValue, setIncomeValue] = useState("");
   const [cepLoading, setCepLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -119,6 +119,10 @@ export function AsaasSubaccountForm({ company, defaultName, saving, onSubmit, on
     if (!name.trim()) return setError("Informe o nome / razão social.");
     if (!/^[^@]+@[^@]+\.[^@]+$/.test(email.trim())) return setError("E-mail inválido.");
     if (!validateCpfCnpj(cpf)) return setError("CPF/CNPJ inválido.");
+    if (cpf.length === 11 && (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate) || !Number.isFinite(Date.parse(birthDate)) || birthDate >= new Date().toISOString().slice(0, 10))) return setError("Informe sua data de nascimento.");
+    if (cpf.length === 14 && !companyType) return setError("Selecione o tipo da empresa.");
+    const income = Number(incomeValue.replace(",", "."));
+    if (!Number.isFinite(income) || income <= 0) return setError("Informe sua renda ou faturamento mensal.");
     if (digits(mobilePhone).length < 10) return setError("Celular inválido (com DDD).");
     if (digits(postalCode).length !== 8) return setError("CEP inválido (8 dígitos).");
     if (!address.trim() || !addressNumber.trim() || !province.trim()) return setError("Preencha o endereço completo.");
@@ -129,8 +133,8 @@ export function AsaasSubaccountForm({ company, defaultName, saving, onSubmit, on
       email: email.trim(),
       cpf_cnpj: cpf,
       mobile_phone: digits(mobilePhone),
-      income_value: DEFAULT_INCOME_VALUE,
-      birth_date: DEFAULT_BIRTH_DATE,
+      income_value: Math.round(income * 100) / 100,
+      ...(cpf.length === 11 ? { birth_date: birthDate } : { company_type: companyType as NonNullable<AsaasSubaccountPayload["company_type"]> }),
       postal_code: digits(postalCode),
       address: address.trim(),
       address_number: addressNumber.trim(),
@@ -159,6 +163,18 @@ export function AsaasSubaccountForm({ company, defaultName, saving, onSubmit, on
           <input style={inputStyle} value={mobilePhone} onChange={(e) => setMobilePhone(maskPhone(e.target.value))} placeholder="(11) 99999-9999" inputMode="numeric" maxLength={15} />
         </Field>
       </div>
+
+      {digits(cpfCnpj).length === 11 && <Field label="Data de nascimento">
+        <input style={inputStyle} type="date" value={birthDate} onChange={e => setBirthDate(e.target.value)} max={new Date().toISOString().slice(0, 10)} />
+      </Field>}
+      {digits(cpfCnpj).length === 14 && <Field label="Tipo da empresa">
+        <select style={inputStyle} value={companyType} onChange={e => setCompanyType(e.target.value as typeof companyType)}>
+          <option value="">Selecione</option><option value="MEI">MEI</option><option value="LIMITED">Sociedade limitada</option><option value="INDIVIDUAL">Empresário individual</option><option value="ASSOCIATION">Associação</option>
+        </select>
+      </Field>}
+      <Field label="Renda ou faturamento mensal (R$)">
+        <input style={inputStyle} type="number" inputMode="decimal" min="0.01" step="0.01" value={incomeValue} onChange={e => setIncomeValue(e.target.value)} placeholder="Informe o valor mensal" />
+      </Field>
 
       <div style={{ display: "flex", gap: 10 }}>
         <Field label={cepLoading ? "CEP (buscando...)" : "CEP"}>

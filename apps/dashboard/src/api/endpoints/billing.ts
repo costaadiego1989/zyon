@@ -56,7 +56,7 @@ export function billingEndpoints(base: string, f: typeof fetch) {
       const res = await dashboardJson<{ data: PaymentConnection[] } | PaymentConnection[]>(base, "/payments/connections", { method: "GET" }, f);
       return Array.isArray(res) ? res : (res?.data ?? []);
     },
-    createStripeOnboardingLink(payload: { return_url?: string; refresh_url?: string }): Promise<PaymentOnboardingLinkResponse> {
+    createStripeOnboardingLink(payload: { return_url?: string; refresh_url?: string; return_to?: "onboarding" | "payment-connections" }): Promise<PaymentOnboardingLinkResponse> {
       return dashboardJson(base, "/payments/connections/stripe/onboarding-link", { method: "POST", jsonBody: payload }, f);
     },
     syncStripeConnection(): Promise<PaymentConnection> {
@@ -77,8 +77,8 @@ export function billingEndpoints(base: string, f: typeof fetch) {
     approveAsaasSandbox(): Promise<PaymentConnection> {
       return dashboardJson(base, "/payments/connections/asaas/sandbox-approve", { method: "POST" }, f);
     },
-    createMercadoPagoOAuthLink(): Promise<{ url: string }> {
-      return dashboardJson(base, "/merchants/me/payment-connections/mercadopago/oauth-link", { method: "POST" }, f);
+    createMercadoPagoOAuthLink(payload?: { return_to?: "onboarding" | "payment-connections" }): Promise<{ url: string }> {
+      return dashboardJson(base, "/merchants/me/payment-connections/mercadopago/oauth-link", { method: "POST", jsonBody: payload }, f);
     },
     syncMercadoPagoConnection(): Promise<PaymentConnection> {
       return dashboardJson(base, "/merchants/me/payment-connections/mercadopago/sync", { method: "POST" }, f);

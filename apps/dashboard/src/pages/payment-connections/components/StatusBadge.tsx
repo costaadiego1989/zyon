@@ -10,6 +10,7 @@ function getLabel(status: Status): string {
   if (status === "active") return "Conectado";
   if (status === "restricted") return "Restrito";
   if (status === "pending") return "Pendente";
+  if (status === "degraded") return "Falha na sincronização";
   if (status === "error") return "Erro";
   return "Desconectado";
 }
@@ -18,7 +19,7 @@ function getVariant(status: Status): string {
   if (status === "active") return "active";
   if (status === "restricted") return "restricted";
   if (status === "pending") return "pending";
-  if (status === "error") return "error";
+  if (status === "error" || status === "degraded") return "error";
   return "disconnected";
 }
 

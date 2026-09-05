@@ -115,6 +115,7 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
                   busy={vm.busy}
                   initiateStripeOnboarding={vm.initiateStripeOnboarding}
                   initiateAsaasOnboarding={vm.initiateAsaasOnboarding}
+                  message={vm.message}
                   initiateMercadoPagoOnboarding={vm.initiateMercadoPagoOnboarding}
                 />
               )}

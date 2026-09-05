@@ -4,6 +4,7 @@ import { reportError } from "../../../lib/observability/error-reporter.js";
 import { friendlyError } from "../validation/schemas.js";
 import type { AddressDraft, PaymentDraft } from "../types.js";
 import { isValidEvmAddress } from "../types.js";
+import type { AsaasSubaccountPayload } from "../../payment-connections/components/AsaasSubaccountForm.js";
 
 export interface UseStepPaymentDeps {
   paymentDraft: PaymentDraft;
@@ -63,10 +64,8 @@ export function useStepPayment(deps: UseStepPaymentDeps) {
     deps.setBusy(true);
     deps.setMessage(null);
     try {
-      const baseUrl = window.location.origin;
       const { url } = await api.createStripeOnboardingLink({
-        return_url: baseUrl,
-        refresh_url: baseUrl,
+        return_to: "onboarding",
       });
       deps.setPaymentDraft((d) => ({ ...d, stripeStatus: "pending" }));
       window.location.href = url;
@@ -78,45 +77,35 @@ export function useStepPayment(deps: UseStepPaymentDeps) {
     }
   }
 
-  async function initiateAsaasOnboarding() {
+  async function initiateAsaasOnboarding(payload?: AsaasSubaccountPayload): Promise<boolean> {
     deps.setBusy(true);
     deps.setMessage(null);
     deps.setPaymentDraft((d) => ({ ...d, asaasStatus: "testing" }));
+    let connectionSaved = deps.paymentDraft.asaasStatus === "pending";
     try {
-      const { url } = await api.createAsaasOnboardingLink({ return_url: window.location.origin });
-      deps.setPaymentDraft((d) => ({ ...d, asaasStatus: "pending" }));
-      window.location.href = url;
-    } catch (err) {
-      reportError({ source: "onboarding.asaas.createOnboardingLink", error: err, severity: "warning" });
-      try {
-        await api.createAsaasSubaccount({
-          name: deps.me.name,
-          email: `store-${deps.me.id.slice(-8)}@zyon.ai`,
-          cpf_cnpj: (deps.me as any).cnpj ?? "05178178700",
-          birth_date: "1989-01-01",
-          mobile_phone: (deps.me as any).phone ?? "19998887766",
-          income_value: 10000,
-          postal_code: deps.addressDraft.zip?.replace(/\D/g, "") ?? "01311100",
-          address: deps.addressDraft.street || "Não informado",
-          address_number: deps.addressDraft.number || "0",
-          province: deps.addressDraft.neighborhood || "Centro",
-          complement: deps.addressDraft.complement ?? "",
-        });
-        deps.setMessage("Subconta Asaas criada! Redirecionando...");
-        await new Promise((r) => setTimeout(r, 16000));
-        const { url } = await api.createAsaasOnboardingLink({ return_url: window.location.origin });
-        deps.setPaymentDraft((d) => ({ ...d, asaasStatus: "pending" }));
-        window.location.href = url;
-      } catch (err2) {
-        reportError({ source: "onboarding.asaas.createSubaccount", error: err2, severity: "warning" });
-        try {
-          await api.syncAsaasConnection();
-        } catch (err3) {
-          reportError({ source: "onboarding.asaas.syncConnection", error: err3, severity: "warning" });
-        }
-        deps.setPaymentDraft((d) => ({ ...d, asaasStatus: "active" }));
-        deps.setMessage("Asaas já configurado para esta conta.");
+      if (payload) {
+        const created = await api.createAsaasSubaccount({ ...payload });
+        connectionSaved = true;
+        deps.setPaymentDraft((d) => ({ ...d, asaasStatus: created.status === "active" ? "active" : "pending" }));
+        deps.setMessage("Subconta Asaas criada. Conclua o cadastro no Asaas para ativar os pagamentos.");
+        return true;
       }
+      const connection = await api.syncAsaasConnection();
+      connectionSaved = true;
+      if (connection.status === "active") {
+        deps.setPaymentDraft((d) => ({ ...d, asaasStatus: "active" }));
+        deps.setMessage("Asaas conectado com sucesso.");
+        return true;
+      }
+      deps.setPaymentDraft((d) => ({ ...d, asaasStatus: "pending" }));
+      const { url } = await api.createAsaasOnboardingLink({ return_url: window.location.origin });
+      window.location.href = url;
+      return true;
+    } catch (err) {
+      reportError({ source: "onboarding.asaas.connect", error: err, severity: "warning" });
+      deps.setPaymentDraft((d) => ({ ...d, asaasStatus: connectionSaved ? "pending" : "error" }));
+      deps.setMessage(friendlyError(err));
+      return false;
     } finally {
       deps.setBusy(false);
     }
@@ -129,12 +118,12 @@ export function useStepPayment(deps: UseStepPaymentDeps) {
     deps.setMessage(null);
     deps.setPaymentDraft((d) => ({ ...d, mercadopagoStatus: "connecting" }));
     try {
-      const { url } = await api.createMercadoPagoOAuthLink();
+      const { url } = await api.createMercadoPagoOAuthLink({ return_to: "onboarding" });
       window.location.href = url;
     } catch (err) {
       reportError({ source: "onboarding.mercadopago.oauthLink", error: err, severity: "warning" });
       deps.setPaymentDraft((d) => ({ ...d, mercadopagoStatus: "idle" }));
-      deps.setMessage("Não foi possível conectar o Mercado Pago. Tente novamente.");
+      deps.setMessage(friendlyError(err));
     } finally {
       deps.setBusy(false);
     }

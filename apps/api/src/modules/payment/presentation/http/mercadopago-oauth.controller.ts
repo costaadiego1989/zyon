@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Delete,
   Get,
@@ -33,7 +34,9 @@ import {
   SyncMercadoPagoConnectionUseCase,
   RefreshMercadoPagoTokenUseCase,
   DeleteMercadoPagoConnectionUseCase,
+  readMercadoPagoOAuthState,
 } from "../../application/mercadopago-platform.use-cases.js";
+import { paymentConnectReturn, type PaymentConnectReturn } from "../../application/payment-platform/connect/payment-connect-return.js";
 import type { PaymentConnectionSnapshot } from "../../domain/payment-platform.types.js";
 import { toConnectionResponse } from "./payment-platform.controller.js";
 
@@ -65,18 +68,16 @@ export class MercadoPagoOAuthController {
   async handleOAuthCallback(
     @Query("code") code?: string,
     @Query("state") state?: string,
+    @Query("error") denied?: string,
   ) {
-    if (!code || !state) {
-      throw new BadRequestException(
-        "mercadopago_oauth_missing_code_or_state",
-      );
-    }
-
+    let returnTo: PaymentConnectReturn = "payment-connections";
     const handleCallback = new HandleMercadoPagoOAuthCallbackUseCase(
       this.repository,
     );
 
     try {
+      if (state) returnTo = readMercadoPagoOAuthState(state).returnTo;
+      if (denied || !code || !state) throw new BadRequestException("mercadopago_oauth_not_authorized");
       const result = await handleCallback.execute({ code, state });
       this.logger.log(
         `OAuth callback succeeded for merchant=${result.merchantId}`,
@@ -85,13 +86,13 @@ export class MercadoPagoOAuthController {
       // Redirect back to the dashboard's payment-connections tab (hash route)
       // with a success flag the page reads to toast + refresh the list.
       return {
-        url: `${this.getConsoleUrl()}/?mercadopago_connected=1#payment-connections`,
+        url: `${this.getConsoleUrl()}/?mercadopago_connected=1#${result.returnTo}`,
         statusCode: 302,
       };
     } catch (error) {
-      this.logger.error(`OAuth callback failed: ${String(error)}`);
+      this.logger.warn("OAuth callback did not complete; merchant must retry authorization");
       return {
-        url: `${this.getConsoleUrl()}/?mercadopago_error=1#payment-connections`,
+        url: `${this.getConsoleUrl()}/?mercadopago_error=1#${returnTo}`,
         statusCode: 302,
       };
     }
@@ -138,9 +139,9 @@ export class MerchantMercadoPagoController {
     },
   })
   @Post("oauth-link")
-  async generateOAuthLink(@Req() request: unknown) {
+  async generateOAuthLink(@Req() request: unknown, @Body() body?: { return_to?: unknown }) {
     const principal = humanPrincipal(request);
-    return this.createLink.execute(principal.tenantId);
+    return this.createLink.execute(principal.tenantId, paymentConnectReturn(body?.return_to));
   }
 
   @ApiOperation({

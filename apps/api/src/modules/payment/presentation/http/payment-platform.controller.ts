@@ -20,6 +20,7 @@ import {
   type TenantPrincipal,
 } from "../../../../shared/auth/tenant-principal.js";
 import { Idempotent } from "../../../../shared/http/idempotency/idempotent.decorator.js";
+import { paymentConnectReturn } from "../../application/payment-platform/connect/payment-connect-return.js";
 import { RequireTenantAccess } from "../../../integrations/presentation/http/tenant-access.decorator.js";
 import { TenantAccessGuard } from "../../../integrations/presentation/http/tenant-access.guard.js";
 import { TenantCredentialGuard } from "../../../integrations/presentation/http/tenant-credential.guard.js";
@@ -181,11 +182,12 @@ export class PaymentPlatformController {
   })
   @Post("stripe/onboarding-link")
   @Idempotent()
-  async createStripeLink(@Req() request: unknown) {
+  async createStripeLink(@Req() request: unknown, @Body() body?: { return_to?: unknown }) {
     const principal = humanPrincipal(request);
     const result = await this.stripeOnboarding.execute({
       merchantId: principal.tenantId,
       email: principal.email,
+      returnTo: paymentConnectReturn(body?.return_to),
     });
     return {
       url: result.url,

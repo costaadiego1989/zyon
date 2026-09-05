@@ -17,6 +17,8 @@ import {
 } from "../../../../merchant/domain/ports/merchant-repository.port.js";
 import type { PaymentConnectionSnapshot } from "../../../domain/payment-platform.types.js";
 import { requiredConnection } from "../shared.js";
+import { stripeConnectError } from "./stripe-connect-error.js";
+import { paymentConnectReturn, type PaymentConnectReturn } from "./payment-connect-return.js";
 
 @Injectable()
 export class CreateStripeConnectOnboardingLinkUseCase {
@@ -36,11 +38,13 @@ export class CreateStripeConnectOnboardingLinkUseCase {
   async execute(input: {
     merchantId: string;
     email: string;
+    returnTo?: PaymentConnectReturn;
   }): Promise<{
     url: string;
     expiresAt?: string;
     connection: PaymentConnectionSnapshot;
   }> {
+    const returnTo = paymentConnectReturn(input.returnTo);
     const profile = await this.merchants.getProfile(input.merchantId);
     if (!profile) throw new NotFoundException("merchant_not_found");
 
@@ -54,7 +58,7 @@ export class CreateStripeConnectOnboardingLinkUseCase {
         merchantId: input.merchantId,
         merchantName: profile.name,
         email: input.email,
-      });
+      }).catch(error => { throw stripeConnectError(error); });
       accountId = created.accountId;
       await this.repository.saveConnection({
         merchantId: input.merchantId,
@@ -80,9 +84,9 @@ export class CreateStripeConnectOnboardingLinkUseCase {
     // refresh_url is hit if the link expires; send them back to retry.
     const link = await this.stripe.createConnectOnboardingLink({
       accountId,
-      refreshUrl: `${consoleUrl}/?stripe_refresh=1#payment-connections`,
-      returnUrl: `${consoleUrl}/?stripe_connected=1#payment-connections`,
-    });
+      refreshUrl: `${consoleUrl}/?stripe_refresh=1#${returnTo}`,
+      returnUrl: `${consoleUrl}/?stripe_connected=1#${returnTo}`,
+    }).catch(error => { throw stripeConnectError(error); });
     return {
       ...link,
       connection: await requiredConnection(

@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import {
   ASAAS_PLATFORM_PORT,
   PAYMENT_PLATFORM_ENVIRONMENT,
@@ -27,24 +27,21 @@ export class CreateAsaasSubaccountUseCase {
     merchantId: string,
     rawInput: AsaasSubaccountInput,
   ): Promise<PaymentConnectionSnapshot> {
-    // Asaas requires companyType for CNPJ (PJ) accounts and birthDate for CPF
-    // (PF). Default the fields that aren't collected in our system so creation
-    // doesn't fail with "É necessário informar o tipo de empresa".
+    const existing = await this.repository.getConnection(merchantId, "asaas");
+    if (existing) return requiredConnection(this.repository, merchantId, "asaas");
+
     const cpfCnpjDigits = rawInput.cpfCnpj.replace(/\D+/g, "");
+    if (![11, 14].includes(cpfCnpjDigits.length)) throw new BadRequestException("asaas_tax_id_invalid");
     const isCnpj = cpfCnpjDigits.length === 14;
+    if (isCnpj && !rawInput.companyType) throw new BadRequestException("asaas_company_type_required");
+    if (!isCnpj && (!rawInput.birthDate || !/^\d{4}-\d{2}-\d{2}$/.test(rawInput.birthDate) || !Number.isFinite(Date.parse(rawInput.birthDate)) || rawInput.birthDate >= new Date().toISOString().slice(0, 10))) throw new BadRequestException("asaas_birth_date_required");
     const input: AsaasSubaccountInput = {
       ...rawInput,
       cpfCnpj: cpfCnpjDigits,
       ...(isCnpj
-        ? { companyType: rawInput.companyType ?? "LIMITED" }
-        : { companyType: undefined, birthDate: rawInput.birthDate ?? "1990-01-01" }),
+        ? { companyType: rawInput.companyType, birthDate: undefined }
+        : { companyType: undefined, birthDate: rawInput.birthDate }),
     };
-
-    // Already linked locally → idempotent, return the existing connection.
-    const existing = await this.repository.getConnection(merchantId, "asaas");
-    if (existing) {
-      return requiredConnection(this.repository, merchantId, "asaas");
-    }
 
     try {
       // A merchant may already have a subaccount on the root account (created

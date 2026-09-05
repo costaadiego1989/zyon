@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { showToast } from "../../components/Toast.js";
+import { paymentConnectionError } from "../../lib/payment-connection-error.js";
 import {
   DashboardHttpError,
   type PaymentConnection,
@@ -75,7 +76,6 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     if (connected) showToast("success", "Mercado Pago conectado");
     if (errored) showToast("error", "Falha ao conectar o Mercado Pago");
     if (stripeConnected) {
-      showToast("success", "Stripe conectado — sincronizando status...");
       void syncStripe();
     }
     if (stripeRefresh) showToast("error", "Link do Stripe expirou. Tente conectar novamente.");
@@ -149,7 +149,8 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
         const idx = prev.findIndex((c) => c.id === updated.id);
         return idx >= 0 ? prev.map((c, i) => (i === idx ? updated : c)) : [updated, ...prev];
       });
-      showToast("success", "Provedor conectado com sucesso");
+      if (updated.status === "active") showToast("success", "Stripe conectado com sucesso");
+      else setAlert({ kind: "info", message: "Seu cadastro Stripe ainda está pendente. Continue a configuração para receber pagamentos." });
     } catch (e) {
       console.error("[payment-connections]", e);
       setAlert({ message: sanitizeError(e), kind: "error" });
@@ -323,6 +324,8 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
 }
 
 export function sanitizeError(e: unknown): string {
+  const connectionError = paymentConnectionError(e);
+  if (connectionError) return connectionError;
   if (e instanceof DashboardHttpError) {
     const { status } = e;
     if (status === 401) return "Sessão expirada. Faça login novamente.";

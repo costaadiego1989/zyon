@@ -75,7 +75,7 @@ export class StripePlatformAdapter implements StripePlatformPort {
       type: "account_onboarding",
       collection_options: { fields: "eventually_due" },
     });
-    return { url: link.url };
+    return { url: link.url, expiresAt: new Date(link.expires_at * 1000).toISOString() };
   }
 
   async retrieveConnectAccount(

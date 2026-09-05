@@ -12,6 +12,7 @@ import {
   type PaymentPlatformRepository,
 } from "../domain/ports/payment-platform-repository.port.js";
 import type { PaymentConnectionSnapshot } from "../domain/payment-platform.types.js";
+import { paymentConnectReturn, type PaymentConnectReturn } from "./payment-platform/connect/payment-connect-return.js";
 import {
   encryptPaymentSecret,
   decryptPaymentSecret,
@@ -27,12 +28,18 @@ const MP_USER_URL = "https://api.mercadopago.com/users/me";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function encryptState(merchantId: string): string {
-  return encryptPaymentSecret(merchantId);
+function encryptState(merchantId: string, returnTo: PaymentConnectReturn): string {
+  return encryptPaymentSecret(JSON.stringify({ merchantId, returnTo, expiresAt: Date.now() + 15 * 60_000 }));
 }
 
-function decryptState(state: string): string {
-  return decryptPaymentSecret(state);
+export function readMercadoPagoOAuthState(state: string): { merchantId: string; returnTo: PaymentConnectReturn } {
+  try {
+    const payload = JSON.parse(decryptPaymentSecret(state));
+    if (typeof payload.merchantId !== "string" || payload.merchantId.length < 8 || !Number.isFinite(payload.expiresAt) || payload.expiresAt <= Date.now()) throw new Error("invalid_state");
+    return { merchantId: payload.merchantId, returnTo: paymentConnectReturn(payload.returnTo) };
+  } catch {
+    throw new BadRequestException("mercadopago_oauth_state_invalid");
+  }
 }
 
 async function requiredConnection(
@@ -65,10 +72,10 @@ export class CreateMercadoPagoOAuthLinkUseCase {
     private readonly repository: PaymentPlatformRepository,
   ) {}
 
-  async execute(merchantId: string): Promise<{ url: string }> {
+  async execute(merchantId: string, returnTo?: PaymentConnectReturn): Promise<{ url: string }> {
     const config = requiredOAuthConfig();
 
-    const state = encryptState(merchantId);
+    const state = encryptState(merchantId, paymentConnectReturn(returnTo));
     const params = new URLSearchParams({
       client_id: config.appId,
       response_type: "code",
@@ -95,24 +102,15 @@ export class HandleMercadoPagoOAuthCallbackUseCase {
   async execute(input: {
     code: string;
     state: string;
-  }): Promise<{ merchantId: string; connection: PaymentConnectionSnapshot }> {
+  }): Promise<{ merchantId: string; returnTo: PaymentConnectReturn; connection: PaymentConnectionSnapshot }> {
     const config = requiredOAuthConfig();
 
-    // Decrypt state to get merchantId (CSRF protection)
-    let merchantId: string;
-    try {
-      merchantId = decryptState(input.state);
-    } catch {
-      throw new BadRequestException("mercadopago_oauth_state_invalid");
-    }
-
-    if (!merchantId || merchantId.length < 8) {
-      throw new BadRequestException("mercadopago_oauth_state_invalid");
-    }
+    const { merchantId, returnTo } = readMercadoPagoOAuthState(input.state);
 
     // Exchange code for access_token
     const tokenResponse = await fetch(MP_TOKEN_URL, {
       method: "POST",
+      signal: AbortSignal.timeout(15_000),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         client_id: config.appId,
@@ -124,9 +122,8 @@ export class HandleMercadoPagoOAuthCallbackUseCase {
     });
 
     if (!tokenResponse.ok) {
-      const body = await tokenResponse.text().catch(() => "");
       this.logger.error(
-        `Token exchange failed: status=${tokenResponse.status} body=${body}`,
+        `Token exchange failed: status=${tokenResponse.status}`,
       );
       throw new BadGatewayException("mercadopago_token_exchange_failed");
     }
@@ -137,6 +134,9 @@ export class HandleMercadoPagoOAuthCallbackUseCase {
       expires_in: number;
       user_id: number;
     };
+    if (!tokenData.access_token || !tokenData.refresh_token || !Number.isFinite(tokenData.expires_in) || tokenData.expires_in <= 0 || !Number.isSafeInteger(tokenData.user_id) || tokenData.user_id <= 0) {
+      throw new BadGatewayException("mercadopago_token_response_invalid");
+    }
 
     // Store the connection
     const secretPayload = JSON.stringify({
@@ -164,7 +164,7 @@ export class HandleMercadoPagoOAuthCallbackUseCase {
     );
 
     const connection = await requiredConnection(this.repository, merchantId);
-    return { merchantId, connection };
+    return { merchantId, returnTo, connection };
   }
 }
 

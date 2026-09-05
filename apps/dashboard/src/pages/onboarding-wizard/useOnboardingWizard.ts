@@ -21,6 +21,7 @@ import { Palette, MapPin, Truck, CreditCard, MessageCircle, Sparkles } from "luc
 import { useStepIdentity } from "./hooks/useStepIdentity.js";
 import { useStepAddress } from "./hooks/useStepAddress.js";
 import { useStepPayment } from "./hooks/useStepPayment.js";
+import type { AsaasSubaccountPayload } from "../payment-connections/components/AsaasSubaccountForm.js";
 import { useStepReview } from "./hooks/useStepReview.js";
 
 export type { ThemeDraft, AddressDraft, PaymentDraft, IntegrationDraft, PlatformChoice } from "./types.js";
@@ -136,7 +137,7 @@ export interface OnboardingWizardVM {
   saveStep2: () => Promise<void>;
   saveStep3: () => Promise<void>;
   initiateStripeOnboarding: () => Promise<void>;
-  initiateAsaasOnboarding: () => Promise<void>;
+  initiateAsaasOnboarding: (payload?: AsaasSubaccountPayload) => Promise<boolean>;
   initiateMercadoPagoOnboarding: () => Promise<void>;
   advanceFromShipping: () => void;
   connectMelhorEnvio: () => void;
@@ -189,7 +190,11 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
   const [onboardingState, setOnboardingState] = useState<OnboardingStateResponse | null>(null);
   const [themeDraft, setThemeDraft] = useState<ThemeDraft>(saved?.theme ?? { ...DEFAULT_THEME_DRAFT, headerTitle: props.me.name });
   const [addressDraft, setAddressDraft] = useState<AddressDraft>(saved?.address ?? DEFAULT_ADDRESS_DRAFT);
-  const [paymentDraft, setPaymentDraft] = useState<PaymentDraft>(saved?.payment ?? DEFAULT_PAYMENT_DRAFT);
+  const [paymentDraft, setPaymentDraft] = useState<PaymentDraft>({
+    ...DEFAULT_PAYMENT_DRAFT,
+    ...saved?.payment,
+    stripeStatus: "idle", asaasStatus: "idle", mercadopagoStatus: "idle", asaasApiKey: "",
+  });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   // Melhor Envio (Frete) OAuth connection state for step 3.
   const [shippingConnected, setShippingConnected] = useState(false);
@@ -217,25 +222,21 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
 
   useEffect(() => {
     let active = true;
+    const params = new URLSearchParams(window.location.search);
+    const syncingStripe = params.has("stripe_connected");
+    const syncingMercadoPago = params.has("mercadopago_connected");
     void (async () => {
       try {
         const connections = await api.getPaymentConnections();
         if (!active) return;
         const stripe = connections.find((c) => c.provider === "stripe");
-        if (stripe) {
-          // Only "active" is truly usable. A restricted/incomplete Stripe
-          // account still has an account_id but status !== "active", so keying
-          // off account_id alone falsely showed "Ativo". Mirror asaas/mp.
-          setPaymentDraft((d) => ({ ...d, stripeStatus: stripe.status === "active" ? "active" : "pending" }));
-        }
         const asaas = connections.find((c) => c.provider === "asaas");
-        if (asaas) {
-          setPaymentDraft((d) => ({ ...d, asaasStatus: asaas.status === "active" ? "active" : "idle" }));
-        }
         const mp = connections.find((c) => c.provider === "mercadopago");
-        if (mp) {
-          setPaymentDraft((d) => ({ ...d, mercadopagoStatus: mp.status === "active" ? "active" : "pending" }));
-        }
+        setPaymentDraft((d) => ({ ...d,
+          stripeStatus: syncingStripe ? d.stripeStatus : stripe ? stripe.status === "active" ? "active" : "pending" : "idle",
+          asaasStatus: asaas ? asaas.status === "active" ? "active" : "pending" : "idle",
+          mercadopagoStatus: syncingMercadoPago ? d.mercadopagoStatus : mp ? mp.status === "active" ? "active" : "pending" : "idle",
+        }));
       } catch (err) {
         reportError({ source: "onboarding.loadPaymentConnections", error: err, severity: "warning" });
       }
@@ -243,23 +244,40 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
     return () => { active = false; };
   }, [api]);
 
-  // Mercado Pago connects via OAuth redirect back to the dashboard with a
-  // ?mercadopago_connected=1 param. Detect it, sync the connection, reflect
-  // active, and clean the URL.
+  // A provider redirect means onboarding returned, not that payments are active.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (!params.get("mercadopago_connected")) return;
+    const mpConnected = params.has("mercadopago_connected");
+    const mpError = params.has("mercadopago_error");
+    const stripeReturned = params.has("stripe_connected");
+    const stripeRefresh = params.has("stripe_refresh");
+    if (!mpConnected && !mpError && !stripeReturned && !stripeRefresh) return;
+    setCurrentStep(4);
+    if (mpError) setMessage("O Mercado Pago não concluiu a autorização. Tente conectar novamente.");
+    if (stripeRefresh) setMessage("O link Stripe expirou. Clique em Configurar ou Continuar para gerar outro.");
     let active = true;
     void (async () => {
       try {
-        await api.syncMercadoPagoConnection?.();
-        if (active) setPaymentDraft((d) => ({ ...d, mercadopagoStatus: "active" }));
+        if (mpConnected) {
+          const connection = await api.syncMercadoPagoConnection();
+          if (active) {
+            setPaymentDraft((d) => ({ ...d, mercadopagoStatus: connection.status === "active" ? "active" : "pending" }));
+            setMessage(connection.status === "active" ? "Mercado Pago conectado com sucesso." : "Sua conexão Mercado Pago ainda está pendente.");
+          }
+        }
+        if (stripeReturned) {
+          const connection = await api.syncStripeConnection();
+          if (active) {
+            setPaymentDraft((d) => ({ ...d, stripeStatus: connection.status === "active" ? "active" : "pending" }));
+            setMessage(connection.status === "active" ? "Stripe conectado com sucesso." : "Seu cadastro Stripe ainda está pendente. Clique em Continuar para revisar a configuração.");
+          }
+        }
       } catch (err) {
-        reportError({ source: "onboarding.syncMercadoPago", error: err, severity: "warning" });
+        if (active) setMessage(friendlyError(err));
+        reportError({ source: "onboarding.syncPaymentConnection", error: err, severity: "warning" });
       }
     })();
-    params.delete("mercadopago_connected");
-    params.delete("mercadopago_error");
+    for (const key of ["mercadopago_connected", "mercadopago_error", "stripe_connected", "stripe_refresh"]) params.delete(key);
     const qs = params.toString();
     window.history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash}`);
     return () => { active = false; };
