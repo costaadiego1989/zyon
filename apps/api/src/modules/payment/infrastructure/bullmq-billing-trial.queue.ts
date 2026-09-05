@@ -40,7 +40,7 @@ export class BullMqBillingTrialQueue implements BillingTrialJobQueue, OnModuleDe
     if (!this.queue) return;
     const delay = Math.max(0, new Date(input.trialEndsAt).getTime() - Date.now());
     await this.queue.add(JOB_NAME, input, {
-      jobId: `trial:${input.merchantId}`,
+      jobId: `trial-${Buffer.from(input.merchantId).toString("base64url")}`,
       delay: Math.min(delay, MAX_DELAY_MS),
       attempts: 5,
       backoff: { type: "exponential", delay: 60_000 },
