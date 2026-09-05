@@ -1,112 +1,168 @@
-import {
-  WebSocketGateway,
-  WebSocketServer,
-  SubscribeMessage,
-  ConnectedSocket,
-  MessageBody,
-  OnGatewayDisconnect,
-} from "@nestjs/websockets";
-import { Logger } from "@nestjs/common";
+import { WebSocketGateway, WebSocketServer, SubscribeMessage, ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect } from "@nestjs/websockets";
+import { Inject, Logger } from "@nestjs/common";
 import type { Server, Socket } from "socket.io";
+import { RealtimeCapabilityService, isRealtimeId, isRealtimeOriginAllowed, realtimeRoom } from "../../../../shared/auth/realtime-capability.js";
+import { resolveCorsConfig } from "../../../../shared/config/cors-config.js";
+import { JwtService } from "../../../auth/domain/services/jwt.service.js";
+import { AuthCookieService } from "../../../auth/domain/services/auth-cookie.service.js";
+import { AUTH_REPOSITORY, type AuthRepository } from "../../../auth/domain/ports/auth-repository.port.js";
+import { SUPPORT_TICKET_REPOSITORY, type SupportTicketRepository } from "../../domain/ports/support-ticket-repository.port.js";
 import { SendTicketMessageUseCase } from "../../application/send-ticket-message.use-case.js";
 
-@WebSocketGateway({ namespace: "/support", cors: { origin: "*" } })
-export class SupportGateway implements OnGatewayDisconnect {
+type Credential = { kind: "buyer" | "merchant"; token: string };
+interface Connection extends Credential {
+  timer: ReturnType<typeof setTimeout>;
+  windowStart: number;
+  messages: number;
+  rooms: Set<string>;
+}
+type Principal = { kind: "buyer" | "merchant"; merchantId: string; ticketId?: string; expiresAt: number };
+
+@WebSocketGateway({ namespace: "/support", cors: resolveCorsConfig(), maxHttpBufferSize: 16384 })
+export class SupportGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(SupportGateway.name);
+  private readonly connections = new WeakMap<Socket, Connection>();
+  @WebSocketServer() server!: Server;
 
-  @WebSocketServer()
-  server!: Server;
+  constructor(
+    @Inject(SendTicketMessageUseCase) private readonly sendMessage: SendTicketMessageUseCase,
+    @Inject(JwtService) private readonly jwt: JwtService,
+    @Inject(AuthCookieService) private readonly cookies: AuthCookieService,
+    @Inject(RealtimeCapabilityService) private readonly capabilities: RealtimeCapabilityService,
+    @Inject(SUPPORT_TICKET_REPOSITORY) private readonly tickets: SupportTicketRepository,
+    @Inject(AUTH_REPOSITORY) private readonly users: AuthRepository,
+  ) {}
 
-  constructor(private readonly sendMessage: SendTicketMessageUseCase) {}
+  async handleConnection(client: Socket) {
+    try {
+      const auth = client.handshake.auth ?? {};
+      let credential: Credential;
+      if (typeof auth.ticketToken === "string") {
+        credential = { kind: "buyer", token: auth.ticketToken };
+      } else {
+        const header = client.handshake.headers.authorization;
+        const explicit = typeof auth.accessToken === "string" ? auth.accessToken :
+          typeof header === "string" && header.startsWith("Bearer ") ? header.slice(7).trim() : undefined;
+        const token = explicit || this.cookies.read(client.handshake.headers.cookie);
+        // Ambient cookies require an approved browser origin, including upgrades.
+        if (!token || (!explicit && !isRealtimeOriginAllowed(client.handshake.headers.origin))) throw new Error("unauthorized");
+        credential = { kind: "merchant", token };
+      }
+      const principal = await this.verify(client, credential);
+      if (principal.kind === "buyer") await this.requireTicket(principal, principal.ticketId);
+      if (!client.connected) return;
+      const timer = setTimeout(() => client.disconnect(true), Math.max(0, principal.expiresAt * 1000 - Date.now()));
+      timer.unref();
+      this.connections.set(client, { ...credential, timer, windowStart: Date.now(), messages: 0, rooms: new Set() });
+      client.emit("authenticated", { role: principal.kind });
+    } catch {
+      client.emit("error", { message: "unauthorized" });
+      client.disconnect(true);
+    }
+  }
 
   handleDisconnect(client: Socket) {
-    this.logger.debug(`Support client disconnected: ${client.id}`);
+    const connection = this.connections.get(client);
+    if (connection) clearTimeout(connection.timer);
+    this.connections.delete(client);
   }
 
-  /** Merchant joins their merchant room to receive new ticket notifications */
-  @SubscribeMessage("join_merchant")
-  handleJoinMerchant(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { merchantId: string },
-  ) {
-    const room = `merchant:${data.merchantId}`;
-    void client.join(room);
-    this.logger.debug(`Client ${client.id} joined ${room}`);
-    return { joined: room };
-  }
-
-  /** Merchant joins a specific ticket room to receive messages */
-  @SubscribeMessage("join_ticket")
-  handleJoinTicket(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { ticketId: string; agentName?: string },
-  ) {
-    const room = `ticket:${data.ticketId}`;
-    void client.join(room);
-    this.logger.debug(`Client ${client.id} joined ${room}`);
-
-    // Notify buyer that an agent joined the chat
-    if (data.agentName) {
-      this.server.to(`buyer:${data.ticketId}`).emit("agent_joined", {
-        ticketId: data.ticketId,
-        agentName: data.agentName,
-      });
+  private async verify(client: Socket, credential: Credential): Promise<Principal> {
+    const origin = client.handshake.headers.origin;
+    if (credential.kind === "buyer") {
+      const claims = this.capabilities.verify(credential.token, "support-ticket", origin);
+      return { kind: "buyer", merchantId: claims.merchantId, ticketId: claims.resourceId, expiresAt: claims.expiresAt };
     }
-
-    return { joined: room };
+    if (origin !== undefined && !isRealtimeOriginAllowed(origin)) throw new Error("origin_not_allowed");
+    const user = this.jwt.verify(credential.token);
+    const payload = JSON.parse(Buffer.from(credential.token.split(".")[1]!, "base64url").toString("utf8")) as { exp?: number };
+    if (!isRealtimeId(user.userId) || !isRealtimeId(user.merchantId) || !Number.isSafeInteger(payload.exp) ||
+      payload.exp! <= Math.floor(Date.now() / 1000) || payload.exp! * 1000 - Date.now() > 2147483647) throw new Error("invalid_principal");
+    const member = await this.users.findUserByEmail(user.email);
+    if (!member || member.id !== user.userId || member.merchantId !== user.merchantId || member.role !== user.role) throw new Error("membership_required");
+    return { kind: "merchant", merchantId: user.merchantId, expiresAt: payload.exp! };
   }
 
-  /** Merchant leaves a ticket room */
-  @SubscribeMessage("leave_ticket")
-  handleLeaveTicket(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { ticketId: string },
-  ) {
-    const room = `ticket:${data.ticketId}`;
-    void client.leave(room);
-    return { left: room };
+  private async authorize(client: Socket): Promise<Principal> {
+    const connection = this.connections.get(client);
+    if (!connection) throw new Error("unauthorized");
+    try { return await this.verify(client, connection); }
+    catch (error) { client.disconnect(true); throw error; }
   }
 
-  /** Merchant sends a message to buyer via ticket */
-  @SubscribeMessage("send_message")
-  async handleSendMessage(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { ticketId: string; merchantId: string; content: string; senderName?: string },
-  ) {
+  private async requireTicket(principal: Principal, ticketId: unknown) {
+    if (!isRealtimeId(ticketId) || (principal.kind === "buyer" && principal.ticketId !== ticketId)) throw new Error("ticket_not_found");
+    const ticket = await this.tickets.get(principal.merchantId, ticketId);
+    if (!ticket) throw new Error("ticket_not_found");
+    return ticket;
+  }
+
+  @SubscribeMessage("join_merchant")
+  async handleJoinMerchant(@ConnectedSocket() client: Socket, @MessageBody() data?: { merchantId?: string }) {
     try {
+      const principal = await this.authorize(client);
+      if (principal.kind !== "merchant" || (data?.merchantId !== undefined && data.merchantId !== principal.merchantId)) throw new Error("forbidden");
+      const room = realtimeRoom("merchant", principal.merchantId);
+      await client.join(room);
+      return { joined: room };
+    } catch { return { success: false, error: "unauthorized" }; }
+  }
+
+  @SubscribeMessage("join_ticket")
+  async handleJoinTicket(@ConnectedSocket() client: Socket, @MessageBody() data: { ticketId: string; agentName?: string }) {
+    try {
+      const principal = await this.authorize(client);
+      const ticket = await this.requireTicket(principal, data?.ticketId);
+      const room = realtimeRoom("ticket", principal.merchantId, ticket.id);
+      const connection = this.connections.get(client)!;
+      if (connection.rooms.size >= 32 && !connection.rooms.has(room)) return { success: false, error: "room_limit" };
+      connection.rooms.add(room);
+      await client.join(room);
+      if (principal.kind === "merchant") this.server.to(room).emit("agent_joined", { ticketId: ticket.id, agentName: "Atendente" });
+      return { joined: room };
+    } catch { return { success: false, error: "unauthorized" }; }
+  }
+
+  @SubscribeMessage("leave_ticket")
+  async handleLeaveTicket(@ConnectedSocket() client: Socket, @MessageBody() data: { ticketId: string }) {
+    try {
+      const principal = await this.authorize(client);
+      if (!isRealtimeId(data?.ticketId)) throw new Error("invalid_ticket");
+      const room = realtimeRoom("ticket", principal.merchantId, data.ticketId);
+      await client.leave(room);
+      this.connections.get(client)?.rooms.delete(room);
+      return { left: room };
+    } catch { return { success: false, error: "unauthorized" }; }
+  }
+
+  @SubscribeMessage("send_message")
+  async handleSendMessage(@ConnectedSocket() client: Socket, @MessageBody() data: { ticketId: string; merchantId?: string; content: string; senderName?: string }) {
+    try {
+      const principal = await this.authorize(client);
+      if (data?.merchantId !== undefined && data.merchantId !== principal.merchantId) throw new Error("forbidden");
+      if (typeof data?.content !== "string" || !data.content.trim() || data.content.length > 4000) return { success: false, error: "invalid_message" };
+      const connection = this.connections.get(client)!;
+      if (Date.now() - connection.windowStart >= 60000) { connection.windowStart = Date.now(); connection.messages = 0; }
+      if (++connection.messages > 30) return { success: false, error: "rate_limited" };
+      const ticket = await this.requireTicket(principal, data.ticketId);
       const message = await this.sendMessage.execute({
-        ticketId: data.ticketId,
-        merchantId: data.merchantId,
-        senderType: "merchant",
-        content: data.content,
+        ticketId: ticket.id, merchantId: principal.merchantId,
+        senderType: principal.kind, content: data.content.trim(),
       });
-
-      const enriched = { ...message, senderName: data.senderName };
-
-      // Emit to all clients in ticket room (including sender for confirmation)
-      this.server.to(`ticket:${data.ticketId}`).emit("new_message", enriched);
-
-      // Emit to buyer's conversation room
-      this.server.to(`buyer:${data.ticketId}`).emit("merchant_reply", enriched);
-
+      const enriched = { ...message, senderName: principal.kind === "merchant" ? "Atendente" : undefined };
+      this.server.to(realtimeRoom("ticket", principal.merchantId, ticket.id)).emit("new_message", enriched);
       return { success: true, message };
-    } catch (error) {
-      this.logger.error(`send_message failed: ${error instanceof Error ? error.message : String(error)}`);
+    } catch {
+      this.logger.debug("Support socket message rejected or failed");
       return { success: false, error: "send_failed" };
     }
   }
 
-  /** Called by other services to notify merchant of new ticket */
   emitNewTicket(merchantId: string, ticket: { id: string; buyerMessage: string; sessionId?: string }) {
-    this.server.to(`merchant:${merchantId}`).emit("new_ticket", ticket);
+    this.server.to(realtimeRoom("merchant", merchantId)).emit("new_ticket", ticket);
   }
 
-  /** Called by other services to emit buyer message to merchant in ticket room */
-  emitBuyerMessage(ticketId: string, message: { id: string; content: string; createdAt: string }) {
-    this.server.to(`ticket:${ticketId}`).emit("new_message", {
-      ...message,
-      ticketId,
-      senderType: "buyer",
-    });
+  emitBuyerMessage(merchantId: string, ticketId: string, message: { id: string; content: string; createdAt: string }) {
+    this.server.to(realtimeRoom("ticket", merchantId, ticketId)).emit("new_message", { ...message, ticketId, senderType: "buyer" });
   }
 }

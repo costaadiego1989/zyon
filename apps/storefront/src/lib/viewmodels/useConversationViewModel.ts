@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useWidgetConfig } from "@/lib/widget-config";
 import { useCart } from "@/lib/cart-store";
 import { checkoutApi, cartApi } from "@/lib/api/api-client";
+import { conversationAccessHeaders } from "@/lib/conversation-access";
 import { initTriggerDetection } from "@/lib/triggers";
 import { getInterventionCount, incrementIntervention, canFireTrigger, recordTriggerFired } from "@/lib/intervention-tracker";
 import { TRIGGER_MESSAGES } from "@/lib/trigger-messages";
@@ -21,7 +22,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009"
 function trackFunnelEvent(merchantId: string, sessionId: string, event: string) {
   fetch(`${API_BASE}/v1/storefront/conversations/${encodeURIComponent(sessionId)}/events`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...conversationAccessHeaders(sessionId) },
     body: JSON.stringify({ merchant_id: merchantId, event, metadata: { timestamp: new Date().toISOString() } }),
   }).catch(() => {});
 }

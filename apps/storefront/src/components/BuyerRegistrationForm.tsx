@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { OtpInput } from "./OtpInput";
+import { conversationAccessHeaders } from "@/lib/conversation-access";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
@@ -13,7 +14,7 @@ function trackRegistrationStep(merchantId: string | undefined, event: string) {
     : "unknown";
   fetch(`${API_BASE}/v1/storefront/conversations/${encodeURIComponent(sessionId)}/events`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...conversationAccessHeaders(sessionId) },
     body: JSON.stringify({ merchant_id: merchantId, event, metadata: { timestamp: new Date().toISOString() } }),
   }).catch(() => {});
 }

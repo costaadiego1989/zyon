@@ -1,4 +1,6 @@
-import { BadRequestException, Body, Controller, Get, Inject, NotFoundException, Param, Patch, Post, Query, Res } from "@nestjs/common";
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Inject, NotFoundException, Param, Patch, Post, Query, Req, Res, UnauthorizedException, UseGuards } from "@nestjs/common";
+import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
+import { RealtimeCapabilityService } from "../../../../shared/auth/realtime-capability.js";
 import type { PrismaClient } from "@prisma/client";
 import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
@@ -41,7 +43,8 @@ export class StorefrontController {
     private readonly searchMarketplace: SearchMarketplaceProductsStorefrontUseCase,
     private readonly addMarketplaceItem: AddMarketplaceItemToCartStorefrontUseCase,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
-    @Inject(STOREFRONT_CART_PORT) private readonly cartRepo: StorefrontCartPort
+    @Inject(STOREFRONT_CART_PORT) private readonly cartRepo: StorefrontCartPort,
+    @Inject(RealtimeCapabilityService) private readonly capabilities: RealtimeCapabilityService,
   ) {}
 
   @Get("index")
@@ -84,7 +87,7 @@ export class StorefrontController {
     if (!merchant) return { categories: [] };
     const categories = await this.prisma.storyCategory.findMany({
       where: { merchantId: merchant.id, isArchived: false },
-      include: { stories: { where: { isArchived: false }, orderBy: { sortOrder: "asc" } } },
+      include: { stories: { where: { merchantId: merchant.id, isArchived: false }, orderBy: { sortOrder: "asc" } } },
       orderBy: { sortOrder: "asc" },
     });
     return { categories };
@@ -113,20 +116,25 @@ export class StorefrontController {
   }
 
   @Post("conversations")
-  async startConversation(@Body() body: StartConversationRequest) {
-    return this.startStoreConversation.execute(body);
+  async startConversation(@Body() body: StartConversationRequest, @Req() request: { headers?: { origin?: string } }) {
+    const result = await this.startStoreConversation.execute(body);
+    const access = this.capabilities.issue({ purpose: "storefront-conversation", merchantId: result.merchant_id, resourceId: result.conversation_id, origin: request.headers?.origin });
+    return { ...result, conversation_token: access.token, conversation_token_expires_at: access.expiresAt };
   }
 
   @Post("conversations/:conversationId/messages")
   async sendMessage(
     @Param("conversationId") conversationId: string,
-    @Body() body: SendMessageRequest & { merchant_id: string }
+    @Body() body: SendMessageRequest & { merchant_id?: string },
+    @Req() request: { headers?: { authorization?: string; origin?: string } },
   ) {
+    const claims = this.conversationAccess(request, conversationId, body.merchant_id);
+    if (body.cart_id !== undefined && body.cart_id !== claims.resourceId) throw new ForbiddenException("conversation_cart_mismatch");
     return this.sendStoreMessage.execute({
-      merchant_id: body.merchant_id,
-      conversation_id: conversationId,
+      merchant_id: claims.merchantId,
+      conversation_id: claims.resourceId,
       user_message: body.user_message,
-      cart_id: body.cart_id,
+      cart_id: claims.resourceId,
       history: body.history
     });
   }
@@ -134,19 +142,23 @@ export class StorefrontController {
   @Get("conversations/:conversationId")
   async getHistory(
     @Param("conversationId") conversationId: string,
-    @Body() body: { merchant_id: string }
+    @Req() request: { headers?: { authorization?: string; origin?: string } },
   ) {
+    const claims = this.conversationAccess(request, conversationId);
     return this.getConversationHistory.execute({
-      merchant_id: body.merchant_id,
-      conversation_id: conversationId
+      merchant_id: claims.merchantId,
+      conversation_id: claims.resourceId,
     });
   }
 
   @Post("conversations/:conversationId/events")
   async trackEvent(
     @Param("conversationId") conversationId: string,
-    @Body() body: { merchant_id: string; event: string; metadata?: Record<string, unknown> }
+    @Body() body: { merchant_id: string; event: string; metadata?: Record<string, unknown> },
+    @Req() request: { headers?: { authorization?: string; origin?: string } },
   ) {
+    const claims = this.conversationAccess(request, conversationId, body.merchant_id);
+    body = { ...body, merchant_id: claims.merchantId };
     if (!body.merchant_id || !body.event) {
       throw new BadRequestException("merchant_id and event required");
     }
@@ -222,17 +234,22 @@ export class StorefrontController {
   }
 
   @Get("funnel/:merchantId")
+  @UseGuards(AuthGuard)
   async getFunnel(
     @Param("merchantId") merchantId: string,
+    @Req() request: { user?: unknown },
     @Query("period") period?: string
   ) {
+    this.requireMerchant(request, merchantId);
     const validPeriods = ["today", "7d", "30d", "90d"];
     const resolvedPeriod = validPeriods.includes(period ?? "") ? (period as "today" | "7d" | "30d" | "90d") : "7d";
     return this.getStorefrontFunnel.execute(merchantId, resolvedPeriod);
   }
 
   @Get("funnel/:merchantId/sessions")
-  async getFunnelSessions(@Param("merchantId") merchantId: string) {
+  @UseGuards(AuthGuard)
+  async getFunnelSessions(@Param("merchantId") merchantId: string, @Req() request: { user?: unknown }) {
+    this.requireMerchant(request, merchantId);
     const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
     const sessions = await this.prisma.checkoutSession.findMany({
       where: { merchantId, updatedAt: { gte: thirtyMinAgo }, NOT: { sessionId: { startsWith: "chk_" } } },
@@ -384,17 +401,37 @@ export class StorefrontController {
   }
 
   @Get("budget-requests")
-  async handleListBudgetRequests(@Query("merchantId") merchantId: string) {
-    if (!merchantId) throw new NotFoundException("merchantId_required");
+  @UseGuards(AuthGuard)
+  async handleListBudgetRequests(@Req() request: { user?: unknown }, @Query("merchantId") requestedMerchantId?: string) {
+    const merchantId = currentUser(request).merchantId;
+    if (requestedMerchantId !== undefined && requestedMerchantId !== merchantId) throw new ForbiddenException("merchant_mismatch");
     return this.listBudgetRequests.execute(merchantId);
   }
 
   @Post("budget-requests/:id/status")
+  @UseGuards(AuthGuard)
   async handleUpdateBudgetStatus(
+    @Req() request: { user?: unknown },
     @Param("id") id: string,
     @Body() body: { status: "approved" | "rejected" | "responded" }
   ) {
-    return this.updateBudgetStatus.execute(id, body.status);
+    return this.updateBudgetStatus.execute(currentUser(request).merchantId, id, body.status);
+  }
+
+  private requireMerchant(request: { user?: unknown }, merchantId: string): void {
+    if (currentUser(request).merchantId !== merchantId) throw new ForbiddenException("merchant_mismatch");
+  }
+
+  private conversationAccess(request: { headers?: { authorization?: string; origin?: string } }, conversationId: string, merchantId?: string) {
+    const authorization = request.headers?.authorization;
+    const token = typeof authorization === "string" && authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : undefined;
+    let claims;
+    try { claims = this.capabilities.verify(token, "storefront-conversation", request.headers?.origin); }
+    catch { throw new UnauthorizedException("invalid_conversation_token"); }
+    if (claims.resourceId !== conversationId || (merchantId !== undefined && claims.merchantId !== merchantId)) {
+      throw new ForbiddenException("conversation_access_denied");
+    }
+    return claims;
   }
 }
 

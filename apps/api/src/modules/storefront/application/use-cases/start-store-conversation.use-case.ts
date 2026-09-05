@@ -10,6 +10,7 @@ import { STOREFRONT_CONVERSATION_PORT, type StorefrontConversationPort } from ".
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 
 export interface StartStoreConversationInput {
   merchant_id: string;
@@ -43,7 +44,7 @@ export class StartStoreConversationUseCase {
     const merchant = await this.merchant.getProfile(input.merchant_id);
     if (!merchant) throw new NotFoundException("merchant_not_found");
 
-    const conversationId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const conversationId = `conv_${randomUUID()}`;
 
     // Try to assign a variant from running experiment
     let experiment: ExperimentVariant | null = null;

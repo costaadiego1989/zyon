@@ -38,20 +38,24 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const [ticketId, setTicketId] = useState<string | null>(null);
+  const [ticketToken, setTicketToken] = useState<string | null>(null);
   const sessionIdRef = useRef(`support_${Date.now()}`);
 
   // Connect to support socket when handoff ticket is created
   useEffect(() => {
-    if (!ticketId) return;
+    if (!ticketId || !ticketToken) return;
     let socket: Socket | null = null;
+    let disposed = false;
     void (async () => {
       const { io } = await import("socket.io-client");
+      if (disposed) return;
       socket = io(`${apiBaseUrl}/support`, {
         transports: ["websocket", "polling"],
+        auth: { ticketToken },
       });
       socketRef.current = socket;
 
-      socket.on("connect", () => {
+      socket.on("authenticated", () => {
         socket!.emit("join_ticket", { ticketId });
       });
 
@@ -85,10 +89,11 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
     })();
 
     return () => {
+      disposed = true;
       socket?.disconnect();
       socketRef.current = null;
     };
-  }, [ticketId, apiBaseUrl]);
+  }, [ticketId, ticketToken, apiBaseUrl]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -187,8 +192,9 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
             if (res.ok) {
               const data = await res.json();
               // Check for handoff
-              if (data.handoff?.ticketId) {
+              if (data.handoff?.ticketId && typeof data.handoff.accessToken === "string") {
                 setTicketId(data.handoff.ticketId);
+                setTicketToken(data.handoff.accessToken);
               }
               setMessages((prev) => [
                 ...prev,

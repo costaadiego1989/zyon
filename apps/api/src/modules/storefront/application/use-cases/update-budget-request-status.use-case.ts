@@ -11,17 +11,16 @@ export class UpdateBudgetRequestStatusUseCase {
 
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
-  async execute(id: string, status: BudgetRequestStatus): Promise<{ id: string; status: string }> {
+  async execute(merchantId: string, id: string, status: BudgetRequestStatus): Promise<{ id: string; status: string }> {
+    if (!merchantId?.trim()) throw new BadRequestException("merchant_id_required");
     if (!["approved", "rejected", "responded"].includes(status)) {
       throw new BadRequestException("invalid_status");
     }
-    const existing = await this.prisma.budgetRequest.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException("budget_request_not_found");
-
-    const updated = await this.prisma.budgetRequest.update({
-      where: { id },
+    const updated = await this.prisma.budgetRequest.updateMany({
+      where: { id, merchantId },
       data: { status },
     });
-    return { id: updated.id, status: updated.status };
+    if (updated.count !== 1) throw new NotFoundException("budget_request_not_found");
+    return { id, status };
   }
 }

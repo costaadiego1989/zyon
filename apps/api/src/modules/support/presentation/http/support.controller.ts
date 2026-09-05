@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Inject,
   Param,
   Patch,
   Post,
@@ -18,6 +19,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
+import { RealtimeCapabilityService } from "../../../../shared/auth/realtime-capability.js";
 import { Idempotent } from "../../../../shared/http/idempotency/idempotent.decorator.js";
 import { RequireTenantAccess } from "../../../integrations/presentation/http/tenant-access.decorator.js";
 import { TenantAccessGuard } from "../../../integrations/presentation/http/tenant-access.guard.js";
@@ -37,7 +39,7 @@ import {
   UpdateSupportTicketDto,
 } from "./support.dto.js";
 
-type EmbedRequest = { embedClaims?: EmbedTokenClaims };
+type EmbedRequest = { embedClaims?: EmbedTokenClaims; headers?: { origin?: string } };
 
 @ApiTags("Support")
 @Controller("support")
@@ -49,6 +51,7 @@ export class SupportController {
     private readonly listTickets: ListSupportTicketsUseCase,
     private readonly updateTicketStatus: UpdateSupportTicketStatusUseCase,
     private readonly createTicket: CreateSupportTicketUseCase,
+    @Inject(RealtimeCapabilityService) private readonly capabilities: RealtimeCapabilityService,
   ) {}
 
   /**
@@ -84,10 +87,17 @@ export class SupportController {
   async chat(@Req() request: EmbedRequest, @Body() body: SupportChatDto) {
     const merchantId = request.embedClaims!.merchantId;
     const settings = await this.getSettings.execute(merchantId);
-    return this.sendSupportMessage.execute(
+    const result = await this.sendSupportMessage.execute(
       { merchant_id: merchantId, session_id: body.session_id, message: body.message },
       { faqItems: settings.faqItems },
     );
+    if (!result.handoff) return result;
+    // execute() creates a NEW ticket; client-provided session_id is never an access credential.
+    const access = this.capabilities.issue({
+      purpose: "support-ticket", merchantId, resourceId: result.handoff.ticketId,
+      origin: request.headers?.origin,
+    });
+    return { ...result, handoff: { ...result.handoff, accessToken: access.token, expiresAt: access.expiresAt } };
   }
 
   /**

@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { RealtimeCapabilityService } from "../../shared/auth/realtime-capability.js";
 import type { PrismaClient } from "@prisma/client";
 import { EmbedModule } from "../embed/embed.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
@@ -33,6 +34,7 @@ import { SupportGateway } from "./infrastructure/gateways/support.gateway.js";
   imports: [EmbedModule, IntegrationsModule, HttpModule],
   controllers: [SupportController, SupportMessagesController],
   providers: [
+    { provide: RealtimeCapabilityService, useFactory: () => new RealtimeCapabilityService() },
     SendSupportMessageUseCase,
     GetSupportSettingsUseCase,
     UpdateSupportSettingsUseCase,

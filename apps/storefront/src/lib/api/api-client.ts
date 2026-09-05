@@ -7,7 +7,7 @@
  *
  * For our storefront:
  * - Catalog/products: internal route (scoped by merchantId param)
- * - Checkout/messages: internal route (uses embed token for auth)
+ * - Conversations/messages: capability returned when the conversation is created
  * - Cart: internal route (scoped by merchantId)
  * - Settings: loaded via SSR (server-client.ts)
  *
@@ -17,6 +17,8 @@
  *
  * This file is the STOREFRONT's integration layer. Customers use the SDK.
  */
+
+import { conversationAccessHeaders, rememberConversationAccess } from "../conversation-access";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
@@ -141,7 +143,7 @@ export const marketplaceApi = {
   },
 };
 
-// ─── Checkout / Conversations (internal — embed token auth) ──
+// ─── Checkout / Conversations (conversation capability) ──
 
 export const checkoutApi = {
   async create(data: {
@@ -149,7 +151,7 @@ export const checkoutApi = {
     customerId?: string;
     items?: any[];
   }): Promise<any> {
-    return safeFetch(`${API_BASE}/storefront/conversations`, {
+    const result = await safeFetch(`${API_BASE}/storefront/conversations`, {
       method: "POST",
       body: JSON.stringify({
         merchant_id: data.merchantId,
@@ -157,6 +159,9 @@ export const checkoutApi = {
         items: data.items,
       }),
     });
+    if (typeof result.conversation_id !== "string" || typeof result.conversation_token !== "string") throw new Error("missing_conversation_access");
+    rememberConversationAccess(result.conversation_id, result.conversation_token);
+    return result;
   },
 
   async sendMessage(checkoutId: string, text: string, options?: {
@@ -168,11 +173,11 @@ export const checkoutApi = {
   }): Promise<any> {
     return safeFetch(`${API_BASE}/storefront/conversations/${checkoutId}/messages`, {
       method: "POST",
-      headers: options?.token ? { Authorization: `Bearer ${options.token}` } : {},
+      headers: conversationAccessHeaders(checkoutId, options?.token),
       body: JSON.stringify({
         merchant_id: options?.merchantId,
         user_message: text,
-        cart_id: options?.cartId || undefined,
+        cart_id: checkoutId,
         history: options?.history,
         variant_id: options?.variantId || undefined,
       }),

@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { RealtimeCapabilityService } from "../../shared/auth/realtime-capability.js";
 import { PersistenceModule, PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { CatalogModule } from "../catalog/catalog.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
@@ -44,6 +45,7 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
   ],
   controllers: [StorefrontController],
   providers: [
+    { provide: RealtimeCapabilityService, useFactory: () => new RealtimeCapabilityService() },
     StorefrontConversationAdapter,
     StorefrontConversationGateway,
     {

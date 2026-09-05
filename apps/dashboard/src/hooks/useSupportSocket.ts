@@ -17,6 +17,7 @@ interface NewTicketEvent {
 
 export function useSupportSocket(apiBaseUrl: string, merchantId: string | undefined, agentName?: string) {
   const socketRef = useRef<Socket | null>(null);
+  const joinedTicketsRef = useRef(new Set<string>());
   const [connected, setConnected] = useState(false);
   const [newTickets, setNewTickets] = useState<NewTicketEvent[]>([]);
 
@@ -27,15 +28,19 @@ export function useSupportSocket(apiBaseUrl: string, merchantId: string | undefi
     const socket = io(`${base}/support`, {
       transports: ["websocket", "polling"],
       autoConnect: true,
+      withCredentials: true,
     });
     socketRef.current = socket;
 
-    socket.on("connect", () => {
+    socket.on("authenticated", () => {
       setConnected(true);
       socket.emit("join_merchant", { merchantId });
+      for (const ticketId of joinedTicketsRef.current) socket.emit("join_ticket", { ticketId });
     });
 
     socket.on("disconnect", () => setConnected(false));
+    socket.on("connect_error", () => setConnected(false));
+    socket.on("error", () => setConnected(false));
 
     socket.on("new_ticket", (ticket: NewTicketEvent) => {
       setNewTickets((prev) => [ticket, ...prev]);
@@ -44,14 +49,17 @@ export function useSupportSocket(apiBaseUrl: string, merchantId: string | undefi
     return () => {
       socket.disconnect();
       socketRef.current = null;
+      joinedTicketsRef.current.clear();
     };
   }, [apiBaseUrl, merchantId]);
 
   const joinTicket = useCallback((ticketId: string) => {
+    joinedTicketsRef.current.add(ticketId);
     socketRef.current?.emit("join_ticket", { ticketId, agentName });
   }, [agentName]);
 
   const leaveTicket = useCallback((ticketId: string) => {
+    joinedTicketsRef.current.delete(ticketId);
     socketRef.current?.emit("leave_ticket", { ticketId });
   }, []);
 
