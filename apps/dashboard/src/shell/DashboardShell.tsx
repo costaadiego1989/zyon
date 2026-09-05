@@ -592,7 +592,13 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             ) : null}
             {tab === "categories" ? <RouteGuard me={me} require="categories"><CategoriesPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "store-settings" ? <RouteGuard me={me} require="store-settings"><StoreSettingsPage /></RouteGuard> : null}
-            {tab === "custom-domain" ? <RouteGuard me={me} require="custom-domain"><CustomDomainPage /></RouteGuard> : null}
+            {tab === "custom-domain" ? (
+              <RouteGuard me={me} require="custom-domain">
+                <PremiumFeatureGate feature="customDomain" requiredPlan="Scale" featureLabel="Domínio próprio" description="Use seu próprio domínio na loja com o plano Scale.">
+                  <CustomDomainPage />
+                </PremiumFeatureGate>
+              </RouteGuard>
+            ) : null}
             {tab === "cross-sell" ? <RouteGuard me={me} require="cross-sell"><CrossSellPage context="store" /></RouteGuard> : null}
             {tab === "cross-sell-checkout" ? <RouteGuard me={me} require="cross-sell-checkout"><CrossSellPage context="checkout" /></RouteGuard> : null}
             {tab === "agent-config" ? <RouteGuard me={me} require="agent-config"><AgentConfigPage apiBaseUrl={API_BASE_URL} me={me} context="storefront" /></RouteGuard> : null}

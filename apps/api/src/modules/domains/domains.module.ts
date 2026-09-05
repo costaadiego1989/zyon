@@ -24,6 +24,8 @@ import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/bi
     ListDomainsUseCase,
   ],
   exports: [
+    BillingPlanMeteringService,
+    PlanLimitGuard,
     RegisterDomainUseCase,
     VerifyDomainUseCase,
     ListDomainsUseCase,

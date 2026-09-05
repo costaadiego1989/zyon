@@ -32,6 +32,7 @@ import {
 } from "../domain/errors.js";
 import { normalizeEmail } from "../domain/validators.js";
 import type { LoginAttemptScope } from "../domain/ports/rate-limiter.port.js";
+import { isAuthorizedAutomationLogin } from "../domain/services/automation-login-captcha.js";
 
 /**
  * H1: Controller is now a thin HTTP layer. Orchestration lives in use-cases.
@@ -167,9 +168,8 @@ export class AuthController {
   ) {
     // Captcha first — block bot traffic before we hit the rate limiter / DB.
     // DEV: captcha bypassed entirely to keep local testing unblocked.
-    // Production behaviour is enforced by the CloudflareTurnstileAdapter when
-    // NODE_ENV === "production".
-    if (process.env.NODE_ENV === "production") {
+    // Production CAPTCHA remains required except for a scoped, expiring audit key.
+    if (process.env.NODE_ENV === "production" && !isAuthorizedAutomationLogin(body)) {
       const captcha = await this.verifyCaptcha.execute({
         token: body.turnstile_token,
         remoteIp: ip || undefined,

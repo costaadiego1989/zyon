@@ -26,10 +26,10 @@ export type BillingPlanFeatureKey =
   | "advancedRules"
   | "knowledgeBase"
   | "postSale"
-  | "customDomain"
   | "crmIntegrations"
   | "aiSpreadsheetImport"
   // Scale (otimização autônoma + M2M)
+  | "customDomain"
   | "revenueManager"
   | "m2mAgents";
 
@@ -121,7 +121,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       advancedRules: true,
       knowledgeBase: true,
       postSale: true,
-      customDomain: true,
+      customDomain: false,
       crmIntegrations: true,
       aiSpreadsheetImport: true,
       revenueManager: false,

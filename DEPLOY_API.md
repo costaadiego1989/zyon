@@ -81,6 +81,8 @@ e o callback registrado `https://api.zyon-payments.com.br/shipping/melhor-envio/
 Configure `DASHBOARD_URL=https://app.zyon-payments.com.br`. O retorno de sucesso,
 cancelamento ou falha volta à tela de frete ou ao onboarding, conforme a origem
 da conexão. Os tokens são armazenados criptografados na loja que iniciou o OAuth.
+`AACP_COMMERCE_ENC_KEY` é obrigatório em produção para salvar e ler esses tokens;
+configure uma chave aleatória persistente e preserve-a entre os deploys.
 
 As rotas autenticadas de pedidos/orçamentos, métricas e funis do dashboard são
 habilitadas individualmente em produção, com isolamento por loja. Não é necessário
@@ -95,6 +97,7 @@ continua separada. Stripe exige uma conta Connect, Asaas usa a carteira da
 plataforma e Mercado Pago exige a conexão OAuth do vendedor para `application_fee`.
 
 As assinaturas Growth (R$249/mês) e Scale (R$599/mês) usam Stripe Checkout.
+Domínio próprio é exclusivo do Scale, com bloqueio no dashboard e nas duas rotas da API.
 Configure `STRIPE_BILLING_PRICE_GROWTH`, `STRIPE_BILLING_PRICE_SCALE`,
 `STRIPE_BILLING_PORTAL_CONFIGURATION` e `MERCHANT_CONSOLE_URL`.
 O portal permite consultar faturas, atualizar o pagamento, trocar o plano e

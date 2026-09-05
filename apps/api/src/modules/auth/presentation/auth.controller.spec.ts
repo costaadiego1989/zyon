@@ -14,6 +14,8 @@ import type { UpdateMeUseCase } from "../application/update-me.use-case.js";
 import type { ChangePasswordUseCase } from "../application/change-password.use-case.js";
 import type { RequestEmailChangeUseCase } from "../application/request-email-change.use-case.js";
 import type { ConfirmEmailChangeUseCase } from "../application/confirm-email-change.use-case.js";
+import { BadRequestException, UnauthorizedException } from "@nestjs/common";
+import { InvalidCredentialsError } from "../domain/errors.js";
 
 function makeController(): AuthController {
   return new AuthController(
@@ -44,4 +46,38 @@ test("AuthController.logout clears the auth cookie", () => {
   });
 
   assert.equal(headers.get("Set-Cookie"), "aacp_access_token=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0");
+});
+
+test("authorized automation skips only login CAPTCHA, retaining password validation and rate limiting", async () => {
+  const keys = ["NODE_ENV", "AUTH_AUTOMATION_LOGIN_EMAIL", "AUTH_AUTOMATION_LOGIN_TOKEN", "AUTH_AUTOMATION_LOGIN_EXPIRES_AT"];
+  const previous = keys.map(key => process.env[key]);
+  try {
+    process.env.NODE_ENV = "production";
+    process.env.AUTH_AUTOMATION_LOGIN_EMAIL = "audit@example.test";
+    process.env.AUTH_AUTOMATION_LOGIN_TOKEN = "a".repeat(64);
+    process.env.AUTH_AUTOMATION_LOGIN_EXPIRES_AT = new Date(Date.now() + 3600000).toISOString();
+    const controller = makeController();
+    let captchaCalls = 0;
+    let loginCalls = 0;
+    Object.assign(controller, {
+      verifyCaptcha: { execute: async () => { captchaCalls++; return { allowed: false, reason: "missing-token" }; } },
+      loginWithRateLimit: { execute: async (_body: unknown, scope: { email: string; ip: string }) => {
+        loginCalls++;
+        assert.equal(scope.email, "audit@example.test");
+        assert.equal(scope.ip, "127.0.0.1");
+        throw new InvalidCredentialsError();
+      } },
+    });
+    const body = { email: "audit@example.test", password: "wrong-password", turnstile_token: "a".repeat(64) };
+    const response = { setHeader() {} };
+    await assert.rejects(() => controller.loginWithPassword(body, "127.0.0.1", response), UnauthorizedException);
+    assert.equal(loginCalls, 1);
+    assert.equal(captchaCalls, 0);
+    await assert.rejects(() => controller.loginWithPassword({ ...body, email: "other@example.test" }, "127.0.0.1", response), BadRequestException);
+    await assert.rejects(() => controller.register({ ...body, merchant_name: "Test" }, "127.0.0.1", response), BadRequestException);
+    assert.equal(captchaCalls, 2);
+    assert.equal(loginCalls, 1);
+  } finally {
+    keys.forEach((key, i) => { if (previous[i] === undefined) delete process.env[key]; else process.env[key] = previous[i]; });
+  }
 });

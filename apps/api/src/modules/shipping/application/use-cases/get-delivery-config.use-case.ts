@@ -27,6 +27,7 @@ export class GetDeliveryConfigUseCase {
     return {
       melhorEnvioEnabled: merchant.melhorEnvioEnabled ?? true,
       melhorEnvioConnected: !!(merchant.melhorEnvioAccessToken && merchant.melhorEnvioRefreshToken),
+      melhorEnvioExpiresAt: merchant.melhorEnvioExpiresAt?.toISOString() ?? null,
       originZip: rules?.originZip ?? "",
       ownDelivery: ownDelivery || {
         enabled: false,

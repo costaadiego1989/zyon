@@ -25,7 +25,7 @@ function metering(plan: BillingPlan, usage: Partial<Awaited<ReturnType<BillingPl
 }
 
 test("PlanLimitGuard blocks when next monthly usage exceeds plan limit", async () => {
-  const svc = metering("starter", { sessionsPerMonth: 50 });
+  const svc = metering("starter", { sessionsPerMonth: 100 });
   await assert.rejects(
     () => svc.assertAllowed("mrc_1", { kind: "limit", key: "sessionsPerMonth" }),
     (err: unknown) => err instanceof ForbiddenException && JSON.stringify(err.getResponse()).includes("plan_limit_exceeded"),
@@ -43,4 +43,14 @@ test("PlanLimitGuard blocks unavailable features", async () => {
     () => svc.assertAllowed("mrc_1", { kind: "feature", key: "cryptoPayments" }),
     (err: unknown) => err instanceof ForbiddenException && JSON.stringify(err.getResponse()).includes("plan_feature_unavailable"),
   );
+});
+
+test("custom domains require Scale, including during the Free trial", async () => {
+  for (const plan of ["starter", "growth"] as const) {
+    await assert.rejects(
+      () => metering(plan, {}).assertAllowed("mrc_test", { kind: "feature", key: "customDomain" }),
+      (error: unknown) => error instanceof ForbiddenException && (error.getResponse() as { required_plan: string }).required_plan === "scale",
+    );
+  }
+  await metering("scale", {}).assertAllowed("mrc_test", { kind: "feature", key: "customDomain" });
 });

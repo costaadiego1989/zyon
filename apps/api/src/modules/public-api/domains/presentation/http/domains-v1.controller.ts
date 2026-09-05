@@ -25,6 +25,7 @@ import { Idempotent } from '../../../../../shared/http/idempotency/idempotent.de
 import { TenantCredentialGuard } from '../../../../integrations/presentation/http/tenant-credential.guard.js';
 import { TenantAccessGuard } from '../../../../integrations/presentation/http/tenant-access.guard.js';
 import { RequireTenantAccess } from '../../../../integrations/presentation/http/tenant-access.decorator.js';
+import { PlanLimitGuard, RequirePlanFeature } from '../../../../payment/domain/billing-plan-guard.js';
 
 import { RegisterDomainUseCase } from '../../../../domains/application/use-cases/register-domain.use-case.js';
 import { VerifyDomainUseCase } from '../../../../domains/application/use-cases/verify-domain.use-case.js';
@@ -46,7 +47,8 @@ import { RegisterDomainDto, DomainResponse, RegisterDomainResponse, VerifyDomain
 @ApiCookieAuth('console_session')
 @Controller('domains')
 @UseInterceptors(ResponseEnvelopeInterceptor)
-@UseGuards(TenantCredentialGuard, TenantAccessGuard)
+@UseGuards(TenantCredentialGuard, TenantAccessGuard, PlanLimitGuard)
+@RequirePlanFeature('customDomain')
 export class DomainsV1Controller {
   constructor(
     private readonly registerDomainUseCase: RegisterDomainUseCase,

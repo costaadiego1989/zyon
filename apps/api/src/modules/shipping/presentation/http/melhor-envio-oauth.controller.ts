@@ -80,6 +80,7 @@ export class MelhorEnvioOAuthController {
     }
 
     const { merchantId } = verified;
+    let stage = "token_exchange";
     try {
       const tokenRes = await fetch(`${melhorEnvioBaseUrl()}/oauth/token`, {
         method: "POST",
@@ -100,6 +101,7 @@ export class MelhorEnvioOAuthController {
         return;
       }
 
+      stage = "token_response";
       const tokenData = await tokenRes.json();
       if (typeof tokenData.access_token !== "string" || !tokenData.access_token.trim()
         || typeof tokenData.refresh_token !== "string" || !tokenData.refresh_token.trim()) {
@@ -110,8 +112,10 @@ export class MelhorEnvioOAuthController {
       const expiresIn = Number(tokenData.expires_in ?? 2592000);
       if (!Number.isFinite(expiresIn) || expiresIn <= 0) throw new Error("invalid_token_expiry");
       const expiresAt = new Date(Date.now() + expiresIn * 1000);
+      stage = "token_encryption";
       const encryptedAccessToken = encryptCommerceSecret(tokenData.access_token);
       const encryptedRefreshToken = encryptCommerceSecret(tokenData.refresh_token);
+      stage = "token_persistence";
       await this.prisma.merchant.update({
         where: { id: merchantId },
         data: {
@@ -124,7 +128,7 @@ export class MelhorEnvioOAuthController {
 
       res.redirect(302, this.dashboardRedirect(returnTo, "shipping_connected", "melhor_envio"));
     } catch {
-      this.logger.error("melhor_envio.connection_failed");
+      this.logger.error(`melhor_envio.connection_failed:${stage}`);
       res.redirect(302, this.dashboardRedirect(returnTo, "shipping_error", "connection_failed"));
     }
   }
