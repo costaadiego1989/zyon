@@ -1,108 +1,129 @@
 import { useEffect, useRef, useState } from "react";
 
-/**
- * Cloudflare Turnstile widget. Mounts an invisible (managed) challenge when a
- * site key is configured; emits the resulting token via onChange. When the
- * site key is missing the component renders nothing AND keeps `configured`
- * false — the form layer must treat that as "captcha disabled" and only
- * send the request when `configured === true` (production) or skip the
- * token field when not configured (dev).
- *
- * The widget is intentionally rendered with `appearance: "managed"` (a small
- * visible badge) so the buyer is aware the form is bot-protected even when
- * the challenge itself is invisible.
- */
 export interface TurnstileProps {
   siteKey: string | undefined;
   onChange: (token: string | null) => void;
   onExpire?: () => void;
-  // Optional explicit className so we can style within auth-form.
   className?: string;
 }
 
 declare global {
-  // Cloudflare loads this global on script load. We type it narrowly so TS
-  // doesn't complain when the script is absent (dev without a site key).
   interface Window {
     turnstile?: {
-      render: (
-        container: string | HTMLElement,
-        options: {
-          sitekey: string;
-          callback: (token: string) => void;
-          "expired-callback"?: () => void;
-          "error-callback"?: () => void;
-          appearance?: "always" | "execute" | "interaction-only";
-          theme?: "light" | "dark" | "auto";
-          size?: "normal" | "flexible" | "compact";
-        }
-      ) => string;
-      reset: (widgetId?: string) => void;
-      remove: (widgetId?: string) => void;
+      render: (container: HTMLElement, options: {
+        sitekey: string;
+        callback: (token: string) => void;
+        "expired-callback": () => void;
+        "error-callback": (code: string) => boolean;
+        "timeout-callback": () => void;
+        "unsupported-callback": () => void;
+        appearance: "always";
+        theme: "dark";
+        size: "flexible";
+        language: "pt-br";
+      }) => string;
+      remove: (widgetId: string) => void;
     };
   }
 }
 
+let scriptLoading: Promise<void> | null = null;
+
+function loadTurnstile(): Promise<void> {
+  if (window.turnstile) return Promise.resolve();
+  if (scriptLoading) return scriptLoading;
+  scriptLoading = new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+    script.async = true;
+    const timer = window.setTimeout(fail, 15000);
+    function fail() {
+      window.clearTimeout(timer);
+      script.onload = null;
+      script.onerror = null;
+      script.remove();
+      reject(new Error("turnstile_script_unavailable"));
+    }
+    script.onerror = fail;
+    script.onload = () => {
+      if (!window.turnstile) { fail(); return; }
+      window.clearTimeout(timer);
+      resolve();
+    };
+    document.head.appendChild(script);
+  }).catch(error => { scriptLoading = null; throw error; });
+  return scriptLoading;
+}
+
+/** Keep verification required, while giving failed challenges a way to recover. */
 export function Turnstile(props: TurnstileProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const widgetIdRef = useRef<string | null>(null);
-  const [configured, setConfigured] = useState<boolean>(Boolean(props.siteKey));
+  const containerRef = useRef<HTMLDivElement>(null);
+  const callbacks = useRef(props);
+  callbacks.current = props;
+  const [attempt, setAttempt] = useState(0);
+  const [status, setStatus] = useState<"loading" | "verifying" | "ready" | "error">("loading");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    const siteKey = props.siteKey;
-    if (!siteKey) {
-      setConfigured(false);
-      return;
-    }
-
+    if (!props.siteKey) return;
     let cancelled = false;
-    const tryRender = () => {
+    let widgetId: string | undefined;
+    let verificationTimer: number | undefined;
+    callbacks.current.onChange(null);
+    setStatus("loading");
+    setMessage("");
+    const fail = (text: string) => {
       if (cancelled) return;
-      if (!window.turnstile || !containerRef.current) {
-        // Script may not have loaded yet — wait for it.
-        setTimeout(tryRender, 100);
-        return;
-      }
-      // Avoid double-render if React StrictMode mounts twice in dev.
-      if (widgetIdRef.current) return;
-      widgetIdRef.current = window.turnstile.render(containerRef.current, {
-        sitekey: siteKey,
-        callback: (token) => props.onChange(token),
-        "expired-callback": () => {
-          props.onChange(null);
-          props.onExpire?.();
-        },
-        "error-callback": () => props.onChange(null),
-        appearance: "interaction-only",
-        theme: "auto",
-        size: "normal",
-      });
+      window.clearTimeout(verificationTimer);
+      callbacks.current.onChange(null);
+      setStatus("error");
+      setMessage(text);
     };
-    tryRender();
+    void loadTurnstile().then(() => {
+      if (cancelled || !containerRef.current || !window.turnstile) return;
+      setStatus("verifying");
+      verificationTimer = window.setTimeout(() => fail("A verificação está demorando. Tente novamente ou use outro navegador."), 30000);
+      widgetId = window.turnstile.render(containerRef.current, {
+        sitekey: props.siteKey!,
+        callback: token => {
+          if (cancelled) return;
+          window.clearTimeout(verificationTimer);
+          callbacks.current.onChange(token);
+          setStatus("ready");
+          setMessage("");
+        },
+        "expired-callback": () => {
+          fail("A verificação expirou. Verifique novamente para continuar.");
+          if (!cancelled) callbacks.current.onExpire?.();
+        },
+        "error-callback": () => { fail("Não foi possível verificar seu navegador. Tente novamente ou use outro navegador."); return true; },
+        "timeout-callback": () => fail("O tempo da verificação acabou. Tente novamente."),
+        "unsupported-callback": () => fail("Este navegador não é compatível com a verificação. Abra o cadastro em outro navegador."),
+        appearance: "always",
+        theme: "dark",
+        size: "flexible",
+        language: "pt-br",
+      });
+    }).catch(() => fail("Não foi possível carregar a verificação. Confira sua conexão e tente novamente."));
 
     return () => {
       cancelled = true;
-      if (widgetIdRef.current && window.turnstile) {
-        try {
-          window.turnstile.remove(widgetIdRef.current);
-        } catch {
-          // ignore — widget already gone
-        }
-        widgetIdRef.current = null;
+      window.clearTimeout(verificationTimer);
+      if (widgetId && window.turnstile) {
+        try { window.turnstile.remove(widgetId); } catch { /* Widget already removed. */ }
       }
+      callbacks.current.onChange(null);
     };
-    // We intentionally only depend on siteKey; callbacks are stable in practice
-    // because the parent always uses the latest handler via closure refresh.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.siteKey]);
+  }, [props.siteKey, attempt]);
 
   if (!props.siteKey) return null;
   return (
-    <div
-      ref={containerRef}
-      className={props.className ?? "cf-turnstile"}
-      data-testid="cf-turnstile"
-      aria-hidden={!configured}
-    />
+    <div className={props.className ?? "auth-verification"}>
+      <div ref={containerRef} data-testid="cf-turnstile" />
+      <p className="auth-verification__status" role="status" aria-live="polite">
+        {status === "loading" ? "Carregando verificação de segurança…" : status === "verifying" ? "Conclua a verificação de segurança para continuar." : status === "ready" ? "Verificação concluída." : message}
+      </p>
+      {status === "error" && <button type="button" className="auth-btn-secondary" onClick={() => setAttempt(value => value + 1)}>Tentar verificação novamente</button>}
+    </div>
   );
 }

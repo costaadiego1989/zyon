@@ -440,6 +440,18 @@
   cursor: not-allowed;
 }
 
+.auth-verification {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.auth-verification__status {
+  margin: 0;
+  font: 400 13px/1.5 'Manrope', sans-serif;
+  color: oklch(78% 0.005 145);
+}
+
 /* ─── Hint / Error ─── */
 .auth-hint {
   font: 400 13px 'Manrope', sans-serif;
