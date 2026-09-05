@@ -1,8 +1,10 @@
 # Database deployment
 
 `prisma.config.ts` uses `prisma/deploy-migrations` for new migrations and deployments.
-The first migration contains the complete current Prisma schema, including the
+The first migration preserves the original production baseline, including the
 partial unique index that prevents concurrent negotiation offer application.
+`20260905010000_master_schema_delta` adds the subsequent master schema changes.
+Do not regenerate the baseline or change its checksum on an existing database.
 
 The previous 51 migrations remain in `prisma/migrations` as historical reference.
 That history cannot initialize an empty database: it omits roughly 40 tables and
@@ -15,9 +17,10 @@ For a new, empty database, run:
 pnpm --filter @zyon/api prisma:deploy
 ```
 
-Railway runs the same migration command before deployment and checks `/ready`
-before making the API available. Docker Compose runs migrations before starting
-the API process.
+Railway runs `node scripts/predeploy-migrations.mjs` before deployment and checks
+`/ready` before making the API available. The script reconciles the known failed
+legacy checkout migration when its recorded error and existing table match, then
+runs `prisma migrate deploy`. Docker Compose runs migrations before starting the API.
 
 For an existing database, back it up and compare its schema with this baseline
 before adopting the new history. After applying any reviewed reconciliation SQL,

@@ -10,8 +10,8 @@ Configuração validada em 05/09/2026. Kong, API, PostgreSQL e Redis ficam no Ra
 | Site | `apps/web` | `zyon-agentic-checkout` | https://www.zyon-payments.com.br |
 
 O domínio raiz redireciona para `www`. O widget oficial é `apps/widget_v2`.
-O dashboard usa esse projeto no preview e nos exemplos de instalação; a
-storefront redireciona seu checkout para o mesmo widget.
+O dashboard usa esse projeto no preview e nos exemplos de instalação. A
+storefront da master também importa a biblioteca `@zyon/widget-v2`.
 
 ## Variáveis
 
@@ -21,7 +21,7 @@ contêm a configuração correspondente e estão ignorados pelo Git.
 
 | Aplicação | Variáveis principais |
 | --- | --- |
-| Dashboard | `VITE_API_BASE_URL`, `VITE_WIDGET_V2_URL`, `VITE_STOREFRONT_URL`, `VITE_OAUTH_REDIRECT_URI`, IDs públicos de GitHub, Google e Meta |
+| Dashboard | `VITE_API_BASE_URL`, `VITE_WIDGET_V2_URL`, `VITE_STOREFRONT_URL`, `VITE_OAUTH_REDIRECT_URI`, `VITE_TURNSTILE_SITE_KEY`, IDs públicos de GitHub, Google e Meta |
 | Widget | `VITE_API_BASE_URL`, `VITE_DASHBOARD_URL`, `VITE_STRIPE_PUBLISHABLE_KEY` |
 | Storefront | `AACP_API_URL`, `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_WIDGET_BASE_URL`, `NEXT_PUBLIC_SITE_URL`, `INTERNAL_SERVICE_TOKEN` |
 
@@ -45,11 +45,16 @@ pacotes compartilhados fora de cada raiz. O install atual usa
 `pnpm install --no-frozen-lockfile`, pois o lockfile local contém diferenças
 preexistentes. Os comandos e rewrites estão nos respectivos `vercel.json`.
 
-Esta publicação enviou apenas fontes dos frontends e seus pacotes compartilhados,
-sem `.env`, API, `node_modules` ou builds locais. A cópia usada está em
-`.audit/vercel-frontends-20260905`; é um snapshot, não a fonte para mudanças futuras.
-Os arquivos `.audit/stage-vercel.cjs` e `.audit/deploy-vercel.cjs` registram o
-procedimento local desta sessão. Nenhum commit ou push foi realizado.
+Dashboard, storefront e widget_v2 foram republicados a partir da master em
+05/09/2026. As correções estão versionadas no GitHub. A publicação por CLI envia
+apenas os fontes e pacotes compartilhados, sem `.env`, API, `node_modules` ou
+builds locais. Use um checkout atualizado da master para próximas publicações;
+as cópias antigas em `.audit` não acompanham novos commits automaticamente.
+
+Os projetos Vercel são publicados pela CLI; um push sozinho não republica esses
+frontends. O widget usa `build:app` no seu projeto Vercel e `build` para gerar a
+biblioteca importada pela storefront. As duas entradas web do widget respeitam
+`VITE_API_BASE_URL`, com fallback para a API pública em builds de produção.
 
 ## Verificações e uso
 
@@ -86,5 +91,12 @@ dashboard e o `GOOGLE_CLIENT_ID` da API precisam identificar o mesmo cliente;
 `GOOGLE_CLIENT_SECRET` fica somente na API. Ao criar outro cliente Google,
 atualize esses valores e publique novamente os serviços afetados.
 
-O login completo depende de salvar esses endereços no Google e concluir a
-autorização com uma conta. Esta validação de infraestrutura não substitui essa etapa.
+O callback exibe erros e encerra a espera após 20 segundos. Novos usuários OAuth
+continuam no cadastro com nome e e-mail preenchidos; os dados do responsável e
+da empresa são enviados à API antes da conclusão do cadastro. O teste do backend
+confirma que um novo login retoma o cadastro enquanto ele estiver pendente.
+
+O fluxo do formulário foi testado no Chromium com respostas OAuth simuladas,
+sem criar conta fictícia em produção. O login completo com o Google ainda requer
+uma nova autorização com uma conta real; códigos de callbacks antigos não podem
+ser reutilizados.

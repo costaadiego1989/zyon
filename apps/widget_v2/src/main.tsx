@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { DEFAULT_API_BASE } from "./lib/config";
 
 import "./styles/base.css";
 import "./design-system/tokens.css";
@@ -20,7 +21,7 @@ if (root) {
       <InlineCheckout
         embedToken={params.get("embedToken") || ""}
         merchantId={params.get("merchantId") || ""}
-        apiBaseUrl={params.get("apiBaseUrl") || "http://127.0.0.1:5174"}
+        apiBaseUrl={params.get("apiBaseUrl") || DEFAULT_API_BASE}
         cartRef={params.get("cartRef") || undefined}
         globalUserId={params.get("globalUserId") || undefined}
         theme={(params.get("theme") as "dark" | "light") || undefined}

@@ -29,7 +29,7 @@ Projeto `AACP-ZyonPayments`, ambiente `production`, serviço `api`, atrás do se
 O build usa `apps/api/Dockerfile` com contexto na raiz do monorepo.
 
 - Start command: `node dist/main.js`
-- Pre-deploy: `pnpm exec prisma migrate deploy --schema prisma/schema.prisma`
+- Pre-deploy: `node scripts/predeploy-migrations.mjs`
 - Healthcheck: `/ready`, timeout de 180 segundos
 - API: https://api.zyon-payments.com.br
 - Entrada pública: Kong, com encaminhamento privado para `api.railway.internal:3009`
@@ -47,15 +47,11 @@ os arquivos `.ps1`. Após revisar os arquivos que serão publicados:
 railway.cmd up --project b8421237-6557-4677-a08c-c93453b08568 --environment 604c900d-afcd-4e98-b5b5-d3a1a428997c --service 2fcb2906-32f3-45df-a3ce-767064b49b98 --detach
 ```
 
-O deploy desta correção usa uma cópia isolada em `.audit/railway-api-20260905`,
-com `--path-as-root`, para preservar as outras alterações locais em andamento.
-Essa cópia é um snapshot; não a reutilize para publicar mudanças futuras sem
-atualizá-la. O deploy por CLI não cria commit nem envia alterações ao GitHub.
-
-O vínculo automático com a branch antiga foi removido do serviço `api`: uma
-alteração de env disparava um build do GitHub sem estas correções. Os deploys
-atuais usam a CLI. Só reconecte a branch depois de publicar nela as correções
-de migrations, Redis, healthcheck e CORS.
+O código de produção está na branch `master`, incluindo o trabalho de
+`feat/checkout-journey-both-channels`. O serviço `api` está conectado à master
+de `costaadiego1989/zyon`. O deploy por CLI de 05/09 usou o worktree isolado
+`.audit/master-production-20260905`, preservando as alterações locais em andamento.
+As cópias antigas em `.audit/railway-api-20260905` não devem ser reutilizadas.
 
 O HTTPS de `api.zyon-payments.com.br` está validado. Além do CNAME fornecido
 pelo Railway, o DNS na Vercel contém o TXT `_railway-verify.api` necessário
@@ -64,8 +60,11 @@ domínio está associado ao serviço `kong`, na porta 8000.
 
 ## Banco e integrações
 
-O banco Railway estava vazio e foi inicializado com a migration completa em
-`apps/api/prisma/deploy-migrations`. O histórico antigo foi preservado.
+O banco Railway foi inicializado com o baseline em
+`apps/api/prisma/deploy-migrations`. A atualização para master aplica
+`20260905010000_master_schema_delta`, preservando os dados e o checksum do
+baseline. O histórico antigo foi preservado. O pre-deploy reconcilia o registro
+legado conhecido de checkout antes de executar `prisma migrate deploy`.
 O PostgreSQL usa volume em `/var/lib/postgresql/data` e
 `PGDATA=/var/lib/postgresql/data/pgdata`, evitando o diretório `lost+found`
 existente na raiz do volume.

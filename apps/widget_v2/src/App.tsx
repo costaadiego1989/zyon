@@ -6,8 +6,8 @@ import { setupAbandonmentTracking, trackEvent } from "@/lib/tracking";
 import { onOrderCompleted } from "@/lib/lifecycle";
 import { setupIdleTrigger, setupExitIntentTrigger, type TriggerName } from "@/lib/triggers";
 import type { DiscountStage } from "@/components/DiscountBanner";
+import { DEFAULT_API_BASE } from "./lib/config";
 
-const DEFAULT_API_BASE = "http://localhost:3009";
 const SESSION_KEY = "aacp_checkout_session";
 
 function readUrlParams() {
