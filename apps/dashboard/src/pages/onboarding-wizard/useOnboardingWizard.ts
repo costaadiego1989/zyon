@@ -21,7 +21,7 @@ import { Palette, MapPin, Truck, CreditCard, MessageCircle, Sparkles } from "luc
 import { useStepIdentity } from "./hooks/useStepIdentity.js";
 import { useStepAddress } from "./hooks/useStepAddress.js";
 import { useStepPayment } from "./hooks/useStepPayment.js";
-import type { AsaasSubaccountPayload } from "../payment-connections/components/AsaasSubaccountForm.js";
+import type { AsaasConnectionPayload } from "../payment-connections/components/AsaasConnectionForm.js";
 import { useStepReview } from "./hooks/useStepReview.js";
 
 export type { ThemeDraft, AddressDraft, PaymentDraft, IntegrationDraft, PlatformChoice } from "./types.js";
@@ -137,7 +137,7 @@ export interface OnboardingWizardVM {
   saveStep2: () => Promise<void>;
   saveStep3: () => Promise<void>;
   initiateStripeOnboarding: () => Promise<void>;
-  initiateAsaasOnboarding: (payload?: AsaasSubaccountPayload) => Promise<boolean>;
+  initiateAsaasOnboarding: (payload?: AsaasConnectionPayload) => Promise<boolean>;
   initiateMercadoPagoOnboarding: () => Promise<void>;
   advanceFromShipping: () => void;
   connectMelhorEnvio: () => void;

@@ -30,7 +30,7 @@ export class SyncAsaasSubaccountUseCase {
       merchantId,
     );
     try {
-      const provider = await this.asaas.retrieveAccountStatus(apiKey);
+      const provider = await this.asaas.retrieveAccountStatus(apiKey, connection.environment === "test");
       const requirements = [
         ["commercial_info", provider.commercialInfo],
         ["bank_account_info", provider.bankAccountInfo],

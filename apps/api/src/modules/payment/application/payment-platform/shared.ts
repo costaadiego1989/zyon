@@ -68,11 +68,13 @@ export function providerGatewayError(
   // error. The adapter throws `..._request_failed_{status}:{body}`.
   const raw = error instanceof Error ? error.message : String(error);
   const providerDetail = extractProviderDetail(raw);
+  const detail = providerDetail
+    ? `${provider}: ${providerDetail}`
+    : `${provider} rejected the request or could not be reached.`;
   return new BadGatewayException({
     code: `${provider}_platform_failed`,
-    detail: providerDetail
-      ? `${provider}: ${providerDetail}`
-      : `${provider} rejected the request or could not be reached.`,
+    detail,
+    message: detail,
     provider_code: providerErrorCode(error),
   });
 }
@@ -86,14 +88,14 @@ function extractProviderDetail(raw: string): string | null {
     try {
       const parsed = JSON.parse(body) as { errors?: Array<{ code?: string; description?: string }> };
       const first = parsed.errors?.[0];
-      if (first?.description) return `${first.description}${first.code ? ` (${first.code})` : ""}`;
+      if (typeof first?.description === "string") return `${first.description}${typeof first.code === "string" ? ` (${first.code})` : ""}`.slice(0, 600);
     } catch { /* fall through */ }
   }
-  return body || null;
+  return null;
 }
 
 export function providerErrorCode(error: unknown): string {
   return error instanceof Error
-    ? error.message.toLowerCase().replace(/[^a-z0-9_]+/g, "_").slice(0, 120)
+    ? error.message.split(":", 1)[0]!.toLowerCase().replace(/[^a-z0-9_]+/g, "_").slice(0, 120)
     : "provider_error";
 }

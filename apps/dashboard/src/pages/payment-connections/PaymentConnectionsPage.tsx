@@ -10,7 +10,7 @@ import type { MerchantProfile } from "../../api-client.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
 import { ConfirmDialog } from "../../components/ConfirmDialog.js";
 import { SidePanel } from "../../components/SidePanel.js";
-import { AsaasSubaccountForm, type AsaasSubaccountPayload } from "./components/AsaasSubaccountForm.js";
+import { AsaasConnectionForm } from "./components/AsaasConnectionForm.js";
 import "./payment-connections-page.css";
 
 type DisconnectProvider = "stripe" | "asaas" | "mercadopago";
@@ -53,7 +53,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
     load,
     onboardStripe,
     syncStripe,
-    createAsaasSubaccount,
+    connectAsaasAccount,
     openAsaasOnboarding,
     approveAsaasSandbox,
     syncAsaas,
@@ -280,14 +280,15 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
         onCancel={() => setPendingDisconnect(null)}
       />
 
-      <SidePanel isOpen={asaasFormOpen} title="Conectar Asaas" onClose={() => setAsaasFormOpen(false)}>
-        <AsaasSubaccountForm
+      <SidePanel isOpen={asaasFormOpen} title="Conectar Asaas" onClose={() => { if (!asaasSaving) setAsaasFormOpen(false); }}>
+        {alert?.kind === "error" && <p role="alert" style={{ color: "var(--color-danger)", lineHeight: 1.5 }}>{alert.message}</p>}
+        <AsaasConnectionForm
           company={companyPrefill}
           defaultName={me?.name ?? undefined}
           saving={asaasSaving}
           onCancel={() => setAsaasFormOpen(false)}
-          onSubmit={(payload: AsaasSubaccountPayload) => {
-            void createAsaasSubaccount(payload as unknown as Record<string, unknown>).then((ok) => {
+          onSubmit={(payload) => {
+            void connectAsaasAccount(payload).then((ok) => {
               if (ok) setAsaasFormOpen(false);
             });
           }}

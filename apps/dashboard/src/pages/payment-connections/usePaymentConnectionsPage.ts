@@ -7,6 +7,7 @@ import {
   type MerchantProfile,
 } from "../../api-client.js";
 import { useApi } from "../../hooks/useApi.js";
+import type { AsaasConnectionPayload } from "./components/AsaasConnectionForm.js";
 
 export type Operation =
   | "idle"
@@ -159,17 +160,18 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     }
   }
 
-  async function createAsaasSubaccount(payload: Record<string, unknown>): Promise<boolean> {
+  async function connectAsaasAccount(payload: AsaasConnectionPayload): Promise<boolean> {
     setOperation("connecting-asaas");
     setAlert(null);
     try {
-      const created = await api.createAsaasSubaccount(payload);
+      const created = "api_key" in payload ? await api.connectAsaas(payload) : await api.createAsaasSubaccount({ ...payload });
       setConnections((prev) => {
         const idx = prev.findIndex((c) => c.provider === "asaas");
         return idx >= 0 ? prev.map((c, i) => (i === idx ? created : c)) : [created, ...prev];
       });
-      showToast("success", "Subconta criada — complete o cadastro no Asaas para ativar.");
-      setTimeout(() => { void openAsaasOnboarding(); }, 15500);
+      const message = created.status === "active" ? "Asaas conectado com sucesso." : "Conta Asaas vinculada. Conclua as pendências no Asaas e aguarde a aprovação para ativar os pagamentos.";
+      setAlert({ kind: created.status === "active" ? "success" : "info", message });
+      showToast("success", message);
       return true;
     } catch (e) {
       console.error("[payment-connections]", e);
@@ -312,7 +314,7 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     load,
     onboardStripe,
     syncStripe,
-    createAsaasSubaccount,
+    connectAsaasAccount,
     openAsaasOnboarding,
     syncAsaas,
     onboardMercadoPago,

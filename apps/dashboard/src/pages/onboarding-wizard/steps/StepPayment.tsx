@@ -5,7 +5,8 @@ import { Button } from "../../../components/Button.js";
 import { FormField } from "../../../components/FormField.js";
 import { SidePanel } from "../../../components/SidePanel.js";
 import { useApi } from "../../../hooks/useApi.js";
-import { AsaasSubaccountForm, type AsaasSubaccountPayload, type CompanyPrefill } from "../../payment-connections/components/AsaasSubaccountForm.js";
+import type { CompanyPrefill } from "../../payment-connections/components/AsaasSubaccountForm.js";
+import { AsaasConnectionForm, type AsaasConnectionPayload } from "../../payment-connections/components/AsaasConnectionForm.js";
 
 type StepPaymentProps = {
   paymentDraft: PaymentDraft;
@@ -15,7 +16,7 @@ type StepPaymentProps = {
   busy: boolean;
   message?: string | null;
   initiateStripeOnboarding: () => void;
-  initiateAsaasOnboarding: (payload?: AsaasSubaccountPayload) => Promise<boolean>;
+  initiateAsaasOnboarding: (payload?: AsaasConnectionPayload) => Promise<boolean>;
   initiateMercadoPagoOnboarding: () => void;
 };
 
@@ -76,12 +77,12 @@ export function StepPayment({
             {paymentDraft.asaasStatus === "testing" ? "Conectando..." : paymentDraft.asaasStatus === "active" ? "Ativo" : paymentDraft.asaasStatus === "pending" ? "Continuar" : "Conectar"}
           </Button>
         </div>
-        {paymentDraft.asaasStatus === "active" && <span style={{ fontSize: "12px", color: "var(--color-success)", marginTop: "4px", display: "block" }}>✓ Subconta Asaas ativa</span>}
+        {paymentDraft.asaasStatus === "active" && <span style={{ fontSize: "12px", color: "var(--color-success)", marginTop: "4px", display: "block" }}>✓ Conta Asaas ativa</span>}
       </div>
 
       <SidePanel isOpen={asaasFormOpen} title="Conectar Asaas" onClose={() => { if (!busy) setAsaasFormOpen(false); }}>
         {message && <p role="status">{message}</p>}
-        {loadingCompany ? <p role="status">Carregando dados da loja...</p> : <AsaasSubaccountForm
+        {loadingCompany ? <p role="status">Carregando dados da loja...</p> : <AsaasConnectionForm
           company={company}
           saving={busy}
           onCancel={() => setAsaasFormOpen(false)}

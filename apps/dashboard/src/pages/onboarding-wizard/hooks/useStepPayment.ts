@@ -4,7 +4,7 @@ import { reportError } from "../../../lib/observability/error-reporter.js";
 import { friendlyError } from "../validation/schemas.js";
 import type { AddressDraft, PaymentDraft } from "../types.js";
 import { isValidEvmAddress } from "../types.js";
-import type { AsaasSubaccountPayload } from "../../payment-connections/components/AsaasSubaccountForm.js";
+import type { AsaasConnectionPayload } from "../../payment-connections/components/AsaasConnectionForm.js";
 
 export interface UseStepPaymentDeps {
   paymentDraft: PaymentDraft;
@@ -77,17 +77,17 @@ export function useStepPayment(deps: UseStepPaymentDeps) {
     }
   }
 
-  async function initiateAsaasOnboarding(payload?: AsaasSubaccountPayload): Promise<boolean> {
+  async function initiateAsaasOnboarding(payload?: AsaasConnectionPayload): Promise<boolean> {
     deps.setBusy(true);
     deps.setMessage(null);
     deps.setPaymentDraft((d) => ({ ...d, asaasStatus: "testing" }));
     let connectionSaved = deps.paymentDraft.asaasStatus === "pending";
     try {
       if (payload) {
-        const created = await api.createAsaasSubaccount({ ...payload });
+        const created = "api_key" in payload ? await api.connectAsaas(payload) : await api.createAsaasSubaccount({ ...payload });
         connectionSaved = true;
         deps.setPaymentDraft((d) => ({ ...d, asaasStatus: created.status === "active" ? "active" : "pending" }));
-        deps.setMessage("Subconta Asaas criada. Conclua o cadastro no Asaas para ativar os pagamentos.");
+        deps.setMessage(created.status === "active" ? "Asaas conectado com sucesso." : "Conta Asaas vinculada. Conclua as pendências no Asaas e aguarde a aprovação para ativar os pagamentos.");
         return true;
       }
       const connection = await api.syncAsaasConnection();

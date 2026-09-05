@@ -37,19 +37,19 @@ export class AsaasPlatformAdapter implements AsaasPlatformPort {
     };
   }
 
-  retrieveAccountStatus(apiKey: string) {
+  retrieveAccountStatus(apiKey: string, sandbox?: boolean) {
     return this.request<{
       general: string;
       commercialInfo: string;
       bankAccountInfo: string;
       documentation: string;
-    }>("/v3/myAccount/status", apiKey, { method: "GET" });
+    }>("/v3/myAccount/status", apiKey, { method: "GET" }, sandbox);
   }
 
-  async listOnboardingLinks(apiKey: string): Promise<string[]> {
+  async listOnboardingLinks(apiKey: string, sandbox?: boolean): Promise<string[]> {
     const response = await this.request<{
       data?: Array<{ onboardingUrl?: string | null }>;
-    }>("/v3/myAccount/documents", apiKey, { method: "GET" });
+    }>("/v3/myAccount/documents", apiKey, { method: "GET" }, sandbox);
     return (response.data ?? [])
       .map((document) => document.onboardingUrl?.trim())
       .filter((url): url is string => Boolean(url));
@@ -78,11 +78,11 @@ export class AsaasPlatformAdapter implements AsaasPlatformPort {
     return { apiKey };
   }
 
-  async retrieveWalletId(apiKey: string): Promise<string | null> {
+  async retrieveWalletId(apiKey: string, sandbox?: boolean): Promise<string | null> {
     // GET /v3/wallets with the subaccount's own apiKey returns its wallet(s).
     const response = await this.request<{
       data?: Array<{ id?: string; walletId?: string }>;
-    }>("/v3/wallets/", apiKey, { method: "GET" });
+    }>("/v3/wallets/", apiKey, { method: "GET" }, sandbox);
     const w = response.data?.[0];
     return w?.walletId ?? w?.id ?? null;
   }
@@ -98,12 +98,13 @@ export class AsaasPlatformAdapter implements AsaasPlatformPort {
     path: string,
     apiKey: string,
     init: RequestInit,
+    sandbox?: boolean,
   ): Promise<T> {
     // Hard timeout so a slow/hung Asaas call never pins the request (a
     // subaccount create fans out to 3 sequential calls). AbortSignal.timeout
     // rejects with a TimeoutError that bubbles up as a gateway error.
     const response = await this.fetchImpl(
-      `${this.baseUrl.replace(/\/+$/, "")}${path}`,
+      `${this.originForKey(apiKey, sandbox)}${path}`,
       {
         ...init,
         signal: (init as { signal?: AbortSignal }).signal ?? AbortSignal.timeout(10000),
@@ -111,16 +112,24 @@ export class AsaasPlatformAdapter implements AsaasPlatformPort {
           accept: "application/json",
           "content-type": "application/json",
           access_token: apiKey,
+          "user-agent": "Zyon/1.0",
           ...init.headers,
         },
       },
     );
     if (!response.ok) {
-      const detail = await response.text().catch(() => "");
+      const detail = (await response.text().catch(() => "")).split(apiKey).join("[redacted]");
       throw new Error(
         `asaas_platform_request_failed_${response.status}:${detail}`,
       );
     }
     return (await response.json()) as T;
+  }
+
+  private originForKey(apiKey: string, sandbox?: boolean): string {
+    if (sandbox !== undefined) return sandbox ? "https://api-sandbox.asaas.com" : "https://api.asaas.com";
+    if (apiKey.startsWith("$aact_hmlg_")) return "https://api-sandbox.asaas.com";
+    if (apiKey.startsWith("$aact_prod_")) return "https://api.asaas.com";
+    return this.baseUrl.replace(/\/+$/, "");
   }
 }

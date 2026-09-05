@@ -8,7 +8,6 @@ import {
   type PaymentPlatformRepository,
 } from "../../../domain/ports/payment-platform-repository.port.js";
 import { requiredConnection, requiredAsaasSecret } from "../shared.js";
-import { parseAsaasSandboxEnv } from "../../../infrastructure/asaas-env.js";
 
 @Injectable()
 export class GetAsaasOnboardingLinkUseCase {
@@ -26,7 +25,7 @@ export class GetAsaasOnboardingLinkUseCase {
       "asaas",
     );
     const elapsed = Date.now() - new Date(connection.createdAt).getTime();
-    if (elapsed < 15_000) {
+    if (connection.externalAccountId !== "manual" && elapsed < 15_000) {
       throw new ConflictException({
         code: "asaas_documents_not_ready",
         detail:
@@ -38,14 +37,14 @@ export class GetAsaasOnboardingLinkUseCase {
       this.repository,
       merchantId,
     );
-    const links = await this.asaas.listOnboardingLinks(apiKey);
+    const links = await this.asaas.listOnboardingLinks(apiKey, connection.environment === "test");
     if (links.length > 0) {
       return { url: links[0]! };
     }
     // No document-onboarding link available (e.g. the subaccount must first
     // provide bank/commercial data). Send the merchant to the Asaas panel to
     // finish there instead of a dead-end error.
-    const sandbox = parseAsaasSandboxEnv();
+    const sandbox = connection.environment === "test";
     return { url: sandbox ? "https://sandbox.asaas.com/login" : "https://www.asaas.com/login" };
   }
 }
