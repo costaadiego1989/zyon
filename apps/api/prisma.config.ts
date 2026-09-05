@@ -4,8 +4,7 @@ export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations"
-  },
-  datasource: {
-    url: process.env.DATABASE_URL ?? "postgresql://atendeai:atendeai_dev@localhost:5434/aacp_dev?schema=public"
   }
+  // Note: datasource.url is configured in schema.prisma via env("DATABASE_URL").
+  // Do NOT duplicate it here — Prisma 6 throws P1012 if the URL is set in both places.
 });

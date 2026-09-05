@@ -2,103 +2,119 @@
 #
 # Multi-stage Dockerfile for the @zyon/api NestJS service.
 #
-# Build context MUST be the monorepo root (so pnpm workspace files are visible):
+# Build context: monorepo root.
 #   docker build -f apps/api/Dockerfile -t zyon-api .
 #
-# Stage 1 (builder) — installs the full workspace, builds shared packages,
-# generates the Prisma client, and compiles the NestJS app to dist/.
+# Strategy:
+#   1. Copy project (node_modules MUST be excluded by .dockerignore).
+#   2. Install with devDeps (Nest CLI, ts, prisma CLI).
+#   3. Generate Prisma client.
+#   4. Build workspace packages (shared-types first).
+#   5. Build api itself.
+#   6. Runtime: same image, NODE_ENV=production.
 #
-# Stage 2 (runner) — slim production image with prod-only node_modules,
-# compiled output, and the Prisma schema (for `prisma migrate deploy` at runtime).
+# Pinned to node:22-alpine so builder and runtime match Node major.
 
-# -----------------------------------------------------------------------------
-# Stage 1: builder
-# -----------------------------------------------------------------------------
-FROM node:20-alpine AS builder
+FROM node:22-alpine
 
-# pnpm via corepack (matches package.json `packageManager: pnpm@9.15.0`).
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+ENV PNPM_HOME=/pnpm \
+    PNPM_VERSION=9.15.0 \
+    PATH=/pnpm:$PATH
+
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 
 WORKDIR /repo
 
-# 1) Copy workspace manifests first for maximum layer-cache reuse.
+# ============================================================
+# COPY PROJECT
+# node_modules is excluded by .dockerignore (recursively).
+# ============================================================
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 
-# 2) Copy every package.json in the workspace so pnpm can resolve the graph.
-COPY packages/contracts/package.json         packages/contracts/package.json
-COPY packages/shared-types/package.json      packages/shared-types/package.json
-COPY packages/commerce-adapters/package.json packages/commerce-adapters/package.json
-COPY packages/payments-evm/package.json      packages/payments-evm/package.json
-COPY packages/conversation-engine/package.json packages/conversation-engine/package.json
-COPY packages/decision-engine/package.json   packages/decision-engine/package.json
-COPY packages/negotiation-engine/package.json packages/negotiation-engine/package.json
-COPY packages/rules-engine/package.json      packages/rules-engine/package.json
-COPY packages/shipping-engine/package.json   packages/shipping-engine/package.json
-COPY packages/agentic-checkout-js/package.json packages/agentic-checkout-js/package.json
-COPY packages/sdk/package.json               packages/sdk/package.json
-COPY packages/checkout-ui/package.json       packages/checkout-ui/package.json
-COPY apps/api/package.json                   apps/api/package.json
-COPY apps/widget/package.json                apps/widget/package.json
-COPY apps/widget_v2/package.json             apps/widget_v2/package.json
-COPY apps/dashboard/package.json             apps/dashboard/package.json
-COPY apps/storefront/package.json            apps/storefront/package.json
-COPY apps/web/package.json                   apps/web/package.json
-
-# 3) Copy full source before install (pnpm workspace links need source present).
 COPY packages/ packages/
 COPY apps/api/ apps/api/
 
-# 4) Install full workspace deps (dev included — needed for the build).
-#    Source must be present first so pnpm can create correct workspace symlinks.
-RUN pnpm install --frozen-lockfile
+# ============================================================
+# INSTALL
+# Include devDependencies because Nest CLI, TypeScript, and Prisma CLI
+# are build-time requirements.
+# ============================================================
+RUN pnpm install --prod=false
 
-# 5) Build the API. apps/api/package.json `build` already chains:
-#      contracts -> shared-types -> commerce-adapters -> prisma generate -> nest build
+# ============================================================
+# VERIFY PRISMA INSTALL
+# ============================================================
+RUN echo "===== PRISMA INSTALL =====" && \
+    node -e "const p=require('/repo/apps/api/node_modules/prisma/package.json'); console.log('PRISMA VERSION:', p.version)" && \
+    test -f /repo/apps/api/node_modules/prisma/build/index.js && \
+    echo "PRISMA CLI OK" || \
+    (echo "PRISMA CLI MISSING — looking for alternatives:" && \
+     find /repo -name "build" -type d 2>/dev/null | head -5 && exit 1)
+
+RUN echo "===== PRISMA CLIENT VERSION =====" && \
+    node -e "const p=require('/repo/apps/api/node_modules/@prisma/client/package.json'); console.log('CLIENT VERSION:', p.version)" && \
+    node -e "\
+      const cli=require('/repo/apps/api/node_modules/prisma/package.json'); \
+      const client=require('/repo/apps/api/node_modules/@prisma/client/package.json'); \
+      if(cli.version.split('.')[0] !== client.version.split('.')[0]) { \
+        console.error('VERSION MISMATCH:', cli.version, 'vs', client.version); \
+        process.exit(1); \
+      }"
+
+# ============================================================
+# GENERATE PRISMA CLIENT
+# prisma generate does NOT need a real DB — it only generates the client.
+# Pass a dummy DATABASE_URL so prisma.config.ts validation passes during build.
+# ============================================================
+RUN cd /repo/apps/api && \
+    DATABASE_URL="postgresql://prisma:prisma@localhost:5432/prisma?schema=public" \
+    pnpm exec prisma validate --schema prisma/schema.prisma
+
+RUN cd /repo/apps/api && \
+    DATABASE_URL="postgresql://prisma:prisma@localhost:5432/prisma?schema=public" \
+    pnpm exec prisma generate --schema prisma/schema.prisma
+
+# Verify generated client exists. Prisma 6 generates inside @prisma/client package
+# (under .pnpm/...), not under a separate .prisma/client directory.
+RUN test -d /repo/apps/api/node_modules/@prisma/client && \
+    find /repo/apps/api/node_modules/.pnpm -path "*@prisma/client*" -name "*.prisma" -type d 2>/dev/null | head -3 && \
+    echo "PRISMA CLIENT GENERATED OK" || \
+    (echo "PRISMA CLIENT NOT GENERATED" && \
+     find /repo/apps/api/node_modules/.pnpm -name "default.d.ts" 2>/dev/null | head -5 && exit 1)
+
+# ============================================================
+# WORKSPACE BUILDS
+# shared-types MUST build first — every other package depends on its dist/.
+# ============================================================
+RUN pnpm --filter @zyon/shared-types build
+RUN pnpm --filter @zyon/contracts build
+RUN pnpm --filter @zyon/commerce-adapters build
+RUN pnpm --filter @zyon/conversation-engine build
+RUN pnpm --filter @zyon/decision-engine build
+RUN pnpm --filter @zyon/negotiation-engine build
+RUN pnpm --filter @zyon/rules-engine build
+RUN pnpm --filter @zyon/shipping-engine build
+
+# ============================================================
+# API
+# ============================================================
 RUN pnpm --filter @zyon/api build
 
-# 6) Drop devDependencies so the runner stage can copy a slim tree.
-RUN pnpm install --frozen-lockfile --prod \
-      --filter @zyon/api...
+# Verify nest build produced output.
+RUN test -f /repo/apps/api/dist/main.js && \
+    echo "NEST BUILD OK" || \
+    (echo "NEST BUILD MISSING dist/main.js" && \
+     ls /repo/apps/api/dist 2>/dev/null && exit 1)
 
-# -----------------------------------------------------------------------------
-# Stage 2: runner
-# -----------------------------------------------------------------------------
-FROM node:20-alpine AS runner
+# ============================================================
+# RUNTIME
+# DATABASE_URL is provided at runtime via Railway env var. Do not set here.
+# ============================================================
+WORKDIR /repo/apps/api
 
-ENV NODE_ENV=production
-ENV PORT=3001
+ENV NODE_ENV=production \
+    PORT=3009
 
-WORKDIR /app
+EXPOSE 3009
 
-# Run as the non-root `node` user (already present in node:20-alpine).
-USER node
-
-# Copy only what runtime needs.
-COPY --from=builder --chown=node:node /repo/apps/api/dist          ./dist
-COPY --from=builder --chown=node:node /repo/apps/api/node_modules  ./node_modules
-COPY --from=builder --chown=node:node /repo/apps/api/prisma         ./prisma
-COPY --from=builder --chown=node:node /repo/apps/api/package.json  ./package.json
-
-# pnpm symlinks inside node_modules resolve to the .pnpm store at /repo/node_modules/.pnpm/
-# Copy the store so runtime resolution works.
-COPY --from=builder --chown=node:node /repo/node_modules/.pnpm     /repo/node_modules/.pnpm
-
-# Workspace packages may be linked from the api's node_modules; their dist
-# output is already part of apps/api/node_modules because pnpm links the
-# workspace `packages/*` source. Re-link the workspace package manifests so
-# require/import resolution matches the monorepo layout used at build time.
-COPY --from=builder --chown=node:node /repo/packages                /repo/packages
-COPY --from=builder --chown=node:node /repo/pnpm-workspace.yaml     /repo/pnpm-workspace.yaml
-COPY --from=builder --chown=node:node /repo/package.json            /repo/package.json
-COPY --from=builder --chown=node:node /repo/pnpm-lock.yaml          /repo/pnpm-lock.yaml
-COPY --from=builder --chown=node:node /repo/tsconfig.base.json       /repo/tsconfig.base.json
-
-EXPOSE 3001
-
-HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/ready || exit 1
-
-# Use exec form so SIGTERM propagates to the Node process.
 CMD ["node", "dist/main.js"]
