@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Sparkles, TrendingUp, Check, FlaskConical, X } from "lucide-react";
 import { useApi } from "../../../hooks/useApi.js";
+import { usePlanFeatures } from "../../../hooks/api/usePlanFeatures.js";
 import { showToast } from "../../../components/Toast.js";
 import { reportError } from "../../../hooks/useErrorReporter.js";
 import type { MerchantProfile } from "../../../api-client.js";
@@ -190,7 +191,13 @@ function SuggestionCard({
   );
 }
 
-export function AISuggestionsPanel({ me }: AISuggestionsPanelProps) {
+export function AISuggestionsPanel(props: AISuggestionsPanelProps) {
+  const { hasFeature, loading, error } = usePlanFeatures();
+  if (loading || error || !hasFeature("revenueManager")) return null;
+  return <AvailableAISuggestionsPanel {...props} />;
+}
+
+function AvailableAISuggestionsPanel({ me }: AISuggestionsPanelProps) {
   const api = useApi();
   const [items, setItems] = useState<Hypothesis[]>([]);
   const [loading, setLoading] = useState(true);

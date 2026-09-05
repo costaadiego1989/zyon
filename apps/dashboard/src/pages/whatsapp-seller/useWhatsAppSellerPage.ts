@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { MerchantProfile } from "../../api-client.js";
 import { useApi } from "../../hooks/useApi.js";
+import { usePlanFeatures } from "../../hooks/api/usePlanFeatures.js";
 import { showToast } from "../../components/Toast.js";
 
 declare global {
@@ -91,6 +92,8 @@ export interface WhatsAppSellerPageVM {
 
 export function useWhatsAppSellerPage({ me }: UseWhatsAppSellerPageArgs): WhatsAppSellerPageVM {
   const api = useApi();
+  const { hasFeature, loading: planLoading, error: planError } = usePlanFeatures();
+  const canManageTemplates = !planLoading && !planError && hasFeature("postSale");
   const [config, setConfig] = useState<WhatsAppConfig | null>(null);
   const [templatePackageStatus, setTemplatePackageStatus] = useState<TemplatePackageStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -142,20 +145,23 @@ export function useWhatsAppSellerPage({ me }: UseWhatsAppSellerPageArgs): WhatsA
     try {
       const data = await api.getWhatsAppConfig(merchantId!);
       setConfig(data);
-      // Load template package status
-      try {
-        const tplStatus = await api.getTemplatePackageStatus();
-        setTemplatePackageStatus(tplStatus);
-      } catch {
-        // Graceful degradation: if endpoint doesn't exist, just leave it null
-        setTemplatePackageStatus(null);
-      }
     } catch {
       setConfig({ enabled: false, provider: "TWILIO", status: "disconnected" });
     } finally {
       setLoading(false);
     }
   }, [api, merchantId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setTemplatePackageStatus(null);
+    if (merchantId && canManageTemplates) {
+      void api.getTemplatePackageStatus().then(status => {
+        if (!cancelled) setTemplatePackageStatus(status);
+      }).catch(() => { if (!cancelled) setTemplatePackageStatus(null); });
+    }
+    return () => { cancelled = true; };
+  }, [api, merchantId, canManageTemplates]);
 
   const handleEmbeddedSignup = useCallback(() => {
     if (!merchantId) return;

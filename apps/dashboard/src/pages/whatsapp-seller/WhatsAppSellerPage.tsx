@@ -9,6 +9,7 @@ import { TabBar } from "../../components/TabBar.js";
 import type { MerchantProfile } from "../../api-client.js";
 import { useWhatsAppSellerPage } from "./useWhatsAppSellerPage.js";
 import { WhatsAppTemplatesTab } from "./WhatsAppTemplatesTab.js";
+import { PremiumFeatureGate } from "../../components/PremiumFeatureGate.js";
 
 export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
   const vm = useWhatsAppSellerPage({ me: props.me });
@@ -62,7 +63,11 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
       />
 
       {/* ── TEMPLATES TAB ── */}
-      {tab === "templates" && <WhatsAppTemplatesTab me={props.me} />}
+      {tab === "templates" && (
+        <PremiumFeatureGate feature="postSale" requiredPlan="Growth" featureLabel="Templates de WhatsApp">
+          <WhatsAppTemplatesTab me={props.me} />
+        </PremiumFeatureGate>
+      )}
 
       {/* ── ACTIVE STATE ── */}
       {tab === "connection" && status === "active" && (

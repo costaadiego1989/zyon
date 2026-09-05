@@ -661,7 +661,13 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 </PremiumFeatureGate>
               </RouteGuard>
             ) : null}
-            {tab === "chargebacks" ? <RouteGuard me={me} require="chargebacks"><ChargebacksPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "chargebacks" ? (
+              <RouteGuard me={me} require="chargebacks">
+                <PremiumFeatureGate feature="marketplace" requiredPlan="Scale" featureLabel="Chargebacks">
+                  <ChargebacksPage apiBaseUrl={API_BASE_URL} me={me} />
+                </PremiumFeatureGate>
+              </RouteGuard>
+            ) : null}
             {tab === "returns" ? <RouteGuard me={me} require="returns"><ReturnExchangesPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "delivery" ? <RouteGuard me={me} require="delivery"><DeliveryPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "post-sale" ? (
