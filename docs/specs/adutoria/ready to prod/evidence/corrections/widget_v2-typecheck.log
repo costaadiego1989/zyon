@@ -1,0 +1,2 @@
+src/components/SmartCart.tsx(5,9): error TS6133: 'brand' is declared but its value is never read.
+src/components/SupportFAB.tsx(73,13): error TS7030: Not all code paths return a value.

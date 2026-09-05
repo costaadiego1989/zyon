@@ -1,0 +1,14 @@
+IMPORT_START
+IMPORT_DONE
+[Nest] 9572  - 05/09/2026, 20:33:34    WARN [ShippingModule] MelhorEnvio adapter initialized without MELHOR_ENVIO_TOKEN; quotes will only use flat-rate carrier
+[Nest] 9572  - 05/09/2026, 20:33:34    WARN [RedisModule] REDIS_URL not set — caching services will be skipped
+[Nest] 9572  - 05/09/2026, 20:33:34    WARN [EmbeddingService] OPENAI_API_KEY not set — semantic search disabled, falling back to ILIKE
+[Nest] 9572  - 05/09/2026, 20:33:34    WARN [S3UploadService] S3 not configured — uploads will fail. Set AWS_S3_BUCKET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY.
+[Nest] 9572  - 05/09/2026, 20:33:34    WARN [S3UploadService] S3 not configured — uploads will fail. Set AWS_S3_BUCKET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY.
+[Nest] 9572  - 05/09/2026, 20:33:34    WARN [BubbleWhatsSenderAdapter] BUBBLEWHATS_API_URL / BUBBLEWHATS_TOKEN not configured — messages will fail
+[Nest] 9572  - 05/09/2026, 20:33:34    WARN [RecordCompletedPurchaseUseCase] [buyer-purchase-history] Metering port not configured; purchase history events will not be recorded
+[Nest] 9572  - 05/09/2026, 20:33:34    WARN [OtpStoreFactory] Redis not available for OTP store; falling back to Prisma
+NEST_COMPOSITION_OK
+(node:9572) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+--import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./.audit/verification/runtime-loader.mjs", pathToFileURL("./"));'
+(Use `node --trace-warnings ...` to show where the warning was created)

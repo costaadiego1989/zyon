@@ -2,7 +2,9 @@
 
 **Decisão: NO-GO. API: F — CRITICAL. Dashboard, storefront e widget_v2: FAIL.**
 
-Auditoria de 2026-09-05, sobre a árvore de trabalho atual do commit base `dcb8150aae34b8284178d9d257e4ac174654d965`. A API foi a primeira etapa; depois seus contratos foram cruzados com os três fronts. Nenhum código de aplicação foi corrigido e nenhuma implantação/transação externa foi executada.
+**Implementação iniciada:** a branch isolada `fix/ready-to-prod-audit` contém o primeiro lote de correções da API. Consulte [estado das correções, testes e pendências](CORRECOES.md). O parecer de produção continua NO-GO.
+
+Auditoria original de 2026-09-05, sobre a árvore de trabalho modificada do commit base `dcb8150aae34b8284178d9d257e4ac174654d965`. A API foi a primeira etapa; depois seus contratos foram cruzados com os três fronts. Na etapa de auditoria nenhum código de aplicação foi corrigido e nenhuma implantação/transação externa foi executada. Os ADRs e manifests originais preservam esse retrato anterior aos patches; não representam os hashes atuais da branch de correção.
 
 O pacote registra **68 achados: 11 P0, 41 P1 e 16 P2**, com arquivo/linha, evidência, impacto, causa, recomendação, risco e critério de aceite. Não foram adicionados P3/P4 para preencher categorias. Severidade descreve impacto; confirmação estática, reprodução local e validação ainda ausente estão separadas.
 

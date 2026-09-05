@@ -1,0 +1,619 @@
+{
+  "branch": "fix/ready-to-prod-audit",
+  "base": "dcb8150aae34b8284178d9d257e4ac174654d965",
+  "releaseDecision": "NO-GO",
+  "findings": [
+    {
+      "id": "API-001",
+      "severity": "P0",
+      "module": "catalog",
+      "title": "Reserva e mídia permitem operar recursos de outra loja",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-002",
+      "severity": "P0",
+      "module": "catalog",
+      "title": "Reserva concorrente pode ultrapassar estoque disponível",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-003",
+      "severity": "P0",
+      "module": "stories",
+      "title": "Atualização e arquivamento ignoram o tenant recebido",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-004",
+      "severity": "P0",
+      "module": "storefront",
+      "title": "WebSocket aceita salas de conversa sem autenticação ou vínculo",
+      "status": "PARTIAL",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-005",
+      "severity": "P0",
+      "module": "storefront",
+      "title": "Flag de legado expõe consultas e mutações administrativas sem autenticação",
+      "status": "PARTIAL",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-006",
+      "severity": "P0",
+      "module": "marketplace",
+      "title": "Chargeback administrativo não recebe nem valida a loja",
+      "status": "MITIGATED_CAPABILITY_UNAVAILABLE",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-007",
+      "severity": "P0",
+      "module": "returns",
+      "title": "Reembolso é declarado concluído sem devolver dinheiro",
+      "status": "MITIGATED_CAPABILITY_UNAVAILABLE",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-008",
+      "severity": "P0",
+      "module": "marketplace",
+      "title": "Job marca transferência como realizada sem provedor",
+      "status": "MITIGATED_CAPABILITY_UNAVAILABLE",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-009",
+      "severity": "P1",
+      "module": "auth",
+      "title": "Refresh reutiliza token expirado e revogação não é compartilhada",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-010",
+      "severity": "P1",
+      "module": "auth",
+      "title": "Recuperação de senha depende de memória local",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-011",
+      "severity": "P1",
+      "module": "team",
+      "title": "Papéis e remoção de membro não chegam ao principal de autenticação",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-012",
+      "severity": "P1",
+      "module": "payment",
+      "title": "Retry do POST Asaas não usa a chave idempotente derivada",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-013",
+      "severity": "P1",
+      "module": "payment",
+      "title": "Intenção pendente sem ID do provedor não é retomada",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-014",
+      "severity": "P1",
+      "module": "payment",
+      "title": "Taxa do cartão diverge do total esperado na conclusão",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-015",
+      "severity": "P1",
+      "module": "payment",
+      "title": "Persistência não protege transições concorrentes do payment intent",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-016",
+      "severity": "P1",
+      "module": "shared",
+      "title": "Claim do outbox não conserva exclusividade até o processamento",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-017",
+      "severity": "P1",
+      "module": "inventory",
+      "title": "Handler de venda injeta token incorreto e absorve falhas",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-018",
+      "severity": "P1",
+      "module": "integrations",
+      "title": "Envio de webhook passa Agent incompatível ao fetch",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-019",
+      "severity": "P1",
+      "module": "cart-recovery",
+      "title": "Deduplicação das tentativas de recuperação é volátil",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-020",
+      "severity": "P1",
+      "module": "intent-memory",
+      "title": "Consentimento e memória de intenção usam repositórios em memória",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-021",
+      "severity": "P1",
+      "module": "coupons",
+      "title": "Limites de uso podem ser excedidos em sessões concorrentes",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-022",
+      "severity": "P1",
+      "module": "operations",
+      "title": "Cancelamento local pode encerrar antes do cancelamento externo",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-023",
+      "severity": "P1",
+      "module": "shipping",
+      "title": "Compra de etiqueta precede validação do pedido",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-024",
+      "severity": "P1",
+      "module": "notifications",
+      "title": "Adaptadores retornam sucesso sem entrega confirmada",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-025",
+      "severity": "P1",
+      "module": "buyer-account",
+      "title": "Fallback SMS registra OTP e simula envio",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-026",
+      "severity": "P1",
+      "module": "whatsapp-channel",
+      "title": "Webhook confirma recebimento antes de persistir processamento",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-027",
+      "severity": "P1",
+      "module": "shared",
+      "title": "Rate limiter global pode liberar todas as requisições",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-028",
+      "severity": "P2",
+      "module": "audit",
+      "title": "Trilha de auditoria é gravada fora do commit da mutação",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-029",
+      "severity": "P2",
+      "module": "fulfillment",
+      "title": "Tracking e evento não são atômicos",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-030",
+      "severity": "P2",
+      "module": "onboarding",
+      "title": "Transição salva antes do evento pode suprimir retry",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-031",
+      "severity": "P2",
+      "module": "store-settings",
+      "title": "Unicidade do slug depende de consulta sem constraint",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-032",
+      "severity": "P2",
+      "module": "buyer-purchase-history",
+      "title": "Histórico cresce sem limite nas leituras e saves",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-033",
+      "severity": "P2",
+      "module": "revenue-manager",
+      "title": "Observação usa estimativas fixas como métricas",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-034",
+      "severity": "P2",
+      "module": "revenue-lift",
+      "title": "Atribuição monetária usa unidade divergente e só é logada neste fluxo",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-035",
+      "severity": "P2",
+      "module": "cross-sell",
+      "title": "Módulo não montado usa catálogo sintético no aceite",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-036",
+      "severity": "P1",
+      "module": "public-api",
+      "title": "Maioria dos controllers públicos não entra no AppModule",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-037",
+      "severity": "P2",
+      "module": "shared",
+      "title": "Shutdown e backpressure do outbox não aguardam trabalho em curso",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-038",
+      "severity": "P1",
+      "module": "shared",
+      "title": "Gate de release não cobre o widget atual e falha localmente",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-039",
+      "severity": "P1",
+      "module": "shared",
+      "title": "Auditoria de dependências retornou avisos de segurança pendentes",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-040",
+      "severity": "P2",
+      "module": "marketplace",
+      "title": "Fila de catálogo perde identidade e ordenação de evento",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-041",
+      "severity": "P0",
+      "module": "support",
+      "title": "Gateway permite ouvir tickets e enviar mensagens como merchant sem autenticação",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-042",
+      "severity": "P0",
+      "module": "checkout",
+      "title": "E-mail conhecido é tratado como prova de identidade do comprador",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-043",
+      "severity": "P0",
+      "module": "checkout",
+      "title": "Preço e frete iniciais podem vir do cliente sem revalidação de catálogo",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-044",
+      "severity": "P1",
+      "module": "embed",
+      "title": "Emissão via storefront transforma parâmetros públicos em credencial de tenant",
+      "status": "PARTIAL",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "API-045",
+      "severity": "P1",
+      "module": "shared",
+      "title": "Compose de produção referencia Dockerfile ausente do storefront",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "DASH-001",
+      "severity": "P1",
+      "module": "dashboard",
+      "title": "Onboarding usa etapas incompatíveis e impede compilação",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "DASH-002",
+      "severity": "P1",
+      "module": "dashboard",
+      "title": "Configurações de conta chamam endpoints ausentes",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "DASH-003",
+      "severity": "P1",
+      "module": "dashboard",
+      "title": "Ações de devolução usam nomes de rotas divergentes",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "DASH-004",
+      "severity": "P1",
+      "module": "dashboard",
+      "title": "Envio/entrega de marketplace apontam para rotas não declaradas",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "DASH-005",
+      "severity": "P2",
+      "module": "dashboard",
+      "title": "Salvar configurações busca ETag novo e pode sobrescrever edição concorrente",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "DASH-006",
+      "severity": "P2",
+      "module": "dashboard",
+      "title": "Suíte atual contém 33 falhas e cobertura de contrato insuficiente",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "SF-001",
+      "severity": "P1",
+      "module": "storefront",
+      "title": "Paginação do catálogo público usa endpoint administrativo",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "SF-002",
+      "severity": "P1",
+      "module": "storefront",
+      "title": "Carrinho mistura alterações locais e chamadas incompletas",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "SF-003",
+      "severity": "P1",
+      "module": "storefront",
+      "title": "Heurísticas de centavos alteram preços legítimos",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "SF-004",
+      "severity": "P1",
+      "module": "storefront",
+      "title": "Busca marketplace envia query e interpreta envelope errados",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "SF-005",
+      "severity": "P1",
+      "module": "storefront",
+      "title": "Devolução do comprador chama controller não montado",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "SF-006",
+      "severity": "P1",
+      "module": "storefront",
+      "title": "Proxy /api/v1 troca credenciais de buyer/embed por chave de serviço",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "SF-007",
+      "severity": "P2",
+      "module": "storefront",
+      "title": "Adapter de orçamento descarta dados e abre conversa",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "W2-001",
+      "severity": "P1",
+      "module": "widget_v2",
+      "title": "Início não hidrata carrinho e identidade usados pelo pagamento",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "W2-002",
+      "severity": "P1",
+      "module": "widget_v2",
+      "title": "Resposta de intenção é lida com nomes que a API não retorna",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "W2-003",
+      "severity": "P1",
+      "module": "widget_v2",
+      "title": "Polling omite session_id e ignora approved",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "W2-004",
+      "severity": "P1",
+      "module": "widget_v2",
+      "title": "Frete usa envelope/campos divergentes e fallback com preços inventados",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "W2-005",
+      "severity": "P1",
+      "module": "widget_v2",
+      "title": "Cartão não tem renderer ativo e confirmação usa body incorreto",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "W2-006",
+      "severity": "P1",
+      "module": "widget_v2",
+      "title": "Cripto é oferecida sem fluxo de pagamento e confirmação",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "W2-007",
+      "severity": "P1",
+      "module": "widget_v2",
+      "title": "Alteração de carrinho não invalida sessão/intent do checkout",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "W2-008",
+      "severity": "P2",
+      "module": "widget_v2",
+      "title": "Tracking envia campos diferentes do contrato e não captura rejeição assíncrona",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "W2-009",
+      "severity": "P2",
+      "module": "widget_v2",
+      "title": "Suporte responde políticas fixas em vez das configurações da loja",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    },
+    {
+      "id": "W2-010",
+      "severity": "P2",
+      "module": "widget_v2",
+      "title": "Desconto é anunciado sem autorização persistida",
+      "status": "OPEN",
+      "productionGateClosed": false,
+      "record": "../../CORRECOES.md"
+    }
+  ]
+}
