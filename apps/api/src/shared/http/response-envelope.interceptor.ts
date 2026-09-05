@@ -36,7 +36,7 @@ export class ResponseEnvelopeInterceptor implements NestInterceptor {
         const { pagination, ...dataPayload } = response || {};
 
         const envelope: ApiResponseEnvelope<any> = {
-          data: dataPayload || response,
+          data: Array.isArray(response) ? response : dataPayload,
           meta: {
             request_id: requestId,
             timestamp: new Date().toISOString(),

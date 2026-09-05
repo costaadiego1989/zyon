@@ -11,6 +11,7 @@ import { AuthScreen, type AuthMode } from "./auth/AuthScreen.js";
 import { OAuthCallback, type OAuthCallbackResult } from "./auth/OAuthCallback.js";
 import { friendlyAuthError } from "./auth/auth-error.js";
 import { DashboardShell } from "./shell/DashboardShell.js";
+import { PlanSelection } from "./pages/onboarding-wizard/steps/PlanSelection.js";
 import type { TabKey } from "./shell/nav-config.js";
 import { ApiContext, useApiInstance } from "./hooks/useApi.js";
 import { reportError } from "./lib/observability/error-reporter.js";
@@ -52,11 +53,22 @@ function App({ api }: AppProps) {
   const [checkingSession, setCheckingSession] = useState(true);
   const [initialTab, setInitialTab] = useState<TabKey | undefined>(undefined);
   const [onboardingCompleted, setOnboardingCompleted] = useState(true);
+  const [planSelectionPending, setPlanSelectionPending] = useState(false);
   const onboardingRedirectedRef = useRef(false);
 
   async function refreshSession() {
     try {
       const profile = await api.merchantProfile();
+      const settings = await api.getStoreSettings();
+      const choosingPlan = settings.plan_selection_pending === true;
+      setPlanSelectionPending(choosingPlan);
+      if (!choosingPlan && (settings.registration_pending === true || settings.oauth_registration_pending === true)) {
+        const owner = await api.getMe();
+        setOauthProfile({ name: owner.name ?? "", email: owner.email ?? "" });
+        setAuthMode("signup");
+        setMe(null);
+        return;
+      }
       setMe(profile);
       setAuthHint(null);
       try {
@@ -147,7 +159,7 @@ function App({ api }: AppProps) {
   }
 
   async function handleSaveCompanyData(data: { slug?: string; company: Record<string, unknown>; social?: Record<string, unknown>; oauth_registration_pending?: boolean; owner_name?: string }) {
-    await api.putStoreSettings(data);
+    await api.putStoreSettings({ ...data, registration_pending: true, plan_selection_pending: true });
     const storeName = data.company.razaoSocial;
     if (typeof storeName === "string" && storeName.trim()) await api.putStoreName(storeName.trim());
   }
@@ -157,7 +169,15 @@ function App({ api }: AppProps) {
   }
 
   async function handleSignupComplete() {
+    setOauthProfile(null);
+    await refreshSession();
+  }
+
+  async function handlePlanComplete() {
     await api.completeOnboardingStep("account");
+    await api.putStoreSettings({ registration_pending: false, oauth_registration_pending: false, plan_selection_pending: false });
+    window.history.replaceState({}, "", "/");
+    setPlanSelectionPending(false);
     setOauthProfile(null);
     await refreshSession();
   }
@@ -183,14 +203,7 @@ function App({ api }: AppProps) {
       <OAuthCallback
         apiBaseUrl={API_BASE_URL}
         onSuccess={(result) => {
-          if (result.onboarding_required) {
-            setOauthProfile(result.profile);
-            setAuthMode("signup");
-            setMe(null);
-            setCheckingSession(false);
-          } else {
-            void refreshSession();
-          }
+          void refreshSession();
         }}
         onError={(msg) => {
           setAuthHint(msg);
@@ -198,6 +211,12 @@ function App({ api }: AppProps) {
         }}
       />
     );
+  }
+
+  if (checkingSession) return <div role="status" style={{ padding: 48 }}>Carregando sua conta…</div>;
+
+  if (me && planSelectionPending) {
+    return <main className="signup-plans"><PlanSelection merchantName={me.name} onDone={handlePlanComplete} /></main>;
   }
 
   if (!me) {

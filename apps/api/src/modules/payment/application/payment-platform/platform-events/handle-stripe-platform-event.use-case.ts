@@ -4,6 +4,7 @@ import {
   type PaymentPlatformRepository,
 } from "../../../domain/ports/payment-platform-repository.port.js";
 import type { BillingSubscriptionSnapshot } from "../../../domain/payment-platform.types.js";
+import { planFromPriceId } from "../../../domain/billing-plans.js";
 
 @Injectable()
 export class HandleStripePlatformEventUseCase {
@@ -52,7 +53,7 @@ export class HandleStripePlatformEventUseCase {
       merchantId: input.merchantId,
       stripeCustomerId: input.customerId,
       stripeSubscriptionId: input.subscriptionId,
-      status: "active",
+      provider: "stripe",
     });
   }
 
@@ -74,11 +75,16 @@ export class HandleStripePlatformEventUseCase {
         input.customerId,
       ));
     if (!merchantId) return;
+    const current = await this.repository.getBilling(merchantId);
+    if (current?.stripeSubscriptionId && current.stripeSubscriptionId !== input.subscriptionId &&
+        (input.status === "cancelled" || input.status === "incomplete")) return;
     await this.repository.saveBilling({
       merchantId,
       stripeCustomerId: input.customerId,
       stripeSubscriptionId: input.subscriptionId,
       stripePriceId: input.priceId,
+      provider: "stripe",
+      planKey: planFromPriceId(input.priceId),
       status: input.status,
       currentPeriodEnd: input.currentPeriodEnd,
       cancelAtPeriodEnd: input.cancelAtPeriodEnd,

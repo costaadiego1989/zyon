@@ -112,3 +112,36 @@
 .billing-plans__error-btn:hover {
   opacity: 0.85;
 }
+.signup-plans {
+  min-height: 100dvh;
+  box-sizing: border-box;
+  padding: clamp(24px, 5vw, 64px);
+  max-width: 1280px;
+  margin: auto;
+}
+.free-trial-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 14px 18px;
+  border: 1px solid var(--color-warning);
+  border-radius: 10px;
+  background: var(--color-warning-bg);
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.free-trial-notice button {
+  flex-shrink: 0;
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  color: var(--color-text);
+}
+@media (max-width: 600px) {
+  .free-trial-notice { align-items: flex-start; flex-direction: column; }
+}

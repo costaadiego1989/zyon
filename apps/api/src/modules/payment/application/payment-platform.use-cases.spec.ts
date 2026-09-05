@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { Logger } from "@nestjs/common";
 import { InMemoryMerchantRepository } from "../../merchant/infrastructure/in-memory-merchant.repository.js";
 import type {
   AsaasPlatformPort,
@@ -143,6 +144,12 @@ test("billing trial fails fast when queue is required", async () => {
 });
 
 class StubStripePlatform implements StripePlatformPort {
+  async retrieveBillingSubscription(subscriptionId: string) {
+    return { subscriptionId, customerId: "cus_test", priceId: "growth", status: "active" as const, cancelAtPeriodEnd: false };
+  }
+
+  async listBillingInvoices() { return []; }
+
   accountCreations = 0;
   requirements: string[] = [];
   lastPriceId?: string;
@@ -235,13 +242,13 @@ class StubBillingConfig implements BillingConfigPort {
 }
 
 async function withCapturedWarnings<T>(fn: () => Promise<T>): Promise<{ result: T; warnings: string[] }> {
-  const previous = console.warn;
+  const previous = Logger.warn;
   const warnings: string[] = [];
-  console.warn = (message?: unknown) => { warnings.push(String(message)); };
+  Logger.warn = (message?: unknown) => { warnings.push(String(message)); };
   try {
     return { result: await fn(), warnings };
   } finally {
-    console.warn = previous;
+    Logger.warn = previous;
   }
 }
 

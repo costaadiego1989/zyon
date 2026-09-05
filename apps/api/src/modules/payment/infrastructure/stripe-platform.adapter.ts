@@ -1,13 +1,45 @@
 import Stripe from "stripe";
+import { randomUUID } from "node:crypto";
 import type {
   StripeConnectAccountStatus,
   StripePlatformPort,
+  StripeBillingSubscription,
+  StripeBillingInvoice,
 } from "../domain/ports/payment-platform-provider.port.js";
 
 export class StripePlatformAdapter implements StripePlatformPort {
   private stripe?: Stripe;
 
   constructor(private readonly secretKey: string | undefined) {}
+
+  async retrieveBillingSubscription(subscriptionId: string): Promise<StripeBillingSubscription> {
+    const subscription = await this.requireStripe().subscriptions.retrieve(subscriptionId);
+    const item = subscription.items.data[0];
+    const raw = subscription as Stripe.Subscription & { current_period_end?: number };
+    const end = item?.current_period_end ?? raw.current_period_end;
+    return {
+      merchantId: subscription.metadata.merchant_id,
+      customerId: typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id,
+      subscriptionId: subscription.id,
+      priceId: item?.price.id,
+      status: subscription.status === "canceled" || subscription.status === "incomplete_expired" ? "cancelled" : subscription.status,
+      currentPeriodEnd: end ? new Date(end * 1000).toISOString() : undefined,
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    };
+  }
+
+  async listBillingInvoices(customerId: string): Promise<StripeBillingInvoice[]> {
+    const invoices = await this.requireStripe().invoices.list({ customer: customerId, limit: 100 });
+    return invoices.data.map(invoice => ({
+      id: invoice.id,
+      amountBrl: invoice.total / 100,
+      periodStart: new Date(invoice.period_start * 1000).toISOString(),
+      periodEnd: new Date(invoice.period_end * 1000).toISOString(),
+      status: invoice.status ?? "draft",
+      createdAt: new Date(invoice.created * 1000).toISOString(),
+      invoiceUrl: invoice.hosted_invoice_url ?? undefined,
+    }));
+  }
 
   async createConnectAccount(input: {
     merchantId: string;
@@ -88,6 +120,9 @@ export class StripePlatformAdapter implements StripePlatformPort {
     successUrl: string;
     cancelUrl: string;
   }): Promise<{ url: string; sessionId: string }> {
+    const openSessions = await this.requireStripe().checkout.sessions.list({ customer: input.customerId, status: "open", limit: 20 });
+    const open = openSessions.data.find(session => session.mode === "subscription" && session.metadata?.price_id === input.priceId && session.url);
+    if (open?.url) return { url: open.url, sessionId: open.id };
     const session = await this.requireStripe().checkout.sessions.create(
       {
         mode: "subscription",
@@ -97,13 +132,13 @@ export class StripePlatformAdapter implements StripePlatformPort {
         success_url: input.successUrl,
         cancel_url: input.cancelUrl,
         client_reference_id: input.merchantId,
-        metadata: { merchant_id: input.merchantId },
+        metadata: { merchant_id: input.merchantId, price_id: input.priceId },
         subscription_data: {
           metadata: { merchant_id: input.merchantId },
         },
       },
       {
-        idempotencyKey: `billing-checkout:${input.merchantId}:${input.priceId}`,
+        idempotencyKey: `billing-checkout:${input.merchantId}:${randomUUID()}`,
       },
     );
     if (!session.url) {
@@ -119,6 +154,7 @@ export class StripePlatformAdapter implements StripePlatformPort {
     const session = await this.requireStripe().billingPortal.sessions.create({
       customer: input.customerId,
       return_url: input.returnUrl,
+      configuration: process.env.STRIPE_BILLING_PORTAL_CONFIGURATION || undefined,
     });
     return { url: session.url };
   }

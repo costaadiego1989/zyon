@@ -10,6 +10,7 @@ import { readStripeConnection } from "../infrastructure/stripe-env.js";
 import { PaymentDispatchService } from "./services/payment-dispatch.service.js";
 import { HandleStripePlatformEventUseCase } from "./payment-platform.use-cases.js";
 import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
+import { STRIPE_PLATFORM_PORT, type StripePlatformPort } from "../domain/ports/payment-platform-provider.port.js";
 import { HandleMarketplaceChargebackUseCase } from "../../marketplace/application/use-cases/handle-marketplace-chargeback.use-case.js";
 
 export type HandleStripeWebhookResult =
@@ -38,6 +39,7 @@ export class HandleStripeWebhookUseCase {
     @Optional() private readonly platformEvents?: HandleStripePlatformEventUseCase,
     @Optional() @Inject("PRISMA_CLIENT") private readonly prisma?: any,
     @Optional() private readonly marketplaceChargeback?: HandleMarketplaceChargebackUseCase,
+    @Optional() @Inject(STRIPE_PLATFORM_PORT) private readonly billingStripe?: StripePlatformPort,
   ) {
     const { secretKey } = readStripeConnection();
     if (!secretKey) {
@@ -147,6 +149,15 @@ export class HandleStripeWebhookUseCase {
           event.data.object as Stripe.Subscription,
         );
 
+      case "invoice.paid":
+      case "invoice.payment_failed": {
+        const invoice = event.data.object as Stripe.Invoice & { subscription?: string | Stripe.Subscription | null };
+        const subscriptionId = idFrom(invoice.parent?.subscription_details?.subscription ?? invoice.subscription);
+        if (!subscriptionId || !this.billingStripe || !this.platformEvents) return "ignored_non_subscription_invoice";
+        await this.platformEvents.subscriptionUpdated(await this.billingStripe.retrieveBillingSubscription(subscriptionId));
+        return "billing_invoice_synchronized";
+      }
+
       default:
         return "ignored_event_type";
     }
@@ -226,6 +237,10 @@ export class HandleStripeWebhookUseCase {
       customerId: idFrom(session.customer),
       subscriptionId: idFrom(session.subscription),
     });
+    const subscriptionId = idFrom(session.subscription);
+    if (subscriptionId && this.billingStripe) {
+      await this.platformEvents.subscriptionUpdated(await this.billingStripe.retrieveBillingSubscription(subscriptionId));
+    }
     return "billing_checkout_completed";
   }
 
@@ -233,6 +248,11 @@ export class HandleStripeWebhookUseCase {
     subscription: Stripe.Subscription,
   ): Promise<string> {
     if (!this.platformEvents) return "ignored_platform_events_disabled";
+    if (this.billingStripe) {
+      // Read current state so delayed events cannot restore a cancelled plan.
+      await this.platformEvents.subscriptionUpdated(await this.billingStripe.retrieveBillingSubscription(subscription.id));
+      return "billing_subscription_updated";
+    }
     const raw = subscription as Stripe.Subscription & {
       current_period_end?: number;
     };
@@ -242,8 +262,8 @@ export class HandleStripeWebhookUseCase {
       subscriptionId: subscription.id,
       priceId: subscription.items.data[0]?.price.id,
       status: billingStatus(subscription.status),
-      currentPeriodEnd: raw.current_period_end
-        ? new Date(raw.current_period_end * 1000).toISOString()
+      currentPeriodEnd: (subscription.items.data[0]?.current_period_end ?? raw.current_period_end)
+        ? new Date((subscription.items.data[0]?.current_period_end ?? raw.current_period_end)! * 1000).toISOString()
         : undefined,
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
     });
@@ -367,7 +387,7 @@ function billingStatus(
     case "paused":
     case "incomplete":
     case "incomplete_expired":
-      return status === "incomplete_expired" ? "incomplete" : status;
+      return status === "incomplete_expired" ? "cancelled" : status;
     case "canceled":
       return "cancelled";
     default:

@@ -57,9 +57,9 @@ const UNLIMITED = null;
 
 export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
   starter: {
-    name: "Starter",
+    name: "Free",
     monthlyPriceBrl: 0,
-    transactionFeeCents: 199,
+    transactionFeeCents: 299,
     limits: {
       ordersPerMonth: 100,
       sessionsPerMonth: 100,
@@ -184,7 +184,7 @@ export function planFromPriceId(
 }
 
 export function effectiveBillingPlan(
-  subscription: Pick<BillingSubscriptionSnapshot, "status" | "trialEndsAt" | "stripePriceId"> | undefined,
+  subscription: Pick<BillingSubscriptionSnapshot, "status" | "trialEndsAt" | "stripePriceId" | "planKey"> | undefined,
   now = new Date(),
 ): BillingPlan {
   if (!subscription) return "starter";
@@ -193,18 +193,29 @@ export function effectiveBillingPlan(
     new Date(subscription.trialEndsAt!).getTime() > now.getTime();
   if (trialActive) return "starter";
   if (subscription.status !== "active") return "starter";
-  return planFromPriceId(subscription.stripePriceId) ?? "starter";
+  return planFromPriceId(subscription.stripePriceId) ?? subscription.planKey ?? "starter";
+}
+
+export function freeTrialState(
+  subscription: Pick<BillingSubscriptionSnapshot, "status" | "trialEndsAt" | "stripePriceId" | "planKey"> | undefined,
+  now = new Date(),
+) {
+  const end = subscription?.trialEndsAt ? new Date(subscription.trialEndsAt).getTime() : null;
+  const active = subscription?.status === "trialing" && end !== null && end > now.getTime();
+  const expired = effectiveBillingPlan(subscription, now) === "starter" && !active &&
+    (subscription?.status === "starter" || (end !== null && end <= now.getTime()));
+  return { active, expired, daysRemaining: active ? Math.ceil((end! - now.getTime()) / 86_400_000) : 0 };
 }
 
 /**
  * Fee do MERCHANT por transação, fixo em centavos, para a assinatura dada.
- * Sai do repasse (payment-hold). Trial e assinaturas inativas caem no Starter.
+ * Descontado no split do provedor. O Free não cobra essa taxa durante o trial.
  */
 export function merchantTransactionFeeCentsFor(
-  subscription: Pick<BillingSubscriptionSnapshot, "status" | "trialEndsAt" | "stripePriceId"> | undefined,
+  subscription: Pick<BillingSubscriptionSnapshot, "status" | "trialEndsAt" | "stripePriceId" | "planKey"> | undefined,
   now = new Date(),
 ): number {
-  return BILLING_PLANS[effectiveBillingPlan(subscription, now)].transactionFeeCents;
+  return freeTrialState(subscription, now).active ? 0 : BILLING_PLANS[effectiveBillingPlan(subscription, now)].transactionFeeCents;
 }
 
 export function assertProviderFeeCap(platformFeeCents: number, providerFeeCents: number): number {

@@ -49,7 +49,8 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
     private readonly apiBaseUrl: string,
     private readonly accessToken: string,
     private readonly publicKey: string | undefined,
-    private readonly fetchImpl: typeof fetch
+    private readonly fetchImpl: typeof fetch,
+    private readonly marketplaceSeller = false,
   ) {}
 
   async fetchPaymentStatus(input: FetchPaymentStatusInput): Promise<FetchPaymentStatusOutput> {
@@ -91,9 +92,11 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
       payer: {
         email: input.creditCardHolderInfo?.email ?? "buyer@example.com"
       },
-      notification_url: `${input.remoteIp || ""}`,
+      ...(process.env.API_PUBLIC_URL ? { notification_url: `${process.env.API_PUBLIC_URL.replace(/\/+$/, "")}/webhooks/mercadopago` } : {}),
+      ...(this.marketplaceSeller && (input.platformFeeCents ?? 0) > 0 ? { application_fee: majorUnitsFromCents(input.platformFeeCents!) } : {}),
       metadata: {
         intent_id: input.intentId,
+        merchant_id: input.merchantId,
         session_id: input.sessionId
       }
     };
@@ -112,6 +115,7 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
       headers: {
         Authorization: `Bearer ${this.accessToken}`,
         "content-type": "application/json",
+        "X-Idempotency-Key": input.providerIdempotencyKey ?? input.intentId,
         accept: "application/json"
       },
       body: JSON.stringify(body),

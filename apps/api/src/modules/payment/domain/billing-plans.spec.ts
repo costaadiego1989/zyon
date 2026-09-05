@@ -7,10 +7,10 @@ import {
   merchantTransactionFeeCentsFor,
 } from "./billing-plans.js";
 
-test("BILLING_PLANS matches current pricing: starter R$0/mês + R$1,99/venda, growth R$249/mês + R$1,49/venda, scale R$599/mês + R$0,99/venda", () => {
+test("BILLING_PLANS matches Free R$2,99 after trial, Growth R$249 and Scale R$599", () => {
   // Starter
   assert.equal(BILLING_PLANS.starter.monthlyPriceBrl, 0);
-  assert.equal(BILLING_PLANS.starter.transactionFeeCents, 199);
+  assert.equal(BILLING_PLANS.starter.transactionFeeCents, 299);
   assert.equal(BILLING_PLANS.starter.limits.ordersPerMonth, 100);
   assert.equal(BILLING_PLANS.starter.limits.webhookEndpoints, null);
   assert.equal(BILLING_PLANS.starter.limits.crossSellPromotions, 1);
@@ -45,18 +45,18 @@ test("buyer service fee é fixo, independe do plano", () => {
   assert.equal(BUYER_SERVICE_FEE_CENTS, 99);
 });
 
-test("trial usa Starter plan e fee fixo de Starter", () => {
+test("trial usa Free sem taxa de transação do lojista", () => {
   const trial = {
     status: "trialing" as const,
     trialEndsAt: new Date(Date.now() + 86_400_000).toISOString(),
     stripePriceId: undefined,
   };
   assert.equal(effectiveBillingPlan(trial), "starter");
-  assert.equal(merchantTransactionFeeCentsFor(trial), 199);
+  assert.equal(merchantTransactionFeeCentsFor(trial), 0);
 });
 
 test("expired or inactive subscriptions fall back to Starter", () => {
   assert.equal(effectiveBillingPlan({ status: "cancelled", stripePriceId: undefined }), "starter");
   assert.equal(effectiveBillingPlan({ status: "trialing", trialEndsAt: "2020-01-01T00:00:00.000Z", stripePriceId: undefined }), "starter");
-  assert.equal(merchantTransactionFeeCentsFor({ status: "cancelled", stripePriceId: undefined }), 199);
+  assert.equal(merchantTransactionFeeCentsFor({ status: "cancelled", stripePriceId: undefined }), 299);
 });

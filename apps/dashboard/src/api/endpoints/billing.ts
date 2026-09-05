@@ -9,16 +9,27 @@ import type {
 } from "../types.js";
 
 export function billingEndpoints(base: string, f: typeof fetch) {
+  async function billingJson<T>(path: string, init: Parameters<typeof dashboardJson>[2] = {}): Promise<T> {
+    const response = await dashboardJson<T | { data: T; meta: unknown }>(base, path, init, f);
+    return response && typeof response === "object" && "meta" in response && "data" in response ? response.data : response as T;
+  }
   return {
     getBillingSubscription(): Promise<BillingSubscription> {
-      return dashboardJson(base, "/billing/subscription", { method: "GET" }, f);
+      return billingJson("/billing/subscription");
     },
-    // Asaas subscription lifecycle
-    listBillingPlans(): Promise<BillingPlanCard[]> {
-      return dashboardJson(base, "/billing/plans", { method: "GET" }, f);
+    // Billing catalog and subscription lifecycle
+    async listBillingPlans(): Promise<BillingPlanCard[]> {
+      const plans = await billingJson<Array<{ plan_id: string; name: string; monthly_price_brl: number; transaction_fee_cents: number; features: Record<string, boolean>; limits: Record<string, number | null> }>>("/billing/plans");
+      return plans.map(plan => ({
+        key: plan.plan_id, name: plan.name, priceBrl: plan.monthly_price_brl,
+        transactionFeeCents: plan.transaction_fee_cents, limits: plan.limits,
+        trialDays: plan.plan_id === "starter" ? 14 : 0,
+        recommended: plan.plan_id === "growth", ctaLabel: plan.plan_id === "starter" ? "Continuar no Free" : `Escolher ${plan.name}`,
+        features: Object.entries(plan.features).filter(([, enabled]) => enabled).map(([key]) => key),
+      }));
     },
     startBillingTrial(): Promise<BillingSubscription> {
-      return dashboardJson(base, "/billing/subscription/start-trial", { method: "POST" }, f);
+      return billingJson("/billing/subscription/start-trial", { method: "POST" });
     },
     subscribeToPlan(payload: {
       planKey: "growth" | "scale";
@@ -33,11 +44,11 @@ export function billingEndpoints(base: string, f: typeof fetch) {
     cancelBillingSubscription(payload?: { immediate?: boolean }): Promise<BillingSubscription> {
       return dashboardJson(base, "/billing/subscription/cancel", { method: "POST", jsonBody: payload ?? {} }, f);
     },
-    createBillingCheckoutSession(payload: { price_id?: string; success_url?: string; cancel_url?: string }): Promise<BillingCheckoutSessionResponse> {
-      return dashboardJson(base, "/billing/checkout-session", { method: "POST", jsonBody: payload }, f);
+    createBillingCheckoutSession(payload: { plan?: "growth" | "scale"; price_id?: string; success_url?: string; cancel_url?: string }): Promise<BillingCheckoutSessionResponse> {
+      return billingJson("/billing/checkout-session", { method: "POST", jsonBody: payload });
     },
     createBillingPortalSession(payload: { return_url?: string }): Promise<BillingPortalSessionResponse> {
-      return dashboardJson(base, "/billing/portal-session", { method: "POST", jsonBody: payload }, f);
+      return billingJson("/billing/portal-session", { method: "POST", jsonBody: payload });
     },
 
     // Payment connections (billing-adjacent)

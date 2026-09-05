@@ -17,6 +17,7 @@ interface PlanCardProps {
   isDowngrade: boolean;
   onUpgrade: () => void;
   upgrading: boolean;
+  actionLabel?: string;
 }
 
 function formatLimit(value: number): string {
@@ -30,6 +31,7 @@ export function PlanCard({
   isDowngrade,
   onUpgrade,
   upgrading,
+  actionLabel,
 }: PlanCardProps) {
   const borderColor = isCurrent
     ? "var(--color-brand)"
@@ -116,7 +118,7 @@ export function PlanCard({
           )}
         </div>
         <div style={{ font: "12px var(--font-mono)", color: "var(--color-text-muted)", marginTop: 4 }}>
-          {plan.fee} por transação
+          {plan.key === "starter" ? `14 dias sem taxa Zyon. Depois, ${plan.fee} por transação.` : `${plan.fee} por transação`}
         </div>
       </div>
 
@@ -187,11 +189,11 @@ export function PlanCard({
         onClick={onUpgrade}
         disabled={isCurrent || upgrading}
       >
-        {isCurrent
+        {actionLabel ?? (isCurrent
           ? "Seu plano"
           : isDowngrade
             ? "Downgrade"
-            : "Fazer upgrade"}
+            : "Fazer upgrade")}
       </Button>
     </div>
   );

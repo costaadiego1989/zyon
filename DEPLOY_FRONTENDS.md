@@ -91,7 +91,7 @@ dashboard e o `GOOGLE_CLIENT_ID` da API precisam identificar o mesmo cliente;
 `GOOGLE_CLIENT_SECRET` fica somente na API. Ao criar outro cliente Google,
 atualize esses valores e publique novamente os serviços afetados.
 
-O callback exibe erros e encerra a espera após 20 segundos. Novos usuários OAuth
+O callback exibe erros e encerra a espera após 30 segundos. Novos usuários OAuth
 continuam no cadastro com nome e e-mail preenchidos; os dados do responsável e
 da empresa são enviados à API antes da conclusão do cadastro. O teste do backend
 confirma que um novo login retoma o cadastro enquanto ele estiver pendente.
@@ -100,3 +100,9 @@ O fluxo do formulário foi testado no Chromium com respostas OAuth simuladas,
 sem criar conta fictícia em produção. O login completo com o Google ainda requer
 uma nova autorização com uma conta real; códigos de callbacks antigos não podem
 ser reutilizados.
+
+Após preencher os dados, o cadastro apresenta os mesmos planos da tela de
+assinaturas, com preços vindos da API. A escolha pendente é persistida para
+retomar após recarregar ou voltar do Stripe. O Free permite continuar sem cartão;
+um plano pago só libera o cadastro após a confirmação da assinatura pela API.
+O dashboard mostra um aviso ao terminar o teste de 14 dias e continua acessível.

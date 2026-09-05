@@ -21,7 +21,7 @@ export function OAuthCallback({ apiBaseUrl, onSuccess, onError }: OAuthCallbackP
     started.current = true;
 
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 20_000);
+    const timeout = window.setTimeout(() => controller.abort(), 30_000);
     void exchange(controller.signal).finally(() => window.clearTimeout(timeout));
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -34,8 +34,9 @@ export function OAuthCallback({ apiBaseUrl, onSuccess, onError }: OAuthCallbackP
     const provider = params.get("provider") || detectProvider();
     const savedState = sessionStorage.getItem("oauth_state");
 
-    if (!code || !state || !provider) return fail("O retorno do provedor esta incompleto. Tente novamente.");
-    if (!savedState || savedState !== state) return fail("A sessao de login expirou. Tente novamente.");
+    if (params.get("error")) return fail("A autorização foi cancelada. Inicie o login novamente.");
+    if (!code || !state || !provider) return fail("O retorno do provedor está incompleto. Tente novamente.");
+    if (!savedState || savedState !== state) return fail("A sessão de login expirou. Tente novamente.");
 
     try {
       const base = apiBaseUrl.replace(/\/$/, "");
@@ -46,8 +47,10 @@ export function OAuthCallback({ apiBaseUrl, onSuccess, onError }: OAuthCallbackP
         signal,
         body: JSON.stringify({ provider, code, state }),
       });
-      const body = (await res.json().catch(() => ({}))) as Partial<OAuthCallbackResult> & { message?: string };
-      if (!res.ok) throw new Error(body.message || "Nao foi possivel concluir o login.");
+      const body = (await res.json().catch(() => ({}))) as Partial<OAuthCallbackResult> & { message?: string; detail?: string };
+      if (!res.ok) throw new Error(body.message || body.detail || (res.status >= 500
+        ? "O serviço de login está temporariamente indisponível. Inicie uma nova tentativa."
+        : "Não foi possível concluir o login. Inicie uma nova tentativa."));
 
       sessionStorage.removeItem("oauth_state");
       sessionStorage.removeItem("oauth_provider");
@@ -58,8 +61,8 @@ export function OAuthCallback({ apiBaseUrl, onSuccess, onError }: OAuthCallbackP
       });
     } catch (cause) {
       const message = cause instanceof DOMException && cause.name === "AbortError"
-        ? "O login demorou demais. Verifique sua conexao e tente novamente."
-        : cause instanceof Error ? cause.message : "Nao foi possivel concluir o login.";
+        ? "O login demorou demais. Verifique sua conexão e tente novamente."
+        : cause instanceof Error ? cause.message : "Não foi possível concluir o login.";
       fail(message);
     }
   }
@@ -73,7 +76,7 @@ export function OAuthCallback({ apiBaseUrl, onSuccess, onError }: OAuthCallbackP
     return (
       <main className="auth-shell" style={{ alignItems: "center", justifyContent: "center" }}>
         <section className="auth-form" style={{ maxWidth: 460, padding: 32 }}>
-          <h1 className="auth-form__title">Nao foi possivel entrar</h1>
+          <h1 className="auth-form__title">Não foi possível entrar</h1>
           <p className="auth-form__subtitle">{error}</p>
           <button type="button" className="auth-cta" onClick={() => window.location.assign("/")}>Tentar novamente</button>
         </section>

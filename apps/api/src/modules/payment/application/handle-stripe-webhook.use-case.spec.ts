@@ -6,6 +6,30 @@ import { PaymentDispatchService } from "./services/payment-dispatch.service.js";
 import { InMemoryPaymentRepository } from "../infrastructure/in-memory-payment.repository.js";
 import type { CheckoutPaymentApprovedInput, CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
 import type { PaymentIntentStatus } from "../domain/payment-intent.entity.js";
+import { InMemoryPaymentPlatformRepository } from "../infrastructure/in-memory-payment-platform.repository.js";
+import { HandleStripePlatformEventUseCase } from "./payment-platform/platform-events/handle-stripe-platform-event.use-case.js";
+
+test("billing webhooks read current Stripe state and retry a transient synchronization failure", async () => {
+  const { uc } = createTestContext();
+  const billing = new InMemoryPaymentPlatformRepository();
+  let fail = true;
+  Object.assign(uc, {
+    platformEvents: new HandleStripePlatformEventUseCase(billing),
+    billingStripe: { retrieveBillingSubscription: async () => {
+      if (fail) throw new Error("stripe_temporarily_unavailable");
+      return { merchantId: "billing", customerId: "cus_billing", subscriptionId: "sub_current", status: "active", priceId: "scale", cancelAtPeriodEnd: false };
+    } },
+  });
+  const stale = makeStripeEvent({ id: "evt_stale_billing", type: "customer.subscription.updated", data: { object: { id: "sub_current", customer: "cus_billing", status: "past_due", metadata: { merchant_id: "billing" }, items: { data: [] } } } });
+  await assert.rejects(() => uc.dispatchEvent(stale), /stripe_temporarily_unavailable/);
+  fail = false;
+  assert.equal((await uc.dispatchEvent(stale)).outcome, "processed");
+  assert.equal((await billing.getBilling("billing"))?.status, "active");
+  assert.equal((await billing.getBilling("billing"))?.planKey, "scale");
+  assert.equal((await uc.dispatchEvent(stale)).outcome, "duplicate");
+  await uc.dispatchEvent(makeStripeEvent({ type: "invoice.payment_failed", data: { object: { parent: { subscription_details: { subscription: "sub_current" } } } } }));
+  assert.equal((await billing.getBilling("billing"))?.status, "active");
+});
 
 class RecordingCheckoutPayment implements CheckoutPaymentPort {
   public approved: CheckoutPaymentApprovedInput[] = [];
@@ -55,7 +79,7 @@ function createTestContext() {
   // We test via dispatchEvent which bypasses signature verification
   const uc = Object.create(HandleStripeWebhookUseCase.prototype) as HandleStripeWebhookUseCase;
   // Wire private fields for testing dispatchEvent directly
-  Object.assign(uc, { payments, paymentDispatch: dispatch, metrics: undefined, platformEvents: undefined });
+  Object.assign(uc, { payments, paymentDispatch: dispatch, metrics: undefined, platformEvents: undefined, logger: { error() {} } });
   return { payments, checkoutPort, dispatch, uc };
 }
 

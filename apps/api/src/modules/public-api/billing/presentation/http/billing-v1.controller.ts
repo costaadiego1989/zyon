@@ -8,6 +8,7 @@ import {
   UseInterceptors,
   HttpCode,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -30,7 +31,10 @@ import {
   ChangeSubscriptionPlanUseCase,
   CancelSubscriptionUseCase,
   HandleAsaasBillingWebhookUseCase,
+  CreateBillingCheckoutUseCase,
+  CreateBillingPortalUseCase,
 } from '../../../../payment/application/payment-platform.use-cases.js';
+import { CreateBillingCheckoutDto } from '../../../../payment/presentation/http/payment-platform.dto.js';
 import { ListBillingPlansUseCase } from '../../application/list-billing-plans.use-case.js';
 import { GetBillingUsageUseCase } from '../../application/get-billing-usage.use-case.js';
 import { ListBillingInvoicesUseCase } from '../../application/list-billing-invoices.use-case.js';
@@ -62,7 +66,24 @@ export class BillingV1Controller {
     private readonly changeSubscriptionPlanUseCase: ChangeSubscriptionPlanUseCase,
     private readonly cancelSubscriptionUseCase: CancelSubscriptionUseCase,
     private readonly handleAsaasBillingWebhookUseCase: HandleAsaasBillingWebhookUseCase,
+    private readonly createBillingCheckout: CreateBillingCheckoutUseCase,
+    private readonly createBillingPortal: CreateBillingPortalUseCase,
   ) {}
+
+  @Post('checkout-session')
+  @Idempotent()
+  @RequireTenantAccess({ humanOnly: true, humanRoles: ['owner', 'admin'] })
+  async checkout(@Req() req: any, @Body() body: CreateBillingCheckoutDto) {
+    const plan = body.plan ?? body.price_id;
+    if (!plan || plan === 'starter') throw new BadRequestException('billing_paid_plan_required');
+    return this.createBillingCheckout.execute({ merchantId: req.tenantPrincipal.tenantId, email: req.tenantPrincipal.email, plan });
+  }
+
+  @Post('portal-session')
+  @RequireTenantAccess({ humanOnly: true, humanRoles: ['owner', 'admin'] })
+  async portal(@Req() req: any) {
+    return this.createBillingPortal.execute(req.tenantPrincipal.tenantId);
+  }
 
   @Get('plans')
   @RequireTenantAccess({ humanOnly: true })

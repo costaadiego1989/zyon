@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2, User, Building2, KeyRound, Github } from "lucide-react";
 import { friendlyAuthError } from "./auth-error.js";
 import { Turnstile } from "./Turnstile.js";
@@ -54,6 +54,7 @@ const STEP_META = [
 
 export function SignupWizard(props: SignupWizardProps) {
   const isOAuth = Boolean(props.oauthProfile);
+  const accountCreated = useRef(isOAuth);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [localBusy, setLocalBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,13 +101,14 @@ export function SignupWizard(props: SignupWizardProps) {
 
     setLocalBusy(true);
     try {
-      if (!isOAuth) {
+      if (!accountCreated.current) {
         await props.onRegister({
           merchant_name: business.name.trim(),
           email: account.email.trim(),
           password: account.password,
           turnstile_token: props.captchaToken ?? undefined,
         });
+        accountCreated.current = true;
       }
       await props.onSaveOwner?.({ name: person.name.trim(), phone: account.phone.replace(/\D/g, "") });
       await props.onSaveTheme({
@@ -119,7 +121,7 @@ export function SignupWizard(props: SignupWizardProps) {
         const storeSlug = business.name.trim().toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-");
         await props.onSaveCompanyData({
           slug: storeSlug,
-          oauth_registration_pending: false,
+          oauth_registration_pending: isOAuth,
           owner_name: person.name.trim(),
           company: {
             razaoSocial: business.name.trim(),

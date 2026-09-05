@@ -22,30 +22,16 @@ export class CreateBillingPortalUseCase {
   ) {}
 
   async execute(merchantId: string): Promise<{ url: string }> {
-    let billing = await this.repository.getOrCreateTrial(
+    const billing = await this.repository.getOrCreateTrial(
       merchantId,
       14,
     );
     if (!billing.stripeCustomerId) {
-      try {
-        const { customerId } = await this.stripe.createBillingCustomer({
-          merchantId,
-          merchantName: merchantId,
-          email: `billing-${merchantId.slice(-8)}@zyon.ai`,
-        });
-        await this.repository.saveBilling({
-          merchantId,
-          stripeCustomerId: customerId,
-          status: billing.status ?? "trialing",
-        });
-        billing = { ...billing, stripeCustomerId: customerId };
-      } catch (e) {
-        throw new ConflictException("billing_customer_creation_failed");
-      }
+      throw new ConflictException("billing_customer_missing_choose_plan");
     }
     return this.stripe.createBillingPortal({
       customerId: billing.stripeCustomerId!,
-      returnUrl: `${this.billingConfig.consoleUrl()}/settings/billing`,
+      returnUrl: `${this.billingConfig.consoleUrl()}/#billing-plans`,
     });
   }
 }

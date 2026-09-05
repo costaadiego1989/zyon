@@ -1,6 +1,7 @@
 import type {
   AsaasSubaccountInput,
   BillingPlan,
+  BillingSubscriptionStatus,
 } from "../payment-platform.types.js";
 
 export const STRIPE_PLATFORM_PORT = Symbol("STRIPE_PLATFORM_PORT");
@@ -29,6 +30,8 @@ export interface StripeConnectAccountStatus {
 }
 
 export interface StripePlatformPort {
+  retrieveBillingSubscription(subscriptionId: string): Promise<StripeBillingSubscription>;
+  listBillingInvoices(customerId: string): Promise<StripeBillingInvoice[]>;
   createConnectAccount(input: {
     merchantId: string;
     merchantName: string;
@@ -58,6 +61,26 @@ export interface StripePlatformPort {
     customerId: string;
     returnUrl: string;
   }): Promise<{ url: string }>;
+}
+
+export interface StripeBillingSubscription {
+  merchantId?: string;
+  customerId: string;
+  subscriptionId: string;
+  priceId?: string;
+  status: BillingSubscriptionStatus;
+  currentPeriodEnd?: string;
+  cancelAtPeriodEnd: boolean;
+}
+
+export interface StripeBillingInvoice {
+  id: string;
+  amountBrl: number;
+  periodStart: string;
+  periodEnd: string;
+  status: string;
+  createdAt: string;
+  invoiceUrl?: string;
 }
 
 export interface AsaasPlatformPort {

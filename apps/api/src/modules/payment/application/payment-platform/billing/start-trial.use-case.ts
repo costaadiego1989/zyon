@@ -13,9 +13,10 @@ export class StartTrialUseCase {
 
   async execute(merchantId: string) {
     const billing = await this.repository.getOrCreateTrial(merchantId, 14);
+    if (billing.stripeSubscriptionId || billing.asaasSubscriptionId) return billing;
     await this.repository.saveBilling({
       merchantId,
-      provider: "asaas",
+      provider: "stripe",
       planKey: "starter",
     });
     return billing;

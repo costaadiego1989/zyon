@@ -31,7 +31,7 @@ import {
   type PaymentPlatformRepository,
 } from "../domain/ports/payment-platform-repository.port.js";
 import { BillingPlanMeteringService } from "../domain/billing-plan-guard.js";
-import { assertProviderFeeCap, BILLING_PLANS } from "../domain/billing-plans.js";
+import { assertProviderFeeCap, merchantTransactionFeeCentsFor } from "../domain/billing-plans.js";
 
 export type CreatePaymentIntentRequest = {
   merchant_id: string;
@@ -187,17 +187,20 @@ export class CreatePaymentIntentUseCase {
     }
 
     const isStripeCard = method === "card" && stripeCardActive;
-    const usesAsaas = method !== "crypto" && !isStripeCard;
+    const mercadoPagoConnection = (method === "pix" || method === "boleto")
+      ? await this.platformConnections?.getConnection(merchantId, "mercadopago") : undefined;
+    const usesMercadoPago = mercadoPagoConnection?.status === "active";
+    const usesAsaas = method !== "crypto" && !isStripeCard && !usesMercadoPago;
     let stripeConnectAccountId: string | undefined;
 
     // Modelo iFood — DOIS fees:
     // 1) Buyer service fee (R$0,99 fixo, todos métodos): somado ao amount que o
     //    comprador paga. Receita da plataforma.
     // 2) Merchant transaction fee (fixo por plano): sai do repasse (payment-hold),
-    //    NÃO soma ao amount. Só é retido no split do Stripe (application_fee).
+    //    NÃO soma ao amount. É retido no split do provedor ao liquidar o pagamento.
     const buyerServiceFeeCents = readBuyerServiceFeeCents();
     const merchantFeeCents = this.billingMetering
-      ? BILLING_PLANS[await this.billingMetering.getEffectivePlan(merchantId)].transactionFeeCents
+      ? merchantTransactionFeeCentsFor(await this.billingMetering.getSubscription(merchantId))
       : 0;
 
     // application_fee (Stripe Connect): a Zyon retém buyer fee + merchant fee do
@@ -290,7 +293,7 @@ export class CreatePaymentIntentUseCase {
     await this.payments.saveIntent({ intent });
 
     let creditCardHolderInfo: any = undefined;
-    if (method === "card" && usesAsaas && session.customer) {
+    if ((usesAsaas || usesMercadoPago) && session.customer) {
       creditCardHolderInfo = {
         name: session.customer.fullName || "Comprador",
         email: session.customer.email || "",
@@ -312,11 +315,12 @@ export class CreatePaymentIntentUseCase {
         currency: intent.snapshot().currency,
         method,
         description: paymentDescription(merchantId, sessionId, commerceOrderId),
+        ...(method !== "crypto" ? { platformFeeCents: assertProviderFeeCap(buyerServiceFeeCents + merchantFeeCents, amountCents) } : {}),
         ...(isStripeCard
           ? { stripeConnectAccountId, platformFeeCents: stripeApplicationFeeCents }
-          : usesAsaas
+          : (usesAsaas || usesMercadoPago)
             ? {
-              asaasCustomerId: resolveAsaasCustomerForProvider(asaasCustomer),
+              ...(usesAsaas ? { asaasCustomerId: resolveAsaasCustomerForProvider(asaasCustomer) } : {}),
               creditCard: body.credit_card,
               creditCardHolderInfo,
               remoteIp: body.remote_ip

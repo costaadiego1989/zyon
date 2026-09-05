@@ -75,3 +75,26 @@ As URLs de retorno OAuth que apontavam para localhost ou ngrok foram ajustadas
 para os domínios de produção nas variáveis do Railway. Esses mesmos endereços
 precisam estar cadastrados nos painéis de cada provedor. A validação de deploy
 verifica inicialização, banco, Redis e CORS; não realiza cobranças ou envios reais.
+
+## Assinaturas e taxa do Free
+
+Todas as contas começam no Free com 14 dias sem taxa de transação do lojista.
+O fim do teste mantém o acesso ao Free e passa a aplicar R$2,99 por pagamento.
+A taxa é descontada no split do provedor; a taxa existente de R$0,99 do comprador
+continua separada. Stripe exige uma conta Connect, Asaas usa a carteira da
+plataforma e Mercado Pago exige a conexão OAuth do vendedor para `application_fee`.
+
+As assinaturas Growth (R$249/mês) e Scale (R$599/mês) usam Stripe Checkout.
+Configure `STRIPE_BILLING_PRICE_GROWTH`, `STRIPE_BILLING_PRICE_SCALE`,
+`STRIPE_BILLING_PORTAL_CONFIGURATION` e `MERCHANT_CONSOLE_URL`.
+O portal permite consultar faturas, atualizar o pagamento, trocar o plano e
+cancelar ao final do período. O webhook `/webhooks/stripe` precisa receber
+`checkout.session.completed`, `customer.subscription.created`,
+`customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`
+e `invoice.payment_failed`. O backend consulta a assinatura atual no Stripe
+antes de atualizar o acesso, inclusive quando um evento chega atrasado.
+
+No Asaas, `ASAAS_SANDBOX=false` seleciona a chave de produção e
+`ASAAS_PLATFORM_WALLET_ID` recebe o split. Conexões de lojista marcadas como teste
+usam o endpoint de sandbox e `ASAAS_PLATFORM_WALLET_ID_TEST`. Uma chave de sandbox
+válida é necessária para testar esse fluxo sem pagamentos reais.

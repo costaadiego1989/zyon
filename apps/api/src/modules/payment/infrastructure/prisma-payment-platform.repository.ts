@@ -123,7 +123,6 @@ export class PrismaPaymentPlatformRepository
         where: { merchantId: scopedMerchantId },
         data: {
           status: "starter",
-          trialEndsAt: null,
           currentPeriodEnd: null,
           cancelAtPeriodEnd: false,
         },
@@ -135,6 +134,8 @@ export class PrismaPaymentPlatformRepository
       data: {
         merchantId: scopedMerchantId,
         status: "trialing",
+        planKey: "starter",
+        provider: "stripe",
         trialEndsAt,
       },
     });
@@ -220,7 +221,6 @@ export class PrismaPaymentPlatformRepository
       },
       data: {
         status: "starter",
-        trialEndsAt: null,
         currentPeriodEnd: null,
         cancelAtPeriodEnd: false,
       },
@@ -249,7 +249,6 @@ export class PrismaPaymentPlatformRepository
       },
       data: {
         status: "starter",
-        trialEndsAt: null,
         currentPeriodEnd: null,
         cancelAtPeriodEnd: false,
       },

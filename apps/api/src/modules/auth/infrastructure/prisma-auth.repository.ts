@@ -56,9 +56,12 @@ export class PrismaAuthRepository implements AuthRepository {
         data: {
           id: input.merchantId,
           name: input.merchantName,
+          storeSettings: { registration_pending: true },
           billingSubscription: {
             create: {
               status: "trialing",
+              planKey: "starter",
+              provider: "stripe",
               trialEndsAt: new Date(Date.now() + 14 * 86_400_000)
             }
           },
@@ -110,10 +113,12 @@ export class PrismaAuthRepository implements AuthRepository {
         data: {
           id: input.merchantId,
           name: input.merchantName,
-          storeSettings: { oauth_registration_pending: true, owner_name: input.ownerName ?? "" },
+          storeSettings: { registration_pending: true, oauth_registration_pending: true, owner_name: input.ownerName ?? "" },
           billingSubscription: {
             create: {
               status: "trialing",
+              planKey: "starter",
+              provider: "stripe",
               trialEndsAt: new Date(Date.now() + 14 * 86_400_000)
             }
           },

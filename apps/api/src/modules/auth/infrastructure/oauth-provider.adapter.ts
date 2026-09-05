@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException, Logger } from "@nestjs/common";
+import { Injectable, InternalServerErrorException, Logger, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import type { OAuthProviderPort, OAuthUserProfile } from "../domain/ports/oauth-provider.port.js";
 
 @Injectable()
@@ -25,7 +25,7 @@ export class OAuthProviderAdapter implements OAuthProviderPort {
     }
 
     // Exchange code for access token
-    const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
+    const tokenRes = await this.request("https://github.com/login/oauth/access_token", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -39,19 +39,13 @@ export class OAuthProviderAdapter implements OAuthProviderPort {
       }),
     });
 
-    if (!tokenRes.ok) {
-      this.logger.error(`GitHub token exchange failed: ${tokenRes.status}`);
-      throw new InternalServerErrorException("GitHub OAuth token exchange failed");
-    }
-
     const tokenBody = (await tokenRes.json()) as { access_token?: string; error?: string };
-    if (tokenBody.error || !tokenBody.access_token) {
-      this.logger.error(`GitHub token error: ${tokenBody.error}`);
-      throw new InternalServerErrorException("GitHub OAuth token exchange failed");
+    if (!tokenRes.ok || tokenBody.error || !tokenBody.access_token) {
+      this.tokenError("GitHub", tokenRes.status, tokenBody.error);
     }
 
     // Fetch user profile
-    const userRes = await fetch("https://api.github.com/user", {
+    const userRes = await this.request("https://api.github.com/user", {
       headers: {
         Authorization: `Bearer ${tokenBody.access_token}`,
         Accept: "application/json",
@@ -70,10 +64,10 @@ export class OAuthProviderAdapter implements OAuthProviderPort {
       login: string;
     };
 
-    // GitHub may not return email on /user — fetch from /user/emails
-    let email = user.email;
-    if (!email) {
-      const emailsRes = await fetch("https://api.github.com/user/emails", {
+    // Account linking requires an explicitly verified provider email.
+    let email: string | null = null;
+    {
+      const emailsRes = await this.request("https://api.github.com/user/emails", {
         headers: {
           Authorization: `Bearer ${tokenBody.access_token}`,
           Accept: "application/json",
@@ -91,7 +85,7 @@ export class OAuthProviderAdapter implements OAuthProviderPort {
     }
 
     if (!email) {
-      throw new InternalServerErrorException("GitHub account has no verified email");
+      throw new UnauthorizedException({ code: "oauth_email_not_verified", message: "Confirme seu e-mail no GitHub antes de entrar." });
     }
 
     return {
@@ -112,7 +106,7 @@ export class OAuthProviderAdapter implements OAuthProviderPort {
     }
 
     // Exchange code for tokens
-    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+    const tokenRes = await this.request("https://oauth2.googleapis.com/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
@@ -124,22 +118,17 @@ export class OAuthProviderAdapter implements OAuthProviderPort {
       }),
     });
 
-    if (!tokenRes.ok) {
-      this.logger.error(`Google token exchange failed: ${tokenRes.status}`);
-      throw new InternalServerErrorException("Google OAuth token exchange failed");
-    }
-
     const tokenBody = (await tokenRes.json()) as {
       access_token?: string;
       error?: string;
     };
 
-    if (tokenBody.error || !tokenBody.access_token) {
-      throw new InternalServerErrorException("Google OAuth token exchange failed");
+    if (!tokenRes.ok || tokenBody.error || !tokenBody.access_token) {
+      this.tokenError("Google", tokenRes.status, tokenBody.error);
     }
 
     // Fetch user info
-    const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+    const userRes = await this.request("https://www.googleapis.com/oauth2/v2/userinfo", {
       headers: { Authorization: `Bearer ${tokenBody.access_token}` },
     });
 
@@ -150,12 +139,13 @@ export class OAuthProviderAdapter implements OAuthProviderPort {
     const user = (await userRes.json()) as {
       id: string;
       email: string;
+      verified_email?: boolean;
       name?: string;
       picture?: string;
     };
 
-    if (!user.email) {
-      throw new InternalServerErrorException("Google account has no email");
+    if (!user.email || user.verified_email !== true) {
+      throw new UnauthorizedException({ code: "oauth_email_not_verified", message: "Confirme seu e-mail no Google antes de entrar." });
     }
 
     return {
@@ -164,5 +154,25 @@ export class OAuthProviderAdapter implements OAuthProviderPort {
       avatarUrl: user.picture,
       providerId: user.id,
     };
+  }
+
+  private async request(url: string, init: RequestInit): Promise<Response> {
+    try {
+      return await fetch(url, { ...init, signal: AbortSignal.timeout(7_000) });
+    } catch {
+      throw new ServiceUnavailableException({ code: "oauth_provider_unavailable", message: "O provedor de login não respondeu. Inicie o login novamente." });
+    }
+  }
+
+  private tokenError(provider: string, status: number, error?: string): never {
+    const reason = error && /^[a-z_]+$/.test(error) ? error : "unknown";
+    this.logger.warn(`${provider} token exchange rejected: status=${status} reason=${reason}`);
+    if (reason === "invalid_grant" || reason === "bad_verification_code") {
+      throw new UnauthorizedException({ code: "oauth_code_expired", message: "Esta autorização expirou ou já foi usada. Clique em Tentar novamente e entre pelo provedor." });
+    }
+    if (reason === "invalid_client" || reason === "incorrect_client_credentials" || reason === "redirect_uri_mismatch") {
+      throw new ServiceUnavailableException({ code: "oauth_configuration_error", message: "O login deste provedor está temporariamente indisponível. Tente novamente mais tarde." });
+    }
+    throw new ServiceUnavailableException({ code: "oauth_provider_rejected", message: "O provedor não autorizou o login. Inicie uma nova tentativa." });
   }
 }

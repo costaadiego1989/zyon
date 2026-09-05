@@ -11,6 +11,27 @@ import type { CreateProviderPaymentInput, CreateProviderPaymentOutput, PaymentPr
 import { ValidateCartForPaymentUseCase } from "../../commerce/application/validate-cart-for-payment.use-case.js";
 import { SyncPendingOrderUseCase } from "../../commerce/application/sync-pending-order.use-case.js";
 import { InMemoryPendingCommerceOrderIndex } from "../../commerce/infrastructure/in-memory-pending-commerce-order-index.js";
+import { InMemoryPaymentPlatformRepository } from "../infrastructure/in-memory-payment-platform.repository.js";
+import type { BillingPlanMeteringService } from "../domain/billing-plan-guard.js";
+
+test("Mercado Pago receives the Free fee after expiry without adding it to the buyer total or requiring Asaas", async () => {
+  for (const expired of [false, true]) {
+    const checkout = new InMemoryCheckoutRepository();
+    await checkout.saveSession(checkoutSession({ customer: { email: "buyer@example.com" } }));
+    const connections = new InMemoryPaymentPlatformRepository();
+    await connections.saveConnection({ merchantId: "mrc_1", provider: "mercadopago", environment: "live", status: "active" });
+    const provider = new CapturingPaymentProvider();
+    const billing = { getSubscription: async () => ({ status: "trialing", planKey: "starter", trialEndsAt: new Date(Date.now() + (expired ? -86400000 : 86400000)).toISOString() }) } as unknown as BillingPlanMeteringService;
+    const useCase = new CreatePaymentIntentUseCase(checkout, checkout, new InMemoryPaymentRepository(checkout), provider, undefined, undefined, undefined, connections, undefined, undefined, billing);
+    const intent = await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "fee-test", method: "pix" });
+    assert.equal(provider.inputs[0]?.platformFeeCents, expired ? 398 : 99);
+    assert.equal(provider.inputs[0]?.asaasCustomerId, undefined);
+    assert.equal(provider.inputs[0]?.creditCardHolderInfo?.email, "buyer@example.com");
+    assert.equal(intent.amountCents, 33599); // R$300 cart + R$35 shipping + R$0.99 buyer fee.
+    await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "fee-test", method: "pix" });
+    assert.equal(provider.inputs.length, 1);
+  }
+});
 
 class CapturingPaymentProvider implements PaymentProviderPort {
   readonly inputs: CreateProviderPaymentInput[] = [];
@@ -173,7 +194,7 @@ test("CreatePaymentIntentUseCase charges cart total with selected shipping and d
     idempotency_key: "idem_total"
   });
 
-  assert.equal(intent.amountCents, 21000);
+  assert.equal(intent.amountCents, 21099); // Includes the existing buyer service fee.
 });
 
 test("CreatePaymentIntentUseCase rejects payment before selected shipping exists", async () => {
@@ -198,7 +219,7 @@ test("CreatePaymentIntentUseCase rejects payment before selected shipping exists
   );
 });
 
-test("CreatePaymentIntentUseCase rejects card when Stripe is not configured", async () => {
+test("CreatePaymentIntentUseCase routes card to the fallback provider when Stripe is not configured", async () => {
   const keys = [
     "STRIPE_SECRET_KEY_TEST",
     "STRIPE_PUBLISHABLE_KEY_TEST",
@@ -225,19 +246,15 @@ test("CreatePaymentIntentUseCase rejects card when Stripe is not configured", as
       provider
     );
 
-    await assert.rejects(
-      () =>
-        uc.execute({
+    await uc.execute({
           merchant_id: "mrc_1",
           session_id: "chk_1",
           idempotency_key: "idem_card_no_stripe",
           method: "card"
-        }),
-      (err: unknown) =>
-        err instanceof ConflictException &&
-        err.message.includes("stripe_provider_not_configured")
-    );
-    assert.equal(provider.inputs.length, 0);
+        });
+    assert.equal(provider.inputs.length, 1);
+    assert.equal(provider.inputs[0]?.stripeConnectAccountId, undefined);
+    assert.equal(provider.inputs[0]?.asaasCustomerId, "cus_fixture_1");
   } finally {
     for (const k of keys) {
       const v = backup[k];
@@ -264,7 +281,7 @@ test("CreatePaymentIntentUseCase allows zero-price selected shipping", async () 
     idempotency_key: "idem_free_shipping"
   });
 
-  assert.equal(intent.amountCents, 30000);
+  assert.equal(intent.amountCents, 30099);
 });
 
 test("CreatePaymentIntentUseCase validates commerce cart and creates pending order before provider payment", async () => {

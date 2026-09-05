@@ -58,7 +58,8 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
   constructor(
     private readonly apiBaseUrl: string,
     private readonly apiKey: string,
-    private readonly fetchImpl: typeof fetch
+    private readonly fetchImpl: typeof fetch,
+    private readonly platformWalletId?: string,
   ) {
     // Normalize: ASAAS_BASE_URL may already include the /v3 suffix (e.g.
     // https://www.asaas.com/api/v3). All methods build `${base}/v3/...`, so strip
@@ -221,6 +222,10 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
     if (billingType === "CREDIT_CARD" && input.creditCard) {
       const creditCardToken = await this.tokenizeCreditCard(input);
       body.creditCardToken = creditCardToken;
+    }
+
+    if (this.platformWalletId && (input.platformFeeCents ?? 0) > 0) {
+      body.split = [{ walletId: this.platformWalletId, fixedValue: majorUnitsFromCents(input.platformFeeCents!) }];
     }
 
     const res = await this.fetchImpl(`${base}/v3/payments`, {

@@ -132,6 +132,8 @@ export type BillingPlanCard = {
   key: "starter" | "growth" | "scale" | string;
   name: string;
   priceBrl: number;
+  transactionFeeCents?: number;
+  limits?: Record<string, number | null>;
   trialDays: number;
   badge?: string | null;
   recommended?: boolean;
@@ -152,6 +154,11 @@ export type BillingSubscription = {
   cancel_at_period_end: boolean;
   trial_end: string | null;
   trial_ends_at?: string | null;
+  trial_expired?: boolean;
+  trial_days_remaining?: number;
+  has_billing_customer?: boolean;
+  has_subscription?: boolean;
+  billing_provider?: string;
   usage?: {
     period_start?: string;
     orders_current?: number | null;

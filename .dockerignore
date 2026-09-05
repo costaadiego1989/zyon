@@ -33,3 +33,5 @@ node_modules
 **/.next
 **/.vercel
 **/*.tsbuildinfo
+**/.test-oauth
+**/.test-billing

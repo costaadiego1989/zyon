@@ -65,6 +65,8 @@ export interface BillingUsageSnapshot {
 }
 
 export interface BillingSubscriptionWithPlanSnapshot extends BillingSubscriptionSnapshot {
+  trialExpired: boolean;
+  trialDaysRemaining: number;
   plan: BillingPlan;
   planName: string;
   monthlyPriceBrl: number;

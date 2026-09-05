@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import {
   STRIPE_PLATFORM_PORT,
   BILLING_CONFIG_PORT,
@@ -41,6 +41,8 @@ export class CreateBillingCheckoutUseCase {
     email: string;
     plan: BillingPlan;
   }): Promise<{ url: string; sessionId: string }> {
+    if (input.plan !== "growth" && input.plan !== "scale") throw new BadRequestException("billing_paid_plan_required");
+    const priceId = this.billingConfig.priceId(input.plan);
     const profile = await this.merchants.getProfile(input.merchantId);
     if (!profile) throw new NotFoundException("merchant_not_found");
     const billing = await this.repository.getOrCreateTrial(
@@ -48,6 +50,9 @@ export class CreateBillingCheckoutUseCase {
       14,
     );
     await scheduleTrialExpiration(this.trialJobs, billing);
+    if ((billing.stripeSubscriptionId || billing.asaasSubscriptionId) && ["active", "trialing", "past_due", "unpaid", "incomplete", "paused"].includes(billing.status)) {
+      throw new ConflictException("billing_subscription_exists_use_portal");
+    }
     let customerId = billing.stripeCustomerId;
     if (!customerId) {
       customerId = (
@@ -62,14 +67,13 @@ export class CreateBillingCheckoutUseCase {
         stripeCustomerId: customerId,
       });
     }
-    const priceId = this.billingConfig.priceId(input.plan);
     const consoleUrl = this.billingConfig.consoleUrl();
     return this.stripe.createSubscriptionCheckout({
       merchantId: input.merchantId,
       customerId,
       priceId,
-      successUrl: `${consoleUrl}/settings/billing/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancelUrl: `${consoleUrl}/settings/billing`,
+      successUrl: `${consoleUrl}/?billing=success#billing-plans`,
+      cancelUrl: `${consoleUrl}/?billing=cancelled#billing-plans`,
     });
   }
 }

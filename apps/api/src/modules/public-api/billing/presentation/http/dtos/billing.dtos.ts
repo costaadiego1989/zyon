@@ -37,6 +37,16 @@ export class PlanResponse {
 }
 
 export class SubscriptionResponse {
+  plan!: string;
+  trial_end?: string;
+  trial_expired!: boolean;
+  trial_days_remaining!: number;
+  billing_provider!: string;
+  has_billing_customer!: boolean;
+  has_subscription!: boolean;
+  limits!: Record<string, number | null>;
+  features!: Record<string, boolean>;
+  usage?: Record<string, number | string | null>;
   @ApiProperty({ example: 'mch_abc123' })
   merchant_id!: string;
 

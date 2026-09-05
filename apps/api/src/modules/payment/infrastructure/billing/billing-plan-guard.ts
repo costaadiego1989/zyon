@@ -64,6 +64,7 @@ export class BillingPlanMeteringService {
       stripeCustomerId: row.stripeCustomerId ?? undefined,
       stripeSubscriptionId: row.stripeSubscriptionId ?? undefined,
       stripePriceId: row.stripePriceId ?? undefined,
+      planKey: row.planKey === "growth" || row.planKey === "scale" ? row.planKey : "starter",
       status: toBillingStatus(row.status),
       trialEndsAt: row.trialEndsAt?.toISOString(),
       currentPeriodEnd: row.currentPeriodEnd?.toISOString(),

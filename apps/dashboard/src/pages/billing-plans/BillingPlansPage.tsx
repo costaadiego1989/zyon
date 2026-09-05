@@ -2,42 +2,10 @@ import React from "react";
 import { useBillingPlansPage } from "./useBillingPlansPage.js";
 import { CurrentPlanCard } from "./components/CurrentPlanCard.js";
 import { UsageMeters, type UsageMeter } from "./components/UsageMeters.js";
-import { PlanCard, type PlanDef } from "./components/PlanCard.js";
+import { PlanCard } from "./components/PlanCard.js";
 import "./billing-plans-page.css";
 
-const PLANS: PlanDef[] = [
-  {
-    key: "starter",
-    name: "Starter",
-    price: 0,
-    fee: "R$ 1,99",
-    limits: { orders: 100, sessions: 100, ai: 100, connections: 1 },
-    features: [],
-  },
-  {
-    key: "growth",
-    name: "Growth",
-    price: 249,
-    fee: "R$ 1,49",
-    limits: { orders: 500, sessions: 1000, ai: 5000, connections: 2 },
-    features: ["Voice checkout", "Face biometry", "Crypto payments"],
-    recommended: true,
-  },
-  {
-    key: "scale",
-    name: "Scale",
-    price: 599,
-    fee: "R$ 0,99",
-    limits: { orders: -1, sessions: -1, ai: -1, connections: -1 },
-    features: [
-      "Voice checkout",
-      "Face biometry",
-      "Crypto payments",
-      "White-label",
-      "10 membros",
-    ],
-  },
-];
+
 
 const PLAN_ORDER = ["starter", "growth", "scale"] as const;
 
@@ -82,7 +50,7 @@ export function BillingPlansPage() {
   if (!sub) return null;
 
   const currentPlanIndex = getPlanIndex(vm.currentPlan);
-  const currentPlanDef = PLANS.find((p) => p.key === vm.currentPlan);
+  const currentPlanDef = vm.plans.find((p) => p.key === vm.currentPlan);
 
   const meters: UsageMeter[] = [
     {
@@ -174,17 +142,23 @@ export function BillingPlansPage() {
         </div>
       )}
 
+      {vm.error && <p role="alert" className="billing-plans__error-text">{vm.error}</p>}
+      {new URLSearchParams(window.location.search).get("billing") === "success" && (
+        <p role="status">Pagamento enviado. A assinatura será atualizada após a confirmação. <button type="button" onClick={() => void vm.refresh()}>Atualizar</button></p>
+      )}
       {/* Current plan + Usage */}
       <div className="billing-plans__top-grid">
         <CurrentPlanCard
           planName={sub.plan_name ?? currentPlanDef?.name ?? sub.plan}
           monthlyPrice={sub.monthly_price_brl ?? currentPlanDef?.price ?? 0}
           transactionFeeCents={sub.transaction_fee_cents ?? 0}
-          nextBillingDate={sub.current_period_end}
+          nextBillingDate={sub.status === "trialing" ? sub.trial_end : sub.current_period_end}
           daysRemaining={vm.daysRemaining}
           status={sub.status}
           cancelAtPeriodEnd={sub.cancel_at_period_end}
           onManage={vm.manageSubscription}
+          canManage={Boolean(sub.has_billing_customer)}
+          isLoading={vm.upgrading}
         />
         <UsageMeters meters={meters} />
       </div>
@@ -202,7 +176,7 @@ export function BillingPlansPage() {
           PLANOS DISPONÍVEIS
         </div>
         <div className="billing-plans__plans-grid">
-          {PLANS.map((plan) => {
+          {vm.plans.map((plan) => {
             const planIndex = getPlanIndex(plan.key);
             const isCurrent = plan.key === vm.currentPlan;
             const isDowngrade = planIndex < currentPlanIndex;

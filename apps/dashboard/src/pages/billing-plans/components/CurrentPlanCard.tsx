@@ -12,6 +12,7 @@ interface CurrentPlanCardProps {
   cancelAtPeriodEnd: boolean;
   onManage: () => void;
   isLoading?: boolean;
+  canManage?: boolean;
 }
 
 export function CurrentPlanCard({
@@ -24,6 +25,7 @@ export function CurrentPlanCard({
   cancelAtPeriodEnd,
   onManage,
   isLoading = false,
+  canManage = true,
 }: CurrentPlanCardProps) {
   const statusColor =
     status === "active"
@@ -37,7 +39,7 @@ export function CurrentPlanCard({
       ? "Ativo"
       : status === "trialing"
         ? "Em teste"
-        : "Inativo";
+        : status === "starter" ? "Free" : status === "past_due" ? "Pagamento pendente" : "Inativo";
 
   return (
     <div
@@ -118,7 +120,7 @@ export function CurrentPlanCard({
         <div style={{ padding: "12px", borderRadius: 8, background: "var(--surface-1)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <div style={{ font: "11px var(--font-mono)", color: "var(--color-text-muted)" }}>
-              PRÓXIMA COBRANÇA
+              {status === "trialing" ? "FIM DO PERÍODO GRÁTIS" : "PRÓXIMA COBRANÇA"}
             </div>
             <div style={{ font: "13px var(--font-sans)", color: "var(--color-text)", fontWeight: 500, marginTop: 2 }}>
               {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(new Date(nextBillingDate))}
@@ -153,7 +155,7 @@ export function CurrentPlanCard({
       )}
 
       {/* Actions */}
-      <div style={{ display: "flex", gap: 12 }}>
+      {canManage && <div style={{ display: "flex", gap: 12 }}>
         <Button
           variant="outline"
           arrow
@@ -163,7 +165,7 @@ export function CurrentPlanCard({
         >
           Gerenciar assinatura
         </Button>
-      </div>
+      </div>}
     </div>
   );
 }

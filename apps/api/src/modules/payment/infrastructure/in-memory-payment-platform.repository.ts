@@ -88,7 +88,6 @@ export class InMemoryPaymentPlatformRepository
         const expired = {
           ...existing,
           status: "starter" as const,
-          trialEndsAt: undefined,
           currentPeriodEnd: undefined,
           cancelAtPeriodEnd: false,
           updatedAt: new Date().toISOString(),
@@ -102,6 +101,8 @@ export class InMemoryPaymentPlatformRepository
     const snapshot: BillingSubscriptionSnapshot = {
       merchantId,
       status: "trialing",
+      planKey: "starter",
+      provider: "stripe",
       trialEndsAt: new Date(
         now.getTime() + trialDays * 86_400_000,
       ).toISOString(),
@@ -151,7 +152,6 @@ export class InMemoryPaymentPlatformRepository
     this.billing.set(merchantId, {
       ...billing,
       status: "starter",
-      trialEndsAt: undefined,
       currentPeriodEnd: undefined,
       cancelAtPeriodEnd: false,
       updatedAt: now.toISOString(),
@@ -175,7 +175,6 @@ export class InMemoryPaymentPlatformRepository
       this.billing.set(merchantId, {
         ...billing,
         status: "starter",
-        trialEndsAt: undefined,
         currentPeriodEnd: undefined,
         cancelAtPeriodEnd: false,
         updatedAt: now.toISOString(),

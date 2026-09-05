@@ -149,12 +149,14 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
       // Use sandbox URL when the merchant connection is in test environment
       const isSandbox = connection?.environment === "test";
       const baseUrl = isSandbox
-        ? (process.env.ASAAS_BASE_URL_SANDBOX?.trim() || "https://sandbox.asaas.com/api")
+        ? (process.env.ASAAS_BASE_URL_SANDBOX?.trim() || "https://api-sandbox.asaas.com")
         : this.asaasBaseUrl;
+      const platformWallet = isSandbox ? process.env.ASAAS_PLATFORM_WALLET_ID_TEST : process.env.ASAAS_PLATFORM_WALLET_ID;
       return new AsaasPaymentAdapter(
         baseUrl,
         tenantKey,
         this.fetchImpl,
+        connection?.walletId === platformWallet ? undefined : platformWallet,
       );
     }
     return this.asaas;
@@ -171,17 +173,27 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     if (this.platformConnections && connection?.status !== "active") {
       return null;
     }
-    const tenantKey =
+    const rawCredentials =
       await this.platformConnections?.getConnectionSecret(
         merchantId,
         "mercadopago",
       );
+    let tenantKey = rawCredentials;
+    let oauthSeller = false;
+    if (rawCredentials?.trim().startsWith("{")) {
+      try {
+        const credentials = JSON.parse(rawCredentials) as { accessToken?: string };
+        tenantKey = credentials.accessToken;
+        oauthSeller = Boolean(tenantKey);
+      } catch { tenantKey = undefined; }
+    }
     if (tenantKey && this.mercadopagoBaseUrl) {
       return new MercadoPagoPaymentAdapter(
         this.mercadopagoBaseUrl,
         tenantKey,
         "",
         this.fetchImpl,
+        oauthSeller,
       );
     }
     return this.mercadopago;

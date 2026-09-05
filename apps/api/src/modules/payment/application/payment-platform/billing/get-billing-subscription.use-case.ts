@@ -7,7 +7,7 @@ import {
   PAYMENT_PLATFORM_REPOSITORY,
   type PaymentPlatformRepository,
 } from "../../../domain/ports/payment-platform-repository.port.js";
-import { BILLING_PLANS, BUYER_SERVICE_FEE_CENTS, effectiveBillingPlan } from "../../../domain/billing-plans.js";
+import { BILLING_PLANS, BUYER_SERVICE_FEE_CENTS, effectiveBillingPlan, freeTrialState, merchantTransactionFeeCentsFor } from "../../../domain/billing-plans.js";
 import { BillingPlanMeteringService } from "../../../domain/billing-plan-guard.js";
 import type { BillingSubscriptionWithPlanSnapshot } from "../../../domain/payment-platform.types.js";
 import { scheduleTrialExpiration } from "../shared.js";
@@ -28,13 +28,16 @@ export class GetBillingSubscriptionUseCase {
     await scheduleTrialExpiration(this.trialJobs, subscription);
     const plan = effectiveBillingPlan(subscription);
     const config = BILLING_PLANS[plan];
+    const trial = freeTrialState(subscription);
     const usage = await this.metering?.getUsage(merchantId);
     return {
       ...subscription,
       plan,
       planName: config.name,
       monthlyPriceBrl: config.monthlyPriceBrl,
-      transactionFeeCents: config.transactionFeeCents,
+      transactionFeeCents: merchantTransactionFeeCentsFor(subscription),
+      trialExpired: trial.expired,
+      trialDaysRemaining: trial.daysRemaining,
       buyerServiceFeeCents: BUYER_SERVICE_FEE_CENTS,
       limits: config.limits,
       features: config.features,

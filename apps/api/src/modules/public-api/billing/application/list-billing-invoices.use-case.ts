@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { PrismaClient } from '@prisma/client';
 import { PRISMA_CLIENT } from '../../../../shared/persistence/persistence.module.js';
+import { STRIPE_PLATFORM_PORT, type StripePlatformPort } from '../../../payment/domain/ports/payment-platform-provider.port.js';
 
 export interface BillingInvoice {
   id: string;
@@ -14,7 +15,10 @@ export interface BillingInvoice {
 
 @Injectable()
 export class ListBillingInvoicesUseCase {
-  constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    @Inject(STRIPE_PLATFORM_PORT) private readonly stripe: StripePlatformPort,
+  ) {}
 
   async execute(merchantId: string): Promise<BillingInvoice[]> {
     const subscription = await this.prisma.merchantBillingSubscription.findUnique({
@@ -25,8 +29,6 @@ export class ListBillingInvoicesUseCase {
       return [];
     }
 
-    // Placeholder: In production, this would query Stripe API for invoices.
-    // For now, return empty array — future integrations will populate via Stripe webhooks.
-    return [];
+    return this.stripe.listBillingInvoices(subscription.stripeCustomerId);
   }
 }

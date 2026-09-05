@@ -299,6 +299,9 @@ import {
     PaymentEventPublisher,
     // Billing subscription lifecycle — consumed by PublicApiBillingModule's controller.
     GetBillingSubscriptionUseCase,
+    CreateBillingCheckoutUseCase,
+    CreateBillingPortalUseCase,
+    STRIPE_PLATFORM_PORT,
     StartTrialUseCase,
     SubscribeToPlanUseCase,
     ChangeSubscriptionPlanUseCase,

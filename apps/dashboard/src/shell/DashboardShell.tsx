@@ -5,6 +5,7 @@ import { NAV_ITEMS, NAV_SECTIONS, visibleItemsForPlan, type TabKey } from "./nav
 import { resolveDashboardApiBaseUrl, type MerchantProfile as MerchantDashboardProfile } from "../api-client.js";
 import { dashboardFetch } from "../api/http/client.js";
 import { ToastContainer } from "../components/Toast.js";
+import { FreeTrialNotice } from "../pages/billing-plans/FreeTrialNotice.js";
 import { PlanProvider } from "../components/FeatureGate.js";
 import { PremiumFeatureGate } from "../components/PremiumFeatureGate.js";
 import { NotificationBell, type NotificationItem } from "../components/NotificationBell.js";
@@ -524,6 +525,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
           </div>
         </div>
         <section style={{ flex: 1, overflowY: "auto", padding: "48px 32px 60px", scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.06) transparent" }}>
+          <FreeTrialNotice onViewPlans={() => changeTab("billing-plans")} />
           <PageErrorBoundary key={tab}>
             <Suspense fallback={<LoadingFallback />}>
             {tab === "onboarding" ? (
