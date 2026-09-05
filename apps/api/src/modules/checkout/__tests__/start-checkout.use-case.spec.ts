@@ -5,13 +5,34 @@ import type { CheckoutSettingsPort } from "../domain/ports/checkout-settings.por
 import type { AgentContextPort } from "../domain/ports/agent-context.port.js";
 import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-memory-checkout.repository.js";
 import { startCheckoutRequest } from "./checkout-test-fixtures.js";
-import { StartCheckoutUseCase } from "../application/use-cases/start-checkout.use-case.js";
+import { StartCheckoutUseCase as ProductionStartCheckoutUseCase } from "../application/use-cases/start-checkout.use-case.js";
 import { CheckoutCustomerService } from "../application/services/checkout-customer.service.js";
 import { OtpService } from "../application/services/otp.service.js";
 import { BuyerRecognitionService } from "../application/services/buyer-recognition.service.js";
 import { BuyerAccountPersistenceService } from "../application/services/buyer-account-persistence.service.js";
 import { InMemoryBuyerAccountRepository } from "../../buyer-account/infrastructure/in-memory-buyer-account.repository.js";
 import { BuyerAccount } from "../../buyer-account/domain/entities/buyer-account.entity.js";
+
+// These orchestration tests use a server catalog fixture. The real authority,
+// including forged browser amounts, is exercised in checkout-trust-boundary.spec.ts.
+class StartCheckoutUseCase extends ProductionStartCheckoutUseCase {
+  constructor(...args: ConstructorParameters<typeof ProductionStartCheckoutUseCase>) {
+    args[15] = { async resolve(_merchant: string, submitted: import("@zyon/shared-types").Cart) {
+      const catalog = {
+        kit: { name: "Kit", price: 300, cost: 120 },
+        "ZYON-SHIRT-001": { name: "Camiseta Zyon Dev", price: 129.9 },
+        "bag-001": { name: "Bolsa Executiva Couro Safiano", price: 449.9, cost: 210 },
+      };
+      const items = submitted.items.map(({ sku, quantity }) => {
+        const product = catalog[sku as keyof typeof catalog];
+        if (!product) throw new Error("unknown_fixture_sku");
+        return { sku, quantity, ...product };
+      });
+      return { currency: "BRL", items, total: Math.round(items.reduce((sum, item) => sum + item.price * item.quantity, 0) * 100) / 100 };
+    } } as never;
+    super(...args);
+  }
+}
 
 function returningBuyerAccount(): BuyerAccount {
   return new BuyerAccount({
@@ -66,7 +87,7 @@ test("StartCheckoutUseCase creates session, records start event, and appends out
   assert.equal(repository.listOutbox("mrc_1")[0]?.event_type, "checkout.session.started");
 });
 
-test("StartCheckoutUseCase reuses global user only inside the same merchant", async () => {
+test("StartCheckoutUseCase keeps unverified email hints anonymous in every new session", async () => {
   const repository = new InMemoryCheckoutRepository();
   const useCase = new StartCheckoutUseCase(repository, repository, repository);
 
@@ -74,7 +95,7 @@ test("StartCheckoutUseCase reuses global user only inside the same merchant", as
   const second = await useCase.execute(startCheckoutRequest({ merchant_id: "mrc_1", session_id: "chk_2" }));
   const third = await useCase.execute(startCheckoutRequest({ merchant_id: "mrc_2", session_id: "chk_3" }));
 
-  assert.equal(first.global_user_id, second.global_user_id);
+  assert.notEqual(first.global_user_id, second.global_user_id);
   assert.notEqual(first.global_user_id, third.global_user_id);
 });
 
@@ -255,17 +276,17 @@ test("StartCheckoutUseCase returns enterprise experience from merchant, cart, sh
   assert.equal(response.experience.items[0]?.name, "Bolsa Executiva Couro Safiano");
   assert.equal(response.experience.items[0]?.line_total, 899.8);
   assert.equal(response.experience.totals.subtotal, 899.8);
-  assert.equal(response.experience.totals.shipping, 29.9);
-  assert.equal(response.experience.totals.total, 929.7);
+  assert.equal(response.experience.totals.shipping, 0);
+  assert.equal(response.experience.totals.total, 899.8);
   assert.ok(response.experience.copy.headline.includes("Northstar Atelier"));
   assert.equal(response.experience.stage, "data_collection");
-  assert.ok(response.experience.copy.quick_replies.includes("Vão me mandar SPAM?"));
+  assert.ok(response.experience.copy.quick_replies.includes("Mandam rastreio por WhatsApp?"));
   assert.equal(response.experience.brand.theme.accentColor, "#FF0066");
   assert.equal(response.experience.brand.theme.fontFamily, "Manrope, system-ui, sans-serif");
   assert.equal(response.experience.brand.logo_url, "https://cdn.example.com/northstar-logo.png");
 });
 
-test("StartCheckoutUseCase hydrates returning buyer from embed email hint and opens shipping stage", async () => {
+test("StartCheckoutUseCase does not hydrate a returning buyer before current-session verification", async () => {
   const repository = new InMemoryCheckoutRepository();
   const buyerAccounts = new InMemoryBuyerAccountRepository();
   await buyerAccounts.save(returningBuyerAccount());
@@ -293,12 +314,12 @@ test("StartCheckoutUseCase hydrates returning buyer from embed email hint and op
   );
 
   const session = await repository.getSession("mrc_1", "chk_embed_returning");
-  assert.equal(session?.customer?.recognized_buyer, true);
-  assert.equal(session?.customer?.email_verified, true);
-  assert.equal(session?.customer?.fullName, "Diego Costa");
-  assert.equal(session?.customer?.cpf, "05178178700");
-  assert.equal(session?.customer?.phone_verified, true);
+  assert.equal(session?.customer?.recognized_buyer, undefined);
+  assert.equal(session?.customer?.email_verified, undefined);
+  assert.equal(session?.customer?.fullName, undefined);
+  assert.equal(session?.customer?.cpf, undefined);
+  assert.equal(session?.customer?.phone_verified, undefined);
   assert.ok(!session?.customer?.otp_code);
-  assert.equal(response.experience.stage, "shipping");
-  assert.equal(response.global_user_id, "buyer_start_hydrate");
+  assert.equal(response.experience.stage, "data_collection");
+  assert.notEqual(response.global_user_id, "buyer_start_hydrate");
 });

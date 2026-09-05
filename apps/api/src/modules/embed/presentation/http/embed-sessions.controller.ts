@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Inject,
+  Optional,
   Post,
   Req,
   UseGuards,
@@ -28,7 +29,7 @@ import {
 import { IssueEmbedSessionUseCase } from "../../application/issue-embed-session.use-case.js";
 import { Idempotent } from "../../../../shared/http/idempotency/idempotent.decorator.js";
 import { currentEmbedIssuer, EmbedSessionIssuerGuard } from "./embed-session-issuer.guard.js";
-import { ResolveInstallationForEmbedUseCase } from "../../../installations/application/installation.use-cases.js";
+import { ListInstallationsUseCase, ResolveInstallationForEmbedUseCase } from "../../../installations/application/installation.use-cases.js";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 
 class IssueEmbedSessionDto {
@@ -75,6 +76,7 @@ export class EmbedSessionsController {
     private readonly issue: IssueEmbedSessionUseCase,
     private readonly resolveInstallation: ResolveInstallationForEmbedUseCase,
     @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository,
+    @Optional() private readonly listInstallations?: ListInstallationsUseCase,
   ) {}
 
   @Post()
@@ -120,11 +122,29 @@ export class EmbedSessionsController {
       throw new BadRequestException("merchant_id_is_credential_derived");
     }
     const issuer = currentEmbedIssuer(request as never);
-    const ttl = typeof body?.ttl_seconds === "number" && Number.isFinite(body.ttl_seconds) ? body.ttl_seconds : 900;
-    const resolved = body.installation_id
+    let ttl = typeof body?.ttl_seconds === "number" && Number.isFinite(body.ttl_seconds) ? body.ttl_seconds : 900;
+    let installationId = body.installation_id;
+    if (issuer.type === "internal_service") {
+      // This credential is delegated by a public storefront endpoint. A registered
+      // installation, not caller-selected tenant/origin alone, authorizes that context.
+      if (!body.allowed_origin) throw new BadRequestException("public_embed_origin_required");
+      if (body.cart_ref !== undefined) throw new BadRequestException("public_embed_cart_ownership_required");
+      ttl = Math.min(ttl, 900);
+      if (!installationId) {
+        if (!this.listInstallations) throw new BadRequestException("public_embed_installation_required");
+        const installations = await this.listInstallations.execute(issuer.merchantId, 200);
+        const matches = installations.data.filter((installation) =>
+          installation.status === "active" && installation.environment === issuer.environment &&
+          installation.allowedOrigins.includes(body.allowed_origin!),
+        );
+        if (matches.length !== 1 || installations.hasMore) throw new BadRequestException("public_embed_installation_required");
+        installationId = matches[0]!.id;
+      }
+    }
+    const resolved = installationId
       ? await this.resolveInstallation.execute({
           merchantId: issuer.merchantId,
-          installationId: body.installation_id,
+          installationId,
           requestedOrigin: body.allowed_origin,
           credentialEnvironment: issuer.environment,
         })

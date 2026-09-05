@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { ConversationPort } from "../domain/ports/conversation.port.js";
 import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-memory-checkout.repository.js";
-import { StartCheckoutUseCase } from "../application/use-cases/start-checkout.use-case.js";
+import { StartCheckoutTestHarness as StartCheckoutUseCase } from "./start-checkout-test-harness.js";
 import { SendChatMessageUseCase } from "../application/use-cases/send-chat-message.use-case.js";
 import { CheckoutCustomerService } from "../application/services/checkout-customer.service.js";
 import { CheckoutShippingService } from "../application/services/checkout-shipping.service.js";

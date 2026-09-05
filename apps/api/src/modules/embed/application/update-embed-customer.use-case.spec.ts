@@ -15,6 +15,45 @@ class MockWebhookDispatcher {
 }
 
 describe("UpdateEmbedCustomerUseCase", () => {
+  it("changing a verified email clears identity, challenge, profile and freight authority", async () => {
+    const repo = new InMemoryCheckoutRepository();
+    await repo.saveSession(checkoutSession({
+      globalUserId: "verified-buyer",
+      customer: {
+        email: "verified@example.com", email_verified: true, otp_code: "123456",
+        recognized_buyer: true, isReturning: true, externalCustomerId: "customer-1", asaasCustomerId: "cus_1",
+        phone: "11999999999", phone_verified: true, phone_otp_code: "654321",
+        address: { street: "Private address" }, address_verified: true,
+      },
+    }));
+    const useCase = new UpdateEmbedCustomerUseCase(repo, new MockWebhookPublisher() as never, new MockWebhookDispatcher() as never);
+    await useCase.execute({ merchantId: "mrc_1", sessionId: "chk_1", customer: {
+      email: "other@example.com", fullName: "Other buyer", cpf: "12345678900", phone: "11999999999",
+    } });
+    const stored = repo.getSession("mrc_1", "chk_1")!;
+    assert.notEqual(stored.globalUserId, "verified-buyer");
+    assert.equal(stored.customer?.email_verified, false);
+    assert.equal(stored.customer?.phone_verified, false);
+    assert.equal(stored.customer?.otp_code, "");
+    assert.equal(stored.customer?.address, undefined);
+    assert.equal(stored.customer?.asaasCustomerId, undefined);
+    assert.equal(stored.customer?.externalCustomerId, undefined);
+    assert.equal(stored.shipping, undefined);
+  });
+
+  it("a normalized unchanged verified email retains its proof and buyer identity", async () => {
+    const repo = new InMemoryCheckoutRepository();
+    await repo.saveSession(checkoutSession({ customer: { email: "buyer@example.com", email_verified: true, phone: "11999999999", phone_verified: true } }));
+    const useCase = new UpdateEmbedCustomerUseCase(repo, new MockWebhookPublisher() as never, new MockWebhookDispatcher() as never);
+    await useCase.execute({ merchantId: "mrc_1", sessionId: "chk_1", customer: {
+      email: " BUYER@EXAMPLE.COM ", fullName: "Buyer", cpf: "12345678900", phone: "11888888888",
+    } });
+    const stored = repo.getSession("mrc_1", "chk_1")!;
+    assert.equal(stored.globalUserId, "usr_1");
+    assert.equal(stored.customer?.email_verified, true);
+    assert.equal(stored.customer?.phone_verified, false);
+  });
+
   it("persists customer data and emits funnel events", async () => {
     const repo = new InMemoryCheckoutRepository();
     const session = checkoutSession({ merchantId: "mrc_a", sessionId: "chk_a" });

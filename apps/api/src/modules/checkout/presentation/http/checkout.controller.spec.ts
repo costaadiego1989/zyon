@@ -16,7 +16,7 @@ import { EvaluateShippingUseCase } from "../../application/use-cases/evaluate-sh
 import { GetCheckoutSessionUseCase } from "../../application/use-cases/get-checkout-session.use-case.js";
 import { GetDecisionUseCase } from "../../application/use-cases/get-decision.use-case.js";
 import { SendChatMessageUseCase } from "../../application/use-cases/send-chat-message.use-case.js";
-import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
+import { StartCheckoutTestHarness as StartCheckoutUseCase } from "../../__tests__/start-checkout-test-harness.js";
 import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-checkout-event.use-case.js";
 import { UpdateOrderTrackingUseCase } from "../../application/use-cases/update-order-tracking.use-case.js";
 import { CheckoutController } from "./checkout.controller.js";
@@ -75,6 +75,9 @@ test("CheckoutController supports the checkout closure flow without crossing ten
     },
     shipping: { customerPrice: 35, realCost: 37, region: "SP" }
   });
+  // A quote is a server-side result; browser-supplied freight is discarded at start.
+  const quoted = repository.getSession("mrc_1", started.session_id)!;
+  repository.saveSession({ ...quoted, shipping: { customerPrice: 35, realCost: 37, region: "SP" } });
   const tracked = await controller.track({
     merchant_id: "mrc_1",
     session_id: started.session_id,

@@ -13,7 +13,7 @@ import { GetCheckoutSessionUseCase } from "../../application/use-cases/get-check
 import { GetDecisionUseCase } from "../../application/use-cases/get-decision.use-case.js";
 import { GetMerchantRulesUseCase, UpdateMerchantRulesUseCase } from "../../application/use-cases/dashboard.use-cases.js";
 import { SendChatMessageUseCase } from "../../application/use-cases/send-chat-message.use-case.js";
-import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
+import { StartCheckoutTestHarness as StartCheckoutUseCase } from "../../__tests__/start-checkout-test-harness.js";
 import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-checkout-event.use-case.js";
 import { CheckoutCustomerService } from "../../application/services/checkout-customer.service.js";
 import { CheckoutShippingService } from "../../application/services/checkout-shipping.service.js";

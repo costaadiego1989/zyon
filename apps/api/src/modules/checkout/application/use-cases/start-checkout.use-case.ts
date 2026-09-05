@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Logger, Optional, ServiceUnavailableException } from "@nestjs/common";
 import type {
   CheckoutSession,
   StartCheckoutRequest,
@@ -31,6 +31,8 @@ import {
 } from "../../../intent-memory/domain/ports/intent-memory-repository.port.js";
 import { BuyerIntentMemoryConsentEntity } from "../../../intent-memory/domain/entities/buyer-intent-memory-consent.entity.js";
 import { HoldoutGroupService } from "../../../revenue-lift/domain/services/holdout-group.service.js";
+import { CheckoutCartAuthorityService } from "../services/checkout-cart-authority.service.js";
+import { unverifiedCustomerHints } from "../services/checkout-input-policy.js";
 
 @Injectable()
 export class StartCheckoutUseCase {
@@ -51,36 +53,28 @@ export class StartCheckoutUseCase {
     @Optional() private readonly holdoutGroupService?: HoldoutGroupService,
     @Optional() @Inject(INTENT_MEMORY_REPOSITORY) private readonly intentMemory?: IntentMemoryRepositoryPort,
     @Optional() @Inject(BUYER_INTENT_CONSENT_REPOSITORY) private readonly intentConsent?: BuyerIntentConsentRepositoryPort,
-    @Optional() @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly buyerAccount?: BuyerAccountRepository
+    @Optional() @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly buyerAccount?: BuyerAccountRepository,
+    @Optional() private readonly cartAuthority?: CheckoutCartAuthorityService
   ) { }
 
   async execute(input: StartCheckoutRequest): Promise<StartCheckoutResponse> {
+    if (typeof input.merchant_id !== "string" || !input.merchant_id.trim()) {
+      throw new BadRequestException("checkout_merchant_required");
+    }
+    if (!this.cartAuthority) throw new ServiceUnavailableException("checkout_cart_authority_unavailable");
+    input = {
+      ...input,
+      merchant_id: input.merchant_id.trim(),
+      cart: await this.cartAuthority.resolve(input.merchant_id.trim(), input.cart),
+      customer: unverifiedCustomerHints(input.customer),
+      shipping: undefined,
+    };
     const settings = await this.checkoutSettings?.getContext(input.merchant_id);
     const merchant = await this.merchantRepository?.getProfile(input.merchant_id);
     const merchantRules = await this.merchantRepository?.getRules(input.merchant_id);
     const sessionId = input.session_id ?? `chk_${crypto.randomUUID()}`;
-    const globalUserId = await this.identity.resolveGlobalUserId(input.merchant_id, input.customer);
-
-    // Hydrate customer from buyer-account when available (logged buyer → session gets full data)
-    if (this.buyerAccount && globalUserId && (!input.customer?.fullName || !input.customer?.email)) {
-      try {
-        const account = await this.buyerAccount.findByGlobalUserId(globalUserId);
-        if (account) {
-          input = {
-            ...input,
-            customer: {
-              ...input.customer,
-              fullName: input.customer?.fullName || account.displayName || undefined,
-              email: input.customer?.email || account.email || undefined,
-              phone: input.customer?.phone || account.phone || undefined,
-              cpf: input.customer?.cpf || (account as any).cpf || undefined,
-            },
-          };
-        }
-      } catch (err) {
-        this.logger.warn(`buyer-account hydration failed (non-blocking)`, { globalUserId, error: err instanceof Error ? err.message : String(err) });
-      }
-    }
+    // Neither an email nor an external customer ID supplied by a browser proves identity.
+    const globalUserId = await this.identity.resolveGlobalUserId(input.merchant_id);
 
     const agent = await this.agentContext?.get({
       merchantId: input.merchant_id,

@@ -5,6 +5,7 @@ import { EmbedCheckoutController, EmbedCheckoutGuardHelper } from "./embed-check
 import { EmbedTokenService } from "../../domain/embed-token.service.js";
 import { InMemoryCheckoutRepository } from "../../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
 import { checkoutSession } from "../../../checkout/__tests__/checkout-test-fixtures.js";
+import { embedCheckoutSessionId } from "../../domain/embed-checkout-session.js";
 
 const TOKENS = new EmbedTokenService({ value: Buffer.from("embed-ctrl-spec-secret-32chars!!!") });
 
@@ -54,18 +55,19 @@ function reqWithClaims(token: string) {
 describe("EmbedCheckoutController.updateCustomer", () => {
   it("delegates to UpdateEmbedCustomerUseCase", async () => {
     const repo = new InMemoryCheckoutRepository();
-    await repo.saveSession(checkoutSession({ merchantId: "mrc_a", sessionId: "chk_a" }));
     const { ctrl, fakeUpdateCustomer } = makeController(repo);
     const token = issueToken("mrc_a");
+    const sessionId = embedCheckoutSessionId(TOKENS.verify(token));
+    await repo.saveSession(checkoutSession({ merchantId: "mrc_a", sessionId }));
 
     const res = await ctrl.updateCustomer(reqWithClaims(token), {
-      session_id: "chk_a",
+      session_id: sessionId,
       customer: { fullName: "Joao Silva", email: "joao@teste.com", cpf: "123.456.789-00", phone: "21999999999" }
     });
     assert.deepEqual(res, { ok: true });
     assert.equal(fakeUpdateCustomer.executed.length, 1);
     assert.equal(fakeUpdateCustomer.executed[0].merchantId, "mrc_a");
-    assert.equal(fakeUpdateCustomer.executed[0].sessionId, "chk_a");
+    assert.equal(fakeUpdateCustomer.executed[0].sessionId, sessionId);
   });
 
   it("rejects when cpf is missing", async () => {
@@ -116,7 +118,7 @@ describe("EmbedCheckoutController.updateCustomer", () => {
     const token = issueToken("mrc_a");
     await assert.rejects(
       () => ctrl.updateCustomer(reqWithClaims(token), {
-        session_id: "chk_missing",
+        session_id: embedCheckoutSessionId(TOKENS.verify(token)),
         customer: { fullName: "Joao", email: "x@y.com", cpf: "12345678900" }
       }),
       (err: any) => err instanceof UnauthorizedException && err.message === "embed_unknown_checkout_session"

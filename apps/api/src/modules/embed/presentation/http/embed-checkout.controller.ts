@@ -37,6 +37,7 @@ import type { EmbedTokenClaims } from "../../domain/embed-token.service.js";
 import { EmbedAuthGuard } from "./embed-auth.guard.js";
 import { RequireEmbedScope } from "./embed-scope.decorator.js";
 import { UpdateEmbedCustomerUseCase } from "../../application/update-embed-customer.use-case.js";
+import { embedCheckoutSessionId } from "../../domain/embed-checkout-session.js";
 
 export type EmbedHttpRequest = {
   embedClaims?: EmbedTokenClaims;
@@ -48,6 +49,9 @@ export class EmbedCheckoutGuardHelper {
   constructor(@Inject(CHECKOUT_REPOSITORY) private readonly checkout: CheckoutRepository) {}
 
   async assertSessionBelongsToEmbedMerchant(embed: EmbedTokenClaims, sessionId: string): Promise<void> {
+    if (sessionId !== embedCheckoutSessionId(embed)) {
+      throw new UnauthorizedException("embed_checkout_session_binding_mismatch");
+    }
     // Retry once on transient DB connection failures (pg-pool timeout)
     let session: any;
     try {
@@ -93,12 +97,20 @@ export class EmbedCheckoutController {
   @RequireEmbedScope("checkout:start")
   async start(@Req() request: EmbedHttpRequest, @Body() body: StartCheckoutRequest) {
     const embed = request.embedClaims!;
+    const sessionId = embedCheckoutSessionId(embed);
+    if (body.session_id !== undefined && body.session_id !== sessionId) {
+      throw new UnauthorizedException("embed_checkout_session_binding_mismatch");
+    }
+    if (body.cart?.commerceCartRef && body.cart.commerceCartRef !== embed.cartRef) {
+      throw new UnauthorizedException("embed_commerce_cart_binding_mismatch");
+    }
     const { merchant_id: _discard, merchantId: _d2, ...rest } = body as StartCheckoutRequest & {
       merchantId?: string;
     };
     return this.startCheckout.execute({
       ...(rest as Omit<StartCheckoutRequest, "merchant_id">),
-      merchant_id: embed.merchantId
+      merchant_id: embed.merchantId,
+      session_id: sessionId,
     });
   }
 

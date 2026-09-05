@@ -6,8 +6,28 @@ import { EmbedTokenService } from "../../domain/embed-token.service.js";
 import { InMemoryCheckoutRepository } from "../../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
 import { checkoutSession } from "../../../checkout/__tests__/checkout-test-fixtures.js";
 import type { StartCheckoutRequest } from "@zyon/shared-types";
+import { embedCheckoutSessionId } from "../../domain/embed-checkout-session.js";
 
 describe("EmbedCheckoutController", () => {
+  it("tokens of the same merchant cannot access each other's checkout", async () => {
+    const claims = { typ: "aacp_embed_v1" as const, merchantId: "m1", nonce: "buyer-a", issuedAtUnix: 1, expiresAtUnix: 9999999999 };
+    const other = { ...claims, nonce: "buyer-b" };
+    const repo = new InMemoryCheckoutRepository();
+    const sessionId = embedCheckoutSessionId(claims);
+    repo.saveSession(checkoutSession({ merchantId: "m1", sessionId }));
+    const helper = new EmbedCheckoutGuardHelper(repo);
+    await helper.assertSessionBelongsToEmbedMerchant(claims, sessionId);
+    await assert.rejects(helper.assertSessionBelongsToEmbedMerchant(other, sessionId), /embed_checkout_session_binding_mismatch/);
+  });
+
+  it("start rejects caller-selected sessions and unbound commerce references before execution", async () => {
+    const claims = { typ: "aacp_embed_v1" as const, merchantId: "m1", nonce: "buyer-a", issuedAtUnix: 1, expiresAtUnix: 9999999999, cartRef: "authorized-cart" };
+    const c = new EmbedCheckoutController({ execute() { throw new Error("must_not_execute"); } } as never,
+      {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+    await assert.rejects(c.start({ embedClaims: claims }, { session_id: "victim-session" } as never), /embed_checkout_session_binding_mismatch/);
+    await assert.rejects(c.start({ embedClaims: claims }, { cart: { commerceCartRef: "victim-cart" } } as never), /embed_commerce_cart_binding_mismatch/);
+  });
+
   it("start-checkout uses merchant from embed token not body merchant_id", async () => {
     const tokens = new EmbedTokenService({ value: Buffer.from("embed-ctrl-spec-secret-32chars!!!") });
     const now = Math.floor(Date.now() / 1000);

@@ -13,7 +13,7 @@ import {
   startCheckoutRequest,
   completeOrderRequest
 } from "./checkout-test-fixtures.js";
-import { StartCheckoutUseCase } from "../application/use-cases/start-checkout.use-case.js";
+import { StartCheckoutTestHarness as StartCheckoutUseCase } from "./start-checkout-test-harness.js";
 import { SendChatMessageUseCase } from "../application/use-cases/send-chat-message.use-case.js";
 import { BrevoBuyerEmailNotifier } from "../infrastructure/brevo-buyer-email.notifier.js";
 import { CompleteOrderUseCase } from "../application/use-cases/complete-order.use-case.js";
@@ -186,7 +186,7 @@ test("SendChatMessageUseCase generates email OTP when embed prefilled email and 
   assert.ok(session?.customer?.otp_code, "gera OTP mesmo com e-mail já na sessão");
 });
 
-test("SendChatMessageUseCase skips OTP for embed prefilled email when buyer account is complete", async () => {
+test("SendChatMessageUseCase requires current OTP for a complete account hinted by embed", async () => {
   const repository = new InMemoryCheckoutRepository();
   const buyerAccounts = new InMemoryBuyerAccountRepository();
   await buyerAccounts.save(new BuyerAccount({
@@ -239,11 +239,16 @@ test("SendChatMessageUseCase skips OTP for embed prefilled email when buyer acco
   });
 
   const session = await repository.getSession("mrc_1", "chk_embed_account");
-  assert.equal(session?.customer?.recognized_buyer, true);
-  assert.equal(session?.customer?.otp_code, "");
-  assert.equal(res.stage, "shipping");
-  assert.equal(res.missing_fields?.[0], "frete");
-  assert.notEqual(res.missing_fields?.[0], "nome");
+  assert.equal(session?.customer?.recognized_buyer, undefined);
+  assert.equal(session?.customer?.email_verified, undefined);
+  assert.equal(session?.customer?.fullName, undefined);
+  assert.ok(session?.customer?.otp_code);
+  assert.notEqual(session?.globalUserId, "buyer_embed_prefill");
+  assert.equal(res.stage, "data_collection");
+  assert.equal(res.missing_fields?.[0], "código de verificação");
+  const verified = await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_embed_account", conversation_id: "conv_embed_account", user_message: session!.customer!.otp_code! });
+  assert.equal(repository.getSession("mrc_1", "chk_embed_account")?.customer?.recognized_buyer, true);
+  assert.equal(verified.stage, "shipping");
 });
 
 test("SendChatMessageUseCase returns refreshed experience snapshot with stage and missing fields", async () => {
@@ -710,6 +715,12 @@ test("SendChatMessageUseCase recognizes existing buyer email and continues after
     user_message: "Meu email Ã© duplicado@aacp.io"
   });
 
+  const pending = await repository.getSession("mrc_1", "chk_2");
+  assert.equal(pending?.customer?.email_verified, undefined);
+  assert.equal(pending?.customer?.address, undefined);
+  assert.notEqual(pending?.globalUserId, "buyer_existing_1");
+  assert.ok(pending?.customer?.otp_code);
+  await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_2", conversation_id: "conv_2", user_message: pending!.customer!.otp_code! });
   const sessionAfterEmail = await repository.getSession("mrc_1", "chk_2");
   assert.equal(sessionAfterEmail?.customer?.email, "duplicado@aacp.io");
   assert.equal(sessionAfterEmail?.customer?.recognized_buyer, true);
@@ -757,6 +768,12 @@ test("SendChatMessageUseCase logs recognized buyer after email OTP and skips to 
     user_message: "costaadiego1989@gmail.com"
   });
 
+  const pending = await repository.getSession("mrc_1", "chk_account_only");
+  assert.equal(pending?.customer?.email_verified, undefined);
+  assert.equal(pending?.customer?.fullName, undefined);
+  assert.notEqual(pending?.globalUserId, "buyer_account_only");
+  assert.ok(pending?.customer?.otp_code);
+  const verified = await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_account_only", conversation_id: "conv_account_only", user_message: pending!.customer!.otp_code! });
   const afterEmail = await repository.getSession("mrc_1", "chk_account_only");
   assert.equal(afterEmail?.customer?.recognized_buyer, true);
   assert.equal(afterEmail?.globalUserId, "buyer_account_only");
@@ -766,9 +783,9 @@ test("SendChatMessageUseCase logs recognized buyer after email OTP and skips to 
   assert.equal(afterEmail?.customer?.phone, "21993001883");
   assert.equal(afterEmail?.customer?.phone_verified, true);
   assert.equal(afterEmail?.customer?.address?.number, "95");
-  assert.equal(res.stage, "shipping");
-  assert.equal(res.missing_fields?.[0], "frete");
-  assert.equal(res.experience?.shippingOptions?.length, 3);
+  assert.equal(verified.stage, "shipping");
+  assert.equal(verified.missing_fields?.[0], "frete");
+  assert.equal(verified.experience?.shippingOptions?.length, 3);
 });
 
 test("SendChatMessageUseCase skips cadastro after OTP when older session has complete profile", async () => {
@@ -976,7 +993,7 @@ test("SendChatMessageUseCase keeps email OTP error active even when phone was al
   assert.equal(res.missing_fields?.[0], "código de verificação");
 });
 
-test("SendChatMessageUseCase accepts email OTP pasted with API log metadata", async () => {
+test("SendChatMessageUseCase accepts an email OTP pasted with surrounding text", async () => {
   const repository = new InMemoryCheckoutRepository();
   const conversation = new RecordingConversationPort();
   const useCase = createTestUseCase(repository, conversation);
@@ -992,13 +1009,13 @@ test("SendChatMessageUseCase accepts email OTP pasted with API log metadata", as
     merchant_id: "mrc_1",
     session_id: "chk_otp_log",
     conversation_id: "conv_otp_log",
-    user_message: "[Nest] 35024 - 21/05/2026, 16:24:29 LOG OTP GERADO PARA user@aacp.io: 776655"
+    user_message: "Meu código de verificação é 776655"
   });
 
   const sessionAfter = await repository.getSession("mrc_1", "chk_otp_log");
   assert.equal(sessionAfter?.customer?.email_verified, true, "E-mail foi verificado mesmo com metadados do log");
   assert.equal(sessionAfter?.customer?.otp_code, "", "Codigo de OTP foi limpo apos validar");
-  assert.equal(res.missing_fields?.[0], "CPF");
+  assert.equal(res.missing_fields?.[0], "telefone");
 });
 
 test("SendChatMessageUseCase handles phone input, SMS OTP generation, and validation", async () => {

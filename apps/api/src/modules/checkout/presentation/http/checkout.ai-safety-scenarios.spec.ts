@@ -14,7 +14,7 @@ import { EvaluateShippingUseCase } from "../../application/use-cases/evaluate-sh
 import { GetCheckoutSessionUseCase } from "../../application/use-cases/get-checkout-session.use-case.js";
 import { GetDecisionUseCase } from "../../application/use-cases/get-decision.use-case.js";
 import { SendChatMessageUseCase } from "../../application/use-cases/send-chat-message.use-case.js";
-import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
+import { StartCheckoutTestHarness as StartCheckoutUseCase } from "../../__tests__/start-checkout-test-harness.js";
 import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-checkout-event.use-case.js";
 import type { CommerceOfferPort } from "../../domain/ports/commerce-offer.port.js";
 import type { ConversationPort } from "../../domain/ports/conversation.port.js";
@@ -178,6 +178,14 @@ for (const scenario of scenarios) {
       shipping: { customerPrice: 39, realCost: 37, region: "SP" }
     });
 
+    // The scenario starts after identity proof and a server quote. Seed those
+    // outcomes explicitly; public start ignores browser verification/freight flags.
+    const verifiedSession = repository.getSession("mrc_ai_safety", started.session_id)!;
+    repository.saveSession({
+      ...verifiedSession,
+      customer: { ...verifiedSession.customer, email_verified: true, phone_verified: true, address_verified: true },
+      shipping: { customerPrice: 39, realCost: 37, region: "SP" },
+    });
     await controller.track({
       merchant_id: "mrc_ai_safety",
       session_id: started.session_id,

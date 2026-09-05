@@ -1,72 +1,64 @@
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
-  const INTERNAL_SERVICE_TOKEN = process.env.INTERNAL_SERVICE_TOKEN;
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3009";
+  const serviceToken = process.env.INTERNAL_SERVICE_TOKEN;
+  const apiBase = process.env.AACP_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3009";
+  const origin = new URL(request.url).origin;
+  if (request.headers.get("origin") !== origin) {
+    return NextResponse.json({ error: "origin_not_allowed" }, { status: 403 });
+  }
+
+  let body: { merchant_id?: unknown; cart_ref?: unknown; allowed_origin?: unknown };
   try {
-    const body = await request.json();
-    const { merchant_id, cart_ref, allowed_origin } = body as {
-      merchant_id?: string;
-      cart_ref?: string;
-      allowed_origin?: string;
-    };
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
+  if (!body || typeof body.merchant_id !== "string" || !body.merchant_id.trim() || body.merchant_id.length > 120) {
+    return NextResponse.json({ error: "merchant_id_required" }, { status: 400 });
+  }
+  if (body.allowed_origin !== undefined && body.allowed_origin !== origin) {
+    return NextResponse.json({ error: "origin_not_allowed" }, { status: 403 });
+  }
+  // No browser proof currently binds an existing cart to this request. Native
+  // checkout submits SKU + quantity; commerce cart capabilities need a merchant server.
+  if (body.cart_ref !== undefined) {
+    return NextResponse.json({ error: "cart_ownership_required" }, { status: 403 });
+  }
+  if (!serviceToken) {
+    return NextResponse.json({ error: "service_not_configured" }, { status: 503 });
+  }
 
-    if (!merchant_id) {
-      return NextResponse.json({ error: "merchant_id_required" }, { status: 400 });
-    }
-
-    if (!INTERNAL_SERVICE_TOKEN) {
-      console.error("[checkout-token] INTERNAL_SERVICE_TOKEN not configured. Env value:", typeof INTERNAL_SERVICE_TOKEN, "process.env keys with INTERNAL:", Object.keys(process.env).filter(k => k.includes("INTERNAL")).join(","));
-      return NextResponse.json({ error: "service_not_configured" }, { status: 500 });
-    }
-
-    const url = `${API_BASE}/embed-sessions`;
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      "X-Internal-Service-Token": INTERNAL_SERVICE_TOKEN,
-      "X-Merchant-Id": merchant_id,
-      "Idempotency-Key": `ck_${crypto.randomUUID()}`,
-    };
-    const bodyStr = JSON.stringify({
-      ttl_seconds: 3600,
-      cart_ref: cart_ref || undefined,
-      allowed_origin: allowed_origin || undefined,
-      scopes: [
-        "checkout:start",
-        "checkout:track",
-        "checkout:chat",
-        "payment:intents:create",
-        "payment:intents:confirm",
-        "payment:intents:read",
-        "offers:apply",
-      ],
-    });
-    console.log("[checkout-token] fetch:", url, "headers:", JSON.stringify(Object.keys(headers)), "body length:", bodyStr.length);
-
-    const res = await fetch(url, {
+  try {
+    const response = await fetch(`${apiBase}/embed-sessions`, {
       method: "POST",
-      headers,
-      body: bodyStr,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Internal-Service-Token": serviceToken,
+        "X-Merchant-Id": body.merchant_id.trim(),
+        "Idempotency-Key": `ck_${crypto.randomUUID()}`,
+      },
+      body: JSON.stringify({
+        ttl_seconds: 900,
+        // The API must resolve an active installation of this merchant for this origin.
+        allowed_origin: origin,
+        scopes: ["checkout:start", "checkout:track", "checkout:chat", "payment:intents:create", "payment:intents:confirm", "payment:intents:read", "offers:apply"],
+      }),
       cache: "no-store",
-    } as RequestInit);
-
-    const resStatus = res.status;
-    const resText = await res.text();
-    console.log("[checkout-token] API response:", resStatus, resText.slice(0, 200));
-
-    if (resStatus < 200 || resStatus >= 300) {
-      console.error("[checkout-token] API error:", resStatus, resText);
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!response.ok) {
+      return NextResponse.json({ error: "token_generation_failed" }, { status: response.status < 500 ? 403 : 502 });
+    }
+    const data = await response.json();
+    if (typeof data.embed_session_token !== "string" || typeof data.expires_at_unix !== "number") {
       return NextResponse.json({ error: "token_generation_failed" }, { status: 502 });
     }
-
-    const data = JSON.parse(resText);
-    console.log("[checkout-token] SUCCESS - token generated");
     return NextResponse.json({
       embed_session_token: data.embed_session_token,
       expires_at_unix: data.expires_at_unix,
-    });
-  } catch (err) {
-    console.error("[checkout-token] Error:", err);
-    return NextResponse.json({ error: "internal_error" }, { status: 500 });
+    }, { headers: { "Cache-Control": "no-store" } });
+  } catch {
+    return NextResponse.json({ error: "token_generation_failed" }, { status: 502 });
   }
 }

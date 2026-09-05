@@ -35,14 +35,8 @@ export class BuyerRecognitionService {
   }> {
     const existingAccount = await this.buyerAccounts?.findByEmail(email) ?? null;
     const priorSessions = await this.repository.findSessionsByEmail(merchantId, email);
-    const previousSession = this.pickBestPriorSession(priorSessions, currentSessionId);
+    const previousSession = this.pickBestPriorSession(priorSessions, currentSessionId, email);
     const isReturning = Boolean(existingAccount || previousSession);
-
-    const priorEmailVerified = Boolean(
-      existingAccount ||
-      (previousSession?.customer?.email_verified &&
-        previousSession.customer.email?.toLowerCase() === email.toLowerCase())
-    );
 
     let globalUserId: string | undefined;
     if (existingAccount?.globalUserId) {
@@ -72,8 +66,8 @@ export class BuyerRecognitionService {
       phone,
       phone_verified: Boolean(
         current?.phone_verified ||
-        priorCustomer?.phone_verified ||
-        (phone && account?.phone)
+        (phone && phone === priorCustomer?.phone && priorCustomer.phone_verified) ||
+        (phone && phone === account?.phone)
       ),
       cpf: current?.cpf ?? account?.cpf ?? priorCustomer?.cpf,
       address,
@@ -97,11 +91,13 @@ export class BuyerRecognitionService {
     globalUserId: string | undefined;
   }> {
     const email = session.customer?.email?.trim().toLowerCase();
-    if (!email) return { session, globalUserId: undefined };
+    if (!email || session.customer?.email_verified !== true) {
+      return { session, globalUserId: undefined };
+    }
 
     const account = await this.buyerAccounts?.findByEmail(email) ?? null;
     const priorSessions = await this.repository.findSessionsByEmail(session.merchantId, email);
-    const previousSession = this.pickBestPriorSession(priorSessions, session.sessionId);
+    const previousSession = this.pickBestPriorSession(priorSessions, session.sessionId, email);
     if (!account && !previousSession) return { session, globalUserId: undefined };
 
     const patch = this.buildRecognizedProfilePatch(session.customer, account, previousSession?.customer);
@@ -110,21 +106,6 @@ export class BuyerRecognitionService {
     const recognizedGlobalUserId = account?.globalUserId ?? previousSession?.globalUserId;
 
     return { session: updatedSession, globalUserId: recognizedGlobalUserId };
-  }
-
-  /**
-   * Check if a prior email was verified (allows skipping new OTP send).
-   */
-  isPriorEmailVerified(
-    email: string,
-    account: BuyerAccount | null,
-    previousSession: CheckoutSession | null
-  ): boolean {
-    return Boolean(
-      account ||
-      (previousSession?.customer?.email_verified &&
-        previousSession.customer.email?.toLowerCase() === email.toLowerCase())
-    );
   }
 
   /**
@@ -149,10 +130,13 @@ export class BuyerRecognitionService {
 
   private pickBestPriorSession(
     sessions: CheckoutSession[],
-    currentSessionId: string
+    currentSessionId: string,
+    email: string,
   ): CheckoutSession | null {
     return sessions
-      .filter((session) => session.sessionId !== currentSessionId)
+      .filter((session) => session.sessionId !== currentSessionId &&
+        session.customer?.email_verified === true &&
+        session.customer.email?.trim().toLowerCase() === email.trim().toLowerCase())
       .sort((a, b) => {
         const scoreDiff = this.profileCompletenessScore(b.customer) - this.profileCompletenessScore(a.customer);
         if (scoreDiff !== 0) return scoreDiff;

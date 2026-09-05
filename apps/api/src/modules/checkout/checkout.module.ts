@@ -69,9 +69,12 @@ import { ExperimentsModule } from "../experiments/experiments.module.js";
 import { CartRecoveryModule } from "../cart-recovery/cart-recovery.module.js";
 import { IntentMemoryModule } from "../intent-memory/intent-memory.module.js";
 import { PaymentModule } from "../payment/payment.module.js";
+import { CommerceModule } from "../commerce/commerce.module.js";
+import { CheckoutCartAuthorityService } from "./application/services/checkout-cart-authority.service.js";
 
 @Module({
   imports: [
+    CommerceModule,
     AgentRulesModule,
     CheckoutSettingsModule,
     BuyerPurchaseHistoryModule,
@@ -87,6 +90,7 @@ import { PaymentModule } from "../payment/payment.module.js";
   ],
   controllers: [CheckoutController],
   providers: [
+    CheckoutCartAuthorityService,
     StartCheckoutUseCase,
     TrackCheckoutEventUseCase,
     GetCheckoutSessionUseCase,
