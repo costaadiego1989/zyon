@@ -1,17 +1,33 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 
-/** Optional, short-lived CAPTCHA exception for an explicitly authorized login audit.
- * Password validation and the normal login rate limiter still run.
- * This is deliberately used only by password login, never registration.
+/** Optional, short-lived CAPTCHA exception for an explicitly authorized audit.
+ * Registration and login require separate credentials. Normal account validation still runs.
  */
 export function isAuthorizedAutomationLogin(
   input: { email: string; turnstile_token?: string },
   env: NodeJS.ProcessEnv = process.env,
   now = Date.now(),
 ): boolean {
-  const email = env.AUTH_AUTOMATION_LOGIN_EMAIL?.trim().toLowerCase();
-  const secret = env.AUTH_AUTOMATION_LOGIN_TOKEN;
-  const expires = Date.parse(env.AUTH_AUTOMATION_LOGIN_EXPIRES_AT ?? "");
+  return isAuthorizedAutomation(input, env, now, "LOGIN");
+}
+
+export function isAuthorizedAutomationRegistration(
+  input: { email: string; turnstile_token?: string },
+  env: NodeJS.ProcessEnv = process.env,
+  now = Date.now(),
+): boolean {
+  return isAuthorizedAutomation(input, env, now, "REGISTER");
+}
+
+function isAuthorizedAutomation(
+  input: { email: string; turnstile_token?: string },
+  env: NodeJS.ProcessEnv,
+  now: number,
+  action: "LOGIN" | "REGISTER",
+): boolean {
+  const email = env[`AUTH_AUTOMATION_${action}_EMAIL`]?.trim().toLowerCase();
+  const secret = env[`AUTH_AUTOMATION_${action}_TOKEN`];
+  const expires = Date.parse(env[`AUTH_AUTOMATION_${action}_EXPIRES_AT`] ?? "");
   if (!email || !secret || secret.length < 64 || !Number.isFinite(expires)
     || expires <= now || expires > now + 2 * 60 * 60 * 1000
     || input.email?.trim().toLowerCase() !== email

@@ -48,6 +48,39 @@ test("AuthController.logout clears the auth cookie", () => {
   assert.equal(headers.get("Set-Cookie"), "aacp_access_token=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0");
 });
 
+test("authorized registration still executes account and password validation", async () => {
+  const keys = ["NODE_ENV", "AUTH_AUTOMATION_REGISTER_EMAIL", "AUTH_AUTOMATION_REGISTER_TOKEN", "AUTH_AUTOMATION_REGISTER_EXPIRES_AT"];
+  const previous = keys.map(key => process.env[key]);
+  try {
+    process.env.NODE_ENV = "production";
+    process.env.AUTH_AUTOMATION_REGISTER_EMAIL = "audit@example.test";
+    process.env.AUTH_AUTOMATION_REGISTER_TOKEN = "r".repeat(64);
+    process.env.AUTH_AUTOMATION_REGISTER_EXPIRES_AT = new Date(Date.now() + 3600000).toISOString();
+    const controller = makeController();
+    let registrations = 0;
+    let captchaCalls = 0;
+    Object.assign(controller, {
+      verifyCaptcha: { execute: async () => { captchaCalls++; return { allowed: false }; } },
+      registerMerchant: { execute: async (body: { email: string; password: string }) => {
+        registrations++;
+        assert.equal(body.email, "audit@example.test");
+        assert.equal(body.password, "short");
+        throw new BadRequestException("weak_password");
+      } },
+    });
+    const body = { merchant_name: "Audit", email: "audit@example.test", password: "short", turnstile_token: "r".repeat(64) };
+    const response = { setHeader() { assert.fail("Invalid account must not receive a session"); } };
+    await assert.rejects(() => controller.register(body, "127.0.0.1", response), /weak_password/);
+    assert.equal(registrations, 1);
+    assert.equal(captchaCalls, 0);
+    await assert.rejects(() => controller.register({ ...body, email: "other@example.test" }, "127.0.0.1", response), BadRequestException);
+    assert.equal(captchaCalls, 1);
+    assert.equal(registrations, 1);
+  } finally {
+    keys.forEach((key, i) => { if (previous[i] === undefined) delete process.env[key]; else process.env[key] = previous[i]; });
+  }
+});
+
 test("authorized automation skips only login CAPTCHA, retaining password validation and rate limiting", async () => {
   const keys = ["NODE_ENV", "AUTH_AUTOMATION_LOGIN_EMAIL", "AUTH_AUTOMATION_LOGIN_TOKEN", "AUTH_AUTOMATION_LOGIN_EXPIRES_AT"];
   const previous = keys.map(key => process.env[key]);

@@ -32,7 +32,7 @@ import {
 } from "../domain/errors.js";
 import { normalizeEmail } from "../domain/validators.js";
 import type { LoginAttemptScope } from "../domain/ports/rate-limiter.port.js";
-import { isAuthorizedAutomationLogin } from "../domain/services/automation-login-captcha.js";
+import { isAuthorizedAutomationLogin, isAuthorizedAutomationRegistration } from "../domain/services/automation-login-captcha.js";
 
 /**
  * H1: Controller is now a thin HTTP layer. Orchestration lives in use-cases.
@@ -100,7 +100,7 @@ export class AuthController {
     @Ip() ip: string,
     @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void }
   ) {
-    if (process.env.NODE_ENV === "production") {
+    if (process.env.NODE_ENV === "production" && !isAuthorizedAutomationRegistration(body)) {
       const captcha = await this.verifyCaptcha.execute({
         token: body.turnstile_token,
         remoteIp: ip || undefined,
