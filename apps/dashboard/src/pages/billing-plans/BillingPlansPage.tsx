@@ -82,21 +82,12 @@ export function BillingPlansPage() {
   return (
     <div className="billing-plans">
       {/* Header */}
-      <header className="billing-plans__header">
-        <div
-          style={{
-            font: "600 10px var(--font-mono)",
-            letterSpacing: "0.06em",
-            color: "var(--color-text-faint)",
-            marginBottom: 4,
-          }}
-        >
-          CONTA
+      <header className="page-head">
+        <div>
+          <span className="eyebrow">Conta</span>
+          <h1>Planos e Assinatura</h1>
+          <p className="page-lead">Gerencie seu plano e acompanhe o uso dos recursos.</p>
         </div>
-        <h2 className="billing-plans__title">Planos e Assinatura</h2>
-        <p className="billing-plans__subtitle">
-          Gerencie seu plano e acompanhe o uso dos recursos.
-        </p>
       </header>
 
       {/* Overage warning: Starter/Growth excedeu limite de pedidos */}
