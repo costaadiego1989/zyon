@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { ConflictException, ForbiddenException } from "@nestjs/common";
+import { ConflictException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { ConfirmStockUseCase } from "./confirm-stock.use-case.js";
 import type { StockRepositoryPort } from "../../domain/ports/product-repository.port.js";
 
@@ -29,7 +29,7 @@ describe("ConfirmStockUseCase", () => {
     assert.deepEqual(captured, { merchantId: "mrc_1", reservationId: "res_42" });
   });
 
-  it("maps reservation_not_found to ConflictException", async () => {
+  it("maps absent or foreign reservation to 404", async () => {
     const repo = makePortDouble({
       confirm: async () => {
         throw new Error("reservation_not_found");
@@ -39,7 +39,7 @@ describe("ConfirmStockUseCase", () => {
 
     await assert.rejects(
       () => useCase.execute("mrc_1", "res_x"),
-      (err: unknown) => err instanceof ConflictException && err.message === "reservation_not_found",
+      (err: unknown) => err instanceof NotFoundException && err.message === "reservation_not_found",
     );
   });
 

@@ -1,10 +1,7 @@
-import { Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, UseGuards, Inject, BadRequestException } from "@nestjs/common";
+import { Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, UseGuards, BadRequestException } from "@nestjs/common";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { RequirePlan } from "../../../../shared/guards/require-plan.decorator.js";
 import { RequirePlanGuard } from "../../../../shared/guards/require-plan.guard.js";
-import { S3UploadService } from "../../../../shared/storage/s3-upload.service.js";
-import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
-import type { PrismaClient } from "@prisma/client";
 import { AddProductUseCase } from "../../application/use-cases/add-product.use-case.js";
 import { SearchProductsUseCase } from "../../application/use-cases/search-products.use-case.js";
 import { ReserveStockUseCase } from "../../application/use-cases/reserve-stock.use-case.js";
@@ -18,6 +15,7 @@ import { UpdateCategoryUseCase } from "../../application/use-cases/update-catego
 import { DeleteCategoryUseCase } from "../../application/use-cases/delete-category.use-case.js";
 import { ReorderCategoriesUseCase } from "../../application/use-cases/reorder-categories.use-case.js";
 import { GenerateProductSeoUseCase } from "../../application/use-cases/generate-product-seo.use-case.js";
+import { CatalogVariantService } from "../../application/services/catalog-variant.service.js";
 
 @UseGuards(AuthGuard, RequirePlanGuard)
 @Controller("merchants")
@@ -36,8 +34,7 @@ export class StoreBuilderCatalogController {
     private readonly deleteCategory: DeleteCategoryUseCase,
     private readonly reorderCategories: ReorderCategoriesUseCase,
     private readonly generateProductSeo: GenerateProductSeoUseCase,
-    private readonly s3: S3UploadService,
-    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    private readonly variants: CatalogVariantService,
   ) {}
 
   @Post(":mid/products")
@@ -156,7 +153,7 @@ export class StoreBuilderCatalogController {
   @RequirePlan("STORE_ONLY", "BOTH")
   async updateVariant(
     @Param("mid") merchantId: string,
-    @Param("pid") _productId: string,
+    @Param("pid") productId: string,
     @Param("vid") variantId: string,
     @Body() body: {
       basePriceInCents?: number;
@@ -168,34 +165,7 @@ export class StoreBuilderCatalogController {
       heightCm?: number | null;
     },
   ) {
-    // Update variant fields
-    if (body.basePriceInCents !== undefined || body.costInCents !== undefined) {
-      await this.prisma.productPrice.updateMany({
-        where: { variantId },
-        data: {
-          ...(body.basePriceInCents !== undefined ? { basePriceInCents: body.basePriceInCents } : {}),
-          ...(body.costInCents !== undefined ? { costInCents: body.costInCents } : {}),
-        },
-      });
-    }
-    if (body.weightGrams !== undefined || body.lengthCm !== undefined || body.widthCm !== undefined || body.heightCm !== undefined) {
-      await this.prisma.productVariant.update({
-        where: { id: variantId },
-        data: {
-          ...(body.weightGrams !== undefined ? { weightGrams: body.weightGrams } : {}),
-          ...(body.lengthCm !== undefined ? { lengthCm: body.lengthCm } : {}),
-          ...(body.widthCm !== undefined ? { widthCm: body.widthCm } : {}),
-          ...(body.heightCm !== undefined ? { heightCm: body.heightCm } : {}),
-        },
-      });
-    }
-    if (body.stockQuantity !== undefined) {
-      await this.prisma.productStock.updateMany({
-        where: { variantId },
-        data: { quantity: body.stockQuantity },
-      });
-    }
-    return { updated: true };
+    return this.variants.update(merchantId, productId, variantId, body);
   }
 
   @Delete(":mid/products/:pid")
@@ -313,29 +283,16 @@ export class StoreBuilderCatalogController {
     @Param("mid") merchantId: string,
     @Body() body: { variantId: string; image: string },
   ) {
-    if (!body.variantId || !body.image) throw new BadRequestException("variantId_and_image_required");
-    if (!this.s3.isConfigured()) throw new BadRequestException("s3_not_configured");
-
-    const result = await this.s3.uploadBase64(body.image, `merchants/${merchantId}/products`);
-    const media = await this.prisma.productMedia.create({
-      data: {
-        variantId: body.variantId,
-        url: result.url,
-        type: "IMAGE",
-        order: 0,
-      },
-    });
-    return { id: media.id, url: media.url };
+    return this.variants.uploadMedia(merchantId, body);
   }
 
   @Delete(":mid/products/media/:mediaId")
   @RequirePlan("STORE_ONLY", "BOTH")
   async deleteMedia(
-    @Param("mid") _merchantId: string,
+    @Param("mid") merchantId: string,
     @Param("mediaId") mediaId: string,
   ) {
-    await this.prisma.productMedia.delete({ where: { id: mediaId } });
-    return { deleted: true };
+    return this.variants.deleteMedia(merchantId, mediaId);
   }
 
   @Post(":mid/products/:pid/generate-seo")

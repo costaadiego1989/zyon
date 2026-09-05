@@ -38,6 +38,8 @@ import { StockExpiryWorker, CatalogStockExpiryScheduler } from "./infrastructure
 import { PromotionExpiryScheduler, PromotionExpiryWorker } from "./infrastructure/jobs/promotion-expiry.job.js";
 import { WidgetCatalogController } from "./presentation/http/widget-catalog.controller.js";
 import { StoreBuilderCatalogController } from "./presentation/http/catalog.controller.js";
+import { CatalogVariantService } from "./application/services/catalog-variant.service.js";
+import { S3UploadService } from "../../shared/storage/s3-upload.service.js";
 
 @Module({
   imports: [
@@ -51,6 +53,11 @@ import { StoreBuilderCatalogController } from "./presentation/http/catalog.contr
   ],
   controllers: [WidgetCatalogController, StoreBuilderCatalogController],
   providers: [
+    {
+      provide: CatalogVariantService,
+      useFactory: (prisma: PrismaClient, s3: S3UploadService) => new CatalogVariantService(prisma, s3),
+      inject: [PRISMA_CLIENT, S3UploadService],
+    },
     EmbedTokenService,
     EmbedAuthGuard,
     EmbedCheckoutGuardHelper,

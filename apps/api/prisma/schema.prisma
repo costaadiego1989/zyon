@@ -1317,6 +1317,7 @@ model ProductStock {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  reservations StockReservation[]
 
   @@unique([variantId, warehouseId])
   @@index([variantId])
@@ -1326,6 +1327,7 @@ model ProductStock {
 model StockReservation {
   id        String                 @id @default(cuid())
   variantId String                 @map("variant_id")
+  stockId   String?                @map("stock_id")
   cartId    String?                @map("cart_id")
   quantity  Int
   status    StockReservationStatus @default(ACTIVE)
@@ -1333,7 +1335,9 @@ model StockReservation {
   createdAt DateTime               @default(now()) @map("created_at")
 
   variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  stock   ProductStock? @relation(fields: [stockId], references: [id], onDelete: Restrict)
 
+  @@index([stockId])
   @@index([variantId, status])
   @@index([expiresAt, status])
   @@map("stock_reservations")

@@ -1,4 +1,4 @@
-import { Injectable, Inject, ConflictException, ForbiddenException , Logger} from "@nestjs/common";
+import { Injectable, Inject, ConflictException, ForbiddenException, NotFoundException, Logger} from "@nestjs/common";
 import { StockRepositoryPort } from "../../domain/ports/product-repository.port.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
@@ -12,9 +12,10 @@ export class ConfirmStockUseCase {
     try {
       await this.stockRepo.confirm(merchantId, reservationId);
     } catch (err: any) {
-      if (err.message === "reservation_not_found") throw new ConflictException("reservation_not_found");
+      if (err.message === "reservation_not_found") throw new NotFoundException("reservation_not_found");
       if (err.message === "forbidden") throw new ForbiddenException("reservation_not_owned");
       if (err.message === "reservation_not_active") throw new ConflictException("reservation_not_active");
+      if (["reservation_stock_unresolved", "stock_invariant_violation"].includes(err.message)) throw new ConflictException(err.message);
       throw err;
     }
   }

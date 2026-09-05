@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { ConflictException } from "@nestjs/common";
+import { ConflictException, NotFoundException } from "@nestjs/common";
 import { ReserveStockUseCase } from "./reserve-stock.use-case.js";
 import type {
   ReserveStockInput,
@@ -78,7 +78,7 @@ describe("ReserveStockUseCase", () => {
     );
   });
 
-  it("maps stock_not_found repository error to variant_not_found ConflictException", async () => {
+  it("maps absent or foreign stock to variant_not_found 404", async () => {
     const repo = makePortDouble({
       reserve: async () => {
         throw new Error("stock_not_found");
@@ -88,7 +88,7 @@ describe("ReserveStockUseCase", () => {
 
     await assert.rejects(
       () => useCase.execute(baseInput),
-      (err: unknown) => err instanceof ConflictException && err.message === "variant_not_found",
+      (err: unknown) => err instanceof NotFoundException && err.message === "variant_not_found",
     );
   });
 
