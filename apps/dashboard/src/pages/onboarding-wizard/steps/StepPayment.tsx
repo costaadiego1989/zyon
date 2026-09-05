@@ -35,6 +35,13 @@ export function StepPayment({
   const [asaasFormOpen, setAsaasFormOpen] = useState(false);
   const [company, setCompany] = useState<CompanyPrefill | null>(null);
   const [loadingCompany, setLoadingCompany] = useState(false);
+
+  function openAsaasForm() {
+    // Do not expose an editable form before the prefill effect replaces it.
+    setLoadingCompany(true);
+    setAsaasFormOpen(true);
+  }
+
   useEffect(() => {
     if (!asaasFormOpen) return;
     let active = true;
@@ -71,9 +78,9 @@ export function StepPayment({
             <span style={{ fontSize: "11px", marginLeft: 8, padding: "2px 6px", borderRadius: "3px", background: paymentDraft.asaasStatus === "active" ? "var(--color-success-bg)" : "var(--color-border)", color: paymentDraft.asaasStatus === "active" ? "var(--color-success)" : "var(--color-text-muted)" }}>
               {paymentDraft.asaasStatus === "active" ? "Ativo" : paymentDraft.asaasStatus === "pending" ? "Pendente" : "Não configurado"}
             </span>
-            <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "4px 0 0" }}>Confira seus dados para criar a subconta e conclua a ativação no Asaas.</p>
+            <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "4px 0 0" }}>Conecte sua conta Asaas ou crie uma subconta e conclua a ativação.</p>
           </div>
-          <Button variant="outline" size="sm" disabled={busy || paymentDraft.asaasStatus === "active"} onClick={() => paymentDraft.asaasStatus === "pending" ? void initiateAsaasOnboarding() : setAsaasFormOpen(true)}>
+          <Button variant="outline" size="sm" disabled={busy || paymentDraft.asaasStatus === "active"} onClick={() => paymentDraft.asaasStatus === "pending" ? void initiateAsaasOnboarding() : openAsaasForm()}>
             {paymentDraft.asaasStatus === "testing" ? "Conectando..." : paymentDraft.asaasStatus === "active" ? "Ativo" : paymentDraft.asaasStatus === "pending" ? "Continuar" : "Conectar"}
           </Button>
         </div>
