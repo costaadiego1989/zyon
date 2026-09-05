@@ -27,6 +27,7 @@ export class PrismaMarketplaceSettlementRepository
         commissionCents: input.commissionCents,
         sellerNetCents: input.sellerNetCents,
         returnWindowUntil: input.returnWindowUntil,
+        transferScheduledAt: input.transferScheduledAt,
         chargebackWindowUntil: input.chargebackWindowUntil,
       },
     });
@@ -41,6 +42,20 @@ export class PrismaMarketplaceSettlementRepository
     });
     if (!settlement) return undefined;
     return this.toSnapshot(settlement);
+  }
+
+  async getByIdForMerchant(
+    settlementId: string,
+    merchantId: string,
+  ): Promise<MarketplaceSettlementSnapshot | undefined> {
+    if (!merchantId) return undefined;
+    const settlement = await this.prisma.marketplaceSettlement.findFirst({
+      where: {
+        id: settlementId,
+        OR: [{ hostMerchantId: merchantId }, { sellerMerchantId: merchantId }],
+      },
+    });
+    return settlement ? this.toSnapshot(settlement) : undefined;
   }
 
   async findByLineItemId(
@@ -97,6 +112,7 @@ export class PrismaMarketplaceSettlementRepository
     const settlements = await this.prisma.marketplaceSettlement.findMany({
       where: {
         status: "transferred",
+        providerTransferId: { not: null },
         chargebackWindowUntil: { lte: nowDate },
       },
     });
@@ -107,7 +123,7 @@ export class PrismaMarketplaceSettlementRepository
     input: UpdateSettlementStatusInput,
   ): Promise<MarketplaceSettlementSnapshot> {
     const settlement = await this.prisma.marketplaceSettlement.update({
-      where: { id: input.settlementId },
+      where: { id: input.settlementId, ...(input.expectedStatus && { status: input.expectedStatus }) },
       data: {
         status: input.status,
         ...(input.transferScheduledAt !== undefined && {

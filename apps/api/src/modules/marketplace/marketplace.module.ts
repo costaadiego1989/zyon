@@ -162,28 +162,19 @@ const prismaProvider = {
       provide: HandleMarketplaceChargebackUseCase,
       useFactory: (
         settlementRepo: PrismaMarketplaceSettlementRepository,
-        debtRepo: PrismaMarketplaceSellerDebtRepository,
-        stateMachine: SettlementStateMachineService,
       ) =>
-        new HandleMarketplaceChargebackUseCase(
-          settlementRepo,
-          debtRepo,
-          stateMachine,
-        ),
-      inject: [
-        MARKETPLACE_SETTLEMENT_REPOSITORY,
-        MARKETPLACE_SELLER_DEBT_REPOSITORY,
-        SettlementStateMachineService,
-      ],
+        new HandleMarketplaceChargebackUseCase(settlementRepo),
+      inject: [MARKETPLACE_SETTLEMENT_REPOSITORY],
     },
     {
       provide: ProcessScheduledTransfersUseCase,
       useFactory: (
         settlementRepo: PrismaMarketplaceSettlementRepository,
         stateMachine: SettlementStateMachineService,
+        configRepo: PrismaMarketplaceConfigRepository,
       ) =>
-        new ProcessScheduledTransfersUseCase(settlementRepo, stateMachine),
-      inject: [MARKETPLACE_SETTLEMENT_REPOSITORY, SettlementStateMachineService],
+        new ProcessScheduledTransfersUseCase(settlementRepo, stateMachine, configRepo),
+      inject: [MARKETPLACE_SETTLEMENT_REPOSITORY, SettlementStateMachineService, MARKETPLACE_CONFIG_REPOSITORY],
     },
     {
       provide: GetSellerOrdersUseCase,

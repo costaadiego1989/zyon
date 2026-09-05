@@ -74,5 +74,10 @@ describe("PlaceCrossStoreOrderUseCase", () => {
     });
 
     assert.strictEqual(result.settlements.length, 1);
+    const settlement = result.settlements[0]!;
+    assert.equal(
+      settlement.transferScheduledAt!.getTime() - settlement.returnWindowUntil.getTime(),
+      14 * 24 * 60 * 60 * 1000,
+    );
   });
 });

@@ -1,15 +1,14 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { MARKETPLACE_SETTLEMENT_REPOSITORY } from "../../domain/ports/marketplace-settlement-repository.port.js";
 import type { MarketplaceSettlementRepository } from "../../domain/ports/marketplace-settlement-repository.port.js";
+import type { MarketplaceConfigRepository } from "../../domain/ports/marketplace-config-repository.port.js";
 import { SettlementStateMachineService } from "../../domain/services/settlement-state-machine.service.js";
 
-export interface ProcessScheduledTransfersInput {
-  nowDate?: Date;
-}
-
+export interface ProcessScheduledTransfersInput { nowDate?: Date; }
 export interface ProcessScheduledTransfersOutput {
   returnWindowsExpired: number;
   transfersExecuted: number;
+  transfersBlocked: number;
+  schedulesBlocked: number;
   processed: number;
 }
 
@@ -20,82 +19,51 @@ export class ProcessScheduledTransfersUseCase {
   constructor(
     private readonly settlementRepository: MarketplaceSettlementRepository,
     private readonly stateMachine: SettlementStateMachineService,
+    private readonly configRepository: MarketplaceConfigRepository,
   ) {}
 
-  async execute(
-    input: ProcessScheduledTransfersInput,
-  ): Promise<ProcessScheduledTransfersOutput> {
+  async execute(input: ProcessScheduledTransfersInput): Promise<ProcessScheduledTransfersOutput> {
     const nowDate = input.nowDate ?? new Date();
-
-    // Step 1: Process expired return windows (awaiting_return_window → transfer_scheduled)
-    const expiredReturnWindows =
-      await this.settlementRepository.findExpiredReturnWindows(nowDate);
-
+    const expiredReturnWindows = await this.settlementRepository.findExpiredReturnWindows(nowDate);
     let returnWindowsExpired = 0;
+    let schedulesBlocked = 0;
     for (const settlement of expiredReturnWindows) {
       try {
-        const newStatus = this.stateMachine.transition(
-          settlement.status,
-          "return_window_expired",
-        );
-
-        // Calculate transferScheduledAt based on the settlement config
-        // transferScheduledAt = returnWindowUntil + payoutDelayDays
-        // For now, we'll set it to now + a minimal delay
-        // In a real system, this would be persisted in the settlement or fetched from config
-        const transferScheduledAt = new Date(nowDate.getTime());
-        transferScheduledAt.setDate(transferScheduledAt.getDate() + 1);
-
+        let transferScheduledAt = settlement.transferScheduledAt;
+        if (!transferScheduledAt) {
+          // Legacy settlements did not persist the calculated payout date.
+          const config = await this.configRepository.get(settlement.hostMerchantId);
+          if (!config) throw new Error("marketplace_payout_config_missing");
+          this.stateMachine.validateConfig(config);
+          transferScheduledAt = new Date(settlement.returnWindowUntil);
+          transferScheduledAt.setUTCDate(transferScheduledAt.getUTCDate() + config.payoutDelayDays);
+        }
+        if (!Number.isFinite(transferScheduledAt.getTime())) throw new Error("invalid_payout_date");
         await this.settlementRepository.updateStatus({
           settlementId: settlement.id,
-          status: newStatus,
+          expectedStatus: "awaiting_return_window",
+          status: this.stateMachine.transition(settlement.status, "return_window_expired"),
           transferScheduledAt,
         });
-
         returnWindowsExpired++;
-        this.logger.log(
-          `Processed return window expiration for settlement ${settlement.id}, seller=${settlement.sellerMerchantId}`,
-        );
-      } catch (err) {
-        this.logger.error(
-          `Failed to process return window for settlement ${settlement.id}: ${err instanceof Error ? err.message : String(err)}`,
-        );
+      } catch (error) {
+        schedulesBlocked++;
+        this.logger.error("Settlement scheduling failed", error instanceof Error ? error.message : "unknown_error");
       }
     }
 
-    // Step 2: Process due transfers (transfer_scheduled → transferred)
-    const dueSettlements =
-      await this.settlementRepository.findDueTransfers(nowDate);
-
-    let transfersExecuted = 0;
-    for (const settlement of dueSettlements) {
-      try {
-        const newStatus = this.stateMachine.transition(
-          settlement.status,
-          "transfer_executed",
-        );
-
-        await this.settlementRepository.updateStatus({
-          settlementId: settlement.id,
-          status: newStatus,
-          transferredAt: nowDate,
-        });
-
-        transfersExecuted++;
-        this.logger.log(
-          `Processed transfer for settlement ${settlement.id}, seller=${settlement.sellerMerchantId}`,
-        );
-      } catch (err) {
-        this.logger.error(
-          `Failed to process transfer for settlement ${settlement.id}: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
+    // MarketplaceModule has no payout adapter or provider reconciliation. A due date
+    // alone cannot prove money moved, even if a legacy row contains a transfer ID.
+    const dueSettlements = await this.settlementRepository.findDueTransfers(nowDate);
+    if (dueSettlements.length) {
+      this.logger.warn({ event: "marketplace_payout_blocked", reason: "provider_unavailable", count: dueSettlements.length });
     }
-
     return {
       returnWindowsExpired,
-      transfersExecuted,
-      processed: returnWindowsExpired + transfersExecuted,
+      transfersExecuted: 0,
+      transfersBlocked: dueSettlements.length,
+      schedulesBlocked,
+      processed: returnWindowsExpired,
     };
   }
 }

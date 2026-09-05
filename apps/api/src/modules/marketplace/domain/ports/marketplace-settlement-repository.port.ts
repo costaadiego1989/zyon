@@ -42,11 +42,13 @@ export interface CreateMarketplaceSettlementInput {
   commissionCents: number;
   sellerNetCents: number;
   returnWindowUntil: Date;
+  transferScheduledAt?: Date;
   chargebackWindowUntil: Date;
 }
 
 export interface UpdateSettlementStatusInput {
   settlementId: string;
+  expectedStatus?: SettlementStatus;
   status: SettlementStatus;
   transferScheduledAt?: Date;
   transferredAt?: Date;
@@ -61,6 +63,7 @@ export interface MarketplaceSettlementRepository {
     input: CreateMarketplaceSettlementInput,
   ): Promise<MarketplaceSettlementSnapshot>;
   getById(settlementId: string): Promise<MarketplaceSettlementSnapshot | undefined>;
+  getByIdForMerchant(settlementId: string, merchantId: string): Promise<MarketplaceSettlementSnapshot | undefined>;
   findByLineItemId(lineItemId: string): Promise<MarketplaceSettlementSnapshot | undefined>;
   findBySellerMerchantId(
     sellerMerchantId: string,

@@ -70,6 +70,7 @@ export class PlaceCrossStoreOrderUseCase {
           commissionCents: item.commissionCents,
           sellerNetCents: item.sellerNetCents,
           returnWindowUntil: windows.returnWindowUntil,
+          transferScheduledAt: windows.transferScheduledAt,
           chargebackWindowUntil: windows.chargebackWindowUntil,
         }),
       ),
