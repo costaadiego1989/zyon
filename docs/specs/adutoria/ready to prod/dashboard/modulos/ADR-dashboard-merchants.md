@@ -1,0 +1,63 @@
+# ADR — Dashboard / merchants
+
+Data: 2026-09-05. Status: auditoria registrada, correções propostas. Veredito: **FAIL**.
+
+[Relatório do app](<../ADR-dashboard.md>) · [Matriz global](<../../CONTRATOS.md>)
+
+## Contexto e decisão
+
+Este módulo foi delimitado pelo arquivo de endpoints ou infraestrutura HTTP correspondente. A decisão é usar contrato autoritativo da API montada, com tenant, principal, estados e unidades explícitos. Suporte HTTP aparente não certifica uso correto de DTO ou implementação da tela.
+
+- [API-011](<../../api/ADR-api-team.md#api-011>) — Papéis e remoção de membro não chegam ao principal de autenticação: Novos membros podem receber token rejeitado e membros removidos podem conservar acesso através de conta/token existente.
+- [API-031](<../../api/ADR-api-store-settings.md#api-031>) — Unicidade do slug depende de consulta sem constraint: Duas lojas podem escolher o mesmo slug simultaneamente; resolução pode tornar-se ambígua e cara.
+- [API-026](<../../api/ADR-api-whatsapp-channel.md#api-026>) — Webhook confirma recebimento antes de persistir processamento: Configuração ativa sem segredo aceita mensagens forjadas; crash após 200 perde processamento e impede retry do provedor.
+
+## Chamadas e provedor
+
+| Consumidor | Método | Path/expressão | Candidato na API | Limite da evidência |
+| --- | --- | --- | --- | --- |
+| [apps/dashboard/src/api/endpoints/merchants.ts:46](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L46>) | GET | /merchants/me | Alcançável: merchant /merchants/me | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:50](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L50>) | GET | /merchants/me/rules | Alcançável: merchant /merchants/me/rules | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:54](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L54>) | PUT | /merchants/me/rules | Alcançável: merchant /merchants/me/rules | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:58](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L58>) | GET | /merchants/me/theme | Alcançável: merchant /merchants/me/theme | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:62](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L62>) | PUT | /merchants/me/theme | Alcançável: merchant /merchants/me/theme | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:66](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L66>) | POST | /merchants/me/logo | Alcançável: merchant /merchants/me/logo | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:70](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L70>) | PUT | /merchants/me/store-category | Alcançável: merchant /merchants/me/store-category | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:74](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L74>) | GET | /merchants/me/store-settings | Alcançável: merchant /merchants/me/store-settings<br>Alcançável: store-settings /merchants/:mid/store-settings | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:78](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L78>) | PUT | /merchants/me/store-settings | Alcançável: merchant /merchants/me/store-settings<br>Alcançável: store-settings /merchants/:mid/store-settings | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:82](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L82>) | PUT | /merchants/me/name | Alcançável: merchant /merchants/me/name | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:86](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L86>) | POST | /merchants/me/generate-policy | Alcançável: merchant /merchants/me/generate-policy | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:90](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L90>) | GET | /merchants/me/store-settings/seo | Alcançável: store-settings /merchants/me/store-settings/seo<br>Alcançável: store-settings /merchants/:mid/store-settings/seo | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:94](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L94>) | PUT | /merchants/me/store-settings/seo | Alcançável: store-settings /merchants/me/store-settings/seo<br>Alcançável: store-settings /merchants/:mid/store-settings/seo | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:98](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L98>) | POST | /merchants/me/store-settings/seo/generate | Alcançável: store-settings /merchants/me/store-settings/seo/generate<br>Alcançável: store-settings /merchants/:mid/store-settings/seo/generate | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:102](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L102>) | DELETE | /storage/object?url={encodeURIComponent(url)} | Alcançável: shared /storage/object | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:106](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L106>) | GET | /merchants/me/cross-sell-config | Alcançável: store-settings /merchants/me/cross-sell-config | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:110](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L110>) | PUT | /merchants/me/cross-sell-config | Alcançável: store-settings /merchants/me/cross-sell-config | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:114](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L114>) | GET | /merchants/me/domains | Alcançável: domains /merchants/me/domains | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:118](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L118>) | POST | /merchants/me/domains | Alcançável: domains /merchants/me/domains | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:122](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L122>) | POST | /merchants/me/domains/{domainId}/verify | Alcançável: domains /merchants/me/domains/:domainId/verify | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:126](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L126>) | DELETE | /merchants/me/domains/{domainId} | Alcançável: domains /merchants/me/domains/:domainId | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:130](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L130>) | GET | /intent-memory/records | Alcançável: intent-memory /intent-memory/records | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:134](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L134>) | GET | /merchants/{merchantId}/team | Alcançável: team /merchants/:merchantId/team | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:138](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L138>) | POST | /merchants/{merchantId}/team/invite | Alcançável: team /merchants/:merchantId/team/invite | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:142](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L142>) | PUT | /merchants/{merchantId}/team/{userId}/role | Alcançável: team /merchants/:merchantId/team/:userId/role | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:146](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L146>) | DELETE | /merchants/{merchantId}/team/{userId} | Alcançável: team /merchants/:merchantId/team/:userId | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:152](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L152>) | GET | /merchants/{merchantId}/whatsapp/connection | Alcançável: whatsapp-channel /merchants/:merchantId/whatsapp/connection | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:157](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L157>) | POST | /merchants/{merchantId}/whatsapp/meta/connect | Alcançável: whatsapp-channel /merchants/:merchantId/whatsapp/meta/connect | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:162](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L162>) | POST | /merchants/{merchantId}/whatsapp/twilio/connect | Alcançável: whatsapp-channel /merchants/:merchantId/whatsapp/twilio/connect | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:166](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L166>) | POST | /merchants/{merchantId}/whatsapp/twilio/verify | Alcançável: whatsapp-channel /merchants/:merchantId/whatsapp/twilio/verify | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:170](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L170>) | POST | /merchants/{merchantId}/whatsapp/disconnect | Alcançável: whatsapp-channel /merchants/:merchantId/whatsapp/disconnect | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:174](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L174>) | POST | /merchants/{merchantId}/whatsapp/test | Alcançável: whatsapp-channel /merchants/:merchantId/whatsapp/test | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+| [apps/dashboard/src/api/endpoints/merchants.ts:178](<../../../../../../apps/dashboard/src/api/endpoints/merchants.ts#L178>) | POST | /merchants/{merchantId}/whatsapp/toggle | Alcançável: whatsapp-channel /merchants/:merchantId/whatsapp/toggle | Apenas comparação de path/método; DTO/auth/runtime dependem da análise abaixo |
+
+Expressões dinâmicas foram aproximadas por AST; nomes de variáveis não são URLs reais. Um candidato não prova que a função esteja alcançada pela UI. Rotas /v1 usam o mesmo middleware e a mesma política de legado.
+
+## Critérios de correção e reavaliação
+
+- API-011: Convidar cada papel, entrar, reduzir privilégio, remover e tentar usar token antigo/novo em todas as réplicas.
+- API-031: Dois merchants concorrendo por slug normalizado geram um vencedor/409; lookup não percorre todas as lojas.
+- API-026: Sem segredo/assinatura incorreta rejeitar; crash após 200 não perde evento; replay e duas réplicas processam uma única mensagem lógica.
+
+## Consequências
+
+Correções deste consumidor dependem do contrato e controles da API. A camada visual não deve contornar erro adicionando credencial privilegiada, inventando dados ou marcando efeito financeiro como concluído. Nenhuma implementação foi alterada nesta auditoria.

@@ -1,0 +1,69 @@
+{
+  "snapshot": "2026-09-05",
+  "files": [
+    {
+      "file": ".github/workflows/ci.yml",
+      "sha256": "919d08746b4bb7beee46cefe3e6734eef02d0783cc1c1e0f342f685f8aea08e7"
+    },
+    {
+      "file": ".github/workflows/live.yml",
+      "sha256": "c58f6604bf6ad4de0bc8ea11501faed4a71dd7e21e6924e77c3c612ca349427b"
+    },
+    {
+      "file": "apps/api/package.json",
+      "sha256": "e2cd1bec1d1fa1ef607dfc4da5d213143784a015bcf94694810b833b1f49c17d"
+    },
+    {
+      "file": "pnpm-lock.yaml",
+      "sha256": "7d70b13ba8be1fd7d587e25cf33cf7c3ad008167e42713580b5e1d01caad6ffc"
+    },
+    {
+      "file": "docker-compose.production.yml",
+      "sha256": "453f032758389fa1cb8c92507a6a04c45ff71d1f658c54171e639bf9a557f478"
+    },
+    {
+      "file": "apps/storefront/next.config.ts",
+      "sha256": "ab69b7140c8868d22ca2efb598b3d992b58671d92d30cf76d88a2e94da8f65fc"
+    },
+    {
+      "file": "apps/dashboard/vitest.config.ts",
+      "sha256": "87c78e9413a6eb712f00343d75f9646693df9ac759acc90cb4eb5d88d6b97fd9"
+    },
+    {
+      "file": ".gitignore",
+      "sha256": "24ab3a578bfd7066de342159c5c08dc4943e2083ac5af64b958ae38c5e768b82"
+    },
+    {
+      "file": "apps/api/prisma.config.ts",
+      "sha256": "ed5c3a75dbc6f3173c6a96281cc588bab5cb2931685c72dff755f8cc4a23a838"
+    },
+    {
+      "file": "apps/api/prisma/schema.prisma",
+      "sha256": "3ad75f84034b6e1e9cc4d164a6faee7816f7d16f61634c183eeb0b178903f526"
+    },
+    {
+      "file": "apps/api/prisma/DEPLOYMENT.md",
+      "sha256": "d5ee82690bd3f3f5296eb1257b03435424e53751165b776afdd809602767c6d1"
+    },
+    {
+      "file": "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql",
+      "sha256": "c3c2685a0acfa62ca05980e8cf38c948b724d1a449b909c00670897ff9729aed"
+    },
+    {
+      "file": "apps/widget_v2/package.json",
+      "sha256": "baffca54e89a01d23f2d2c971de1339f9b5ff101b10945be61d7015625d1c831"
+    },
+    {
+      "file": "apps/storefront/package.json",
+      "sha256": "b69afbd5bcafd6bb8868773b23705759c2b02cd73c7b0e17f01c0454d8cfa9e3"
+    },
+    {
+      "file": "apps/dashboard/package.json",
+      "sha256": "baf259e9788dc3c99662b1ba890206b56a2be5fd44a636b3e347fe17e4ba96da"
+    },
+    {
+      "file": "apps/widget_v2/vercel.json",
+      "sha256": "e54d89e751d6ba16b3e0f80e01f760cfed8a5a49252767c877e8206e6d7bcd15"
+    }
+  ]
+}

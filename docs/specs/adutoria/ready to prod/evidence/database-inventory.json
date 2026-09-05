@@ -1,0 +1,2001 @@
+{
+  "method": "schema parsed statically; active path from prisma.config.ts; CREATE TABLE exact-name search, not migration execution or complete SQL interpretation",
+  "schemaFile": "apps/api/prisma/schema.prisma",
+  "migrationRoot": "apps/api/prisma/deploy-migrations",
+  "models": [
+    {
+      "model": "Merchant",
+      "table": "merchants",
+      "line": 16,
+      "indexes": [
+        "id                      String       @id"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "MerchantOnboardingState",
+      "table": "merchant_onboarding_states",
+      "line": 66,
+      "indexes": [
+        "merchantId String   @id @map(\"merchant_id\")"
+      ],
+      "tenantFields": [
+        "merchantId String   @id @map(\"merchant_id\")",
+        "merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "MerchantInstallation",
+      "table": "merchant_installations",
+      "line": 77,
+      "indexes": [
+        "id             String    @id @default(cuid())",
+        "@@unique([merchantId, name, environment])",
+        "@@index([merchantId, environment, status])"
+      ],
+      "tenantFields": [
+        "merchantId     String    @map(\"merchant_id\")",
+        "merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)",
+        "@@unique([merchantId, name, environment])",
+        "@@index([merchantId, environment, status])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "MerchantAuditEvent",
+      "table": "merchant_audit_events",
+      "line": 98,
+      "indexes": [
+        "id            String   @id @default(cuid())",
+        "@@index([merchantId, occurredAt, id])",
+        "@@index([merchantId, resourceType, resourceId])"
+      ],
+      "tenantFields": [
+        "merchantId    String   @map(\"merchant_id\")",
+        "merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)",
+        "@@index([merchantId, occurredAt, id])",
+        "@@index([merchantId, resourceType, resourceId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "MerchantCommerceConnection",
+      "table": "merchant_commerce_connections",
+      "line": 120,
+      "indexes": [
+        "merchantId       String    @id @map(\"merchant_id\")",
+        "@@index([provider, status])"
+      ],
+      "tenantFields": [
+        "merchantId       String    @id @map(\"merchant_id\")",
+        "merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "MerchantPaymentConnection",
+      "table": "merchant_payment_connections",
+      "line": 139,
+      "indexes": [
+        "@@id([merchantId, provider])",
+        "@@index([provider, status])"
+      ],
+      "tenantFields": [
+        "merchantId        String    @map(\"merchant_id\")",
+        "merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)",
+        "@@id([merchantId, provider])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "MerchantBillingSubscription",
+      "table": "merchant_billing_subscriptions",
+      "line": 162,
+      "indexes": [
+        "merchantId           String    @id @map(\"merchant_id\")",
+        "stripeCustomerId     String?   @unique @map(\"stripe_customer_id\")",
+        "stripeSubscriptionId String?   @unique @map(\"stripe_subscription_id\")",
+        "@@index([status, trialEndsAt])"
+      ],
+      "tenantFields": [
+        "merchantId           String    @id @map(\"merchant_id\")",
+        "merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "CommercePendingOrder",
+      "table": "commerce_pending_orders",
+      "line": 180,
+      "indexes": [
+        "@@id([merchantId, sessionId])",
+        "@@index([merchantId, status, updatedAt])"
+      ],
+      "tenantFields": [
+        "merchantId       String   @map(\"merchant_id\")",
+        "merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)",
+        "@@id([merchantId, sessionId])",
+        "@@index([merchantId, status, updatedAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "CommercePaidEvent",
+      "table": "commerce_paid_events",
+      "line": 196,
+      "indexes": [
+        "@@id([merchantId, paymentReference])",
+        "@@index([merchantId, createdAt])"
+      ],
+      "tenantFields": [
+        "merchantId       String   @map(\"merchant_id\")",
+        "merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)",
+        "@@id([merchantId, paymentReference])",
+        "@@index([merchantId, createdAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "MerchantUser",
+      "table": "merchant_users",
+      "line": 209,
+      "indexes": [
+        "id              String   @id @default(cuid())",
+        "@@unique([email])",
+        "@@index([merchantId])",
+        "@@index([oauthProvider, oauthProviderId])"
+      ],
+      "tenantFields": [
+        "merchantId      String   @map(\"merchant_id\")",
+        "merchant    Merchant             @relation(fields: [merchantId], references: [id], onDelete: Cascade)",
+        "@@index([merchantId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "AgentRule",
+      "table": "agent_rules",
+      "line": 230,
+      "indexes": [
+        "id               String   @id @default(cuid())",
+        "@@unique([merchantId, agentId])",
+        "@@unique([merchantId, userId, scope])",
+        "@@index([merchantId, userId])"
+      ],
+      "tenantFields": [
+        "merchantId       String   @map(\"merchant_id\")",
+        "@@unique([merchantId, agentId])",
+        "@@unique([merchantId, userId, scope])",
+        "@@index([merchantId, userId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "CheckoutSetting",
+      "table": "checkout_settings",
+      "line": 251,
+      "indexes": [
+        "id                 String   @id @default(cuid())",
+        "merchantId         String   @unique @map(\"merchant_id\")",
+        "@@index([merchantId])"
+      ],
+      "tenantFields": [
+        "merchantId         String   @unique @map(\"merchant_id\")",
+        "@@index([merchantId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "CheckoutSession",
+      "table": "checkout_sessions",
+      "line": 268,
+      "indexes": [
+        "id               String   @id @default(cuid())",
+        "@@unique([merchantId, sessionId])",
+        "@@index([merchantId, updatedAt])",
+        "@@index([merchantId, createdAt])",
+        "@@index([globalUserId, merchantId, createdAt])"
+      ],
+      "tenantFields": [
+        "merchantId       String   @map(\"merchant_id\")",
+        "@@unique([merchantId, sessionId])",
+        "@@index([merchantId, updatedAt])",
+        "@@index([merchantId, createdAt])",
+        "@@index([globalUserId, merchantId, createdAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "CheckoutEvent",
+      "table": "checkout_events",
+      "line": 298,
+      "indexes": [
+        "id         String   @id @default(cuid())",
+        "@@index([merchantId, sessionId, occurredAt])"
+      ],
+      "tenantFields": [
+        "merchantId String   @map(\"merchant_id\")",
+        "session CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)",
+        "@@index([merchantId, sessionId, occurredAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "BuyerIdentity",
+      "table": "buyer_identities",
+      "line": 311,
+      "indexes": [
+        "id           String @id @default(cuid())",
+        "@@unique([merchantId, identityKey])",
+        "@@index([merchantId, globalUserId])"
+      ],
+      "tenantFields": [
+        "merchantId   String @map(\"merchant_id\")",
+        "@@unique([merchantId, identityKey])",
+        "@@index([merchantId, globalUserId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "MerchantRule",
+      "table": "merchant_rules",
+      "line": 322,
+      "indexes": [
+        "id                                String   @id @default(cuid())",
+        "merchantId                        String   @unique @map(\"merchant_id\")"
+      ],
+      "tenantFields": [
+        "merchantId                        String   @unique @map(\"merchant_id\")"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "SupportSetting",
+      "table": "support_settings",
+      "line": 346,
+      "indexes": [
+        "id         String   @id @default(cuid())",
+        "merchantId String   @unique @map(\"merchant_id\")",
+        "@@index([merchantId])"
+      ],
+      "tenantFields": [
+        "merchantId String   @unique @map(\"merchant_id\")",
+        "@@index([merchantId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "SupportTicket",
+      "table": "support_tickets",
+      "line": 357,
+      "indexes": [
+        "id           String    @id",
+        "@@index([merchantId, status, createdAt])",
+        "@@index([merchantId, sessionId])"
+      ],
+      "tenantFields": [
+        "merchantId   String    @map(\"merchant_id\")",
+        "@@index([merchantId, status, createdAt])",
+        "@@index([merchantId, sessionId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "SupportTicketMessage",
+      "table": "support_ticket_messages",
+      "line": 375,
+      "indexes": [
+        "id         String   @id @default(cuid())",
+        "@@index([ticketId, createdAt])"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "AuthorizedOffer",
+      "table": "authorized_offers",
+      "line": 388,
+      "indexes": [
+        "id               String   @id",
+        "@@index([merchantId, sessionId])"
+      ],
+      "tenantFields": [
+        "merchantId       String   @map(\"merchant_id\")",
+        "session        CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)",
+        "@@index([merchantId, sessionId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "AcceptedOffer",
+      "table": "accepted_offers",
+      "line": 407,
+      "indexes": [
+        "id               String   @id @default(cuid())",
+        "@@unique([merchantId, sessionId, offerId])",
+        "@@index([merchantId, acceptedAt])"
+      ],
+      "tenantFields": [
+        "merchantId       String   @map(\"merchant_id\")",
+        "session CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)",
+        "@@unique([merchantId, sessionId, offerId])",
+        "@@index([merchantId, acceptedAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "CompletedOrder",
+      "table": "completed_orders",
+      "line": 426,
+      "indexes": [
+        "id                 String    @id @default(cuid())",
+        "@@unique([merchantId, sessionId, externalOrderId])",
+        "@@index([merchantId, completedAt])",
+        "@@index([merchantId, status, completedAt])"
+      ],
+      "tenantFields": [
+        "merchantId         String    @map(\"merchant_id\")",
+        "session CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)",
+        "@@unique([merchantId, sessionId, externalOrderId])",
+        "@@index([merchantId, completedAt])",
+        "@@index([merchantId, status, completedAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "MerchantApiKey",
+      "table": "merchant_api_keys",
+      "line": 448,
+      "indexes": [
+        "id            String    @id",
+        "keyHash       String    @unique @map(\"key_hash\")",
+        "@@index([merchantId, environment, revokedAt])",
+        "@@index([merchantId, expiresAt])"
+      ],
+      "tenantFields": [
+        "merchantId    String    @map(\"merchant_id\")",
+        "merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)",
+        "@@index([merchantId, environment, revokedAt])",
+        "@@index([merchantId, expiresAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "HttpIdempotencyRecord",
+      "table": "http_idempotency_records",
+      "line": 471,
+      "indexes": [
+        "id                 String   @id @default(cuid())",
+        "@@unique([merchantId, idempotencyKey])",
+        "@@index([merchantId, state, updatedAt])",
+        "@@index([expiresAt])"
+      ],
+      "tenantFields": [
+        "merchantId         String   @map(\"merchant_id\")",
+        "merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)",
+        "@@unique([merchantId, idempotencyKey])",
+        "@@index([merchantId, state, updatedAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "MerchantWebhookEndpoint",
+      "table": "merchant_webhook_endpoints",
+      "line": 494,
+      "indexes": [
+        "id            String   @id",
+        "@@index([merchantId, enabled])"
+      ],
+      "tenantFields": [
+        "merchantId    String   @map(\"merchant_id\")",
+        "merchant   Merchant                  @relation(fields: [merchantId], references: [id], onDelete: Cascade)",
+        "@@index([merchantId, enabled])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "MerchantWebhookDelivery",
+      "table": "merchant_webhook_deliveries",
+      "line": 512,
+      "indexes": [
+        "id             String    @id",
+        "@@unique([endpointId, eventId])",
+        "@@index([merchantId, status, nextAttemptAt])",
+        "@@index([merchantId, createdAt])"
+      ],
+      "tenantFields": [
+        "merchantId     String    @map(\"merchant_id\")",
+        "merchant Merchant                @relation(fields: [merchantId], references: [id], onDelete: Cascade)",
+        "@@index([merchantId, status, nextAttemptAt])",
+        "@@index([merchantId, createdAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "Shipment",
+      "table": "shipments",
+      "line": 540,
+      "indexes": [
+        "id              String    @id",
+        "@@unique([merchantId, externalOrderId])",
+        "@@unique([merchantId, trackingCode])",
+        "@@index([merchantId, status, updatedAt])"
+      ],
+      "tenantFields": [
+        "merchantId      String    @map(\"merchant_id\")",
+        "merchant       Merchant        @relation(fields: [merchantId], references: [id], onDelete: Cascade)",
+        "@@unique([merchantId, externalOrderId])",
+        "@@unique([merchantId, trackingCode])",
+        "@@index([merchantId, status, updatedAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "TrackingEvent",
+      "table": "tracking_events",
+      "line": 563,
+      "indexes": [
+        "id           String   @id",
+        "@@index([merchantId, trackingCode, occurredAt])",
+        "@@index([shipmentId, occurredAt])"
+      ],
+      "tenantFields": [
+        "merchantId   String   @map(\"merchant_id\")",
+        "@@index([merchantId, trackingCode, occurredAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "BuyerPurchaseRecord",
+      "table": "buyer_purchase_records",
+      "line": 582,
+      "indexes": [
+        "id                 String   @id @default(cuid())",
+        "@@unique([merchantId, orderId])",
+        "@@index([merchantId, globalUserId])",
+        "@@index([merchantId, merchantCustomerId])",
+        "@@index([merchantId, completedAt])"
+      ],
+      "tenantFields": [
+        "merchantId         String   @map(\"merchant_id\")",
+        "@@unique([merchantId, orderId])",
+        "@@index([merchantId, globalUserId])",
+        "@@index([merchantId, merchantCustomerId])",
+        "@@index([merchantId, completedAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "MerchantNegotiationPolicy",
+      "table": "merchant_negotiation_policies",
+      "line": 602,
+      "indexes": [
+        "merchantId String   @id @map(\"merchant_id\")"
+      ],
+      "tenantFields": [
+        "merchantId String   @id @map(\"merchant_id\")"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "BuyerAgentNegotiationPreference",
+      "table": "buyer_agent_negotiation_preferences",
+      "line": 611,
+      "indexes": [
+        "id           String   @id @default(cuid())",
+        "@@unique([merchantId, globalUserId])",
+        "@@index([merchantId])"
+      ],
+      "tenantFields": [
+        "merchantId   String   @map(\"merchant_id\")",
+        "@@unique([merchantId, globalUserId])",
+        "@@index([merchantId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "NegotiationSession",
+      "table": "negotiation_sessions",
+      "line": 624,
+      "indexes": [
+        "id                   String   @id @default(cuid())",
+        "@@index([merchantId, createdAt])"
+      ],
+      "tenantFields": [
+        "merchantId           String   @map(\"merchant_id\")",
+        "@@index([merchantId, createdAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "NegotiationCostLedgerEntry",
+      "table": "negotiation_cost_ledger_entries",
+      "line": 640,
+      "indexes": [
+        "id                   String   @id @default(cuid())",
+        "@@unique([negotiationSessionId, eventType]) // H2 fix: concurrent-apply protection",
+        "@@index([merchantId, negotiationSessionId])"
+      ],
+      "tenantFields": [
+        "merchantId           String   @map(\"merchant_id\")",
+        "@@index([merchantId, negotiationSessionId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "BuyerAgent",
+      "table": "buyer_agents",
+      "line": 657,
+      "indexes": [
+        "id             String    @id @default(cuid())",
+        "@@unique([merchantId, globalUserId])",
+        "@@index([merchantId, status])"
+      ],
+      "tenantFields": [
+        "merchantId     String    @map(\"merchant_id\")",
+        "@@unique([merchantId, globalUserId])",
+        "@@index([merchantId, status])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "AgentReputation",
+      "table": "agent_reputations",
+      "line": 676,
+      "indexes": [
+        "id               String   @id @default(cuid())",
+        "agentId          String   @unique @map(\"agent_id\")"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "M2MProtocolConfig",
+      "table": "m2m_protocol_configs",
+      "line": 689,
+      "indexes": [
+        "id                   String   @id @default(cuid())",
+        "merchantId           String   @unique @map(\"merchant_id\")"
+      ],
+      "tenantFields": [
+        "merchantId           String   @unique @map(\"merchant_id\")"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "OutboxMessage",
+      "table": "outbox_messages",
+      "line": 702,
+      "indexes": [
+        "eventId       String    @id @map(\"event_id\")",
+        "@@index([merchantId, createdAt])",
+        "@@index([status, createdAt])",
+        "@@index([status, nextAttemptAt])"
+      ],
+      "tenantFields": [
+        "merchantId    String    @map(\"merchant_id\")",
+        "@@index([merchantId, createdAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "OutboxHandlerExecution",
+      "table": "outbox_handler_executions",
+      "line": 726,
+      "indexes": [
+        "@@id([eventId, handlerId])",
+        "@@index([eventId])"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "CheckoutIntervention",
+      "table": "checkout_interventions",
+      "line": 736,
+      "indexes": [
+        "id         String   @id @default(cuid())",
+        "@@index([merchantId, sessionId, occurredAt])"
+      ],
+      "tenantFields": [
+        "merchantId String   @map(\"merchant_id\")",
+        "@@index([merchantId, sessionId, occurredAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "ShippingQuote",
+      "table": "shipping_quotes",
+      "line": 747,
+      "indexes": [
+        "id                 String   @id",
+        "@@index([merchantId, sessionId, createdAt])",
+        "@@index([merchantId, quoteKey, expiresAt])"
+      ],
+      "tenantFields": [
+        "merchantId         String   @map(\"merchant_id\")",
+        "@@index([merchantId, sessionId, createdAt])",
+        "@@index([merchantId, quoteKey, expiresAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "PaymentIntent",
+      "table": "payment_intents",
+      "line": 763,
+      "indexes": [
+        "id                  String   @id",
+        "@@unique([merchantId, sessionId, idempotencyKey])",
+        "@@unique([merchantId, providerPaymentId])",
+        "@@index([merchantId, sessionId])",
+        "@@index([merchantId, commerceOrderId])",
+        "@@index([status, updatedAt])"
+      ],
+      "tenantFields": [
+        "merchantId          String   @map(\"merchant_id\")",
+        "@@unique([merchantId, sessionId, idempotencyKey])",
+        "@@unique([merchantId, providerPaymentId])",
+        "@@index([merchantId, sessionId])",
+        "@@index([merchantId, commerceOrderId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "PaymentProviderEvent",
+      "table": "payment_provider_events",
+      "line": 789,
+      "indexes": [
+        "id          String   @id",
+        "@@unique([provider, merchantId, eventId])",
+        "@@index([merchantId, processedAt])"
+      ],
+      "tenantFields": [
+        "merchantId  String?  @map(\"merchant_id\")",
+        "@@unique([provider, merchantId, eventId])",
+        "@@index([merchantId, processedAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "PaymentCryptoTransfer",
+      "table": "payment_crypto_transfers",
+      "line": 801,
+      "indexes": [
+        "id         String   @id",
+        "@@unique([chain, txHash])",
+        "@@index([merchantId, intentId])",
+        "@@index([expiresAt])"
+      ],
+      "tenantFields": [
+        "merchantId String   @map(\"merchant_id\")",
+        "@@index([merchantId, intentId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "BuyerAccount",
+      "table": "buyer_accounts",
+      "line": 816,
+      "indexes": [
+        "globalUserId String   @id @default(cuid()) @map(\"global_user_id\")",
+        "email        String   @unique"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "BuyerAddress",
+      "table": "buyer_addresses",
+      "line": 839,
+      "indexes": [
+        "id           String   @id @default(cuid())",
+        "@@index([globalUserId])"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "BuyerConversation",
+      "table": "buyer_conversations",
+      "line": 862,
+      "indexes": [
+        "id            String   @id @default(cuid())",
+        "@@index([globalUserId, lastMessageAt])",
+        "@@index([merchantId, sessionId])"
+      ],
+      "tenantFields": [
+        "merchantId    String   @map(\"merchant_id\")",
+        "@@index([merchantId, sessionId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "BuyerPreference",
+      "table": "buyer_preferences",
+      "line": 880,
+      "indexes": [
+        "id                       String   @id @default(cuid())",
+        "globalUserId             String   @unique @map(\"global_user_id\")"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "BuyerAgentProfile",
+      "table": "buyer_agent_profiles",
+      "line": 897,
+      "indexes": [
+        "id                               String    @id @default(cuid())",
+        "globalUserId                     String    @unique @map(\"global_user_id\")"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "BuyerPhoneOtp",
+      "table": "buyer_phone_otps",
+      "line": 923,
+      "indexes": [
+        "id          String    @id @default(cuid())",
+        "phone       String    @unique",
+        "@@index([expiresAt])"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "WebAuthnCredential",
+      "table": "webauthn_credentials",
+      "line": 943,
+      "indexes": [
+        "id           String    @id @default(cuid())",
+        "credentialId String    @unique @map(\"credential_id\")",
+        "@@index([globalUserId])"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "LoginAttemptCounter",
+      "table": "login_attempt_counters",
+      "line": 965,
+      "indexes": [
+        "id           String   @id @default(cuid())",
+        "scopeKey     String   @unique @map(\"scope_key\")",
+        "@@index([windowEndsAt])"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "Coupon",
+      "table": "coupons",
+      "line": 978,
+      "indexes": [
+        "id                       String    @id",
+        "@@unique([merchantId, code])",
+        "@@index([merchantId, status])",
+        "@@index([endsAt])"
+      ],
+      "tenantFields": [
+        "merchantId               String    @map(\"merchant_id\")",
+        "@@unique([merchantId, code])",
+        "@@index([merchantId, status])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "CouponRedemption",
+      "table": "coupon_redemptions",
+      "line": 1008,
+      "indexes": [
+        "id                String   @id",
+        "@@unique([merchantId, sessionId, couponId])",
+        "@@index([merchantId, couponId, status])",
+        "@@index([merchantId, buyerGlobalUserId, couponId, status])"
+      ],
+      "tenantFields": [
+        "merchantId        String   @map(\"merchant_id\")",
+        "@@unique([merchantId, sessionId, couponId])",
+        "@@index([merchantId, couponId, status])",
+        "@@index([merchantId, buyerGlobalUserId, couponId, status])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "CrossSellPromotion",
+      "table": "cross_sell_promotions",
+      "line": 1033,
+      "indexes": [
+        "id                 String    @id",
+        "@@index([merchantId, status])"
+      ],
+      "tenantFields": [
+        "merchantId         String    @map(\"merchant_id\")",
+        "@@index([merchantId, status])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "CrossSellSuggestion",
+      "table": "cross_sell_suggestions",
+      "line": 1053,
+      "indexes": [
+        "id               String    @id",
+        "@@index([merchantId, sessionId, promoId, status])",
+        "@@index([merchantId, status])"
+      ],
+      "tenantFields": [
+        "merchantId       String    @map(\"merchant_id\")",
+        "@@index([merchantId, sessionId, promoId, status])",
+        "@@index([merchantId, status])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "PriceQuoteJob",
+      "table": "price_quote_jobs",
+      "line": 1075,
+      "indexes": [
+        "id                String    @id",
+        "@@index([merchantId, status, createdAt])",
+        "@@index([merchantId, sessionId])"
+      ],
+      "tenantFields": [
+        "merchantId        String    @map(\"merchant_id\")",
+        "@@index([merchantId, status, createdAt])",
+        "@@index([merchantId, sessionId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "SelfCheckoutBuyerUser",
+      "table": "self_checkout_buyer_users",
+      "line": 1098,
+      "indexes": [
+        "id               String   @id",
+        "@@unique([merchantId, email])"
+      ],
+      "tenantFields": [
+        "merchantId       String   @map(\"merchant_id\")",
+        "@@unique([merchantId, email])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "SelfCheckoutWallet",
+      "table": "self_checkout_wallets",
+      "line": 1117,
+      "indexes": [
+        "id          String   @id",
+        "buyerUserId String   @unique @map(\"buyer_user_id\")"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "SelfCheckoutSavedAddress",
+      "table": "self_checkout_saved_addresses",
+      "line": 1133,
+      "indexes": [
+        "id        String  @id",
+        "@@index([walletId])"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "SelfCheckoutSavedPaymentMethod",
+      "table": "self_checkout_saved_payment_methods",
+      "line": 1150,
+      "indexes": [
+        "id           String   @id",
+        "@@index([walletId])"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "SelfCheckoutTemplate",
+      "table": "self_checkout_templates",
+      "line": 1167,
+      "indexes": [
+        "id                        String   @id",
+        "@@index([buyerUserId])",
+        "@@index([merchantId, buyerUserId])"
+      ],
+      "tenantFields": [
+        "merchantId                String   @map(\"merchant_id\")",
+        "@@index([merchantId, buyerUserId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "ProductCategory",
+      "table": "product_categories",
+      "line": 1201,
+      "indexes": [
+        "id          String   @id @default(cuid())",
+        "@@unique([merchantId, slug])",
+        "@@index([merchantId])"
+      ],
+      "tenantFields": [
+        "merchantId  String   @map(\"merchant_id\")",
+        "@@unique([merchantId, slug])",
+        "@@index([merchantId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "Product",
+      "table": "products",
+      "line": 1223,
+      "indexes": [
+        "id              String    @id @default(cuid())",
+        "slug            String?   @unique",
+        "@@index([merchantId])",
+        "@@index([merchantId, isActive, createdAt])",
+        "@@index([merchantId, categoryId, isActive])",
+        "@@index([slug])"
+      ],
+      "tenantFields": [
+        "merchantId      String    @map(\"merchant_id\")",
+        "@@index([merchantId])",
+        "@@index([merchantId, isActive, createdAt])",
+        "@@index([merchantId, categoryId, isActive])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "ProductVariant",
+      "table": "product_variants",
+      "line": 1255,
+      "indexes": [
+        "id          String   @id @default(cuid())",
+        "@@unique([productId, sku])",
+        "@@index([productId])"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "ProductMedia",
+      "table": "product_media",
+      "line": 1280,
+      "indexes": [
+        "id        String    @id @default(cuid())",
+        "@@index([variantId])"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "ProductPrice",
+      "table": "product_prices",
+      "line": 1295,
+      "indexes": [
+        "id               String   @id @default(cuid())",
+        "variantId        String   @unique @map(\"variant_id\")"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "ProductStock",
+      "table": "product_stock",
+      "line": 1310,
+      "indexes": [
+        "id          String   @id @default(cuid())",
+        "@@unique([variantId, warehouseId])",
+        "@@index([variantId])"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "StockReservation",
+      "table": "stock_reservations",
+      "line": 1326,
+      "indexes": [
+        "id        String                 @id @default(cuid())",
+        "@@index([variantId, status])",
+        "@@index([expiresAt, status])"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "ProductReview",
+      "table": "product_reviews",
+      "line": 1342,
+      "indexes": [
+        "id        String   @id @default(cuid())",
+        "@@index([productId, approved])",
+        "@@index([buyerId])"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "ProductCollection",
+      "table": "product_collections",
+      "line": 1359,
+      "indexes": [
+        "id          String   @id @default(cuid())",
+        "@@index([merchantId])"
+      ],
+      "tenantFields": [
+        "merchantId  String   @map(\"merchant_id\")",
+        "@@index([merchantId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "CollectionProduct",
+      "table": "collection_products",
+      "line": 1373,
+      "indexes": [
+        "id           String @id @default(cuid())",
+        "@@unique([collectionId, productId])"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "Return",
+      "table": "returns",
+      "line": 1417,
+      "indexes": [
+        "id         String       @id @default(cuid())",
+        "@@index([merchantId, status])",
+        "@@index([merchantId, createdAt])",
+        "@@index([orderId])"
+      ],
+      "tenantFields": [
+        "merchantId String       @map(\"merchant_id\")",
+        "@@index([merchantId, status])",
+        "@@index([merchantId, createdAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "ReturnItem",
+      "table": "return_items",
+      "line": 1439,
+      "indexes": [
+        "id        String  @id @default(cuid())"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "ReturnLabel",
+      "table": "return_labels",
+      "line": 1451,
+      "indexes": [
+        "id             String   @id @default(cuid())",
+        "returnId       String   @unique @map(\"return_id\")"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "ReturnInspection",
+      "table": "return_inspections",
+      "line": 1465,
+      "indexes": [
+        "id            String        @id @default(cuid())",
+        "returnId      String        @unique @map(\"return_id\")"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "ReturnRefund",
+      "table": "return_refunds",
+      "line": 1479,
+      "indexes": [
+        "id              String    @id @default(cuid())",
+        "returnId        String    @unique @map(\"return_id\")"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "StoreMetricDaily",
+      "table": "store_metrics_daily",
+      "line": 1495,
+      "indexes": [
+        "id                 String   @id @default(cuid())",
+        "@@unique([merchantId, date])",
+        "@@index([merchantId, date])"
+      ],
+      "tenantFields": [
+        "merchantId         String   @map(\"merchant_id\")",
+        "@@unique([merchantId, date])",
+        "@@index([merchantId, date])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "StoreProductMetric",
+      "table": "store_product_metrics",
+      "line": 1512,
+      "indexes": [
+        "id          String   @id @default(cuid())",
+        "@@unique([merchantId, productId, month])",
+        "@@index([merchantId, month])"
+      ],
+      "tenantFields": [
+        "merchantId  String   @map(\"merchant_id\")",
+        "@@unique([merchantId, productId, month])",
+        "@@index([merchantId, month])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "ProductSearchVector",
+      "table": "product_search_vectors",
+      "line": 1534,
+      "indexes": [
+        "id         String   @id @default(cuid())",
+        "productId  String   @unique @map(\"product_id\")",
+        "@@index([merchantId])"
+      ],
+      "tenantFields": [
+        "merchantId String   @map(\"merchant_id\")",
+        "@@index([merchantId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "MerchantTeamMember",
+      "table": "merchant_team_members",
+      "line": 1558,
+      "indexes": [
+        "id         String       @id @default(cuid())",
+        "@@unique([merchantId, userId])",
+        "@@index([merchantId])"
+      ],
+      "tenantFields": [
+        "merchantId String       @map(\"merchant_id\")",
+        "@@unique([merchantId, userId])",
+        "@@index([merchantId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "MerchantInvite",
+      "table": "merchant_invites",
+      "line": 1573,
+      "indexes": [
+        "id         String       @id @default(cuid())",
+        "@@index([merchantId])",
+        "@@index([email, status])"
+      ],
+      "tenantFields": [
+        "merchantId String       @map(\"merchant_id\")",
+        "@@index([merchantId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "MerchantDomain",
+      "table": "merchant_domains",
+      "line": 1588,
+      "indexes": [
+        "id          String    @id @default(cuid())",
+        "domain      String    @unique",
+        "@@index([merchantId])"
+      ],
+      "tenantFields": [
+        "merchantId  String    @map(\"merchant_id\")",
+        "@@index([merchantId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "StorefrontCart",
+      "table": "storefront_carts",
+      "line": 1603,
+      "indexes": [
+        "id         String   @id @default(cuid())",
+        "@@unique([merchantId, sessionId])",
+        "@@index([expiresAt])"
+      ],
+      "tenantFields": [
+        "merchantId String   @map(\"merchant_id\")",
+        "@@unique([merchantId, sessionId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "ProductPromotion",
+      "table": "product_promotions",
+      "line": 1622,
+      "indexes": [
+        "id                String   @id @default(cuid())",
+        "@@index([merchantId, isActive, endsAt])",
+        "@@index([variantId, isActive])",
+        "@@index([categoryId, isActive])"
+      ],
+      "tenantFields": [
+        "merchantId        String   @map(\"merchant_id\")",
+        "@@index([merchantId, isActive, endsAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "StoryCategory",
+      "table": "story_categories",
+      "line": 1644,
+      "indexes": [
+        "id         String   @id @default(cuid())",
+        "@@index([merchantId, isArchived])"
+      ],
+      "tenantFields": [
+        "merchantId String   @map(\"merchant_id\")",
+        "merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)",
+        "@@index([merchantId, isArchived])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "Story",
+      "table": "stories",
+      "line": 1661,
+      "indexes": [
+        "id          String   @id @default(cuid())",
+        "@@index([categoryId, isArchived])",
+        "@@index([merchantId])"
+      ],
+      "tenantFields": [
+        "merchantId  String   @map(\"merchant_id\")",
+        "@@index([merchantId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "BudgetRequest",
+      "table": "budget_requests",
+      "line": 1680,
+      "indexes": [
+        "id            String   @id @default(cuid())",
+        "@@index([merchantId, createdAt])",
+        "@@index([merchantId, status])"
+      ],
+      "tenantFields": [
+        "merchantId    String   @map(\"merchant_id\")",
+        "merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)",
+        "@@index([merchantId, createdAt])",
+        "@@index([merchantId, status])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "PromptExperiment",
+      "table": "prompt_experiments",
+      "line": 1703,
+      "indexes": [
+        "id              String    @id @default(cuid())",
+        "@@unique([merchantId, name])",
+        "@@index([merchantId, status])",
+        "@@index([merchantId, createdAt])"
+      ],
+      "tenantFields": [
+        "merchantId      String    @map(\"merchant_id\")",
+        "@@unique([merchantId, name])",
+        "@@index([merchantId, status])",
+        "@@index([merchantId, createdAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "PromptVariant",
+      "table": "prompt_variants",
+      "line": 1723,
+      "indexes": [
+        "id           String   @id @default(cuid())",
+        "@@unique([experimentId, name])",
+        "@@index([experimentId])"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "PromptVariantResult",
+      "table": "prompt_variant_results",
+      "line": 1741,
+      "indexes": [
+        "id              String   @id @default(cuid())",
+        "@@unique([variantId, sessionId])",
+        "@@index([variantId, createdAt])",
+        "@@index([variantId, checkoutCompleted, createdAt], name: \"idx_prompt_variant_results_funnel\")"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "MarketplaceConfig",
+      "table": "marketplace_configs",
+      "line": 1773,
+      "indexes": [
+        "id                    String   @id @default(cuid())",
+        "merchantId            String   @unique @map(\"merchant_id\")"
+      ],
+      "tenantFields": [
+        "merchantId            String   @unique @map(\"merchant_id\")",
+        "merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "MarketplaceConnection",
+      "table": "marketplace_connections",
+      "line": 1791,
+      "indexes": [
+        "id                String   @id @default(cuid())",
+        "@@unique([buyerMerchantId, sellerMerchantId])",
+        "@@index([buyerMerchantId, status])"
+      ],
+      "tenantFields": [
+        "sellerMerchantId  String   @map(\"seller_merchant_id\")",
+        "@@unique([buyerMerchantId, sellerMerchantId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "FederatedProduct",
+      "table": "federated_products",
+      "line": 1803,
+      "indexes": [
+        "id                String   @id @default(cuid())",
+        "@@unique([sourceMerchantId, sourceProductId])",
+        "@@index([category])",
+        "@@index([sourceMerchantId])"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "CrossStoreLineItem",
+      "table": "cross_store_line_items",
+      "line": 1824,
+      "indexes": [
+        "id                  String   @id @default(cuid())",
+        "@@index([hostMerchantId])",
+        "@@index([sellerMerchantId])",
+        "@@index([orderId])"
+      ],
+      "tenantFields": [
+        "hostMerchantId      String   @map(\"host_merchant_id\")",
+        "sellerMerchantId    String   @map(\"seller_merchant_id\")",
+        "@@index([hostMerchantId])",
+        "@@index([sellerMerchantId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "MarketplaceSettlement",
+      "table": "marketplace_settlements",
+      "line": 1847,
+      "indexes": [
+        "id                    String   @id @default(cuid())",
+        "@@index([hostMerchantId])",
+        "@@index([sellerMerchantId])",
+        "@@index([status])",
+        "@@index([transferScheduledAt])"
+      ],
+      "tenantFields": [
+        "hostMerchantId        String   @map(\"host_merchant_id\")",
+        "sellerMerchantId      String   @map(\"seller_merchant_id\")",
+        "@@index([hostMerchantId])",
+        "@@index([sellerMerchantId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "MarketplaceSellerDebt",
+      "table": "marketplace_seller_debts",
+      "line": 1875,
+      "indexes": [
+        "id                        String   @id @default(cuid())",
+        "@@index([sellerMerchantId])",
+        "@@index([status])"
+      ],
+      "tenantFields": [
+        "sellerMerchantId          String   @map(\"seller_merchant_id\")",
+        "@@index([sellerMerchantId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "RevenueManagerObservation",
+      "table": "revenue_manager_observations",
+      "line": 1894,
+      "indexes": [
+        "id                        String   @id @default(cuid())",
+        "fingerprint               String   @unique",
+        "@@index([merchantId, createdAt])",
+        "@@index([merchantId, observationWindowStart])"
+      ],
+      "tenantFields": [
+        "merchantId                String   @map(\"merchant_id\")",
+        "@@index([merchantId, createdAt])",
+        "@@index([merchantId, observationWindowStart])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "RevenueManagerHypothesis",
+      "table": "revenue_manager_hypotheses",
+      "line": 1919,
+      "indexes": [
+        "id                        String   @id @default(cuid())",
+        "@@index([merchantId, status])",
+        "@@index([merchantId, createdAt])"
+      ],
+      "tenantFields": [
+        "merchantId                String   @map(\"merchant_id\")",
+        "@@index([merchantId, status])",
+        "@@index([merchantId, createdAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "RevenueManagerStrategyLesson",
+      "table": "revenue_manager_strategy_lessons",
+      "line": 1952,
+      "indexes": [
+        "id                        String   @id @default(cuid())",
+        "@@index([merchantId, recordedAt])",
+        "@@index([experimentId])"
+      ],
+      "tenantFields": [
+        "merchantId                String   @map(\"merchant_id\")",
+        "@@index([merchantId, recordedAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "ProtocolSession",
+      "table": "protocol_sessions",
+      "line": 1980,
+      "indexes": [
+        "id                        String   @id",
+        "@@index([merchantId, expiresAt])",
+        "@@index([merchantId, currentState])"
+      ],
+      "tenantFields": [
+        "merchantId                String   @map(\"merchant_id\")",
+        "@@index([merchantId, expiresAt])",
+        "@@index([merchantId, currentState])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "RecoveryAttempt",
+      "table": "recovery_attempts",
+      "line": 1997,
+      "indexes": [
+        "id                  String   @id @default(cuid())",
+        "@@index([merchantId, status])",
+        "@@index([merchantId, createdAt])",
+        "@@index([sessionId])"
+      ],
+      "tenantFields": [
+        "merchantId          String   @map(\"merchant_id\")",
+        "@@index([merchantId, status])",
+        "@@index([merchantId, createdAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "BuyerIntentMemoryConsent",
+      "table": "buyer_intent_memory_consents",
+      "line": 2018,
+      "indexes": [
+        "@@id([merchantId, globalUserId])"
+      ],
+      "tenantFields": [
+        "merchantId    String   @map(\"merchant_id\")",
+        "@@id([merchantId, globalUserId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "CustomerIntentRecord",
+      "table": "customer_intent_records",
+      "line": 2029,
+      "indexes": [
+        "id                        String   @id @default(cuid())",
+        "@@index([merchantId, globalUserId])",
+        "@@index([merchantId, generatedAt])"
+      ],
+      "tenantFields": [
+        "merchantId                String   @map(\"merchant_id\")",
+        "@@index([merchantId, globalUserId])",
+        "@@index([merchantId, generatedAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "HoldoutGroupAssignment",
+      "table": "holdout_group_assignments",
+      "line": 2047,
+      "indexes": [
+        "@@id([globalUserId, merchantId])",
+        "@@index([merchantId, cohort])"
+      ],
+      "tenantFields": [
+        "merchantId      String   @map(\"merchant_id\")",
+        "@@id([globalUserId, merchantId])",
+        "@@index([merchantId, cohort])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "AttributionTag",
+      "table": "attribution_tags",
+      "line": 2058,
+      "indexes": [
+        "id                              String   @id @default(cuid())",
+        "@@unique([merchantId, orderId])",
+        "@@index([merchantId, cohort, createdAt])"
+      ],
+      "tenantFields": [
+        "merchantId                      String   @map(\"merchant_id\")",
+        "@@unique([merchantId, orderId])",
+        "@@index([merchantId, cohort, createdAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "RevenueLiftSnapshot",
+      "table": "revenue_lift_snapshots",
+      "line": 2082,
+      "indexes": [
+        "id              String   @id @default(cuid())",
+        "@@index([merchantId, calculatedAt])"
+      ],
+      "tenantFields": [
+        "merchantId      String   @map(\"merchant_id\")",
+        "@@index([merchantId, calculatedAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "NegotiationAttempt",
+      "table": "negotiation_attempts",
+      "line": 2098,
+      "indexes": [
+        "id                    String   @id @default(cuid())",
+        "@@index([merchantId, sessionId])",
+        "@@index([cartFingerprint, createdAt])"
+      ],
+      "tenantFields": [
+        "merchantId            String   @map(\"merchant_id\")",
+        "@@index([merchantId, sessionId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "CartRecoveryStrategyPref",
+      "table": "cart_recovery_strategy_prefs",
+      "line": 2116,
+      "indexes": [
+        "id         String   @id @default(cuid())",
+        "merchantId String   @unique @map(\"merchant_id\")",
+        "@@index([merchantId])"
+      ],
+      "tenantFields": [
+        "merchantId String   @unique @map(\"merchant_id\")",
+        "merchant Merchant @relation(\"CartRecoveryStrategyPref\", fields: [merchantId], references: [id], onDelete: Cascade)",
+        "@@index([merchantId])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "BuyerGlobalProfile",
+      "table": "buyer_global_profiles",
+      "line": 2132,
+      "indexes": [
+        "globalUserId        String   @id @map(\"global_user_id\")"
+      ],
+      "tenantFields": [],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "WhatsAppChannelConfig",
+      "table": "whatsapp_channel_configs",
+      "line": 2148,
+      "indexes": [
+        "id              String   @id @default(uuid())",
+        "merchantId      String   @unique @map(\"merchant_id\")",
+        "@@index([whatsappNumber])",
+        "@@index([deviceId])"
+      ],
+      "tenantFields": [
+        "merchantId      String   @unique @map(\"merchant_id\")",
+        "merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "WhatsAppSession",
+      "table": "whatsapp_sessions",
+      "line": 2179,
+      "indexes": [
+        "id                String   @id @default(uuid())",
+        "@@unique([merchantId, buyerPhone, deviceId])",
+        "@@index([merchantId, status])",
+        "@@index([lastActivityAt])"
+      ],
+      "tenantFields": [
+        "merchantId        String   @map(\"merchant_id\")",
+        "@@unique([merchantId, buyerPhone, deviceId])",
+        "@@index([merchantId, status])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "PaymentHold",
+      "table": "payment_holds",
+      "line": 2199,
+      "indexes": [
+        "id               String    @id @default(cuid())",
+        "paymentIntentId  String    @unique @map(\"payment_intent_id\")",
+        "@@index([merchantId, status])",
+        "@@index([status, holdUntil])"
+      ],
+      "tenantFields": [
+        "merchantId       String    @map(\"merchant_id\")",
+        "@@index([merchantId, status])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "InventoryLocation",
+      "table": "inventory_locations",
+      "line": 2229,
+      "indexes": [
+        "id         String   @id @default(cuid())",
+        "@@unique([merchantId, name])",
+        "@@index([merchantId, isActive])"
+      ],
+      "tenantFields": [
+        "merchantId String   @map(\"merchant_id\")",
+        "merchant Merchant          @relation(\"InventoryLocations\", fields: [merchantId], references: [id], onDelete: Cascade)",
+        "@@unique([merchantId, name])",
+        "@@index([merchantId, isActive])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "InventoryItem",
+      "table": "inventory_items",
+      "line": 2247,
+      "indexes": [
+        "id                String   @id @default(cuid())",
+        "@@unique([merchantId, sku, locationId])",
+        "@@index([merchantId, locationId])",
+        "@@index([merchantId, sku])"
+      ],
+      "tenantFields": [
+        "merchantId        String   @map(\"merchant_id\")",
+        "merchant   Merchant          @relation(\"InventoryItems\", fields: [merchantId], references: [id], onDelete: Cascade)",
+        "@@unique([merchantId, sku, locationId])",
+        "@@index([merchantId, locationId])",
+        "@@index([merchantId, sku])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "InventoryMovement",
+      "table": "inventory_movements",
+      "line": 2274,
+      "indexes": [
+        "id          String                 @id @default(cuid())",
+        "@@index([merchantId, itemId, createdAt])",
+        "@@index([merchantId, kind, createdAt])"
+      ],
+      "tenantFields": [
+        "merchantId  String                 @map(\"merchant_id\")",
+        "merchant Merchant      @relation(\"InventoryMovements\", fields: [merchantId], references: [id], onDelete: Cascade)",
+        "@@index([merchantId, itemId, createdAt])",
+        "@@index([merchantId, kind, createdAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "InventoryAlert",
+      "table": "inventory_alerts",
+      "line": 2294,
+      "indexes": [
+        "id             String    @id @default(cuid())",
+        "@@index([merchantId, acknowledged, createdAt])"
+      ],
+      "tenantFields": [
+        "merchantId     String    @map(\"merchant_id\")",
+        "merchant Merchant      @relation(\"InventoryAlerts\", fields: [merchantId], references: [id], onDelete: Cascade)",
+        "@@index([merchantId, acknowledged, createdAt])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "ErpConnection",
+      "table": "erp_connections",
+      "line": 2311,
+      "indexes": [
+        "id                 String   @id @default(cuid())",
+        "@@unique([merchantId, provider])",
+        "@@index([merchantId, status])"
+      ],
+      "tenantFields": [
+        "merchantId         String   @map(\"merchant_id\")",
+        "merchant Merchant @relation(\"ErpConnections\", fields: [merchantId], references: [id], onDelete: Cascade)",
+        "@@unique([merchantId, provider])",
+        "@@index([merchantId, status])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    },
+    {
+      "model": "CrmConnection",
+      "table": "crm_connections",
+      "line": 2333,
+      "indexes": [
+        "id                 String    @id @default(cuid())",
+        "@@unique([merchantId, provider])",
+        "@@index([merchantId, status])"
+      ],
+      "tenantFields": [
+        "merchantId         String    @map(\"merchant_id\")",
+        "merchant Merchant @relation(\"CrmConnections\", fields: [merchantId], references: [id], onDelete: Cascade)",
+        "@@unique([merchantId, provider])",
+        "@@index([merchantId, status])"
+      ],
+      "createTableMigrations": [
+        "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+      ]
+    }
+  ],
+  "migrationFiles": [
+    "apps/api/prisma/deploy-migrations/20260905000000_complete_schema/migration.sql"
+  ]
+}

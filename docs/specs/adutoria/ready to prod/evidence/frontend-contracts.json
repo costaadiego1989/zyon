@@ -1,0 +1,6252 @@
+[
+  {
+    "app": "dashboard",
+    "module": "agent",
+    "file": "apps/dashboard/src/api/endpoints/agent.ts",
+    "line": 9,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/agent-rules",
+    "normalized": "/agent-rules",
+    "candidates": [
+      {
+        "module": "agent-rules",
+        "verb": "GET",
+        "url": "/agent-rules",
+        "mounted": true,
+        "file": "apps/api/src/modules/agent-rules/presentation/http/agent-rules.controller.ts",
+        "line": 27,
+        "controller": "AgentRulesController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "agent",
+    "file": "apps/dashboard/src/api/endpoints/agent.ts",
+    "line": 12,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/agent-rules",
+    "normalized": "/agent-rules",
+    "candidates": [
+      {
+        "module": "agent-rules",
+        "verb": "PUT",
+        "url": "/agent-rules",
+        "mounted": true,
+        "file": "apps/api/src/modules/agent-rules/presentation/http/agent-rules.controller.ts",
+        "line": 33,
+        "controller": "AgentRulesController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "agent",
+    "file": "apps/dashboard/src/api/endpoints/agent.ts",
+    "line": 15,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/agent-rules/context",
+    "normalized": "/agent-rules/context",
+    "candidates": [
+      {
+        "module": "agent-rules",
+        "verb": "GET",
+        "url": "/agent-rules/context",
+        "mounted": true,
+        "file": "apps/api/src/modules/agent-rules/presentation/http/agent-rules.controller.ts",
+        "line": 43,
+        "controller": "AgentRulesController"
+      },
+      {
+        "module": "agent-rules",
+        "verb": "GET",
+        "url": "/agent-rules/:agentId",
+        "mounted": true,
+        "file": "apps/api/src/modules/agent-rules/presentation/http/agent-rules.controller.ts",
+        "line": 49,
+        "controller": "AgentRulesController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "audit",
+    "file": "apps/dashboard/src/api/endpoints/audit.ts",
+    "line": 26,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/audit-events{query}",
+    "normalized": "/audit-events",
+    "candidates": [
+      {
+        "module": "audit",
+        "verb": "GET",
+        "url": "/audit-events",
+        "mounted": true,
+        "file": "apps/api/src/modules/audit/presentation/http/audit-events.controller.ts",
+        "line": 31,
+        "controller": "AuditEventsController"
+      },
+      {
+        "module": "public-api",
+        "verb": "GET",
+        "url": "/audit-events",
+        "mounted": false,
+        "file": "apps/api/src/modules/public-api/audit/presentation/http/audit-v1.controller.ts",
+        "line": 42,
+        "controller": "AuditV1Controller"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "auth",
+    "file": "apps/dashboard/src/api/endpoints/auth.ts",
+    "line": 7,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/auth/login",
+    "normalized": "/auth/login",
+    "candidates": [
+      {
+        "module": "auth",
+        "verb": "POST",
+        "url": "/auth/login",
+        "mounted": true,
+        "file": "apps/api/src/modules/auth/presentation/auth.controller.ts",
+        "line": 80,
+        "controller": "AuthController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "auth",
+    "file": "apps/dashboard/src/api/endpoints/auth.ts",
+    "line": 16,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/auth/register",
+    "normalized": "/auth/register",
+    "candidates": [
+      {
+        "module": "auth",
+        "verb": "POST",
+        "url": "/auth/register",
+        "mounted": true,
+        "file": "apps/api/src/modules/auth/presentation/auth.controller.ts",
+        "line": 38,
+        "controller": "AuthController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "auth",
+    "file": "apps/dashboard/src/api/endpoints/auth.ts",
+    "line": 25,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/auth/oauth/callback",
+    "normalized": "/auth/oauth/callback",
+    "candidates": [
+      {
+        "module": "auth",
+        "verb": "POST",
+        "url": "/auth/oauth/callback",
+        "mounted": true,
+        "file": "apps/api/src/modules/auth/presentation/auth.controller.ts",
+        "line": 273,
+        "controller": "AuthController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "auth",
+    "file": "apps/dashboard/src/api/endpoints/auth.ts",
+    "line": 34,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/auth/logout",
+    "normalized": "/auth/logout",
+    "candidates": [
+      {
+        "module": "auth",
+        "verb": "POST",
+        "url": "/auth/logout",
+        "mounted": true,
+        "file": "apps/api/src/modules/auth/presentation/auth.controller.ts",
+        "line": 195,
+        "controller": "AuthController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "auth",
+    "file": "apps/dashboard/src/api/endpoints/auth.ts",
+    "line": 38,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/auth/forgot-password",
+    "normalized": "/auth/forgot-password",
+    "candidates": [
+      {
+        "module": "auth",
+        "verb": "POST",
+        "url": "/auth/forgot-password",
+        "mounted": true,
+        "file": "apps/api/src/modules/auth/presentation/auth.controller.ts",
+        "line": 209,
+        "controller": "AuthController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "auth",
+    "file": "apps/dashboard/src/api/endpoints/auth.ts",
+    "line": 42,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/auth/reset-password",
+    "normalized": "/auth/reset-password",
+    "candidates": [
+      {
+        "module": "auth",
+        "verb": "POST",
+        "url": "/auth/reset-password",
+        "mounted": true,
+        "file": "apps/api/src/modules/auth/presentation/auth.controller.ts",
+        "line": 238,
+        "controller": "AuthController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "auth",
+    "file": "apps/dashboard/src/api/endpoints/auth.ts",
+    "line": 46,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/auth/me",
+    "normalized": "/auth/me",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "dashboard",
+    "module": "auth",
+    "file": "apps/dashboard/src/api/endpoints/auth.ts",
+    "line": 50,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/auth/me",
+    "normalized": "/auth/me",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "dashboard",
+    "module": "auth",
+    "file": "apps/dashboard/src/api/endpoints/auth.ts",
+    "line": 54,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/auth/me/password",
+    "normalized": "/auth/me/password",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "dashboard",
+    "module": "billing",
+    "file": "apps/dashboard/src/api/endpoints/billing.ts",
+    "line": 13,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/billing/subscription",
+    "normalized": "/billing/subscription",
+    "candidates": [
+      {
+        "module": "payment",
+        "verb": "GET",
+        "url": "/billing/subscription",
+        "mounted": true,
+        "file": "apps/api/src/modules/payment/presentation/http/payment-platform.controller.ts",
+        "line": 393,
+        "controller": "BillingController"
+      },
+      {
+        "module": "public-api",
+        "verb": "GET",
+        "url": "/billing/subscription",
+        "mounted": false,
+        "file": "apps/api/src/modules/public-api/billing/presentation/http/billing-v1.controller.ts",
+        "line": 60,
+        "controller": "BillingV1Controller"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "billing",
+    "file": "apps/dashboard/src/api/endpoints/billing.ts",
+    "line": 16,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/billing/checkout-session",
+    "normalized": "/billing/checkout-session",
+    "candidates": [
+      {
+        "module": "payment",
+        "verb": "POST",
+        "url": "/billing/checkout-session",
+        "mounted": true,
+        "file": "apps/api/src/modules/payment/presentation/http/payment-platform.controller.ts",
+        "line": 428,
+        "controller": "BillingController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "billing",
+    "file": "apps/dashboard/src/api/endpoints/billing.ts",
+    "line": 19,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/billing/portal-session",
+    "normalized": "/billing/portal-session",
+    "candidates": [
+      {
+        "module": "payment",
+        "verb": "POST",
+        "url": "/billing/portal-session",
+        "mounted": true,
+        "file": "apps/api/src/modules/payment/presentation/http/payment-platform.controller.ts",
+        "line": 466,
+        "controller": "BillingController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "billing",
+    "file": "apps/dashboard/src/api/endpoints/billing.ts",
+    "line": 24,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/payments/connections",
+    "normalized": "/payments/connections",
+    "candidates": [
+      {
+        "module": "operations",
+        "verb": "GET",
+        "url": "/payments/:paymentId",
+        "mounted": true,
+        "file": "apps/api/src/modules/operations/presentation/http/operations.controller.ts",
+        "line": 481,
+        "controller": "PaymentsController"
+      },
+      {
+        "module": "payment",
+        "verb": "GET",
+        "url": "/payments/connections",
+        "mounted": true,
+        "file": "apps/api/src/modules/payment/presentation/http/payment-platform.controller.ts",
+        "line": 90,
+        "controller": "PaymentPlatformController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "billing",
+    "file": "apps/dashboard/src/api/endpoints/billing.ts",
+    "line": 28,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/payments/connections/stripe/onboarding-link",
+    "normalized": "/payments/connections/stripe/onboarding-link",
+    "candidates": [
+      {
+        "module": "payment",
+        "verb": "POST",
+        "url": "/payments/connections/stripe/onboarding-link",
+        "mounted": true,
+        "file": "apps/api/src/modules/payment/presentation/http/payment-platform.controller.ts",
+        "line": 125,
+        "controller": "PaymentPlatformController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "billing",
+    "file": "apps/dashboard/src/api/endpoints/billing.ts",
+    "line": 31,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/payments/connections/stripe/sync",
+    "normalized": "/payments/connections/stripe/sync",
+    "candidates": [
+      {
+        "module": "payment",
+        "verb": "POST",
+        "url": "/payments/connections/stripe/sync",
+        "mounted": true,
+        "file": "apps/api/src/modules/payment/presentation/http/payment-platform.controller.ts",
+        "line": 160,
+        "controller": "PaymentPlatformController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "billing",
+    "file": "apps/dashboard/src/api/endpoints/billing.ts",
+    "line": 34,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/me/payment-connections/asaas",
+    "normalized": "/merchants/me/payment-connections/asaas",
+    "candidates": [
+      {
+        "module": "payment",
+        "verb": "POST",
+        "url": "/merchants/me/payment-connections/asaas",
+        "mounted": true,
+        "file": "apps/api/src/modules/payment/presentation/http/payment-platform.controller.ts",
+        "line": 307,
+        "controller": "MerchantPaymentConnectionsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "billing",
+    "file": "apps/dashboard/src/api/endpoints/billing.ts",
+    "line": 37,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/payments/connections/asaas",
+    "normalized": "/payments/connections/asaas",
+    "candidates": [
+      {
+        "module": "payment",
+        "verb": "POST",
+        "url": "/payments/connections/asaas",
+        "mounted": true,
+        "file": "apps/api/src/modules/payment/presentation/http/payment-platform.controller.ts",
+        "line": 181,
+        "controller": "PaymentPlatformController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "billing",
+    "file": "apps/dashboard/src/api/endpoints/billing.ts",
+    "line": 40,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/payments/connections/asaas/onboarding-link",
+    "normalized": "/payments/connections/asaas/onboarding-link",
+    "candidates": [
+      {
+        "module": "payment",
+        "verb": "POST",
+        "url": "/payments/connections/asaas/onboarding-link",
+        "mounted": true,
+        "file": "apps/api/src/modules/payment/presentation/http/payment-platform.controller.ts",
+        "line": 225,
+        "controller": "PaymentPlatformController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "billing",
+    "file": "apps/dashboard/src/api/endpoints/billing.ts",
+    "line": 43,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/payments/connections/asaas/sync",
+    "normalized": "/payments/connections/asaas/sync",
+    "candidates": [
+      {
+        "module": "payment",
+        "verb": "POST",
+        "url": "/payments/connections/asaas/sync",
+        "mounted": true,
+        "file": "apps/api/src/modules/payment/presentation/http/payment-platform.controller.ts",
+        "line": 251,
+        "controller": "PaymentPlatformController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "billing",
+    "file": "apps/dashboard/src/api/endpoints/billing.ts",
+    "line": 46,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/me/payment-connections/mercadopago/oauth-link",
+    "normalized": "/merchants/me/payment-connections/mercadopago/oauth-link",
+    "candidates": [
+      {
+        "module": "payment",
+        "verb": "POST",
+        "url": "/merchants/me/payment-connections/mercadopago/oauth-link",
+        "mounted": true,
+        "file": "apps/api/src/modules/payment/presentation/http/mercadopago-oauth.controller.ts",
+        "line": 125,
+        "controller": "MerchantMercadoPagoController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "billing",
+    "file": "apps/dashboard/src/api/endpoints/billing.ts",
+    "line": 49,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/me/payment-connections/mercadopago/sync",
+    "normalized": "/merchants/me/payment-connections/mercadopago/sync",
+    "candidates": [
+      {
+        "module": "payment",
+        "verb": "POST",
+        "url": "/merchants/me/payment-connections/mercadopago/sync",
+        "mounted": true,
+        "file": "apps/api/src/modules/payment/presentation/http/mercadopago-oauth.controller.ts",
+        "line": 145,
+        "controller": "MerchantMercadoPagoController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "billing",
+    "file": "apps/dashboard/src/api/endpoints/billing.ts",
+    "line": 52,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/me/crypto-payments/enable",
+    "normalized": "/merchants/me/crypto-payments/enable",
+    "candidates": [
+      {
+        "module": "merchant",
+        "verb": "POST",
+        "url": "/merchants/me/crypto-payments/enable",
+        "mounted": true,
+        "file": "apps/api/src/modules/merchant/presentation/http/crypto-payments.controller.ts",
+        "line": 33,
+        "controller": "CryptoPaymentsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "cart-recovery",
+    "file": "apps/dashboard/src/api/endpoints/cart-recovery.ts",
+    "line": 38,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/dashboard/cart-recovery/metrics",
+    "normalized": "/dashboard/cart-recovery/metrics",
+    "candidates": [
+      {
+        "module": "cart-recovery",
+        "verb": "GET",
+        "url": "/dashboard/cart-recovery/metrics",
+        "mounted": true,
+        "file": "apps/api/src/modules/cart-recovery/presentation/http/cart-recovery-dashboard.controller.ts",
+        "line": 36,
+        "controller": "CartRecoveryDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "cart-recovery",
+    "file": "apps/dashboard/src/api/endpoints/cart-recovery.ts",
+    "line": 47,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/dashboard/cart-recovery/attempts",
+    "normalized": "/dashboard/cart-recovery/attempts",
+    "candidates": [
+      {
+        "module": "cart-recovery",
+        "verb": "GET",
+        "url": "/dashboard/cart-recovery/attempts",
+        "mounted": true,
+        "file": "apps/api/src/modules/cart-recovery/presentation/http/cart-recovery-dashboard.controller.ts",
+        "line": 54,
+        "controller": "CartRecoveryDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "cart-recovery",
+    "file": "apps/dashboard/src/api/endpoints/cart-recovery.ts",
+    "line": 54,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/dashboard/cart-recovery/strategies",
+    "normalized": "/dashboard/cart-recovery/strategies",
+    "candidates": [
+      {
+        "module": "cart-recovery",
+        "verb": "GET",
+        "url": "/dashboard/cart-recovery/strategies",
+        "mounted": true,
+        "file": "apps/api/src/modules/cart-recovery/presentation/http/cart-recovery-dashboard.controller.ts",
+        "line": 74,
+        "controller": "CartRecoveryDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "cart-recovery",
+    "file": "apps/dashboard/src/api/endpoints/cart-recovery.ts",
+    "line": 63,
+    "expression": "dashboardJson",
+    "method": "PATCH",
+    "path": "/dashboard/cart-recovery/strategies",
+    "normalized": "/dashboard/cart-recovery/strategies",
+    "candidates": [
+      {
+        "module": "cart-recovery",
+        "verb": "PATCH",
+        "url": "/dashboard/cart-recovery/strategies",
+        "mounted": true,
+        "file": "apps/api/src/modules/cart-recovery/presentation/http/cart-recovery-dashboard.controller.ts",
+        "line": 85,
+        "controller": "CartRecoveryDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "cart-recovery",
+    "file": "apps/dashboard/src/api/endpoints/cart-recovery.ts",
+    "line": 73,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/dashboard/cart-recovery/config",
+    "normalized": "/dashboard/cart-recovery/config",
+    "candidates": [
+      {
+        "module": "cart-recovery",
+        "verb": "GET",
+        "url": "/dashboard/cart-recovery/config",
+        "mounted": true,
+        "file": "apps/api/src/modules/cart-recovery/presentation/http/cart-recovery-dashboard.controller.ts",
+        "line": 100,
+        "controller": "CartRecoveryDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "cart-recovery",
+    "file": "apps/dashboard/src/api/endpoints/cart-recovery.ts",
+    "line": 82,
+    "expression": "dashboardJson",
+    "method": "PATCH",
+    "path": "/dashboard/cart-recovery/config",
+    "normalized": "/dashboard/cart-recovery/config",
+    "candidates": [
+      {
+        "module": "cart-recovery",
+        "verb": "PATCH",
+        "url": "/dashboard/cart-recovery/config",
+        "mounted": true,
+        "file": "apps/api/src/modules/cart-recovery/presentation/http/cart-recovery-dashboard.controller.ts",
+        "line": 111,
+        "controller": "CartRecoveryDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "catalog",
+    "file": "apps/dashboard/src/api/endpoints/catalog.ts",
+    "line": 136,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/merchants/{encodeURIComponent(merchantId)}/products?{query}",
+    "normalized": "/merchants/:dynamic/products",
+    "candidates": [
+      {
+        "module": "catalog",
+        "verb": "GET",
+        "url": "/merchants/:mid/products",
+        "mounted": true,
+        "file": "apps/api/src/modules/catalog/presentation/http/catalog.controller.ts",
+        "line": 84,
+        "controller": "StoreBuilderCatalogController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "catalog",
+    "file": "apps/dashboard/src/api/endpoints/catalog.ts",
+    "line": 144,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/merchants/{encodeURIComponent(merchantId)}/products/{encodeURIComponent(productId)}",
+    "normalized": "/merchants/:dynamic/products/:dynamic",
+    "candidates": [
+      {
+        "module": "catalog",
+        "verb": "GET",
+        "url": "/merchants/:mid/products/:pid",
+        "mounted": true,
+        "file": "apps/api/src/modules/catalog/presentation/http/catalog.controller.ts",
+        "line": 106,
+        "controller": "StoreBuilderCatalogController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "catalog",
+    "file": "apps/dashboard/src/api/endpoints/catalog.ts",
+    "line": 152,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/{encodeURIComponent(merchantId)}/products",
+    "normalized": "/merchants/:dynamic/products",
+    "candidates": [
+      {
+        "module": "catalog",
+        "verb": "POST",
+        "url": "/merchants/:mid/products",
+        "mounted": true,
+        "file": "apps/api/src/modules/catalog/presentation/http/catalog.controller.ts",
+        "line": 43,
+        "controller": "StoreBuilderCatalogController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "catalog",
+    "file": "apps/dashboard/src/api/endpoints/catalog.ts",
+    "line": 160,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/merchants/{encodeURIComponent(merchantId)}/products/{encodeURIComponent(productId)}",
+    "normalized": "/merchants/:dynamic/products/:dynamic",
+    "candidates": [
+      {
+        "module": "catalog",
+        "verb": "PUT",
+        "url": "/merchants/:mid/products/:pid",
+        "mounted": true,
+        "file": "apps/api/src/modules/catalog/presentation/http/catalog.controller.ts",
+        "line": 115,
+        "controller": "StoreBuilderCatalogController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "catalog",
+    "file": "apps/dashboard/src/api/endpoints/catalog.ts",
+    "line": 168,
+    "expression": "dashboardJson",
+    "method": "DELETE",
+    "path": "/merchants/{encodeURIComponent(merchantId)}/products/{encodeURIComponent(productId)}",
+    "normalized": "/merchants/:dynamic/products/:dynamic",
+    "candidates": [
+      {
+        "module": "catalog",
+        "verb": "DELETE",
+        "url": "/merchants/:mid/products/:pid",
+        "mounted": true,
+        "file": "apps/api/src/modules/catalog/presentation/http/catalog.controller.ts",
+        "line": 201,
+        "controller": "StoreBuilderCatalogController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "catalog",
+    "file": "apps/dashboard/src/api/endpoints/catalog.ts",
+    "line": 176,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/merchants/{encodeURIComponent(merchantId)}/products/{encodeURIComponent(productId)}/variants/{encodeURIComponent(variantId)}",
+    "normalized": "/merchants/:dynamic/products/:dynamic/variants/:dynamic",
+    "candidates": [
+      {
+        "module": "catalog",
+        "verb": "PUT",
+        "url": "/merchants/:mid/products/:pid/variants/:vid",
+        "mounted": true,
+        "file": "apps/api/src/modules/catalog/presentation/http/catalog.controller.ts",
+        "line": 155,
+        "controller": "StoreBuilderCatalogController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "catalog",
+    "file": "apps/dashboard/src/api/endpoints/catalog.ts",
+    "line": 184,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/{encodeURIComponent(merchantId)}/products/media",
+    "normalized": "/merchants/:dynamic/products/media",
+    "candidates": [
+      {
+        "module": "catalog",
+        "verb": "POST",
+        "url": "/merchants/:mid/products/media",
+        "mounted": true,
+        "file": "apps/api/src/modules/catalog/presentation/http/catalog.controller.ts",
+        "line": 310,
+        "controller": "StoreBuilderCatalogController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "catalog",
+    "file": "apps/dashboard/src/api/endpoints/catalog.ts",
+    "line": 192,
+    "expression": "dashboardJson",
+    "method": "DELETE",
+    "path": "/merchants/{encodeURIComponent(merchantId)}/products/media/{encodeURIComponent(mediaId)}",
+    "normalized": "/merchants/:dynamic/products/media/:dynamic",
+    "candidates": [
+      {
+        "module": "catalog",
+        "verb": "DELETE",
+        "url": "/merchants/:mid/products/media/:mediaId",
+        "mounted": true,
+        "file": "apps/api/src/modules/catalog/presentation/http/catalog.controller.ts",
+        "line": 331,
+        "controller": "StoreBuilderCatalogController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "catalog",
+    "file": "apps/dashboard/src/api/endpoints/catalog.ts",
+    "line": 200,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/merchants/{encodeURIComponent(merchantId)}/categories",
+    "normalized": "/merchants/:dynamic/categories",
+    "candidates": [
+      {
+        "module": "catalog",
+        "verb": "GET",
+        "url": "/merchants/:mid/categories",
+        "mounted": true,
+        "file": "apps/api/src/modules/catalog/presentation/http/catalog.controller.ts",
+        "line": 238,
+        "controller": "StoreBuilderCatalogController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "catalog",
+    "file": "apps/dashboard/src/api/endpoints/catalog.ts",
+    "line": 208,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/{encodeURIComponent(merchantId)}/categories",
+    "normalized": "/merchants/:dynamic/categories",
+    "candidates": [
+      {
+        "module": "catalog",
+        "verb": "POST",
+        "url": "/merchants/:mid/categories",
+        "mounted": true,
+        "file": "apps/api/src/modules/catalog/presentation/http/catalog.controller.ts",
+        "line": 244,
+        "controller": "StoreBuilderCatalogController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "catalog",
+    "file": "apps/dashboard/src/api/endpoints/catalog.ts",
+    "line": 216,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/merchants/{encodeURIComponent(merchantId)}/categories/{encodeURIComponent(id)}",
+    "normalized": "/merchants/:dynamic/categories/:dynamic",
+    "candidates": [
+      {
+        "module": "catalog",
+        "verb": "PUT",
+        "url": "/merchants/:mid/categories/:cid",
+        "mounted": true,
+        "file": "apps/api/src/modules/catalog/presentation/http/catalog.controller.ts",
+        "line": 259,
+        "controller": "StoreBuilderCatalogController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "catalog",
+    "file": "apps/dashboard/src/api/endpoints/catalog.ts",
+    "line": 224,
+    "expression": "dashboardJson",
+    "method": "DELETE",
+    "path": "/merchants/{encodeURIComponent(merchantId)}/categories/{encodeURIComponent(id)}",
+    "normalized": "/merchants/:dynamic/categories/:dynamic",
+    "candidates": [
+      {
+        "module": "catalog",
+        "verb": "DELETE",
+        "url": "/merchants/:mid/categories/:cid",
+        "mounted": true,
+        "file": "apps/api/src/modules/catalog/presentation/http/catalog.controller.ts",
+        "line": 288,
+        "controller": "StoreBuilderCatalogController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "catalog",
+    "file": "apps/dashboard/src/api/endpoints/catalog.ts",
+    "line": 232,
+    "expression": "dashboardJson",
+    "method": "PATCH",
+    "path": "/merchants/{encodeURIComponent(merchantId)}/categories/reorder",
+    "normalized": "/merchants/:dynamic/categories/reorder",
+    "candidates": [
+      {
+        "module": "catalog",
+        "verb": "PATCH",
+        "url": "/merchants/:mid/categories/reorder",
+        "mounted": true,
+        "file": "apps/api/src/modules/catalog/presentation/http/catalog.controller.ts",
+        "line": 298,
+        "controller": "StoreBuilderCatalogController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "catalog",
+    "file": "apps/dashboard/src/api/endpoints/catalog.ts",
+    "line": 240,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/{encodeURIComponent(merchantId)}/products/generate-description",
+    "normalized": "/merchants/:dynamic/products/generate-description",
+    "candidates": [
+      {
+        "module": "catalog",
+        "verb": "POST",
+        "url": "/merchants/:mid/products/generate-description",
+        "mounted": true,
+        "file": "apps/api/src/modules/catalog/presentation/http/catalog.controller.ts",
+        "line": 351,
+        "controller": "StoreBuilderCatalogController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "catalog",
+    "file": "apps/dashboard/src/api/endpoints/catalog.ts",
+    "line": 248,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/{encodeURIComponent(merchantId)}/products/{encodeURIComponent(productId)}/generate-seo",
+    "normalized": "/merchants/:dynamic/products/:dynamic/generate-seo",
+    "candidates": [
+      {
+        "module": "catalog",
+        "verb": "POST",
+        "url": "/merchants/:mid/products/:pid/generate-seo",
+        "mounted": true,
+        "file": "apps/api/src/modules/catalog/presentation/http/catalog.controller.ts",
+        "line": 341,
+        "controller": "StoreBuilderCatalogController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "checkout-settings",
+    "file": "apps/dashboard/src/api/endpoints/checkout-settings.ts",
+    "line": 8,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/checkout-settings",
+    "normalized": "/checkout-settings",
+    "candidates": [
+      {
+        "module": "checkout-settings",
+        "verb": "GET",
+        "url": "/checkout-settings",
+        "mounted": true,
+        "file": "apps/api/src/modules/checkout-settings/presentation/http/checkout-settings.controller.ts",
+        "line": 119,
+        "controller": "CheckoutSettingsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "checkout-settings",
+    "file": "apps/dashboard/src/api/endpoints/checkout-settings.ts",
+    "line": 14,
+    "expression": "dashboardFetch",
+    "method": "GET",
+    "path": "/checkout-settings",
+    "normalized": "/checkout-settings",
+    "candidates": [
+      {
+        "module": "checkout-settings",
+        "verb": "GET",
+        "url": "/checkout-settings",
+        "mounted": true,
+        "file": "apps/api/src/modules/checkout-settings/presentation/http/checkout-settings.controller.ts",
+        "line": 119,
+        "controller": "CheckoutSettingsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "checkout-settings",
+    "file": "apps/dashboard/src/api/endpoints/checkout-settings.ts",
+    "line": 21,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/checkout-settings",
+    "normalized": "/checkout-settings",
+    "candidates": [
+      {
+        "module": "checkout-settings",
+        "verb": "PUT",
+        "url": "/checkout-settings",
+        "mounted": true,
+        "file": "apps/api/src/modules/checkout-settings/presentation/http/checkout-settings.controller.ts",
+        "line": 146,
+        "controller": "CheckoutSettingsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "customer",
+    "file": "apps/dashboard/src/api/endpoints/customer.ts",
+    "line": 10,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/customers{query}",
+    "normalized": "/customers",
+    "candidates": [
+      {
+        "module": "operations",
+        "verb": "GET",
+        "url": "/customers",
+        "mounted": true,
+        "file": "apps/api/src/modules/operations/presentation/http/operations.controller.ts",
+        "line": 379,
+        "controller": "CustomersController"
+      },
+      {
+        "module": "public-api",
+        "verb": "GET",
+        "url": "/customers",
+        "mounted": false,
+        "file": "apps/api/src/modules/public-api/customers/presentation/http/customers-v1.controller.ts",
+        "line": 49,
+        "controller": "CustomersV1Controller"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "customer",
+    "file": "apps/dashboard/src/api/endpoints/customer.ts",
+    "line": 23,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/customers{query}",
+    "normalized": "/customers",
+    "candidates": [
+      {
+        "module": "operations",
+        "verb": "GET",
+        "url": "/customers",
+        "mounted": true,
+        "file": "apps/api/src/modules/operations/presentation/http/operations.controller.ts",
+        "line": 379,
+        "controller": "CustomersController"
+      },
+      {
+        "module": "public-api",
+        "verb": "GET",
+        "url": "/customers",
+        "mounted": false,
+        "file": "apps/api/src/modules/public-api/customers/presentation/http/customers-v1.controller.ts",
+        "line": 49,
+        "controller": "CustomersV1Controller"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "customer",
+    "file": "apps/dashboard/src/api/endpoints/customer.ts",
+    "line": 31,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/customers/{encodeURIComponent(customerId)}",
+    "normalized": "/customers/:dynamic",
+    "candidates": [
+      {
+        "module": "operations",
+        "verb": "GET",
+        "url": "/customers/:customerId",
+        "mounted": true,
+        "file": "apps/api/src/modules/operations/presentation/http/operations.controller.ts",
+        "line": 412,
+        "controller": "CustomersController"
+      },
+      {
+        "module": "public-api",
+        "verb": "GET",
+        "url": "/customers/:customerId",
+        "mounted": false,
+        "file": "apps/api/src/modules/public-api/customers/presentation/http/customers-v1.controller.ts",
+        "line": 80,
+        "controller": "CustomersV1Controller"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "customer",
+    "file": "apps/dashboard/src/api/endpoints/customer.ts",
+    "line": 46,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/payments{query}",
+    "normalized": "/payments",
+    "candidates": [
+      {
+        "module": "operations",
+        "verb": "GET",
+        "url": "/payments",
+        "mounted": true,
+        "file": "apps/api/src/modules/operations/presentation/http/operations.controller.ts",
+        "line": 448,
+        "controller": "PaymentsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "customer",
+    "file": "apps/dashboard/src/api/endpoints/customer.ts",
+    "line": 55,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/checkout/dashboard/overview/{encodeURIComponent(merchantId)}",
+    "normalized": "/checkout/dashboard/overview/:dynamic",
+    "candidates": [
+      {
+        "module": "checkout",
+        "verb": "GET",
+        "url": "/checkout/dashboard/overview/:merchantId",
+        "mounted": true,
+        "file": "apps/api/src/modules/checkout/presentation/http/checkout.controller.ts",
+        "line": 118,
+        "controller": "CheckoutController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "customer",
+    "file": "apps/dashboard/src/api/endpoints/customer.ts",
+    "line": 63,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/checkout/dashboard/store-overview/{encodeURIComponent(merchantId)}?period={encodeURIComponent(period)}",
+    "normalized": "/checkout/dashboard/store-overview/:dynamic",
+    "candidates": [
+      {
+        "module": "checkout",
+        "verb": "GET",
+        "url": "/checkout/dashboard/store-overview/:merchantId",
+        "mounted": true,
+        "file": "apps/api/src/modules/checkout/presentation/http/checkout.controller.ts",
+        "line": 123,
+        "controller": "CheckoutController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "customer",
+    "file": "apps/dashboard/src/api/endpoints/customer.ts",
+    "line": 71,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/checkout/dashboard/overview/timeseries/{encodeURIComponent(merchantId)}?period={encodeURIComponent(period)}",
+    "normalized": "/checkout/dashboard/overview/timeseries/:dynamic",
+    "candidates": [
+      {
+        "module": "checkout",
+        "verb": "GET",
+        "url": "/checkout/dashboard/overview/timeseries/:merchantId",
+        "mounted": true,
+        "file": "apps/api/src/modules/checkout/presentation/http/checkout.controller.ts",
+        "line": 132,
+        "controller": "CheckoutController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "experiments",
+    "file": "apps/dashboard/src/api/endpoints/experiments.ts",
+    "line": 16,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/dashboard/experiments",
+    "normalized": "/dashboard/experiments",
+    "candidates": [
+      {
+        "module": "experiments",
+        "verb": "GET",
+        "url": "/dashboard/experiments",
+        "mounted": true,
+        "file": "apps/api/src/modules/experiments/presentation/http/experiments-dashboard.controller.ts",
+        "line": 55,
+        "controller": "ExperimentsDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "experiments",
+    "file": "apps/dashboard/src/api/endpoints/experiments.ts",
+    "line": 21,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/dashboard/experiments/{encodeURIComponent(experimentId)}",
+    "normalized": "/dashboard/experiments/:dynamic",
+    "candidates": [
+      {
+        "module": "experiments",
+        "verb": "GET",
+        "url": "/dashboard/experiments/:id",
+        "mounted": true,
+        "file": "apps/api/src/modules/experiments/presentation/http/experiments-dashboard.controller.ts",
+        "line": 62,
+        "controller": "ExperimentsDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "experiments",
+    "file": "apps/dashboard/src/api/endpoints/experiments.ts",
+    "line": 41,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/dashboard/experiments",
+    "normalized": "/dashboard/experiments",
+    "candidates": [
+      {
+        "module": "experiments",
+        "verb": "POST",
+        "url": "/dashboard/experiments",
+        "mounted": true,
+        "file": "apps/api/src/modules/experiments/presentation/http/experiments-dashboard.controller.ts",
+        "line": 70,
+        "controller": "ExperimentsDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "experiments",
+    "file": "apps/dashboard/src/api/endpoints/experiments.ts",
+    "line": 57,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/dashboard/experiments/{encodeURIComponent(experimentId)}",
+    "normalized": "/dashboard/experiments/:dynamic",
+    "candidates": [
+      {
+        "module": "experiments",
+        "verb": "PUT",
+        "url": "/dashboard/experiments/:id",
+        "mounted": true,
+        "file": "apps/api/src/modules/experiments/presentation/http/experiments-dashboard.controller.ts",
+        "line": 92,
+        "controller": "ExperimentsDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "experiments",
+    "file": "apps/dashboard/src/api/endpoints/experiments.ts",
+    "line": 66,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/dashboard/experiments/{encodeURIComponent(experimentId)}/start",
+    "normalized": "/dashboard/experiments/:dynamic/start",
+    "candidates": [
+      {
+        "module": "experiments",
+        "verb": "POST",
+        "url": "/dashboard/experiments/:id/start",
+        "mounted": true,
+        "file": "apps/api/src/modules/experiments/presentation/http/experiments-dashboard.controller.ts",
+        "line": 116,
+        "controller": "ExperimentsDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "experiments",
+    "file": "apps/dashboard/src/api/endpoints/experiments.ts",
+    "line": 75,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/dashboard/experiments/{encodeURIComponent(experimentId)}/stop",
+    "normalized": "/dashboard/experiments/:dynamic/stop",
+    "candidates": [
+      {
+        "module": "experiments",
+        "verb": "POST",
+        "url": "/dashboard/experiments/:id/stop",
+        "mounted": true,
+        "file": "apps/api/src/modules/experiments/presentation/http/experiments-dashboard.controller.ts",
+        "line": 129,
+        "controller": "ExperimentsDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "experiments",
+    "file": "apps/dashboard/src/api/endpoints/experiments.ts",
+    "line": 84,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/dashboard/experiments/{encodeURIComponent(experimentId)}/archive",
+    "normalized": "/dashboard/experiments/:dynamic/archive",
+    "candidates": [
+      {
+        "module": "experiments",
+        "verb": "POST",
+        "url": "/dashboard/experiments/:id/archive",
+        "mounted": true,
+        "file": "apps/api/src/modules/experiments/presentation/http/experiments-dashboard.controller.ts",
+        "line": 142,
+        "controller": "ExperimentsDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "experiments",
+    "file": "apps/dashboard/src/api/endpoints/experiments.ts",
+    "line": 93,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/dashboard/experiments/{encodeURIComponent(experimentId)}/results",
+    "normalized": "/dashboard/experiments/:dynamic/results",
+    "candidates": [
+      {
+        "module": "experiments",
+        "verb": "GET",
+        "url": "/dashboard/experiments/:id/results",
+        "mounted": true,
+        "file": "apps/api/src/modules/experiments/presentation/http/experiments-dashboard.controller.ts",
+        "line": 173,
+        "controller": "ExperimentsDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "experiments",
+    "file": "apps/dashboard/src/api/endpoints/experiments.ts",
+    "line": 118,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/dashboard/experiments/{encodeURIComponent(experimentId)}/promote",
+    "normalized": "/dashboard/experiments/:dynamic/promote",
+    "candidates": [
+      {
+        "module": "experiments",
+        "verb": "POST",
+        "url": "/dashboard/experiments/:id/promote",
+        "mounted": true,
+        "file": "apps/api/src/modules/experiments/presentation/http/experiments-dashboard.controller.ts",
+        "line": 155,
+        "controller": "ExperimentsDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "funnel",
+    "file": "apps/dashboard/src/api/endpoints/funnel.ts",
+    "line": 45,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/checkout/funnel/{encodeURIComponent(merchantId)}",
+    "normalized": "/checkout/funnel/:dynamic",
+    "candidates": [
+      {
+        "module": "checkout",
+        "verb": "GET",
+        "url": "/checkout/funnel/:merchantId",
+        "mounted": true,
+        "file": "apps/api/src/modules/checkout/presentation/http/checkout.controller.ts",
+        "line": 151,
+        "controller": "CheckoutController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "funnel",
+    "file": "apps/dashboard/src/api/endpoints/funnel.ts",
+    "line": 63,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/storefront/funnel/{encodeURIComponent(merchantId)}",
+    "normalized": "/storefront/funnel/:dynamic",
+    "candidates": [
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/:slug/config",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 65,
+        "controller": "StorefrontController"
+      },
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/:slug/stories",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 70,
+        "controller": "StorefrontController"
+      },
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/:slug/logo",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 93,
+        "controller": "StorefrontController"
+      },
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/funnel/:merchantId",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 224,
+        "controller": "StorefrontController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "funnel",
+    "file": "apps/dashboard/src/api/endpoints/funnel.ts",
+    "line": 67,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/checkout/funnel/{encodeURIComponent(merchantId)}/sessions",
+    "normalized": "/checkout/funnel/:dynamic/sessions",
+    "candidates": [
+      {
+        "module": "checkout",
+        "verb": "GET",
+        "url": "/checkout/funnel/:merchantId/sessions",
+        "mounted": true,
+        "file": "apps/api/src/modules/checkout/presentation/http/checkout.controller.ts",
+        "line": 170,
+        "controller": "CheckoutController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "funnel",
+    "file": "apps/dashboard/src/api/endpoints/funnel.ts",
+    "line": 76,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/storefront/funnel/{encodeURIComponent(merchantId)}/sessions",
+    "normalized": "/storefront/funnel/:dynamic/sessions",
+    "candidates": [
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/funnel/:merchantId/sessions",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 234,
+        "controller": "StorefrontController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "integration",
+    "file": "apps/dashboard/src/api/endpoints/integration.ts",
+    "line": 33,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/integrations/api-keys",
+    "normalized": "/integrations/api-keys",
+    "candidates": [
+      {
+        "module": "integrations",
+        "verb": "GET",
+        "url": "/integrations/api-keys",
+        "mounted": true,
+        "file": "apps/api/src/modules/integrations/presentation/http/integrations.controller.ts",
+        "line": 44,
+        "controller": "IntegrationsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "integration",
+    "file": "apps/dashboard/src/api/endpoints/integration.ts",
+    "line": 36,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/integrations/api-keys",
+    "normalized": "/integrations/api-keys",
+    "candidates": [
+      {
+        "module": "integrations",
+        "verb": "POST",
+        "url": "/integrations/api-keys",
+        "mounted": true,
+        "file": "apps/api/src/modules/integrations/presentation/http/integrations.controller.ts",
+        "line": 60,
+        "controller": "IntegrationsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "integration",
+    "file": "apps/dashboard/src/api/endpoints/integration.ts",
+    "line": 39,
+    "expression": "dashboardJson",
+    "method": "DELETE",
+    "path": "/integrations/api-keys/{encodeURIComponent(apiKeyId)}",
+    "normalized": "/integrations/api-keys/:dynamic",
+    "candidates": [
+      {
+        "module": "integrations",
+        "verb": "DELETE",
+        "url": "/integrations/api-keys/:apiKeyId",
+        "mounted": true,
+        "file": "apps/api/src/modules/integrations/presentation/http/integrations.controller.ts",
+        "line": 106,
+        "controller": "IntegrationsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "integration",
+    "file": "apps/dashboard/src/api/endpoints/integration.ts",
+    "line": 44,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/__test__/seed",
+    "normalized": "/__test__/seed",
+    "candidates": [
+      {
+        "module": "__test__",
+        "verb": "POST",
+        "url": "/__test__/seed",
+        "mounted": false,
+        "file": "apps/api/src/modules/__test__/test-seed.controller.ts",
+        "line": 44,
+        "controller": "TestSeedController"
+      }
+    ],
+    "status": "DECLARED_NOT_MOUNTED"
+  },
+  {
+    "app": "dashboard",
+    "module": "integration",
+    "file": "apps/dashboard/src/api/endpoints/integration.ts",
+    "line": 49,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/merchant/coupons",
+    "normalized": "/merchant/coupons",
+    "candidates": [
+      {
+        "module": "coupons",
+        "verb": "GET",
+        "url": "/merchant/coupons",
+        "mounted": true,
+        "file": "apps/api/src/modules/coupons/presentation/http/merchant-coupons.controller.ts",
+        "line": 26,
+        "controller": "MerchantCouponsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "integration",
+    "file": "apps/dashboard/src/api/endpoints/integration.ts",
+    "line": 67,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchant/coupons",
+    "normalized": "/merchant/coupons",
+    "candidates": [
+      {
+        "module": "coupons",
+        "verb": "POST",
+        "url": "/merchant/coupons",
+        "mounted": true,
+        "file": "apps/api/src/modules/coupons/presentation/http/merchant-coupons.controller.ts",
+        "line": 18,
+        "controller": "MerchantCouponsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "integration",
+    "file": "apps/dashboard/src/api/endpoints/integration.ts",
+    "line": 70,
+    "expression": "dashboardJson",
+    "method": "DELETE",
+    "path": "/merchant/coupons/{encodeURIComponent(id)}",
+    "normalized": "/merchant/coupons/:dynamic",
+    "candidates": [
+      {
+        "module": "coupons",
+        "verb": "DELETE",
+        "url": "/merchant/coupons/:id",
+        "mounted": true,
+        "file": "apps/api/src/modules/coupons/presentation/http/merchant-coupons.controller.ts",
+        "line": 39,
+        "controller": "MerchantCouponsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "integration",
+    "file": "apps/dashboard/src/api/endpoints/integration.ts",
+    "line": 73,
+    "expression": "dashboardJson",
+    "method": "PATCH",
+    "path": "/merchant/coupons/{encodeURIComponent(id)}",
+    "normalized": "/merchant/coupons/:dynamic",
+    "candidates": [
+      {
+        "module": "coupons",
+        "verb": "PATCH",
+        "url": "/merchant/coupons/:id",
+        "mounted": true,
+        "file": "apps/api/src/modules/coupons/presentation/http/merchant-coupons.controller.ts",
+        "line": 33,
+        "controller": "MerchantCouponsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "integration",
+    "file": "apps/dashboard/src/api/endpoints/integration.ts",
+    "line": 78,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/storefront/budget-requests?merchantId={encodeURIComponent(merchantId)}",
+    "normalized": "/storefront/budget-requests",
+    "candidates": [
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/budget-requests",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 386,
+        "controller": "StorefrontController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "integration",
+    "file": "apps/dashboard/src/api/endpoints/integration.ts",
+    "line": 86,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/storefront/budget-requests/{encodeURIComponent(requestId)}/status",
+    "normalized": "/storefront/budget-requests/:dynamic/status",
+    "candidates": [
+      {
+        "module": "storefront",
+        "verb": "POST",
+        "url": "/storefront/budget-requests/:id/status",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 392,
+        "controller": "StorefrontController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "integration",
+    "file": "apps/dashboard/src/api/endpoints/integration.ts",
+    "line": 99,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/commerce/connections",
+    "normalized": "/commerce/connections",
+    "candidates": [
+      {
+        "module": "commerce",
+        "verb": "GET",
+        "url": "/commerce/connections",
+        "mounted": true,
+        "file": "apps/api/src/modules/commerce/presentation/http/commerce-connections.controller.ts",
+        "line": 53,
+        "controller": "CommerceConnectionsController"
+      },
+      {
+        "module": "public-api",
+        "verb": "GET",
+        "url": "/commerce/connections",
+        "mounted": false,
+        "file": "apps/api/src/modules/public-api/commerce/presentation/http/commerce-v1.controller.ts",
+        "line": 61,
+        "controller": "CommerceV1Controller"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "integration",
+    "file": "apps/dashboard/src/api/endpoints/integration.ts",
+    "line": 108,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/commerce/connections",
+    "normalized": "/commerce/connections",
+    "candidates": [
+      {
+        "module": "commerce",
+        "verb": "POST",
+        "url": "/commerce/connections",
+        "mounted": true,
+        "file": "apps/api/src/modules/commerce/presentation/http/commerce-connections.controller.ts",
+        "line": 85,
+        "controller": "CommerceConnectionsController"
+      },
+      {
+        "module": "public-api",
+        "verb": "POST",
+        "url": "/commerce/connections",
+        "mounted": false,
+        "file": "apps/api/src/modules/public-api/commerce/presentation/http/commerce-v1.controller.ts",
+        "line": 76,
+        "controller": "CommerceV1Controller"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "integration",
+    "file": "apps/dashboard/src/api/endpoints/integration.ts",
+    "line": 111,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/commerce/connections/test",
+    "normalized": "/commerce/connections/test",
+    "candidates": [
+      {
+        "module": "commerce",
+        "verb": "POST",
+        "url": "/commerce/connections/test",
+        "mounted": true,
+        "file": "apps/api/src/modules/commerce/presentation/http/commerce-connections.controller.ts",
+        "line": 157,
+        "controller": "CommerceConnectionsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "integration",
+    "file": "apps/dashboard/src/api/endpoints/integration.ts",
+    "line": 114,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/commerce/connections/sync",
+    "normalized": "/commerce/connections/sync",
+    "candidates": [
+      {
+        "module": "commerce",
+        "verb": "POST",
+        "url": "/commerce/connections/sync",
+        "mounted": true,
+        "file": "apps/api/src/modules/commerce/presentation/http/commerce-connections.controller.ts",
+        "line": 188,
+        "controller": "CommerceConnectionsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "integration",
+    "file": "apps/dashboard/src/api/endpoints/integration.ts",
+    "line": 117,
+    "expression": "dashboardJson",
+    "method": "DELETE",
+    "path": "/commerce/connections",
+    "normalized": "/commerce/connections",
+    "candidates": [
+      {
+        "module": "commerce",
+        "verb": "DELETE",
+        "url": "/commerce/connections",
+        "mounted": true,
+        "file": "apps/api/src/modules/commerce/presentation/http/commerce-connections.controller.ts",
+        "line": 210,
+        "controller": "CommerceConnectionsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "integration",
+    "file": "apps/dashboard/src/api/endpoints/integration.ts",
+    "line": 125,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/installations",
+    "normalized": "/installations",
+    "candidates": [
+      {
+        "module": "installations",
+        "verb": "GET",
+        "url": "/installations",
+        "mounted": true,
+        "file": "apps/api/src/modules/installations/presentation/http/installations.controller.ts",
+        "line": 60,
+        "controller": "InstallationsController"
+      },
+      {
+        "module": "public-api",
+        "verb": "GET",
+        "url": "/installations",
+        "mounted": false,
+        "file": "apps/api/src/modules/public-api/installations/presentation/http/installations-v1.controller.ts",
+        "line": 81,
+        "controller": "InstallationsV1Controller"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "integration",
+    "file": "apps/dashboard/src/api/endpoints/integration.ts",
+    "line": 134,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/installations/{encodeURIComponent(installationId)}",
+    "normalized": "/installations/:dynamic",
+    "candidates": [
+      {
+        "module": "installations",
+        "verb": "GET",
+        "url": "/installations/:installationId",
+        "mounted": true,
+        "file": "apps/api/src/modules/installations/presentation/http/installations.controller.ts",
+        "line": 127,
+        "controller": "InstallationsController"
+      },
+      {
+        "module": "public-api",
+        "verb": "GET",
+        "url": "/installations/:id",
+        "mounted": false,
+        "file": "apps/api/src/modules/public-api/installations/presentation/http/installations-v1.controller.ts",
+        "line": 116,
+        "controller": "InstallationsV1Controller"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "integration",
+    "file": "apps/dashboard/src/api/endpoints/integration.ts",
+    "line": 137,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/installations/{encodeURIComponent(installationId)}/health",
+    "normalized": "/installations/:dynamic/health",
+    "candidates": [
+      {
+        "module": "installations",
+        "verb": "GET",
+        "url": "/installations/:installationId/health",
+        "mounted": true,
+        "file": "apps/api/src/modules/installations/presentation/http/installations.controller.ts",
+        "line": 191,
+        "controller": "InstallationsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "inventory",
+    "file": "apps/dashboard/src/api/endpoints/inventory.ts",
+    "line": 77,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/dashboard/inventory/summary",
+    "normalized": "/dashboard/inventory/summary",
+    "candidates": [
+      {
+        "module": "inventory",
+        "verb": "GET",
+        "url": "/dashboard/inventory/summary",
+        "mounted": true,
+        "file": "apps/api/src/modules/inventory/presentation/http/inventory-dashboard.controller.ts",
+        "line": 48,
+        "controller": "InventoryDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "inventory",
+    "file": "apps/dashboard/src/api/endpoints/inventory.ts",
+    "line": 96,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/dashboard/inventory/items?{query}",
+    "normalized": "/dashboard/inventory/items",
+    "candidates": [
+      {
+        "module": "inventory",
+        "verb": "GET",
+        "url": "/dashboard/inventory/items",
+        "mounted": true,
+        "file": "apps/api/src/modules/inventory/presentation/http/inventory-dashboard.controller.ts",
+        "line": 56,
+        "controller": "InventoryDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "inventory",
+    "file": "apps/dashboard/src/api/endpoints/inventory.ts",
+    "line": 109,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/dashboard/inventory/items/{encodeURIComponent(itemId)}/movements",
+    "normalized": "/dashboard/inventory/items/:dynamic/movements",
+    "candidates": [
+      {
+        "module": "inventory",
+        "verb": "POST",
+        "url": "/dashboard/inventory/items/:id/movements",
+        "mounted": true,
+        "file": "apps/api/src/modules/inventory/presentation/http/inventory-dashboard.controller.ts",
+        "line": 74,
+        "controller": "InventoryDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "inventory",
+    "file": "apps/dashboard/src/api/endpoints/inventory.ts",
+    "line": 121,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/dashboard/inventory/items/transfer",
+    "normalized": "/dashboard/inventory/items/transfer",
+    "candidates": [
+      {
+        "module": "inventory",
+        "verb": "POST",
+        "url": "/dashboard/inventory/items/transfer",
+        "mounted": true,
+        "file": "apps/api/src/modules/inventory/presentation/http/inventory-dashboard.controller.ts",
+        "line": 95,
+        "controller": "InventoryDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "inventory",
+    "file": "apps/dashboard/src/api/endpoints/inventory.ts",
+    "line": 139,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/dashboard/inventory/movements?{query}",
+    "normalized": "/dashboard/inventory/movements",
+    "candidates": [
+      {
+        "module": "inventory",
+        "verb": "GET",
+        "url": "/dashboard/inventory/movements",
+        "mounted": true,
+        "file": "apps/api/src/modules/inventory/presentation/http/inventory-dashboard.controller.ts",
+        "line": 114,
+        "controller": "InventoryDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "inventory",
+    "file": "apps/dashboard/src/api/endpoints/inventory.ts",
+    "line": 154,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/dashboard/inventory/alerts?{query}",
+    "normalized": "/dashboard/inventory/alerts",
+    "candidates": [
+      {
+        "module": "inventory",
+        "verb": "GET",
+        "url": "/dashboard/inventory/alerts",
+        "mounted": true,
+        "file": "apps/api/src/modules/inventory/presentation/http/inventory-dashboard.controller.ts",
+        "line": 133,
+        "controller": "InventoryDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "inventory",
+    "file": "apps/dashboard/src/api/endpoints/inventory.ts",
+    "line": 163,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/dashboard/inventory/alerts/{encodeURIComponent(alertId)}/acknowledge",
+    "normalized": "/dashboard/inventory/alerts/:dynamic/acknowledge",
+    "candidates": [
+      {
+        "module": "inventory",
+        "verb": "POST",
+        "url": "/dashboard/inventory/alerts/:id/acknowledge",
+        "mounted": true,
+        "file": "apps/api/src/modules/inventory/presentation/http/inventory-dashboard.controller.ts",
+        "line": 145,
+        "controller": "InventoryDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "inventory",
+    "file": "apps/dashboard/src/api/endpoints/inventory.ts",
+    "line": 172,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/dashboard/inventory/locations",
+    "normalized": "/dashboard/inventory/locations",
+    "candidates": [
+      {
+        "module": "inventory",
+        "verb": "GET",
+        "url": "/dashboard/inventory/locations",
+        "mounted": true,
+        "file": "apps/api/src/modules/inventory/presentation/http/inventory-dashboard.controller.ts",
+        "line": 156,
+        "controller": "InventoryDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "inventory",
+    "file": "apps/dashboard/src/api/endpoints/inventory.ts",
+    "line": 184,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/dashboard/inventory/locations",
+    "normalized": "/dashboard/inventory/locations",
+    "candidates": [
+      {
+        "module": "inventory",
+        "verb": "POST",
+        "url": "/dashboard/inventory/locations",
+        "mounted": true,
+        "file": "apps/api/src/modules/inventory/presentation/http/inventory-dashboard.controller.ts",
+        "line": 164,
+        "controller": "InventoryDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "inventory",
+    "file": "apps/dashboard/src/api/endpoints/inventory.ts",
+    "line": 195,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/dashboard/inventory/erp-connections",
+    "normalized": "/dashboard/inventory/erp-connections",
+    "candidates": [
+      {
+        "module": "inventory",
+        "verb": "GET",
+        "url": "/dashboard/inventory/erp-connections",
+        "mounted": true,
+        "file": "apps/api/src/modules/inventory/presentation/http/inventory-dashboard.controller.ts",
+        "line": 177,
+        "controller": "InventoryDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "inventory",
+    "file": "apps/dashboard/src/api/endpoints/inventory.ts",
+    "line": 208,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/dashboard/inventory/erp-connections/{encodeURIComponent(provider)}/connect",
+    "normalized": "/dashboard/inventory/erp-connections/:dynamic/connect",
+    "candidates": [
+      {
+        "module": "inventory",
+        "verb": "POST",
+        "url": "/dashboard/inventory/erp-connections/:provider/connect",
+        "mounted": true,
+        "file": "apps/api/src/modules/inventory/presentation/http/inventory-dashboard.controller.ts",
+        "line": 185,
+        "controller": "InventoryDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "inventory",
+    "file": "apps/dashboard/src/api/endpoints/inventory.ts",
+    "line": 217,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/dashboard/inventory/erp-connections/{encodeURIComponent(connectionId)}/disconnect",
+    "normalized": "/dashboard/inventory/erp-connections/:dynamic/disconnect",
+    "candidates": [
+      {
+        "module": "inventory",
+        "verb": "POST",
+        "url": "/dashboard/inventory/erp-connections/:id/disconnect",
+        "mounted": true,
+        "file": "apps/api/src/modules/inventory/presentation/http/inventory-dashboard.controller.ts",
+        "line": 207,
+        "controller": "InventoryDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "inventory",
+    "file": "apps/dashboard/src/api/endpoints/inventory.ts",
+    "line": 226,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/dashboard/inventory/erp-connections/{encodeURIComponent(connectionId)}/sync",
+    "normalized": "/dashboard/inventory/erp-connections/:dynamic/sync",
+    "candidates": [
+      {
+        "module": "inventory",
+        "verb": "POST",
+        "url": "/dashboard/inventory/erp-connections/:id/sync",
+        "mounted": true,
+        "file": "apps/api/src/modules/inventory/presentation/http/inventory-dashboard.controller.ts",
+        "line": 218,
+        "controller": "InventoryDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "inventory",
+    "file": "apps/dashboard/src/api/endpoints/inventory.ts",
+    "line": 237,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/dashboard/inventory/crm-connections",
+    "normalized": "/dashboard/inventory/crm-connections",
+    "candidates": [
+      {
+        "module": "inventory",
+        "verb": "GET",
+        "url": "/dashboard/inventory/crm-connections",
+        "mounted": true,
+        "file": "apps/api/src/modules/inventory/presentation/http/inventory-dashboard.controller.ts",
+        "line": 230,
+        "controller": "InventoryDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "inventory",
+    "file": "apps/dashboard/src/api/endpoints/inventory.ts",
+    "line": 250,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/dashboard/inventory/crm-connections/{encodeURIComponent(provider)}/connect",
+    "normalized": "/dashboard/inventory/crm-connections/:dynamic/connect",
+    "candidates": [
+      {
+        "module": "inventory",
+        "verb": "POST",
+        "url": "/dashboard/inventory/crm-connections/:provider/connect",
+        "mounted": true,
+        "file": "apps/api/src/modules/inventory/presentation/http/inventory-dashboard.controller.ts",
+        "line": 238,
+        "controller": "InventoryDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "inventory",
+    "file": "apps/dashboard/src/api/endpoints/inventory.ts",
+    "line": 259,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/dashboard/inventory/crm-connections/{encodeURIComponent(connectionId)}/disconnect",
+    "normalized": "/dashboard/inventory/crm-connections/:dynamic/disconnect",
+    "candidates": [
+      {
+        "module": "inventory",
+        "verb": "POST",
+        "url": "/dashboard/inventory/crm-connections/:id/disconnect",
+        "mounted": true,
+        "file": "apps/api/src/modules/inventory/presentation/http/inventory-dashboard.controller.ts",
+        "line": 256,
+        "controller": "InventoryDashboardController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "inventory",
+    "file": "apps/dashboard/src/api/endpoints/inventory.ts",
+    "line": 268,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/inventory/erp/oauth/{encodeURIComponent(provider)}/authorize",
+    "normalized": "/inventory/erp/oauth/:dynamic/authorize",
+    "candidates": [
+      {
+        "module": "inventory",
+        "verb": "GET",
+        "url": "/inventory/erp/oauth/:provider/authorize",
+        "mounted": true,
+        "file": "apps/api/src/modules/inventory/presentation/http/erp-oauth.controller.ts",
+        "line": 23,
+        "controller": "ErpOAuthController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "m2m-management",
+    "file": "apps/dashboard/src/api/endpoints/m2m-management.ts",
+    "line": 39,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/m2m/agents",
+    "normalized": "/m2m/agents",
+    "candidates": [
+      {
+        "module": "negotiation",
+        "verb": "GET",
+        "url": "/m2m/agents",
+        "mounted": true,
+        "file": "apps/api/src/modules/negotiation/presentation/http/m2m-management.controller.ts",
+        "line": 22,
+        "controller": "M2MManagementController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "m2m-management",
+    "file": "apps/dashboard/src/api/endpoints/m2m-management.ts",
+    "line": 43,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/m2m/agents",
+    "normalized": "/m2m/agents",
+    "candidates": [
+      {
+        "module": "negotiation",
+        "verb": "POST",
+        "url": "/m2m/agents",
+        "mounted": true,
+        "file": "apps/api/src/modules/negotiation/presentation/http/m2m-management.controller.ts",
+        "line": 29,
+        "controller": "M2MManagementController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "m2m-management",
+    "file": "apps/dashboard/src/api/endpoints/m2m-management.ts",
+    "line": 47,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/m2m/agents/{encodeURIComponent(agentId)}/suspend",
+    "normalized": "/m2m/agents/:dynamic/suspend",
+    "candidates": [
+      {
+        "module": "negotiation",
+        "verb": "PUT",
+        "url": "/m2m/agents/:id/suspend",
+        "mounted": true,
+        "file": "apps/api/src/modules/negotiation/presentation/http/m2m-management.controller.ts",
+        "line": 36,
+        "controller": "M2MManagementController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "m2m-management",
+    "file": "apps/dashboard/src/api/endpoints/m2m-management.ts",
+    "line": 51,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/m2m/protocol/config",
+    "normalized": "/m2m/protocol/config",
+    "candidates": [
+      {
+        "module": "negotiation",
+        "verb": "GET",
+        "url": "/m2m/protocol/config",
+        "mounted": true,
+        "file": "apps/api/src/modules/negotiation/presentation/http/m2m-management.controller.ts",
+        "line": 43,
+        "controller": "M2MManagementController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "m2m-management",
+    "file": "apps/dashboard/src/api/endpoints/m2m-management.ts",
+    "line": 55,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/m2m/protocol/config",
+    "normalized": "/m2m/protocol/config",
+    "candidates": [
+      {
+        "module": "negotiation",
+        "verb": "PUT",
+        "url": "/m2m/protocol/config",
+        "mounted": true,
+        "file": "apps/api/src/modules/negotiation/presentation/http/m2m-management.controller.ts",
+        "line": 49,
+        "controller": "M2MManagementController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "m2m-management",
+    "file": "apps/dashboard/src/api/endpoints/m2m-management.ts",
+    "line": 62,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/audit/events?{query}",
+    "normalized": "/audit/events",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "dashboard",
+    "module": "marketplace-v2",
+    "file": "apps/dashboard/src/api/endpoints/marketplace-v2.ts",
+    "line": 124,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/marketplace/dashboard/config",
+    "normalized": "/marketplace/dashboard/config",
+    "candidates": [
+      {
+        "module": "marketplace",
+        "verb": "GET",
+        "url": "/marketplace/dashboard/config",
+        "mounted": true,
+        "file": "apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts",
+        "line": 50,
+        "controller": "MarketplaceController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "marketplace-v2",
+    "file": "apps/dashboard/src/api/endpoints/marketplace-v2.ts",
+    "line": 131,
+    "expression": "dashboardJson",
+    "method": "PATCH",
+    "path": "/marketplace/dashboard/config",
+    "normalized": "/marketplace/dashboard/config",
+    "candidates": [
+      {
+        "module": "marketplace",
+        "verb": "PATCH",
+        "url": "/marketplace/dashboard/config",
+        "mounted": true,
+        "file": "apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts",
+        "line": 59,
+        "controller": "MarketplaceController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "marketplace-v2",
+    "file": "apps/dashboard/src/api/endpoints/marketplace-v2.ts",
+    "line": 136,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/marketplace/dashboard/orders",
+    "normalized": "/marketplace/dashboard/orders",
+    "candidates": [
+      {
+        "module": "marketplace",
+        "verb": "GET",
+        "url": "/marketplace/dashboard/orders",
+        "mounted": true,
+        "file": "apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts",
+        "line": 77,
+        "controller": "MarketplaceController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "marketplace-v2",
+    "file": "apps/dashboard/src/api/endpoints/marketplace-v2.ts",
+    "line": 142,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/marketplace/dashboard/stats",
+    "normalized": "/marketplace/dashboard/stats",
+    "candidates": [
+      {
+        "module": "marketplace",
+        "verb": "GET",
+        "url": "/marketplace/dashboard/stats",
+        "mounted": true,
+        "file": "apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts",
+        "line": 85,
+        "controller": "MarketplaceController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "marketplace-v2",
+    "file": "apps/dashboard/src/api/endpoints/marketplace-v2.ts",
+    "line": 168,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/marketplace/dashboard/settlements",
+    "normalized": "/marketplace/dashboard/settlements",
+    "candidates": [
+      {
+        "module": "marketplace",
+        "verb": "GET",
+        "url": "/marketplace/dashboard/settlements",
+        "mounted": true,
+        "file": "apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts",
+        "line": 103,
+        "controller": "MarketplaceController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "marketplace-v2",
+    "file": "apps/dashboard/src/api/endpoints/marketplace-v2.ts",
+    "line": 172,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/marketplace/dashboard/settlements/{encodeURIComponent(settlementId)}",
+    "normalized": "/marketplace/dashboard/settlements/:dynamic",
+    "candidates": [
+      {
+        "module": "marketplace",
+        "verb": "GET",
+        "url": "/marketplace/dashboard/settlements/:settlementId",
+        "mounted": true,
+        "file": "apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts",
+        "line": 123,
+        "controller": "MarketplaceController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "marketplace-v2",
+    "file": "apps/dashboard/src/api/endpoints/marketplace-v2.ts",
+    "line": 181,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/marketplace/orders/line-items/{encodeURIComponent(lineItemId)}/ship",
+    "normalized": "/marketplace/orders/line-items/:dynamic/ship",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "dashboard",
+    "module": "marketplace-v2",
+    "file": "apps/dashboard/src/api/endpoints/marketplace-v2.ts",
+    "line": 190,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/marketplace/orders/line-items/{encodeURIComponent(lineItemId)}/deliver",
+    "normalized": "/marketplace/orders/line-items/:dynamic/deliver",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "dashboard",
+    "module": "marketplace-v2",
+    "file": "apps/dashboard/src/api/endpoints/marketplace-v2.ts",
+    "line": 207,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/marketplace/dashboard/debts",
+    "normalized": "/marketplace/dashboard/debts",
+    "candidates": [
+      {
+        "module": "marketplace",
+        "verb": "GET",
+        "url": "/marketplace/dashboard/debts",
+        "mounted": true,
+        "file": "apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts",
+        "line": 135,
+        "controller": "MarketplaceController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "marketplace-v2",
+    "file": "apps/dashboard/src/api/endpoints/marketplace-v2.ts",
+    "line": 215,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/marketplace/dashboard/debts/{encodeURIComponent(debtId)}",
+    "normalized": "/marketplace/dashboard/debts/:dynamic",
+    "candidates": [
+      {
+        "module": "marketplace",
+        "verb": "GET",
+        "url": "/marketplace/dashboard/debts/:debtId",
+        "mounted": true,
+        "file": "apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts",
+        "line": 147,
+        "controller": "MarketplaceController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "marketplace-v2",
+    "file": "apps/dashboard/src/api/endpoints/marketplace-v2.ts",
+    "line": 233,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/marketplace/dashboard/chargebacks",
+    "normalized": "/marketplace/dashboard/chargebacks",
+    "candidates": [
+      {
+        "module": "marketplace",
+        "verb": "GET",
+        "url": "/marketplace/dashboard/chargebacks",
+        "mounted": true,
+        "file": "apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts",
+        "line": 159,
+        "controller": "MarketplaceController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "marketplace-v2",
+    "file": "apps/dashboard/src/api/endpoints/marketplace-v2.ts",
+    "line": 246,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/marketplace/dashboard/events{qs}",
+    "normalized": "/marketplace/dashboard/events",
+    "candidates": [
+      {
+        "module": "marketplace",
+        "verb": "GET",
+        "url": "/marketplace/dashboard/events",
+        "mounted": true,
+        "file": "apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts",
+        "line": 186,
+        "controller": "MarketplaceController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "marketplace-v2",
+    "file": "apps/dashboard/src/api/endpoints/marketplace-v2.ts",
+    "line": 261,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/marketplace/stores?{query}",
+    "normalized": "/marketplace/stores",
+    "candidates": [
+      {
+        "module": "marketplace",
+        "verb": "GET",
+        "url": "/marketplace/stores",
+        "mounted": true,
+        "file": "apps/api/src/modules/marketplace/presentation/http/marketplace-discovery.controller.ts",
+        "line": 44,
+        "controller": "MarketplaceDiscoveryController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "marketplace-v2",
+    "file": "apps/dashboard/src/api/endpoints/marketplace-v2.ts",
+    "line": 270,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/marketplace/stores/{encodeURIComponent(sellerId)}/connect",
+    "normalized": "/marketplace/stores/:dynamic/connect",
+    "candidates": [
+      {
+        "module": "marketplace",
+        "verb": "POST",
+        "url": "/marketplace/stores/:sellerId/connect",
+        "mounted": true,
+        "file": "apps/api/src/modules/marketplace/presentation/http/marketplace-discovery.controller.ts",
+        "line": 113,
+        "controller": "MarketplaceDiscoveryController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "marketplace-v2",
+    "file": "apps/dashboard/src/api/endpoints/marketplace-v2.ts",
+    "line": 279,
+    "expression": "dashboardJson",
+    "method": "DELETE",
+    "path": "/marketplace/stores/{encodeURIComponent(sellerId)}/connect",
+    "normalized": "/marketplace/stores/:dynamic/connect",
+    "candidates": [
+      {
+        "module": "marketplace",
+        "verb": "DELETE",
+        "url": "/marketplace/stores/:sellerId/connect",
+        "mounted": true,
+        "file": "apps/api/src/modules/marketplace/presentation/http/marketplace-discovery.controller.ts",
+        "line": 139,
+        "controller": "MarketplaceDiscoveryController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "marketplace-v2",
+    "file": "apps/dashboard/src/api/endpoints/marketplace-v2.ts",
+    "line": 290,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/marketplace/stores/my-connections",
+    "normalized": "/marketplace/stores/my-connections",
+    "candidates": [
+      {
+        "module": "marketplace",
+        "verb": "GET",
+        "url": "/marketplace/stores/my-connections",
+        "mounted": true,
+        "file": "apps/api/src/modules/marketplace/presentation/http/marketplace-discovery.controller.ts",
+        "line": 158,
+        "controller": "MarketplaceDiscoveryController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "marketplace",
+    "file": "apps/dashboard/src/api/endpoints/marketplace.ts",
+    "line": 41,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/marketplace/dashboard/config",
+    "normalized": "/marketplace/dashboard/config",
+    "candidates": [
+      {
+        "module": "marketplace",
+        "verb": "GET",
+        "url": "/marketplace/dashboard/config",
+        "mounted": true,
+        "file": "apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts",
+        "line": 50,
+        "controller": "MarketplaceController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "marketplace",
+    "file": "apps/dashboard/src/api/endpoints/marketplace.ts",
+    "line": 48,
+    "expression": "dashboardJson",
+    "method": "PATCH",
+    "path": "/marketplace/dashboard/config",
+    "normalized": "/marketplace/dashboard/config",
+    "candidates": [
+      {
+        "module": "marketplace",
+        "verb": "PATCH",
+        "url": "/marketplace/dashboard/config",
+        "mounted": true,
+        "file": "apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts",
+        "line": 59,
+        "controller": "MarketplaceController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "marketplace",
+    "file": "apps/dashboard/src/api/endpoints/marketplace.ts",
+    "line": 53,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/marketplace/dashboard/orders",
+    "normalized": "/marketplace/dashboard/orders",
+    "candidates": [
+      {
+        "module": "marketplace",
+        "verb": "GET",
+        "url": "/marketplace/dashboard/orders",
+        "mounted": true,
+        "file": "apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts",
+        "line": 77,
+        "controller": "MarketplaceController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "marketplace",
+    "file": "apps/dashboard/src/api/endpoints/marketplace.ts",
+    "line": 60,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/marketplace/dashboard/stats",
+    "normalized": "/marketplace/dashboard/stats",
+    "candidates": [
+      {
+        "module": "marketplace",
+        "verb": "GET",
+        "url": "/marketplace/dashboard/stats",
+        "mounted": true,
+        "file": "apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts",
+        "line": 85,
+        "controller": "MarketplaceController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "marketplace",
+    "file": "apps/dashboard/src/api/endpoints/marketplace.ts",
+    "line": 72,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/marketplace/orders/line-items/{encodeURIComponent(lineItemId)}/ship",
+    "normalized": "/marketplace/orders/line-items/:dynamic/ship",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "dashboard",
+    "module": "marketplace",
+    "file": "apps/dashboard/src/api/endpoints/marketplace.ts",
+    "line": 81,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/marketplace/orders/line-items/{encodeURIComponent(lineItemId)}/deliver",
+    "normalized": "/marketplace/orders/line-items/:dynamic/deliver",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 46,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/merchants/me",
+    "normalized": "/merchants/me",
+    "candidates": [
+      {
+        "module": "merchant",
+        "verb": "GET",
+        "url": "/merchants/me",
+        "mounted": true,
+        "file": "apps/api/src/modules/merchant/presentation/merchant.controller.ts",
+        "line": 40,
+        "controller": "MerchantController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 50,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/merchants/me/rules",
+    "normalized": "/merchants/me/rules",
+    "candidates": [
+      {
+        "module": "merchant",
+        "verb": "GET",
+        "url": "/merchants/me/rules",
+        "mounted": true,
+        "file": "apps/api/src/modules/merchant/presentation/merchant.controller.ts",
+        "line": 66,
+        "controller": "MerchantController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 54,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/merchants/me/rules",
+    "normalized": "/merchants/me/rules",
+    "candidates": [
+      {
+        "module": "merchant",
+        "verb": "PUT",
+        "url": "/merchants/me/rules",
+        "mounted": true,
+        "file": "apps/api/src/modules/merchant/presentation/merchant.controller.ts",
+        "line": 91,
+        "controller": "MerchantController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 58,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/merchants/me/theme",
+    "normalized": "/merchants/me/theme",
+    "candidates": [
+      {
+        "module": "merchant",
+        "verb": "GET",
+        "url": "/merchants/me/theme",
+        "mounted": true,
+        "file": "apps/api/src/modules/merchant/presentation/merchant.controller.ts",
+        "line": 117,
+        "controller": "MerchantController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 62,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/merchants/me/theme",
+    "normalized": "/merchants/me/theme",
+    "candidates": [
+      {
+        "module": "merchant",
+        "verb": "PUT",
+        "url": "/merchants/me/theme",
+        "mounted": true,
+        "file": "apps/api/src/modules/merchant/presentation/merchant.controller.ts",
+        "line": 135,
+        "controller": "MerchantController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 66,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/me/logo",
+    "normalized": "/merchants/me/logo",
+    "candidates": [
+      {
+        "module": "merchant",
+        "verb": "POST",
+        "url": "/merchants/me/logo",
+        "mounted": true,
+        "file": "apps/api/src/modules/merchant/presentation/merchant.controller.ts",
+        "line": 157,
+        "controller": "MerchantController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 70,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/merchants/me/store-category",
+    "normalized": "/merchants/me/store-category",
+    "candidates": [
+      {
+        "module": "merchant",
+        "verb": "PUT",
+        "url": "/merchants/me/store-category",
+        "mounted": true,
+        "file": "apps/api/src/modules/merchant/presentation/merchant.controller.ts",
+        "line": 173,
+        "controller": "MerchantController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 74,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/merchants/me/store-settings",
+    "normalized": "/merchants/me/store-settings",
+    "candidates": [
+      {
+        "module": "merchant",
+        "verb": "GET",
+        "url": "/merchants/me/store-settings",
+        "mounted": true,
+        "file": "apps/api/src/modules/merchant/presentation/merchant.controller.ts",
+        "line": 181,
+        "controller": "MerchantController"
+      },
+      {
+        "module": "store-settings",
+        "verb": "GET",
+        "url": "/merchants/:mid/store-settings",
+        "mounted": true,
+        "file": "apps/api/src/modules/store-settings/presentation/http/store-settings.controller.ts",
+        "line": 27,
+        "controller": "StoreSettingsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 78,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/merchants/me/store-settings",
+    "normalized": "/merchants/me/store-settings",
+    "candidates": [
+      {
+        "module": "merchant",
+        "verb": "PUT",
+        "url": "/merchants/me/store-settings",
+        "mounted": true,
+        "file": "apps/api/src/modules/merchant/presentation/merchant.controller.ts",
+        "line": 198,
+        "controller": "MerchantController"
+      },
+      {
+        "module": "store-settings",
+        "verb": "PUT",
+        "url": "/merchants/:mid/store-settings",
+        "mounted": true,
+        "file": "apps/api/src/modules/store-settings/presentation/http/store-settings.controller.ts",
+        "line": 34,
+        "controller": "StoreSettingsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 82,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/merchants/me/name",
+    "normalized": "/merchants/me/name",
+    "candidates": [
+      {
+        "module": "merchant",
+        "verb": "PUT",
+        "url": "/merchants/me/name",
+        "mounted": true,
+        "file": "apps/api/src/modules/merchant/presentation/merchant.controller.ts",
+        "line": 186,
+        "controller": "MerchantController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 86,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/me/generate-policy",
+    "normalized": "/merchants/me/generate-policy",
+    "candidates": [
+      {
+        "module": "merchant",
+        "verb": "POST",
+        "url": "/merchants/me/generate-policy",
+        "mounted": true,
+        "file": "apps/api/src/modules/merchant/presentation/merchant.controller.ts",
+        "line": 206,
+        "controller": "MerchantController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 90,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/merchants/me/store-settings/seo",
+    "normalized": "/merchants/me/store-settings/seo",
+    "candidates": [
+      {
+        "module": "store-settings",
+        "verb": "GET",
+        "url": "/merchants/me/store-settings/seo",
+        "mounted": true,
+        "file": "apps/api/src/modules/store-settings/presentation/http/store-settings.controller.ts",
+        "line": 45,
+        "controller": "StoreSettingsController"
+      },
+      {
+        "module": "store-settings",
+        "verb": "GET",
+        "url": "/merchants/:mid/store-settings/seo",
+        "mounted": true,
+        "file": "apps/api/src/modules/store-settings/presentation/http/store-settings.controller.ts",
+        "line": 72,
+        "controller": "StoreSettingsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 94,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/merchants/me/store-settings/seo",
+    "normalized": "/merchants/me/store-settings/seo",
+    "candidates": [
+      {
+        "module": "store-settings",
+        "verb": "PUT",
+        "url": "/merchants/me/store-settings/seo",
+        "mounted": true,
+        "file": "apps/api/src/modules/store-settings/presentation/http/store-settings.controller.ts",
+        "line": 52,
+        "controller": "StoreSettingsController"
+      },
+      {
+        "module": "store-settings",
+        "verb": "PUT",
+        "url": "/merchants/:mid/store-settings/seo",
+        "mounted": true,
+        "file": "apps/api/src/modules/store-settings/presentation/http/store-settings.controller.ts",
+        "line": 79,
+        "controller": "StoreSettingsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 98,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/me/store-settings/seo/generate",
+    "normalized": "/merchants/me/store-settings/seo/generate",
+    "candidates": [
+      {
+        "module": "store-settings",
+        "verb": "POST",
+        "url": "/merchants/me/store-settings/seo/generate",
+        "mounted": true,
+        "file": "apps/api/src/modules/store-settings/presentation/http/store-settings.controller.ts",
+        "line": 62,
+        "controller": "StoreSettingsController"
+      },
+      {
+        "module": "store-settings",
+        "verb": "POST",
+        "url": "/merchants/:mid/store-settings/seo/generate",
+        "mounted": true,
+        "file": "apps/api/src/modules/store-settings/presentation/http/store-settings.controller.ts",
+        "line": 90,
+        "controller": "StoreSettingsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 102,
+    "expression": "dashboardJson",
+    "method": "DELETE",
+    "path": "/storage/object?url={encodeURIComponent(url)}",
+    "normalized": "/storage/object",
+    "candidates": [
+      {
+        "module": "shared",
+        "verb": "DELETE",
+        "url": "/storage/object",
+        "mounted": true,
+        "file": "apps/api/src/shared/storage/storage.controller.ts",
+        "line": 12,
+        "controller": "StorageController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 106,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/merchants/me/cross-sell-config",
+    "normalized": "/merchants/me/cross-sell-config",
+    "candidates": [
+      {
+        "module": "store-settings",
+        "verb": "GET",
+        "url": "/merchants/me/cross-sell-config",
+        "mounted": true,
+        "file": "apps/api/src/modules/store-settings/presentation/http/store-settings.controller.ts",
+        "line": 101,
+        "controller": "StoreSettingsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 110,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/merchants/me/cross-sell-config",
+    "normalized": "/merchants/me/cross-sell-config",
+    "candidates": [
+      {
+        "module": "store-settings",
+        "verb": "PUT",
+        "url": "/merchants/me/cross-sell-config",
+        "mounted": true,
+        "file": "apps/api/src/modules/store-settings/presentation/http/store-settings.controller.ts",
+        "line": 110,
+        "controller": "StoreSettingsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 114,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/merchants/me/domains",
+    "normalized": "/merchants/me/domains",
+    "candidates": [
+      {
+        "module": "domains",
+        "verb": "GET",
+        "url": "/merchants/me/domains",
+        "mounted": true,
+        "file": "apps/api/src/modules/domains/presentation/http/domains.controller.ts",
+        "line": 35,
+        "controller": "DomainsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 118,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/me/domains",
+    "normalized": "/merchants/me/domains",
+    "candidates": [
+      {
+        "module": "domains",
+        "verb": "POST",
+        "url": "/merchants/me/domains",
+        "mounted": true,
+        "file": "apps/api/src/modules/domains/presentation/http/domains.controller.ts",
+        "line": 40,
+        "controller": "DomainsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 122,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/me/domains/{domainId}/verify",
+    "normalized": "/merchants/me/domains/:dynamic/verify",
+    "candidates": [
+      {
+        "module": "domains",
+        "verb": "POST",
+        "url": "/merchants/me/domains/:domainId/verify",
+        "mounted": true,
+        "file": "apps/api/src/modules/domains/presentation/http/domains.controller.ts",
+        "line": 51,
+        "controller": "DomainsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 126,
+    "expression": "dashboardJson",
+    "method": "DELETE",
+    "path": "/merchants/me/domains/{domainId}",
+    "normalized": "/merchants/me/domains/:dynamic",
+    "candidates": [
+      {
+        "module": "domains",
+        "verb": "DELETE",
+        "url": "/merchants/me/domains/:domainId",
+        "mounted": true,
+        "file": "apps/api/src/modules/domains/presentation/http/domains.controller.ts",
+        "line": 62,
+        "controller": "DomainsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 130,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/intent-memory/records",
+    "normalized": "/intent-memory/records",
+    "candidates": [
+      {
+        "module": "intent-memory",
+        "verb": "GET",
+        "url": "/intent-memory/records",
+        "mounted": true,
+        "file": "apps/api/src/modules/intent-memory/presentation/http/intent-memory.controller.ts",
+        "line": 94,
+        "controller": "IntentMemoryController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 134,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/merchants/{merchantId}/team",
+    "normalized": "/merchants/:dynamic/team",
+    "candidates": [
+      {
+        "module": "team",
+        "verb": "GET",
+        "url": "/merchants/:merchantId/team",
+        "mounted": true,
+        "file": "apps/api/src/modules/team/presentation/http/team.controller.ts",
+        "line": 38,
+        "controller": "TeamController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 138,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/{merchantId}/team/invite",
+    "normalized": "/merchants/:dynamic/team/invite",
+    "candidates": [
+      {
+        "module": "team",
+        "verb": "POST",
+        "url": "/merchants/:merchantId/team/invite",
+        "mounted": true,
+        "file": "apps/api/src/modules/team/presentation/http/team.controller.ts",
+        "line": 43,
+        "controller": "TeamController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 142,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/merchants/{merchantId}/team/{userId}/role",
+    "normalized": "/merchants/:dynamic/team/:dynamic/role",
+    "candidates": [
+      {
+        "module": "team",
+        "verb": "PUT",
+        "url": "/merchants/:merchantId/team/:userId/role",
+        "mounted": true,
+        "file": "apps/api/src/modules/team/presentation/http/team.controller.ts",
+        "line": 76,
+        "controller": "TeamController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 146,
+    "expression": "dashboardJson",
+    "method": "DELETE",
+    "path": "/merchants/{merchantId}/team/{userId}",
+    "normalized": "/merchants/:dynamic/team/:dynamic",
+    "candidates": [
+      {
+        "module": "team",
+        "verb": "DELETE",
+        "url": "/merchants/:merchantId/team/:userId",
+        "mounted": true,
+        "file": "apps/api/src/modules/team/presentation/http/team.controller.ts",
+        "line": 93,
+        "controller": "TeamController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 152,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/merchants/{merchantId}/whatsapp/connection",
+    "normalized": "/merchants/:dynamic/whatsapp/connection",
+    "candidates": [
+      {
+        "module": "whatsapp-channel",
+        "verb": "GET",
+        "url": "/merchants/:merchantId/whatsapp/connection",
+        "mounted": true,
+        "file": "apps/api/src/modules/whatsapp-channel/presentation/http/whatsapp-config.controller.ts",
+        "line": 36,
+        "controller": "WhatsAppConfigController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 157,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/{merchantId}/whatsapp/meta/connect",
+    "normalized": "/merchants/:dynamic/whatsapp/meta/connect",
+    "candidates": [
+      {
+        "module": "whatsapp-channel",
+        "verb": "POST",
+        "url": "/merchants/:merchantId/whatsapp/meta/connect",
+        "mounted": true,
+        "file": "apps/api/src/modules/whatsapp-channel/presentation/http/whatsapp-config.controller.ts",
+        "line": 63,
+        "controller": "WhatsAppConfigController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 162,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/{merchantId}/whatsapp/twilio/connect",
+    "normalized": "/merchants/:dynamic/whatsapp/twilio/connect",
+    "candidates": [
+      {
+        "module": "whatsapp-channel",
+        "verb": "POST",
+        "url": "/merchants/:merchantId/whatsapp/twilio/connect",
+        "mounted": true,
+        "file": "apps/api/src/modules/whatsapp-channel/presentation/http/whatsapp-config.controller.ts",
+        "line": 91,
+        "controller": "WhatsAppConfigController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 166,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/{merchantId}/whatsapp/twilio/verify",
+    "normalized": "/merchants/:dynamic/whatsapp/twilio/verify",
+    "candidates": [
+      {
+        "module": "whatsapp-channel",
+        "verb": "POST",
+        "url": "/merchants/:merchantId/whatsapp/twilio/verify",
+        "mounted": true,
+        "file": "apps/api/src/modules/whatsapp-channel/presentation/http/whatsapp-config.controller.ts",
+        "line": 112,
+        "controller": "WhatsAppConfigController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 170,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/{merchantId}/whatsapp/disconnect",
+    "normalized": "/merchants/:dynamic/whatsapp/disconnect",
+    "candidates": [
+      {
+        "module": "whatsapp-channel",
+        "verb": "POST",
+        "url": "/merchants/:merchantId/whatsapp/disconnect",
+        "mounted": true,
+        "file": "apps/api/src/modules/whatsapp-channel/presentation/http/whatsapp-config.controller.ts",
+        "line": 128,
+        "controller": "WhatsAppConfigController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 174,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/{merchantId}/whatsapp/test",
+    "normalized": "/merchants/:dynamic/whatsapp/test",
+    "candidates": [
+      {
+        "module": "whatsapp-channel",
+        "verb": "POST",
+        "url": "/merchants/:merchantId/whatsapp/test",
+        "mounted": true,
+        "file": "apps/api/src/modules/whatsapp-channel/presentation/http/whatsapp-config.controller.ts",
+        "line": 164,
+        "controller": "WhatsAppConfigController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "merchants",
+    "file": "apps/dashboard/src/api/endpoints/merchants.ts",
+    "line": 178,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/{merchantId}/whatsapp/toggle",
+    "normalized": "/merchants/:dynamic/whatsapp/toggle",
+    "candidates": [
+      {
+        "module": "whatsapp-channel",
+        "verb": "POST",
+        "url": "/merchants/:merchantId/whatsapp/toggle",
+        "mounted": true,
+        "file": "apps/api/src/modules/whatsapp-channel/presentation/http/whatsapp-config.controller.ts",
+        "line": 143,
+        "controller": "WhatsAppConfigController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "negotiation",
+    "file": "apps/dashboard/src/api/endpoints/negotiation.ts",
+    "line": 14,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/merchant-negotiation-policy",
+    "normalized": "/merchant-negotiation-policy",
+    "candidates": [
+      {
+        "module": "negotiation",
+        "verb": "GET",
+        "url": "/merchant-negotiation-policy",
+        "mounted": true,
+        "file": "apps/api/src/modules/negotiation/presentation/http/merchant-negotiation-policy.controller.ts",
+        "line": 17,
+        "controller": "MerchantNegotiationPolicyController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "negotiation",
+    "file": "apps/dashboard/src/api/endpoints/negotiation.ts",
+    "line": 17,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/merchant-negotiation-policy",
+    "normalized": "/merchant-negotiation-policy",
+    "candidates": [
+      {
+        "module": "negotiation",
+        "verb": "PUT",
+        "url": "/merchant-negotiation-policy",
+        "mounted": true,
+        "file": "apps/api/src/modules/negotiation/presentation/http/merchant-negotiation-policy.controller.ts",
+        "line": 27,
+        "controller": "MerchantNegotiationPolicyController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "negotiation",
+    "file": "apps/dashboard/src/api/endpoints/negotiation.ts",
+    "line": 24,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/negotiations/sessions?{query}",
+    "normalized": "/negotiations/sessions",
+    "candidates": [
+      {
+        "module": "negotiation",
+        "verb": "GET",
+        "url": "/negotiations/sessions",
+        "mounted": true,
+        "file": "apps/api/src/modules/negotiation/presentation/http/negotiation.controller.ts",
+        "line": 110,
+        "controller": "NegotiationController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "negotiation",
+    "file": "apps/dashboard/src/api/endpoints/negotiation.ts",
+    "line": 28,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/negotiations/stats{qs}",
+    "normalized": "/negotiations/stats",
+    "candidates": [
+      {
+        "module": "negotiation",
+        "verb": "GET",
+        "url": "/negotiations/stats",
+        "mounted": true,
+        "file": "apps/api/src/modules/negotiation/presentation/http/negotiation.controller.ts",
+        "line": 101,
+        "controller": "NegotiationController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "negotiation",
+    "file": "apps/dashboard/src/api/endpoints/negotiation.ts",
+    "line": 33,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/negotiations/evaluate",
+    "normalized": "/negotiations/evaluate",
+    "candidates": [
+      {
+        "module": "negotiation",
+        "verb": "POST",
+        "url": "/negotiations/evaluate",
+        "mounted": true,
+        "file": "apps/api/src/modules/negotiation/presentation/http/negotiation.controller.ts",
+        "line": 37,
+        "controller": "NegotiationController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "onboarding",
+    "file": "apps/dashboard/src/api/endpoints/onboarding.ts",
+    "line": 11,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/onboarding",
+    "normalized": "/onboarding",
+    "candidates": [
+      {
+        "module": "onboarding",
+        "verb": "GET",
+        "url": "/onboarding",
+        "mounted": true,
+        "file": "apps/api/src/modules/onboarding/presentation/http/onboarding.controller.ts",
+        "line": 15,
+        "controller": "OnboardingController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "onboarding",
+    "file": "apps/dashboard/src/api/endpoints/onboarding.ts",
+    "line": 14,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/onboarding/steps/{encodeURIComponent(step)}/complete",
+    "normalized": "/onboarding/steps/:dynamic/complete",
+    "candidates": [
+      {
+        "module": "onboarding",
+        "verb": "POST",
+        "url": "/onboarding/steps/:step/complete",
+        "mounted": true,
+        "file": "apps/api/src/modules/onboarding/presentation/http/onboarding.controller.ts",
+        "line": 20,
+        "controller": "OnboardingController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "onboarding",
+    "file": "apps/dashboard/src/api/endpoints/onboarding.ts",
+    "line": 29,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/embed/sessions",
+    "normalized": "/embed/sessions",
+    "candidates": [
+      {
+        "module": "embed",
+        "verb": "POST",
+        "url": "/embed/sessions",
+        "mounted": true,
+        "file": "apps/api/src/modules/embed/presentation/http/embed-sessions.controller.ts",
+        "line": 80,
+        "controller": "EmbedSessionsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "order",
+    "file": "apps/dashboard/src/api/endpoints/order.ts",
+    "line": 11,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/orders{query}",
+    "normalized": "/orders",
+    "candidates": [
+      {
+        "module": "operations",
+        "verb": "GET",
+        "url": "/orders",
+        "mounted": true,
+        "file": "apps/api/src/modules/operations/presentation/http/operations.controller.ts",
+        "line": 75,
+        "controller": "OrdersController"
+      },
+      {
+        "module": "public-api",
+        "verb": "GET",
+        "url": "/orders",
+        "mounted": false,
+        "file": "apps/api/src/modules/public-api/orders/presentation/http/orders-v1.controller.ts",
+        "line": 79,
+        "controller": "OrdersV1Controller"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "order",
+    "file": "apps/dashboard/src/api/endpoints/order.ts",
+    "line": 19,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/orders/{encodeURIComponent(orderId)}/tracking",
+    "normalized": "/orders/:dynamic/tracking",
+    "candidates": [
+      {
+        "module": "operations",
+        "verb": "PUT",
+        "url": "/orders/:orderId/tracking",
+        "mounted": true,
+        "file": "apps/api/src/modules/operations/presentation/http/operations.controller.ts",
+        "line": 309,
+        "controller": "OrdersController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "order",
+    "file": "apps/dashboard/src/api/endpoints/order.ts",
+    "line": 27,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/orders/{encodeURIComponent(orderId)}/status",
+    "normalized": "/orders/:dynamic/status",
+    "candidates": [
+      {
+        "module": "operations",
+        "verb": "PUT",
+        "url": "/orders/:orderId/status",
+        "mounted": true,
+        "file": "apps/api/src/modules/operations/presentation/http/operations.controller.ts",
+        "line": 214,
+        "controller": "OrdersController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "order",
+    "file": "apps/dashboard/src/api/endpoints/order.ts",
+    "line": 44,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/shipping/labels",
+    "normalized": "/shipping/labels",
+    "candidates": [
+      {
+        "module": "shipping",
+        "verb": "POST",
+        "url": "/shipping/labels",
+        "mounted": true,
+        "file": "apps/api/src/modules/shipping/presentation/http/shipping-label.controller.ts",
+        "line": 27,
+        "controller": "ShippingLabelController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "returns",
+    "file": "apps/dashboard/src/api/endpoints/returns.ts",
+    "line": 43,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/merchants/{encodeURIComponent(merchantId)}/returns?{query}",
+    "normalized": "/merchants/:dynamic/returns",
+    "candidates": [
+      {
+        "module": "returns",
+        "verb": "GET",
+        "url": "/merchants/:mid/returns",
+        "mounted": true,
+        "file": "apps/api/src/modules/returns/presentation/http/returns.controller.ts",
+        "line": 51,
+        "controller": "ReturnsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "returns",
+    "file": "apps/dashboard/src/api/endpoints/returns.ts",
+    "line": 47,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/{encodeURIComponent(merchantId)}/returns/{returnId}/generate-label",
+    "normalized": "/merchants/:dynamic/returns/:dynamic/generate-label",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "dashboard",
+    "module": "returns",
+    "file": "apps/dashboard/src/api/endpoints/returns.ts",
+    "line": 51,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/{encodeURIComponent(merchantId)}/returns/{returnId}/mark-received",
+    "normalized": "/merchants/:dynamic/returns/:dynamic/mark-received",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "dashboard",
+    "module": "returns",
+    "file": "apps/dashboard/src/api/endpoints/returns.ts",
+    "line": 55,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/{encodeURIComponent(merchantId)}/returns/{returnId}/inspect",
+    "normalized": "/merchants/:dynamic/returns/:dynamic/inspect",
+    "candidates": [
+      {
+        "module": "returns",
+        "verb": "POST",
+        "url": "/merchants/:mid/returns/:rid/inspect",
+        "mounted": true,
+        "file": "apps/api/src/modules/returns/presentation/http/returns.controller.ts",
+        "line": 87,
+        "controller": "ReturnsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "returns",
+    "file": "apps/dashboard/src/api/endpoints/returns.ts",
+    "line": 59,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/merchants/{encodeURIComponent(merchantId)}/returns/{returnId}/refund",
+    "normalized": "/merchants/:dynamic/returns/:dynamic/refund",
+    "candidates": [
+      {
+        "module": "returns",
+        "verb": "POST",
+        "url": "/merchants/:mid/returns/:rid/refund",
+        "mounted": true,
+        "file": "apps/api/src/modules/returns/presentation/http/returns.controller.ts",
+        "line": 97,
+        "controller": "ReturnsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "revenue-lift",
+    "file": "apps/dashboard/src/api/endpoints/revenue-lift.ts",
+    "line": 39,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/analytics/revenue-lift{qs}",
+    "normalized": "/analytics/revenue-lift",
+    "candidates": [
+      {
+        "module": "revenue-lift",
+        "verb": "GET",
+        "url": "/analytics/revenue-lift",
+        "mounted": true,
+        "file": "apps/api/src/modules/revenue-lift/presentation/http/revenue-lift.controller.ts",
+        "line": 16,
+        "controller": "RevenueLiftController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "revenue-lift",
+    "file": "apps/dashboard/src/api/endpoints/revenue-lift.ts",
+    "line": 44,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/analytics/revenue-lift/trend{qs}",
+    "normalized": "/analytics/revenue-lift/trend",
+    "candidates": [
+      {
+        "module": "revenue-lift",
+        "verb": "GET",
+        "url": "/analytics/revenue-lift/trend",
+        "mounted": true,
+        "file": "apps/api/src/modules/revenue-lift/presentation/http/revenue-lift.controller.ts",
+        "line": 28,
+        "controller": "RevenueLiftController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "revenue-manager",
+    "file": "apps/dashboard/src/api/endpoints/revenue-manager.ts",
+    "line": 89,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/revenue-manager/hypotheses",
+    "normalized": "/revenue-manager/hypotheses",
+    "candidates": [
+      {
+        "module": "revenue-manager",
+        "verb": "GET",
+        "url": "/revenue-manager/hypotheses",
+        "mounted": true,
+        "file": "apps/api/src/modules/revenue-manager/presentation/http/revenue-manager.controller.ts",
+        "line": 83,
+        "controller": "RevenueManagerController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "revenue-manager",
+    "file": "apps/dashboard/src/api/endpoints/revenue-manager.ts",
+    "line": 96,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/revenue-manager/hypotheses/{encodeURIComponent(id)}/approve",
+    "normalized": "/revenue-manager/hypotheses/:dynamic/approve",
+    "candidates": [
+      {
+        "module": "revenue-manager",
+        "verb": "POST",
+        "url": "/revenue-manager/hypotheses/:id/approve",
+        "mounted": true,
+        "file": "apps/api/src/modules/revenue-manager/presentation/http/revenue-manager.controller.ts",
+        "line": 124,
+        "controller": "RevenueManagerController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "revenue-manager",
+    "file": "apps/dashboard/src/api/endpoints/revenue-manager.ts",
+    "line": 105,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/revenue-manager/hypotheses/{encodeURIComponent(id)}/reject",
+    "normalized": "/revenue-manager/hypotheses/:dynamic/reject",
+    "candidates": [
+      {
+        "module": "revenue-manager",
+        "verb": "POST",
+        "url": "/revenue-manager/hypotheses/:id/reject",
+        "mounted": true,
+        "file": "apps/api/src/modules/revenue-manager/presentation/http/revenue-manager.controller.ts",
+        "line": 148,
+        "controller": "RevenueManagerController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "revenue-manager",
+    "file": "apps/dashboard/src/api/endpoints/revenue-manager.ts",
+    "line": 114,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/revenue-manager/observations",
+    "normalized": "/revenue-manager/observations",
+    "candidates": [
+      {
+        "module": "revenue-manager",
+        "verb": "GET",
+        "url": "/revenue-manager/observations",
+        "mounted": true,
+        "file": "apps/api/src/modules/revenue-manager/presentation/http/revenue-manager.controller.ts",
+        "line": 54,
+        "controller": "RevenueManagerController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "revenue-manager",
+    "file": "apps/dashboard/src/api/endpoints/revenue-manager.ts",
+    "line": 122,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/revenue-manager/strategy-lessons",
+    "normalized": "/revenue-manager/strategy-lessons",
+    "candidates": [
+      {
+        "module": "revenue-manager",
+        "verb": "GET",
+        "url": "/revenue-manager/strategy-lessons",
+        "mounted": true,
+        "file": "apps/api/src/modules/revenue-manager/presentation/http/revenue-manager.controller.ts",
+        "line": 176,
+        "controller": "RevenueManagerController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "stories",
+    "file": "apps/dashboard/src/api/endpoints/stories.ts",
+    "line": 52,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/story-manager/categories",
+    "normalized": "/story-manager/categories",
+    "candidates": [
+      {
+        "module": "stories",
+        "verb": "GET",
+        "url": "/story-manager/categories",
+        "mounted": true,
+        "file": "apps/api/src/modules/stories/presentation/http/stories.controller.ts",
+        "line": 41,
+        "controller": "StoriesController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "stories",
+    "file": "apps/dashboard/src/api/endpoints/stories.ts",
+    "line": 56,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/story-manager/categories",
+    "normalized": "/story-manager/categories",
+    "candidates": [
+      {
+        "module": "stories",
+        "verb": "POST",
+        "url": "/story-manager/categories",
+        "mounted": true,
+        "file": "apps/api/src/modules/stories/presentation/http/stories.controller.ts",
+        "line": 48,
+        "controller": "StoriesController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "stories",
+    "file": "apps/dashboard/src/api/endpoints/stories.ts",
+    "line": 63,
+    "expression": "dashboardJson",
+    "method": "PATCH",
+    "path": "/story-manager/categories/{id}",
+    "normalized": "/story-manager/categories/:dynamic",
+    "candidates": [
+      {
+        "module": "stories",
+        "verb": "PATCH",
+        "url": "/story-manager/categories/:id",
+        "mounted": true,
+        "file": "apps/api/src/modules/stories/presentation/http/stories.controller.ts",
+        "line": 63,
+        "controller": "StoriesController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "stories",
+    "file": "apps/dashboard/src/api/endpoints/stories.ts",
+    "line": 70,
+    "expression": "dashboardJson",
+    "method": "DELETE",
+    "path": "/story-manager/categories/{id}",
+    "normalized": "/story-manager/categories/:dynamic",
+    "candidates": [
+      {
+        "module": "stories",
+        "verb": "DELETE",
+        "url": "/story-manager/categories/:id",
+        "mounted": true,
+        "file": "apps/api/src/modules/stories/presentation/http/stories.controller.ts",
+        "line": 80,
+        "controller": "StoriesController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "stories",
+    "file": "apps/dashboard/src/api/endpoints/stories.ts",
+    "line": 74,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/story-manager/categories/reorder",
+    "normalized": "/story-manager/categories/reorder",
+    "candidates": [
+      {
+        "module": "stories",
+        "verb": "POST",
+        "url": "/story-manager/categories/reorder",
+        "mounted": true,
+        "file": "apps/api/src/modules/stories/presentation/http/stories.controller.ts",
+        "line": 88,
+        "controller": "StoriesController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "stories",
+    "file": "apps/dashboard/src/api/endpoints/stories.ts",
+    "line": 83,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/story-manager/categories/{categoryId}/stories",
+    "normalized": "/story-manager/categories/:dynamic/stories",
+    "candidates": [
+      {
+        "module": "stories",
+        "verb": "GET",
+        "url": "/story-manager/categories/:categoryId/stories",
+        "mounted": true,
+        "file": "apps/api/src/modules/stories/presentation/http/stories.controller.ts",
+        "line": 101,
+        "controller": "StoriesController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "stories",
+    "file": "apps/dashboard/src/api/endpoints/stories.ts",
+    "line": 87,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/story-manager/categories/{categoryId}/stories",
+    "normalized": "/story-manager/categories/:dynamic/stories",
+    "candidates": [
+      {
+        "module": "stories",
+        "verb": "POST",
+        "url": "/story-manager/categories/:categoryId/stories",
+        "mounted": true,
+        "file": "apps/api/src/modules/stories/presentation/http/stories.controller.ts",
+        "line": 108,
+        "controller": "StoriesController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "stories",
+    "file": "apps/dashboard/src/api/endpoints/stories.ts",
+    "line": 94,
+    "expression": "dashboardJson",
+    "method": "PATCH",
+    "path": "/story-manager/{id}",
+    "normalized": "/story-manager/:dynamic",
+    "candidates": [
+      {
+        "module": "stories",
+        "verb": "PATCH",
+        "url": "/story-manager/:id",
+        "mounted": true,
+        "file": "apps/api/src/modules/stories/presentation/http/stories.controller.ts",
+        "line": 126,
+        "controller": "StoriesController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "stories",
+    "file": "apps/dashboard/src/api/endpoints/stories.ts",
+    "line": 101,
+    "expression": "dashboardJson",
+    "method": "DELETE",
+    "path": "/story-manager/{id}",
+    "normalized": "/story-manager/:dynamic",
+    "candidates": [
+      {
+        "module": "stories",
+        "verb": "DELETE",
+        "url": "/story-manager/:id",
+        "mounted": true,
+        "file": "apps/api/src/modules/stories/presentation/http/stories.controller.ts",
+        "line": 145,
+        "controller": "StoriesController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "stories",
+    "file": "apps/dashboard/src/api/endpoints/stories.ts",
+    "line": 105,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/story-manager/reorder",
+    "normalized": "/story-manager/reorder",
+    "candidates": [
+      {
+        "module": "stories",
+        "verb": "POST",
+        "url": "/story-manager/reorder",
+        "mounted": true,
+        "file": "apps/api/src/modules/stories/presentation/http/stories.controller.ts",
+        "line": 153,
+        "controller": "StoriesController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "stories",
+    "file": "apps/dashboard/src/api/endpoints/stories.ts",
+    "line": 112,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/story-manager/upload",
+    "normalized": "/story-manager/upload",
+    "candidates": [
+      {
+        "module": "stories",
+        "verb": "POST",
+        "url": "/story-manager/upload",
+        "mounted": true,
+        "file": "apps/api/src/modules/stories/presentation/http/stories.controller.ts",
+        "line": 166,
+        "controller": "StoriesController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "support",
+    "file": "apps/dashboard/src/api/endpoints/support.ts",
+    "line": 14,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/support/settings",
+    "normalized": "/support/settings",
+    "candidates": [
+      {
+        "module": "public-api",
+        "verb": "GET",
+        "url": "/support/settings",
+        "mounted": false,
+        "file": "apps/api/src/modules/public-api/support/presentation/http/support-v1.controller.ts",
+        "line": 39,
+        "controller": "SupportV1Controller"
+      },
+      {
+        "module": "support",
+        "verb": "GET",
+        "url": "/support/settings",
+        "mounted": true,
+        "file": "apps/api/src/modules/support/presentation/http/support.controller.ts",
+        "line": 128,
+        "controller": "SupportController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "support",
+    "file": "apps/dashboard/src/api/endpoints/support.ts",
+    "line": 18,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/support/settings",
+    "normalized": "/support/settings",
+    "candidates": [
+      {
+        "module": "support",
+        "verb": "PUT",
+        "url": "/support/settings",
+        "mounted": true,
+        "file": "apps/api/src/modules/support/presentation/http/support.controller.ts",
+        "line": 158,
+        "controller": "SupportController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "support",
+    "file": "apps/dashboard/src/api/endpoints/support.ts",
+    "line": 23,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/support/tickets{query}",
+    "normalized": "/support/tickets",
+    "candidates": [
+      {
+        "module": "public-api",
+        "verb": "GET",
+        "url": "/support/tickets",
+        "mounted": false,
+        "file": "apps/api/src/modules/public-api/support/presentation/http/support-v1.controller.ts",
+        "line": 50,
+        "controller": "SupportV1Controller"
+      },
+      {
+        "module": "support",
+        "verb": "GET",
+        "url": "/support/tickets",
+        "mounted": true,
+        "file": "apps/api/src/modules/support/presentation/http/support.controller.ts",
+        "line": 195,
+        "controller": "SupportController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "support",
+    "file": "apps/dashboard/src/api/endpoints/support.ts",
+    "line": 34,
+    "expression": "dashboardJson",
+    "method": "PATCH",
+    "path": "/support/tickets/{encodeURIComponent(ticketId)}",
+    "normalized": "/support/tickets/:dynamic",
+    "candidates": [
+      {
+        "module": "support",
+        "verb": "PATCH",
+        "url": "/support/tickets/:ticketId",
+        "mounted": true,
+        "file": "apps/api/src/modules/support/presentation/http/support.controller.ts",
+        "line": 275,
+        "controller": "SupportController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "support",
+    "file": "apps/dashboard/src/api/endpoints/support.ts",
+    "line": 44,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/support/tickets/{encodeURIComponent(ticketId)}/messages{query}",
+    "normalized": "/support/tickets/:dynamic/messages",
+    "candidates": [
+      {
+        "module": "support",
+        "verb": "GET",
+        "url": "/support/tickets/:id/messages",
+        "mounted": true,
+        "file": "apps/api/src/modules/support/presentation/http/support-messages.controller.ts",
+        "line": 27,
+        "controller": "SupportMessagesController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "support",
+    "file": "apps/dashboard/src/api/endpoints/support.ts",
+    "line": 51,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/support/tickets/{encodeURIComponent(ticketId)}/messages",
+    "normalized": "/support/tickets/:dynamic/messages",
+    "candidates": [
+      {
+        "module": "support",
+        "verb": "POST",
+        "url": "/support/tickets/:id/messages",
+        "mounted": true,
+        "file": "apps/api/src/modules/support/presentation/http/support-messages.controller.ts",
+        "line": 45,
+        "controller": "SupportMessagesController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "webhook",
+    "file": "apps/dashboard/src/api/endpoints/webhook.ts",
+    "line": 17,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/webhook-endpoints",
+    "normalized": "/webhook-endpoints",
+    "candidates": [
+      {
+        "module": "integrations",
+        "verb": "GET",
+        "url": "/webhook-endpoints",
+        "mounted": true,
+        "file": "apps/api/src/modules/integrations/presentation/http/webhook-endpoints.controller.ts",
+        "line": 67,
+        "controller": "WebhookEndpointsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "webhook",
+    "file": "apps/dashboard/src/api/endpoints/webhook.ts",
+    "line": 27,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/webhook-endpoints",
+    "normalized": "/webhook-endpoints",
+    "candidates": [
+      {
+        "module": "integrations",
+        "verb": "POST",
+        "url": "/webhook-endpoints",
+        "mounted": true,
+        "file": "apps/api/src/modules/integrations/presentation/http/webhook-endpoints.controller.ts",
+        "line": 96,
+        "controller": "WebhookEndpointsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "webhook",
+    "file": "apps/dashboard/src/api/endpoints/webhook.ts",
+    "line": 37,
+    "expression": "dashboardJson",
+    "method": "PUT",
+    "path": "/webhook-endpoints/{encodeURIComponent(endpointId)}",
+    "normalized": "/webhook-endpoints/:dynamic",
+    "candidates": [
+      {
+        "module": "integrations",
+        "verb": "PUT",
+        "url": "/webhook-endpoints/:endpointId",
+        "mounted": true,
+        "file": "apps/api/src/modules/integrations/presentation/http/webhook-endpoints.controller.ts",
+        "line": 162,
+        "controller": "WebhookEndpointsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "webhook",
+    "file": "apps/dashboard/src/api/endpoints/webhook.ts",
+    "line": 47,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/webhook-endpoints/{encodeURIComponent(endpointId)}/test",
+    "normalized": "/webhook-endpoints/:dynamic/test",
+    "candidates": [
+      {
+        "module": "integrations",
+        "verb": "POST",
+        "url": "/webhook-endpoints/:endpointId/test",
+        "mounted": true,
+        "file": "apps/api/src/modules/integrations/presentation/http/webhook-endpoints.controller.ts",
+        "line": 251,
+        "controller": "WebhookEndpointsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "webhook",
+    "file": "apps/dashboard/src/api/endpoints/webhook.ts",
+    "line": 58,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/webhook-endpoints",
+    "normalized": "/webhook-endpoints",
+    "candidates": [
+      {
+        "module": "integrations",
+        "verb": "GET",
+        "url": "/webhook-endpoints",
+        "mounted": true,
+        "file": "apps/api/src/modules/integrations/presentation/http/webhook-endpoints.controller.ts",
+        "line": 67,
+        "controller": "WebhookEndpointsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "webhook",
+    "file": "apps/dashboard/src/api/endpoints/webhook.ts",
+    "line": 67,
+    "expression": "dashboardJson",
+    "method": "GET",
+    "path": "/webhook-endpoints/{encodeURIComponent(endpoint.id)}/deliveries{query}",
+    "normalized": "/webhook-endpoints/:dynamic/deliveries",
+    "candidates": [
+      {
+        "module": "integrations",
+        "verb": "GET",
+        "url": "/webhook-endpoints/:endpointId/deliveries",
+        "mounted": true,
+        "file": "apps/api/src/modules/integrations/presentation/http/webhook-endpoints.controller.ts",
+        "line": 277,
+        "controller": "WebhookEndpointsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "webhook",
+    "file": "apps/dashboard/src/api/endpoints/webhook.ts",
+    "line": 81,
+    "expression": "dashboardJson",
+    "method": "POST",
+    "path": "/webhook-endpoints/{encodeURIComponent(endpointId)}/deliveries/{encodeURIComponent(deliveryId)}/replay",
+    "normalized": "/webhook-endpoints/:dynamic/deliveries/:dynamic/replay",
+    "candidates": [
+      {
+        "module": "integrations",
+        "verb": "POST",
+        "url": "/webhook-endpoints/:endpointId/deliveries/:deliveryId/replay",
+        "mounted": true,
+        "file": "apps/api/src/modules/integrations/presentation/http/webhook-endpoints.controller.ts",
+        "line": 318,
+        "controller": "WebhookEndpointsController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "via-cep",
+    "file": "apps/dashboard/src/api/external/via-cep.ts",
+    "line": 17,
+    "expression": "fetch",
+    "method": "GET",
+    "path": "https://viacep.com.br/ws/{cepDigits}/json/",
+    "normalized": "https://viacep.com.br/ws/:dynamic/json",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "dashboard",
+    "module": "client",
+    "file": "apps/dashboard/src/api/http/client.ts",
+    "line": 94,
+    "expression": "dashboardFetch",
+    "method": "GET",
+    "path": "path",
+    "normalized": "path",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "dashboard",
+    "module": "OAuthCallback",
+    "file": "apps/dashboard/src/auth/OAuthCallback.tsx",
+    "line": 45,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{base}/auth/oauth/callback",
+    "normalized": "/auth/oauth/callback",
+    "candidates": [
+      {
+        "module": "auth",
+        "verb": "POST",
+        "url": "/auth/oauth/callback",
+        "mounted": true,
+        "file": "apps/api/src/modules/auth/presentation/auth.controller.ts",
+        "line": 273,
+        "controller": "AuthController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "CartRecoveryPage",
+    "file": "apps/dashboard/src/pages/cart-recovery/CartRecoveryPage.tsx",
+    "line": 171,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{props.apiBaseUrl}/cart-recovery/test-send",
+    "normalized": "/cart-recovery/test-send",
+    "candidates": [
+      {
+        "module": "cart-recovery",
+        "verb": "POST",
+        "url": "/cart-recovery/test-send",
+        "mounted": true,
+        "file": "apps/api/src/modules/cart-recovery/presentation/http/cart-recovery.controller.ts",
+        "line": 170,
+        "controller": "CartRecoveryController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "ChargebackDisputeChat",
+    "file": "apps/dashboard/src/pages/chargebacks/ChargebackDisputeChat.tsx",
+    "line": 39,
+    "expression": "fetch",
+    "method": "GET",
+    "path": "{props.apiBaseUrl}/marketplace/dashboard/chargebacks/{props.chargebackId}",
+    "normalized": "/marketplace/dashboard/chargebacks/:dynamic",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "dashboard",
+    "module": "ChargebackDisputeChat",
+    "file": "apps/dashboard/src/pages/chargebacks/ChargebackDisputeChat.tsx",
+    "line": 65,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{props.apiBaseUrl}/marketplace/dashboard/chargebacks/{props.chargebackId}/dispute",
+    "normalized": "/marketplace/dashboard/chargebacks/:dynamic/dispute",
+    "candidates": [
+      {
+        "module": "marketplace",
+        "verb": "POST",
+        "url": "/marketplace/dashboard/chargebacks/:id/dispute",
+        "mounted": true,
+        "file": "apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts",
+        "line": 167,
+        "controller": "MarketplaceController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "useChargebacksPage",
+    "file": "apps/dashboard/src/pages/chargebacks/useChargebacksPage.ts",
+    "line": 29,
+    "expression": "fetch",
+    "method": "GET",
+    "path": "{apiBaseUrl}/marketplace/dashboard/chargebacks",
+    "normalized": "/marketplace/dashboard/chargebacks",
+    "candidates": [
+      {
+        "module": "marketplace",
+        "verb": "GET",
+        "url": "/marketplace/dashboard/chargebacks",
+        "mounted": true,
+        "file": "apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts",
+        "line": 159,
+        "controller": "MarketplaceController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "dashboard",
+    "module": "DashboardShell",
+    "file": "apps/dashboard/src/shell/DashboardShell.tsx",
+    "line": 184,
+    "expression": "fetch",
+    "method": "GET",
+    "path": "{API_BASE_URL}/merchants/{me.id}/notifications?since={encodeURIComponent(lastCheck)}",
+    "normalized": "/merchants/:dynamic/notifications",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "storefront",
+    "module": "route",
+    "file": "apps/storefront/src/app/api/checkout-token/route.ts",
+    "line": 46,
+    "expression": "fetch",
+    "method": "GET",
+    "path": "{API_BASE}/embed-sessions",
+    "normalized": "/embed-sessions",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "storefront",
+    "module": "route",
+    "file": "apps/storefront/src/app/api/v1/[...path]/route.ts",
+    "line": 87,
+    "expression": "fetch",
+    "method": "GET",
+    "path": "{API_BASE_URL}/v1/{path}?{query}",
+    "normalized": "/v1/:dynamic",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "storefront",
+    "module": "BuyerHub",
+    "file": "apps/storefront/src/components/BuyerHub.tsx",
+    "line": 161,
+    "expression": "fetch",
+    "method": "GET",
+    "path": "{API_BASE}/buyer/me/profile",
+    "normalized": "/buyer/me/profile",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "storefront",
+    "module": "BuyerHub",
+    "file": "apps/storefront/src/components/BuyerHub.tsx",
+    "line": 162,
+    "expression": "fetch",
+    "method": "GET",
+    "path": "{API_BASE}/buyer/me/purchases?limit=10",
+    "normalized": "/buyer/me/purchases",
+    "candidates": [
+      {
+        "module": "buyer-account",
+        "verb": "GET",
+        "url": "/buyer/me/purchases",
+        "mounted": true,
+        "file": "apps/api/src/modules/buyer-account/presentation/http/buyer-account.controller.ts",
+        "line": 126,
+        "controller": "BuyerAccountController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "BuyerHub",
+    "file": "apps/storefront/src/components/BuyerHub.tsx",
+    "line": 197,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{API_BASE}/buyer/phone/send",
+    "normalized": "/buyer/phone/send",
+    "candidates": [
+      {
+        "module": "buyer-account",
+        "verb": "POST",
+        "url": "/buyer/phone/send",
+        "mounted": true,
+        "file": "apps/api/src/modules/buyer-account/presentation/http/buyer-account.controller.ts",
+        "line": 184,
+        "controller": "BuyerAccountController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "BuyerHub",
+    "file": "apps/storefront/src/components/BuyerHub.tsx",
+    "line": 222,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{API_BASE}/buyer/phone/verify",
+    "normalized": "/buyer/phone/verify",
+    "candidates": [
+      {
+        "module": "buyer-account",
+        "verb": "POST",
+        "url": "/buyer/phone/verify",
+        "mounted": true,
+        "file": "apps/api/src/modules/buyer-account/presentation/http/buyer-account.controller.ts",
+        "line": 189,
+        "controller": "BuyerAccountController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "BuyerHub",
+    "file": "apps/storefront/src/components/BuyerHub.tsx",
+    "line": 854,
+    "expression": "fetch",
+    "method": "GET",
+    "path": "{API_BASE}/buyer/consent/intent-memory",
+    "normalized": "/buyer/consent/intent-memory",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "storefront",
+    "module": "BuyerLoginForm",
+    "file": "apps/storefront/src/components/BuyerLoginForm.tsx",
+    "line": 36,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{API_BASE}/buyer/phone/send",
+    "normalized": "/buyer/phone/send",
+    "candidates": [
+      {
+        "module": "buyer-account",
+        "verb": "POST",
+        "url": "/buyer/phone/send",
+        "mounted": true,
+        "file": "apps/api/src/modules/buyer-account/presentation/http/buyer-account.controller.ts",
+        "line": 184,
+        "controller": "BuyerAccountController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "BuyerLoginForm",
+    "file": "apps/storefront/src/components/BuyerLoginForm.tsx",
+    "line": 48,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{API_BASE}/buyer/phone/verify",
+    "normalized": "/buyer/phone/verify",
+    "candidates": [
+      {
+        "module": "buyer-account",
+        "verb": "POST",
+        "url": "/buyer/phone/verify",
+        "mounted": true,
+        "file": "apps/api/src/modules/buyer-account/presentation/http/buyer-account.controller.ts",
+        "line": 189,
+        "controller": "BuyerAccountController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "BuyerRegistrationForm",
+    "file": "apps/storefront/src/components/BuyerRegistrationForm.tsx",
+    "line": 14,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{API_BASE}/v1/storefront/conversations/{encodeURIComponent(sessionId)}/events",
+    "normalized": "/v1/storefront/conversations/:dynamic/events",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "storefront",
+    "module": "BuyerRegistrationForm",
+    "file": "apps/storefront/src/components/BuyerRegistrationForm.tsx",
+    "line": 101,
+    "expression": "fetch",
+    "method": "GET",
+    "path": "https://viacep.com.br/ws/{digits}/json/",
+    "normalized": "https://viacep.com.br/ws/:dynamic/json",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "storefront",
+    "module": "BuyerRegistrationForm",
+    "file": "apps/storefront/src/components/BuyerRegistrationForm.tsx",
+    "line": 128,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{API_BASE}/buyer/phone/send",
+    "normalized": "/buyer/phone/send",
+    "candidates": [
+      {
+        "module": "buyer-account",
+        "verb": "POST",
+        "url": "/buyer/phone/send",
+        "mounted": true,
+        "file": "apps/api/src/modules/buyer-account/presentation/http/buyer-account.controller.ts",
+        "line": 184,
+        "controller": "BuyerAccountController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "BuyerRegistrationForm",
+    "file": "apps/storefront/src/components/BuyerRegistrationForm.tsx",
+    "line": 156,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{API_BASE}/buyer/phone/verify",
+    "normalized": "/buyer/phone/verify",
+    "candidates": [
+      {
+        "module": "buyer-account",
+        "verb": "POST",
+        "url": "/buyer/phone/verify",
+        "mounted": true,
+        "file": "apps/api/src/modules/buyer-account/presentation/http/buyer-account.controller.ts",
+        "line": 189,
+        "controller": "BuyerAccountController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "BuyerRegistrationForm",
+    "file": "apps/storefront/src/components/BuyerRegistrationForm.tsx",
+    "line": 178,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{API_BASE}/buyer/email/send",
+    "normalized": "/buyer/email/send",
+    "candidates": [
+      {
+        "module": "buyer-account",
+        "verb": "POST",
+        "url": "/buyer/email/send",
+        "mounted": true,
+        "file": "apps/api/src/modules/buyer-account/presentation/http/buyer-account.controller.ts",
+        "line": 194,
+        "controller": "BuyerAccountController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "BuyerRegistrationForm",
+    "file": "apps/storefront/src/components/BuyerRegistrationForm.tsx",
+    "line": 196,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{API_BASE}/buyer/email/verify",
+    "normalized": "/buyer/email/verify",
+    "candidates": [
+      {
+        "module": "buyer-account",
+        "verb": "POST",
+        "url": "/buyer/email/verify",
+        "mounted": true,
+        "file": "apps/api/src/modules/buyer-account/presentation/http/buyer-account.controller.ts",
+        "line": 199,
+        "controller": "BuyerAccountController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "BuyerRegistrationForm",
+    "file": "apps/storefront/src/components/BuyerRegistrationForm.tsx",
+    "line": 236,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{API_BASE}/buyer/register",
+    "normalized": "/buyer/register",
+    "candidates": [
+      {
+        "module": "buyer-account",
+        "verb": "POST",
+        "url": "/buyer/register",
+        "mounted": true,
+        "file": "apps/api/src/modules/buyer-account/presentation/http/buyer-account.controller.ts",
+        "line": 46,
+        "controller": "BuyerAccountController"
+      },
+      {
+        "module": "self-checkout",
+        "verb": "POST",
+        "url": "/buyer/register",
+        "mounted": false,
+        "file": "apps/api/src/modules/self-checkout/presentation/http/buyer-auth.controller.ts",
+        "line": 43,
+        "controller": "BuyerAuthController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "checkout-redirect",
+    "file": "apps/storefront/src/components/conversation/checkout-redirect.ts",
+    "line": 16,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "/api/checkout-token",
+    "normalized": "/api/checkout-token",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "storefront",
+    "module": "ConversationShell",
+    "file": "apps/storefront/src/components/ConversationShell.tsx",
+    "line": 484,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{API_BASE}/v1/storefront/conversations/{encodeURIComponent(conversationId)}/events",
+    "normalized": "/v1/storefront/conversations/:dynamic/events",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "storefront",
+    "module": "ReturnRequestForm",
+    "file": "apps/storefront/src/components/ReturnRequestForm.tsx",
+    "line": 58,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{API_BASE}/buyer/returns/request",
+    "normalized": "/buyer/returns/request",
+    "candidates": [
+      {
+        "module": "returns",
+        "verb": "POST",
+        "url": "/buyer/returns/request",
+        "mounted": false,
+        "file": "apps/api/src/modules/returns/presentation/http/buyer-returns.controller.ts",
+        "line": 15,
+        "controller": "BuyerReturnsController"
+      }
+    ],
+    "status": "DECLARED_NOT_MOUNTED"
+  },
+  {
+    "app": "storefront",
+    "module": "StoriesRow",
+    "file": "apps/storefront/src/components/StoriesRow.tsx",
+    "line": 61,
+    "expression": "fetch",
+    "method": "GET",
+    "path": "{API_BASE}/storefront/{merchantSlug}/stories",
+    "normalized": "/storefront/:dynamic/stories",
+    "candidates": [
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/:slug/stories",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 70,
+        "controller": "StorefrontController"
+      },
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/conversations/:conversationId",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 134,
+        "controller": "StorefrontController"
+      },
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/funnel/:merchantId",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 224,
+        "controller": "StorefrontController"
+      },
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/cart/:cartId",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 258,
+        "controller": "StorefrontController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "SupportPanel",
+    "file": "apps/storefront/src/components/SupportPanel.tsx",
+    "line": 47,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "/api/checkout-token",
+    "normalized": "/api/checkout-token",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "storefront",
+    "module": "SupportPanel",
+    "file": "apps/storefront/src/components/SupportPanel.tsx",
+    "line": 175,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "/api/checkout-token",
+    "normalized": "/api/checkout-token",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "storefront",
+    "module": "SupportPanel",
+    "file": "apps/storefront/src/components/SupportPanel.tsx",
+    "line": 191,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{API_BASE}/support/chat",
+    "normalized": "/support/chat",
+    "candidates": [
+      {
+        "module": "support",
+        "verb": "POST",
+        "url": "/support/chat",
+        "mounted": true,
+        "file": "apps/api/src/modules/support/presentation/http/support.controller.ts",
+        "line": 59,
+        "controller": "SupportController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "api-client",
+    "file": "apps/storefront/src/lib/api/api-client.ts",
+    "line": 48,
+    "expression": "fetch",
+    "method": "GET",
+    "path": "url",
+    "normalized": "url",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "storefront",
+    "module": "api-client",
+    "file": "apps/storefront/src/lib/api/api-client.ts",
+    "line": 85,
+    "expression": "safeFetch",
+    "method": "GET",
+    "path": "{API_BASE}/merchants/{merchantId}/products?{query}",
+    "normalized": "/merchants/:dynamic/products",
+    "candidates": [
+      {
+        "module": "catalog",
+        "verb": "GET",
+        "url": "/merchants/:mid/products",
+        "mounted": true,
+        "file": "apps/api/src/modules/catalog/presentation/http/catalog.controller.ts",
+        "line": 84,
+        "controller": "StoreBuilderCatalogController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "api-client",
+    "file": "apps/storefront/src/lib/api/api-client.ts",
+    "line": 97,
+    "expression": "safeFetch",
+    "method": "GET",
+    "path": "{API_BASE}/merchants/{merchantId}/products/{productId}",
+    "normalized": "/merchants/:dynamic/products/:dynamic",
+    "candidates": [
+      {
+        "module": "catalog",
+        "verb": "GET",
+        "url": "/merchants/:mid/products/:pid",
+        "mounted": true,
+        "file": "apps/api/src/modules/catalog/presentation/http/catalog.controller.ts",
+        "line": 106,
+        "controller": "StoreBuilderCatalogController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "api-client",
+    "file": "apps/storefront/src/lib/api/api-client.ts",
+    "line": 109,
+    "expression": "safeFetch",
+    "method": "GET",
+    "path": "{API_BASE}/checkout-settings/widget-config?merchantId={encodeURIComponent(merchantId)}",
+    "normalized": "/checkout-settings/widget-config",
+    "candidates": [
+      {
+        "module": "checkout-settings",
+        "verb": "GET",
+        "url": "/checkout-settings/widget-config",
+        "mounted": true,
+        "file": "apps/api/src/modules/checkout-settings/presentation/http/checkout-settings.controller.ts",
+        "line": 50,
+        "controller": "CheckoutSettingsPublicController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "api-client",
+    "file": "apps/storefront/src/lib/api/api-client.ts",
+    "line": 115,
+    "expression": "safeFetch",
+    "method": "GET",
+    "path": "{API_BASE}/storefront/{slug}/config",
+    "normalized": "/storefront/:dynamic/config",
+    "candidates": [
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/:slug/config",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 65,
+        "controller": "StorefrontController"
+      },
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/conversations/:conversationId",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 134,
+        "controller": "StorefrontController"
+      },
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/funnel/:merchantId",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 224,
+        "controller": "StorefrontController"
+      },
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/cart/:cartId",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 258,
+        "controller": "StorefrontController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "api-client",
+    "file": "apps/storefront/src/lib/api/api-client.ts",
+    "line": 127,
+    "expression": "safeFetch",
+    "method": "GET",
+    "path": "{API_BASE}/storefront/marketplace/search?{params.toString()}",
+    "normalized": "/storefront/marketplace/search",
+    "candidates": [
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/marketplace/search",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 309,
+        "controller": "StorefrontController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "api-client",
+    "file": "apps/storefront/src/lib/api/api-client.ts",
+    "line": 137,
+    "expression": "safeFetch",
+    "method": "GET",
+    "path": "{API_BASE}/storefront/marketplace/items?{params.toString()}",
+    "normalized": "/storefront/marketplace/items",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "storefront",
+    "module": "api-client",
+    "file": "apps/storefront/src/lib/api/api-client.ts",
+    "line": 152,
+    "expression": "safeFetch",
+    "method": "POST",
+    "path": "{API_BASE}/storefront/conversations",
+    "normalized": "/storefront/conversations",
+    "candidates": [
+      {
+        "module": "storefront",
+        "verb": "POST",
+        "url": "/storefront/conversations",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 115,
+        "controller": "StorefrontController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "api-client",
+    "file": "apps/storefront/src/lib/api/api-client.ts",
+    "line": 169,
+    "expression": "safeFetch",
+    "method": "POST",
+    "path": "{API_BASE}/storefront/conversations/{checkoutId}/messages",
+    "normalized": "/storefront/conversations/:dynamic/messages",
+    "candidates": [
+      {
+        "module": "storefront",
+        "verb": "POST",
+        "url": "/storefront/conversations/:conversationId/messages",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 120,
+        "controller": "StorefrontController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "api-client",
+    "file": "apps/storefront/src/lib/api/api-client.ts",
+    "line": 187,
+    "expression": "safeFetch",
+    "method": "GET",
+    "path": "{API_BASE}/storefront/cart/{encodeURIComponent(cartId)}?merchantId={encodeURIComponent(merchantId)}",
+    "normalized": "/storefront/cart/:dynamic",
+    "candidates": [
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/:slug/config",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 65,
+        "controller": "StorefrontController"
+      },
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/:slug/stories",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 70,
+        "controller": "StorefrontController"
+      },
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/:slug/logo",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 93,
+        "controller": "StorefrontController"
+      },
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/cart/:cartId",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 258,
+        "controller": "StorefrontController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "api-client",
+    "file": "apps/storefront/src/lib/api/api-client.ts",
+    "line": 198,
+    "expression": "safeFetch",
+    "method": "DELETE",
+    "path": "{API_BASE}/storefront/cart/{encodeURIComponent(cartId)}/items/{encodeURIComponent(variantId)}",
+    "normalized": "/storefront/cart/:dynamic/items/:dynamic",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "storefront",
+    "module": "api-client",
+    "file": "apps/storefront/src/lib/api/api-client.ts",
+    "line": 213,
+    "expression": "safeFetch",
+    "method": "GET",
+    "path": "{API_BASE}/buyer/consent/intent-memory",
+    "normalized": "/buyer/consent/intent-memory",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "storefront",
+    "module": "api-client",
+    "file": "apps/storefront/src/lib/api/api-client.ts",
+    "line": 220,
+    "expression": "safeFetch",
+    "method": "DELETE",
+    "path": "{API_BASE}/buyer/consent/intent-memory",
+    "normalized": "/buyer/consent/intent-memory",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "storefront",
+    "module": "server-client",
+    "file": "apps/storefront/src/lib/api/server-client.ts",
+    "line": 18,
+    "expression": "fetch",
+    "method": "GET",
+    "path": "url",
+    "normalized": "url",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "storefront",
+    "module": "server-client",
+    "file": "apps/storefront/src/lib/api/server-client.ts",
+    "line": 34,
+    "expression": "serverFetch",
+    "method": "GET",
+    "path": "{API_BASE_URL}/storefront/{slug}/config",
+    "normalized": "/storefront/:dynamic/config",
+    "candidates": [
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/:slug/config",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 65,
+        "controller": "StorefrontController"
+      },
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/conversations/:conversationId",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 134,
+        "controller": "StorefrontController"
+      },
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/funnel/:merchantId",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 224,
+        "controller": "StorefrontController"
+      },
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/cart/:cartId",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 258,
+        "controller": "StorefrontController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "server-client",
+    "file": "apps/storefront/src/lib/api/server-client.ts",
+    "line": 39,
+    "expression": "serverFetch",
+    "method": "GET",
+    "path": "{API_BASE_URL}/storefront/{slug}/stories",
+    "normalized": "/storefront/:dynamic/stories",
+    "candidates": [
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/:slug/stories",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 70,
+        "controller": "StorefrontController"
+      },
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/conversations/:conversationId",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 134,
+        "controller": "StorefrontController"
+      },
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/funnel/:merchantId",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 224,
+        "controller": "StorefrontController"
+      },
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/cart/:cartId",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 258,
+        "controller": "StorefrontController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "server-client",
+    "file": "apps/storefront/src/lib/api/server-client.ts",
+    "line": 45,
+    "expression": "serverFetch",
+    "method": "GET",
+    "path": "{API_BASE_URL}/storefront/index",
+    "normalized": "/storefront/index",
+    "candidates": [
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/index",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 47,
+        "controller": "StorefrontController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "useMarketplaceSearch",
+    "file": "apps/storefront/src/lib/hooks/useMarketplaceSearch.ts",
+    "line": 58,
+    "expression": "fetch",
+    "method": "GET",
+    "path": "{API_BASE}/storefront/marketplace/search?{params.toString()}",
+    "normalized": "/storefront/marketplace/search",
+    "candidates": [
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/marketplace/search",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 309,
+        "controller": "StorefrontController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "useMarketplaceSearch",
+    "file": "apps/storefront/src/lib/hooks/useMarketplaceSearch.ts",
+    "line": 94,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{API_BASE}/storefront/marketplace/items",
+    "normalized": "/storefront/marketplace/items",
+    "candidates": [
+      {
+        "module": "storefront",
+        "verb": "POST",
+        "url": "/storefront/marketplace/items",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 335,
+        "controller": "StorefrontController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "triggers",
+    "file": "apps/storefront/src/lib/triggers.ts",
+    "line": 34,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{apiUrl}/checkout/track-event",
+    "normalized": "/checkout/track-event",
+    "candidates": [
+      {
+        "module": "checkout",
+        "verb": "POST",
+        "url": "/checkout/track-event",
+        "mounted": true,
+        "file": "apps/api/src/modules/checkout/presentation/http/checkout.controller.ts",
+        "line": 67,
+        "controller": "CheckoutController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "storefront",
+    "module": "useConversationViewModel",
+    "file": "apps/storefront/src/lib/viewmodels/useConversationViewModel.ts",
+    "line": 22,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{API_BASE}/v1/storefront/conversations/{encodeURIComponent(sessionId)}/events",
+    "normalized": "/v1/storefront/conversations/:dynamic/events",
+    "candidates": [],
+    "status": "MANUAL_REVIEW"
+  },
+  {
+    "app": "widget_v2",
+    "module": "checkout-session",
+    "file": "apps/widget_v2/src/api/checkout-session.ts",
+    "line": 185,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{this.baseUrl}/embed/start",
+    "normalized": "/embed/start",
+    "candidates": [
+      {
+        "module": "embed",
+        "verb": "POST",
+        "url": "/embed/start",
+        "mounted": true,
+        "file": "apps/api/src/modules/embed/presentation/http/embed-checkout.controller.ts",
+        "line": 92,
+        "controller": "EmbedCheckoutController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "widget_v2",
+    "module": "checkout-session",
+    "file": "apps/widget_v2/src/api/checkout-session.ts",
+    "line": 207,
+    "expression": "fetch",
+    "method": "GET",
+    "path": "{this.baseUrl}/storefront/cart/{encodeURIComponent(this.cartRef)}?merchantId={encodeURIComponent(this.merchantId)}",
+    "normalized": "/storefront/cart/:dynamic",
+    "candidates": [
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/:slug/config",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 65,
+        "controller": "StorefrontController"
+      },
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/:slug/stories",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 70,
+        "controller": "StorefrontController"
+      },
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/:slug/logo",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 93,
+        "controller": "StorefrontController"
+      },
+      {
+        "module": "storefront",
+        "verb": "GET",
+        "url": "/storefront/cart/:cartId",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 258,
+        "controller": "StorefrontController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "widget_v2",
+    "module": "checkout-session",
+    "file": "apps/widget_v2/src/api/checkout-session.ts",
+    "line": 228,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{this.baseUrl}/embed/chat",
+    "normalized": "/embed/chat",
+    "candidates": [
+      {
+        "module": "embed",
+        "verb": "POST",
+        "url": "/embed/chat",
+        "mounted": true,
+        "file": "apps/api/src/modules/embed/presentation/http/embed-checkout.controller.ts",
+        "line": 120,
+        "controller": "EmbedCheckoutController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "widget_v2",
+    "module": "checkout-session",
+    "file": "apps/widget_v2/src/api/checkout-session.ts",
+    "line": 243,
+    "expression": "fetch",
+    "method": "PATCH",
+    "path": "{this.baseUrl}/storefront/cart/{encodeURIComponent(this.cartRef)}/items/{encodeURIComponent(variantId)}?merchantId={encodeURIComponent(this.merchantId)}",
+    "normalized": "/storefront/cart/:dynamic/items/:dynamic",
+    "candidates": [
+      {
+        "module": "storefront",
+        "verb": "PATCH",
+        "url": "/storefront/cart/:cartId/items/:variantId",
+        "mounted": true,
+        "file": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 281,
+        "controller": "StorefrontController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "widget_v2",
+    "module": "checkout-session",
+    "file": "apps/widget_v2/src/api/checkout-session.ts",
+    "line": 257,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{this.baseUrl}/embed/cart",
+    "normalized": "/embed/cart",
+    "candidates": [
+      {
+        "module": "embed",
+        "verb": "POST",
+        "url": "/embed/cart",
+        "mounted": true,
+        "file": "apps/api/src/modules/embed/presentation/http/embed-checkout.controller.ts",
+        "line": 150,
+        "controller": "EmbedCheckoutController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "widget_v2",
+    "module": "checkout-session",
+    "file": "apps/widget_v2/src/api/checkout-session.ts",
+    "line": 268,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{this.baseUrl}/embed/shipping/quote",
+    "normalized": "/embed/shipping/quote",
+    "candidates": [
+      {
+        "module": "shipping",
+        "verb": "POST",
+        "url": "/embed/shipping/quote",
+        "mounted": true,
+        "file": "apps/api/src/modules/shipping/presentation/http/embed-shipping.controller.ts",
+        "line": 41,
+        "controller": "EmbedShippingController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "widget_v2",
+    "module": "checkout-session",
+    "file": "apps/widget_v2/src/api/checkout-session.ts",
+    "line": 289,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{this.baseUrl}/embed/shipping/select",
+    "normalized": "/embed/shipping/select",
+    "candidates": [
+      {
+        "module": "embed",
+        "verb": "POST",
+        "url": "/embed/shipping/select",
+        "mounted": true,
+        "file": "apps/api/src/modules/embed/presentation/http/embed-checkout.controller.ts",
+        "line": 317,
+        "controller": "EmbedCheckoutController"
+      },
+      {
+        "module": "shipping",
+        "verb": "POST",
+        "url": "/embed/shipping/select",
+        "mounted": true,
+        "file": "apps/api/src/modules/shipping/presentation/http/embed-shipping.controller.ts",
+        "line": 65,
+        "controller": "EmbedShippingController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "widget_v2",
+    "module": "checkout-session",
+    "file": "apps/widget_v2/src/api/checkout-session.ts",
+    "line": 306,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{this.baseUrl}/embed/payment/intents",
+    "normalized": "/embed/payment/intents",
+    "candidates": [
+      {
+        "module": "embed",
+        "verb": "POST",
+        "url": "/embed/payment/intents",
+        "mounted": true,
+        "file": "apps/api/src/modules/embed/presentation/http/embed-checkout.controller.ts",
+        "line": 210,
+        "controller": "EmbedCheckoutController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "widget_v2",
+    "module": "checkout-session",
+    "file": "apps/widget_v2/src/api/checkout-session.ts",
+    "line": 324,
+    "expression": "fetch",
+    "method": "GET",
+    "path": "{this.baseUrl}/embed/payment/intents/{intentId}/status",
+    "normalized": "/embed/payment/intents/:dynamic/status",
+    "candidates": [
+      {
+        "module": "embed",
+        "verb": "GET",
+        "url": "/embed/payment/intents/:intentId/status",
+        "mounted": true,
+        "file": "apps/api/src/modules/embed/presentation/http/embed-checkout.controller.ts",
+        "line": 298,
+        "controller": "EmbedCheckoutController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "widget_v2",
+    "module": "checkout-session",
+    "file": "apps/widget_v2/src/api/checkout-session.ts",
+    "line": 334,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{this.baseUrl}/embed/offers/apply",
+    "normalized": "/embed/offers/apply",
+    "candidates": [
+      {
+        "module": "embed",
+        "verb": "POST",
+        "url": "/embed/offers/apply",
+        "mounted": true,
+        "file": "apps/api/src/modules/embed/presentation/http/embed-checkout.controller.ts",
+        "line": 135,
+        "controller": "EmbedCheckoutController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "widget_v2",
+    "module": "checkout-session",
+    "file": "apps/widget_v2/src/api/checkout-session.ts",
+    "line": 345,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{this.baseUrl}/embed/customer/update",
+    "normalized": "/embed/customer/update",
+    "candidates": [
+      {
+        "module": "embed",
+        "verb": "POST",
+        "url": "/embed/customer/update",
+        "mounted": true,
+        "file": "apps/api/src/modules/embed/presentation/http/embed-checkout.controller.ts",
+        "line": 165,
+        "controller": "EmbedCheckoutController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "widget_v2",
+    "module": "StripeCardPayment",
+    "file": "apps/widget_v2/src/components/StripeCardPayment.tsx",
+    "line": 50,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{api.apiBaseUrl}/embed/payment/intents/{paymentIntent.intent_id}/stripe/confirm",
+    "normalized": "/embed/payment/intents/:dynamic/stripe/confirm",
+    "candidates": [
+      {
+        "module": "embed",
+        "verb": "POST",
+        "url": "/embed/payment/intents/:intentId/stripe/confirm",
+        "mounted": true,
+        "file": "apps/api/src/modules/embed/presentation/http/embed-checkout.controller.ts",
+        "line": 279,
+        "controller": "EmbedCheckoutController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "widget_v2",
+    "module": "SupportPanel",
+    "file": "apps/widget_v2/src/components/SupportPanel.tsx",
+    "line": 179,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{apiBaseUrl}/support/chat",
+    "normalized": "/support/chat",
+    "candidates": [
+      {
+        "module": "support",
+        "verb": "POST",
+        "url": "/support/chat",
+        "mounted": true,
+        "file": "apps/api/src/modules/support/presentation/http/support.controller.ts",
+        "line": 59,
+        "controller": "SupportController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "widget_v2",
+    "module": "tracking",
+    "file": "apps/widget_v2/src/lib/tracking.ts",
+    "line": 37,
+    "expression": "fetch",
+    "method": "POST",
+    "path": "{api.apiBaseUrl}/embed/track",
+    "normalized": "/embed/track",
+    "candidates": [
+      {
+        "module": "embed",
+        "verb": "POST",
+        "url": "/embed/track",
+        "mounted": true,
+        "file": "apps/api/src/modules/embed/presentation/http/embed-checkout.controller.ts",
+        "line": 105,
+        "controller": "EmbedCheckoutController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  },
+  {
+    "app": "widget_v2",
+    "module": "checkout-store",
+    "file": "apps/widget_v2/src/store/checkout-store.ts",
+    "line": 221,
+    "expression": "fetch",
+    "method": "GET",
+    "path": "{apiBaseUrl}/checkout-settings/widget-config?merchantId={encodeURIComponent(merchantId)}",
+    "normalized": "/checkout-settings/widget-config",
+    "candidates": [
+      {
+        "module": "checkout-settings",
+        "verb": "GET",
+        "url": "/checkout-settings/widget-config",
+        "mounted": true,
+        "file": "apps/api/src/modules/checkout-settings/presentation/http/checkout-settings.controller.ts",
+        "line": 50,
+        "controller": "CheckoutSettingsPublicController"
+      }
+    ],
+    "status": "ROUTE_CANDIDATE"
+  }
+]
