@@ -29,7 +29,7 @@ export function PremiumFeatureGate({
   description,
   children,
 }: PremiumFeatureGateProps) {
-  const { hasFeature, loading, plan } = usePlanFeatures();
+  const { hasFeature, loading, plan, error, reload } = usePlanFeatures();
 
   // While loading, show a subtle skeleton to avoid flash
   if (loading) {
@@ -40,6 +40,15 @@ export function PremiumFeatureGate({
           background: "var(--color-text-faint, #94A3B8)", opacity: 0.15,
           animation: "pulse 1.5s ease-in-out infinite",
         }} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div role="alert" style={{ padding: 32, color: "var(--color-text)" }}>
+        <p>Não foi possível verificar seu plano. Tente novamente.</p>
+        <button type="button" className="btn" onClick={reload}>Tentar novamente</button>
       </div>
     );
   }

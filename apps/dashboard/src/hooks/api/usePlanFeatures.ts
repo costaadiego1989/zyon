@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useApi } from "../useApi.js";
 import type { BillingSubscription } from "../../api/types.js";
 
 /**
- * Cached billing plan features hook. Fetches subscription once, exposes:
+ * Current billing entitlements. Refreshes on mount, focus and every minute.
  * - plan: "starter" | "growth" | "scale"
  * - features: Record<string, boolean>
  * - hasFeature(key): checks if feature is enabled in current plan
@@ -16,35 +16,42 @@ export interface PlanFeaturesState {
   loading: boolean;
   error: string | null;
   hasFeature: (key: string) => boolean;
+  reload: () => void;
 }
-
-// Module-level cache so multiple components share the same data without
-// redundant fetches (within same mount lifecycle).
-let cachedSubscription: BillingSubscription | null = null;
 
 export function usePlanFeatures(): PlanFeaturesState {
   const api = useApi();
-  const [subscription, setSubscription] = useState<BillingSubscription | null>(cachedSubscription);
-  const [loading, setLoading] = useState(!cachedSubscription);
+  const [subscription, setSubscription] = useState<BillingSubscription | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
+  const reload = useCallback(() => setRevision(value => value + 1), []);
 
   useEffect(() => {
-    if (cachedSubscription) return;
     let cancelled = false;
-    void (async () => {
+    let inFlight = false;
+    setLoading(true);
+    async function refresh() {
+      if (inFlight) return;
+      inFlight = true;
       try {
         const sub = await api.getBillingSubscription();
         if (cancelled) return;
-        cachedSubscription = sub;
         setSubscription(sub);
+        setError(null);
       } catch {
         if (!cancelled) setError("Erro ao carregar plano");
       } finally {
+        inFlight = false;
         if (!cancelled) setLoading(false);
       }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+    }
+    void refresh();
+    const onFocus = () => { void refresh(); };
+    const timer = window.setInterval(onFocus, 60_000);
+    window.addEventListener("focus", onFocus);
+    return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener("focus", onFocus); };
+  }, [api, revision]);
 
   const plan = (subscription?.plan ?? null) as "starter" | "growth" | "scale" | null;
   const features = (subscription?.features ?? {}) as Record<string, boolean>;
@@ -57,5 +64,6 @@ export function usePlanFeatures(): PlanFeaturesState {
     loading,
     error,
     hasFeature: (key: string) => features[key] === true,
+    reload,
   };
 }
