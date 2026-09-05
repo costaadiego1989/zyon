@@ -1,44 +1,41 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+
+export interface OAuthCallbackResult {
+  onboarding_required: boolean;
+  profile: { name: string; email: string };
+}
 
 export interface OAuthCallbackProps {
   apiBaseUrl: string;
-  onSuccess: () => void;
+  onSuccess: (result: OAuthCallbackResult) => void;
   onError: (msg: string) => void;
 }
 
-/**
- * Handles the /auth/oauth/callback route.
- * Reads provider, code, state from URL, validates state, calls API.
- */
+/** Exchanges the short-lived provider code for the application's secure cookie. */
 export function OAuthCallback({ apiBaseUrl, onSuccess, onError }: OAuthCallbackProps) {
-  const [status, setStatus] = useState<"loading" | "error">("loading");
+  const started = useRef(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void handleCallback();
+    if (started.current) return;
+    started.current = true;
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 20_000);
+    void exchange(controller.signal).finally(() => window.clearTimeout(timeout));
+    return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleCallback() {
+  async function exchange(signal: AbortSignal) {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
     const state = params.get("state");
-    const provider = params.get("provider") || detectProviderFromUrl();
-
-    if (!code || !state || !provider) {
-      setStatus("error");
-      onError("Parâmetros OAuth inválidos.");
-      return;
-    }
-
-    // Validate state matches what we stored
+    const provider = params.get("provider") || detectProvider();
     const savedState = sessionStorage.getItem("oauth_state");
-    if (!savedState || savedState !== state) {
-      setStatus("error");
-      onError("Estado OAuth inválido. Tente novamente.");
-      return;
-    }
 
-    sessionStorage.removeItem("oauth_state");
+    if (!code || !state || !provider) return fail("O retorno do provedor esta incompleto. Tente novamente.");
+    if (!savedState || savedState !== state) return fail("A sessao de login expirou. Tente novamente.");
 
     try {
       const base = apiBaseUrl.replace(/\/$/, "");
@@ -46,25 +43,42 @@ export function OAuthCallback({ apiBaseUrl, onSuccess, onError }: OAuthCallbackP
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
+        signal,
         body: JSON.stringify({ provider, code, state }),
       });
+      const body = (await res.json().catch(() => ({}))) as Partial<OAuthCallbackResult> & { message?: string };
+      if (!res.ok) throw new Error(body.message || "Nao foi possivel concluir o login.");
 
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-        throw new Error((body.message as string) || "Falha na autenticação OAuth");
-      }
-
-      // Clean up URL
+      sessionStorage.removeItem("oauth_state");
+      sessionStorage.removeItem("oauth_provider");
       window.history.replaceState({}, "", "/");
-      onSuccess();
-    } catch (err) {
-      setStatus("error");
-      onError((err as Error).message);
+      onSuccess({
+        onboarding_required: body.onboarding_required === true,
+        profile: { name: body.profile?.name ?? "", email: body.profile?.email ?? "" },
+      });
+    } catch (cause) {
+      const message = cause instanceof DOMException && cause.name === "AbortError"
+        ? "O login demorou demais. Verifique sua conexao e tente novamente."
+        : cause instanceof Error ? cause.message : "Nao foi possivel concluir o login.";
+      fail(message);
     }
   }
 
-  if (status === "error") {
-    return null; // Error handled by parent via onError
+  function fail(message: string) {
+    setError(message);
+    onError(message);
+  }
+
+  if (error) {
+    return (
+      <main className="auth-shell" style={{ alignItems: "center", justifyContent: "center" }}>
+        <section className="auth-form" style={{ maxWidth: 460, padding: 32 }}>
+          <h1 className="auth-form__title">Nao foi possivel entrar</h1>
+          <p className="auth-form__subtitle">{error}</p>
+          <button type="button" className="auth-cta" onClick={() => window.location.assign("/")}>Tentar novamente</button>
+        </section>
+      </main>
+    );
   }
 
   return (
@@ -74,12 +88,9 @@ export function OAuthCallback({ apiBaseUrl, onSuccess, onError }: OAuthCallbackP
   );
 }
 
-function detectProviderFromUrl(): string | null {
+function detectProvider(): string | null {
   const path = window.location.pathname;
   if (path.includes("github")) return "github";
   if (path.includes("google")) return "google";
-  // Fallback: check saved provider
-  const saved = sessionStorage.getItem("oauth_provider");
-  sessionStorage.removeItem("oauth_provider");
-  return saved;
+  return sessionStorage.getItem("oauth_provider");
 }

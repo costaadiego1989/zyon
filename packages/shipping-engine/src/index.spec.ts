@@ -29,6 +29,7 @@ test("evaluateShippingOffer blocks free shipping when stacking is disabled and c
       blockedRegions: [],
       brandVoice: "consultative",
       couponBoxEnabled: true,
+      autonomousEngineEnabled: true,
     },
     abandonmentScore: 0.9
   });
@@ -65,6 +66,7 @@ test("evaluateShippingOffer still allows free shipping when stacking is enabled"
       blockedRegions: [],
       brandVoice: "consultative",
       couponBoxEnabled: true,
+      autonomousEngineEnabled: true,
     },
     abandonmentScore: 0.9
   });

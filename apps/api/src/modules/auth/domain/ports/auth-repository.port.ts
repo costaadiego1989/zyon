@@ -36,6 +36,7 @@ export interface AuthRepository {
   createMerchantWithOAuthOwner(input: {
     merchantId: string;
     merchantName: string;
+    ownerName?: string;
     email: string;
     oauthProvider: string;
     oauthProviderId: string;

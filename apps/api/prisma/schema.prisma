@@ -833,7 +833,7 @@ model PaymentCryptoTransfer {
   merchantId String   @map("merchant_id")
   intentId   String   @map("intent_id")
   observedAt DateTime @default(now()) @map("observed_at")
-  expiresAt  DateTime @default(dbgenerated("CURRENT_TIMESTAMP + INTERVAL '5 minutes'")) @map("expires_at") // H1 fix: reaper pattern
+  expiresAt  DateTime @default(dbgenerated("(CURRENT_TIMESTAMP + '00:05:00'::interval)")) @map("expires_at") // H1 fix: reaper pattern
 
   @@unique([chain, txHash])
   @@index([merchantId, intentId])

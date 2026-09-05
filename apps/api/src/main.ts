@@ -11,6 +11,7 @@ import type { NestExpressApplication } from "@nestjs/platform-express";
 import { AppModule } from "./app.module.js";
 import { E2eAppModule } from "./e2e-app.module.js";
 import { resolveSecurityHeaders } from "./shared/config/security-headers-config.js";
+import { resolveCorsConfig } from "./shared/config/cors-config.js";
 import { configureApiDocumentation } from "./shared/http/api-documentation.js";
 import { apiVersioningMiddleware } from "./shared/http/api-versioning.js";
 import { initMetrics, initDomainMetrics } from "./shared/http/metrics.middleware.js";
@@ -42,7 +43,9 @@ async function bootstrap() {
   app.useBodyParser("urlencoded", { extended: true, limit: "5mb" });
   configureTrustProxy(app);
 
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env.NODE_ENV === "production") {
+    app.enableCors(resolveCorsConfig());
+  } else {
     app.enableCors({
       origin: true,
       credentials: true,

@@ -27,10 +27,14 @@ function toAuthUser(row: {
   };
 }
 
-function toAuthMerchant(row: { id: string; name: string }): AuthMerchant {
+function toAuthMerchant(row: { id: string; name: string; storeSettings?: unknown }): AuthMerchant {
+  const settings = row.storeSettings && typeof row.storeSettings === "object"
+    ? row.storeSettings as Record<string, unknown> : {};
   return {
     id: row.id,
-    name: row.name
+    name: row.name,
+    oauthRegistrationPending: settings.oauth_registration_pending === true,
+    ownerName: typeof settings.owner_name === "string" ? settings.owner_name : undefined,
   };
 }
 
@@ -96,6 +100,7 @@ export class PrismaAuthRepository implements AuthRepository {
   async createMerchantWithOAuthOwner(input: {
     merchantId: string;
     merchantName: string;
+    ownerName?: string;
     email: string;
     oauthProvider: string;
     oauthProviderId: string;
@@ -105,6 +110,7 @@ export class PrismaAuthRepository implements AuthRepository {
         data: {
           id: input.merchantId,
           name: input.merchantName,
+          storeSettings: { oauth_registration_pending: true, owner_name: input.ownerName ?? "" },
           billingSubscription: {
             create: {
               status: "trialing",

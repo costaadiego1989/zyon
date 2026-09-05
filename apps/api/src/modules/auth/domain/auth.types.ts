@@ -3,6 +3,8 @@ export type TenantRole = "owner" | "admin" | "staff";
 export interface AuthMerchant {
   id: string;
   name: string;
+  oauthRegistrationPending?: boolean;
+  ownerName?: string;
 }
 
 export interface AuthUser {

@@ -6,6 +6,7 @@ export function middleware(request: NextRequest) {
     hostname.includes('localhost') ||
     hostname.includes('127.0.0.1') ||
     hostname.includes('zyon.com') ||
+    hostname.includes('zyon-payments.com.br') ||
     hostname.includes('vercel.app');
   if (isKnownHost) {
     return NextResponse.next();

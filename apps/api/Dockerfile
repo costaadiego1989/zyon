@@ -1,24 +1,21 @@
 # syntax=docker/dockerfile:1.7
 #
-# Senior-grade Dockerfile for @zyon/api NestJS service.
+# Multi-stage Dockerfile for the @zyon/api NestJS service.
 #
-# Build context: apps/api/ directory.
-#   docker build -f apps/api/Dockerfile -t zyon-api apps/api
+# Build context: monorepo root.
+#   docker build -f apps/api/Dockerfile -t zyon-api .
 #
-# On Railway:
-#   - rootDirectory=apps/api
-#   - dockerfilePath=Dockerfile (no apps/api/ prefix — path is relative to rootDirectory)
+# Strategy:
+#   1. Copy project (node_modules MUST be excluded by .dockerignore).
+#   2. Install with devDeps (Nest CLI, ts, prisma CLI).
+#   3. Generate Prisma client.
+#   4. Build workspace packages (shared-types first).
+#   5. Build api itself.
+#   6. Runtime: same image, NODE_ENV=production.
 #
-# Design principles:
-#   - Multi-stage build, distroless runtime (~150 MB final image)
-#   - Layer-cache friendly: copy all manifests + sources first, then pnpm install
-#   - Non-root user (distroless)
-#   - Graceful SIGTERM via exec-form CMD
+# Pinned to node:22-alpine so builder and runtime match Node major.
 
-# =============================================================================
-# Stage 0 — pnpm toolchain
-# =============================================================================
-FROM node:20-alpine AS toolchain
+FROM node:22-alpine
 
 ENV PNPM_HOME=/pnpm \
     PNPM_VERSION=9.15.0 \
@@ -26,77 +23,98 @@ ENV PNPM_HOME=/pnpm \
 
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 
-# =============================================================================
-# Stage 1 — builder
-# Context is apps/api/. We go UP to monorepo root (../..) for workspace files.
-# =============================================================================
-FROM toolchain AS builder
-
 WORKDIR /repo
 
-# Workspace manifests (from monorepo root).
-COPY ../../package.json ../../pnpm-lock.yaml ../../pnpm-workspace.yaml ../../tsconfig.base.json ./
+# ============================================================
+# COPY PROJECT
+# node_modules is excluded by .dockerignore (recursively).
+# ============================================================
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 
-# Workspace package manifests (from monorepo root).
-COPY ../../packages/contracts/package.json         packages/contracts/package.json
-COPY ../../packages/shared-types/package.json      packages/shared-types/package.json
-COPY ../../packages/commerce-adapters/package.json packages/commerce-adapters/package.json
-COPY ../../packages/payments-evm/package.json      packages/payments-evm/package.json
-COPY ../../packages/conversation-engine/package.json packages/conversation-engine/package.json
-COPY ../../packages/decision-engine/package.json   packages/decision-engine/package.json
-COPY ../../packages/negotiation-engine/package.json packages/negotiation-engine/package.json
-COPY ../../packages/rules-engine/package.json      packages/rules-engine/package.json
-COPY ../../packages/shipping-engine/package.json   packages/shipping-engine/package.json
-COPY ../../packages/agentic-checkout-js/package.json packages/agentic-checkout-js/package.json
-COPY ../../packages/sdk/package.json               packages/sdk/package.json
-COPY ../../packages/checkout-ui/package.json       packages/checkout-ui/package.json
-COPY ./package.json                                 apps/api/package.json
+COPY packages/ packages/
+COPY apps/api/ apps/api/
 
-# Install dev deps. pnpm creates symlinks — no COPY follows this, so no conflicts.
-RUN pnpm install --frozen-lockfile --prefer-offline
+# ============================================================
+# INSTALL
+# Include devDependencies because Nest CLI, TypeScript, and Prisma CLI
+# are build-time requirements.
+# ============================================================
+RUN pnpm install --prod=false
 
-# Copy full sources (workspace packages + this api).
-COPY ../../packages/ packages/
-COPY ./ apps/api/
+# ============================================================
+# VERIFY PRISMA INSTALL
+# ============================================================
+RUN echo "===== PRISMA INSTALL =====" && \
+    node -e "const p=require('/repo/apps/api/node_modules/prisma/package.json'); console.log('PRISMA VERSION:', p.version)" && \
+    test -f /repo/apps/api/node_modules/prisma/build/index.js && \
+    echo "PRISMA CLI OK" || \
+    (echo "PRISMA CLI MISSING — looking for alternatives:" && \
+     find /repo -name "build" -type d 2>/dev/null | head -5 && exit 1)
 
-# Build the API.
+RUN echo "===== PRISMA CLIENT VERSION =====" && \
+    node -e "const p=require('/repo/apps/api/node_modules/@prisma/client/package.json'); console.log('CLIENT VERSION:', p.version)" && \
+    node -e "\
+      const cli=require('/repo/apps/api/node_modules/prisma/package.json'); \
+      const client=require('/repo/apps/api/node_modules/@prisma/client/package.json'); \
+      if(cli.version.split('.')[0] !== client.version.split('.')[0]) { \
+        console.error('VERSION MISMATCH:', cli.version, 'vs', client.version); \
+        process.exit(1); \
+      }"
+
+# ============================================================
+# GENERATE PRISMA CLIENT
+# prisma generate does NOT need a real DB — it only generates the client.
+# Pass a dummy DATABASE_URL so prisma.config.ts validation passes during build.
+# ============================================================
+RUN cd /repo/apps/api && \
+    DATABASE_URL="postgresql://prisma:prisma@localhost:5432/prisma?schema=public" \
+    pnpm exec prisma validate --schema prisma/schema.prisma
+
+RUN cd /repo/apps/api && \
+    DATABASE_URL="postgresql://prisma:prisma@localhost:5432/prisma?schema=public" \
+    pnpm exec prisma generate --schema prisma/schema.prisma
+
+# Verify generated client exists. Prisma 6 generates inside @prisma/client package
+# (under .pnpm/...), not under a separate .prisma/client directory.
+RUN test -d /repo/apps/api/node_modules/@prisma/client && \
+    find /repo/apps/api/node_modules/.pnpm -path "*@prisma/client*" -name "*.prisma" -type d 2>/dev/null | head -3 && \
+    echo "PRISMA CLIENT GENERATED OK" || \
+    (echo "PRISMA CLIENT NOT GENERATED" && \
+     find /repo/apps/api/node_modules/.pnpm -name "default.d.ts" 2>/dev/null | head -5 && exit 1)
+
+# ============================================================
+# WORKSPACE BUILDS
+# shared-types MUST build first — every other package depends on its dist/.
+# ============================================================
+RUN pnpm --filter @zyon/shared-types build
+RUN pnpm --filter @zyon/contracts build
+RUN pnpm --filter @zyon/commerce-adapters build
+RUN pnpm --filter @zyon/conversation-engine build
+RUN pnpm --filter @zyon/decision-engine build
+RUN pnpm --filter @zyon/negotiation-engine build
+RUN pnpm --filter @zyon/rules-engine build
+RUN pnpm --filter @zyon/shipping-engine build
+
+# ============================================================
+# API
+# ============================================================
 RUN pnpm --filter @zyon/api build
 
-# =============================================================================
-# Stage 2 — runner (distroless)
-# =============================================================================
-FROM gcr.io/distroless/nodejs20-debian12:nonroot AS runner
+# Verify nest build produced output.
+RUN test -f /repo/apps/api/dist/main.js && \
+    echo "NEST BUILD OK" || \
+    (echo "NEST BUILD MISSING dist/main.js" && \
+     ls /repo/apps/api/dist 2>/dev/null && exit 1)
 
-LABEL org.opencontainers.image.title="zyon-api" \
-      org.opencontainers.image.description="AACP NestJS API" \
-      org.opencontainers.image.source="https://github.com/costaadiego1989/zyon" \
-      org.opencontainers.image.licenses="UNLICENSED" \
-      org.opencontainers.image.vendor="Zyon"
-
-WORKDIR /app
-
-# Compiled output.
-COPY --from=builder --chown=nonroot:nonroot /repo/apps/api/dist          ./dist
-
-# node_modules (dev deps present — for now this is OK, can be optimized to --prod later).
-COPY --from=builder --chown=nonroot:nonroot /repo/apps/api/node_modules  ./node_modules
-
-# Prisma + package metadata.
-COPY --from=builder --chown=nonroot:nonroot /repo/apps/api/prisma         ./prisma
-COPY --from=builder --chown=nonroot:nonroot /repo/apps/api/package.json   ./package.json
-
-# Workspace links.
-COPY --from=builder --chown=nonroot:nonroot /repo/node_modules/.pnpm    ./node_modules/.pnpm
-COPY --from=builder --chown=nonroot:nonroot /repo/packages               ./packages
-COPY --from=builder --chown=nonroot:nonroot /repo/pnpm-workspace.yaml     ./pnpm-workspace.yaml
-COPY --from=builder --chown=nonroot:nonroot /repo/package.json          ./package.json
-COPY --from=builder --chown=nonroot:nonroot /repo/pnpm-lock.yaml        ./pnpm-lock.yaml
-COPY --from=builder --chown=nonroot:nonroot /repo/tsconfig.base.json    ./tsconfig.base.json
+# ============================================================
+# RUNTIME
+# DATABASE_URL is provided at runtime via Railway env var. Do not set here.
+# ============================================================
+WORKDIR /repo/apps/api
 
 ENV NODE_ENV=production \
-    PORT=3009 \
-    NODE_OPTIONS="--enable-source-maps --max-old-space-size=512"
+    PORT=3009
 
 EXPOSE 3009
 
-CMD ["dist/main.js"]
+CMD ["node", "dist/main.js"]

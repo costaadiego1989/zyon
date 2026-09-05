@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { resolve } from "path";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   resolve: {
     alias: { "@": resolve(__dirname, "src") },
@@ -11,7 +11,10 @@ export default defineConfig({
     port: 5174,
     strictPort: true,
   },
-  build: {
+  build: mode === "app" ? {
+    outDir: "dist",
+    emptyOutDir: true,
+  } : {
     lib: {
       entry: resolve(__dirname, "src/index.ts"),
       formats: ["es"],
@@ -23,4 +26,4 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: true,
   },
-});
+}));

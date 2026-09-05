@@ -27,6 +27,7 @@
   },
   "packageManager": "pnpm@9.15.0",
   "devDependencies": {
+    "@types/minimatch": "5.1.2",
     "@types/node": "^22.10.2",
     "typescript": "^5.7.2"
   },

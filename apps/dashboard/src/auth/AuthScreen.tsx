@@ -24,8 +24,10 @@ export interface AuthScreenProps {
   onSubmit: (event: React.FormEvent) => void;
   onRegister: (payload: { merchant_name: string; email: string; password: string; turnstile_token?: string }) => Promise<void>;
   onSaveTheme: (theme: { accentColor: string; logoUrl: string; headerTitle: string; agentName: string }) => Promise<void>;
-  onSaveCompanyData?: (data: { company: Record<string, unknown>; social?: Record<string, unknown> }) => Promise<void>;
+  onSaveCompanyData?: (data: { slug?: string; company: Record<string, unknown>; social?: Record<string, unknown>; oauth_registration_pending?: boolean; owner_name?: string }) => Promise<void>;
+  onSaveOwner?: (data: { name: string; phone: string }) => Promise<void>;
   onComplete: () => Promise<void>;
+  oauthProfile?: { name: string; email: string } | null;
   // Cloudflare Turnstile: site key ("" disables the widget) + controlled token.
   turnstileSiteKey: string;
   captchaToken: string | null;
@@ -97,7 +99,9 @@ export function AuthScreen(props: AuthScreenProps) {
                 onRegister={props.onRegister}
                 onSaveTheme={props.onSaveTheme}
                 onSaveCompanyData={props.onSaveCompanyData}
+                onSaveOwner={props.onSaveOwner}
                 onComplete={props.onComplete}
+                oauthProfile={props.oauthProfile}
                 onSwitchToLogin={() => props.setMode("login")}
                 onGithubClick={() => startOAuthFlow("github")}
                 onGoogleClick={() => startOAuthFlow("google")}

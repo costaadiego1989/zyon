@@ -13,7 +13,8 @@ export interface SignupWizardProps {
   hint: string | null;
   onRegister: (payload: { merchant_name: string; email: string; password: string; turnstile_token?: string }) => Promise<void>;
   onSaveTheme: (theme: { accentColor: string; logoUrl: string; headerTitle: string; agentName: string }) => Promise<void>;
-  onSaveCompanyData?: (data: { slug?: string; company: Record<string, unknown>; social?: Record<string, unknown> }) => Promise<void>;
+  onSaveCompanyData?: (data: { slug?: string; company: Record<string, unknown>; social?: Record<string, unknown>; oauth_registration_pending?: boolean; owner_name?: string }) => Promise<void>;
+  onSaveOwner?: (data: { name: string; phone: string }) => Promise<void>;
   onComplete: () => Promise<void>;
   onSwitchToLogin: () => void;
   onGithubClick?: () => void;
@@ -22,6 +23,7 @@ export interface SignupWizardProps {
   turnstileSiteKey: string;
   captchaToken: string | null;
   setCaptchaToken: (token: string | null) => void;
+  oauthProfile?: { name: string; email: string } | null;
 }
 
 interface PersonDraft {
@@ -51,12 +53,13 @@ const STEP_META = [
 ];
 
 export function SignupWizard(props: SignupWizardProps) {
+  const isOAuth = Boolean(props.oauthProfile);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [localBusy, setLocalBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [person, setPerson] = useState<PersonDraft>({ name: "", role: "" });
+  const [person, setPerson] = useState<PersonDraft>({ name: props.oauthProfile?.name ?? "", role: "" });
   const [business, setBusiness] = useState<BusinessDraft>({ name: "", segment: "", volume: "", url: "", taxId: "" });
-  const [account, setAccount] = useState<AccountDraft>({ email: "", password: "", confirmPassword: "", phone: "" });
+  const [account, setAccount] = useState<AccountDraft>({ email: props.oauthProfile?.email ?? "", password: "", confirmPassword: "", phone: "" });
 
   const busy = props.busy || localBusy;
   const hint = error ?? props.hint;
@@ -86,23 +89,26 @@ export function SignupWizard(props: SignupWizardProps) {
 
   async function handleSubmit() {
     setError(null);
-    if (!account.email.trim() || !account.password) { setError("Email e senha são obrigatórios."); return; }
-    if (account.password.length < 8) { setError("Mínimo 8 caracteres, com letra e número."); return; }
-    if (account.password !== account.confirmPassword) { setError("As senhas não coincidem."); return; }
+    if (!account.email.trim() || (!isOAuth && !account.password)) { setError("Email e senha são obrigatórios."); return; }
+    if (!isOAuth && account.password.length < 8) { setError("Mínimo 8 caracteres, com letra e número."); return; }
+    if (!isOAuth && account.password !== account.confirmPassword) { setError("As senhas não coincidem."); return; }
     if (!account.phone.trim() || account.phone.replace(/\D/g, "").length < 10) { setError("Informe um celular válido."); return; }
-    if (import.meta.env.PROD && props.turnstileSiteKey && !props.captchaToken) {
+    if (!isOAuth && import.meta.env.PROD && props.turnstileSiteKey && !props.captchaToken) {
       setError("Confirme que você não é um robô.");
       return;
     }
 
     setLocalBusy(true);
     try {
-      await props.onRegister({
-        merchant_name: business.name.trim(),
-        email: account.email.trim(),
-        password: account.password,
-        turnstile_token: props.captchaToken ?? undefined,
-      });
+      if (!isOAuth) {
+        await props.onRegister({
+          merchant_name: business.name.trim(),
+          email: account.email.trim(),
+          password: account.password,
+          turnstile_token: props.captchaToken ?? undefined,
+        });
+      }
+      await props.onSaveOwner?.({ name: person.name.trim(), phone: account.phone.replace(/\D/g, "") });
       await props.onSaveTheme({
         accentColor: "#0F766E",
         logoUrl: "",
@@ -113,6 +119,8 @@ export function SignupWizard(props: SignupWizardProps) {
         const storeSlug = business.name.trim().toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-");
         await props.onSaveCompanyData({
           slug: storeSlug,
+          oauth_registration_pending: false,
+          owner_name: person.name.trim(),
           company: {
             razaoSocial: business.name.trim(),
             cnpj: business.taxId.replace(/\D/g, ""),
@@ -143,7 +151,7 @@ export function SignupWizard(props: SignupWizardProps) {
         </p>
       </div>
 
-      {step === 1 && (props.onGithubClick || props.onGoogleClick) && (
+      {step === 1 && !isOAuth && (props.onGithubClick || props.onGoogleClick) && (
         <>
           <div className="auth-social">
             {props.onGoogleClick && (
@@ -165,9 +173,9 @@ export function SignupWizard(props: SignupWizardProps) {
 
       {step === 1 && <PersonFields draft={person} onChange={setPerson} />}
       {step === 2 && <BusinessFields draft={business} onChange={setBusiness} />}
-      {step === 3 && <AccountFields draft={account} onChange={setAccount} />}
+      {step === 3 && <AccountFields draft={account} onChange={setAccount} oauth={isOAuth} />}
 
-      {step === 3 && props.turnstileSiteKey ? (
+      {step === 3 && !isOAuth && props.turnstileSiteKey ? (
         <div style={{ marginTop: 8 }}>
           <Turnstile siteKey={props.turnstileSiteKey} onChange={props.setCaptchaToken} />
         </div>
@@ -185,11 +193,11 @@ export function SignupWizard(props: SignupWizardProps) {
           onClick={handleSubmit}
           disabled={
             busy ||
-            (import.meta.env.PROD && Boolean(props.turnstileSiteKey) && !props.captchaToken)
+            (!isOAuth && import.meta.env.PROD && Boolean(props.turnstileSiteKey) && !props.captchaToken)
           }
           className="auth-cta"
         >
-          {busy ? "Criando..." : "Criar conta"}
+          {busy ? "Salvando..." : isOAuth ? "Concluir cadastro" : "Criar conta"}
         </button>
       )}
 
@@ -296,21 +304,21 @@ function BusinessFields({ draft, onChange }: { draft: BusinessDraft; onChange: (
   );
 }
 
-function AccountFields({ draft, onChange }: { draft: AccountDraft; onChange: (d: AccountDraft) => void }) {
+function AccountFields({ draft, onChange, oauth = false }: { draft: AccountDraft; onChange: (d: AccountDraft) => void; oauth?: boolean }) {
   return (
     <>
       <div className="auth-field">
         <label className="auth-field__label">E-mail corporativo</label>
-        <input type="email" value={draft.email} onChange={(e) => onChange({ ...draft, email: e.target.value })} autoComplete="username" placeholder="voce@sualoja.com.br" className="auth-field__input" />
+        <input type="email" value={draft.email} onChange={(e) => onChange({ ...draft, email: e.target.value })} autoComplete="username" placeholder="voce@sualoja.com.br" className="auth-field__input" readOnly={oauth} />
       </div>
-      <div className="auth-field">
+      {!oauth && <><div className="auth-field">
         <label className="auth-field__label">Senha</label>
         <input type="password" value={draft.password} onChange={(e) => onChange({ ...draft, password: e.target.value })} autoComplete="new-password" placeholder="Mínimo 8 caracteres, com letra e número" minLength={8} className="auth-field__input" />
       </div>
       <div className="auth-field">
         <label className="auth-field__label">Confirmar senha</label>
         <input type="password" value={draft.confirmPassword} onChange={(e) => onChange({ ...draft, confirmPassword: e.target.value })} autoComplete="new-password" placeholder="Repita a senha" minLength={8} className="auth-field__input" />
-      </div>
+      </div></>}
       <div className="auth-field">
         <label className="auth-field__label">Celular</label>
         <input type="tel" value={draft.phone} onChange={(e) => onChange({ ...draft, phone: maskPhone(e.target.value) })} placeholder="(11) 99999-9999" maxLength={15} className="auth-field__input" />

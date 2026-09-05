@@ -3,6 +3,7 @@ import "./modules/auth/domain/services/jwt.service.spec.js";
 import "./modules/auth/domain/services/auth-cookie.service.spec.js";
 import "./modules/auth/domain/services/login-rate-limiter.service.spec.js";
 import "./modules/auth/application/auth.use-cases.spec.js";
+import "./modules/auth/application/oauth-callback.use-case.spec.js";
 import "./modules/auth/application/change-password.use-case.spec.js";
 import "./modules/auth/application/email-change.use-case.spec.js";
 import "./modules/auth/presentation/auth.controller.spec.js";

@@ -35,11 +35,12 @@ export class InMemoryAuthRepository implements AuthRepository {
   async createMerchantWithOAuthOwner(input: {
     merchantId: string;
     merchantName: string;
+    ownerName?: string;
     email: string;
     oauthProvider: string;
     oauthProviderId: string;
   }): Promise<{ merchant: AuthMerchant; user: AuthUser }> {
-    const merchant = { id: input.merchantId, name: input.merchantName };
+    const merchant = { id: input.merchantId, name: input.merchantName, oauthRegistrationPending: true, ownerName: input.ownerName };
     const user = {
       id: `usr_${crypto.randomUUID()}`,
       merchantId: input.merchantId,
@@ -111,6 +112,13 @@ export class InMemoryAuthRepository implements AuthRepository {
 
   async setStoreSettings(merchantId: string, settings: Record<string, unknown>): Promise<void> {
     if (settings.slug) this.slugs.set(settings.slug as string, merchantId);
+    const merchant = this.merchants.get(merchantId);
+    if (merchant) {
+      if (typeof settings.oauth_registration_pending === "boolean") {
+        merchant.oauthRegistrationPending = settings.oauth_registration_pending;
+      }
+      if (typeof settings.owner_name === "string") merchant.ownerName = settings.owner_name;
+    }
   }
 
   async getOwnerProfile(merchantId: string): Promise<OwnerProfile | undefined> {

@@ -15,6 +15,11 @@ export interface OAuthCallbackRequest {
   state: string;
 }
 
+export interface OAuthAuthResponse extends AuthResponse {
+  onboarding_required: boolean;
+  profile: { name: string; email: string };
+}
+
 @Injectable()
 export class OAuthCallbackUseCase {
   private readonly logger = new Logger(OAuthCallbackUseCase.name);
@@ -26,7 +31,7 @@ export class OAuthCallbackUseCase {
     private readonly jwt: JwtService
   ) {}
 
-  async execute(input: OAuthCallbackRequest): Promise<AuthResponse> {
+  async execute(input: OAuthCallbackRequest): Promise<OAuthAuthResponse> {
     if (!input.provider || !input.code) {
       throw new BadRequestException("provider and code are required");
     }
@@ -47,7 +52,12 @@ export class OAuthCallbackUseCase {
       if (!existingUser.oauthProvider) {
         await this.repository.linkOAuthToUser(existingUser.id, input.provider, profile.providerId);
       }
-      return toAuthResponse(existingUser, this.jwt);
+      const merchant = await this.repository.findMerchantById(existingUser.merchantId);
+      return {
+        ...toAuthResponse(existingUser, this.jwt),
+        onboarding_required: merchant?.oauthRegistrationPending === true,
+        profile: { name: merchant?.ownerName || profile.name || "", email },
+      };
     }
 
     // 3. New user — create merchant with OAuth owner
@@ -57,11 +67,16 @@ export class OAuthCallbackUseCase {
     const created = await this.repository.createMerchantWithOAuthOwner({
       merchantId,
       merchantName,
+      ownerName: profile.name || "",
       email,
       oauthProvider: input.provider,
       oauthProviderId: profile.providerId,
     });
 
-    return toAuthResponse(created.user, this.jwt);
+    return {
+      ...toAuthResponse(created.user, this.jwt),
+      onboarding_required: true,
+      profile: { name: profile.name || "", email },
+    };
   }
 }

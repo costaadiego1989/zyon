@@ -43,7 +43,7 @@ scripts/*
 !.github/workflows/
 
 # Local WooCommerce installation (E2E test environment)
-woocommerce/
+/woocommerce/
 wp-content/
 wp-config.php
 .wp-cli/
@@ -64,3 +64,9 @@ nul
 .playwright-tiktok-profile/
 scripts/tiktok-*.js
 tiktok-*.png
+
+# Deployment credentials and artifacts
+.env.railway.local
+**/.env.production.local
+.vercel/
+**/.vercel/

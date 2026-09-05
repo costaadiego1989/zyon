@@ -23,7 +23,12 @@ const EVENT_WEIGHTS: Record<CheckoutEventName, number> = {
   auth_phone_verified: 0,
   auth_identity_confirmed: 0,
   auth_registration_completed: 0,
-  login_completed: 0
+  login_completed: 0,
+  channel_selected: 0,
+  item_quantity_updated: 0,
+  item_removed: 0,
+  session_start: 0,
+  message_sent: 0
 };
 
 export function scoreEvent(currentScore: number, event: CheckoutEventName): number {

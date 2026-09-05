@@ -26,3 +26,10 @@ coverage
 **/playwright-tiktok-profile
 node_modules
 **/node_modules
+
+.audit
+**/.audit
+**/.impeccable
+**/.next
+**/.vercel
+**/*.tsbuildinfo

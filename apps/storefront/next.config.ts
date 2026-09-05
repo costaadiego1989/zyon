@@ -1,13 +1,12 @@
 import type { NextConfig } from "next";
 
 const config: NextConfig = {
-  output: "standalone",
   reactStrictMode: true,
   transpilePackages: ["@zyon/checkout-ui", "@zyon/widget-v2"],
   serverExternalPackages: ["jsdom", "isomorphic-dompurify"],
   experimental: {
     serverActions: {
-      allowedOrigins: ["localhost:3001"],
+      allowedOrigins: ["localhost:3001", "storefront.zyon-payments.com.br"],
     },
   },
   env: {
@@ -37,7 +36,7 @@ const config: NextConfig = {
               "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://analytics.tiktok.com https://js.stripe.com",
               `style-src 'self' 'unsafe-inline'${devStyle}`,
               "img-src 'self' data: https: blob:",
-              `connect-src 'self' https:${devConnect} https://api.stripe.com`,
+              `connect-src 'self' https: wss://api.zyon-payments.com.br${devConnect} https://api.stripe.com`,
               "frame-src 'self' https://www.googletagmanager.com https://js.stripe.com https://hooks.stripe.com",
               `font-src 'self' data: https:${devFont}`,
             ].join("; "),

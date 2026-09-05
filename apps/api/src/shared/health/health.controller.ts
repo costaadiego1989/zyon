@@ -6,11 +6,19 @@ export class HealthController {
   constructor(private readonly health: HealthService) {}
 
   @Get("/health")
-  async check() {
-    const result = await this.health.check();
-    if (result.status === "degraded") {
-      throw new HttpException(result, HttpStatus.SERVICE_UNAVAILABLE);
+  liveness() {
+    return this.health.liveness();
+  }
+
+  @Get("/ready")
+  async readiness() {
+    const result = await this.health.readiness();
+    if (!result.ready) {
+      throw new HttpException(
+        { status: "unavailable", db: result.db },
+        HttpStatus.SERVICE_UNAVAILABLE
+      );
     }
-    return result;
+    return { status: "ready", db: result.db };
   }
 }

@@ -8,7 +8,7 @@ import {
   resolveDashboardApiBaseUrl
 } from "./api-client.js";
 import { AuthScreen, type AuthMode } from "./auth/AuthScreen.js";
-import { OAuthCallback } from "./auth/OAuthCallback.js";
+import { OAuthCallback, type OAuthCallbackResult } from "./auth/OAuthCallback.js";
 import { friendlyAuthError } from "./auth/auth-error.js";
 import { DashboardShell } from "./shell/DashboardShell.js";
 import type { TabKey } from "./shell/nav-config.js";
@@ -46,6 +46,7 @@ function App({ api }: AppProps) {
   const [password, setPassword] = useState("");
   const [merchantName, setMerchantName] = useState("");
   const [authHint, setAuthHint] = useState<string | null>(null);
+  const [oauthProfile, setOauthProfile] = useState<OAuthCallbackResult["profile"] | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
@@ -83,6 +84,10 @@ function App({ api }: AppProps) {
   }
 
   useEffect(() => {
+    if (window.location.pathname.includes("/oauth/callback")) {
+      setCheckingSession(false);
+      return;
+    }
     void refreshSession();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -141,12 +146,19 @@ function App({ api }: AppProps) {
     await api.putMerchantTheme(fullTheme);
   }
 
-  async function handleSaveCompanyData(data: { company: Record<string, unknown>; social?: Record<string, unknown> }) {
+  async function handleSaveCompanyData(data: { slug?: string; company: Record<string, unknown>; social?: Record<string, unknown>; oauth_registration_pending?: boolean; owner_name?: string }) {
     await api.putStoreSettings(data);
+    const storeName = data.company.razaoSocial;
+    if (typeof storeName === "string" && storeName.trim()) await api.putStoreName(storeName.trim());
+  }
+
+  async function handleSaveOwner(data: { name: string; phone: string }) {
+    await api.updateMe(data);
   }
 
   async function handleSignupComplete() {
     await api.completeOnboardingStep("account");
+    setOauthProfile(null);
     await refreshSession();
   }
 
@@ -170,7 +182,16 @@ function App({ api }: AppProps) {
     return (
       <OAuthCallback
         apiBaseUrl={API_BASE_URL}
-        onSuccess={() => void refreshSession()}
+        onSuccess={(result) => {
+          if (result.onboarding_required) {
+            setOauthProfile(result.profile);
+            setAuthMode("signup");
+            setMe(null);
+            setCheckingSession(false);
+          } else {
+            void refreshSession();
+          }
+        }}
         onError={(msg) => {
           setAuthHint(msg);
           setCheckingSession(false);
@@ -196,7 +217,9 @@ function App({ api }: AppProps) {
         onRegister={handleRegister}
         onSaveTheme={handleSaveTheme}
         onSaveCompanyData={handleSaveCompanyData}
+        onSaveOwner={handleSaveOwner}
         onComplete={handleSignupComplete}
+        oauthProfile={oauthProfile}
         turnstileSiteKey={TURNSTILE_SITE_KEY}
         captchaToken={captchaToken}
         setCaptchaToken={setCaptchaToken}

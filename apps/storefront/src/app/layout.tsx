@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import "@zyon/widget/styles/design-system/tokens.css";
-import "@zyon/widget/styles/features/pulse/pulse-skin.css";
-import "@zyon/widget/styles/features/pulse/styles/animations.css";
+import "@zyon/widget-v2/design-system/tokens.css";
+import "@zyon/widget-v2/styles/pulse-skin.css";
+import "@zyon/widget-v2/styles/animations.css";
 
 export const metadata: Metadata = {
   title: "Zyon Store",
