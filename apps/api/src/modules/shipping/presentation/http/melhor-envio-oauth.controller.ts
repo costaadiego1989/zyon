@@ -1,10 +1,13 @@
 import { Controller, Get, Inject, Logger, Query, Req, Res, UseGuards } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { PrismaClient } from "@prisma/client";
-import { createHmac, randomBytes } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { encryptCommerceSecret } from "../../../commerce/infrastructure/commerce-secret-cipher.js";
+import { melhorEnvioBaseUrl, MELHOR_ENVIO_USER_AGENT } from "../../infrastructure/melhor-envio-config.js";
+
+type ReturnTo = "onboarding" | "delivery";
 
 function env(key: string, fallback = ""): string {
   return process.env[key] ?? fallback;
@@ -20,7 +23,8 @@ export class MelhorEnvioOAuthController {
   @ApiOperation({ summary: "Start Melhor Envio OAuth flow" })
   authorize(
     @Req() request: any,
-    @Res() res: any
+    @Res() res: any,
+    @Query("return_to") returnTo?: string,
   ) {
     const merchantId = request.user?.merchantId ?? "";
     const scopes = [
@@ -41,8 +45,6 @@ export class MelhorEnvioOAuthController {
       "transactions-read",
       "users-read",
       "users-write",
-      "webhooks-read",
-      "webhooks-write",
     ];
 
     const params = new URLSearchParams({
@@ -50,10 +52,10 @@ export class MelhorEnvioOAuthController {
       redirect_uri: env("MELHOR_ENVIO_REDIRECT_URI"),
       response_type: "code",
       scope: scopes.join(" "),
-      state: this.signState(merchantId),
+      state: this.signState(merchantId, returnTo === "onboarding" ? "onboarding" : "delivery"),
     });
 
-    const url = `${env("MELHOR_ENVIO_BASE_URL", "https://sandbox.melhorenvio.com.br")}/oauth/authorize?${params.toString()}`;
+    const url = `${melhorEnvioBaseUrl()}/oauth/authorize?${params.toString()}`;
     res.redirect(302, url);
   }
 
@@ -64,55 +66,67 @@ export class MelhorEnvioOAuthController {
     @Query("state") state: string,
     @Res() res: any
   ) {
+    const verified = state ? this.verifyState(state) : null;
+    const returnTo = verified?.returnTo ?? "delivery";
     if (!code || !state) {
-      res.redirect(302, "/dashboard?error=melhor_envio_denied");
+      res.redirect(302, this.dashboardRedirect(returnTo, "shipping_error", "denied"));
       return;
     }
 
-    const merchantId = this.verifyState(state);
-    if (!merchantId) {
-      this.logger.warn("melhor_envio.callback.invalid_state", { state });
-      res.redirect(302, "/dashboard?error=melhor_envio_csrf");
+    if (!verified) {
+      this.logger.warn("melhor_envio.callback.invalid_state");
+      res.redirect(302, this.dashboardRedirect(returnTo, "shipping_error", "invalid_state"));
       return;
     }
 
-    const tokenRes = await fetch(`${env("MELHOR_ENVIO_BASE_URL", "https://sandbox.melhorenvio.com.br")}/oauth/token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({
-        grant_type: "authorization_code",
-        client_id: env("MELHOR_ENVIO_CLIENT_ID"),
-        client_secret: env("MELHOR_ENVIO_SECRET"),
-        redirect_uri: env("MELHOR_ENVIO_REDIRECT_URI"),
-        code,
-      }),
-    });
+    const { merchantId } = verified;
+    try {
+      const tokenRes = await fetch(`${melhorEnvioBaseUrl()}/oauth/token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json", "User-Agent": MELHOR_ENVIO_USER_AGENT },
+        signal: AbortSignal.timeout(15000),
+        body: JSON.stringify({
+          grant_type: "authorization_code",
+          client_id: env("MELHOR_ENVIO_CLIENT_ID"),
+          client_secret: env("MELHOR_ENVIO_SECRET"),
+          redirect_uri: env("MELHOR_ENVIO_REDIRECT_URI"),
+          code,
+        }),
+      });
 
-    if (!tokenRes.ok) {
-      const err = await tokenRes.text();
-      this.logger.error("melhor_envio.token_exchange_failed", { status: tokenRes.status, error: err });
-      res.redirect(302, "/dashboard?error=melhor_envio_token_failed");
-      return;
+      if (!tokenRes.ok) {
+        this.logger.error("melhor_envio.token_exchange_failed", { status: tokenRes.status });
+        res.redirect(302, this.dashboardRedirect(returnTo, "shipping_error", "token_failed"));
+        return;
+      }
+
+      const tokenData = await tokenRes.json();
+      if (typeof tokenData.access_token !== "string" || !tokenData.access_token.trim()
+        || typeof tokenData.refresh_token !== "string" || !tokenData.refresh_token.trim()) {
+        throw new Error("invalid_token_response");
+      }
+
+      // Persist tokens to merchant record — encrypt before storing
+      const expiresIn = Number(tokenData.expires_in ?? 2592000);
+      if (!Number.isFinite(expiresIn) || expiresIn <= 0) throw new Error("invalid_token_expiry");
+      const expiresAt = new Date(Date.now() + expiresIn * 1000);
+      const encryptedAccessToken = encryptCommerceSecret(tokenData.access_token);
+      const encryptedRefreshToken = encryptCommerceSecret(tokenData.refresh_token);
+      await this.prisma.merchant.update({
+        where: { id: merchantId },
+        data: {
+          melhorEnvioAccessToken: encryptedAccessToken,
+          melhorEnvioRefreshToken: encryptedRefreshToken,
+          melhorEnvioExpiresAt: expiresAt,
+        },
+      });
+      this.logger.log("melhor_envio.connected", { merchantId, expiresAt: expiresAt.toISOString() });
+
+      res.redirect(302, this.dashboardRedirect(returnTo, "shipping_connected", "melhor_envio"));
+    } catch {
+      this.logger.error("melhor_envio.connection_failed");
+      res.redirect(302, this.dashboardRedirect(returnTo, "shipping_error", "connection_failed"));
     }
-
-    const tokenData = await tokenRes.json();
-
-    // Persist tokens to merchant record — encrypt before storing
-    const expiresAt = new Date(Date.now() + (tokenData.expires_in ?? 2592000) * 1000);
-    const encryptedAccessToken = encryptCommerceSecret(tokenData.access_token);
-    const encryptedRefreshToken = encryptCommerceSecret(tokenData.refresh_token);
-    await this.prisma.merchant.update({
-      where: { id: merchantId },
-      data: {
-        melhorEnvioAccessToken: encryptedAccessToken,
-        melhorEnvioRefreshToken: encryptedRefreshToken,
-        melhorEnvioExpiresAt: expiresAt,
-      },
-    });
-    this.logger.log("melhor_envio.connected", { merchantId, expiresAt: expiresAt.toISOString() });
-
-    const dashboardUrl = process.env.DASHBOARD_URL ?? "http://localhost:5175";
-    res.redirect(302, `${dashboardUrl}?shipping_connected=melhor_envio`);
   }
 
   @Get("status")
@@ -133,19 +147,29 @@ export class MelhorEnvioOAuthController {
     return process.env.OAUTH_STATE_SECRET || process.env.JWT_SECRET || "dev-fallback-secret";
   }
 
-  private signState(merchantId: string): string {
+  private dashboardRedirect(returnTo: ReturnTo, parameter: string, value: string): string {
+    const url = new URL(process.env.DASHBOARD_URL || process.env.MERCHANT_CONSOLE_URL || "http://localhost:5175");
+    url.searchParams.set(parameter, value);
+    url.hash = returnTo;
+    return url.toString();
+  }
+
+  private signState(merchantId: string, returnTo: ReturnTo): string {
     const nonce = randomBytes(16).toString("hex");
-    const payload = `${merchantId}:${nonce}`;
+    const payload = `${merchantId}:${nonce}:${returnTo}`;
     const signature = createHmac("sha256", this.stateSecret).update(payload).digest("hex").slice(0, 16);
     return `${payload}:${signature}`;
   }
 
-  private verifyState(state: string): string | null {
+  private verifyState(state: string): { merchantId: string; returnTo: ReturnTo } | null {
     const parts = state.split(":");
-    if (parts.length !== 3) return null;
-    const [merchantId, nonce, signature] = parts;
-    const expected = createHmac("sha256", this.stateSecret).update(`${merchantId}:${nonce}`).digest("hex").slice(0, 16);
-    if (signature !== expected) return null;
-    return merchantId;
+    if (parts.length !== 3 && parts.length !== 4) return null;
+    const [merchantId, nonce] = parts;
+    const returnTo = parts.length === 4 ? parts[2] : "delivery";
+    if (!merchantId || !nonce || (returnTo !== "delivery" && returnTo !== "onboarding")) return null;
+    const signature = parts.at(-1)!;
+    const expected = createHmac("sha256", this.stateSecret).update(parts.slice(0, -1).join(":")).digest("hex").slice(0, 16);
+    if (!/^[a-f0-9]{16}$/.test(signature) || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
+    return { merchantId, returnTo };
   }
 }

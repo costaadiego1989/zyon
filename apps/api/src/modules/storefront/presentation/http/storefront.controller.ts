@@ -1,7 +1,10 @@
-import { BadRequestException, Body, Controller, Get, Headers, Inject, NotFoundException, Optional, Param, Patch, Post, Query, Res } from "@nestjs/common";
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Headers, Inject, NotFoundException, Optional, Param, Patch, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
 import { BuyerJwtService } from "../../../buyer-account/domain/services/buyer-jwt.service.js";
 import type { PrismaClient } from "@prisma/client";
-import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
+import { NonProductionRoute, ProductionRoute } from "../../../../shared/http/non-production-route.js";
+import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
+import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-ownership.guard.js";
+import { currentTenantPrincipal, type TenantPrincipalRequest } from "../../../../shared/auth/tenant-principal.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { StartStoreConversationUseCase } from "../../application/use-cases/start-store-conversation.use-case.js";
 import { SendStoreMessageUseCase } from "../../application/use-cases/send-store-message.use-case.js";
@@ -316,6 +319,8 @@ export class StorefrontController {
   }
 
   @Get("funnel/:merchantId")
+  @ProductionRoute()
+  @UseGuards(AuthGuard, MerchantOwnershipGuard)
   async getFunnel(
     @Param("merchantId") merchantId: string,
     @Query("period") period?: string,
@@ -337,6 +342,8 @@ export class StorefrontController {
   }
 
   @Get("funnel/:merchantId/sessions")
+  @ProductionRoute()
+  @UseGuards(AuthGuard, MerchantOwnershipGuard)
   async getFunnelSessions(@Param("merchantId") merchantId: string) {
     const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
     const sessions = await this.prisma.checkoutSession.findMany({
@@ -510,17 +517,23 @@ export class StorefrontController {
   }
 
   @Get("budget-requests")
-  async handleListBudgetRequests(@Query("merchantId") merchantId: string) {
-    if (!merchantId) throw new NotFoundException("merchantId_required");
+  @ProductionRoute()
+  @UseGuards(AuthGuard)
+  async handleListBudgetRequests(@Req() request: TenantPrincipalRequest, @Query("merchantId") requestedMerchantId?: string) {
+    const merchantId = currentTenantPrincipal(request).tenantId;
+    if (requestedMerchantId && requestedMerchantId !== merchantId) throw new ForbiddenException("cross_tenant_access_denied");
     return this.listBudgetRequests.execute(merchantId);
   }
 
   @Post("budget-requests/:id/status")
+  @ProductionRoute()
+  @UseGuards(AuthGuard)
   async handleUpdateBudgetStatus(
     @Param("id") id: string,
-    @Body() body: { status: "approved" | "rejected" | "responded" }
+    @Body() body: { status: "approved" | "rejected" | "responded" },
+    @Req() request: TenantPrincipalRequest,
   ) {
-    return this.updateBudgetStatus.execute(id, body.status);
+    return this.updateBudgetStatus.execute(id, body.status, currentTenantPrincipal(request).tenantId);
   }
 }
 

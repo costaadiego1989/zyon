@@ -425,11 +425,8 @@ export class MerchantPaymentConnectionsController {
   humanOnly: true,
   humanRoles: ["owner", "admin"],
 })
-// Billing controller (payment module — the active one; PublicApiModule is
-// currently disabled). Owns `/billing`. Asaas is the active subscription
-// provider (subscription-billing-asaas spec, GA4); the Stripe checkout/portal
-// routes remain for backwards compat but the subscription lifecycle
-// (start-trial, subscribe, change, cancel) goes through Asaas use-cases.
+// Active billing routes. The dashboard uses Stripe Checkout and Portal;
+// existing Asaas subscription endpoints remain available for legacy accounts.
 @Controller("billing")
 export class BillingController {
   constructor(
@@ -445,7 +442,11 @@ export class BillingController {
   @ApiOperation({ summary: "List billing plans (cards)" })
   @Get("plans")
   listPlans() {
-    return BILLING_PLAN_CARDS;
+    return BILLING_PLAN_CARDS.map(card => ({
+      ...card,
+      transactionFeeCents: BILLING_PLANS[card.key as BillingPlan].transactionFeeCents,
+      limits: BILLING_PLANS[card.key as BillingPlan].limits,
+    }));
   }
 
   @ApiOperation({ summary: "Start 14-day free trial (Starter)" })

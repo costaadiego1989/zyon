@@ -19,8 +19,8 @@ export function billingEndpoints(base: string, f: typeof fetch) {
     },
     // Billing catalog and subscription lifecycle
     async listBillingPlans(): Promise<BillingPlanCard[]> {
-      const plans = await billingJson<Array<{ plan_id: string; name: string; monthly_price_brl: number; transaction_fee_cents: number; features: Record<string, boolean>; limits: Record<string, number | null> }>>("/billing/plans");
-      return plans.map(plan => ({
+      const plans = await billingJson<Array<BillingPlanCard | { plan_id: string; name: string; monthly_price_brl: number; transaction_fee_cents: number; features: Record<string, boolean>; limits: Record<string, number | null> }>>("/billing/plans");
+      return plans.map(plan => "key" in plan ? plan : ({
         key: plan.plan_id, name: plan.name, priceBrl: plan.monthly_price_brl,
         transactionFeeCents: plan.transaction_fee_cents, limits: plan.limits,
         trialDays: plan.plan_id === "starter" ? 14 : 0,

@@ -76,6 +76,16 @@ para os domínios de produção nas variáveis do Railway. Esses mesmos endereç
 precisam estar cadastrados nos painéis de cada provedor. A validação de deploy
 verifica inicialização, banco, Redis e CORS; não realiza cobranças ou envios reais.
 
+O Melhor Envio de produção usa `MELHOR_ENVIO_BASE_URL=https://melhorenvio.com.br`
+e o callback registrado `https://api.zyon-payments.com.br/shipping/melhor-envio/callback`.
+Configure `DASHBOARD_URL=https://app.zyon-payments.com.br`. O retorno de sucesso,
+cancelamento ou falha volta à tela de frete ou ao onboarding, conforme a origem
+da conexão. Os tokens são armazenados criptografados na loja que iniciou o OAuth.
+
+As rotas autenticadas de pedidos/orçamentos, métricas e funis do dashboard são
+habilitadas individualmente em produção, com isolamento por loja. Não é necessário
+ativar `ENABLE_LEGACY_ROUTES` para usá-las.
+
 ## Assinaturas e taxa do Free
 
 Todas as contas começam no Free com 14 dias sem taxa de transação do lojista.

@@ -60,6 +60,21 @@ export function useDeliveryPage() {
   const PAGE_SIZE = 10;
 
   useEffect(() => {
+    const url = new URL(window.location.href);
+    const error = url.searchParams.get("shipping_error");
+    const connected = url.searchParams.get("shipping_connected") === "melhor_envio";
+    if (error) showToast("error", error === "denied"
+      ? "A conexão com o Melhor Envio foi cancelada. Você pode tentar novamente."
+      : "Não foi possível conectar o Melhor Envio. Inicie a conexão novamente.");
+    if (connected) showToast("success", "Melhor Envio conectado");
+    if (error || connected) {
+      url.searchParams.delete("shipping_error");
+      url.searchParams.delete("shipping_connected");
+      window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+    }
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -168,7 +183,7 @@ export function useDeliveryPage() {
       return;
     }
     const url = api.getMelhorEnvioAuthorizeUrl?.();
-    if (url) window.open(url, "_blank", "width=600,height=700");
+    if (url) window.location.assign(url);
   }, [api]);
 
   const buyLabel = useCallback(async (shipmentId: string) => {

@@ -118,8 +118,8 @@ export function deliveryEndpoints(base: string, f: typeof fetch) {
       );
     },
 
-    getMelhorEnvioAuthorizeUrl(): string {
-      return `${base}/shipping/melhor-envio/authorize`;
+    getMelhorEnvioAuthorizeUrl(returnTo: "onboarding" | "delivery" = "delivery"): string {
+      return `${base}/shipping/melhor-envio/authorize?return_to=${returnTo}`;
     },
 
     getMelhorEnvioStatus(): Promise<{ connected: boolean; expired: boolean; provider: string }> {

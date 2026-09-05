@@ -1,5 +1,6 @@
 import { Logger } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
+import { melhorEnvioBaseUrl, MELHOR_ENVIO_USER_AGENT } from "../infrastructure/melhor-envio-config.js";
 import {
   encryptCommerceSecret,
   decryptCommerceSecret,
@@ -20,7 +21,7 @@ export class MelhorEnvioTokenRefresher {
   constructor(private readonly prisma: PrismaClient) {}
 
   private get baseUrl(): string {
-    return process.env.MELHOR_ENVIO_BASE_URL ?? "https://sandbox.melhorenvio.com.br";
+    return melhorEnvioBaseUrl();
   }
 
   async refresh(merchantId: string): Promise<string | undefined> {
@@ -64,7 +65,8 @@ export class MelhorEnvioTokenRefresher {
     try {
       tokenRes = await fetch(`${this.baseUrl}/oauth/token`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        headers: { "Content-Type": "application/json", Accept: "application/json", "User-Agent": MELHOR_ENVIO_USER_AGENT },
+        signal: AbortSignal.timeout(15000),
         body: JSON.stringify({
           grant_type: "refresh_token",
           client_id: clientId,

@@ -5,6 +5,7 @@ import type { CarrierPort, ShippingContext } from "../../domain/ports/carrier.po
 import type { ShippingQuoteResult } from "../../domain/entities/shipping-quote.entity.js";
 import type { ShippingCarrierPort, LabelPurchaseInput, LabelPurchaseResult, TrackingResult } from "../../domain/ports/shipping-carrier.port.js";
 import type { MelhorEnvioTokenResolver } from "../../domain/ports/melhor-envio-token-resolver.port.js";
+import { melhorEnvioBaseUrl } from "../melhor-envio-config.js";
 
 interface MelhorEnvioService {
   id: number;
@@ -21,7 +22,7 @@ export class MelhorEnvioCarrierAdapter implements CarrierPort, ShippingCarrierPo
 
   constructor(private readonly tokenResolver: MelhorEnvioTokenResolver) {}
 
-  private get baseUrl(): string { return process.env.MELHOR_ENVIO_BASE_URL ?? "https://sandbox.melhorenvio.com.br"; }
+  private get baseUrl(): string { return melhorEnvioBaseUrl(); }
   private get fromZip(): string { return process.env.MELHOR_ENVIO_FROM_ZIP ?? ""; }
 
   async fetchQuotes(ctx: ShippingContext): Promise<ShippingQuoteResult[]> {

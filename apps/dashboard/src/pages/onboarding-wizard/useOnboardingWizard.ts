@@ -271,9 +271,18 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
     let active = true;
     const params = new URLSearchParams(window.location.search);
     const justConnected = params.get("shipping_connected") === "melhor_envio";
+    const shippingError = params.get("shipping_error");
+    if (shippingError) {
+      setMessage(shippingError === "denied"
+        ? "A conexão com o Melhor Envio foi cancelada. Você pode tentar novamente."
+        : "Não foi possível conectar o Melhor Envio. Inicie a conexão novamente.");
+      params.delete("shipping_error");
+    }
     if (justConnected) {
       setShippingConnected(true);
       params.delete("shipping_connected");
+    }
+    if (justConnected || shippingError) {
       const qs = params.toString();
       window.history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash}`);
     }
@@ -290,7 +299,7 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
 
   // Frete: kick off Melhor Envio OAuth (full-page redirect to the authorize URL).
   function connectMelhorEnvio() {
-    const url = api.getMelhorEnvioAuthorizeUrl?.();
+    const url = api.getMelhorEnvioAuthorizeUrl?.("onboarding");
     if (url) {
       setShippingLoading(true);
       window.location.href = url;

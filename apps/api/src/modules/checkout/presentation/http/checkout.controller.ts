@@ -31,7 +31,7 @@ import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout
 import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-checkout-event.use-case.js";
 import { UpdateOrderTrackingUseCase } from "../../application/use-cases/update-order-tracking.use-case.js";
 import { UpdateCartUseCase } from "../../application/use-cases/update-cart.use-case.js";
-import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
+import { NonProductionRoute, ProductionRoute } from "../../../../shared/http/non-production-route.js";
 import { PlanLimitGuard, RequirePlanLimit } from "../../../payment/domain/billing-plan-guard.js";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-ownership.guard.js";
@@ -120,12 +120,14 @@ export class CheckoutController {
   }
 
   @Get("dashboard/overview/:merchantId")
+  @ProductionRoute()
   @UseGuards(AuthGuard, MerchantOwnershipGuard)
   overview(@Param("merchantId") merchantId: string) {
     return this.getDashboardOverview.execute(merchantId);
   }
 
   @Get("dashboard/store-overview/:merchantId")
+  @ProductionRoute()
   @UseGuards(AuthGuard, MerchantOwnershipGuard)
   storeOverview(
     @Param("merchantId") merchantId: string,
@@ -136,6 +138,7 @@ export class CheckoutController {
   }
 
   @Get("dashboard/overview/timeseries/:merchantId")
+  @ProductionRoute()
   @UseGuards(AuthGuard, MerchantOwnershipGuard)
   timeseries(
     @Param("merchantId") merchantId: string,
@@ -146,18 +149,21 @@ export class CheckoutController {
   }
 
   @Get("dashboard/rules/:merchantId")
+  @ProductionRoute()
   @UseGuards(AuthGuard, MerchantOwnershipGuard)
   rules(@Param("merchantId") merchantId: string) {
     return this.getRules.execute(merchantId);
   }
 
   @Put("dashboard/rules/:merchantId")
+  @ProductionRoute()
   @UseGuards(AuthGuard, MerchantOwnershipGuard)
   update(@Param("merchantId") merchantId: string, @Body() body: Partial<MerchantRules>) {
     return this.updateRules.execute(merchantId, body);
   }
 
   @Get("funnel/:merchantId")
+  @ProductionRoute()
   @StaffReadable()
   @UseGuards(AuthGuard, MerchantOwnershipGuard, StaffReadableGuard)
   funnel(
@@ -181,6 +187,7 @@ export class CheckoutController {
   }
 
   @Get("funnel/:merchantId/sessions")
+  @ProductionRoute()
   @StaffReadable()
   @UseGuards(AuthGuard, MerchantOwnershipGuard, StaffReadableGuard)
   funnelSessions(@Param("merchantId") merchantId: string) {
