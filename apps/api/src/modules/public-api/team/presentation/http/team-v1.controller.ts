@@ -11,6 +11,7 @@ import {
   UseInterceptors,
   HttpCode,
   HttpStatus,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -78,7 +79,7 @@ export class TeamV1Controller {
   @ApiCreatedResponse({ description: 'Invitation created', type: InvitationResponse })
   async inviteMember(@Req() req: any, @Body() body: InviteMemberDto) {
     const merchantId = req.tenantPrincipal?.tenantId;
-    const requesterId = req.tenantPrincipal?.userId ?? req.user?.id;
+    const requesterId = this.requireHuman(req);
     const result = await this.inviteMemberUseCase.execute({
       merchant_id: merchantId,
       email: body.email,
@@ -95,7 +96,7 @@ export class TeamV1Controller {
   @ApiOperation({ summary: 'Accept an invitation' })
   @ApiOkResponse({ description: 'Invitation accepted', type: AcceptInviteResponse })
   async acceptInvite(@Req() req: any, @Param('inviteId') inviteId: string) {
-    const userId = req.tenantPrincipal?.userId ?? req.user?.id;
+    const userId = this.requireHuman(req);
     const result = await this.acceptInviteUseCase.execute({
       invite_id: inviteId,
       user_id: userId,
@@ -120,6 +121,7 @@ export class TeamV1Controller {
       merchant_id: merchantId,
       user_id: userId,
       new_role: body.role,
+      requester_id: this.requireHuman(req),
       requester_role: requesterRole,
     });
     return TeamEntityMapper.toUpdateRoleResponse(result);
@@ -136,7 +138,14 @@ export class TeamV1Controller {
     await this.removeMemberUseCase.execute({
       merchant_id: merchantId,
       user_id: userId,
+      requester_id: this.requireHuman(req),
     });
     return TeamEntityMapper.toRemoveMemberResponse(userId);
   }
+  private requireHuman(req: any): string {
+    const principal = req.tenantPrincipal;
+    if (principal?.kind !== "human" || !principal.userId) throw new ForbiddenException("human_team_manager_required");
+    return principal.userId;
+  }
+
 }

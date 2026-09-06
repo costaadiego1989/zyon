@@ -20,18 +20,9 @@ export class ResetPasswordUseCase {
     if (!token?.trim()) throw new BadRequestException("token_required");
     assertStrongPassword(newPassword);
 
-    const reset = await this.repo.findPasswordResetToken(token);
-    if (!reset) throw new BadRequestException("invalid_or_expired_token");
-    if (reset.expiresAt < new Date()) {
-      await this.repo.deletePasswordResetToken(token);
-      throw new BadRequestException("token_expired");
-    }
-
     const passwordHash = await this.passwordHasher.hash(newPassword);
-    await this.repo.updatePassword(reset.userId, passwordHash);
-    await this.repo.deletePasswordResetToken(token);
-
-    this.logger.log(`Password reset completed for user ${reset.userId}`);
+    const consumed = await this.repo.consumePasswordReset(token, passwordHash, new Date());
+    if (!consumed) throw new BadRequestException("invalid_or_expired_token");
     return { success: true };
   }
 }

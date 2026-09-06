@@ -1,3 +1,5 @@
+import { ForbiddenException } from "@nestjs/common";
+import { requireStaffAccess } from "../../../auth/presentation/staff-access.js";
 import {
   CanActivate,
   ExecutionContext,
@@ -50,7 +52,8 @@ export class TenantCredentialGuard implements CanActivate {
       throw new UnauthorizedException("missing_tenant_credential");
     }
     try {
-      const user = this.jwt.verify(token);
+      const user = await this.jwt.authenticate(token);
+      requireStaffAccess(context, user.role);
       request.user = user;
       setTenantPrincipal(request as TenantPrincipalRequest, {
         kind: "human",
@@ -60,7 +63,8 @@ export class TenantCredentialGuard implements CanActivate {
         role: user.role,
       });
       return true;
-    } catch {
+    } catch (error) {
+      if (error instanceof ForbiddenException) throw error;
       throw new UnauthorizedException("invalid_tenant_credential");
     }
   }

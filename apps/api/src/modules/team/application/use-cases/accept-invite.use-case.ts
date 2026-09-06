@@ -1,3 +1,4 @@
+import { lockTeam, requireRole, requireTeamManager, revokeUserSessions } from "./team-membership.js";
 /**
  * Accept invite use-case.
  *
@@ -27,41 +28,26 @@ export class AcceptInviteUseCase {
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   async execute(input: AcceptInviteInput): Promise<AcceptInviteOutput> {
-    const invite = await this.prisma.merchantInvite.findUnique({
-      where: { id: input.invite_id },
+    return this.prisma.$transaction(async tx => {
+      const candidate = await tx.merchantInvite.findUnique({ where: { id: input.invite_id } });
+      if (!candidate) throw new NotFoundException("invite_not_found");
+      await lockTeam(tx, candidate.merchantId);
+      await tx.$queryRaw`SELECT id FROM merchant_users WHERE id = ${input.user_id} FOR UPDATE`;
+      const user = await tx.merchantUser.findUnique({ where: { id: input.user_id } });
+      if (!user || user.disabledAt || user.merchantId !== candidate.merchantId || user.email !== candidate.email) throw new BadRequestException("invite_identity_mismatch");
+      const claimed = await tx.merchantInvite.updateMany({ where: { id: input.invite_id, status: "PENDING", expiresAt: { gt: new Date() } }, data: { status: "ACCEPTED" } });
+      if (claimed.count !== 1) throw new BadRequestException("invite_not_pending_or_expired");
+      const role = requireRole(candidate.role);
+      const inviterRole = await requireTeamManager(tx, candidate.merchantId, candidate.invitedBy);
+      if (role === "OWNER" && inviterRole !== "OWNER") throw new BadRequestException("only_owner_can_promote_to_owner");
+      if (user.role === "owner") throw new BadRequestException("owner_role_requires_explicit_change");
+      // Existing active memberships use the role command so last-owner checks cannot be bypassed.
+      const existing = await tx.merchantTeamMember.findUnique({ where: { merchantId_userId: { merchantId: candidate.merchantId, userId: user.id } } });
+      if (existing) throw new BadRequestException("user_already_member");
+      const member = await tx.merchantTeamMember.create({ data: { merchantId: candidate.merchantId, userId: user.id, role, invitedBy: candidate.invitedBy } });
+      await tx.merchantUser.update({ where: { id: user.id }, data: { role: role.toLowerCase(), authVersion: { increment: 1 } } });
+      await revokeUserSessions(tx, user.id);
+      return { member_id: member.id, merchant_id: member.merchantId, role: member.role };
     });
-
-    if (!invite) throw new NotFoundException("invite_not_found");
-    if (invite.status !== "PENDING") throw new BadRequestException("invite_not_pending");
-    if (new Date() > invite.expiresAt) throw new BadRequestException("invite_expired");
-
-    // Verify user exists
-    const user = await this.prisma.merchantUser.findUnique({
-      where: { id: input.user_id },
-    });
-    if (!user) throw new NotFoundException("user_not_found");
-    if (user.email !== invite.email) throw new BadRequestException("email_mismatch");
-
-    // Create team member
-    const member = await this.prisma.merchantTeamMember.create({
-      data: {
-        merchantId: invite.merchantId,
-        userId: input.user_id,
-        role: invite.role,
-        invitedBy: invite.invitedBy,
-      },
-    });
-
-    // Mark invite as accepted
-    await this.prisma.merchantInvite.update({
-      where: { id: input.invite_id },
-      data: { status: "ACCEPTED" },
-    });
-
-    return {
-      member_id: member.id,
-      merchant_id: member.merchantId,
-      role: member.role,
-    };
   }
 }

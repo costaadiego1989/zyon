@@ -4,7 +4,7 @@
  * Closes L16: BearerTokenView extracted.
  */
 
-export type TenantRole = "owner" | "admin";
+export type TenantRole = "owner" | "admin" | "staff";
 
 export interface AuthMerchant {
   id: string;
@@ -17,6 +17,8 @@ export interface AuthUser {
   email: string;
   passwordHash?: string;
   role: TenantRole;
+  authVersion?: number;
+  disabledAt?: Date;
   oauthProvider?: string;
   oauthProviderId?: string;
 }

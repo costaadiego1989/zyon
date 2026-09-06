@@ -1,3 +1,4 @@
+import { RequireTenantRoles } from "../../../auth/presentation/tenant-role.decorator.js";
 import {
   Body,
   Controller,
@@ -233,6 +234,7 @@ export class SupportController {
   @UseGuards(TenantCredentialGuard, TenantAccessGuard)
   @RequireTenantAccess({ serviceScopes: ["support:read"] })
   @Get("tickets")
+  @RequireTenantRoles("owner", "admin", "staff")
   async getTickets(
     @Req() request: unknown,
     @Query("status") status?: string,
@@ -270,6 +272,7 @@ export class SupportController {
   @UseGuards(TenantCredentialGuard, TenantAccessGuard)
   @RequireTenantAccess({ serviceScopes: ["support:write"] })
   @Post("tickets")
+  @RequireTenantRoles("owner", "admin", "staff")
   @Idempotent()
   createTicket_(
     @Req() request: unknown,
@@ -308,6 +311,7 @@ export class SupportController {
   @UseGuards(TenantCredentialGuard, TenantAccessGuard)
   @RequireTenantAccess({ serviceScopes: ["support:write"] })
   @Patch("tickets/:ticketId")
+  @RequireTenantRoles("owner", "admin", "staff")
   @Idempotent()
   updateTicket(
     @Req() request: unknown,

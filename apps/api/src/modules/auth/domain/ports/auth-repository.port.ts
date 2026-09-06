@@ -9,6 +9,11 @@ export interface PasswordResetRecord {
 }
 
 export interface AuthRepository {
+  createSession(input: SessionRecord): Promise<boolean>;
+  findActiveSession(id: string, now: Date): Promise<SessionRecord | undefined>;
+  rotateSession(id: string, replacement: SessionRecord, now: Date): Promise<boolean>;
+  revokeSessionFamily(id: string, userId: string, now: Date): Promise<void>;
+  consumePasswordReset(token: string, passwordHash: string, now: Date): Promise<boolean>;
   createMerchantWithOwner(input: {
     merchantId: string;
     merchantName: string;
@@ -36,5 +41,18 @@ export interface AuthRepository {
   // Slug management
   isSlugTaken(slug: string): Promise<boolean>;
   setStoreSettings(merchantId: string, settings: Record<string, unknown>): Promise<void>;
+}
+
+export interface SessionRecord {
+  id: string;
+  familyId: string;
+  userId: string;
+  merchantId: string;
+  email: string;
+  role: AuthUser["role"];
+  authVersion: number;
+  refreshExpiresAt: Date;
+  consumedAt?: Date;
+  revokedAt?: Date;
 }
 

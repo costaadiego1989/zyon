@@ -1,3 +1,6 @@
+import { lockTeam, requireRole, requireTeamManager, revokeUserSessions } from "./team-membership.js";
+import { assertValidEmail, normalizeEmail } from "../../../auth/domain/validators.js";
+import { ForbiddenException } from "@nestjs/common";
 /**
  * Invite team member use-case.
  *
@@ -31,7 +34,7 @@ export interface InviteMemberOutput {
 }
 
 function generatePassword(): string {
-  return randomBytes(4).toString("hex") + "A1!";
+  return randomBytes(16).toString("hex") + "A1!";
 }
 
 @Injectable()
@@ -45,63 +48,32 @@ export class InviteMemberUseCase {
   ) {}
 
   async execute(input: InviteMemberInput): Promise<InviteMemberOutput> {
-    const merchant = await this.prisma.merchant.findUnique({
-      where: { id: input.merchant_id },
-    });
-    if (!merchant) throw new NotFoundException("merchant_not_found");
-
-    const existing = await this.prisma.merchantUser.findUnique({
-      where: { email: input.email },
-    });
-    if (existing && existing.merchantId === input.merchant_id) {
-      throw new BadRequestException("user_already_member");
-    }
-
+    const role = requireRole(input.role);
+    assertValidEmail(input.email);
+    const email = normalizeEmail(input.email);
     const provisionalPassword = generatePassword();
     const passwordHash = await this.passwordHasher.hash(provisionalPassword);
-
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    const invite = await this.prisma.merchantInvite.create({
-      data: {
-        merchantId: input.merchant_id,
-        email: input.email,
-        role: input.role,
-        invitedBy: input.invited_by,
-        expiresAt,
-        status: "PENDING",
-      },
-    });
-
-    let user = existing;
-    if (!user) {
-      user = await this.prisma.merchantUser.create({
-        data: {
-          merchantId: input.merchant_id,
-          email: input.email,
-          passwordHash,
-          role: input.role,
-        },
-      });
-    }
-
-    await this.prisma.merchantTeamMember.upsert({
-      where: { merchantId_userId: { merchantId: input.merchant_id, userId: user.id } },
-      create: {
-        merchantId: input.merchant_id,
-        userId: user.id,
-        role: input.role,
-        invitedBy: input.invited_by,
-      },
-      update: { role: input.role },
-    });
-
-    await this.prisma.merchantInvite.update({
-      where: { id: invite.id },
-      data: { status: "ACCEPTED" },
+    const expiresAt = new Date(Date.now() + 7 * 24 * 3600 * 1000);
+    const { merchant, invite } = await this.prisma.$transaction(async tx => {
+      await lockTeam(tx, input.merchant_id);
+      const actor = await requireTeamManager(tx, input.merchant_id, input.invited_by);
+      if (role === "OWNER" && actor !== "OWNER") throw new ForbiddenException("only_owner_can_promote_to_owner");
+      const merchant = await tx.merchant.findUniqueOrThrow({ where: { id: input.merchant_id } });
+      const existing = await tx.merchantUser.findUnique({ where: { email } });
+      if (existing && existing.merchantId !== input.merchant_id) throw new BadRequestException("email_belongs_to_another_merchant");
+      if (existing && !existing.disabledAt) throw new BadRequestException("user_already_member");
+      if (existing) await tx.$queryRaw`SELECT id FROM merchant_users WHERE id = ${existing.id} FOR UPDATE`;
+      const user = existing ? await tx.merchantUser.update({ where: { id: existing.id }, data: { disabledAt: null, passwordHash, role: role.toLowerCase(), authVersion: { increment: 1 } } }) :
+        await tx.merchantUser.create({ data: { merchantId: input.merchant_id, email, passwordHash, role: role.toLowerCase() } });
+      await revokeUserSessions(tx, user.id);
+      await tx.merchantTeamMember.upsert({ where: { merchantId_userId: { merchantId: input.merchant_id, userId: user.id } },
+        create: { merchantId: input.merchant_id, userId: user.id, role, invitedBy: input.invited_by }, update: { role, invitedBy: input.invited_by } });
+      const invite = await tx.merchantInvite.create({ data: { merchantId: input.merchant_id, email, role, invitedBy: input.invited_by, expiresAt, status: "ACCEPTED" } });
+      return { merchant, invite };
     });
 
     const dashboardUrl = process.env.DASHBOARD_URL || "http://localhost:5175";
-    void this.sendWelcomeEmail(input.email, input.name || input.email, merchant.name, provisionalPassword, input.role, dashboardUrl);
+    await this.sendWelcomeEmail(email, input.name || input.email, merchant.name, provisionalPassword, input.role, dashboardUrl);
 
     return {
       invite_id: invite.id,

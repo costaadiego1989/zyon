@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Ip, Post, Req, Res, UnauthorizedException } from "@nestjs/common";
+import { Body, Controller, HttpCode, Ip, Post, Req, Res, UnauthorizedException, ServiceUnavailableException } from "@nestjs/common";
 import {
   ApiOperation,
   ApiResponse,
@@ -151,7 +151,7 @@ export class AuthController {
   @Post("refresh")
   @ApiOperation({
     summary: "Refresh access token",
-    description: "Issue a new access token using an existing valid token from Bearer header or auth cookie. Returns new token with updated expiration.",
+    description: "Rotate a persisted session using the current Bearer token or auth cookie, including recently expired access tokens within the original refresh horizon. Each token can be consumed once.",
   })
   @ApiResponse({
     status: 201,
@@ -160,8 +160,11 @@ export class AuthController {
       type: "object",
       properties: {
         merchant_id: { type: "string", example: "cm123merchant" },
-        token: { type: "string", description: "New JWT access token" },
-        expires_at: { type: "string", format: "date-time" },
+        user_id: { type: "string" },
+        email: { type: "string", format: "email" },
+        access_token: { type: "string", description: "New JWT access token" },
+        token_type: { type: "string", enum: ["Bearer"] },
+        expires_in: { type: "integer", description: "Access token lifetime in seconds" },
       },
     },
   })
@@ -169,7 +172,7 @@ export class AuthController {
     status: 401,
     description: "Token missing, invalid, or expired. No valid refresh possible.",
   })
-  refresh(
+  async refresh(
     @Req() request: { headers?: { cookie?: string; authorization?: string } },
     @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void }
   ) {
@@ -184,11 +187,15 @@ export class AuthController {
     }
 
     try {
-      const auth = this.refreshToken.execute(token);
+      const auth = await this.refreshToken.execute(token);
       response.setHeader("Set-Cookie", this.cookies.create(auth));
       return auth;
-    } catch {
-      throw new UnauthorizedException("refresh_failed");
+    } catch (error) {
+      const rejected = new Set(["jwt_expired", "jwt_invalid_signature", "jwt_invalid_claims", "jwt_invalid_header",
+        "jwt_invalid_role", "jwt_malformed", "jwt_wrong_audience", "jwt_missing_merchant_id", "jwt_session_invalid",
+        "jwt_refresh_replayed", "jwt_refresh_window_expired"]);
+      if (error instanceof Error && rejected.has(error.message)) throw new UnauthorizedException("refresh_failed");
+      throw new ServiceUnavailableException("auth_session_store_unavailable");
     }
   }
 
@@ -202,8 +209,23 @@ export class AuthController {
     status: 204,
     description: "Logged out successfully. Auth cookie cleared.",
   })
-  logout(@Res({ passthrough: true }) response: { setHeader(name: string, value: string): void }) {
-    response.setHeader("Set-Cookie", this.cookies.clear());
+  async logout(
+    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
+    @Req() request: { headers?: { cookie?: string; authorization?: string } },
+  ) {
+    const header = request.headers?.authorization;
+    const token = header?.startsWith("Bearer ") ? header.slice(7) : this.cookies.read(request.headers?.cookie);
+    try {
+      if (token) await this.refreshToken.logout(token);
+    } catch (error) {
+      if (error instanceof Error && (error.message.startsWith("jwt_invalid_") ||
+        ["jwt_malformed", "jwt_wrong_audience", "jwt_missing_merchant_id"].includes(error.message))) {
+        throw new UnauthorizedException("invalid_bearer_token");
+      }
+      throw error;
+    } finally {
+      response.setHeader("Set-Cookie", this.cookies.clear());
+    }
   }
 
   @Post("forgot-password")

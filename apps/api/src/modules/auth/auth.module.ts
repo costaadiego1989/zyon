@@ -9,7 +9,7 @@ import { RegisterMerchantUseCase } from "./application/register-merchant.use-cas
 import { RefreshTokenUseCase } from "./application/refresh-token.use-case.js";
 import { RequestPasswordResetUseCase } from "./application/request-password-reset.use-case.js";
 import { ResetPasswordUseCase } from "./application/reset-password.use-case.js";
-import { AUTH_REPOSITORY } from "./domain/ports/auth-repository.port.js";
+import { AUTH_REPOSITORY, type AuthRepository } from "./domain/ports/auth-repository.port.js";
 import { MERCHANT_ID_GENERATOR, DefaultMerchantIdGenerator } from "./domain/ports/merchant-id-generator.port.js";
 import { OAUTH_PROVIDER_PORT } from "./domain/ports/oauth-provider.port.js";
 import { RATE_LIMITER } from "./domain/ports/rate-limiter.port.js";
@@ -41,7 +41,7 @@ import { TenantRoleGuard } from "./presentation/tenant-role.guard.js";
     OAuthCallbackUseCase,
     // Domain services
     PasswordHasher,
-    JwtService,
+    { provide: JwtService, useFactory: (repository: AuthRepository) => new JwtService(undefined, undefined, repository), inject: [AUTH_REPOSITORY] },
     AuthCookieService,
     // Guards
     AuthGuard,

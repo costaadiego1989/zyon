@@ -42,6 +42,7 @@ export class OAuthCallbackUseCase {
     // 2. Check if user already exists by email
     const existingUser = await this.repository.findUserByEmail(email);
 
+    if (existingUser?.disabledAt) throw new BadRequestException("account_disabled");
     if (existingUser) {
       // Link OAuth provider if not already linked
       if (!existingUser.oauthProvider) {

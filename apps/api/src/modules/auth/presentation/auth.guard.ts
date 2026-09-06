@@ -1,3 +1,5 @@
+import { ForbiddenException } from "@nestjs/common";
+import { requireStaffAccess } from "./staff-access.js";
 import { CanActivate, ExecutionContext, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
 import {
   setTenantPrincipal,
@@ -20,7 +22,7 @@ export class AuthGuard implements CanActivate {
     private readonly cookies: AuthCookieService
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     // L1: Narrow header type — handle array case
     const header = request.headers?.authorization;
@@ -32,11 +34,12 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException("missing_bearer_token");
     }
     try {
-      const user = this.jwt.verify(token);
+      const user = await this.jwt.authenticate(token);
       // B1 (P0): Guarantee tenantId is non-empty before any query
       if (!user.merchantId) {
         throw new UnauthorizedException("invalid_bearer_token");
       }
+      requireStaffAccess(context, user.role);
       request.user = user;
       setTenantPrincipal(request as TenantPrincipalRequest, {
         kind: "human",
@@ -47,8 +50,11 @@ export class AuthGuard implements CanActivate {
       });
       return true;
     } catch (err: unknown) {
+      if (err instanceof ForbiddenException) throw err;
       // M4: Preserve JWT error code in structured log
-      const errorCode = err instanceof Error ? err.message : String(err);
+      const knownErrors = new Set(["jwt_expired", "jwt_invalid_signature", "jwt_invalid_claims", "jwt_invalid_header",
+        "jwt_invalid_role", "jwt_malformed", "jwt_wrong_audience", "jwt_missing_merchant_id", "jwt_session_invalid"]);
+      const errorCode = err instanceof Error && knownErrors.has(err.message) ? err.message : "auth_session_lookup_failed";
       logger.debug(`JWT verification failed: ${errorCode}`);
       throw new UnauthorizedException("invalid_bearer_token");
     }
@@ -62,5 +68,5 @@ export class AuthGuard implements CanActivate {
  */
 export function currentUser(request: { user?: unknown }) {
   if (!request.user) throw new UnauthorizedException("missing_authenticated_user");
-  return request.user as { userId: string; merchantId: string; email: string; role: "owner" | "admin" };
+  return request.user as { userId: string; merchantId: string; email: string; role: "owner" | "admin" | "staff" };
 }

@@ -16,7 +16,7 @@ const JWT_SECRET = "athom-tech-jwt-secret";
 test("tenant onboarding: register Athom Tech → login → issue embed session", async () => {
   const repository = new InMemoryAuthRepository();
   const hasher = new PasswordHasher();
-  const jwt = new JwtService(JWT_SECRET, 3600);
+  const jwt = new JwtService(JWT_SECRET, 3600, repository);
   const embedTokens = new EmbedTokenService({ value: EMBED_SECRET });
   const idGen = new DefaultMerchantIdGenerator();
 
@@ -67,7 +67,7 @@ test("tenant onboarding: register Athom Tech → login → issue embed session",
 test("tenant onboarding: duplicate email rejected", async () => {
   const repository = new InMemoryAuthRepository();
   const hasher = new PasswordHasher();
-  const jwt = new JwtService(JWT_SECRET, 3600);
+  const jwt = new JwtService(JWT_SECRET, 3600, repository);
   const idGen = new DefaultMerchantIdGenerator();
   const register = new RegisterMerchantUseCase(repository, hasher, jwt, idGen);
 

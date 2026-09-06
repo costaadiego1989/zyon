@@ -1,3 +1,4 @@
+import { RequireTenantRoles } from "../../../auth/presentation/tenant-role.decorator.js";
 import {
   Body,
   Controller,
@@ -18,6 +19,7 @@ import { ListTicketMessagesUseCase } from "../../application/list-ticket-message
 @ApiTags("Support")
 @UseGuards(TenantCredentialGuard, TenantAccessGuard)
 @Controller("support/tickets")
+@RequireTenantRoles("owner", "admin", "staff")
 export class SupportMessagesController {
   constructor(
     private readonly sendMessage: SendTicketMessageUseCase,

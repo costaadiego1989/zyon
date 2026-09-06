@@ -74,7 +74,7 @@ export class SupportGateway implements OnGatewayConnection, OnGatewayDisconnect 
       return { kind: "buyer", merchantId: claims.merchantId, ticketId: claims.resourceId, expiresAt: claims.expiresAt };
     }
     if (origin !== undefined && !isRealtimeOriginAllowed(origin)) throw new Error("origin_not_allowed");
-    const user = this.jwt.verify(credential.token);
+    const user = await this.jwt.authenticate(credential.token);
     const payload = JSON.parse(Buffer.from(credential.token.split(".")[1]!, "base64url").toString("utf8")) as { exp?: number };
     if (!isRealtimeId(user.userId) || !isRealtimeId(user.merchantId) || !Number.isSafeInteger(payload.exp) ||
       payload.exp! <= Math.floor(Date.now() / 1000) || payload.exp! * 1000 - Date.now() > 2147483647) throw new Error("invalid_principal");
