@@ -55,7 +55,7 @@ export class OAuthCallbackUseCase {
       }
       const merchant = await this.repository.findMerchantById(existingUser.merchantId);
       return {
-        ...toAuthResponse(existingUser, this.jwt),
+        ...(await toAuthResponse(existingUser, this.jwt)),
         onboarding_required: merchant?.oauthRegistrationPending === true,
         profile: { name: merchant?.ownerName || profile.name || "", email },
       };
@@ -75,7 +75,7 @@ export class OAuthCallbackUseCase {
     });
 
     return {
-      ...toAuthResponse(created.user, this.jwt),
+      ...(await toAuthResponse(created.user, this.jwt)),
       onboarding_required: true,
       profile: { name: profile.name || "", email },
     };

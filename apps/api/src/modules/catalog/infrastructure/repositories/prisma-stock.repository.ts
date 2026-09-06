@@ -127,4 +127,36 @@ export class PrismaStockRepository implements StockRepositoryPort {
     const stock = await this.prisma.productStock.findFirst({ where: { variantId }, orderBy: { id: "asc" } });
     return { quantity: stock?.quantity ?? 0, reserved: stock?.reserved ?? 0 };
   }
+
+  async decrementBySku(merchantId: string, sku: string, quantity: number): Promise<{ ok: boolean; quantity?: number }> {
+    if (!Number.isSafeInteger(quantity) || quantity <= 0) return { ok: false };
+    const variant = await this.prisma.productVariant.findFirst({
+      where: { sku, product: { merchantId } }, select: { id: true },
+    });
+    if (!variant) return { ok: false };
+    const updated = await this.prisma.productStock.updateMany({
+      where: { variantId: variant.id, quantity: { gte: quantity } },
+      data: { quantity: { decrement: quantity } },
+    });
+    if (updated.count !== 1) return { ok: false };
+    const stock = await this.prisma.productStock.findFirst({ where: { variantId: variant.id }, orderBy: { id: "asc" } });
+    return { ok: true, quantity: stock?.quantity };
+  }
+
+  async getStockBySku(merchantId: string, sku: string): Promise<{ variantId: string; quantity: number; reserved: number } | null> {
+    const variant = await this.prisma.productVariant.findFirst({
+      where: { sku, product: { merchantId } }, select: { id: true, stock: { orderBy: { id: "asc" }, take: 1 } },
+    });
+    if (!variant) return null;
+    const stock = variant.stock[0];
+    return { variantId: variant.id, quantity: stock?.quantity ?? 0, reserved: stock?.reserved ?? 0 };
+  }
+
+  async setQuantityBySku(merchantId: string, sku: string, quantity: number): Promise<{ ok: boolean }> {
+    if (!Number.isSafeInteger(quantity) || quantity < 0) return { ok: false };
+    const updated = await this.prisma.productStock.updateMany({
+      where: { variant: { sku, product: { merchantId } }, reserved: { lte: quantity } }, data: { quantity },
+    });
+    return { ok: updated.count > 0 };
+  }
 }

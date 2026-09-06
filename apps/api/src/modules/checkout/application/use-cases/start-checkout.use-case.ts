@@ -66,7 +66,6 @@ export class StartCheckoutUseCase {
     // checkout conversation; BuyerRecognition upgrades it only after OTP proof.
     const { globalUserId } = await this.buyerResolution.resolve({
       ...input,
-      global_user_id: undefined,
       customer: undefined
     });
     const enrichedInput = input;

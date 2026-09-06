@@ -40,8 +40,8 @@ export class StoreBuilderCatalogController {
     private readonly generateProductSeo: GenerateProductSeoUseCase,
     private readonly s3: S3UploadService,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
-    @Optional() @Inject(DOMAIN_EVENT_BUS) private readonly eventBus?: DomainEventBus,
     private readonly variants: CatalogVariantService,
+    @Optional() @Inject(DOMAIN_EVENT_BUS) private readonly eventBus?: DomainEventBus,
   ) {}
 
   @Post(":mid/products")

@@ -18,7 +18,6 @@ import { ChangePasswordUseCase } from "./application/change-password.use-case.js
 import { RequestEmailChangeUseCase } from "./application/request-email-change.use-case.js";
 import { ConfirmEmailChangeUseCase } from "./application/confirm-email-change.use-case.js";
 import { EmailChangeRateLimiter } from "./domain/services/email-change-rate-limiter.service.js";
-import { AUTH_REPOSITORY } from "./domain/ports/auth-repository.port.js";
 import {
   EMAIL_CHANGE_OTP_STORE,
 } from "./domain/ports/email-change-otp-store.port.js";

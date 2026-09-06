@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Inject, NotFoundException, Optional, Param, Patch, Post, Query, Req, Res, UnauthorizedException, UseGuards } from "@nestjs/common";
+﻿import { BadRequestException, Body, Controller, ForbiddenException, Get, Inject, NotFoundException, Optional, Param, Patch, Post, Query, Req, Res, UnauthorizedException, UseGuards } from "@nestjs/common";
 import { RealtimeCapabilityService } from "../../../../shared/auth/realtime-capability.js";
 import type { PrismaClient } from "@prisma/client";
 import { NonProductionRoute, ProductionRoute } from "../../../../shared/http/non-production-route.js";
@@ -50,8 +50,8 @@ export class StorefrontController {
     private readonly addMarketplaceItem: AddMarketplaceItemToCartStorefrontUseCase,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     @Inject(STOREFRONT_CART_PORT) private readonly cartRepo: StorefrontCartPort,
-    @Optional() @Inject(PRODUCT_PROMOTION_REPOSITORY) private readonly productPromotionRepo?: ProductPromotionRepositoryPort,
     @Inject(RealtimeCapabilityService) private readonly capabilities: RealtimeCapabilityService,
+    @Optional() @Inject(PRODUCT_PROMOTION_REPOSITORY) private readonly productPromotionRepo?: ProductPromotionRepositoryPort,
   ) {}
 
   @Get("index")
@@ -85,7 +85,7 @@ export class StorefrontController {
       const match = all.find((m) => {
         const settings = m.storeSettings as { slug?: string } | null;
         if (settings?.slug === slug) return true;
-        const slugified = m.name.toLowerCase().normalize("NFD").replace(/[Ì€-Í¯]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+        const slugified = m.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
         return slugified === slug;
       });
       if (match) merchant = { id: match.id };
@@ -128,7 +128,7 @@ export class StorefrontController {
       const match = all.find((m) => {
         const settings = m.storeSettings as { slug?: string } | null;
         if (settings?.slug === slug) return true;
-        const slugified = m.name.toLowerCase().normalize("NFD").replace(/[Ì€-Í¯]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+        const slugified = m.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
         return slugified === slug;
       });
       if (match) merchant = { id: match.id };
@@ -308,7 +308,7 @@ export class StorefrontController {
         }
       }
     } catch (err) {
-      // Non-critical â€” never block storefront
+      // Non-critical; never block storefront.
     }
 
     return { tracked: true, event: body.event, conversation_id: conversationId };
@@ -370,7 +370,7 @@ export class StorefrontController {
   ) {
     if (!merchantId) throw new NotFoundException("merchantId query param required");
     const cart = await this.cartRepo.getOrCreate(merchantId, cartId);
-    // Apply product-promo pricing on read (idempotent â€” base price is fresh from DB).
+    // Apply product-promo pricing on read; base price is fresh from DB.
     const promoMeta = await applyProductPromoPricing(this.productPromotionRepo, merchantId, cart);
     return {
       cartId: cart.sessionId,

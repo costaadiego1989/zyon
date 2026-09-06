@@ -17,7 +17,7 @@ function makeController(): AuthController {
 test("AuthController.logout clears the auth cookie", () => {
   const controller = makeController();
   const headers = new Map<string, string>();
-  controller.logout({ setHeader(name: string, value: string) { headers.set(name, value); } });
+  void controller.logout({ setHeader(name: string, value: string) { headers.set(name, value); } }, {});
   assert.equal(headers.get("Set-Cookie"), "aacp_access_token=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0");
 });
 

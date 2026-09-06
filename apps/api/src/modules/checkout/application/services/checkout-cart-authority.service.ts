@@ -81,11 +81,12 @@ export class CheckoutCartAuthorityService {
       let priceCents = variant.price.basePriceInCents;
       for (const promotion of promotions) {
         if (promotion.variantId !== variant.id && (!variant.product.categoryId || promotion.categoryId !== variant.product.categoryId)) continue;
-        if (!["percent", "fixed"].includes(promotion.discountType) || promotion.discountValue < 0) {
+        if ((promotion.discountType !== "percent" && promotion.discountType !== "fixed") ||
+          !Number.isFinite(promotion.discountValue) || promotion.discountValue < 0) {
           throw new BadRequestException("checkout_product_promotion_invalid");
         }
         const resolved = resolveEffectivePrice(variant.price.basePriceInCents, {
-          discountType: promotion.discountType as "percent" | "fixed",
+          discountType: promotion.discountType,
           discountValue: promotion.discountValue,
           isActive: true,
         }, null);
