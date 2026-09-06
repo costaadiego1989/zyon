@@ -11,34 +11,34 @@ function makeServices() {
   const repo = new InMemoryBuyerAccountRepository();
   const otpStore = new InMemoryOtpStore();
   const jwt = new BuyerJwtService("buyer-test-secret", 3600);
-  const send = new SendBuyerPhoneCodeUseCase(otpStore);
+  const delivered: string[] = [];
+  const send = new SendBuyerPhoneCodeUseCase(otpStore, { async send(_phone, message) { delivered.push(message); } });
   const verify = new VerifyBuyerPhoneCodeUseCase(repo, otpStore, jwt);
-  return { repo, otpStore, jwt, send, verify };
+  return { repo, otpStore, jwt, send, verify, delivered };
 }
 
 // B3 (P1) regression: OTP must be stored in the injected OtpStore (not a
 // module-level Map) so it is accessible after send and consumable after verify.
 test("OTP flow: send stores code, verify consumes it and returns JWT (B3 P1 regression)", async () => {
-  const { send, verify, otpStore } = makeServices();
+  const { send, verify, otpStore, delivered } = makeServices();
   const phone = "5511999990001";
 
   await send.execute({ phone });
-  const record = await otpStore.findActive(phone);
+  const record = await otpStore.findActive(`BR:${phone}`);
   assert.ok(record, "OTP record must be stored in OtpStore after send");
   assert.ok(record.codeHash, "OTP must be stored as a hash, not plaintext");
-
-  // Derive the code hash from the store record to simulate a valid OTP delivery.
-  // In production the code would be delivered via SMS — here we inject it via
-  // the store's hash to test without knowing the plaintext.
-  // We can verify the OTP by testing the lock-out path instead.
 
   // Wrong code increments attempts.
   await assert.rejects(
     () => verify.execute({ phone, code: "000000" }),
     UnauthorizedException
   );
-  const afterFailure = await otpStore.findActive(phone);
+  const afterFailure = await otpStore.findActive(`BR:${phone}`);
   assert.equal(afterFailure?.attempts, 1, "attempt counter must increment on failure");
+  const code = delivered[0]!.match(/\d{6}/)![0];
+  const result = await verify.execute({ phone, code });
+  assert.ok(result.accessToken, "the delivered OTP authenticates the buyer");
+  assert.equal(await otpStore.findActive(`BR:${phone}`), null, "successful verification consumes the challenge");
 });
 
 // B2 (P0) regression: 5 wrong attempts must lock the OTP (prevent brute force).
@@ -80,7 +80,7 @@ test("OTP is stored as hash, not plaintext (B4 P2 regression)", async () => {
   const phone = "5511999990003";
 
   await send.execute({ phone });
-  const record = await otpStore.findActive(phone);
+  const record = await otpStore.findActive(`BR:${phone}`);
   assert.ok(record, "OTP record must exist");
 
   // codeHash must be a hex sha256 (64 chars), not a 6-digit code.

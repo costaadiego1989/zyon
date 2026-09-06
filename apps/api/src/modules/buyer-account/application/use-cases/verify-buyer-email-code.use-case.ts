@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { OTP_STORE, type OtpStore } from "../../domain/ports/otp-store.port.js";
 
@@ -9,8 +9,6 @@ export interface VerifyBuyerEmailCodeRequest {
 
 @Injectable()
 export class VerifyBuyerEmailCodeUseCase {
-  private readonly logger = new Logger(VerifyBuyerEmailCodeUseCase.name);
-
   constructor(
     @Inject(OTP_STORE) private readonly otpStore: OtpStore,
   ) {}
@@ -31,6 +29,7 @@ export class VerifyBuyerEmailCodeUseCase {
     if (new Date() > stored.expiresAt) {
       throw new UnauthorizedException("otp_expired");
     }
+    if (stored.attempts >= stored.maxAttempts) throw new UnauthorizedException("otp_locked");
 
     const codeHash = createHash("sha256").update(input.code.trim()).digest("hex");
     if (codeHash !== stored.codeHash) {
@@ -41,7 +40,6 @@ export class VerifyBuyerEmailCodeUseCase {
     // Mark as consumed
     await this.otpStore.consume(key);
 
-    this.logger.log(`Email verified: ${email}`);
     return { verified: true };
   }
 }

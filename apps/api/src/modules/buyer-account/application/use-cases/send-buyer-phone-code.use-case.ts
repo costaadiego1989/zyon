@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, Logger, Optional } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Optional, ServiceUnavailableException } from "@nestjs/common";
 import { createHash, randomInt } from "node:crypto";
 import { OTP_STORE, type OtpStore } from "../../domain/ports/otp-store.port.js";
 import { SMS_PROVIDER, type SmsSender } from "../../domain/ports/sms.port.js";
@@ -8,65 +8,39 @@ export interface SendBuyerPhoneCodeRequest {
   countryCode?: string;
 }
 
-const OTP_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const OTP_TTL_MS = 5 * 60 * 1000;
 
 @Injectable()
 export class SendBuyerPhoneCodeUseCase {
-  private readonly logger = new Logger(SendBuyerPhoneCodeUseCase.name);
-
   constructor(
     @Inject(OTP_STORE) private readonly otpStore: OtpStore,
-    @Optional() @Inject(SMS_PROVIDER) private readonly sms?: SmsSender
+    @Optional() @Inject(SMS_PROVIDER) private readonly sms?: SmsSender,
   ) {}
 
-  async execute(input: SendBuyerPhoneCodeRequest): Promise<{ sent: boolean; delivered_to: string; dev_code?: string }> {
+  async execute(input: SendBuyerPhoneCodeRequest): Promise<{ sent: true; delivered_to: string }> {
+    if (typeof input.phone !== "string") throw new BadRequestException("phone_invalid_length");
     const normalized = input.phone.replace(/\D/g, "");
     const countryCode = input.countryCode ?? "BR";
-
-    if (normalized.length < 8 || normalized.length > 15) {
-      throw new BadRequestException("phone_invalid_length");
-    }
-
-    const phoneKey = `${countryCode}:${normalized}`;
-
-    // If there's already an active (non-expired, non-consumed) OTP, resend the same code.
-    const existing = await this.otpStore.findActive(phoneKey);
-    if (existing) {
-      this.logger.log(`[OTP] Active OTP exists for ***${normalized.slice(-4)}, resending delivery`);
-      // Re-deliver via SMS/WhatsApp (user might not have received the first one)
-      if (this.sms) {
-        // We can't recover the plain code from hash, so generate a new one
-        const code = String(randomInt(100000, 1000000));
-        const codeHash = createHash("sha256").update(code).digest("hex");
-        const expiresAt = new Date(Date.now() + OTP_TTL_MS);
-        await this.otpStore.save({ phone: phoneKey, codeHash, maxAttempts: 5, expiresAt });
-        this.logger.warn(`[OTP-PHONE] code=${code} phone=${normalized} (resend)`);
-        await this.sms.send(normalized, `Your verification code: ${code}`);
-      }
-      return {
-        sent: true,
-        delivered_to: `***${normalized.slice(-4)}`,
-      };
-    }
+    if (normalized.length < 8 || normalized.length > 15) throw new BadRequestException("phone_invalid_length");
+    if (!this.sms) throw new ServiceUnavailableException("otp_sms_unavailable");
 
     const code = String(randomInt(100000, 1000000));
-    const codeHash = createHash("sha256").update(code).digest("hex");
-    const expiresAt = new Date(Date.now() + OTP_TTL_MS);
-
-    await this.otpStore.save({ phone: phoneKey, codeHash, maxAttempts: 5, expiresAt });
-    this.logger.warn(`[OTP-PHONE] code=${code} phone=${normalized} expires=${expiresAt.toISOString()}`);
-
-    if (this.sms) {
+    try {
       await this.sms.send(normalized, `Your verification code: ${code}`);
-    } else {
-      this.logger.warn(`[OTP] SMS provider not configured; code=${code} for phone=***${normalized.slice(-4)}`);
+    } catch (error) {
+      // A sender exception may include the message or recipient. Expose only stable codes.
+      const unavailable = error instanceof ServiceUnavailableException && error.message === "otp_sms_unavailable";
+      throw new ServiceUnavailableException(unavailable ? "otp_sms_unavailable" : "otp_sms_delivery_failed");
     }
 
-    const isDev = process.env.NODE_ENV !== "production";
-    return {
-      sent: true,
-      delivered_to: `***${normalized.slice(-4)}`,
-      ...(isDev && !this.sms ? { dev_code: code } : {}),
-    };
+    // Only accepted delivery activates the new challenge. A failed resend leaves
+    // the previous delivered challenge and its attempts/expiry unchanged.
+    await this.otpStore.save({
+      phone: `${countryCode}:${normalized}`,
+      codeHash: createHash("sha256").update(code).digest("hex"),
+      maxAttempts: 5,
+      expiresAt: new Date(Date.now() + OTP_TTL_MS),
+    });
+    return { sent: true, delivered_to: `***${normalized.slice(-4)}` };
   }
 }

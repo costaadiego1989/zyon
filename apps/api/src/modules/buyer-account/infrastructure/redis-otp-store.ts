@@ -17,7 +17,7 @@ export class RedisOtpStore implements OtpStore {
     const ttlSeconds = Math.ceil((record.expiresAt.getTime() - Date.now()) / 1000);
 
     if (ttlSeconds <= 0) {
-      this.logger.warn(`[OTP Redis] skipping expired OTP for ${record.phone}`);
+      this.logger.warn("otp_store.expired_record_rejected");
       return;
     }
 
@@ -32,7 +32,6 @@ export class RedisOtpStore implements OtpStore {
 
     // Store as JSON with SETEX for automatic expiration
     await this.redis.setex(key, ttlSeconds, JSON.stringify(data));
-    this.logger.debug(`[OTP Redis] saved ${record.phone} with ${ttlSeconds}s TTL`);
   }
 
   async findActive(phone: string, now = new Date()): Promise<OtpRecord | null> {
@@ -40,7 +39,6 @@ export class RedisOtpStore implements OtpStore {
     const raw = await this.redis.get(key);
 
     if (!raw) {
-      this.logger.debug(`[OTP Redis] no record found for ${phone}`);
       return null;
     }
 
@@ -49,20 +47,18 @@ export class RedisOtpStore implements OtpStore {
 
       // Check expiry
       if (record.expiresAt && new Date(record.expiresAt) <= now) {
-        this.logger.debug(`[OTP Redis] record expired for ${phone}`);
         await this.redis.del(key);
         return null;
       }
 
       // Check if consumed
       if (record.consumedAt) {
-        this.logger.debug(`[OTP Redis] record already consumed for ${phone}`);
         return null;
       }
 
       return record;
-    } catch (err) {
-      this.logger.error(`[OTP Redis] failed to parse record for ${phone}`, { error: err });
+    } catch {
+      this.logger.error("otp_store.invalid_record");
       await this.redis.del(key);
       return null;
     }
@@ -73,7 +69,6 @@ export class RedisOtpStore implements OtpStore {
     const raw = await this.redis.get(key);
 
     if (!raw) {
-      this.logger.debug(`[OTP Redis] no record found for incrementing attempts on ${phone}`);
       return null;
     }
 
@@ -86,14 +81,14 @@ export class RedisOtpStore implements OtpStore {
       if (ttl > 0) {
         await this.redis.setex(key, ttl, JSON.stringify(record));
       } else {
-        this.logger.warn(`[OTP Redis] key ${phone} has no TTL, deleting`);
+        this.logger.warn("otp_store.missing_ttl");
         await this.redis.del(key);
         return null;
       }
 
       return record;
-    } catch (err) {
-      this.logger.error(`[OTP Redis] failed to increment attempts for ${phone}`, { error: err });
+    } catch {
+      this.logger.error("otp_store.increment_failed");
       return null;
     }
   }
@@ -103,7 +98,6 @@ export class RedisOtpStore implements OtpStore {
     const raw = await this.redis.get(key);
 
     if (!raw) {
-      this.logger.debug(`[OTP Redis] no record found to consume for ${phone}`);
       return;
     }
 
@@ -116,11 +110,10 @@ export class RedisOtpStore implements OtpStore {
       if (ttl > 0) {
         await this.redis.setex(key, ttl, JSON.stringify(record));
       } else {
-        this.logger.debug(`[OTP Redis] key ${phone} already expired, deleting`);
         await this.redis.del(key);
       }
-    } catch (err) {
-      this.logger.error(`[OTP Redis] failed to consume OTP for ${phone}`, { error: err });
+    } catch {
+      this.logger.error("otp_store.consume_failed");
     }
   }
 
