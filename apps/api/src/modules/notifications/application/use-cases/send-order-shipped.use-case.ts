@@ -24,6 +24,7 @@ export class SendOrderShippedUseCase {
         to: event.buyerEmail,
         subject: `📦 Seu pedido está a caminho!`,
         html,
+        requireDelivery: true,
       });
     } else {
       this.logger.warn(`Skipping shipped email for order ${event.orderId}: no buyer email`);

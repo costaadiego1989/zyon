@@ -35,6 +35,7 @@ export class BubbleWhatsAdapter implements WhatsAppSenderPort {
           jid,
           message: msg.message,
         }),
+        signal: AbortSignal.timeout(15_000),
       });
     } catch (err) {
       // Network/transport failure — throw so the queue worker retries with backoff.

@@ -17,6 +17,7 @@ export class SendReturnApprovedUseCase {
       to: event.buyerEmail,
       subject: `Sua Devolução Foi Aprovada`,
       html,
+      requireDelivery: true,
     });
   }
 }

@@ -219,6 +219,7 @@ import "./modules/cart-recovery/__tests__/recovery-channel-flow.spec.js";
 import "./modules/cart-recovery/__tests__/recovery-test-send.spec.js";
 import "./modules/cart-recovery/__tests__/list-recovery-attempts.spec.js";
 import "./modules/notifications/infrastructure/adapters/bubblewhats.adapter.spec.js";
+import "./modules/notifications/application/use-cases/notification-delivery.use-cases.spec.js";
 import "./modules/whatsapp-templates/application/use-cases/send-whatsapp-message.spec.js";
 import "./modules/whatsapp-templates/application/use-cases/recovery-channel-routing.spec.js";
 import "./modules/auth/application/recovery-template-signup.spec.js";

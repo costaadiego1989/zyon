@@ -24,6 +24,7 @@ export class SendOrderDeliveredUseCase {
         to: event.buyerEmail,
         subject: `✅ Seu pedido foi entregue!`,
         html,
+        requireDelivery: true,
       });
     } else {
       this.logger.warn(`Skipping delivered email for order ${event.orderId}: no buyer email`);

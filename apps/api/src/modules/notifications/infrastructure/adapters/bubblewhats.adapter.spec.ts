@@ -63,6 +63,7 @@ test("BubbleWhats reports acceptance only after a successful gateway response", 
   assert.deepEqual(options?.headers, {
     Authorization: "fake-test-token", "Content-Type": "application/json",
   });
+  assert.ok(options?.signal instanceof AbortSignal);
   assert.deepEqual(JSON.parse(String(options?.body)), {
     jid: "5511999990000@s.whatsapp.net", message: "Test only",
   });

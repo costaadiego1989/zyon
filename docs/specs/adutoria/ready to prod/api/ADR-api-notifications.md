@@ -89,6 +89,14 @@ Nenhuma rota HTTP declarada; avaliar consumo interno, eventos/jobs ou ausência 
 
 Decisão: bloquear a liberação da capacidade afetada até cumprir o critério de aceite. Correção ainda não implementada nesta auditoria.
 
+### Atualização pós-auditoria — 2026-09-06
+
+O commit `b67e320` passou a distinguir aceite, configuração ausente e falha de transporte nos adaptadores. Esta correção completa o uso desse contrato nas quatro notificações transacionais: confirmação, envio, entrega e devolução aprovada agora passam `requireDelivery: true`; portanto, o fallback de desenvolvimento não pode ser tratado como entrega. BubbleWhats também recebeu deadline de 15 segundos.
+
+Os testes focalizados cobrem configuração ausente, aceite com identificador de provedor, identificador ausente, HTTP 503, falha de transporte, timeout e o uso obrigatório do modo estrito por todos os quatro casos de uso. A compilação da API passou. Esses testes validam a decisão local do adaptador; não verificam credenciais, entrega real nem métricas em produção.
+
+O status de API-024 passa para `IMPLEMENTED_LOCAL_VALIDATION`. O gate permanece aberto: retry idempotente, recibo persistido, alerta e a exclusividade do outbox dependem das pendências de mensageria, especialmente API-016.
+
 
 ## Reavaliação
 

@@ -26,6 +26,7 @@ export class SendOrderConfirmationUseCase {
           ? `✅ ${event.merchantName} — pedido confirmado, estamos preparando!`
           : `✅ Pedido #${event.orderNumber} confirmado — estamos preparando!`,
         html,
+        requireDelivery: true,
       });
     } else {
       this.logger.warn(`Skipping confirmation email for order ${event.orderNumber}: no buyer email`);
