@@ -11,6 +11,11 @@ import type { WhatsAppConfigRepository, WhatsAppChannelConfigEntity } from "../.
 export class PrismaWhatsAppConfigRepository implements WhatsAppConfigRepository {
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
+  async findById(id: string): Promise<WhatsAppChannelConfigEntity | null> {
+    const row = await (this.prisma as any).whatsAppChannelConfig?.findUnique({ where: { id } });
+    return row ? this.mapToEntity(row) : null;
+  }
+
   async findByDeviceId(deviceId: string): Promise<WhatsAppChannelConfigEntity | null> {
     const row = await (this.prisma as any).whatsAppChannelConfig?.findFirst({
       where: { deviceId },
@@ -28,6 +33,13 @@ export class PrismaWhatsAppConfigRepository implements WhatsAppConfigRepository 
   async findByWhatsAppNumber(whatsappNumber: string): Promise<WhatsAppChannelConfigEntity | null> {
     const row = await (this.prisma as any).whatsAppChannelConfig?.findFirst({
       where: { whatsappNumber },
+    });
+    return row ? this.mapToEntity(row) : null;
+  }
+
+  async findByMetaPhoneNumberId(phoneNumberId: string): Promise<WhatsAppChannelConfigEntity | null> {
+    const row = await (this.prisma as any).whatsAppChannelConfig?.findFirst({
+      where: { credentials: { path: ["phoneNumberId"], equals: phoneNumberId } },
     });
     return row ? this.mapToEntity(row) : null;
   }
