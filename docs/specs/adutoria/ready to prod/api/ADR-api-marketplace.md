@@ -37,6 +37,8 @@ O dashboard tinha ações de envio e entrega que chamavam rotas inexistentes. A 
 
 O build completo da API, o typecheck do dashboard e verificações diretas de ownership, transição inválida e concorrência passaram. DASH-004 deixa de ser pendência de implementação. Isso não libera marketplace para produção: API-006 e API-008 continuam bloqueadores financeiros.
 
+O job de repasses também foi revisado no código atual: ele mantém o settlement em `transfer_scheduled` quando o provedor não está disponível, contabiliza o bloqueio e registra `marketplace_payout_blocked`; não grava `transferred` nem inventa `providerTransferId`. A verificação direta com dois repasses vencidos confirmou zero escrita e zero transferências executadas. API-008 deixa de ser uma conclusão financeira falsa, mas a capacidade de payout permanece indisponível até existir adaptador, idempotência e conciliação de provedor.
+
 ## God services, SOLID, KISS e DRY
 
 | Classe inspecionável | Linhas da classe | Dependências no construtor | Fonte |
@@ -52,7 +54,7 @@ DIP/boundary: revisar os imports acima e os acessos a dados com a matriz global.
 ## Transações, concorrência, segurança e resiliência
 
 - [API-006](<ADR-api-marketplace.md#api-006>) (P0): Chargeback administrativo não recebe nem valida a loja.
-- [API-008](<ADR-api-marketplace.md#api-008>) (P0): Job marca transferência como realizada sem provedor.
+- [API-008](<ADR-api-marketplace.md#api-008>) (P0): correção fail-closed presente; payout com provedor e conciliação continuam bloqueadores.
 - [API-040](<ADR-api-marketplace.md#api-040>) (P2): Fila de catálogo perde identidade e ordenação de evento.
 - [DASH-004](<../dashboard/ADR-dashboard.md#dash-004>) (P1): corrigido em 2026-09-06; envio/entrega usam rotas declaradas, tenant-bound e com transição estrita.
 
@@ -121,7 +123,7 @@ Decisão: bloquear a liberação da capacidade afetada até cumprir o critério 
 
 <a id="api-008"></a>
 
-## API-008 — Job marca transferência como realizada sem provedor
+## API-008 — Job marcava transferência como realizada sem provedor
 
 | Campo | Registro |
 | --- | --- |
@@ -129,18 +131,18 @@ Decisão: bloquear a liberação da capacidade afetada até cumprir o critério 
 | SEVERITY | P0 |
 | MODULE | marketplace |
 | FILE(S) | [apps/api/src/modules/marketplace/application/use-cases/process-scheduled-transfers.use-case.ts:60](<../../../../../apps/api/src/modules/marketplace/application/use-cases/process-scheduled-transfers.use-case.ts#L60>)<br>[apps/api/src/modules/marketplace/infrastructure/jobs/process-transfers.job.ts:1](<../../../../../apps/api/src/modules/marketplace/infrastructure/jobs/process-transfers.job.ts#L1>) |
-| ISSUE | Job marca transferência como realizada sem provedor |
-| EVIDENCE | O processamento de transfer_scheduled muda status para transferred e grava transferredAt sem executar transferência externa ou exigir providerTransferId. |
-| VERIFICATION | CONFIRMED_STATIC |
-| PRODUCTION IMPACT | Dashboard e ledger podem afirmar que o vendedor recebeu valores que nunca foram transferidos. |
+| ISSUE | Job marcava transferência como realizada sem provedor |
+| EVIDENCE | O código atual busca repasses vencidos, registra `marketplace_payout_blocked` e retorna `transfersExecuted: 0`; não chama update de settlement nessa etapa. O agendamento após a janela de devolução segue condicionado por status e pela data calculada. |
+| VERIFICATION | Build da API e verificação direta de dois repasses vencidos confirmaram zero escrita e zero transferências executadas. Integração com PostgreSQL e provedor continua não executada. |
+| PRODUCTION IMPACT | Corrigido o estado financeiro falso: dashboard e ledger não passam a afirmar pagamento sem evidência externa. O saldo permanece pendente, portanto payout real não está disponível. |
 | ROOT CAUSE | Máquina de estados local tratada como prova de liquidação financeira. |
-| RECOMMENDED FIX | Criar port de payout com idempotência, intenção durável e conciliação. Manter scheduled/processing até confirmação externa; honrar payoutDelayDays. |
+| RECOMMENDED FIX | Implementar port de payout com idempotência, intenção durável e conciliação; só então confirmar `transferred` com ID verificado do provedor. |
 | COMPLEXITY | L (S: pequena; M: média; L: ampla, sem estimativa de prazo) |
 | RISK OF CHANGE | Alto |
-| BLOCKS PROD? | YES |
-| CRITÉRIO DE ACEITE | Nenhum transferred sem evidência do provedor; falha/reinício antes e depois do payout converge para uma única transferência. |
+| BLOCKS PROD? | YES para liberar payout de marketplace; NO para impedir a conclusão financeira falsa. |
+| CRITÉRIO DE ACEITE | Parcialmente atendido: não há `transferred` sem evidência do provedor. Falta implementar e provar, em falha/reinício, uma única transferência externa reconciliada. |
 
-Decisão: bloquear a liberação da capacidade afetada até cumprir o critério de aceite. Correção ainda não implementada nesta auditoria.
+Decisão: manter o fail-closed; bloquear a liberação de payout até cumprir o critério de aceite com provedor.
 
 <a id="api-040"></a>
 
