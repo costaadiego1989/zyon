@@ -2,7 +2,6 @@ import type { CheckoutSession } from "@/api/checkout-session";
 
 export interface StripeConfirmRequest {
   paymentIntentId: string;
-  stripePaymentId: string;
 }
 
 export interface CryptoConfirmRequest {
@@ -28,15 +27,8 @@ export async function confirmStripePayment(
   api: CheckoutSession,
   req: StripeConfirmRequest
 ): Promise<ApiResult> {
-  const res = await fetch(
-    `${api.apiBaseUrl}/embed/payment/intents/${req.paymentIntentId}/stripe/confirm`,
-    {
-      method: "POST",
-      headers: authHeaders(api),
-      body: JSON.stringify({ payment_intent_id: req.stripePaymentId }),
-    }
-  );
-  return { ok: res.ok, status: res.status };
+  const result = await api.confirmStripePayment(req.paymentIntentId);
+  return { ok: result.status === "approved", status: result.status === "approved" ? 200 : 409 };
 }
 
 export async function confirmCryptoPayment(

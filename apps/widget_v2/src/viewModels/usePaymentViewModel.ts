@@ -16,14 +16,13 @@ export function usePaymentViewModel(input: PaymentContextInput): PaymentViewMode
   const [success, setSuccess] = useState(false);
 
   const confirmStripePaymentAction = useCallback(
-    async (paymentMethodId: string) => {
+    async (_paymentMethodId: string) => {
       setProcessing(true);
       setError(null);
 
       try {
         const res = await confirmStripePayment(input.api, {
           paymentIntentId: input.paymentIntentId,
-          stripePaymentId: paymentMethodId,
         });
 
         if (res.ok) {
