@@ -41,7 +41,7 @@ export interface CartState {
 interface CartContextValue {
   cart: CartState;
   updateFromBlocks: (blocks: any[]) => void;
-  updateItemQuantity: (variantId: string, quantity: number) => void;
+  updateItemQuantity: (variantId: string, quantity: number) => Promise<void>;
   clearCart: () => void;
 }
 
@@ -76,7 +76,7 @@ function saveCartId(cartId: string, merchantId: string): void {
 const CartContext = createContext<CartContextValue>({
   cart: EMPTY_CART,
   updateFromBlocks: () => {},
-  updateItemQuantity: () => {},
+  updateItemQuantity: async () => {},
   clearCart: () => {},
 });
 
@@ -202,32 +202,30 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
     } catch { /* quota/privacy */ }
   }, [merchantId]);
 
-  const updateItemQuantity = useCallback((variantId: string, quantity: number) => {
-    setCart((prev) => {
-      if (!prev.cartId) return prev;
-      const itemIndex = prev.items.findIndex((i) => i.variantId === variantId);
-      if (itemIndex === -1) return prev;
+  const updateItemQuantity = useCallback(async (variantId: string, quantity: number) => {
+    if (!merchantId) throw new Error("merchant_id_required");
+    const cartId = cart.cartId;
+    if (!cartId) throw new Error("cart_id_required");
 
-      let newItems: CartItem[];
-      if (quantity <= 0) {
-        newItems = prev.items.filter((_, i) => i !== itemIndex);
-      } else {
-        const item = prev.items[itemIndex];
-        newItems = [...prev.items];
-        newItems[itemIndex] = { ...item, quantity, subtotal: item.price * quantity };
-      }
+    const data = await cartApi.updateItem(cartId, variantId, quantity, merchantId);
+    if (!data || typeof data.cartId !== "string" || !Array.isArray(data.items)) {
+      throw new Error("invalid_cart_response");
+    }
 
-      const newItemCount = newItems.reduce((sum, i) => sum + i.quantity, 0);
-      const newTotal = newItems.reduce((sum, i) => sum + i.subtotal, 0);
-
-      return {
-        ...prev,
-        items: newItems,
-        itemCount: newItemCount,
-        total: newTotal,
-      };
+    setCart({
+      cartId: data.cartId,
+      items: data.items.map((item: any) => ({
+        variantId: item.variantId,
+        productName: item.productName,
+        quantity: item.quantity,
+        price: item.price,
+        subtotal: item.subtotal,
+      })),
+      itemCount: data.itemCount,
+      discount: data.discount ?? 0,
+      total: data.total,
     });
-  }, []);
+  }, [cart.cartId, merchantId]);
 
   return (
     <CartContext.Provider value={{ cart, updateFromBlocks, updateItemQuantity, clearCart }}>

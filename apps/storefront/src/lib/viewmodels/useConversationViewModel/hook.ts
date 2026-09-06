@@ -177,7 +177,7 @@ export function useConversationViewModel(
 
   const handleUpdateQuantityAction = useCallback(
     (variantId: string, quantity: number) => {
-      handleUpdateQuantity({
+      void handleUpdateQuantity({
         variantId,
         quantity,
         cartId: cart.cartId || null,

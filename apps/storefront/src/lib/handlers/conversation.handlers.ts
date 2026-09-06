@@ -1,6 +1,6 @@
 import type { Message, CrossSellInterstitialData } from "@/lib/viewmodels/useConversationViewModel/types";
 import { narrateStorefrontBlock, trackFunnelEvent } from "@/lib/services/conversation.service";
-import { checkoutApi, cartApi } from "@/lib/api/api-client";
+import { checkoutApi } from "@/lib/api/api-client";
 import { getValidBuyer } from "@/lib/buyer-auth";
 
 export interface SendMessageParams {
@@ -174,17 +174,17 @@ export interface UpdateQuantityParams {
   quantity: number;
   cartId: string | null;
   merchantId: string | null;
-  updateItemQuantity: (variantId: string, quantity: number) => void;
+  updateItemQuantity: (variantId: string, quantity: number) => Promise<void>;
 }
 
-export function handleUpdateQuantity(params: UpdateQuantityParams) {
+export async function handleUpdateQuantity(params: UpdateQuantityParams) {
   const { variantId, quantity, cartId, merchantId, updateItemQuantity } = params;
 
-  updateItemQuantity(variantId, quantity);
-  if (cartId && merchantId) {
-    cartApi.updateItem(cartId, variantId, quantity, merchantId).catch((err) => {
-      console.error("[cart] server sync failed:", err);
-    });
+  if (!cartId || !merchantId) return;
+  try {
+    await updateItemQuantity(variantId, quantity);
+  } catch (err) {
+    console.error("[cart] server sync failed:", err);
   }
 }
 

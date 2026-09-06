@@ -19,7 +19,7 @@
   },
   "scripts": {
     "dev": "vite --port 5174",
-    "build": "vite build --mode library",
+    "build": "vite build --mode library && tsc --project tsconfig.build.json",
     "build:app": "vite build --mode app",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
