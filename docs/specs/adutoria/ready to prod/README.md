@@ -2,7 +2,7 @@
 
 **Decisão: NO-GO. API: F — CRITICAL. Dashboard, storefront e widget_v2: FAIL.**
 
-**Implementação em andamento:** a branch isolada `fix/ready-to-prod-audit` contém três lotes da API. Consulte o [primeiro lote](CORRECOES.md), a [segunda etapa de segurança](CORRECOES-ETAPA-2.md) e a [terceira etapa de pagamentos, eventos e estoque](CORRECOES-ETAPA-3.md), com contratos, testes e pendências. O parecer de produção continua NO-GO.
+**Implementação em andamento na `master`:** os lotes antes isolados foram integrados e novas correções foram publicadas. Entre elas, confirmação de cartão somente após aprovação do servidor (`04fa783`, `f548ea4`), sincronização autoritativa do carrinho (`7a1ac4a`), preservação de valores BRL (`806b6e8`) e rejeição de referência de carrinho sem capability (`c52f68b`). Consulte o [primeiro lote](CORRECOES.md), a [segunda etapa de segurança](CORRECOES-ETAPA-2.md) e a [terceira etapa de pagamentos, eventos e estoque](CORRECOES-ETAPA-3.md). O parecer de produção continua NO-GO enquanto os bloqueadores restantes não forem aceitos.
 
 Auditoria original de 2026-09-05, sobre a árvore de trabalho modificada do commit base `dcb8150aae34b8284178d9d257e4ac174654d965`. A API foi a primeira etapa; depois seus contratos foram cruzados com os três fronts. Na etapa de auditoria nenhum código de aplicação foi corrigido e nenhuma implantação/transação externa foi executada. Os ADRs e manifests originais preservam esse retrato anterior aos patches; não representam os hashes atuais da branch de correção.
 

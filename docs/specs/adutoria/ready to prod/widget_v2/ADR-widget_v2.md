@@ -1,6 +1,6 @@
 # ADR — Widget v2: prontidão e consumo da API
 
-Data: 2026-09-05. Status: auditoria registrada; correções propostas. Veredito: **FAIL / NO-GO**.
+Data: 2026-09-05. Status: auditoria registrada; atualização de implementação em 2026-09-06. Veredito: **FAIL / NO-GO** para a jornada de carrinho público; pagamentos isolados têm correções verificadas abaixo.
 
 [Índice geral](<../README.md>) · [API primeiro](<../api/README.md>) · [Validação](<../VALIDACAO.md>)
 
@@ -11,6 +11,14 @@ Jornada React/Zustand de sessão embed, chat, carrinho, frete, PIX/cartão/cript
 Cliente envia Bearer embed; pagamento não envia amount pelo método createPaymentIntent; mensagens de tema validam origem/source; token é removido da URL e guardado em sessionStorage.
 
 Este relatório verifica integração e comportamento implementado, não é uma aprovação visual/acessibilidade do produto em navegador. Layout responsivo, leitores de tela e testes em dispositivos permanecem UNVERIFIED.
+
+## Atualização pós-auditoria — 2026-09-06
+
+As evidências originais abaixo preservam o estado auditado. Na `master`, os commits `04fa783` e `f548ea4` passaram a exigir confirmação do servidor antes de marcar cartão como concluído, inclusive no componente legado. O build de produção do widget passou após a alteração.
+
+O contrato de intenção e o polling também foram corrigidos: o client mapeia o payload público, envia `session_id` ao consultar o status e reconhece `approved`. A jornada cripto agora inclui seleção de rede, carteira, envio, confirmação autenticada e verificação no servidor; W2-002, W2-003, W2-005 e W2-006 deixam de bloquear por suas evidências originais. A validação de navegador com Stripe/3DS e provedores reais ainda é necessária.
+
+W2-001 e W2-007 permanecem bloqueadores. O checkout com `cart_ref` público está deliberadamente rejeitado pela API para evitar vincular um carrinho controlável pelo navegador. A solução exige capability de conversa vinculada ao carrinho e revalidação de preço/opções no servidor; não será liberada por um bypass.
 
 ## ADRs por módulo do front
 

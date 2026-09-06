@@ -1,6 +1,6 @@
 # ADR — Storefront: prontidão e consumo da API
 
-Data: 2026-09-05. Status: auditoria registrada; correções propostas. Veredito: **FAIL / NO-GO**.
+Data: 2026-09-05. Status: auditoria registrada; atualização de implementação em 2026-09-06. Veredito: **FAIL / NO-GO** para capacidades ainda pendentes.
 
 [Índice geral](<../README.md>) · [API primeiro](<../api/README.md>) · [Validação](<../VALIDACAO.md>)
 
@@ -11,6 +11,12 @@ Jornada pública Next: SSR por slug, catálogo, conversas, buyer auth, carrinho,
 SSR usa cache no-store; carrinho salvo possui chave por merchant; redirect envia referência de carrinho e token embed. Há headers de CSP/referrer no Next, sem comprovação de implantação.
 
 Este relatório verifica integração e comportamento implementado, não é uma aprovação visual/acessibilidade do produto em navegador. Layout responsivo, leitores de tela e testes em dispositivos permanecem UNVERIFIED.
+
+## Atualização pós-auditoria — 2026-09-06
+
+As tabelas mantêm a evidência do snapshot auditado. Na `master`, `7a1ac4a` substituiu a atualização local do carrinho pela resposta autoritativa do servidor e eliminou a chamada duplicada; falhas agora não aparentam sucesso. `806b6e8` removeu a heurística de conversão por magnitude e preserva valores BRL recebidos da API. Typecheck do storefront passou depois das alterações.
+
+SF-002 e SF-003 não bloqueiam mais pelas evidências originais. A segurança da referência de carrinho no redirect para checkout continua bloqueada até existir vínculo de capability e autoridade completa de preço/opções no servidor.
 
 ## ADRs por módulo do front
 
