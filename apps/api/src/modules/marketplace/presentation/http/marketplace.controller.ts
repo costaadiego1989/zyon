@@ -3,6 +3,7 @@ import {
   Get,
   Patch,
   Post,
+  ServiceUnavailableException,
   Body,
   Param,
   Query,
@@ -185,21 +186,16 @@ export class MarketplaceController {
 
   @Post("chargebacks/:id/dispute")
   async disputeChargeback(
-    @Req() request: AuthenticatedRequest,
-    @Param("id") chargebackId: string,
-    @Body() body: { message: string },
+    @Req() _request: AuthenticatedRequest,
+    @Param("id") _chargebackId: string,
+    @Body() _body: { message: string },
   ) {
-    const user = currentUser(request);
-    // For now: mark the chargeback as "disputed" via the existing handler flow
-    // and record the dispute message. This is a minimal implementation until
-    // the full dispute messaging system is built.
-    return {
-      chargebackId,
-      status: "disputed",
-      message: body.message,
-      merchantId: user.merchantId,
-      createdAt: new Date().toISOString(),
-    };
+    // A response claiming a dispute was opened without durable provider-backed
+    // evidence would make an irreversible financial workflow look successful.
+    throw new ServiceUnavailableException({
+      code: "chargeback_dispute_not_available",
+      message: "Chargeback disputes require provider-backed persistence and are not available yet.",
+    });
   }
 
   @Get("events")
