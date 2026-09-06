@@ -24,6 +24,8 @@ import { GetDebtDetailUseCase } from "../../application/use-cases/get-debt-detai
 import { ListMarketplaceChargebacksUseCase } from "../../application/use-cases/list-marketplace-chargebacks.use-case.js";
 import { ListMarketplaceEventsUseCase } from "../../application/use-cases/list-marketplace-events.use-case.js";
 import { MarketplaceEntityMapper } from "../../application/mappers/marketplace-entity.mapper.js";
+import { UpdateMarketplaceFulfillmentUseCase } from "../../application/use-cases/update-marketplace-fulfillment.use-case.js";
+import { ShipMarketplaceLineItemDto } from "./dtos/marketplace-dashboard.dtos.js";
 
 interface AuthenticatedRequest {
   user: {
@@ -50,6 +52,7 @@ export class MarketplaceController {
     private readonly getDebtDetail: GetDebtDetailUseCase,
     private readonly listChargebacks: ListMarketplaceChargebacksUseCase,
     private readonly listEvents: ListMarketplaceEventsUseCase,
+    private readonly updateFulfillment: UpdateMarketplaceFulfillmentUseCase,
   ) {}
 
   @Get("config")
@@ -196,6 +199,36 @@ export class MarketplaceController {
       code: "chargeback_dispute_not_available",
       message: "Chargeback disputes require provider-backed persistence and are not available yet.",
     });
+  }
+
+  @Post("line-items/:lineItemId/ship")
+  async shipLineItem(
+    @Req() request: AuthenticatedRequest,
+    @Param("lineItemId") lineItemId: string,
+    @Body() body: ShipMarketplaceLineItemDto,
+  ) {
+    const user = currentUser(request);
+    const item = await this.updateFulfillment.execute({
+      lineItemId,
+      sellerMerchantId: user.merchantId,
+      action: "ship",
+      trackingNumber: body.tracking_number,
+    });
+    return MarketplaceEntityMapper.toLineItemResponse(item);
+  }
+
+  @Post("line-items/:lineItemId/deliver")
+  async deliverLineItem(
+    @Req() request: AuthenticatedRequest,
+    @Param("lineItemId") lineItemId: string,
+  ) {
+    const user = currentUser(request);
+    const item = await this.updateFulfillment.execute({
+      lineItemId,
+      sellerMerchantId: user.merchantId,
+      action: "deliver",
+    });
+    return MarketplaceEntityMapper.toLineItemResponse(item);
   }
 
   @Get("events")

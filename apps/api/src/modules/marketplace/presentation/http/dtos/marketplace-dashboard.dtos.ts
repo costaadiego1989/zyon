@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber, Min, Max, IsIn } from "class-validator";
+import { IsString, IsOptional, IsNumber, Min, Max, IsIn, IsNotEmpty, MaxLength } from "class-validator";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 // ── Query DTOs ──────────────────────────────────────────────────────────────
@@ -48,6 +48,14 @@ export class ListDebtsQueryDto {
   @IsString()
   @IsIn(["outstanding", "deducted", "resolved"])
   status?: string;
+}
+
+export class ShipMarketplaceLineItemDto {
+  @ApiProperty({ example: "BR123456789" })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  tracking_number!: string;
 }
 
 // ── Response DTOs ───────────────────────────────────────────────────────────

@@ -32,6 +32,14 @@ export interface CreateCrossStoreLineItemInput {
   sellerNetCents: number;
 }
 
+export interface UpdateCrossStoreFulfillmentInput {
+  lineItemId: string;
+  sellerMerchantId: string;
+  expectedStatus: "pending" | "shipped";
+  status: "shipped" | "delivered";
+  fulfillmentReference?: string;
+}
+
 export interface CrossStoreOrderRepository {
   create(
     input: CreateCrossStoreLineItemInput,
@@ -43,6 +51,13 @@ export interface CrossStoreOrderRepository {
   findBySellerMerchantId(
     sellerMerchantId: string,
   ): Promise<CrossStoreLineItemSnapshot[]>;
+  findByIdForSeller(
+    lineItemId: string,
+    sellerMerchantId: string,
+  ): Promise<CrossStoreLineItemSnapshot | undefined>;
+  updateFulfillment(
+    input: UpdateCrossStoreFulfillmentInput,
+  ): Promise<CrossStoreLineItemSnapshot | undefined>;
   updateOrderId(
     lineItemId: string,
     orderId: string,

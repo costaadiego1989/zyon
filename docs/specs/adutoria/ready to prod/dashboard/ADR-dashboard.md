@@ -1,6 +1,6 @@
 # ADR — Dashboard: prontidão e consumo da API
 
-Data: 2026-09-05. Status: auditoria registrada; correções propostas. Veredito: **FAIL / NO-GO**.
+Data: 2026-09-05. Status: auditoria registrada; atualização de implementação em 2026-09-06. Veredito: **FAIL / NO-GO** pelos demais gates abertos.
 
 [Índice geral](<../README.md>) · [API primeiro](<../api/README.md>) · [Validação](<../VALIDACAO.md>)
 
@@ -29,8 +29,8 @@ Este relatório verifica integração e comportamento implementado, não é uma 
 | [integration](<modulos/ADR-dashboard-integration.md>) | 18 | [API-018](<../api/ADR-api-integrations.md#api-018>), [API-021](<../api/ADR-api-coupons.md#api-021>) |
 | [inventory](<modulos/ADR-dashboard-inventory.md>) | 17 | [API-017](<../api/ADR-api-inventory.md#api-017>), [API-002](<../api/ADR-api-catalog.md#api-002>) |
 | [m2m-management](<modulos/ADR-dashboard-m2m-management.md>) | 6 | [API-036](<../api/ADR-api-public-api.md#api-036>) |
-| [marketplace-v2](<modulos/ADR-dashboard-marketplace-v2.md>) | 16 | [DASH-004](<ADR-dashboard.md#dash-004>), [API-006](<../api/ADR-api-marketplace.md#api-006>), [API-008](<../api/ADR-api-marketplace.md#api-008>) |
-| [marketplace](<modulos/ADR-dashboard-marketplace.md>) | 6 | [DASH-004](<ADR-dashboard.md#dash-004>), [API-006](<../api/ADR-api-marketplace.md#api-006>), [API-008](<../api/ADR-api-marketplace.md#api-008>) |
+| [marketplace-v2](<modulos/ADR-dashboard-marketplace-v2.md>) | 16 | DASH-004 corrigido em 2026-09-06; [API-006](<../api/ADR-api-marketplace.md#api-006>), [API-008](<../api/ADR-api-marketplace.md#api-008>) permanecem bloqueadores |
+| [marketplace](<modulos/ADR-dashboard-marketplace.md>) | 6 | DASH-004 corrigido em 2026-09-06; [API-006](<../api/ADR-api-marketplace.md#api-006>), [API-008](<../api/ADR-api-marketplace.md#api-008>) permanecem bloqueadores |
 | [merchants](<modulos/ADR-dashboard-merchants.md>) | 33 | [API-011](<../api/ADR-api-team.md#api-011>), [API-031](<../api/ADR-api-store-settings.md#api-031>), [API-026](<../api/ADR-api-whatsapp-channel.md#api-026>) |
 | [negotiation](<modulos/ADR-dashboard-negotiation.md>) | 5 | [API-043](<../api/ADR-api-checkout.md#api-043>) |
 | [onboarding](<modulos/ADR-dashboard-onboarding.md>) | 3 | [DASH-001](<ADR-dashboard.md#dash-001>), [API-030](<../api/ADR-api-onboarding.md#api-030>), [API-044](<../api/ADR-api-embed.md#api-044>) |
@@ -131,18 +131,18 @@ Decisão: bloquear a liberação da capacidade afetada até cumprir o critério 
 | SEVERITY | P1 |
 | MODULE | dashboard |
 | FILE(S) | [apps/dashboard/src/api/endpoints/marketplace.ts:72](<../../../../../apps/dashboard/src/api/endpoints/marketplace.ts#L72>)<br>[apps/dashboard/src/api/endpoints/marketplace-v2.ts:181](<../../../../../apps/dashboard/src/api/endpoints/marketplace-v2.ts#L181>)<br>[apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts:35](<../../../../../apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts#L35>) |
-| ISSUE | Envio/entrega de marketplace apontam para rotas não declaradas |
-| EVIDENCE | Duas implementações chamam POST /marketplace/orders/line-items/:id/ship e /deliver. Inventário dos controllers não encontrou esses paths; existem outras operações públicas e controllers dashboard, sem equivalência comprovada. |
-| VERIFICATION | CONFIRMED_STATIC |
-| PRODUCTION IMPACT | Ações de expedição/entrega do vendedor retornam 404 ou não evoluem settlement. |
+| ISSUE | Envio/entrega de marketplace apontavam para rotas não declaradas |
+| EVIDENCE | Em 2026-09-06, o client ativo passou a chamar POST /marketplace/dashboard/line-items/:id/ship e /deliver. A API declara os comandos, deriva o seller do principal e usa update condicional por tenant e status. |
+| VERIFICATION | API build, dashboard typecheck e verificação direta de tenant, transição e concorrência passaram; PostgreSQL de integração permanece pendente. |
+| PRODUCTION IMPACT | Corrigido: a ação não recebe mais 404 por path inexistente e não pode avançar item de outro vendedor. |
 | ROOT CAUSE | Evolução do marketplace deixou adaptadores e superfície da API desacoplados. |
-| RECOMMENDED FIX | Consolidar client de marketplace e definir comandos tenant-scoped reais, versionados e integrados à liquidação. |
+| RECOMMENDED FIX | Concluído para o client ativo; manter uma única superfície dashboard e executar o teste PostgreSQL antes do release. |
 | COMPLEXITY | M (S: pequena; M: média; L: ampla, sem estimativa de prazo) |
 | RISK OF CHANGE | Médio |
-| BLOCKS PROD? | YES |
-| CRITÉRIO DE ACEITE | Vendedor envia/entrega item próprio; item alheio falha; comando repetido não agenda transferência duplicada. |
+| BLOCKS PROD? | NO para este achado; API-006 e API-008 ainda bloqueiam marketplace. |
+| CRITÉRIO DE ACEITE | Parcialmente atendido em código: vendedor envia/entrega item próprio, item alheio falha e estado concorrente gera conflito. Falta confirmar contra PostgreSQL. |
 
-Decisão: bloquear a liberação da capacidade afetada até cumprir o critério de aceite. Correção ainda não implementada nesta auditoria.
+Decisão: correção implementada; manter a revalidação com PostgreSQL no gate de marketplace.
 
 <a id="dash-005"></a>
 

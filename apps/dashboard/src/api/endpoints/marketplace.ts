@@ -71,7 +71,7 @@ export function marketplaceEndpoints(base: string, f: typeof fetch) {
     markMarketplaceItemShipped(lineItemId: string, trackingNumber: string): Promise<void> {
       return dashboardJson(
         base,
-        `/marketplace/orders/line-items/${encodeURIComponent(lineItemId)}/ship`,
+        `/marketplace/dashboard/line-items/${encodeURIComponent(lineItemId)}/ship`,
         { method: "POST", jsonBody: { tracking_number: trackingNumber } },
         f
       );
@@ -80,7 +80,7 @@ export function marketplaceEndpoints(base: string, f: typeof fetch) {
     markMarketplaceItemDelivered(lineItemId: string): Promise<void> {
       return dashboardJson(
         base,
-        `/marketplace/orders/line-items/${encodeURIComponent(lineItemId)}/deliver`,
+        `/marketplace/dashboard/line-items/${encodeURIComponent(lineItemId)}/deliver`,
         { method: "POST" },
         f
       );

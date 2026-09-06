@@ -1,9 +1,9 @@
 # ADR — API / marketplace
 
-> Implementação posterior na branch `fix/ready-to-prod-audit`: consultar [correções, evidências e pendências](../CORRECOES.md). O conteúdo abaixo preserva o retrato da auditoria original; o gate de produção continua aberto.
+> Implementação posterior integrada na `master`: consultar [correções, evidências e pendências](../CORRECOES.md). O conteúdo abaixo preserva o retrato da auditoria original; o gate de produção continua aberto.
 
 
-Data: 2026-09-05. Status: decisão de auditoria registrada; correções propostas. Veredito: **FAIL**.
+Data: 2026-09-05. Status: decisão de auditoria registrada; atualização de implementação em 2026-09-06. Veredito: **FAIL** até os gates financeiros com provedor real.
 
 [Índice geral](<../README.md>) · [API primeiro](<README.md>) · [Evidências e limites](<../VALIDACAO.md>)
 
@@ -31,6 +31,12 @@ Notas são avaliação técnica qualitativa do código inspecionado, não métri
 
 Há máquina de estados de settlement, listagens por vendedor e fila BullMQ de catálogo com retry/close.
 
+## Atualização pós-auditoria — 2026-09-06
+
+O dashboard tinha ações de envio e entrega que chamavam rotas inexistentes. A API agora expõe as duas operações sob `/marketplace/dashboard`, deriva o vendedor do principal autenticado e atualiza o item com predicado de tenant e estado esperado. A sequência permitida é `pending → shipped → delivered`; envio exige rastreio e concorrência retorna conflito, sem sobrescrever outro estado.
+
+O build completo da API, o typecheck do dashboard e verificações diretas de ownership, transição inválida e concorrência passaram. DASH-004 deixa de ser pendência de implementação. Isso não libera marketplace para produção: API-006 e API-008 continuam bloqueadores financeiros.
+
 ## God services, SOLID, KISS e DRY
 
 | Classe inspecionável | Linhas da classe | Dependências no construtor | Fonte |
@@ -48,7 +54,7 @@ DIP/boundary: revisar os imports acima e os acessos a dados com a matriz global.
 - [API-006](<ADR-api-marketplace.md#api-006>) (P0): Chargeback administrativo não recebe nem valida a loja.
 - [API-008](<ADR-api-marketplace.md#api-008>) (P0): Job marca transferência como realizada sem provedor.
 - [API-040](<ADR-api-marketplace.md#api-040>) (P2): Fila de catálogo perde identidade e ordenação de evento.
-- [DASH-004](<../dashboard/ADR-dashboard.md#dash-004>) (P1): Envio/entrega de marketplace apontam para rotas não declaradas.
+- [DASH-004](<../dashboard/ADR-dashboard.md#dash-004>) (P1): corrigido em 2026-09-06; envio/entrega usam rotas declaradas, tenant-bound e com transição estrita.
 
 Performance/índices: consultar [matriz de schema e operação](<../BANCO-E-OPERACAO.md>). Planos reais, pool, memória, CPU, cache distribuído e volume de 10.000 usuários: **REQUIRES LOAD VALIDATION**.
 
@@ -77,6 +83,8 @@ Consequência: o módulo poderá ser reavaliado isoladamente após a correção,
 | PATCH /marketplace/dashboard/config | Alcançável estaticamente | UseGuards(AuthGuard) | [apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts:59](<../../../../../apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts#L59>) |
 | GET /marketplace/dashboard/orders | Alcançável estaticamente | UseGuards(AuthGuard) | [apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts:77](<../../../../../apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts#L77>) |
 | GET /marketplace/dashboard/stats | Alcançável estaticamente | UseGuards(AuthGuard) | [apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts:85](<../../../../../apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts#L85>) |
+| POST /marketplace/dashboard/line-items/:lineItemId/ship | Alcançável estaticamente | UseGuards(AuthGuard) | [apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts:204](<../../../../../apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts#L204>) |
+| POST /marketplace/dashboard/line-items/:lineItemId/deliver | Alcançável estaticamente | UseGuards(AuthGuard) | [apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts:222](<../../../../../apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts#L222>) |
 | POST /marketplace/dashboard/chargeback/:settlementId | Alcançável estaticamente | UseGuards(AuthGuard) | [apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts:93](<../../../../../apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts#L93>) |
 | GET /marketplace/dashboard/settlements | Alcançável estaticamente | UseGuards(AuthGuard) | [apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts:103](<../../../../../apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts#L103>) |
 | GET /marketplace/dashboard/settlements/:settlementId | Alcançável estaticamente | UseGuards(AuthGuard) | [apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts:123](<../../../../../apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts#L123>) |

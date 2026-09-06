@@ -4,6 +4,7 @@ import type {
   CrossStoreOrderRepository,
   CrossStoreLineItemSnapshot,
   CreateCrossStoreLineItemInput,
+  UpdateCrossStoreFulfillmentInput,
 } from "../../domain/ports/cross-store-order-repository.port.js";
 
 @Injectable()
@@ -55,6 +56,36 @@ export class PrismaCrossStoreOrderRepository
       orderBy: { createdAt: "desc" },
     });
     return items.map((i: any) => this.toSnapshot(i));
+  }
+
+  async findByIdForSeller(
+    lineItemId: string,
+    sellerMerchantId: string,
+  ): Promise<CrossStoreLineItemSnapshot | undefined> {
+    const item = await this.prisma.crossStoreLineItem.findFirst({
+      where: { id: lineItemId, sellerMerchantId },
+    });
+    return item ? this.toSnapshot(item) : undefined;
+  }
+
+  async updateFulfillment(
+    input: UpdateCrossStoreFulfillmentInput,
+  ): Promise<CrossStoreLineItemSnapshot | undefined> {
+    const updated = await this.prisma.crossStoreLineItem.updateMany({
+      where: {
+        id: input.lineItemId,
+        sellerMerchantId: input.sellerMerchantId,
+        fulfillmentStatus: input.expectedStatus,
+      },
+      data: {
+        fulfillmentStatus: input.status,
+        ...(input.fulfillmentReference === undefined
+          ? {}
+          : { fulfillmentReference: input.fulfillmentReference }),
+      },
+    });
+    if (updated.count !== 1) return undefined;
+    return this.findByIdForSeller(input.lineItemId, input.sellerMerchantId);
   }
 
   async updateOrderId(
