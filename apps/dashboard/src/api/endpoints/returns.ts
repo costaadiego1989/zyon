@@ -2,6 +2,7 @@ import { dashboardJson } from "../http/client.js";
 
 export type ReturnStatus = "REQUESTED" | "LABEL_GENERATED" | "SHIPPED" | "RECEIVED" | "INSPECTED_PASS" | "INSPECTED_FAIL" | "REFUND_PROCESSING" | "REFUND_COMPLETED" | "REJECTED" | "CANCELLED";
 export type ReturnReason = "DEFECTIVE" | "WRONG_ITEM" | "NOT_AS_DESCRIBED" | "CHANGED_MIND" | "DAMAGED_IN_TRANSIT" | "OTHER";
+export type ReturnItemCondition = "NEW" | "GOOD" | "DAMAGED" | "UNUSABLE";
 
 export interface ReturnItem {
   id: string;
@@ -23,7 +24,7 @@ export interface ReturnEntry {
   createdAt: string;
   updatedAt: string;
   label?: { carrier: string; trackingNumber: string; labelUrl?: string };
-  inspection?: { condition: string; verdict: string; notes?: string };
+  inspection?: { inspectedBy: string; itemCondition: ReturnItemCondition; verdict: string; notes?: string };
   refund?: { amountCents: number; status: string; processedAt?: string };
 }
 
@@ -51,7 +52,7 @@ export function returnsEndpoints(base: string, f: typeof fetch) {
       return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/returns/${returnId}/receive`, { method: "POST" }, f);
     },
 
-    async inspectReturn(merchantId: string, returnId: string, data: { condition: string; verdict: string; notes?: string }): Promise<void> {
+    async inspectReturn(merchantId: string, returnId: string, data: { itemCondition: ReturnItemCondition; verdict: string; notes?: string }): Promise<void> {
       return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/returns/${returnId}/inspect`, { method: "POST", jsonBody: data }, f);
     },
 

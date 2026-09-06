@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Put, Param, Body, Query, UseGuards, Inject, NotFoundException, BadRequestException } from "@nestjs/common";
-import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
+import { Controller, Get, Post, Put, Param, Body, Query, UseGuards, Inject, NotFoundException, BadRequestException, Req } from "@nestjs/common";
+import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
+import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-ownership.guard.js";
 import { RequirePlan } from "../../../../shared/guards/require-plan.decorator.js";
 import { RequirePlanGuard } from "../../../../shared/guards/require-plan.guard.js";
 import { RequestReturnUseCase } from "../../application/use-cases/request-return.use-case.js";
@@ -14,7 +15,7 @@ import { AcceptMarketplaceReturnUseCase } from "../../application/use-cases/acce
 import { RETURN_REPOSITORY_PORT, ReturnRepositoryPort } from "../../domain/ports/return-repository.port.js";
 import { ReturnStatus, ItemCondition } from "../../domain/entities/return.entity.js";
 
-@UseGuards(AuthGuard, RequirePlanGuard)
+@UseGuards(AuthGuard, MerchantOwnershipGuard, RequirePlanGuard)
 @Controller("merchants")
 export class ReturnsController {
   constructor(
@@ -97,11 +98,15 @@ export class ReturnsController {
   @Post(":mid/returns/:rid/inspect")
   @RequirePlan("STORE_ONLY", "BOTH")
   async inspect(
+    @Req() request: { user?: unknown },
     @Param("mid") merchantId: string,
     @Param("rid") returnId: string,
-    @Body() body: { inspectedBy: string; itemCondition: ItemCondition; verdict: string; notes?: string },
+    @Body() body: { itemCondition: ItemCondition; verdict: string; notes?: string },
   ) {
-    return this.inspectReturn.execute(merchantId, returnId, body);
+    return this.inspectReturn.execute(merchantId, returnId, {
+      ...body,
+      inspectedBy: currentUser(request).userId,
+    });
   }
 
   @Post(":mid/returns/:rid/refund")

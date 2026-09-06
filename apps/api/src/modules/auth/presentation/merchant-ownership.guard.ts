@@ -3,7 +3,7 @@ import { currentTenantPrincipal } from "../../../shared/auth/tenant-principal.js
 
 /**
  * MerchantOwnershipGuard: enforces the tenant boundary on routes that carry a
- * `:merchantId` path parameter.
+ * `:merchantId` or legacy `:mid` path parameter.
  *
  * INVARIANT (CLAUDE.md): "merchant_id is the tenant boundary. Every query and
  * command must be scoped by merchant_id."
@@ -20,7 +20,7 @@ export class MerchantOwnershipGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
     const principal = currentTenantPrincipal(request);
-    const pathMerchantId: unknown = request.params?.merchantId;
+    const pathMerchantId: unknown = request.params?.merchantId ?? request.params?.mid;
 
     // Only enforce when the route actually carries a merchantId param.
     if (typeof pathMerchantId !== "string" || pathMerchantId.length === 0) {

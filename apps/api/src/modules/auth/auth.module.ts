@@ -37,6 +37,7 @@ import { PrismaAuthRepository } from "./infrastructure/prisma-auth.repository.js
 import { RedisEmailChangeOtpStore } from "./infrastructure/redis-email-change-otp-store.js";
 import { AuthController } from "./presentation/auth.controller.js";
 import { AuthGuard } from "./presentation/auth.guard.js";
+import { MerchantOwnershipGuard } from "./presentation/merchant-ownership.guard.js";
 import { TenantRoleGuard } from "./presentation/tenant-role.guard.js";
 
 /**
@@ -71,6 +72,7 @@ import { TenantRoleGuard } from "./presentation/tenant-role.guard.js";
     AuthCookieService,
     // Guards
     AuthGuard,
+    MerchantOwnershipGuard,
     TenantRoleGuard,
     // Ports + implementations
     {
@@ -118,6 +120,7 @@ import { TenantRoleGuard } from "./presentation/tenant-role.guard.js";
   ],
   exports: [
     AuthGuard,
+    MerchantOwnershipGuard,
     TenantRoleGuard,
     JwtService,
     AuthCookieService,
