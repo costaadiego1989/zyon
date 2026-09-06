@@ -1,0 +1,1902 @@
+[
+  {
+    "id": "API-001",
+    "severity": "P0",
+    "module": "catalog",
+    "title": "Reserva e mídia permitem operar recursos de outra loja",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/catalog/infrastructure/repositories/prisma-stock.repository.ts",
+        "line": 11
+      },
+      {
+        "path": "apps/api/src/modules/catalog/presentation/http/catalog.controller.ts",
+        "line": 310
+      },
+      {
+        "path": "apps/api/src/shared/persistence/tenant.middleware.ts",
+        "line": 1
+      }
+    ],
+    "evidence": "reserve() recebe merchantId, mas consulta variantId/cartId e productStock sem verificar o proprietário. Upload associa body.variantId sem conferir a loja; delete de mídia usa somente id. Esses modelos não estão cobertos pelo middleware de tenant.",
+    "impact": "Com IDs conhecidos, uma conta da loja A pode reservar estoque ou excluir mídia da loja B. A autenticação do merchant no caminho não valida o recurso referenciado.",
+    "cause": "Escopo do tenant aplicado ao controller, sem predicado de ownership no repositório e nas relações.",
+    "fix": "Exigir merchantId em cada operação e validar variante → produto → merchant no mesmo limite transacional; aplicar o mesmo controle à mídia e sua exclusão.",
+    "acceptance": "Duas lojas: reservar variante, anexar mídia e excluir mídia alheias deve retornar 403/404 sem alterar nenhuma linha. Repetir usando todos os aliases HTTP.",
+    "complexity": "M",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-catalog.md"
+  },
+  {
+    "id": "API-002",
+    "severity": "P0",
+    "module": "catalog",
+    "title": "Reserva concorrente pode ultrapassar estoque disponível",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/catalog/infrastructure/repositories/prisma-stock.repository.ts",
+        "line": 24
+      },
+      {
+        "path": "apps/api/src/modules/catalog/infrastructure/repositories/prisma-stock.repository.ts",
+        "line": 69
+      }
+    ],
+    "evidence": "A condição do updateMany é quantity >= stock.reserved + input.quantity, usando reserved lido antes. Com quantity=1 e duas leituras reserved=0, ambas as atualizações podem incrementar reserved. Confirmação e expiração leem ACTIVE sem transição condicional e atualizam todos os estoques da variante.",
+    "impact": "Overselling, reserved negativo e baixa duplicada sob concorrência, múltiplos depósitos ou execução paralela do job.",
+    "cause": "Check-then-act com valor antigo; ausência de CAS/lock sobre reserva e ausência de vínculo da reserva ao registro de estoque específico.",
+    "fix": "Fazer reserva por update condicional que compare valores atuais, ou lock explícito; persistir stockId/locationId, transicionar ACTIVE por CAS e manter reserva/baixa no mesmo commit.",
+    "acceptance": "Em PostgreSQL, disparar 100 reservas para uma unidade: exatamente uma deve vencer. Competir confirm/expire/retry e provar conservation de quantity/reserved por depósito.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC; concorrência PostgreSQL UNVERIFIED",
+    "adr": "api/ADR-api-catalog.md"
+  },
+  {
+    "id": "API-003",
+    "severity": "P0",
+    "module": "stories",
+    "title": "Atualização e arquivamento ignoram o tenant recebido",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/stories/infrastructure/repositories/prisma-story.repository.ts",
+        "line": 34
+      },
+      {
+        "path": "apps/api/src/modules/stories/infrastructure/repositories/prisma-story.repository.ts",
+        "line": 101
+      },
+      {
+        "path": "apps/api/src/modules/stories/presentation/http/stories.controller.ts",
+        "line": 80
+      }
+    ],
+    "evidence": "Métodos de categorias e stories recebem merchantId, mas update/archive filtram somente id. Os use cases encaminham diretamente; Story e StoryCategory não constam na cobertura do middleware global.",
+    "impact": "Uma loja autenticada pode modificar ou arquivar conteúdo de outra loja com um ID conhecido.",
+    "cause": "Interface aparenta escopo multitenant, mas a implementação não o usa.",
+    "fix": "Adicionar tenant a todos os predicados e validar categoryId pertence ao mesmo merchant antes de criar/mover stories.",
+    "acceptance": "Cobrir update/archive/reorder/create com categorias/stories de duas lojas; nenhuma associação ou alteração cruzada pode persistir.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-stories.md"
+  },
+  {
+    "id": "API-004",
+    "severity": "P0",
+    "module": "storefront",
+    "title": "WebSocket aceita salas de conversa sem autenticação ou vínculo",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/storefront/infrastructure/gateways/conversation.gateway.ts",
+        "line": 20
+      },
+      {
+        "path": "apps/api/src/modules/storefront/infrastructure/gateways/conversation.gateway.ts",
+        "line": 39
+      },
+      {
+        "path": "apps/api/src/modules/storefront/infrastructure/gateways/conversation.gateway.ts",
+        "line": 57
+      }
+    ],
+    "evidence": "O gateway recebe merchantId pelo handshake.query e join por conversationId; entra em conversation:<id> sem validar JWT/embed/buyer nem ownership. As respostas são emitidas para essa sala; CORS aceita qualquer origem.",
+    "impact": "Um cliente que conheça o ID da conversa pode ouvir mensagens emitidas para ela. O gateway está registrado independentemente do bloqueio HTTP de rotas legadas.",
+    "cause": "Confiança em identificadores do cliente para autorização de canal.",
+    "fix": "Autenticar handshake, derivar tenant do token, validar buyer/session e autorização em cada join/message; incluir tenant na chave da sala e aplicar quotas.",
+    "acceptance": "Cliente anônimo, token de outra loja e buyer diferente não podem entrar nem receber eventos de uma conversa; testar reconexão e expiração.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-storefront.md"
+  },
+  {
+    "id": "API-005",
+    "severity": "P0",
+    "module": "storefront",
+    "title": "Flag de legado expõe consultas e mutações administrativas sem autenticação",
+    "refs": [
+      {
+        "path": "apps/api/src/shared/http/non-production-route.guard.ts",
+        "line": 15
+      },
+      {
+        "path": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 29
+      },
+      {
+        "path": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 386
+      }
+    ],
+    "evidence": "ENABLE_LEGACY_ROUTES=true libera controllers @NonProductionRoute em production. StorefrontController lista budget-requests por merchantId recebido e altera status por id sem AuthGuard/ownership. Sem a flag, carrinho/conversas consumidos pelos fronts ficam bloqueados.",
+    "impact": "Com a flag ligada: exposição de dados de orçamento e alterações indevidas. Com ela desligada: fluxos dos fronts dependentes retornam 404. Estado real da flag no deploy não foi consultado.",
+    "cause": "O mesmo controller agrupa operações públicas e administrativas sob uma exceção de ambiente.",
+    "fix": "Separar contratos públicos autenticados por sessão e administração autenticada por tenant; retirar a dependência dos fronts da flag antes de encerrar o legado.",
+    "acceptance": "Subir production com a flag desligada: compra deve funcionar; listar/alterar orçamento sem principal deve falhar em qualquer configuração.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC; exposição condicionada à flag; INFRA VALIDATION REQUIRED",
+    "adr": "api/ADR-api-storefront.md"
+  },
+  {
+    "id": "API-006",
+    "severity": "P0",
+    "module": "marketplace",
+    "title": "Chargeback administrativo não recebe nem valida a loja",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts",
+        "line": 93
+      },
+      {
+        "path": "apps/api/src/modules/marketplace/application/use-cases/handle-marketplace-chargeback.use-case.ts",
+        "line": 34
+      },
+      {
+        "path": "apps/api/src/modules/marketplace/infrastructure/repositories/prisma-marketplace-settlement.repository.ts",
+        "line": 36
+      }
+    ],
+    "evidence": "POST marketplace/dashboard/chargeback/:settlementId exige login, mas descarta request.user. O use case consulta getById(settlementId), transiciona o settlement e pode criar dívida sem tenant. Repositório busca/atualiza somente id.",
+    "impact": "Uma loja autenticada com ID conhecido pode cancelar liquidação ou criar dívida de outro vendedor.",
+    "cause": "Comando financeiro exposto como operação global em uma rota de tenant.",
+    "fix": "Passar merchant derivado do principal e validar papel/participação/autoridade do evento; chargeback do provedor deve ter entrada autenticada separada e transação idempotente.",
+    "acceptance": "Settlement de B não pode ser afetado por A; replay do evento do provedor não duplica dívida; falha entre transição e criação deve reverter ou ser recuperada.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-marketplace.md"
+  },
+  {
+    "id": "API-007",
+    "severity": "P0",
+    "module": "returns",
+    "title": "Reembolso é declarado concluído sem devolver dinheiro",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/returns/application/use-cases/process-refund.use-case.ts",
+        "line": 18
+      },
+      {
+        "path": "apps/api/src/modules/returns/presentation/http/returns.controller.ts",
+        "line": 97
+      }
+    ],
+    "evidence": "ProcessRefundUseCase calcula quantity * 1000, salva refund COMPLETED e RETURN REFUND_COMPLETED sem chamar provedor. R06 executou o use case com repositório falso: três itens viraram 3000 centavos e status concluído.",
+    "impact": "Operação financeira informa sucesso falso e usa valor sem relação com o pedido pago.",
+    "cause": "Stub de MVP permaneceu no caminho de produção.",
+    "fix": "Calcular saldo reembolsável a partir do pedido/payment ledger; registrar intenção e chave idempotente, chamar provedor e concluir apenas após confirmação conciliável. Desabilitar a ação até existir esse fluxo.",
+    "acceptance": "Testar estorno parcial/integral, retry, timeout após sucesso, chargeback prévio e duplicidade. Status COMPLETED precisa de providerRefundId e valor confirmado.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "REPRODUCED_LOCAL R06",
+    "adr": "api/ADR-api-returns.md"
+  },
+  {
+    "id": "API-008",
+    "severity": "P0",
+    "module": "marketplace",
+    "title": "Job marca transferência como realizada sem provedor",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/marketplace/application/use-cases/process-scheduled-transfers.use-case.ts",
+        "line": 60
+      },
+      {
+        "path": "apps/api/src/modules/marketplace/infrastructure/jobs/process-transfers.job.ts",
+        "line": 1
+      }
+    ],
+    "evidence": "O processamento de transfer_scheduled muda status para transferred e grava transferredAt sem executar transferência externa ou exigir providerTransferId.",
+    "impact": "Dashboard e ledger podem afirmar que o vendedor recebeu valores que nunca foram transferidos.",
+    "cause": "Máquina de estados local tratada como prova de liquidação financeira.",
+    "fix": "Criar port de payout com idempotência, intenção durável e conciliação. Manter scheduled/processing até confirmação externa; honrar payoutDelayDays.",
+    "acceptance": "Nenhum transferred sem evidência do provedor; falha/reinício antes e depois do payout converge para uma única transferência.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-marketplace.md"
+  },
+  {
+    "id": "API-009",
+    "severity": "P1",
+    "module": "auth",
+    "title": "Refresh reutiliza token expirado e revogação não é compartilhada",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/auth/domain/services/jwt.service.ts",
+        "line": 47
+      },
+      {
+        "path": "apps/api/src/modules/auth/application/refresh-token.use-case.ts",
+        "line": 21
+      }
+    ],
+    "evidence": "Refresh aceita expiração na janela de sete dias e revoga até decoded.exp. Para token já expirado, isTokenRevoked retorna falso porque expiry <= now. R01 conseguiu refresh duas vezes com o mesmo token. A blacklist é um Map local.",
+    "impact": "Replay após rotação; revogação não acompanha réplicas/restart.",
+    "cause": "Expiração da blacklist usa TTL do access token, embora o mesmo token ainda seja elegível a refresh.",
+    "fix": "Modelar refresh sessions persistidas, consumir por CAS, rotacionar/revogar a família e manter revogação durante toda a janela de refresh.",
+    "acceptance": "Mesmo token expirado só pode gerar um refresh; duas réplicas e dois requests paralelos devem obter um vencedor. Logout/reset/removal devem invalidar a sessão.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "REPRODUCED_LOCAL R01; multi-réplica UNVERIFIED",
+    "adr": "api/ADR-api-auth.md"
+  },
+  {
+    "id": "API-010",
+    "severity": "P1",
+    "module": "auth",
+    "title": "Recuperação de senha depende de memória local",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/auth/infrastructure/prisma-auth.repository.ts",
+        "line": 37
+      },
+      {
+        "path": "apps/api/src/modules/auth/infrastructure/prisma-auth.repository.ts",
+        "line": 172
+      },
+      {
+        "path": "apps/api/src/modules/auth/presentation/auth.controller.ts",
+        "line": 195
+      }
+    ],
+    "evidence": "Mesmo o PrismaAuthRepository mantém tokens de reset em Map no processo; logout apenas limpa o cookie. Não há revogação compartilhada demonstrada após alteração de senha.",
+    "impact": "Link de reset pode falhar em outra réplica/restart; token previamente emitido pode continuar aceito.",
+    "cause": "Credenciais temporárias e revogação tratadas como cache descartável.",
+    "fix": "Persistir hash de token de uso único com TTL e consumedAt; invalidar sessões por versão do usuário/família na alteração de senha e logout.",
+    "acceptance": "Gerar reset na réplica A e concluir na B após restart; replay deve falhar; token anterior à troca de senha deve ser rejeitado.",
+    "complexity": "M",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-auth.md"
+  },
+  {
+    "id": "API-011",
+    "severity": "P1",
+    "module": "team",
+    "title": "Papéis e remoção de membro não chegam ao principal de autenticação",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/team/application/use-cases/invite-member.use-case.ts",
+        "line": 1
+      },
+      {
+        "path": "apps/api/src/modules/team/application/use-cases/update-role.use-case.ts",
+        "line": 1
+      },
+      {
+        "path": "apps/api/src/modules/team/application/use-cases/remove-member.use-case.ts",
+        "line": 1
+      },
+      {
+        "path": "apps/api/src/modules/auth/domain/services/jwt.service.ts",
+        "line": 15
+      }
+    ],
+    "evidence": "Convite grava MerchantUser.role com OWNER/ADMIN/STAFF; JwtService aceita somente owner/admin. Alterar papel/remover membro opera MerchantTeamMember, sem atualizar/revogar o MerchantUser usado no login.",
+    "impact": "Novos membros podem receber token rejeitado e membros removidos podem conservar acesso através de conta/token existente.",
+    "cause": "Dois modelos de associação e duas taxonomias de papel sem fonte de verdade única.",
+    "fix": "Unificar papéis e membership efetiva; atualizar associação/credencial em transação e invalidar sessões na remoção/redução de privilégio.",
+    "acceptance": "Convidar cada papel, entrar, reduzir privilégio, remover e tentar usar token antigo/novo em todas as réplicas.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-team.md"
+  },
+  {
+    "id": "API-012",
+    "severity": "P1",
+    "module": "payment",
+    "title": "Retry do POST Asaas não usa a chave idempotente derivada",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/payment/application/create-payment-intent.use-case.ts",
+        "line": 86
+      },
+      {
+        "path": "apps/api/src/modules/payment/infrastructure/asaas-payment.adapter.ts",
+        "line": 160
+      },
+      {
+        "path": "apps/api/src/shared/http/http-client.service.ts",
+        "line": 1
+      }
+    ],
+    "evidence": "O use case deriva providerIdempotencyKey estável. Stripe encaminha a chave; o POST /v3/payments do Asaas não a utiliza. O HttpClientService compartilhado reexecuta falhas de rede/5xx para POST.",
+    "impact": "Em timeout após aceitação do provedor, a tentativa pode criar outra cobrança; externalReference com ID local não comprova deduplicação no provedor.",
+    "cause": "Retry genérico de efeito financeiro sem protocolo de recuperação de resultado ambíguo.",
+    "fix": "Usar mecanismo de idempotência oficialmente suportado pelo provedor e/ou consultar intenção existente antes de reenviar; não repetir cegamente POST financeiro.",
+    "acceptance": "Simular provedor que cria a cobrança e derruba a resposta: retries e réplicas devem manter uma cobrança externa e uma intenção local.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC; comportamento externo UNVERIFIED",
+    "adr": "api/ADR-api-payment.md"
+  },
+  {
+    "id": "API-013",
+    "severity": "P1",
+    "module": "payment",
+    "title": "Intenção pendente sem ID do provedor não é retomada",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/payment/application/create-payment-intent.use-case.ts",
+        "line": 149
+      },
+      {
+        "path": "apps/api/src/modules/payment/application/reconcile-payment-intents.use-case.ts",
+        "line": 60
+      }
+    ],
+    "evidence": "A intenção é persistida antes da chamada externa; retry retorna qualquer existing.snapshot(). A reconciliação ignora intents sem providerPaymentId.",
+    "impact": "Erro/restart antes de salvar resultado do provedor pode deixar pagamento permanentemente pending, sem QR/clientSecret e sem nova tentativa útil.",
+    "cause": "Idempotência retorna estado incompleto sem máquina de estados de execução/reconciliação da intenção.",
+    "fix": "Registrar estágio de criação, lease e resultado ambíguo; retomar/consultar provedor pela chave estável, com timeout e transição recuperável.",
+    "acceptance": "Injetar crash após persistência inicial e após criação externa antes do save; retry precisa recuperar um resultado único utilizável.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-payment.md"
+  },
+  {
+    "id": "API-014",
+    "severity": "P1",
+    "module": "payment",
+    "title": "Taxa do cartão diverge do total esperado na conclusão",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/payment/application/create-payment-intent.use-case.ts",
+        "line": 164
+      },
+      {
+        "path": "apps/api/src/modules/payment/infrastructure/stripe-env.ts",
+        "line": 1
+      },
+      {
+        "path": "apps/api/src/modules/payment/application/services/payment-dispatch.service.ts",
+        "line": 60
+      },
+      {
+        "path": "apps/api/src/modules/checkout/application/use-cases/complete-order.use-case.ts",
+        "line": 60
+      }
+    ],
+    "evidence": "CreatePaymentIntent soma a platform fee ao amountCents do cartão; o dispatcher passa esse montante integral à conclusão. CompleteOrder recalcula itens + frete - desconto sem essa taxa e rejeita diferença superior a R$0,02.",
+    "impact": "Cobrança aprovada pode falhar na conclusão do pedido com order_total_mismatch. A taxa padrão de R$1,99 excede a tolerância.",
+    "cause": "Dois cálculos de total com componentes monetários diferentes e sem objeto de preço comum.",
+    "fix": "Definir contrato de breakdown único (subtotal/desconto/frete/taxas/total) e usar a mesma versão imutável na intenção, provedor e pedido.",
+    "acceptance": "Cartão com taxa padrão, taxa zero e descontos deve concluir com o valor capturado correto; replay não cria pedido duplicado.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-payment.md"
+  },
+  {
+    "id": "API-015",
+    "severity": "P1",
+    "module": "payment",
+    "title": "Persistência não protege transições concorrentes do payment intent",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/payment/infrastructure/prisma-payment.repository.ts",
+        "line": 1
+      },
+      {
+        "path": "apps/api/src/modules/payment/domain/payment-intent.entity.ts",
+        "line": 147
+      }
+    ],
+    "evidence": "A entidade valida transições no snapshot em memória, enquanto o repositório atualiza o status por upsert sem expectedVersion/status anterior no predicado.",
+    "impact": "Dois eventos distintos podem ler o mesmo estado e sobrescrever aprovação/cancelamento/reembolso. Unicidade de eventId não serializa eventos diferentes da mesma intenção.",
+    "cause": "Estado do agregado não tem CAS/lock na persistência.",
+    "fix": "Versionar o agregado ou bloquear sua linha; persistir transição e outbox no mesmo commit, com regra explícita para eventos atrasados.",
+    "acceptance": "Competir approved/failed/cancelled/refunded, inclusive em ordem inversa; estados finais e efeitos financeiros devem obedecer ao histórico validado.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC; race em banco UNVERIFIED",
+    "adr": "api/ADR-api-payment.md"
+  },
+  {
+    "id": "API-016",
+    "severity": "P1",
+    "module": "shared",
+    "title": "Claim do outbox não conserva exclusividade até o processamento",
+    "refs": [
+      {
+        "path": "apps/api/src/shared/messaging/infrastructure/prisma-outbox.repository.ts",
+        "line": 45
+      },
+      {
+        "path": "apps/api/src/shared/messaging/outbox-dispatcher.service.ts",
+        "line": 1
+      }
+    ],
+    "evidence": "claimBatch executa SELECT FOR UPDATE SKIP LOCKED sem transação durando até uma marcação de claim/lease. Após a consulta, o evento segue pending. O dispatcher consulta dedup, executa handler e só então marca processamento.",
+    "impact": "Réplicas podem executar o mesmo efeito. Crash após efeito e antes do marker também permite duplicação. Marcar handler após envio externo não produz exactly-once.",
+    "cause": "Lock de consulta confundido com reserva durável do trabalho; dedup depende de check-then-act.",
+    "fix": "Claim atômico com owner/lease/attempt e retorno das linhas; handlers idempotentes por chave de negócio e outbox transacional. Não manter transação aberta durante HTTP externo.",
+    "acceptance": "Dois dispatchers devem compartilhar lote sem processamento concorrente indevido; matar worker após efeito e antes do ack não pode duplicar cobrança/estoque.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-shared.md"
+  },
+  {
+    "id": "API-017",
+    "severity": "P1",
+    "module": "inventory",
+    "title": "Handler de venda injeta token incorreto e absorve falhas",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/inventory/infrastructure/event-handlers/on-order-completed.handler.ts",
+        "line": 15
+      },
+      {
+        "path": "apps/api/src/modules/inventory/application/use-cases/handle-sale-completed.use-case.ts",
+        "line": 1
+      },
+      {
+        "path": "apps/api/src/modules/checkout/domain/ports/checkout-session.repository.port.ts",
+        "line": 1
+      }
+    ],
+    "evidence": "Handler usa @Optional @Inject(\"CHECKOUT_SESSION_REPOSITORY\") string, enquanto a porta exporta Symbol. Sem provider com essa string, items fica vazio. O handler e o use case também capturam falhas sem propagá-las para o outbox.",
+    "impact": "Pedido concluído pode não baixar estoque nem sincronizar ERP/CRM; evento é considerado entregue sem retry.",
+    "cause": "Injeção opcional mascara dependência essencial e captura de erro elimina sinal de falha.",
+    "fix": "Usar a porta exportada com wiring obrigatório ou payload de venda versionado; tornar baixa idempotente e separar integrações em jobs retryable.",
+    "acceptance": "Teste de composição Nest deve resolver a dependência real; evento order.completed baixa itens uma vez; falha no ERP gera retry independente sem repetir a baixa.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-inventory.md"
+  },
+  {
+    "id": "API-018",
+    "severity": "P1",
+    "module": "integrations",
+    "title": "Envio de webhook passa Agent incompatível ao fetch",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/integrations/application/webhook-delivery-dispatcher.service.ts",
+        "line": 124
+      },
+      {
+        "path": "apps/api/src/modules/integrations/application/webhook-delivery-dispatcher.service.ts",
+        "line": 231
+      },
+      {
+        "path": "apps/api/src/modules/integrations/integrations.module.ts",
+        "line": 49
+      }
+    ],
+    "evidence": "Política DNS registrada produz endereços fixados; createPinnedAgent retorna node:http.Agent ou node:https.Agent e o atribui a fetchOptions.dispatcher. R02 reproduziu fetch failed com cause agent.dispatch is not a function no Node 22.",
+    "impact": "Entregas que passam pela fixação de DNS falham antes da conexão, consomem retries e não chegam ao destinatário.",
+    "cause": "Confusão entre interfaces de Agent do HTTP nativo e Dispatcher do Undici.",
+    "fix": "Usar dispatcher compatível com fetch e resolver/conector que preserve validação/pinning de DNS e TLS; impedir redirect para destinos não validados; fechar recursos.",
+    "acceptance": "Servidor local recebe uma entrega com assinatura válida pelo adaptador real; cobrir IPv4/IPv6, redirecionamento bloqueado, timeout e retry.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "REPRODUCED_LOCAL R02; serviço completo estático",
+    "adr": "api/ADR-api-integrations.md"
+  },
+  {
+    "id": "API-019",
+    "severity": "P1",
+    "module": "cart-recovery",
+    "title": "Deduplicação das tentativas de recuperação é volátil",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/cart-recovery/cart-recovery.module.ts",
+        "line": 45
+      },
+      {
+        "path": "apps/api/src/modules/cart-recovery/application/use-cases/attempt-cart-recovery.use-case.ts",
+        "line": 55
+      }
+    ],
+    "evidence": "O módulo injeta Prisma, mas a factory retorna InMemoryRecoveryAttemptRepository. A tentativa é registrada localmente antes de envio assíncrono de WhatsApp com erro absorvido.",
+    "impact": "Restart ou múltiplas réplicas perdem histórico e podem reenviar mensagens; falha de envio pode ser tratada como tentativa consumida.",
+    "cause": "Repositório de teste permanece no wiring e envio não está em outbox transacional.",
+    "fix": "Persistir tentativa/chave de dedup e estado de envio com TTL/retry em banco; respeitar consentimento, janela e opt-out.",
+    "acceptance": "Duas réplicas avaliando o mesmo carrinho produzem uma tentativa; restart e falha do WhatsApp preservam histórico e possibilidade de retry.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-cart-recovery.md"
+  },
+  {
+    "id": "API-020",
+    "severity": "P1",
+    "module": "intent-memory",
+    "title": "Consentimento e memória de intenção usam repositórios em memória",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/intent-memory/intent-memory.module.ts",
+        "line": 15
+      },
+      {
+        "path": "apps/api/src/modules/intent-memory/application/use-cases/classify-customer-intent.use-case.ts",
+        "line": 118
+      }
+    ],
+    "evidence": "A composição escolhe InMemoryIntentMemoryRepository e InMemoryBuyerIntentConsentRepository. A verificação de consentimento existe, porém consulta esse estado local.",
+    "impact": "Consentimento/revogação e registros divergem entre réplicas e desaparecem em restart. Não é possível comprovar política durável de uso/exclusão por buyer.",
+    "cause": "Persistência de consentimento confundida com cache.",
+    "fix": "Persistir consentimentos versionados e revogações com escopo e retenção definidos; fazer todas as leituras/expurgos respeitarem a fonte única.",
+    "acceptance": "Conceder em A, ler e revogar em B, reiniciar ambas: registro de intenção novo deve obedecer à revogação e exclusão deve ser verificável.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-intent-memory.md"
+  },
+  {
+    "id": "API-021",
+    "severity": "P1",
+    "module": "coupons",
+    "title": "Limites de uso podem ser excedidos em sessões concorrentes",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/coupons/application/use-cases/apply-coupon.use-case.ts",
+        "line": 35
+      },
+      {
+        "path": "apps/api/src/modules/coupons/application/use-cases/redeem-coupon.use-case.ts",
+        "line": 19
+      }
+    ],
+    "evidence": "Apply lê contadores global/por buyer e depois grava redemption. Unicidade por sessão não limita duas sessões distintas. Redeem grava estado, contador e outbox em passos separados.",
+    "impact": "Cupom de uso único pode ser consumido mais vezes e falhas intermediárias podem desalinhar contador/evento.",
+    "cause": "Invariante global implementada como consultas seguidas de gravação sem reserva atômica.",
+    "fix": "Reservar cota global/buyer em transação com CAS/lock e chave única de redemption; consumo, contador e evento devem compartilhar commit.",
+    "acceptance": "Com maxUses=1, duas sessões/buyers paralelos produzem um consumo; crash em cada fronteira não altera cota nem publica em duplicidade.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-coupons.md"
+  },
+  {
+    "id": "API-022",
+    "severity": "P1",
+    "module": "operations",
+    "title": "Cancelamento local pode encerrar antes do cancelamento externo",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/operations/application/order-command.use-cases.ts",
+        "line": 50
+      }
+    ],
+    "evidence": "Cancelamento salva estado local antes de chamar provedor. Falha externa publica order.cancellation_provider_failed; repetição encontra cancelled e retorna antecipadamente. Não foi localizado consumidor que retome o comando.",
+    "impact": "Pedido parece cancelado, mas o provedor pode continuar cobrando/processando; retry da mesma ação não repara a divergência.",
+    "cause": "Estado final publicado antes de confirmar efeito externo e ausência de recuperação específica.",
+    "fix": "Introduzir cancellation_pending e comando durável; concluir após confirmação ou conciliação, preservando chave de idempotência.",
+    "acceptance": "Falhar o provedor após update local e reiniciar: cancelamento deve continuar pendente e ser retomado sem duplicar reembolso.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-operations.md"
+  },
+  {
+    "id": "API-023",
+    "severity": "P1",
+    "module": "shipping",
+    "title": "Compra de etiqueta precede validação do pedido",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/shipping/application/use-cases/shipping-label.use-cases.ts",
+        "line": 20
+      }
+    ],
+    "evidence": "O use case valida strings e chama provider.purchaseLabel antes de obter/validar o pedido por ownership; updateTracking só ocorre depois.",
+    "impact": "Pode gastar em etiqueta para pedido inexistente ou deixar etiqueta comprada sem vínculo quando persistência falha.",
+    "cause": "Efeito externo precede pré-condições locais e não tem intenção durável recuperável.",
+    "fix": "Validar pedido/endereço/estado/tenant antes da compra; persistir intent idempotente e reconciliar etiqueta emitida após resposta perdida.",
+    "acceptance": "Pedido inexistente/alheio nunca chama provedor; timeout após compra deve recuperar a mesma etiqueta e rastreio.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-shipping.md"
+  },
+  {
+    "id": "API-024",
+    "severity": "P1",
+    "module": "notifications",
+    "title": "Adaptadores retornam sucesso sem entrega confirmada",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/notifications/infrastructure/adapters/bubblewhats.adapter.ts",
+        "line": 1
+      },
+      {
+        "path": "apps/api/src/modules/notifications/infrastructure/adapters/resend-email.adapter.ts",
+        "line": 25
+      }
+    ],
+    "evidence": "BubbleWhats absorve resposta não OK e exceções; Resend sem chave retorna identificador de fila simulado. Caminhos de envio não aplicam timeout explícito.",
+    "impact": "Eventos podem ser marcados entregues sem mensagem enviada e sem retry; falta de configuração não impede falso sucesso.",
+    "cause": "Contrato de adaptador não distingue accepted/failed/not-configured.",
+    "fix": "Validar configuração no startup do canal habilitado, aplicar deadline e propagar erro retryable; registrar receipt/status durável.",
+    "acceptance": "HTTP 500/429/timeout e chave ausente devem impedir delivered; retry gera um envio idempotente e métrica/alerta de falha.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-notifications.md"
+  },
+  {
+    "id": "API-025",
+    "severity": "P1",
+    "module": "buyer-account",
+    "title": "Fallback SMS registra OTP e simula envio",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/buyer-account/buyer-account.module.ts",
+        "line": 83
+      }
+    ],
+    "evidence": "Na falta de BUBBLEWHATS configuração, o adaptador SMS do módulo registra a mensagem completa (incluindo código) e retorna sucesso. O envio configurado também não verifica response.ok.",
+    "impact": "Códigos de autenticação chegam a logs em vez do comprador; tentativas podem parecer enviadas e falhar silenciosamente.",
+    "cause": "Fallback de desenvolvimento no caminho de autenticação e contrato de entrega insuficiente.",
+    "fix": "Falhar configuração de SMS habilitado em production, redigir códigos/PII e validar status/timeout; retorno de API precisa representar disponibilidade do canal.",
+    "acceptance": "Em production sem provedor, nenhum OTP pode aparecer em logs; 4xx/5xx não conta como envio bem-sucedido.",
+    "complexity": "M",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-buyer-account.md"
+  },
+  {
+    "id": "API-026",
+    "severity": "P1",
+    "module": "whatsapp-channel",
+    "title": "Webhook confirma recebimento antes de persistir processamento",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/whatsapp-channel/presentation/http/whatsapp-webhook.controller.ts",
+        "line": 90
+      }
+    ],
+    "evidence": "BubbleWhats só exige segredo se config.webhookSecret existir e dispara void handleMessage.execute antes de retornar 200; status segue o mesmo padrão.",
+    "impact": "Configuração ativa sem segredo aceita mensagens forjadas; crash após 200 perde processamento e impede retry do provedor.",
+    "cause": "Autenticação opcional de webhook e ausência de inbox durável antes do acknowledgment.",
+    "fix": "Exigir segredo para canal habilitado, persistir evento com ID único em inbox antes do 2xx, processar com retries/dead-letter e rate limit.",
+    "acceptance": "Sem segredo/assinatura incorreta rejeitar; crash após 200 não perde evento; replay e duas réplicas processam uma única mensagem lógica.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC; configuração ativa sem segredo INFRA VALIDATION REQUIRED",
+    "adr": "api/ADR-api-whatsapp-channel.md"
+  },
+  {
+    "id": "API-027",
+    "severity": "P1",
+    "module": "shared",
+    "title": "Rate limiter global pode liberar todas as requisições",
+    "refs": [
+      {
+        "path": "apps/api/src/shared/http/rate-limit.guard.ts",
+        "line": 1
+      }
+    ],
+    "evidence": "O guard tenta require(\"ioredis\") em aplicação ESM, captura falha e mantém construtor nulo; sem Redis/client ou sem principal retorna true. Como APP_GUARD antecede guard de rota, o principal também pode ainda não estar atribuído.",
+    "impact": "O limitador global por tenant não é controle confiável contra abuso. Há outro RateLimitModule e regras Kong; isso não prova que todos os endpoints estejam ilimitados.",
+    "cause": "Carregamento incompatível com ESM e dependência da ordem de autenticação.",
+    "fix": "Usar import suportado, definir autenticação antes de quotas de tenant, limitar entradas anônimas por chave apropriada e estabelecer política para Redis indisponível.",
+    "acceptance": "Com Redis real, validar 429 após limite por tenant/IP em duas réplicas, inclusive sem cookie; comparar proteção dentro e fora do gateway.",
+    "complexity": "M",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-shared.md"
+  },
+  {
+    "id": "API-028",
+    "severity": "P2",
+    "module": "audit",
+    "title": "Trilha de auditoria é gravada fora do commit da mutação",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/audit/infrastructure/audit-mutation.interceptor.ts",
+        "line": 55
+      }
+    ],
+    "evidence": "Interceptor usa tap e inicia void recordAudit após resposta de sucesso, capturando erro somente em log.",
+    "impact": "Uma alteração financeira/administrativa pode persistir sem evento de auditoria após crash ou erro de armazenamento.",
+    "cause": "Trilha durável implementada como observação best-effort da resposta HTTP.",
+    "fix": "Para ações críticas, gravar evento de auditoria/outbox no mesmo commit da mutação e vincular ator, tenant, recurso e correlationId.",
+    "acceptance": "Falha no registro de audit não pode criar mutação crítica sem trilha; retries devem conservar um evento lógico e não registrar segredos.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-audit.md"
+  },
+  {
+    "id": "API-029",
+    "severity": "P2",
+    "module": "fulfillment",
+    "title": "Tracking e evento não são atômicos",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/fulfillment/application/use-cases/record-tracking-event.use-case.ts",
+        "line": 35
+      }
+    ],
+    "evidence": "Atualização de shipment, registro de tracking e publicação de evento são sequenciais. Se a falha ocorrer após novo status, replay pode sair por sameStatus e não emitir o evento perdido.",
+    "impact": "Status na tela e notificações/consumidores podem divergir após falha parcial.",
+    "cause": "Transição e outbox não compartilham unidade de trabalho.",
+    "fix": "Persistir evento do carrier, transição e outbox atomicamente com chave única; deduplicar por evento e não só igualdade de status.",
+    "acceptance": "Crash em cada gravação e eventos fora de ordem precisam convergir sem perder notificações nem regredir shipment.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": false,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-fulfillment.md"
+  },
+  {
+    "id": "API-030",
+    "severity": "P2",
+    "module": "onboarding",
+    "title": "Transição salva antes do evento pode suprimir retry",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/onboarding/application/complete-onboarding-step.use-case.ts",
+        "line": 70
+      }
+    ],
+    "evidence": "O estado é salvo antes de appendOutbox; retry com passo já concluído não publica a transição faltante.",
+    "impact": "Conclusão pode aparecer no dashboard sem ativar consumidores dependentes.",
+    "cause": "Idempotência baseada apenas no estado agregado, sem outbox atômico.",
+    "fix": "Salvar estado e evento em transação com ID estável da transição.",
+    "acceptance": "Injetar falha no outbox após save e repetir: um evento lógico precisa existir para cada mudança concluída.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": false,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-onboarding.md"
+  },
+  {
+    "id": "API-031",
+    "severity": "P2",
+    "module": "store-settings",
+    "title": "Unicidade do slug depende de consulta sem constraint",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/store-settings/application/use-cases/update-store-settings.use-case.ts",
+        "line": 15
+      },
+      {
+        "path": "apps/api/src/modules/storefront/application/use-cases/get-store-config.use-case.ts",
+        "line": 1
+      }
+    ],
+    "evidence": "Update procura slug já usado e depois grava JSON de configuração. Não foi encontrada constraint única de slug de loja; resolução de config também contém fallback que percorre merchants.",
+    "impact": "Duas lojas podem escolher o mesmo slug simultaneamente; resolução pode tornar-se ambígua e cara.",
+    "cause": "Identificador público armazenado em JSON sem invariante de banco.",
+    "fix": "Promover slug normalizado a campo indexado único e tratar conflito transacional; resolver loja por consulta indexada.",
+    "acceptance": "Dois merchants concorrendo por slug normalizado geram um vencedor/409; lookup não percorre todas as lojas.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": false,
+    "verification": "CONFIRMED_STATIC; migrações aplicadas UNVERIFIED",
+    "adr": "api/ADR-api-store-settings.md"
+  },
+  {
+    "id": "API-032",
+    "severity": "P2",
+    "module": "buyer-purchase-history",
+    "title": "Histórico cresce sem limite nas leituras e saves",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/buyer-purchase-history/infrastructure/prisma-buyer-purchase-history.repository.ts",
+        "line": 15
+      }
+    ],
+    "evidence": "getByBuyer carrega todas as compras; save percorre histórico para upserts. recordPurchase também recarrega histórico após inserir.",
+    "impact": "Custo de I/O e memória cresce com o comprador; recorrência deixa o caminho de checkout progressivamente mais caro.",
+    "cause": "Agregado acumula histórico completo em operações que precisam de estatísticas ou uma compra.",
+    "fix": "Separar append idempotente, projeção resumida e consulta paginada por cursor; medir com buyer de histórico grande.",
+    "acceptance": "EXPLAIN e teste com 100 mil compras por buyer devem demonstrar leitura limitada e inserção sem regravar o histórico.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": false,
+    "verification": "CONFIRMED_STATIC; REQUIRES LOAD VALIDATION",
+    "adr": "api/ADR-api-buyer-purchase-history.md"
+  },
+  {
+    "id": "API-033",
+    "severity": "P2",
+    "module": "revenue-manager",
+    "title": "Observação usa estimativas fixas como métricas",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/revenue-manager/application/use-cases/observe-metrics.use-case.ts",
+        "line": 115
+      }
+    ],
+    "evidence": "Fallbacks calculam parcelas de sessões por 0.6/0.4 e taxas de abandono fixas em vez de retornar ausência de medição.",
+    "impact": "Hipóteses e decisões automáticas podem se apoiar em valores sintéticos apresentados como observação.",
+    "cause": "Disponibilidade de dado substituída por número plausível sem provenance.",
+    "fix": "Retornar unknown/insufficient_data com fonte e janela; bloquear avaliação automática que exige métrica ausente.",
+    "acceptance": "Dataset sem eventos medidos não pode gerar taxa observada; decisão registra origem/amostra e exige dados suficientes.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": false,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-revenue-manager.md"
+  },
+  {
+    "id": "API-034",
+    "severity": "P2",
+    "module": "revenue-lift",
+    "title": "Atribuição monetária usa unidade divergente e só é logada neste fluxo",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/checkout/application/use-cases/complete-order.use-case.ts",
+        "line": 210
+      },
+      {
+        "path": "apps/api/src/modules/revenue-lift/domain/services/attribution-tagger.service.ts",
+        "line": 1
+      }
+    ],
+    "evidence": "CompleteOrder passa order_total em moeda principal como orderValueCents ao tagger, com flags/AI cost fixados, e registra resultado por logger.debug. Isso não demonstra persistência completa de attribution_tags consultada pelo relatório.",
+    "impact": "Revenue lift pode ficar vazio ou representar valores escalados incorretamente; não há evidência de medição confiável de incrementalidade.",
+    "cause": "Contrato de unidade e cadeia de coleta/projeção não estão fechados.",
+    "fix": "Padronizar centavos, persistir tag versionada e medir tratamento/controle de todas as sessões elegíveis; explicitar ausência de amostra.",
+    "acceptance": "Pedido de R$100 deve persistir 10000 centavos; relatório precisa reconciliar população, conversões e custos com eventos de origem.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": false,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-revenue-lift.md"
+  },
+  {
+    "id": "API-035",
+    "severity": "P2",
+    "module": "cross-sell",
+    "title": "Módulo não montado usa catálogo sintético no aceite",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/cross-sell/application/services/cross-sell-product-resolver.ts",
+        "line": 1
+      },
+      {
+        "path": "apps/api/src/modules/cross-sell/application/use-cases/accept-cross-sell-from-widget.use-case.ts",
+        "line": 70
+      },
+      {
+        "path": "apps/api/src/app.module.ts",
+        "line": 1
+      }
+    ],
+    "evidence": "CrossSellModule não é alcançável pelo AppModule. O resolver contém SKUs fixos e preço/custo fallback; aceite usa esse resolver para incluir produto no carrinho.",
+    "impact": "Rotas declaradas não estão disponíveis; simplesmente registrar o módulo exporia inclusão de itens com valores sintéticos.",
+    "cause": "Implementação demonstrativa não substituída por porta autoritativa de catálogo.",
+    "fix": "Resolver produto/preço/estoque pelo tenant e catálogo real; validar oferta/sessão, e só então habilitar rotas com contrato versionado.",
+    "acceptance": "SKU desconhecido deve falhar; aceite respeita preço/estoque/merchant da oferta. Teste de composição confirma endpoint apenas após correção.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-cross-sell.md"
+  },
+  {
+    "id": "API-036",
+    "severity": "P1",
+    "module": "public-api",
+    "title": "Maioria dos controllers públicos não entra no AppModule",
+    "refs": [
+      {
+        "path": "apps/api/src/app.module.ts",
+        "line": 1
+      },
+      {
+        "path": "apps/api/src/modules/public-api/public-api.module.ts",
+        "line": 1
+      },
+      {
+        "path": "apps/api/src/modules/dashboard/dashboard-marketplace.module.ts",
+        "line": 1
+      }
+    ],
+    "evidence": "Grafo AST de @Module encontra 110 declarações de handlers em public-api, mas só sete alcançáveis via DashboardMarketplaceModule. PublicApiModule está comentado na composição raiz.",
+    "impact": "Existência de controller/SDK/OpenAPI não implica endpoint em produção; integrações públicas anunciadas podem retornar 404.",
+    "cause": "Superfície documentada diverge da composição executável.",
+    "fix": "Definir superfície suportada e gerar contrato da aplicação realmente montada; habilitar controllers somente após seus guards/providers serem validados.",
+    "acceptance": "Subir AppModule production e executar smoke por método/path das rotas suportadas, com casos 401/403/404 e consumidores reais.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-public-api.md"
+  },
+  {
+    "id": "API-037",
+    "severity": "P2",
+    "module": "shared",
+    "title": "Shutdown e backpressure do outbox não aguardam trabalho em curso",
+    "refs": [
+      {
+        "path": "apps/api/src/shared/messaging/outbox-dispatcher.service.ts",
+        "line": 20
+      }
+    ],
+    "evidence": "onModuleDestroy limpa timer; não aguarda explicitamente processamento em curso. O polling usa proteção local e não representa lease entre réplicas.",
+    "impact": "Deploy pode interromper handlers após efeito externo e antes do ack; backlog cresce sem capacidade/latência validada.",
+    "cause": "Lifecycle controla scheduler, mas não o estado dos trabalhos distribuídos.",
+    "fix": "Parar novos claims, aguardar/drain com deadline, liberar lease recuperável e monitorar oldest_pending, attempts/dead e tempo de handler.",
+    "acceptance": "SIGTERM durante handler não perde evento; backlog com provedor lento permanece limitado e dispara alerta.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": false,
+    "verification": "CONFIRMED_STATIC; REQUIRES LOAD VALIDATION",
+    "adr": "api/ADR-api-shared.md"
+  },
+  {
+    "id": "API-038",
+    "severity": "P1",
+    "module": "shared",
+    "title": "Gate de release não cobre o widget atual e falha localmente",
+    "refs": [
+      {
+        "path": ".github/workflows/ci.yml",
+        "line": 30
+      },
+      {
+        "path": ".github/workflows/live.yml",
+        "line": 35
+      },
+      {
+        "path": "apps/api/package.json",
+        "line": 1
+      }
+    ],
+    "evidence": "CI referencia apps/widget removido nesta árvore; live.yml usa filtros @aacp e widget antigos. Typecheck API falha por minimatch; diagnóstico --types node revela Prisma Client local sem tipos gerados válidos. Esses erros de ambiente não provam falha do código no deploy.",
+    "impact": "O pipeline presente não fornece evidência de build/test do widget_v2 e storefront; baseline da API não foi validado.",
+    "cause": "CI desatualizado em relação aos workspaces e ambiente local de geração/tipagem inconsistente.",
+    "fix": "Atualizar matriz dos quatro apps, gerar Prisma/artefatos na ordem correta e executar install frozen/build/typecheck/test/smoke em ambiente limpo.",
+    "acceptance": "Pipeline deve falhar se qualquer um dos quatro apps falhar, e publicar evidência do mesmo commit/lockfile que será implantado.",
+    "complexity": "M",
+    "risk": "Baixo",
+    "blocks": true,
+    "verification": "EXECUTED_FAILED + CONFIRMED_STATIC",
+    "adr": "api/ADR-api-shared.md"
+  },
+  {
+    "id": "API-039",
+    "severity": "P1",
+    "module": "shared",
+    "title": "Auditoria de dependências retornou avisos de segurança pendentes",
+    "refs": [
+      {
+        "path": "pnpm-lock.yaml",
+        "line": 1
+      }
+    ],
+    "evidence": "pnpm audit --prod --json retornou exit 1: 78 ocorrências reportadas (35 high, 39 moderate, 4 low, 0 critical) em 768 dependências. O relatório preserva advisory IDs e caminhos; contagem não equivale a 78 vulnerabilidades exploráveis.",
+    "impact": "Release exige triagem de alcançabilidade e atualização das dependências afetadas. Exemplos reportados incluem multer, ws, protobufjs, undici e sharp.",
+    "cause": "Lockfile contém versões listadas por advisories atuais; uso efetivo por rota ainda precisa ser triado.",
+    "fix": "Priorizar bibliotecas alcançáveis por input externo, atualizar versões compatíveis e registrar exceções justificadas com prazo; repetir audit no artefato final.",
+    "acceptance": "Nenhum high/critical alcançável sem mitigação comprovada; SBOM e audit do lockfile final anexados à release.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "EXECUTED; exploitability UNVERIFIED",
+    "adr": "api/ADR-api-shared.md"
+  },
+  {
+    "id": "API-040",
+    "severity": "P2",
+    "module": "marketplace",
+    "title": "Fila de catálogo perde identidade e ordenação de evento",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/marketplace/application/handlers/marketplace-catalog-sync.handler.ts",
+        "line": 16
+      },
+      {
+        "path": "apps/api/src/modules/marketplace/application/handlers/marketplace-catalog-sync.handler.ts",
+        "line": 83
+      }
+    ],
+    "evidence": "Jobs levam eventType/merchantId/payload sem eventId/versão e não definem jobId. Worker concorrente pode processar upserts/delete sem versão. redisConnection extrai host/porta de URL sem preservar opção TLS de rediss.",
+    "impact": "Replays geram trabalho duplicado; update antigo pode recriar produto excluído. Conexão rediss pode falhar contra Redis que exige TLS.",
+    "cause": "Transporte usado como garantia implícita de ordenação/identidade; parsing parcial da conexão.",
+    "fix": "Propagar eventId/version, deduplicar e aplicar versão monotônica por produto; configurar TLS e política de retries/failed jobs explícita.",
+    "acceptance": "Entregar delete v3 seguido de upsert v2 não recria produto; rediss com certificado válido conecta e inválido falha.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": false,
+    "verification": "CONFIRMED_STATIC; ordering/TLS runtime UNVERIFIED",
+    "adr": "api/ADR-api-marketplace.md"
+  },
+  {
+    "id": "API-041",
+    "severity": "P0",
+    "module": "support",
+    "title": "Gateway permite ouvir tickets e enviar mensagens como merchant sem autenticação",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/support/infrastructure/gateways/support.gateway.ts",
+        "line": 26
+      },
+      {
+        "path": "apps/api/src/modules/support/infrastructure/gateways/support.gateway.ts",
+        "line": 70
+      },
+      {
+        "path": "apps/api/src/modules/support/application/send-ticket-message.use-case.ts",
+        "line": 25
+      }
+    ],
+    "evidence": "join_merchant e join_ticket aceitam IDs sem principal; send_message força senderType=merchant e usa merchantId recebido pelo socket. O use case verifica ticketId+merchantId, mas ambos vêm do cliente não autenticado.",
+    "impact": "Conhecendo IDs, qualquer conexão pode receber tickets/mensagens e se passar por atendente. Os guards dos controllers HTTP não cobrem o gateway.",
+    "cause": "Autorização de socket ausente e identidade do remetente controlada pelo cliente.",
+    "fix": "Autenticar conexão e validar membership/buyer-ticket em cada evento; derivar senderType e merchantId do principal; limitar conteúdo e frequência.",
+    "acceptance": "Socket anônimo/alheio não entra em sala nem envia mensagem; buyer não consegue assumir papel merchant mesmo enviando IDs válidos.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-support.md"
+  },
+  {
+    "id": "API-042",
+    "severity": "P0",
+    "module": "checkout",
+    "title": "E-mail conhecido é tratado como prova de identidade do comprador",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/checkout/application/services/checkout-customer.service.ts",
+        "line": 126
+      },
+      {
+        "path": "apps/api/src/modules/checkout/application/services/buyer-recognition.service.ts",
+        "line": 118
+      },
+      {
+        "path": "apps/api/src/modules/checkout/application/services/buyer-recognition.service.ts",
+        "line": 61
+      }
+    ],
+    "evidence": "hydrateReturningBuyerFromEmailHint consulta conta por email, considera existência da conta/prior session verificada suficiente e define email_verified=true na sessão atual sem OTP. O reconhecimento pode preencher nome/telefone/endereço e globalUserId.",
+    "impact": "Informar o email de um comprador existente pode vincular a identidade dele e expor dados de perfil numa sessão nova. Histórico de verificação não prova posse no request atual.",
+    "cause": "Reconhecimento comercial confundido com autenticação.",
+    "fix": "Exigir buyer JWT verificado ou desafio OTP atual antes de vincular globalUserId/hidratar PII. Manter dados reconhecidos opacos até comprovação.",
+    "acceptance": "Sessão nova com email de vítima, sem OTP/buyer token, permanece não verificada e não recebe dados da conta. Cobrir início e captura por chat.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-checkout.md"
+  },
+  {
+    "id": "API-043",
+    "severity": "P0",
+    "module": "checkout",
+    "title": "Preço e frete iniciais podem vir do cliente sem revalidação de catálogo",
+    "refs": [
+      {
+        "path": "apps/api/src/modules/embed/presentation/http/embed-checkout.controller.ts",
+        "line": 94
+      },
+      {
+        "path": "apps/api/src/modules/checkout/application/use-cases/start-checkout.use-case.ts",
+        "line": 124
+      },
+      {
+        "path": "apps/api/src/modules/checkout/domain/entities/checkout-session.entity.ts",
+        "line": 19
+      },
+      {
+        "path": "apps/api/src/modules/payment/application/create-payment-intent.use-case.ts",
+        "line": 164
+      },
+      {
+        "path": "apps/api/src/modules/payment/application/create-payment-intent.use-case.ts",
+        "line": 361
+      }
+    ],
+    "evidence": "Embed/start encaminha cart/customer/shipping do body; StartCheckout persiste esses valores. CreatePaymentIntent calcula a cobrança a partir do snapshot e só valida commerce externo quando cart.commerceCartRef existe. Recalcular soma em CompleteOrder não valida o preço original.",
+    "impact": "Token embed com checkout:start pode inicializar itens, descontos ou frete adulterados e alimentar intenção com valor inferior ao catálogo quando não há commerceCartRef. Guard de tenant não garante autoridade de preço.",
+    "cause": "Dados recebidos do navegador se tornam fonte monetária do servidor sem carregamento autoritativo dos SKUs e quote.",
+    "fix": "Aceitar somente referência de carrinho ou SKU+quantidade; carregar preço/estoque/desconto/frete no servidor, rejeitar totais e flags de verificação enviados pelo cliente.",
+    "acceptance": "Alterar price,total,currentDiscount,shipping e campos customer.*_verified no body não altera o valor autorizado nem o estado de autenticação; SKU desconhecido deve falhar.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC; cobrança externa não executada",
+    "adr": "api/ADR-api-checkout.md"
+  },
+  {
+    "id": "API-044",
+    "severity": "P1",
+    "module": "embed",
+    "title": "Emissão via storefront transforma parâmetros públicos em credencial de tenant",
+    "refs": [
+      {
+        "path": "apps/storefront/src/app/api/checkout-token/route.ts",
+        "line": 3
+      },
+      {
+        "path": "apps/api/src/modules/embed/presentation/http/embed-session-issuer.guard.ts",
+        "line": 53
+      },
+      {
+        "path": "apps/api/src/modules/embed/presentation/http/embed-sessions.controller.ts",
+        "line": 122
+      }
+    ],
+    "evidence": "Rota Next pública aceita merchant_id, cart_ref e allowed_origin arbitrários, injeta o INTERNAL_SERVICE_TOKEN e X-Merchant-Id; a API aceita esse merchant e só valida instalação quando installation_id é fornecido. A emissão sem instalação não comprova domínio/carrinho do solicitante.",
+    "impact": "Qualquer caller da rota pode solicitar token com escopos de checkout/pagamento para tenant/origem escolhidos, ampliando o impacto dos defeitos de ownership e preço.",
+    "cause": "Proxy com privilégio de serviço não valida o contexto público antes de exercer sua autoridade.",
+    "fix": "Resolver tenant pelo host/slug registrado, vincular origem à instalação autorizada e carrinho à sessão do buyer; restringir escopos/TTL e aplicar rate limit na emissão.",
+    "acceptance": "Host de A não emite token de B, origem arbitrária é rejeitada e carrinho alheio não pode ser vinculado. Emissão anônima legítima permanece limitada ao contexto autorizado.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "api/ADR-api-embed.md"
+  },
+  {
+    "id": "API-045",
+    "severity": "P1",
+    "module": "shared",
+    "title": "Compose de produção referencia Dockerfile ausente do storefront",
+    "refs": [
+      {
+        "path": "docker-compose.production.yml",
+        "line": 110
+      },
+      {
+        "path": "apps/storefront/next.config.ts",
+        "line": 1
+      }
+    ],
+    "evidence": "Serviço storefront declara apps/storefront/Dockerfile, arquivo inexistente na árvore. Também injeta NEXT_PUBLIC_API_URL, mas o client/config usa NEXT_PUBLIC_API_BASE_URL/AACP_API_URL; variáveis públicas são incorporadas no build Next.",
+    "impact": "Build completo por esse compose falha e configuração pretendida não corresponde ao código. Deploy Vercel é outra via e não foi exercitado.",
+    "cause": "Manifesto de implantação não acompanha artefatos e nomes de configuração atuais.",
+    "fix": "Criar/validar artefato de deploy escolhido com variáveis corretas em build/runtime e smoke de SSR/browser; manter uma receita oficial reproduzível.",
+    "acceptance": "Build em checkout limpo e subida do compose completo ou pipeline oficial escolhido passam /ready e loja pública chama a origem correta.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC; deploy não executado",
+    "adr": "api/ADR-api-shared.md"
+  },
+  {
+    "id": "DASH-001",
+    "severity": "P1",
+    "module": "dashboard",
+    "title": "Onboarding usa etapas incompatíveis e impede compilação",
+    "refs": [
+      {
+        "path": "apps/dashboard/src/pages/onboarding-wizard/hooks/useStepPayment.ts",
+        "line": 52
+      },
+      {
+        "path": "apps/dashboard/src/pages/onboarding-wizard/hooks/useStepApiKey.ts",
+        "line": 24
+      },
+      {
+        "path": "apps/dashboard/src/pages/onboarding-wizard/hooks/useStepReview.ts",
+        "line": 18
+      },
+      {
+        "path": "apps/api/src/modules/onboarding/application/complete-onboarding-step.use-case.ts",
+        "line": 60
+      }
+    ],
+    "evidence": "tsc reportou cinco TS2345 nas etapas embed/publish, ausentes de OnboardingStepId. A API também valida step por isOnboardingStepId antes de concluir.",
+    "impact": "Build do dashboard bloqueado; contornar tipagem não torna as etapas válidas no backend.",
+    "cause": "Workflow da UI mudou sem alinhar contrato de onboarding.",
+    "fix": "Derivar etapas e transições do contrato compartilhado; atualizar jornada por plano e estado de conclusão apenas após resposta válida.",
+    "acceptance": "tsc/build passam; percorrer STORE_ONLY/CHECKOUT_ONLY/BOTH e retomar onboarding em outra sessão conclui somente etapas reconhecidas.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "EXECUTED_FAILED + CONFIRMED_STATIC",
+    "adr": "dashboard/ADR-dashboard.md"
+  },
+  {
+    "id": "DASH-002",
+    "severity": "P1",
+    "module": "dashboard",
+    "title": "Configurações de conta chamam endpoints ausentes",
+    "refs": [
+      {
+        "path": "apps/dashboard/src/api/endpoints/auth.ts",
+        "line": 46
+      },
+      {
+        "path": "apps/dashboard/src/pages/useAccountSettingsPage.ts",
+        "line": 65
+      },
+      {
+        "path": "apps/api/src/modules/auth/presentation/auth.controller.ts",
+        "line": 26
+      }
+    ],
+    "evidence": "Cliente chama GET/PUT /auth/me e PUT /auth/me/password; o controller auth montado oferece register/login/refresh/logout/forgot/reset/oauth, sem esses handlers. Página de conta usa as funções.",
+    "impact": "Leitura/edição da conta e troca de senha pela tela falham com 404 na composição auditada.",
+    "cause": "Cliente implementado contra contrato que não foi exposto na API.",
+    "fix": "Definir DTOs e implementar endpoints autorizados ou apontar para contrato existente equivalente; invalidar sessões após troca de senha.",
+    "acceptance": "Teste de contrato monta AppModule e cobre leitura, update e senha atual incorreta/correta; tela só informa sucesso após resposta real.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "dashboard/ADR-dashboard.md"
+  },
+  {
+    "id": "DASH-003",
+    "severity": "P1",
+    "module": "dashboard",
+    "title": "Ações de devolução usam nomes de rotas divergentes",
+    "refs": [
+      {
+        "path": "apps/dashboard/src/api/endpoints/returns.ts",
+        "line": 47
+      },
+      {
+        "path": "apps/api/src/modules/returns/presentation/http/returns.controller.ts",
+        "line": 75
+      }
+    ],
+    "evidence": "Dashboard POST /returns/:id/generate-label e /mark-received; backend registra /label e /receive. inspect/refund existem, mas refund possui API-007.",
+    "impact": "Operador não consegue emitir etiqueta nem registrar recebimento por essas ações; reembolso existente não pode ser considerado pronto.",
+    "cause": "URLs duplicadas manualmente sem teste consumidor/provedor.",
+    "fix": "Alinhar nomes/DTOs no client e contrato, mantendo bloqueio financeiro até API-007; tratar 409 de estado inválido na tela.",
+    "acceptance": "Fluxo real request→label→receive→inspect→refund deve usar contratos montados e exibir tracking/status confirmado.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "dashboard/ADR-dashboard.md"
+  },
+  {
+    "id": "DASH-004",
+    "severity": "P1",
+    "module": "dashboard",
+    "title": "Envio/entrega de marketplace apontam para rotas não declaradas",
+    "refs": [
+      {
+        "path": "apps/dashboard/src/api/endpoints/marketplace.ts",
+        "line": 72
+      },
+      {
+        "path": "apps/dashboard/src/api/endpoints/marketplace-v2.ts",
+        "line": 181
+      },
+      {
+        "path": "apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts",
+        "line": 35
+      }
+    ],
+    "evidence": "Duas implementações chamam POST /marketplace/orders/line-items/:id/ship e /deliver. Inventário dos controllers não encontrou esses paths; existem outras operações públicas e controllers dashboard, sem equivalência comprovada.",
+    "impact": "Ações de expedição/entrega do vendedor retornam 404 ou não evoluem settlement.",
+    "cause": "Evolução do marketplace deixou adaptadores e superfície da API desacoplados.",
+    "fix": "Consolidar client de marketplace e definir comandos tenant-scoped reais, versionados e integrados à liquidação.",
+    "acceptance": "Vendedor envia/entrega item próprio; item alheio falha; comando repetido não agenda transferência duplicada.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "dashboard/ADR-dashboard.md"
+  },
+  {
+    "id": "DASH-005",
+    "severity": "P2",
+    "module": "dashboard",
+    "title": "Salvar configurações busca ETag novo e pode sobrescrever edição concorrente",
+    "refs": [
+      {
+        "path": "apps/dashboard/src/api/endpoints/checkout-settings.ts",
+        "line": 11
+      },
+      {
+        "path": "apps/dashboard/src/api/endpoints/webhook.ts",
+        "line": 37
+      }
+    ],
+    "evidence": "Checkout settings busca ETag imediatamente antes do PUT, em vez de usar a versão carregada ao editar. Fallback usa If-Match: *. Webhooks enviam * sempre.",
+    "impact": "Um formulário antigo pode adquirir o ETag mais recente e sobrescrever mudanças alheias sem apresentar conflito ao usuário.",
+    "cause": "If-Match usado como requisito sintático e não versão da base da edição.",
+    "fix": "Guardar ETag junto aos dados carregados, enviar essa versão e tratar 412/409 com recarregar/mesclar; evitar wildcard em edição concorrente.",
+    "acceptance": "Duas abas editam o mesmo campo a partir de V1: salvar A gera V2 e salvar B deve apresentar conflito sem sobrescrever V2.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": false,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "dashboard/ADR-dashboard.md"
+  },
+  {
+    "id": "DASH-006",
+    "severity": "P2",
+    "module": "dashboard",
+    "title": "Suíte atual contém 33 falhas e cobertura de contrato insuficiente",
+    "refs": [
+      {
+        "path": "apps/dashboard/vitest.config.ts",
+        "line": 1
+      },
+      {
+        "path": "apps/dashboard/src/api-client.spec.ts",
+        "line": 1
+      }
+    ],
+    "evidence": "vitest run --configLoader runner executou 448 testes: 415 passaram e 33 falharam em seis arquivos. Há falhas de texto/estrutura de UI, fixtures e filtro de data. Execução padrão foi bloqueada pelo acesso do esbuild à configuração.",
+    "impact": "Não há baseline verde para afirmar regressão controlada. Testes de fonte/snapshot que passam não garantem rotas/DTOs da API montada.",
+    "cause": "Mudanças de UI e contratos não foram acompanhadas de validação integral do consumidor.",
+    "fix": "Triar falhas legítimas versus expectativas obsoletas; priorizar testes comportamentais e contratos reais para conta, onboarding, devoluções, marketplace e pagamentos.",
+    "acceptance": "Suíte oficial passa com expectativas justificadas e testes novos detectam os caminhos ausentes registrados nesta auditoria.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "EXECUTED_FAILED",
+    "adr": "dashboard/ADR-dashboard.md"
+  },
+  {
+    "id": "SF-001",
+    "severity": "P1",
+    "module": "storefront",
+    "title": "Paginação do catálogo público usa endpoint administrativo",
+    "refs": [
+      {
+        "path": "apps/storefront/src/lib/api/api-client.ts",
+        "line": 68
+      },
+      {
+        "path": "apps/storefront/src/components/blocks/ProductCarouselBlock.tsx",
+        "line": 31
+      },
+      {
+        "path": "apps/api/src/modules/catalog/presentation/http/catalog.controller.ts",
+        "line": 1
+      }
+    ],
+    "evidence": "productsApi.list/get chama /merchants/:id/products com credentials include. Esses endpoints pertencem ao catálogo administrativo protegido; comprador comum não tem cookie merchant. ProductCarouselBlock usa list para carregar a próxima página. O envelope products/nextCursor existe e o componente adapta variantes; o bloqueio confirmado é a credencial.",
+    "impact": "Paginação do carrossel falha para visitante sem sessão merchant, mesmo que a primeira página recebida na conversa apareça. Não se deve resolver isso entregando cookie/chave administrativa ao browser.",
+    "cause": "Cliente público reutiliza contrato e credencial de administração.",
+    "fix": "Usar catálogo público com escopo/DTO próprios e adaptar preços, variantes e paginação a uma resposta tipada.",
+    "acceptance": "Navegador sem sessão de lojista lista apenas produtos públicos da loja e escolhe variante válida sem acessar campos administrativos.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "storefront/ADR-storefront.md"
+  },
+  {
+    "id": "SF-002",
+    "severity": "P1",
+    "module": "storefront",
+    "title": "Carrinho mistura alterações locais e chamadas incompletas",
+    "refs": [
+      {
+        "path": "apps/storefront/src/lib/api/api-client.ts",
+        "line": 192
+      },
+      {
+        "path": "apps/storefront/src/lib/viewmodels/useConversationViewModel.ts",
+        "line": 350
+      },
+      {
+        "path": "apps/storefront/src/lib/cart-store.tsx",
+        "line": 192
+      },
+      {
+        "path": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 281
+      }
+    ],
+    "evidence": "cartApi.updateItem ignora _merchantId, não envia query obrigatória e usa DELETE para quantidade zero; backend tem PATCH que exige merchantId e aceita zero. CartProvider.updateItemQuantity altera apenas estado local.",
+    "impact": "Tela pode mostrar quantidade/remover item que não foi persistido; requisição PATCH retorna 400 e DELETE não corresponde ao handler. Pagamento pode usar carrinho divergente.",
+    "cause": "Múltiplas fontes de estado e erro de contrato na sincronização.",
+    "fix": "Centralizar mutação em client tipado, usar resposta autoritativa e rollback/erro visível; invalidar frete/oferta/intent após mudança.",
+    "acceptance": "Aumentar/reduzir/remover item, recarregar e pagar mantém quantidades e total do servidor. Falha de rede não aparenta sucesso.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "storefront/ADR-storefront.md"
+  },
+  {
+    "id": "SF-003",
+    "severity": "P1",
+    "module": "storefront",
+    "title": "Heurísticas de centavos alteram preços legítimos",
+    "refs": [
+      {
+        "path": "apps/storefront/src/lib/cart-store.tsx",
+        "line": 159
+      },
+      {
+        "path": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 265
+      }
+    ],
+    "evidence": "subtotal > 1000 é dividido por 100 e total > 10000 também; o endpoint entrega price/subtotal/total em reais. Portanto subtotal de R$1500 pode virar R$15 e total de R$15000 pode virar R$150.",
+    "impact": "Comprador vê valor diferente do cobrado, sobretudo em tickets altos.",
+    "cause": "Unidade monetária inferida pela magnitude em vez de definida no DTO.",
+    "fix": "Escolher centavos inteiros ou money tipado no contrato e fazer uma conversão explícita na apresentação, sem thresholds.",
+    "acceptance": "Casos R$0,01, R$999,99, R$1000, R$1500 e R$15000 mantêm valor exato no card, carrinho e pagamento.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "storefront/ADR-storefront.md"
+  },
+  {
+    "id": "SF-004",
+    "severity": "P1",
+    "module": "storefront",
+    "title": "Busca marketplace envia query e interpreta envelope errados",
+    "refs": [
+      {
+        "path": "apps/storefront/src/lib/api/api-client.ts",
+        "line": 121
+      },
+      {
+        "path": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 309
+      }
+    ],
+    "evidence": "Front envia q e lê result.items; endpoint exige query e merchantId e retorna products. list faz GET marketplace/items, enquanto controller declara POST para inclusão.",
+    "impact": "Busca pode parecer sem resultados mesmo com catálogo disponível; list retorna 404.",
+    "cause": "Uso de interface presumida em lugar do contrato real do marketplace.",
+    "fix": "Alinhar query/tenant/paginação/envelope e distinguir pesquisa de inserção; tratar erro como falha de serviço em vez de lista vazia.",
+    "acceptance": "Busca por produto indexado retorna o item correto para host autorizado; ausência real e erro HTTP têm estados distintos.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "storefront/ADR-storefront.md"
+  },
+  {
+    "id": "SF-005",
+    "severity": "P1",
+    "module": "storefront",
+    "title": "Devolução do comprador chama controller não montado",
+    "refs": [
+      {
+        "path": "apps/storefront/src/components/ReturnRequestForm.tsx",
+        "line": 57
+      },
+      {
+        "path": "apps/api/src/modules/returns/presentation/http/buyer-returns.controller.ts",
+        "line": 1
+      }
+    ],
+    "evidence": "BuyerReturnsController declara /buyer/returns/request, mas não está em controllers da composição. Form envia variantId=\"all\" e lê zyon_buyer_token, diferente do armazenamento de sessão usado por BuyerHub/registro.",
+    "impact": "Comprador não abre devolução válida; simplesmente montar o controller ainda exige corrigir identificação de item e principal buyer.",
+    "cause": "Fluxo de pós-venda não foi integrado de ponta a ponta.",
+    "fix": "Unificar sessão buyer e contrato de return com itens reais do pedido; montar controller somente após autorização de order ownership e ajuste de guard.",
+    "acceptance": "Buyer autenticado seleciona item comprado e abre devolução; outro buyer não acessa pedido; token expirado e pedido inexistente são tratados.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "storefront/ADR-storefront.md"
+  },
+  {
+    "id": "SF-006",
+    "severity": "P1",
+    "module": "storefront",
+    "title": "Proxy /api/v1 troca credenciais de buyer/embed por chave de serviço",
+    "refs": [
+      {
+        "path": "apps/storefront/src/app/api/v1/[...path]/route.ts",
+        "line": 65
+      }
+    ],
+    "evidence": "Proxy permite prefixos buyer/embed, mas descarta Authorization/Cookie/Origin recebidos e envia AACP_SERVICE_API_KEY como Bearer. Também não devolve Set-Cookie.",
+    "impact": "Consumidores desse proxy não conseguem manter autenticação buyer/embed conforme o contrato; chave de um merchant não pode representar compradores de múltiplas lojas.",
+    "cause": "Proxy mistura identidade de serviço e sessão de usuário. Clientes principais ainda chamam API diretamente; alcance efetivo deste proxy deve ser medido.",
+    "fix": "Definir BFF com rotas explícitas, propagar credenciais/origem aprovadas ou executar fluxo de serviço específico por tenant; não usar uma chave global como identidade buyer.",
+    "acceptance": "No proxy, buyer A e embed B preservam escopo correto; refresh/cookies e origem funcionam sem expor chave de serviço.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC; uso efetivo do proxy UNVERIFIED",
+    "adr": "storefront/ADR-storefront.md"
+  },
+  {
+    "id": "SF-007",
+    "severity": "P2",
+    "module": "storefront",
+    "title": "Adapter de orçamento descarta dados e abre conversa",
+    "refs": [
+      {
+        "path": "apps/storefront/src/lib/storefront-api.ts",
+        "line": 8
+      },
+      {
+        "path": "apps/storefront/src/lib/api/api-client.ts",
+        "line": 147
+      },
+      {
+        "path": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+        "line": 365
+      }
+    ],
+    "evidence": "postStorefrontBudgetRequest encaminha somente merchantId/items para checkoutApi.create (POST conversations), descartando nome/email/telefone/total/note. A rota real é budget-requests. Não foi encontrado consumidor ativo desse wrapper no src.",
+    "impact": "Se usado, o formulário não gera orçamento e perde contato do interessado. É lacuna latente, não prova de falha de uma tela ativa.",
+    "cause": "Adapter renomeado sem preservar semântica do comando.",
+    "fix": "Implementar contrato de orçamento autorizado, validar itens/contato e remover wrapper morto se a funcionalidade não for suportada.",
+    "acceptance": "Teste do consumidor comprova criação e consulta de orçamento com campos corretos; nenhuma conversa substitui silenciosamente o orçamento.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": false,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "storefront/ADR-storefront.md"
+  },
+  {
+    "id": "W2-001",
+    "severity": "P1",
+    "module": "widget_v2",
+    "title": "Início não hidrata carrinho e identidade usados pelo pagamento",
+    "refs": [
+      {
+        "path": "apps/widget_v2/src/api/checkout-session.ts",
+        "line": 184
+      },
+      {
+        "path": "apps/widget_v2/src/store/checkout-store.ts",
+        "line": 146
+      },
+      {
+        "path": "apps/api/src/modules/checkout/application/use-cases/start-checkout.use-case.ts",
+        "line": 57
+      }
+    ],
+    "evidence": "Widget envia cart:{items:[]} sem currency/total e usa customer_hints/global_user_id. StartCheckout usa input.customer e input.cart e não resolve cart_ref nesse fluxo. Depois widget lê storefront cart para exibição, sem sincronizar a sessão embed de pagamento.",
+    "impact": "Carrinho exibido pode ter itens enquanto sessão cobradora está vazia/incompleta; buyer informado no redirect não fica autenticado por esse parâmetro.",
+    "cause": "Confusão entre carrinho storefront, sessão checkout e hints de identidade.",
+    "fix": "API deve criar/retomar sessão por carrinho autoritativo e buyer token verificado; widget deve renderizar o snapshot dessa mesma sessão e preservar session_id no reload.",
+    "acceptance": "Redirect de carrinho real cria sessão com mesmos SKUs/valores; reload retoma a mesma compra; URL globalUserId não permite assumir identidade.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "widget_v2/ADR-widget_v2.md"
+  },
+  {
+    "id": "W2-002",
+    "severity": "P1",
+    "module": "widget_v2",
+    "title": "Resposta de intenção é lida com nomes que a API não retorna",
+    "refs": [
+      {
+        "path": "apps/widget_v2/src/api/checkout-session.ts",
+        "line": 134
+      },
+      {
+        "path": "apps/widget_v2/src/api/checkout-session.ts",
+        "line": 298
+      },
+      {
+        "path": "apps/api/src/modules/payment/domain/payment-intent.entity.ts",
+        "line": 32
+      },
+      {
+        "path": "apps/api/src/modules/payment/application/create-payment-intent.use-case.ts",
+        "line": 344
+      }
+    ],
+    "evidence": "API retorna id/amountCents/buyerFacing.qrCodeCopyPaste/clientSecret; widget faz cast direto para intent_id/amount_cents/pix_code/stripe_client_secret. Não há transformação no controller. R03 confirmou campos esperados undefined.",
+    "impact": "PIX sem código e requests de status/confirm com ID indefinido; cartão sem clientSecret.",
+    "cause": "Interfaces locais declaradas sem validação/adaptação do payload real.",
+    "fix": "Publicar DTO estável e gerar/validar client; mapear explicitamente ID, amount, QR e chaves públicas do provedor.",
+    "acceptance": "Resposta real de create para pix/card/crypto deve passar schema do client e renderizar instruções de pagamento utilizáveis.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "REPRODUCED_LOCAL R03",
+    "adr": "widget_v2/ADR-widget_v2.md"
+  },
+  {
+    "id": "W2-003",
+    "severity": "P1",
+    "module": "widget_v2",
+    "title": "Polling omite session_id e ignora approved",
+    "refs": [
+      {
+        "path": "apps/widget_v2/src/api/checkout-session.ts",
+        "line": 323
+      },
+      {
+        "path": "apps/widget_v2/src/store/checkout-store.ts",
+        "line": 548
+      },
+      {
+        "path": "apps/api/src/modules/embed/presentation/http/embed-checkout.controller.ts",
+        "line": 298
+      },
+      {
+        "path": "apps/api/src/modules/payment/application/get-payment-intent-status.use-case.ts",
+        "line": 53
+      }
+    ],
+    "evidence": "Status endpoint exige query session_id; client não a envia (R04). Mesmo com request corrigido, store só conclui em paid/confirmed e API retorna approved. failed/cancelled/refunded também não encerram corretamente o fluxo.",
+    "impact": "Pagamento confirmado permanece pendente até erro por timeout; comprador pode tentar pagar novamente.",
+    "cause": "Máquina de estados da UI não deriva do contrato financeiro.",
+    "fix": "Enviar ID de sessão, mapear todos os estados e diferenciar pagamento aprovado de pedido concluído; um polling ativo por intent, abort/cleanup e retomada após reload.",
+    "acceptance": "PIX approved conclui após confirmação de pedido; failed/cancelled param polling; unmount/retry não cria timers paralelos.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "REPRODUCED_LOCAL R04 + CONFIRMED_STATIC",
+    "adr": "widget_v2/ADR-widget_v2.md"
+  },
+  {
+    "id": "W2-004",
+    "severity": "P1",
+    "module": "widget_v2",
+    "title": "Frete usa envelope/campos divergentes e fallback com preços inventados",
+    "refs": [
+      {
+        "path": "apps/widget_v2/src/api/checkout-session.ts",
+        "line": 266
+      },
+      {
+        "path": "apps/widget_v2/src/store/checkout-store.ts",
+        "line": 290
+      },
+      {
+        "path": "apps/widget_v2/src/components/ChatPanel.tsx",
+        "line": 42
+      },
+      {
+        "path": "apps/api/src/modules/shipping/presentation/http/embed-shipping.controller.ts",
+        "line": 41
+      },
+      {
+        "path": "apps/api/src/modules/embed/presentation/http/embed-checkout.controller.ts",
+        "line": 317
+      }
+    ],
+    "evidence": "Quote retorna results com carrier_key/price/eta_days; widget lê options/customerPrice/carrierKey (R05 retornou []). Select envia shipping_key, mas handlers duplicados esperam carrier_key ou option_index. UI envia texto Entrega em vez de chamar select e inventa PAC/SEDEX com valores fixos quando API falha.",
+    "impact": "Frete não é persistido e pagamento pode falhar shipping_method_required_before_payment; preço/prazo exibidos não são cotação aprovada.",
+    "cause": "Dois contratos backend para o mesmo path e UI com simulação de resposta em runtime.",
+    "fix": "Unificar endpoint e DTO de quote/select, usar chave da cotação vigente e remover opções fabricadas; mostrar erro retryable sem avançar pagamento.",
+    "acceptance": "Cotação real deve renderizar e selecionar preço exato na sessão; provider indisponível não oferece frete fictício nem libera pagamento.",
+    "complexity": "L",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "REPRODUCED_LOCAL R05 + CONFIRMED_STATIC",
+    "adr": "widget_v2/ADR-widget_v2.md"
+  },
+  {
+    "id": "W2-005",
+    "severity": "P1",
+    "module": "widget_v2",
+    "title": "Cartão não tem renderer ativo e confirmação usa body incorreto",
+    "refs": [
+      {
+        "path": "apps/widget_v2/src/store/checkout-store.ts",
+        "line": 515
+      },
+      {
+        "path": "apps/widget_v2/src/components/ChatPanel.tsx",
+        "line": 260
+      },
+      {
+        "path": "apps/widget_v2/src/layouts/CheckoutLayout.tsx",
+        "line": 229
+      },
+      {
+        "path": "apps/widget_v2/src/components/StripeCardPayment.tsx",
+        "line": 47
+      },
+      {
+        "path": "apps/api/src/modules/embed/presentation/http/embed-checkout.controller.ts",
+        "line": 279
+      }
+    ],
+    "evidence": "Store adiciona bloco stripe_card, mas BlockRenderer não o implementa. PaymentSelector/StripeCardPayment não são renderizados pelo layout ativo. Se montado, confirm envia payment_intent_id enquanto API exige session_id; chave pública tem fallback pk_test_placeholder.",
+    "impact": "Comprador escolhe cartão e não recebe formulário útil; confirmação corrigida parcialmente ainda falha 400.",
+    "cause": "Componente legado ficou desconectado da jornada de chat e contrato não foi atualizado.",
+    "fix": "Integrar renderer de cartão ao fluxo ativo, usar buyerFacing/clientSecret e publishable key válida, confirmar com session_id e recuperar resultado do backend.",
+    "acceptance": "Teste em navegador percorre cartão/3DS até pedido; webhook atrasado e falha de rede não causam cobrança duplicada nem sucesso falso.",
+    "complexity": "L",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "widget_v2/ADR-widget_v2.md"
+  },
+  {
+    "id": "W2-006",
+    "severity": "P1",
+    "module": "widget_v2",
+    "title": "Cripto é oferecida sem fluxo de pagamento e confirmação",
+    "refs": [
+      {
+        "path": "apps/widget_v2/src/store/checkout-store.ts",
+        "line": 325
+      },
+      {
+        "path": "apps/widget_v2/src/store/checkout-store.ts",
+        "line": 515
+      },
+      {
+        "path": "apps/api/src/modules/embed/presentation/http/embed-checkout.controller.ts",
+        "line": 253
+      }
+    ],
+    "evidence": "Quando habilitada, UI oferece crypto, mas pay trata todo método diferente de pix como stripe_card. Não há client que use destinationAddress/amountAtomic nem confirmação tx_hash/wallet_address.",
+    "impact": "Método oferecido não pode ser concluído no widget atual.",
+    "cause": "Flag do backend incorporada ao seletor sem implementação da capacidade no consumidor.",
+    "fix": "Implementar quote/carteira/transação/expiração/confirmação ou ocultar capacidade até existir jornada validada.",
+    "acceptance": "Crypto habilitada só aparece quando client suporta a rede/token e conclui confirmação idempotente; expiração e rede incorreta são bloqueadas.",
+    "complexity": "L",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "widget_v2/ADR-widget_v2.md"
+  },
+  {
+    "id": "W2-007",
+    "severity": "P1",
+    "module": "widget_v2",
+    "title": "Alteração de carrinho não invalida sessão/intent do checkout",
+    "refs": [
+      {
+        "path": "apps/widget_v2/src/store/checkout-store.ts",
+        "line": 437
+      },
+      {
+        "path": "apps/widget_v2/src/api/checkout-session.ts",
+        "line": 241
+      },
+      {
+        "path": "apps/widget_v2/src/api/checkout-session.ts",
+        "line": 305
+      },
+      {
+        "path": "apps/api/src/modules/checkout/application/use-cases/update-cart.use-case.ts",
+        "line": 76
+      }
+    ],
+    "evidence": "Widget altera carrinho storefront via PATCH, não chama embed/cart. Mantém shipping/paymentIntent e chave pay_<session>_<method> mesmo após mudança. A API embed/cart possui invalidação de frete, mas esse caminho não é usado.",
+    "impact": "Preço exibido, frete selecionado e valor da intenção podem divergir; nova tentativa pode recuperar intenção antiga.",
+    "cause": "Ciclo de revisão do carrinho não é parte da identidade da intenção.",
+    "fix": "Mutar a sessão autoritativa, invalidar cotação/intent, impedir pagar durante sincronização e gerar chave por revisão/ação com retry estável.",
+    "acceptance": "Mudar quantidade após gerar PIX exige novo total/intent válido e impede usar intenção antiga para concluir pedido alterado.",
+    "complexity": "L",
+    "risk": "Alto",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "widget_v2/ADR-widget_v2.md"
+  },
+  {
+    "id": "W2-008",
+    "severity": "P2",
+    "module": "widget_v2",
+    "title": "Tracking envia campos diferentes do contrato e não captura rejeição assíncrona",
+    "refs": [
+      {
+        "path": "apps/widget_v2/src/lib/tracking.ts",
+        "line": 30
+      },
+      {
+        "path": "packages/shared-types/src/index.ts",
+        "line": 501
+      },
+      {
+        "path": "apps/api/src/modules/embed/presentation/http/embed-checkout.controller.ts",
+        "line": 105
+      }
+    ],
+    "evidence": "Client envia event_name/event_data; TrackEventRequest espera event/metadata. void fetch dentro de try/catch sem await não captura rejeição da Promise e não verifica HTTP status.",
+    "impact": "Funil, abandono e gatilhos deixam de refletir ações reais sem erro visível; análise de conversão perde confiabilidade.",
+    "cause": "Telemetria tratada como payload livre e best-effort sem observação de falha.",
+    "fix": "Alinhar enum/schema e propagação de metadata, registrar rejeições e usar entrega compatível com unload quando necessária.",
+    "acceptance": "Cada evento da UI aceito pelo backend persiste com sessão e metadata; 400/rede indisponível são mensuráveis sem Promise rejeitada não tratada.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": false,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "widget_v2/ADR-widget_v2.md"
+  },
+  {
+    "id": "W2-009",
+    "severity": "P2",
+    "module": "widget_v2",
+    "title": "Suporte responde políticas fixas em vez das configurações da loja",
+    "refs": [
+      {
+        "path": "apps/widget_v2/src/components/SupportPanel.tsx",
+        "line": 120
+      },
+      {
+        "path": "apps/api/src/modules/support/presentation/http/support.controller.ts",
+        "line": 120
+      }
+    ],
+    "evidence": "Cliques FAQ retornam localmente prazo 2–7 dias, trocas 30 dias e meios de pagamento fixos; não buscam /support/faq. Socket também não envia credenciais, dependendo do gateway inseguro API-041.",
+    "impact": "Promessas ao comprador podem contrariar configurações reais. Endurecer o backend sem atualizar socket rompe atendimento.",
+    "cause": "Conteúdo demonstrativo e protocolo anônimo mantidos no fluxo ativo.",
+    "fix": "Consultar FAQ tenant-scoped e renderizar indisponibilidade quando ausente; autenticar socket e distinguir buyer/merchant.",
+    "acceptance": "Alterar FAQ no dashboard muda conteúdo exibido; falha na API não inventa política; buyer recebe somente o seu ticket.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": false,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "widget_v2/ADR-widget_v2.md"
+  },
+  {
+    "id": "W2-010",
+    "severity": "P2",
+    "module": "widget_v2",
+    "title": "Desconto é anunciado sem autorização persistida",
+    "refs": [
+      {
+        "path": "apps/widget_v2/src/App.tsx",
+        "line": 114
+      },
+      {
+        "path": "apps/widget_v2/src/store/checkout-store.ts",
+        "line": 586
+      },
+      {
+        "path": "apps/widget_v2/src/components/DiscountBanner.tsx",
+        "line": 1
+      }
+    ],
+    "evidence": "Gatilhos idle/exit chamam setActiveDiscount(stage,5), que muda estado local; não solicita oferta autorizada nem aplica offer_id nesse caminho.",
+    "impact": "Banner pode prometer 5% que não chega ao total do pagamento e pode ultrapassar regra da loja.",
+    "cause": "Gatilho de experiência confundido com concessão monetária.",
+    "fix": "Solicitar oferta ao motor do servidor, exibir somente percentual/id/expiração autorizados e refletir aplicação na sessão.",
+    "acceptance": "Loja com desconto máximo zero nunca exibe oferta de 5%; oferta exibida deve ser reconciliada no pagamento.",
+    "complexity": "M",
+    "risk": "Médio",
+    "blocks": true,
+    "verification": "CONFIRMED_STATIC",
+    "adr": "widget_v2/ADR-widget_v2.md"
+  }
+]

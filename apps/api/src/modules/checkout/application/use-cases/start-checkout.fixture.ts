@@ -15,6 +15,7 @@ import type { AgentContextPort } from "../../domain/ports/agent-context.port.js"
 import type { IntentMemoryRepositoryPort, BuyerIntentConsentRepositoryPort } from "../../../intent-memory/domain/ports/intent-memory-repository.port.js";
 import type { HoldoutGroupService } from "../../../revenue-lift/domain/services/holdout-group.service.js";
 import type { ProductPromotionRepositoryPort } from "../../../catalog/domain/ports/product-promotion-repository.port.js";
+import type { CheckoutCartAuthorityService } from "../services/checkout-cart-authority.service.js";
 
 interface FixtureOverrides {
   checkoutSettings?: CheckoutSettingsPort;
@@ -28,6 +29,7 @@ interface FixtureOverrides {
   intentConsent?: BuyerIntentConsentRepositoryPort;
   holdoutGroupService?: HoldoutGroupService;
   promoRepository?: ProductPromotionRepositoryPort;
+  cartAuthority?: CheckoutCartAuthorityService;
 }
 
 /**
@@ -67,6 +69,7 @@ export function createStartCheckoutUseCase(
     overrides?.merchantRepository,
     overrides?.merchantPlan,
     overrides?.crossSell,
-    overrides?.experienceConfig
+    overrides?.experienceConfig,
+    overrides?.cartAuthority,
   );
 }

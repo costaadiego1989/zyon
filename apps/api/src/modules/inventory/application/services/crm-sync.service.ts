@@ -1,4 +1,4 @@
-import { Injectable, Logger, Optional, Inject } from "@nestjs/common";
+import { Injectable, Inject, Logger, Optional } from "@nestjs/common";
 import type { SaleCompletedEvent } from "../../domain/events/sale-completed.event.js";
 import { CRM_PROVIDER_PORT, type CrmProviderPort } from "../../domain/ports/crm-provider.port.js";
 import { CRM_CONNECTION_REPOSITORY, type CrmConnectionRepositoryPort } from "../../domain/ports/crm-connection-repository.port.js";
@@ -156,7 +156,9 @@ export class CrmSyncService {
         orderId: event.orderId,
         email: event.buyerEmail,
       });
-      // Do NOT throw: CRM sync failure should not block the sale event
+      // This runs from a durable post-sale delivery. Propagate a static error
+      // after recording it so the delivery retries without exposing provider data.
+      throw new Error("inventory_crm_sync_failed");
     }
   }
 }

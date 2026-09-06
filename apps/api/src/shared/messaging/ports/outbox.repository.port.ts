@@ -4,11 +4,37 @@ export const OUTBOX_REPOSITORY = Symbol("OUTBOX_REPOSITORY");
 
 export type MaybePromise<T> = T | Promise<T>;
 
-export type OutboxStatus = "pending" | "delivered" | "failed" | "dead";
+export type OutboxStatus = "pending" | "processing" | "delivered" | "failed" | "dead";
+
+export const OUTBOX_LEASE_MS = 120_000;
+export const OUTBOX_MAX_ATTEMPTS = 5;
 
 export interface OutboxClaim {
   readonly envelope: DomainEventEnvelope;
   readonly attempts: number;
+}
+
+export interface LeasedOutboxClaim extends OutboxClaim {
+  /** Attempts includes this acquisition; every retry/crash consumes an attempt. */
+  readonly leaseToken: string;
+  readonly leaseExpiresAt: Date;
+}
+
+export interface OutboxFailureOutcome {
+  readonly attempts: number;
+  readonly dead: boolean;
+}
+
+/** Dispatcher contract. Legacy producer adapters are not allowed to drive delivery. */
+export interface LeasedOutboxRepository extends OutboxRepository {
+  claimBatch(batchSize?: number): MaybePromise<LeasedOutboxClaim[]>;
+  renewClaim(claim: LeasedOutboxClaim): MaybePromise<boolean>;
+  completeClaim(claim: LeasedOutboxClaim): MaybePromise<boolean>;
+  completeHandler(claim: LeasedOutboxClaim, handlerId: string): MaybePromise<boolean>;
+  failClaim(claim: LeasedOutboxClaim, errorCode: string, nextAttemptAt: Date): MaybePromise<OutboxFailureOutcome | null>;
+  /** Only for claims the dispatcher has not handed to any handler. */
+  releaseUnstartedClaim(claim: LeasedOutboxClaim): MaybePromise<boolean>;
+  getBacklog(): MaybePromise<{ pending: number; processing: number; dead: number; oldestPendingAt: Date | null }>;
 }
 
 export interface OutboxRepository {
@@ -19,8 +45,8 @@ export interface OutboxRepository {
   markFailed(eventId: string, error?: string): MaybePromise<void>;
 
   /**
-   * Returns events whose retry window has elapsed, oldest-first, for the
-   * dispatcher to drive retries with backoff.
+   * Legacy adapter surface. The dispatcher requires LeasedOutboxRepository;
+   * only its claim tokens authorize completion and failure writes.
    */
   claimBatch(batchSize?: number): MaybePromise<OutboxClaim[]>;
 

@@ -1,0 +1,42 @@
+[
+  {
+    "app": "dashboard",
+    "exit": 2,
+    "lines": 3,
+    "head": [
+      "error TS2688: Cannot find type definition file for 'minimatch'.\r",
+      "  The file is in the program because:\r",
+      "    Entry point for implicit type library 'minimatch'\r",
+      ""
+    ]
+  },
+  {
+    "app": "storefront",
+    "exit": 2,
+    "lines": 3,
+    "head": [
+      "error TS2688: Cannot find type definition file for 'minimatch'.\r",
+      "  The file is in the program because:\r",
+      "    Entry point for implicit type library 'minimatch'\r",
+      ""
+    ]
+  },
+  {
+    "app": "widget_v2",
+    "exit": 2,
+    "lines": 2,
+    "head": [
+      "src/components/SmartCart.tsx(5,9): error TS6133: 'brand' is declared but its value is never read.\r",
+      "src/components/SupportFAB.tsx(73,13): error TS7030: Not all code paths return a value.\r",
+      ""
+    ]
+  },
+  {
+    "app": "storefront-diagnostic",
+    "exit": 0,
+    "lines": 1,
+    "head": [
+      ""
+    ]
+  }
+]

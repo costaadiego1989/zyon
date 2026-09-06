@@ -1,7 +1,9 @@
+import { RequireTenantRoles } from "../../../auth/presentation/tenant-role.decorator.js";
 import {
   Body,
   Controller,
   Get,
+  Inject,
   Param,
   Patch,
   Post,
@@ -18,6 +20,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
+import { RealtimeCapabilityService } from "../../../../shared/auth/realtime-capability.js";
 import { Idempotent } from "../../../../shared/http/idempotency/idempotent.decorator.js";
 import { RequireTenantAccess } from "../../../integrations/presentation/http/tenant-access.decorator.js";
 import { TenantAccessGuard } from "../../../integrations/presentation/http/tenant-access.guard.js";
@@ -39,7 +42,7 @@ import {
 } from "./support.dto.js";
 import { DEFAULT_SUPPORT_FAQ } from "../../domain/defaults/support-faq.defaults.js";
 
-type EmbedRequest = { embedClaims?: EmbedTokenClaims };
+type EmbedRequest = { embedClaims?: EmbedTokenClaims; headers?: { origin?: string } };
 
 @ApiTags("Support")
 @Controller("support")
@@ -51,6 +54,7 @@ export class SupportController {
     private readonly listTickets: ListSupportTicketsUseCase,
     private readonly updateTicketStatus: UpdateSupportTicketStatusUseCase,
     private readonly createTicket: CreateSupportTicketUseCase,
+    @Inject(RealtimeCapabilityService) private readonly capabilities: RealtimeCapabilityService,
   ) {}
 
   /**
@@ -87,10 +91,17 @@ export class SupportController {
     const merchantId = request.embedClaims!.merchantId;
     const settings = await this.getSettings.execute(merchantId);
     const faqItems = settings.faqItems.length > 0 ? settings.faqItems : DEFAULT_SUPPORT_FAQ;
-    return this.sendSupportMessage.execute(
+    const result = await this.sendSupportMessage.execute(
       { merchant_id: merchantId, session_id: body.session_id, message: body.message },
       { faqItems, brandName: request.embedClaims!.merchantId, buyerGlobalUserId: body.buyer_global_user_id },
     );
+    if (!result.handoff) return result;
+    // execute() creates a NEW ticket; client-provided session_id is never an access credential.
+    const access = this.capabilities.issue({
+      purpose: "support-ticket", merchantId, resourceId: result.handoff.ticketId,
+      origin: request.headers?.origin,
+    });
+    return { ...result, handoff: { ...result.handoff, accessToken: access.token, expiresAt: access.expiresAt } };
   }
 
   /**
@@ -249,6 +260,7 @@ export class SupportController {
   @UseGuards(TenantCredentialGuard, TenantAccessGuard)
   @RequireTenantAccess({ serviceScopes: ["support:read"], humanRoles: ["owner", "admin", "staff"] })
   @Get("tickets")
+  @RequireTenantRoles("owner", "admin", "staff")
   async getTickets(
     @Req() request: unknown,
     @Query("status") status?: string,
@@ -286,6 +298,7 @@ export class SupportController {
   @UseGuards(TenantCredentialGuard, TenantAccessGuard)
   @RequireTenantAccess({ serviceScopes: ["support:write"] })
   @Post("tickets")
+  @RequireTenantRoles("owner", "admin", "staff")
   @Idempotent()
   createTicket_(
     @Req() request: unknown,
@@ -324,6 +337,7 @@ export class SupportController {
   @UseGuards(TenantCredentialGuard, TenantAccessGuard)
   @RequireTenantAccess({ serviceScopes: ["support:write"], humanRoles: ["owner", "admin", "staff"] })
   @Patch("tickets/:ticketId")
+  @RequireTenantRoles("owner", "admin", "staff")
   @Idempotent()
   updateTicket(
     @Req() request: unknown,

@@ -1,77 +1,31 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { MARKETPLACE_SETTLEMENT_REPOSITORY } from "../../domain/ports/marketplace-settlement-repository.port.js";
-import type {
-  MarketplaceSettlementRepository,
-  MarketplaceSettlementSnapshot,
-} from "../../domain/ports/marketplace-settlement-repository.port.js";
-import { MARKETPLACE_SELLER_DEBT_REPOSITORY } from "../../domain/ports/marketplace-seller-debt-repository.port.js";
-import type {
-  MarketplaceSellerDebtRepository,
-  MarketplaceSellerDebtSnapshot,
-} from "../../domain/ports/marketplace-seller-debt-repository.port.js";
-import { SettlementStateMachineService } from "../../domain/services/settlement-state-machine.service.js";
+import { ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
+import type { MarketplaceSettlementRepository } from "../../domain/ports/marketplace-settlement-repository.port.js";
 
 export interface HandleMarketplaceChargebackInput {
   settlementId: string;
-}
-
-export interface HandleMarketplaceChargebackOutput {
-  settlement: MarketplaceSettlementSnapshot;
-  debtCreated: boolean;
-  debt?: MarketplaceSellerDebtSnapshot;
+  merchantId: string;
+  role: string;
 }
 
 @Injectable()
 export class HandleMarketplaceChargebackUseCase {
-  private readonly logger = new Logger(HandleMarketplaceChargebackUseCase.name);
+  constructor(private readonly settlementRepository: MarketplaceSettlementRepository) {}
 
-  constructor(
-    private readonly settlementRepository: MarketplaceSettlementRepository,
-    private readonly debtRepository: MarketplaceSellerDebtRepository,
-    private readonly stateMachine: SettlementStateMachineService,
-  ) {}
-
-  async execute(
-    input: HandleMarketplaceChargebackInput,
-  ): Promise<HandleMarketplaceChargebackOutput> {
-    const settlement = await this.settlementRepository.getById(
-      input.settlementId,
-    );
-    if (!settlement) {
-      throw new Error("Settlement not found");
+  async execute(input: HandleMarketplaceChargebackInput): Promise<never> {
+    if (!input.merchantId || !["owner", "admin"].includes(input.role)) {
+      throw new ForbiddenException("chargeback_not_authorized");
+    }
+    const settlement = await this.settlementRepository.getByIdForMerchant(input.settlementId, input.merchantId);
+    if (!settlement || (settlement.hostMerchantId !== input.merchantId && settlement.sellerMerchantId !== input.merchantId)) {
+      throw new NotFoundException("settlement_not_found");
     }
 
-    const newStatus = this.stateMachine.transition(
-      settlement.status,
-      "chargeback_received",
-    );
-
-    const updated = await this.settlementRepository.updateStatus({
-      settlementId: settlement.id,
-      status: newStatus,
-      chargebackAt: new Date(),
+    // A dashboard action is not evidence of a chargeback from the payment provider.
+    // Keep financial state intact until a verified event can atomically record debt.
+    throw new ServiceUnavailableException({
+      code: "chargeback_provider_confirmation_required",
+      message: "O chargeback depende de confirmação do provedor. A liquidação não foi alterada.",
     });
-
-    const debtCreated = newStatus === "chargeback_debt";
-    let debt: MarketplaceSellerDebtSnapshot | undefined;
-
-    if (debtCreated) {
-      debt = await this.debtRepository.create({
-        sellerMerchantId: settlement.sellerMerchantId,
-        settlementId: settlement.id,
-        amountCents: settlement.sellerNetCents,
-      });
-
-      this.logger.warn(
-        `Chargeback debt created for settlement ${settlement.id}, seller ${settlement.sellerMerchantId}, amount=${settlement.sellerNetCents}, debtId=${debt.id}`,
-      );
-    } else {
-      this.logger.log(
-        `Chargeback cancelled settlement ${settlement.id}, status: ${settlement.status} → ${newStatus}`,
-      );
-    }
-
-    return { settlement: updated, debtCreated, debt };
   }
 
   /**

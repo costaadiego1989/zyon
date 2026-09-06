@@ -1,4 +1,5 @@
 import type { DomainEvent } from "../../../../shared/events/domain-event-bus.port.js";
+import type { PaymentAmountBreakdown } from "../../../payment/domain/payment-amount.js";
 
 export const PAYMENT_APPROVED_EVENT = "payment.approved";
 
@@ -11,5 +12,7 @@ export interface PaymentApprovedEvent extends DomainEvent {
     orderTotalMajorUnits: number;
     currency: string;
     acceptedOfferId?: string;
+    paymentIntentId?: string;
+    amountBreakdown?: PaymentAmountBreakdown;
   };
 }

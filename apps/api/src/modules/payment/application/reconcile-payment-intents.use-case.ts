@@ -1,3 +1,5 @@
+import { ResumePaymentCreationService } from "./resume-payment-creation.service.js";
+import { savePaymentTransition } from "./services/save-payment-transition.js";
 import { Inject, Injectable, Optional , Logger} from "@nestjs/common";
 import type { CurrencyCode } from "@zyon/shared-types";
 import { PaymentIntentEntity, type PaymentIntentSnapshot } from "../domain/payment-intent.entity.js";
@@ -59,19 +61,24 @@ export class ReconcilePaymentIntentsUseCase {
     const reconciled: ReconcilePaymentIntentsResult["reconciled"] = [];
 
     for (const intent of candidates) {
-      const snap = intent.snapshot();
+      let snap = intent.snapshot();
       if (!snap.providerPaymentId) {
-        reconciled.push({ paymentIntentId: snap.id, outcome: "skipped" });
-        continue;
+        try { snap = await new ResumePaymentCreationService(this.payments, this.provider).execute(intent); }
+        catch { reconciled.push({ paymentIntentId: snap.id, outcome: "unknown" }); continue; }
+        if (!snap.providerPaymentId) { reconciled.push({ paymentIntentId: snap.id, outcome: "unknown" }); continue; }
       }
 
+      try {
       const authoritative = await this.provider.fetchPaymentStatus({
+        provider: snap.creation?.input.provider,
+        providerAccountFingerprint: snap.creation?.input.providerAccountFingerprint,
         merchantId: snap.merchantId,
         providerPaymentId: snap.providerPaymentId
       });
 
-      const outcome = await this.applyAuthoritativeState(intent, authoritative.state, authoritative.approvedAmountCents);
+      const outcome = await this.applyAuthoritativeState(PaymentIntentEntity.rehydrate(snap), authoritative.state, authoritative.approvedAmountCents);
       reconciled.push({ paymentIntentId: snap.id, outcome });
+      } catch { reconciled.push({ paymentIntentId: snap.id, outcome: "unknown" }); }
     }
 
     // R2P-P03: Recover intents approved but whose checkout completion was lost
@@ -83,6 +90,7 @@ export class ReconcilePaymentIntentsUseCase {
         const snap = intent.snapshot();
         try {
           await this.checkoutPayment.completeAfterApproval({
+            paymentIntentId: snap.id, amountBreakdown: snap.amountBreakdown,
             merchantId: snap.merchantId,
             sessionId: snap.sessionId,
             externalOrderId: snap.providerPaymentId!,
@@ -111,22 +119,15 @@ export class ReconcilePaymentIntentsUseCase {
     const snap = intent.snapshot();
 
     if (state === "approved") {
-      const cents = approvedAmountCents ?? snap.amountCents;
+      const cents = approvedAmountCents;
       if (cents !== snap.amountCents) {
-        return this.fail(intent, "reconcile_value_mismatch");
+        return "unknown";
       }
       intent.markApproved({ providerPaymentId: snap.providerPaymentId!, approvedAmountCents: snap.amountCents });
-      await this.payments.saveIntent({ intent });
-      await this.checkoutPayment.recordPaymentStatusChanged({
-        merchantId: snap.merchantId,
-        sessionId: snap.sessionId,
-        paymentIntentId: snap.id,
-        status: "approved",
-        reason: "reconciliation",
-        commerceOrderId: snap.commerceOrderId
-      });
+      await savePaymentTransition(this.payments, intent, "reconciliation");
       this.metrics?.paymentApproved.inc({ merchant_id: snap.merchantId });
       await this.checkoutPayment.completeAfterApproval({
+            paymentIntentId: snap.id, amountBreakdown: snap.amountBreakdown,
         merchantId: snap.merchantId,
         sessionId: snap.sessionId,
         externalOrderId: snap.providerPaymentId!,
@@ -148,15 +149,7 @@ export class ReconcilePaymentIntentsUseCase {
   private async fail(intent: PaymentIntentEntity, reason: string): Promise<ReconcileOutcome> {
     const snap = intent.snapshot();
     intent.markFailed(reason);
-    await this.payments.saveIntent({ intent });
-    await this.checkoutPayment.recordPaymentStatusChanged({
-      merchantId: snap.merchantId,
-      sessionId: snap.sessionId,
-      paymentIntentId: snap.id,
-      status: "failed",
-      reason,
-      commerceOrderId: snap.commerceOrderId
-    });
+    await savePaymentTransition(this.payments, intent, reason);
     await this.checkoutPayment.recordPaymentFailure({
       merchantId: snap.merchantId,
       sessionId: snap.sessionId,

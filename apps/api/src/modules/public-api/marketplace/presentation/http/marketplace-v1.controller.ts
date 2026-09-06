@@ -18,6 +18,7 @@ import {
   ApiOperation,
   ApiOkResponse,
   ApiCreatedResponse,
+  ApiServiceUnavailableResponse,
 } from "@nestjs/swagger";
 
 import { ResponseEnvelopeInterceptor } from "../../../../../shared/http/response-envelope.interceptor.js";
@@ -173,12 +174,13 @@ export class MarketplaceV1Controller {
   @Idempotent()
   @HttpCode(HttpStatus.OK)
   @RequireTenantAccess({ serviceScopes: ["marketplace:write"] })
-  @ApiOperation({ summary: "Handle settlement chargeback" })
-  @ApiOkResponse({ description: "Chargeback processed" })
+  @ApiOperation({ summary: "Request settlement chargeback (requires provider confirmation)" })
+  @ApiServiceUnavailableResponse({ description: "No verified provider chargeback integration is configured; settlement is unchanged" })
   async handleChargeback(@Req() req: any, @Body() body: HandleChargebackDto) {
-    const result = await this.chargebackUseCase.execute({
+    return this.chargebackUseCase.execute({
       settlementId: body.settlement_id,
+      merchantId: req.tenantPrincipal?.tenantId,
+      role: req.tenantPrincipal?.kind === "human" ? req.tenantPrincipal.role : "service",
     });
-    return MarketplaceEntityMapper.toSettlementResponse(result.settlement);
   }
 }

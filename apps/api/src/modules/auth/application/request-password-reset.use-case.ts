@@ -21,7 +21,7 @@ export class RequestPasswordResetUseCase {
     const normalized = normalizeEmail(email);
     const user = await this.repo.findUserByEmail(normalized);
 
-    if (!user) {
+    if (!user || user.disabledAt) {
       this.logger.debug("Password reset requested for unknown email");
       return { sent: true };
     }

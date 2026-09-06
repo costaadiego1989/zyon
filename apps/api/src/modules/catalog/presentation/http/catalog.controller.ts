@@ -19,6 +19,7 @@ import { UpdateCategoryUseCase } from "../../application/use-cases/update-catego
 import { DeleteCategoryUseCase } from "../../application/use-cases/delete-category.use-case.js";
 import { ReorderCategoriesUseCase } from "../../application/use-cases/reorder-categories.use-case.js";
 import { GenerateProductSeoUseCase } from "../../application/use-cases/generate-product-seo.use-case.js";
+import { CatalogVariantService } from "../../application/services/catalog-variant.service.js";
 
 @UseGuards(AuthGuard, RequirePlanGuard)
 @Controller("merchants")
@@ -40,6 +41,7 @@ export class StoreBuilderCatalogController {
     private readonly s3: S3UploadService,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     @Optional() @Inject(DOMAIN_EVENT_BUS) private readonly eventBus?: DomainEventBus,
+    private readonly variants: CatalogVariantService,
   ) {}
 
   @Post(":mid/products")
@@ -158,7 +160,7 @@ export class StoreBuilderCatalogController {
   @RequirePlan("STORE_ONLY", "BOTH")
   async updateVariant(
     @Param("mid") merchantId: string,
-    @Param("pid") _productId: string,
+    @Param("pid") productId: string,
     @Param("vid") variantId: string,
     @Body() body: {
       basePriceInCents?: number;
@@ -170,47 +172,7 @@ export class StoreBuilderCatalogController {
       heightCm?: number | null;
     },
   ) {
-    // Update variant fields
-    if (body.basePriceInCents !== undefined || body.costInCents !== undefined) {
-      await this.prisma.productPrice.updateMany({
-        where: { variantId },
-        data: {
-          ...(body.basePriceInCents !== undefined ? { basePriceInCents: body.basePriceInCents } : {}),
-          ...(body.costInCents !== undefined ? { costInCents: body.costInCents } : {}),
-        },
-      });
-    }
-    if (body.weightGrams !== undefined || body.lengthCm !== undefined || body.widthCm !== undefined || body.heightCm !== undefined) {
-      await this.prisma.productVariant.update({
-        where: { id: variantId },
-        data: {
-          ...(body.weightGrams !== undefined ? { weightGrams: body.weightGrams } : {}),
-          ...(body.lengthCm !== undefined ? { lengthCm: body.lengthCm } : {}),
-          ...(body.widthCm !== undefined ? { widthCm: body.widthCm } : {}),
-          ...(body.heightCm !== undefined ? { heightCm: body.heightCm } : {}),
-        },
-      });
-    }
-    if (body.stockQuantity !== undefined) {
-      await this.prisma.productStock.updateMany({
-        where: { variantId },
-        data: { quantity: body.stockQuantity },
-      });
-    }
-
-    // Emit product.upserted so inventory module re-syncs the snapshot
-    if (this.eventBus) {
-      const prod = await this.prisma.product.findUnique({ where: { id: _productId }, select: { id: true, name: true } });
-      if (prod) {
-        void this.eventBus.publish({
-          eventType: "product.upserted",
-          merchantId,
-          payload: { id: prod.id, name: prod.name },
-        });
-      }
-    }
-
-    return { updated: true };
+    return this.variants.update(merchantId, productId, variantId, body);
   }
 
   @Delete(":mid/products/:pid")
@@ -328,29 +290,16 @@ export class StoreBuilderCatalogController {
     @Param("mid") merchantId: string,
     @Body() body: { variantId: string; image: string },
   ) {
-    if (!body.variantId || !body.image) throw new BadRequestException("variantId_and_image_required");
-    if (!this.s3.isConfigured()) throw new BadRequestException("s3_not_configured");
-
-    const result = await this.s3.uploadBase64(body.image, `merchants/${merchantId}/products`);
-    const media = await this.prisma.productMedia.create({
-      data: {
-        variantId: body.variantId,
-        url: result.url,
-        type: "IMAGE",
-        order: 0,
-      },
-    });
-    return { id: media.id, url: media.url };
+    return this.variants.uploadMedia(merchantId, body);
   }
 
   @Delete(":mid/products/media/:mediaId")
   @RequirePlan("STORE_ONLY", "BOTH")
   async deleteMedia(
-    @Param("mid") _merchantId: string,
+    @Param("mid") merchantId: string,
     @Param("mediaId") mediaId: string,
   ) {
-    await this.prisma.productMedia.delete({ where: { id: mediaId } });
-    return { deleted: true };
+    return this.variants.deleteMedia(merchantId, mediaId);
   }
 
   @Post(":mid/products/:pid/generate-seo")

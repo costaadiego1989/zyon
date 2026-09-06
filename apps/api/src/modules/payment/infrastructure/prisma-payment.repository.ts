@@ -3,6 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import type { DomainEventEnvelope } from "@zyon/shared-types";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
+import { assertSamePaymentIdentity, PaymentIntentConflictError } from "../domain/payment-persistence.js";
 import type {
   CryptoTransferKey,
   PaymentRepository,
@@ -18,6 +19,9 @@ type PrismaTx = Prisma.TransactionClient;
 function paymentIntentUpsertArgs(d: PaymentIntentSnapshot) {
   const s = strip(d);
   const createData = {
+    version: (d.version ?? 0) + 1,
+    amountBreakdown: d.amountBreakdown ? d.amountBreakdown as Prisma.InputJsonValue : Prisma.DbNull,
+    creation: d.creation ? d.creation as unknown as Prisma.InputJsonValue : Prisma.DbNull,
     id: d.id,
     merchantId: s.merchantId,
     sessionId: s.sessionId,
@@ -34,6 +38,8 @@ function paymentIntentUpsertArgs(d: PaymentIntentSnapshot) {
     statusHistory: d.statusHistory as unknown as Prisma.InputJsonValue
   };
   const updateData = {
+    version: (d.version ?? 0) + 1,
+    creation: d.creation ? d.creation as unknown as Prisma.InputJsonValue : Prisma.DbNull,
     status: d.status,
     providerPaymentId: d.providerPaymentId ?? null,
     approvedAmountCents: d.approvedAmountCents ?? null,
@@ -115,6 +121,9 @@ function normalizeBuyerFacing(v: unknown): PaymentIntentSnapshot["buyerFacing"] 
 }
 
 function snapshotFromRecord(row: {
+  version?: number;
+  amountBreakdown?: unknown;
+  creation?: unknown;
   id: string;
   merchantId: string;
   sessionId: string;
@@ -131,6 +140,9 @@ function snapshotFromRecord(row: {
   statusHistory?: unknown;
 }): PaymentIntentSnapshot {
   return {
+    version: row.version ?? 0,
+    amountBreakdown: row.amountBreakdown ? row.amountBreakdown as PaymentIntentSnapshot["amountBreakdown"] : undefined,
+    creation: row.creation ? row.creation as PaymentIntentSnapshot["creation"] : undefined,
     id: row.id,
     merchantId: row.merchantId,
     sessionId: row.sessionId,
@@ -155,16 +167,37 @@ export class PrismaPaymentRepository implements PaymentRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
   async saveIntent(input: SavePaymentIntentInput): Promise<void> {
-    await this.prisma.paymentIntent.upsert(paymentIntentUpsertArgs(input.intent.snapshot()));
+    const snapshot = input.intent.snapshot();
+    await this.prisma.$transaction(tx => this.saveVersion(tx, snapshot));
+    input.intent.persisted((snapshot.version ?? 0) + 1);
   }
 
   async saveIntentWithOutbox(input: SavePaymentIntentInput, event: DomainEventEnvelope): Promise<void> {
-    const intentArgs = paymentIntentUpsertArgs(input.intent.snapshot());
+    const snapshot = input.intent.snapshot();
     const outboxArgs = outboxUpsertArgs(event);
     await this.prisma.$transaction(async (tx: PrismaTx) => {
-      await tx.paymentIntent.upsert(intentArgs);
+      await this.saveVersion(tx, snapshot);
       await tx.outboxMessage.upsert(outboxArgs);
     });
+    input.intent.persisted((snapshot.version ?? 0) + 1);
+  }
+
+  private async saveVersion(tx: PrismaTx, snapshot: PaymentIntentSnapshot): Promise<void> {
+    const args = paymentIntentUpsertArgs(snapshot);
+    const current = await tx.paymentIntent.findUnique({ where: { id: snapshot.id } });
+    if (!current) {
+      if ((snapshot.version ?? 0) !== 0) throw new PaymentIntentConflictError();
+      try { await tx.paymentIntent.create({ data: args.create }); }
+      catch (error) {
+        if ((error as { code?: string }).code === "P2002") throw new PaymentIntentConflictError();
+        throw error;
+      }
+      return;
+    }
+    if ((current.version ?? 0) !== (snapshot.version ?? 0)) throw new PaymentIntentConflictError();
+    assertSamePaymentIdentity(snapshotFromRecord(current), snapshot);
+    const updated = await tx.paymentIntent.updateMany({ where: { id: snapshot.id, merchantId: snapshot.merchantId, version: snapshot.version ?? 0 }, data: args.update });
+    if (updated.count !== 1) throw new PaymentIntentConflictError();
   }
 
   async listStalePending(query: StalePendingQuery): Promise<PaymentIntentEntity[]> {
@@ -320,49 +353,49 @@ export class PrismaPaymentRepository implements PaymentRepository {
   }
 
   async deleteCryptoTransfer(key: Pick<CryptoTransferKey, "chain" | "txHash">): Promise<void> {
-    await this.prisma.paymentCryptoTransfer.deleteMany({
-      where: {
-        chain: key.chain.trim().toLowerCase(),
-        txHash: key.txHash.trim().toLowerCase()
-      }
+    await this.prisma.$transaction(async tx => {
+      const where = { chain: key.chain.trim().toLowerCase(), txHash: key.txHash.trim().toLowerCase() };
+      const reservation = await tx.paymentCryptoTransfer.findFirst({ where });
+      if (!reservation) return;
+      const rows = await tx.$queryRaw<Array<{ status: string }>>`
+        SELECT status FROM payment_intents WHERE id = ${reservation.intentId}
+        AND merchant_id = ${reservation.merchantId} FOR UPDATE`;
+      // A verifier may still be running in another request. Only terminal unpaid
+      // states prove that a later CAS approval cannot consume this reservation.
+      if (!rows.length || !["failed", "cancelled"].includes(rows[0].status)) return;
+      await tx.paymentCryptoTransfer.deleteMany({ where: { ...where, id: reservation.id, intentId: reservation.intentId } });
     });
   }
 
   /**
-   * H1 fix: reap expired crypto transfer reservations — orphaned by worker kill mid-RPC.
-   * Deletes reservations past their expires_at that don't have a corresponding approved intent.
+   * Reap expired reservations only when the owner is terminal and unpaid.
+   * Unresolved, approved and refunded intents retain their settlement uniqueness.
    */
   async reapExpiredCryptoReservations(): Promise<number> {
     const now = new Date();
-    // Find expired reservations where the intent is NOT approved
+    // Enumerate expired reservations, then check each owner under its row lock.
     const expired = await this.prisma.paymentCryptoTransfer.findMany({
       where: {
         expiresAt: { lt: now }
       },
-      select: { id: true, intentId: true, merchantId: true }
+      select: { id: true, intentId: true, merchantId: true, chain: true, txHash: true }
     });
 
     if (expired.length === 0) return 0;
 
-    // Check which intents are already approved (those reservations are valid)
-    const intentIds = [...new Set(expired.map(e => e.intentId))];
-    const approvedIntents = await this.prisma.paymentIntent.findMany({
-      where: {
-        id: { in: intentIds },
-        status: "approved"
-      },
-      select: { id: true }
-    });
-    const approvedSet = new Set(approvedIntents.map(i => i.id));
-
-    // Delete only reservations whose intent was never approved
-    const toDelete = expired.filter(e => !approvedSet.has(e.intentId)).map(e => e.id);
-    if (toDelete.length === 0) return 0;
-
-    const result = await this.prisma.paymentCryptoTransfer.deleteMany({
-      where: { id: { in: toDelete } }
-    });
-    return result.count;
+    // Expiry alone cannot prove that an in-flight verifier stopped. Preserve
+    // reservations unless the intent has reached a terminal non-paid state.
+    let count = 0;
+    for (const reservation of expired) {
+      count += await this.prisma.$transaction(async tx => {
+        const rows = await tx.$queryRaw<Array<{ status: string }>>`
+          SELECT status FROM payment_intents WHERE id = ${reservation.intentId}
+          AND merchant_id = ${reservation.merchantId} FOR UPDATE`;
+        if (!rows.length || !["failed", "cancelled"].includes(rows[0].status)) return 0;
+        return (await tx.paymentCryptoTransfer.deleteMany({ where: { id: reservation.id, expiresAt: { lt: now } } })).count;
+      });
+    }
+    return count;
   }
 
   async listByMerchantId(

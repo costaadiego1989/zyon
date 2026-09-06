@@ -1,0 +1,52 @@
+{
+  "stageBase": "ebb954a38123e3aa5ba46f2bf1d8c86c410c9079",
+  "implementationHead": "9d09a83baaa9b8f51a298de746af5ed6d1db31cb",
+  "releaseDecision": "NO-GO",
+  "combined": {
+    "tests": 1140,
+    "pass": 1099,
+    "fail": 33,
+    "cancelled": 0,
+    "skipped": 8
+  },
+  "baseline": {
+    "tests": 1028,
+    "pass": 987,
+    "fail": 33,
+    "cancelled": 0,
+    "skipped": 8
+  },
+  "newFailureNames": [],
+  "fixedBaselineFailureNames": [],
+  "httpIntegration": {
+    "tests": 3,
+    "pass": 3,
+    "fail": 0,
+    "additionalToCombined": true
+  },
+  "apiIsolatedTypecheck": "PASS",
+  "apiIsolatedCompile": "PASS",
+  "nestDependencyComposition": "PASS",
+  "dispatcherLifecycle": "PASS_WITH_NEST_AND_POSTGRESQL",
+  "fullApplicationLifecycle": "NOT_VALIDATED",
+  "releaseBuild": "NOT_EXECUTED",
+  "frontendBrowser": "NOT_EXECUTED",
+  "liveProviderCalls": 0,
+  "sourceFileCount": 80,
+  "testHarness": {
+    "databaseFileConcurrency": 2,
+    "defaultPrismaConnectionLimit": 4,
+    "withinTestRaces": "preserved"
+  },
+  "initialFinalRun": {
+    "pass": 1096,
+    "fail": 36,
+    "additionalFailures": "Three PostgreSQL tests exhausted disposable database connections; fixed runner concurrency and pools, then reran the entire selection."
+  },
+  "skipped": "One existing duplicate-email test and seven opt-in live payment E2E tests.",
+  "containers": {
+    "label": "codex.task=ready-to-prod-stage3",
+    "stopped": true
+  },
+  "isolatedWorktreeBranch": "fix/ready-to-prod-audit"
+}

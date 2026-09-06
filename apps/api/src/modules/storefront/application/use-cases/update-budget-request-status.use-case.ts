@@ -16,13 +16,11 @@ export class UpdateBudgetRequestStatusUseCase {
       throw new BadRequestException("invalid_status");
     }
     if (!merchantId) throw new NotFoundException("budget_request_not_found");
-    const existing = await this.prisma.budgetRequest.findFirst({ where: { id, merchantId } });
-    if (!existing) throw new NotFoundException("budget_request_not_found");
-
-    const updated = await this.prisma.budgetRequest.update({
+    const updated = await this.prisma.budgetRequest.updateMany({
       where: { id, merchantId },
       data: { status },
     });
-    return { id: updated.id, status: updated.status };
+    if (updated.count !== 1) throw new NotFoundException("budget_request_not_found");
+    return { id, status };
   }
 }

@@ -11,6 +11,7 @@ import {
   Param,
   Body,
   UseGuards,
+  ForbiddenException,
 } from "@nestjs/common";
 import { AuthGuard } from "../../../../modules/auth/presentation/auth.guard.js";
 import { TenantRoleGuard } from "../../../../modules/auth/presentation/tenant-role.guard.js";
@@ -36,7 +37,8 @@ export class TeamController {
   ) {}
 
   @Get()
-  async list(@Param("merchantId") merchantId: string) {
+  async list(@Param("merchantId") merchantId: string, @Req() req: Request) {
+    this.requireTenant(req, merchantId);
     return this.listTeamUseCase.execute(merchantId);
   }
 
@@ -49,7 +51,7 @@ export class TeamController {
   ) {
     const principal = currentTenantPrincipal(req as any);
     return this.inviteMemberUseCase.execute({
-      merchant_id: merchantId,
+      merchant_id: this.requireTenant(req, merchantId),
       name: body.name,
       email: body.email,
       phone: body.phone,
@@ -83,9 +85,10 @@ export class TeamController {
   ) {
     const principal = currentTenantPrincipal(req as any);
     return this.updateRoleUseCase.execute({
-      merchant_id: merchantId,
+      merchant_id: this.requireTenant(req, merchantId),
       user_id: userId,
       new_role: body.role,
+      requester_id: principal.kind === "human" ? principal.userId : "",
       requester_role: (principal.kind === "human" ? principal.role?.toUpperCase() : "STAFF") as "OWNER" | "ADMIN" | "STAFF",
     });
   }
@@ -95,11 +98,19 @@ export class TeamController {
   async remove(
     @Param("merchantId") merchantId: string,
     @Param("userId") userId: string,
+    @Req() req: Request,
   ) {
+    const principal = currentTenantPrincipal(req as any);
     await this.removeMemberUseCase.execute({
-      merchant_id: merchantId,
+      merchant_id: this.requireTenant(req, merchantId),
       user_id: userId,
+      requester_id: principal.kind === "human" ? principal.userId : "",
     });
     return { success: true };
   }
+  private requireTenant(req: Request, merchantId: string): string {
+    if (currentTenantPrincipal(req as any).tenantId !== merchantId) throw new ForbiddenException("tenant_mismatch");
+    return merchantId;
+  }
+
 }

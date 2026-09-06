@@ -1,5 +1,5 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Headers, Inject, NotFoundException, Optional, Param, Patch, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
-import { BuyerJwtService } from "../../../buyer-account/domain/services/buyer-jwt.service.js";
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Inject, NotFoundException, Optional, Param, Patch, Post, Query, Req, Res, UnauthorizedException, UseGuards } from "@nestjs/common";
+import { RealtimeCapabilityService } from "../../../../shared/auth/realtime-capability.js";
 import type { PrismaClient } from "@prisma/client";
 import { NonProductionRoute, ProductionRoute } from "../../../../shared/http/non-production-route.js";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
@@ -21,7 +21,6 @@ import { decodePersistedTheme } from "../../../merchant/domain/services/merchant
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 import { PRODUCT_PROMOTION_REPOSITORY, type ProductPromotionRepositoryPort } from "../../../catalog/domain/ports/product-promotion-repository.port.js";
 import { applyProductPromoPricing } from "../../infrastructure/pricing/storefront-cart-promo.pricing.js";
-import { detectDeviceFromUserAgent } from "../../domain/device-detection.js";
 
 export interface StartConversationRequest {
   merchant_id: string;
@@ -51,7 +50,8 @@ export class StorefrontController {
     private readonly addMarketplaceItem: AddMarketplaceItemToCartStorefrontUseCase,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     @Inject(STOREFRONT_CART_PORT) private readonly cartRepo: StorefrontCartPort,
-    @Optional() @Inject(PRODUCT_PROMOTION_REPOSITORY) private readonly productPromotionRepo?: ProductPromotionRepositoryPort
+    @Optional() @Inject(PRODUCT_PROMOTION_REPOSITORY) private readonly productPromotionRepo?: ProductPromotionRepositoryPort,
+    @Inject(RealtimeCapabilityService) private readonly capabilities: RealtimeCapabilityService,
   ) {}
 
   @Get("index")
@@ -85,7 +85,7 @@ export class StorefrontController {
       const match = all.find((m) => {
         const settings = m.storeSettings as { slug?: string } | null;
         if (settings?.slug === slug) return true;
-        const slugified = m.name.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+        const slugified = m.name.toLowerCase().normalize("NFD").replace(/[Ì€-Í¯]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
         return slugified === slug;
       });
       if (match) merchant = { id: match.id };
@@ -128,7 +128,7 @@ export class StorefrontController {
       const match = all.find((m) => {
         const settings = m.storeSettings as { slug?: string } | null;
         if (settings?.slug === slug) return true;
-        const slugified = m.name.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+        const slugified = m.name.toLowerCase().normalize("NFD").replace(/[Ì€-Í¯]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
         return slugified === slug;
       });
       if (match) merchant = { id: match.id };
@@ -172,34 +172,26 @@ export class StorefrontController {
   }
 
   @Post("conversations")
-  async startConversation(@Body() body: StartConversationRequest) {
-    return this.startStoreConversation.execute(body);
+  async startConversation(@Body() body: StartConversationRequest, @Req() request: { headers?: { origin?: string } }) {
+    const result = await this.startStoreConversation.execute(body);
+    const access = this.capabilities.issue({ purpose: "storefront-conversation", merchantId: result.merchant_id, resourceId: result.conversation_id, origin: request.headers?.origin });
+    return { ...result, conversation_token: access.token, conversation_token_expires_at: access.expiresAt };
   }
 
   @Post("conversations/:conversationId/messages")
   async sendMessage(
     @Param("conversationId") conversationId: string,
-    @Body() body: SendMessageRequest & { merchant_id: string },
-    @Headers("authorization") authorization?: string,
-    @Headers("user-agent") userAgent?: string
+    @Body() body: SendMessageRequest & { merchant_id?: string },
+    @Req() request: { headers?: { authorization?: string; origin?: string } },
   ) {
-    let globalUserId: string | undefined;
-    const token = authorization?.startsWith("Bearer ") ? authorization.slice(7).trim() : undefined;
-    if (token) {
-      try {
-        globalUserId = new BuyerJwtService().verify(token).globalUserId;
-      } catch {
-        /* invalid/expired buyer token — treat as anonymous */
-      }
-    }
+    const claims = this.conversationAccess(request, conversationId, body.merchant_id);
+    if (body.cart_id !== undefined && body.cart_id !== claims.resourceId) throw new ForbiddenException("conversation_cart_mismatch");
     return this.sendStoreMessage.execute({
-      merchant_id: body.merchant_id,
-      conversation_id: conversationId,
+      merchant_id: claims.merchantId,
+      conversation_id: claims.resourceId,
       user_message: body.user_message,
-      cart_id: body.cart_id,
+      cart_id: claims.resourceId,
       history: body.history,
-      global_user_id: globalUserId,
-      device_type: detectDeviceFromUserAgent(userAgent),
     });
   }
 
@@ -216,19 +208,23 @@ export class StorefrontController {
   @Get("conversations/:conversationId")
   async getHistory(
     @Param("conversationId") conversationId: string,
-    @Body() body: { merchant_id: string }
+    @Req() request: { headers?: { authorization?: string; origin?: string } },
   ) {
+    const claims = this.conversationAccess(request, conversationId);
     return this.getConversationHistory.execute({
-      merchant_id: body.merchant_id,
-      conversation_id: conversationId
+      merchant_id: claims.merchantId,
+      conversation_id: claims.resourceId,
     });
   }
 
   @Post("conversations/:conversationId/events")
   async trackEvent(
     @Param("conversationId") conversationId: string,
-    @Body() body: { merchant_id: string; event: string; metadata?: Record<string, unknown> }
+    @Body() body: { merchant_id?: string; event: string; metadata?: Record<string, unknown> },
+    @Req() request: { headers?: { authorization?: string; origin?: string } },
   ) {
+    const claims = this.conversationAccess(request, conversationId, body.merchant_id);
+    body = { ...body, merchant_id: claims.merchantId };
     if (!body.merchant_id || !body.event) {
       throw new BadRequestException("merchant_id and event required");
     }
@@ -312,7 +308,7 @@ export class StorefrontController {
         }
       }
     } catch (err) {
-      // Non-critical — never block storefront
+      // Non-critical â€” never block storefront
     }
 
     return { tracked: true, event: body.event, conversation_id: conversationId };
@@ -374,7 +370,7 @@ export class StorefrontController {
   ) {
     if (!merchantId) throw new NotFoundException("merchantId query param required");
     const cart = await this.cartRepo.getOrCreate(merchantId, cartId);
-    // Apply product-promo pricing on read (idempotent — base price is fresh from DB).
+    // Apply product-promo pricing on read (idempotent â€” base price is fresh from DB).
     const promoMeta = await applyProductPromoPricing(this.productPromotionRepo, merchantId, cart);
     return {
       cartId: cart.sessionId,
@@ -534,6 +530,18 @@ export class StorefrontController {
     @Req() request: TenantPrincipalRequest,
   ) {
     return this.updateBudgetStatus.execute(id, body.status, currentTenantPrincipal(request).tenantId);
+  }
+
+  private conversationAccess(request: { headers?: { authorization?: string; origin?: string } }, conversationId: string, merchantId?: string) {
+    const authorization = request.headers?.authorization;
+    const token = typeof authorization === "string" && authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : undefined;
+    let claims;
+    try { claims = this.capabilities.verify(token, "storefront-conversation", request.headers?.origin); }
+    catch { throw new UnauthorizedException("invalid_conversation_token"); }
+    if (claims.resourceId !== conversationId || (merchantId !== undefined && claims.merchantId !== merchantId)) {
+      throw new ForbiddenException("conversation_access_denied");
+    }
+    return claims;
   }
 }
 

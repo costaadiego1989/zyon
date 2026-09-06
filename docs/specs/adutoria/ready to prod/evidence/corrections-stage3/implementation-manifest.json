@@ -1,0 +1,327 @@
+{
+  "stageBase": "ebb954a38123e3aa5ba46f2bf1d8c86c410c9079",
+  "implementationHead": "9d09a83baaa9b8f51a298de746af5ed6d1db31cb",
+  "hashes": "SHA-256 of verified worktree bytes, including line endings",
+  "files": [
+    {
+      "path": "apps/api/prisma/migrations/20260906010000_payment_recovery_cas/migration.sql",
+      "sha256": "81102db0f686937b76dd8b20db273460741f88de26c05b5dbf944a37a1616a4d"
+    },
+    {
+      "path": "apps/api/prisma/migrations/20260906011000_outbox_leases/migration.sql",
+      "sha256": "7d2afa0ac4be19ce4cd67f26160572934e14e7180531ca0a0f25a0473aadc6b6"
+    },
+    {
+      "path": "apps/api/prisma/migrations/20260906012000_inventory_sale_receipts/migration.sql",
+      "sha256": "709fabd8ca479621ee987f856c7318efbce60955d2a6bb11691d18f49b0a4ea4"
+    },
+    {
+      "path": "apps/api/prisma/schema.prisma",
+      "sha256": "f09ffeb2723fc6adafef16ccf9556192a350520e7ecb9fc0ded93575053716d6"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/__tests__/payment-approval-completion.spec.ts",
+      "sha256": "68cebde7f92f8cbf4371de483d6e6fb3f57dbd62f417bf52e5505e58583d2dfc"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/application/handlers/payment-approved.handler.ts",
+      "sha256": "4b2bfbdf1a38da23675699f78901d187bc65eed33763ffed6366b83dc788bb8e"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/application/use-cases/complete-order.use-case.ts",
+      "sha256": "8fceb49e1e9a8700495a4075e139977a151b06bc5f530b30204b1631107d5340"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/checkout.module.ts",
+      "sha256": "5a1bc5b506d1b66b58c9983d0d4f7144a9e2cec2d95f888db2b08d760b2696a2"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/domain/events/payment-approved.event.ts",
+      "sha256": "5a1144e7ae7104eabd25523e072a3933e4ce0484326077423a2b3ecb540cc79d"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/domain/ports/payment-approval.port.ts",
+      "sha256": "20a7e4bbec55a0711049cd4c392986ac6fa9e9bbf0a68bdfea07349071309273"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/domain/services/payment-cart-fingerprint.ts",
+      "sha256": "76e4c51d0f0f819bd646f52b1c207423b04b04b2eb94f4e33d8850f876633fd7"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/infrastructure/adapters/prisma-payment-approval.reader.ts",
+      "sha256": "07959bc7064daf275c649dfd24948dbdf35b3d5220798a68ceedfb2495d23caa"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts",
+      "sha256": "a9597c20b4b4263d8de3df466c942a9f8503fa1f5b115a18efc6ed9834593b51"
+    },
+    {
+      "path": "apps/api/src/modules/integrations/domain/integrations.types.ts",
+      "sha256": "b63875cd5b45089e5de753e8bdddd8d876bca74647ed4290de9b378a32db4913"
+    },
+    {
+      "path": "apps/api/src/modules/inventory/__tests__/inventory-sale.integration.spec.ts",
+      "sha256": "1e4d8a6997e13ec420967a644c0be66e8b880858e58f561973a3aa77bad1398e"
+    },
+    {
+      "path": "apps/api/src/modules/inventory/__tests__/inventory-sale.spec.ts",
+      "sha256": "f1ad4af65e609dc29c02c9fd9f11366f24dd10cbcd0a7a555e2c1ca90b216d65"
+    },
+    {
+      "path": "apps/api/src/modules/inventory/application/services/crm-sync.service.ts",
+      "sha256": "cc0b2c2748fb6a91140b1c610a847163e361e5f26a464570a10af5909242560c"
+    },
+    {
+      "path": "apps/api/src/modules/inventory/application/services/erp-stock-push.service.ts",
+      "sha256": "8c082fab79965c05e10c259f39a6e056e89d929c724d5f3b2fd959be9da7b540"
+    },
+    {
+      "path": "apps/api/src/modules/inventory/application/services/inventory-webhook-emitter.service.ts",
+      "sha256": "4490496456c80b9fed1c0b23fcd742b6ac7d934ffccdabe2d9c3bda0d5a18b92"
+    },
+    {
+      "path": "apps/api/src/modules/inventory/application/use-cases/handle-sale-completed.use-case.ts",
+      "sha256": "3c5b5b2071a791ba177bd13ecdd74f5e1e5266beb56ba87cbfa5870e4b396bb5"
+    },
+    {
+      "path": "apps/api/src/modules/inventory/domain/events/inventory-sale.validation.ts",
+      "sha256": "3f005cbe9368e0372cdc661b815d7666bc12f04e31c4d6c7ad94496173badd48"
+    },
+    {
+      "path": "apps/api/src/modules/inventory/domain/events/sale-completed.event.ts",
+      "sha256": "5d6ad3ca4f6754f1c706f98618c08872acfde8aae09890750643c665ec77a4e3"
+    },
+    {
+      "path": "apps/api/src/modules/inventory/domain/ports/inventory-sale.repository.port.ts",
+      "sha256": "be317a4b34a266f6812eb62bf8a3ce4db77a1d8371456d961a081bd57835bbaa"
+    },
+    {
+      "path": "apps/api/src/modules/inventory/infrastructure/adapters/crm-adapter.factory.ts",
+      "sha256": "88cf3ba9d7d4b18aabf66797554fced4f678479806dc1c6ac4d4d1ad648fb182"
+    },
+    {
+      "path": "apps/api/src/modules/inventory/infrastructure/adapters/hubspot-crm.adapter.ts",
+      "sha256": "bd63ac3b67a7a4ccd1e5c0285025ec26e72fb2e4cdc8b661d9f78824692dc40f"
+    },
+    {
+      "path": "apps/api/src/modules/inventory/infrastructure/adapters/pipedrive-crm.adapter.ts",
+      "sha256": "9c4d3335a516cd89179642a7b69710ba61624c66085016530a9c157134cf0bbc"
+    },
+    {
+      "path": "apps/api/src/modules/inventory/infrastructure/adapters/rdstation-crm.adapter.ts",
+      "sha256": "73eade2de5d2b86f562351aef4933b162cec9c7d8453d153258cd13ae5156b1c"
+    },
+    {
+      "path": "apps/api/src/modules/inventory/infrastructure/event-handlers/on-inventory-sale-integration.handler.ts",
+      "sha256": "0fb9b7ab3cce95a005040ae610411a52c11ced73549c1b1b9e1f0b1c4306e71d"
+    },
+    {
+      "path": "apps/api/src/modules/inventory/infrastructure/event-handlers/on-order-completed.handler.ts",
+      "sha256": "193f722814ea9eff6420aacf18d98c93d0c254b809ae002789ca662931baa738"
+    },
+    {
+      "path": "apps/api/src/modules/inventory/infrastructure/event-handlers/on-sale-completed.handler.ts",
+      "sha256": "4bba2cb72e2fcda5675fcf5cb7214d3a37b34b17fc8c929f7c332de298b6b4fe"
+    },
+    {
+      "path": "apps/api/src/modules/inventory/infrastructure/repositories/prisma-inventory-sale.repository.ts",
+      "sha256": "812cb9f3981d7eae8e1a954add0ca81db43cea945bdf043f845435cc080d1bf4"
+    },
+    {
+      "path": "apps/api/src/modules/inventory/inventory.module.ts",
+      "sha256": "c11f2f693c6af65ad578b8b0c79ec288c99cc0843740a6d963c877c86f02e9b4"
+    },
+    {
+      "path": "apps/api/src/modules/payment/__tests__/payment-recovery.spec.ts",
+      "sha256": "1d38d2001b26f7a6502cd8914c97c145d0763250d48f3b5b11f0d750d46f2121"
+    },
+    {
+      "path": "apps/api/src/modules/payment/application/confirm-crypto-payment.use-case.spec.ts",
+      "sha256": "682c7aeca97f74a3e6a0fd42442ff925e77a0942486eb27b314125212ec2bda2"
+    },
+    {
+      "path": "apps/api/src/modules/payment/application/confirm-crypto-payment.use-case.ts",
+      "sha256": "7b63a0acccd0dd2cb6e1d0ce854771e591d1e1801d77c95ccf19a51bd18a655f"
+    },
+    {
+      "path": "apps/api/src/modules/payment/application/confirm-stripe-payment.use-case.spec.ts",
+      "sha256": "3b2e5420a894329392d082408755fa371a9980e16d4e954eaff755a8d1f82570"
+    },
+    {
+      "path": "apps/api/src/modules/payment/application/confirm-stripe-payment.use-case.ts",
+      "sha256": "e761c148a96c97fd05a45f6b2121fbab4499d1d84110a6212dea69e81266d217"
+    },
+    {
+      "path": "apps/api/src/modules/payment/application/create-payment-intent.use-case.ts",
+      "sha256": "bb655ca39f92297781b79bbfa8ebd658147e0a23ffb23dca6c837b2235cbf7f6"
+    },
+    {
+      "path": "apps/api/src/modules/payment/application/handle-asaas-webhook.use-case.spec.ts",
+      "sha256": "2e09524c3f53b20d7b67676da94235ccd2aeee4a5dabf6688bb77c153e49c9f5"
+    },
+    {
+      "path": "apps/api/src/modules/payment/application/handle-stripe-webhook.use-case.spec.ts",
+      "sha256": "991b9dc0faf0a9a4ae9efc3e76347644b9819feb13c4ac9d4280c187c150660f"
+    },
+    {
+      "path": "apps/api/src/modules/payment/application/handle-stripe-webhook.use-case.ts",
+      "sha256": "ce506a53d9c70f146b6c5c565e0b6afa0c8ff42092794d2285094b80e8b6cfc3"
+    },
+    {
+      "path": "apps/api/src/modules/payment/application/reconcile-payment-intents.use-case.spec.ts",
+      "sha256": "6f44ff7e2cdf69dc27f3cc067632f51d29162175c3b35bbb179fda50e411be01"
+    },
+    {
+      "path": "apps/api/src/modules/payment/application/reconcile-payment-intents.use-case.ts",
+      "sha256": "31235daa2324754bf131ef72df6c97be64525f17625c41f07676a11618b19da1"
+    },
+    {
+      "path": "apps/api/src/modules/payment/application/resume-payment-creation.service.ts",
+      "sha256": "bdc2499b933d21ad547e991d824f4a4c719b4ce3b58dc4d9f25cf5bf897d262d"
+    },
+    {
+      "path": "apps/api/src/modules/payment/application/services/payment-dispatch.service.spec.ts",
+      "sha256": "8b69fac18101b048c2cb427d62e48defed78401c45d14b66f32326c185508159"
+    },
+    {
+      "path": "apps/api/src/modules/payment/application/services/payment-dispatch.service.ts",
+      "sha256": "2348e44c2210caffc20d8608b179e9de126a78b1f62df89dafcaeae0a9a3fdc0"
+    },
+    {
+      "path": "apps/api/src/modules/payment/application/services/save-payment-transition.ts",
+      "sha256": "f4322f1c03f6a4aa6b52e16aaeb515facb7a87dfd6b598e52a5b468d35bd8ead"
+    },
+    {
+      "path": "apps/api/src/modules/payment/domain/payment-amount.ts",
+      "sha256": "0161cae6a2b0f4592e42a4ba8b2721cffebd6245f6375fe1168b26e73c502290"
+    },
+    {
+      "path": "apps/api/src/modules/payment/domain/payment-intent.entity.ts",
+      "sha256": "b09bc465431bcee85fd889048e736a5e4d0968df01ddb7b46821a59462c246fa"
+    },
+    {
+      "path": "apps/api/src/modules/payment/domain/payment-persistence.ts",
+      "sha256": "50e61d95eeb429d055ea196de1c8e99448badec35f805d4387521d9720ef0470"
+    },
+    {
+      "path": "apps/api/src/modules/payment/domain/ports/checkout-payment.port.ts",
+      "sha256": "b583e6d65b1156a19a89a8a9ca24cffab24cefdee587d9b3dadea4402c036cf9"
+    },
+    {
+      "path": "apps/api/src/modules/payment/domain/ports/payment-provider.port.ts",
+      "sha256": "9e3ee4e7ac8dd17af5e312b87852f0ee91062c25d6243270811082c848cb46cf"
+    },
+    {
+      "path": "apps/api/src/modules/payment/domain/ports/payment-repository.port.ts",
+      "sha256": "ea52b3c0413ccae813c776d3ffc2d6f2914619d89fe0e87a661375bcd437fe2f"
+    },
+    {
+      "path": "apps/api/src/modules/payment/infrastructure/asaas-payment.adapter.ts",
+      "sha256": "790f75d306053a112b605f209b94e4c72ff61bebe21e4f8fdc1a54849f46a94b"
+    },
+    {
+      "path": "apps/api/src/modules/payment/infrastructure/checkout-payment.adapter.ts",
+      "sha256": "57707f9ff2abdf605df561b8d027fdae9a0fa4fad2d5d64882615160fad7f140"
+    },
+    {
+      "path": "apps/api/src/modules/payment/infrastructure/evm-crypto-payment.adapter.ts",
+      "sha256": "f4a3489305f2b9ba1f9b71ec910685582402f75aa5cfdeb6a928855b364fabd0"
+    },
+    {
+      "path": "apps/api/src/modules/payment/infrastructure/in-memory-payment.repository.ts",
+      "sha256": "85382c01a62aac22e4795cd926b0a841b718a224b4364fb1089c0f9a779dfb61"
+    },
+    {
+      "path": "apps/api/src/modules/payment/infrastructure/mercadopago-payment.adapter.ts",
+      "sha256": "d587a8357df9f7eff423d82f6e02aafe61587e31b0dfaabd3e70a1d4b770a51c"
+    },
+    {
+      "path": "apps/api/src/modules/payment/infrastructure/prisma-payment.repository.ts",
+      "sha256": "780503930b5d33753df45984bcc1c77fe1537b86cd9e5eaa320987e936d91ab8"
+    },
+    {
+      "path": "apps/api/src/modules/payment/infrastructure/routing-payment.adapter.ts",
+      "sha256": "c85fa98e8f310828e43f7508414975e27b0917ddceb031cf93d496104182ad07"
+    },
+    {
+      "path": "apps/api/src/modules/payment/infrastructure/stripe-payment.adapter.ts",
+      "sha256": "e0ba38267491a9c3512ff990049cb970bcb587f5661e13cbe939dbc15299a30a"
+    },
+    {
+      "path": "apps/api/src/modules/payment/payment.module.ts",
+      "sha256": "5c124fead6406823eb62313322349c411ec7597a9119b80527728981ccd09ba1"
+    },
+    {
+      "path": "apps/api/src/modules/revenue-manager/application/use-cases/record-strategy-lesson.use-case.ts",
+      "sha256": "cc463f9f81c34483b27ac045b42ff240c9e26588dbce94b0260c268922582c1a"
+    },
+    {
+      "path": "apps/api/src/modules/revenue-manager/domain/ports/strategy-lesson-repository.port.ts",
+      "sha256": "34a87ea8bda461f0bd7ba5f0a7f9a6121ba3c5ce9e35674ba08b369b2c49e14e"
+    },
+    {
+      "path": "apps/api/src/modules/revenue-manager/infrastructure/prisma-strategy-lesson.repository.ts",
+      "sha256": "b08ac596ee07411db1d4b094fe9360f8253ab642b45a6379024aa27c56da6485"
+    },
+    {
+      "path": "apps/api/src/modules/revenue-manager/infrastructure/workers/strategy-feedback.worker.spec.ts",
+      "sha256": "8eb1eecc1d7baf1fc36c93b2e65e5662268a736bc6871e392c7d4f0879366052"
+    },
+    {
+      "path": "apps/api/src/modules/revenue-manager/infrastructure/workers/strategy-feedback.worker.ts",
+      "sha256": "4b1897af9df7128dc9952211b4f0c2668e73c79fe9d050f16922ce819e337a08"
+    },
+    {
+      "path": "apps/api/src/shared/events/domain-event-bus.port.ts",
+      "sha256": "481e97776c1a233f3161a3c8f7f776ae626e643db91d33923d4e80f2670ef535"
+    },
+    {
+      "path": "apps/api/src/shared/messaging/infrastructure/in-memory-outbox.repository.ts",
+      "sha256": "549084b6ffc560964f40365b022b7f9cdcdb2b2cb0f5c395deea31dc7e7e9451"
+    },
+    {
+      "path": "apps/api/src/shared/messaging/infrastructure/prisma-outbox.repository.ts",
+      "sha256": "b716df219dcbfd5ce5429379bf89cdc9b62a5ac817031e61d6037338e5deff6b"
+    },
+    {
+      "path": "apps/api/src/shared/messaging/messaging.module.ts",
+      "sha256": "2dbc9a10932400d9df9e77b3006290fce063c0082764946f6c82e26d9662491f"
+    },
+    {
+      "path": "apps/api/src/shared/messaging/outbox-dispatcher.service.spec.ts",
+      "sha256": "b69a9c1c225825a973e5c59007a9fc70a0ebd4956a2a029124df47edc76a119d"
+    },
+    {
+      "path": "apps/api/src/shared/messaging/outbox-dispatcher.service.ts",
+      "sha256": "e733217036b3cd8530af49c65a42261f14651bc959d2d077925ad054dda986e9"
+    },
+    {
+      "path": "apps/api/src/shared/messaging/ports/outbox.repository.port.ts",
+      "sha256": "42c63f7c01c423c2a5f3a6a4bb65de29b464af73077a2fb2d8b26dfe41745798"
+    },
+    {
+      "path": "apps/api/src/shared/persistence/persistence.module.ts",
+      "sha256": "56948d2d0c2f3ca4d4a9008a9ee453ff3b31d2eff68d03a7a1da103b121ec8ca"
+    },
+    {
+      "path": "apps/api/tests/inventory-sale-migration.integration.test.mjs",
+      "sha256": "b80784af73fda9a265c44d5ccef96323c5f992723e0631a5965807f7497baf96"
+    },
+    {
+      "path": "apps/api/tests/outbox-leases.integration.spec.ts",
+      "sha256": "2870f863d6b6a9ef6872f1f78b12c1bea0690195927b32e606921c15a3086a30"
+    },
+    {
+      "path": "apps/api/tests/payment-recovery.integration.spec.ts",
+      "sha256": "c3b2d95c82af9b8aea4e75aaaf16ea8736c47fe15f7911aeabb28677a7b90a91"
+    },
+    {
+      "path": "apps/api/tests/run-ready-prod-tests.mjs",
+      "sha256": "99221ae9b85c82c3431e85c0edd5893283d79d57659dc1e0abcba49eb1e83af4"
+    },
+    {
+      "path": "apps/api/tests/stage3-cross-module.integration.test.mjs",
+      "sha256": "a6f2fecdb4dda80d90a0315cfc75c6583c71b80caac51d61a65f641520723857"
+    }
+  ]
+}

@@ -1,4 +1,5 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
+import { randomInt } from "node:crypto";
 import type { CustomerHints } from "@zyon/shared-types";
 import {
   extractEmail,
@@ -25,15 +26,12 @@ export class OtpValidationError extends Error {
  */
 @Injectable()
 export class OtpService {
-  private readonly logger = new Logger(OtpService.name);
 
   /**
    * Generate a 6-digit OTP code using crypto-secure random.
    */
   generateCode(): string {
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    this.logger.warn(`[OTP-GENERATED] code=${code}`);
-    return code;
+    return randomInt(100000, 1000000).toString();
   }
 
   /**

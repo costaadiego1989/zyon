@@ -1,3 +1,25 @@
+/**
+ * STOREFRONT API CLIENT
+ *
+ * Architecture:
+ * - OUR storefront is multi-tenant (serves many merchants by slug)
+ * - External customers are single-tenant (have their own API key)
+ *
+ * For our storefront:
+ * - Catalog/products: internal route (scoped by merchantId param)
+ * - Conversations/messages: capability returned when the conversation is created
+ * - Cart: internal route (scoped by merchantId)
+ * - Settings: loaded via SSR (server-client.ts)
+ *
+ * For external customers consuming our headless API:
+ * - Everything goes through /v1 with their API key
+ * - They DON'T use this file — they use the SDK (zyon-sdk)
+ *
+ * This file is the STOREFRONT's integration layer. Customers use the SDK.
+ */
+
+import { conversationAccessHeaders, rememberConversationAccess } from "../conversation-access";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 export interface Product {
   id: string;
@@ -99,13 +121,16 @@ export const marketplaceApi = {
     return result.items ?? [];
   },
 };
+
+// ─── Checkout / Conversations (conversation capability) ──
+
 export const checkoutApi = {
   async create(data: {
     merchantId: string;
     customerId?: string;
     items?: any[];
   }): Promise<any> {
-    return safeFetch(`${API_BASE}/storefront/conversations`, {
+    const result = await safeFetch(`${API_BASE}/storefront/conversations`, {
       method: "POST",
       body: JSON.stringify({
         merchant_id: data.merchantId,
@@ -113,6 +138,9 @@ export const checkoutApi = {
         items: data.items,
       }),
     });
+    if (typeof result.conversation_id !== "string" || typeof result.conversation_token !== "string") throw new Error("missing_conversation_access");
+    rememberConversationAccess(result.conversation_id, result.conversation_token);
+    return result;
   },
 
   async generateNudge(merchantId: string, trigger: "idle_30_seconds" | "exit_intent_detected", stage: "cart" | "browsing", fallback: string): Promise<{ message: string }> {
@@ -131,11 +159,11 @@ export const checkoutApi = {
   }): Promise<any> {
     return safeFetch(`${API_BASE}/storefront/conversations/${checkoutId}/messages`, {
       method: "POST",
-      headers: options?.token ? { Authorization: `Bearer ${options.token}` } : {},
+      headers: conversationAccessHeaders(checkoutId, options?.token),
       body: JSON.stringify({
         merchant_id: options?.merchantId,
         user_message: text,
-        cart_id: options?.cartId || undefined,
+        cart_id: checkoutId,
         history: options?.history,
         variant_id: options?.variantId || undefined,
       }),

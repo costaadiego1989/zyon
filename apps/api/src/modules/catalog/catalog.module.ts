@@ -65,6 +65,7 @@ import { ToggleProductPromotionUseCase } from "./application/use-cases/toggle-pr
 import { DeleteProductPromotionUseCase } from "./application/use-cases/delete-product-promotion.use-case.js";
 import { UpsertProductAdvancedRulesUseCase } from "./application/use-cases/upsert-product-advanced-rules.use-case.js";
 import { CheckoutSettingsModule } from "../checkout-settings/checkout-settings.module.js";
+import { CatalogVariantService } from "./application/services/catalog-variant.service.js";
 
 @Module({
   imports: [
@@ -81,6 +82,11 @@ import { CheckoutSettingsModule } from "../checkout-settings/checkout-settings.m
   providers: [
     BillingPlanMeteringService,
     PlanLimitGuard,
+    {
+      provide: CatalogVariantService,
+      useFactory: (prisma: PrismaClient, s3: S3UploadService) => new CatalogVariantService(prisma, s3),
+      inject: [PRISMA_CLIENT, S3UploadService],
+    },
     EmbedTokenService,
     EmbedAuthGuard,
     EmbedCheckoutGuardHelper,

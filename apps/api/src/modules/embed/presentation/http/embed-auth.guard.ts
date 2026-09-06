@@ -73,7 +73,7 @@ export class EmbedAuthGuard implements CanActivate {
 
     // Dev bypass: allow requests with the __dev_bypass__ token when EMBED_DEV_BYPASS=true.
     // Uses x-dev-merchant-id header or falls back to MERCHANT_ID env var.
-    if (process.env.EMBED_DEV_BYPASS === "true" && this.isDevBypassToken(headers)) {
+    if (process.env.NODE_ENV !== "production" && process.env.EMBED_DEV_BYPASS === "true" && this.isDevBypassToken(headers)) {
       const devMerchantId =
         firstHeader(headers["x-dev-merchant-id"]) ||
         process.env.MERCHANT_ID ||
@@ -168,10 +168,7 @@ export class EmbedAuthGuard implements CanActivate {
     // being inherited unpredictably by child routes.
     const required = this.reflector?.get<EmbedScope>(EMBED_REQUIRED_SCOPE_KEY, context.getHandler());
     if (!required) return;
-    // Backward compat: tokens without explicit scopes field are treated as full-access
-    // (v1 tokens issued before scope enforcement was added).
-    if (!claims.scopes) return;
-    if (!claims.scopes.includes(required)) {
+    if (!claims.scopes?.includes(required)) {
       throw new ForbiddenException("embed_scope_not_granted");
     }
   }

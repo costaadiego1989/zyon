@@ -36,6 +36,7 @@ export class HubSpotCrmAdapter implements CrmProviderPort {
         `${this.baseUrl}/crm/v3/objects/contacts/${encodeURIComponent(contact.email)}?idProperty=email`,
         {
           method: "PATCH",
+          signal: AbortSignal.timeout(10000),
           headers: {
             Authorization: `Bearer ${this.accessToken}`,
             "Content-Type": "application/json",
@@ -54,6 +55,7 @@ export class HubSpotCrmAdapter implements CrmProviderPort {
         // Contact doesn't exist — create
         const createRes = await fetch(`${this.baseUrl}/crm/v3/objects/contacts`, {
           method: "POST",
+          signal: AbortSignal.timeout(10000),
           headers: {
             Authorization: `Bearer ${this.accessToken}`,
             "Content-Type": "application/json",
@@ -70,18 +72,16 @@ export class HubSpotCrmAdapter implements CrmProviderPort {
         });
 
         if (!createRes.ok) {
-          const err = await createRes.text();
-          this.logger.warn(`[HubSpot] createContact failed: ${createRes.status} — ${err.slice(0, 200)}`);
+          throw new Error(`inventory_crm_http_${createRes.status}`);
         }
         return;
       }
 
       if (!patchRes.ok) {
-        const err = await patchRes.text();
-        this.logger.warn(`[HubSpot] upsertContact PATCH failed: ${patchRes.status} — ${err.slice(0, 200)}`);
+        throw new Error(`inventory_crm_http_${patchRes.status}`);
       }
-    } catch (err) {
-      this.logger.warn(`[HubSpot] upsertContact error: ${err instanceof Error ? err.message : String(err)}`);
+    } catch {
+      throw new Error("inventory_crm_provider_failed");
     }
   }
 
@@ -120,6 +120,7 @@ export class HubSpotCrmAdapter implements CrmProviderPort {
 
       const dealRes = await fetch(`${this.baseUrl}/crm/v3/objects/deals`, {
         method: "POST",
+          signal: AbortSignal.timeout(10000),
         headers: {
           Authorization: `Bearer ${this.accessToken}`,
           "Content-Type": "application/json",
@@ -128,14 +129,12 @@ export class HubSpotCrmAdapter implements CrmProviderPort {
       });
 
       if (!dealRes.ok) {
-        const err = await dealRes.text();
-        this.logger.warn(`[HubSpot] createDeal failed: ${dealRes.status} — ${err.slice(0, 200)}`);
-        return;
+        throw new Error(`inventory_crm_http_${dealRes.status}`);
       }
 
       this.logger.debug(`[HubSpot] Deal created: ${deal.title}`);
-    } catch (err) {
-      this.logger.warn(`[HubSpot] createDeal error: ${err instanceof Error ? err.message : String(err)}`);
+    } catch {
+      throw new Error("inventory_crm_provider_failed");
     }
   }
 }

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { Inject, Injectable, UnauthorizedException , Logger} from "@nestjs/common";
+import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 import { BuyerAccount } from "../../domain/entities/buyer-account.entity.js";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../domain/ports/buyer-account-repository.port.js";
 import { BuyerJwtService } from "../../domain/services/buyer-jwt.service.js";
@@ -15,8 +15,6 @@ export interface VerifyBuyerPhoneCodeRequest {
 
 @Injectable()
 export class VerifyBuyerPhoneCodeUseCase {
-  private readonly logger = new Logger(VerifyBuyerPhoneCodeUseCase.name);
-
   constructor(
     @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly repo: BuyerAccountRepository,
     @Inject(OTP_STORE) private readonly otpStore: OtpStore,
@@ -32,11 +30,6 @@ export class VerifyBuyerPhoneCodeUseCase {
     if (!record) {
       throw new UnauthorizedException("otp_expired");
     }
-    // expiresAt may arrive as a Date or an ISO string depending on the store
-    // implementation (Prisma returns Date, cache/serialized stores return string).
-    const expiresAt = record.expiresAt instanceof Date ? record.expiresAt : new Date(record.expiresAt);
-    this.logger.warn(`[OTP verify] record found: attempts=${record.attempts}/${record.maxAttempts} expires=${expiresAt.toISOString()}`);
-
     if (record.attempts >= record.maxAttempts) {
       throw new UnauthorizedException("otp_locked");
     }
@@ -44,7 +37,6 @@ export class VerifyBuyerPhoneCodeUseCase {
     // Compare hash — strip non-digits from input to handle any formatting
     const sanitizedCode = input.code.replace(/\D/g, "").trim();
     const inputHash = createHash("sha256").update(sanitizedCode).digest("hex");
-    this.logger.warn(`[OTP verify] code="${sanitizedCode}" len=${sanitizedCode.length} inputHash=${inputHash.slice(0, 12)} storedHash=${record.codeHash.slice(0, 12)} match=${inputHash === record.codeHash}`);
     if (inputHash !== record.codeHash) {
       // Increment attempt counter before throwing so lockout is enforced.
       await this.otpStore.incrementAttempts(phoneKey);

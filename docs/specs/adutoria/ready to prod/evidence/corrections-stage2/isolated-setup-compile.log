@@ -1,0 +1,18 @@
+node : Loaded Prisma config from prisma.config.ts.
+No linha:4 caractere:1
++ node apps/api/tests/prepare-ready-prod-tests.mjs --compile > .audit/v ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Loaded Prisma c...isma.config.ts.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+
+Prisma config detected, skipping environment variable loading.
+Prisma schema loaded from .audit\test-schema.prisma
+
+✔ Generated Prisma Client (v6.19.3) to .\..\..\.audit\verification\generated-client in 884ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Interested in query caching in just a few lines of code? Try Accelerate today! https://pris.ly/tip-3-accelerate
+
+READY_PROD_TEST_PRISMA_CLIENT=C:\Users\Admin\Desktop\AACP\.audit\ready-to-prod-fixes-20260905\.audit\verification\generated-client\index.js

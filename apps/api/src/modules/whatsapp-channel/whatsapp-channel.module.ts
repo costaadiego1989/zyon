@@ -21,14 +21,25 @@ import { WhatsAppConfigModule } from "./whatsapp-config.module.js";
 import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-templates.module.js";
 import { SubmitTemplatePackageUseCase } from "../whatsapp-templates/application/use-cases/submit-template-package.use-case.js";
 import { TEMPLATE_PACKAGE_SUBMITTER } from "./domain/ports/template-package-submitter.port.js";
+import { AcceptBubbleWhatsWebhookUseCase } from "./application/use-cases/accept-bubblewhats-webhook.use-case.js";
+import { WhatsAppWebhookWorker } from "./application/services/whatsapp-webhook-worker.service.js";
+import { WHATSAPP_WEBHOOK_INBOX } from "./domain/ports/whatsapp-webhook-inbox.port.js";
+import { PrismaWhatsAppWebhookInbox } from "./infrastructure/repositories/prisma-whatsapp-webhook-inbox.repository.js";
 
-class MultiProviderSenderAdapter {
+/**
+ * Multi-tenant sender resolver.
+ * Routes to BubbleWhats or Twilio based on merchant config provider.
+ */
+export class MultiProviderSenderAdapter {
   constructor(
     private readonly bubblewhats: BubbleWhatsSenderAdapter,
     private readonly twilio: TwilioSenderAdapter,
   ) {}
 
   async sendText(msg: any) {
+    if (msg.provider === "BUBBLEWHATS") return this.bubblewhats.sendText(msg);
+    // For now, try Twilio first, fallback to BubbleWhats
+    // Future: lookup merchant config and choose provider
     const result = await this.twilio.sendText(msg);
     if (result.status === "sent") return result;
     return this.bubblewhats.sendText(msg);
@@ -50,6 +61,10 @@ class MultiProviderSenderAdapter {
     RouteToSessionUseCase,
     SendWhatsAppResponseUseCase,
     ConfigureWhatsAppUseCase,
+    AcceptBubbleWhatsWebhookUseCase,
+    WhatsAppWebhookWorker,
+
+    // Services
     MessageDebouncerService,
     TwilioDeduplicatorService,
     BubbleWhatsSenderAdapter,
@@ -68,6 +83,7 @@ class MultiProviderSenderAdapter {
       useFactory: (repo: WhatsAppSessionRepository) => new WhatsAppPostSaleContextAdapter(repo),
       inject: [WHATSAPP_SESSION_REPOSITORY],
     },
+    { provide: WHATSAPP_WEBHOOK_INBOX, useClass: PrismaWhatsAppWebhookInbox },
   ],
   exports: [SendWhatsAppResponseUseCase, WHATSAPP_POST_SALE_CONTEXT_PORT, WhatsAppConfigModule],
 })

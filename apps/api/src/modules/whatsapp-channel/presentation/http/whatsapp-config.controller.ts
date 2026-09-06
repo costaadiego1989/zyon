@@ -8,6 +8,7 @@ import {
   HttpCode,
   Logger,
   Inject,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { AuthGuard } from "../../../../modules/auth/presentation/auth.guard.js";
 import { ConfigureWhatsAppUseCase } from "../../application/use-cases/configure-whatsapp.use-case.js";
@@ -116,6 +117,10 @@ export class WhatsAppConfigController {
   ) {
     const config = await this.configRepo.findByMerchantId(merchantId);
     if (!config) return { status: "disconnected", enabled: false };
+
+    if (body.enabled && config.provider === "BUBBLEWHATS" && !config.webhookSecret?.trim()) {
+      throw new ServiceUnavailableException("whatsapp_webhook_secret_required");
+    }
 
     const result = await this.configureWhatsApp.setEnabled(merchantId, body.enabled);
     return {

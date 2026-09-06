@@ -46,44 +46,11 @@ export class CheckoutCustomerService {
     const patch = this.buildCustomerPatch(userMessage, session.customer, lastAgentTurn);
     if (!patch) return session;
 
-    let nextGlobalUserId = session.globalUserId;
-    let skipEmailCaptureNotify = false;
-    if (patch.email && this.recognitionService) {
-      const recognition = await this.recognitionService.findReturningBuyerByEmail(
-        patch.email,
-        session.merchantId,
-        session.sessionId
-      );
-      const recognizedBuyer = recognition.isReturning;
-      patch.recognized_buyer = recognizedBuyer;
-      patch.isReturning = recognizedBuyer;
-      const priorEmailVerified = this.recognitionService.isPriorEmailVerified(
-        patch.email,
-        recognition.account,
-        recognition.previousSession
-      );
-      skipEmailCaptureNotify = priorEmailVerified;
-      if (priorEmailVerified) {
-        patch.email_verified = true;
-        patch.otp_code = "";
-      }
-      if (recognition.globalUserId) {
-        nextGlobalUserId = recognition.globalUserId;
-      }
-    }
-
     const hadEmailAlready = Boolean(session.customer?.email?.trim());
     let working = this.mergeCustomers(session, patch);
-    if (nextGlobalUserId !== working.globalUserId) {
-      working = {
-        ...working,
-        globalUserId: nextGlobalUserId,
-        updatedAt: new Date().toISOString()
-      };
-    }
     await this.repository.saveSession(working);
 
-    if (patch.email && !hadEmailAlready && this.buyerEmailNotifier && !skipEmailCaptureNotify) {
+    if (patch.email && !hadEmailAlready && this.buyerEmailNotifier) {
       const merged = this.mergeHints(session.customer, patch);
       const buyerFirstHint = merged.fullName?.trim().split(/\s+/).filter(Boolean)[0];
       this.buyerEmailNotifier.notifyCaptured({
@@ -124,51 +91,10 @@ export class CheckoutCustomerService {
   }
 
   async hydrateReturningBuyerFromEmailHint(session: CheckoutSession): Promise<CheckoutSession> {
-    const email = session.customer?.email?.trim().toLowerCase();
-    if (!email || session.customer?.email_verified) return session;
-    if (!this.recognitionService) return session;
-
-    const recognition = await this.recognitionService.findReturningBuyerByEmail(
-      email,
-      session.merchantId,
-      session.sessionId
-    );
-    const priorEmailVerified = this.recognitionService.isPriorEmailVerified(
-      email,
-      recognition.account,
-      recognition.previousSession
-    );
-    if (!priorEmailVerified) return session;
-
-    let working = this.mergeCustomers(session, {
-      email,
-      email_verified: true,
-      otp_code: "",
-      recognized_buyer: true,
-      isReturning: true
-    });
-
-    let nextGlobalUserId = working.globalUserId;
-    if (recognition.globalUserId) {
-      nextGlobalUserId = recognition.globalUserId;
-    }
-    if (nextGlobalUserId !== working.globalUserId) {
-      working = {
-        ...working,
-        globalUserId: nextGlobalUserId,
-        updatedAt: new Date().toISOString()
-      };
-    }
-
-    await this.repository.saveSession(working);
-    working = await this.recognizeAndPersistVerifiedBuyer(working);
-    await this.repository.saveSession(working);
-
-    if (this.persistenceService?.isRegistrationComplete(working.customer)) {
-      await this.persistenceService.ensureBuyerAccountPersisted(working);
-    }
-
-    return working;
+    // An email hint (including an existing account's email) is not proof of possession.
+    // Recognition is only performed after this session's OTP has been validated.
+    if (!session.customer?.email_verified) return session;
+    return this.recognizeAndPersistVerifiedBuyer(session);
   }
 
   private buildCustomerPatch(

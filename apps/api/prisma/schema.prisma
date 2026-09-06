@@ -224,6 +224,8 @@ model MerchantUser {
   email           String
   passwordHash    String?  @map("password_hash")
   role            String
+  authVersion     Int      @default(0) @map("auth_version")
+  disabledAt      DateTime? @map("disabled_at")
   oauthProvider   String?  @map("oauth_provider")
   oauthProviderId String?  @map("oauth_provider_id")
   createdAt       DateTime @default(now()) @map("created_at")
@@ -232,11 +234,43 @@ model MerchantUser {
   merchant    Merchant             @relation(fields: [merchantId], references: [id], onDelete: Cascade)
   agentRules  AgentRule[]
   teamMembers MerchantTeamMember[]
+  authSessions MerchantAuthSession[]
+  passwordResetTokens MerchantPasswordResetToken[]
 
   @@unique([email])
   @@index([merchantId])
   @@index([oauthProvider, oauthProviderId])
   @@map("merchant_users")
+}
+
+model MerchantAuthSession {
+  id String @id
+  familyId String @map("family_id")
+  userId String @map("user_id")
+  merchantId String @map("merchant_id")
+  authVersion Int @map("auth_version")
+  refreshExpiresAt DateTime @map("refresh_expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  user MerchantUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([familyId])
+  @@index([userId, revokedAt])
+  @@index([refreshExpiresAt])
+  @@map("merchant_auth_sessions")
+}
+
+model MerchantPasswordResetToken {
+  tokenHash String @id @map("token_hash")
+  userId String @map("user_id")
+  authVersion Int @map("auth_version")
+  expiresAt DateTime @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  user MerchantUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("merchant_password_reset_tokens")
 }
 
 model AgentRule {
@@ -743,11 +777,14 @@ model OutboxMessage {
   nextAttemptAt DateTime? @map("next_attempt_at")
   deliveredAt   DateTime? @map("delivered_at")
   publishedAt   DateTime? @map("published_at")
+  leaseToken     String?   @map("lease_token")
+  leaseExpiresAt DateTime? @map("lease_expires_at")
   createdAt     DateTime  @default(now()) @map("created_at")
 
   @@index([merchantId, createdAt])
   @@index([status, createdAt])
   @@index([status, nextAttemptAt])
+  @@index([status, leaseExpiresAt])
   @@map("outbox_messages")
 }
 
@@ -802,6 +839,9 @@ model PaymentIntent {
   acceptedOfferId     String?  @map("accepted_offer_id")
   commerceOrderId     String?  @map("commerce_order_id")
   buyerFacing         Json?    @map("buyer_facing")
+  version             Int      @default(0)
+  amountBreakdown     Json?    @map("amount_breakdown")
+  creation            Json?
   statusHistory       Json     @default("[]") @map("status_history")
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
@@ -1349,6 +1389,7 @@ model ProductStock {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  reservations StockReservation[]
 
   @@unique([variantId, warehouseId])
   @@index([variantId])
@@ -1358,6 +1399,7 @@ model ProductStock {
 model StockReservation {
   id        String                 @id @default(cuid())
   variantId String                 @map("variant_id")
+  stockId   String?                @map("stock_id")
   cartId    String?                @map("cart_id")
   quantity  Int
   status    StockReservationStatus @default(ACTIVE)
@@ -1365,7 +1407,9 @@ model StockReservation {
   createdAt DateTime               @default(now()) @map("created_at")
 
   variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  stock   ProductStock? @relation(fields: [stockId], references: [id], onDelete: Restrict)
 
+  @@index([stockId])
   @@index([variantId, status])
   @@index([expiresAt, status])
   @@map("stock_reservations")
@@ -2350,6 +2394,20 @@ model InventoryLocation {
   @@map("inventory_locations")
 }
 
+model InventorySaleReceipt {
+  id          String   @id
+  merchantId  String   @map("merchant_id")
+  orderId     String   @map("order_id")
+  payloadHash String   @map("payload_hash")
+  payload     Json
+  result      Json
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([merchantId, orderId])
+  @@index([merchantId, createdAt])
+  @@map("inventory_sale_receipts")
+}
+
 model InventoryItem {
   id                String    @id @default(cuid())
   merchantId        String    @map("merchant_id")
@@ -2615,4 +2673,30 @@ model BuyerEarnedBenefit {
 
   @@index([merchantId, globalUserId, status])
   @@map("buyer_earned_benefits")
+}
+
+model WhatsAppWebhookInbox {
+  id             String    @id @default(uuid())
+  dedupKey       String    @unique @map("dedup_key")
+  eventId        String    @map("event_id")
+  kind           String
+  merchantId     String    @map("merchant_id")
+  configId       String    @map("config_id")
+  deviceId       String    @map("device_id")
+  streamKey      String    @map("stream_key")
+  payload        Json
+  payloadHash    String    @map("payload_hash")
+  status         String    @default("pending")
+  attempts       Int       @default(0)
+  availableAt    DateTime  @default(now()) @map("available_at")
+  leaseToken     String?   @map("lease_token")
+  leaseExpiresAt DateTime? @map("lease_expires_at")
+  processedAt    DateTime? @map("processed_at")
+  lastError      String?   @map("last_error")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  @@index([status, availableAt, leaseExpiresAt])
+  @@index([streamKey, status, createdAt])
+  @@map("whatsapp_webhook_inbox")
 }

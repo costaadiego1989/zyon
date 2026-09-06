@@ -24,6 +24,7 @@ import {
 } from "./domain/ports/email-change-otp-store.port.js";
 import { CAPTCHA_VERIFIER } from "./domain/ports/captcha-verifier.port.js";
 import { CloudflareTurnstileAdapter } from "./infrastructure/cloudflare-turnstile.adapter.js";
+import { AUTH_REPOSITORY, type AuthRepository } from "./domain/ports/auth-repository.port.js";
 import { MERCHANT_ID_GENERATOR, DefaultMerchantIdGenerator } from "./domain/ports/merchant-id-generator.port.js";
 import { OAUTH_PROVIDER_PORT } from "./domain/ports/oauth-provider.port.js";
 import { RATE_LIMITER } from "./domain/ports/rate-limiter.port.js";
@@ -66,7 +67,7 @@ import { TenantRoleGuard } from "./presentation/tenant-role.guard.js";
     { provide: CAPTCHA_VERIFIER, useClass: CloudflareTurnstileAdapter },
     // Domain services
     PasswordHasher,
-    JwtService,
+    { provide: JwtService, useFactory: (repository: AuthRepository) => new JwtService(undefined, undefined, repository), inject: [AUTH_REPOSITORY] },
     AuthCookieService,
     // Guards
     AuthGuard,

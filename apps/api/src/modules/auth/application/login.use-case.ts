@@ -24,7 +24,7 @@ export class LoginUseCase {
 
   async execute(input: { email: string; password: string }): Promise<AuthResponse> {
     const user = await this.repository.findUserByEmail(normalizeEmail(input.email));
-    if (!user || !user.passwordHash) throw new InvalidCredentialsError();
+    if (!user || user.disabledAt || !user.passwordHash) throw new InvalidCredentialsError();
     const { valid } = await this.passwordHasher.verify(input.password, user.passwordHash);
     if (!valid) throw new InvalidCredentialsError();
     return toAuthResponse(user, this.jwt);

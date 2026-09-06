@@ -31,8 +31,8 @@ export class RecordStrategyLessonUseCase {
 
   async execute(input: RecordStrategyLessonInput): Promise<RecordStrategyLessonOutput> {
     // Fetch the completed experiment + results
-    const experiment = await this.prisma.promptExperiment.findUniqueOrThrow({
-      where: { id: input.experiment_id },
+    const experiment = await this.prisma.promptExperiment.findFirstOrThrow({
+      where: { id: input.experiment_id, merchantId: input.merchant_id },
       include: { variants: { include: { results: true } } },
     });
 
@@ -44,6 +44,9 @@ export class RecordStrategyLessonUseCase {
     const hypothesis = await this.hypothesisRepo.findById(input.hypothesis_id, input.merchant_id);
     if (!hypothesis) {
       throw new Error("HYPOTHESIS_NOT_FOUND");
+    }
+    if (hypothesis.snapshot().created_experiment_id !== input.experiment_id) {
+      throw new Error("hypothesis_experiment_mismatch");
     }
 
     // Compute variant stats from results
@@ -105,15 +108,15 @@ export class RecordStrategyLessonUseCase {
       generator_feedback: `Expected lift: ${hypothesis.expected_lift_percent}% | Actual lift: ${liftPercent.toFixed(2)}% | Confidence: ${(sig.confidence * 100).toFixed(1)}%`,
     });
 
-    await this.lessonRepo.save(lesson);
+    const saved = await this.lessonRepo.save(lesson) ?? lesson;
     this.logger.log(
       `Recorded strategy lesson for hypothesis ${input.hypothesis_id}: lift=${liftPercent.toFixed(2)}%, correct=${hypothesisWasCorrect}`,
     );
 
     return {
-      lesson_id: lesson.id,
-      hypothesis_was_correct: hypothesisWasCorrect,
-      conversion_lift_percent: liftPercent,
+      lesson_id: saved.id,
+      hypothesis_was_correct: saved.hypothesis_was_correct,
+      conversion_lift_percent: saved.conversion_lift_percent,
     };
   }
 

@@ -1,0 +1,71 @@
+[commerce-connections] Error: Some internal stack trace: db connection pool exhausted
+⎯⎯⎯⎯⎯⎯ Failed Tests 33 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/pages/audit-log-page.spec.ts > AuditLogPage — pagination > contains 'Carregar mais' load-more button text
+AssertionError: expected 'import React from "react";\r\nimport …' to contain 'Carregar mais'
+ FAIL  src/pages/audit-log-page.spec.ts > AuditLogPage — accessibility > refresh button has aria-label
+AssertionError: expected 'import React from "react";\r\nimport …' to contain 'aria-label="Atualizar log de auditori…'
+ FAIL  src/pages/audit-log-page.spec.ts > AuditLogPage — refresh > has Atualizar button
+AssertionError: expected 'import React from "react";\r\nimport …' to contain 'Atualizar'
+ FAIL  src/pages/billing-page.spec.ts > BillingPage Portuguese copy > source file contains no broken Portuguese 
+AssertionError: Found broken pattern /\bperíodo\b/i — should be "período": expected [ 'período', index: 13015, …(2) ] 
+ FAIL  src/pages/billing-page.spec.ts > BillingPage Portuguese copy > source file contains correct diacritics for all 
+AssertionError: Missing correct string: "R$ 89/mês": expected 'import React, { useEffect, useState }…' to contain 'R$ 
+ FAIL  src/pages/billing-page.spec.ts > BillingPage PLANS structure > source defines priceId field for each plan
+AssertionError: expected 'import React, { useEffect, useState }…' to contain 'priceId: "starter"'
+ FAIL  src/pages/billing-page.spec.ts > BillingPage PLANS structure > source uses aria-labelledby for plan sections
+AssertionError: expected 'import React, { useEffect, useState }…' to contain 'aria-labelledby'
+ FAIL  src/pages/billing-page.spec.ts > BillingPage PLANS structure > source uses highlight property to distinguish 
+AssertionError: expected 'import React, { useEffect, useState }…' to contain 'highlight'
+ FAIL  src/pages/billing-page.spec.ts > BillingPage PLANS structure > source displays plan price prominently
+AssertionError: expected 'import React, { useEffect, useState }…' to contain 'plan.price'
+ FAIL  src/pages/billing-page.spec.ts > BillingPage PLANS structure > openCheckout function accepts priceId parameter
+AssertionError: expected 'import React, { useEffect, useState }…' to match /async function openCheckout\(priceId:…/
+ FAIL  src/pages/billing-page.spec.ts > BillingPage PLANS structure > plan card buttons pass plan.priceId to 
+AssertionError: expected 'import React, { useEffect, useState }…' to contain 'openCheckout(plan.priceId)'
+ FAIL  src/pages/billing-page.spec.ts > BillingPage PLANS structure > source renders plan features as a list
+AssertionError: expected 'import React, { useEffect, useState }…' to contain 'plan.features.map'
+ FAIL  src/pages/customers-page.spec.ts > toCustomerRows > returns '?' initials for missing name
+AssertionError: expected 'CN' to be '?' // Object.is equality
+ FAIL  src/pages/customers-page.spec.ts > toCustomerRows > returns '-' for missing profile fields
+AssertionError: expected 'email@exemplo.com' to be '-' // Object.is equality
+ FAIL  src/pages/orders-shipments-page.spec.ts > filterOrders > filters by endDate (inclusive of day end)
+AssertionError: expected [] to have a length of 5 but got +0
+ FAIL  src/pages/support-settings-page.spec.tsx > SupportSettingsPage — structure > uses .metric class for ticket 
+AssertionError: expected '/**\r\n * Backward compatibility re-e…' to contain 'className="metric"'
+ FAIL  src/pages/support-settings-page.spec.tsx > SupportSettingsPage — structure > uses panel stacked class for 
+AssertionError: expected '/**\r\n * Backward compatibility re-e…' to contain 'panel stacked'
+ FAIL  src/pages/support-settings-page.spec.tsx > SupportSettingsPage — structure > contains handoff terminology for 
+AssertionError: expected '/**\r\n * backward compatibility re-e…' to contain 'handoff'
+ FAIL  src/pages/support-settings-page.spec.tsx > SupportSettingsPage — structure > contains atendimento in Portuguese
+AssertionError: expected '/**\r\n * Backward compatibility re-e…' to contain 'atendimento'
+ FAIL  src/pages/support-settings-page.spec.tsx > SupportSettingsPage — structure > uses formatPtBrDate for timestamp 
+AssertionError: expected '/**\r\n * Backward compatibility re-e…' to contain 'formatPtBrDate'
+ FAIL  src/pages/support-settings-page.spec.tsx > SupportSettingsPage — structure > has maxLength constraints on inputs
+AssertionError: expected '/**\r\n * Backward compatibility re-e…' to contain 'maxLength'
+ FAIL  src/pages/support-settings-page.spec.tsx > SupportSettingsPage — structure > has remove button for FAQ items
+AssertionError: expected '/**\r\n * Backward compatibility re-e…' to contain 'Remover'
+ FAIL  src/pages/support-settings-page.spec.tsx > SupportSettingsPage — structure > uses chamado terminology for 
+AssertionError: expected '/**\r\n * Backward compatibility re-e…' to contain 'chamado'
+ FAIL  src/pages/support-settings-page.spec.tsx > SupportSettingsPage — structure > has pagination using paginateItems 
+AssertionError: expected '/**\r\n * Backward compatibility re-e…' to contain 'paginateItems'
+ FAIL  src/pages/support-settings-page.spec.tsx > SupportSettingsPage — structure > uses createDashboardApi for API 
+AssertionError: expected '/**\r\n * Backward compatibility re-e…' to contain 'createDashboardApi'
+ FAIL  src/pages/support-settings-page.spec.tsx > SupportSettingsPage — structure > has save button with disabled state
+AssertionError: expected '/**\r\n * Backward compatibility re-e…' to contain 'Salvar'
+ FAIL  src/pages/support-settings-page.spec.tsx > SupportSettingsPage — structure > has empty-state for no data 
+AssertionError: expected '/**\r\n * Backward compatibility re-e…' to contain 'empty-state'
+ FAIL  src/pages/support-settings-page.spec.tsx > SupportSettingsPage — structure > has FAQ section with limit notice
+AssertionError: expected '/**\r\n * Backward compatibility re-e…' to contain 'FAQ'
+ FAIL  src/pages/support-settings-page.spec.tsx > SupportSettingsPage — structure > uses skeleton loading class
+AssertionError: expected '/**\r\n * Backward compatibility re-e…' to contain 'skeleton'
+ FAIL  src/pages/support-settings-page.spec.tsx > SupportSettingsPage — structure > has validation logic
+AssertionError: expected '/**\r\n * Backward compatibility re-e…' to contain 'validate'
+ Test Files  6 failed | 16 passed (22)
+      Tests  33 failed | 415 passed (448)
+   Duration  14.57s (transform 3.10s, setup 0ms, collect 9.38s, tests 3.01s, environment 12.28s, prepare 10.49s)
+ FAIL  src/pages/support-settings-page.spec.tsx > SupportSettingsPage — structure > has filterTickets for search 
+AssertionError: expected '/**\r\n * Backward compatibility re-e…' to contain 'filterTickets'
+ FAIL  src/pages/support-settings-page.spec.tsx > SupportSettingsPage — structure > has keyboard escape handler on 
+AssertionError: expected '/**\r\n * Backward compatibility re-e…' to contain 'DashboardHttpError'
+ FAIL  src/pages/theme-page.spec.ts > DENSITY_OPTIONS > uses Portuguese labels
+AssertionError: expected [ 'Estreito', 'Médio', 'Full' ] to include 'Compacto'

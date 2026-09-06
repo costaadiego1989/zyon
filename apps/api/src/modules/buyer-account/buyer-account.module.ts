@@ -3,6 +3,9 @@ import type { PrismaClient } from "@prisma/client";
 import type { Redis } from "ioredis";
 import { PasswordHasher } from "../auth/domain/services/password-hasher.service.js";
 import { SMS_PROVIDER } from "./domain/ports/sms.port.js";
+import { EMAIL_OTP_PROVIDER } from "./domain/ports/email-otp.port.js";
+import { BubbleWhatsSmsSender } from "./infrastructure/bubblewhats-sms-sender.js";
+import { ResendEmailOtpSender } from "./infrastructure/resend-email-otp-sender.js";
 import { REDIS_CLIENT_TOKEN } from "../../shared/cache/redis.module.js";
 import { SendBuyerEmailCodeUseCase } from "./application/use-cases/send-buyer-email-code.use-case.js";
 import { VerifyBuyerEmailCodeUseCase } from "./application/use-cases/verify-buyer-email-code.use-case.js";
@@ -110,24 +113,16 @@ import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-weba
     // WhatsApp OTP delivery via BubbleWhats
     {
       provide: SMS_PROVIDER,
-      useFactory: () => ({
-        async send(phone: string, message: string) {
-          const baseUrl = process.env.BUBBLEWHATS_API_URL;
-          const token = process.env.BUBBLEWHATS_TOKEN;
-          if (!baseUrl || !token) {
-            const logger = new Logger("WhatsAppOTP");
-            logger.warn(`[OTP] WhatsApp not configured; message for ${phone.slice(-4)}: ${message}`);
-            return;
-          }
-          const cleanDigits = phone.replace(/\D/g, "");
-          const number = cleanDigits.startsWith("55") ? cleanDigits : `55${cleanDigits}`;
-          const jid = `${number}@s.whatsapp.net`;
-          await fetch(`${baseUrl}/send-message`, {
-            method: "POST",
-            headers: { Authorization: token, "Content-Type": "application/json" },
-            body: JSON.stringify({ jid, message }),
-          });
-        },
+      useFactory: () => new BubbleWhatsSmsSender({
+        baseUrl: process.env.BUBBLEWHATS_API_URL,
+        token: process.env.BUBBLEWHATS_TOKEN,
+      }),
+    },
+    {
+      provide: EMAIL_OTP_PROVIDER,
+      useFactory: () => new ResendEmailOtpSender({
+        apiKey: process.env.RESEND_API_KEY,
+        fromEmail: process.env.RESEND_NOREPLY_EMAIL || process.env.RESEND_FROM_EMAIL,
       }),
     },
     // WebAuthn dependencies

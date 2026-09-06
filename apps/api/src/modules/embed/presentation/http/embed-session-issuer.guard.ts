@@ -1,3 +1,5 @@
+import { ForbiddenException } from "@nestjs/common";
+import { requireStaffAccess } from "../../../auth/presentation/staff-access.js";
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from "@nestjs/common";
 import {
   setTenantPrincipal,
@@ -35,7 +37,8 @@ export class EmbedSessionIssuerGuard implements CanActivate {
 
     if (jwtToken) {
       try {
-        const user = this.jwt.verify(jwtToken);
+        const user = await this.jwt.authenticate(jwtToken);
+        requireStaffAccess(context, user.role);
         request.user = user;
         setTenantPrincipal(request, {
           kind: "human",
@@ -45,7 +48,8 @@ export class EmbedSessionIssuerGuard implements CanActivate {
           role: user.role,
         });
         return true;
-      } catch {
+      } catch (error) {
+        if (error instanceof ForbiddenException) throw error;
         // Bearer may be a server API key, so keep trying below.
       }
     }

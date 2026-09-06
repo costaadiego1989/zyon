@@ -85,7 +85,7 @@ export class RouteToSessionUseCase {
         status: "active",
       });
 
-      this.logger.log(`New WA session for ${phone} → merchant ${input.merchantId}`);
+      this.logger.log(`whatsapp_session_created merchant=${input.merchantId}`);
 
       return { whatsappSession: waSession, checkoutSessionId, isNew: true, buyerData };
     }
@@ -116,18 +116,18 @@ export class RouteToSessionUseCase {
     const identityKey = `phone:${phone}`;
     const existingIdentity = await this.prisma.buyerIdentity.findUnique({
       where: { merchantId_identityKey: { merchantId, identityKey } },
-    }).catch(() => null);
+    });
 
     if (existingIdentity) {
       // Returning buyer — hydrate from last checkout session
       const lastSession = await this.prisma.checkoutSession.findFirst({
         where: { merchantId, globalUserId: existingIdentity.globalUserId },
         orderBy: { updatedAt: "desc" },
-      }).catch(() => null);
+      });
 
       const customer = (lastSession?.customer as any) ?? {};
 
-      this.logger.debug(`Returning WA buyer: ${phone} (name=${customer.fullName ?? "?"})`);
+      this.logger.debug(`whatsapp_buyer_found merchant=${merchantId}`);
       return {
         globalUserId: existingIdentity.globalUserId,
         phone,
@@ -146,9 +146,9 @@ export class RouteToSessionUseCase {
         identityKey,
         globalUserId,
       },
-    }).catch(() => null);
+    });
 
-    this.logger.log(`New WA buyer registered: ${phone} → ${globalUserId}`);
+    this.logger.log(`whatsapp_buyer_created merchant=${merchantId}`);
     return {
       globalUserId: newIdentity?.globalUserId ?? globalUserId,
       phone,
@@ -191,8 +191,6 @@ export class RouteToSessionUseCase {
         createdAt: now,
         updatedAt: now,
       },
-    }).catch((err) => {
-      this.logger.warn(`Direct session creation failed: ${err.message}`);
     });
 
     return sessionId;

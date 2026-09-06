@@ -14,7 +14,6 @@ export class PrismaOtpStore implements OtpStore {
 
   async findActive(phone: string, now = new Date()): Promise<OtpRecord | null> {
     const record = await this.prisma.buyerPhoneOtp.findUnique({ where: { phone } });
-    console.warn(`[OTP store] findActive("${phone}") raw=${JSON.stringify(record ? { phone: record.phone, expires: record.expiresAt, consumed: record.consumedAt, attempts: record.attempts } : null)} now=${now.toISOString()}`);
     if (!record || record.expiresAt <= now || record.consumedAt) return null;
     return toRecord(record);
   }

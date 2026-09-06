@@ -8,6 +8,10 @@ import {
   Optional
 , Logger} from "@nestjs/common";
 import { createHash } from "node:crypto";
+import { paymentCartFingerprint } from "../../checkout/domain/services/payment-cart-fingerprint.js";
+import { ResumePaymentCreationService } from "./resume-payment-creation.service.js";
+import { PaymentIntentConflictError } from "../domain/payment-persistence.js";
+import type { PaymentAmountBreakdown } from "../domain/payment-amount.js";
 import { PaymentIntentEntity, type PaymentIntentSnapshot, type PaymentMethod } from "../domain/payment-intent.entity.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
 import { OFFER_REPOSITORY, type OfferRepository } from "../../checkout/domain/ports/offer.repository.port.js";
@@ -55,7 +59,23 @@ export type CreatePaymentIntentRequest = {
   remote_ip?: string;
 };
 
-export type CreatePaymentIntentResponseBody = PaymentIntentSnapshot;
+export type CreatePaymentIntentResponseBody = Omit<PaymentIntentSnapshot, "creation" | "version">;
+
+function publicPayment(snapshot: PaymentIntentSnapshot): CreatePaymentIntentResponseBody {
+  const { creation: _creation, version: _version, ...publicFields } = snapshot;
+  return publicFields;
+}
+
+function assertSameRequest(snapshot: PaymentIntentSnapshot, body: CreatePaymentIntentRequest, session: CheckoutSession): void {
+  if ((body.method && body.method !== snapshot.method) ||
+    normalizeAcceptedOfferId(body) !== snapshot.acceptedOfferId ||
+    (snapshot.amountBreakdown?.cartFingerprint && snapshot.amountBreakdown.cartFingerprint !== paymentCartFingerprint(session))) {
+    throw new ConflictException("payment_idempotency_input_mismatch");
+  }
+  if (!snapshot.amountBreakdown?.cartFingerprint && snapshot.status === "pending" && !snapshot.providerPaymentId) {
+    throw new ConflictException("payment_creation_manual_review_required");
+  }
+}
 
 function resolveAsaasCustomerIdFromSession(session: CheckoutSession): string | undefined {
   const cid = session.customer?.asaasCustomerId;
@@ -160,18 +180,20 @@ export class CreatePaymentIntentUseCase {
     assertCheckoutReadyForPayment(session);
 
     const existing = await this.payments.getByIdempotency(merchantId, sessionId, idempotencyKey);
-    if (existing) return existing.snapshot();
+    if (existing) {
+      assertSameRequest(existing.snapshot(), body, session);
+      return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider).execute(existing));
+    }
 
     const method: PaymentMethod = body.method ?? "pix";
 
     const acceptedOfferId = await this.validateAcceptedOffer(body, merchantId, sessionId);
     const commerceOrderId = await this.ensurePendingCommerceOrder(merchantId, sessionId, session);
 
-    const orderAmountMajorUnits = Math.max(
-      0,
-      session.cart.total + (session.shipping?.customerPrice ?? 0) - (session.cart.currentDiscount ?? 0)
-    );
-    const orderAmountCents = Math.round(orderAmountMajorUnits * 100);
+    const itemsSubtotalCents = session.cart.items.reduce((sum, item) => sum + Math.round(item.price * 100) * item.quantity, 0);
+    const shippingCents = Math.round((session.shipping?.customerPrice ?? 0) * 100);
+    const discountCents = Math.round((session.cart.currentDiscount ?? 0) * 100);
+    const orderAmountCents = itemsSubtotalCents + shippingCents - discountCents;
     if (orderAmountCents <= 0) throw new BadRequestException("payment_intent_amount_invalid");
 
     // Card routing: prefer Stripe when the merchant has an ACTIVE Stripe
@@ -224,6 +246,14 @@ export class CreatePaymentIntentUseCase {
     if (isStripeCard) {
       stripeApplicationFeeCents = assertProviderFeeCap(stripeApplicationFeeCents, amountCents);
     }
+    const amountBreakdown: PaymentAmountBreakdown = {
+      version: 1, currency: session.cart.currency.toUpperCase(),
+      cartFingerprint: paymentCartFingerprint(session),
+      itemsSubtotalCents,
+      discountCents,
+      shippingCents,
+      platformFeeCents: buyerServiceFeeCents, totalCents: amountCents,
+    };
     let asaasCustomer = resolveAsaasCustomerIdFromSession(session);
 
     if (usesAsaas && !asaasCustomer) {
@@ -282,103 +312,30 @@ export class CreatePaymentIntentUseCase {
       currency: session.cart.currency.toUpperCase(),
       method,
       acceptedOfferId,
-      commerceOrderId
+      commerceOrderId,
+      amountBreakdown
     });
 
-    // Reserve the idempotency row in `pending` BEFORE calling the provider, so a
-    // crash between charge and persist cannot leave a live provider charge with
-    // no local row (which a retry would not find, creating a second charge).
-    // The stable provider idempotency key below aligns provider-side dedupe
-    // with this local tuple (ADR 0001 #6).
-    await this.payments.saveIntent({ intent });
-
-    let creditCardHolderInfo: any = undefined;
-    if ((usesAsaas || usesMercadoPago) && session.customer) {
-      creditCardHolderInfo = {
-        name: session.customer.fullName || "Comprador",
-        email: session.customer.email || "",
-        cpfCnpj: session.customer.cpf || "",
-        postalCode: session.customer.address?.zip || "",
-        addressNumber: session.customer.address?.number || "S/N",
-        phone: session.customer.phone || ""
-      };
+    if (body.credit_card) throw new BadRequestException("raw_card_forbidden");
+    let providerInput = {
+      merchantId, sessionId, intentId: intent.id,
+      providerIdempotencyKey: deriveProviderIdempotencyKey(merchantId, sessionId, idempotencyKey),
+      amountCents, currency: intent.snapshot().currency, method,
+      description: paymentDescription(merchantId, sessionId, commerceOrderId),
+      ...(isStripeCard ? { stripeConnectAccountId, platformFeeCents: stripeApplicationFeeCents }
+        : usesAsaas ? { asaasCustomerId: resolveAsaasCustomerForProvider(asaasCustomer) } : {}),
+    };
+    if (this.provider.preparePayment) providerInput = await this.provider.preparePayment(providerInput) as typeof providerInput;
+    intent.prepareCreation(providerInput);
+    try { await this.payments.saveIntent({ intent }); }
+    catch (error) {
+      if (!(error instanceof PaymentIntentConflictError)) throw error;
+      const winner = await this.payments.getByIdempotency(merchantId, sessionId, idempotencyKey);
+      if (!winner) throw new ConflictException("payment_creation_concurrent_change");
+      assertSameRequest(winner.snapshot(), { ...body, method }, session);
+      return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider).execute(winner));
     }
-
-    let created: CreateProviderPaymentOutput;
-    try {
-      created = await this.provider.createPayment({
-        merchantId,
-        sessionId,
-        intentId: intent.id,
-        providerIdempotencyKey: deriveProviderIdempotencyKey(merchantId, sessionId, idempotencyKey),
-        amountCents,
-        currency: intent.snapshot().currency,
-        method,
-        description: paymentDescription(merchantId, sessionId, commerceOrderId),
-        ...(method !== "crypto" ? { platformFeeCents: assertProviderFeeCap(buyerServiceFeeCents + merchantFeeCents, amountCents) } : {}),
-        ...(isStripeCard
-          ? { stripeConnectAccountId, platformFeeCents: stripeApplicationFeeCents }
-          : (usesAsaas || usesMercadoPago)
-            ? {
-              ...(usesAsaas ? { asaasCustomerId: resolveAsaasCustomerForProvider(asaasCustomer) } : {}),
-              creditCard: body.credit_card,
-              creditCardHolderInfo,
-              remoteIp: body.remote_ip
-            }
-            : method === "crypto"
-              ? { preferredChain: body.preferred_chain }
-              : {})
-      });
-    } catch (error) {
-      this.logger.error(`payment.provider_create_failed: ${error instanceof Error ? error.message : String(error)}`);
-      throw normalizeProviderException(error);
-    }
-
-    intent.markRequiresAction({ providerPaymentId: created.providerPaymentId });
-    intent.setBuyerFacingPayload({
-      ...(created.buyerFacingPayload ?? {})
-    });
-
-    this.logger.log({ event: "payment_intent.provider_created", intentId: intent.id, method });
-
-    this.logger.log({
-      event: "payment_intent.created",
-      merchantId,
-      sessionId,
-      method,
-      amountCents,
-      intentId: intent.id,
-    });
-
-    await this.payments.saveIntentWithOutbox(
-      { intent },
-      createCheckoutEventEnvelope({
-        eventType: "payment.status.changed",
-        merchantId,
-        payload: {
-          session_id: sessionId,
-          payment_intent_id: intent.id,
-          status: intent.snapshot().status,
-          amount_cents: amountCents,
-          method,
-          commerce_order_id: commerceOrderId
-        },
-        causationId: intent.id
-      })
-    );
-
-    if (intent.status === "approved" && this.checkoutPayment) {
-      await this.checkoutPayment.completeAfterApproval({
-        merchantId,
-        sessionId,
-        externalOrderId: created.providerPaymentId,
-        orderTotalMajorUnits: Number((amountCents / 100).toFixed(2)),
-        currency: session.cart.currency.toUpperCase() as CurrencyCode,
-        acceptedOfferId: intent.snapshot().acceptedOfferId
-      });
-    }
-
-    return intent.snapshot();
+    return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider).execute(intent));
   }
 
   private async validateAcceptedOffer(

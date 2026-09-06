@@ -1,0 +1,357 @@
+{
+  "base": "dcb8150aae34b8284178d9d257e4ac174654d965",
+  "implementationHead": "84f322c8a1a1fa723e9f1c5c888e827794f8280f",
+  "implementationCommits": [
+    "255508f",
+    "e8d2b4b",
+    "946ca7c",
+    "84f322c"
+  ],
+  "hashFormat": "sha256 of worktree file bytes; line endings are significant",
+  "files": [
+    {
+      "path": "apps/api/prisma/migrations/20260905150000_bind_stock_reservations/migration.sql",
+      "sha256": "ca2129aee33f05b76df9dfb98e33d7587d87f19e8b8e1d2b26d34cf94bb44e69"
+    },
+    {
+      "path": "apps/api/prisma/schema.prisma",
+      "sha256": "42d015103afc18d134a7197feca6e8591f274f2608ff725a923a3da3f10dc48d"
+    },
+    {
+      "path": "apps/api/src/modules/catalog/application/services/catalog-variant.service.ts",
+      "sha256": "9d4e8b07e1efd342f12ccc5b6090c5ef9122e858218c50dc0fe14fd141e2f08e"
+    },
+    {
+      "path": "apps/api/src/modules/catalog/application/use-cases/confirm-stock.use-case.spec.ts",
+      "sha256": "63d97b38f038757fb5596910e031bea655cb5fd10d7a3d7eda9a850c2e6df12c"
+    },
+    {
+      "path": "apps/api/src/modules/catalog/application/use-cases/confirm-stock.use-case.ts",
+      "sha256": "6b71b15aed185685e5b276ccfe0c596c70714317ce53062d51a70717edb8d029"
+    },
+    {
+      "path": "apps/api/src/modules/catalog/application/use-cases/reserve-stock.use-case.spec.ts",
+      "sha256": "24c83b841c482f1a8da2fc78e40a5aa68aeaa396682387126febb432db7ba9e0"
+    },
+    {
+      "path": "apps/api/src/modules/catalog/application/use-cases/reserve-stock.use-case.ts",
+      "sha256": "74103db9eae2c6345b9f2f20949d191dd413b66c07a023bfdcaebb7f27828a5e"
+    },
+    {
+      "path": "apps/api/src/modules/catalog/catalog.module.ts",
+      "sha256": "f6037c625a6a44f1e3e1ba6e62fe8508499ce854be08976addff7a28dd579212"
+    },
+    {
+      "path": "apps/api/src/modules/catalog/infrastructure/repositories/prisma-stock.repository.integration.spec.ts",
+      "sha256": "d3576497487b60896b6aa2d84c77b62db2e7ba140479385f9e4e5614c4ac280d"
+    },
+    {
+      "path": "apps/api/src/modules/catalog/infrastructure/repositories/prisma-stock.repository.ts",
+      "sha256": "e928e1bc8da9b0b22e2f019a79ae82a3e8c1cbf3b39a71050c211d250e5061fa"
+    },
+    {
+      "path": "apps/api/src/modules/catalog/presentation/http/catalog.controller.ts",
+      "sha256": "5872307fb7c3006f414a20a6832483d771006cb75d4654a16b2f82fe02dd8f54"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/__tests__/checkout-trust-boundary.spec.ts",
+      "sha256": "fb75a826191a4200f0076ffac22a673b18f1f266b7ad7a8bc7e4352ba0b1f060"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/__tests__/revenue-lift-integration.spec.ts",
+      "sha256": "b55df917cb04f76f1f9cbc9077edcab72eefa75b2837075f2f537d3fb79a2b16"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/__tests__/send-chat-message.use-case.spec.ts",
+      "sha256": "09c035bd8c2d94bdcee42ae37ae7ac189ce2ba6a18d468daead91bb51b965e72"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/__tests__/start-checkout-test-harness.ts",
+      "sha256": "20d530fc5e7665fd15d53d579a3cad1a709771b137c4cd9d24b73a6686830404"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/__tests__/start-checkout.use-case.spec.ts",
+      "sha256": "27073c7f7c39fa7c44de856174e7e80fc762f1bbafd8570a1dd51d71cca94a15"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/application/services/buyer-recognition.service.ts",
+      "sha256": "64380cf8366140478a05580d45a58c13e3ef6e026f17128e16bf496330acc936"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/application/services/checkout-cart-authority.service.ts",
+      "sha256": "b5ca7cf1aa7585d0cda30099063affee4af6cb2ddbc0ebaa9ada053d699117e7"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/application/services/checkout-customer.service.ts",
+      "sha256": "3601fe3e7223b4d3b44f870c09bed7093314409ca2f43c5594de4fd17fb2229a"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/application/services/checkout-input-policy.ts",
+      "sha256": "2923150d6c9377c32f297dfd99737fd49687ed7880be428a3ac7ac4795b45e4c"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/application/services/otp.service.ts",
+      "sha256": "19dd3f2029bcbe1ce77c8e08a686a04e30895796864c323aac1714733b3029b3"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/application/use-cases/start-checkout.use-case.ts",
+      "sha256": "ac3262d9a15708601014ccbee6401e59fdcdf2bb95f4d04cb018593b5e94d472"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/application/use-cases/update-cart.use-case.ts",
+      "sha256": "533cfb418b1283016038aca239611300655a3ad6fdda7a124c27db63289ab64b"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/checkout.module.ts",
+      "sha256": "f81b3f2a824a1ff252556794a435d686537cea913552021ad1f30dbeff9ca14c"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/domain/services/customer-extraction.service.ts",
+      "sha256": "8935f0fa010a95da88046577dfa6854b746f7b762d25cc6b9f97ce9e63d50726"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/presentation/http/checkout.ai-safety-scenarios.spec.ts",
+      "sha256": "e07c763f4309150f622c2d1c1f125da74dd242e3b13ebc5b246e7fd99521330e"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/presentation/http/checkout.controller.spec.ts",
+      "sha256": "97b450e2ac1c84aa3eea8c965d872459a95dc978785465fc8432d6f4c6fc2ddf"
+    },
+    {
+      "path": "apps/api/src/modules/checkout/presentation/http/checkout.payment-method-fix.spec.ts",
+      "sha256": "8bd39454a082042952f7e1a4cac6fc0e885708769c0ae1950098d519941aabac"
+    },
+    {
+      "path": "apps/api/src/modules/embed/application/update-embed-customer.use-case.spec.ts",
+      "sha256": "acb99bef537b4c69d9beae7d327536a6a0ed9bfd41c1b14cee31f12971365fd3"
+    },
+    {
+      "path": "apps/api/src/modules/embed/application/update-embed-customer.use-case.ts",
+      "sha256": "e96c5f1bee549af9bc74598c000a527a563b4783a9dc0bd0eb1e020f8295590d"
+    },
+    {
+      "path": "apps/api/src/modules/embed/domain/embed-checkout-session.ts",
+      "sha256": "8e7d02faa1171a0b96c805961109e125da3e97aaafb839ea5a655cbc3be4407f"
+    },
+    {
+      "path": "apps/api/src/modules/embed/presentation/http/embed-auth.guard.ts",
+      "sha256": "9da3474e01f30f96b6b8b74f739f6f569b9551a00772ab8f50fc0e8995a602de"
+    },
+    {
+      "path": "apps/api/src/modules/embed/presentation/http/embed-checkout.controller.spec.ts",
+      "sha256": "498bb4b5eed1214a8385b3c59ea2c25adb59362a839768707a78f1314db9947b"
+    },
+    {
+      "path": "apps/api/src/modules/embed/presentation/http/embed-checkout.controller.ts",
+      "sha256": "747ec2eaf678cc73ac97f2ab60674285017982a3a4ac1da6c24a9967c644f193"
+    },
+    {
+      "path": "apps/api/src/modules/embed/presentation/http/embed-consent.controller.spec.ts",
+      "sha256": "25399363521ace21efac6bc66b58361cfae528659a7b2c404d17599f8fe7fd33"
+    },
+    {
+      "path": "apps/api/src/modules/embed/presentation/http/embed-consent.controller.ts",
+      "sha256": "b43b180cbed81a8a5d5b57697a03f6eb20b0fd64f12af9765c6e4a6aa136d58a"
+    },
+    {
+      "path": "apps/api/src/modules/embed/presentation/http/embed-customer-update.spec.ts",
+      "sha256": "bc5a270af39e57d851fffd17ad514d1c67ceffe13119bfaf23859c9a611a264c"
+    },
+    {
+      "path": "apps/api/src/modules/embed/presentation/http/embed-security.scenarios.spec.ts",
+      "sha256": "2aa098e89b88d22e8089da6cbb226e2c4edaebe1c67c84922fc942b5e49e48a1"
+    },
+    {
+      "path": "apps/api/src/modules/embed/presentation/http/embed-sessions.controller.spec.ts",
+      "sha256": "daf9638416ba0d132927ce23043acb677434dd75fe3f78cf9231f0374bc1d7b4"
+    },
+    {
+      "path": "apps/api/src/modules/embed/presentation/http/embed-sessions.controller.ts",
+      "sha256": "a14de272552d3ca581e509c94e3c06a6eb6456083f7678aebf1b21ecf74e869c"
+    },
+    {
+      "path": "apps/api/src/modules/embed/presentation/http/storefront-checkout-token.spec.ts",
+      "sha256": "6daeb30a885a766c0eddfb55b87caae15d48652fc4ecbdce3235eebee0312143"
+    },
+    {
+      "path": "apps/api/src/modules/marketplace/application/use-cases/__tests__/handle-marketplace-chargeback.use-case.spec.ts",
+      "sha256": "7e7d6c2e3ae2bd5fe2545153139ae995463df7a2d7b0c3e5eebb03d87ca61eba"
+    },
+    {
+      "path": "apps/api/src/modules/marketplace/application/use-cases/__tests__/place-cross-store-order.use-case.spec.ts",
+      "sha256": "c8374512840ab4c6b1f58b5ac956a51c337da078050e9ef78cacdffe86557892"
+    },
+    {
+      "path": "apps/api/src/modules/marketplace/application/use-cases/__tests__/process-scheduled-transfers.use-case.spec.ts",
+      "sha256": "0ca59961b9bc8d40d1ae563a7dbcc608c6f93dffedd8be699db58e5989120e81"
+    },
+    {
+      "path": "apps/api/src/modules/marketplace/application/use-cases/handle-marketplace-chargeback.use-case.ts",
+      "sha256": "389cbb9f71d6ed111897452f30ed023b11f270dbd617d952c08fcf737296a2ae"
+    },
+    {
+      "path": "apps/api/src/modules/marketplace/application/use-cases/place-cross-store-order.use-case.ts",
+      "sha256": "36813df33a538052c86a9f49725fb8234354382bf2c99ee9ef474a41d4207643"
+    },
+    {
+      "path": "apps/api/src/modules/marketplace/application/use-cases/process-scheduled-transfers.use-case.ts",
+      "sha256": "eeb2d0a0ed7e2e2bfcf06a142375836ff0669850ec8db7b7a334682d5c7ebaf6"
+    },
+    {
+      "path": "apps/api/src/modules/marketplace/domain/ports/marketplace-settlement-repository.port.ts",
+      "sha256": "41557e3c4eb12cbedb816259e2a172a71f388eeba13888e92baea7f872a0310a"
+    },
+    {
+      "path": "apps/api/src/modules/marketplace/infrastructure/repositories/prisma-marketplace-settlement.repository.integration.spec.ts",
+      "sha256": "8cefa7335ce068346d3603d18ab57a72918ebe5701bf1bf3ebab600db45daf66"
+    },
+    {
+      "path": "apps/api/src/modules/marketplace/infrastructure/repositories/prisma-marketplace-settlement.repository.ts",
+      "sha256": "1d116c92e23653dae2d97de31ac28816db5376521998a5b42501b43772082ce7"
+    },
+    {
+      "path": "apps/api/src/modules/marketplace/marketplace.module.ts",
+      "sha256": "ee95d6cadeea193d1d8b7c2fb16fda054e5a8f2e67bf883dc95dbb3f009ec7ea"
+    },
+    {
+      "path": "apps/api/src/modules/marketplace/presentation/http/marketplace.controller.ts",
+      "sha256": "915af3c40fec5eb38acb58346a2362f6d0a36c740a9f34dd71d25ef069b7d832"
+    },
+    {
+      "path": "apps/api/src/modules/public-api/marketplace/presentation/http/marketplace-v1.controller.ts",
+      "sha256": "55a6bae6718eef13e7ef12687ff9dacad2d2f856ce9bb8e3072851c2ae763928"
+    },
+    {
+      "path": "apps/api/src/modules/returns/application/use-cases/process-refund.use-case.spec.ts",
+      "sha256": "fb1ffbbe6e64b0326f6e19358ebe71f7933923b70fd8d5bee545dd1c4cf9020e"
+    },
+    {
+      "path": "apps/api/src/modules/returns/application/use-cases/process-refund.use-case.ts",
+      "sha256": "0be7d2193c7b31c28283f207d37d62b4626ece7ba5d273bc65d7f10b97cdcc50"
+    },
+    {
+      "path": "apps/api/src/modules/shipping/presentation/http/embed-shipping.controller.spec.ts",
+      "sha256": "077fab66fbbfadc08f7ed4f0c1c48471e76db04c80ae739bf240d3affb622b36"
+    },
+    {
+      "path": "apps/api/src/modules/shipping/presentation/http/embed-shipping.controller.ts",
+      "sha256": "1390062c57ec88505281ac9650ab483c86a4c17c8c7fc6d8b4e58f4aa0d58962"
+    },
+    {
+      "path": "apps/api/src/modules/storefront/application/use-cases/start-store-conversation.use-case.ts",
+      "sha256": "85e0525949359804dba243a6c2255e8f722c475b006b9809be5fd1b9f1bfdda5"
+    },
+    {
+      "path": "apps/api/src/modules/storefront/application/use-cases/update-budget-request-status.use-case.ts",
+      "sha256": "ecf8e423e9bf6aa36c7eda5d9206c2e1c74fdf8b8492c709687cd1374f826f1f"
+    },
+    {
+      "path": "apps/api/src/modules/storefront/infrastructure/gateways/conversation.gateway.spec.ts",
+      "sha256": "dc280fd61419c8ab5ce5dfc804b605a6e82cf0e10a0918ec7c471b32ec6717ef"
+    },
+    {
+      "path": "apps/api/src/modules/storefront/infrastructure/gateways/conversation.gateway.ts",
+      "sha256": "248872f46901040f1193c1730bc9678c0cdeb66857b70f8e0ed158e8ac1286fb"
+    },
+    {
+      "path": "apps/api/src/modules/storefront/presentation/http/storefront-admin-access.spec.ts",
+      "sha256": "6c3e60e79549bb3fdc0c5de8e72843cfddeba9b330ff942faaf776b8b08a8433"
+    },
+    {
+      "path": "apps/api/src/modules/storefront/presentation/http/storefront.controller.ts",
+      "sha256": "b3b8ce6f20aa259c1fd947683cbccff1e5d806c6d7c9ffd86406990058247cac"
+    },
+    {
+      "path": "apps/api/src/modules/storefront/storefront.module.ts",
+      "sha256": "00bc48cc992f4f0dfcf60eb71037005bad8ee5f04f1bcba7b696584a0a2c6491"
+    },
+    {
+      "path": "apps/api/src/modules/stories/infrastructure/repositories/prisma-story.repository.integration.spec.ts",
+      "sha256": "7dbf0625927f81919e850bb5f99a6fe2980c6debd70de76375d858d84b585638"
+    },
+    {
+      "path": "apps/api/src/modules/stories/infrastructure/repositories/prisma-story.repository.ts",
+      "sha256": "9e4e26c2055ae73ee83b9d57dc48a173d2bc48429299f694edcfd06888bbc9c3"
+    },
+    {
+      "path": "apps/api/src/modules/support/infrastructure/gateways/support.gateway.spec.ts",
+      "sha256": "c0eea678abc276f910d9efe55defae2f4cae5729bfeeca87781ed96124a39276"
+    },
+    {
+      "path": "apps/api/src/modules/support/infrastructure/gateways/support.gateway.ts",
+      "sha256": "61e5e2fe222521b4f8a503ba394ce8929f24db00ace158fa026fa969b2fa43e8"
+    },
+    {
+      "path": "apps/api/src/modules/support/presentation/http/support.controller.spec.ts",
+      "sha256": "c4a6901a5ba1f46ad2725ea75e9a0372c9eb029552d988947b4b638dcc351708"
+    },
+    {
+      "path": "apps/api/src/modules/support/presentation/http/support.controller.ts",
+      "sha256": "a32f8de751743460fc193c900bb1390134acea8ed3565e24136c63ee29836e27"
+    },
+    {
+      "path": "apps/api/src/modules/support/support.module.ts",
+      "sha256": "4918229a10fcd0dbd7873f7b81a7a659e3fc738043b069c0bac4b789e9e2758d"
+    },
+    {
+      "path": "apps/api/src/shared/auth/realtime-capability.spec.ts",
+      "sha256": "7101e7d67f70c2ba9d8003ba2bd735b536889fb47dcfa38e636560b65bda8194"
+    },
+    {
+      "path": "apps/api/src/shared/auth/realtime-capability.ts",
+      "sha256": "0537a7be775c3a7b1137ff7c92f96c1b7b59b30bd4ef496be1ca5f1fda524dde"
+    },
+    {
+      "path": "apps/api/tests/prepare-ready-prod-tests.mjs",
+      "sha256": "a64185ff602119ec94d3e8c127040dadc68ffe81609407f4b54842791ed5e9f0"
+    },
+    {
+      "path": "apps/api/tests/ready-prod-loader.mjs",
+      "sha256": "fc53e0ba9b54bbbca142b0e0a2068ccb05db12a4c7c43889659dc28edb5b821a"
+    },
+    {
+      "path": "apps/api/tests/run-ready-prod-tests.mjs",
+      "sha256": "a7d0898ddca8b16932f0d90e004cde68e8c0e0bcff53d2d1d993ca6eba1ab51b"
+    },
+    {
+      "path": "apps/api/tests/stock-reservation-migration.integration.test.mjs",
+      "sha256": "72802fe949ed46c503841d1cf031e455538c4db16d43ec522a868e61180df23a"
+    },
+    {
+      "path": "apps/dashboard/src/hooks/useSupportSocket.ts",
+      "sha256": "680eb31a15e0338d31e32523dd546b09234ff8869a846f100a87089d2d96392e"
+    },
+    {
+      "path": "apps/storefront/src/app/api/checkout-token/route.ts",
+      "sha256": "bcf06ae8865f702e70ae63d3d74f8c9aeb686c766e661ec16c024d7c6d08efc5"
+    },
+    {
+      "path": "apps/storefront/src/components/BuyerRegistrationForm.tsx",
+      "sha256": "f95e99129c19e2add0c9204b6f78d7e91efd1526c633dc164e962a42502a6fb8"
+    },
+    {
+      "path": "apps/storefront/src/components/ConversationShell.tsx",
+      "sha256": "47bb3a4e36dc00acb7fb035c0d14efaae83fdcedb82106b6e688ad15c6330400"
+    },
+    {
+      "path": "apps/storefront/src/components/SupportPanel.tsx",
+      "sha256": "af00dd7d3a6762c3f5670910a72462e0d9ba52f84d71ad38635fe4eec0c5a9a5"
+    },
+    {
+      "path": "apps/storefront/src/lib/api/api-client.ts",
+      "sha256": "fc29dac0d60a1ea8e17973520f46e5f822aa6cb2a24e5e3629945aa3464c7d34"
+    },
+    {
+      "path": "apps/storefront/src/lib/conversation-access.ts",
+      "sha256": "74eddd2032f19017a0d6c33991d154925052936b8c5f27a0f69810c43cf0a242"
+    },
+    {
+      "path": "apps/storefront/src/lib/viewmodels/useConversationViewModel.ts",
+      "sha256": "eeee4f91a308d7fda705171869fe31a8b4aa7090ec6440dd7ffeab6899f62b2e"
+    },
+    {
+      "path": "apps/widget_v2/src/components/SupportPanel.tsx",
+      "sha256": "8262b9c56ba2450b9f524964cc1ba87f548831f84b7bd336f428d2c13b432552"
+    }
+  ]
+}

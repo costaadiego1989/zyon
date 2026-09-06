@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { StoryRepositoryPort } from "../../domain/ports/story-repository.port.js";
 
@@ -36,9 +36,10 @@ export class PrismaStoryRepository implements StoryRepositoryPort {
     id: string,
     data: Partial<{ name: string; coverImage: string; sortOrder: number; isArchived: boolean }>,
   ): Promise<any> {
-    return this.prisma.storyCategory.update({
+    return this.requireOwned(this.prisma.storyCategory.update({
       where: {
         id,
+        merchantId,
       },
       data: {
         ...(data.name !== undefined && { name: data.name }),
@@ -46,25 +47,25 @@ export class PrismaStoryRepository implements StoryRepositoryPort {
         ...(data.sortOrder !== undefined && { sortOrder: data.sortOrder }),
         ...(data.isArchived !== undefined && { isArchived: data.isArchived }),
       },
-    });
+    }));
   }
 
   async archiveCategory(merchantId: string, id: string): Promise<void> {
-    await this.prisma.storyCategory.update({
-      where: { id },
+    await this.requireOwned(this.prisma.storyCategory.update({
+      where: { id, merchantId },
       data: { isArchived: true },
-    });
+    }));
   }
 
   async reorderCategories(merchantId: string, items: { id: string; sortOrder: number }[]): Promise<void> {
-    await this.prisma.$transaction(
-      items.map((item) =>
-        this.prisma.storyCategory.updateMany({
+    await this.requireOwned(this.prisma.$transaction(async (tx) => {
+      for (const item of items) {
+        await tx.storyCategory.update({
           where: { id: item.id, merchantId },
           data: { sortOrder: item.sortOrder },
-        }),
-      ),
-    );
+        });
+      }
+    }));
   }
 
   async listStories(categoryId: string, merchantId: string): Promise<any[]> {
@@ -72,6 +73,7 @@ export class PrismaStoryRepository implements StoryRepositoryPort {
       where: {
         categoryId,
         merchantId,
+        category: { merchantId },
         isArchived: false,
       },
       orderBy: {
@@ -85,16 +87,20 @@ export class PrismaStoryRepository implements StoryRepositoryPort {
     categoryId: string,
     data: { imageUrl: string; title?: string; titleConfig?: any; duration?: number; sortOrder?: number },
   ): Promise<any> {
-    return this.prisma.story.create({
-      data: {
-        merchantId,
-        categoryId,
-        imageUrl: data.imageUrl,
-        title: data.title,
-        titleConfig: data.titleConfig,
-        duration: data.duration ?? 7,
-        sortOrder: data.sortOrder ?? 0,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const category = await tx.storyCategory.findFirst({ where: { id: categoryId, merchantId, isArchived: false } });
+      if (!category) throw new NotFoundException("story_category_not_found");
+      return tx.story.create({
+        data: {
+          merchantId,
+          category: { connect: { id: categoryId, merchantId, isArchived: false } },
+          imageUrl: data.imageUrl,
+          title: data.title,
+          titleConfig: data.titleConfig,
+          duration: data.duration ?? 7,
+          sortOrder: data.sortOrder ?? 0,
+        },
+      });
     });
   }
 
@@ -103,8 +109,8 @@ export class PrismaStoryRepository implements StoryRepositoryPort {
     id: string,
     data: Partial<{ imageUrl: string; title: string; titleConfig: any; duration: number; sortOrder: number; isArchived: boolean }>,
   ): Promise<any> {
-    return this.prisma.story.update({
-      where: { id },
+    return this.requireOwned(this.prisma.story.update({
+      where: { id, merchantId, category: { merchantId } },
       data: {
         ...(data.imageUrl !== undefined && { imageUrl: data.imageUrl }),
         ...(data.title !== undefined && { title: data.title }),
@@ -113,25 +119,36 @@ export class PrismaStoryRepository implements StoryRepositoryPort {
         ...(data.sortOrder !== undefined && { sortOrder: data.sortOrder }),
         ...(data.isArchived !== undefined && { isArchived: data.isArchived }),
       },
-    });
+    }));
   }
 
   async archiveStory(merchantId: string, id: string): Promise<void> {
-    await this.prisma.story.update({
-      where: { id },
+    await this.requireOwned(this.prisma.story.update({
+      where: { id, merchantId, category: { merchantId } },
       data: { isArchived: true },
-    });
+    }));
   }
 
   async reorderStories(merchantId: string, items: { id: string; sortOrder: number }[]): Promise<void> {
-    await this.prisma.$transaction(
-      items.map((item) =>
-        this.prisma.story.updateMany({
-          where: { id: item.id, merchantId },
+    await this.requireOwned(this.prisma.$transaction(async (tx) => {
+      for (const item of items) {
+        await tx.story.update({
+          where: { id: item.id, merchantId, category: { merchantId } },
           data: { sortOrder: item.sortOrder },
-        }),
-      ),
-    );
+        });
+      }
+    }));
+  }
+
+  private async requireOwned<T>(operation: Promise<T>): Promise<T> {
+    try {
+      return await operation;
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "P2025") {
+        throw new NotFoundException("story_resource_not_found");
+      }
+      throw error;
+    }
   }
 
   async listPublicStories(merchantId: string): Promise<any[]> {
@@ -144,6 +161,7 @@ export class PrismaStoryRepository implements StoryRepositoryPort {
         stories: {
           where: {
             isArchived: false,
+            merchantId,
           },
           orderBy: {
             sortOrder: "asc",

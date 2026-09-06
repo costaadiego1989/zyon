@@ -34,7 +34,7 @@ export class ListTeamUseCase {
     if (!merchant) throw new NotFoundException("merchant_not_found");
 
     const members = await this.prisma.merchantTeamMember.findMany({
-      where: { merchantId: merchant_id },
+      where: { merchantId: merchant_id, user: { merchantId: merchant_id, disabledAt: null } },
       include: { user: { select: { email: true } } },
       orderBy: { joinedAt: "desc" },
     });

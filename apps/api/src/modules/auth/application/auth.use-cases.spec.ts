@@ -12,7 +12,7 @@ import { InvalidCredentialsError, EmailAlreadyRegisteredError, WeakPasswordError
 test("register and login return JWTs for the merchant owner", async () => {
   const repository = new InMemoryAuthRepository();
   const hasher = new PasswordHasher();
-  const jwt = new JwtService("test-secret", 3600);
+  const jwt = new JwtService("test-secret", 3600, repository);
   const idGen = new DefaultMerchantIdGenerator();
   const register = new RegisterMerchantUseCase(repository, hasher, jwt, idGen);
   const login = new LoginUseCase(repository, hasher, jwt);
@@ -34,7 +34,7 @@ test("register and login return JWTs for the merchant owner", async () => {
 test("auth rejects duplicate email and invalid credentials", async () => {
   const repository = new InMemoryAuthRepository();
   const hasher = new PasswordHasher();
-  const jwt = new JwtService("test-secret", 3600);
+  const jwt = new JwtService("test-secret", 3600, repository);
   const idGen = new DefaultMerchantIdGenerator();
   const register = new RegisterMerchantUseCase(repository, hasher, jwt, idGen);
   const login = new LoginUseCase(repository, hasher, jwt);
@@ -66,7 +66,7 @@ test("auth rejects duplicate email and invalid credentials", async () => {
 test("RegisterMerchantUseCase validates email format", async () => {
   const repository = new InMemoryAuthRepository();
   const hasher = new PasswordHasher();
-  const jwt = new JwtService("test-secret", 3600);
+  const jwt = new JwtService("test-secret", 3600, repository);
   const idGen = new DefaultMerchantIdGenerator();
   const register = new RegisterMerchantUseCase(repository, hasher, jwt, idGen);
 
@@ -85,7 +85,7 @@ test("RegisterMerchantUseCase validates email format", async () => {
 test("RegisterMerchantUseCase validates password strength", async () => {
   const repository = new InMemoryAuthRepository();
   const hasher = new PasswordHasher();
-  const jwt = new JwtService("test-secret", 3600);
+  const jwt = new JwtService("test-secret", 3600, repository);
   const idGen = new DefaultMerchantIdGenerator();
   const register = new RegisterMerchantUseCase(repository, hasher, jwt, idGen);
 
@@ -104,7 +104,7 @@ test("RegisterMerchantUseCase validates password strength", async () => {
 test("RegisterMerchantUseCase validates non-empty merchant_name", async () => {
   const repository = new InMemoryAuthRepository();
   const hasher = new PasswordHasher();
-  const jwt = new JwtService("test-secret", 3600);
+  const jwt = new JwtService("test-secret", 3600, repository);
   const idGen = new DefaultMerchantIdGenerator();
   const register = new RegisterMerchantUseCase(repository, hasher, jwt, idGen);
 
@@ -124,7 +124,7 @@ test("RegisterMerchantUseCase validates non-empty merchant_name", async () => {
 test("RegisterMerchantUseCase always generates server-side merchant_id (B4 P2 regression)", async () => {
   const repository = new InMemoryAuthRepository();
   const hasher = new PasswordHasher();
-  const jwt = new JwtService("test-secret", 3600);
+  const jwt = new JwtService("test-secret", 3600, repository);
   const idGen = new DefaultMerchantIdGenerator();
   const register = new RegisterMerchantUseCase(repository, hasher, jwt, idGen);
 

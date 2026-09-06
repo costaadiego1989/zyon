@@ -1,4 +1,7 @@
-import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
+import { Inject, Injectable, Optional, type OnModuleInit } from "@nestjs/common";
+import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../../../shared/events/domain-event-bus.port.js";
+import { savePaymentTransition } from "./save-payment-transition.js";
+import { PaymentIntentConflictError } from "../../domain/payment-persistence.js";
 import type { CurrencyCode } from "@zyon/shared-types";
 import type { PaymentIntentEntity } from "../../domain/payment-intent.entity.js";
 import type { PaymentIntentSnapshot } from "../../domain/payment-intent.entity.js";
@@ -15,16 +18,32 @@ import { PaymentEventPublisher } from "../../infrastructure/payment-event-publis
  * Extracted from both Stripe and Asaas webhook handlers (C1 fix).
  */
 @Injectable()
-export class PaymentDispatchService {
-  private readonly logger = new Logger(PaymentDispatchService.name);
-
+export class PaymentDispatchService implements OnModuleInit {
   constructor(
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
     @Inject(CHECKOUT_PAYMENT_PORT) private readonly checkoutPayment: CheckoutPaymentPort,
     @Optional() private readonly metrics?: MetricsService,
     @Optional() private readonly markCommerceOrderPaid?: MarkCommerceOrderPaidUseCase,
-    @Optional() private readonly publisher?: PaymentEventPublisher
+    @Optional() @Inject(DOMAIN_EVENT_BUS) private readonly eventBus?: DomainEventBus,
   ) {}
+
+  onModuleInit(): void {
+    this.eventBus?.subscribe("payment.status.changed", async event => {
+      const payload = event.payload as { status?: string; payment_intent_id?: string };
+      if (payload?.status !== "approved") return;
+      if (!payload.payment_intent_id) throw new Error("payment_completion_intent_required");
+      await this.completeApprovedById(event.merchantId, payload.payment_intent_id);
+    }, "payment.complete-approved.v1");
+  }
+
+  async completeApprovedById(merchantId: string, id: string): Promise<void> {
+    const current = await this.payments.getIntentById(merchantId, id);
+    if (!current) throw new Error("payment_completion_intent_not_found");
+    const snapshot = current.snapshot();
+    if (snapshot.status !== "approved") return;
+    if (!snapshot.providerPaymentId) throw new Error("payment_completion_provider_id_required");
+    await this.complete(snapshot, snapshot.providerPaymentId);
+  }
 
   /**
    * Mark intent approved, record checkout status change, and emit completion.
@@ -37,6 +56,7 @@ export class PaymentDispatchService {
     const snap = intentEntity.snapshot();
 
     if (snap.status === "approved") {
+      // The committed outbox event owns retry of checkout completion.
       await this.markLinkedCommerceOrderPaid(snap, providerPaymentId);
       return "already_approved";
     }
@@ -46,21 +66,23 @@ export class PaymentDispatchService {
       providerPaymentId,
       approvedAmountCents: snap.amountCents
     });
-    await this.payments.saveIntent({ intent: intentEntity });
-
-    // Notify checkout layer
-    await this.checkoutPayment.recordPaymentStatusChanged({
-      merchantId: snap.merchantId,
-      sessionId: snap.sessionId,
-      paymentIntentId: snap.id,
-      status: "approved",
-      commerceOrderId: snap.commerceOrderId
-    });
+    try { await savePaymentTransition(this.payments, intentEntity); }
+    catch (error) {
+      if (!(error instanceof PaymentIntentConflictError)) throw error;
+      const current = await this.payments.getIntentById(snap.merchantId, snap.id);
+      if (current?.status === "approved" && current.snapshot().providerPaymentId === providerPaymentId) return "already_approved";
+      throw error;
+    }
 
     this.metrics?.paymentApproved.inc({ merchant_id: snap.merchantId, method: snap.method });
 
-    // Complete checkout flow
+    return this.complete(intentEntity.snapshot(), providerPaymentId);
+  }
+
+  private async complete(snap: PaymentIntentSnapshot, providerPaymentId: string): Promise<string> {
     await this.checkoutPayment.completeAfterApproval({
+      paymentIntentId: snap.id,
+      amountBreakdown: snap.amountBreakdown,
       merchantId: snap.merchantId,
       sessionId: snap.sessionId,
       externalOrderId: providerPaymentId,
@@ -70,9 +92,6 @@ export class PaymentDispatchService {
     });
 
     const commerceSynced = await this.markLinkedCommerceOrderPaid(snap, providerPaymentId);
-
-    void this.publisher?.publishStatusChange(snap.id, "approved", snap.merchantId)
-      .catch(err => this.logger.warn(`Failed to publish approved event for intent ${snap.id}: ${(err as Error).message}`));
 
     return commerceSynced
       ? "checkout_completed_after_payment_and_commerce_paid"
@@ -87,19 +106,10 @@ export class PaymentDispatchService {
     reason: string
   ): Promise<void> {
     const snap = intentEntity.snapshot();
-    if (snap.status === "approved" || snap.status === "failed") return;
+    if (snap.status !== "pending" && snap.status !== "requires_action") return;
 
     intentEntity.markFailed(reason);
-    await this.payments.saveIntent({ intent: intentEntity });
-
-    await this.checkoutPayment.recordPaymentStatusChanged({
-      merchantId: snap.merchantId,
-      sessionId: snap.sessionId,
-      paymentIntentId: snap.id,
-      status: "failed",
-      reason,
-      commerceOrderId: snap.commerceOrderId
-    });
+    await savePaymentTransition(this.payments, intentEntity, reason);
 
     await this.checkoutPayment.recordPaymentFailure({
       merchantId: snap.merchantId,
@@ -109,8 +119,6 @@ export class PaymentDispatchService {
 
     this.metrics?.paymentFailed.inc({ method: snap.method, reason });
 
-    void this.publisher?.publishStatusChange(snap.id, "failed", snap.merchantId)
-      .catch(err => this.logger.warn(`Failed to publish failed event for intent ${snap.id}: ${(err as Error).message}`));
   }
 
   /**
@@ -121,19 +129,11 @@ export class PaymentDispatchService {
     reason: string
   ): Promise<void> {
     const snap = intentEntity.snapshot();
-    if (snap.status !== "approved") return;
+    if (snap.status === "refunded") return;
+    if (snap.status !== "approved") throw new Error("payment_refund_precedes_approval");
 
     intentEntity.markRefunded(reason);
-    await this.payments.saveIntent({ intent: intentEntity });
-
-    await this.checkoutPayment.recordPaymentStatusChanged({
-      merchantId: snap.merchantId,
-      sessionId: snap.sessionId,
-      paymentIntentId: snap.id,
-      status: "refunded",
-      reason,
-      commerceOrderId: snap.commerceOrderId
-    });
+    await savePaymentTransition(this.payments, intentEntity, reason);
   }
 
   /**

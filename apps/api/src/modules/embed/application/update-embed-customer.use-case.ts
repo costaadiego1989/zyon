@@ -32,15 +32,27 @@ export class UpdateEmbedCustomerUseCase {
     if (!current) throw new Error("checkout_session_not_found");
 
     const previousCustomer = current.customer ?? {};
+    const email = input.customer.email.trim().toLowerCase();
+    const emailChanged = email !== previousCustomer.email?.trim().toLowerCase();
+    const phoneChanged = input.customer.phone !== previousCustomer.phone;
     const updatedSession: CheckoutSession = {
       ...current,
+      globalUserId: emailChanged ? `usr_${crypto.randomUUID()}` : current.globalUserId,
       customer: {
         ...(current.customer ?? {}),
         fullName: input.customer.fullName,
-        email: input.customer.email,
+        email,
         cpf: input.customer.cpf.replace(/\D+/g, ""),
-        phone: input.customer.phone
+        phone: input.customer.phone,
+        ...(emailChanged ? {
+          email_verified: false, otp_code: "", recognized_buyer: false, isReturning: false,
+          externalCustomerId: undefined, asaasCustomerId: undefined,
+          address: undefined, address_verified: false,
+        } : {}),
+        ...(phoneChanged || emailChanged ? { phone_verified: false, phone_otp_code: "" } : {}),
       },
+      shipping: emailChanged ? undefined : current.shipping,
+      shippingOptions: emailChanged ? undefined : current.shippingOptions,
       updatedAt: new Date().toISOString()
     };
 

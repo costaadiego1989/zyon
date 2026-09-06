@@ -1,0 +1,23 @@
+{
+  "label": "codex.task=ready-to-prod-stage3",
+  "checkedAt": "2026-09-06T02:18:59.251Z",
+  "containers": [
+    {
+      "id": "d24a3f2f8385ee93af19c28d4adb1e2f4389f2def928231eddfba878680a799a",
+      "name": "aacp-ready-prod-stage3-pg-20260905",
+      "runningBeforeStop": true,
+      "autoRemove": true,
+      "stopped": true,
+      "absentAfterStop": true
+    },
+    {
+      "id": "10e3c471eeddf21d81455078dda903cfe5644a7ba836c1dc97f3040c6704bcdc",
+      "name": "aacp-ready-prod-stage3-redis-20260905",
+      "runningBeforeStop": true,
+      "autoRemove": true,
+      "stopped": true,
+      "absentAfterStop": true
+    }
+  ],
+  "otherContainersUntouched": true
+}

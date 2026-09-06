@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Logger, Optional, ServiceUnavailableException } from "@nestjs/common";
 import type {
   StartCheckoutRequest,
   StartCheckoutResponse,
@@ -19,6 +19,8 @@ import { BuyerResolutionService } from "../services/buyer-resolution.service.js"
 import { BuyerContextService } from "../services/buyer-context.service.js";
 import { CheckoutBootstrapService } from "../services/checkout-bootstrap.service.js";
 import { InterventionRuleTextBuilder } from "../services/intervention-rule-text.builder.js";
+import { CheckoutCartAuthorityService } from "../services/checkout-cart-authority.service.js";
+import { unverifiedCustomerHints } from "../services/checkout-input-policy.js";
 
 @Injectable()
 export class StartCheckoutUseCase {
@@ -34,10 +36,22 @@ export class StartCheckoutUseCase {
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepository?: MerchantRepository,
     @Optional() @Inject(MERCHANT_PLAN_PORT) private readonly merchantPlan?: MerchantPlanPort,
     @Optional() @Inject(CHECKOUT_CROSS_SELL_RECOMMENDER) private readonly crossSell?: CheckoutCrossSellRecommenderPort,
-    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 }
+    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 },
+    @Optional() private readonly cartAuthority?: CheckoutCartAuthorityService
   ) { }
 
   async execute(input: StartCheckoutRequest): Promise<StartCheckoutResponse> {
+    if (typeof input.merchant_id !== "string" || !input.merchant_id.trim()) {
+      throw new BadRequestException("checkout_merchant_required");
+    }
+    if (!this.cartAuthority) throw new ServiceUnavailableException("checkout_cart_authority_unavailable");
+    input = {
+      ...input,
+      merchant_id: input.merchant_id.trim(),
+      cart: await this.cartAuthority.resolve(input.merchant_id.trim(), input.cart),
+      customer: unverifiedCustomerHints(input.customer),
+      shipping: undefined,
+    };
     const settings = await this.checkoutSettings?.getContext(input.merchant_id);
     const merchant = await this.merchantRepository?.getProfile(input.merchant_id);
 
@@ -47,9 +61,15 @@ export class StartCheckoutUseCase {
     // Starter (Free) e trial caem em Starter (effectiveBillingPlan).
     const { showBranding, voiceEnabled } = await this.merchantPlan?.resolveExperienceFlags(input.merchant_id) ?? { showBranding: true, voiceEnabled: false };
     const merchantRules = await this.merchantRepository?.getRules(input.merchant_id);
-
-    // Phase 1: Buyer Resolution
-    const { input: enrichedInput, globalUserId } = await this.buyerResolution.resolve(input);
+    // Browser identity hints are deliberately not a login assertion. Resolve an
+    // anonymous checkout identity and retain the sanitized hints solely for the
+    // checkout conversation; BuyerRecognition upgrades it only after OTP proof.
+    const { globalUserId } = await this.buyerResolution.resolve({
+      ...input,
+      global_user_id: undefined,
+      customer: undefined
+    });
+    const enrichedInput = input;
 
     // Phase 2: Buyer Context
     const { agent, buyerIntent } = await this.buyerContext.load(input.merchant_id, globalUserId);

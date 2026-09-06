@@ -30,6 +30,12 @@ scripts/*
 
 # Exclude generated/WIP docs, but keep architecture decisions versioned.
 /docs/*
+!/docs/specs/
+/docs/specs/*
+!/docs/specs/adutoria/
+/docs/specs/adutoria/*
+!/docs/specs/adutoria/ready to prod/
+!/docs/specs/adutoria/ready to prod/**
 !/docs/architecture/
 /docs/architecture/*
 !/docs/architecture/adr/

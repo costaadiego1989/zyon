@@ -1,5 +1,5 @@
 import type { AuthMerchant, AuthUser } from "../domain/auth.types.js";
-import type { AuthRepository, OwnerProfile } from "../domain/ports/auth-repository.port.js";
+import type { AuthRepository, OwnerProfile, SessionRecord } from "../domain/ports/auth-repository.port.js";
 
 /**
  * L8: Removed @Injectable() — test double, never wired via module root.
@@ -99,9 +99,47 @@ export class InMemoryAuthRepository implements AuthRepository {
     for (const user of this.users.values()) {
       if (user.id === userId) {
         user.passwordHash = passwordHash;
+        user.authVersion = (user.authVersion ?? 0) + 1;
+        for (const [token, reset] of this.resetTokens) if (reset.userId === userId) this.resetTokens.delete(token);
+        for (const session of this.sessions.values()) if (session.userId === userId) session.revokedAt = new Date();
         return;
       }
     }
+  }
+
+  private sessions = new Map<string, SessionRecord>();
+  async createSession(input: SessionRecord): Promise<boolean> {
+    const user = [...this.users.values()].find(u => u.id === input.userId);
+    if (!user || user.disabledAt || (user.authVersion ?? 0) !== input.authVersion || user.role !== input.role) return false;
+    this.sessions.set(input.id, { ...input });
+    return true;
+  }
+  async findActiveSession(id: string, now: Date): Promise<SessionRecord | undefined> {
+    const session = this.sessions.get(id);
+    const user = [...this.users.values()].find(u => u.id === session?.userId);
+    return session && !session.revokedAt && !session.consumedAt && session.refreshExpiresAt > now && user &&
+      !user.disabledAt && (user.authVersion ?? 0) === session.authVersion ? { ...session } : undefined;
+  }
+  async rotateSession(id: string, replacement: SessionRecord, now: Date): Promise<boolean> {
+    const current = this.sessions.get(id);
+    const user = [...this.users.values()].find(u => u.id === replacement.userId);
+    if (!current || current.consumedAt || current.revokedAt || current.refreshExpiresAt <= now || !user ||
+      user.disabledAt || (user.authVersion ?? 0) !== replacement.authVersion) return false;
+    current.consumedAt = now;
+    this.sessions.set(replacement.id, { ...replacement });
+    return true;
+  }
+  async revokeSessionFamily(id: string, userId: string, now: Date): Promise<void> {
+    const current = this.sessions.get(id);
+    if (current?.userId !== userId) return;
+    for (const session of this.sessions.values()) if (session.familyId === current.familyId) session.revokedAt = now;
+  }
+  async consumePasswordReset(token: string, passwordHash: string, now: Date): Promise<boolean> {
+    const reset = this.resetTokens.get(token);
+    if (!reset || reset.expiresAt <= now) return false;
+    this.resetTokens.delete(token);
+    await this.updatePassword(reset.userId, passwordHash);
+    return true;
   }
 
   private slugs = new Map<string, string>(); // slug → merchantId

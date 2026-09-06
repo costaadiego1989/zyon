@@ -64,7 +64,7 @@ test("Reconcile: short-circuits when provider lacks fetchPaymentStatus", async (
   assert.deepEqual(result.reconciled, []);
 });
 
-test("Reconcile: skips intents without providerPaymentId", async () => {
+test("Reconcile: reports uncertainty for legacy intents without creation metadata", async () => {
   const payments = new InMemoryPaymentRepository();
   const checkoutPort = new RecordingCheckoutPayment();
   const provider = makeProvider(new Map());
@@ -83,7 +83,7 @@ test("Reconcile: skips intents without providerPaymentId", async () => {
 
   const result = await uc.execute({ staleAfterMs: 0 });
   assert.equal(result.scanned, 1);
-  assert.equal(result.reconciled[0]?.outcome, "skipped");
+  assert.equal(result.reconciled[0]?.outcome, "unknown");
 });
 
 test("Reconcile: approves intent when provider says approved", async () => {
@@ -112,7 +112,7 @@ test("Reconcile: approves intent when provider says approved", async () => {
   const reloaded = await payments.getIntentById("mrc_1", intent.id);
   assert.equal(reloaded?.snapshot().status, "approved");
   assert.equal(checkoutPort.approved.length, 1);
-  assert.ok(checkoutPort.statuses.some(s => s.status === "approved" && s.reason === "reconciliation"));
+  assert.ok(payments.capturedEvents.map(event => event.payload as { status: string; reason?: string }).some(s => s.status === "approved" && s.reason === "reconciliation"));
 });
 
 test("Reconcile: marks failed when provider says failed", async () => {
@@ -141,7 +141,7 @@ test("Reconcile: marks failed when provider says failed", async () => {
   const reloaded = await payments.getIntentById("mrc_1", intent.id);
   assert.equal(reloaded?.snapshot().status, "failed");
   assert.equal(checkoutPort.failures.length, 1);
-  assert.ok(checkoutPort.statuses.some(s => s.status === "failed"));
+  assert.ok(payments.capturedEvents.map(event => event.payload as { status: string; reason?: string }).some(s => s.status === "failed"));
 });
 
 test("Reconcile: returns still_pending when provider says pending", async () => {
@@ -198,7 +198,7 @@ test("Reconcile: returns unknown when provider returns unknown state", async () 
   assert.equal(result.reconciled[0]?.outcome, "unknown");
 });
 
-test("Reconcile: value mismatch on approval triggers fail", async () => {
+test("Reconcile: value mismatch preserves open state for investigation", async () => {
   const payments = new InMemoryPaymentRepository();
   const checkoutPort = new RecordingCheckoutPayment();
   const responses = new Map<string, FetchPaymentStatusOutput>();
@@ -220,11 +220,12 @@ test("Reconcile: value mismatch on approval triggers fail", async () => {
 
   const result = await uc.execute({ staleAfterMs: 0 });
   assert.equal(result.scanned, 1);
-  assert.equal(result.reconciled[0]?.outcome, "failed");
+  assert.equal(result.reconciled[0]?.outcome, "unknown");
 
   const reloaded = await payments.getIntentById("mrc_1", intent.id);
-  assert.equal(reloaded?.snapshot().status, "failed");
-  assert.ok(checkoutPort.statuses.some(s => s.reason === "reconcile_value_mismatch"));
+  assert.equal(reloaded?.snapshot().status, "requires_action");
+  assert.equal(payments.capturedEvents.length, 0);
+  assert.equal(checkoutPort.approved.length, 0);
 });
 
 test("Reconcile: respects limit parameter", async () => {

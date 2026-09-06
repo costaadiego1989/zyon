@@ -14,6 +14,22 @@ function mockCtx(headers: Record<string, string | undefined>) {
 
 describe("EmbedAuthGuard security scenarios", () => {
   const secret = Buffer.from("embed-security-battery-secret-32chs");
+  it("development bypass cannot authenticate in production", () => {
+    const previousEnvironment = process.env.NODE_ENV;
+    const previousBypass = process.env.EMBED_DEV_BYPASS;
+    try {
+      process.env.NODE_ENV = "production";
+      process.env.EMBED_DEV_BYPASS = "true";
+      const guard = new EmbedAuthGuard(new EmbedTokenService({ value: secret }));
+      assert.throws(() => guard.canActivate(mockCtx({})), UnauthorizedException);
+      assert.throws(() => guard.canActivate(mockCtx({ "x-aacp-embed-token": "__dev_bypass__" })), UnauthorizedException);
+    } finally {
+      if (previousEnvironment === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previousEnvironment;
+      if (previousBypass === undefined) delete process.env.EMBED_DEV_BYPASS;
+      else process.env.EMBED_DEV_BYPASS = previousBypass;
+    }
+  });
 
   it("requires token header", () => {
     const guard = new EmbedAuthGuard(new EmbedTokenService({ value: secret }));

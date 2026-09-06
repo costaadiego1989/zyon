@@ -1,0 +1,26 @@
+node : Loaded Prisma config from prisma.config.ts.
+No linha:11 caractere:1
++ node apps/api/tests/prepare-ready-prod-tests.mjs --push > .audit/veri ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Loaded Prisma c...isma.config.ts.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+
+Prisma config detected, skipping environment variable loading.
+Prisma schema loaded from .audit\test-schema.prisma
+
+✔ Generated Prisma Client (v6.19.3) to .\..\..\.audit\verification\generated-client in 458ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Interested in query caching in just a few lines of code? Try Accelerate today! https://pris.ly/tip-3-accelerate
+
+Loaded Prisma config from prisma.config.ts.
+
+Prisma config detected, skipping environment variable loading.
+Prisma schema loaded from .audit\test-schema.prisma
+Datasource "db": PostgreSQL database "ready_prod_test", schema "public" at "127.0.0.1:57689"
+
+Your database is now in sync with your Prisma schema. Done in 2.98s
+
+READY_PROD_TEST_PRISMA_CLIENT=C:\Users\Admin\Desktop\AACP\.audit\ready-to-prod-fixes-20260905\.audit\verification\generated-client\index.js

@@ -85,9 +85,14 @@ import { BuyerAccountPersistenceService } from "./application/services/buyer-acc
 import { ExperimentsModule } from "../experiments/experiments.module.js";
 import { IntentMemoryModule } from "../intent-memory/intent-memory.module.js";
 import { PaymentModule } from "../payment/payment.module.js";
+import { CommerceModule } from "../commerce/commerce.module.js";
+import { CheckoutCartAuthorityService } from "./application/services/checkout-cart-authority.service.js";
+import { PAYMENT_APPROVAL_READER } from "./domain/ports/payment-approval.port.js";
+import { PrismaPaymentApprovalReader } from "./infrastructure/adapters/prisma-payment-approval.reader.js";
 
 @Module({
   imports: [
+    CommerceModule,
     AgentRulesModule,
     CheckoutSettingsModule,
     BuyerPurchaseHistoryModule,
@@ -103,6 +108,12 @@ import { PaymentModule } from "../payment/payment.module.js";
   ],
   controllers: [CheckoutController],
   providers: [
+    {
+      provide: PAYMENT_APPROVAL_READER,
+      useFactory: (prisma: PrismaClient) => new PrismaPaymentApprovalReader(prisma),
+      inject: [PRISMA_CLIENT]
+    },
+    CheckoutCartAuthorityService,
     StartCheckoutUseCase,
     TrackCheckoutEventUseCase,
     GetCheckoutSessionUseCase,

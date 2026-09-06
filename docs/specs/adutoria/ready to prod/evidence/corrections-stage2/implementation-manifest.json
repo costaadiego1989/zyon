@@ -1,0 +1,351 @@
+{
+  "stageBase": "9c8028718ae7a30267bd38f1f6dbb74b84521b00",
+  "implementationHead": "b97179b57e1062973f9d532dc148ab4dd02a7f62",
+  "hashes": "SHA-256 of verified worktree bytes, including line endings",
+  "files": [
+    {
+      "path": "apps/api/.env.example",
+      "sha256": "9e0cd67a58fd9890acc8be2ea95b6d7fe173ba7b4b1abe92b5d30cd8dd3beb77"
+    },
+    {
+      "path": "apps/api/prisma/migrations/20260905180000_durable_merchant_auth/migration.sql",
+      "sha256": "1d1c831badd6eb8076284fe4cda40ca653ee6b260f0e3dd5884aebe1eabee00c"
+    },
+    {
+      "path": "apps/api/prisma/migrations/20260905230000_whatsapp_webhook_inbox/migration.sql",
+      "sha256": "15ef7c5b2721f7f5177537dd15f22e500470803e59b02ba0eb643b1336aa5dff"
+    },
+    {
+      "path": "apps/api/prisma/schema.prisma",
+      "sha256": "154816d95f9467b0e2170063e8e80cc3a4a27dc245cc86ee9c378a05f9a474d1"
+    },
+    {
+      "path": "apps/api/src/app.module.ts",
+      "sha256": "f1f5fb76709d04176ea8d4535e3da0383dbd1290faf09529c160ee27942c28be"
+    },
+    {
+      "path": "apps/api/src/modules/__test__/test-seed.controller.ts",
+      "sha256": "7e90d58d156a7df9b20f2862ec2348506392bbecc00437641b446e847a639a46"
+    },
+    {
+      "path": "apps/api/src/modules/auth/application/auth-response.ts",
+      "sha256": "efa38c519838ad0acf5459511a815cbf8c94429f133d9fc48f4f2cb43df8e58d"
+    },
+    {
+      "path": "apps/api/src/modules/auth/application/auth.use-cases.spec.ts",
+      "sha256": "a4721045354c9edb786ddae2db593df2186d4142c88f4311e77ce5b42e86153d"
+    },
+    {
+      "path": "apps/api/src/modules/auth/application/login.use-case.ts",
+      "sha256": "ef48d33f8aed86ad5275c85f8cad857a200b03329dc52e2b949cc3d5e63223b5"
+    },
+    {
+      "path": "apps/api/src/modules/auth/application/oauth-callback.use-case.ts",
+      "sha256": "6f9d1a6115038b5dba31d38bae2365a8c04ae247c4143e6627fadcae42c852fb"
+    },
+    {
+      "path": "apps/api/src/modules/auth/application/refresh-token.use-case.ts",
+      "sha256": "39f0a07408beff4fcf6a27d752a62d040c23fcca8866b96a638386563b30223b"
+    },
+    {
+      "path": "apps/api/src/modules/auth/application/request-password-reset.use-case.ts",
+      "sha256": "51623f96fdbb53002923ec070012b6081acf6d633b036cb3965f87a0116e8a0f"
+    },
+    {
+      "path": "apps/api/src/modules/auth/application/reset-password.use-case.ts",
+      "sha256": "dd043c193a7c16827dbe92d18867b4a017b3a2947ebeb221307058c59ef27b9e"
+    },
+    {
+      "path": "apps/api/src/modules/auth/application/tenant-onboarding.spec.ts",
+      "sha256": "6c742787d1dbcc196bb47cddb55a363fda6dad992051be5adb27ea0a29015504"
+    },
+    {
+      "path": "apps/api/src/modules/auth/auth.module.ts",
+      "sha256": "f4fa2c3e018f70077822b9d96e82c2b5de7fb70bae1a3816fb0bd7b3205137ba"
+    },
+    {
+      "path": "apps/api/src/modules/auth/domain/auth.types.ts",
+      "sha256": "feba5b53aada7f5ba5f961ab619a39cb172b3cb141a47e71bcfea2855b0c64bd"
+    },
+    {
+      "path": "apps/api/src/modules/auth/domain/ports/auth-repository.port.ts",
+      "sha256": "d0b431cb562d75fc9a2745a0e377347a0611e53e5e27df30ea6f2133b042792d"
+    },
+    {
+      "path": "apps/api/src/modules/auth/domain/services/jwt.service.ts",
+      "sha256": "0ce10d6b4f92acd06b8b1785d7e9af988e82b8684f0b7c08a67de2f2d8c0b1d3"
+    },
+    {
+      "path": "apps/api/src/modules/auth/infrastructure/auth-sessions.integration.spec.ts",
+      "sha256": "c94c1d762549ee71517a723d16714c4341c757eb5b4e98d29c65748fe0548d8e"
+    },
+    {
+      "path": "apps/api/src/modules/auth/infrastructure/in-memory-auth.repository.ts",
+      "sha256": "48975f715794cb01723fbb4cfd44c18dd7928dd48a9a19541fecee0eedf65452"
+    },
+    {
+      "path": "apps/api/src/modules/auth/infrastructure/prisma-auth.repository.ts",
+      "sha256": "7ff8361306a37e60cf49e6f70cc06aa6f85d6fdb24950a8041a62c923a4b22bb"
+    },
+    {
+      "path": "apps/api/src/modules/auth/presentation/auth-merchant.prisma-e2e-spec.ts",
+      "sha256": "20a60d20a98a89089b8fb5f8c0cae5b607047175d26be16a8b2c33c0c2c0a7b7"
+    },
+    {
+      "path": "apps/api/src/modules/auth/presentation/auth.controller.spec.ts",
+      "sha256": "1ed113700a7525e84f69051966c448389d3acfb330fff18de091e7c0541b67f4"
+    },
+    {
+      "path": "apps/api/src/modules/auth/presentation/auth.controller.ts",
+      "sha256": "32481257b7ec98b0b533edc5d73a73a0b222f6cdf638bb9905bfce15bdb96879"
+    },
+    {
+      "path": "apps/api/src/modules/auth/presentation/auth.guard.ts",
+      "sha256": "704a71a1e2ba6207467c361962dfa5e8fefeec8b04e617b4564cda1f1e8c5c68"
+    },
+    {
+      "path": "apps/api/src/modules/auth/presentation/staff-access.spec.ts",
+      "sha256": "78c6e6a4fa09776fa1e118784df98a2e6d8d0b4aa4b9165902aa10303c63accb"
+    },
+    {
+      "path": "apps/api/src/modules/auth/presentation/staff-access.ts",
+      "sha256": "c5f3f9028302fdb158634724adc7942be68c0bee927c65057fd576e422e0acd3"
+    },
+    {
+      "path": "apps/api/src/modules/buyer-account/application/use-cases/otp-delivery.spec.ts",
+      "sha256": "b16356392c26965a3020012876bcce143e4b3b9efc300f8dce836ecc54f885be"
+    },
+    {
+      "path": "apps/api/src/modules/buyer-account/application/use-cases/otp-hardening.spec.ts",
+      "sha256": "b4aac27d213d6710e8c7a8a3119d162eba6b5c8211dcac5c0c3d00ff6260a160"
+    },
+    {
+      "path": "apps/api/src/modules/buyer-account/application/use-cases/send-buyer-email-code.use-case.ts",
+      "sha256": "375d38cdff3e1f78a5e4699fbbcf9a788fb9b715bcb244dda8e491ff180b797b"
+    },
+    {
+      "path": "apps/api/src/modules/buyer-account/application/use-cases/send-buyer-phone-code.use-case.ts",
+      "sha256": "3cfdbbc06cdf763ca99ce42a52a70d9214ca21fbc2a1ab2336c3e5f9c4c4d60a"
+    },
+    {
+      "path": "apps/api/src/modules/buyer-account/application/use-cases/verify-buyer-email-code.use-case.ts",
+      "sha256": "4b01de007fd7cc567c6acbfb76c716f6d181b8f45dd9f154bc787251c7de9c05"
+    },
+    {
+      "path": "apps/api/src/modules/buyer-account/application/use-cases/verify-buyer-phone-code.use-case.ts",
+      "sha256": "737c6564f63acfaa3a09381e3eae7dbee26877c6812c35231ef46499c6851bde"
+    },
+    {
+      "path": "apps/api/src/modules/buyer-account/buyer-account.module.ts",
+      "sha256": "2304e4b60b49e50da84cf22171361f7af0e739d170249b436ee36bcd287b4d3a"
+    },
+    {
+      "path": "apps/api/src/modules/buyer-account/domain/ports/email-otp.port.ts",
+      "sha256": "4f86ff6c96add3e5b903e47431e5f71bc72bd624da1320f6ec9a3e0e325420f2"
+    },
+    {
+      "path": "apps/api/src/modules/buyer-account/domain/ports/sms.port.ts",
+      "sha256": "05f68757900a6c3c068dbab4dbb30315d3c67d15aeb46685f2d1bc8d9b970b7a"
+    },
+    {
+      "path": "apps/api/src/modules/buyer-account/infrastructure/bubblewhats-sms-sender.ts",
+      "sha256": "46a248dea420be6bb1ad8411392b065423572370b197681bccb35110397b5ba6"
+    },
+    {
+      "path": "apps/api/src/modules/buyer-account/infrastructure/otp-http-delivery.ts",
+      "sha256": "81cf6c97c814d7fb819dec2ac1f0e38af215b49a1a0e5fabeded0cecb3ab35d7"
+    },
+    {
+      "path": "apps/api/src/modules/buyer-account/infrastructure/prisma-otp-store.ts",
+      "sha256": "1729285c010e027a9073a0f9092aafc34ea8cd6ee5e0879afbdff1673eaa8ac1"
+    },
+    {
+      "path": "apps/api/src/modules/buyer-account/infrastructure/redis-otp-store.ts",
+      "sha256": "89f56944063015ff3b320d377d302b0fa277b4b8c93169a767c190950763e660"
+    },
+    {
+      "path": "apps/api/src/modules/buyer-account/infrastructure/resend-email-otp-sender.ts",
+      "sha256": "e35c7777ac4bb7364be28559ab220a79d53ffa36d471a8c0be10a86d59eaac42"
+    },
+    {
+      "path": "apps/api/src/modules/embed/presentation/http/embed-session-issuer.guard.ts",
+      "sha256": "f0ed263a3ff153324402d6acd4d43e000c52af6f5c4ffb563ba9ccecefa46a9d"
+    },
+    {
+      "path": "apps/api/src/modules/integrations/presentation/http/tenant-credential.guard.ts",
+      "sha256": "63f3b21c92d943c7d6ad01f2df7c470659fa5f7ee4c91ff1a4164fc7e73125ae"
+    },
+    {
+      "path": "apps/api/src/modules/public-api/team/presentation/http/team-v1.controller.ts",
+      "sha256": "fcd6ec6efb18218be518cfd5f145d42992f1f681d6cd3de53d270468cbf0ec0f"
+    },
+    {
+      "path": "apps/api/src/modules/support/infrastructure/gateways/support.gateway.spec.ts",
+      "sha256": "26fa4109c4826817353038b0bd50cce79f55fee90ee1ccd5a378b7f3fa55b071"
+    },
+    {
+      "path": "apps/api/src/modules/support/infrastructure/gateways/support.gateway.ts",
+      "sha256": "3f825088dc71c0682ba74590fe42656d013bc5b53b8992f09ba664d33dd8bb6c"
+    },
+    {
+      "path": "apps/api/src/modules/support/presentation/http/support-messages.controller.ts",
+      "sha256": "f2b5e3a3a90f429fb82994d60eaa315b870ea5309141bfa8ba4bec407f1d9ea1"
+    },
+    {
+      "path": "apps/api/src/modules/support/presentation/http/support.controller.ts",
+      "sha256": "511b6fa4be1cb8b47daa30cfb8b6b56bca1da8d4a191cf64d25ca5231219605c"
+    },
+    {
+      "path": "apps/api/src/modules/team/application/use-cases/accept-invite.use-case.ts",
+      "sha256": "efeda368ce8c9765b59eb7714962d356c2e9072edd44d321f1b7d501ffceac9e"
+    },
+    {
+      "path": "apps/api/src/modules/team/application/use-cases/invite-member.use-case.ts",
+      "sha256": "ba73a7eb1a7a081be67a42f25c3885054fed015ea737af865b7d2eeb53433fad"
+    },
+    {
+      "path": "apps/api/src/modules/team/application/use-cases/list-team.use-case.ts",
+      "sha256": "6c54556bdde5cc34bcd04a66d2c015acd664858daf8f3ec09a92c89d5ae36c11"
+    },
+    {
+      "path": "apps/api/src/modules/team/application/use-cases/remove-member.use-case.ts",
+      "sha256": "faed694fbda199ac39320d8c78f4216958d0c65a56a09d00386c3542517b5425"
+    },
+    {
+      "path": "apps/api/src/modules/team/application/use-cases/team-membership.ts",
+      "sha256": "0d5d36e35c4384e81745be06daf579f820fba425cc1ad25fe4af8d6021207f9e"
+    },
+    {
+      "path": "apps/api/src/modules/team/application/use-cases/update-role.use-case.ts",
+      "sha256": "c421f7ae6542eeff601c5b4397fc651ab058bff37c800f1eeb37ed570bdbdf17"
+    },
+    {
+      "path": "apps/api/src/modules/team/presentation/http/team.controller.ts",
+      "sha256": "96ee5a472742086e127849c2df6e279a48bb75d42fb689dd77bffa0df7f31a71"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/application/services/whatsapp-webhook-worker.service.ts",
+      "sha256": "770212479ae72c95745b1e8d6c3c8a9d0ea5bb78c6ce5466ab7489229c0be544"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/application/use-cases/accept-bubblewhats-webhook.use-case.ts",
+      "sha256": "25580dc6840dc79eb5ef2c2e00790a201db94e224649cb1aee3fde817bcb8f18"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/application/use-cases/bubblewhats-inbox.spec.ts",
+      "sha256": "14019dece627c94ee30aebbd4de232475bb80c1ca14eae69152cb5fc106ba43b"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/application/use-cases/handle-incoming-message.use-case.ts",
+      "sha256": "c9c175f47139a218696bbe91512561f93ea9ddcc271f0777d5efdbed7d428859"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/application/use-cases/handle-status-update.use-case.ts",
+      "sha256": "0066760ce30408119a74c068c5f603e18774cab7135f513bd4ff7786e412010e"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/application/use-cases/route-to-session.use-case.ts",
+      "sha256": "18992e868c994ad0d986226ab141eb00a0676b716f33be9224e6333c46b7b0da"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/application/use-cases/send-whatsapp-response.use-case.ts",
+      "sha256": "42b0eefff9b515cb895f319220a43c25721e3acab1fda473e15496d112afdfeb"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/domain/ports/whatsapp-sender.port.ts",
+      "sha256": "8a3713d91305be23d063577d753e8f7fd207e858a97672ff6b2f8b85c489c70e"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/domain/ports/whatsapp-webhook-inbox.port.ts",
+      "sha256": "c501615ce502d53443ba453108dd043c0608fd6f392c36951cc4ff5408003025"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/infrastructure/adapters/bubblewhats-sender.adapter.ts",
+      "sha256": "93abf90caf80a384ed13e5f24c70e27ea0f01035ae152851210e48be588c7537"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/infrastructure/repositories/prisma-whatsapp-config.repository.ts",
+      "sha256": "0c8097b3372a98233d6f00c06677ad683e93495fea8c177feef02094207d132f"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/infrastructure/repositories/prisma-whatsapp-webhook-inbox.integration.spec.ts",
+      "sha256": "1e82af4160571f693ced351a6eac6e19e733362d014f49d98742c73858192c84"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/infrastructure/repositories/prisma-whatsapp-webhook-inbox.repository.ts",
+      "sha256": "efdb0efd57ca5a79e5680b66670f3374fdbf252ef2aeed86e4a29461c5c247f3"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/presentation/http/whatsapp-config.controller.ts",
+      "sha256": "84f67bb21fcb7b315116010db22fdc968ff256c21730d01423e931da5c443d93"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/presentation/http/whatsapp-webhook.controller.ts",
+      "sha256": "2f76daaed69c0bbe4f3855fea85ef3a059a99c4dc9a73eedfe4853d9b254b873"
+    },
+    {
+      "path": "apps/api/src/modules/whatsapp-channel/whatsapp-channel.module.ts",
+      "sha256": "c882b94b28d0393f9bf3383f00e1f6e6fc7f6f7c66ce8364c950cd872d4eec78"
+    },
+    {
+      "path": "apps/api/src/shared/auth/tenant-principal.ts",
+      "sha256": "d359b8c56bbeb69e41c6209336b254eb0753d2d4345519b5325c9cfe906128aa"
+    },
+    {
+      "path": "apps/api/src/shared/http/http.module.ts",
+      "sha256": "9a1436dc12f1b53ff4bbedc066283529b4e134f61dd47a14c44850c93a07d160"
+    },
+    {
+      "path": "apps/api/src/shared/http/rate-limit.guard.spec.ts",
+      "sha256": "fe732d9d5778d66bc7b25291a2024506d29fda81e161580635aa3a68d6eb76b2"
+    },
+    {
+      "path": "apps/api/src/shared/http/rate-limit.guard.ts",
+      "sha256": "55749dafd568a4d69e61c223bf39673cafb1842cf4844cb901acd2f67b45ab51"
+    },
+    {
+      "path": "apps/api/src/shared/http/rate-limit.integration.spec.ts",
+      "sha256": "b90c9b6b778b48f3f0eb17ffa112fd6555a6cd8eb87e190d0d2434a545d084a9"
+    },
+    {
+      "path": "apps/api/src/shared/http/rate-limit.store.ts",
+      "sha256": "1d0744e32e47dc1a03fc0c62f55c9bee1bbda1f4a3a5e4e494b7bd084a5ad561"
+    },
+    {
+      "path": "apps/api/src/shared/logger/log-redaction.spec.ts",
+      "sha256": "740e72fcc8f9267ccca40e67d5bffe2e0e81d3cd5718ec45dac43c1e0090fb0e"
+    },
+    {
+      "path": "apps/api/src/shared/logger/log-redaction.ts",
+      "sha256": "59958e6e3f4bce745da8ea547cb5d5342c131d224049b6f92e7c121b7b3c9562"
+    },
+    {
+      "path": "apps/api/tests/compare-ready-prod-tests.mjs",
+      "sha256": "cc16c7d629162d2da83b5d6b94507d348e468d324c07da956b4a0282348952ee"
+    },
+    {
+      "path": "apps/api/tests/prepare-ready-prod-tests.mjs",
+      "sha256": "81a0403738d6d2f43ea2dd1ab2b3da33062a201d530cea03a5b2ba993e66bee1"
+    },
+    {
+      "path": "apps/api/tests/ready-prod-composition.mjs",
+      "sha256": "eb49ac8984834dfd4b3c615cf5656e43bda41fb679b5ef827a848c51c8863538"
+    },
+    {
+      "path": "apps/api/tests/ready-prod-runtime-loader.mjs",
+      "sha256": "cfce02a58e31d0486dad7f151423ddefb191a4255bb89804d712e2f6b59fa323"
+    },
+    {
+      "path": "apps/api/tests/run-ready-prod-tests.mjs",
+      "sha256": "0122624db78d4f44e893e55bd5ba4b51e4322338cd1f4486f4028fca3f2416c9"
+    },
+    {
+      "path": "apps/api/tests/security-stage2-http.integration.test.mjs",
+      "sha256": "bb62f408d9cf916bc9b4e501454d82269d9f207dc275d10a6fa955c40108a962"
+    },
+    {
+      "path": "apps/api/tests/security-stage2-migrations.integration.test.mjs",
+      "sha256": "7fe415d57cba46fa01deb5d47a37463a5732db3ba358de5850f888db41ff710f"
+    }
+  ]
+}

@@ -1,0 +1,528 @@
+TAP version 13
+# (node:26892) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+# --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./apps/api/tests/ready-prod-loader.mjs", pathToFileURL("./"));'
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: DeleteBuyerAccountUseCase cascades addresses, agent profile, conversations, anonymizes purchases, removes account
+ok 1 - DeleteBuyerAccountUseCase cascades addresses, agent profile, conversations, anonymizes purchases, removes account
+  ---
+  duration_ms: 5.1819
+  type: 'test'
+  ...
+# Subtest: DeleteBuyerAccountUseCase throws when buyer has no account (not found)
+ok 2 - DeleteBuyerAccountUseCase throws when buyer has no account (not found)
+  ---
+  duration_ms: 0.8788
+  type: 'test'
+  ...
+# Subtest: DeleteBuyerAccountUseCase enforces globalUserId presence (LGPD requires explicit subject)
+ok 3 - DeleteBuyerAccountUseCase enforces globalUserId presence (LGPD requires explicit subject)
+  ---
+  duration_ms: 0.336
+  type: 'test'
+  ...
+# Subtest: DeleteBuyerAccountUseCase cascade delegates the entire transaction to the port (no direct Prisma leakage)
+ok 4 - DeleteBuyerAccountUseCase cascade delegates the entire transaction to the port (no direct Prisma leakage)
+  ---
+  duration_ms: 0.2318
+  type: 'test'
+  ...
+# (node:31880) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+# --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./apps/api/tests/ready-prod-loader.mjs", pathToFileURL("./"));'
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: ExportBuyerDataUseCase uses BuyerAccountPort (no Prisma in application)
+ok 5 - ExportBuyerDataUseCase uses BuyerAccountPort (no Prisma in application)
+  ---
+  duration_ms: 2.834
+  type: 'test'
+  ...
+# Subtest: DeleteBuyerAccountUseCase delegates cascadeDelete to the port
+ok 6 - DeleteBuyerAccountUseCase delegates cascadeDelete to the port
+  ---
+  duration_ms: 1.2239
+  type: 'test'
+  ...
+# Subtest: GetBuyerSummaryUseCase routes purchase stats and merchant lookup through the port
+ok 7 - GetBuyerSummaryUseCase routes purchase stats and merchant lookup through the port
+  ---
+  duration_ms: 0.5414
+  type: 'test'
+  ...
+# (node:19976) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+# --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./apps/api/tests/ready-prod-loader.mjs", pathToFileURL("./"));'
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: BuyerAddress.create accepts valid Brazilian CEP and stores normalized digits
+ok 8 - BuyerAddress.create accepts valid Brazilian CEP and stores normalized digits
+  ---
+  duration_ms: 1.496
+  type: 'test'
+  ...
+# Subtest: BuyerAddress.create rejects invalid CEP (not 8 digits)
+ok 9 - BuyerAddress.create rejects invalid CEP (not 8 digits)
+  ---
+  duration_ms: 0.6411
+  type: 'test'
+  ...
+# Subtest: BuyerAddress.create rejects missing required fields
+ok 10 - BuyerAddress.create rejects missing required fields
+  ---
+  duration_ms: 0.3116
+  type: 'test'
+  ...
+# Subtest: BuyerAddress enforces MAX 5 addresses per buyer (repository boundary)
+ok 11 - BuyerAddress enforces MAX 5 addresses per buyer (repository boundary)
+  ---
+  duration_ms: 0.7278
+  type: 'test'
+  ...
+# Subtest: BuyerAddress.isDefault=true on a new address resets other defaults (single-default invariant)
+ok 12 - BuyerAddress.isDefault=true on a new address resets other defaults (single-default invariant)
+  ---
+  duration_ms: 0.2672
+  type: 'test'
+  ...
+# Subtest: BuyerAddress accepts CEP with or without formatting (8 digits only)
+ok 13 - BuyerAddress accepts CEP with or without formatting (8 digits only)
+  ---
+  duration_ms: 0.1906
+  type: 'test'
+  ...
+# (node:25412) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+# --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./apps/api/tests/ready-prod-loader.mjs", pathToFileURL("./"));'
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: BuyerConversationRepository.listByBuyer returns buyer conversations ordered by recency
+ok 14 - BuyerConversationRepository.listByBuyer returns buyer conversations ordered by recency
+  ---
+  duration_ms: 2.5927
+  type: 'test'
+  ...
+# Subtest: BuyerConversationRepository.findById enforces buyer isolation
+ok 15 - BuyerConversationRepository.findById enforces buyer isolation
+  ---
+  duration_ms: 0.3962
+  type: 'test'
+  ...
+# Subtest: Rating updates only the targeted message and leaves others unchanged
+ok 16 - Rating updates only the targeted message and leaves others unchanged
+  ---
+  duration_ms: 0.4056
+  type: 'test'
+  ...
+# Subtest: Rating with invalid rating value throws
+ok 17 - Rating with invalid rating value throws
+  ---
+  duration_ms: 0.7726
+  type: 'test'
+  ...
+# Subtest: Rating throws when messageId does not belong to conversation
+ok 18 - Rating throws when messageId does not belong to conversation
+  ---
+  duration_ms: 0.3908
+  type: 'test'
+  ...
+# Subtest: upsertConversation creates new conversation when none exists
+ok 19 - upsertConversation creates new conversation when none exists
+  ---
+  duration_ms: 0.348
+  type: 'test'
+  ...
+# Subtest: upsertConversation appends message to existing conversation
+ok 20 - upsertConversation appends message to existing conversation
+  ---
+  duration_ms: 0.3396
+  type: 'test'
+  ...
+# Subtest: listByBuyerSince filters by date cutoff
+ok 21 - listByBuyerSince filters by date cutoff
+  ---
+  duration_ms: 0.3172
+  type: 'test'
+  ...
+# (node:25044) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+# --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./apps/api/tests/ready-prod-loader.mjs", pathToFileURL("./"));'
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: buildBuyerDataExport includes profile, addresses, agent profile, conversations, purchases (LGPD)
+ok 22 - buildBuyerDataExport includes profile, addresses, agent profile, conversations, purchases (LGPD)
+  ---
+  duration_ms: 3.2288
+  type: 'test'
+  ...
+# Subtest: buildBuyerDataExport omits optional sections when absent
+ok 23 - buildBuyerDataExport omits optional sections when absent
+  ---
+  duration_ms: 0.3006
+  type: 'test'
+  ...
+# Subtest: buildBuyerDataExport normalizes profile PII (email lowercase, no whitespace)
+ok 24 - buildBuyerDataExport normalizes profile PII (email lowercase, no whitespace)
+  ---
+  duration_ms: 0.6764
+  type: 'test'
+  ...
+# (node:30576) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+# --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./apps/api/tests/ready-prod-loader.mjs", pathToFileURL("./"));'
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: WebAuthnVerifierService.verifyAssertion succeeds when signature, counter, and origin are valid
+ok 25 - WebAuthnVerifierService.verifyAssertion succeeds when signature, counter, and origin are valid
+  ---
+  duration_ms: 42.2598
+  type: 'test'
+  ...
+# Subtest: WebAuthnVerifierService.verifyAssertion fails when rpIdHash does not match the configured RP ID
+ok 26 - WebAuthnVerifierService.verifyAssertion fails when rpIdHash does not match the configured RP ID
+  ---
+  duration_ms: 2.1766
+  type: 'test'
+  ...
+# Subtest: WebAuthnVerifierService.verifyAssertion fails when origin in clientDataJSON does not match
+ok 27 - WebAuthnVerifierService.verifyAssertion fails when origin in clientDataJSON does not match
+  ---
+  duration_ms: 3.5845
+  type: 'test'
+  ...
+# Subtest: WebAuthnVerifierService.verifyAssertion fails when user-verified flag is not set (replay-via-UV)
+ok 28 - WebAuthnVerifierService.verifyAssertion fails when user-verified flag is not set (replay-via-UV)
+  ---
+  duration_ms: 22.6113
+  type: 'test'
+  ...
+# Subtest: WebAuthnVerifierService.verifyAssertion fails when stored counter is greater-or-equal (replay protection)
+ok 29 - WebAuthnVerifierService.verifyAssertion fails when stored counter is greater-or-equal (replay protection)
+  ---
+  duration_ms: 8.2723
+  type: 'test'
+  ...
+# Subtest: WebAuthnVerifierService.parseAttestation accepts 'none' attestation and recovers the credential public key
+ok 30 - WebAuthnVerifierService.parseAttestation accepts 'none' attestation and recovers the credential public key
+  ---
+  duration_ms: 1.8362
+  type: 'test'
+  ...
+# (node:25128) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+# --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./apps/api/tests/ready-prod-loader.mjs", pathToFileURL("./"));'
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: WebAuthnChallengeService.issue returns base64url challenge of 32 random bytes
+ok 31 - WebAuthnChallengeService.issue returns base64url challenge of 32 random bytes
+  ---
+  duration_ms: 2.5172
+  type: 'test'
+  ...
+# Subtest: WebAuthnChallengeService.consume removes the challenge so it cannot be reused
+ok 32 - WebAuthnChallengeService.consume removes the challenge so it cannot be reused
+  ---
+  duration_ms: 0.3362
+  type: 'test'
+  ...
+# Subtest: WebAuthnChallengeService.consume returns null for unknown challenge
+ok 33 - WebAuthnChallengeService.consume returns null for unknown challenge
+  ---
+  duration_ms: 0.2331
+  type: 'test'
+  ...
+# Subtest: WebAuthnChallengeService.consume returns null when challenge has expired (>5 min)
+ok 34 - WebAuthnChallengeService.consume returns null when challenge has expired (>5 min)
+  ---
+  duration_ms: 0.2582
+  type: 'test'
+  ...
+# Subtest: WebAuthnChallengeService.issues are scoped (different scopes cannot cross-consume)
+ok 35 - WebAuthnChallengeService.issues are scoped (different scopes cannot cross-consume)
+  ---
+  duration_ms: 0.2045
+  type: 'test'
+  ...
+# (node:35164) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+# --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./apps/api/tests/ready-prod-loader.mjs", pathToFileURL("./"));'
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: InMemoryWebAuthnCredentialStore.save persists and findByCredentialId returns the row
+ok 36 - InMemoryWebAuthnCredentialStore.save persists and findByCredentialId returns the row
+  ---
+  duration_ms: 3.6366
+  type: 'test'
+  ...
+# Subtest: InMemoryWebAuthnCredentialStore.findByCredentialId returns null when missing
+ok 37 - InMemoryWebAuthnCredentialStore.findByCredentialId returns null when missing
+  ---
+  duration_ms: 0.2508
+  type: 'test'
+  ...
+# Subtest: InMemoryWebAuthnCredentialStore.listByGlobalUserId returns only the user's credentials
+ok 38 - InMemoryWebAuthnCredentialStore.listByGlobalUserId returns only the user's credentials
+  ---
+  duration_ms: 0.6183
+  type: 'test'
+  ...
+# Subtest: InMemoryWebAuthnCredentialStore.deleteById removes only the targeted row
+ok 39 - InMemoryWebAuthnCredentialStore.deleteById removes only the targeted row
+  ---
+  duration_ms: 0.3219
+  type: 'test'
+  ...
+# Subtest: InMemoryWebAuthnCredentialStore.updateCounter persists the new counter (replay protection)
+ok 40 - InMemoryWebAuthnCredentialStore.updateCounter persists the new counter (replay protection)
+  ---
+  duration_ms: 0.335
+  type: 'test'
+  ...
+# Subtest: InMemoryWebAuthnCredentialStore enforces max-credentials-per-user cap (10)
+ok 41 - InMemoryWebAuthnCredentialStore enforces max-credentials-per-user cap (10)
+  ---
+  duration_ms: 0.936
+  type: 'test'
+  ...
+# (node:35124) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+# --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./apps/api/tests/ready-prod-loader.mjs", pathToFileURL("./"));'
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: WebAuthn login end-to-end flow: options -> verify -> JWT issued, counter incremented
+ok 42 - WebAuthn login end-to-end flow: options -> verify -> JWT issued, counter incremented
+  ---
+  duration_ms: 95.8471
+  type: 'test'
+  ...
+# Subtest: WebAuthn login with no registered credentials for the email rejects the options call
+ok 43 - WebAuthn login with no registered credentials for the email rejects the options call
+  ---
+  duration_ms: 1.1702
+  type: 'test'
+  ...
+# Subtest: WebAuthn login verify rejects an assertion that fails signature verification
+ok 44 - WebAuthn login verify rejects an assertion that fails signature verification
+  ---
+  duration_ms: 56.3026
+  type: 'test'
+  ...
+# (node:34572) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+# --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./apps/api/tests/ready-prod-loader.mjs", pathToFileURL("./"));'
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: WebAuthnRegisterOptionsUseCase returns a challenge, RP metadata, and user descriptor
+ok 45 - WebAuthnRegisterOptionsUseCase returns a challenge, RP metadata, and user descriptor
+  ---
+  duration_ms: 94.697
+  type: 'test'
+  ...
+# Subtest: WebAuthnRegisterOptionsUseCase rejects unknown buyer
+ok 46 - WebAuthnRegisterOptionsUseCase rejects unknown buyer
+  ---
+  duration_ms: 1.2337
+  type: 'test'
+  ...
+# Subtest: WebAuthn end-to-end registration flow: options -> verify -> credential stored + counter=0
+ok 47 - WebAuthn end-to-end registration flow: options -> verify -> credential stored + counter=0
+  ---
+  duration_ms: 61.5327
+  type: 'test'
+  ...
+# (node:35992) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+# --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./apps/api/tests/ready-prod-loader.mjs", pathToFileURL("./"));'
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: GetBuyerPurchasesUseCase includes completed order tracking codes
+ok 48 - GetBuyerPurchasesUseCase includes completed order tracking codes
+  ---
+  duration_ms: 3.8563
+  type: 'test'
+  ...
+# Subtest: GetBuyerPurchasesUseCase prefers durable shipment tracking timeline over completed order snapshot
+ok 49 - GetBuyerPurchasesUseCase prefers durable shipment tracking timeline over completed order snapshot
+  ---
+  duration_ms: 1.0183
+  type: 'test'
+  ...
+# Subtest: GetBuyerPurchasesUseCase returns null tracking while order is pending carrier code
+ok 50 - GetBuyerPurchasesUseCase returns null tracking while order is pending carrier code
+  ---
+  duration_ms: 0.4407
+  type: 'test'
+  ...
+# (node:12508) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+# --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./apps/api/tests/ready-prod-loader.mjs", pathToFileURL("./"));'
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: LoginBuyerFromSessionUseCase creates buyer account linked to checkout global user
+ok 51 - LoginBuyerFromSessionUseCase creates buyer account linked to checkout global user
+  ---
+  duration_ms: 83.9069
+  type: 'test'
+  ...
+# Subtest: LoginBuyerFromSessionUseCase rejects sessions without verified email
+ok 52 - LoginBuyerFromSessionUseCase rejects sessions without verified email
+  ---
+  duration_ms: 0.8867
+  type: 'test'
+  ...
+# Subtest: LoginBuyerFromSessionUseCase hydrates missing existing buyer profile from checkout session
+ok 53 - LoginBuyerFromSessionUseCase hydrates missing existing buyer profile from checkout session
+  ---
+  duration_ms: 60.1694
+  type: 'test'
+  ...
+# (node:26088) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+# --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./apps/api/tests/ready-prod-loader.mjs", pathToFileURL("./"));'
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# [Nest] 26088  - 05/09/2026, 21:12:43    WARN [BuyerOtpDelivery] Object:
+# {
+#   "event": "buyer_otp.delivery_failed",
+#   "channel": "sms",
+#   "status": 400
+# }
+# [Nest] 26088  - 05/09/2026, 21:12:43    WARN [BuyerOtpDelivery] Object:
+# {
+#   "event": "buyer_otp.delivery_failed",
+#   "channel": "sms",
+#   "status": 401
+# }
+# [Nest] 26088  - 05/09/2026, 21:12:43    WARN [BuyerOtpDelivery] Object:
+# {
+#   "event": "buyer_otp.delivery_failed",
+#   "channel": "sms",
+#   "status": 429
+# }
+# [Nest] 26088  - 05/09/2026, 21:12:43    WARN [BuyerOtpDelivery] Object:
+# {
+#   "event": "buyer_otp.delivery_failed",
+#   "channel": "sms",
+#   "status": 500
+# }
+# [Nest] 26088  - 05/09/2026, 21:12:43    WARN [BuyerOtpDelivery] Object:
+# {
+#   "event": "buyer_otp.delivery_failed",
+#   "channel": "sms",
+#   "status": 503
+# }
+# [Nest] 26088  - 05/09/2026, 21:12:43    WARN [BuyerOtpDelivery] Object:
+# {
+#   "event": "buyer_otp.delivery_failed",
+#   "channel": "sms"
+# }
+# [Nest] 26088  - 05/09/2026, 21:12:43    WARN [BuyerOtpDelivery] Object:
+# {
+#   "event": "buyer_otp.delivery_failed",
+#   "channel": "email",
+#   "status": 400
+# }
+# [Nest] 26088  - 05/09/2026, 21:12:43    WARN [BuyerOtpDelivery] Object:
+# {
+#   "event": "buyer_otp.delivery_failed",
+#   "channel": "email",
+#   "status": 401
+# }
+# [Nest] 26088  - 05/09/2026, 21:12:43    WARN [BuyerOtpDelivery] Object:
+# {
+#   "event": "buyer_otp.delivery_failed",
+#   "channel": "email",
+#   "status": 429
+# }
+# [Nest] 26088  - 05/09/2026, 21:12:43    WARN [BuyerOtpDelivery] Object:
+# {
+#   "event": "buyer_otp.delivery_failed",
+#   "channel": "email",
+#   "status": 500
+# }
+# [Nest] 26088  - 05/09/2026, 21:12:43    WARN [BuyerOtpDelivery] Object:
+# {
+#   "event": "buyer_otp.delivery_failed",
+#   "channel": "email",
+#   "status": 503
+# }
+# [Nest] 26088  - 05/09/2026, 21:12:43    WARN [BuyerOtpDelivery] Object:
+# {
+#   "event": "buyer_otp.delivery_failed",
+#   "channel": "email"
+# }
+# Subtest: missing channels never activate a challenge or report a simulated send
+ok 54 - missing channels never activate a challenge or report a simulated send
+  ---
+  duration_ms: 3.8473
+  type: 'test'
+  ...
+# Subtest: provider 4xx/5xx and network failures reject both channels without saving new challenges
+ok 55 - provider 4xx/5xx and network failures reject both channels without saving new challenges
+  ---
+  duration_ms: 53.0852
+  type: 'test'
+  ...
+# [Nest] 26088  - 05/09/2026, 21:12:43    WARN [BuyerOtpDelivery] Object:
+# {
+#   "event": "buyer_otp.delivery_failed",
+#   "channel": "sms"
+# }
+# [Nest] 26088  - 05/09/2026, 21:12:43    WARN [BuyerOtpDelivery] Object:
+# {
+#   "event": "buyer_otp.delivery_failed",
+#   "channel": "email"
+# }
+# [Nest] 26088  - 05/09/2026, 21:12:43    WARN [BuyerOtpDelivery] Object:
+# {
+#   "event": "buyer_otp.delivery_failed",
+#   "channel": "sms",
+#   "status": 500
+# }
+# [Nest] 26088  - 05/09/2026, 21:12:43    WARN [BuyerOtpDelivery] Object:
+# {
+#   "event": "buyer_otp.delivery_failed",
+#   "channel": "email",
+#   "status": 500
+# }
+# Subtest: HTTP delivery timeout aborts the request and leaves the challenge inactive
+ok 56 - HTTP delivery timeout aborts the request and leaves the challenge inactive
+  ---
+  duration_ms: 22.1313
+  type: 'test'
+  ...
+# Subtest: failed resend preserves the previously delivered code, expiry and attempt limit
+ok 57 - failed resend preserves the previously delivered code, expiry and attempt limit
+  ---
+  duration_ms: 2.5483
+  type: 'test'
+  ...
+# Subtest: successful provider acceptance activates a hashed OTP that verifies once, without logging secrets or PII
+ok 58 - successful provider acceptance activates a hashed OTP that verifies once, without logging secrets or PII
+  ---
+  duration_ms: 4.5395
+  type: 'test'
+  ...
+# Subtest: OTP stores do not log identifiers or malformed payloads
+ok 59 - OTP stores do not log identifiers or malformed payloads
+  ---
+  duration_ms: 0.9433
+  type: 'test'
+  ...
+# Subtest: email verification enforces max attempts even when the next supplied code is correct
+ok 60 - email verification enforces max attempts even when the next supplied code is correct
+  ---
+  duration_ms: 0.6339
+  type: 'test'
+  ...
+# (node:23696) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+# --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./apps/api/tests/ready-prod-loader.mjs", pathToFileURL("./"));'
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: OTP flow: send stores code, verify consumes it and returns JWT (B3 P1 regression)
+ok 61 - OTP flow: send stores code, verify consumes it and returns JWT (B3 P1 regression)
+  ---
+  duration_ms: 12.4446
+  type: 'test'
+  ...
+# Subtest: OTP lockout after maxAttempts wrong codes (B2 P0 regression)
+ok 62 - OTP lockout after maxAttempts wrong codes (B2 P0 regression)
+  ---
+  duration_ms: 1.3909
+  type: 'test'
+  ...
+# Subtest: OTP is stored as hash, not plaintext (B4 P2 regression)
+ok 63 - OTP is stored as hash, not plaintext (B4 P2 regression)
+  ---
+  duration_ms: 2.6128
+  type: 'test'
+  ...
+# Subtest: BuyerJwtService tokens carry aud:buyer and role:buyer (B1 P0 regression)
+ok 64 - BuyerJwtService tokens carry aud:buyer and role:buyer (B1 P0 regression)
+  ---
+  duration_ms: 0.4643
+  type: 'test'
+  ...
+1..64
+# tests 64
+# suites 0
+# pass 64
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4388.8943

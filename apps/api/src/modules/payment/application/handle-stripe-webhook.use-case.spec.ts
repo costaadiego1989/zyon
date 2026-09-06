@@ -301,7 +301,7 @@ test("dispatchEvent: charge.refunded marks intent refunded", async () => {
 
   const reloaded = await payments.getIntentById("mrc_stripe", intentId);
   assert.equal(reloaded?.snapshot().status, "refunded");
-  assert.ok(checkoutPort.statuses.some(s => s.status === "refunded"));
+  assert.ok(payments.capturedEvents.map(event => event.payload as { status: string; reason?: string }).some(s => s.status === "refunded"));
 });
 
 test("dispatchEvent: payment_intent.canceled marks cancelled", async () => {

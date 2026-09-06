@@ -100,11 +100,11 @@ export interface PaymentRepository {
    * e reuso cross-intent de um mesmo `txHash` (ADR 0001 #2).
    */
   recordCryptoTransfer(key: CryptoTransferKey): Promise<boolean>;
-  /** Compensa a reserva de `(chain, txHash)` se a aprovação não concluir. */
+  /** Releases a reservation only after its owner reaches failed/cancelled; unresolved verification retains it. */
   deleteCryptoTransfer(key: Pick<CryptoTransferKey, "chain" | "txHash">): Promise<void>;
   /**
-   * H1 fix: reaps expired crypto transfer reservations (orphaned by worker kills).
-   * Deletes reservations older than their expires_at without a corresponding approved intent.
+   * Reaps expired reservations only for terminal unpaid intents under a lock.
+   * Expiration alone cannot establish that another verifier stopped.
    */
   reapExpiredCryptoReservations(): Promise<number>;
   /**

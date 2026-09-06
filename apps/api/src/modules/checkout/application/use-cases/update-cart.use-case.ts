@@ -80,6 +80,7 @@ export class UpdateCartUseCase {
       ...session,
       cart: nextCart,
       shipping: cartChanged ? undefined : session.shipping,
+      shippingOptions: cartChanged ? undefined : session.shippingOptions,
       updatedAt: new Date().toISOString()
     };
 

@@ -1,0 +1,47 @@
+TAP version 13
+# (node:32700) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+# --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./docs/specs/adutoria/ready%20to%20prod/evidence/ts-loader.mjs", pathToFileURL("./"));'
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: Marketplace settlement tenant filters and conditional updates (PostgreSQL)
+    # Subtest: returns an owned settlement only for its host or seller
+    ok 1 - returns an owned settlement only for its host or seller
+      ---
+      duration_ms: 23.4757
+      type: 'test'
+      ...
+    # Subtest: permits only one conditional transition when workers race
+    ok 2 - permits only one conditional transition when workers race
+      ---
+      duration_ms: 30.7283
+      type: 'test'
+      ...
+    # Subtest: does not automatically finalize a legacy transfer without a provider reference
+    ok 3 - does not automatically finalize a legacy transfer without a provider reference
+      ---
+      duration_ms: 11.8528
+      type: 'test'
+      ...
+    1..3
+ok 1 - Marketplace settlement tenant filters and conditional updates (PostgreSQL)
+  ---
+  duration_ms: 162.6174
+  type: 'suite'
+  ...
+# (node:31992) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+# --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./docs/specs/adutoria/ready%20to%20prod/evidence/ts-loader.mjs", pathToFileURL("./"));'
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: stock reservation migration backfills only unambiguous warehouses and enforces its FK
+ok 2 - stock reservation migration backfills only unambiguous warehouses and enforces its FK
+  ---
+  duration_ms: 98.6679
+  type: 'test'
+  ...
+1..2
+# tests 4
+# suites 1
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 681.3247

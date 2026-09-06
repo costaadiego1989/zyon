@@ -31,7 +31,7 @@ export class HandleStatusUpdateUseCase {
     for (const msg of input.messages) {
       const statusLabel = STATUS_LABELS[msg.update.status] ?? `UNKNOWN(${msg.update.status})`;
       this.logger.debug(
-        `WA status: ${msg.key.id} → ${statusLabel} (device=${input.deviceId}, fromMe=${msg.key.fromMe})`,
+        `whatsapp_status_update merchant=${input.merchantId} status=${statusLabel}`,
       );
 
       // TODO: persist for analytics (message delivery rate, read rate, response time)

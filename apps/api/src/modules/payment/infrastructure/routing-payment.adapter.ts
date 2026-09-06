@@ -29,9 +29,45 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     private readonly fetchImpl: typeof fetch = globalThis.fetch,
   ) {}
 
+  async preparePayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentInput> {
+    const route = await this.creationRoute(input);
+    return { ...input, provider: route.name, providerAccountFingerprint: route.adapter.creationAccountFingerprint?.() };
+  }
+
+  async recoverPayment(input: CreateProviderPaymentInput, firstAttemptAt: string): Promise<CreateProviderPaymentOutput | null> {
+    const { adapter } = await this.creationRoute(input);
+    this.assertAccount(adapter, input.providerAccountFingerprint);
+    return adapter.recoverPayment ? adapter.recoverPayment(input, firstAttemptAt) : null;
+  }
+
+  private assertAccount(adapter: PaymentProviderPort, fingerprint?: string): void {
+    if (fingerprint && adapter.creationAccountFingerprint?.() !== fingerprint) throw new Error("payment_provider_account_changed");
+  }
+
+  private async creationRoute(input: Pick<CreateProviderPaymentInput, "merchantId" | "method" | "provider">): Promise<{ name: NonNullable<CreateProviderPaymentInput["provider"]>; adapter: PaymentProviderPort }> {
+    if (input.provider === "crypto" || (!input.provider && input.method === "crypto")) return { name: "crypto", adapter: this.evmCrypto };
+    if (input.provider === "stripe" || (!input.provider && input.method === "card")) {
+      if (!this.stripe) throw new Error("payment_provider_not_configured");
+      return { name: "stripe", adapter: this.stripe };
+    }
+    if (!input.provider || input.provider === "mercadopago") {
+      const mp = await this.resolveMercadoPago(input.merchantId);
+      if (mp) return { name: "mercadopago", adapter: mp };
+      if (input.provider) throw new Error("payment_provider_not_configured");
+    }
+    const asaas = await this.resolveAsaas(input.merchantId);
+    if (!asaas) throw new Error("payment_provider_not_configured");
+    return { name: "asaas", adapter: asaas };
+  }
+
   async createPayment(
     input: CreateProviderPaymentInput,
   ): Promise<CreateProviderPaymentOutput> {
+    if (input.provider) {
+      const { adapter } = await this.creationRoute(input);
+      this.assertAccount(adapter, input.providerAccountFingerprint);
+      return adapter.createPayment(input);
+    }
     if (input.method === "crypto") {
       return this.evmCrypto.createPayment(input);
     }
@@ -61,6 +97,12 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
   async fetchPaymentStatus(
     input: FetchPaymentStatusInput,
   ): Promise<FetchPaymentStatusOutput> {
+    if (input.provider) {
+      const { adapter } = await this.creationRoute({ merchantId: input.merchantId, provider: input.provider, method: "" });
+      this.assertAccount(adapter, input.providerAccountFingerprint);
+      if (!adapter.fetchPaymentStatus) return { state: "unknown" };
+      return adapter.fetchPaymentStatus(input);
+    }
     const isStripeId = input.providerPaymentId.startsWith("pi_");
     if (isStripeId && this.stripe) {
       return this.stripe.fetchPaymentStatus(input);

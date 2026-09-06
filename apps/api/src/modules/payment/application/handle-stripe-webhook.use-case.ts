@@ -1,3 +1,4 @@
+import { savePaymentTransition } from "./services/save-payment-transition.js";
 import { BadRequestException, Inject, Injectable, Optional , Logger} from "@nestjs/common";
 import Stripe from "stripe";
 import {
@@ -354,7 +355,7 @@ export class HandleStripeWebhookUseCase {
     }
 
     intentEntity.markCancelled("payment_intent.canceled");
-    await this.payments.saveIntent({ intent: intentEntity });
+    await savePaymentTransition(this.payments, intentEntity, "payment_intent.canceled");
     return "payment_canceled";
   }
 }

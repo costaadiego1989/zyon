@@ -86,7 +86,7 @@ export class TestSeedController {
       email,
       passwordHash
     });
-    const accessToken = this.jwt.sign({
+    const accessToken = await this.jwt.issue({
       userId: user.id,
       merchantId: user.merchantId,
       email: user.email,

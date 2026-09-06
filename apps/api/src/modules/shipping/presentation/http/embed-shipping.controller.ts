@@ -15,6 +15,8 @@ import type {
 } from "@zyon/shared-types";
 import { EmbedAuthGuard } from "../../../embed/presentation/http/embed-auth.guard.js";
 import type { EmbedTokenClaims } from "../../../embed/domain/embed-token.service.js";
+import { embedCheckoutSessionId } from "../../../embed/domain/embed-checkout-session.js";
+import { RequireEmbedScope } from "../../../embed/presentation/http/embed-scope.decorator.js";
 import { QuoteShippingUseCase } from "../../application/use-cases/quote-shipping.use-case.js";
 import { SelectShippingMethodUseCase } from "../../application/use-cases/select-shipping-method.use-case.js";
 import {
@@ -39,36 +41,45 @@ export class EmbedShippingController {
   ) {}
 
   @Post("quote")
+  @RequireEmbedScope("checkout:track")
   async quote(@Req() request: EmbedHttpRequest, @Body() body: ShippingQuoteRequest) {
     const merchantId = this.requireMerchantId(request);
     const sessionId = requireString(body.session_id, "session_id_required");
     const destinationZip = requireString(body.destination_zip, "destination_zip_required");
 
-    const session = await this.loadOwnedSession(merchantId, sessionId);
+    const session = await this.loadOwnedSession(request.embedClaims!, sessionId);
     const rules = await this.merchantRulesRepo?.getRules(merchantId);
 
     return this.quoteShipping.execute({
       session_id: sessionId,
       merchant_id: merchantId,
       destination_zip: destinationZip,
-      cart_total: typeof body.cart_total === "number" ? body.cart_total : session?.cart.total ?? 0,
+      cart_total: session.cart.total,
       // P0 fix: free_shipping_threshold is intentionally NOT forwarded from the
       // request body. The use-case derives it from merchant rules via its own
       // MERCHANT_RULES_REPOSITORY injection, preventing client-side bypass of
       // the shipping-engine subsidy invariant.
       origin_zip: rules?.originZip ?? "",
-      packages: body.packages,
-      items: session?.cart.items.map((item) => ({ sku: item.sku, quantity: item.quantity }))
+      packages: session.cart.items.map((item) => {
+        const weightKg = item.weightGrams != null ? item.weightGrams / 1000 : item.weight_kg;
+        const dimensions = [weightKg, item.height_cm, item.width_cm, item.length_cm];
+        if (dimensions.some((value) => typeof value !== "number" || !Number.isFinite(value) || value <= 0)) {
+          throw new BadRequestException("checkout_product_shipping_dimensions_required");
+        }
+        return { weightKg: weightKg!, heightCm: item.height_cm!, widthCm: item.width_cm!, lengthCm: item.length_cm!, quantity: item.quantity };
+      }),
+      items: session.cart.items.map((item) => ({ sku: item.sku, quantity: item.quantity }))
     });
   }
 
   @Post("select")
+  @RequireEmbedScope("checkout:track")
   async select(@Req() request: EmbedHttpRequest, @Body() body: ShippingSelectRequest) {
     const merchantId = this.requireMerchantId(request);
     const sessionId = requireString(body.session_id, "session_id_required");
     const carrierKey = requireString(body.carrier_key, "carrier_key_required");
 
-    await this.loadOwnedSession(merchantId, sessionId);
+    await this.loadOwnedSession(request.embedClaims!, sessionId);
 
     return this.selectMethod.execute({
       session_id: sessionId,
@@ -83,8 +94,12 @@ export class EmbedShippingController {
     return merchantId;
   }
 
-  private async loadOwnedSession(merchantId: string, sessionId: string) {
-    if (!this.sessions) return undefined;
+  private async loadOwnedSession(embed: EmbedTokenClaims, sessionId: string) {
+    if (sessionId !== embedCheckoutSessionId(embed)) {
+      throw new UnauthorizedException("embed_checkout_session_binding_mismatch");
+    }
+    if (!this.sessions) throw new UnauthorizedException("embed_checkout_session_repository_required");
+    const merchantId = embed.merchantId;
     const session = await this.sessions.getSession(merchantId, sessionId);
     if (!session) throw new UnauthorizedException("embed_unknown_checkout_session");
     if (session.merchantId !== merchantId) {

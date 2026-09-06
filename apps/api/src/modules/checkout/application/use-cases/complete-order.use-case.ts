@@ -23,6 +23,9 @@ import {
 import { MetricsService } from "../../../../shared/observability/metrics.service.js";
 import { RecordExperimentResultUseCase } from "../../../experiments/application/use-cases/record-experiment-result.use-case.js";
 import { RecordFunnelEventUseCase } from "../../../experiments/application/use-cases/record-funnel-event.use-case.js";
+import { PAYMENT_APPROVAL_READER, type PaymentApprovalReader, type PersistedPaymentApproval } from "../../domain/ports/payment-approval.port.js";
+import { assertPaymentAmount } from "../../../payment/domain/payment-amount.js";
+import { paymentCartFingerprint } from "../../domain/services/payment-cart-fingerprint.js";
 
 interface OrderCommitRepository {
   saveCompletedOrder(order: CompletedOrder): Promise<{ order: CompletedOrder; idempotent: boolean }> | { order: CompletedOrder; idempotent: boolean };
@@ -52,14 +55,55 @@ export class CompleteOrderUseCase {
     @Optional() private readonly recordIntentIfConsented?: RecordIntentIfConsentedUseCase,
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
     @Optional() private readonly holdoutGroup?: HoldoutGroupService,
-    @Optional() private readonly revenueLiftRepo?: RevenueLiftRepository
+    @Optional() private readonly revenueLiftRepo?: RevenueLiftRepository,
+    @Optional() @Inject(PAYMENT_APPROVAL_READER) private readonly paymentApprovals?: PaymentApprovalReader
   ) { }
 
   private readonly logger = new Logger(CompleteOrderUseCase.name);
 
   async execute(input: CompleteOrderRequest): Promise<CompleteOrderResponse> {
+    return this.complete(input);
+  }
+
+  /** Internal payment event entrypoint; HTTP bodies cannot supply trusted approval data. */
+  async executePaymentApproval(input: CompleteOrderRequest, paymentIntentId?: string): Promise<CompleteOrderResponse> {
+    if (!paymentIntentId || !this.paymentApprovals) throw new BadRequestException("payment_approval_required");
+    const approval = await this.paymentApprovals.find(input.merchant_id, input.session_id, paymentIntentId);
+    if (!approval || approval.merchantId !== input.merchant_id || approval.sessionId !== input.session_id ||
+      approval.status !== "approved" || approval.providerPaymentId !== input.external_order_id ||
+      approval.currency !== input.currency || approval.approvedAmountCents !== approval.amountCents ||
+      !Number.isSafeInteger(approval.amountCents) || approval.amountCents <= 0 ||
+      toCents(input.order_total) !== approval.amountCents ||
+      (approval.acceptedOfferId ?? undefined) !== input.accepted_offer_id) {
+      throw new BadRequestException("payment_approval_mismatch");
+    }
+    if (approval.amountBreakdown) assertPaymentAmount(approval.amountBreakdown, approval.amountCents, approval.currency);
+    return this.complete(input, approval);
+  }
+
+  private async complete(input: CompleteOrderRequest, approval?: PersistedPaymentApproval): Promise<CompleteOrderResponse> {
     const session = await this.sessions.getSession(input.merchant_id, input.session_id);
     if (!session) throw new NotFoundException("checkout_session_not_found");
+    const existingOrder = approval
+      ? await this.orders.getCompletedOrder(input.merchant_id, input.session_id, input.external_order_id)
+      : undefined;
+
+    // A retry of an already committed payment must not depend on a later cart edit.
+    // The order repository still rejects conflicting persisted money/currency/offer.
+    if (approval && !existingOrder) {
+      if (session.cart.currency !== approval.currency) throw new BadRequestException("payment_currency_mismatch");
+      const breakdown = approval.amountBreakdown;
+      if (breakdown?.cartFingerprint && breakdown.cartFingerprint !== paymentCartFingerprint(session)) {
+        throw new BadRequestException("payment_cart_changed");
+      }
+      const items = session.cart.items.reduce((sum, item) => sum + toCents(item.price) * item.quantity, 0);
+      const discount = toCents(session.cart.currentDiscount ?? 0);
+      const shipping = toCents(session.shipping?.customerPrice ?? 0);
+      if (breakdown ? items !== breakdown.itemsSubtotalCents || discount !== breakdown.discountCents || shipping !== breakdown.shippingCents
+        : items - discount + shipping !== approval.amountCents) {
+        throw new BadRequestException("payment_cart_changed");
+      }
+    }
 
     let merchantName: string | undefined;
     try {
@@ -67,16 +111,18 @@ export class CompleteOrderUseCase {
     } catch { /* non-critical — templates fall back to "nossa loja" */ }
 
     if (this.offerRepository) {
-      const expectedTotal = computeExpectedTotal(session);
+      const expectedTotal = approval ? approval.amountCents / 100 : computeExpectedTotal(session);
       const TOLERANCE = 0.02;
       const expectedWithBuyerFee = expectedTotal + BUYER_SERVICE_FEE_MAJOR_UNITS;
       const matchesTotal = Math.abs(input.order_total - expectedTotal) <= TOLERANCE;
-      const matchesTotalWithFee = Math.abs(input.order_total - expectedWithBuyerFee) <= TOLERANCE;
+      // The direct legacy entrypoint still accepts the fixed buyer service fee;
+      // an approved payment instead must match its persisted amount exactly.
+      const matchesTotalWithFee = !approval && Math.abs(input.order_total - expectedWithBuyerFee) <= TOLERANCE;
       if (!matchesTotal && !matchesTotalWithFee) {
         throw new BadRequestException("order_total_mismatch");
       }
 
-      if (input.accepted_offer_id) {
+      if ((!approval || !existingOrder) && input.accepted_offer_id) {
         const acceptedOffer = await this.offerRepository.getAcceptedOffer(
           input.merchant_id,
           input.session_id,
@@ -124,7 +170,17 @@ export class CompleteOrderUseCase {
             currency: input.currency,
             accepted_offer_id: input.accepted_offer_id,
             tracking_code: order.trackingCode ?? null,
-            confirmation_touchpoints
+            confirmation_touchpoints,
+            ...(approval ? { payment_intent_id: approval.id, payment_amount_breakdown: approval.amountBreakdown } : {}),
+            inventory_sale: {
+              version: 1,
+              items: session.cart.items.map((item) => ({ sku: item.sku, quantity: item.quantity })),
+              buyerEmail: session.customer?.email ?? "",
+              buyerName: session.customer?.fullName ?? "",
+              buyerPhone: session.customer?.phone ?? "",
+              totalCents: toCents(input.order_total),
+              timestamp: order.completedAt
+            }
           },
           causationId: input.external_order_id
         })
@@ -400,4 +456,11 @@ function computeExpectedTotal(session: CheckoutSession): number {
   const shipping = session.shipping?.customerPrice ?? 0;
   const total = gross + shipping - discount;
   return Math.round(Math.max(0, total) * 100) / 100;
+}
+
+function toCents(amount: number): number {
+  if (!Number.isFinite(amount) || amount < 0 || !Number.isSafeInteger(Math.round(amount * 100))) {
+    throw new BadRequestException("order_amount_invalid");
+  }
+  return Math.round(amount * 100);
 }

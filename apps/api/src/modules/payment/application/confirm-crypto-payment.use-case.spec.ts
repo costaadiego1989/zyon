@@ -317,7 +317,7 @@ test("ConfirmCrypto: requires and verifies merchant plus platform fee transfers"
   assert.equal(checkoutPort.approved[0]?.externalOrderId, "0xMerchantTx,0xFeeTx");
 });
 
-test("ConfirmCrypto: verification failure releases crypto transfer reservation", async () => {
+test("ConfirmCrypto: verification failure preserves an unresolved crypto transfer reservation", async () => {
   verifierBehavior = "throw";
   verifierError = "crypto_transfer_not_matched";
 
@@ -331,12 +331,12 @@ test("ConfirmCrypto: verification failure releases crypto transfer reservation",
     /crypto_transfer_not_matched/
   );
 
-  // Reservation should be released so a correct tx can be tried
+  // A failed RPC does not prove that another verifier or commit stopped.
   const canReserve = await payments.recordCryptoTransfer({
     chain: "polygon",
     txHash: "0xBadTx",
     merchantId: "mrc_1",
     intentId: intent.id
   });
-  assert.equal(canReserve, true);
+  assert.equal(canReserve, false);
 });

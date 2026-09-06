@@ -175,7 +175,7 @@ import {
       provide: AsaasPaymentAdapter,
       useFactory: (http: HttpClientService) => {
         const { apiKey, baseUrl } = readAsaasConnection();
-        return new AsaasPaymentAdapter(baseUrl, apiKey ?? "__missing_api_key__", http.toFetch());
+        return new AsaasPaymentAdapter(baseUrl, apiKey ?? "__missing_api_key__", globalThis.fetch);
       },
       inject: [HttpClientService]
     },
@@ -194,7 +194,7 @@ import {
           baseUrl,
           accessToken ?? "__missing_access_token__",
           publicKey ?? undefined,
-          http.toFetch()
+          globalThis.fetch
         );
       },
       inject: [HttpClientService]
@@ -219,7 +219,7 @@ import {
           platformConnections,
           asaasBaseUrl,
           mercadopagoBaseUrl,
-          fetchImpl: http.toFetch(),
+          fetchImpl: globalThis.fetch,
         });
       },
       inject: [

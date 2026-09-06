@@ -26,10 +26,11 @@ import { toNumber, toNumberOrNull, type DecimalLike } from "../../../../shared/p
 const DEFAULT_RULES: MerchantRules = DEFAULT_MERCHANT_RULES;
 
 export class PrismaCheckoutRepository implements CheckoutRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaClient, private readonly inTransaction = false) {}
 
   async transaction<T>(work: (repository: CheckoutRepository) => Promise<T>): Promise<T> {
-    return this.prisma.$transaction((tx) => work(new PrismaCheckoutRepository(tx as unknown as PrismaClient)));
+    if (this.inTransaction) return work(this);
+    return this.prisma.$transaction((tx) => work(new PrismaCheckoutRepository(tx as unknown as PrismaClient, true)));
   }
 
   async getRules(merchantId: string): Promise<MerchantRules> {
@@ -124,7 +125,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
 
   async recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName, metadata?: Record<string, unknown>): Promise<void> {
     if (!event) return; // Guard: missing event name should not 500
-    await this.prisma.$transaction(async (tx) => {
+    const write = async (tx: Prisma.TransactionClient) => {
       const session = await tx.checkoutSession.findUnique({
         where: { merchantId_sessionId: { merchantId, sessionId } }
       });
@@ -141,7 +142,9 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
           updatedAt: new Date()
         }
       });
-    });
+    };
+    if (this.inTransaction) await write(this.prisma);
+    else await this.prisma.$transaction(write);
   }
 
   async getSessionEvents(merchantId: string, sessionId: string): Promise<CheckoutEventName[]> {
@@ -221,19 +224,17 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   }
 
   async saveCompletedOrder(order: CompletedOrder): Promise<{ order: CompletedOrder; idempotent: boolean }> {
-    const existing = await this.getCompletedOrder(order.merchantId, order.sessionId, order.externalOrderId);
-    if (existing) return { order: existing, idempotent: true };
-    try {
-      const row = await this.prisma.completedOrder.create({ data: toCompletedOrderCreate(order) as any });
-      return { order: toCompletedOrder(row), idempotent: false };
-    } catch (error) {
-      // Concurrent completion lost the create race; treat the winner's row as idempotent.
-      if (isPrismaUniqueViolation(error)) {
-        const winner = await this.getCompletedOrder(order.merchantId, order.sessionId, order.externalOrderId);
-        if (winner) return { order: winner, idempotent: true };
-      }
-      throw error;
+    // ON CONFLICT keeps the surrounding order/outbox transaction usable when a
+    // concurrent delivery wins. Catching a unique violation would leave PostgreSQL aborted.
+    const inserted = await this.prisma.completedOrder.createMany({
+      data: [toCompletedOrderCreate(order)], skipDuplicates: true,
+    });
+    const saved = await this.getCompletedOrder(order.merchantId, order.sessionId, order.externalOrderId);
+    if (!saved) throw new Error("completed_order_persistence_failed");
+    if (saved.orderTotal !== order.orderTotal || saved.currency !== order.currency || saved.acceptedOfferId !== order.acceptedOfferId) {
+      throw new Error("completed_order_idempotency_conflict");
     }
+    return { order: saved, idempotent: inserted.count === 0 };
   }
 
   async getCompletedOrder(merchantId: string, sessionId: string, externalOrderId: string): Promise<CompletedOrder | undefined> {
@@ -399,63 +400,24 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     }));
   }
 
-  async claimBatch(batchSize = 50): Promise<{ envelope: DomainEventEnvelope; attempts: number }[]> {
-    const rows = await this.prisma.outboxMessage.findMany({
-      where: { status: "pending" },
-      orderBy: { createdAt: "asc" },
-      take: batchSize
-    });
-    return rows.map((row) => ({
-      envelope: {
-        event_id: row.eventId,
-        event_type: row.eventType as DomainEventEnvelope["event_type"],
-        schema_version: 1,
-        merchant_id: row.merchantId,
-        occurred_at: row.occurredAt.toISOString(),
-        correlation_id: row.correlationId,
-        causation_id: row.causationId,
-        producer: "checkout",
-        payload: row.payload as Record<string, unknown>
-      },
-      attempts: row.attempts
-    }));
+  async claimBatch(_batchSize = 50): Promise<{ envelope: DomainEventEnvelope; attempts: number }[]> {
+    throw new Error("outbox_dispatcher_repository_required");
   }
 
-  async markDelivered(eventId: string): Promise<void> {
-    await this.prisma.outboxMessage.update({
-      where: { eventId },
-      data: { status: "delivered", deliveredAt: new Date(), publishedAt: new Date() }
-    });
+  async markDelivered(_eventId: string): Promise<void> {
+    throw new Error("outbox_claim_required");
   }
 
-  async markFailed(eventId: string, error?: string): Promise<void> {
-    await this.prisma.outboxMessage.update({
-      where: { eventId },
-      data: { status: "failed", lastError: error ?? null }
-    });
+  async markFailed(_eventId: string, _error?: string): Promise<void> {
+    throw new Error("outbox_claim_required");
   }
 
   async recordFailure(
-    eventId: string,
-    error: string,
-    backoff: { maxAttempts: number; nextAttemptAt: Date }
+    _eventId: string,
+    _error: string,
+    _backoff: { maxAttempts: number; nextAttemptAt: Date }
   ): Promise<{ attempts: number; dead: boolean }> {
-    const current = await this.prisma.outboxMessage.findUnique({
-      where: { eventId },
-      select: { attempts: true }
-    });
-    const attempts = (current?.attempts ?? 0) + 1;
-    const dead = attempts >= backoff.maxAttempts;
-    await this.prisma.outboxMessage.update({
-      where: { eventId },
-      data: {
-        attempts,
-        lastError: error,
-        status: dead ? "dead" : "pending",
-        nextAttemptAt: dead ? null : backoff.nextAttemptAt
-      }
-    });
-    return { attempts, dead };
+    throw new Error("outbox_claim_required");
   }
 
   async isProcessed(eventId: string): Promise<boolean> {
@@ -474,12 +436,8 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     return row !== null;
   }
 
-  async markHandlerProcessed(eventId: string, handlerId: string): Promise<void> {
-    await this.prisma.outboxHandlerExecution.upsert({
-      where: { eventId_handlerId: { eventId, handlerId } },
-      create: { eventId, handlerId },
-      update: {}
-    });
+  async markHandlerProcessed(_eventId: string, _handlerId: string): Promise<void> {
+    throw new Error("outbox_claim_required");
   }
 
   async overview(merchantId: string): Promise<DashboardOverview> {
@@ -818,14 +776,5 @@ function isPrismaRecordNotFound(error: unknown): boolean {
     error !== null &&
     "code" in error &&
     (error as { code?: string }).code === "P2025"
-  );
-}
-
-function isPrismaUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code?: string }).code === "P2002"
   );
 }

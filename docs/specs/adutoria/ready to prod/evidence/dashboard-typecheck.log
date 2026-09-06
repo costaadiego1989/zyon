@@ -1,0 +1,8 @@
+src/pages/onboarding-wizard/hooks/useStepApiKey.ts(24,37): error TS2345: Argument of type '"embed"' is not assignable to parameter of type 'OnboardingStepId'.
+src/pages/onboarding-wizard/hooks/useStepPayment.ts(56,39): error TS2345: Argument of type '"embed"' is not assignable to parameter of type 'OnboardingStepId'.
+src/pages/onboarding-wizard/hooks/useStepPayment.ts(57,39): error TS2345: Argument of type '"publish"' is not assignable to parameter of type 'OnboardingStepId'.
+src/pages/onboarding-wizard/hooks/useStepReview.ts(18,37): error TS2345: Argument of type '"embed"' is not assignable to parameter of type 'OnboardingStepId'.
+src/pages/onboarding-wizard/hooks/useStepReview.ts(19,37): error TS2345: Argument of type '"publish"' is not assignable to parameter of type 'OnboardingStepId'.
+undefined
+C:\Users\Admin\Desktop\AACP\apps\dashboard:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 2: tsc -p tsconfig.json --noEmit

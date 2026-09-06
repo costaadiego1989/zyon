@@ -1,0 +1,31 @@
+TAP version 13
+# (node:21448) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+# --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./apps/api/tests/ready-prod-runtime-loader.mjs", pathToFileURL("./"));'
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: real Nest HTTP rejects anonymous abuse across replicas despite forged forwarded IP and changing URL
+ok 1 - real Nest HTTP rejects anonymous abuse across replicas despite forged forwarded IP and changing URL
+  ---
+  duration_ms: 5629.2581
+  type: 'test'
+  ...
+# Subtest: real Nest HTTP resolves session tenant before route guards and rejects revoked tokens on another replica
+ok 2 - real Nest HTTP resolves session tenant before route guards and rejects revoked tokens on another replica
+  ---
+  duration_ms: 814.4087
+  type: 'test'
+  ...
+# Subtest: real Nest HTTP returns 503 when quota storage fails while health remains available
+ok 3 - real Nest HTTP returns 503 when quota storage fails while health remains available
+  ---
+  duration_ms: 15.9752
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9824.0043

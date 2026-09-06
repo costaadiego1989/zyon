@@ -1,3 +1,4 @@
+import { savePaymentTransition } from "./services/save-payment-transition.js";
 import { BadRequestException, Inject, Injectable, NotFoundException, Optional , Logger} from "@nestjs/common";
 import Stripe from "stripe";
 import type { CurrencyCode } from "@zyon/shared-types";
@@ -69,27 +70,9 @@ export class ConfirmStripePaymentUseCase {
     const intent = PaymentIntentEntity.rehydrate(snap);
     intent.markApproved({
       providerPaymentId: pi.id,
-      approvedAmountCents: pi.amount_received || snap.amountCents
+      approvedAmountCents: pi.amount_received
     });
-    await this.payments.saveIntent({ intent });
-
-    if (this.outbox) {
-      await this.outbox.appendOutbox(
-        createCheckoutEventEnvelope({
-          eventType: "payment.status.changed",
-          merchantId,
-          payload: {
-            session_id: sessionId,
-            payment_intent_id: intentId,
-            status: "approved",
-            amount_cents: pi.amount_received || snap.amountCents,
-            method: "card",
-            commerce_order_id: snap.commerceOrderId
-          },
-          causationId: intentId
-        })
-      );
-    }
+    await savePaymentTransition(this.payments, intent);
 
     if (this.checkoutPayment) {
       await this.checkoutPayment.recordPaymentStatusChanged({
@@ -103,10 +86,11 @@ export class ConfirmStripePaymentUseCase {
       // amountCents inclui a taxa de serviço do buyer; subtrai p/ obter o total do pedido.
       const orderAmountCents = Math.max(0, snap.amountCents - readBuyerServiceFeeCents());
       await this.checkoutPayment.completeAfterApproval({
+        paymentIntentId: snap.id, amountBreakdown: snap.amountBreakdown,
         merchantId,
         sessionId,
         externalOrderId: pi.id,
-        orderTotalMajorUnits: Number((orderAmountCents / 100).toFixed(2)),
+        orderTotalMajorUnits: Number((snap.amountCents / 100).toFixed(2)),
         currency: snap.currency as CurrencyCode,
         acceptedOfferId: snap.acceptedOfferId
       });

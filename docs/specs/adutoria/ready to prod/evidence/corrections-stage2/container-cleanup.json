@@ -1,0 +1,16 @@
+[
+  {
+    "id": "b855a0213f8252511b5c7c49ab4710f63dcaa53516b64c9ee0f1951108aa648d",
+    "name": "/aacp-ready-prod-stage2-pg-20260905",
+    "label": "codex.task=ready-to-prod-stage2",
+    "stopped": true,
+    "autoRemove": true
+  },
+  {
+    "id": "80ccc3d696c5c1f959d75d87174a09b639c731fc5708efccd8bd9e226a3e524f",
+    "name": "/aacp-ready-prod-stage2-redis-20260905",
+    "label": "codex.task=ready-to-prod-stage2",
+    "stopped": true,
+    "autoRemove": true
+  }
+]

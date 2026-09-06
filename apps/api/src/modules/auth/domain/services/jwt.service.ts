@@ -1,4 +1,5 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual, randomUUID } from "node:crypto";
+import type { AuthRepository } from "../ports/auth-repository.port.js";
 import type { AuthenticatedPrincipal, TenantRole } from "../auth.types.js";
 import { requireSecret } from "../../../../shared/config/secret-config.js";
 
@@ -14,7 +15,6 @@ export interface JwtPayload {
 
 /** Valid roles for merchant JWTs. Closes L12: runtime assertion. */
 const VALID_ROLES: readonly TenantRole[] = ["owner", "admin", "staff"];
-
 function normalizeRoleForValidation(role: string): TenantRole | null {
   if (role === "owner" || role === "OWNER") return "owner";
   if (role === "admin" || role === "ADMIN") return "admin";
@@ -52,50 +52,57 @@ interface ParsedJwt {
 const DEV_SECRET_FALLBACK = "dev-secret-change-me";
 
 export class JwtService {
-  private readonly blacklistedTokens = new Map<string, number>(); // jti -> expiry timestamp (seconds)
-
   constructor(
     private readonly secret = requireSecret("JWT_SECRET", DEV_SECRET_FALLBACK),
-    private readonly ttlSeconds = Number(process.env.JWT_EXPIRES_IN_SECONDS ?? 3600)
+    private readonly ttlSeconds = Number(process.env.JWT_EXPIRES_IN_SECONDS ?? 3600),
+    private readonly sessions?: AuthRepository,
   ) {
-    // C3: Fail-safe — refuse to start with the dev fallback in production.
-    if (
-      process.env.NODE_ENV === "production" &&
-      this.secret === DEV_SECRET_FALLBACK
-    ) {
-      throw new Error("jwt_secret_is_dev_default_in_production");
-    }
-    // Clean up expired blacklist entries every 5 minutes
-    this.startBlacklistCleanup();
+    if (process.env.NODE_ENV === "production" && secret === DEV_SECRET_FALLBACK) throw new Error("jwt_secret_is_dev_default_in_production");
+    if (!Number.isSafeInteger(ttlSeconds) || ttlSeconds <= 0) throw new Error("jwt_invalid_ttl");
   }
 
-  private startBlacklistCleanup(): void {
-    setInterval(() => {
-      const now = Math.floor(Date.now() / 1000);
-      for (const [jti, expiry] of this.blacklistedTokens.entries()) {
-        if (expiry <= now) {
-          this.blacklistedTokens.delete(jti);
-        }
-      }
-    }, 5 * 60 * 1000);
+  private store(): AuthRepository {
+    if (!this.sessions) throw new Error("jwt_session_store_required");
+    return this.sessions;
   }
 
-  /**
-   * Revoke a token immediately by adding its jti to the blacklist.
-   * Stays in blacklist until the token's natural expiry.
-   */
-  revokeToken(jti: string, expirySeconds: number): void {
-    this.blacklistedTokens.set(jti, expirySeconds);
+  async issue(principal: AuthenticatedPrincipal, authVersion = 0): Promise<string> {
+    const token = this.sign(principal);
+    const { decoded } = this.parseAndValidate(token);
+    const created = await this.store().createSession({ id: decoded.jti, familyId: randomUUID(),
+      ...principal, authVersion, refreshExpiresAt: new Date((decoded.exp + 7 * 24 * 3600) * 1000) });
+    if (!created) throw new Error("jwt_membership_changed");
+    return token;
   }
 
-  /**
-   * Check if a token ID is on the revocation blacklist.
-   */
-  private isTokenRevoked(jti: string): boolean {
-    const expiry = this.blacklistedTokens.get(jti);
-    if (!expiry) return false;
-    const now = Math.floor(Date.now() / 1000);
-    return expiry > now;
+  async authenticate(token: string): Promise<AuthenticatedPrincipal> {
+    const principal = this.verify(token);
+    const { decoded } = this.parseAndValidate(token);
+    const session = await this.store().findActiveSession(decoded.jti, new Date());
+    if (!session || session.userId !== principal.userId || session.merchantId !== principal.merchantId ||
+      session.email !== principal.email || session.role !== principal.role) throw new Error("jwt_session_invalid");
+    return principal;
+  }
+
+  async rotate(token: string): Promise<{ token: string; principal: AuthenticatedPrincipal }> {
+    const principal = this.verifyForRefresh(token);
+    const { decoded } = this.parseAndValidate(token);
+    const now = new Date();
+    const current = await this.store().findActiveSession(decoded.jti, now);
+    if (!current || current.userId !== principal.userId || current.merchantId !== principal.merchantId ||
+      current.role !== principal.role || current.email !== principal.email) throw new Error("jwt_session_invalid");
+    const nextToken = this.sign(principal);
+    const next = this.parseAndValidate(nextToken).decoded;
+    const rotated = await this.store().rotateSession(decoded.jti, { ...current, id: next.jti }, now);
+    if (!rotated) throw new Error("jwt_refresh_replayed");
+    return { token: nextToken, principal };
+  }
+
+  async revoke(token: string): Promise<void> {
+    // Verify signature, but allow expired or consumed tokens to revoke
+    // their family when logout races a successful refresh.
+    const { decoded } = this.parseAndValidate(token);
+    await this.store().revokeSessionFamily(decoded.jti, decoded.sub, new Date());
   }
 
   sign(principal: AuthenticatedPrincipal, nowSeconds = Math.floor(Date.now() / 1000)): string {
@@ -104,7 +111,7 @@ export class JwtService {
       merchant_id: principal.merchantId,
       email: principal.email,
       role: principal.role,
-      jti: crypto.randomUUID(), // Unique token ID for revocation
+      jti: randomUUID(), // Unique token ID for revocation
       iat: nowSeconds,
       exp: nowSeconds + this.ttlSeconds
     };
@@ -141,11 +148,17 @@ export class JwtService {
     const [header, payload, signature] = parts;
     const expected = hmacSign(`${header}.${payload}`, this.secret);
     if (!safeEqual(signature, expected)) throw new Error("jwt_invalid_signature");
-    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as JwtPayload & { aud?: string };
+    const decodedHeader = parseJsonPart(header);
+    if (decodedHeader.alg !== "HS256" || decodedHeader.typ !== "JWT") throw new Error("jwt_invalid_header");
+    const decoded = parseJsonPart(payload) as JwtPayload & { aud?: string };
     // B1 (P0): Reject buyer tokens that share the same signing secret.
     if (decoded.aud === "buyer" || decoded.role === "buyer") {
       throw new Error("jwt_wrong_audience");
     }
+    if (!decoded || typeof decoded.sub !== "string" || !decoded.sub.trim() ||
+      typeof decoded.jti !== "string" || !decoded.jti.trim() || typeof decoded.email !== "string" ||
+      typeof decoded.merchant_id !== "string" || !Number.isSafeInteger(decoded.exp) ||
+      !Number.isSafeInteger(decoded.iat) || decoded.exp <= decoded.iat) throw new Error("jwt_invalid_claims");
     // B1 (P0): Guarantee merchant_id is present and non-empty.
     if (!decoded.merchant_id) throw new Error("jwt_missing_merchant_id");
     // L12: Validate role is a known TenantRole, not arbitrary string.
@@ -168,11 +181,6 @@ export class JwtService {
   private verifyCore(token: string, nowSeconds: number, options: VerifyCoreOptions): AuthenticatedPrincipal {
     const { decoded } = this.parseAndValidate(token);
 
-    // Check revocation blacklist
-    if (this.isTokenRevoked(decoded.jti)) {
-      throw new Error("jwt_token_revoked");
-    }
-
     if (options.graceSeconds === 0) {
       // Strict expiry check
       if (decoded.exp <= nowSeconds) throw new Error("jwt_expired");
@@ -191,6 +199,16 @@ export class JwtService {
 
 function base64UrlJson(value: unknown): string {
   return Buffer.from(JSON.stringify(value)).toString("base64url");
+}
+
+function parseJsonPart(value: string): any {
+  try {
+    const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8"));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
+    return parsed;
+  } catch {
+    throw new Error("jwt_invalid_claims");
+  }
 }
 
 function hmacSign(value: string, secret: string): string {

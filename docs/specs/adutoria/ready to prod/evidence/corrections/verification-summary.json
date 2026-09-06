@@ -1,0 +1,25 @@
+{
+  "branch": "fix/ready-to-prod-audit",
+  "baseline": {
+    "tests": 485,
+    "pass": 458,
+    "fail": 26,
+    "skipped": 1
+  },
+  "current": {
+    "tests": 538,
+    "pass": 515,
+    "fail": 22,
+    "skipped": 1
+  },
+  "newFailureNames": [],
+  "postgresIntegrationTests": 21,
+  "apiIsolatedTypecheck": "PASS",
+  "apiIsolatedEmission": "PASS",
+  "nestDependencyComposition": "PASS_WITH_FIXTURE_CONFIG_WITHOUT_APP_INIT_OR_LISTEN",
+  "releaseBuild": "NOT_VALIDATED",
+  "browserE2E": "NOT_RUN",
+  "providerSandbox": "NOT_RUN",
+  "implementationHead": "84f322c8a1a1fa723e9f1c5c888e827794f8280f",
+  "changedImplementationFiles": 86
+}

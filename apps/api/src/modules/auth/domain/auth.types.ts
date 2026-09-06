@@ -1,3 +1,8 @@
+/**
+ * Closes M12: explicit TenantRole union decoupled from AuthUser.
+ * Closes M6, H2: AuthResponse + toAuthResponse moved to domain layer.
+ * Closes L16: BearerTokenView extracted.
+ */
 export type TenantRole = "owner" | "admin" | "staff";
 
 export interface AuthMerchant {
@@ -13,6 +18,8 @@ export interface AuthUser {
   email: string;
   passwordHash?: string;
   role: TenantRole;
+  authVersion?: number;
+  disabledAt?: Date;
   oauthProvider?: string;
   oauthProviderId?: string;
 }

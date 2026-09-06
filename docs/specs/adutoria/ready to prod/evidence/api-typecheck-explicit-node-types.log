@@ -1,0 +1,286 @@
+src/modules/agent-rules/infrastructure/prisma-agent-rules.converters.ts(34,51): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/agent-rules/infrastructure/prisma-agent-rules.converters.ts(35,59): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/agent-rules/infrastructure/prisma-agent-rules.converters.ts(36,55): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/agent-rules/infrastructure/prisma-agent-rules.converters.ts(37,67): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/audit/infrastructure/prisma-audit.repository.ts(27,44): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/audit/infrastructure/prisma-audit.repository.ts(47,25): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'MerchantAuditEventWhereInput'.
+src/modules/auth/infrastructure/prisma-auth.repository.ts(84,31): error TS2339: Property 'PrismaClientKnownRequestError' does not exist on type 'typeof Prisma'.
+src/modules/auth/infrastructure/prisma-auth.repository.ts(85,9): error TS18046: 'err' is of type 'unknown'.
+src/modules/auth/infrastructure/prisma-auth.repository.ts(87,24): error TS18046: 'err' is of type 'unknown'.
+src/modules/auth/infrastructure/prisma-auth.repository.ts(136,31): error TS2339: Property 'PrismaClientKnownRequestError' does not exist on type 'typeof Prisma'.
+src/modules/auth/infrastructure/prisma-auth.repository.ts(137,9): error TS18046: 'err' is of type 'unknown'.
+src/modules/auth/infrastructure/prisma-auth.repository.ts(139,24): error TS18046: 'err' is of type 'unknown'.
+src/modules/buyer-account/application/use-cases/get-buyer-purchases.use-case.ts(106,47): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/buyer-account/application/use-cases/get-buyer-purchases.use-case.ts(111,48): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/modules/buyer-account/application/use-cases/get-buyer-purchases.use-case.ts(115,27): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/buyer-account/application/use-cases/get-buyer-purchases.use-case.ts(128,28): error TS7006: Parameter 'order' implicitly has an 'any' type.
+src/modules/buyer-account/application/use-cases/get-buyer-purchases.use-case.ts(133,78): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/buyer-account/application/use-cases/get-buyer-purchases.use-case.ts(144,52): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/buyer-account/infrastructure/prisma-buyer-account-lgpd.repository.ts(34,54): error TS7006: Parameter 'handle' implicitly has an 'any' type.
+src/modules/buyer-purchase-history/infrastructure/prisma-buyer-purchase-history.repository.ts(93,48): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/cart-recovery/__tests__/recovery-attempt.int-spec.ts(60,33): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/modules/cart-recovery/infrastructure/repositories/prisma-strategy-preferences.repository.ts(57,46): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/cart-recovery/infrastructure/repositories/prisma-strategy-preferences.repository.ts(60,108): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/catalog/application/use-cases/list-categories.use-case.ts(37,28): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/modules/catalog/infrastructure/repositories/prisma-product.repository.ts(18,59): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/modules/catalog/infrastructure/repositories/prisma-product.repository.ts(25,46): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/catalog/infrastructure/repositories/prisma-product.repository.ts(25,71): error TS2339: Property 'JsonNull' does not exist on type 'typeof Prisma'.
+src/modules/catalog/infrastructure/repositories/prisma-product.repository.ts(37,50): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/catalog/infrastructure/repositories/prisma-product.repository.ts(91,25): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'ProductWhereInput'.
+src/modules/catalog/infrastructure/repositories/prisma-product.repository.ts(120,28): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'ProductFindManyArgs'.
+src/modules/catalog/infrastructure/repositories/prisma-product.repository.ts(140,36): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/modules/catalog/infrastructure/repositories/prisma-product.repository.ts(155,84): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/catalog/infrastructure/repositories/prisma-product.repository.ts(187,28): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/modules/catalog/infrastructure/repositories/prisma-product.repository.ts(208,50): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/catalog/infrastructure/repositories/prisma-stock.repository.ts(113,41): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/checkout-settings/infrastructure/prisma-checkout-settings.repository.ts(59,66): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/checkout-settings/infrastructure/prisma-checkout-settings.repository.ts(60,74): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/checkout-settings/infrastructure/prisma-checkout-settings.repository.ts(61,62): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/checkout-settings/infrastructure/prisma-checkout-settings.repository.ts(62,70): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/checkout-settings/infrastructure/prisma-checkout-settings.repository.ts(63,52): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/checkout-settings/infrastructure/prisma-checkout-settings.repository.ts(64,64): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/checkout/__tests__/checkout-test-fixtures.ts(76,3): error TS2322: Type '{ maxDiscountPercent: number; minimumMarginPercent: number; allowFreeShipping: boolean; allowShippingDiscount: boolean; allowBonusItem: boolean; allowStackDiscountAndFreeShipping: boolean; ... 11 more ...; policies?: MerchantPolicies | undefined; }' is not assignable to type 'MerchantRules'.
+  Types of property 'autonomousEngineEnabled' are incompatible.
+    Type 'boolean | undefined' is not assignable to type 'boolean'.
+      Type 'undefined' is not assignable to type 'boolean'.
+src/modules/checkout/__tests__/start-checkout.use-case.spec.ts(151,11): error TS2322: Type '() => Promise<{ maxDiscountPercent: number; minimumMarginPercent: number; allowFreeShipping: true; allowShippingDiscount: true; allowBonusItem: false; allowStackDiscountAndFreeShipping: false; ... 6 more ...; couponBoxEnabled: true; }>' is not assignable to type '(merchantId: string) => Promise<MerchantRules>'.
+  Type 'Promise<{ maxDiscountPercent: number; minimumMarginPercent: number; allowFreeShipping: true; allowShippingDiscount: true; allowBonusItem: false; allowStackDiscountAndFreeShipping: false; ... 6 more ...; couponBoxEnabled: true; }>' is not assignable to type 'Promise<MerchantRules>'.
+    Property 'autonomousEngineEnabled' is missing in type '{ maxDiscountPercent: number; minimumMarginPercent: number; allowFreeShipping: true; allowShippingDiscount: true; allowBonusItem: false; allowStackDiscountAndFreeShipping: false; freeShippingMinCartValue: number; ... 5 more ...; couponBoxEnabled: true; }' but required in type 'MerchantRules'.
+src/modules/checkout/application/services/checkout-experience.crypto.spec.ts(27,55): error TS2345: Argument of type '{ maxDiscountPercent: number; minimumMarginPercent: number; allowFreeShipping: true; allowShippingDiscount: true; allowBonusItem: false; allowStackDiscountAndFreeShipping: false; freeShippingMinCartValue: number; ... 6 more ...; cryptoPayments: { ...; }; }' is not assignable to parameter of type 'MerchantRules'.
+  Property 'autonomousEngineEnabled' is missing in type '{ maxDiscountPercent: number; minimumMarginPercent: number; allowFreeShipping: true; allowShippingDiscount: true; allowBonusItem: false; allowStackDiscountAndFreeShipping: false; freeShippingMinCartValue: number; ... 6 more ...; cryptoPayments: { ...; }; }' but required in type 'MerchantRules'.
+src/modules/checkout/application/services/checkout-offer.service.ts(3,39): error TS2307: Cannot find module '@zyon/shipping-engine' or its corresponding type declarations.
+src/modules/checkout/application/use-cases/evaluate-shipping.use-case.ts(2,39): error TS2307: Cannot find module '@zyon/shipping-engine' or its corresponding type declarations.
+src/modules/checkout/application/use-cases/get-funnel-sessions.use-case.ts(52,51): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/modules/checkout/application/use-cases/get-funnel-sessions.use-case.ts(53,59): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/modules/checkout/application/use-cases/get-funnel.use-case.ts(225,52): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts(32,38): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts(105,16): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts(124,43): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts(159,48): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts(346,42): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts(358,22): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts(377,22): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts(396,22): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts(500,40): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts(502,30): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts(502,33): error TS7006: Parameter 'b' implicitly has an 'any' type.
+src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts(526,45): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts(527,68): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts(528,68): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts(529,82): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts(532,67): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts(542,45): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts(543,68): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts(544,68): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts(545,82): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts(548,67): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/checkout/infrastructure/prisma/prisma-checkout.repository.ts(756,3): error TS2741: Property 'autonomousEngineEnabled' is missing in type '{ maxDiscountPercent: number; minimumMarginPercent: number; allowFreeShipping: boolean; allowShippingDiscount: boolean; allowBonusItem: boolean; allowStackDiscountAndFreeShipping: boolean; ... 6 more ...; couponBoxEnabled: boolean; }' but required in type 'MerchantRules'.
+src/modules/checkout/infrastructure/prisma/prisma-store-overview.repository.ts(38,36): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/modules/checkout/infrastructure/prisma/prisma-store-overview.repository.ts(38,41): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/modules/checkout/infrastructure/prisma/prisma-store-overview.repository.ts(43,53): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/modules/checkout/infrastructure/prisma/prisma-store-overview.repository.ts(88,79): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/modules/checkout/infrastructure/prisma/prisma-store-overview.repository.ts(89,38): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/modules/checkout/infrastructure/repositories/in-memory-checkout.repository.ts(29,7): error TS2741: Property 'autonomousEngineEnabled' is missing in type '{ maxDiscountPercent: number; minimumMarginPercent: number; allowFreeShipping: true; allowShippingDiscount: true; allowBonusItem: false; allowStackDiscountAndFreeShipping: false; freeShippingMinCartValue: number; ... 5 more ...; couponBoxEnabled: true; }' but required in type 'MerchantRules'.
+src/modules/commerce/infrastructure/commerce-outbox.ts(26,40): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/commerce/infrastructure/prisma-commerce-paid-webhook-dedup.repository.ts(44,35): error TS2339: Property 'PrismaClientKnownRequestError' does not exist on type 'typeof Prisma'.
+src/modules/commerce/infrastructure/prisma-commerce-paid-webhook-dedup.repository.ts(44,68): error TS18046: 'error' is of type 'unknown'.
+src/modules/commerce/infrastructure/prisma-commerce-paid-webhook-dedup.repository.ts(80,45): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/modules/commerce/infrastructure/prisma-commerce-paid-webhook-dedup.repository.ts(100,35): error TS2339: Property 'PrismaClientKnownRequestError' does not exist on type 'typeof Prisma'.
+src/modules/commerce/infrastructure/prisma-commerce-paid-webhook-dedup.repository.ts(100,68): error TS18046: 'error' is of type 'unknown'.
+src/modules/commerce/infrastructure/prisma-pending-commerce-order-index.repository.ts(34,45): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/modules/commerce/infrastructure/prisma-pending-commerce-order-index.repository.ts(41,35): error TS2339: Property 'PrismaClientKnownRequestError' does not exist on type 'typeof Prisma'.
+src/modules/commerce/infrastructure/prisma-pending-commerce-order-index.repository.ts(41,68): error TS18046: 'error' is of type 'unknown'.
+src/modules/coupons/infrastructure/repositories/prisma-coupon.converters.ts(1,15): error TS2305: Module '"@prisma/client"' has no exported member 'Coupon'.
+src/modules/coupons/infrastructure/repositories/prisma-coupon.converters.ts(1,39): error TS2305: Module '"@prisma/client"' has no exported member 'CouponRedemption'.
+src/modules/cross-sell/infrastructure/repositories/prisma-cross-sell.converters.ts(1,15): error TS2305: Module '"@prisma/client"' has no exported member 'CrossSellPromotion'.
+src/modules/cross-sell/infrastructure/repositories/prisma-cross-sell.converters.ts(1,50): error TS2305: Module '"@prisma/client"' has no exported member 'CrossSellSuggestion'.
+src/modules/domains/application/use-cases/list-domains.use-case.ts(36,25): error TS7006: Parameter 'd' implicitly has an 'any' type.
+src/modules/embed/__tests__/protocol-session.int-spec.ts(109,33): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/modules/embed/__tests__/protocol-session.int-spec.ts(128,36): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/modules/experiments/infrastructure/jobs/auto-promote.job.ts(149,66): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/modules/experiments/infrastructure/jobs/auto-promote.job.ts(153,42): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/experiments/infrastructure/repositories/prisma-experiment.repository.ts(84,22): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/modules/fulfillment/infrastructure/repositories/prisma-shipment.repository.ts(119,23): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/modules/fulfillment/infrastructure/repositories/prisma-tracking-event.repository.ts(33,52): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/fulfillment/infrastructure/repositories/prisma-tracking-event.repository.ts(47,22): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/modules/fulfillment/infrastructure/repositories/prisma-tracking-event.repository.ts(61,33): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'JsonValue'.
+src/modules/inventory/infrastructure/repositories/prisma-erp.repository.ts(12,22): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/inventory/infrastructure/repositories/prisma-inventory-alert.repository.ts(49,24): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/modules/inventory/infrastructure/repositories/prisma-inventory-location.repository.ts(15,27): error TS7006: Parameter 'l' implicitly has an 'any' type.
+src/modules/inventory/infrastructure/repositories/prisma-inventory-movement.repository.ts(73,33): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/modules/inventory/infrastructure/repositories/prisma-inventory.repository.ts(33,13): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/modules/inventory/infrastructure/repositories/prisma-inventory.repository.ts(49,16): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/modules/inventory/infrastructure/repositories/prisma-inventory.repository.ts(230,41): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/modules/inventory/infrastructure/repositories/prisma-inventory.repository.ts(235,43): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/modules/inventory/infrastructure/repositories/prisma-inventory.repository.ts(237,43): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/modules/inventory/infrastructure/repositories/prisma-inventory.repository.ts(237,48): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/modules/inventory/infrastructure/repositories/prisma-inventory.repository.ts(257,16): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/modules/inventory/infrastructure/repositories/prisma-inventory.repository.ts(261,13): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/modules/marketplace/presentation/http/marketplace-discovery.controller.ts(92,45): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/modules/marketplace/presentation/http/marketplace-discovery.controller.ts(97,46): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/modules/marketplace/presentation/http/marketplace-discovery.controller.ts(100,27): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/modules/marketplace/presentation/http/marketplace-discovery.controller.ts(177,37): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/modules/merchant/domain/merchant-rules.defaults.ts(7,14): error TS2741: Property 'autonomousEngineEnabled' is missing in type '{ maxDiscountPercent: number; minimumMarginPercent: number; allowFreeShipping: true; allowShippingDiscount: true; allowBonusItem: false; allowStackDiscountAndFreeShipping: false; freeShippingMinCartValue: number; ... 8 more ...; cryptoPayments: undefined; }' but required in type 'MerchantRules'.
+src/modules/merchant/infrastructure/prisma-merchant.repository.ts(134,50): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/merchant/infrastructure/prisma-merchant.repository.ts(135,16): error TS2339: Property 'JsonNull' does not exist on type 'typeof Prisma'.
+src/modules/merchant/infrastructure/prisma-merchant.repository.ts(137,52): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/merchant/infrastructure/prisma-merchant.repository.ts(138,16): error TS2339: Property 'JsonNull' does not exist on type 'typeof Prisma'.
+src/modules/merchant/infrastructure/prisma-merchant.repository.ts(162,3): error TS2741: Property 'autonomousEngineEnabled' is missing in type '{ maxDiscountPercent: number; minimumMarginPercent: number; allowFreeShipping: boolean; allowShippingDiscount: boolean; allowBonusItem: boolean; allowStackDiscountAndFreeShipping: boolean; ... 9 more ...; cryptoPayments: MerchantCryptoPayments | undefined; }' but required in type 'MerchantRules'.
+src/modules/negotiation/__tests__/llm-safety.spec.ts(18,7): error TS2741: Property 'autonomousEngineEnabled' is missing in type '{ maxDiscountPercent: number; minimumMarginPercent: number; allowFreeShipping: true; allowShippingDiscount: true; allowBonusItem: false; allowStackDiscountAndFreeShipping: false; freeShippingMinCartValue: number; ... 5 more ...; couponBoxEnabled: false; }' but required in type 'MerchantRules'.
+src/modules/negotiation/infrastructure/prisma-negotiation.store.ts(84,44): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/modules/negotiation/infrastructure/prisma-negotiation.store.ts(149,44): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/modules/negotiation/presentation/http/negotiation.controller.ts(158,16): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/modules/negotiation/presentation/http/negotiation.controller.ts(167,23): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/modules/negotiation/presentation/http/negotiation.controller.ts(167,26): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/modules/onboarding/application/onboarding.use-cases.spec.ts(139,37): error TS2367: This comparison appears to be unintentional because the types 'OnboardingStepId' and '"embed"' have no overlap.
+src/modules/onboarding/domain/entities/onboarding-state.entity.ts(14,3): error TS2322: Type '"embed"' is not assignable to type 'OnboardingStepId'.
+src/modules/onboarding/domain/entities/onboarding-state.entity.ts(15,3): error TS2322: Type '"publish"' is not assignable to type 'OnboardingStepId'.
+src/modules/onboarding/infrastructure/prisma-onboarding-state.repository.ts(26,55): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/operations/infrastructure/prisma-operations-read.repository.ts(90,34): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/modules/operations/infrastructure/prisma-operations-read.repository.ts(96,28): error TS7006: Parameter 'payment' implicitly has an 'any' type.
+src/modules/operations/infrastructure/prisma-operations-read.repository.ts(99,48): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/modules/operations/infrastructure/prisma-operations-read.repository.ts(152,18): error TS2339: Property 'sql' does not exist on type 'typeof Prisma'.
+src/modules/operations/infrastructure/prisma-operations-read.repository.ts(156,18): error TS2339: Property 'empty' does not exist on type 'typeof Prisma'.
+src/modules/operations/infrastructure/prisma-operations-read.repository.ts(160,24): error TS2347: Untyped function calls may not accept type arguments.
+src/modules/operations/infrastructure/prisma-operations-read.repository.ts(160,68): error TS2339: Property 'sql' does not exist on type 'typeof Prisma'.
+src/modules/operations/infrastructure/prisma-operations-read.repository.ts(203,39): error TS7006: Parameter 'purchase' implicitly has an 'any' type.
+src/modules/payment/application/payment-platform.use-cases.spec.ts(29,5): error TS2345: Argument of type 'StubStripePlatform' is not assignable to parameter of type 'StripePlatformPort'.
+  Type 'StubStripePlatform' is missing the following properties from type 'StripePlatformPort': cancelSubscription, updateSubscription, pauseSubscription, resumeSubscription, and 2 more.
+src/modules/payment/application/payment-platform.use-cases.spec.ts(67,5): error TS2345: Argument of type 'StubStripePlatform' is not assignable to parameter of type 'StripePlatformPort'.
+  Type 'StubStripePlatform' is missing the following properties from type 'StripePlatformPort': cancelSubscription, updateSubscription, pauseSubscription, resumeSubscription, and 2 more.
+src/modules/payment/application/payment-platform.use-cases.spec.ts(111,5): error TS2345: Argument of type 'StubStripePlatform' is not assignable to parameter of type 'StripePlatformPort'.
+  Type 'StubStripePlatform' is missing the following properties from type 'StripePlatformPort': cancelSubscription, updateSubscription, pauseSubscription, resumeSubscription, and 2 more.
+src/modules/payment/application/payment-platform.use-cases.spec.ts(145,7): error TS2420: Class 'StubStripePlatform' incorrectly implements interface 'StripePlatformPort'.
+  Type 'StubStripePlatform' is missing the following properties from type 'StripePlatformPort': cancelSubscription, updateSubscription, pauseSubscription, resumeSubscription, and 2 more.
+src/modules/payment/application/payment-platform.use-cases.ts(558,23): error TS2339: Property 'status' does not exist on type 'void'.
+src/modules/payment/application/payment-platform.use-cases.ts(559,34): error TS2339: Property 'cancelAtPeriodEnd' does not exist on type 'void'.
+src/modules/payment/application/payment-platform.use-cases.ts(606,32): error TS2339: Property 'cancelAtPeriodEnd' does not exist on type 'void'.
+src/modules/payment/application/payment-platform.use-cases.ts(635,28): error TS2339: Property 'status' does not exist on type 'void'.
+src/modules/payment/application/payment-platform.use-cases.ts(663,28): error TS2339: Property 'status' does not exist on type 'void'.
+src/modules/payment/domain/billing-plan-guard.ts(118,53): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/modules/payment/domain/billing-plan-guard.ts(118,58): error TS7006: Parameter 'session' implicitly has an 'any' type.
+src/modules/payment/domain/billing-plan-guard.ts(120,35): error TS7006: Parameter 'turn' implicitly has an 'any' type.
+src/modules/payment/infrastructure/prisma-payment-platform.repository.ts(227,37): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/modules/payment/infrastructure/prisma-payment.repository.ts(33,59): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/payment/infrastructure/prisma-payment.repository.ts(33,84): error TS2339: Property 'DbNull' does not exist on type 'typeof Prisma'.
+src/modules/payment/infrastructure/prisma-payment.repository.ts(34,57): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/payment/infrastructure/prisma-payment.repository.ts(42,59): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/payment/infrastructure/prisma-payment.repository.ts(42,84): error TS2339: Property 'DbNull' does not exist on type 'typeof Prisma'.
+src/modules/payment/infrastructure/prisma-payment.repository.ts(43,57): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/payment/infrastructure/prisma-payment.repository.ts(67,40): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/payment/infrastructure/prisma-payment.repository.ts(179,22): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/modules/payment/infrastructure/prisma-payment.repository.ts(198,22): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/modules/payment/infrastructure/prisma-payment.repository.ts(276,31): error TS2339: Property 'PrismaClientKnownRequestError' does not exist on type 'typeof Prisma'.
+src/modules/payment/infrastructure/prisma-payment.repository.ts(276,64): error TS18046: 'e' is of type 'unknown'.
+src/modules/payment/infrastructure/prisma-payment.repository.ts(306,31): error TS2339: Property 'PrismaClientKnownRequestError' does not exist on type 'typeof Prisma'.
+src/modules/payment/infrastructure/prisma-payment.repository.ts(306,64): error TS18046: 'e' is of type 'unknown'.
+src/modules/payment/infrastructure/prisma-payment.repository.ts(337,47): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/modules/payment/infrastructure/prisma-payment.repository.ts(345,53): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/modules/payment/infrastructure/prisma-payment.repository.ts(348,37): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/modules/payment/infrastructure/prisma-payment.repository.ts(348,76): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/modules/payment/infrastructure/prisma-payment.repository.ts(369,22): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/modules/payment/infrastructure/stripe-platform.adapter.ts(141,9): error TS2353: Object literal may only specify known properties, and 'idempotencyKey' does not exist in type 'SubscriptionCancelParams'.
+src/modules/public-api/support/application/mappers/support-entity.mapper.ts(29,7): error TS2322: Type '"widget" | "system" | "dashboard" | "return_request"' is not assignable to type '"widget" | "system" | "dashboard"'.
+  Type '"return_request"' is not assignable to type '"widget" | "system" | "dashboard"'.
+src/modules/returns/infrastructure/repositories/prisma-return.repository.ts(61,22): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/returns/infrastructure/repositories/prisma-return.repository.ts(71,22): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/returns/infrastructure/repositories/prisma-return.repository.ts(94,27): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/revenue-manager/application/use-cases/observe-metrics.use-case.ts(172,63): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/modules/revenue-manager/application/use-cases/observe-metrics.use-case.ts(173,66): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/modules/revenue-manager/application/use-cases/observe-metrics.use-case.ts(176,63): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/revenue-manager/application/use-cases/observe-metrics.use-case.ts(178,69): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/revenue-manager/application/use-cases/observe-metrics.use-case.ts(287,26): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/modules/revenue-manager/application/use-cases/record-strategy-lesson.use-case.ts(50,51): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/modules/revenue-manager/application/use-cases/record-strategy-lesson.use-case.ts(54,36): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/revenue-manager/application/use-cases/record-strategy-lesson.use-case.ts(60,54): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/modules/revenue-manager/application/use-cases/record-strategy-lesson.use-case.ts(61,57): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/modules/revenue-manager/application/use-cases/record-strategy-lesson.use-case.ts(67,45): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/modules/revenue-manager/application/use-cases/record-strategy-lesson.use-case.ts(68,48): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/modules/revenue-manager/infrastructure/prisma-hypothesis.repository.ts(56,22): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/revenue-manager/infrastructure/prisma-hypothesis.repository.ts(68,22): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/revenue-manager/infrastructure/prisma-observation.repository.ts(22,66): error TS2339: Property 'DbNull' does not exist on type 'typeof Prisma'.
+src/modules/revenue-manager/infrastructure/prisma-observation.repository.ts(33,66): error TS2339: Property 'DbNull' does not exist on type 'typeof Prisma'.
+src/modules/revenue-manager/infrastructure/prisma-observation.repository.ts(70,22): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/revenue-manager/infrastructure/prisma-strategy-lesson.repository.ts(36,22): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/revenue-manager/infrastructure/prisma-strategy-lesson.repository.ts(44,22): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/revenue-manager/infrastructure/workers/strategy-feedback.worker.ts(6,29): error TS2305: Module '"@prisma/client"' has no exported member 'OutboxMessage'.
+src/modules/scraping-agent/infrastructure/repositories/prisma-price-quote-job.repository.ts(54,22): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/self-checkout/infrastructure/repositories/prisma-buyer-template.repository.ts(22,22): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/self-checkout/infrastructure/repositories/prisma-buyer-wallet.repository.ts(24,43): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/modules/shipping/application/use-cases/quote-shipping.use-case.ts(2,31): error TS2307: Cannot find module '@zyon/shipping-engine' or its corresponding type declarations.
+src/modules/shipping/domain/entities/shipping-quote.entity.ts(2,52): error TS2307: Cannot find module '@zyon/shipping-engine' or its corresponding type declarations.
+src/modules/shipping/infrastructure/adapters/melhor-envio.carrier.ts(2,51): error TS2307: Cannot find module '@zyon/shipping-engine' or its corresponding type declarations.
+src/modules/shipping/infrastructure/repositories/prisma-shipping-quote.repository.ts(18,19): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'JsonValue'.
+src/modules/shipping/infrastructure/repositories/prisma-shipping-quote.repository.ts(31,43): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/modules/shipping/infrastructure/repositories/prisma-shipping-quote.repository.ts(36,58): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/shipping/infrastructure/repositories/prisma-shipping-quote.repository.ts(77,61): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'ShippingQuoteUncheckedCreateInput'.
+src/modules/shipping/infrastructure/repositories/prisma-shipping-quote.repository.ts(84,54): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/shipping/infrastructure/repositories/prisma-shipping-quote.repository.ts(91,62): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'OutboxMessageUncheckedCreateInput'.
+src/modules/shipping/infrastructure/repositories/prisma-shipping-quote.repository.ts(101,40): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/store-analytics/infrastructure/repositories/prisma-analytics.repository.ts(65,22): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/store-analytics/infrastructure/repositories/prisma-analytics.repository.ts(81,22): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/store-analytics/infrastructure/repositories/prisma-analytics.repository.ts(172,46): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/modules/store-analytics/infrastructure/repositories/prisma-analytics.repository.ts(215,37): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/modules/store-analytics/infrastructure/repositories/prisma-analytics.repository.ts(215,42): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/modules/store-analytics/infrastructure/repositories/prisma-analytics.repository.ts(227,56): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/modules/store-analytics/infrastructure/repositories/prisma-analytics.repository.ts(227,61): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/modules/store-analytics/infrastructure/repositories/prisma-analytics.repository.ts(237,62): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/modules/store-analytics/infrastructure/repositories/prisma-analytics.repository.ts(237,67): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/modules/store-analytics/infrastructure/repositories/prisma-analytics.repository.ts(264,47): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/modules/store-analytics/infrastructure/repositories/prisma-analytics.repository.ts(265,43): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/modules/store-analytics/infrastructure/repositories/prisma-analytics.repository.ts(270,29): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/modules/store-analytics/infrastructure/repositories/prisma-analytics.repository.ts(309,51): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/modules/store-analytics/infrastructure/repositories/prisma-analytics.repository.ts(312,45): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/modules/store-analytics/infrastructure/repositories/prisma-analytics.repository.ts(312,72): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/modules/store-analytics/infrastructure/repositories/prisma-analytics.repository.ts(313,51): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/modules/store-analytics/infrastructure/repositories/prisma-analytics.repository.ts(313,84): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/modules/storefront/application/use-cases/get-store-config.use-case.ts(70,37): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/modules/storefront/application/use-cases/list-budget-requests.use-case.ts(19,26): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/modules/storefront/application/use-cases/search-marketplace-products-storefront.use-case.ts(49,48): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/modules/storefront/application/use-cases/search-marketplace-products-storefront.use-case.ts(51,68): error TS2345: Argument of type 'Map<unknown, unknown>' is not assignable to parameter of type 'Map<string, string>'.
+  Type 'unknown' is not assignable to type 'string'.
+src/modules/storefront/application/use-cases/search-marketplace-products-storefront.use-case.ts(54,7): error TS2322: Type '{ id: any; name: any; price: number; priceFormatted: string; image: any; sellerName: {}; sellerId: any; inStock: any; }[]' is not assignable to type 'FederatedProductResponse[]'.
+  Type '{ id: any; name: any; price: number; priceFormatted: string; image: any; sellerName: {}; sellerId: any; inStock: any; }' is not assignable to type 'FederatedProductResponse'.
+    Types of property 'sellerName' are incompatible.
+      Type '{}' is not assignable to type 'string'.
+src/modules/storefront/application/use-cases/send-store-message.use-case.ts(129,54): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/modules/storefront/application/use-cases/send-store-message.use-case.ts(129,59): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/modules/storefront/presentation/http/storefront.controller.ts(53,35): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/modules/storefront/presentation/http/storefront.controller.ts(76,31): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/modules/storefront/presentation/http/storefront.controller.ts(183,54): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/modules/storefront/presentation/http/storefront.controller.ts(183,59): error TS7006: Parameter 'v' implicitly has an 'any' type.
+src/modules/stories/presentation/http/stories.controller.ts(188,31): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/modules/support/application/list-ticket-messages.use-case.ts(33,48): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/modules/support/infrastructure/prisma-support-settings.repository.ts(23,58): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/support/infrastructure/prisma-support-settings.repository.ts(26,58): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/modules/support/infrastructure/prisma-support-ticket.repository.ts(92,16): error TS2339: Property 'sql' does not exist on type 'typeof Prisma'.
+src/modules/support/infrastructure/prisma-support-ticket.repository.ts(93,16): error TS2339: Property 'sql' does not exist on type 'typeof Prisma'.
+src/modules/support/infrastructure/prisma-support-ticket.repository.ts(96,16): error TS2339: Property 'sql' does not exist on type 'typeof Prisma'.
+src/modules/support/infrastructure/prisma-support-ticket.repository.ts(100,16): error TS2339: Property 'sql' does not exist on type 'typeof Prisma'.
+src/modules/support/infrastructure/prisma-support-ticket.repository.ts(102,24): error TS2347: Untyped function calls may not accept type arguments.
+src/modules/support/infrastructure/prisma-support-ticket.repository.ts(102,73): error TS2339: Property 'sql' does not exist on type 'typeof Prisma'.
+src/modules/team/application/use-cases/list-team.use-case.ts(43,29): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/modules/whatsapp-channel/application/use-cases/route-to-session.use-case.ts(194,15): error TS7006: Parameter 'err' implicitly has an 'any' type.
+src/seeds/check-stories.ts(6,61): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/seeds/dashboard-seed.ts(167,26): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'CheckoutSessionCreateManyInput'.
+src/seeds/dashboard-seed.ts(169,24): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'CheckoutEventCreateManyInput'.
+src/seeds/dashboard-seed.ts(171,24): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'AuthorizedOfferCreateManyInput'.
+src/seeds/dashboard-seed.ts(173,24): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'CompletedOrderCreateManyInput'.
+src/seeds/fix-cosmos-slug.ts(10,97): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/seeds/fix-slugs.ts(22,60): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/seeds/list-merchants.ts(5,19): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/seeds/list-merchants.ts(9,15): error TS7006: Parameter 'u' implicitly has an 'any' type.
+src/shared/http/idempotency/prisma-idempotency.repository.ts(126,11): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/shared/http/idempotency/prisma-idempotency.repository.ts(126,42): error TS2339: Property 'JsonNull' does not exist on type 'typeof Prisma'.
+src/shared/http/idempotency/prisma-idempotency.repository.ts(127,42): error TS2339: Property 'JsonNull' does not exist on type 'typeof Prisma'.
+src/shared/http/idempotency/prisma-idempotency.repository.ts(128,54): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+src/shared/messaging/infrastructure/prisma-outbox.repository.ts(21,19): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'JsonValue'.
+src/shared/messaging/infrastructure/prisma-outbox.repository.ts(39,22): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/shared/messaging/infrastructure/prisma-outbox.repository.ts(48,24): error TS2347: Untyped function calls may not accept type arguments.
+src/shared/messaging/infrastructure/prisma-outbox.repository.ts(48,66): error TS2339: Property 'sql' does not exist on type 'typeof Prisma'.
+src/shared/messaging/infrastructure/prisma-outbox.repository.ts(67,22): error TS7006: Parameter 'row' implicitly has an 'any' type.
+src/shared/messaging/infrastructure/prisma-outbox.repository.ts(137,44): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/shared/messaging/infrastructure/prisma-outbox.repository.ts(165,40): error TS2694: Namespace '"C:/Users/Admin/Desktop/AACP/node_modules/.pnpm/@prisma+client@6.19.3_prisma@6.19.3_magicast@0.3.5_typescript@5.9.3__typescript@5.9.3/node_modules/.prisma/client/default".Prisma' has no exported member 'InputJsonValue'.
+undefined
+C:\Users\Admin\Desktop\AACP\apps\api:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 2: tsc -p tsconfig.json --noEmit --types node

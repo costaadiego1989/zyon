@@ -1,0 +1,64 @@
+{
+  "stageBase": "9c8028718ae7a30267bd38f1f6dbb74b84521b00",
+  "implementationHead": "b97179b57e1062973f9d532dc148ab4dd02a7f62",
+  "releaseDecision": "NO-GO",
+  "combined": {
+    "tests": 677,
+    "pass": 654,
+    "fail": 22,
+    "cancelled": 0,
+    "skipped": 1
+  },
+  "baseline": {
+    "tests": 598,
+    "pass": 573,
+    "fail": 24,
+    "cancelled": 0,
+    "skipped": 1
+  },
+  "newFailureNames": [],
+  "fixedBaselineFailureNames": [
+    "OTP flow: send stores code, verify consumes it and returns JWT (B3 P1 regression)",
+    "OTP is stored as hash, not plaintext (B4 P2 regression)"
+  ],
+  "postgresqlTestsIncluded": 39,
+  "redisTestsIncluded": 3,
+  "httpIntegration": {
+    "tests": 3,
+    "pass": 3,
+    "fail": 0,
+    "additionalToCombined": true
+  },
+  "apiIsolatedTypecheck": "PASS",
+  "apiIsolatedCompile": "PASS",
+  "nestDependencyComposition": "PASS",
+  "fullApplicationLifecycle": "NOT_VALIDATED",
+  "releaseBuild": "NOT_EXECUTED",
+  "frontendBrowser": "NOT_EXECUTED",
+  "liveProviderCalls": 0,
+  "sourceFileCount": 86,
+  "commits": [
+    "b97179b test(api): verify distributed security with database Redis and HTTP",
+    "bfd285b fix(api): rotate durable sessions and revoke access on membership changes",
+    "19d085f fix(api): persist authenticated BubbleWhats events before acknowledgement",
+    "1006871 feat(api): persist merchant sessions reset challenges and webhook inbox",
+    "78e84f9 fix(api): enforce shared HTTP quotas and redact authentication secrets",
+    "a79575a fix(api): require actual provider acceptance for buyer OTP delivery"
+  ],
+  "containers": {
+    "postgres": {
+      "id": "b855a0213f8252511b5c7c49ab4710f63dcaa53516b64c9ee0f1951108aa648d",
+      "name": "aacp-ready-prod-stage2-pg-20260905",
+      "port": 57689
+    },
+    "redis": {
+      "id": "80ccc3d696c5c1f959d75d87174a09b639c731fc5708efccd8bd9e226a3e524f",
+      "name": "aacp-ready-prod-stage2-redis-20260905",
+      "port": 57694
+    },
+    "label": "codex.task=ready-to-prod-stage2",
+    "stopped": true
+  },
+  "mainWorkspaceBranchAtCompletion": "feat/billing-plans-standardize",
+  "isolatedWorktreeBranch": "fix/ready-to-prod-audit"
+}

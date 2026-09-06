@@ -3,7 +3,7 @@
  *
  * Receives messages from BubbleWhats and Twilio and dispatches to the message pipeline.
  * No auth guard — authenticates via webhook secret header (BubbleWhats) or HMAC signature (Twilio).
- * Returns 200 immediately (processing is async via debouncer).
+ * BubbleWhats acknowledges only after durable inbox persistence.
  */
 
 import {
@@ -21,38 +21,10 @@ import { ApiExcludeController } from "@nestjs/swagger";
 import type { Request } from "express";
 import { WHATSAPP_CONFIG_REPOSITORY, type WhatsAppConfigRepository } from "../../domain/ports/whatsapp-config-repository.port.js";
 import { HandleIncomingMessageUseCase } from "../../application/use-cases/handle-incoming-message.use-case.js";
-import { HandleStatusUpdateUseCase } from "../../application/use-cases/handle-status-update.use-case.js";
+import { AcceptBubbleWhatsWebhookUseCase } from "../../application/use-cases/accept-bubblewhats-webhook.use-case.js";
 import { validateTwilioSignature } from "../../domain/services/twilio-signature-validator.js";
 import { parseTwilioInbound } from "../../infrastructure/adapters/twilio-webhook-parser.js";
 import { TwilioDeduplicatorService } from "../../infrastructure/services/twilio-deduplicator.service.js";
-
-interface BubbleWhatsMessagePayload {
-  id: string;
-  fromNumber: string;
-  fromGroup?: string;
-  fromAlias?: string;
-  toNumber: string;
-  body: string;
-  caption?: string;
-  isGroup: boolean;
-  url?: string;
-  mimetype?: string;
-  messageContext?: Record<string, unknown>;
-  key?: string;
-  degreesLatitude?: number;
-  degreesLongitude?: number;
-  messageType: string;
-  deviceID: string;
-  timestamp: number;
-}
-
-interface BubbleWhatsStatusPayload {
-  deviceID: string;
-  messages: Array<{
-    key: { remoteJid: string; id: string; fromMe: boolean };
-    update: { status: number };
-  }>;
-}
 
 @ApiExcludeController()
 @Controller("webhooks/whatsapp")
@@ -63,93 +35,26 @@ export class WhatsAppWebhookController {
     @Inject(WHATSAPP_CONFIG_REPOSITORY)
     private readonly configRepo: WhatsAppConfigRepository,
     private readonly handleMessage: HandleIncomingMessageUseCase,
-    private readonly handleStatus: HandleStatusUpdateUseCase,
+    private readonly acceptBubbleWhats: AcceptBubbleWhatsWebhookUseCase,
     private readonly deduplicator: TwilioDeduplicatorService,
   ) {}
 
-  /**
-   * BubbleWhats message webhook (legacy, kept for backward compat).
-   */
   @Post("bubblewhats/messages")
   @HttpCode(200)
   async receiveBubbleWhatsMessage(
     @Headers("x-webhook-secret") secret: string | undefined,
-    @Body() payload: BubbleWhatsMessagePayload,
+    @Body() payload: unknown,
   ): Promise<{ received: true }> {
-    // Drop group messages
-    if (payload.isGroup) {
-      this.logger.debug(`Dropped group message from ${payload.fromNumber}`);
-      return { received: true };
-    }
-
-    // Drop messages from self (fromMe)
-    if (payload.messageContext?.key && (payload.messageContext.key as any).fromMe === true) {
-      return { received: true };
-    }
-
-    // Verify webhook secret against merchant config
-    const config = await this.configRepo.findByDeviceId(payload.deviceID);
-    if (!config) {
-      this.logger.warn(`Unknown deviceID: ${payload.deviceID}`);
-      return { received: true };
-    }
-
-    if (!config.enabled) {
-      this.logger.debug(`WhatsApp channel disabled for merchant ${config.merchantId}`);
-      return { received: true };
-    }
-
-    // P1 fix: webhook secret validation must be REQUIRED if configured.
-    // If config.webhookSecret exists, demand the header (fail-closed).
-    if (config.webhookSecret) {
-      if (!secret || secret !== config.webhookSecret) {
-        throw new UnauthorizedException("webhook_secret_invalid");
-      }
-    }
-
-    // Dispatch async (debouncer handles batching)
-    void this.handleMessage.execute({
-      merchantId: config.merchantId,
-      deviceId: payload.deviceID,
-      fromNumber: payload.fromNumber,
-      fromAlias: payload.fromAlias,
-      body: payload.body ?? payload.caption ?? "",
-      messageType: payload.messageType,
-      mediaUrl: payload.url,
-      mimetype: payload.mimetype,
-      timestamp: payload.timestamp,
-      provider: "BUBBLEWHATS",
-    });
-
-    return { received: true };
+    return this.acceptBubbleWhats.message(secret, payload);
   }
 
-  /**
-   * BubbleWhats status webhook (legacy).
-   */
   @Post("bubblewhats/status")
   @HttpCode(200)
   async receiveBubbleWhatsStatus(
     @Headers("x-webhook-secret") secret: string | undefined,
-    @Body() payload: BubbleWhatsStatusPayload,
+    @Body() payload: unknown,
   ): Promise<{ received: true }> {
-    const config = await this.configRepo.findByDeviceId(payload.deviceID);
-    if (!config) return { received: true };
-
-    // P1 fix: webhook secret validation must be REQUIRED if configured.
-    if (config.webhookSecret) {
-      if (!secret || secret !== config.webhookSecret) {
-        throw new UnauthorizedException("webhook_secret_invalid");
-      }
-    }
-
-    void this.handleStatus.execute({
-      merchantId: config.merchantId,
-      deviceId: payload.deviceID,
-      messages: payload.messages,
-    });
-
-    return { received: true };
+    return this.acceptBubbleWhats.status(secret, payload);
   }
 
   /**
@@ -203,7 +108,7 @@ export class WhatsAppWebhookController {
       }
 
       // 5. Dispatch to message pipeline
-      void this.handleMessage.execute({
+      await this.handleMessage.execute({
         merchantId: config.merchantId,
         deviceId: `twilio:${config.id}`, // pseudo-deviceId for routing
         fromNumber: normalized.fromNumber,

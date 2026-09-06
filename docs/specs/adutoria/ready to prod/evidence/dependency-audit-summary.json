@@ -1,0 +1,1278 @@
+{
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 4,
+      "moderate": 39,
+      "high": 35,
+      "critical": 0
+    },
+    "dependencies": 768,
+    "devDependencies": 0,
+    "optionalDependencies": 0,
+    "totalDependencies": 768
+  },
+  "advisories": [
+    {
+      "id": 1112715,
+      "module": "js-yaml",
+      "title": "js-yaml has prototype pollution in merge (<<)",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-mh29-5h37-fv8m",
+      "vulnerable": ">=4.0.0 <4.1.1",
+      "patched": ">=4.1.1",
+      "findings": [
+        {
+          "version": "4.1.0",
+          "paths": [
+            "apps__api>@nestjs/swagger>js-yaml"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1113091,
+      "module": "langsmith",
+      "title": "LangSmith Client SDK Affected by Server-Side Request Forgery via Tracing Header Injection",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-v34v-rq6j-cj6p",
+      "vulnerable": ">=0.3.41 <0.4.6",
+      "patched": ">=0.4.6",
+      "findings": [
+        {
+          "version": "0.3.87",
+          "paths": [
+            "packages__conversation-engine>@langchain/core>langsmith"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1113635,
+      "module": "multer",
+      "title": "Multer vulnerable to Denial of Service via incomplete cleanup",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-xf7r-hgr6-v32p",
+      "vulnerable": "<2.1.0",
+      "patched": ">=2.1.0",
+      "findings": [
+        {
+          "version": "2.0.2",
+          "paths": [
+            "apps__api>@nestjs/platform-express>multer"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1113636,
+      "module": "multer",
+      "title": "Multer vulnerable to Denial of Service via resource exhaustion",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-v52c-386h-88mc",
+      "vulnerable": "<2.1.0",
+      "patched": ">=2.1.0",
+      "findings": [
+        {
+          "version": "2.0.2",
+          "paths": [
+            "apps__api>@nestjs/platform-express>multer"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1113996,
+      "module": "multer",
+      "title": "Multer Vulnerable to Denial of Service via Uncontrolled Recursion",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-5528-5vmv-3xc2",
+      "vulnerable": "<2.1.1",
+      "patched": ">=2.1.1",
+      "findings": [
+        {
+          "version": "2.0.2",
+          "paths": [
+            "apps__api>@nestjs/platform-express>multer"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1114301,
+      "module": "file-type",
+      "title": "file-type affected by infinite loop in ASF parser on malformed input with zero-size sub-header",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-5v7r-6r5c-r473",
+      "vulnerable": ">=13.0.0 <21.3.1",
+      "patched": ">=21.3.1",
+      "findings": [
+        {
+          "version": "20.4.1",
+          "paths": [
+            "apps__api>@nestjs/common>file-type"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1114726,
+      "module": "file-type",
+      "title": "file-type: ZIP Decompression Bomb DoS via [Content_Types].xml entry",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-j47w-4g3g-c36v",
+      "vulnerable": ">=20.0.0 <=21.3.1",
+      "patched": ">=21.3.2",
+      "findings": [
+        {
+          "version": "20.4.1",
+          "paths": [
+            "apps__api>@nestjs/common>file-type"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1115806,
+      "module": "lodash",
+      "title": "lodash vulnerable to Code Injection via `_.template` imports key names",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-r5fr-rjxr-66jc",
+      "vulnerable": ">=4.0.0 <=4.17.23",
+      "patched": ">=4.18.0",
+      "findings": [
+        {
+          "version": "4.17.21",
+          "paths": [
+            "apps__api>@nestjs/swagger>lodash"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1115810,
+      "module": "lodash",
+      "title": "lodash vulnerable to Prototype Pollution via array path bypass in `_.unset` and `_.omit`",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-f23m-r3pf-42rh",
+      "vulnerable": "<=4.17.23",
+      "patched": ">=4.18.0",
+      "findings": [
+        {
+          "version": "4.17.21",
+          "paths": [
+            "apps__api>@nestjs/swagger>lodash"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1116472,
+      "module": "langsmith",
+      "title": "LangSmith Client SDKs has Prototype Pollution in langsmith-sdk via Incomplete `__proto__` Guard in Internal lodash `set()`",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-fw9q-39r9-c252",
+      "vulnerable": "<=0.5.17",
+      "patched": ">=0.5.18",
+      "findings": [
+        {
+          "version": "0.3.87",
+          "paths": [
+            "packages__conversation-engine>@langchain/core>langsmith"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1117015,
+      "module": "postcss",
+      "title": "PostCSS has XSS via Unescaped </style> in its CSS Stringify Output",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-qx2v-qp2m-jg93",
+      "vulnerable": "<8.5.10",
+      "patched": ">=8.5.10",
+      "findings": [
+        {
+          "version": "8.4.31",
+          "paths": [
+            "apps__storefront>next>postcss"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1117058,
+      "module": "langsmith",
+      "title": "LangSmith SDK: Streaming token events bypass output redaction",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-rr7j-v2q5-chgv",
+      "vulnerable": "<=0.5.18",
+      "patched": ">=0.5.19",
+      "findings": [
+        {
+          "version": "0.3.87",
+          "paths": [
+            "packages__conversation-engine>@langchain/core>langsmith"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1117063,
+      "module": "@nestjs/core",
+      "title": "@nestjs/core Improperly Neutralizes Special Elements in Output Used by a Downstream Component ('Injection')",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-36xv-jgw5-4q75",
+      "vulnerable": "<=11.1.17",
+      "patched": ">=11.1.18",
+      "findings": [
+        {
+          "version": "10.4.22",
+          "paths": [
+            "apps__api>@nestjs/core"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1118640,
+      "module": "protobufjs",
+      "title": "protobuf.js: Code injection through bytes field defaults in generated toObject code",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-66ff-xgx4-vchm",
+      "vulnerable": ">=8.0.0 <=8.0.1",
+      "patched": ">=8.0.2",
+      "findings": [
+        {
+          "version": "8.0.1",
+          "paths": [
+            "apps__api>@opentelemetry/exporter-trace-otlp-http>@opentelemetry/otlp-transformer>protobufjs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1118923,
+      "module": "protobufjs",
+      "title": "protobuf.js: Denial of service from crafted field names in generated code",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-2pr8-phx7-x9h3",
+      "vulnerable": ">=8.0.0 <=8.0.1",
+      "patched": ">=8.0.2",
+      "findings": [
+        {
+          "version": "8.0.1",
+          "paths": [
+            "apps__api>@opentelemetry/exporter-trace-otlp-http>@opentelemetry/otlp-transformer>protobufjs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1118925,
+      "module": "protobufjs",
+      "title": "protobuf.js: Prototype injection in generated message constructors",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-fx83-v9x8-x52w",
+      "vulnerable": ">=8.0.0 <=8.0.1",
+      "patched": ">=8.0.2",
+      "findings": [
+        {
+          "version": "8.0.1",
+          "paths": [
+            "apps__api>@opentelemetry/exporter-trace-otlp-http>@opentelemetry/otlp-transformer>protobufjs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1118927,
+      "module": "protobufjs",
+      "title": "protobuf.js: Code generation gadget after prototype pollution",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-75px-5xx7-5xc7",
+      "vulnerable": ">=8.0.0 <=8.0.1",
+      "patched": ">=8.0.2",
+      "findings": [
+        {
+          "version": "8.0.1",
+          "paths": [
+            "apps__api>@opentelemetry/exporter-trace-otlp-http>@opentelemetry/otlp-transformer>protobufjs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1118929,
+      "module": "protobufjs",
+      "title": "protobuf.js: Process-wide denial of service through unsafe option paths",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-jvwf-75h9-cwgg",
+      "vulnerable": ">=8.0.0 <=8.0.1",
+      "patched": ">=8.0.2",
+      "findings": [
+        {
+          "version": "8.0.1",
+          "paths": [
+            "apps__api>@opentelemetry/exporter-trace-otlp-http>@opentelemetry/otlp-transformer>protobufjs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1118931,
+      "module": "protobufjs",
+      "title": "protobuf.js: Denial of service through unbounded protobuf recursion",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-685m-2w69-288q",
+      "vulnerable": ">=8.0.0 <=8.0.1",
+      "patched": ">=8.0.2",
+      "findings": [
+        {
+          "version": "8.0.1",
+          "paths": [
+            "apps__api>@opentelemetry/exporter-trace-otlp-http>@opentelemetry/otlp-transformer>protobufjs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1118934,
+      "module": "protobufjs",
+      "title": "protobufjs has overlong UTF-8 decoding",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-q6x5-8v7m-xcrf",
+      "vulnerable": ">=8.0.0 <=8.0.1",
+      "patched": ">=8.0.2",
+      "findings": [
+        {
+          "version": "8.0.1",
+          "paths": [
+            "apps__api>@opentelemetry/exporter-trace-otlp-http>@opentelemetry/otlp-transformer>protobufjs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1119377,
+      "module": "protobufjs",
+      "title": "protobufjs: Denial of Service via unbounded recursive JSON descriptor expansion",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-jggg-4jg4-v7c6",
+      "vulnerable": ">=8.0.0 <8.2.0",
+      "patched": ">=8.2.0",
+      "findings": [
+        {
+          "version": "8.0.1",
+          "paths": [
+            "apps__api>@opentelemetry/exporter-trace-otlp-http>@opentelemetry/otlp-transformer>protobufjs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1119378,
+      "module": "protobufjs",
+      "title": "protobufjs: Denial of Service via unbounded recursive JSON descriptor expansion",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-jggg-4jg4-v7c6",
+      "vulnerable": "<=7.5.7",
+      "patched": ">=7.5.8",
+      "findings": [
+        {
+          "version": "7.5.7",
+          "paths": [
+            "apps__api>@opentelemetry/sdk-node>@opentelemetry/exporter-logs-otlp-grpc>@grpc/grpc-js>@grpc/proto-loader>protobufjs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1119441,
+      "module": "uuid",
+      "title": "uuid: Missing buffer bounds check in v3/v5/v6 when buf is provided",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-w5hq-g745-h8pq",
+      "vulnerable": "<11.1.1",
+      "patched": ">=11.1.1",
+      "findings": [
+        {
+          "version": "10.0.0",
+          "paths": [
+            "packages__conversation-engine>@langchain/core>uuid"
+          ]
+        },
+        {
+          "version": "9.0.1",
+          "paths": [
+            "packages__conversation-engine>@langchain/langgraph>@langchain/langgraph-sdk>uuid"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1119502,
+      "module": "qs",
+      "title": "qs has a remotely triggerable DoS: qs.stringify crashes with TypeError on null/undefined entries in comma-format arrays when encodeValuesOnly is set",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-q8mj-m7cp-5q26",
+      "vulnerable": ">=6.11.1 <=6.15.1",
+      "patched": ">=6.15.2",
+      "findings": [
+        {
+          "version": "6.14.2",
+          "paths": [
+            "apps__api>@nestjs/platform-express>body-parser>qs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1120161,
+      "module": "langsmith",
+      "title": "LangSmith SDK: Public prompt pull deserializes untrusted manifests without trust boundary warning",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-3644-q5cj-c5c7",
+      "vulnerable": "<0.6.0",
+      "patched": ">=0.6.0",
+      "findings": [
+        {
+          "version": "0.3.87",
+          "paths": [
+            "packages__conversation-engine>@langchain/core>langsmith"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1120370,
+      "module": "lodash",
+      "title": "Lodash has Prototype Pollution Vulnerability in `_.unset` and `_.omit` functions",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-xxjr-mmjv-4gpg",
+      "vulnerable": ">=4.0.0 <=4.17.22",
+      "patched": ">=4.17.23",
+      "findings": [
+        {
+          "version": "4.17.21",
+          "paths": [
+            "apps__api>@nestjs/swagger>lodash"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1120582,
+      "module": "@grpc/grpc-js",
+      "title": "@grpc/grpc-js: A malformed request can cause a server crash",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-5375-pq7m-f5r2",
+      "vulnerable": ">=1.14.0 <1.14.4",
+      "patched": ">=1.14.4",
+      "findings": [
+        {
+          "version": "1.14.3",
+          "paths": [
+            "apps__api>@opentelemetry/sdk-node>@opentelemetry/exporter-logs-otlp-grpc>@grpc/grpc-js"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1120588,
+      "module": "@grpc/grpc-js",
+      "title": "@grpc/grpc-js: An incoming malformed compressed message can cause a client or server crash",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-99f4-grh7-6pcq",
+      "vulnerable": ">=1.14.0 <1.14.4",
+      "patched": ">=1.14.4",
+      "findings": [
+        {
+          "version": "1.14.3",
+          "paths": [
+            "apps__api>@opentelemetry/sdk-node>@opentelemetry/exporter-logs-otlp-grpc>@grpc/grpc-js"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1120784,
+      "module": "vite",
+      "title": "launch-editor: NTLMv2 hash disclosure via UNC path handling on Windows",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-v6wh-96g9-6wx3",
+      "vulnerable": "<=6.4.2",
+      "patched": ">=6.4.3",
+      "findings": [
+        {
+          "version": "6.4.2",
+          "paths": [
+            "apps__dashboard>vite"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1121089,
+      "module": "multer",
+      "title": "Multer vulnerable to Denial of Service via deeply nested field names",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-72gw-mp4g-v24j",
+      "vulnerable": ">=1.0.0 <2.2.0",
+      "patched": ">=2.2.0",
+      "findings": [
+        {
+          "version": "2.0.2",
+          "paths": [
+            "apps__api>@nestjs/platform-express>multer"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1121091,
+      "module": "multer",
+      "title": "Multer vulnerable to Denial of Service via incomplete cleanup of aborted uploads",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-3p4h-7m6x-2hcm",
+      "vulnerable": ">=2.0.0-alpha.1 <2.2.0",
+      "patched": ">=2.2.0",
+      "findings": [
+        {
+          "version": "2.0.2",
+          "paths": [
+            "apps__api>@nestjs/platform-express>multer"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1121187,
+      "module": "undici",
+      "title": "undici vulnerable to TLS certificate validation bypass via dropped requestTls in SOCKS5 ProxyAgent",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-vmh5-mc38-953g",
+      "vulnerable": ">=7.23.0 <7.28.0",
+      "patched": ">=7.28.0",
+      "findings": [
+        {
+          "version": "7.25.0",
+          "paths": [
+            "apps__storefront>isomorphic-dompurify>jsdom>undici"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1121241,
+      "module": "undici",
+      "title": "undici vulnerable to HTTP header injection via Set-Cookie percent-decoding",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-p88m-4jfj-68fv",
+      "vulnerable": ">=7.0.0 <7.28.0",
+      "patched": ">=7.28.0",
+      "findings": [
+        {
+          "version": "7.25.0",
+          "paths": [
+            "apps__storefront>isomorphic-dompurify>jsdom>undici"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1121244,
+      "module": "undici",
+      "title": "undici WebSocket client vulnerable to denial of service via fragment count bypass",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-vxpw-j846-p89q",
+      "vulnerable": ">=7.0.0 <7.28.0",
+      "patched": ">=7.28.0",
+      "findings": [
+        {
+          "version": "7.25.0",
+          "paths": [
+            "apps__storefront>isomorphic-dompurify>jsdom>undici"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1121247,
+      "module": "undici",
+      "title": "undici vulnerable to cross-origin request routing via SOCKS5 proxy pool reuse",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-hm92-r4w5-c3mj",
+      "vulnerable": ">=7.23.0 <7.28.0",
+      "patched": ">=7.28.0",
+      "findings": [
+        {
+          "version": "7.25.0",
+          "paths": [
+            "apps__storefront>isomorphic-dompurify>jsdom>undici"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1121254,
+      "module": "undici",
+      "title": "undici vulnerable to Set-Cookie SameSite attribute downgrade via permissive substring matching",
+      "severity": "low",
+      "url": "https://github.com/advisories/GHSA-g8m3-5g58-fq7m",
+      "vulnerable": ">=7.0.0 <7.28.0",
+      "patched": ">=7.28.0",
+      "findings": [
+        {
+          "version": "7.25.0",
+          "paths": [
+            "apps__storefront>isomorphic-dompurify>jsdom>undici"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1121428,
+      "module": "undici",
+      "title": "undici vulnerable to cross-user information disclosure via shared cache whitespace bypass",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-pr7r-676h-xcf6",
+      "vulnerable": ">=7.0.0 <7.28.0",
+      "patched": ">=7.28.0",
+      "findings": [
+        {
+          "version": "7.25.0",
+          "paths": [
+            "apps__storefront>isomorphic-dompurify>jsdom>undici"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1121860,
+      "module": "js-yaml",
+      "title": "JS-YAML: Quadratic-complexity DoS in merge key handling via repeated aliases",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-h67p-54hq-rp68",
+      "vulnerable": ">=4.0.0 <=4.1.1",
+      "patched": ">=4.2.0",
+      "findings": [
+        {
+          "version": "4.1.0",
+          "paths": [
+            "apps__api>@nestjs/swagger>js-yaml"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1123259,
+      "module": "ws",
+      "title": "ws: Memory exhaustion DoS from tiny fragments and data chunks",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-96hv-2xvq-fx4p",
+      "vulnerable": ">=8.0.0 <8.21.0",
+      "patched": ">=8.21.0",
+      "findings": [
+        {
+          "version": "8.20.1",
+          "paths": [
+            "apps__api>viem>ws"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1123487,
+      "module": "protobufjs",
+      "title": "protobufjs: Denial of service through unbounded Any expansion during JSON conversion",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-wcpc-wj8m-hjx6",
+      "vulnerable": ">=8.0.0 <=8.4.0",
+      "patched": ">=8.4.1",
+      "findings": [
+        {
+          "version": "8.0.1",
+          "paths": [
+            "apps__api>@opentelemetry/exporter-trace-otlp-http>@opentelemetry/otlp-transformer>protobufjs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1123488,
+      "module": "protobufjs",
+      "title": "protobufjs: Denial of service through unbounded Any expansion during JSON conversion",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-wcpc-wj8m-hjx6",
+      "vulnerable": "<=7.6.0",
+      "patched": ">=7.6.1",
+      "findings": [
+        {
+          "version": "7.5.7",
+          "paths": [
+            "apps__api>@opentelemetry/sdk-node>@opentelemetry/exporter-logs-otlp-grpc>@grpc/grpc-js>@grpc/proto-loader>protobufjs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1123489,
+      "module": "protobufjs",
+      "title": "protobufjs : Schema-derived names can shadow runtime-significant properties",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-f38q-mgvj-vph7",
+      "vulnerable": ">=8.0.0 <=8.5.0",
+      "patched": ">=8.6.0",
+      "findings": [
+        {
+          "version": "8.0.1",
+          "paths": [
+            "apps__api>@opentelemetry/exporter-trace-otlp-http>@opentelemetry/otlp-transformer>protobufjs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1123492,
+      "module": "protobufjs",
+      "title": "protobufjs : Schema-derived names can shadow runtime-significant properties",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-f38q-mgvj-vph7",
+      "vulnerable": "<=7.6.2",
+      "patched": ">=7.6.3",
+      "findings": [
+        {
+          "version": "7.5.7",
+          "paths": [
+            "apps__api>@opentelemetry/sdk-node>@opentelemetry/exporter-logs-otlp-grpc>@grpc/grpc-js>@grpc/proto-loader>protobufjs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1123525,
+      "module": "vite",
+      "title": "vite: `server.fs.deny` bypass on Windows alternate paths",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-fx2h-pf6j-xcff",
+      "vulnerable": "<=6.4.2",
+      "patched": ">=6.4.3",
+      "findings": [
+        {
+          "version": "6.4.2",
+          "paths": [
+            "apps__dashboard>vite"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1123528,
+      "module": "@babel/core",
+      "title": "@babel/core: Arbitrary File Read via sourceMappingURL Comment",
+      "severity": "low",
+      "url": "https://github.com/advisories/GHSA-4x5r-pxfx-6jf8",
+      "vulnerable": "<=7.29.0",
+      "patched": ">=7.29.6",
+      "findings": [
+        {
+          "version": "7.29.0",
+          "paths": [
+            "apps__dashboard>@vitejs/plugin-react>@babel/core"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1123911,
+      "module": "js-yaml",
+      "title": "js-yaml: YAML merge-key chains can force quadratic CPU consumption",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-52cp-r559-cp3m",
+      "vulnerable": ">=4.0.0 <4.3.0",
+      "patched": ">=4.3.0",
+      "findings": [
+        {
+          "version": "4.1.0",
+          "paths": [
+            "apps__api>@nestjs/swagger>js-yaml"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1123963,
+      "module": "protobufjs",
+      "title": "protobufjs: Denial of Service via infinite loop in .proto option parsing",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-j3f2-48v5-ccww",
+      "vulnerable": ">=8.0.0 <=8.6.5",
+      "patched": ">=8.6.6",
+      "findings": [
+        {
+          "version": "8.0.1",
+          "paths": [
+            "apps__api>@opentelemetry/exporter-trace-otlp-http>@opentelemetry/otlp-transformer>protobufjs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1123964,
+      "module": "protobufjs",
+      "title": "protobufjs: Denial of Service via infinite loop in .proto option parsing",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-j3f2-48v5-ccww",
+      "vulnerable": ">=7.5.0 <=7.6.4",
+      "patched": ">=7.6.5",
+      "findings": [
+        {
+          "version": "7.5.7",
+          "paths": [
+            "apps__api>@opentelemetry/sdk-node>@opentelemetry/exporter-logs-otlp-grpc>@grpc/grpc-js>@grpc/proto-loader>protobufjs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1123977,
+      "module": "body-parser",
+      "title": "body-parser vulnerable to denial of service when invalid limit value silently disables size enforcement",
+      "severity": "low",
+      "url": "https://github.com/advisories/GHSA-v422-hmwv-36x6",
+      "vulnerable": "<1.20.6",
+      "patched": ">=1.20.6",
+      "findings": [
+        {
+          "version": "1.20.4",
+          "paths": [
+            "apps__api>@nestjs/platform-express>body-parser"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1124011,
+      "module": "@opentelemetry/propagator-jaeger",
+      "title": "OpenTelemetry JavaScript: Denial of service in `JaegerPropagator` via unhandled exception on a malformed header",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-45rx-2jwx-cxfr",
+      "vulnerable": "<2.9.0",
+      "patched": ">=2.9.0",
+      "findings": [
+        {
+          "version": "2.7.1",
+          "paths": [
+            "apps__api>@opentelemetry/sdk-node>@opentelemetry/propagator-jaeger"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1124066,
+      "module": "sharp",
+      "title": "sharp inherited vulnerabilities in libvips: CVE-2026-33327, CVE-2026-33328, CVE-2026-35590, CVE-2026-35591",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-f88m-g3jw-g9cj",
+      "vulnerable": "<0.35.0",
+      "patched": ">=0.35.0",
+      "findings": [
+        {
+          "version": "0.34.5",
+          "paths": [
+            "apps__storefront>next>sharp"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1124252,
+      "module": "postcss",
+      "title": "PostCSS: Arbitrary file read and information disclosure via attacker-controlled sourceMappingURL in CSS comments",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-6g55-p6wh-862q",
+      "vulnerable": "<=8.5.11",
+      "patched": ">=8.5.12",
+      "findings": [
+        {
+          "version": "8.4.31",
+          "paths": [
+            "apps__storefront>next>postcss"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1130709,
+      "module": "postcss",
+      "title": "PostCSS: incomplete fix of GHSA-6g55-p6wh-862q — attacker-controlled sourceMappingURL reads arbitrary .map files when `from` is unset",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-fxqj-rqcc-2cmp",
+      "vulnerable": "<=8.5.22",
+      "patched": ">=8.5.23",
+      "findings": [
+        {
+          "version": "8.4.31",
+          "paths": [
+            "apps__storefront>next>postcss"
+          ]
+        },
+        {
+          "version": "8.5.14",
+          "paths": [
+            "apps__dashboard>vite>postcss"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1130715,
+      "module": "undici",
+      "title": "undici vulnerable to downstream response desynchronization via retry interceptor",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-8xcm-r25x-g524",
+      "vulnerable": ">=7.0.0 <7.29.0",
+      "patched": ">=7.29.0",
+      "findings": [
+        {
+          "version": "7.25.0",
+          "paths": [
+            "apps__storefront>isomorphic-dompurify>jsdom>undici"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1130718,
+      "module": "undici",
+      "title": "undici vulnerable to cross-user information disclosure and parse-time crash via degenerate private cache directives",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-4cwx-7wf7-3272",
+      "vulnerable": ">=7.0.0 <7.29.0",
+      "patched": ">=7.29.0",
+      "findings": [
+        {
+          "version": "7.25.0",
+          "paths": [
+            "apps__storefront>isomorphic-dompurify>jsdom>undici"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1130726,
+      "module": "undici",
+      "title": "undici vulnerable to CRLF Injection via blob-like body 'type' property",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-m8rv-5g2x-5cg5",
+      "vulnerable": ">=7.0.0 <7.29.0",
+      "patched": ">=7.29.0",
+      "findings": [
+        {
+          "version": "7.25.0",
+          "paths": [
+            "apps__storefront>isomorphic-dompurify>jsdom>undici"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1130729,
+      "module": "undici",
+      "title": "undici vulnerable to cross-user information disclosure via whitespace around equals in Cache-Control directives",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-jr45-8vmc-qm54",
+      "vulnerable": ">=7.0.0 <7.29.0",
+      "patched": ">=7.29.0",
+      "findings": [
+        {
+          "version": "7.25.0",
+          "paths": [
+            "apps__storefront>isomorphic-dompurify>jsdom>undici"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1130731,
+      "module": "undici",
+      "title": "undici vulnerable to cookie attribute injection via unsanitized domain and unparsed setCookie fields",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-v3r7-h72x-cjcm",
+      "vulnerable": ">=7.0.0 <7.29.0",
+      "patched": ">=7.29.0",
+      "findings": [
+        {
+          "version": "7.25.0",
+          "paths": [
+            "apps__storefront>isomorphic-dompurify>jsdom>undici"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1137242,
+      "module": "undici",
+      "title": "undici vulnerable to HTTP response queue poisoning via keep-alive socket reuse",
+      "severity": "low",
+      "url": "https://github.com/advisories/GHSA-35p6-xmwp-9g52",
+      "vulnerable": ">=7.0.0 <7.28.0",
+      "patched": ">=7.28.0",
+      "findings": [
+        {
+          "version": "7.25.0",
+          "paths": [
+            "apps__storefront>isomorphic-dompurify>jsdom>undici"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1138115,
+      "module": "js-yaml",
+      "title": "JS-YAML: Quadratic CPU consumption in !!omap resolution (3.x and 4.x) — CVE-2026-59870 fix not backported",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-5p4m-2wfm-xmqj",
+      "vulnerable": ">=4.0.0 <4.3.1",
+      "patched": ">=4.3.1",
+      "findings": [
+        {
+          "version": "4.1.0",
+          "paths": [
+            "apps__api>@nestjs/swagger>js-yaml"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1138810,
+      "module": "nanoid",
+      "title": "nanoid: non-secure generators can loop indefinitely with negative size",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-28wg-ghj8-5hjv",
+      "vulnerable": ">=4.0.0 <5.1.16",
+      "patched": ">=5.1.16",
+      "findings": [
+        {
+          "version": "5.1.11",
+          "paths": [
+            "apps__api>@scalar/nestjs-api-reference>@scalar/core>@scalar/types>nanoid"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1138811,
+      "module": "nanoid",
+      "title": "nanoid: non-secure generators can loop indefinitely with negative size",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-28wg-ghj8-5hjv",
+      "vulnerable": "<3.3.16",
+      "patched": ">=3.3.16",
+      "findings": [
+        {
+          "version": "3.3.11",
+          "paths": [
+            "apps__dashboard>vite>postcss>nanoid"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1139427,
+      "module": "nanoid",
+      "title": "nanoid: custom generators can loop indefinitely when size is zero",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-2v37-7h3g-55p8",
+      "vulnerable": "<3.3.18",
+      "patched": ">=3.3.18",
+      "findings": [
+        {
+          "version": "3.3.17",
+          "paths": [
+            "apps__storefront>next>postcss>nanoid"
+          ]
+        },
+        {
+          "version": "3.3.11",
+          "paths": [
+            "apps__dashboard>vite>postcss>nanoid"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1139510,
+      "module": "postcss",
+      "title": "PostCSS: Path Traversal in Previous Source Map Auto-Loading (sourceMappingURL) leads to Arbitrary .map File Disclosure",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-r28c-9q8g-f849",
+      "vulnerable": "<=8.5.17",
+      "patched": ">=8.5.18",
+      "findings": [
+        {
+          "version": "8.4.31",
+          "paths": [
+            "apps__storefront>next>postcss"
+          ]
+        },
+        {
+          "version": "8.5.14",
+          "paths": [
+            "apps__dashboard>vite>postcss"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1145093,
+      "module": "deepmerge-ts",
+      "title": "DeepmergeTS has stack exhaustion when merging recursive object graphs",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-ggr8-5vv4-36mx",
+      "vulnerable": "<8.0.0",
+      "patched": ">=8.0.0",
+      "findings": [
+        {
+          "version": "7.1.5",
+          "paths": [
+            "apps__api>@prisma/client>prisma>@prisma/config>deepmerge-ts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1153171,
+      "module": "browserslist",
+      "title": "Browserslist: Unbounded memory growth (no cache eviction) via distinct query results, leading to eventual OOM",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-c83g-rgw3-j3cx",
+      "vulnerable": "<=4.28.6",
+      "patched": ">=4.28.7",
+      "findings": [
+        {
+          "version": "4.28.2",
+          "paths": [
+            "apps__dashboard>@vitejs/plugin-react>@babel/core>@babel/helper-compilation-targets>browserslist"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1153172,
+      "module": "browserslist",
+      "title": "Browserslist: Uncaught crash / prototype write via untrusted browserslist-stats.json custom stats (normalizeStats)",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-73wf-gq98-2v4g",
+      "vulnerable": "<=4.28.6",
+      "patched": ">=4.28.7",
+      "findings": [
+        {
+          "version": "4.28.2",
+          "paths": [
+            "apps__dashboard>@vitejs/plugin-react>@babel/core>@babel/helper-compilation-targets>browserslist"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1153174,
+      "module": "@opentelemetry/core",
+      "title": "OpenTelemetry Core: Unbounded memory allocation in W3C Baggage propagation",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-8988-4f7v-96qf",
+      "vulnerable": "<2.8.0",
+      "patched": ">=2.8.0",
+      "findings": [
+        {
+          "version": "2.7.1",
+          "paths": [
+            "apps__api>@opentelemetry/auto-instrumentations-node>@opentelemetry/instrumentation-amqplib>@opentelemetry/core"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1153189,
+      "module": "nanoid",
+      "title": "nanoid: Integer Overflow or Wraparound",
+      "severity": "high",
+      "url": "https://github.com/advisories/GHSA-xwg4-73v4-xw9w",
+      "vulnerable": "<3.3.12",
+      "patched": ">=3.3.12",
+      "findings": [
+        {
+          "version": "3.3.11",
+          "paths": [
+            "apps__dashboard>vite>postcss>nanoid"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1158506,
+      "module": "qs",
+      "title": "qs array-limit bypass via bracket-key comma parsing",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-x5fp-wj9c-mxmx",
+      "vulnerable": ">=6.14.2 <=6.15.3",
+      "patched": ">=6.16.0",
+      "findings": [
+        {
+          "version": "6.14.2",
+          "paths": [
+            "apps__api>@nestjs/platform-express>body-parser>qs"
+          ]
+        },
+        {
+          "version": "6.15.3",
+          "paths": [
+            "apps__api>express>body-parser>qs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1158507,
+      "module": "qs",
+      "title": "qs: Denial of Service via Attacker Controlled isBuffer",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-4mjr-xmp4-gh2g",
+      "vulnerable": ">=2.2.5 <6.16.0",
+      "patched": ">=6.16.0",
+      "findings": [
+        {
+          "version": "6.14.2",
+          "paths": [
+            "apps__api>@nestjs/platform-express>body-parser>qs"
+          ]
+        },
+        {
+          "version": "6.15.3",
+          "paths": [
+            "apps__api>express>body-parser>qs"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 1164782,
+      "module": "fflate",
+      "title": "fflate unzipSync can enter an infinite loop when parsing malformed ZIP64 archives",
+      "severity": "moderate",
+      "url": "https://github.com/advisories/GHSA-px8p-9vwx-vf98",
+      "vulnerable": ">=0.8.0 <0.8.3",
+      "patched": ">=0.8.3",
+      "findings": [
+        {
+          "version": "0.8.2",
+          "paths": [
+            "apps__api>@nestjs/common>file-type>@tokenizer/inflate>fflate"
+          ]
+        }
+      ]
+    }
+  ],
+  "note": "registry audit result, not exploitability proof"
+}

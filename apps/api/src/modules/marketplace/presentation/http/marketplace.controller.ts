@@ -99,8 +99,11 @@ export class MarketplaceController {
     @Req() request: AuthenticatedRequest,
     @Param("settlementId") settlementId: string,
   ) {
+    const user = currentUser(request);
     return this.handleChargeback.execute({
       settlementId,
+      merchantId: user.merchantId,
+      role: user.role,
     });
   }
 
