@@ -1,4 +1,4 @@
-import type { RecoveryAttemptRepositoryPort } from "../../domain/ports/recovery-attempt-repository.port.js";
+import type { ListRecoveryAttemptsOptions, RecoveryAttemptRepositoryPort } from "../../domain/ports/recovery-attempt-repository.port.js";
 import { RecoveryAttempt, type RecoveryAttemptStatus } from "../../domain/entities/recovery-attempt.entity.js";
 
 /**
@@ -31,6 +31,13 @@ export class InMemoryRecoveryAttemptRepository implements RecoveryAttemptReposit
 
   async findByMerchantAndStatus(merchantId: string, status: RecoveryAttemptStatus): Promise<RecoveryAttempt[]> {
     return this.attempts.filter((a) => a.merchantId === merchantId && a.status === status);
+  }
+
+  async findByMerchant(merchantId: string, options: ListRecoveryAttemptsOptions): Promise<RecoveryAttempt[]> {
+    return this.attempts
+      .filter((attempt) => attempt.merchantId === merchantId && (!options.status || attempt.status === options.status))
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+      .slice(options.offset, options.offset + options.limit);
   }
 
   async getMetrics(merchantId: string, from: Date, to: Date) {

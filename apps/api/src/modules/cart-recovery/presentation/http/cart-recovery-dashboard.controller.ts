@@ -19,6 +19,7 @@ import { GetStrategyPreferencesUseCase } from "../../application/use-cases/get-s
 import { UpdateStrategyPreferencesUseCase } from "../../application/use-cases/update-strategy-preferences.use-case.js";
 import { GetStrategyConfigUseCase } from "../../application/use-cases/get-strategy-config.use-case.js";
 import { UpdateStrategyConfigUseCase } from "../../application/use-cases/update-strategy-config.use-case.js";
+import { ListRecoveryAttemptsUseCase } from "../../application/use-cases/list-recovery-attempts.use-case.js";
 
 @ApiTags("Dashboard / Cart Recovery")
 @Controller("dashboard/cart-recovery")
@@ -31,6 +32,7 @@ export class CartRecoveryDashboardController {
     private readonly updateStrategyPreferences: UpdateStrategyPreferencesUseCase,
     private readonly getStrategyConfig: GetStrategyConfigUseCase,
     private readonly updateStrategyConfig: UpdateStrategyConfigUseCase,
+    private readonly listRecoveryAttempts: ListRecoveryAttemptsUseCase,
   ) {}
 
   @Get("metrics")
@@ -59,15 +61,21 @@ export class CartRecoveryDashboardController {
     @Query() query?: { status?: string; limit?: number; offset?: number },
   ) {
     const user = currentUser(req);
-    const status = query?.status ?? "all";
-    const limit = Math.min(query?.limit ?? 50, 100);
-    const offset = query?.offset ?? 0;
-    return {
+    const attempts = await this.listRecoveryAttempts.execute({
       merchantId: user.merchantId,
-      status,
-      limit,
-      offset,
-      message: "Recovery attempts endpoint",
+      status: query?.status,
+      limit: query?.limit,
+      offset: query?.offset,
+    });
+    return {
+      data: attempts.map((attempt) => ({
+        id: attempt.id,
+        session_id: attempt.sessionId,
+        strategy: attempt.strategy.type,
+        status: attempt.status,
+        channel: attempt.channel,
+        created_at: attempt.createdAt.toISOString(),
+      })),
     };
   }
 

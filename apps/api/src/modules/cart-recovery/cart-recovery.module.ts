@@ -10,6 +10,7 @@ import { GetStrategyPreferencesUseCase } from "./application/use-cases/get-strat
 import { UpdateStrategyPreferencesUseCase } from "./application/use-cases/update-strategy-preferences.use-case.js";
 import { GetStrategyConfigUseCase } from "./application/use-cases/get-strategy-config.use-case.js";
 import { UpdateStrategyConfigUseCase } from "./application/use-cases/update-strategy-config.use-case.js";
+import { ListRecoveryAttemptsUseCase } from "./application/use-cases/list-recovery-attempts.use-case.js";
 import { RECOVERY_ATTEMPT_REPOSITORY, type RecoveryAttemptRepositoryPort } from "./domain/ports/recovery-attempt-repository.port.js";
 import { STRATEGY_PREFERENCES_REPOSITORY } from "./domain/ports/strategy-preferences-repository.port.js";
 import { PrismaRecoveryAttemptRepository } from "./infrastructure/repositories/prisma-recovery-attempt.repository.js";
@@ -88,6 +89,11 @@ export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_US
     {
       provide: GetRecoveryMetricsUseCase,
       useFactory: (repo) => new GetRecoveryMetricsUseCase(repo),
+      inject: [RECOVERY_ATTEMPT_REPOSITORY],
+    },
+    {
+      provide: ListRecoveryAttemptsUseCase,
+      useFactory: (repo) => new ListRecoveryAttemptsUseCase(repo),
       inject: [RECOVERY_ATTEMPT_REPOSITORY],
     },
     {

@@ -1,14 +1,8 @@
 import { dashboardJson } from "../http/client.js";
+import type { CartRecoveryMetrics } from "./cart-recovery-metrics.js";
+export type { CartRecoveryMetrics } from "./cart-recovery-metrics.js";
 
 const PREFIX = "/dashboard/cart-recovery";
-
-export interface CartRecoveryMetrics {
-  total_abandoned: number;
-  total_attempts: number;
-  total_recovered: number;
-  recovery_rate_percent: number;
-  revenue_recovered_brl: number;
-}
 
 export type CartRecoveryStrategyKey =
   | "offer_free_shipping"
@@ -28,7 +22,8 @@ export interface CartRecoveryAttempt {
   id: string;
   session_id: string;
   strategy: string;
-  status: "pending" | "sent" | "recovered" | "failed";
+  status: "pending" | "sent" | "recovered" | "failed" | "expired" | "unknown";
+  channel?: "in_session" | "none" | "whatsapp_template" | "email";
   created_at: string;
 }
 

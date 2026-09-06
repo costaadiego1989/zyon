@@ -9,6 +9,8 @@ import { Button } from "../../components/Button.js";
 import { showToast } from "../../components/Toast.js";
 import { useCartRecoveryPage } from "./useCartRecoveryPage.js";
 import type { CartRecoveryStrategyKey } from "../../api/endpoints/cart-recovery.js";
+import { sendRecoveryTest, type RecoveryTestFeedback } from "./recovery-test-send.js";
+import { RecoveryTemplatesPanel } from "./RecoveryTemplatesPanel.js";
 
 export interface CartRecoveryPageProps {
   apiBaseUrl: string;
@@ -26,65 +28,9 @@ interface StrategyOption {
 const STRATEGY_OPTIONS: StrategyOption[] = [
   { key: "offer_free_shipping", label: "Frete Grátis", description: "Oferecer frete grátis como incentivo para fechar a compra", needsConfig: false },
   { key: "personalized_cross_sell", label: "Cross-sell", description: "Sugerir produtos complementares baseados no histórico do comprador", needsConfig: false },
-  { key: "offer_coupon", label: "Cupom de Desconto", description: "Enviar cupom de desconto via WhatsApp para incentivar a conversão", needsConfig: true, configLabel: "Selecionar cupom" },
+  { key: "offer_coupon", label: "Cupom de Desconto", description: "Usar um cupom configurado e válido na recuperação", needsConfig: true, configLabel: "Selecionar cupom" },
   { key: "advanced_rule", label: "Regra Avançada", description: "Usar regras do engine de negociação (desconto progressivo, objeção, timing)", needsConfig: true, configLabel: "Selecionar regra" },
 ];
-
-const WHATSAPP_TEMPLATES: Record<CartRecoveryStrategyKey, (config: { coupon_code?: string; rule_id?: string }) => string> = {
-  offer_free_shipping: () => `🚚 *Frete Grátis Pra Você!*
-
-Seu carrinho está te esperando! 👜
-
-Voltou interesse? Ótima notícia: hoje temos *FRETE GRÁTIS* em tudo que você deixou guardado.
-
-👉 *Voltar pro carrinho:* [link gerado automaticamente]
-
-⏰ Oferta válida por 48 horas
-🎁 Aproveita que é grátis!`,
-
-  personalized_cross_sell: () => `🛒 *Esqueceu Algo no Carrinho?*
-
-Oi! Vimos que você deixou alguns itens incríveis esperando. 👀
-
-Preparamos sugestões especiais baseadas no que você escolheu:
-• Produto complementar 1
-• Produto complementar 2
-• Produto complementar 3
-
-Quer ver? É só voltar pro carrinho!
-
-👉 *Acessar carrinho:* [link gerado automaticamente]
-
-💭 Dúvidas? É só chamar aqui!`,
-
-  offer_coupon: (cfg) => `🎉 *Cupom Exclusivo Pra Você!*
-
-Sua compra merecia um descontão! 🤑
-
-Use o código *${cfg.coupon_code || "—"}* na hora de finalizar o pedido.
-
-👉 *Voltar e aplicar:* [link gerado automaticamente]
-
-⏰ Código válido por 3 dias
-🔐 Exclusivo — só pra você!
-
-Bora fechar? 🛍️`,
-
-  advanced_rule: () => `✨ *Oferta Personalizada Esperando!*
-
-Olha só que legal: preparamos uma condição especial só pra você! 🎯
-
-Com base no que você deixou no carrinho, temos:
-💳 Parcelamento em até 12x sem juros
-⏱️ Frete com desconto de 40%
-🎁 Brinde exclusivo em compras acima de R$ 150
-
-👉 *Conferir oferta:* [link gerado automaticamente]
-
-Essa proposta é válida *até amanhã* — depois muda!
-
-Bora finalizar? 🚀`,
-};
 
 const PAGE_SIZE = 10;
 
@@ -105,6 +51,9 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
   const [page, setPage] = useState(1);
   const [panelOpen, setPanelOpen] = useState<"coupon" | "rule" | null>(null);
   const [testSending, setTestSending] = useState(false);
+  const [testPhone, setTestPhone] = useState("");
+  const [testEmail, setTestEmail] = useState("");
+  const [testFeedback, setTestFeedback] = useState<RecoveryTestFeedback | null>(null);
 
   if (!props.me) {
     return (
@@ -165,32 +114,22 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
   const paginatedAttempts = attempts.slice(startIdx, startIdx + PAGE_SIZE);
   const activeKey = (Object.entries(strategies).find(([, v]) => v)?.[0] ?? "offer_coupon") as CartRecoveryStrategyKey;
 
-  const handleSendTest = async () => {
+  const handleSendTest = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (testSending) return;
     setTestSending(true);
+    setTestFeedback(null);
     try {
-      const response = await fetch(`${props.apiBaseUrl}/cart-recovery/test-send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone: "21993001883",
-          strategy: activeKey,
-          coupon_code: config.coupon_code,
-          rule_id: config.rule_id,
-          session_id: "test_session_demo",
-        }),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        showToast("success", "Mensagem enviada pra 21 99300-1883 com link! Confirma se chegou? 📱");
-        if (data.recovery_link) {
-          console.log("Recovery link:", data.recovery_link);
-        }
-      } else {
-        const err = await response.text();
-        showToast("error", `Erro ao enviar: ${err}`);
-      }
-    } catch (e) {
-      showToast("error", `Erro: ${e instanceof Error ? e.message : "desconhecido"}`);
+      const feedback = await sendRecoveryTest(props.apiBaseUrl, { phone: testPhone, email: testEmail });
+      setTestFeedback(feedback);
+      showToast(feedback.type, feedback.text);
+    } catch {
+      const feedback: RecoveryTestFeedback = {
+        type: "error",
+        text: "Não foi possível confirmar o teste. Verifique sua conexão e o recebimento antes de tentar novamente.",
+      };
+      setTestFeedback(feedback);
+      showToast(feedback.type, feedback.text);
     } finally {
       setTestSending(false);
     }
@@ -202,7 +141,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
         <div>
           <span className="eyebrow">Inteligência IA</span>
           <h1>Cart Recovery</h1>
-          <p className="page-lead">Recuperação automática de carrinhos abandonados via WhatsApp</p>
+          <p className="page-lead">Recuperação automática de carrinhos abandonados por WhatsApp ou e-mail</p>
         </div>
       </header>
 
@@ -217,9 +156,12 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
         lineHeight: 1.65,
       }}>
         <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong>{" "}
-        Quando um comprador abandona o carrinho, o sistema detecta automaticamente e envia uma mensagem de recuperação
-        via WhatsApp com a estratégia configurada abaixo. Apenas uma estratégia pode estar ativa por vez.
+        Quando um comprador abandona o carrinho, o sistema usa o WhatsApp conectado e ativo da loja com um modelo ativo e aprovado.
+        Se o WhatsApp não estiver disponível para recuperação, o envio usa somente e-mail, quando houver destinatário.
+        Apenas uma estratégia pode estar ativa por vez.
       </div>
+
+      <RecoveryTemplatesPanel key={props.me.id} apiBaseUrl={props.apiBaseUrl} />
 
       {/* KPI cards */}
       {metrics && (
@@ -227,23 +169,23 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
           <StatCard
             icon={<ShoppingCart size={16} />}
             label="Carrinhos abandonados"
-            value={(metrics.total_abandoned ?? 0).toLocaleString("pt-BR")}
+            value={metrics.total_abandoned?.toLocaleString("pt-BR") ?? "Indisponível"}
           />
           <StatCard
             icon={<Activity size={16} />}
             label="Tentativas de recuperação"
-            value={(metrics.total_attempts ?? 0).toLocaleString("pt-BR")}
+            value={metrics.total_attempts?.toLocaleString("pt-BR") ?? "Indisponível"}
           />
           <StatCard
             icon={<CheckCircle size={16} />}
             label="Recuperados"
-            value={(metrics.total_recovered ?? 0).toLocaleString("pt-BR")}
+            value={metrics.total_recovered?.toLocaleString("pt-BR") ?? "Indisponível"}
             accent="var(--color-success)"
           />
           <StatCard
             icon={<DollarSign size={16} />}
             label="Receita recuperada"
-            value={`R$ ${(metrics.revenue_recovered_brl ?? 0).toLocaleString("pt-BR")}`}
+            value={metrics.revenue_recovered_brl === null ? "Indisponível" : `R$ ${metrics.revenue_recovered_brl.toLocaleString("pt-BR")}`}
             accent="var(--color-brand)"
           />
         </div>
@@ -251,7 +193,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
 
       {/* Strategy selection — radio (only 1 active) */}
       <div className="panel" style={{ padding: "20px 24px" }}>
-        <SectionHeader title="Estratégia de recuperação" subtitle="Escolha o que enviar via WhatsApp quando um carrinho for abandonado. Apenas uma opção pode estar ativa." />
+        <SectionHeader title="Estratégia de recuperação" subtitle="Escolha a estratégia para recuperar carrinhos. Apenas uma opção pode estar ativa." />
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           {STRATEGY_OPTIONS.map((opt) => {
             const isActive = activeKey === opt.key;
@@ -389,37 +331,58 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
         )}
       </div>
 
-      {/* WhatsApp template preview */}
-      <div className="panel" style={{ padding: "20px 24px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <SectionHeader title="Preview da mensagem WhatsApp" subtitle="Mensagem que será enviada ao comprador quando o carrinho for abandonado." variant="secondary" />
+      {/* Test delivery follows the same channel policy as automatic recovery. */}
+      <form className="panel" style={{ padding: "20px 24px" }} onSubmit={handleSendTest} aria-busy={testSending}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <SectionHeader title="Testar canal de recuperação" subtitle="Informe seus dados para receber uma mensagem de teste no canal disponível." variant="secondary" />
           <Button
+            type="submit"
             variant="primary"
             size="sm"
-            onClick={handleSendTest}
-            disabled={testSending}
+            disabled={testSending || (!testPhone.trim() && !testEmail.trim())}
             style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
           >
             <Send size={14} />
             {testSending ? "Enviando..." : "Testar Envio"}
           </Button>
         </div>
-        <div style={{
-          padding: "16px 18px",
-          borderRadius: "var(--radius-sm)",
-          background: "var(--surface-0)",
-          border: "1px solid var(--color-border)",
-          font: "13px var(--font-sans)",
-          color: "var(--color-text)",
-          lineHeight: 1.6,
-          whiteSpace: "pre-wrap",
-          fontFamily: "var(--font-sans)",
-          maxHeight: "400px",
-          overflowY: "auto",
-        }}>
-          {WHATSAPP_TEMPLATES[activeKey](config)}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+          <label style={{ display: "flex", flex: "1 1 220px", minWidth: 0, flexDirection: "column", gap: 6, font: "13px var(--font-sans)" }}>
+            Telefone com código do país (opcional)
+            <input
+              type="tel"
+              autoComplete="tel"
+              value={testPhone}
+              onChange={(event) => setTestPhone(event.target.value)}
+              disabled={testSending}
+              aria-describedby="recovery-test-policy"
+              style={{ padding: "10px 12px", borderRadius: "var(--radius-sm)", background: "var(--surface-0)", border: "1px solid var(--color-border)", color: "var(--color-text)", font: "inherit", minWidth: 0 }}
+            />
+          </label>
+          <label style={{ display: "flex", flex: "1 1 220px", minWidth: 0, flexDirection: "column", gap: 6, font: "13px var(--font-sans)" }}>
+            E-mail para envio alternativo (opcional)
+            <input
+              type="email"
+              autoComplete="email"
+              value={testEmail}
+              onChange={(event) => setTestEmail(event.target.value)}
+              disabled={testSending}
+              aria-describedby="recovery-test-policy"
+              style={{ padding: "10px 12px", borderRadius: "var(--radius-sm)", background: "var(--surface-0)", border: "1px solid var(--color-border)", color: "var(--color-text)", font: "inherit", minWidth: 0 }}
+            />
+          </label>
         </div>
-      </div>
+        <p id="recovery-test-policy" style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.6 }}>
+          O WhatsApp usa o modelo ativo e aprovado da loja, quando a conexão estiver ativa.
+          Caso contrário, o teste usa apenas o e-mail informado. Informe ao menos um destinatário.
+          O teste verifica o canal e não adiciona descontos ou ofertas.
+        </p>
+        {testFeedback && (
+          <p role="status" style={{ marginBottom: 0, font: "13px var(--font-sans)", lineHeight: 1.6, color: "var(--color-text)" }}>
+            {testFeedback.text}
+          </p>
+        )}
+      </form>
 
       {/* How it works */}
       <div className="panel" style={{ padding: "20px 24px" }}>
@@ -440,7 +403,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
               <li>Classifica razão: preço, frete, confiança...</li>
               <li>Ranking (prioridade alta→baixa)</li>
               <li>Seleciona melhor fit</li>
-              <li>Envia via WhatsApp (BubbleWhats)</li>
+              <li>Usa o WhatsApp conectado com modelo aprovado ou envia por e-mail</li>
             </ul>
           </div>
         </div>
@@ -454,7 +417,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
         total={totalAttempts}
         onPageChange={setPage}
         isEmpty={attempts.length === 0}
-        empty={{ icon: ShoppingCart, title: "Nenhuma tentativa registrada", description: "As tentativas aparecerão aqui conforme o sistema tenta recuperar carrinhos abandonados via WhatsApp." }}
+        empty={{ icon: ShoppingCart, title: "Nenhuma tentativa registrada", description: "As tentativas aparecerão aqui conforme o sistema tenta recuperar carrinhos abandonados." }}
       >
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -495,7 +458,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.6 }}>
-            Selecione o cupom que será enviado na mensagem WhatsApp de recuperação.
+            Selecione o cupom para a estratégia de recuperação. A aplicação depende das regras da loja.
           </div>
 
           {coupons.length === 0 ? (

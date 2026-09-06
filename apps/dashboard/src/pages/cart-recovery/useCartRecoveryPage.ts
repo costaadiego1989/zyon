@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import { reportError } from "../../hooks/useErrorReporter.js";
 import { showToast } from "../../components/Toast.js";
+import { normalizeCartRecoveryMetrics } from "../../api/endpoints/cart-recovery-metrics.js";
 import type {
   CartRecoveryMetrics,
   CartRecoveryAttempt,
@@ -17,13 +18,7 @@ const DEFAULT_STRATEGIES: CartRecoveryStrategyPreferences = {
   advanced_rule: false,
 };
 
-const EMPTY_METRICS: CartRecoveryMetrics = {
-  total_abandoned: 0,
-  total_attempts: 0,
-  total_recovered: 0,
-  recovery_rate_percent: 0,
-  revenue_recovered_brl: 0,
-};
+const EMPTY_METRICS = normalizeCartRecoveryMetrics(null);
 
 const DEFAULT_CONFIG: CartRecoveryStrategyConfig = {
   active_strategy: "offer_coupon",
@@ -73,14 +68,7 @@ export function useCartRecoveryPage() {
         if (cancelled) return;
 
         // Normalize metrics
-        const raw = metRaw as Record<string, any> | null;
-        const normalizedMetrics: CartRecoveryMetrics = raw ? {
-          total_abandoned: raw.total_abandoned ?? 0,
-          total_attempts: raw.total_attempts ?? raw.recovery_attempts ?? 0,
-          total_recovered: raw.total_recovered ?? raw.recovered ?? 0,
-          recovery_rate_percent: raw.recovery_rate_percent ?? (raw.recovery_rate != null ? raw.recovery_rate * 100 : 0),
-          revenue_recovered_brl: raw.revenue_recovered_brl ?? (raw.revenue_recovered_cents != null ? raw.revenue_recovered_cents / 100 : 0),
-        } : EMPTY_METRICS;
+        const normalizedMetrics = normalizeCartRecoveryMetrics(metRaw);
 
         setMetrics(normalizedMetrics);
         setAttempts(attData ?? []);

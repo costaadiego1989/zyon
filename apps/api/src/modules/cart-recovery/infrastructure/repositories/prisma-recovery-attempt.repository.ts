@@ -1,6 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
-import type { RecoveryAttemptRepositoryPort } from "../../domain/ports/recovery-attempt-repository.port.js";
+import type { ListRecoveryAttemptsOptions, RecoveryAttemptRepositoryPort } from "../../domain/ports/recovery-attempt-repository.port.js";
 import { RecoveryAttempt, type RecoveryAttemptProps, type RecoveryAttemptStatus, type RecoveryChannel } from "../../domain/entities/recovery-attempt.entity.js";
 import type { RecoveryStrategy } from "../../domain/values/recovery-strategy.js";
 import type { AbandonmentReason } from "../../domain/values/abandonment-reason.js";
@@ -71,6 +71,16 @@ export class PrismaRecoveryAttemptRepository implements RecoveryAttemptRepositor
       orderBy: { createdAt: "desc" },
     });
     return rows.map((r) => this.toEntity(r));
+  }
+
+  async findByMerchant(merchantId: string, options: ListRecoveryAttemptsOptions): Promise<RecoveryAttempt[]> {
+    const rows: RecoveryAttemptRow[] = await this.prisma.recoveryAttempt.findMany({
+      where: { merchantId, ...(options.status ? { status: options.status } : {}) },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: options.limit,
+      skip: options.offset,
+    });
+    return rows.map((row) => this.toEntity(row));
   }
 
   async getMetrics(merchantId: string, from: Date, to: Date) {

@@ -2,12 +2,19 @@ import type { RecoveryAttempt, RecoveryAttemptStatus } from "../entities/recover
 
 export const RECOVERY_ATTEMPT_REPOSITORY = Symbol("RECOVERY_ATTEMPT_REPOSITORY");
 
+export interface ListRecoveryAttemptsOptions {
+  status?: RecoveryAttemptStatus;
+  limit: number;
+  offset: number;
+}
+
 export interface RecoveryAttemptRepositoryPort {
   save(attempt: RecoveryAttempt): Promise<void>;
   findById(id: string): Promise<RecoveryAttempt | null>;
   findBySessionId(merchantId: string, sessionId: string): Promise<RecoveryAttempt[]>;
   existsForSession(merchantId: string, sessionId: string): Promise<boolean>;
   findByMerchantAndStatus(merchantId: string, status: RecoveryAttemptStatus): Promise<RecoveryAttempt[]>;
+  findByMerchant(merchantId: string, options: ListRecoveryAttemptsOptions): Promise<RecoveryAttempt[]>;
   getMetrics(merchantId: string, from: Date, to: Date): Promise<{
     // Null means unmeasured; a triggered session is not confirmed abandonment.
     total_abandoned: number | null;
