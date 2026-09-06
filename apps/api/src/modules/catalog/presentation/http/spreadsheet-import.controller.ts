@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
+import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-ownership.guard.js";
 import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/infrastructure/billing/billing-plan-guard.js";
 import { EnqueueSpreadsheetImportUseCase } from "../../application/use-cases/enqueue-spreadsheet-import.use-case.js";
 import { GetImportJobUseCase } from "../../application/use-cases/get-import-job.use-case.js";
@@ -11,7 +12,7 @@ import { GetImportJobUseCase } from "../../application/use-cases/get-import-job.
  * billing `aiSpreadsheetImport` feature — Starter merchants keep the fixed CSV
  * template flow instead.
  */
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, MerchantOwnershipGuard)
 @Controller("merchants")
 export class SpreadsheetImportController {
   constructor(

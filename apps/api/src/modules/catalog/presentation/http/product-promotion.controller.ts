@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
+import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-ownership.guard.js";
 import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/infrastructure/billing/billing-plan-guard.js";
 import { CreateProductPromotionUseCase } from "../../application/use-cases/create-product-promotion.use-case.js";
 import { UpdateProductPromotionUseCase } from "../../application/use-cases/update-product-promotion.use-case.js";
@@ -28,7 +29,7 @@ import type { AdvancedRule } from "../../../checkout/domain/services/advanced-ru
  *
  * All routes are merchant-scoped (mid param) and behind AuthGuard.
  */
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, MerchantOwnershipGuard)
 @Controller("merchants")
 export class ProductPromotionController {
   constructor(

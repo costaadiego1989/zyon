@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, UseGuards, Inject, Optional, BadRequestException } from "@nestjs/common";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
+import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-ownership.guard.js";
 import { RequirePlan } from "../../../../shared/guards/require-plan.decorator.js";
 import { RequirePlanGuard } from "../../../../shared/guards/require-plan.guard.js";
 import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../../../shared/events/domain-event-bus.port.js";
@@ -21,7 +22,7 @@ import { ReorderCategoriesUseCase } from "../../application/use-cases/reorder-ca
 import { GenerateProductSeoUseCase } from "../../application/use-cases/generate-product-seo.use-case.js";
 import { CatalogVariantService } from "../../application/services/catalog-variant.service.js";
 
-@UseGuards(AuthGuard, RequirePlanGuard)
+@UseGuards(AuthGuard, MerchantOwnershipGuard, RequirePlanGuard)
 @Controller("merchants")
 export class StoreBuilderCatalogController {
   constructor(
