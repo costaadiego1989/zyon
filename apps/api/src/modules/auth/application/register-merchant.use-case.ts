@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Inject, Injectable, InternalServerErrorException , Logger} from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, InternalServerErrorException, Logger, Optional } from "@nestjs/common";
+import { RECOVERY_TEMPLATE_INITIALIZER, type RecoveryTemplateInitializer } from "../../whatsapp-templates/domain/ports/recovery-template-lifecycle.port.js";
 import { AUTH_REPOSITORY, type AuthRepository } from "../domain/ports/auth-repository.port.js";
 import type { MerchantIdGenerator } from "../domain/ports/merchant-id-generator.port.js";
 import { MERCHANT_ID_GENERATOR } from "../domain/ports/merchant-id-generator.port.js";
@@ -48,7 +49,8 @@ export class RegisterMerchantUseCase {
     @Inject(AUTH_REPOSITORY) private readonly repository: AuthRepository,
     private readonly passwordHasher: PasswordHasher,
     private readonly jwt: JwtService,
-    @Inject(MERCHANT_ID_GENERATOR) private readonly idGenerator: MerchantIdGenerator
+    @Inject(MERCHANT_ID_GENERATOR) private readonly idGenerator: MerchantIdGenerator,
+    @Optional() @Inject(RECOVERY_TEMPLATE_INITIALIZER) private readonly recoveryTemplates?: RecoveryTemplateInitializer,
   ) {}
 
   async execute(input: RegisterMerchantRequest): Promise<AuthResponse> {
@@ -87,6 +89,11 @@ export class RegisterMerchantUseCase {
 
       // Persist slug in storeSettings
       await this.repository.setStoreSettings(merchantId, { slug });
+
+      // Local seeding only: the durable monitor submits after WhatsApp connects.
+      await this.recoveryTemplates?.ensure(merchantId).catch(() => {
+        this.logger.warn("Recovery template initialization deferred to monitor");
+      });
 
       return toAuthResponse(created.user, this.jwt);
     } catch (err: unknown) {

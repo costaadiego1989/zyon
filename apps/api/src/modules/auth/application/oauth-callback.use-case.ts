@@ -1,4 +1,5 @@
-import { Inject, Injectable, BadRequestException , Logger} from "@nestjs/common";
+import { Inject, Injectable, BadRequestException, Logger, Optional } from "@nestjs/common";
+import { RECOVERY_TEMPLATE_INITIALIZER, type RecoveryTemplateInitializer } from "../../whatsapp-templates/domain/ports/recovery-template-lifecycle.port.js";
 import { AUTH_REPOSITORY, type AuthRepository } from "../domain/ports/auth-repository.port.js";
 import { OAUTH_PROVIDER_PORT, type OAuthProviderPort } from "../domain/ports/oauth-provider.port.js";
 import type { MerchantIdGenerator } from "../domain/ports/merchant-id-generator.port.js";
@@ -28,7 +29,8 @@ export class OAuthCallbackUseCase {
     @Inject(OAUTH_PROVIDER_PORT) private readonly oauthProvider: OAuthProviderPort,
     @Inject(AUTH_REPOSITORY) private readonly repository: AuthRepository,
     @Inject(MERCHANT_ID_GENERATOR) private readonly idGenerator: MerchantIdGenerator,
-    private readonly jwt: JwtService
+    private readonly jwt: JwtService,
+    @Optional() @Inject(RECOVERY_TEMPLATE_INITIALIZER) private readonly recoveryTemplates?: RecoveryTemplateInitializer,
   ) {}
 
   async execute(input: OAuthCallbackRequest): Promise<OAuthAuthResponse> {
@@ -72,6 +74,10 @@ export class OAuthCallbackUseCase {
       email,
       oauthProvider: input.provider,
       oauthProviderId: profile.providerId,
+    });
+
+    await this.recoveryTemplates?.ensure(merchantId).catch(() => {
+      this.logger.warn("Recovery template initialization deferred to monitor");
     });
 
     return {
