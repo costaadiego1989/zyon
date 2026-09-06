@@ -117,5 +117,9 @@ class FakeShipmentRepository implements ShipmentRepository {
   async findByTrackingCode() {
     return null;
   }
+
+  async findByCarrierTrackingCode() {
+    return null;
+  }
 }
 

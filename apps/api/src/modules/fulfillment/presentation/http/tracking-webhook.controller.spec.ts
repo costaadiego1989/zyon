@@ -1,5 +1,6 @@
 import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import { TrackingWebhookController } from "./tracking-webhook.controller.js";
 import { RecordTrackingEventUseCase } from "../../application/use-cases/record-tracking-event.use-case.js";
 import { CreateShipmentUseCase } from "../../application/use-cases/create-shipment.use-case.js";
@@ -13,7 +14,11 @@ import type { ShipmentSnapshot } from "../../domain/entities/shipment.entity.js"
 
 // Generic carriers (correios/ups/fedex) authenticate via a shared bearer secret.
 const TEST_SECRET = "test_tracking_secret";
-before(() => { process.env.TRACKING_WEBHOOK_SECRET = TEST_SECRET; });
+const MELHOR_ENVIO_SECRET = "test_melhor_envio_secret";
+before(() => {
+  process.env.TRACKING_WEBHOOK_SECRET = TEST_SECRET;
+  process.env.MELHOR_ENVIO_WEBHOOK_SECRET = MELHOR_ENVIO_SECRET;
+});
 
 // Mock authenticated request: bearer token matching the shared secret.
 const AUTHED_REQ = { headers: { authorization: `Bearer ${TEST_SECRET}` } } as const;
@@ -32,6 +37,77 @@ function makeSetup(seedShipment?: ShipmentEntity) {
 const BASE = { merchant_id: "mrc_1", order_id: "ord_1", carrier_key: "correios" };
 
 describe("TrackingWebhookController.ingest", () => {
+  it("accepts the documented Melhor Envio webhook and marks its shipment delivered", async () => {
+    const { repo, trackingRepo, controller } = makeSetup();
+    const shipment = await new CreateShipmentUseCase(repo, new InMemoryOutboxRepository()).execute({
+      merchant_id: "mrc_1",
+      order_id: "ord_1",
+      carrier_key: "melhor-envio",
+    });
+    const created = (await repo.findById(shipment.id, "mrc_1"))!;
+    await repo.save(created
+      .setLabel("https://melhorenvio.test/label", "me-label-123")
+      .transition("label_generated"));
+
+    await ingestMelhorEnvio(controller, {
+      event: "order.posted",
+      data: {
+        id: "me-label-123",
+        status: "posted",
+        posted_at: "2026-09-06T12:00:00.000Z",
+      },
+    });
+    const delivered = await ingestMelhorEnvio(controller, {
+      event: "order.delivered",
+      data: {
+        id: "me-label-123",
+        status: "delivered",
+        delivered_at: "2026-09-06T13:00:00.000Z",
+      },
+    });
+
+    assert.equal((delivered as ShipmentSnapshot).status, "delivered");
+    const events = await trackingRepo.findByShipment(shipment.id);
+    assert.deepEqual(events.map((event) => event.snapshot().status), ["dispatched", "delivered"]);
+  });
+
+  it("rejects a Melhor Envio callback whose signature is not for the raw body", async () => {
+    const { controller } = makeSetup();
+    const body = { event: "order.posted", data: { id: "me-label-123", status: "posted" } };
+    const rawBody = Buffer.from(JSON.stringify(body));
+    await assert.rejects(
+      () => controller.ingest("melhor-envio", {
+        headers: { "x-me-signature": createHmac("sha256", MELHOR_ENVIO_SECRET).update("different").digest("base64") },
+        rawBody,
+      }, body as any),
+      (err: unknown) => err instanceof Error && err.name === "UnauthorizedException",
+    );
+  });
+
+  it("converges to delivered when an intermediate Melhor Envio callback was missed", async () => {
+    const { repo, controller } = makeSetup();
+    const shipment = await new CreateShipmentUseCase(repo, new InMemoryOutboxRepository()).execute({
+      merchant_id: "mrc_1",
+      order_id: "ord_2",
+      carrier_key: "melhor-envio",
+    });
+    const created = (await repo.findById(shipment.id, "mrc_1"))!;
+    await repo.save(created
+      .setLabel("https://melhorenvio.test/label", "me-label-missed-event")
+      .transition("label_generated"));
+
+    const delivered = await ingestMelhorEnvio(controller, {
+      event: "order.delivered",
+      data: {
+        id: "me-label-missed-event",
+        status: "delivered",
+        delivered_at: "2026-09-06T13:00:00.000Z",
+      },
+    });
+
+    assert.equal((delivered as ShipmentSnapshot).status, "delivered");
+  });
+
   it("returns ignored when tracking_code is unknown", async () => {
     const { controller } = makeSetup();
     const result = await controller.ingest("correios", AUTHED_REQ as any, {
@@ -213,3 +289,15 @@ describe("TrackingWebhookController.ingest", () => {
     );
   });
 });
+
+async function ingestMelhorEnvio(
+  controller: TrackingWebhookController,
+  body: Record<string, unknown>,
+) {
+  const rawBody = Buffer.from(JSON.stringify(body));
+  const signature = createHmac("sha256", MELHOR_ENVIO_SECRET).update(rawBody).digest("base64");
+  return controller.ingest("melhor-envio", {
+    headers: { "x-me-signature": signature },
+    rawBody,
+  }, body as any);
+}

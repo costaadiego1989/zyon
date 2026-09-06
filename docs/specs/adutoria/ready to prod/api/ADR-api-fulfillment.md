@@ -91,6 +91,28 @@ Consequência: o módulo poderá ser reavaliado isoladamente após a correção,
 
 Decisão: registrar correção priorizada e acompanhar o risco residual. Correção ainda não implementada nesta auditoria.
 
+### Atualização pós-auditoria — 2026-09-06 — callback da Melhor Envio
+
+O endpoint de entrada existe em `POST /webhooks/tracking/melhor-envio`, mas a
+implementação anterior esperava um corpo interno com `merchant_id`, cabeçalho
+e assinatura diferentes do contrato do provedor. O callback real usa
+`X-ME-Signature` com HMAC-SHA256 em Base64 sobre o corpo bruto e envia
+`event`/`data.id`; portanto ele seria rejeitado antes de atualizar a entrega.
+
+A implementação agora valida esse contrato, resolve o tenant pela etiqueta
+`data.id` previamente persistida e mapeia `order.posted` para `dispatched` e
+`order.delivered` para `delivered`. A transição direta é aceita quando um
+callback intermediário se perde, pois o provedor não garante essa sequência. A entrega atualiza o
+`Shipment`, registra o evento, emite `shipment.delivered` e o handler atualiza
+o `CompletedOrder` para `delivered`.
+
+O teste focalizado cobre assinatura real, corpo documentado, a sequência
+`posted → delivered` e a convergência quando `posted` se perde; build da API e os testes de webhook, tracking e compra
+de etiqueta passaram. Para ativar fora do código, cadastrar a URL pública no
+aplicativo da Melhor Envio e configurar `MELHOR_ENVIO_WEBHOOK_SECRET` no
+ambiente da API com o segredo do aplicativo. A atomicidade entre shipment,
+tracking e outbox continua coberta pelo risco API-029.
+
 
 ## Reavaliação
 

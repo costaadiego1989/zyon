@@ -182,6 +182,9 @@ import "./modules/self-checkout/application/use-cases/self-checkout.use-cases.sp
 import "./modules/shipping/application/use-cases/shipping.use-cases.spec.js";
 import "./modules/shipping/application/use-cases/shipping-label.use-cases.spec.js";
 import "./modules/fulfillment/application/use-cases/fulfillment.use-cases.spec.js";
+import "./modules/fulfillment/application/use-cases/record-tracking-event.use-case.spec.js";
+import "./modules/fulfillment/presentation/http/tracking-webhook.controller.spec.js";
+import "./modules/fulfillment/infrastructure/event-handlers/on-shipment-delivered.handler.spec.js";
 import "./modules/scraping-agent/application/use-cases/request-price-quote.use-case.spec.js";
 import "./modules/checkout/presentation/http/checkout.shipping-evaluate.e2e-spec.js";
 import "./modules/checkout/infrastructure/adapters/deterministic-chat.e2e-spec.js";

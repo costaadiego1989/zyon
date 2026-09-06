@@ -64,5 +64,13 @@ export class InMemoryShipmentRepository implements ShipmentRepository {
     }
     return null;
   }
+
+  async findByCarrierTrackingCode(carrierKey: string, trackingCode: string): Promise<ShipmentEntity | null> {
+    for (const s of this.store.values()) {
+      const snapshot = s.snapshot();
+      if (snapshot.carrier_key === carrierKey && snapshot.tracking_code === trackingCode) return s;
+    }
+    return null;
+  }
 }
 

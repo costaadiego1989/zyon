@@ -26,4 +26,10 @@ export interface ShipmentRepository {
    * must be resolved from an authenticated context before calling this method.
    */
   findByTrackingCode(trackingCode: string, merchantId: string): Promise<ShipmentEntity | null>;
+  /**
+   * Resolves a carrier-owned label identifier after the carrier webhook has
+   * already been authenticated. The carrier label id is globally assigned by
+   * the provider, so this avoids trusting a tenant id supplied in its payload.
+   */
+  findByCarrierTrackingCode(carrierKey: string, trackingCode: string): Promise<ShipmentEntity | null>;
 }

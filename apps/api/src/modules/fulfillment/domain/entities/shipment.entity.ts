@@ -12,9 +12,17 @@ export type ShipmentStatus =
 
 const LEGAL_TRANSITIONS: Record<ShipmentStatus, ShipmentStatus[]> = {
   created: ["label_generated", "cancelled"],
-  label_generated: ["dispatched", "cancelled"],
-  dispatched: ["in_transit"],
-  in_transit: ["out_for_delivery", "returned"],
+  // A carrier callback is a verified external fact. Melhor Envio does not
+  // guarantee delivery of every intermediate lifecycle notification, so a
+  // shipment that already has a generated label can converge to its terminal
+  // carrier state after an outage without inventing missing tracking events.
+  label_generated: ["dispatched", "delivered", "returned", "cancelled"],
+  // Melhor Envio exposes `posted` and then `delivered`; it does not guarantee
+  // intermediate in-transit/out-for-delivery callbacks. Accepting its direct
+  // terminal update preserves a verified carrier fact without fabricating
+  // intermediate tracking events.
+  dispatched: ["in_transit", "delivered", "returned"],
+  in_transit: ["out_for_delivery", "delivered", "returned"],
   out_for_delivery: ["delivered", "returned"],
   delivered: [],
   returned: [],

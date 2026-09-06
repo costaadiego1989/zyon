@@ -132,6 +132,17 @@ export class PrismaShipmentRepository implements ShipmentRepository {
     });
     return row ? ShipmentEntity.rehydrate(toSnapshot(row)) : null;
   }
+
+  async findByCarrierTrackingCode(
+    carrierKey: string,
+    trackingCode: string,
+  ): Promise<ShipmentEntity | null> {
+    if (!trackingCode || trackingCode.startsWith("pending:")) return null;
+    const row = await this.prisma.shipment.findFirst({
+      where: { carrier: carrierKey, trackingCode },
+    });
+    return row ? ShipmentEntity.rehydrate(toSnapshot(row)) : null;
+  }
 }
 
 type ShipmentRow = {
