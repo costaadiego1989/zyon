@@ -1,5 +1,7 @@
 # ADR — API / infraestrutura compartilhada
 
+> Atualização de implementação: consulte a [terceira etapa](../CORRECOES-ETAPA-3.md). O restante deste ADR preserva o diagnóstico original; validação local não encerra o gate de produção.
+
 **Atualização da segunda etapa:** ver [correções, contratos e evidências](../CORRECOES-ETAPA-2.md). O texto da auditoria abaixo preserva o retrato anterior; gates de produção continuam abertos.
 
 Data: 2026-09-05. Status: auditoria registrada; correções propostas. Veredito: **FAIL**.

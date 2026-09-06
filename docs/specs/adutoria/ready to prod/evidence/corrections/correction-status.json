@@ -107,54 +107,54 @@
       "severity": "P1",
       "module": "payment",
       "title": "Retry do POST Asaas não usa a chave idempotente derivada",
-      "status": "OPEN",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
       "productionGateClosed": false,
-      "record": "../../CORRECOES.md"
+      "record": "../../CORRECOES-PAGAMENTOS.md"
     },
     {
       "id": "API-013",
       "severity": "P1",
       "module": "payment",
       "title": "Intenção pendente sem ID do provedor não é retomada",
-      "status": "OPEN",
+      "status": "PARTIAL",
       "productionGateClosed": false,
-      "record": "../../CORRECOES.md"
+      "record": "../../CORRECOES-PAGAMENTOS.md"
     },
     {
       "id": "API-014",
       "severity": "P1",
       "module": "payment",
       "title": "Taxa do cartão diverge do total esperado na conclusão",
-      "status": "OPEN",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
       "productionGateClosed": false,
-      "record": "../../CORRECOES.md"
+      "record": "../../CORRECOES-PAGAMENTOS.md"
     },
     {
       "id": "API-015",
       "severity": "P1",
       "module": "payment",
       "title": "Persistência não protege transições concorrentes do payment intent",
-      "status": "OPEN",
+      "status": "PARTIAL",
       "productionGateClosed": false,
-      "record": "../../CORRECOES.md"
+      "record": "../../CORRECOES-PAGAMENTOS.md"
     },
     {
       "id": "API-016",
       "severity": "P1",
       "module": "shared",
       "title": "Claim do outbox não conserva exclusividade até o processamento",
-      "status": "OPEN",
+      "status": "PARTIAL",
       "productionGateClosed": false,
-      "record": "../../CORRECOES.md"
+      "record": "../../CORRECOES-OUTBOX.md"
     },
     {
       "id": "API-017",
       "severity": "P1",
       "module": "inventory",
       "title": "Handler de venda injeta token incorreto e absorve falhas",
-      "status": "OPEN",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
       "productionGateClosed": false,
-      "record": "../../CORRECOES.md"
+      "record": "../../CORRECOES-INVENTORY.md"
     },
     {
       "id": "API-018",
@@ -332,9 +332,9 @@
       "severity": "P2",
       "module": "shared",
       "title": "Shutdown e backpressure do outbox não aguardam trabalho em curso",
-      "status": "OPEN",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
       "productionGateClosed": false,
-      "record": "../../CORRECOES.md"
+      "record": "../../CORRECOES-OUTBOX.md"
     },
     {
       "id": "API-038",
@@ -616,6 +616,12 @@
       "record": "../../CORRECOES.md"
     }
   ],
-  "latestStageBase": "9c80287",
-  "latestStage": "../../CORRECOES-ETAPA-2.md"
+  "latestStageBase": "ebb954a38123e3aa5ba46f2bf1d8c86c410c9079",
+  "latestStage": "../../CORRECOES-ETAPA-3.md",
+  "counts": {
+    "IMPLEMENTED_LOCAL_VALIDATION": 15,
+    "PARTIAL": 7,
+    "MITIGATED_CAPABILITY_UNAVAILABLE": 3,
+    "OPEN": 43
+  }
 }

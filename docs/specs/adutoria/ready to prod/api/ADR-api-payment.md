@@ -1,5 +1,7 @@
 # ADR — API / payment
 
+> Atualização de implementação: consulte a [terceira etapa](../CORRECOES-ETAPA-3.md). O restante deste ADR preserva o diagnóstico original; validação local não encerra o gate de produção.
+
 Data: 2026-09-05. Status: decisão de auditoria registrada; correções propostas. Veredito: **FAIL**.
 
 [Índice geral](<../README.md>) · [API primeiro](<README.md>) · [Evidências e limites](<../VALIDACAO.md>)
