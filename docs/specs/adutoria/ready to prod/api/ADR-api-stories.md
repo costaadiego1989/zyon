@@ -1,9 +1,9 @@
 # ADR — API / stories
 
-> Implementação posterior na branch `fix/ready-to-prod-audit`: consultar [correções, evidências e pendências](../CORRECOES.md). O conteúdo abaixo preserva o retrato da auditoria original; o gate de produção continua aberto.
+> Implementação posterior integrada na `master`: consultar [correções, evidências e pendências](../CORRECOES.md). O conteúdo abaixo preserva o retrato da auditoria original; o gate de produção continua aberto.
 
 
-Data: 2026-09-05. Status: decisão de auditoria registrada; correções propostas. Veredito: **FAIL**.
+Data: 2026-09-05. Status: decisão de auditoria registrada; atualização de implementação em 2026-09-06. Veredito: **FAIL** até executar o gate PostgreSQL de isolamento.
 
 [Índice geral](<../README.md>) · [API primeiro](<README.md>) · [Evidências e limites](<../VALIDACAO.md>)
 
@@ -30,6 +30,12 @@ Notas são avaliação técnica qualitativa do código inspecionado, não métri
 ## Controles observados
 
 Fluxos de criação/edição/arquivamento separados em use cases e rota pública de leitura.
+
+## Atualização pós-auditoria — 2026-09-06
+
+O repositório atual aplica `merchantId` em update, archive, listagem e reordenação de categorias e stories. A criação confirma que a categoria pertence à loja e não está arquivada; a projeção pública também filtra associações históricas inconsistentes. O teste de integração `prisma-story.repository.integration.spec.ts` cobre duas lojas, associação cruzada, reordenação atômica e projeção pública, mas requer PostgreSQL descartável e não foi executado nesta máquina.
+
+API-003 deixa de ser pendência de implementação. O build completo da API passou; a confirmação final depende de executar o critério de aceite com o banco de teste.
 
 ## God services, SOLID, KISS e DRY
 
