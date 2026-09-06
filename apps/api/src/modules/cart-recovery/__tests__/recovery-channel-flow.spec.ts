@@ -43,7 +43,8 @@ for (const scenario of scenarios) {
       whatsappNumber: "+5511999990000", createdAt: now, updatedAt: now,
       credentials: { accountSid: "AC-test", authToken: "fake-token", senderId: "whatsapp:+5511999990000" },
     }),
-      findByDeviceId: async () => null, findByWhatsAppNumber: async () => null,
+      findById: async () => null, findByDeviceId: async () => null,
+      findByWhatsAppNumber: async () => null, findByMetaPhoneNumberId: async () => null,
       upsert: async () => { throw new Error("Routing must not change connection configuration"); },
     };
     const templates: WhatsAppTemplateRepositoryPort = { findByMerchantAndType: async (merchantId: string, type: string, channel: string) => ({

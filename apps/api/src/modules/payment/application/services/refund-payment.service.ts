@@ -182,11 +182,15 @@ export class RefundPaymentService {
       this.logger.log(
         `Refund issued: order ${input.externalOrderId} session ${order.sessionId} amount ${amountCents} refundId ${result.refundId} status ${result.status}`,
       );
+      // A PSP accepting the refund request is not evidence that funds were
+      // returned. Only a terminal success can complete the return locally;
+      // pending and manual refunds must remain operationally visible.
+      const refunded = result.status === "succeeded";
       return {
-        refunded: result.status !== "failed",
+        refunded,
         amountCents,
         providerRefundId: result.refundId,
-        reason: result.status === "failed" ? "provider_refund_failed" : undefined,
+        reason: refunded ? undefined : `provider_refund_${result.status}`,
       };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

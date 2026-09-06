@@ -15,7 +15,7 @@ test("new OAuth users resume a prefilled registration until it is completed", as
     provider,
     repository,
     { generate: () => "mrc_oauth_test" },
-    new JwtService("test-secret", 3600),
+    new JwtService("test-secret", 3600, repository),
   );
 
   const first = await useCase.execute({ provider: "google", code: "first", state: "state" });
