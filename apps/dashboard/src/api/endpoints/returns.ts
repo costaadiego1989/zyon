@@ -44,11 +44,11 @@ export function returnsEndpoints(base: string, f: typeof fetch) {
     },
 
     async generateReturnLabel(merchantId: string, returnId: string): Promise<void> {
-      return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/returns/${returnId}/generate-label`, { method: "POST" }, f);
+      return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/returns/${returnId}/label`, { method: "POST" }, f);
     },
 
     async markReturnReceived(merchantId: string, returnId: string): Promise<void> {
-      return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/returns/${returnId}/mark-received`, { method: "POST" }, f);
+      return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/returns/${returnId}/receive`, { method: "POST" }, f);
     },
 
     async inspectReturn(merchantId: string, returnId: string, data: { condition: string; verdict: string; notes?: string }): Promise<void> {
