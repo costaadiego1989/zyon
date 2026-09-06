@@ -99,6 +99,12 @@ Consequência: o módulo poderá ser reavaliado isoladamente após a correção,
 
 Decisão: bloquear a liberação da capacidade afetada até cumprir o critério de aceite. Correção ainda não implementada nesta auditoria.
 
+### Atualização pós-auditoria — 2026-09-06
+
+A compra agora chama `assertOrderExists` com `merchantId` e `externalOrderId` antes do carrier. A implementação consulta o pedido concluído no escopo do tenant; pedido inexistente ou pertencente a outro tenant impede o efeito externo. O teste focalizado confirma que a rejeição ocorre antes de `purchaseLabel`, além do fluxo válido e do escopo de tracking. A compilação da API passou.
+
+API-023 passa para `PARTIAL`: ainda não há uma intenção persistida e idempotente para reconciliar uma etiqueta emitida quando a resposta do carrier ou a persistência subsequente falhar.
+
 
 ## Reavaliação
 

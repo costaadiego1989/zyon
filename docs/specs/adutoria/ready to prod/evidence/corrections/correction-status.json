@@ -206,7 +206,7 @@
       "severity": "P1",
       "module": "shipping",
       "title": "Compra de etiqueta precede validação do pedido",
-      "status": "OPEN",
+      "status": "PARTIAL",
       "productionGateClosed": false,
       "record": "../../CORRECOES.md"
     },
@@ -620,8 +620,8 @@
   "latestStage": "../../CORRECOES-ETAPA-3.md",
   "counts": {
     "IMPLEMENTED_LOCAL_VALIDATION": 18,
-    "PARTIAL": 7,
+    "PARTIAL": 8,
     "MITIGATED_CAPABILITY_UNAVAILABLE": 3,
-    "OPEN": 40
+    "OPEN": 39
   }
 }

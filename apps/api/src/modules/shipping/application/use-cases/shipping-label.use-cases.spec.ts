@@ -25,6 +25,7 @@ describe("PurchaseShippingLabelUseCase", () => {
         purchaseLabel: async () => ({ purchaseId: "purchase_1", trackingCode: "ME123", labelUrl: "https://label.test/me123.pdf" }),
       } as unknown as MelhorEnvioCarrierAdapter,
       {
+        assertOrderExists: async () => undefined,
         execute: async (input: unknown) => {
           trackingUpdates.push(input);
           return { updated: true, changed: true, order: {}, shipment: {}, events_recorded: 0 } as any;
@@ -42,11 +43,25 @@ describe("PurchaseShippingLabelUseCase", () => {
   });
 
   it("rejects missing order id", async () => {
-    const useCase = new PurchaseShippingLabelUseCase({} as MelhorEnvioCarrierAdapter, { execute: async () => ({}) } as any);
+    const useCase = new PurchaseShippingLabelUseCase({} as MelhorEnvioCarrierAdapter, { assertOrderExists: async () => undefined, execute: async () => ({}) } as any);
     await assert.rejects(
       useCase.execute({ ...labelInput, externalOrderId: "" }),
       BadRequestException,
     );
+  });
+
+  it("verifies the tenant order before charging the carrier", async () => {
+    let purchases = 0;
+    const useCase = new PurchaseShippingLabelUseCase(
+      { purchaseLabel: async () => { purchases++; return { purchaseId: "unexpected", trackingCode: "unexpected" }; } } as unknown as MelhorEnvioCarrierAdapter,
+      {
+        assertOrderExists: async () => { throw new NotFoundException("completed_order_not_found"); },
+        execute: async () => ({}) as any,
+      },
+    );
+
+    await assert.rejects(useCase.execute(labelInput), NotFoundException);
+    assert.equal(purchases, 0);
   });
 });
 

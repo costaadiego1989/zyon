@@ -19,6 +19,16 @@ export class UpdateTenantOrderTrackingUseCase {
     private readonly publisher: TenantWebhookPublisher
   ) {}
 
+  async assertOrderExists(input: { merchantId: string; externalOrderId: string }): Promise<void> {
+    const merchantId = input.merchantId.trim();
+    const externalOrderId = input.externalOrderId.trim();
+    if (!merchantId) throw new BadRequestException("merchant_id_required");
+    if (!externalOrderId) throw new BadRequestException("external_order_id_required");
+
+    const order = await this.orders.findCompletedOrderByExternalOrderId(merchantId, externalOrderId);
+    if (!order) throw new NotFoundException("completed_order_not_found");
+  }
+
   async execute(input: {
     merchantId: string;
     externalOrderId: string;

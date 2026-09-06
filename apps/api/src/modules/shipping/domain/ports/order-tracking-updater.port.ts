@@ -20,5 +20,9 @@ export type OrderTrackingUpdateInput = {
 };
 
 export type OrderTrackingUpdater = {
+  assertOrderExists(input: {
+    merchantId: string;
+    externalOrderId: string;
+  }): Promise<void>;
   execute(input: OrderTrackingUpdateInput): Promise<unknown>;
 };

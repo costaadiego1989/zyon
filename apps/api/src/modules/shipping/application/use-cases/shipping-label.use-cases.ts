@@ -26,6 +26,10 @@ export class PurchaseShippingLabelUseCase {
     const merchantId = required(input.merchantId, "merchant_id");
     const externalOrderId = required(input.externalOrderId, "order_id");
 
+    // A carrier purchase is an irreversible external charge. Verify that the
+    // order belongs to this tenant before asking the carrier to issue a label.
+    await this.updateTracking.assertOrderExists({ merchantId, externalOrderId });
+
     const label = await this.melhorEnvio.purchaseLabel({
       merchantId,
       serviceId: input.serviceId,

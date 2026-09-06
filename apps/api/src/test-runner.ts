@@ -180,6 +180,7 @@ import "./modules/coupons/presentation/http/widget-coupons.controller.spec.js";
 import "./modules/coupons/application/use-cases/apply-coupon.use-case.spec.js";
 import "./modules/self-checkout/application/use-cases/self-checkout.use-cases.spec.js";
 import "./modules/shipping/application/use-cases/shipping.use-cases.spec.js";
+import "./modules/shipping/application/use-cases/shipping-label.use-cases.spec.js";
 import "./modules/fulfillment/application/use-cases/fulfillment.use-cases.spec.js";
 import "./modules/scraping-agent/application/use-cases/request-price-quote.use-case.spec.js";
 import "./modules/checkout/presentation/http/checkout.shipping-evaluate.e2e-spec.js";
