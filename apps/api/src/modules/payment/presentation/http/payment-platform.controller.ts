@@ -240,11 +240,12 @@ export class PaymentPlatformController {
     @Req() request: unknown,
     @Body() body: CreateAsaasSubaccountDto,
   ) {
+    const principal = humanPrincipal(request);
     return toConnectionResponse(
-      await this.createAsaas.execute(humanPrincipal(request).tenantId, {
+      await this.createAsaas.execute(principal.tenantId, {
         name: body.name,
         email: body.email,
-        loginEmail: body.login_email,
+        loginEmail: principal.email,
         cpfCnpj: body.cpf_cnpj,
         birthDate: body.birth_date,
         companyType: body.company_type,
@@ -257,7 +258,7 @@ export class PaymentPlatformController {
         complement: body.complement,
         province: body.province,
         postalCode: body.postal_code,
-      }),
+      }, principal.email),
     );
   }
 

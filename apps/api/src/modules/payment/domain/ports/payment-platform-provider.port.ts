@@ -84,6 +84,8 @@ export interface StripeBillingInvoice {
 }
 
 export interface AsaasPlatformPort {
+  /** Only the operator-configured platform merchant can reuse the root account. */
+  resolvePlatformAccount(merchantId: string, cpfCnpj: string): Promise<{ apiKey: string; walletId: string } | null>;
   createSubaccount(
     input: AsaasSubaccountInput,
   ): Promise<{
@@ -99,7 +101,7 @@ export interface AsaasPlatformPort {
   }>;
   listOnboardingLinks(apiKey: string, sandbox?: boolean): Promise<string[]>;
   /** Finds an existing subaccount on the root account by CPF/CNPJ (digits only). */
-  findSubaccountByCpfCnpj(cpfCnpj: string): Promise<{ accountId: string } | null>;
+  findSubaccountByCpfCnpj(cpfCnpj: string): Promise<{ accountId: string; email?: string } | null>;
   /** Generates a fresh API key for an existing subaccount (apiKey is only returned once at creation). */
   createSubaccountApiKey(accountId: string): Promise<{ apiKey: string }>;
   /** Retrieves the walletId for a subaccount, called with that subaccount's own apiKey. */

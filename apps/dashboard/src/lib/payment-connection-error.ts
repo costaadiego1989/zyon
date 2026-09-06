@@ -1,6 +1,8 @@
 import { DashboardHttpError } from "../api/http/error.js";
 
 const messages: Record<string, string> = {
+  asaas_account_owner_mismatch: "Não foi possível confirmar a titularidade do cadastro Asaas. Entre em contato com o suporte da Zyon para vincular sua conta.",
+  asaas_account_recovery_unavailable: "Encontramos seu cadastro Asaas, mas a vinculação precisa ser liberada pela Zyon. Entre em contato com o suporte para concluir a conexão.",
   asaas_api_key_required: "Informe a chave de API da sua conta Asaas.",
   asaas_api_key_invalid: "A chave Asaas não tem um formato válido. Copie a chave completa em Integrações no Asaas.",
   asaas_environment_mismatch: "A chave não pertence ao ambiente selecionado. Confira se ela é de produção ou sandbox.",

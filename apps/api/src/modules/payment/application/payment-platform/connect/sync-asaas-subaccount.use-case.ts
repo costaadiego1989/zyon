@@ -30,6 +30,8 @@ export class SyncAsaasSubaccountUseCase {
       merchantId,
     );
     try {
+      const walletId = connection.walletId ?? await this.asaas.retrieveWalletId(apiKey, connection.environment === "test");
+      if (!walletId) throw new Error("asaas_wallet_not_found");
       const provider = await this.asaas.retrieveAccountStatus(apiKey, connection.environment === "test");
       const requirements = [
         ["commercial_info", provider.commercialInfo],
@@ -43,9 +45,9 @@ export class SyncAsaasSubaccountUseCase {
         provider: "asaas",
         environment: connection.environment,
         status:
-          provider.general === "APPROVED" ? "active" : "restricted",
+          provider.general === "APPROVED" ? "active" : provider.general === "REJECTED" ? "restricted" : "pending",
         externalAccountId: connection.externalAccountId,
-        walletId: connection.walletId,
+        walletId,
         chargesEnabled: provider.general === "APPROVED",
         payoutsEnabled: provider.general === "APPROVED",
         requirements,

@@ -324,7 +324,7 @@ Nesse modelo:
 | Asaas PIX payment creation | ✅ | `AsaasPaymentAdapter.createPayment` |
 | Asaas webhook handler + HMAC | ✅ | `HandleAsaasWebhookUseCase` |
 | Asaas webhook timestamp freshness | ✅ | 5 min window |
-| Direct keys (merchant cola api_key) | ✅ | `SaveAsaasConnectionConfigUseCase` |
+| Conexão Asaas automática no dashboard | ✅ | `CreateAsaasSubaccountUseCase` (recuperar ou criar) |
 | Dashboard: listar conexões | ✅ | `GET /payments/connections` |
 | Dashboard: desconectar | ✅ | `DELETE /merchants/me/payment-connections/:provider` |
 | Billing plans + platform fee | ✅ | `BillingController` + `EnvironmentBillingConfig` |
@@ -340,3 +340,15 @@ Nesse modelo:
 - Multi-provider por merchant (usar Stripe E Asaas simultaneamente)
 - Payout scheduling customizado
 - Chargeback/dispute handling automático
+
+## Conexão automática do Asaas
+
+No onboarding e em Conexões de pagamento, o lojista confirma os dados cadastrais e escolhe **Conectar Asaas**. Ambiente e credenciais são definidos no servidor.
+
+- Uma conexão já salva é reutilizada e sincronizada com o Asaas.
+- Uma subconta gerenciada pela plataforma pode ser recuperada pelo CPF/CNPJ quando o titular corresponde ao e-mail autenticado. A chave é gerada no servidor e armazenada pelo repositório criptografado.
+- Quando não há conta recuperável, o servidor cria a subconta e salva a credencial antes das consultas de status. Se a consulta falhar, a próxima tentativa reutiliza a conexão salva.
+- `ASAAS_PLATFORM_MERCHANT_ID` associa explicitamente a conta principal à loja operadora da plataforma. Configure apenas o ID confiável dessa loja; o servidor também compara o documento com o cadastro Asaas. Informar o CNPJ no formulário não autoriza outros lojistas a usar a conta principal.
+- A aprovação continua sendo determinada pelo Asaas. Cadastro em análise permanece pendente.
+
+A recuperação de chaves de subcontas depende da liberação de gerenciamento e do IP autorizado na conta-pai. Contas independentes fora da gestão da plataforma não podem ser apropriadas apenas pelo CPF/CNPJ. Consulte [gerenciamento de chaves](https://docs.asaas.com/docs/gerenciamento-de-chaves-de-api-de-subcontas) e [listagem de subcontas](https://docs.asaas.com/reference/listar-subcontas).

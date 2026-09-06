@@ -9,7 +9,7 @@ const api='https://api.zyon-payments.com.br';
  let page,stage='boot';
  try{
   page=await browser.newPage({viewport:{width:1440,height:1200}});page.setDefaultTimeout(9000);
-  let connections=[],createFails=true,syncFails=true,createBody=null,manualFails=true,manualStatus='pending',manualBody=null;
+  let connections=[],createFails=true,syncFails=true,createBody=null,createStatus='pending',createDetail=undefined;
   let releasePrefill,heldPrefill=null,prefillRequested=false;
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   const connection=status=>({id:'asaas_test',provider:'asaas',status,environment:'test',account_id:'test_account',created_at:'2026-09-05T10:00:00Z',updated_at:'2026-09-05T10:00:00Z'});
@@ -26,11 +26,9 @@ const api='https://api.zyon-payments.com.br';
    }
    else if(p==='/payments/connections')data=connections;
    else if(p==='/payments/connections/asaas'){
-    createBody=request.postDataJSON();if(createFails){status=502;data={code:'asaas_platform_failed'};}else{connections=[connection('pending')];data=connections[0];}
+    createBody=request.postDataJSON();if(createFails){status=502;data={code:'asaas_platform_failed',detail:createDetail};}else{connections=[connection(createStatus)];data=connections[0];}
    }
-   else if(p==='/merchants/me/payment-connections/asaas'){
-    manualBody=request.postDataJSON();if(manualFails){status=502;data={code:'asaas_platform_failed',detail:'asaas: Chave de API recusada. (invalid_access_token)'};}else{connections=[connection(manualStatus)];data=connections[0];}
-   }
+
    else if(p==='/payments/connections/asaas/sync'){
     if(syncFails){status=502;data={code:'asaas_platform_failed'};}else{connections=[connection('active')];data=connections[0];}
    }
@@ -41,30 +39,31 @@ const api='https://api.zyon-payments.com.br';
    await route.fulfill({status,contentType:'application/json',body:JSON.stringify(data)});
   });
   const asaas=page.locator('.onb-field').filter({has:page.getByText('Asaas (PIX e Boleto)',{exact:true})});
-  async function submitExistingAsaasKey(input,button){
-   await expect(input).toHaveValue('$aact_prod_mock-only');
-   await expect(button).toBeEnabled();
-   await button.click();
+  async function submitAsaas(){
+   await page.getByLabel('Data de nascimento',{exact:true}).fill('1990-01-31');
+   await page.getByLabel('Renda ou faturamento mensal (R$)',{exact:true}).fill('2500');
+   await page.getByRole('button',{name:'Conectar Asaas',exact:true}).filter({hasText:'Conectar Asaas'}).click();
   }
   await page.goto(origin+'/#onboarding');
   await expect(page.getByRole('heading',{name:'Pagamento',exact:true})).toBeVisible();
   await expect(asaas.getByText('Não configurado',{exact:true})).toBeVisible();
   await asaas.getByRole('button',{name:'Conectar',exact:true}).click();
   await expect(page.getByRole('heading',{name:'Conectar Asaas',exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'Criar conta Asaas',exact:true}).click();
+  await expect(page.getByLabel('Chave de API Asaas',{exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Já tenho conta',exact:true})).toHaveCount(0);
   await expect(page.getByLabel('E-mail',{exact:true})).toHaveValue('test@example.com');
   await expect(page.getByLabel('Data de nascimento',{exact:true})).toHaveValue('');
   await expect(page.getByLabel('Renda ou faturamento mensal (R$)',{exact:true})).toHaveValue('');
-  await page.getByRole('button',{name:'Criar subconta',exact:true}).click();
+  await page.getByRole('button',{name:'Conectar Asaas',exact:true}).filter({hasText:'Conectar Asaas'}).click();
   expect(createBody).toBe(null);
   await page.getByLabel('Data de nascimento',{exact:true}).fill('1990-01-31');
   await page.getByLabel('Renda ou faturamento mensal (R$)',{exact:true}).fill('2500');
-  await page.getByRole('button',{name:'Criar subconta',exact:true}).click();
+  await page.getByRole('button',{name:'Conectar Asaas',exact:true}).filter({hasText:'Conectar Asaas'}).click();
   await expect(page.getByText(/O Asaas não concluiu a solicitação/).last()).toBeVisible();
   expect(createBody.birth_date).toBe('1990-01-31');expect(createBody.income_value).toBe(2500);expect(createBody.email).toBe('test@example.com');expect(createBody.cpf_cnpj).toBe('52998224725');
   await expect(asaas.getByText('Conta Asaas ativa',{exact:false})).toHaveCount(0);
   createFails=false;
-  await page.getByRole('button',{name:'Criar subconta',exact:true}).click();
+  await page.getByRole('button',{name:'Conectar Asaas',exact:true}).filter({hasText:'Conectar Asaas'}).click();
   await expect(page.getByRole('heading',{name:'Conectar Asaas',exact:true})).toHaveCount(0);
   await expect(asaas.getByText('Pendente',{exact:true})).toBeVisible();
   await asaas.getByRole('button',{name:'Continuar',exact:true}).click();
@@ -88,20 +87,15 @@ const api='https://api.zyon-payments.com.br';
   connections=[];
   await page.goto(origin+'/#payment-connections');
   await page.getByRole('region',{name:'Asaas',exact:true}).getByRole('button',{name:/Conectar/}).click();
-  await expect(page.getByRole('button',{name:'Já tenho conta',exact:true})).toHaveAttribute('aria-pressed','true');
-  const asaasApiKey=page.getByLabel('Chave de API Asaas',{exact:true});
-  const connectExisting=page.getByRole('button',{name:'Conectar conta existente',exact:true});
-  stage='manual-rejected';
-  await asaasApiKey.fill('$aact_prod_mock-only');
-  await expect(asaasApiKey).toHaveValue('$aact_prod_mock-only');
-  await submitExistingAsaasKey(asaasApiKey,connectExisting);
-  await expect(page.getByRole('alert').filter({hasText:'Chave de API recusada'}).last()).toBeVisible();
-  expect(manualBody).toEqual({api_key:'$aact_prod_mock-only',sandbox:false});
-  expect(await page.evaluate(()=>JSON.stringify(localStorage).includes('$aact_prod_mock-only'))).toBe(false);
-  manualFails=false;
-  stage='manual-pending';
-  await asaasApiKey.fill('$aact_prod_mock-only');
-  await submitExistingAsaasKey(asaasApiKey,connectExisting);
+  stage='automatic-rejected';
+  await expect(page.getByLabel('Chave de API Asaas',{exact:true})).toHaveCount(0);
+  await expect(page.getByLabel('Ambiente',{exact:true})).toHaveCount(0);
+  createFails=true;createDetail='asaas: Revise os dados do cadastro. (invalid_object)';
+  await submitAsaas();
+  await expect(page.getByRole('alert').filter({hasText:'Revise os dados do cadastro'}).last()).toBeVisible();
+  expect(createBody).not.toHaveProperty('api_key');expect(createBody).not.toHaveProperty('sandbox');
+  stage='automatic-pending';createFails=false;
+  await page.getByRole('button',{name:'Conectar Asaas',exact:true}).filter({hasText:'Conectar Asaas'}).click();
   await expect(page.getByRole('heading',{name:'Conectar Asaas',exact:true})).toHaveCount(0);
   await page.goto(origin+'/#onboarding');await expect(asaas.getByText('Pendente',{exact:true})).toBeVisible();
   connections=[];await page.reload();await expect(asaas.getByText('Não configurado',{exact:true})).toBeVisible();
@@ -110,16 +104,15 @@ const api='https://api.zyon-payments.com.br';
   await asaas.getByRole('button',{name:'Conectar',exact:true}).click();
   await expect.poll(()=>prefillRequested).toBe(true);
   await expect(page.getByText('Carregando dados da loja...', {exact:true})).toBeVisible();
-  await expect(page.getByLabel('Chave de API Asaas',{exact:true})).toHaveCount(0);
+  await expect(page.getByLabel('E-mail',{exact:true})).toHaveCount(0);
   releasePrefill();heldPrefill=null;
-  await expect(page.getByLabel('Chave de API Asaas',{exact:true})).toHaveValue('');
-  stage='manual-active-onboarding';
-  await page.getByLabel('Chave de API Asaas',{exact:true}).fill('$aact_prod_mock-only');
-  manualStatus='active';await submitExistingAsaasKey(page.getByLabel('Chave de API Asaas',{exact:true}),page.getByRole('button',{name:'Conectar conta existente',exact:true}));
+  await expect(page.getByLabel('E-mail',{exact:true})).toHaveValue('test@example.com');
+  stage='automatic-active-onboarding';createStatus='active';
+  await submitAsaas();
   await expect(page.getByRole('heading',{name:'Conectar Asaas',exact:true})).toHaveCount(0);
   await expect(asaas.getByText('Conta Asaas ativa',{exact:false})).toBeVisible();
   await page.goto(origin+'/#payment-connections');await expect(page.getByRole('region',{name:'Asaas',exact:true}).getByText('Conectado',{exact:true})).toBeVisible();
-  expect(errors).toEqual([]);console.log(JSON.stringify({passed:true,apiResponses:'mocked',scenarios:['stale-local-status-cleared','real-identity-fields-required','failed-creation-never-active','pending-creation','failed-sync-never-active','approved-account-consistent-across-pages','disconnection-clears-local-status','stripe-activation-message','stripe-return-still-pending','mercadopago-denied-return','mercadopago-connected-return','manual-key-rejection-visible-inside-panel','manual-key-not-persisted-in-browser','manual-pending-consistent-after-navigation','prefill-completes-before-editing','manual-approved-consistent-across-pages']}));
+  expect(errors).toEqual([]);console.log(JSON.stringify({passed:true,apiResponses:'mocked',scenarios:['stale-local-status-cleared','real-identity-fields-required','failed-creation-never-active','pending-creation','failed-sync-never-active','approved-account-consistent-across-pages','disconnection-clears-local-status','stripe-activation-message','stripe-return-still-pending','mercadopago-denied-return','mercadopago-connected-return','automatic-rejection-visible-inside-panel','no-merchant-credentials-or-environment','automatic-pending-consistent-after-navigation','prefill-completes-before-editing','automatic-approved-consistent-across-pages']}));
  }catch(error){
   console.error(JSON.stringify({stage,form:await page.locator('form').evaluateAll(forms=>forms.map(form=>({inputs:[...form.querySelectorAll('input')].map(input=>({type:input.type,length:input.value.length,disabled:input.disabled})),buttons:[...form.querySelectorAll('button')].map(button=>({text:button.textContent,disabled:button.disabled}))})))}));
   if(process.env.PAYMENT_AUDIT_SCREENSHOT)await page.screenshot({path:process.env.PAYMENT_AUDIT_SCREENSHOT,fullPage:true});

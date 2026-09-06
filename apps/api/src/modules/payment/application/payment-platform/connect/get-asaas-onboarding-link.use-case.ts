@@ -25,7 +25,7 @@ export class GetAsaasOnboardingLinkUseCase {
       "asaas",
     );
     const elapsed = Date.now() - new Date(connection.createdAt).getTime();
-    if (connection.externalAccountId !== "manual" && elapsed < 15_000) {
+    if (!["manual", "platform"].includes(connection.externalAccountId ?? "") && elapsed < 15_000) {
       throw new ConflictException({
         code: "asaas_documents_not_ready",
         detail:

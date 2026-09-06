@@ -78,7 +78,7 @@ export function StepPayment({
             <span style={{ fontSize: "11px", marginLeft: 8, padding: "2px 6px", borderRadius: "3px", background: paymentDraft.asaasStatus === "active" ? "var(--color-success-bg)" : "var(--color-border)", color: paymentDraft.asaasStatus === "active" ? "var(--color-success)" : "var(--color-text-muted)" }}>
               {paymentDraft.asaasStatus === "active" ? "Ativo" : paymentDraft.asaasStatus === "pending" ? "Pendente" : "Não configurado"}
             </span>
-            <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "4px 0 0" }}>Conecte sua conta Asaas ou crie uma subconta e conclua a ativação.</p>
+            <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "4px 0 0" }}>Conecte o Asaas com os dados da sua loja e acompanhe a ativação.</p>
           </div>
           <Button variant="outline" size="sm" disabled={busy || paymentDraft.asaasStatus === "active"} onClick={() => paymentDraft.asaasStatus === "pending" ? void initiateAsaasOnboarding() : openAsaasForm()}>
             {paymentDraft.asaasStatus === "testing" ? "Conectando..." : paymentDraft.asaasStatus === "active" ? "Ativo" : paymentDraft.asaasStatus === "pending" ? "Continuar" : "Conectar"}

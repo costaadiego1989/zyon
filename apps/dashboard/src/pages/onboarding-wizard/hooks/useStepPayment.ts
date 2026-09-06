@@ -84,7 +84,7 @@ export function useStepPayment(deps: UseStepPaymentDeps) {
     let connectionSaved = deps.paymentDraft.asaasStatus === "pending";
     try {
       if (payload) {
-        const created = "api_key" in payload ? await api.connectAsaas(payload) : await api.createAsaasSubaccount({ ...payload });
+        const created = await api.createAsaasSubaccount({ ...payload });
         connectionSaved = true;
         deps.setPaymentDraft((d) => ({ ...d, asaasStatus: created.status === "active" ? "active" : "pending" }));
         deps.setMessage(created.status === "active" ? "Asaas conectado com sucesso." : "Conta Asaas vinculada. Conclua as pendências no Asaas e aguarde a aprovação para ativar os pagamentos.");

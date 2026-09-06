@@ -146,7 +146,7 @@ export function AsaasSubaccountForm({ company, defaultName, saving, onSubmit, on
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <p style={{ margin: 0, font: "13px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.5 }}>
-        Preenchemos com os dados da sua loja. Confira e crie a subconta Asaas — você conclui o cadastro (documentos) por um link.
+        Confira os dados da sua loja. Vamos verificar seu cadastro e conectar o Asaas automaticamente. Se for necessário criar uma conta, você poderá concluir a documentação pelo link de ativação.
       </p>
 
       <Field label="Nome / Razão social">
@@ -201,7 +201,7 @@ export function AsaasSubaccountForm({ company, defaultName, saving, onSubmit, on
           Cancelar
         </Button>
         <Button variant="primary" size="sm" onClick={validateAndSubmit} loading={saving} disabled={saving} style={{ flex: 1 }}>
-          {saving ? "Criando..." : "Criar subconta"}
+          {saving ? "Conectando..." : "Conectar Asaas"}
         </Button>
       </div>
     </div>

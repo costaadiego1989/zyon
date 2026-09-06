@@ -143,7 +143,7 @@ test("Asaas subaccount credentials remain encrypted behind the repository and dr
   const created = await create.execute("mrc_asaas", asaasInput());
   const synced = await sync.execute("mrc_asaas");
 
-  assert.equal(created.status, "pending");
+  assert.equal(created.status, "active");
   assert.equal("apiKey" in created, false);
   assert.equal(
     await repository.getConnectionSecret("mrc_asaas", "asaas"),
@@ -244,6 +244,7 @@ class StubStripePlatform implements StripePlatformPort {
 }
 
 class StubAsaasPlatform implements AsaasPlatformPort {
+  async resolvePlatformAccount() { return null; }
   async createSubaccount(_input: AsaasSubaccountInput) {
     return {
       accountId: "asaas_account_1",

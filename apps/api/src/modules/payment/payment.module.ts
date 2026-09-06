@@ -257,6 +257,7 @@ import {
           baseUrl,
           apiKey ?? "__missing__",
           http.toFetch(),
+          process.env.ASAAS_PLATFORM_MERCHANT_ID?.trim() || undefined,
         );
       },
       inject: [HttpClientService],

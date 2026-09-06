@@ -10,7 +10,20 @@ export class AsaasPlatformAdapter implements AsaasPlatformPort {
     private readonly baseUrl: string,
     private readonly rootApiKey: string,
     private readonly fetchImpl: typeof fetch,
+    private readonly platformMerchantId?: string,
   ) {}
+
+  async resolvePlatformAccount(merchantId: string, cpfCnpj: string) {
+    // A matching public tax ID alone never grants access to platform funds.
+    if (!this.platformMerchantId || merchantId !== this.platformMerchantId) return null;
+    const account = await this.request<{ cpfCnpj?: string }>("/v3/myAccount/commercialInfo", this.rootApiKey, { method: "GET" });
+    if (account.cpfCnpj?.replace(/\D/g, "") !== cpfCnpj.replace(/\D/g, "")) {
+      throw new Error("asaas_platform_account_identity_mismatch");
+    }
+    const walletId = await this.retrieveWalletId(this.rootApiKey);
+    if (!walletId) throw new Error("asaas_wallet_not_found");
+    return { apiKey: this.rootApiKey, walletId };
+  }
 
   async createSubaccount(
     input: AsaasSubaccountInput,
@@ -55,14 +68,14 @@ export class AsaasPlatformAdapter implements AsaasPlatformPort {
       .filter((url): url is string => Boolean(url));
   }
 
-  async findSubaccountByCpfCnpj(cpfCnpj: string): Promise<{ accountId: string } | null> {
+  async findSubaccountByCpfCnpj(cpfCnpj: string): Promise<{ accountId: string; email?: string } | null> {
     const digits = cpfCnpj.replace(/\D+/g, "");
     if (!digits) return null;
     const response = await this.request<{
-      data?: Array<{ id?: string }>;
+      data?: Array<{ id?: string; cpfCnpj?: string; email?: string; loginEmail?: string }>;
     }>(`/v3/accounts?cpfCnpj=${encodeURIComponent(digits)}&limit=1`, this.rootApiKey, { method: "GET" });
-    const id = response.data?.[0]?.id;
-    return id ? { accountId: id } : null;
+    const account = response.data?.find(item => item.cpfCnpj?.replace(/\D/g, "") === digits);
+    return account?.id ? { accountId: account.id, email: account.loginEmail ?? account.email } : null;
   }
 
   async createSubaccountApiKey(accountId: string): Promise<{ apiKey: string }> {

@@ -164,7 +164,7 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     setOperation("connecting-asaas");
     setAlert(null);
     try {
-      const created = "api_key" in payload ? await api.connectAsaas(payload) : await api.createAsaasSubaccount({ ...payload });
+      const created = await api.createAsaasSubaccount({ ...payload });
       setConnections((prev) => {
         const idx = prev.findIndex((c) => c.provider === "asaas");
         return idx >= 0 ? prev.map((c, i) => (i === idx ? created : c)) : [created, ...prev];

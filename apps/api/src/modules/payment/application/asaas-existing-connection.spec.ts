@@ -6,9 +6,99 @@ import { AsaasPlatformAdapter } from "../infrastructure/asaas-platform.adapter.j
 import { SaveAsaasConnectionConfigUseCase } from "./payment-platform/connect/save-asaas-connection-config.use-case.js";
 import { GetAsaasOnboardingLinkUseCase } from "./payment-platform/connect/get-asaas-onboarding-link.use-case.js";
 import { providerGatewayError } from "./payment-platform/shared.js";
+import { CreateAsaasSubaccountUseCase } from "./payment-platform/connect/create-asaas-subaccount.use-case.js";
 
 const liveKey = "$aact_prod_test-only";
 const testKey = "$aact_hmlg_test-only";
+
+const automaticInput = {
+  name: "Store", email: "owner@example.com", cpfCnpj: "52998224725", birthDate: "1990-01-31",
+  mobilePhone: "11999999999", incomeValue: 2500, address: "Rua Teste", addressNumber: "10", province: "Centro", postalCode: "01001000",
+};
+
+function automaticFixture(options: { platformMerchant?: string; managed?: boolean; ownerEmail?: string; status?: string; failStatus?: boolean; blockKeys?: boolean } = {}) {
+  const repository = new InMemoryPaymentPlatformRepository();
+  const calls: string[] = [];
+  let failStatus = options.failStatus;
+  const adapter = new AsaasPlatformAdapter("https://api.asaas.com", liveKey, (async (url, init) => {
+    const path = new URL(String(url)).pathname;
+    const method = init?.method ?? "GET";
+    calls.push(`${method} ${path}`);
+    if (path.endsWith("commercialInfo")) return Response.json({ cpfCnpj: automaticInput.cpfCnpj });
+    if (path.endsWith("accessTokens")) return options.blockKeys
+      ? Response.json({ errors: [{ code: "forbidden", description: "Temporarily disabled" }] }, { status: 403 })
+      : Response.json({ access_token: "child-secret" });
+    if (path === "/v3/accounts" && method === "GET") return Response.json({ data: options.managed ? [{ id: "child-1", cpfCnpj: automaticInput.cpfCnpj, email: options.ownerEmail ?? "owner@example.com" }] : [] });
+    if (path === "/v3/accounts" && method === "POST") return Response.json({ id: "child-1", walletId: "wallet-child", apiKey: "child-secret" });
+    if (path.includes("wallets")) return Response.json({ data: [{ id: "wallet-child" }] });
+    if (path.endsWith("status")) {
+      if (failStatus) { failStatus = false; throw new Error("temporary network failure"); }
+      const status = options.status ?? "APPROVED";
+      return Response.json({ general: status, commercialInfo: status, documentation: status, bankAccountInfo: status });
+    }
+    throw new Error("Unexpected fixture endpoint");
+  }) as typeof fetch, options.platformMerchant);
+  const useCase = new CreateAsaasSubaccountUseCase(repository, adapter, { stripe: "live", asaas: "live" });
+  return { repository, adapter, calls, useCase };
+}
+
+test("automatic recovery finds the managed account, stores its key internally and reuses it on retry", async () => {
+  const { useCase, repository, calls } = automaticFixture({ managed: true });
+  const first = await useCase.execute("merchant-1", automaticInput, "owner@example.com");
+  const second = await useCase.execute("merchant-1", automaticInput, "owner@example.com");
+  assert.equal(first.status, "active");
+  assert.equal(second.status, "active");
+  assert.equal(calls.filter(call => call.endsWith("accessTokens")).length, 1);
+  assert.equal(calls.includes("POST /v3/accounts"), false);
+  assert.equal(await repository.getConnectionSecret("merchant-1", "asaas"), "child-secret");
+  assert.doesNotMatch(JSON.stringify(first), /child-secret|apiKey/);
+});
+
+test("a tax ID and form email cannot recover another account without the matching authenticated owner", async () => {
+  for (const email of [undefined, "other@example.com"]) {
+    const { useCase, repository, calls } = automaticFixture({ managed: true });
+    await assert.rejects(() => useCase.execute("merchant-1", automaticInput, email), /asaas_account_owner_mismatch/);
+    assert.equal(calls.some(call => call.startsWith("POST")), false);
+    assert.equal(await repository.getConnection("merchant-1", "asaas"), undefined);
+  }
+});
+
+test("only the configured platform merchant can use the root account, with a matching tax ID", async () => {
+  const { useCase, repository, adapter, calls } = automaticFixture({ platformMerchant: "platform-store", status: "AWAITING_APPROVAL" });
+  assert.equal(await adapter.resolvePlatformAccount("other-store", automaticInput.cpfCnpj), null);
+  assert.equal(calls.length, 0);
+  await assert.rejects(() => adapter.resolvePlatformAccount("platform-store", "11222333000181"), /identity_mismatch/);
+  const saved = await useCase.execute("platform-store", automaticInput, "owner@example.com");
+  assert.equal(saved.externalAccountId, "platform");
+  assert.equal(saved.status, "pending");
+  assert.equal(saved.chargesEnabled, false);
+  assert.equal(await repository.getConnectionSecret("platform-store", "asaas"), liveKey);
+  assert.equal(calls.some(call => call.startsWith("POST")), false);
+  assert.equal(JSON.stringify(saved).includes(liveKey), false);
+});
+
+test("recovering an account does not ask for fields needed only to create a new account", async () => {
+  const { useCase } = automaticFixture({ managed: true });
+  const saved = await useCase.execute("merchant-1", { ...automaticInput, birthDate: undefined }, "owner@example.com");
+  assert.equal(saved.status, "active");
+});
+
+test("blocked provider key management gives a support action without creating a duplicate", async () => {
+  const { useCase, calls, repository } = automaticFixture({ managed: true, blockKeys: true });
+  await assert.rejects(() => useCase.execute("merchant-1", automaticInput, "owner@example.com"), /asaas_account_recovery_unavailable/);
+  assert.equal(calls.includes("POST /v3/accounts"), false);
+  assert.equal(await repository.getConnection("merchant-1", "asaas"), undefined);
+});
+
+test("a status outage preserves newly created credentials and the next attempt only synchronizes", async () => {
+  const { useCase, repository, calls } = automaticFixture({ failStatus: true });
+  const first = await useCase.execute("merchant-1", automaticInput, "owner@example.com");
+  assert.equal(first.status, "degraded");
+  assert.equal(await repository.getConnectionSecret("merchant-1", "asaas"), "child-secret");
+  const second = await useCase.execute("merchant-1", automaticInput, "owner@example.com");
+  assert.equal(second.status, "active");
+  assert.equal(calls.filter(call => call === "POST /v3/accounts").length, 1);
+});
 
 function fixture(general = "APPROVED") {
   const repository = new InMemoryPaymentPlatformRepository();
