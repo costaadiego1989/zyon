@@ -1,9 +1,9 @@
 # ADR — API / catalog
 
-> Implementação posterior na branch `fix/ready-to-prod-audit`: consultar [correções, evidências e pendências](../CORRECOES.md). O conteúdo abaixo preserva o retrato da auditoria original; o gate de produção continua aberto.
+> Implementação posterior integrada na `master`: consultar [correções, evidências e pendências](../CORRECOES.md). O conteúdo abaixo preserva o retrato da auditoria original; o gate de produção continua aberto.
 
 
-Data: 2026-09-05. Status: decisão de auditoria registrada; correções propostas. Veredito: **FAIL**.
+Data: 2026-09-05. Status: decisão de auditoria registrada; atualização de implementação em 2026-09-06. Veredito: **FAIL** até executar o gate PostgreSQL concorrente.
 
 [Índice geral](<../README.md>) · [API primeiro](<README.md>) · [Evidências e limites](<../VALIDACAO.md>)
 
@@ -30,6 +30,12 @@ Notas são avaliação técnica qualitativa do código inspecionado, não métri
 ## Controles observados
 
 Listagem e parte das mutações usam merchantId; guard administrativo e validação de plano existem.
+
+## Atualização pós-auditoria — 2026-09-06
+
+O snapshot original abaixo foi corrigido no código atual: a reserva trava a variante, confirma `variant → product → merchant` antes de qualquer retry, vincula a reserva ao estoque escolhido e faz transições condicionais para confirmar e expirar. Upload, remoção de mídia e alteração de variante também filtram o merchant proprietário. O teste de integração `prisma-stock.repository.integration.spec.ts` cobre duas lojas, retries concorrentes, expiração e invariantes, mas requer PostgreSQL descartável configurado e portanto não foi certificado nesta execução local.
+
+O commit `64bf5b9` estende a mesma fronteira ao HTTP: produtos/estoque, promoções e importação de planilha agora exigem que `:mid` corresponda ao tenant do JWT. O build completo da API passou. API-001 e API-002 deixam de ser pendências de implementação, mas só podem ser fechados após o gate de banco real descrito no critério de aceite.
 
 ## God services, SOLID, KISS e DRY
 
