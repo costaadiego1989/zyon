@@ -1,4 +1,5 @@
 import { Injectable, Inject, ConflictException, Logger, Optional } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 import { ProductRepositoryPort, CreateProductInput } from "../../domain/ports/product-repository.port.js";
 import { ProductEntity } from "../../domain/entities/product.entity.js";
 import { GenerateProductSeoUseCase } from "./generate-product-seo.use-case.js";
@@ -58,6 +59,8 @@ export class AddProductUseCase {
 
     // Emit domain event for marketplace sync
     this.eventBus?.publish({
+      eventId: randomUUID(),
+      schemaVersion: 1,
       eventType: "product.upserted",
       merchantId: product.merchantId,
       payload: {

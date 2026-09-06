@@ -39,6 +39,8 @@ O build completo da API, o typecheck do dashboard e verificações diretas de ow
 
 O job de repasses também foi revisado no código atual: ele mantém o settlement em `transfer_scheduled` quando o provedor não está disponível, contabiliza o bloqueio e registra `marketplace_payout_blocked`; não grava `transferred` nem inventa `providerTransferId`. A verificação direta com dois repasses vencidos confirmou zero escrita e zero transferências executadas. API-008 deixa de ser uma conclusão financeira falsa, mas a capacidade de payout permanece indisponível até existir adaptador, idempotência e conciliação de provedor.
 
+A fila de sincronização de catálogo agora preserva `eventId` e versão de schema, usa um `jobId` derivado e seguro para BullMQ e preserva TLS quando `REDIS_URL` usa `rediss://`. O consumidor trata o evento como invalidação e relê o produto canônico antes de projetá-lo; portanto, `delete v3` seguido de `upsert v2` converge para a exclusão, e um delete antigo após reativação converge para o produto atual. A projeção também torna delete idempotente. O build da API e uma verificação direta dos dois cenários, do job ID e do parsing TLS passaram. Não houve conexão contra Redis TLS real, e a emissão direta de eventos do catálogo ainda não é um outbox transacional; queda entre a mutação e a publicação exige reconciliação posterior.
+
 ## God services, SOLID, KISS e DRY
 
 | Classe inspecionável | Linhas da classe | Dependências no construtor | Fonte |
@@ -55,7 +57,7 @@ DIP/boundary: revisar os imports acima e os acessos a dados com a matriz global.
 
 - [API-006](<ADR-api-marketplace.md#api-006>) (P0): Chargeback administrativo não recebe nem valida a loja.
 - [API-008](<ADR-api-marketplace.md#api-008>) (P0): correção fail-closed presente; payout com provedor e conciliação continuam bloqueadores.
-- [API-040](<ADR-api-marketplace.md#api-040>) (P2): Fila de catálogo perde identidade e ordenação de evento.
+- [API-040](<ADR-api-marketplace.md#api-040>) (P2): implementado localmente; outbox transacional e Redis TLS real continuam gates operacionais.
 - [DASH-004](<../dashboard/ADR-dashboard.md#dash-004>) (P1): corrigido em 2026-09-06; envio/entrega usam rotas declaradas, tenant-bound e com transição estrita.
 
 Performance/índices: consultar [matriz de schema e operação](<../BANCO-E-OPERACAO.md>). Planos reais, pool, memória, CPU, cache distribuído e volume de 10.000 usuários: **REQUIRES LOAD VALIDATION**.
@@ -154,18 +156,18 @@ Decisão: manter o fail-closed; bloquear a liberação de payout até cumprir o 
 | SEVERITY | P2 |
 | MODULE | marketplace |
 | FILE(S) | [apps/api/src/modules/marketplace/application/handlers/marketplace-catalog-sync.handler.ts:16](<../../../../../apps/api/src/modules/marketplace/application/handlers/marketplace-catalog-sync.handler.ts#L16>)<br>[apps/api/src/modules/marketplace/application/handlers/marketplace-catalog-sync.handler.ts:83](<../../../../../apps/api/src/modules/marketplace/application/handlers/marketplace-catalog-sync.handler.ts#L83>) |
-| ISSUE | Fila de catálogo perde identidade e ordenação de evento |
-| EVIDENCE | Jobs levam eventType/merchantId/payload sem eventId/versão e não definem jobId. Worker concorrente pode processar upserts/delete sem versão. redisConnection extrai host/porta de URL sem preservar opção TLS de rediss. |
-| VERIFICATION | CONFIRMED_STATIC; ordering/TLS runtime UNVERIFIED |
-| PRODUCTION IMPACT | Replays geram trabalho duplicado; update antigo pode recriar produto excluído. Conexão rediss pode falhar contra Redis que exige TLS. |
+| ISSUE | Fila de catálogo perdia identidade e ordenação de evento |
+| EVIDENCE | Correção em `master`: jobs levam `eventId`/schemaVersion, usam job ID deduplicável e `redisConnection` preserva TLS de `rediss`. Consumidores relêem o produto do catálogo e não aplicam o payload potencialmente obsoleto. |
+| VERIFICATION | Build da API e verificação direta de delete seguido de upsert obsoleto, delete obsoleto após reativação, job ID e parsing `rediss` passaram. Redis com certificado real permanece UNVERIFIED. |
+| PRODUCTION IMPACT | O replay concorrente converge para o estado canônico atual, sem recriar exclusão por payload antigo; duplicatas de delete também não falham. |
 | ROOT CAUSE | Transporte usado como garantia implícita de ordenação/identidade; parsing parcial da conexão. |
-| RECOMMENDED FIX | Propagar eventId/version, deduplicar e aplicar versão monotônica por produto; configurar TLS e política de retries/failed jobs explícita. |
+| RECOMMENDED FIX | Implementado para identidade, convergência e TLS. Adotar outbox transacional para eliminar a janela entre mutação do catálogo e publicação, e testar Redis TLS no ambiente de deploy. |
 | COMPLEXITY | M (S: pequena; M: média; L: ampla, sem estimativa de prazo) |
 | RISK OF CHANGE | Médio |
 | BLOCKS PROD? | NO |
-| CRITÉRIO DE ACEITE | Entregar delete v3 seguido de upsert v2 não recria produto; rediss com certificado válido conecta e inválido falha. |
+| CRITÉRIO DE ACEITE | Primeiro cenário atendido por verificação direta. Falta validar conexão `rediss` com certificado válido/inválido e entrega durável em queda do processo. |
 
-Decisão: registrar correção priorizada e acompanhar o risco residual. Correção ainda não implementada nesta auditoria.
+Decisão: implementação local concluída para identidade, convergência e parsing TLS; acompanhar o risco residual de publicação sem outbox e do ambiente Redis.
 
 
 ## Reavaliação

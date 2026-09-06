@@ -127,13 +127,10 @@ export class PrismaFederatedProductRepository
     sourceMerchantId: string,
     sourceProductId: string,
   ): Promise<void> {
-    await this.prisma.federatedProduct.delete({
-      where: {
-        sourceMerchantId_sourceProductId: {
-          sourceMerchantId,
-          sourceProductId,
-        },
-      },
+    // Deletion is an idempotent projection operation. A duplicate or stale
+    // invalidation must converge instead of failing the queue retry.
+    await this.prisma.federatedProduct.deleteMany({
+      where: { sourceMerchantId, sourceProductId },
     });
   }
 

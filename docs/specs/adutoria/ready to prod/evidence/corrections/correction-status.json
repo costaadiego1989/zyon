@@ -359,7 +359,7 @@
       "severity": "P2",
       "module": "marketplace",
       "title": "Fila de catálogo perde identidade e ordenação de evento",
-      "status": "OPEN",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
       "productionGateClosed": false,
       "record": "../../CORRECOES.md"
     },

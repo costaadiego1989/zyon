@@ -1,4 +1,5 @@
 import { Injectable, Inject, Logger, Optional } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 import { ProductRepositoryPort } from "../../domain/ports/product-repository.port.js";
 import { ProductEntity } from "../../domain/entities/product.entity.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
@@ -51,6 +52,8 @@ export class UpdateProductUseCase {
 
     // Emit domain event for marketplace sync
     this.eventBus?.publish({
+      eventId: randomUUID(),
+      schemaVersion: 1,
       eventType: "product.upserted",
       merchantId: product.merchantId,
       payload: {
