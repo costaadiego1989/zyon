@@ -23,6 +23,7 @@ export class HubSpotCrmAdapter implements CrmProviderPort {
         `${this.baseUrl}/crm/v3/objects/contacts/${encodeURIComponent(contact.email)}?idProperty=email`,
         {
           method: "PATCH",
+          signal: AbortSignal.timeout(10000),
           headers: {
             Authorization: `Bearer ${this.accessToken}`,
             "Content-Type": "application/json",
@@ -41,6 +42,7 @@ export class HubSpotCrmAdapter implements CrmProviderPort {
         // Contact doesn't exist — create
         const createRes = await fetch(`${this.baseUrl}/crm/v3/objects/contacts`, {
           method: "POST",
+          signal: AbortSignal.timeout(10000),
           headers: {
             Authorization: `Bearer ${this.accessToken}`,
             "Content-Type": "application/json",
@@ -57,18 +59,16 @@ export class HubSpotCrmAdapter implements CrmProviderPort {
         });
 
         if (!createRes.ok) {
-          const err = await createRes.text();
-          this.logger.warn(`[HubSpot] createContact failed: ${createRes.status} — ${err.slice(0, 200)}`);
+          throw new Error(`inventory_crm_http_${createRes.status}`);
         }
         return;
       }
 
       if (!patchRes.ok) {
-        const err = await patchRes.text();
-        this.logger.warn(`[HubSpot] upsertContact PATCH failed: ${patchRes.status} — ${err.slice(0, 200)}`);
+        throw new Error(`inventory_crm_http_${patchRes.status}`);
       }
-    } catch (err) {
-      this.logger.warn(`[HubSpot] upsertContact error: ${err instanceof Error ? err.message : String(err)}`);
+    } catch {
+      throw new Error("inventory_crm_provider_failed");
     }
   }
 
@@ -77,6 +77,7 @@ export class HubSpotCrmAdapter implements CrmProviderPort {
       // Create deal
       const dealRes = await fetch(`${this.baseUrl}/crm/v3/objects/deals`, {
         method: "POST",
+          signal: AbortSignal.timeout(10000),
         headers: {
           Authorization: `Bearer ${this.accessToken}`,
           "Content-Type": "application/json",
@@ -92,9 +93,7 @@ export class HubSpotCrmAdapter implements CrmProviderPort {
       });
 
       if (!dealRes.ok) {
-        const err = await dealRes.text();
-        this.logger.warn(`[HubSpot] createDeal failed: ${dealRes.status} — ${err.slice(0, 200)}`);
-        return;
+        throw new Error(`inventory_crm_http_${dealRes.status}`);
       }
 
       const dealData = (await dealRes.json()) as { id: string };
@@ -102,15 +101,17 @@ export class HubSpotCrmAdapter implements CrmProviderPort {
       // Associate deal → contact (associationTypeId 3 = deal_to_contact)
       const contactLookup = await fetch(
         `${this.baseUrl}/crm/v3/objects/contacts/${encodeURIComponent(deal.contactEmail)}?idProperty=email`,
-        { headers: { Authorization: `Bearer ${this.accessToken}` } },
+        { headers: { Authorization: `Bearer ${this.accessToken}` }, signal: AbortSignal.timeout(10000) },
       );
 
+      if (!contactLookup.ok) throw new Error(`inventory_crm_http_${contactLookup.status}`);
       if (contactLookup.ok) {
         const contactData = (await contactLookup.json()) as { id: string };
-        await fetch(
+        const association = await fetch(
           `${this.baseUrl}/crm/v4/objects/deals/${dealData.id}/associations/contacts/${contactData.id}`,
           {
             method: "PUT",
+            signal: AbortSignal.timeout(10000),
             headers: {
               Authorization: `Bearer ${this.accessToken}`,
               "Content-Type": "application/json",
@@ -118,11 +119,12 @@ export class HubSpotCrmAdapter implements CrmProviderPort {
             body: JSON.stringify([{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: 3 }]),
           },
         );
+        if (!association.ok) throw new Error(`inventory_crm_http_${association.status}`);
       }
 
       this.logger.debug(`[HubSpot] Deal created: ${deal.title}`);
-    } catch (err) {
-      this.logger.warn(`[HubSpot] createDeal error: ${err instanceof Error ? err.message : String(err)}`);
+    } catch {
+      throw new Error("inventory_crm_provider_failed");
     }
   }
 }

@@ -1,4 +1,4 @@
-import { Global, Module, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import { Global, Module, OnApplicationShutdown, OnModuleInit } from "@nestjs/common";
 import { createPrismaClient } from "./prisma-client.js";
 import { registerTenantMiddleware } from "./tenant.middleware.js";
 import { TenantContextService } from "../tenant/tenant-context.service.js";
@@ -6,14 +6,14 @@ import { PrismaClient } from "@prisma/client";
 
 export const PRISMA_CLIENT = Symbol("PRISMA_CLIENT");
 
-class PrismaLifecycle implements OnModuleInit, OnModuleDestroy {
+export class PrismaLifecycle implements OnModuleInit, OnApplicationShutdown {
   constructor(public readonly client: PrismaClient) {}
 
   async onModuleInit() {
     await this.client.$connect();
   }
 
-  async onModuleDestroy() {
+  async onApplicationShutdown() {
     await this.client.$disconnect();
   }
 }

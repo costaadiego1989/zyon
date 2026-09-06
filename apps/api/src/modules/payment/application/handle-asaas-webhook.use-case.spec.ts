@@ -108,7 +108,7 @@ test("PAYMENT_RECEIVED approves intent and completes checkout once", async () =>
   assert.equal(checkoutPort.approved[0]?.externalOrderId, "pay_asaas_1");
   assert.equal(checkoutPort.approved[0]?.orderTotalMajorUnits, 300);
   assert.equal(checkoutPort.approved[0]?.acceptedOfferId, "off_a");
-  assert.ok(checkoutPort.statuses.some((entry) => entry.status === "approved"));
+  assert.ok(payments.capturedEvents.map(event => event.payload as { status: string; reason?: string }).some((entry) => entry.status === "approved"));
 });
 
 test("PAYMENT_RECEIVED marks linked commerce order paid idempotently", async () => {
@@ -251,7 +251,7 @@ test("PAYMENT_DELETED marks failed and records payment_failed event", async () =
   const reload = await payments.getIntentById("mrc_1", ext);
   assert.equal(reload?.snapshot().status, "failed");
   assert.ok(reload?.snapshot().statusHistory.some((entry) => entry.status === "failed"));
-  assert.ok(checkoutPort.statuses.some((entry) => entry.status === "failed" && entry.reason === "PAYMENT_DELETED"));
+  assert.ok(payments.capturedEvents.map(event => event.payload as { status: string; reason?: string }).some((entry) => entry.status === "failed" && entry.reason === "PAYMENT_DELETED"));
 });
 
 test("HandleAsaasWebhookUseCase rejects when ASAAS_WEBHOOK_TOKEN mismatches header", async (t) => {

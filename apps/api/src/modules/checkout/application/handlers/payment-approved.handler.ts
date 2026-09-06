@@ -20,14 +20,14 @@ export class PaymentApprovedHandler implements OnModuleInit {
   }
 
   private async handle(event: PaymentApprovedEvent): Promise<void> {
-    const { sessionId, externalOrderId, orderTotalMajorUnits, currency, acceptedOfferId } = event.payload;
-    await this.completeOrder.execute({
+    const { sessionId, externalOrderId, orderTotalMajorUnits, currency, acceptedOfferId, paymentIntentId } = event.payload;
+    await this.completeOrder.executePaymentApproval({
       merchant_id: event.merchantId,
       session_id: sessionId,
       external_order_id: externalOrderId,
       order_total: orderTotalMajorUnits,
       currency: currency as CurrencyCode,
       accepted_offer_id: acceptedOfferId
-    });
+    }, paymentIntentId);
   }
 }

@@ -1,89 +1,35 @@
-import { Injectable, Logger, Optional, Inject } from "@nestjs/common";
-import type { SaleCompletedEvent } from "../../domain/events/sale-completed.event.js";
+import type { MerchantWebhookDelivery } from "../../../integrations/domain/integrations.types.js";
+import { Injectable, Inject } from "@nestjs/common";
+import { createHash } from "node:crypto";
+import type { AppliedInventorySale } from "../../domain/events/sale-completed.event.js";
 import { INTEGRATIONS_REPOSITORY, type IntegrationsRepository } from "../../../integrations/domain/ports/integrations.repository.port.js";
-import { WebhookDeliveryDispatcher } from "../../../integrations/application/webhook-delivery-dispatcher.service.js";
 
-/**
- * Emits webhooks to merchant's registered endpoints after sale completes.
- * Event type: inventory.item.decremented
- * Payload: { sku, quantity_decremented, order_id, timestamp }
- * Fire-and-forget: errors logged, not thrown.
- */
 @Injectable()
 export class InventoryWebhookEmitterService {
-  private readonly logger = new Logger(InventoryWebhookEmitterService.name);
-
-  constructor(
-    @Optional() @Inject(INTEGRATIONS_REPOSITORY) private readonly integrationsRepo?: IntegrationsRepository,
-    @Optional() private readonly webhookDispatcher?: WebhookDeliveryDispatcher
-  ) {}
-
-  async emitWebhooks(event: SaleCompletedEvent): Promise<void> {
-    if (!this.integrationsRepo || !this.webhookDispatcher) {
-      this.logger.debug(`[Webhook] No integrations repo or dispatcher available; skipping`);
-      return;
-    }
-
-    try {
-      // Phase 2: fetch merchant's webhook endpoints filtered by event_type=inventory.item.decremented
-      // For now, emit to all active endpoints
-      const endpoints = await this.integrationsRepo.listWebhookEndpoints(event.merchantId);
-      if (!endpoints || endpoints.length === 0) {
-        this.logger.debug(`[Webhook] No webhook endpoints for merchantId=${event.merchantId}`);
-        return;
-      }
-
-      for (const item of event.items) {
-        const payload = {
-          sku: item.sku,
-          quantity_decremented: item.quantity,
-          order_id: event.orderId,
-          timestamp: event.timestamp
-        };
-
-        for (const endpoint of endpoints) {
-          try {
-            const envelope = {
-              event_type: "inventory.item.decremented",
-              merchant_id: event.merchantId,
-              payload,
-              timestamp: new Date().toISOString(),
-              event_id: `evt_${crypto.randomUUID()}`
-            };
-
-            const delivery = {
-              merchantId: event.merchantId,
-              endpointId: endpoint.id,
-              endpointUrl: endpoint.url,
-              eventType: "inventory.item.decremented",
-              eventId: envelope.event_id,
-              envelope,
-              status: "pending" as const,
-              attempts: 0,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              nextAttemptAt: new Date().toISOString()
-            };
-
-            // Dispatch async: fire-and-forget
-            this.webhookDispatcher.dispatchDelivery(delivery as any).catch((err: unknown) => {
-              const errorMsg = err instanceof Error ? err.message : String(err);
-              this.logger.warn(`Failed to dispatch inventory webhook: ${errorMsg}`);
-            });
-
-            this.logger.debug(
-              `[Webhook] Queued: merchantId=${event.merchantId}, endpoint=${endpoint.url}, sku=${item.sku}`
-            );
-          } catch (err: unknown) {
-            const errorMsg = err instanceof Error ? err.message : String(err);
-            this.logger.warn(`Failed to queue inventory webhook: ${errorMsg}`);
-          }
+  constructor(@Inject(INTEGRATIONS_REPOSITORY) private readonly integrations: IntegrationsRepository) {}
+  async emitWebhooks(sale: AppliedInventorySale): Promise<void> {
+    const eventType = "inventory.item.decremented" as const;
+    const endpoints = (await this.integrations.listWebhookEndpoints(sale.event.merchantId))
+      .filter(endpoint => endpoint.merchantId === sale.event.merchantId && endpoint.enabled && endpoint.events.includes(eventType));
+    for (const item of sale.items) {
+      const eventId = `inv_evt_${createHash("sha256").update(JSON.stringify([sale.receiptId, item.itemId])).digest("hex")}`;
+      for (const endpoint of endpoints) {
+        const now = new Date().toISOString();
+        const delivery: MerchantWebhookDelivery = { id: `inv_delivery_${createHash("sha256").update(JSON.stringify([endpoint.id, eventId])).digest("hex")}`,
+          merchantId: sale.event.merchantId, endpointId: endpoint.id, endpointUrl: endpoint.url, eventId, eventType,
+          envelope: { event_id: eventId, event_type: eventType, merchant_id: sale.event.merchantId, occurred_at: sale.event.timestamp,
+            api_version: "2026-05-21", data: { sku: item.sku, location_id: item.locationId, quantity_decremented: item.quantity,
+              remaining_quantity: item.remainingQuantity, order_id: sale.event.orderId } },
+          status: "pending", attempts: 0, nextAttemptAt: now, createdAt: now, updatedAt: now };
+        try { await this.integrations.saveWebhookDelivery(delivery); }
+        catch (error) {
+          if ((error as { code?: string }).code !== "P2002") throw error;
+          // Prisma may emulate upsert; its losing concurrent insert can hit either
+          // unique key. Only an identical committed delivery is a successful replay.
+          const existing = await this.integrations.getWebhookDelivery(sale.event.merchantId, delivery.id);
+          if (!existing || existing.eventId !== eventId || existing.endpointId !== endpoint.id) throw error;
         }
       }
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`[Webhook] Failed to emit webhooks: ${errorMsg}`);
-      // Do NOT throw: webhook emission failure should not block the sale event
     }
   }
 }

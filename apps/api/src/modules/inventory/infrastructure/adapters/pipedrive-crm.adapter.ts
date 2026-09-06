@@ -27,10 +27,11 @@ export class PipedriveCrmAdapter implements CrmProviderPort {
     try {
       // Search person by email (v2 endpoint)
       const searchRes = await fetch(
-        this.url(`/api/v2/persons/search?term=${encodeURIComponent(contact.email)}&fields=email&limit=1`),
+        this.url(`/api/v2/persons/search?term=${encodeURIComponent(contact.email)}&fields=email&limit=1`), { signal: AbortSignal.timeout(10000) },
       );
 
       let personId: number | null = null;
+      if (!searchRes.ok) throw new Error(`inventory_crm_http_${searchRes.status}`);
       if (searchRes.ok) {
         const searchData = (await searchRes.json()) as any;
         personId = searchData.data?.items?.[0]?.item?.id ?? null;
@@ -49,27 +50,27 @@ export class PipedriveCrmAdapter implements CrmProviderPort {
         // Update existing
         const updateRes = await fetch(this.url(`/api/v2/persons/${personId}`), {
           method: "PATCH",
+          signal: AbortSignal.timeout(10000),
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
         if (!updateRes.ok) {
-          const err = await updateRes.text();
-          this.logger.warn(`[Pipedrive] updatePerson failed: ${updateRes.status} — ${err.slice(0, 200)}`);
+          throw new Error(`inventory_crm_http_${updateRes.status}`);
         }
       } else {
         // Create new
         const createRes = await fetch(this.url("/api/v2/persons"), {
           method: "POST",
+          signal: AbortSignal.timeout(10000),
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
         if (!createRes.ok) {
-          const err = await createRes.text();
-          this.logger.warn(`[Pipedrive] createPerson failed: ${createRes.status} — ${err.slice(0, 200)}`);
+          throw new Error(`inventory_crm_http_${createRes.status}`);
         }
       }
-    } catch (err) {
-      this.logger.warn(`[Pipedrive] upsertContact error: ${err instanceof Error ? err.message : String(err)}`);
+    } catch {
+      throw new Error("inventory_crm_provider_failed");
     }
   }
 
@@ -77,10 +78,11 @@ export class PipedriveCrmAdapter implements CrmProviderPort {
     try {
       // Find person by email
       const searchRes = await fetch(
-        this.url(`/api/v2/persons/search?term=${encodeURIComponent(deal.contactEmail)}&fields=email&limit=1`),
+        this.url(`/api/v2/persons/search?term=${encodeURIComponent(deal.contactEmail)}&fields=email&limit=1`), { signal: AbortSignal.timeout(10000) },
       );
 
       let personId: number | null = null;
+      if (!searchRes.ok) throw new Error(`inventory_crm_http_${searchRes.status}`);
       if (searchRes.ok) {
         const searchData = (await searchRes.json()) as any;
         personId = searchData.data?.items?.[0]?.item?.id ?? null;
@@ -97,19 +99,18 @@ export class PipedriveCrmAdapter implements CrmProviderPort {
 
       const dealRes = await fetch(this.url("/api/v1/deals"), {
         method: "POST",
+          signal: AbortSignal.timeout(10000),
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(dealPayload),
       });
 
       if (!dealRes.ok) {
-        const err = await dealRes.text();
-        this.logger.warn(`[Pipedrive] createDeal failed: ${dealRes.status} — ${err.slice(0, 200)}`);
-        return;
+        throw new Error(`inventory_crm_http_${dealRes.status}`);
       }
 
       this.logger.debug(`[Pipedrive] Deal created: ${deal.title}`);
-    } catch (err) {
-      this.logger.warn(`[Pipedrive] createDeal error: ${err instanceof Error ? err.message : String(err)}`);
+    } catch {
+      throw new Error("inventory_crm_provider_failed");
     }
   }
 }

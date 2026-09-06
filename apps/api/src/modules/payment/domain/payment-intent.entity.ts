@@ -1,4 +1,15 @@
 import { randomUUID } from "node:crypto";
+import { assertPaymentAmount, type PaymentAmountBreakdown } from "./payment-amount.js";
+import type { CreateProviderPaymentInput } from "./ports/payment-provider.port.js";
+
+export type PaymentCreation = {
+  state: "ready" | "in_flight" | "uncertain" | "complete";
+  input: CreateProviderPaymentInput;
+  leaseToken?: string;
+  leaseUntil?: string;
+  firstAttemptAt?: string;
+  reason?: string;
+};
 
 const FORBIDDEN_PAYMENT_INPUT_KEYS = ["unsafeRawCardPan", "cvv", "cardNumber", "rawPan", "pan"] as const;
 
@@ -27,9 +38,13 @@ export type PaymentIntentCreateInput = {
   method: PaymentMethod;
   acceptedOfferId?: string;
   commerceOrderId?: string;
+  amountBreakdown?: PaymentAmountBreakdown;
 };
 
 export type PaymentIntentSnapshot = {
+  version?: number;
+  amountBreakdown?: PaymentAmountBreakdown;
+  creation?: PaymentCreation;
   id: string;
   merchantId: string;
   sessionId: string;
@@ -85,8 +100,9 @@ export class PaymentIntentEntity {
     const sessionId = input.sessionId.trim();
     const idempotencyKey = input.idempotencyKey.trim();
     if (!merchantId || !sessionId || !idempotencyKey) throw new Error("payment_intent_scope_invalid");
-    if (input.amountCents <= 0) throw new Error("payment_intent_amount_invalid");
+    if (!Number.isSafeInteger(input.amountCents) || input.amountCents <= 0) throw new Error("payment_intent_amount_invalid");
     if (!input.currency.trim()) throw new Error("payment_intent_currency_invalid");
+    if (input.amountBreakdown) assertPaymentAmount(input.amountBreakdown, input.amountCents, input.currency.trim().toUpperCase());
 
     const acceptedOfferId =
       typeof input.acceptedOfferId === "string" ? input.acceptedOfferId.trim() || undefined : undefined;
@@ -95,6 +111,8 @@ export class PaymentIntentEntity {
 
     return new PaymentIntentEntity({
       id: `pay_int_${randomUUID()}`,
+      version: 0,
+      amountBreakdown: input.amountBreakdown ? structuredClone(input.amountBreakdown) : undefined,
       merchantId,
       sessionId,
       idempotencyKey,
@@ -110,7 +128,8 @@ export class PaymentIntentEntity {
 
   static rehydrate(snapshot: PaymentIntentSnapshot): PaymentIntentEntity {
     return new PaymentIntentEntity({
-      ...snapshot,
+      ...structuredClone(snapshot),
+      version: snapshot.version ?? 0,
       statusHistory: snapshot.statusHistory ?? [
         { status: snapshot.status, occurredAt: new Date().toISOString() }
       ]
@@ -118,7 +137,34 @@ export class PaymentIntentEntity {
   }
 
   snapshot(): PaymentIntentSnapshot {
-    return { ...this.s };
+    return structuredClone(this.s);
+  }
+
+  persisted(version: number): void { this.s.version = version; }
+
+  prepareCreation(input: CreateProviderPaymentInput): void {
+    if (this.s.creation || this.s.providerPaymentId || input.creditCard || input.creditCardHolderInfo || input.remoteIp) throw new Error("payment_creation_input_invalid");
+    if (input.intentId !== this.s.id || input.amountCents !== this.s.amountCents || input.merchantId !== this.s.merchantId || input.sessionId !== this.s.sessionId || input.currency !== this.s.currency) throw new Error("payment_creation_input_invalid");
+    this.s.creation = { state: "ready", input: structuredClone(input) };
+  }
+
+  claimCreation(token: string, now: Date, leaseMs = 60_000): "create" | "recover" | null {
+    const creation = this.s.creation;
+    if (!creation || creation.state === "complete" || this.s.providerPaymentId || this.s.status !== "pending") return null;
+    if (creation.leaseUntil && Date.parse(creation.leaseUntil) > now.getTime()) return null;
+    const action = creation.state === "ready" ? "create" : "recover";
+    this.s.creation = { ...creation, state: "in_flight", leaseToken: token, leaseUntil: new Date(now.getTime() + leaseMs).toISOString(), firstAttemptAt: creation.firstAttemptAt ?? now.toISOString() };
+    return action;
+  }
+
+  markCreationUncertain(token: string, reason: string): void {
+    if (this.s.creation?.leaseToken !== token) throw new Error("payment_creation_lease_lost");
+    this.s.creation = { ...this.s.creation, state: "uncertain", leaseToken: undefined, leaseUntil: undefined, reason };
+  }
+
+  completeCreation(token: string): void {
+    if (this.s.creation?.leaseToken !== token) throw new Error("payment_creation_lease_lost");
+    this.s.creation = { ...this.s.creation, state: "complete", leaseToken: undefined, leaseUntil: undefined, reason: undefined };
   }
 
   get status(): PaymentIntentStatus {

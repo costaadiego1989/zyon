@@ -1,6 +1,6 @@
 import { Global, Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
-import { OUTBOX_REPOSITORY, type OutboxRepository } from "./ports/outbox.repository.port.js";
+import { OUTBOX_REPOSITORY, type LeasedOutboxRepository } from "./ports/outbox.repository.port.js";
 import { PrismaOutboxRepository } from "./infrastructure/prisma-outbox.repository.js";
 import { InMemoryDomainEventBus } from "../events/in-memory-domain-event-bus.js";
 import { DOMAIN_EVENT_BUS } from "../events/domain-event-bus.port.js";
@@ -12,7 +12,7 @@ import { OutboxDispatcher } from "./outbox-dispatcher.service.js";
   providers: [
     {
       provide: OUTBOX_REPOSITORY,
-      useFactory: (prisma: PrismaClient): OutboxRepository => new PrismaOutboxRepository(prisma),
+      useFactory: (prisma: PrismaClient): LeasedOutboxRepository => new PrismaOutboxRepository(prisma),
       inject: [PRISMA_CLIENT]
     },
     InMemoryDomainEventBus,

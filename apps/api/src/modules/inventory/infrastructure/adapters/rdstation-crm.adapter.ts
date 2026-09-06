@@ -36,19 +36,18 @@ export class RdStationCrmAdapter implements CrmProviderPort {
 
       const response = await fetch(this.url("/contacts"), {
         method: "POST",
+          signal: AbortSignal.timeout(10000),
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
-        const err = await response.text();
-        this.logger.warn(`[RD Station] upsertContact failed: ${response.status} — ${err.slice(0, 200)}`);
-        return;
+        throw new Error(`inventory_crm_http_${response.status}`);
       }
 
       this.logger.debug(`[RD Station] Contact upserted: ${contact.email}`);
-    } catch (err) {
-      this.logger.warn(`[RD Station] upsertContact error: ${err instanceof Error ? err.message : String(err)}`);
+    } catch {
+      throw new Error("inventory_crm_provider_failed");
     }
   }
 
@@ -56,10 +55,11 @@ export class RdStationCrmAdapter implements CrmProviderPort {
     try {
       // First find contact by email to get their ID
       const searchRes = await fetch(
-        this.url(`/contacts?email=${encodeURIComponent(deal.contactEmail)}&limit=1`),
+        this.url(`/contacts?email=${encodeURIComponent(deal.contactEmail)}&limit=1`), { signal: AbortSignal.timeout(10000) },
       );
 
       let contactId: string | null = null;
+      if (!searchRes.ok) throw new Error(`inventory_crm_http_${searchRes.status}`);
       if (searchRes.ok) {
         const data = (await searchRes.json()) as { contacts?: Array<{ _id: string }> };
         contactId = data.contacts?.[0]?._id ?? null;
@@ -78,19 +78,18 @@ export class RdStationCrmAdapter implements CrmProviderPort {
 
       const dealRes = await fetch(this.url("/deals"), {
         method: "POST",
+          signal: AbortSignal.timeout(10000),
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(dealPayload),
       });
 
       if (!dealRes.ok) {
-        const err = await dealRes.text();
-        this.logger.warn(`[RD Station] createDeal failed: ${dealRes.status} — ${err.slice(0, 200)}`);
-        return;
+        throw new Error(`inventory_crm_http_${dealRes.status}`);
       }
 
       this.logger.debug(`[RD Station] Deal created: ${deal.title}`);
-    } catch (err) {
-      this.logger.warn(`[RD Station] createDeal error: ${err instanceof Error ? err.message : String(err)}`);
+    } catch {
+      throw new Error("inventory_crm_provider_failed");
     }
   }
 }

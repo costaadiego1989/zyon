@@ -60,7 +60,7 @@ test("PaymentDispatch.markApprovedAndComplete: approves and emits checkout compl
   assert.equal(checkoutPort.approved.length, 1);
   assert.equal(checkoutPort.approved[0]?.externalOrderId, "provider_1");
   assert.equal(checkoutPort.approved[0]?.acceptedOfferId, "off_1");
-  assert.ok(checkoutPort.statuses.some(s => s.status === "approved"));
+  assert.ok(payments.capturedEvents.map(event => event.payload as { status: string; reason?: string }).some(s => s.status === "approved"));
 });
 
 test("PaymentDispatch.markApprovedAndComplete: already approved returns early", async () => {
@@ -119,7 +119,7 @@ test("PaymentDispatch.markFailed: marks intent failed and records failure", asyn
   assert.equal(reloaded?.snapshot().status, "failed");
   assert.equal(checkoutPort.failures.length, 1);
   assert.equal(checkoutPort.failures[0]?.reason, "card_declined");
-  assert.ok(checkoutPort.statuses.some(s => s.status === "failed" && s.reason === "card_declined"));
+  assert.ok(payments.capturedEvents.map(event => event.payload as { status: string; reason?: string }).some(s => s.status === "failed" && s.reason === "card_declined"));
 });
 
 test("PaymentDispatch.markFailed: no-ops on already terminal status (approved)", async () => {
@@ -166,10 +166,10 @@ test("PaymentDispatch.markRefunded: refunds approved intent", async () => {
 
   const reloaded = await payments.getIntentById("mrc_1", intent.id);
   assert.equal(reloaded?.snapshot().status, "refunded");
-  assert.ok(checkoutPort.statuses.some(s => s.status === "refunded" && s.reason === "customer_request"));
+  assert.ok(payments.capturedEvents.map(event => event.payload as { status: string; reason?: string }).some(s => s.status === "refunded" && s.reason === "customer_request"));
 });
 
-test("PaymentDispatch.markRefunded: no-ops when intent is not approved", async () => {
+test("PaymentDispatch.markRefunded: retries refund delivered before approval", async () => {
   const payments = new InMemoryPaymentRepository();
   const checkoutPort = new RecordingCheckoutPayment();
   const dispatch = new PaymentDispatchService(payments, checkoutPort);
@@ -177,7 +177,7 @@ test("PaymentDispatch.markRefunded: no-ops when intent is not approved", async (
   const intent = createPendingIntent();
   await payments.saveIntent({ intent });
 
-  await dispatch.markRefunded(intent, "customer_request");
+  await assert.rejects(dispatch.markRefunded(intent, "customer_request"), /payment_refund_precedes_approval/);
 
   const reloaded = await payments.getIntentById("mrc_1", intent.id);
   assert.equal(reloaded?.snapshot().status, "requires_action");

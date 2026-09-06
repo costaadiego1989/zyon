@@ -24,6 +24,10 @@ import { quoteUsdcFromBrlCents } from "./evm-crypto-quote.service.js";
 export class EvmCryptoPaymentAdapter implements PaymentProviderPort {
   constructor(@Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository) {}
 
+  // Quote construction has no external financial effect; retry before its first
+  // persistence cannot duplicate an on-chain transfer.
+  async recoverPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput> { return this.createPayment(input); }
+
   async createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput> {
     if (input.method !== "crypto") {
       throw new BadRequestException("evm_crypto_method_required");

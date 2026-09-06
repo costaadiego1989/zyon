@@ -1,4 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { createHash } from "node:crypto";
+import type { PrismaClient, Prisma } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
 import type { CheckoutPaymentApprovedInput, CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../shared/messaging/ports/outbox.repository.port.js";
@@ -9,10 +12,13 @@ import type { PaymentIntentStatus } from "../domain/payment-intent.entity.js";
 
 @Injectable()
 export class CheckoutPaymentAdapter implements CheckoutPaymentPort {
+  // Only used by direct in-memory fixtures; Nest requires PRISMA_CLIENT below.
+  private readonly fixtureNotifications = new Map<string, Promise<void>>();
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
-    @Inject(DOMAIN_EVENT_BUS) private readonly eventBus: DomainEventBus
+    @Inject(DOMAIN_EVENT_BUS) private readonly eventBus: DomainEventBus,
+    @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient
   ) {}
 
   async completeAfterApproval(input: CheckoutPaymentApprovedInput): Promise<void> {
@@ -20,6 +26,8 @@ export class CheckoutPaymentAdapter implements CheckoutPaymentPort {
       eventType: PAYMENT_APPROVED_EVENT,
       merchantId: input.merchantId,
       payload: {
+        paymentIntentId: input.paymentIntentId,
+        amountBreakdown: input.amountBreakdown,
         sessionId: input.sessionId,
         externalOrderId: input.externalOrderId,
         orderTotalMajorUnits: input.orderTotalMajorUnits,
@@ -27,16 +35,37 @@ export class CheckoutPaymentAdapter implements CheckoutPaymentPort {
         acceptedOfferId: input.acceptedOfferId
       }
     });
-    // Mark session as payment confirmed so deriveChatStage returns "completed"
-    const session = await this.sessions.getSession(input.merchantId, input.sessionId);
-    if (session) {
-      (session as any).paymentConfirmed = true;
-      await this.sessions.saveSession(session);
-    }
-    await this.sessions.appendChatTurn(input.merchantId, input.sessionId, {
+    await this.appendConfirmationOnce(input);
+  }
+
+  private async appendConfirmationOnce(input: CheckoutPaymentApprovedInput): Promise<void> {
+    const receiptId = `payment_confirmation_${createHash("sha256").update(JSON.stringify([
+      input.merchantId, input.sessionId, input.paymentIntentId ?? input.externalOrderId,
+    ])).digest("hex")}`;
+    const turn = {
       role: "agent",
-      text: "Pagamento confirmado! Seu pedido foi registrado e voce recebera o codigo de rastreio no WhatsApp.",
+      text: "Pagamento confirmado! Seu pedido foi registrado.",
       occurredAt: new Date().toISOString()
+    } as const;
+    if (!this.prisma) {
+      const existing = this.fixtureNotifications.get(receiptId);
+      if (existing) return existing;
+      const pending = Promise.resolve(this.sessions.appendChatTurn(input.merchantId, input.sessionId, turn)).then(() => {});
+      this.fixtureNotifications.set(receiptId, pending);
+      try { await pending; } catch (error) { this.fixtureNotifications.delete(receiptId); throw error; }
+      return;
+    }
+    await this.prisma.$transaction(async tx => {
+      const rows = await tx.$queryRaw<Array<{ chat_history: unknown }>>`
+        SELECT chat_history FROM checkout_sessions
+        WHERE merchant_id = ${input.merchantId} AND session_id = ${input.sessionId} FOR UPDATE`;
+      if (!rows.length) throw new Error("checkout_session_not_found");
+      if (await tx.checkoutEvent.findUnique({ where: { id: receiptId } })) return;
+      const history = Array.isArray(rows[0].chat_history) ? rows[0].chat_history : [];
+      await tx.checkoutEvent.create({ data: { id: receiptId, merchantId: input.merchantId,
+        sessionId: input.sessionId, eventName: "payment_confirmation_notified", occurredAt: new Date(turn.occurredAt) } });
+      await tx.checkoutSession.update({ where: { merchantId_sessionId: { merchantId: input.merchantId, sessionId: input.sessionId } },
+        data: { chatHistory: [...history, turn].slice(-50) as Prisma.InputJsonValue, updatedAt: new Date() } });
     });
   }
 

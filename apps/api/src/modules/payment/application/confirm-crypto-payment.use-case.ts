@@ -1,3 +1,4 @@
+import { savePaymentTransition } from "./services/save-payment-transition.js";
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Optional , Logger} from "@nestjs/common";
 import type { CurrencyCode } from "@zyon/shared-types";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
@@ -123,7 +124,7 @@ export class ConfirmCryptoPaymentUseCase {
         approvedAmountCents: snap.amountCents
       });
 
-      await this.payments.saveIntent({ intent });
+      await savePaymentTransition(this.payments, intent);
     } catch (e) {
       for (const hash of reservedHashes) {
         await this.payments.deleteCryptoTransfer({ chain: buyerFacing.chain, txHash: hash });
@@ -131,28 +132,10 @@ export class ConfirmCryptoPaymentUseCase {
       throw e;
     }
 
-    if (this.outbox) {
-      await this.outbox.appendOutbox(
-        createCheckoutEventEnvelope({
-          eventType: "payment.status.changed",
-          merchantId,
-          payload: {
-            session_id: sessionId,
-            payment_intent_id: intentId,
-            status: "approved",
-            amount_cents: snap.amountCents,
-            method: "crypto",
-            tx_hash: txHashes[0],
-            tx_hashes: txHashes,
-            wallet_address: verified.from
-          },
-          causationId: intentId
-        })
-      );
-    }
 
     if (this.checkoutPayment) {
       await this.checkoutPayment.completeAfterApproval({
+        paymentIntentId: snap.id, amountBreakdown: snap.amountBreakdown,
         merchantId,
         sessionId,
         externalOrderId: txHashes.join(","),

@@ -1,6 +1,5 @@
 import { Injectable } from "@nestjs/common";
 import { CrmProviderPort } from "../../domain/ports/crm-provider.port.js";
-import { NoopCrmAdapter } from "./noop-crm.adapter.js";
 import { HubSpotCrmAdapter } from "./hubspot-crm.adapter.js";
 import { PipedriveCrmAdapter } from "./pipedrive-crm.adapter.js";
 import { RdStationCrmAdapter } from "./rdstation-crm.adapter.js";
@@ -13,13 +12,13 @@ export interface CrmProviderConfig {
 
 /**
  * Factory that creates the appropriate CRM adapter based on provider and credentials.
- * Returns NoopCrmAdapter if provider unknown or credentials missing.
+ * Fails explicitly if the provider or credentials are unavailable.
  */
 @Injectable()
 export class CrmAdapterFactory {
   create(config: CrmProviderConfig): CrmProviderPort {
     if (!config.provider || !config.accessToken) {
-      return new NoopCrmAdapter();
+      throw new Error("inventory_crm_adapter_unavailable");
     }
 
     switch (config.provider.toLowerCase()) {
@@ -30,7 +29,7 @@ export class CrmAdapterFactory {
       case "rdstation":
         return new RdStationCrmAdapter(config.accessToken);
       default:
-        return new NoopCrmAdapter();
+        throw new Error("inventory_crm_adapter_unavailable");
     }
   }
 }

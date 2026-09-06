@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { createHash } from "node:crypto";
 import type {
   CreateProviderPaymentInput,
   CreateProviderPaymentOutput,
@@ -60,6 +61,25 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
     private readonly fetchImpl: typeof fetch
   ) { }
 
+  creationAccountFingerprint(): string { return createHash("sha256").update(`${this.apiBaseUrl}\0${this.apiKey}`).digest("hex"); }
+
+  async recoverPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput | null> {
+    const base = this.apiBaseUrl.replace(/\/+$/, "");
+    const query = new URLSearchParams({ externalReference: input.intentId, limit: "100" });
+    const response = await this.fetchImpl(`${base}/v3/payments?${query}`, {
+      headers: { accept: "application/json", access_token: this.apiKey }, redirect: "error", signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) throw new Error("asaas_payment_recovery_failed");
+    const result = await response.json() as { data?: Array<{ id?: string; externalReference?: string; customer?: string; value?: number; billingType?: string; status?: string; invoiceUrl?: string }>; hasMore?: boolean };
+    if (!Array.isArray(result.data) || result.hasMore || result.data.length > 1) throw new Error("asaas_payment_recovery_ambiguous");
+    if (result.data.length === 0) return null;
+    const payment = result.data[0];
+    if (payment.externalReference !== input.intentId || payment.customer !== input.asaasCustomerId ||
+      payment.billingType !== billingFromMethod(input.method) || !Number.isFinite(payment.value) ||
+      Math.round(payment.value! * 100) !== input.amountCents || input.currency !== "BRL") throw new Error("asaas_payment_recovery_mismatch");
+    return this.createdOutput(input, payment);
+  }
+
   async fetchPaymentStatus(input: FetchPaymentStatusInput): Promise<FetchPaymentStatusOutput> {
     const base = this.apiBaseUrl.replace(/\/+$/, "");
     const res = await this.fetchImpl(`${base}/v3/payments/${encodeURIComponent(input.providerPaymentId)}`, {
@@ -67,6 +87,7 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
         accept: "application/json",
         access_token: this.apiKey
       },
+      redirect: "error",
       signal: AbortSignal.timeout(15_000)
     });
     if (!res.ok) {
@@ -105,6 +126,7 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
         access_token: this.apiKey
       },
       body: JSON.stringify(body),
+      redirect: "error",
       signal: AbortSignal.timeout(15_000)
     });
 
@@ -151,6 +173,7 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
         access_token: this.apiKey
       },
       body: JSON.stringify(tokenizeBody),
+      redirect: "error",
       signal: AbortSignal.timeout(15_000)
     });
 
@@ -169,6 +192,7 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
 
   async createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput> {
     const base = this.apiBaseUrl.replace(/\/+$/, "");
+    if (input.currency !== "BRL") throw new Error("asaas_currency_unsupported");
     const billingType = billingFromMethod(input.method);
     const body: Record<string, unknown> = {
       customer: input.asaasCustomerId,
@@ -192,6 +216,7 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
         access_token: this.apiKey
       },
       body: JSON.stringify(body),
+      redirect: "error",
       signal: AbortSignal.timeout(15_000)
     });
 
@@ -201,6 +226,12 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
     }
 
     const created = (await res.json()) as { id?: string; status?: string; invoiceUrl?: string };
+    return this.createdOutput(input, created);
+  }
+
+  private async createdOutput(input: CreateProviderPaymentInput, created: { id?: string; status?: string; invoiceUrl?: string }): Promise<CreateProviderPaymentOutput> {
+    const base = this.apiBaseUrl.replace(/\/+$/, "");
+    const billingType = billingFromMethod(input.method);
     const providerPaymentId = typeof created?.id === "string" ? created.id.trim() : "";
     if (!providerPaymentId) throw new Error("asaas_payment_missing_id");
 
@@ -214,7 +245,8 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
           accept: "application/json",
           access_token: this.apiKey
         },
-        signal: AbortSignal.timeout(15_000)
+        redirect: "error",
+      signal: AbortSignal.timeout(15_000)
       });
       if (qr.ok) {
         const pj = (await qr.json()) as { payload?: string; encodedImage?: string; expirationDate?: string };
@@ -245,6 +277,7 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
       method: "POST",
       headers: { "Content-Type": "application/json", access_token: this.apiKey },
       body: JSON.stringify({ value: input.amountCents / 100, description: input.reason ?? "Customer requested refund" }),
+      redirect: "error",
       signal: AbortSignal.timeout(15_000)
     });
     if (!res.ok) {

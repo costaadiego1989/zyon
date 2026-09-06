@@ -21,7 +21,6 @@ import { INVENTORY_REPOSITORY } from "./domain/ports/inventory-repository.port.j
 import { INVENTORY_MOVEMENT_REPOSITORY } from "./domain/ports/inventory-movement-repository.port.js";
 import { INVENTORY_ALERT_REPOSITORY } from "./domain/ports/inventory-alert-repository.port.js";
 import { INVENTORY_LOCATION_REPOSITORY } from "./domain/ports/inventory-location-repository.port.js";
-import { CRM_PROVIDER_PORT } from "./domain/ports/crm-provider.port.js";
 import { CRM_CONNECTION_REPOSITORY } from "./domain/ports/crm-connection-repository.port.js";
 import { ERP_REPOSITORY } from "./domain/ports/erp-repository.port.js";
 import { PrismaInventoryRepository } from "./infrastructure/repositories/prisma-inventory.repository.js";
@@ -30,7 +29,6 @@ import { PrismaInventoryAlertRepository } from "./infrastructure/repositories/pr
 import { PrismaInventoryLocationRepository } from "./infrastructure/repositories/prisma-inventory-location.repository.js";
 import { PrismaCrmConnectionRepository } from "./infrastructure/repositories/prisma-crm-connection.repository.js";
 import { PrismaErpRepository } from "./infrastructure/repositories/prisma-erp.repository.js";
-import { NoopCrmAdapter } from "./infrastructure/adapters/noop-crm.adapter.js";
 import { CrmAdapterFactory } from "./infrastructure/adapters/crm-adapter.factory.js";
 import { OnSaleCompletedHandler } from "./infrastructure/event-handlers/on-sale-completed.handler.js";
 import { InventoryOnOrderCompletedHandler } from "./infrastructure/event-handlers/on-order-completed.handler.js";
@@ -39,10 +37,17 @@ import { InventoryWebhookEmitterService } from "./application/services/inventory
 import { CrmSyncService } from "./application/services/crm-sync.service.js";
 import { InventoryDashboardController } from "./presentation/http/inventory-dashboard.controller.js";
 import { ErpOAuthController } from "./presentation/http/erp-oauth.controller.js";
+import { CheckoutPersistenceModule } from "../checkout/checkout-persistence.module.js";
+import { TenantAccessModule } from "../integrations/tenant-access.module.js";
+import { INVENTORY_SALE_REPOSITORY } from "./domain/ports/inventory-sale.repository.port.js";
+import { PrismaInventorySaleRepository } from "./infrastructure/repositories/prisma-inventory-sale.repository.js";
+import { InventorySaleIntegrationHandler } from "./infrastructure/event-handlers/on-inventory-sale-integration.handler.js";
 
 @Module({
+  imports: [CheckoutPersistenceModule, TenantAccessModule],
   controllers: [InventoryDashboardController, ErpOAuthController],
   providers: [
+    { provide: INVENTORY_SALE_REPOSITORY, useFactory: (prisma: PrismaClient) => new PrismaInventorySaleRepository(prisma), inject: [PRISMA_CLIENT] },
     {
       provide: INVENTORY_REPOSITORY,
       useFactory: (prisma: PrismaClient) => new PrismaInventoryRepository(prisma),
@@ -73,10 +78,6 @@ import { ErpOAuthController } from "./presentation/http/erp-oauth.controller.js"
       useFactory: (prisma: PrismaClient) => new PrismaErpRepository(prisma),
       inject: [PRISMA_CLIENT],
     },
-    {
-      provide: CRM_PROVIDER_PORT,
-      useClass: NoopCrmAdapter,
-    },
     ListInventoryUseCase,
     RecordMovementUseCase,
     TransferStockUseCase,
@@ -99,6 +100,7 @@ import { ErpOAuthController } from "./presentation/http/erp-oauth.controller.js"
     CrmAdapterFactory,
     HandleSaleCompletedUseCase,
     InventoryOnOrderCompletedHandler,
+    InventorySaleIntegrationHandler,
   ],
   exports: [
     INVENTORY_REPOSITORY,

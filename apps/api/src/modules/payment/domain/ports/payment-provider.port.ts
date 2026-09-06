@@ -1,6 +1,8 @@
 export const PAYMENT_PROVIDER_PORT = Symbol("PAYMENT_PROVIDER_PORT");
 
 export type CreateProviderPaymentInput = {
+  provider?: "asaas" | "stripe" | "mercadopago" | "crypto";
+  providerAccountFingerprint?: string;
   merchantId: string;
   sessionId: string;
   intentId: string;
@@ -75,6 +77,8 @@ export type CreateProviderPaymentOutput = {
 export type AuthoritativePaymentState = "approved" | "failed" | "pending" | "unknown";
 
 export type FetchPaymentStatusInput = {
+  provider?: CreateProviderPaymentInput["provider"];
+  providerAccountFingerprint?: string;
   merchantId: string;
   providerPaymentId: string;
 };
@@ -97,6 +101,11 @@ export type RefundPaymentOutput = {
 };
 
 export interface PaymentProviderPort {
+  creationAccountFingerprint?(): string;
+  /** Freeze the route/account before reserving a new financial operation. */
+  preparePayment?(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentInput>;
+  /** Empty search results never prove that a timed-out POST had no effect. */
+  recoverPayment?(input: CreateProviderPaymentInput, firstAttemptAt: string): Promise<CreateProviderPaymentOutput | null>;
   createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput>;
   createCustomer?(input: {
     merchantId: string;

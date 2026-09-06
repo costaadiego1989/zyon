@@ -52,6 +52,7 @@ export interface MerchantApiKeyContext {
 }
 
 export type TenantWebhookEventType =
+  | "inventory.item.decremented"
   | "checkout.started"
   | "checkout.abandoned"
   | "order.created"
@@ -72,6 +73,7 @@ export type TenantWebhookEventType =
   | "commerce.connection.degraded";
 
 export const TENANT_WEBHOOK_EVENTS: TenantWebhookEventType[] = [
+  "inventory.item.decremented",
   "checkout.started",
   "checkout.abandoned",
   "order.created",

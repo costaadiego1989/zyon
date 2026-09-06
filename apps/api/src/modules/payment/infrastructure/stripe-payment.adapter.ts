@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import Stripe from "stripe";
+import { createHash } from "node:crypto";
 import type {
   CreateProviderPaymentInput,
   CreateProviderPaymentOutput,
@@ -34,6 +35,20 @@ export class StripePaymentAdapter implements PaymentProviderPort {
     private readonly publishableKey: string | undefined
   ) {}
 
+  creationAccountFingerprint(): string { return createHash("sha256").update(this.secretKey ?? "").digest("hex"); }
+
+  async recoverPayment(input: CreateProviderPaymentInput, firstAttemptAt: string): Promise<CreateProviderPaymentOutput | null> {
+    const elapsed = Date.now() - Date.parse(firstAttemptAt);
+    // Stripe v1 may prune keys after 24h. Stay below that bound; never POST an old key.
+    if (Number.isFinite(elapsed) && elapsed >= 0 && elapsed < 23 * 60 * 60 * 1000) return this.createPayment(input);
+    const found = await this.requireStripe().paymentIntents.search({ query: `metadata['intent_id']:'${input.intentId.replace(/[^a-zA-Z0-9_-]/g, "")}'`, limit: 100 });
+    if (found.has_more || found.data.length > 1) throw new Error("stripe_payment_recovery_ambiguous");
+    const payment = found.data[0];
+    if (!payment) return null;
+    if (payment.metadata.intent_id !== input.intentId || payment.metadata.merchant_id !== input.merchantId || payment.metadata.session_id !== input.sessionId || payment.amount !== input.amountCents || payment.currency.toUpperCase() !== input.currency || !payment.client_secret) throw new Error("stripe_payment_recovery_mismatch");
+    return { providerPaymentId: payment.id, status: "requires_action", buyerFacingPayload: { clientSecret: payment.client_secret, stripePublishableKey: this.requirePublishableKey() } };
+  }
+
   async createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput> {
     if (input.creditCard) {
       throw new Error("stripe_raw_card_forbidden");
@@ -51,8 +66,8 @@ export class StripePaymentAdapter implements PaymentProviderPort {
       description: input.description ?? `${input.merchantId}:${input.sessionId}`
     };
 
-    if (input.stripeConnectAccountId && input.platformFeeCents && input.platformFeeCents > 0) {
-      paymentIntentParams.application_fee_amount = input.platformFeeCents;
+    if (input.stripeConnectAccountId) {
+      if (input.platformFeeCents && input.platformFeeCents > 0) paymentIntentParams.application_fee_amount = input.platformFeeCents;
       paymentIntentParams.transfer_data = { destination: input.stripeConnectAccountId };
     }
 

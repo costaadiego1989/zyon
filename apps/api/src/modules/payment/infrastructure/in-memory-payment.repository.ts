@@ -1,6 +1,7 @@
 import { Injectable, Optional, Inject } from "@nestjs/common";
 import type { DomainEventEnvelope } from "@zyon/shared-types";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
+import { assertSamePaymentIdentity, PaymentIntentConflictError } from "../domain/payment-persistence.js";
 import type {
   CryptoTransferKey,
   PaymentRepository,
@@ -55,7 +56,7 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     for (const entity of this.byIntentId.values()) {
       const snap = entity.snapshot();
       if (snap.status !== "pending" && snap.status !== "requires_action") continue;
-      out.push(entity);
+      out.push(PaymentIntentEntity.rehydrate(snap));
       if (out.length >= query.limit) break;
     }
     return out;
@@ -64,6 +65,13 @@ export class InMemoryPaymentRepository implements PaymentRepository {
   async saveIntent(input: SavePaymentIntentInput): Promise<void> {
     const snap = input.intent.snapshot();
     const ik = keyIdempotency(snap.merchantId, snap.sessionId, snap.idempotencyKey);
+    const current = this.byIdempotency.get(ik)?.snapshot();
+    if (current) {
+      if (current.id !== snap.id || (current.version ?? 0) !== (snap.version ?? 0)) throw new PaymentIntentConflictError();
+      assertSamePaymentIdentity(current, snap);
+    } else if ((snap.version ?? 0) !== 0) throw new PaymentIntentConflictError();
+    snap.version = (snap.version ?? 0) + 1;
+    input.intent.persisted(snap.version);
     const cloned = PaymentIntentEntity.rehydrate(snap);
 
     const staleKeys: string[] = [];
@@ -84,7 +92,7 @@ export class InMemoryPaymentRepository implements PaymentRepository {
   async getIntentById(merchantId: string, intentBusinessId: string): Promise<PaymentIntentEntity | null> {
     const entity = this.byIntentId.get(trim(intentBusinessId)) ?? null;
     if (!entity || entity.snapshot().merchantId !== trim(merchantId)) return null;
-    return entity;
+    return PaymentIntentEntity.rehydrate(entity.snapshot());
   }
 
   async getIntentByExternalReference(
@@ -101,14 +109,16 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     sessionId: string,
     idempotencyKey: string
   ): Promise<PaymentIntentEntity | null> {
-    return this.byIdempotency.get(keyIdempotency(merchantId, sessionId, idempotencyKey)) ?? null;
+    const entity = this.byIdempotency.get(keyIdempotency(merchantId, sessionId, idempotencyKey));
+    return entity ? PaymentIntentEntity.rehydrate(entity.snapshot()) : null;
   }
 
   async getByProviderPaymentId(
     merchantId: string,
     providerPaymentId: string
   ): Promise<PaymentIntentEntity | null> {
-    return this.byProvider.get(keyProvider(merchantId, providerPaymentId)) ?? null;
+    const entity = this.byProvider.get(keyProvider(merchantId, providerPaymentId));
+    return entity ? PaymentIntentEntity.rehydrate(entity.snapshot()) : null;
   }
 
   async hasProcessedProviderEvent(key: ProviderEventKey): Promise<boolean> {
@@ -134,6 +144,12 @@ export class InMemoryPaymentRepository implements PaymentRepository {
   }
 
   async deleteCryptoTransfer(key: Pick<CryptoTransferKey, "chain" | "txHash">): Promise<void> {
+    const owner = this.cryptoTransfers.get(keyCryptoTransfer(key.chain, key.txHash));
+    if (owner) {
+      const intentId = owner.slice(owner.indexOf("::") + 2);
+      const status = this.byIntentId.get(intentId)?.status;
+      if (!status || !["failed", "cancelled"].includes(status)) return;
+    }
     this.cryptoTransfers.delete(keyCryptoTransfer(key.chain, key.txHash));
   }
 
@@ -151,6 +167,6 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       if (snap.merchantId !== merchantId) return false;
       if (statusPrefix && !snap.status.startsWith(statusPrefix)) return false;
       return true;
-    });
+    }).map(entity => PaymentIntentEntity.rehydrate(entity.snapshot()));
   }
 }
