@@ -39,7 +39,6 @@ interface FBLoginParams {
   extras?: {
     setup?: Record<string, unknown>;
     featureType?: string;
-    sessionInfoVersion?: string;
   };
 }
 
@@ -62,8 +61,8 @@ interface TemplatePackageStatus {
   perType: Array<{ type: string; status: string; rejectionReason?: string | null }>;
 }
 
-const META_APP_ID = ((import.meta as any).env?.VITE_META_APP_ID as string) || "1350309300356518";
-const EMBEDDED_SIGNUP_CONFIG_ID = ((import.meta as any).env?.VITE_EMBEDDED_SIGNUP_CONFIG_ID as string) || "2347331535755786";
+const META_APP_ID = ((import.meta as any).env?.VITE_META_APP_ID as string) || "2277752126311176";
+const EMBEDDED_SIGNUP_CONFIG_ID = ((import.meta as any).env?.VITE_EMBEDDED_SIGNUP_CONFIG_ID as string) || "869983652735597";
 
 export interface UseWhatsAppSellerPageArgs {
   me: MerchantProfile | null;
@@ -243,7 +242,6 @@ export function useWhatsAppSellerPage({ me }: UseWhatsAppSellerPageArgs): WhatsA
         extras: {
           setup: {},
           featureType: "",
-          sessionInfoVersion: "3",
         },
       },
     );
