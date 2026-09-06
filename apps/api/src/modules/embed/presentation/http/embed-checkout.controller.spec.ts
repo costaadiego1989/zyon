@@ -25,6 +25,7 @@ describe("EmbedCheckoutController", () => {
     const c = new EmbedCheckoutController({ execute() { throw new Error("must_not_execute"); } } as never,
       {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
     await assert.rejects(c.start({ embedClaims: claims }, { session_id: "victim-session" } as never), /embed_checkout_session_binding_mismatch/);
+    await assert.rejects(c.start({ embedClaims: claims }, { cart_ref: "victim-cart" } as never), /embed_commerce_cart_must_be_token_bound/);
     await assert.rejects(c.start({ embedClaims: claims }, { cart: { commerceCartRef: "victim-cart" } } as never), /embed_commerce_cart_binding_mismatch/);
   });
 

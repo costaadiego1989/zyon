@@ -104,6 +104,12 @@ export class EmbedCheckoutController {
     if (body.session_id !== undefined && body.session_id !== sessionId) {
       throw new UnauthorizedException("embed_checkout_session_binding_mismatch");
     }
+    // A commerce cart may only enter the checkout through the signed token
+    // claim. A top-level cart_ref is browser-controlled and must never become
+    // an alternate binding path.
+    if ((body as { cart_ref?: unknown }).cart_ref !== undefined) {
+      throw new UnauthorizedException("embed_commerce_cart_must_be_token_bound");
+    }
     if (body.cart?.commerceCartRef && body.cart.commerceCartRef !== embed.cartRef) {
       throw new UnauthorizedException("embed_commerce_cart_binding_mismatch");
     }
