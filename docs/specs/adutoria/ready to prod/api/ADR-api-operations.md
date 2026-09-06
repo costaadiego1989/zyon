@@ -103,6 +103,22 @@ Consequência: o módulo poderá ser reavaliado isoladamente após a correção,
 
 Decisão: bloquear a liberação da capacidade afetada até cumprir o critério de aceite. Correção ainda não implementada nesta auditoria.
 
+### Atualização pós-auditoria — 2026-09-06
+
+O cancelamento de um pedido com `commerceOrderId` agora solicita primeiro o
+cancelamento ao provedor e somente persiste `cancelled` após a confirmação. Se
+o provedor falhar, a API devolve
+`503 commerce_order_cancellation_retry_required`, publica somente
+`order.cancellation_provider_failed` e mantém o pedido no estado anterior. A
+mesma ação pode então ser repetida com a mesma chave de idempotência, sem
+publicar prematuramente `order.cancelled` nem exigir correção manual do pedido.
+
+Os testes focalizados cobrem a ordem provedor→banco, a falha sem mutação local e
+a repetição bem-sucedida após uma falha transitória; a compilação da API passou.
+API-022 passa para `PARTIAL`: ainda falta uma intenção de cancelamento durável e
+uma conciliação por provedor para o caso ambíguo em que a resposta externa se
+perde depois de o provedor efetivar o cancelamento.
+
 
 ## Reavaliação
 

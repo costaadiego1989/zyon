@@ -197,7 +197,7 @@
       "severity": "P1",
       "module": "operations",
       "title": "Cancelamento local pode encerrar antes do cancelamento externo",
-      "status": "OPEN",
+      "status": "PARTIAL",
       "productionGateClosed": false,
       "record": "../../CORRECOES.md"
     },
@@ -620,8 +620,8 @@
   "latestStage": "../../CORRECOES-ETAPA-3.md",
   "counts": {
     "IMPLEMENTED_LOCAL_VALIDATION": 18,
-    "PARTIAL": 8,
+    "PARTIAL": 9,
     "MITIGATED_CAPABILITY_UNAVAILABLE": 3,
-    "OPEN": 39
+    "OPEN": 38
   }
 }

@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import type { CompletedOrderStatus } from "@zyon/shared-types";
@@ -60,32 +61,9 @@ export class CancelOrderUseCase {
       return cancellationResponse(order, true, false, null);
     }
 
-    // P1 fix: commit the local status change FIRST so the system stays
-    // consistent even if the provider call fails or the process crashes
-    // between the two operations.
-    const cancelledAt = new Date().toISOString();
-    const cancelled = await this.orders.cancelCompletedOrder({
-      merchantId,
-      sessionId: order.sessionId,
-      externalOrderId: order.externalOrderId,
-      reason,
-      cancelledAt,
-    });
-    if (!cancelled) throw new NotFoundException("order_not_found");
-
-    // C2 fix: if another request already cancelled (race condition), return idempotently
-    if (cancelled.idempotent) {
-      return cancellationResponse(
-        { ...order, status: "cancelled", cancelledAt: cancelled.order.cancelledAt, cancellationReason: cancelled.order.cancellationReason },
-        true,
-        false,
-        null,
-      );
-    }
-
-    // C3 fix: wrap provider call in try-catch; emit retry event on failure
+    // The provider action is irreversible from this service's perspective.
+    // Keep the local order retryable until the provider confirms cancellation.
     let providerCancellationRequested = false;
-    let providerError: string | null = null;
     if (order.commerceOrderId) {
       if (!this.commerce.cancelOrder) {
         throw new BadRequestException(
@@ -102,8 +80,7 @@ export class CancelOrderUseCase {
         });
         providerCancellationRequested = true;
       } catch (error) {
-        // C3: do NOT throw — local cancellation is committed; publish retry event
-        providerError = error instanceof Error ? error.message : String(error);
+        const providerError = error instanceof Error ? error.message : String(error);
         this.logger.warn(
           `[CancelOrder] provider cancellation failed for order=${orderId}: ${providerError}`,
         );
@@ -117,7 +94,29 @@ export class CancelOrderUseCase {
             error: providerError,
           },
         });
+        throw new ServiceUnavailableException("commerce_order_cancellation_retry_required");
       }
+    }
+
+    const cancelledAt = new Date().toISOString();
+    const cancelled = await this.orders.cancelCompletedOrder({
+      merchantId,
+      sessionId: order.sessionId,
+      externalOrderId: order.externalOrderId,
+      reason,
+      cancelledAt,
+    });
+    if (!cancelled) throw new NotFoundException("order_not_found");
+
+    // A concurrent request may have completed cancellation after the provider
+    // accepted it. Preserve the completed order as the idempotent result.
+    if (cancelled.idempotent) {
+      return cancellationResponse(
+        { ...order, status: "cancelled", cancelledAt: cancelled.order.cancelledAt, cancellationReason: cancelled.order.cancellationReason },
+        true,
+        providerCancellationRequested,
+        null,
+      );
     }
 
     // M1 fix: emit audit-grade webhook for cancellation (who/why/when)
@@ -146,7 +145,7 @@ export class CancelOrderUseCase {
       },
       false,
       providerCancellationRequested,
-      providerError,
+      null,
     );
   }
 }

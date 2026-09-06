@@ -71,8 +71,8 @@ describe("CancelOrderUseCase", () => {
     assert.equal(commerce.cancelled.length, 0);
   });
 
-  it("P1 — persists local cancellation BEFORE calling the commerce provider", async () => {
-    // The provider call should only happen after the local DB commit.
+  it("P1 — cancels the commerce provider BEFORE committing local cancellation", async () => {
+    // The provider call must happen while the local order is still retryable.
     // We track the order's persisted status at the moment the provider is called.
     const checkout = completedOrderRepository();
     const commerce = new OrderStatusCapturingPort(checkout);
@@ -89,8 +89,49 @@ describe("CancelOrderUseCase", () => {
       reason: "Merchant requested",
     });
 
-    // Local status must have been "cancelled" when the provider was invoked.
-    assert.equal(commerce.statusAtProviderCall, "cancelled");
+    assert.equal(commerce.statusAtProviderCall, "approved");
+  });
+
+  it("keeps the order retryable when the commerce provider cancellation fails", async () => {
+    const checkout = completedOrderRepository();
+    const published: Array<Record<string, unknown>> = [];
+    const useCase = new CancelOrderUseCase(
+      new StubOperationsRepository(),
+      checkout,
+      new FailingCommerceOrderPort(),
+      {
+        publish: async (event: Record<string, unknown>) => {
+          published.push(event);
+          return [];
+        },
+      } as unknown as TenantWebhookPublisher,
+    );
+
+    await assert.rejects(
+      useCase.execute({ merchantId: "mrc_a", orderId: "ord_1", reason: "Merchant requested" }),
+      /commerce_order_cancellation_retry_required/,
+    );
+    assert.equal(checkout.getCompletedOrder("mrc_a", "session_1", "external_1")?.status, "approved");
+    assert.deepEqual(published.map((event) => event.eventType), ["order.cancellation_provider_failed"]);
+  });
+
+  it("retries the same cancellation after a transient provider failure", async () => {
+    const checkout = completedOrderRepository();
+    const commerce = new RecoveringCommerceOrderPort();
+    const useCase = new CancelOrderUseCase(
+      new StubOperationsRepository(),
+      checkout,
+      commerce,
+      { publish: async () => [] } as unknown as TenantWebhookPublisher,
+    );
+    const input = { merchantId: "mrc_a", orderId: "ord_1", reason: "Merchant requested" };
+
+    await assert.rejects(useCase.execute(input), /commerce_order_cancellation_retry_required/);
+    const retried = await useCase.execute(input);
+
+    assert.equal(commerce.attempts, 2);
+    assert.equal(retried.status, "cancelled");
+    assert.equal(checkout.getCompletedOrder("mrc_a", "session_1", "external_1")?.status, "cancelled");
   });
 });
 
@@ -255,10 +296,32 @@ class FakeCommerceOrderPort implements CommerceOrderPort {
   }
 }
 
+class FailingCommerceOrderPort extends FakeCommerceOrderPort {
+  override async cancelOrder(): Promise<void> {
+    throw new Error("provider_unavailable");
+  }
+}
+
+class RecoveringCommerceOrderPort extends FakeCommerceOrderPort {
+  attempts = 0;
+
+  override async cancelOrder(input: {
+    merchantId: string;
+    commerceOrderId: string;
+    reason: string;
+    notifyCustomer?: boolean;
+    restock?: boolean;
+  }): Promise<void> {
+    this.attempts += 1;
+    if (this.attempts === 1) throw new Error("provider_unavailable");
+    await super.cancelOrder(input);
+  }
+}
+
 /**
  * A fake commerce port that records the local order status at the time the
- * provider cancellation is called — used to assert that the local commit
- * happens before the provider call (P1 fix regression).
+ * provider cancellation is called — used to assert that the local order is
+ * still retryable while the provider call is in flight.
  */
 class OrderStatusCapturingPort implements CommerceOrderPort {
   statusAtProviderCall: string | undefined;
