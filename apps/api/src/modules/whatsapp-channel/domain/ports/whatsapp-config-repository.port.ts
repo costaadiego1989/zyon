@@ -25,8 +25,10 @@ export interface WhatsAppChannelConfigEntity {
 }
 
 export interface WhatsAppConfigRepository {
+  findById(id: string): Promise<WhatsAppChannelConfigEntity | null>;
   findByDeviceId(deviceId: string): Promise<WhatsAppChannelConfigEntity | null>;
   findByMerchantId(merchantId: string): Promise<WhatsAppChannelConfigEntity | null>;
   findByWhatsAppNumber(whatsappNumber: string): Promise<WhatsAppChannelConfigEntity | null>;
+  findByMetaPhoneNumberId(phoneNumberId: string): Promise<WhatsAppChannelConfigEntity | null>;
   upsert(merchantId: string, data: Partial<Omit<WhatsAppChannelConfigEntity, "id" | "merchantId" | "createdAt">>): Promise<WhatsAppChannelConfigEntity>;
 }

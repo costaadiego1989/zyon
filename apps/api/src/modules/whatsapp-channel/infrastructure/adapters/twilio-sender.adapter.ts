@@ -34,7 +34,9 @@ export class TwilioSenderAdapter implements WhatsAppSenderPort {
     try {
       // Lookup merchant config by deviceId (for backward compat during transition)
       // Future: lookup by whatsappNumber when fully migrated
-      const config = await this.configRepo.findByDeviceId(msg.deviceId);
+      const config = msg.deviceId.startsWith("twilio:")
+        ? await this.configRepo.findById(msg.deviceId.slice("twilio:".length))
+        : await this.configRepo.findByDeviceId(msg.deviceId);
       if (!config) {
         this.logger.error(`Twilio config not found for deviceId ${msg.deviceId}`);
         return { messageId: "", status: "failed" };
