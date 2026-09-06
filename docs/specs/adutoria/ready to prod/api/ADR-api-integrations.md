@@ -117,6 +117,14 @@ Consequência: o módulo poderá ser reavaliado isoladamente após a correção,
 
 Decisão: bloquear a liberação da capacidade afetada até cumprir o critério de aceite. Correção ainda não implementada nesta auditoria.
 
+### Atualização pós-auditoria — 2026-09-06
+
+O commit `54c26e1` substituiu o uso incompatível de `fetch(..., { dispatcher: http.Agent })` pelo transporte `node:http(s)` quando a política fixa o IP. O hostname original continua sendo usado para TLS/SNI e o `lookup` do Agent usa exclusivamente o IP que a política já validou.
+
+O teste `WebhookDeliveryDispatcher delivers through the pinned node HTTP transport` sobe um receptor HTTP local, entrega para um hostname lógico com IP `127.0.0.1` fixado por uma política de teste, valida assinatura e confirma a transição para `delivered` com HTTP 202. A compilação da API e os 13 testes focalizados de integrações passaram.
+
+O status de API-018 passa para `IMPLEMENTED_LOCAL_VALIDATION`. O gate permanece aberto: a validação local não cobre IPv6, certificado TLS real, redirecionamentos bloqueados, timeout e retry contra um destinatário externo.
+
 
 ## Reavaliação
 

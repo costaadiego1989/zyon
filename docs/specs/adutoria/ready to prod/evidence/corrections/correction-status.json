@@ -161,7 +161,7 @@
       "severity": "P1",
       "module": "integrations",
       "title": "Envio de webhook passa Agent incompatível ao fetch",
-      "status": "OPEN",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
       "productionGateClosed": false,
       "record": "../../CORRECOES.md"
     },
@@ -619,9 +619,9 @@
   "latestStageBase": "ebb954a38123e3aa5ba46f2bf1d8c86c410c9079",
   "latestStage": "../../CORRECOES-ETAPA-3.md",
   "counts": {
-    "IMPLEMENTED_LOCAL_VALIDATION": 15,
+    "IMPLEMENTED_LOCAL_VALIDATION": 17,
     "PARTIAL": 7,
     "MITIGATED_CAPABILITY_UNAVAILABLE": 3,
-    "OPEN": 43
+    "OPEN": 41
   }
 }

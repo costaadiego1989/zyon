@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { InMemoryCheckoutRepository } from "../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
 import { CompleteOrderUseCase } from "../../checkout/application/use-cases/complete-order.use-case.js";
 import { UpdateOrderTrackingUseCase } from "../../checkout/application/use-cases/update-order-tracking.use-case.js";
@@ -20,6 +22,7 @@ import { WebhookSignatureService } from "../domain/webhook-signature.service.js"
 import { WebhookDeliveryDispatcher } from "./webhook-delivery-dispatcher.service.js";
 import type { MerchantWebhookDelivery } from "../domain/integrations.types.js";
 import { DnsWebhookTargetPolicy } from "../infrastructure/dns-webhook-target-policy.js";
+import type { WebhookTargetPolicy } from "../domain/ports/webhook-target-policy.port.js";
 
 test("CreateMerchantApiKeyUseCase returns the raw secret once and stores only hashed metadata", async () => {
   const repo = new InMemoryIntegrationsRepository();
@@ -293,6 +296,59 @@ test("WebhookDeliveryDispatcher blocks private targets before fetch", async () =
   assert.equal(stored?.nextAttemptAt, undefined);
 });
 
+test("WebhookDeliveryDispatcher delivers through the pinned node HTTP transport", async (t) => {
+  const received: { body?: string; eventId?: string; timestamp?: string; signature?: string } = {};
+  const server = createServer((request, response) => {
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk: Buffer) => chunks.push(chunk));
+    request.on("end", () => {
+      received.body = Buffer.concat(chunks).toString("utf8");
+      received.eventId = firstHeader(request.headers["x-aacp-event-id"]);
+      received.timestamp = firstHeader(request.headers["x-aacp-timestamp"]);
+      received.signature = firstHeader(request.headers["x-aacp-signature"]);
+      response.writeHead(202, { "Content-Type": "text/plain" });
+      response.end("accepted");
+    });
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => resolve());
+  });
+  t.after(async () => {
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => error ? reject(error) : resolve()),
+    );
+  });
+
+  const port = (server.address() as AddressInfo).port;
+  const repo = new InMemoryIntegrationsRepository();
+  const signatures = new WebhookSignatureService();
+  const delivery = await repo.saveWebhookDelivery(webhookDeliveryFixture({
+    endpointUrl: `http://verified-webhook.example:${port}/hooks`,
+  }));
+  const targetPolicy: WebhookTargetPolicy = {
+    assertAllowed: async (url) => ({ url, pinnedAddresses: ["127.0.0.1"] }),
+  };
+
+  await new WebhookDeliveryDispatcher(repo, signatures, targetPolicy).dispatchOnce();
+
+  const stored = await repo.getWebhookDelivery(delivery.merchantId, delivery.id);
+  assert.equal(stored?.status, "delivered");
+  assert.equal(stored?.responseStatus, 202);
+  assert.equal(received.eventId, delivery.eventId);
+  assert.equal(
+    signatures.verify({
+      secret: delivery.signingSecret!,
+      timestamp: received.timestamp ?? "",
+      body: received.body ?? "",
+      signature: received.signature ?? "",
+    }),
+    true,
+  );
+  assert.match(received.signature ?? "", /^sha256=[a-f0-9]{64}$/);
+});
+
 test("WebhookDeliveryDispatcher logs repository failures without crashing the API", async () => {
   const repo = new FailingDueDeliveriesRepository();
 
@@ -409,6 +465,10 @@ function webhookDeliveryFixture(overrides: Partial<MerchantWebhookDelivery> = {}
     updatedAt: now,
     ...overrides
   };
+}
+
+function firstHeader(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
 }
 
 class FailingDueDeliveriesRepository extends InMemoryIntegrationsRepository {
