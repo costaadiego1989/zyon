@@ -29,6 +29,7 @@ export class ResendEmailAdapter implements EmailSenderPort {
   async send(input: SendEmailInput): Promise<SendEmailOutput> {
     // Fallback: console log if no API key (dev mode)
     if (!this.apiKey) {
+      if (input.requireDelivery) return { messageId: "", status: "skipped" };
       logger.warn(
         `RESEND_API_KEY not set. Logging email instead of sending.\nTo: ${input.to}\nSubject: ${input.subject}`,
       );
@@ -53,6 +54,7 @@ export class ResendEmailAdapter implements EmailSenderPort {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
+        ...(input.requireDelivery ? { signal: AbortSignal.timeout(15_000) } : {}),
       });
 
       if (!response.ok) {
@@ -64,6 +66,9 @@ export class ResendEmailAdapter implements EmailSenderPort {
       }
 
       const data = (await response.json()) as ResendResponse;
+      if (input.requireDelivery && (typeof data.id !== "string" || !data.id.trim())) {
+        throw new Error("Resend acceptance unknown: missing provider message ID");
+      }
       logger.debug(`Email sent successfully. Message ID: ${data.id}`);
 
       return {

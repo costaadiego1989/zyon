@@ -1,22 +1,22 @@
 import { Injectable, Logger } from "@nestjs/common";
-import type { WhatsAppSenderPort, WhatsAppMessage } from "../../domain/ports/whatsapp-sender.port.js";
+import type { WhatsAppSenderPort, WhatsAppMessage, WhatsAppSendResult } from "../../domain/ports/whatsapp-sender.port.js";
 
 @Injectable()
 export class BubbleWhatsAdapter implements WhatsAppSenderPort {
   private readonly logger = new Logger(BubbleWhatsAdapter.name);
 
-  async send(msg: WhatsAppMessage): Promise<void> {
+  async send(msg: WhatsAppMessage): Promise<WhatsAppSendResult> {
     const baseUrl = process.env.BUBBLEWHATS_API_URL;
     const token = process.env.BUBBLEWHATS_TOKEN;
 
     if (!baseUrl || !token) {
       this.logger.warn("BubbleWhats not configured (BUBBLEWHATS_API_URL / BUBBLEWHATS_TOKEN missing)");
-      return;
+      return { status: "skipped", reason: "not_configured" };
     }
 
     if (!msg.phone) {
       this.logger.warn("Skipping WhatsApp: no phone number");
-      return;
+      return { status: "skipped", reason: "missing_phone" };
     }
 
     const cleanDigits = msg.phone.replace(/\D/g, "");
@@ -45,7 +45,7 @@ export class BubbleWhatsAdapter implements WhatsAppSenderPort {
 
     if (response.ok) {
       this.logger.log(`WhatsApp sent to ${number}`);
-      return;
+      return { status: "accepted" };
     }
 
     // Delivery rejected by gateway — throw so retry/backoff fires instead of

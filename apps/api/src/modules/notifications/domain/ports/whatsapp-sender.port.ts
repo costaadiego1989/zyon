@@ -5,6 +5,11 @@ export interface WhatsAppMessage {
   message: string;
 }
 
+export type WhatsAppSendResult =
+  | { status: "accepted" }
+  | { status: "skipped"; reason: "not_configured" | "missing_phone" };
+
 export interface WhatsAppSenderPort {
-  send(msg: WhatsAppMessage): Promise<void>;
+  // Void remains compatible with legacy adapters, but is not evidence of acceptance.
+  send(msg: WhatsAppMessage): Promise<WhatsAppSendResult | void>;
 }

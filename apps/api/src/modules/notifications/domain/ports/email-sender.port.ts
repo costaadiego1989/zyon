@@ -5,11 +5,13 @@ export interface SendEmailInput {
   subject: string;
   html: string;
   from?: string;
+  /** Require provider acceptance; never report the development logging fallback as delivery. */
+  requireDelivery?: boolean;
 }
 
 export interface SendEmailOutput {
   messageId: string;
-  status: "sent" | "queued";
+  status: "sent" | "queued" | "skipped";
 }
 
 export interface EmailSenderPort {
