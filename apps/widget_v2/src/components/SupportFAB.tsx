@@ -53,7 +53,7 @@ export default function SupportFAB({
   useEffect(() => {
     if (initialDelay <= 0) {
       setVisible(true);
-      return;
+      return undefined;
     }
     const timer = setTimeout(() => setVisible(true), initialDelay);
     return () => clearTimeout(timer);
@@ -78,6 +78,7 @@ export default function SupportFAB({
       const timer = setTimeout(() => setBadgePulse(false), 600);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [cartItemCount]);
 
   if (!visible) return null;

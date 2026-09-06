@@ -6,6 +6,7 @@ import { setupAbandonmentTracking, trackEvent } from "@/lib/tracking";
 import { onOrderCompleted } from "@/lib/lifecycle";
 import { setupIdleTrigger, setupExitIntentTrigger, type TriggerName } from "@/lib/triggers";
 import type { DiscountStage } from "@/components/DiscountBanner";
+import { parseThemePreviewUpdate } from "@/lib/theme-update";
 import { DEFAULT_API_BASE } from "./lib/config";
 
 const SESSION_KEY = "aacp_checkout_session";
@@ -68,6 +69,20 @@ export function App() {
   const init = useCheckoutStore((s) => s.init);
   const brand = useCheckoutStore((s) => s.brand);
   const sessionId = useCheckoutStore((s) => s.sessionId);
+
+  useEffect(() => {
+    if (window.parent === window) return;
+    const updateTheme = (event: MessageEvent) => {
+      const update = parseThemePreviewUpdate(event, window.location.origin, window.parent);
+      if (!update) return;
+      useCheckoutStore.setState((state) => ({
+        brand: { ...state.brand, ...update },
+        agent: update.agentName ? { ...state.agent, name: update.agentName } : state.agent,
+      }));
+    };
+    window.addEventListener("message", updateTheme);
+    return () => window.removeEventListener("message", updateTheme);
+  }, []);
 
   useEffect(() => {
     const cleanup = setupAbandonmentTracking();

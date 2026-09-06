@@ -181,7 +181,6 @@ export class CheckoutSession {
   private baseUrl: string;
   private globalUserId: string | undefined;
   private sessionId: string | null = null;
-  private shippingOptions: Array<{ carrier: string; method: string; carrierKey: string; customerPrice: number; deliveryDays?: number }> = [];
 
   constructor(config: CheckoutSessionConfig) {
     this.token = config.embedToken;
@@ -313,7 +312,6 @@ export class CheckoutSession {
     const rawOptions = data.options ?? [];
     const rawResults = data.results ?? [];
     if (rawOptions.length > 0) {
-      this.shippingOptions = rawOptions;
       return rawOptions.map((o) => ({
         key: o.carrierKey,
         label: `${o.carrier} ${o.method}`.trim(),
@@ -322,13 +320,6 @@ export class CheckoutSession {
         cost: Math.round(o.customerPrice * 100),
       }));
     }
-    this.shippingOptions = rawResults.map((r) => ({
-      carrier: r.label,
-      method: "",
-      deliveryDays: r.eta_days,
-      customerPrice: r.price / 100,
-      carrierKey: r.carrier_key,
-    }));
     return rawResults.map((r) => ({
       key: r.carrier_key,
       label: r.label,
