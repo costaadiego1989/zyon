@@ -33,6 +33,8 @@ export class BubbleWhatsSenderAdapter implements WhatsAppSenderPort {
     try {
       const response = await fetch(`${this.baseUrl}/send-message`, {
         method: "POST",
+        redirect: "error",
+        signal: AbortSignal.timeout(15_000),
         headers: {
           Authorization: this.token,
           "Content-Type": "application/json",
@@ -45,18 +47,18 @@ export class BubbleWhatsSenderAdapter implements WhatsAppSenderPort {
 
       if (response.ok) {
         const data = await response.json().catch(() => ({})) as Record<string, unknown>;
-        this.logger.log(`WhatsApp sent to ${number}`);
+        this.logger.log("bubblewhats_send_accepted");
         return {
           messageId: String(data.key ?? data.id ?? ""),
           status: "sent",
         };
       }
 
-      const errText = await response.text();
-      this.logger.error(`BubbleWhats send failed: ${response.status} — ${errText}`);
+      await response.body?.cancel();
+      this.logger.error(`bubblewhats_send_failed status=${response.status}`);
       return { messageId: "", status: "failed" };
     } catch (error) {
-      this.logger.error(`BubbleWhats network error: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error("bubblewhats_network_error");
       return { messageId: "", status: "failed" };
     }
   }

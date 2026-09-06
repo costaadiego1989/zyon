@@ -92,7 +92,7 @@ export class HandleIncomingMessageUseCase implements OnModuleInit {
         quickReplies,
         session.currentOptions,
         session.currentPage,
-      ).catch(() => {});
+      );
 
       // Send response via WhatsApp
       await this.sendResponse.execute({
@@ -100,21 +100,15 @@ export class HandleIncomingMessageUseCase implements OnModuleInit {
         deviceId: input.deviceId,
         toNumber: input.fromNumber,
         text: responseText,
+        provider: input.provider,
       });
 
-      this.logger.log(`WA response sent to ${input.fromNumber}`);
+      this.logger.log(`whatsapp_response_sent merchant=${input.merchantId}`);
     } catch (error) {
-      this.logger.error(`WA pipeline error for ${input.fromNumber}: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(`whatsapp_pipeline_failed merchant=${input.merchantId}`);
 
-      // Fallback: try to send error message directly
-      try {
-        await this.sendResponse.execute({
-          merchantId: input.merchantId,
-          deviceId: input.deviceId,
-          toNumber: input.fromNumber,
-          text: "⚠️ Desculpe, tive um problema técnico. Tente novamente em alguns segundos.",
-        });
-      } catch { /* silent */ }
+      // Let the durable inbox retry; sending a fallback here would be another side effect.
+      throw error;
     }
   }
 
@@ -123,7 +117,7 @@ export class HandleIncomingMessageUseCase implements OnModuleInit {
       // Re-fetch session (may have been updated since push)
       const session = await this.sessionRepo.findActiveByPhone(msg.merchantId, msg.buyerPhone);
       if (!session) {
-        this.logger.warn(`Session lost for ${msg.buyerPhone} during debounce`);
+        this.logger.warn(`whatsapp_debounce_session_missing merchant=${msg.merchantId}`);
         return;
       }
 
@@ -183,7 +177,7 @@ export class HandleIncomingMessageUseCase implements OnModuleInit {
 
     } catch (error) {
       this.logger.error(
-        `Error processing WA message for ${msg.buyerPhone}: ${error instanceof Error ? error.message : String(error)}`,
+        `whatsapp_debounce_processing_failed merchant=${msg.merchantId}`,
       );
     }
   }
@@ -199,7 +193,7 @@ export class HandleIncomingMessageUseCase implements OnModuleInit {
     checkoutSessionId: string,
     buyerMessage: string,
   ): Promise<{ agentMessage: string; quickReplies: string[]; stage?: string } | null> {
-    this.logger.debug(`Engine call: session=${checkoutSessionId} msg="${buyerMessage}"`);
+    this.logger.debug(`whatsapp_engine_call session=${checkoutSessionId}`);
 
     // Phase 1: deterministic responses for testing the WA channel
     const msg = buyerMessage.toLowerCase().trim();

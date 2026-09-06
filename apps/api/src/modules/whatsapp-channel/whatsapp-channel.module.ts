@@ -23,18 +23,23 @@ import { WHATSAPP_CONFIG_REPOSITORY } from "./domain/ports/whatsapp-config-repos
 import { PrismaWhatsAppSessionRepository } from "./infrastructure/repositories/prisma-whatsapp-session.repository.js";
 import { PrismaWhatsAppConfigRepository } from "./infrastructure/repositories/prisma-whatsapp-config.repository.js";
 import { PersistenceModule } from "../../shared/persistence/persistence.module.js";
+import { AcceptBubbleWhatsWebhookUseCase } from "./application/use-cases/accept-bubblewhats-webhook.use-case.js";
+import { WhatsAppWebhookWorker } from "./application/services/whatsapp-webhook-worker.service.js";
+import { WHATSAPP_WEBHOOK_INBOX } from "./domain/ports/whatsapp-webhook-inbox.port.js";
+import { PrismaWhatsAppWebhookInbox } from "./infrastructure/repositories/prisma-whatsapp-webhook-inbox.repository.js";
 
 /**
  * Multi-tenant sender resolver.
  * Routes to BubbleWhats or Twilio based on merchant config provider.
  */
-class MultiProviderSenderAdapter {
+export class MultiProviderSenderAdapter {
   constructor(
     private readonly bubblewhats: BubbleWhatsSenderAdapter,
     private readonly twilio: TwilioSenderAdapter,
   ) {}
 
   async sendText(msg: any) {
+    if (msg.provider === "BUBBLEWHATS") return this.bubblewhats.sendText(msg);
     // For now, try Twilio first, fallback to BubbleWhats
     // Future: lookup merchant config and choose provider
     const result = await this.twilio.sendText(msg);
@@ -59,6 +64,8 @@ class MultiProviderSenderAdapter {
     RouteToSessionUseCase,
     SendWhatsAppResponseUseCase,
     ConfigureWhatsAppUseCase,
+    AcceptBubbleWhatsWebhookUseCase,
+    WhatsAppWebhookWorker,
 
     // Services
     MessageDebouncerService,
@@ -78,6 +85,7 @@ class MultiProviderSenderAdapter {
     },
     { provide: WHATSAPP_SESSION_REPOSITORY, useClass: PrismaWhatsAppSessionRepository },
     { provide: WHATSAPP_CONFIG_REPOSITORY, useClass: PrismaWhatsAppConfigRepository },
+    { provide: WHATSAPP_WEBHOOK_INBOX, useClass: PrismaWhatsAppWebhookInbox },
   ],
   exports: [SendWhatsAppResponseUseCase],
 })

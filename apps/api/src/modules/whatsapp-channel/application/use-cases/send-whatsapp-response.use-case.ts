@@ -6,6 +6,7 @@ import { Injectable, Inject, Logger } from "@nestjs/common";
 import { WHATSAPP_SENDER_PORT, type WhatsAppSenderPort } from "../../domain/ports/whatsapp-sender.port.js";
 
 export interface SendResponseInput {
+  provider?: string;
   merchantId: string;
   deviceId: string;
   toNumber: string;
@@ -26,6 +27,7 @@ export class SendWhatsAppResponseUseCase {
   async execute(input: SendResponseInput): Promise<void> {
     try {
       const result = await this.sender.sendText({
+        provider: input.provider,
         toNumber: input.toNumber,
         deviceId: input.deviceId,
         text: input.text,
@@ -33,13 +35,18 @@ export class SendWhatsAppResponseUseCase {
         mimetype: input.mimetype,
       });
 
+      if (result.status !== "sent" && result.status !== "queued") {
+        throw new Error("whatsapp_send_failed");
+      }
+
       this.logger.debug(
-        `WA sent to ${input.toNumber}: status=${result.status}, id=${result.messageId}`,
+        `whatsapp_send_status status=${result.status}`,
       );
     } catch (error) {
       this.logger.error(
-        `Failed to send WA message to ${input.toNumber}: ${error instanceof Error ? error.message : String(error)}`,
+        "whatsapp_send_failed",
       );
+      throw error;
     }
   }
 }
