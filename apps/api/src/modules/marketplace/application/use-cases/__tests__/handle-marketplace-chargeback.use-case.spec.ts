@@ -13,7 +13,14 @@ function setup() {
     },
     updateStatus: async () => assert.fail("No manual financial state mutation is allowed"),
   };
-  return { useCase: new HandleMarketplaceChargebackUseCase(repository as any), reads };
+  return {
+    useCase: new HandleMarketplaceChargebackUseCase(
+      repository as any,
+      { create: async () => assert.fail("Manual chargebacks must not create a debt") } as any,
+      { transition: () => assert.fail("Manual chargebacks must not transition settlement state") } as any,
+    ),
+    reads,
+  };
 }
 
 describe("Marketplace chargeback authorization and provider evidence", () => {
@@ -38,7 +45,11 @@ describe("Marketplace chargeback authorization and provider evidence", () => {
     }
   });
   it("defends against an incorrectly unscoped repository implementation", async () => {
-    const useCase = new HandleMarketplaceChargebackUseCase({ getByIdForMerchant: async () => ({ hostMerchantId: "b", sellerMerchantId: "c" }) } as any);
+    const useCase = new HandleMarketplaceChargebackUseCase(
+      { getByIdForMerchant: async () => ({ hostMerchantId: "b", sellerMerchantId: "c" }) } as any,
+      {} as any,
+      {} as any,
+    );
     await assert.rejects(useCase.execute({ settlementId: "s", merchantId: "a", role: "owner" }), (error: any) => error.getStatus() === 404);
   });
 
