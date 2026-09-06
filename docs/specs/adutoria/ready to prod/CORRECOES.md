@@ -1,5 +1,7 @@
 # Implementação das correções — primeiro lote da API
 
+Registro histórico do primeiro lote. Para o estado posterior, consulte a [segunda etapa](CORRECOES-ETAPA-2.md) e a [lista acumulada de achados](evidence/corrections/correction-status.json).
+
 Data: 2026-09-05. Branch: `fix/ready-to-prod-audit`. **Produção continua NO-GO.**
 
 O worktree de correção está em `C:/Users/Admin/Desktop/AACP/.audit/ready-to-prod-fixes-20260905`. As ações deste lote não trocaram a branch nem alteraram o índice do workspace principal, que continuou disponível ao outro agente. Não houve push, merge, implantação nem operação em provedor financeiro.

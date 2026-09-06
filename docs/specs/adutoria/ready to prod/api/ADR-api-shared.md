@@ -1,5 +1,7 @@
 # ADR — API / infraestrutura compartilhada
 
+**Atualização da segunda etapa:** ver [correções, contratos e evidências](../CORRECOES-ETAPA-2.md). O texto da auditoria abaixo preserva o retrato anterior; gates de produção continuam abertos.
+
 Data: 2026-09-05. Status: auditoria registrada; correções propostas. Veredito: **FAIL**.
 
 Responsabilidade: HTTP, tenant context, persistência, outbox, caches, observabilidade, saúde e implantação. Estes componentes afetam todos os módulos; não são um domínio adicional de negócio.

@@ -1,0 +1,13 @@
+[Nest] 36640  - 05/09/2026, 21:23:52    WARN [DistributedRateLimitStore] Rate limiting uses process-local counters outside production because REDIS_URL is absent.
+[Nest] 36640  - 05/09/2026, 21:23:52    WARN [ShippingModule] MelhorEnvio adapter initialized without MELHOR_ENVIO_TOKEN; quotes will only use flat-rate carrier
+[Nest] 36640  - 05/09/2026, 21:23:52    WARN [RedisModule] REDIS_URL not set — caching services will be skipped
+[Nest] 36640  - 05/09/2026, 21:23:52    WARN [EmbeddingService] OPENAI_API_KEY not set — semantic search disabled, falling back to ILIKE
+[Nest] 36640  - 05/09/2026, 21:23:52    WARN [S3UploadService] S3 not configured — uploads will fail. Set AWS_S3_BUCKET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY.
+[Nest] 36640  - 05/09/2026, 21:23:52    WARN [S3UploadService] S3 not configured — uploads will fail. Set AWS_S3_BUCKET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY.
+[Nest] 36640  - 05/09/2026, 21:23:52    WARN [BubbleWhatsSenderAdapter] BUBBLEWHATS_API_URL / BUBBLEWHATS_TOKEN not configured — messages will fail
+[Nest] 36640  - 05/09/2026, 21:23:52    WARN [RecordCompletedPurchaseUseCase] [buyer-purchase-history] Metering port not configured; purchase history events will not be recorded
+[Nest] 36640  - 05/09/2026, 21:23:52    WARN [OtpStoreFactory] Redis not available for OTP store; falling back to Prisma
+NEST_COMPOSITION_OK
+(node:36640) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+--import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./apps/api/tests/ready-prod-runtime-loader.mjs", pathToFileURL("./"));'
+(Use `node --trace-warnings ...` to show where the warning was created)

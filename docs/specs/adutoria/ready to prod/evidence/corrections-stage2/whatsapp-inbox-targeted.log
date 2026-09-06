@@ -1,0 +1,191 @@
+TAP version 13
+# (node:35200) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+# --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./apps/api/tests/ready-prod-loader.mjs", pathToFileURL("./"));'
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: BubbleWhats authenticated durable acceptance
+    # Subtest: fails closed for missing configuration, wrong provider, disabled channel and missing configured secret
+    ok 1 - fails closed for missing configuration, wrong provider, disabled channel and missing configured secret
+      ---
+      duration_ms: 1.4922
+      type: 'test'
+      ...
+    # Subtest: requires a valid secret even for group and self messages and status callbacks
+    ok 2 - requires a valid secret even for group and self messages and status callbacks
+      ---
+      duration_ms: 0.7819
+      type: 'test'
+      ...
+# [Nest] 35200  - 05/09/2026, 21:19:16    WARN [WhatsAppWebhookWorker] whatsapp_inbox_attempt_failed id=inbox-1 attempt=1 code=whatsapp_channel_changed_or_disabled
+# [Nest] 35200  - 05/09/2026, 21:19:16    WARN [WhatsAppWebhookWorker] whatsapp_inbox_attempt_failed id=inbox-1 attempt=1 code=whatsapp_channel_changed_or_disabled
+# [Nest] 35200  - 05/09/2026, 21:19:16    WARN [WhatsAppWebhookWorker] whatsapp_inbox_attempt_failed id=inbox-1 attempt=1 code=whatsapp_channel_changed_or_disabled
+# [Nest] 35200  - 05/09/2026, 21:19:16    WARN [WhatsAppWebhookWorker] whatsapp_inbox_attempt_failed id=inbox-1 attempt=1 code=whatsapp_channel_changed_or_disabled
+# [Nest] 35200  - 05/09/2026, 21:19:16    WARN [WhatsAppWebhookWorker] whatsapp_inbox_attempt_failed id=inbox-1 attempt=1 code=whatsapp_channel_changed_or_disabled
+# [Nest] 35200  - 05/09/2026, 21:19:16    WARN [WhatsAppWebhookWorker] whatsapp_inbox_attempt_failed id=inbox-1 attempt=1 code=whatsapp_channel_changed_or_disabled
+# [Nest] 35200  - 05/09/2026, 21:19:16    WARN [WhatsAppWebhookWorker] whatsapp_inbox_attempt_failed id=inbox-1 attempt=1 code=whatsapp_channel_changed_or_disabled
+# [Nest] 35200  - 05/09/2026, 21:19:16   DEBUG [HandleIncomingMessageUseCase] whatsapp_engine_call session=checkout-1
+# [Nest] 35200  - 05/09/2026, 21:19:16   ERROR [SendWhatsAppResponseUseCase] whatsapp_send_failed
+# [Nest] 35200  - 05/09/2026, 21:19:16   ERROR [HandleIncomingMessageUseCase] whatsapp_pipeline_failed merchant=merchant-a
+# [Nest] 35200  - 05/09/2026, 21:19:16    WARN [WhatsAppWebhookWorker] whatsapp_inbox_attempt_failed id=inbox-1 attempt=1 code=whatsapp_inbox_processing_failed
+# [Nest] 35200  - 05/09/2026, 21:19:16   DEBUG [HandleIncomingMessageUseCase] whatsapp_engine_call session=checkout
+# [Nest] 35200  - 05/09/2026, 21:19:16   ERROR [HandleIncomingMessageUseCase] whatsapp_pipeline_failed merchant=merchant-a
+# [Nest] 35200  - 05/09/2026, 21:19:16   DEBUG [RouteToSessionUseCase] whatsapp_buyer_found merchant=merchant-a
+    # Subtest: does not resolve the HTTP controller's acknowledgement until inbox persistence commits
+    ok 3 - does not resolve the HTTP controller's acknowledgement until inbox persistence commits
+      ---
+      duration_ms: 2.6866
+      type: 'test'
+      ...
+    # Subtest: surfaces storage failure as retryable 503 and ID/body collision as 409
+    ok 4 - surfaces storage failure as retryable 503 and ID/body collision as 409
+      ---
+      duration_ms: 0.6901
+      type: 'test'
+      ...
+    # Subtest: rejects malformed payloads and missing stable IDs without any inbox writes
+    ok 5 - rejects malformed payloads and missing stable IDs without any inbox writes
+      ---
+      duration_ms: 0.4759
+      type: 'test'
+      ...
+    # Subtest: deduplicates normalized status transitions independently of batch order and strips untrusted tenant
+    ok 6 - deduplicates normalized status transitions independently of batch order and strips untrusted tenant
+      ---
+      duration_ms: 0.3537
+      type: 'test'
+      ...
+    # Subtest: rejects ambiguous device mappings and activation without a configured shared secret
+    ok 7 - rejects ambiguous device mappings and activation without a configured shared secret
+      ---
+      duration_ms: 0.2925
+      type: 'test'
+      ...
+    1..7
+ok 1 - BubbleWhats authenticated durable acceptance
+  ---
+  duration_ms: 7.5231
+  type: 'suite'
+  ...
+# Subtest: BubbleWhats worker failure propagation
+    # Subtest: revalidates merchant/config/provider/enablement/secret before calling the pipeline
+    ok 1 - revalidates merchant/config/provider/enablement/secret before calling the pipeline
+      ---
+      duration_ms: 2.0676
+      type: 'test'
+      ...
+    # Subtest: the actual incoming/send pipeline leaves a failed provider send retryable and sends no fallback
+    ok 2 - the actual incoming/send pipeline leaves a failed provider send retryable and sends no fallback
+      ---
+      duration_ms: 1.3973
+      type: 'test'
+      ...
+    # Subtest: propagates menu persistence failure before sending and checkout creation failure before session creation
+    ok 3 - propagates menu persistence failure before sending and checkout creation failure before session creation
+      ---
+      duration_ms: 1.1541
+      type: 'test'
+      ...
+    # Subtest: routes an authenticated BubbleWhats response only to its provider
+    ok 4 - routes an authenticated BubbleWhats response only to its provider
+      ---
+      duration_ms: 0.1423
+      type: 'test'
+      ...
+    # Subtest: the BubbleWhats adapter refuses redirects, has a timeout and never logs echoed response or network secrets
+    ok 5 - the BubbleWhats adapter refuses redirects, has a timeout and never logs echoed response or network secrets
+      ---
+      duration_ms: 11.9404
+      type: 'test'
+      ...
+    # Subtest: coalesces concurrent drain calls and waits for an active attempt at shutdown
+    ok 6 - coalesces concurrent drain calls and waits for an active attempt at shutdown
+      ---
+      duration_ms: 2.7222
+      type: 'test'
+      ...
+    1..6
+ok 2 - BubbleWhats worker failure propagation
+  ---
+  duration_ms: 19.8415
+  type: 'suite'
+  ...
+# (node:30844) ExperimentalWarning: `--experimental-loader` may be removed in the future; instead use `register()`:
+# --import 'data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register("./apps/api/tests/ready-prod-loader.mjs", pathToFileURL("./"));'
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: BubbleWhats durable inbox (PostgreSQL)
+    # Subtest: 40 concurrent provider deliveries persist one event and 20 workers claim it once
+    ok 1 - 40 concurrent provider deliveries persist one event and 20 workers claim it once
+      ---
+      duration_ms: 125.3639
+      type: 'test'
+      ...
+    # Subtest: rejects a changed payload and atomically rolls back other inserts in a colliding batch
+    ok 2 - rejects a changed payload and atomically rolls back other inserts in a colliding batch
+      ---
+      duration_ms: 79.4696
+      type: 'test'
+      ...
+    # Subtest: uses config and merchant in dedup identity and deduplicates status transitions across batch permutations
+    ok 3 - uses config and merchant in dedup identity and deduplicates status transitions across batch permutations
+      ---
+      duration_ms: 81.8263
+      type: 'test'
+      ...
+    # Subtest: reclaims an expired lease and fences every write from the stale worker
+    ok 4 - reclaims an expired lease and fences every write from the stale worker
+      ---
+      duration_ms: 28.1633
+      type: 'test'
+      ...
+    # Subtest: blocks later messages of the same buyer while another buyer can progress
+    ok 5 - blocks later messages of the same buyer while another buyer can progress
+      ---
+      duration_ms: 97.0925
+      type: 'test'
+      ...
+    # Subtest: persists retry backoff and dead-letters the final failure and final-attempt crash
+    ok 6 - persists retry backoff and dead-letters the final failure and final-attempt crash
+      ---
+      duration_ms: 343.7712
+      type: 'test'
+      ...
+# [Nest] 30844  - 05/09/2026, 21:19:16   DEBUG [HandleIncomingMessageUseCase] whatsapp_engine_call session=checkout-1
+# [Nest] 30844  - 05/09/2026, 21:19:16   ERROR [SendWhatsAppResponseUseCase] whatsapp_send_failed
+# [Nest] 30844  - 05/09/2026, 21:19:16   ERROR [HandleIncomingMessageUseCase] whatsapp_pipeline_failed merchant=audit_wa_47e8eeeb-139d-4ac4-868b-b103bf643790
+# [Nest] 30844  - 05/09/2026, 21:19:16    WARN [WhatsAppWebhookWorker] whatsapp_inbox_attempt_failed id=e23cf06a-c09b-4a51-ba34-6cfb2180b21f attempt=1 code=whatsapp_inbox_processing_failed
+# [Nest] 30844  - 05/09/2026, 21:19:16   DEBUG [HandleIncomingMessageUseCase] whatsapp_engine_call session=checkout-1
+# [Nest] 30844  - 05/09/2026, 21:19:16   DEBUG [SendWhatsAppResponseUseCase] whatsapp_send_status status=sent
+# [Nest] 30844  - 05/09/2026, 21:19:16     LOG [HandleIncomingMessageUseCase] whatsapp_response_sent merchant=audit_wa_47e8eeeb-139d-4ac4-868b-b103bf643790
+    # Subtest: a real incoming/send pipeline failure survives worker restart and succeeds on retry
+    ok 7 - a real incoming/send pipeline failure survives worker restart and succeeds on retry
+      ---
+      duration_ms: 89.9835
+      type: 'test'
+      ...
+# [Nest] 30844  - 05/09/2026, 21:19:16    WARN [WhatsAppWebhookWorker] whatsapp_inbox_attempt_failed id=43cc2e54-fc45-445d-8e80-f2193766aa85 attempt=1 code=whatsapp_channel_changed_or_disabled
+    # Subtest: preserves accepted events while disabled and resumes after configuration restoration
+    ok 8 - preserves accepted events while disabled and resumes after configuration restoration
+      ---
+      duration_ms: 128.344
+      type: 'test'
+      ...
+    # Subtest: applies the actual additive migration in a separate schema with unique and status constraints
+    ok 9 - applies the actual additive migration in a separate schema with unique and status constraints
+      ---
+      duration_ms: 73.97
+      type: 'test'
+      ...
+    1..9
+ok 3 - BubbleWhats durable inbox (PostgreSQL)
+  ---
+  duration_ms: 1067.4318
+  type: 'suite'
+  ...
+1..3
+# tests 22
+# suites 3
+# pass 22
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1971.1124

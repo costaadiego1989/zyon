@@ -1,5 +1,7 @@
 # ADR — API / integrations
 
+**Atualização da segunda etapa:** ver [correções, contratos e evidências](../CORRECOES-ETAPA-2.md). O texto da auditoria abaixo preserva o retrato anterior; gates de produção continuam abertos.
+
 Data: 2026-09-05. Status: decisão de auditoria registrada; correções propostas. Veredito: **FAIL**.
 
 [Índice geral](<../README.md>) · [API primeiro](<README.md>) · [Evidências e limites](<../VALIDACAO.md>)

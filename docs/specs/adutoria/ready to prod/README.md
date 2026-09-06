@@ -2,7 +2,7 @@
 
 **Decisão: NO-GO. API: F — CRITICAL. Dashboard, storefront e widget_v2: FAIL.**
 
-**Implementação iniciada:** a branch isolada `fix/ready-to-prod-audit` contém o primeiro lote de correções da API. Consulte [estado das correções, testes e pendências](CORRECOES.md). O parecer de produção continua NO-GO.
+**Implementação em andamento:** a branch isolada `fix/ready-to-prod-audit` contém dois lotes da API. Consulte o [primeiro lote](CORRECOES.md) e a [segunda etapa de segurança](CORRECOES-ETAPA-2.md), com contratos, testes e pendências. O parecer de produção continua NO-GO.
 
 Auditoria original de 2026-09-05, sobre a árvore de trabalho modificada do commit base `dcb8150aae34b8284178d9d257e4ac174654d965`. A API foi a primeira etapa; depois seus contratos foram cruzados com os três fronts. Na etapa de auditoria nenhum código de aplicação foi corrigido e nenhuma implantação/transação externa foi executada. Os ADRs e manifests originais preservam esse retrato anterior aos patches; não representam os hashes atuais da branch de correção.
 

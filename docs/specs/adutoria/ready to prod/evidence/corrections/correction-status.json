@@ -80,27 +80,27 @@
       "severity": "P1",
       "module": "auth",
       "title": "Refresh reutiliza token expirado e revogação não é compartilhada",
-      "status": "OPEN",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
       "productionGateClosed": false,
-      "record": "../../CORRECOES.md"
+      "record": "../../CORRECOES-ETAPA-2.md"
     },
     {
       "id": "API-010",
       "severity": "P1",
       "module": "auth",
       "title": "Recuperação de senha depende de memória local",
-      "status": "OPEN",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
       "productionGateClosed": false,
-      "record": "../../CORRECOES.md"
+      "record": "../../CORRECOES-ETAPA-2.md"
     },
     {
       "id": "API-011",
       "severity": "P1",
       "module": "team",
       "title": "Papéis e remoção de membro não chegam ao principal de autenticação",
-      "status": "OPEN",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
       "productionGateClosed": false,
-      "record": "../../CORRECOES.md"
+      "record": "../../CORRECOES-ETAPA-2.md"
     },
     {
       "id": "API-012",
@@ -224,27 +224,27 @@
       "severity": "P1",
       "module": "buyer-account",
       "title": "Fallback SMS registra OTP e simula envio",
-      "status": "OPEN",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
       "productionGateClosed": false,
-      "record": "../../CORRECOES.md"
+      "record": "../../CORRECOES-ETAPA-2.md"
     },
     {
       "id": "API-026",
       "severity": "P1",
       "module": "whatsapp-channel",
       "title": "Webhook confirma recebimento antes de persistir processamento",
-      "status": "OPEN",
+      "status": "PARTIAL",
       "productionGateClosed": false,
-      "record": "../../CORRECOES.md"
+      "record": "../../CORRECOES-ETAPA-2.md"
     },
     {
       "id": "API-027",
       "severity": "P1",
       "module": "shared",
       "title": "Rate limiter global pode liberar todas as requisições",
-      "status": "OPEN",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
       "productionGateClosed": false,
-      "record": "../../CORRECOES.md"
+      "record": "../../CORRECOES-ETAPA-2.md"
     },
     {
       "id": "API-028",
@@ -615,5 +615,7 @@
       "productionGateClosed": false,
       "record": "../../CORRECOES.md"
     }
-  ]
+  ],
+  "latestStageBase": "9c80287",
+  "latestStage": "../../CORRECOES-ETAPA-2.md"
 }
