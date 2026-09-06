@@ -1,3 +1,4 @@
+import { REDACTED_LOG_PATHS } from "./shared/logger/log-redaction.js";
 import { Module } from "@nestjs/common";
 import { LoggerModule } from "nestjs-pino";
 import { TenantModule } from "./shared/tenant/tenant.module.js";
@@ -46,33 +47,7 @@ import { WhatsAppChannelModule } from "./modules/whatsapp-channel/whatsapp-chann
 import { InventoryModule } from "./modules/inventory/inventory.module.js";
 // import { PublicApiModule } from "./modules/public-api/public-api.module.js"; // TODO: fix DI (AuthenticateMerchantApiKeyService)
 
-const REDACTED_LOG_PATHS = [
-  "req.headers.authorization",
-  "req.headers.cookie",
-  "req.headers['asaas-access-token']",
-  "req.headers['stripe-signature']",
-  "req.body.password",
-  "req.body.creditCard",
-  "req.body.cvv",
-  "req.body.ccv",
-  "req.body.email",
-  "req.body.cpf",
-  "req.body.phone",
-  "req.body.customer.email",
-  "req.body.customer.cpf",
-  "req.body.customer.phone",
-  "req.body.customer.fullName",
-  "req.body.customer.address",
-  "req.body.address",
-  "req.body.display_name",
-  "req.body.mobile_phone",
-  "req.body.cpf_cnpj",
-  "res.body.access_token",
-  "res.body.email",
-  "res.body.cpf",
-  "res.body.phone",
-  "res.body.customer",
-];
+
 
 @Module({
   imports: [

@@ -21,6 +21,7 @@ import { PrismaIdempotencyRepository } from "./idempotency/prisma-idempotency.re
 import { NonProductionRouteGuard } from "./non-production-route.guard.js";
 import { ProblemDetailsFilter } from "./problem-details.filter.js";
 import { RateLimitGuard } from "./rate-limit.guard.js";
+import { DistributedRateLimitStore } from "./rate-limit.store.js";
 import { WidgetAssetsController } from "./widget-assets.controller.js";
 import { MetricsMiddleware } from "./metrics.middleware.js";
 import { MetricsController } from "./metrics.controller.js";
@@ -35,6 +36,7 @@ import { MetricsController } from "./metrics.controller.js";
       useValue: new HttpClientService({ timeout: 15_000, retries: 3 }),
     },
     { provide: APP_GUARD, useClass: NonProductionRouteGuard },
+    { provide: DistributedRateLimitStore, useFactory: () => new DistributedRateLimitStore() },
     { provide: APP_GUARD, useClass: RateLimitGuard },
     EntityTagService,
     {
