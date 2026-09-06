@@ -50,4 +50,15 @@ fs.writeFileSync(path.join(output, "api-isolated-tsconfig.json"), JSON.stringify
   compilerOptions: { baseUrl: "../..", rootDir: "../..", types: ["node"], paths },
   include: ["../../apps/api/src"],
 }, null, 2));
+if (process.argv.includes("--compile")) {
+  const compiled = path.join(output, "compiled");
+  const result = spawnSync(process.execPath, [path.join(root, "node_modules/typescript/bin/tsc"),
+    "-p", path.join(output, "api-isolated-tsconfig.json"), "--outDir", compiled,
+    "--incremental", "false", "--noEmit", "false", "--noEmitOnError", "true"], { cwd: root, env, stdio: "inherit" });
+  if (result.error) throw result.error;
+  if (result.status !== 0) process.exit(result.status ?? 1);
+  fs.writeFileSync(path.join(compiled, "package.json"), JSON.stringify({ type: "module" }));
+  const link = path.join(compiled, "apps/api/node_modules");
+  if (!fs.existsSync(link)) fs.symlinkSync(path.join(api, "node_modules"), link, process.platform === "win32" ? "junction" : "dir");
+}
 console.log(`READY_PROD_TEST_PRISMA_CLIENT=${path.join(generated, "index.js")}`);
