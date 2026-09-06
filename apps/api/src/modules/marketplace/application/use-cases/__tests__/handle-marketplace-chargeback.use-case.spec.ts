@@ -41,4 +41,40 @@ describe("Marketplace chargeback authorization and provider evidence", () => {
     const useCase = new HandleMarketplaceChargebackUseCase({ getByIdForMerchant: async () => ({ hostMerchantId: "b", sellerMerchantId: "c" }) } as any);
     await assert.rejects(useCase.execute({ settlementId: "s", merchantId: "a", role: "owner" }), (error: any) => error.getStatus() === 404);
   });
+
+  it("applies settlements only from the verified provider-webhook path", async () => {
+    const updates: any[] = [];
+    const debts: any[] = [];
+    const settlements = [
+      { id: "before-transfer", status: "awaiting_return_window", sellerMerchantId: "seller-a", sellerNetCents: 500 },
+      { id: "after-transfer", status: "transferred", sellerMerchantId: "seller-b", sellerNetCents: 700 },
+      { id: "already-handled", status: "chargeback_debt", sellerMerchantId: "seller-c", sellerNetCents: 900 },
+    ];
+    const repository = {
+      findByOrderId: async () => settlements,
+      updateStatus: async (input: any) => {
+        updates.push(input);
+        return { ...settlements.find((settlement) => settlement.id === input.settlementId), status: input.status };
+      },
+    };
+    const debtRepository = {
+      create: async (input: any) => {
+        debts.push(input);
+        return { id: "debt-1", ...input };
+      },
+    };
+    const stateMachine = {
+      transition: (status: string) => status === "transferred" ? "chargeback_debt" : "chargeback_cancelled",
+    };
+    const useCase = new HandleMarketplaceChargebackUseCase(repository as any, debtRepository as any, stateMachine as any);
+
+    const result = await useCase.executeForOrder("order-1");
+
+    assert.equal(result.length, 2);
+    assert.deepEqual(updates.map((update) => [update.settlementId, update.expectedStatus, update.status]), [
+      ["before-transfer", "awaiting_return_window", "chargeback_cancelled"],
+      ["after-transfer", "transferred", "chargeback_debt"],
+    ]);
+    assert.deepEqual(debts, [{ sellerMerchantId: "seller-b", settlementId: "after-transfer", amountCents: 700 }]);
+  });
 });

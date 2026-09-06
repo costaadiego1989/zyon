@@ -1,5 +1,7 @@
-﻿import { ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
-import type { MarketplaceSettlementRepository } from "../../domain/ports/marketplace-settlement-repository.port.js";
+﻿import { ForbiddenException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
+import type { MarketplaceSettlementRepository, MarketplaceSettlementSnapshot } from "../../domain/ports/marketplace-settlement-repository.port.js";
+import type { MarketplaceSellerDebtRepository, MarketplaceSellerDebtSnapshot } from "../../domain/ports/marketplace-seller-debt-repository.port.js";
+import { SettlementStateMachineService } from "../../domain/services/settlement-state-machine.service.js";
 
 export interface HandleMarketplaceChargebackInput {
   settlementId: string;
@@ -7,9 +9,21 @@ export interface HandleMarketplaceChargebackInput {
   role: string;
 }
 
+export interface HandleMarketplaceChargebackOutput {
+  settlement: MarketplaceSettlementSnapshot;
+  debtCreated: boolean;
+  debt?: MarketplaceSellerDebtSnapshot;
+}
+
 @Injectable()
 export class HandleMarketplaceChargebackUseCase {
-  constructor(private readonly settlementRepository: MarketplaceSettlementRepository) {}
+  private readonly logger = new Logger(HandleMarketplaceChargebackUseCase.name);
+
+  constructor(
+    private readonly settlementRepository: MarketplaceSettlementRepository,
+    private readonly debtRepository: MarketplaceSellerDebtRepository,
+    private readonly stateMachine: SettlementStateMachineService,
+  ) {}
 
   async execute(input: HandleMarketplaceChargebackInput): Promise<never> {
     if (!input.merchantId || !["owner", "admin"].includes(input.role)) {
@@ -28,4 +42,38 @@ export class HandleMarketplaceChargebackUseCase {
     });
   }
 
+  /**
+   * Called only after Stripe has verified a provider dispute webhook. It has no
+   * merchant-controlled inputs, so it is safe to apply the settlement transition.
+   */
+  async executeForOrder(orderId: string): Promise<HandleMarketplaceChargebackOutput[]> {
+    const settlements = await this.settlementRepository.findByOrderId(orderId);
+    const results: HandleMarketplaceChargebackOutput[] = [];
+    for (const settlement of settlements) {
+      if (!["awaiting_return_window", "transfer_scheduled", "transferred"].includes(settlement.status)) {
+        continue;
+      }
+      try {
+        const status = this.stateMachine.transition(settlement.status, "chargeback_received");
+        const updated = await this.settlementRepository.updateStatus({
+          settlementId: settlement.id,
+          expectedStatus: settlement.status,
+          status,
+          chargebackAt: new Date(),
+        });
+        const debtCreated = status === "chargeback_debt";
+        const debt = debtCreated
+          ? await this.debtRepository.create({
+              sellerMerchantId: settlement.sellerMerchantId,
+              settlementId: settlement.id,
+              amountCents: settlement.sellerNetCents,
+            })
+          : undefined;
+        results.push({ settlement: updated, debtCreated, debt });
+      } catch (error) {
+        this.logger.error(`Marketplace chargeback failed for settlement ${settlement.id} (order ${orderId}): ${(error as Error).message}`);
+      }
+    }
+    return results;
+  }
 }

@@ -81,13 +81,15 @@ export class CheckoutCartAuthorityService {
       let priceCents = variant.price.basePriceInCents;
       for (const promotion of promotions) {
         if (promotion.variantId !== variant.id && (!variant.product.categoryId || promotion.categoryId !== variant.product.categoryId)) continue;
-        if ((promotion.discountType !== "percent" && promotion.discountType !== "fixed") ||
-          !Number.isFinite(promotion.discountValue) || promotion.discountValue < 0) {
+        const discountType = promotion.discountType;
+        const discountValue = promotion.discountValue;
+        if ((discountType !== "percent" && discountType !== "fixed") ||
+          typeof discountValue !== "number" || !Number.isFinite(discountValue) || discountValue < 0) {
           throw new BadRequestException("checkout_product_promotion_invalid");
         }
         const resolved = resolveEffectivePrice(variant.price.basePriceInCents, {
-          discountType: promotion.discountType,
-          discountValue: promotion.discountValue,
+          discountType,
+          discountValue,
           isActive: true,
         }, null);
         priceCents = Math.min(priceCents, resolved.effectivePriceCents);
