@@ -4,7 +4,9 @@ import { OBSERVATION_REPOSITORY_PORT, type ObservationRepositoryPort } from "../
 import { STRATEGY_LESSON_REPOSITORY_PORT, type StrategyLessonRepositoryPort } from "../../domain/ports/strategy-lesson-repository.port.js";
 import { HYPOTHESIS_GENERATOR_PORT, type HypothesisGeneratorPort } from "../../domain/ports/hypothesis-generator.port.js";
 import { HypothesisEntity } from "../../domain/entities/hypothesis.entity.js";
-import { assessRiskLevel } from "../../domain/value-objects/hypothesis-risk-level.js";
+import { assessHypothesisRisk } from "../../domain/value-objects/hypothesis-risk-level.js";
+import { validateHypothesisResponse, validateHypothesisSafety } from "../../domain/services/hypothesis-validator.service.js";
+import { HYPOTHESIS_MERCHANT_CONTEXT_PORT, type HypothesisMerchantContextPort } from "../../domain/ports/hypothesis-merchant-context.port.js";
 
 export interface GenerateHypothesisInput {
   merchant_id: string;
@@ -34,23 +36,36 @@ export class GenerateHypothesisUseCase {
     @Inject(HYPOTHESIS_REPOSITORY_PORT) private readonly hypothesisRepo: HypothesisRepositoryPort,
     @Inject(STRATEGY_LESSON_REPOSITORY_PORT) private readonly lessonRepo: StrategyLessonRepositoryPort,
     @Inject(HYPOTHESIS_GENERATOR_PORT) private readonly generator: HypothesisGeneratorPort,
+    @Inject(HYPOTHESIS_MERCHANT_CONTEXT_PORT) private readonly merchantContext: HypothesisMerchantContextPort,
   ) {}
 
   async execute(input: GenerateHypothesisInput): Promise<GenerateHypothesisOutput> {
     // Fetch observation
     const observation = await this.observationRepo.findById(input.observation_id, input.merchant_id);
-    if (!observation) {
+    if (!observation || observation.merchant_id !== input.merchant_id) {
       throw new Error(`OBSERVATION_NOT_FOUND: ${input.observation_id}`);
     }
+    if (!Number.isFinite(observation.funnel.total_sessions) || observation.funnel.total_sessions <= 0) {
+      throw new Error("HYPOTHESIS_INSUFFICIENT_OBSERVATIONS");
+    }
 
-    // Fetch past lessons for context
+    const rules = await this.merchantContext.getRules(input.merchant_id);
+    if (!rules) throw new Error("HYPOTHESIS_MERCHANT_RULES_UNAVAILABLE");
+    if (rules.autonomousEngineEnabled !== true) throw new Error("HYPOTHESIS_ENGINE_DISABLED");
+    if (!Number.isFinite(rules.maxDiscountPercent) || rules.maxDiscountPercent < 0 || rules.maxDiscountPercent > 100 || typeof rules.allowFreeShipping !== "boolean") {
+      throw new Error("HYPOTHESIS_INVALID_MERCHANT_RULES");
+    }
+    const policySnapshot = JSON.stringify(rules);
+    const currentPrompt = await this.merchantContext.getCurrentPrompt(input.merchant_id);
+    if (typeof currentPrompt !== "string" || !currentPrompt.trim()) throw new Error("HYPOTHESIS_BASELINE_UNAVAILABLE");
+
     const pastLessons = await this.lessonRepo.findByMerchant(input.merchant_id, 20);
 
-    // Constraints (hardcoded for now; could be merchant-specific)
     const constraints = {
-      max_discount_percent: 30,
-      allow_free_shipping: true,
+      max_discount_percent: rules.maxDiscountPercent,
+      allow_free_shipping: rules.allowFreeShipping,
       max_running_experiments: 1,
+      merchant_rules: structuredClone(rules),
     };
 
     // Call LLM to generate hypothesis
@@ -58,14 +73,31 @@ export class GenerateHypothesisUseCase {
       merchant_id: input.merchant_id,
       observation: observation.snapshot(),
       past_lessons: pastLessons.map((l) => l.snapshot()),
+      current_prompt: currentPrompt,
       constraints,
     });
 
-    // Assess risk level
-    const riskLevel = assessRiskLevel(generationResponse.expected_lift_percent);
+    validateHypothesisResponse(generationResponse);
+    if (!generationResponse.template.variant_a.is_control || generationResponse.template.variant_b.is_control) {
+      throw new Error("HYPOTHESIS_INVALID_JSON: variant_a must preserve the current control");
+    }
+    // The server owns CONTROL even if a generator attempts to rewrite it.
+    generationResponse.template.variant_a.system_prompt = currentPrompt;
+    validateHypothesisSafety(generationResponse, constraints, currentPrompt);
+
+    // Revalidate after a potentially slow LLM call: a kill-switch or changed policy
+    // must prevent saving a proposal based on stale commercial authorization.
+    const latestRules = await this.merchantContext.getRules(input.merchant_id);
+    if (!latestRules) throw new Error("HYPOTHESIS_MERCHANT_RULES_UNAVAILABLE");
+    if (latestRules.autonomousEngineEnabled !== true) throw new Error("HYPOTHESIS_ENGINE_DISABLED");
+    if (JSON.stringify(latestRules) !== policySnapshot) throw new Error("HYPOTHESIS_MERCHANT_RULES_CHANGED");
+    if (await this.merchantContext.getCurrentPrompt(input.merchant_id) !== currentPrompt) throw new Error("HYPOTHESIS_BASELINE_CHANGED");
+
+    const riskLevel = assessHypothesisRisk(generationResponse, currentPrompt);
 
     // Determine approval strategy
-    const approvalStrategy = riskLevel === "low" ? "auto" : "manual";
+    // Prompts are unstructured; even apparently pure messaging needs merchant review.
+    const approvalStrategy = "manual";
 
     // Create hypothesis entity
     const hypothesis = HypothesisEntity.create({

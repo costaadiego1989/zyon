@@ -1,9 +1,10 @@
-import { Injectable, Logger, Optional } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import type {
   HypothesisGenerationRequest,
   HypothesisGenerationResponse,
   HypothesisGeneratorPort,
 } from "../domain/ports/hypothesis-generator.port.js";
+import { validateHypothesisResponse, validateHypothesisSafety } from "../domain/services/hypothesis-validator.service.js";
 
 /**
  * LLMHypothesisGenerator — Calls Fable 5 API to generate revenue hypotheses.
@@ -20,12 +21,15 @@ export class LLMHypothesisGenerator implements HypothesisGeneratorPort {
   constructor() {}
 
   async generate(request: HypothesisGenerationRequest): Promise<HypothesisGenerationResponse> {
+    if (typeof request.current_prompt !== "string" || !request.current_prompt.trim()) {
+      throw new Error("HYPOTHESIS_BASELINE_UNAVAILABLE");
+    }
     const apiKey = process.env.OPENAI_API_KEY;
     const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
     if (!apiKey) {
       this.logger.warn("No OPENAI_API_KEY configured, returning fallback hypothesis");
-      return this.generateFallbackHypothesis(request);
+      return this.validateResponse(this.generateFallbackHypothesis(request), request);
     }
 
     try {
@@ -64,15 +68,11 @@ export class LLMHypothesisGenerator implements HypothesisGeneratorPort {
       return this.parseHypothesisResponse(content, request);
     } catch (err) {
       this.logger.warn(`Failed to generate hypothesis via LLM: ${err instanceof Error ? err.message : String(err)}`);
-      return this.generateFallbackHypothesis(request);
+      return this.validateResponse(this.generateFallbackHypothesis(request), request);
     }
   }
 
-  private buildSystemPrompt(constraints: {
-    max_discount_percent: number;
-    allow_free_shipping: boolean;
-    max_running_experiments: number;
-  }): string {
+  private buildSystemPrompt(constraints: HypothesisGenerationRequest["constraints"]): string {
     return `You are a conversion optimization expert generating A/B test hypotheses for e-commerce checkouts.
 
 Your task: Analyze checkout metrics and generate a testable hypothesis to improve conversion rate.
@@ -80,6 +80,10 @@ Your task: Analyze checkout metrics and generate a testable hypothesis to improv
 Constraints:
 - Max discount: ${constraints.max_discount_percent}%
 - Free shipping allowed: ${constraints.allow_free_shipping}
+- Full merchant policy: ${JSON.stringify(constraints.merchant_rules)}
+- These limits are not authorization to offer a benefit. Commercial proposals require merchant approval and runtime rules-engine authorization.
+- Preserve variant_a.system_prompt exactly as the supplied CURRENT BASELINE; never invent control behavior.
+- Never invent a discount, shipping benefit, security property, delivery deadline or urgency.
 - Focus on checkout experience (not storefront)
 
 Output MUST be valid JSON in this format:
@@ -92,7 +96,7 @@ Output MUST be valid JSON in this format:
     "description": "string (what's being tested)",
     "variant_a": {
       "name": "Control",
-      "system_prompt": "string (existing behavior, minimal prompt)",
+      "system_prompt": "string (exact CURRENT BASELINE supplied in the request)",
       "weight": 50,
       "is_control": true
     },
@@ -110,6 +114,7 @@ Output MUST be valid JSON in this format:
     const observation = request.observation;
 
     let prompt = `Generate hypothesis for merchant ${request.merchant_id}.\n\n`;
+    prompt += `CURRENT BASELINE (copy exactly for control):\n${JSON.stringify(request.current_prompt)}\n\n`;
     prompt += `CURRENT METRICS (24h window):\n`;
     prompt += `- Conversion rate: ${(observation.funnel.conversion_rate * 100).toFixed(1)}%\n`;
     prompt += `- Abandonment rate: ${(observation.abandonment.abandonment_rate * 100).toFixed(1)}%\n`;
@@ -147,17 +152,17 @@ Output MUST be valid JSON in this format:
       throw new Error("No JSON found in LLM response");
     }
 
-    const parsed = JSON.parse(jsonMatch[0]) as HypothesisGenerationResponse;
+    return this.validateResponse(JSON.parse(jsonMatch[0]), request);
+  }
 
-    // Validate
-    if (!parsed.hypothesis_text || !parsed.reasoning || !parsed.template) {
-      throw new Error("Invalid response structure");
+  private validateResponse(response: unknown, request: HypothesisGenerationRequest): HypothesisGenerationResponse {
+    validateHypothesisResponse(response);
+    if (!response.template.variant_a.is_control || response.template.variant_b.is_control) {
+      throw new Error("HYPOTHESIS_INVALID_JSON: variant_a must preserve the current control");
     }
-
-    // Clamp expected lift
-    parsed.expected_lift_percent = Math.min(30, Math.max(0, parsed.expected_lift_percent));
-
-    return parsed;
+    response.template.variant_a.system_prompt = request.current_prompt;
+    validateHypothesisSafety(response, request.constraints, request.current_prompt);
+    return response;
   }
 
   private generateFallbackHypothesis(request: HypothesisGenerationRequest): HypothesisGenerationResponse {
@@ -165,50 +170,40 @@ Output MUST be valid JSON in this format:
     const topReason = observation.abandonment.top_abandonment_objection;
 
     // Fallback strategy: target the top abandonment reason
-    let variant_a_prompt = "You are a helpful checkout assistant.";
-    let variant_b_prompt = "You are a helpful checkout assistant.";
-    let testName = "Control vs Improved";
-    let hypothesis_text = "Improve checkout experience";
+    let assistance = "Ask whether the buyer needs help with the current checkout step. Use only verified checkout information.";
+    let testName = "Contextual Checkout Help";
+    let hypothesis_text = "Test a contextual offer of help at the current checkout step";
 
     if (topReason === "shipping_cost") {
       hypothesis_text = "Emphasize shipping cost transparency and offer alternatives";
-      variant_a_prompt =
-        "You are a checkout assistant. Answer questions about the purchase. Be concise.";
-      variant_b_prompt =
-        "You are a checkout assistant. When shipping is mentioned, proactively explain options and offer to calculate exact costs. Be helpful and reassuring.";
+      assistance = "Ask what is unclear about delivery and explain only shipping options and costs returned by the current checkout quote.";
       testName = "Shipping Cost Messaging";
     } else if (topReason === "price") {
-      hypothesis_text = "Offer strategic discount on higher-cart-value orders";
-      variant_a_prompt = "You are a checkout assistant. Answer questions naturally.";
-      variant_b_prompt =
-        "You are a checkout assistant. If the cart is $100+, mention a 5% loyalty discount option to reduce hesitation.";
+      hypothesis_text = "Clarify the current cart total and ask which cost needs explanation";
+      assistance = "When the buyer asks about price, explain the current cart total using verified line items and ask which cost needs clarification.";
       testName = "Price Sensitivity Response";
     } else if (topReason === "payment") {
-      hypothesis_text = "Build trust around payment security";
-      variant_a_prompt = "You are a checkout assistant. Answer questions briefly.";
-      variant_b_prompt =
-        "You are a checkout assistant. When payment concerns arise, explain encryption and security measures used.";
-      testName = "Payment Security Assurance";
+      hypothesis_text = "Offer contextual help with available payment methods";
+      assistance = "Ask what help the buyer needs with payment and describe only the payment methods shown in the current checkout.";
+      testName = "Payment Method Help";
     }
-
-    const expectedLift = observation.abandonment.abandonment_rate > 0.5 ? 8 : 3; // Higher lift if abandonment is high
 
     return {
       hypothesis_text,
-      reasoning: `Current abandonment rate is ${(observation.abandonment.abandonment_rate * 100).toFixed(1)}%. Top reason: ${topReason}. Testing targeted response strategy.`,
-      expected_lift_percent: expectedLift,
+      reasoning: `Deterministic help-only fallback. Observed top reason: ${topReason}. No measured or predicted lift is available; zero is a non-estimate placeholder requiring review.`,
+      expected_lift_percent: 0,
       template: {
         name: testName,
         description: `Test improved ${topReason} handling in checkout chat`,
         variant_a: {
           name: "Control",
-          system_prompt: variant_a_prompt,
+          system_prompt: request.current_prompt,
           weight: 50,
           is_control: true,
         },
         variant_b: {
           name: "Improved",
-          system_prompt: variant_b_prompt,
+          system_prompt: `${request.current_prompt}\n\n${assistance}`,
           weight: 50,
           is_control: false,
         },

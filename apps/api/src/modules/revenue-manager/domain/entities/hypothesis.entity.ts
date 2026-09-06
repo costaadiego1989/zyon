@@ -57,8 +57,8 @@ export class HypothesisEntity {
   }): HypothesisEntity {
     const id = randomUUID();
     const now = new Date().toISOString();
-    const isAutoApproved = input.approval_strategy === "auto";
     const hypothesisType: HypothesisType = input.hypothesis_type ?? "prompt";
+    const isAutoApproved = input.approval_strategy === "auto" && hypothesisType !== "discount_rule" && !input.discount_rule_json;
     return new HypothesisEntity({
       id,
       merchant_id: input.merchant_id,
@@ -71,7 +71,7 @@ export class HypothesisEntity {
       ...(input.discount_rule_json ? { discount_rule_json: input.discount_rule_json } : {}),
       template: input.template,
       status: isAutoApproved ? "approved" : "pending_review",
-      approval_strategy: input.approval_strategy,
+      approval_strategy: isAutoApproved ? "auto" : "manual",
       ...(isAutoApproved ? { merchant_approved_by: "system", merchant_approved_at: now, merchant_approval_reason: "auto-approved (low risk)" } : {}),
       created_at: now,
       updated_at: now,
@@ -85,6 +85,7 @@ export class HypothesisEntity {
 
   autoApprove(): HypothesisEntity {
     if (this._snapshot.status !== "pending_review") throw new Error("HYPOTHESIS_NOT_PENDING_REVIEW");
+    if (this.hypothesis_type === "discount_rule" || this.discount_rule_json) throw new Error("HYPOTHESIS_COMMERCIAL_APPROVAL_REQUIRED");
     return new HypothesisEntity({ ...this._snapshot, status: "approved", merchant_approved_at: new Date().toISOString(), merchant_approved_by: "system", merchant_approval_reason: "auto-approved (low risk)", updated_at: new Date().toISOString() });
   }
 

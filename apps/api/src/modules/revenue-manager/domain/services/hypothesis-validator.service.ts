@@ -19,7 +19,7 @@ export function validateHypothesisResponse(response: unknown): asserts response 
   if (typeof r.reasoning !== "string" || r.reasoning.trim().length === 0) {
     throw new Error("HYPOTHESIS_INVALID_JSON: reasoning must be a non-empty string");
   }
-  if (typeof r.expected_lift_percent !== "number" || r.expected_lift_percent < 0 || r.expected_lift_percent > 200) {
+  if (typeof r.expected_lift_percent !== "number" || !Number.isFinite(r.expected_lift_percent) || r.expected_lift_percent < 0 || r.expected_lift_percent > 200) {
     throw new Error("HYPOTHESIS_INVALID_JSON: expected_lift_percent must be a number between 0 and 200");
   }
 
@@ -66,7 +66,7 @@ function validateVariant(variant: unknown, label: string): void {
   if (typeof v.system_prompt !== "string" || v.system_prompt.trim().length === 0) {
     throw new Error(`HYPOTHESIS_INVALID_JSON: template.${label}.system_prompt must be a non-empty string`);
   }
-  if (typeof v.weight !== "number" || v.weight < 1 || v.weight > 99) {
+  if (typeof v.weight !== "number" || !Number.isFinite(v.weight) || v.weight < 1 || v.weight > 99) {
     throw new Error(`HYPOTHESIS_INVALID_JSON: template.${label}.weight must be 1-99`);
   }
   if (typeof v.is_control !== "boolean") {
@@ -77,7 +77,7 @@ function validateVariant(variant: unknown, label: string): void {
 /**
  * LLM Prompt Safety Guards
  * Validates that the generated hypothesis does NOT:
- * - Suggest > 50% discount without explicit merchant approval
+ * - Suggest discounts above the actual merchant cap
  * - Promise free shipping without authorization
  * - Claim delivery guarantees
  * - Request sensitive information (CVV, password)
@@ -85,19 +85,26 @@ function validateVariant(variant: unknown, label: string): void {
 export function validateHypothesisSafety(response: HypothesisGenerationResponse, constraints: {
   max_discount_percent: number;
   allow_free_shipping: boolean;
-}): void {
+}, currentPrompt?: string): void {
+  if (!Number.isFinite(constraints.max_discount_percent) || constraints.max_discount_percent < 0 || constraints.max_discount_percent > 100 || typeof constraints.allow_free_shipping !== "boolean") {
+    throw new Error("HYPOTHESIS_INVALID_MERCHANT_RULES: Explicit commercial limits are required");
+  }
   const systemPrompts = [
-    response.template.variant_a.system_prompt,
-    response.template.variant_b.system_prompt,
+    response.hypothesis_text,
+    response.template.name,
+    response.template.description,
+    // Trusted, unchanged baseline guardrails may themselves mention forbidden actions.
+    ...(response.template.variant_a.system_prompt === currentPrompt ? [] : [response.template.variant_a.system_prompt]),
+    proposedPrompt(response.template.variant_b.system_prompt, currentPrompt),
   ];
 
   for (const prompt of systemPrompts) {
-    const lowerPrompt = prompt.toLowerCase();
+    const lowerPrompt = prompt.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
     // Check for extreme discount mentions
-    const discountMatch = lowerPrompt.match(/(\d+)\s*%\s*(off|desconto|discount)/);
-    if (discountMatch) {
-      const discountValue = parseInt(discountMatch[1], 10);
+    const discountPattern = /(\d+(?:[.,]\d+)?)\s*%\s*(?:(?:de|off)\s+)?(?:off|desconto|discount)|(?:desconto|discount|save|economize)\s*(?:(?:de|of|up to|ate)\s*)?(\d+(?:[.,]\d+)?)\s*%/g;
+    for (const discountMatch of lowerPrompt.matchAll(discountPattern)) {
+      const discountValue = Number((discountMatch[1] ?? discountMatch[2]).replace(",", "."));
       if (discountValue > constraints.max_discount_percent) {
         throw new Error(
           `HYPOTHESIS_EXTREME_DISCOUNT: Prompt mentions ${discountValue}% discount, max allowed is ${constraints.max_discount_percent}%`,
@@ -107,7 +114,7 @@ export function validateHypothesisSafety(response: HypothesisGenerationResponse,
 
     // Check for free shipping without authorization
     if (!constraints.allow_free_shipping) {
-      if (lowerPrompt.includes("free shipping") || lowerPrompt.includes("frete grátis") || lowerPrompt.includes("frete gratuito")) {
+      if (/free (?:shipping|delivery)|frete gratis|frete gratuito|entrega gratis|cover (?:the )?shipping costs/.test(lowerPrompt)) {
         throw new Error("HYPOTHESIS_UNAUTHORIZED_FREE_SHIPPING: Free shipping not authorized by merchant");
       }
     }
@@ -125,4 +132,12 @@ export function validateHypothesisSafety(response: HypothesisGenerationResponse,
       }
     }
   }
+}
+
+/** Strip only an exact trusted baseline; the remaining challenger instructions are new. */
+export function proposedPrompt(prompt: string, currentPrompt?: string): string {
+  if (currentPrompt && (prompt === currentPrompt || prompt.startsWith(`${currentPrompt}\n`))) {
+    return prompt.slice(currentPrompt.length);
+  }
+  return prompt;
 }

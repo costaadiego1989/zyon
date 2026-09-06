@@ -1,5 +1,6 @@
 import type { ObservationSnapshot } from "../entities/observation.entity.js";
 import type { StrategyLessonSnapshot } from "../entities/strategy-lesson.entity.js";
+import type { MerchantRules } from "@zyon/shared-types";
 
 export const HYPOTHESIS_GENERATOR_PORT = Symbol("HYPOTHESIS_GENERATOR_PORT");
 
@@ -7,10 +8,13 @@ export interface HypothesisGenerationRequest {
   merchant_id: string;
   observation: ObservationSnapshot;
   past_lessons: StrategyLessonSnapshot[];
+  /** Exact active prompt supplied by the merchant context, never authored by the model. */
+  current_prompt: string;
   constraints: {
     max_discount_percent: number;
     allow_free_shipping: boolean;
     max_running_experiments: number;
+    merchant_rules: MerchantRules;
   };
 }
 

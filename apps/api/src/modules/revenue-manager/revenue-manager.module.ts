@@ -14,6 +14,7 @@ import { OBSERVATION_REPOSITORY_PORT } from "./domain/ports/observation-reposito
 import { HYPOTHESIS_REPOSITORY_PORT } from "./domain/ports/hypothesis-repository.port.js";
 import { STRATEGY_LESSON_REPOSITORY_PORT } from "./domain/ports/strategy-lesson-repository.port.js";
 import { HYPOTHESIS_GENERATOR_PORT } from "./domain/ports/hypothesis-generator.port.js";
+import { HYPOTHESIS_MERCHANT_CONTEXT_PORT } from "./domain/ports/hypothesis-merchant-context.port.js";
 
 // Repositories
 import { PrismaObservationRepository } from "./infrastructure/prisma-observation.repository.js";
@@ -22,6 +23,7 @@ import { PrismaStrategyLessonRepository } from "./infrastructure/prisma-strategy
 
 // Adapters
 import { LLMHypothesisGenerator } from "./infrastructure/hypothesis-generator.adapter.js";
+import { PrismaHypothesisMerchantContext } from "./infrastructure/hypothesis-merchant-context.adapter.js";
 
 // Domain Services
 import { DiscountRuleHypothesisService } from "./domain/services/discount-rule-hypothesis.service.js";
@@ -63,6 +65,11 @@ import { RevenueManagerController } from "./presentation/http/revenue-manager.co
       inject: [PRISMA_CLIENT],
     },
     // Hypothesis generator port — LLM-backed adapter
+    {
+      provide: HYPOTHESIS_MERCHANT_CONTEXT_PORT,
+      useFactory: (prisma: PrismaClient) => new PrismaHypothesisMerchantContext(prisma),
+      inject: [PRISMA_CLIENT],
+    },
     {
       provide: HYPOTHESIS_GENERATOR_PORT,
       useClass: LLMHypothesisGenerator,
