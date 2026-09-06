@@ -214,7 +214,6 @@ function StripeCardBlockForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const api = useCheckoutStore((s) => s.api);
-  const pollPayment = useCheckoutStore((s) => s.pollPayment);
   const brand = useCheckoutStore((s) => s.brand);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -231,8 +230,14 @@ function StripeCardBlockForm({
     try {
       const existing = await stripe.retrievePaymentIntent(clientSecret);
       if (existing.paymentIntent?.status === "succeeded") {
-        if (api) {
-          try { await api.confirmStripePayment(intentId); } catch {}
+        if (!api) {
+          setError("Não foi possível confirmar o pagamento com o servidor. Tente novamente.");
+          return;
+        }
+        const confirmed = await api.confirmStripePayment(intentId);
+        if ((confirmed as { status?: string }).status !== "approved") {
+          setError("Pagamento processado, mas a confirmação do pedido ainda está pendente. Tente novamente.");
+          return;
         }
         useCheckoutStore.setState((s) => ({
           status: "completed",
@@ -258,27 +263,23 @@ function StripeCardBlockForm({
         return;
       }
 
-      if (paymentIntent?.status === "succeeded" || paymentIntent?.status === "requires_action") {
-        let approved = false;
-        if (api) {
-          try {
-            const res = await api.confirmStripePayment(intentId);
-            approved = (res as { status?: string })?.status === "approved";
-          } catch (confirmErr) {
-            console.error("Server confirm failed:", confirmErr);
-          }
+      if (paymentIntent?.status === "succeeded") {
+        if (!api) {
+          setError("Não foi possível confirmar o pagamento com o servidor. Tente novamente.");
+          return;
         }
-        if (approved || paymentIntent.status === "succeeded") {
-          useCheckoutStore.setState((s) => ({
-            status: "completed",
-            cart: { ...s.cart, status: "paid" },
-          }));
-          void trackEvent("order_completed", { intent_id: intentId });
-        } else {
-          pollPayment();
+        const confirmed = await api.confirmStripePayment(intentId);
+        if ((confirmed as { status?: string }).status !== "approved") {
+          setError("Pagamento processado, mas a confirmação do pedido ainda está pendente. Tente novamente.");
+          return;
         }
+        useCheckoutStore.setState((s) => ({
+          status: "completed",
+          cart: { ...s.cart, status: "paid" },
+        }));
+        void trackEvent("order_completed", { intent_id: intentId });
       } else {
-        setError(`Payment failed: ${paymentIntent?.status}`);
+        setError(`Pagamento não foi concluído: ${paymentIntent?.status ?? "desconhecido"}`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro desconhecido");
