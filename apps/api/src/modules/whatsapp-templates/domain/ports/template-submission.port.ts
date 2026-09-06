@@ -17,7 +17,12 @@ export interface SubmitTemplateInput {
 
 export interface TemplateSubmissionStatus {
   contentSid: string;
-  status: "draft" | "submitted" | "approved" | "rejected" | "unknown";
+  /**
+   * submission_unknown means creation/submission may have happened. Preserve a
+   * known SID and poll it; without a SID, hold for reconciliation instead of
+   * creating again. unknown is an inconclusive read and never means draft.
+   */
+  status: "draft" | "submitted" | "approved" | "rejected" | "paused" | "disabled" | "unknown" | "submission_unknown";
   rejectionReason?: string;
 }
 

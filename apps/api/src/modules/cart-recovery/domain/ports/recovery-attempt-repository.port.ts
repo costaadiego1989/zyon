@@ -9,11 +9,13 @@ export interface RecoveryAttemptRepositoryPort {
   existsForSession(merchantId: string, sessionId: string): Promise<boolean>;
   findByMerchantAndStatus(merchantId: string, status: RecoveryAttemptStatus): Promise<RecoveryAttempt[]>;
   getMetrics(merchantId: string, from: Date, to: Date): Promise<{
-    total_abandoned: number;
+    // Null means unmeasured; a triggered session is not confirmed abandonment.
+    total_abandoned: number | null;
     recovery_attempts: number;
     recovered: number;
-    recovery_rate: number;
-    revenue_recovered_cents: number;
+    recovery_rate: number | null;
+    // Requires reconciled orders and currency units; never estimate from count.
+    revenue_recovered_cents: number | null;
     top_strategy: string | null;
   }>;
 }

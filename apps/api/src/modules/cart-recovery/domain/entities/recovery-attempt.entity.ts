@@ -1,8 +1,8 @@
 import type { RecoveryStrategy } from "../values/recovery-strategy.js";
 import type { AbandonmentReason } from "../values/abandonment-reason.js";
 
-export type RecoveryAttemptStatus = "pending" | "sent" | "recovered" | "failed" | "expired";
-export type RecoveryChannel = "in_session";
+export type RecoveryAttemptStatus = "pending" | "sent" | "recovered" | "failed" | "expired" | "unknown";
+export type RecoveryChannel = "in_session" | "none" | "whatsapp_template" | "email";
 
 export interface RecoveryAttemptProps {
   id: string;
@@ -37,8 +37,8 @@ export class RecoveryAttempt {
   get recoveredOrderId() { return this.props.recoveredOrderId; }
   get createdAt() { return this.props.createdAt; }
 
-  markSent(at: Date): RecoveryAttempt {
-    return new RecoveryAttempt({ ...this.props, status: "sent", sentAt: at });
+  markSent(at: Date, channel: RecoveryChannel = this.props.channel): RecoveryAttempt {
+    return new RecoveryAttempt({ ...this.props, status: "sent", sentAt: at, channel });
   }
 
   markRecovered(at: Date, orderId?: string): RecoveryAttempt {
@@ -50,8 +50,12 @@ export class RecoveryAttempt {
     });
   }
 
-  markFailed(): RecoveryAttempt {
-    return new RecoveryAttempt({ ...this.props, status: "failed" });
+  markFailed(channel: RecoveryChannel = this.props.channel): RecoveryAttempt {
+    return new RecoveryAttempt({ ...this.props, status: "failed", channel });
+  }
+
+  markUnknown(channel: RecoveryChannel = this.props.channel): RecoveryAttempt {
+    return new RecoveryAttempt({ ...this.props, status: "unknown", channel });
   }
 
   markExpired(): RecoveryAttempt {

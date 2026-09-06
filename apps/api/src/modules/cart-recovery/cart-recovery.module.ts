@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
-import { TRACK_RECOVERY_OUTCOME_USE_CASE } from "./cart-recovery.tokens.js";
+import { TRACK_RECOVERY_OUTCOME_USE_CASE, ATTEMPT_CART_RECOVERY_USE_CASE } from "./cart-recovery.tokens.js";
 import { RecoveryScannerJob } from "./infrastructure/jobs/recovery-scanner.job.js";
 import { CartRecoveryOnOrderCompletedHandler } from "./infrastructure/event-handlers/on-order-completed.handler.js";
 import { AttemptCartRecoveryUseCase } from "./application/use-cases/attempt-cart-recovery.use-case.js";
@@ -10,7 +10,7 @@ import { GetStrategyPreferencesUseCase } from "./application/use-cases/get-strat
 import { UpdateStrategyPreferencesUseCase } from "./application/use-cases/update-strategy-preferences.use-case.js";
 import { GetStrategyConfigUseCase } from "./application/use-cases/get-strategy-config.use-case.js";
 import { UpdateStrategyConfigUseCase } from "./application/use-cases/update-strategy-config.use-case.js";
-import { RECOVERY_ATTEMPT_REPOSITORY } from "./domain/ports/recovery-attempt-repository.port.js";
+import { RECOVERY_ATTEMPT_REPOSITORY, type RecoveryAttemptRepositoryPort } from "./domain/ports/recovery-attempt-repository.port.js";
 import { STRATEGY_PREFERENCES_REPOSITORY } from "./domain/ports/strategy-preferences-repository.port.js";
 import { PrismaRecoveryAttemptRepository } from "./infrastructure/repositories/prisma-recovery-attempt.repository.js";
 import { PrismaStrategyPreferencesRepository } from "./infrastructure/repositories/prisma-strategy-preferences.repository.js";
@@ -24,15 +24,13 @@ import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-rep
 import { RevenueLiftModule } from "../revenue-lift/revenue-lift.module.js";
 import { CartRecoveryController } from "./presentation/http/cart-recovery.controller.js";
 import { CartRecoveryDashboardController } from "./presentation/http/cart-recovery-dashboard.controller.js";
-import { WHATSAPP_SENDER_PORT } from "../notifications/domain/ports/whatsapp-sender.port.js";
-import { EMAIL_SENDER_PORT } from "../notifications/domain/ports/email-sender.port.js";
 import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-templates.module.js";
 import { SendWhatsAppMessageUseCase } from "../whatsapp-templates/application/use-cases/send-whatsapp-message.use-case.js";
+import { RecoveryTemplatesController } from "./presentation/http/recovery-templates.controller.js";
 
-export const ATTEMPT_CART_RECOVERY_USE_CASE = Symbol("ATTEMPT_CART_RECOVERY_USE_CASE");
 // Imported from tokens file (single source) to avoid the module↔handler cycle;
 // re-exported so existing importers of this module keep working.
-export { TRACK_RECOVERY_OUTCOME_USE_CASE };
+export { TRACK_RECOVERY_OUTCOME_USE_CASE, ATTEMPT_CART_RECOVERY_USE_CASE };
 export const GET_RECOVERY_METRICS_USE_CASE = Symbol("GET_RECOVERY_METRICS_USE_CASE");
 export const GET_STRATEGY_PREFERENCES_USE_CASE = Symbol("GET_STRATEGY_PREFERENCES_USE_CASE");
 export const UPDATE_STRATEGY_PREFERENCES_USE_CASE = Symbol("UPDATE_STRATEGY_PREFERENCES_USE_CASE");
@@ -40,10 +38,8 @@ export const GET_STRATEGY_CONFIG_USE_CASE = Symbol("GET_STRATEGY_CONFIG_USE_CASE
 export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_USE_CASE");
 
 /**
- * CartRecoveryModule — Background scanner that detects abandoned sessions
- * (triggerAgent=true, abandonmentScore >= 0.55) and applies recovery strategies.
- *
- * Widget integration: Scanner updates session → Widget polls session → sees new offer.
+ * CartRecoveryModule — Background candidates, recovery attempts and a single
+ * shared channel router. Journey/consent eligibility remains an ADR 0034 gate.
  */
 @Module({
   imports: [
@@ -54,7 +50,7 @@ export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_US
     RevenueLiftModule,
     WhatsAppTemplatesModule,
   ],
-  controllers: [CartRecoveryController, CartRecoveryDashboardController],
+  controllers: [CartRecoveryController, CartRecoveryDashboardController, RecoveryTemplatesController],
   providers: [
     {
       provide: CHECKOUT_SESSION_REPOSITORY,
@@ -75,9 +71,9 @@ export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_US
     CartRecoveryOnOrderCompletedHandler,
     {
       provide: ATTEMPT_CART_RECOVERY_USE_CASE,
-      useFactory: (repo: any, whatsapp: any, email: any, sendWa: SendWhatsAppMessageUseCase) =>
-        new AttemptCartRecoveryUseCase(repo, undefined, whatsapp, undefined, email, sendWa),
-      inject: [RECOVERY_ATTEMPT_REPOSITORY, WHATSAPP_SENDER_PORT, EMAIL_SENDER_PORT, SendWhatsAppMessageUseCase],
+      useFactory: (repo: RecoveryAttemptRepositoryPort, sender: SendWhatsAppMessageUseCase) =>
+        new AttemptCartRecoveryUseCase(repo, undefined, sender),
+      inject: [RECOVERY_ATTEMPT_REPOSITORY, SendWhatsAppMessageUseCase],
     },
     {
       provide: TRACK_RECOVERY_OUTCOME_USE_CASE,

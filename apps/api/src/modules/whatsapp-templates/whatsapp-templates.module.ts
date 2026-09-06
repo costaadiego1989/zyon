@@ -15,6 +15,11 @@ import { TwilioContentTemplateAdapter } from "./infrastructure/adapters/twilio-c
 import { SendWhatsAppMessageUseCase } from "./application/use-cases/send-whatsapp-message.use-case.js";
 import { SubmitTemplatePackageUseCase } from "./application/use-cases/submit-template-package.use-case.js";
 import { SyncTemplateStatusesUseCase } from "./application/use-cases/sync-template-statuses.use-case.js";
+import { RecoveryTemplateLifecycleUseCase } from "./application/use-cases/recovery-template-lifecycle.use-case.js";
+import { PrismaRecoveryTemplateLifecycleRepository } from "./infrastructure/repositories/prisma-recovery-template-lifecycle.repository.js";
+import { RecoveryTemplateMonitorJob } from "./infrastructure/recovery-template-monitor.job.js";
+import { RecoveryTemplateNoticeWorker } from "./infrastructure/recovery-template-notice.worker.js";
+import { RECOVERY_TEMPLATE_INITIALIZER, RECOVERY_TEMPLATE_LIFECYCLE_REPOSITORY } from "./domain/ports/recovery-template-lifecycle.port.js";
 
 /**
  * Shared WhatsApp templates module: central catalog, Meta submission (Twilio
@@ -23,7 +28,9 @@ import { SyncTemplateStatusesUseCase } from "./application/use-cases/sync-templa
  *
  * Depends ONLY on two dependency-free base modules — no cycle, no forwardRef:
  *   MessagingChannelsModule → email + legacy WhatsApp fallback ports
- *   WhatsAppConfigModule    → per-merchant Twilio/WABA credentials
+ *   WhatsAppConfigModule    → current merchant connection and Twilio/WABA credentials
+ * Recovery routing and the sender both inject this repository; the sender also
+ * re-reads the template repository before dispatch. Neither uses env as recovery authority.
  */
 @Module({
   imports: [MessagingChannelsModule, WhatsAppConfigModule],
@@ -38,6 +45,11 @@ import { SyncTemplateStatusesUseCase } from "./application/use-cases/sync-templa
     SendWhatsAppMessageUseCase,
     SubmitTemplatePackageUseCase,
     SyncTemplateStatusesUseCase,
+    { provide: RECOVERY_TEMPLATE_LIFECYCLE_REPOSITORY, useClass: PrismaRecoveryTemplateLifecycleRepository },
+    RecoveryTemplateLifecycleUseCase,
+    { provide: RECOVERY_TEMPLATE_INITIALIZER, useExisting: RecoveryTemplateLifecycleUseCase },
+    RecoveryTemplateMonitorJob,
+    RecoveryTemplateNoticeWorker,
   ],
   exports: [
     WHATSAPP_TEMPLATE_REPOSITORY,
@@ -46,6 +58,8 @@ import { SyncTemplateStatusesUseCase } from "./application/use-cases/sync-templa
     SendWhatsAppMessageUseCase,
     SubmitTemplatePackageUseCase,
     SyncTemplateStatusesUseCase,
+    RecoveryTemplateLifecycleUseCase,
+    RECOVERY_TEMPLATE_INITIALIZER,
   ],
 })
 export class WhatsAppTemplatesModule {}

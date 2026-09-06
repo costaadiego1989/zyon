@@ -46,7 +46,7 @@ export class SyncTemplateStatusesUseCase {
 
     for (const tpl of whatsapp) {
       let current = tpl.metaStatus ?? "draft";
-      if (tpl.twilioContentSid) {
+      if (tpl.twilioContentSid && tpl.type !== "cart_recovery") {
         const synced = await this.submission.syncStatus(merchantId, tpl.twilioContentSid);
         if (synced.status !== "unknown" && synced.status !== current) {
           current = synced.status;

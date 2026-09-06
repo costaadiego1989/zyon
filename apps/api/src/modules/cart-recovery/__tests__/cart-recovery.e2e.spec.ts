@@ -52,7 +52,7 @@ test("E2E-20 — Full flow: session abandons → strategy selected → attempt s
   // Verify strategy selected correctly (price + high sensitivity → escalate_discount)
   const attempt = repo.getAll()[0]!;
   assert.equal(attempt.strategy.type, "escalate_discount");
-  assert.equal(attempt.channel, "in_session");
+  assert.equal(attempt.channel, "none");
   assert.equal(attempt.status, "pending");
   assert.equal(attempt.merchantId, "mrc_e2e");
 });
@@ -107,7 +107,7 @@ test("E2E-21 — Recovery success: attempt sent → session reactivates → outc
     to: new Date("2026-08-31T23:59:59.999Z"),
   });
 
-  assert.ok(metrics.recovery_rate > 0);
+  assert.ok(metrics.recovery_rate !== null && metrics.recovery_rate > 0);
   assert.equal(metrics.recovered, 1);
   assert.equal(metrics.top_strategy, "escalate_discount");
 });

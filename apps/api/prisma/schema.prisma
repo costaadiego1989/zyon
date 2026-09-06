@@ -2337,11 +2337,16 @@ model PostSaleMessageTemplate {
   twilioContentSid    String?  @map("twilio_content_sid")   // Twilio Content Template id
   metaStatus          String?  @default("draft") @map("meta_status") // draft|submitted|approved|rejected
   metaRejectionReason String?  @map("meta_rejection_reason")
+  metaRevision        Int      @default(1) @map("meta_revision")
+  metaNextCheckAt     DateTime? @default(now()) @map("meta_next_check_at")
+  metaLastCheckedAt   DateTime? @map("meta_last_checked_at")
+  metaClaimToken      String?   @map("meta_claim_token")
 
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@unique([merchantId, type, channel])
+  @@index([type, channel, metaNextCheckAt])
   @@index([merchantId])
   @@map("post_sale_message_templates")
 }

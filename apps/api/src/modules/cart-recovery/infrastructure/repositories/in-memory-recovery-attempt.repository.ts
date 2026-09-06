@@ -44,11 +44,11 @@ export class InMemoryRecoveryAttemptRepository implements RecoveryAttemptReposit
       : null;
 
     return {
-      total_abandoned: scoped.length * 3, // simulated ratio
+      total_abandoned: null,
       recovery_attempts: scoped.length,
       recovered: recovered.length,
-      recovery_rate: scoped.length > 0 ? recovered.length / scoped.length : 0,
-      revenue_recovered_cents: recovered.length * 15000,
+      recovery_rate: scoped.length > 0 ? recovered.length / scoped.length : null,
+      revenue_recovered_cents: null,
       top_strategy: topStrategy,
     };
   }

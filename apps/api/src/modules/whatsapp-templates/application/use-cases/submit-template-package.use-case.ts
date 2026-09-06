@@ -39,6 +39,9 @@ export class SubmitTemplatePackageUseCase {
     const result: SubmitTemplatePackageResult = { submitted: 0, skipped: 0, failed: 0, perType: [] };
 
     for (const type of WHATSAPP_TEMPLATE_TYPES) {
+      // Recovery has a versioned, durable lifecycle; this legacy package must
+      // never overwrite edited content or race its submission worker.
+      if (type === "cart_recovery") continue;
       const def = catalog[type];
       try {
         // Persist the base template (freeform + meta positional) if absent/outdated.

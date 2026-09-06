@@ -21,6 +21,8 @@ export interface WhatsAppTemplateRecord {
   twilioContentSid: string | null;
   metaStatus: string | null;
   metaRejectionReason: string | null;
+  metaRevision?: number;
+  metaLastCheckedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

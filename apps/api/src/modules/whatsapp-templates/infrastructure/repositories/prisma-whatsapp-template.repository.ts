@@ -90,6 +90,8 @@ export class PrismaWhatsAppTemplateRepository implements WhatsAppTemplateReposit
       twilioContentSid: row.twilioContentSid ?? row.twilio_content_sid ?? null,
       metaStatus: row.metaStatus ?? row.meta_status ?? null,
       metaRejectionReason: row.metaRejectionReason ?? row.meta_rejection_reason ?? null,
+      metaRevision: row.metaRevision,
+      metaLastCheckedAt: row.metaLastCheckedAt ?? null,
       createdAt: row.createdAt ?? row.created_at,
       updatedAt: row.updatedAt ?? row.updated_at,
     };

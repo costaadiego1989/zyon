@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { SubmitTemplatePackageUseCase } from "./submit-template-package.use-case.js";
 import { WHATSAPP_TEMPLATE_TYPES } from "../../domain/catalog/template-types.js";
+const LEGACY_TEMPLATE_COUNT = WHATSAPP_TEMPLATE_TYPES.filter(type => type !== "cart_recovery").length;
 
 function harness(opts: { existing?: Record<string, any>; submitStatus?: string; throwOn?: string }) {
   const upserts: any[] = [];
@@ -39,12 +40,13 @@ function harness(opts: { existing?: Record<string, any>; submitStatus?: string; 
   return { uc: new SubmitTemplatePackageUseCase(templates, submission), upserts, metaUpdates, submitted };
 }
 
-test("submits the full catalog for a fresh merchant", async () => {
+test("submits legacy catalog without racing recovery lifecycle", async () => {
   const h = harness({});
   const r = await h.uc.execute("m1", "Loja X");
-  assert.equal(r.submitted, WHATSAPP_TEMPLATE_TYPES.length);
+  assert.equal(r.submitted, LEGACY_TEMPLATE_COUNT);
   assert.equal(r.failed, 0);
-  assert.equal(h.submitted.length, WHATSAPP_TEMPLATE_TYPES.length);
+  assert.equal(h.submitted.length, LEGACY_TEMPLATE_COUNT);
+  assert.ok(h.upserts.every(u => u.type !== "cart_recovery"));
   // each type got a meta update with a contentSid + submitted status
   assert.ok(h.metaUpdates.every((u) => u.metaStatus === "submitted" && u.twilioContentSid));
 });
@@ -56,7 +58,7 @@ test("idempotent: skips types already submitted with a contentSid", async () => 
   const h = harness({ existing });
   const r = await h.uc.execute("m1");
   assert.equal(r.skipped, 1);
-  assert.equal(r.submitted, WHATSAPP_TEMPLATE_TYPES.length - 1);
+  assert.equal(r.submitted, LEGACY_TEMPLATE_COUNT - 1);
   assert.ok(!h.submitted.some((s) => s.friendlyName.includes("follow_up")));
 });
 
@@ -64,12 +66,12 @@ test("never throws on submission failure; counts it as failed", async () => {
   const h = harness({ throwOn: "nps" });
   const r = await h.uc.execute("m1");
   assert.equal(r.failed >= 1, true);
-  assert.equal(r.submitted, WHATSAPP_TEMPLATE_TYPES.length - 1);
+  assert.equal(r.submitted, LEGACY_TEMPLATE_COUNT - 1);
 });
 
 test("draft submission status counts as failed (not submitted)", async () => {
   const h = harness({ submitStatus: "draft" });
   const r = await h.uc.execute("m1");
   assert.equal(r.submitted, 0);
-  assert.equal(r.failed, WHATSAPP_TEMPLATE_TYPES.length);
+  assert.equal(r.failed, LEGACY_TEMPLATE_COUNT);
 });

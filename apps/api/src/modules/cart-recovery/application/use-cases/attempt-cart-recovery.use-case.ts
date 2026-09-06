@@ -4,24 +4,7 @@ import type { RecoveryAttemptRepositoryPort } from "../../domain/ports/recovery-
 import { AbandonmentReasonClassifier } from "../../domain/services/abandonment-reason-classifier.service.js";
 import { RecoveryStrategySelector, type StrategySelectionInput } from "../../domain/services/recovery-strategy-selector.service.js";
 import type { RecoveryStrategy } from "../../domain/values/recovery-strategy.js";
-import type { WhatsAppSenderPort } from "../../../notifications/domain/ports/whatsapp-sender.port.js";
-import type { EmailSenderPort } from "../../../notifications/domain/ports/email-sender.port.js";
-
-/**
- * Minimal shape of the shared SendWhatsAppMessageUseCase, to keep cart-recovery
- * decoupled from its concrete class.
- */
-export interface CartRecoveryWhatsAppSender {
-  execute(input: {
-    merchantId: string;
-    type: "cart_recovery";
-    toPhone?: string;
-    variables?: Record<string, string | number | undefined>;
-    freeformText?: string;
-    fallbackEmail?: string;
-    emailSubject?: string;
-  }): Promise<unknown>;
-}
+import type { CartRecoveryMessageSender } from "../../domain/ports/cart-recovery-message-sender.port.js";
 
 export interface AttemptCartRecoveryInput {
   merchantId: string;
@@ -75,10 +58,8 @@ export class AttemptCartRecoveryUseCase {
   constructor(
     private readonly repository: RecoveryAttemptRepositoryPort,
     private readonly clock: Clock = { now: () => new Date() },
-    private readonly whatsappSender?: WhatsAppSenderPort,
+    private readonly messageSender?: CartRecoveryMessageSender,
     private readonly linkGenerator: LinkGenerator = defaultLinkGenerator,
-    private readonly emailSender?: EmailSenderPort,
-    private readonly sendWhatsApp?: CartRecoveryWhatsAppSender,
   ) {}
 
   async execute(input: AttemptCartRecoveryInput): Promise<{ created: boolean; attemptId?: string }> {
@@ -101,7 +82,7 @@ export class AttemptCartRecoveryUseCase {
       abandonmentReason: reason,
     });
 
-    if (strategy.type === "no_action") {
+    if (strategy.type === "no_action" || strategy.type === "wait_and_retry") {
       return { created: false };
     }
 
@@ -114,7 +95,7 @@ export class AttemptCartRecoveryUseCase {
       abandonmentReason: reason,
       abandonmentScore: input.abandonmentScore,
       strategy,
-      channel: "in_session",
+      channel: "none",
       sentAt: null,
       status: "pending",
       recoveredAt: null,
@@ -132,81 +113,48 @@ export class AttemptCartRecoveryUseCase {
     );
     const offerLine = strategyOfferLine(strategy);
 
-    // Send on BOTH channels (WhatsApp via Bubble + email via Resend), always,
-    // whenever the buyer contact is available. Failures are non-blocking.
-    let anySent = false;
-
-    if (input.buyerPhone) {
-      const storeLabel = input.merchantName ? ` na *${input.merchantName}*` : "";
-      const message = `🛒 *Seu carrinho${storeLabel} está te esperando!*
-
-${offerLine}
-
-👉 *Acessar carrinho:* ${link}
-
-⏰ Por tempo limitado!`;
-      anySent = true;
-      // Route WhatsApp through the safe template path (Meta-approved template
-      // via Twilio when available; otherwise skips — email below still covers).
-      // No fallbackEmail here: the email channel is dispatched in parallel below.
-      const couponCode = strategy.type === "offer_coupon" ? strategy.coupon_code : undefined;
-      const discountPercent =
-        strategy.type === "offer_coupon"
-          ? strategy.coupon_percent
-          : strategy.type === "escalate_discount"
-            ? strategy.value_percent
-            : undefined;
-      if (this.sendWhatsApp) {
-        this.sendWhatsApp
-          .execute({
-            merchantId: input.merchantId,
-            type: "cart_recovery",
-            toPhone: input.buyerPhone,
-            variables: {
-              buyerName: input.buyerName,
-              coupon: couponCode,
-              discountPercent,
-              link,
-            },
-            freeformText: message,
-          })
-          .catch((err) => {
-            this.logger.error("Failed to send WhatsApp recovery message", { error: err, sessionId: input.sessionId });
-          });
-      } else if (this.whatsappSender) {
-        // Legacy path (module not migrated yet).
-        this.whatsappSender
-          .send({ phone: input.buyerPhone, message })
-          .catch((err) => {
-            this.logger.error("Failed to send WhatsApp recovery message", { error: err, sessionId: input.sessionId });
-          });
-      }
-    }
-
-    if (this.emailSender && input.buyerEmail) {
+    // The shared router owns connection/template validation and email fallback.
+    // A contact address does not authorize a raw WhatsApp send or a second channel.
+    if (this.messageSender && (input.buyerPhone || input.buyerEmail)) {
       const greeting = input.buyerName ? `Olá, ${input.buyerName}!` : "Olá!";
-      const subject = `${input.merchantName ? `[${input.merchantName}] ` : ""}Seu carrinho está te esperando 🛒`;
-      const html = `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
-  ${input.merchantName ? `<div style="font-size:12px;color:#888;letter-spacing:0.04em;text-transform:uppercase;margin-bottom:8px">${input.merchantName}</div>` : ""}
-  <h2 style="margin:0 0 12px">${greeting}</h2>
-  <p style="font-size:15px;line-height:1.5;color:#333">Você deixou itens no carrinho${input.merchantName ? ` da ${input.merchantName}` : ""}. ${offerLine}</p>
-  <p style="margin:20px 0"><a href="${link}" style="display:inline-block;padding:12px 24px;border-radius:8px;background:#0f766e;color:#fff;text-decoration:none;font-weight:600">Finalizar minha compra</a></p>
-  <p style="font-size:12px;color:#888">⏰ Oferta por tempo limitado.</p>
-</div>`;
-      anySent = true;
-      this.emailSender
-        .send({ to: input.buyerEmail, subject, html })
-        .catch((err) => {
-          this.logger.error("Failed to send email recovery message", { error: err, sessionId: input.sessionId });
+      const storeLabel = input.merchantName ? ` na ${input.merchantName}` : "";
+      const message = `${greeting}\nSeu carrinho${storeLabel} está te esperando.\n\n${offerLine}\n\nAcessar carrinho: ${link}`;
+      let result: Awaited<ReturnType<CartRecoveryMessageSender["execute"]>>;
+      try {
+        result = await this.messageSender.execute({
+          merchantId: input.merchantId,
+          type: "cart_recovery",
+          toPhone: input.buyerPhone,
+          fallbackEmail: input.buyerEmail,
+          variables: {
+            buyerName: input.buyerName,
+            storeName: input.merchantName,
+            coupon: strategy.type === "offer_coupon" ? strategy.coupon_code : undefined,
+            discountPercent: strategy.type === "offer_coupon" ? strategy.coupon_percent
+              : strategy.type === "escalate_discount" ? strategy.value_percent : undefined,
+            link,
+          },
+          freeformText: message,
+          emailSubject: `${input.merchantName ? `[${input.merchantName}] ` : ""}Seu carrinho está te esperando`,
         });
-    }
+      } catch (error) {
+        // A thrown transport error may follow provider acceptance. Hold the
+        // attempt for reconciliation; never retry or choose another channel here.
+        await this.repository.save(attempt.markUnknown());
+        this.logger.error("recovery: delivery outcome unknown", { sessionId: input.sessionId, error });
+        return { created: true, attemptId };
+      }
 
-    // Mark as sent when at least one channel was dispatched.
-    if (anySent) {
-      const sent = attempt.markSent(this.clock.now());
-      await this.repository.save(sent);
-    } else {
-      this.logger.warn("recovery: no buyer contact (phone/email) — attempt stays in_session pending", { sessionId: input.sessionId });
+      const channel = result.channel === "whatsapp_template" || result.channel === "email"
+        ? result.channel : undefined;
+      if (result.status === "sent" && channel && result.messageId?.trim()) {
+        await this.repository.save(attempt.markSent(this.clock.now(), channel));
+      } else if (result.status === "uncertain" || result.status === "sent") {
+        await this.repository.save(attempt.markUnknown(channel));
+      } else if (result.status === "failed") {
+        await this.repository.save(attempt.markFailed(channel));
+      }
+      // Skips stay pending. No immediate retry, legacy sender or parallel email.
     }
 
     return { created: true, attemptId };

@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Get,
-  Inject,
   Patch,
   Post,
   Query,
@@ -19,70 +18,7 @@ import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js
 import { GetRecoveryMetricsUseCase } from "../../application/use-cases/get-recovery-metrics.use-case.js";
 import { GetStrategyPreferencesUseCase } from "../../application/use-cases/get-strategy-preferences.use-case.js";
 import { UpdateStrategyPreferencesUseCase } from "../../application/use-cases/update-strategy-preferences.use-case.js";
-import { WHATSAPP_SENDER_PORT } from "../../../notifications/domain/ports/whatsapp-sender.port.js";
-import type { WhatsAppSenderPort } from "../../../notifications/domain/ports/whatsapp-sender.port.js";
-
-interface TemplateConfig {
-  coupon_code?: string;
-  rule_id?: string;
-  recovery_link?: string;
-}
-
-const TEMPLATES: Record<string, (cfg: TemplateConfig) => string> = {
-  offer_free_shipping: (cfg) => `🚚 *Frete Grátis Pra Você!*
-
-Seu carrinho está te esperando! 👜
-
-Voltou interesse? Ótima notícia: hoje temos *FRETE GRÁTIS* em tudo que você deixou guardado.
-
-👉 *Voltar pro carrinho:* ${cfg.recovery_link ?? "[link do carrinho]"}
-
-⏰ Oferta válida por 48 horas
-🎁 Aproveita que é grátis!`,
-
-  personalized_cross_sell: (cfg) => `🛒 *Esqueceu Algo no Carrinho?*
-
-Oi! Vimos que você deixou alguns itens incríveis esperando. 👀
-
-Preparamos sugestões especiais baseadas no que você escolheu:
-• Produto complementar 1
-• Produto complementar 2
-• Produto complementar 3
-
-Quer ver? É só voltar pro carrinho!
-
-👉 *Acessar carrinho:* ${cfg.recovery_link ?? "[link do carrinho]"}
-
-💭 Dúvidas? É só chamar aqui!`,
-
-  offer_coupon: (cfg) => `🎉 *Cupom Exclusivo Pra Você!*
-
-Sua compra merecia um descontão! 🤑
-
-Use o código *${cfg.coupon_code || "VOLTA10"}* na hora de finalizar o pedido.
-
-👉 *Voltar e aplicar:* ${cfg.recovery_link ?? "[link do carrinho]"}
-
-⏰ Código válido por 3 dias
-🔐 Exclusivo — só pra você!
-
-Bora fechar? 🛍️`,
-
-  advanced_rule: (cfg) => `✨ *Oferta Personalizada Esperando!*
-
-Olha só que legal: preparamos uma condição especial só pra você! 🎯
-
-Com base no que você deixou no carrinho, temos:
-💳 Parcelamento em até 12x sem juros
-⏱️ Frete com desconto de 40%
-🎁 Brinde exclusivo em compras acima de R$ 150
-
-👉 *Conferir oferta:* ${cfg.recovery_link ?? "[link do carrinho]"}
-
-Essa proposta é válida *até amanhã* — depois muda!
-
-Bora finalizar? 🚀`,
-};
+import { SendWhatsAppMessageUseCase } from "../../../whatsapp-templates/application/use-cases/send-whatsapp-message.use-case.js";
 
 function buildRecoveryLink(checkoutReturnUrl?: string | null, sessionId?: string): string {
   const base = checkoutReturnUrl || process.env.PUBLIC_WIDGET_URL || "https://widget.aacp.com/checkout";
@@ -100,7 +36,7 @@ export class CartRecoveryController {
     private readonly getRecoveryMetrics: GetRecoveryMetricsUseCase,
     private readonly getStrategyPreferences: GetStrategyPreferencesUseCase,
     private readonly updateStrategyPreferences: UpdateStrategyPreferencesUseCase,
-    @Inject(WHATSAPP_SENDER_PORT) private readonly whatsappSender: WhatsAppSenderPort,
+    private readonly sendWhatsAppMessage: SendWhatsAppMessageUseCase,
   ) {}
 
   @Get("metrics")
@@ -168,13 +104,14 @@ export class CartRecoveryController {
   }
 
   @Post("test-send")
-  @ApiOperation({ summary: "Send a test WhatsApp recovery message" })
-  @ApiOkResponse({ description: "Test message sent" })
+  @ApiOperation({ summary: "Send a recovery test through the eligible merchant channel" })
+  @ApiOkResponse({ description: "Actual test delivery outcome" })
   async testSend(
     @Req() req: any,
     @Body() body: {
-      phone: string;
-      strategy: string;
+      phone?: string;
+      email?: string;
+      strategy?: string;
       coupon_code?: string;
       rule_id?: string;
       session_id?: string;
@@ -183,22 +120,23 @@ export class CartRecoveryController {
   ) {
     const user = currentUser(req);
     const recoveryLink = buildRecoveryLink(null, body.session_id);
-
-    const templateFn = TEMPLATES[body.strategy] ?? TEMPLATES.offer_coupon;
-    const message = templateFn({
-      coupon_code: body.coupon_code,
-      rule_id: body.rule_id,
-      recovery_link: recoveryLink,
+    const result = await this.sendWhatsAppMessage.execute({
+      merchantId: user.merchantId,
+      type: "cart_recovery",
+      toPhone: body.phone?.trim() || undefined,
+      fallbackEmail: body.email?.trim() || undefined,
+      variables: { link: recoveryLink },
+      emailSubject: "Teste de recuperação de carrinho",
+      freeformText: `Esta é uma mensagem de teste de recuperação de carrinho.\nAcesse o checkout: ${recoveryLink}`,
     });
 
-    await this.whatsappSender.send({ phone: body.phone, message });
-
     return {
-      sent: true,
-      phone: body.phone,
-      strategy: body.strategy,
+      sent: result.status === "sent",
+      channel: result.channel,
+      status: result.status,
+      reason: result.reason,
+      messageId: result.messageId,
       recovery_link: recoveryLink,
-      message_preview: message,
     };
   }
 }

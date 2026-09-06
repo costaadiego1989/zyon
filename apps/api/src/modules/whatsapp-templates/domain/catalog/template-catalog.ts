@@ -187,7 +187,7 @@ const LABELS: Record<WhatsAppTemplateType, string> = {
 };
 
 // Only cross_sell + win_back + cart_recovery are promotional → MARKETING.
-// Everything transactional is UTILITY (faster Meta approval, no opt-in needed).
+// Template category does not replace recipient consent or current Meta approval.
 const MARKETING = new Set<WhatsAppTemplateType>(["cross_sell", "win_back", "cart_recovery"]);
 
 export function categoryFor(type: WhatsAppTemplateType): WhatsAppTemplateCategory {

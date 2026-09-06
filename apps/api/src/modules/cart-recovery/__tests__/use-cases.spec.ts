@@ -48,7 +48,7 @@ test("UC-15 — AttemptCartRecovery: session with score >= 0.55 → attempt crea
   const attempt = repo.getAll()[0]!;
   assert.equal(attempt.merchantId, "mrc_1");
   assert.equal(attempt.sessionId, "ses_1");
-  assert.equal(attempt.channel, "in_session");
+  assert.equal(attempt.channel, "none");
   assert.equal(attempt.status, "pending");
 });
 
@@ -120,6 +120,32 @@ test("UC-AttemptCartRecovery: no_action strategy → does NOT write attempt row"
 });
 
 // --- TrackRecoveryOutcome ---
+
+test("AttemptCartRecovery waits without creating an attempt or dispatching either channel", async () => {
+  const repo = new InMemoryRecoveryAttemptRepository();
+  let sends = 0;
+  const useCase = new AttemptCartRecoveryUseCase(
+    repo,
+    fixedClock,
+    { execute: async () => { sends++; return { messageId: "test", status: "sent", channel: "email" }; } },
+  );
+
+  const result = await useCase.execute({
+    merchantId: "mrc_1",
+    sessionId: "ses_wait",
+    globalUserId: "usr_1",
+    abandonmentScore: 0.6,
+    events: [],
+    buyerHistory: defaultBuyerHistory(),
+    merchantRules: defaultMerchantRules(),
+    buyerPhone: "test-phone",
+    buyerEmail: "buyer@example.invalid",
+  });
+
+  assert.deepEqual(result, { created: false });
+  assert.equal(repo.count(), 0);
+  assert.equal(sends, 0);
+});
 
 function seedSentAttempt(repo: InMemoryRecoveryAttemptRepository, sentAt: Date): RecoveryAttempt {
   const attempt = new RecoveryAttempt({
@@ -229,7 +255,7 @@ test("UC-19 — GetRecoveryMetrics: aggregates correctly", async () => {
 
   assert.equal(metrics.recovery_attempts, 3);
   assert.equal(metrics.recovered, 1);
-  assert.ok(metrics.recovery_rate > 0);
+  assert.ok(metrics.recovery_rate !== null && metrics.recovery_rate > 0);
   assert.equal(metrics.top_strategy, "escalate_discount");
 });
 
@@ -264,9 +290,9 @@ test("UC-19b — GetRecoveryMetrics: different merchant → not counted", async 
   assert.equal(metrics.recovered, 0);
 });
 
-// --- Channel scope guard (V1) ---
+// --- Channel selection ---
 
-test("CH1 — All attempts use channel=in_session", async () => {
+test("an attempt without a delivery route has no selected external channel", async () => {
   const repo = new InMemoryRecoveryAttemptRepository();
   const useCase = new AttemptCartRecoveryUseCase(repo, fixedClock);
 
@@ -281,5 +307,5 @@ test("CH1 — All attempts use channel=in_session", async () => {
   });
 
   const attempt = repo.getAll()[0]!;
-  assert.equal(attempt.channel, "in_session");
+  assert.equal(attempt.channel, "none");
 });
