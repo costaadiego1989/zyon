@@ -1,11 +1,9 @@
 ﻿import { BadRequestException, Body, Controller, ForbiddenException, Get, Inject, NotFoundException, Optional, Param, Patch, Post, Query, Req, Res, UnauthorizedException, UseGuards } from "@nestjs/common";
 import { RealtimeCapabilityService } from "../../../../shared/auth/realtime-capability.js";
-import type { PrismaClient } from "@prisma/client";
 import { NonProductionRoute, ProductionRoute } from "../../../../shared/http/non-production-route.js";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-ownership.guard.js";
 import { currentTenantPrincipal, type TenantPrincipalRequest } from "../../../../shared/auth/tenant-principal.js";
-import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { StartStoreConversationUseCase } from "../../application/use-cases/start-store-conversation.use-case.js";
 import { SendStoreMessageUseCase } from "../../application/use-cases/send-store-message.use-case.js";
 import { GenerateNudgeUseCase } from "../../application/use-cases/generate-nudge.use-case.js";
@@ -18,6 +16,8 @@ import { UpdateBudgetRequestStatusUseCase } from "../../application/use-cases/up
 import { SearchMarketplaceProductsStorefrontUseCase } from "../../application/use-cases/search-marketplace-products-storefront.use-case.js";
 import { AddMarketplaceItemToCartStorefrontUseCase } from "../../application/use-cases/add-marketplace-item-to-cart.use-case.js";
 import { GetPublicStoreResourcesUseCase } from "../../application/use-cases/get-public-store-resources.use-case.js";
+import { TrackStorefrontEventUseCase } from "../../application/use-cases/track-storefront-event.use-case.js";
+import { GetStorefrontLiveSessionsUseCase } from "../../application/use-cases/get-storefront-live-sessions.use-case.js";
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 import { PRODUCT_PROMOTION_REPOSITORY, type ProductPromotionRepositoryPort } from "../../../catalog/domain/ports/product-promotion-repository.port.js";
 import { applyProductPromoPricing } from "../../infrastructure/pricing/storefront-cart-promo.pricing.js";
@@ -49,7 +49,8 @@ export class StorefrontController {
     private readonly searchMarketplace: SearchMarketplaceProductsStorefrontUseCase,
     private readonly addMarketplaceItem: AddMarketplaceItemToCartStorefrontUseCase,
     private readonly getPublicStoreResources: GetPublicStoreResourcesUseCase,
-    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    private readonly trackStorefrontEvent: TrackStorefrontEventUseCase,
+    private readonly getStorefrontLiveSessions: GetStorefrontLiveSessionsUseCase,
     @Inject(STOREFRONT_CART_PORT) private readonly cartRepo: StorefrontCartPort,
     @Inject(RealtimeCapabilityService) private readonly capabilities: RealtimeCapabilityService,
     @Optional() @Inject(PRODUCT_PROMOTION_REPOSITORY) private readonly productPromotionRepo?: ProductPromotionRepositoryPort,
@@ -150,87 +151,12 @@ export class StorefrontController {
       throw new BadRequestException("merchant_id and event required");
     }
 
-    try {
-      const funnelEvents = new Set([
-        "checkout_started",
-        "auth_phone_submitted", "auth_phone_verified", "auth_identity_confirmed",
-        "auth_registration_completed", "login_completed", "product_viewed", "cart_viewed",
-        "cross_sell_accepted", "cross_sell_added",
-        "shipping_option_selected", "coupon_applied", "payment_method_selected",
-      ]);
-      if (funnelEvents.has(body.event)) {
-        const session = await this.prisma.checkoutSession.findUnique({
-          where: { merchantId_sessionId: { merchantId: body.merchant_id, sessionId: conversationId } },
-          select: { id: true },
-        });
-        if (!session) {
-          await this.prisma.checkoutSession.create({
-            data: {
-              merchantId: body.merchant_id, sessionId: conversationId,
-              globalUserId: conversationId, conversationId,
-              cart: {}, abandonmentScore: 0, triggerAgent: false, chatHistory: [],
-              createdAt: new Date(), updatedAt: new Date(),
-            },
-          });
-        }
-        const existing = await this.prisma.checkoutEvent.findFirst({
-          where: { merchantId: body.merchant_id, sessionId: conversationId, eventName: body.event },
-        });
-        if (!existing) {
-          await this.prisma.checkoutEvent.create({
-            data: { merchantId: body.merchant_id, sessionId: conversationId, eventName: body.event, occurredAt: new Date(), metadata: (body.metadata ?? undefined) as any },
-          });
-        }
-      }
-
-      const running = await this.prisma.promptExperiment.findFirst({
-        where: { merchantId: body.merchant_id, status: "running" },
-        include: { variants: true },
-      });
-
-      if (running && running.variants.length > 0) {
-        let hash = 0;
-        for (let i = 0; i < conversationId.length; i++) {
-          hash = ((hash << 5) - hash) + conversationId.charCodeAt(i);
-          hash |= 0;
-        }
-        const totalWeight = running.variants.reduce((sum, v) => sum + v.weight, 0);
-        let target = Math.abs(hash) % totalWeight;
-        let variantId: string | null = null;
-        for (const variant of running.variants) {
-          target -= variant.weight;
-          if (target <= 0) {
-            variantId = variant.id;
-            break;
-          }
-        }
-
-        if (variantId) {
-          const stageMap: Record<string, Record<string, unknown>> = {
-            conversation_started: { conversationStarted: true },
-            product_viewed: { cartViewed: true },
-            add_to_cart: { cartViewed: true, cartItemsAdded: { increment: 1 } },
-            checkout_intent: { checkoutStarted: true },
-            auth_phone_submitted: { checkoutStarted: true },
-            auth_phone_verified: { checkoutStarted: true },
-            auth_identity_confirmed: { checkoutStarted: true },
-            auth_registration_completed: { checkoutCompleted: true },
-            purchase_completed: { converted: true, checkoutCompleted: true },
-          };
-
-          const update = stageMap[body.event];
-          if (update) {
-            await (this.prisma as any).promptVariantResult.upsert({
-              where: { variantId_sessionId: { variantId, sessionId: conversationId } },
-              create: { variantId, sessionId: conversationId, converted: false, conversationStarted: true, ...update },
-              update,
-            });
-          }
-        }
-      }
-    } catch (err) {
-      // Non-critical; never block storefront.
-    }
+    await this.trackStorefrontEvent.execute({
+      merchantId: body.merchant_id,
+      conversationId,
+      event: body.event,
+      metadata: body.metadata,
+    });
 
     return { tracked: true, event: body.event, conversation_id: conversationId };
   }
@@ -262,26 +188,7 @@ export class StorefrontController {
   @ProductionRoute()
   @UseGuards(AuthGuard, MerchantOwnershipGuard)
   async getFunnelSessions(@Param("merchantId") merchantId: string) {
-    const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
-    const sessions = await this.prisma.checkoutSession.findMany({
-      where: { merchantId, updatedAt: { gte: thirtyMinAgo }, NOT: { sessionId: { startsWith: "chk_" } } },
-      include: { events: { select: { eventName: true }, orderBy: { occurredAt: "desc" } } },
-      orderBy: { updatedAt: "desc" },
-      take: 50,
-    });
-    return {
-      sessions: sessions.map((s: any) => ({
-        sessionId: s.sessionId,
-        buyerPhone: "",
-        buyerEmail: "",
-        buyerName: "",
-        stage: resolveStage(s.events.map((e: any) => e.eventName)),
-        lastActivityAt: s.updatedAt.toISOString(),
-        abandonmentScore: s.abandonmentScore ?? 0,
-      })),
-      total: sessions.length,
-      status: "active",
-    };
+    return this.getStorefrontLiveSessions.execute(merchantId);
   }
 
   @Get("cart/:cartId")
@@ -464,12 +371,4 @@ export class StorefrontController {
     }
     return claims;
   }
-}
-
-function resolveStage(eventNames: string[]): "data_collection" | "shipping" | "payment" | "completed" {
-  if (eventNames.includes("order_completed")) return "completed";
-  if (eventNames.includes("payment_method_selected")) return "payment";
-  if (eventNames.includes("cart_viewed")) return "shipping";
-  if (eventNames.includes("product_viewed")) return "data_collection";
-  return "data_collection";
 }

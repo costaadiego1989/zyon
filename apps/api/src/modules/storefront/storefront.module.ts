@@ -26,11 +26,15 @@ import { UpdateBudgetRequestStatusUseCase } from "./application/use-cases/update
 import { SearchMarketplaceProductsStorefrontUseCase } from "./application/use-cases/search-marketplace-products-storefront.use-case.js";
 import { AddMarketplaceItemToCartStorefrontUseCase } from "./application/use-cases/add-marketplace-item-to-cart.use-case.js";
 import { GetPublicStoreResourcesUseCase } from "./application/use-cases/get-public-store-resources.use-case.js";
+import { TrackStorefrontEventUseCase } from "./application/use-cases/track-storefront-event.use-case.js";
+import { GetStorefrontLiveSessionsUseCase } from "./application/use-cases/get-storefront-live-sessions.use-case.js";
 import { StorefrontConversationAdapter, STOREFRONT_CONVERSATION_ADAPTER } from "./infrastructure/adapters/storefront-conversation.adapter.js";
 import { StorefrontConversationGateway } from "./infrastructure/gateways/conversation.gateway.js";
 import { STOREFRONT_CONVERSATION_PORT } from "./domain/ports/conversation.port.js";
 import { STOREFRONT_CART_PORT } from "./domain/ports/storefront-cart.port.js";
 import { PrismaStorefrontCartRepository } from "./infrastructure/repositories/prisma-storefront-cart.repository.js";
+import { PrismaStorefrontTelemetryRepository } from "./infrastructure/repositories/prisma-storefront-telemetry.repository.js";
+import { STOREFRONT_TELEMETRY_PORT } from "./domain/ports/storefront-telemetry.port.js";
 import { StorefrontController } from "./presentation/http/storefront.controller.js";
 import { AIGatewayService } from "./infrastructure/ai/ai-gateway.service.js";
 import { BudgetTrackerService } from "./infrastructure/ai/budget-tracker.service.js";
@@ -66,6 +70,10 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
       useClass: PrismaStorefrontCartRepository
     },
     {
+      provide: STOREFRONT_TELEMETRY_PORT,
+      useClass: PrismaStorefrontTelemetryRepository,
+    },
+    {
       provide: LocalLLMProvider,
       useFactory: () => {
         return new LocalLLMProvider({
@@ -92,6 +100,8 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
     GetConversationHistoryUseCase,
     GetStoreConfigUseCase,
     GetPublicStoreResourcesUseCase,
+    TrackStorefrontEventUseCase,
+    GetStorefrontLiveSessionsUseCase,
     GetStorefrontFunnelUseCase,
     CreateBudgetRequestUseCase,
     ListBudgetRequestsUseCase,

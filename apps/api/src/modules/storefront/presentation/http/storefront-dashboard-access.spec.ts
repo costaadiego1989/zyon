@@ -54,11 +54,13 @@ test("budget listing uses the authenticated tenant and refuses a different query
 test("budget status changes cannot find or update another tenant's request", async () => {
   const writes: any[] = [];
   const useCase = new UpdateBudgetRequestStatusUseCase({ budgetRequest: {
-    findFirst: async ({ where }: any) => where.id === "budget-a" && where.merchantId === "merchant-a" ? { id: "budget-a" } : null,
-    update: async (input: any) => { writes.push(input); return { id: input.where.id, status: input.data.status }; },
+    updateMany: async (input: any) => {
+      writes.push(input);
+      return { count: input.where.id === "budget-a" && input.where.merchantId === "merchant-a" ? 1 : 0 };
+    },
   } } as any);
   await assert.rejects(useCase.execute("budget-a", "approved", "merchant-b"), NotFoundException);
-  assert.equal(writes.length, 0);
+  assert.deepEqual(writes[0].where, { id: "budget-a", merchantId: "merchant-b" });
   await useCase.execute("budget-a", "approved", "merchant-a");
-  assert.deepEqual(writes[0].where, { id: "budget-a", merchantId: "merchant-a" });
+  assert.deepEqual(writes[1].where, { id: "budget-a", merchantId: "merchant-a" });
 });

@@ -8,6 +8,7 @@
 - Storefront resolve slug por consulta indexada. Domínio customizado só resolve quando a entrada de `MerchantDomain` está verificada.
 - O atalho do dashboard usa o domínio verificado, se houver; sem ele, usa `/store/<slug>`. Ele não usa mais o ID interno do merchant.
 - Os endpoints públicos de índice, histórias, logo e cupons saíram do acesso direto ao Prisma no controller e passaram por `GetPublicStoreResourcesUseCase`, usando portas de merchant, histórias e cupons.
+- Telemetria de conversa, experimento e sessões ativas do funil também saíram de `StorefrontController`: ele chama `TrackStorefrontEventUseCase` e `GetStorefrontLiveSessionsUseCase`, que dependem de `STOREFRONT_TELEMETRY_PORT`; `PrismaStorefrontTelemetryRepository` é o único adaptador desse fluxo que conhece Prisma.
 
 ## Gate obrigatório de banco
 
@@ -29,7 +30,9 @@ O resultado precisa estar vazio. A migração não escolhe silenciosamente um ve
 - `pnpm --filter @zyon/api exec tsc -p tsconfig.json --noEmit`
 - `pnpm --filter @zyon/dashboard typecheck`
 - testes focados de cadastro e recursos públicos do storefront: 7 aprovados.
+- testes focados de telemetria, sessões e escopo administrativo do storefront: 8 aprovados.
+- `pnpm --filter @zyon/api exec nest build`
 
 ## Limite arquitetural restante
 
-`StorefrontController` ainda contém acessos legados ao Prisma para telemetria de conversa, experimento e sessões do funil. Estes fluxos não foram movidos nesta alteração para não alterar a semântica da coleta ativa; devem ser extraídos para casos de uso e portas próprios antes de considerar o boundary de storefront em conformidade completa com DDD.
+`StorefrontController` não acessa Prisma. O módulo ainda não pode ser considerado completamente conforme DDD porque `GetStoreConfigUseCase`, `GetStorefrontFunnelUseCase` e alguns casos de uso de marketplace continuam recebendo Prisma diretamente. Eles exigem extração gradual para portas, com testes de contrato, sem misturar esse refactor com a migração de slug.
