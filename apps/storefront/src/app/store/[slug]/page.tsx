@@ -8,6 +8,7 @@ import { GoogleTagManager } from "@/components/GoogleTagManager";
 import { FacebookPixel, TiktokPixel } from "@/components/PixelTrackers";
 import { getDemoMerchant } from "@/lib/demo-merchant";
 import { fetchStoreConfig, fetchStoreStories } from "@/lib/api/server-client";
+import { DemoEmbedBridge } from "@/components/DemoEmbedBridge";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://stores.zyon.com";
 
@@ -265,6 +266,7 @@ export default async function StorePage({
       {gtmId && <GoogleTagManager gtmId={gtmId} />}
       {fbPixelId && <FacebookPixel pixelId={fbPixelId} />}
       {tiktokPixelId && <TiktokPixel pixelId={tiktokPixelId} />}
+      {slug === "demo" && config?.merchantId ? <DemoEmbedBridge /> : null}
       {/* suppressHydrationWarning: zoom/reader browser extensions inject
           data-original-width + inline max-width on this shell before React
           hydrates. That mutation is outside our control. */}

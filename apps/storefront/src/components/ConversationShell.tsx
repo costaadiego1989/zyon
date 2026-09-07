@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import DOMPurify from "isomorphic-dompurify";
+import { SafeStoreHtml } from "./SafeStoreHtml";
 import { useCart } from "@/lib/cart-store";
 import { useConversationViewModel, type Message } from "@/lib/viewmodels/useConversationViewModel";
 import { getValidBuyer } from "@/lib/buyer-auth";
@@ -32,7 +32,7 @@ function renderMarkdownText(text: string): string {
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
     .replace(/\n/g, "<br/>");
-  return DOMPurify.sanitize(html, { ALLOWED_TAGS: ["strong", "em", "br"] });
+  return html;
 }
 export default function ConversationShell({
   storeName,
@@ -387,9 +387,10 @@ export default function ConversationShell({
                     <div key={m.id} style={{ width: "100%", display: "flex", flexDirection: "column", gap: "8px", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
                       {/* Agent narration above the card — keeps the conversation immersive (A/B tone) */}
                       {m.text && (
-                        <div
+                        <SafeStoreHtml
                           style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", fontSize: "13.5px", lineHeight: 1.55, whiteSpace: "pre-wrap", background: "var(--aacp-card)", color: "var(--aacp-fg)", wordWrap: "break-word", border: "1px solid var(--aacp-line)", alignSelf: "flex-start", maxWidth: "min(82%, 520px)" }}
-                          dangerouslySetInnerHTML={{ __html: renderMarkdownText(m.text) }}
+                          html={renderMarkdownText(m.text)}
+                          config={{ ALLOWED_TAGS: ["strong", "em", "br"] }}
                         />
                       )}
                       <BlockRenderer block={cardBlock} onQuickReply={handleQuickReply} />
@@ -410,7 +411,7 @@ export default function ConversationShell({
                       <PulseAgentOrb size={26} avatarUrl={agentAvatarUrl} />
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1, minWidth: 0 }}>
-                      {m.text && <div style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", fontSize: "13.5px", lineHeight: 1.55, whiteSpace: "pre-wrap", background: "var(--aacp-card)", color: "var(--aacp-fg)", wordWrap: "break-word", border: "1px solid var(--aacp-line)" }} dangerouslySetInnerHTML={{ __html: renderMarkdownText(m.text) }} />}
+                      {m.text && <SafeStoreHtml style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", fontSize: "13.5px", lineHeight: 1.55, whiteSpace: "pre-wrap", background: "var(--aacp-card)", color: "var(--aacp-fg)", wordWrap: "break-word", border: "1px solid var(--aacp-line)" }} html={renderMarkdownText(m.text)} config={{ ALLOWED_TAGS: ["strong", "em", "br"] }} />}
                       {m.blocks?.map((block, idx) => (
                         <div key={idx} style={{ maxWidth: "100%" }}>
                           <BlockRenderer block={block} onQuickReply={handleQuickReply} />
@@ -512,7 +513,7 @@ export default function ConversationShell({
             {/* Content */}
             <div style={{ flex: 1, overflowY: "auto", padding: "20px", color: "var(--aacp-fg)", fontSize: "13px", lineHeight: 1.6 }}>
               {policyModal.content ? (
-                <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(policyModal.content) }} style={{ wordWrap: "break-word" }} />
+                <SafeStoreHtml html={policyModal.content} style={{ wordWrap: "break-word" }} />
               ) : (
                 <p style={{ color: "var(--aacp-muted)" }}>Política não configurada</p>
               )}
