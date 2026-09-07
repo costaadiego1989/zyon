@@ -47,8 +47,8 @@
 .auth-form-panel {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  padding: 32px 24px;
+  justify-content: flex-start;
+  padding: 28px 24px 24px;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: oklch(25% 0.006 145) transparent;
@@ -104,10 +104,11 @@
 .auth-form-container {
   display: flex;
   flex-direction: column;
+  gap: 4px;
   max-width: 460px;
   width: 100%;
   margin: 0 auto;
-  padding: 0 8px;
+  padding: 0 8px 8px;
 }
 
 .auth-form-area {
@@ -155,11 +156,11 @@
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 11px;
 }
 
 .auth-form__header {
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .auth-form__title {
@@ -536,7 +537,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 0;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .auth-progress__item {
