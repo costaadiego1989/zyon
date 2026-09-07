@@ -322,10 +322,10 @@
       "id": "API-036",
       "severity": "P1",
       "module": "public-api",
-      "title": "Maioria dos controllers públicos não entra no AppModule",
-      "status": "OPEN",
+      "title": "Composição pública estava desatualizada na auditoria",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
       "productionGateClosed": false,
-      "record": "../../CORRECOES.md"
+      "record": "../../CORRECOES-PUBLIC-API.md"
     },
     {
       "id": "API-037",
@@ -619,9 +619,9 @@
   "latestStageBase": "ebb954a38123e3aa5ba46f2bf1d8c86c410c9079",
   "latestStage": "../../CORRECOES-ETAPA-3.md",
   "counts": {
-    "IMPLEMENTED_LOCAL_VALIDATION": 21,
+    "IMPLEMENTED_LOCAL_VALIDATION": 22,
     "PARTIAL": 9,
     "MITIGATED_CAPABILITY_UNAVAILABLE": 3,
-    "OPEN": 35
+    "OPEN": 34
   }
 }
