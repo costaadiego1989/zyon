@@ -222,6 +222,7 @@ main {
 }
 
 main.auth-screen,
+main.auth-shell,
 main.dashboard-main {
   width: auto;
   margin: 0;
