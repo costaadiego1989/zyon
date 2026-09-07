@@ -7,7 +7,7 @@ export class InMemoryTrackingEventRepository implements TrackingEventRepository 
   private readonly store: TrackingEventEntity[] = [];
 
   async save(event: TrackingEventEntity): Promise<void> {
-    this.store.push(event);
+    if (!this.store.some((stored) => stored.id === event.id)) this.store.push(event);
   }
 
   async findByShipment(shipmentId: string): Promise<TrackingEventEntity[]> {

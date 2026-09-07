@@ -89,7 +89,22 @@ Consequência: o módulo poderá ser reavaliado isoladamente após a correção,
 | BLOCKS PROD? | NO |
 | CRITÉRIO DE ACEITE | Crash em cada gravação e eventos fora de ordem precisam convergir sem perder notificações nem regredir shipment. |
 
-Decisão: registrar correção priorizada e acompanhar o risco residual. Correção ainda não implementada nesta auditoria.
+Decisão: registrar correção priorizada e acompanhar o risco residual.
+
+### Atualização pós-auditoria — 2026-09-07 — persistência atômica
+
+`RecordTrackingEventUseCase` passou a delegar a escrita a uma porta transacional.
+Em Prisma, a atualização condicionada de `Shipment`, o `TrackingEvent` e cada
+linha de outbox são persistidos no mesmo `prisma.$transaction`. Uma condição de
+corrida retorna conflito recuperável; um replay idêntico mantém o mesmo ID de
+tracking e os mesmos IDs de eventos, derivados do callback lógico.
+
+`shipment.delivered` não é mais publicado no barramento em memória antes do
+commit. O dispatcher da outbox o entrega depois da persistência durável, para
+que o handler de pedido entregue não observe uma transição que ainda pode sofrer
+rollback. A validação local focalizada passou com 43 testes e o build da API
+passou. Falta executar rollback, concorrência e entrega do outbox em PostgreSQL
+real; portanto o gate de produção permanece aberto.
 
 ### Atualização pós-auditoria — 2026-09-06 — callback da Melhor Envio
 

@@ -5,6 +5,7 @@ import { CreateShipmentUseCase } from "./create-shipment.use-case.js";
 import { ShipmentEntity } from "../../domain/entities/shipment.entity.js";
 import { InMemoryShipmentRepository } from "../../infrastructure/repositories/in-memory-shipment.repository.js";
 import { InMemoryTrackingEventRepository } from "../../infrastructure/repositories/in-memory-tracking-event.repository.js";
+import { InMemoryFulfillmentTransitionRepository } from "../../infrastructure/repositories/in-memory-fulfillment-transition.repository.js";
 import { InMemoryOutboxRepository } from "../../../../shared/messaging/infrastructure/in-memory-outbox.repository.js";
 import { InMemoryDomainEventBus } from "../../../../shared/events/in-memory-domain-event-bus.js";
 
@@ -14,7 +15,8 @@ function makeSetup() {
   const outbox = new InMemoryOutboxRepository();
   const eventBus = new InMemoryDomainEventBus();
   const create = new CreateShipmentUseCase(repo, outbox);
-  const record = new RecordTrackingEventUseCase(repo, trackingRepo, outbox, eventBus);
+  const transitions = new InMemoryFulfillmentTransitionRepository(repo, trackingRepo, outbox);
+  const record = new RecordTrackingEventUseCase(repo, transitions);
   return { repo, trackingRepo, outbox, eventBus, create, record };
 }
 
@@ -45,7 +47,7 @@ const BASE = { merchant_id: "mrc_1", order_id: "ord_1", carrier_key: "correios" 
 
 describe("RecordTrackingEventUseCase — transitions & events", () => {
   it("records tracking event and advances status", async () => {
-    const { repo, create, record } = makeSetup();
+    const { repo, trackingRepo, create, record } = makeSetup();
     const snap = await create.execute(BASE);
     await advanceTo(repo, snap.id, "mrc_1", "dispatched");
 
@@ -60,7 +62,7 @@ describe("RecordTrackingEventUseCase — transitions & events", () => {
 
     assert.equal(updated.status, "in_transit");
 
-    const events = await record["trackingEvents"].findByShipment(snap.id);
+    const events = await trackingRepo.findByShipment(snap.id);
     assert.equal(events.length, 1);
     assert.equal(events[0].snapshot().description, "Picked up by carrier");
     assert.equal(events[0].snapshot().location, "SAO PAULO, BR");
@@ -144,7 +146,7 @@ describe("RecordTrackingEventUseCase — transitions & events", () => {
   });
 
   it("still records tracking event on idempotent same-status resend", async () => {
-    const { repo, create, record } = makeSetup();
+    const { repo, trackingRepo, create, record } = makeSetup();
     const snap = await create.execute(BASE);
     await advanceTo(repo, snap.id, "mrc_1", "label_generated");
 
@@ -163,8 +165,44 @@ describe("RecordTrackingEventUseCase — transitions & events", () => {
       occurred_at: new Date()
     });
 
-    const events = await record["trackingEvents"].findByShipment(snap.id);
+    const events = await trackingRepo.findByShipment(snap.id);
     assert.equal(events.length, 2, "tracking events recorded for observability");
+  });
+
+  it("deduplicates an exact carrier replay with stable tracking and outbox identities", async () => {
+    const { repo, trackingRepo, outbox, create, record } = makeSetup();
+    const snap = await create.execute(BASE);
+    await advanceTo(repo, snap.id, "mrc_1", "label_generated");
+    const input = {
+      shipment_id: snap.id, merchant_id: "mrc_1", new_status: "dispatched" as const,
+      description: "posted", location: "Sao Paulo", carrier_raw: { id: "provider-event-1", source: "carrier" },
+      occurred_at: new Date("2026-09-07T15:00:00.000Z"),
+    };
+    await record.execute(input);
+    await record.execute(input);
+
+    assert.equal((await trackingRepo.findByShipment(snap.id)).length, 1);
+    assert.equal(outbox.listOutbox("mrc_1").filter((event) => event.event_type === "shipment.status-updated").length, 1);
+  });
+
+  it("leaves the shipment untouched when the atomic persistence boundary rejects", async () => {
+    const repo = new InMemoryShipmentRepository();
+    const trackingRepo = new InMemoryTrackingEventRepository();
+    const outbox = new InMemoryOutboxRepository();
+    const create = new CreateShipmentUseCase(repo, outbox);
+    const snap = await create.execute(BASE);
+    const record = new RecordTrackingEventUseCase(repo, {
+      async persist() { throw new Error("simulated_transaction_failure"); },
+    });
+
+    await assert.rejects(() => record.execute({
+      shipment_id: snap.id, merchant_id: "mrc_1", new_status: "label_generated",
+      description: "label created", occurred_at: new Date(),
+    }), /simulated_transaction_failure/);
+
+    assert.equal((await repo.findById(snap.id, "mrc_1"))?.status, "created");
+    assert.equal((await trackingRepo.findByShipment(snap.id)).length, 0);
+    assert.equal(outbox.listOutbox("mrc_1").filter((event) => event.event_type === "shipment.status-updated").length, 0);
   });
 });
 
@@ -262,10 +300,10 @@ describe("RecordTrackingEventUseCase — validation & boundaries", () => {
   });
 
   it("defaults carrier_raw to {} when omitted", async () => {
-    const { create, record } = makeSetup();
+    const { repo, trackingRepo, create, record } = makeSetup();
     const snap = await create.execute(BASE);
-    const e = (await (record["shipments"] as InMemoryShipmentRepository).findById(snap.id, "mrc_1"))!;
-    await (record["shipments"] as InMemoryShipmentRepository).save(e.transition("label_generated"));
+    const e = (await repo.findById(snap.id, "mrc_1"))!;
+    await repo.save(e.transition("label_generated"));
 
     await record.execute({
       shipment_id: snap.id,
@@ -275,7 +313,7 @@ describe("RecordTrackingEventUseCase — validation & boundaries", () => {
       occurred_at: new Date()
     });
 
-    const events = await record["trackingEvents"].findByShipment(snap.id);
+    const events = await trackingRepo.findByShipment(snap.id);
     assert.deepEqual(events[0].snapshot().carrier_raw, {});
     assert.equal(events[0].snapshot().location, null);
   });

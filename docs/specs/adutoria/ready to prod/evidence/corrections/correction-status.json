@@ -260,9 +260,9 @@
       "severity": "P2",
       "module": "fulfillment",
       "title": "Tracking e evento não são atômicos",
-      "status": "OPEN",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
       "productionGateClosed": false,
-      "record": "../../CORRECOES.md"
+      "record": "../../CORRECOES-FULFILLMENT.md"
     },
     {
       "id": "API-030",

@@ -1,22 +1,16 @@
-import { Injectable, Inject, NotFoundException, BadRequestException , Logger} from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, BadRequestException, ConflictException } from "@nestjs/common";
+import { createHash } from "node:crypto";
 import { SHIPMENT_REPOSITORY, type ShipmentRepository } from "../../domain/ports/shipment-repository.port.js";
-import { TRACKING_EVENT_REPOSITORY, type TrackingEventRepository } from "../../domain/ports/tracking-event-repository.port.js";
+import { FULFILLMENT_TRANSITION_REPOSITORY, type FulfillmentTransitionRepository } from "../../domain/ports/fulfillment-transition.repository.port.js";
 import { TrackingEventEntity } from "../../domain/entities/tracking-event.entity.js";
 import type { ShipmentStatus } from "../../domain/entities/shipment.entity.js";
-import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
-import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../../../shared/events/domain-event-bus.port.js";
 import { createFulfillmentEventEnvelope } from "../../domain/events/fulfillment-domain-event.js";
-import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class RecordTrackingEventUseCase {
-  private readonly logger = new Logger(RecordTrackingEventUseCase.name);
-
   constructor(
     @Inject(SHIPMENT_REPOSITORY) private readonly shipments: ShipmentRepository,
-    @Inject(TRACKING_EVENT_REPOSITORY) private readonly trackingEvents: TrackingEventRepository,
-    @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
-    @Inject(DOMAIN_EVENT_BUS) private readonly eventBus: DomainEventBus
+    @Inject(FULFILLMENT_TRANSITION_REPOSITORY) private readonly transitions: FulfillmentTransitionRepository,
   ) {}
 
   async execute(input: {
@@ -65,59 +59,73 @@ export class RecordTrackingEventUseCase {
       }
     }
 
-    if (!isSameStatus) {
-      await this.shipments.save(updated);
-    }
-
-    const trackingEvent = TrackingEventEntity.create({
+    const occurredAt = input.occurred_at.toISOString();
+    const trackingEvent = TrackingEventEntity.rehydrate({
+      id: stableId("tracking", input.shipment_id, input.new_status, input.description, input.location ?? null, occurredAt, input.carrier_raw ?? {}),
       shipment_id: input.shipment_id,
       status: input.new_status,
       description: input.description,
       location: input.location ?? null,
       carrier_raw: input.carrier_raw ?? {},
-      occurred_at: input.occurred_at.toISOString()
+      occurred_at: occurredAt,
     });
-    await this.trackingEvents.save(trackingEvent);
 
-    if (!isSameStatus) {
-      await this.outbox.appendOutbox(
-        createFulfillmentEventEnvelope({
+    const outboxEvents = !isSameStatus ? [
+      createFulfillmentEventEnvelope({
           eventType: "shipment.status-updated",
           merchantId: input.merchant_id,
+          eventId: stableId("event", trackingEvent.id, "shipment.status-updated"),
+          correlationId: `corr_${trackingEvent.id}`,
+          occurredAt,
           payload: {
             shipment_id: input.shipment_id,
             old_status: oldStatus,
             new_status: input.new_status,
-            occurred_at: input.occurred_at.toISOString()
+            occurred_at: occurredAt,
           }
-        })
-      );
-
-      if (input.new_status === "delivered") {
-        await this.outbox.appendOutbox(
-          createFulfillmentEventEnvelope({
+        }),
+      ...(input.new_status === "delivered" ? [
+        createFulfillmentEventEnvelope({
             eventType: "shipment.delivered",
             merchantId: input.merchant_id,
+            eventId: stableId("event", trackingEvent.id, "shipment.delivered"),
+            correlationId: `corr_${trackingEvent.id}`,
+            occurredAt,
             payload: {
               shipment_id: input.shipment_id,
-              delivered_at: input.occurred_at.toISOString()
+              delivered_at: occurredAt,
             }
-          })
-        );
+          }),
+      ] : []),
+    ] : [];
 
-        // Also publish on the in-memory domain bus so OnShipmentDeliveredHandler
-        // updates CompletedOrder status and emits order.delivered for post-sale.
-        await this.eventBus.publish({
-          eventType: "shipment.delivered",
-          merchantId: input.merchant_id,
-          payload: {
-            shipment_id: input.shipment_id,
-            delivered_at: input.occurred_at.toISOString()
-          }
-        });
+    try {
+      await this.transitions.persist({
+        previousStatus: oldStatus,
+        shipment: updated.snapshot(),
+        trackingEvent: trackingEvent.snapshot(),
+        outboxEvents,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === "fulfillment_transition_conflict") {
+        const current = await this.shipments.findById(input.shipment_id, input.merchant_id);
+        if (current?.status === input.new_status) return current.snapshot();
+        throw new ConflictException("shipment_transition_conflict");
       }
+      throw error;
     }
 
     return updated.snapshot();
   }
+}
+
+function stableId(namespace: string, ...parts: unknown[]): string {
+  return `evt_${createHash("sha256").update(`${namespace}:${stableJson(parts)}`).digest("hex")}`;
+}
+
+function stableJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${stableJson(record[key])}`).join(",")}}`;
 }

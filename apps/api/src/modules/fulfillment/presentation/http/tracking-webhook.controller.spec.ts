@@ -7,6 +7,7 @@ import { CreateShipmentUseCase } from "../../application/use-cases/create-shipme
 import { ShipmentEntity } from "../../domain/entities/shipment.entity.js";
 import { InMemoryShipmentRepository } from "../../infrastructure/repositories/in-memory-shipment.repository.js";
 import { InMemoryTrackingEventRepository } from "../../infrastructure/repositories/in-memory-tracking-event.repository.js";
+import { InMemoryFulfillmentTransitionRepository } from "../../infrastructure/repositories/in-memory-fulfillment-transition.repository.js";
 import { InMemoryOutboxRepository } from "../../../../shared/messaging/infrastructure/in-memory-outbox.repository.js";
 import { InMemoryDomainEventBus } from "../../../../shared/events/in-memory-domain-event-bus.js";
 import type { ShipmentRepository } from "../../domain/ports/shipment-repository.port.js";
@@ -28,7 +29,7 @@ function makeSetup(seedShipment?: ShipmentEntity) {
   const trackingRepo = new InMemoryTrackingEventRepository();
   const outbox = new InMemoryOutboxRepository();
   const create = new CreateShipmentUseCase(repo, outbox);
-  const record = new RecordTrackingEventUseCase(repo, trackingRepo, outbox, new InMemoryDomainEventBus());
+  const record = new RecordTrackingEventUseCase(repo, new InMemoryFulfillmentTransitionRepository(repo, trackingRepo, outbox));
   const controller = new TrackingWebhookController(record, repo);
 
   return { repo, trackingRepo, outbox, create, record, controller };

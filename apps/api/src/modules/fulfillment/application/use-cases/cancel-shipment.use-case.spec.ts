@@ -5,6 +5,7 @@ import { CreateShipmentUseCase } from "./create-shipment.use-case.js";
 import { RecordTrackingEventUseCase } from "./record-tracking-event.use-case.js";
 import { InMemoryShipmentRepository } from "../../infrastructure/repositories/in-memory-shipment.repository.js";
 import { InMemoryTrackingEventRepository } from "../../infrastructure/repositories/in-memory-tracking-event.repository.js";
+import { InMemoryFulfillmentTransitionRepository } from "../../infrastructure/repositories/in-memory-fulfillment-transition.repository.js";
 import { InMemoryOutboxRepository } from "../../../../shared/messaging/infrastructure/in-memory-outbox.repository.js";
 import { InMemoryDomainEventBus } from "../../../../shared/events/in-memory-domain-event-bus.js";
 
@@ -85,7 +86,7 @@ describe("CancelShipmentUseCase", () => {
     // Advance to delivered
     const trackingRepo = new InMemoryTrackingEventRepository();
     const outbox = new InMemoryOutboxRepository();
-    const record = new RecordTrackingEventUseCase(repo, trackingRepo, outbox, new InMemoryDomainEventBus());
+    const record = new RecordTrackingEventUseCase(repo, new InMemoryFulfillmentTransitionRepository(repo, trackingRepo, outbox));
     const e1 = (await repo.findById(created.id, "mrc_1"))!;
     await repo.save(e1.transition("label_generated"));
     await record.execute({
