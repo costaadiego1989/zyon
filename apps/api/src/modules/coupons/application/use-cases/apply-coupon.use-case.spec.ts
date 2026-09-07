@@ -4,6 +4,7 @@ import { ApplyCouponUseCase } from "./apply-coupon.use-case.js";
 import { CouponEntity } from "../../domain/entities/coupon.entity.js";
 import { InMemoryCouponRepository } from "../../infrastructure/repositories/in-memory-coupon.repository.js";
 import { InMemoryCouponRedemptionRepository } from "../../infrastructure/repositories/in-memory-coupon-redemption.repository.js";
+import { InMemoryCouponTransactionRepository } from "../../infrastructure/repositories/in-memory-coupon-transaction.repository.js";
 import { InMemoryOutboxRepository } from "../../../../shared/messaging/infrastructure/in-memory-outbox.repository.js";
 import type { Cart, MerchantRules } from "@zyon/shared-types";
 import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
@@ -54,7 +55,8 @@ function makeSetup(engine: DiscountRulesEnginePort = new AllowAllDiscountEngine(
   const couponRepo = new InMemoryCouponRepository();
   const redemptionRepo = new InMemoryCouponRedemptionRepository();
   const outbox = new InMemoryOutboxRepository();
-  const useCase = new ApplyCouponUseCase(couponRepo, redemptionRepo, outbox, engine);
+  const transactions = new InMemoryCouponTransactionRepository(couponRepo, redemptionRepo, outbox);
+  const useCase = new ApplyCouponUseCase(couponRepo, transactions, engine);
   return { couponRepo, redemptionRepo, outbox, useCase };
 }
 
@@ -189,6 +191,21 @@ describe("ApplyCouponUseCase", () => {
       () => useCase.execute({ ...BASE_INPUT, session_id: "sess_2" }),
       { message: "COUPON_EXHAUSTED" }
     );
+  });
+
+  it("P1: admits only one of two concurrent sessions when max_usages is one", async () => {
+    const { couponRepo, redemptionRepo, outbox, useCase } = makeSetup();
+    await couponRepo.save(CouponEntity.create(makeCouponInput({ max_usages: 1 })));
+
+    const results = await Promise.allSettled([
+      useCase.execute({ ...BASE_INPUT, session_id: "sess_concurrent_a" }),
+      useCase.execute({ ...BASE_INPUT, session_id: "sess_concurrent_b" })
+    ]);
+
+    assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
+    assert.equal(results.filter((result) => result.status === "rejected").length, 1);
+    assert.equal(await redemptionRepo.countByCoupon((await couponRepo.findByCode("mrc_1", "SAVE10"))!.id), 1);
+    assert.equal(outbox.listOutbox("mrc_1").length, 1);
   });
 
   // ── P2 regression: findById scoped by merchantId ─────────────────────────

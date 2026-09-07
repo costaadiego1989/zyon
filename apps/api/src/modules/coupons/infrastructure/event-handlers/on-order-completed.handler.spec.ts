@@ -6,6 +6,7 @@ import { CouponRedemptionEntity } from "../../domain/entities/coupon-redemption.
 import { RedeemCouponUseCase } from "../../application/use-cases/redeem-coupon.use-case.js";
 import { InMemoryCouponRepository } from "../repositories/in-memory-coupon.repository.js";
 import { InMemoryCouponRedemptionRepository } from "../repositories/in-memory-coupon-redemption.repository.js";
+import { InMemoryCouponTransactionRepository } from "../repositories/in-memory-coupon-transaction.repository.js";
 import { InMemoryOutboxRepository } from "../../../../shared/messaging/infrastructure/in-memory-outbox.repository.js";
 import type { DomainEventBus, DomainEvent } from "../../../../shared/events/domain-event-bus.port.js";
 
@@ -36,8 +37,9 @@ function makeSetup() {
   const coupons = new InMemoryCouponRepository();
   const redemptions = new InMemoryCouponRedemptionRepository();
   const outbox = new InMemoryOutboxRepository();
+  const transactions = new InMemoryCouponTransactionRepository(coupons, redemptions, outbox);
   const eventBus = new FakeEventBus();
-  const redeemUseCase = new RedeemCouponUseCase(coupons, redemptions, outbox);
+  const redeemUseCase = new RedeemCouponUseCase(transactions);
   const handler = new CouponsOnOrderCompletedHandler(eventBus, redeemUseCase);
   return { coupons, redemptions, outbox, eventBus, handler };
 }

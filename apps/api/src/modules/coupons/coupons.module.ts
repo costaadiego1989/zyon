@@ -7,9 +7,11 @@ import { AuthModule } from "../auth/auth.module.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { COUPON_REPOSITORY } from "./domain/ports/coupon-repository.port.js";
 import { COUPON_REDEMPTION_REPOSITORY } from "./domain/ports/coupon-redemption-repository.port.js";
+import { COUPON_TRANSACTION_REPOSITORY } from "./domain/ports/coupon-transaction-repository.port.js";
 import { DISCOUNT_RULES_ENGINE } from "./domain/ports/discount-rules-engine.port.js";
 import { PrismaCouponRepository } from "./infrastructure/repositories/prisma-coupon.repository.js";
 import { PrismaCouponRedemptionRepository } from "./infrastructure/repositories/prisma-coupon-redemption.repository.js";
+import { PrismaCouponTransactionRepository } from "./infrastructure/repositories/prisma-coupon-transaction.repository.js";
 import { RulesEngineDiscountAdapter } from "./infrastructure/adapters/rules-engine-discount.adapter.js";
 import { CreateCouponUseCase } from "./application/use-cases/create-coupon.use-case.js";
 import { ArchiveCouponUseCase } from "./application/use-cases/archive-coupon.use-case.js";
@@ -36,6 +38,11 @@ import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/bi
     {
       provide: COUPON_REDEMPTION_REPOSITORY,
       useFactory: (prisma: PrismaClient) => new PrismaCouponRedemptionRepository(prisma),
+      inject: [PRISMA_CLIENT]
+    },
+    {
+      provide: COUPON_TRANSACTION_REPOSITORY,
+      useFactory: (prisma: PrismaClient) => new PrismaCouponTransactionRepository(prisma),
       inject: [PRISMA_CLIENT]
     },
     // P0 fix: wire rules-engine discount port to its adapter

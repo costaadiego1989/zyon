@@ -5,6 +5,7 @@ import { CouponEntity } from "../../domain/entities/coupon.entity.js";
 import { CouponRedemptionEntity } from "../../domain/entities/coupon-redemption.entity.js";
 import { InMemoryCouponRepository } from "../../infrastructure/repositories/in-memory-coupon.repository.js";
 import { InMemoryCouponRedemptionRepository } from "../../infrastructure/repositories/in-memory-coupon-redemption.repository.js";
+import { InMemoryCouponTransactionRepository } from "../../infrastructure/repositories/in-memory-coupon-transaction.repository.js";
 import { InMemoryOutboxRepository } from "../../../../shared/messaging/infrastructure/in-memory-outbox.repository.js";
 
 function makeCoupon(merchantId: string, code: string) {
@@ -40,7 +41,8 @@ function makeSetup() {
   const coupons = new InMemoryCouponRepository();
   const redemptions = new InMemoryCouponRedemptionRepository();
   const outbox = new InMemoryOutboxRepository();
-  const useCase = new RedeemCouponUseCase(coupons, redemptions, outbox);
+  const transactions = new InMemoryCouponTransactionRepository(coupons, redemptions, outbox);
+  const useCase = new RedeemCouponUseCase(transactions);
   return { coupons, redemptions, outbox, useCase };
 }
 

@@ -187,8 +187,8 @@
       "id": "API-021",
       "severity": "P1",
       "module": "coupons",
-      "title": "Limites de uso podem ser excedidos em sessões concorrentes",
-      "status": "OPEN",
+        "title": "Limites de uso podem ser excedidos em sessões concorrentes",
+        "status": "IMPLEMENTED_LOCAL_VALIDATION",
       "productionGateClosed": false,
       "record": "../../CORRECOES.md"
     },

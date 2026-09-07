@@ -94,6 +94,12 @@ Consequência: o módulo poderá ser reavaliado isoladamente após a correção,
 
 Decisão: bloquear a liberação da capacidade afetada até cumprir o critério de aceite. Correção ainda não implementada nesta auditoria.
 
+### Implementação de 2026-09-06
+
+A aplicação passou a delegar reserva e resgate para uma fronteira transacional Prisma. A reserva bloqueia a linha de `coupons`, reconfere limites global e por comprador dentro da transação, cria a redemption e grava `coupon.applied` no mesmo commit. O resgate usa atualização condicional de `applied` para `redeemed`, incrementa `usages_count` e grava `coupon.redeemed` na mesma transação; uma segunda entrega de `order.completed` não incrementa nem publica novamente.
+
+Validação local: build completo da API e 19 testes focados passaram, incluindo duas sessões concorrentes com `max_usages=1`, que produzem uma reserva e um evento. Foi adicionado o teste Prisma `prisma-coupon-transaction.repository.int-spec.ts`, executável com `AACP_RUN_PRISMA_TESTS=1` e `DATABASE_URL`. O Docker local estava indisponível durante esta correção, portanto o teste contra PostgreSQL real ainda não foi executado. Status: `IMPLEMENTED_LOCAL_VALIDATION`; `productionGateClosed` permanece `false` até essa execução em banco descartável após migrations.
+
 
 ## Reavaliação
 
