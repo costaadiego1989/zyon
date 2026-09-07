@@ -88,7 +88,7 @@ export function AuthScreen(props: AuthScreenProps) {
             <header className="auth-header">
             <img src="/logo-zyon.png" alt="Zyon" className="auth-header__logo" />
             <div className="auth-header__sep" />
-            <span className="auth-header__label">IA First Headless Commerce</span>
+            <span className="auth-header__label">Loja autônoma com IA</span>
           </header>
 
           <div className="auth-tabs" role="tablist">
@@ -130,16 +130,19 @@ export function AuthScreen(props: AuthScreenProps) {
       </section>
 
       {/* Right: Hero — orb, logo and tagline live directly in the glass panel */}
-      <section className="auth-hero" aria-label="Zyon Platform">
+      <section className="auth-hero" aria-label="Sobre a Zyon">
+        <p className="auth-hero__eyebrow">Zyon para PMEs</p>
         <div className="auth-hero__orb-glow" aria-hidden="true">
           <PulseAgentOrb size={128} />
         </div>
         <img src="/logo-zyon.png" alt="Zyon" className="auth-hero__logo-img" />
-        <p className="auth-hero__tagline">
-          A primeira plataforma de checkout agêntico onde uma IA assume o papel
-          de Gerente de Vendas — conversa, negocia e fecha a compra sob as
-          regras do seu negócio.
-        </p>
+        <h1 className="auth-hero__title">Sua loja vende.<br />Você vai além.</h1>
+        <p className="auth-hero__tagline">Organize seu catálogo, defina suas regras e deixe a IA ajudar cada cliente a encontrar o próximo passo.</p>
+        <div className="auth-hero__principles" aria-label="Capacidades principais">
+          <span>Catálogo vivo</span>
+          <span>Regras visíveis</span>
+          <span>Checkout integrado</span>
+        </div>
       </section>
     </main>
     </>
@@ -152,7 +155,7 @@ function LoginForm(props: AuthScreenProps & { onGithubClick: () => void; onGoogl
     <form onSubmit={props.onSubmit} className="auth-form">
       <div className="auth-form__header">
         <h2 className="auth-form__title">Acesse seu painel</h2>
-        <p className="auth-form__subtitle">Gerencie checkout, pedidos e integrações.</p>
+        <p className="auth-form__subtitle">Acompanhe sua loja, seus pedidos e o trabalho da IA.</p>
       </div>
 
       <div className="auth-social">

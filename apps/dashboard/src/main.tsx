@@ -42,6 +42,7 @@ function App({ api }: AppProps) {
   const [authMode, setAuthMode] = useState<AuthMode>(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("token") && window.location.pathname.includes("reset-password")) return "reset";
+    if (params.get("mode") === "signup") return "signup";
     return "login";
   });
   const [email, setEmail] = useState("");

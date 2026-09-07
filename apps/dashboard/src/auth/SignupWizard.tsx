@@ -143,8 +143,8 @@ export function SignupWizard(props: SignupWizardProps) {
       <div className="auth-form__header">
         <h2 className="auth-form__title">{STEP_META[step - 1].label}</h2>
         <p className="auth-form__subtitle">
-          {step === 1 && "Vamos personalizar o Zyon para o seu papel."}
-          {step === 2 && "Dados da loja que o agente vai atender."}
+          {step === 1 && "Vamos preparar sua loja autônoma. Comece por você."}
+          {step === 2 && "Apresente a empresa que a Zyon vai ajudar a vender."}
           {step === 3 && "Suas credenciais de acesso ao painel."}
         </p>
       </div>

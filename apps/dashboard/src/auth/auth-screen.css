@@ -758,3 +758,123 @@
     transition: none;
   }
 }
+
+/* Zyon autonomous-store identity: the signup image and waves remain visible
+   as a product scene instead of a decorative layer around the form. */
+.auth-hero {
+  align-items: flex-start;
+  justify-content: center;
+  gap: 17px;
+  padding: 52px 48px;
+  background:
+    linear-gradient(135deg, rgba(5, 19, 13, 0.38), rgba(8, 33, 23, 0.2)),
+    url("/bg-signup.webp") center / cover no-repeat;
+}
+
+.auth-hero::before {
+  background: linear-gradient(180deg, rgba(105, 224, 166, 0.09), transparent 48%);
+}
+
+.auth-hero__eyebrow {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: oklch(80% 0.13 150);
+  font: 700 10px 'Manrope', sans-serif;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.auth-hero__eyebrow::before {
+  width: 7px;
+  height: 7px;
+  content: "";
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 4px oklch(76% 0.13 150 / 0.14);
+}
+
+.auth-hero__orb-glow {
+  align-self: flex-end;
+  margin: -7px 10px -46px 0;
+  transform: scale(0.72);
+  transform-origin: top right;
+}
+
+.auth-hero__logo-img {
+  width: 138px;
+  margin-top: 2px;
+}
+
+.auth-hero__title {
+  position: relative;
+  z-index: 1;
+  max-width: 16ch;
+  margin: 5px 0 0;
+  color: oklch(96% 0.01 145);
+  font: 600 clamp(31px, 3vw, 42px)/1.15 'Manrope', sans-serif;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+}
+
+.auth-hero__tagline {
+  max-width: 33ch;
+  color: oklch(82% 0.025 145);
+  font-size: 14px;
+  line-height: 1.65;
+  text-align: left;
+}
+
+
+.auth-hero__principles {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 100%;
+  gap: 9px;
+  margin-top: 7px;
+  padding-top: 18px;
+  border-top: 1px solid oklch(92% 0.02 145 / 0.17);
+}
+
+.auth-hero__principles span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: oklch(82% 0.025 145);
+  font: 600 11px 'Manrope', sans-serif;
+}
+
+.auth-hero__principles span::before {
+  width: 5px;
+  height: 5px;
+  content: "";
+  border-radius: 50%;
+  background: oklch(78% 0.14 150);
+}
+
+
+@media (max-width: 1024px) {
+  .auth-shell { grid-template-columns: 1fr; max-height: none; }
+  .auth-hero {
+    display: flex;
+    order: -1;
+    min-height: 300px;
+    padding: 38px clamp(26px, 7vw, 56px);
+  }
+  .auth-hero__orb-glow { margin: -14px 8% -52px 0; }
+  .auth-form-panel { min-height: 0; }
+}
+
+@media (max-width: 580px) {
+  .auth-shell { width: 100% !important; min-height: 100vh; margin: 0 !important; border: 0; border-radius: 0; }
+  .auth-hero { min-height: 272px; padding: 31px 24px; }
+  .auth-hero__title { max-width: 13ch; font-size: 31px; }
+  .auth-hero__tagline { max-width: 36ch; font-size: 13px; }
+  .auth-hero__principles { grid-template-columns: repeat(3, auto); justify-content: space-between; gap: 8px; }
+  .auth-hero__principles span { font-size: 10px; }
+  .auth-hero__orb-glow { margin: -20px 0 -60px 0; transform: scale(0.6); }
+}
