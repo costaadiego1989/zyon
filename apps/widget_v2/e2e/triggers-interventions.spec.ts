@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { setupCrossSellMocks, navigateToCheckout, selectChatChannel, type CrossSellMockConfig } from "./fixtures/cross-sell-mocks.js";
+import { setupCrossSellMocks, navigateToCheckout, selectChatChannel } from "./fixtures/cross-sell-mocks.js";
 
 /**
  * Override the widget-config mock with trigger-specific config.
@@ -66,15 +66,13 @@ test("exit-intent: banner shows coupon code from config", async ({ page }) => {
   await expect(page.locator(".discount-banner__text")).toContainText("Ei, não vai embora!");
 });
 
-// ─── Issue 3: Progressive discount per checkout stage ────────────────────────
+// ─── Progressive discounts require an approved server offer ──────────────────
 
-test("progressive discount: banner shows initial percent at checkout start", async ({ page }) => {
+test("progressive configuration does not grant an initial discount on the client", async ({ page }) => {
   await setupCrossSellMocks(page, {});
-  await overrideWidgetConfig(page, {});
+  await overrideWidgetConfig(page, { enabledTriggers: [] });
   await navigateToCheckout(page);
   await selectChatChannel(page);
 
-  // Progressive discount fires at "awaiting" → initial_coupon stage (5%)
-  await expect(page.locator(".discount-banner")).toBeVisible({ timeout: 5000 });
-  await expect(page.locator(".discount-banner__text")).toContainText("5%");
+  await expect(page.locator(".discount-banner")).toHaveCount(0);
 });

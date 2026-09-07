@@ -15,7 +15,8 @@ async function setupMocks(page: Page) {
       session_id: "chk_mobile", experience: {
         brand: { name: "Test", mode: "dark" }, agent: { name: "IA", greeting: "Olá!" },
         buyer: { name: "Diego" },
-        cart: { items: [{ sku: "P1", name: "Produto", price: 99.9, quantity: 1 }] },
+        items: [{ sku: "P1", name: "Produto", unit_price: 99.9, quantity: 1 }],
+        totals: { subtotal: 99.9, discount: 0, total: 99.9 },
       },
     }),
   }));

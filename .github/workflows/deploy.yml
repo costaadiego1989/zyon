@@ -27,12 +27,13 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @zyon/api prisma:generate
 
       # Typecheck all apps
       - run: cd apps/api && pnpm typecheck
       - run: cd apps/dashboard && pnpm typecheck
       - run: cd apps/storefront && pnpm typecheck
-      - run: cd apps/widget && pnpm typecheck
+      - run: cd apps/widget_v2 && pnpm typecheck
 
       # Lint
       - run: cd apps/api && pnpm lint
@@ -59,7 +60,7 @@ jobs:
       - run: cd apps/api && pnpm build
       - run: cd apps/dashboard && pnpm build
       - run: cd apps/storefront && pnpm build
-      - run: cd apps/widget && pnpm build
+      - run: cd apps/widget_v2 && pnpm build
 
   # ── Deploy: Production ─────────────────────────────────────────────────────
   # Triggered by push to `main` or a version tag (v*).

@@ -1,4 +1,4 @@
-name: Nightly Live E2E
+name: Nightly Verification
 
 on:
   schedule:
@@ -33,19 +33,20 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build API
+      - name: Build API and current widget
         run: |
-          pnpm --filter @aacp/shared-types build
-          pnpm --filter @aacp/api build
+          pnpm --filter @zyon/api prisma:generate
+          pnpm --filter @zyon/api build
+          pnpm --filter @zyon/widget-v2 build
 
       - name: Install Playwright browsers
-        run: pnpm --filter @aacp/widget exec playwright install --with-deps chromium
+        run: pnpm --filter @zyon/widget-v2 exec playwright install --with-deps chromium
 
-      - name: Run @live tagged specs
-        run: pnpm --filter @aacp/widget e2e:realapi -- --grep "@live"
+      - name: Run widget v2 browser smoke
+        run: pnpm --filter @zyon/widget-v2 e2e
 
       - name: Run live API e2e (API suite)
-        run: pnpm --filter @aacp/api test
+        run: pnpm --filter @zyon/api test
         env:
           RUN_REAL_AI_E2E: "true"
 
@@ -54,5 +55,5 @@ jobs:
         if: always()
         with:
           name: nightly-playwright-report
-          path: apps/widget/playwright-report/
+          path: apps/widget_v2/playwright-report/
           retention-days: 30

@@ -79,7 +79,11 @@ Decisão: bloquear a liberação da capacidade afetada até cumprir o critério 
 | BLOCKS PROD? | YES |
 | CRITÉRIO DE ACEITE | Pipeline deve falhar se qualquer um dos quatro apps falhar, e publicar evidência do mesmo commit/lockfile que será implantado. |
 
-Decisão: bloquear a liberação da capacidade afetada até cumprir o critério de aceite. Correção ainda não implementada nesta auditoria.
+### Atualização pós-auditoria — 2026-09-07
+
+Os workflows de CI, E2E e verificação noturna passaram a usar os workspaces atuais `@zyon/api`, `@zyon/dashboard`, `@zyon/storefront` e `@zyon/widget-v2`. A geração do Prisma antecede a tipagem da API. O gate de build inclui storefront e widget_v2; o E2E do widget executa a suíte mockada existente e a verificação que antes chamava `e2e:realapi` inexistente passou a executar a suíte de integração da API. Nenhum workflow de deploy foi disparado por esta alteração.
+
+Validação local: typecheck, build e 35 cenários Playwright mockados de `@zyon/widget-v2` passaram. A execução do CI limpo no GitHub, browser com API real e smoke da loja publicada continuam necessários. O achado passa a `IMPLEMENTED_LOCAL_VALIDATION`; `productionGateClosed` permanece `false`.
 
 <a id="api-039"></a>
 

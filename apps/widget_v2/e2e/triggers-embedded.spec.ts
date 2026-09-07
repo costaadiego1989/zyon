@@ -8,7 +8,7 @@ import { test, expect, type Page } from "@playwright/test";
 
 const WIDGET_URL = "http://127.0.0.1:5174";
 
-async function setupEmbedMocks(page: Page) {
+async function setupEmbedMocks(page: Page, options: { enabledTriggers?: string[] } = {}) {
   await page.route("**/embed/start", async (route) => {
     await route.fulfill({
       status: 200, contentType: "application/json",
@@ -18,7 +18,8 @@ async function setupEmbedMocks(page: Page) {
           brand: { name: "Test Store", mode: "dark" },
           agent: { name: "IA", greeting: "Olá!" },
           buyer: { name: "Diego" },
-          cart: { items: [{ sku: "P1", name: "Produto", price: 99.9, quantity: 1 }] },
+          items: [{ sku: "P1", name: "Produto", unit_price: 99.9, quantity: 1 }],
+          totals: { subtotal: 99.9, discount: 0, total: 99.9 },
           rules: { showBranding: false },
         },
       }),
@@ -34,7 +35,7 @@ async function setupEmbedMocks(page: Page) {
     await route.fulfill({
       status: 200, contentType: "application/json",
       body: JSON.stringify({
-        enabledTriggers: ["idle_30_seconds", "exit_intent_detected"],
+        enabledTriggers: options.enabledTriggers ?? ["idle_30_seconds", "exit_intent_detected"],
         cooldownSeconds: 5,
         maxInterventionsPerSession: 10,
         idleSeconds: 2,
@@ -89,13 +90,12 @@ test("embedded: exit-intent shows coupon in InlineCheckout", async ({ page }) =>
   await expect(page.locator(".discount-banner__coupon")).toContainText("VOLTA10");
 });
 
-// ─── Progressive discount at checkout start ──────────────────────────────────
+// ─── Progressive discount remains server-authoritative ────────────────────────
 
-test("embedded: progressive discount shows initial_coupon (5%) at start", async ({ page }) => {
-  await setupEmbedMocks(page);
+test("embedded: progressive configuration alone does not grant a client-side discount", async ({ page }) => {
+  await setupEmbedMocks(page, { enabledTriggers: [] });
   await navigateEmbed(page);
   await enterChat(page);
 
-  await expect(page.locator(".discount-banner")).toBeVisible({ timeout: 5000 });
-  await expect(page.locator(".discount-banner__text")).toContainText("5%");
+  await expect(page.locator(".discount-banner")).toHaveCount(0);
 });

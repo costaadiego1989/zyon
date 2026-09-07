@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [feat/zyon-*]
+    branches: [main, master, feat/zyon-*]
   pull_request:
-    branches: [main, feat/checkout-journey-both-channels]
+    branches: [main, master, feat/checkout-journey-both-channels]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -25,9 +25,11 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @zyon/api prisma:generate
       - run: cd apps/api && pnpm typecheck
       - run: cd apps/dashboard && pnpm typecheck
-      - run: cd apps/widget && pnpm typecheck
+      - run: cd apps/storefront && pnpm typecheck
+      - run: cd apps/widget_v2 && pnpm typecheck
 
   test-api:
     runs-on: ubuntu-latest
@@ -84,8 +86,9 @@ jobs:
         with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
       - run: pnpm install --frozen-lockfile
       - run: cd apps/api && pnpm build
-      - run: cd apps/widget && pnpm build
       - run: cd apps/dashboard && pnpm build
+      - run: cd apps/storefront && pnpm build
+      - run: cd apps/widget_v2 && pnpm build
 
   e2e-store-builder:
     runs-on: ubuntu-latest

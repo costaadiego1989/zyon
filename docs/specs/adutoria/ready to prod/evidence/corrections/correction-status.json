@@ -341,7 +341,7 @@
       "severity": "P1",
       "module": "shared",
       "title": "Gate de release não cobre o widget atual e falha localmente",
-      "status": "OPEN",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
       "productionGateClosed": false,
       "record": "../../CORRECOES.md"
     },
