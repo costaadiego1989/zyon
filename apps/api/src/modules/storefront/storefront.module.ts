@@ -35,6 +35,8 @@ import { STOREFRONT_CART_PORT } from "./domain/ports/storefront-cart.port.js";
 import { PrismaStorefrontCartRepository } from "./infrastructure/repositories/prisma-storefront-cart.repository.js";
 import { PrismaStorefrontTelemetryRepository } from "./infrastructure/repositories/prisma-storefront-telemetry.repository.js";
 import { STOREFRONT_TELEMETRY_PORT } from "./domain/ports/storefront-telemetry.port.js";
+import { STOREFRONT_CONFIG_QUERY_PORT } from "./domain/ports/storefront-config-query.port.js";
+import { PrismaStorefrontConfigQueryRepository } from "./infrastructure/repositories/prisma-storefront-config-query.repository.js";
 import { StorefrontController } from "./presentation/http/storefront.controller.js";
 import { StorefrontProductContentController } from "./presentation/http/storefront-product-content.controller.js";
 import { AIGatewayService } from "./infrastructure/ai/ai-gateway.service.js";
@@ -77,6 +79,10 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
     {
       provide: LocalLLMProvider,
       useFactory: () => {
+    {
+      provide: STOREFRONT_CONFIG_QUERY_PORT,
+      useClass: PrismaStorefrontConfigQueryRepository,
+    },
         return new LocalLLMProvider({
           baseUrl: process.env.LOCAL_LLM_BASE_URL || "http://localhost:11434/v1",
           model: process.env.LOCAL_LLM_MODEL || "mistral",
