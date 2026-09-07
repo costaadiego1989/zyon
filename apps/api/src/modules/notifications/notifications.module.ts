@@ -9,8 +9,13 @@ import { SendOrderDeliveredUseCase } from "./application/use-cases/send-order-de
 import { SendReturnApprovedUseCase } from "./application/use-cases/send-return-approved.use-case.js";
 import { NotificationListener } from "./presentation/listeners/notification.listener.js";
 import { MerchantNotificationController } from "./presentation/http/merchant-notification.controller.js";
+import { PersistenceModule } from "../../shared/persistence/persistence.module.js";
+import { MERCHANT_NOTIFICATION_INBOX_PORT } from "./domain/ports/merchant-notification-inbox.port.js";
+import { PrismaMerchantNotificationInboxRepository } from "./infrastructure/repositories/prisma-merchant-notification-inbox.repository.js";
+import { ManageMerchantNotificationInboxUseCase } from "./application/use-cases/manage-merchant-notification-inbox.use-case.js";
 
 @Module({
+  imports: [PersistenceModule],
   controllers: [MerchantNotificationController],
   providers: [
     {
@@ -26,6 +31,8 @@ import { MerchantNotificationController } from "./presentation/http/merchant-not
     SendOrderDeliveredUseCase,
     SendReturnApprovedUseCase,
     NotificationListener,
+    ManageMerchantNotificationInboxUseCase,
+    { provide: MERCHANT_NOTIFICATION_INBOX_PORT, useClass: PrismaMerchantNotificationInboxRepository },
   ],
   exports: [
     EMAIL_SENDER_PORT,

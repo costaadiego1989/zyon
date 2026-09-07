@@ -1,12 +1,11 @@
-import { Controller, Get, Post, Param, Query, Req, UseGuards, Inject } from "@nestjs/common";
-import type { PrismaClient } from "@prisma/client";
+import { Controller, Get, Post, Param, Query, Req, UseGuards } from "@nestjs/common";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
-import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { ManageMerchantNotificationInboxUseCase } from "../../application/use-cases/manage-merchant-notification-inbox.use-case.js";
 
 @Controller("merchants/:merchantId/notifications")
 @UseGuards(AuthGuard)
 export class MerchantNotificationController {
-  constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
+  constructor(private readonly inbox: ManageMerchantNotificationInboxUseCase) {}
 
   @Get()
   async list(
@@ -17,18 +16,7 @@ export class MerchantNotificationController {
     const principal = currentUser(request);
     if (principal.merchantId !== merchantId) return { items: [] };
 
-    const where: any = { merchantId };
-    if (since) {
-      where.createdAt = { gt: new Date(since) };
-    }
-
-    const items = await this.prisma.merchantNotification.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      take: 20,
-    });
-
-    return { items };
+    return { items: await this.inbox.list(merchantId, since) };
   }
 
   @Post(":notifId/read")
@@ -40,10 +28,7 @@ export class MerchantNotificationController {
     const principal = currentUser(request);
     if (principal.merchantId !== merchantId) return { ok: false };
 
-    await this.prisma.merchantNotification.updateMany({
-      where: { id: notifId, merchantId },
-      data: { read: true },
-    });
+    await this.inbox.markRead(merchantId, notifId);
     return { ok: true };
   }
 
@@ -55,10 +40,7 @@ export class MerchantNotificationController {
     const principal = currentUser(request);
     if (principal.merchantId !== merchantId) return { ok: false };
 
-    await this.prisma.merchantNotification.updateMany({
-      where: { merchantId, read: false },
-      data: { read: true },
-    });
+    await this.inbox.markAllRead(merchantId);
     return { ok: true };
   }
 }
