@@ -106,6 +106,25 @@ describe("AcceptCrossSellSuggestionUseCase", () => {
     );
   });
 
+  it("rejects a valid suggestion when it belongs to a different checkout session", async () => {
+    const { promoRepo, suggestionRepo, acceptUseCase } = makeSuggestionSetup();
+    const promo = makePromo();
+    await promoRepo.save(promo);
+    const suggestion = CrossSellSuggestionEntity.create({
+      session_id: "sess_owner", merchant_id: "mrc_1", promo_id: promo.id,
+      ranked_items: ["SKU-Y"], agent_copy: "", computed_discount: 10,
+    });
+    await suggestionRepo.save(suggestion);
+
+    await assert.rejects(
+      () => acceptUseCase.execute({
+        suggestion_id: suggestion.id, merchant_id: "mrc_1", session_id: "sess_attacker", accepted_skus: ["SKU-Y"],
+      }),
+      (err: { message?: string }) => err.message === "cross_sell_suggestion_session_mismatch",
+    );
+    assert.equal((await suggestionRepo.findById(suggestion.id, "mrc_1"))?.status, "pending");
+  });
+
   // ── P0 regression: discount must pass through rules-engine ───────────────
 
   it("P0: rejects accept when discount exceeds promotion max_discount_percent cap", async () => {

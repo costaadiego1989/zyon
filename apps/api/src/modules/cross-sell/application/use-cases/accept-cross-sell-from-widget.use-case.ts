@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException, BadRequestException , Logger, Optional} from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, BadRequestException, UnprocessableEntityException, Optional } from "@nestjs/common";
 import type { Cart, CartItem, ChatTurn, CheckoutSession } from "@zyon/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../../checkout/domain/ports/checkout-session.repository.port.js";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
@@ -10,8 +10,6 @@ import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.s
 
 @Injectable()
 export class AcceptCrossSellFromWidgetUseCase {
-  private readonly logger = new Logger(AcceptCrossSellFromWidgetUseCase.name);
-
   constructor(
     private readonly accept: AcceptCrossSellSuggestionUseCase,
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
@@ -42,6 +40,8 @@ export class AcceptCrossSellFromWidgetUseCase {
       );
     }
 
+    const crossSellItems = await this.resolveCrossSellItems(input.merchant_id, input.accepted_skus);
+
     const suggestion = await this.accept.execute({
       suggestion_id: input.suggestion_id,
       merchant_id: input.merchant_id,
@@ -51,7 +51,7 @@ export class AcceptCrossSellFromWidgetUseCase {
       merchantRules: rules
     });
 
-    const next = await this.addCrossSellItems(input.merchant_id, session, input.accepted_skus);
+    const next = this.addCrossSellItems(session, crossSellItems);
     await this.sessions.saveSession(next);
 
     const agentTurn: ChatTurn = {
@@ -80,18 +80,23 @@ export class AcceptCrossSellFromWidgetUseCase {
     };
   }
 
-  private async addCrossSellItems(merchantId: string, session: CheckoutSession, skus: string[]): Promise<CheckoutSession> {
+  private async resolveCrossSellItems(merchantId: string, skus: string[]): Promise<CartItem[]> {
+    if (!this.productRepo) {
+      throw new UnprocessableEntityException("cross_sell_catalog_unavailable");
+    }
+
+    const items = await Promise.all(
+      skus.map((sku) => resolveCrossSellCartItem(sku.trim(), this.productRepo!, merchantId)),
+    );
+    if (items.some((item) => item === null)) {
+      throw new UnprocessableEntityException("cross_sell_product_unavailable");
+    }
+    return items as CartItem[];
+  }
+
+  private addCrossSellItems(session: CheckoutSession, crossSellItems: CartItem[]): CheckoutSession {
     const items = [...session.cart.items];
-    for (const sku of skus.map((value) => value.trim()).filter(Boolean)) {
-      if (!this.productRepo) {
-        this.logger.warn("cross_sell.accept.productRepo_missing", { merchantId, sku });
-        continue;
-      }
-      const item = await resolveCrossSellCartItem(sku, this.productRepo, merchantId);
-      if (!item) {
-        this.logger.warn("cross_sell.accept.sku_unresolved", { merchantId, sku });
-        continue;
-      }
+    for (const item of crossSellItems) {
       const existing = items.find((candidate) => candidate.sku === item.sku);
       if (existing) {
         existing.quantity += 1;

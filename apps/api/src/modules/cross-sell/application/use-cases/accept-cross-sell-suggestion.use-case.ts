@@ -36,6 +36,9 @@ export class AcceptCrossSellSuggestionUseCase {
   }) {
     const suggestion = await this.suggestions.findById(input.suggestion_id, input.merchant_id);
     if (!suggestion) throw new NotFoundException("cross_sell_suggestion_not_found");
+    if (suggestion.session_id !== input.session_id) {
+      throw new BadRequestException("cross_sell_suggestion_session_mismatch");
+    }
 
     // P1 fix: accepted_skus subset validation is enforced in entity.accept()
     // (entity throws if any SKU is outside ranked_items)

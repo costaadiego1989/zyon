@@ -42,7 +42,7 @@ DIP/boundary: revisar os imports acima e os acessos a dados com a matriz global.
 
 ## Transações, concorrência, segurança e resiliência
 
-- [API-035](<ADR-api-cross-sell.md#api-035>) (P2): Módulo não montado usa catálogo sintético no aceite.
+- [API-035](<ADR-api-cross-sell.md#api-035>) (P2): cross-sell podia sugerir itens indisponíveis; correção local validada.
 
 Performance/índices: consultar [matriz de schema e operação](<../BANCO-E-OPERACAO.md>). Planos reais, pool, memória, CPU, cache distribuído e volume de 10.000 usuários: **REQUIRES LOAD VALIDATION**.
 
@@ -55,7 +55,7 @@ Observabilidade: Logger/CorrelationId e infraestrutura comum existem, mas dashbo
 3. Expor comunicação por portas/facades e eventos versionados; acesso direto a outro agregado deve ser substituído gradualmente.
 4. Validar em banco/servidor real os cenários do gate; nenhum PASS de produção é inferido da existência de testes.
 
-Gate específico: **Eliminar resolver sintético, validar sugestão/sessão/tenant e só então montar e exercitar consumidor.**
+Gate específico: **validar em banco real disponibilidade, tenant e vínculo sugestão/sessão; publicar endpoint dedicado só com contrato versionado e consumidor integrado.**
 
 Consequência: o módulo poderá ser reavaliado isoladamente após a correção, mas a liberação depende dos gates compartilhados de autenticação, tenant, persistência, build e mensageria.
 
@@ -63,10 +63,10 @@ Consequência: o módulo poderá ser reavaliado isoladamente após a correção,
 
 | Método/path normalizado | Composição | Metadata extraída | Evidência |
 | --- | --- | --- | --- |
-| POST /merchant/cross-sell/promotions | Não montada | UseGuards(AuthGuard); UseGuards(PlanLimitGuard) | [apps/api/src/modules/cross-sell/presentation/http/merchant-cross-sell.controller.ts:21](<../../../../../apps/api/src/modules/cross-sell/presentation/http/merchant-cross-sell.controller.ts#L21>) |
-| GET /merchant/cross-sell/promotions | Não montada | UseGuards(AuthGuard) | [apps/api/src/modules/cross-sell/presentation/http/merchant-cross-sell.controller.ts:37](<../../../../../apps/api/src/modules/cross-sell/presentation/http/merchant-cross-sell.controller.ts#L37>) |
-| PUT /merchant/cross-sell/promotions/:id | Não montada | UseGuards(AuthGuard) | [apps/api/src/modules/cross-sell/presentation/http/merchant-cross-sell.controller.ts:43](<../../../../../apps/api/src/modules/cross-sell/presentation/http/merchant-cross-sell.controller.ts#L43>) |
-| DELETE /merchant/cross-sell/promotions/:id | Não montada | UseGuards(AuthGuard) | [apps/api/src/modules/cross-sell/presentation/http/merchant-cross-sell.controller.ts:53](<../../../../../apps/api/src/modules/cross-sell/presentation/http/merchant-cross-sell.controller.ts#L53>) |
+| POST /merchant/cross-sell/promotions | Montada | UseGuards(AuthGuard); UseGuards(PlanLimitGuard) | [apps/api/src/modules/cross-sell/presentation/http/merchant-cross-sell.controller.ts:21](<../../../../../apps/api/src/modules/cross-sell/presentation/http/merchant-cross-sell.controller.ts#L21>) |
+| GET /merchant/cross-sell/promotions | Montada | UseGuards(AuthGuard) | [apps/api/src/modules/cross-sell/presentation/http/merchant-cross-sell.controller.ts:37](<../../../../../apps/api/src/modules/cross-sell/presentation/http/merchant-cross-sell.controller.ts#L37>) |
+| PUT /merchant/cross-sell/promotions/:id | Montada | UseGuards(AuthGuard) | [apps/api/src/modules/cross-sell/presentation/http/merchant-cross-sell.controller.ts:43](<../../../../../apps/api/src/modules/cross-sell/presentation/http/merchant-cross-sell.controller.ts#L43>) |
+| DELETE /merchant/cross-sell/promotions/:id | Montada | UseGuards(AuthGuard) | [apps/api/src/modules/cross-sell/presentation/http/merchant-cross-sell.controller.ts:53](<../../../../../apps/api/src/modules/cross-sell/presentation/http/merchant-cross-sell.controller.ts#L53>) |
 | POST /embed/cross-sell/suggest | Não montada | UseGuards(EmbedAuthGuard) | [apps/api/src/modules/cross-sell/presentation/http/widget-cross-sell.controller.ts:19](<../../../../../apps/api/src/modules/cross-sell/presentation/http/widget-cross-sell.controller.ts#L19>) |
 | POST /embed/cross-sell/accept | Não montada | UseGuards(EmbedAuthGuard) | [apps/api/src/modules/cross-sell/presentation/http/widget-cross-sell.controller.ts:26](<../../../../../apps/api/src/modules/cross-sell/presentation/http/widget-cross-sell.controller.ts#L26>) |
 | POST /embed/cross-sell/decline | Não montada | UseGuards(EmbedAuthGuard) | [apps/api/src/modules/cross-sell/presentation/http/widget-cross-sell.controller.ts:41](<../../../../../apps/api/src/modules/cross-sell/presentation/http/widget-cross-sell.controller.ts#L41>) |
@@ -75,7 +75,7 @@ Consequência: o módulo poderá ser reavaliado isoladamente após a correção,
 
 <a id="api-035"></a>
 
-## API-035 — Módulo não montado usa catálogo sintético no aceite
+## API-035 — Cross-sell podia sugerir itens indisponíveis
 
 | Campo | Registro |
 | --- | --- |
@@ -83,18 +83,18 @@ Consequência: o módulo poderá ser reavaliado isoladamente após a correção,
 | SEVERITY | P2 |
 | MODULE | cross-sell |
 | FILE(S) | [apps/api/src/modules/cross-sell/application/services/cross-sell-product-resolver.ts:1](<../../../../../apps/api/src/modules/cross-sell/application/services/cross-sell-product-resolver.ts#L1>)<br>[apps/api/src/modules/cross-sell/application/use-cases/accept-cross-sell-from-widget.use-case.ts:70](<../../../../../apps/api/src/modules/cross-sell/application/use-cases/accept-cross-sell-from-widget.use-case.ts#L70>)<br>[apps/api/src/app.module.ts:1](<../../../../../apps/api/src/app.module.ts#L1>) |
-| ISSUE | Módulo não montado usa catálogo sintético no aceite |
-| EVIDENCE | CrossSellModule não é alcançável pelo AppModule. O resolver contém SKUs fixos e preço/custo fallback; aceite usa esse resolver para incluir produto no carrinho. |
-| VERIFICATION | CONFIRMED_STATIC |
-| PRODUCTION IMPACT | Rotas declaradas não estão disponíveis; simplesmente registrar o módulo exporia inclusão de itens com valores sintéticos. |
-| ROOT CAUSE | Implementação demonstrativa não substituída por porta autoritativa de catálogo. |
-| RECOMMENDED FIX | Resolver produto/preço/estoque pelo tenant e catálogo real; validar oferta/sessão, e só então habilitar rotas com contrato versionado. |
+| ISSUE | Cross-sell podia sugerir itens indisponíveis e o aceite dedicado não comprovava o vínculo com a sessão. |
+| EVIDENCE | `CrossSellModule` é alcançável pelo `AppModule`; o widget usa sugestões do checkout, enquanto `WidgetCrossSellController` não entra nos controllers do módulo. O catálogo real já substitui fallbacks, mas faltavam filtros de ativo, exclusão e estoque líquido no recomendador. |
+| VERIFICATION | IMPLEMENTED_LOCAL_VALIDATION |
+| PRODUCTION IMPACT | Produto indisponível podia ser exibido antes de ser rejeitado no pagamento. O endpoint dedicado segue indisponível até ter consumidor e contrato versionado. |
+| ROOT CAUSE | O recomendador não aplicava todos os invariantes comerciais do catálogo e a transição aceitava sugestão sem conferir sua sessão. |
+| RECOMMENDED FIX | Filtrar pelo catálogo autoritativo, rejeitar aceite sem SKU vendável ou sessão correspondente, e publicar endpoint dedicado apenas com contrato versionado. |
 | COMPLEXITY | M (S: pequena; M: média; L: ampla, sem estimativa de prazo) |
 | RISK OF CHANGE | Médio |
-| BLOCKS PROD? | YES |
-| CRITÉRIO DE ACEITE | SKU desconhecido deve falhar; aceite respeita preço/estoque/merchant da oferta. Teste de composição confirma endpoint apenas após correção. |
+| BLOCKS PROD? | Não para o fluxo atual; requer smoke em banco real |
+| CRITÉRIO DE ACEITE | SKU desconhecido, inativo ou sem saldo não é sugerido/aceito; aceite respeita sessão, merchant, preço e estoque. Endpoint dedicado só é publicado com contrato e consumidor integrados. |
 
-Decisão: bloquear a liberação da capacidade afetada até cumprir o critério de aceite. Correção ainda não implementada nesta auditoria.
+Decisão: manter o endpoint dedicado fora da superfície HTTP e operar o fluxo atual pelo checkout, agora com catálogo autoritativo. A validação local está concluída; o smoke com banco real continua obrigatório.
 
 
 ## Reavaliação

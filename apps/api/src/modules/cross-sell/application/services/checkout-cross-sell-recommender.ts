@@ -67,7 +67,9 @@ export class CheckoutCrossSellRecommender implements CheckoutCrossSellRecommende
       );
 
     const enriched = await Promise.all(base.map((p) => this.enrichFromCatalog(input.merchant_id, p)));
-    const valid = enriched.filter((p) => typeof p.unit_price === "number" && p.unit_price > 0);
+    const valid = enriched.filter((p) =>
+      typeof p.unit_price === "number" && p.unit_price > 0 && p.in_stock === true,
+    );
     return valid.slice(0, max);
   }
 
@@ -77,19 +79,27 @@ export class CheckoutCrossSellRecommender implements CheckoutCrossSellRecommende
   ): Promise<SuggestedProduct> {
     try {
       const variant = await this.prisma.productVariant.findFirst({
-        where: { sku: product.sku, product: { merchantId } },
+        where: {
+          sku: product.sku,
+          isActive: true,
+          product: { merchantId, isActive: true, deletedAt: null },
+        },
         include: { price: true, media: { orderBy: { order: "asc" }, take: 1 }, stock: true, product: true },
       });
       if (!variant) return product;
       const priceCents = variant.price?.basePriceInCents;
-      const stockQty = (variant.stock ?? []).reduce((sum: number, s: { quantity: number }) => sum + s.quantity, 0);
+      const inStock = variant.product?.type === "digital" || variant.product?.type === "service"
+        || (variant.stock ?? []).reduce(
+          (sum: number, s: { quantity: number; reserved: number }) => sum + Math.max(0, s.quantity - s.reserved),
+          0,
+        ) > 0;
       return {
         ...product,
         variant_id: variant.id,
         name: variant.product?.name ?? product.name,
         unit_price: priceCents != null ? priceCents / 100 : product.unit_price,
         image_url: variant.media?.[0]?.url ?? product.image_url,
-        in_stock: stockQty > 0,
+        in_stock: inStock,
       };
     } catch (err) {
       this.logger.warn(`[cross-sell] enrich failed for sku=${product.sku}`, err);

@@ -16,6 +16,15 @@ function setup() {
   const prismaMock = {
     merchant: { findUnique: async () => ({ storeSettings: { crossSell: { enabled: true } } }) },
     crossSellSuggestion: { findFirst: async () => null },
+    productVariant: {
+      findFirst: async ({ where }: { where: { sku: string } }) => where.sku === "ZYON-HOOD-001" ? ({
+        id: "variant_hoodie",
+        price: { basePriceInCents: 19990 },
+        media: [],
+        stock: [{ quantity: 3, reserved: 0 }],
+        product: { name: "Hoodie Agentic Checkout", type: "physical" },
+      }) : null,
+    },
   } as any;
   const recommender = new CheckoutCrossSellRecommender(listEligible, prismaMock);
   return { promotions, suggestions, outbox, recommender };
@@ -73,6 +82,25 @@ describe("CheckoutCrossSellRecommender", () => {
       }
     });
 
+    assert.deepEqual(products, []);
+  });
+
+  it("does not return an out-of-stock catalog suggestion", async () => {
+    const { promotions, recommender } = setup();
+    await promotions.save(CrossSellPromotionEntity.create({
+      merchant_id: "mrc_zyon", name: "Hoodie", trigger: { sku_in_cart: ["ZYON-SHIRT-001"] },
+      recommended_skus: ["ZYON-HOOD-001"], discount_percent: 0, max_discount_percent: 0,
+      starts_at: new Date(Date.now() - 60_000),
+    }));
+    (recommender as any).prisma.productVariant.findFirst = async () => ({
+      id: "variant_hoodie", price: { basePriceInCents: 19990 }, media: [],
+      stock: [{ quantity: 2, reserved: 2 }], product: { name: "Hoodie", type: "physical" },
+    });
+
+    const products = await recommender.suggest({
+      merchant_id: "mrc_zyon", session_id: "chk_out_of_stock",
+      cart: { currency: "BRL", total: 129.9, items: [{ sku: "ZYON-SHIRT-001", name: "Shirt", price: 129.9, quantity: 1 }] },
+    });
     assert.deepEqual(products, []);
   });
 });

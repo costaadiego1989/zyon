@@ -44,9 +44,14 @@ export class PrismaCatalogStrategyAdapter implements CatalogStrategyRecommenderP
       const variants = await this.prisma.productVariant.findMany({
         where: {
           isActive: true,
-          product: { merchantId, isActive: true, categoryId: { in: categoryIds } },
+          product: { merchantId, isActive: true, deletedAt: null, categoryId: { in: categoryIds } },
         },
-        select: { sku: true, price: { select: { basePriceInCents: true } }, stock: { select: { quantity: true } } },
+        select: {
+          sku: true,
+          price: { select: { basePriceInCents: true } },
+          stock: { select: { quantity: true, reserved: true } },
+          product: { select: { type: true } },
+        },
         take: PrismaCatalogStrategyAdapter.MAX_SCAN,
       });
 
@@ -55,9 +60,13 @@ export class PrismaCatalogStrategyAdapter implements CatalogStrategyRecommenderP
         .map((v: any) => ({
           sku: v.sku as string,
           price: v.price?.basePriceInCents ?? Number.MAX_SAFE_INTEGER,
-          stock: (v.stock ?? []).reduce((s: number, r: { quantity: number }) => s + r.quantity, 0),
+          inStock: v.product?.type === "digital" || v.product?.type === "service" || (v.stock ?? []).reduce(
+            (s: number, r: { quantity: number; reserved: number }) => s + Math.max(0, r.quantity - r.reserved),
+            0,
+          ) > 0,
         }))
-        .sort((a, b) => (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0) || a.price - b.price)
+        .filter((v) => v.inStock && Number.isSafeInteger(v.price) && v.price > 0)
+        .sort((a, b) => a.price - b.price)
         .slice(0, limit)
         .map((v) => v.sku);
 
@@ -89,16 +98,27 @@ export class PrismaCatalogStrategyAdapter implements CatalogStrategyRecommenderP
       const variants = await this.prisma.productVariant.findMany({
         where: {
           isActive: true,
-          product: { merchantId, isActive: true },
+          product: { merchantId, isActive: true, deletedAt: null },
           price: { basePriceInCents: { gt: thresholdCents } },
         },
-        select: { sku: true, price: { select: { basePriceInCents: true } } },
+        select: {
+          sku: true,
+          stock: { select: { quantity: true, reserved: true } },
+          product: { select: { type: true } },
+          price: { select: { basePriceInCents: true } },
+        },
         orderBy: { price: { basePriceInCents: "asc" } },
         take: PrismaCatalogStrategyAdapter.MAX_SCAN,
       });
 
       const ranked = variants
         .filter((v: any) => v.sku && !cartSet.has(v.sku.toLowerCase()))
+        .filter((v: any) =>
+          v.product?.type === "digital" || v.product?.type === "service" || (v.stock ?? []).reduce(
+            (sum: number, stock: { quantity: number; reserved: number }) => sum + Math.max(0, stock.quantity - stock.reserved),
+            0,
+          ) > 0,
+        )
         .slice(0, limit)
         .map((v: any) => v.sku as string);
 
