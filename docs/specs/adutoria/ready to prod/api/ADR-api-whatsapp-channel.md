@@ -106,3 +106,7 @@ Decisão: bloquear a liberação da capacidade afetada até cumprir o critério 
 ## Reavaliação
 
 Executar o gate específico, os critérios dos achados e testes relevantes da [sequência de correções](<../PLANO-DE-CORRECAO.md>). Guardar commit, configuração não secreta, comandos, resultado e evidência de banco/provedor. A auditoria atual não realizou essas correções.
+
+### Atualização de 2026-09-07
+
+Meta e Twilio foram trazidos para a mesma inbox durável antes do `2xx`; a assinatura Twilio passou a ser obrigatória e sua comparação em tempo constante foi corrigida. O worker revalida a configuração pelo ID persistido, cobrindo roteamento por número. A evidência local não substitui o teste PostgreSQL nem a validação com provedores, e os efeitos externos do pipeline permanecem sem garantia de exatamente uma vez.

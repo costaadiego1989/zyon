@@ -58,10 +58,12 @@ export class WhatsAppWebhookWorker implements OnModuleInit, OnModuleDestroy {
       heartbeat.unref();
       let errorCode = "whatsapp_inbox_processing_failed";
       try {
-        const config = await this.configRepo.findByDeviceId(claim.deviceId);
-        if (!config || config.id !== claim.configId || config.merchantId !== claim.merchantId
-          || config.deviceId !== claim.deviceId || config.provider !== "BUBBLEWHATS"
-          || !config.enabled || !config.webhookSecret?.trim()) {
+        const config = await this.configRepo.findById(claim.configId);
+        const provider = (claim.payload as IncomingMessageInput).provider ?? "BUBBLEWHATS";
+        const bubbleWhatsConfigIsValid = provider !== "BUBBLEWHATS"
+          || (config?.deviceId === claim.deviceId && !!config.webhookSecret?.trim());
+        if (!config || config.id !== claim.configId || config.merchantId !== claim.merchantId || config.provider !== provider
+          || !config.enabled || !bubbleWhatsConfigIsValid) {
           errorCode = "whatsapp_channel_changed_or_disabled";
           throw new Error(errorCode);
         }

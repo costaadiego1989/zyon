@@ -8,6 +8,7 @@ import {
 import {
   WHATSAPP_WEBHOOK_INBOX, type WhatsAppInboxEvent, type WhatsAppWebhookInbox,
 } from "../../domain/ports/whatsapp-webhook-inbox.port.js";
+import type { IncomingMessageInput } from "./handle-incoming-message.use-case.js";
 
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 
@@ -88,6 +89,56 @@ export class AcceptBubbleWhatsWebhookUseCase {
       return this.event(config, "status", eventId, `status:${remoteJid}:${id}`, payload);
     });
     await this.persist(events);
+    return { received: true };
+  }
+
+  /**
+   * Accepts a message only after the provider controller has authenticated its
+   * request. Meta and Twilio use this same durable path as BubbleWhats, so a
+   * successful HTTP acknowledgement always has a replay-safe inbox record.
+   */
+  async messageForAuthenticatedConfig(
+    config: WhatsAppChannelConfigEntity,
+    source: "TWILIO" | "META",
+    eventId: string,
+    input: Omit<IncomingMessageInput, "merchantId" | "deviceId" | "provider">,
+  ): Promise<{ received: true }> {
+    if (!config.enabled || (config.provider !== "TWILIO" && config.provider !== "META_CLOUD")) {
+      throw new ServiceUnavailableException("whatsapp_channel_not_ready");
+    }
+    const provider = config.provider as "TWILIO" | "META_CLOUD";
+    const stableEventId = boundedString(eventId, 500)!;
+    const fromNumber = boundedString(input.fromNumber, 50)!;
+    if (!/^\+?\d{8,15}$/.test(fromNumber)) {
+      throw new BadRequestException("webhook_sender_invalid");
+    }
+    if (!Number.isSafeInteger(input.timestamp) || input.timestamp < 0) {
+      throw new BadRequestException("webhook_payload_invalid");
+    }
+    const payload: IncomingMessageInput = {
+      merchantId: config.merchantId,
+      deviceId: config.deviceId ?? `${provider}:${config.id}`,
+      fromNumber,
+      fromAlias: boundedString(input.fromAlias, 256, false),
+      body: boundedString(input.body, 16_000, false) ?? "",
+      messageType: boundedString(input.messageType, 64)!,
+      mediaUrl: boundedString(input.mediaUrl, 2048, false),
+      mimetype: boundedString(input.mimetype, 128, false),
+      timestamp: input.timestamp,
+      provider,
+    };
+    const event: WhatsAppInboxEvent = {
+      dedupKey: digest(JSON.stringify([source, config.merchantId, config.id, "message", stableEventId])),
+      eventId: stableEventId,
+      kind: "message",
+      merchantId: config.merchantId,
+      configId: config.id,
+      deviceId: payload.deviceId,
+      streamKey: digest(JSON.stringify([config.merchantId, config.id, "message", fromNumber.replace(/\D/g, "")])),
+      payload,
+      payloadHash: digest(JSON.stringify(payload)),
+    };
+    await this.persist([event]);
     return { received: true };
   }
 

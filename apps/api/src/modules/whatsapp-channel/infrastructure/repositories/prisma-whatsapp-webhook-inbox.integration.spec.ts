@@ -153,7 +153,7 @@ describe("BubbleWhats durable inbox (PostgreSQL)", { skip: !clientPath || !datab
       execute: async () => ({ whatsappSession: { id: "session-1", checkoutSessionId: "checkout-1", currentOptions: [], previousOptions: [], currentPage: 0 } }),
     } as any, new SendWhatsAppResponseUseCase({ sendText: async () => ({ status: ++sends === 1 ? "failed" : "sent", messageId: "provider-reference" }) }),
     { updateMenuState: async () => {} } as any);
-    const worker = () => new WhatsAppWebhookWorker(new PrismaWhatsAppWebhookInbox(prisma), { findByDeviceId: async () => config } as any, incoming, {} as any);
+    const worker = () => new WhatsAppWebhookWorker(new PrismaWhatsAppWebhookInbox(prisma), { findById: async () => config } as any, incoming, {} as any);
     await worker().drain();
     let stored = (await rows())[0];
     assert.equal(stored.status, "pending");
@@ -171,7 +171,7 @@ describe("BubbleWhats durable inbox (PostgreSQL)", { skip: !clientPath || !datab
     await accept.message(config.webhookSecret, message());
     let enabled = false;
     let messages = 0;
-    const worker = new WhatsAppWebhookWorker(repository, { findByDeviceId: async () => ({ ...config, enabled }) } as any,
+    const worker = new WhatsAppWebhookWorker(repository, { findById: async () => ({ ...config, enabled }) } as any,
       { execute: async () => { messages++; } } as any, {} as any);
     await worker.drain();
     const stored = (await rows())[0];

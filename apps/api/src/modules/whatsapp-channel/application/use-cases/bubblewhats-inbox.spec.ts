@@ -13,6 +13,8 @@ import { MultiProviderSenderAdapter } from "../../whatsapp-channel.module.js";
 import { PrismaWhatsAppConfigRepository } from "../../infrastructure/repositories/prisma-whatsapp-config.repository.js";
 import { BubbleWhatsSenderAdapter } from "../../infrastructure/adapters/bubblewhats-sender.adapter.js";
 import type { WhatsAppInboxClaim, WhatsAppInboxEvent } from "../../domain/ports/whatsapp-webhook-inbox.port.js";
+import { validateTwilioSignature } from "../../domain/services/twilio-signature-validator.js";
+import { createHmac } from "node:crypto";
 
 const config = () => ({
   id: "config-a", merchantId: "merchant-a", deviceId: "device-a", enabled: true,
@@ -61,7 +63,7 @@ describe("BubbleWhats authenticated durable acceptance", () => {
     let commit!: () => void;
     const pendingCommit = new Promise<void>((resolve) => { commit = resolve; });
     const { useCase } = setup(config(), async () => pendingCommit);
-    const controller = new WhatsAppWebhookController({} as any, {} as any, useCase, {} as any);
+    const controller = new WhatsAppWebhookController({} as any, useCase);
     let acknowledged = false;
     const call = controller.receiveBubbleWhatsMessage(config().webhookSecret, message()).then((result) => {
       acknowledged = true;
@@ -114,6 +116,43 @@ describe("BubbleWhats authenticated durable acceptance", () => {
     await assert.rejects(controller.toggle("merchant-a", { enabled: true }), ServiceUnavailableException);
     assert.equal(writes, 0);
   });
+
+  it("keeps Meta and Twilio acknowledgements behind durable inbox acceptance", async () => {
+    let release!: () => void;
+    const persisted = new Promise<void>((resolve) => { release = resolve; });
+    const twilioConfig = {
+      ...config(), deviceId: undefined, provider: "TWILIO", webhookSecret: undefined,
+      whatsappNumber: "+5511999999999", credentials: { authToken: "twilio-token" },
+    };
+    let accepted: unknown[] = [];
+    const accept = {
+      messageForAuthenticatedConfig: async (...input: unknown[]) => {
+        accepted = input;
+        await persisted;
+        return { received: true };
+      },
+    };
+    const controller = new WhatsAppWebhookController({
+      findByWhatsAppNumber: async () => twilioConfig,
+    } as any, accept as any);
+    const body = {
+      MessageSid: "SM-1", From: "whatsapp:+5511988888888", To: "whatsapp:+5511999999999",
+      WaId: "5511988888888", Body: "oi",
+    };
+    const url = "https://api.example.test/v1/webhooks/whatsapp/twilio";
+    const signed = Object.keys(body).sort().reduce((value, key) => value + key + body[key as keyof typeof body], url);
+    const signature = createHmac("sha1", "twilio-token").update(signed).digest("base64");
+    const call = controller.receiveTwilioMessage(signature, body, {
+      protocol: "https", get: () => "api.example.test", originalUrl: "/v1/webhooks/whatsapp/twilio",
+    } as any);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(accepted.length, 4);
+    release();
+    assert.equal(await call, "");
+    assert.equal(accepted[1], "TWILIO");
+    assert.equal(accepted[2], "SM-1");
+    assert.equal(validateTwilioSignature("x".repeat(signature.length), url, body, "twilio-token"), false);
+  });
 });
 
 async function claim(): Promise<WhatsAppInboxClaim> {
@@ -134,7 +173,7 @@ describe("BubbleWhats worker failure propagation", () => {
         fail: async (_claim: unknown, code: string) => { failures.push(code); return true; },
         complete: async () => { assert.fail("must not complete"); },
       };
-      const worker = new WhatsAppWebhookWorker(inbox as any, { findByDeviceId: async () => current } as any,
+      const worker = new WhatsAppWebhookWorker(inbox as any, { findById: async () => current } as any,
         { execute: async () => { assert.fail("must not process invalidated config"); } } as any, {} as any);
       await worker.drain();
       assert.deepEqual(failures, ["whatsapp_channel_changed_or_disabled"]);
@@ -154,7 +193,7 @@ describe("BubbleWhats worker failure propagation", () => {
       claimNext: async () => { const result = next; next = null; return result; },
       fail: async () => { failed++; return true; }, complete: async () => { completed++; return true; },
     };
-    const worker = new WhatsAppWebhookWorker(inbox as any, { findByDeviceId: async () => config() } as any, incoming, {} as any);
+    const worker = new WhatsAppWebhookWorker(inbox as any, { findById: async () => config() } as any, incoming, {} as any);
     await worker.drain();
     assert.deepEqual({ failed, sends, completed }, { failed: 1, sends: 1, completed: 0 });
   });
@@ -225,7 +264,7 @@ describe("BubbleWhats worker failure propagation", () => {
     const worker = new WhatsAppWebhookWorker({
       claimNext: async () => { const result = next; next = null; return result; },
       complete: async () => { completed++; return true; },
-    } as any, { findByDeviceId: async () => config() } as any,
+    } as any, { findById: async () => config() } as any,
     { execute: async () => { entered(); await gate; } } as any, {} as any);
     const first = worker.drain();
     assert.equal(worker.drain(), first);

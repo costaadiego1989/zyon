@@ -50,8 +50,7 @@ export function validateTwilioSignature(
 
     // 5. Constant-time compare
     try {
-      timingSafeEqual(Buffer.from(signature), Buffer.from(computed));
-      return true;
+      return timingSafeEqual(Buffer.from(signature), Buffer.from(computed));
     } catch {
       logger.warn("Twilio signature mismatch");
       return false;

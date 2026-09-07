@@ -52,3 +52,11 @@ Os testes verificam segredos ausentes/incorretos, grupos/self, configuração in
 No PostgreSQL 16 descartável, 40 entregas simultâneas geram um registro e 20 workers produzem um claim. Foram executados colisão/rollback de batch, dedup por tenant e status, recuperação após lease expirado com bloqueio do worker antigo, ordem por comprador, backoff/dead-letter, queda na última tentativa e recuperação de falha real do pipeline em novo worker. A migração SQL foi aplicada em schema exclusivo e suas constraints verificadas.
 
 Fontes: [testes unitários](../../../../apps/api/src/modules/whatsapp-channel/application/use-cases/bubblewhats-inbox.spec.ts), [integrações e migração](../../../../apps/api/src/modules/whatsapp-channel/infrastructure/repositories/prisma-whatsapp-webhook-inbox.integration.spec.ts).
+
+## Atualização de 2026-09-07
+
+Os callbacks de Meta e Twilio agora também persistem na inbox antes de retornar sucesso. O controller valida a assinatura antes da aceitação, deriva merchant/configuração exclusivamente do roteamento confiável e usa a chave única persistida como deduplicação entre réplicas. A revalidação do worker usa `configId`, portanto funciona para configurações por número (Twilio/Meta) e continua exigindo device e segredo apenas para BubbleWhats.
+
+Para Twilio, assinatura e `authToken` são obrigatórios; ausência de credencial responde 503 e assinatura inválida responde 401. A comparação HMAC agora retorna efetivamente o resultado de `timingSafeEqual`; antes, duas assinaturas de mesmo tamanho podiam ser aceitas. Meta usa a assinatura global existente e conserva o provedor configurado para o processamento/resposta.
+
+Foram executados o build da API e 14 testes focados locais. O spec de integração PostgreSQL foi pulado sem `AACP_RUN_PRISMA_TESTS=1` e `DATABASE_URL`; não houve chamada real a Meta, Twilio ou banco descartável nesta atualização. O status permanece **PARTIAL**: efeitos externos no pipeline ainda precisam de idempotência verificável e a validação real de reentrega, retry, retenção e monitoramento continua como gate de produção.

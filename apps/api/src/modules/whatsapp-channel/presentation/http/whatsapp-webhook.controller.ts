@@ -11,7 +11,6 @@ import {
   Controller,
   Get,
   HttpCode,
-  Logger,
   Post,
   Headers,
   Query,
@@ -19,16 +18,15 @@ import {
   UnauthorizedException,
   Inject,
   Req,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { ApiExcludeController } from "@nestjs/swagger";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Request, Response } from "express";
 import { WHATSAPP_CONFIG_REPOSITORY, type WhatsAppConfigRepository } from "../../domain/ports/whatsapp-config-repository.port.js";
-import { HandleIncomingMessageUseCase } from "../../application/use-cases/handle-incoming-message.use-case.js";
 import { AcceptBubbleWhatsWebhookUseCase } from "../../application/use-cases/accept-bubblewhats-webhook.use-case.js";
 import { validateTwilioSignature } from "../../domain/services/twilio-signature-validator.js";
 import { parseTwilioInbound } from "../../infrastructure/adapters/twilio-webhook-parser.js";
-import { TwilioDeduplicatorService } from "../../infrastructure/services/twilio-deduplicator.service.js";
 
 interface BubbleWhatsMessagePayload {
   id: string;
@@ -84,14 +82,10 @@ interface MetaWebhookPayload {
 @ApiExcludeController()
 @Controller("webhooks/whatsapp")
 export class WhatsAppWebhookController {
-  private readonly logger = new Logger(WhatsAppWebhookController.name);
-
   constructor(
     @Inject(WHATSAPP_CONFIG_REPOSITORY)
     private readonly configRepo: WhatsAppConfigRepository,
-    private readonly handleMessage: HandleIncomingMessageUseCase,
     private readonly acceptBubbleWhats: AcceptBubbleWhatsWebhookUseCase,
-    private readonly deduplicator: TwilioDeduplicatorService,
   ) {}
 
   @Get("meta")
@@ -137,24 +131,19 @@ export class WhatsAppWebhookController {
 
         const senderName = change.value?.contacts?.[0]?.profile?.name;
         for (const message of change.value?.messages ?? []) {
-          if (!message.id || !message.from || this.deduplicator.isDuplicate("META", message.id)) continue;
-          this.deduplicator.mark("META", message.id);
+          if (!message.id || !message.from) continue;
 
           const body = this.metaMessageBody(message);
           if (!body) {
-            this.logger.debug(`Ignored unsupported Meta message ${message.id}`);
             continue;
           }
 
-          void this.handleMessage.execute({
-            merchantId: config.merchantId,
-            deviceId: `twilio:${config.id}`,
+          await this.acceptBubbleWhats.messageForAuthenticatedConfig(config, "META", message.id, {
             fromNumber: message.from.startsWith("+") ? message.from : `+${message.from}`,
             fromAlias: senderName,
             body,
             messageType: message.type ?? "text",
             timestamp: Number(message.timestamp ?? 0) * 1000 || Date.now(),
-            provider: "TWILIO",
           });
         }
       }
@@ -213,65 +202,30 @@ export class WhatsAppWebhookController {
     @Body() body: Record<string, string>,
     @Req() req: Request,
   ): Promise<string> {
-    try {
-      // 1. Parse Twilio inbound
-      const normalized = parseTwilioInbound(body);
-      if (!normalized) {
-        this.logger.warn("Failed to parse Twilio webhook body");
-        return ""; // TwiML empty response
-      }
+    const normalized = parseTwilioInbound(body);
+    if (!normalized) return "";
 
-      // 2. Deduplicate by MessageSid
-      if (this.deduplicator.isDuplicate("TWILIO", normalized.messageSid)) {
-        return "";
-      }
-      this.deduplicator.mark("TWILIO", normalized.messageSid);
+    const config = await this.configRepo.findByWhatsAppNumber(normalized.toNumber);
+    if (!config || !config.enabled || config.provider !== "TWILIO") return "";
 
-      // 3. Lookup merchant by toNumber
-      const config = await this.configRepo.findByWhatsAppNumber(normalized.toNumber);
-      if (!config) {
-        this.logger.warn(`Unknown Twilio recipient number: ${normalized.toNumber}`);
-        return "";
-      }
-
-      if (!config.enabled) {
-        this.logger.debug(`WhatsApp channel disabled for merchant ${config.merchantId}`);
-        return "";
-      }
-
-      // 4. Validate signature with merchant's authToken
-      if (signature && config.credentials) {
-        const creds = config.credentials as Record<string, unknown>;
-        const authToken = String(creds.authToken ?? "");
-        if (authToken) {
-          const requestUrl = `${req.protocol}://${req.get("host")}${req.originalUrl}`;
-          if (!validateTwilioSignature(signature, requestUrl, body, authToken)) {
-            this.logger.warn(`Twilio signature validation failed for ${config.merchantId}`);
-            throw new UnauthorizedException("invalid_twilio_signature");
-          }
-        }
-      }
-
-      // 5. Dispatch to message pipeline
-      await this.handleMessage.execute({
-        merchantId: config.merchantId,
-        deviceId: `twilio:${config.id}`, // pseudo-deviceId for routing
-        fromNumber: normalized.fromNumber,
-        fromAlias: normalized.fromAlias,
-        body: normalized.body,
-        messageType: "text",
-        mediaUrl: normalized.mediaUrl,
-        mimetype: normalized.mimetype,
-        timestamp: normalized.timestamp,
-        provider: "TWILIO",
-      });
-
-      // 6. Return empty TwiML (no auto-response via TwiML — we send via adapter)
-      return "";
-    } catch (error) {
-      this.logger.error(`Twilio webhook error: ${error instanceof Error ? error.message : String(error)}`);
-      throw error;
+    const authToken = String(config.credentials?.authToken ?? "");
+    if (!signature || !authToken) {
+      throw new ServiceUnavailableException("twilio_webhook_auth_not_configured");
     }
+    const requestUrl = `${req.protocol}://${req.get("host")}${req.originalUrl}`;
+    if (!validateTwilioSignature(signature, requestUrl, body, authToken)) {
+      throw new UnauthorizedException("invalid_twilio_signature");
+    }
+
+    await this.acceptBubbleWhats.messageForAuthenticatedConfig(config, "TWILIO", normalized.messageSid, {
+      fromNumber: normalized.fromNumber,
+      fromAlias: normalized.fromAlias,
+      body: normalized.body,
+      messageType: "text",
+      mediaUrl: normalized.mediaUrl,
+      mimetype: normalized.mimetype,
+      timestamp: normalized.timestamp,
+    });
+    return "";
   }
 }
-
