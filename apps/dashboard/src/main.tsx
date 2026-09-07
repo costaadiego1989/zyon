@@ -11,6 +11,7 @@ import { AuthScreen, type AuthMode } from "./auth/AuthScreen.js";
 import { OAuthCallback, type OAuthCallbackResult } from "./auth/OAuthCallback.js";
 import { friendlyAuthError } from "./auth/auth-error.js";
 import { DashboardShell } from "./shell/DashboardShell.js";
+import { LoadingSplash } from "./components/LoadingSplash.js";
 import { PlanSelection } from "./pages/onboarding-wizard/steps/PlanSelection.js";
 import type { TabKey } from "./shell/nav-config.js";
 import { ApiContext, useApiInstance } from "./hooks/useApi.js";
@@ -213,7 +214,7 @@ function App({ api }: AppProps) {
     );
   }
 
-  if (checkingSession) return <div role="status" style={{ padding: 48 }}>Carregando sua conta…</div>;
+  if (checkingSession) return <LoadingSplash />;
 
   if (me && planSelectionPending) {
     return <main className="signup-plans"><PlanSelection merchantName={me.name} onDone={handlePlanComplete} /></main>;
