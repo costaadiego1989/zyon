@@ -1,15 +1,18 @@
-import { BadRequestException, Inject, Injectable, NotFoundException , Logger} from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { createHash, randomUUID } from "node:crypto";
 import type { DomainEventEnvelope, OnboardingDomainEventType, OnboardingStateResponse, OnboardingStepId } from "@zyon/shared-types";
 import {
   ONBOARDING_STATE_REPOSITORY,
   type OnboardingStateRepository
 } from "../domain/ports/onboarding-state.repository.port.js";
-import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../shared/messaging/ports/outbox.repository.port.js";
+import {
+  ONBOARDING_TRANSITION_REPOSITORY,
+  type OnboardingTransitionRepository,
+} from "../domain/ports/onboarding-transition.repository.port.js";
 import {
   MERCHANT_REPOSITORY,
   type MerchantRepository
 } from "../../merchant/domain/ports/merchant-repository.port.js";
-import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 import {
   OnboardingStateEntity,
   ONBOARDING_STEP_ORDER,
@@ -28,11 +31,9 @@ function onboardingEvent(input: {
   occurredAt: Date;
 }): DomainEventEnvelope {
   const occurredAtStr = input.occurredAt.toISOString();
-  // ONB-H3: Derive event_id deterministically from (merchantId + step + occurredAt).
-  // This allows retry deduplication: same operation always produces the same event_id.
-  const eventSeed = `${input.merchantId}:${input.eventType}:${occurredAtStr}`;
-  const hash = Array.from(eventSeed).reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0);
-  const event_id = `evt_${Math.abs(hash).toString(36).padEnd(8, "0")}`;
+  // The logical transition, rather than its wall-clock retry, owns its event ID.
+  const identity = JSON.stringify([input.merchantId, input.eventType, input.payload.step ?? "completed"]);
+  const event_id = `evt_${createHash("sha256").update(identity).digest("hex").slice(0, 24)}`;
 
   return {
     event_id,
@@ -40,7 +41,7 @@ function onboardingEvent(input: {
     schema_version: 1,
     merchant_id: input.merchantId,
     occurred_at: occurredAtStr,
-    correlation_id: `corr_${crypto.randomUUID()}`,
+    correlation_id: `corr_${randomUUID()}`,
     causation_id: input.eventType,
     producer: "onboarding",
     payload: input.payload
@@ -49,11 +50,9 @@ function onboardingEvent(input: {
 
 @Injectable()
 export class CompleteOnboardingStepUseCase {
-  private readonly logger = new Logger(CompleteOnboardingStepUseCase.name);
-
   constructor(
     @Inject(ONBOARDING_STATE_REPOSITORY) private readonly repository: OnboardingStateRepository,
-    @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
+    @Inject(ONBOARDING_TRANSITION_REPOSITORY) private readonly transitions: OnboardingTransitionRepository,
     @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository
   ) {}
 
@@ -94,17 +93,16 @@ export class CompleteOnboardingStepUseCase {
     // Idempotent: persist + emit only on a real transition, so re-runs after a
     // partial failure never duplicate events.
     if (changed) {
-      await this.repository.save(state);
-      await this.outbox.appendOutbox(
+      const events = [
         onboardingEvent({
           eventType: "merchant.onboarding.step.completed",
           merchantId,
           payload: { step },
           occurredAt: now
-        })
-      );
+        }),
+      ];
       if (state.isComplete()) {
-        await this.outbox.appendOutbox(
+        events.push(
           onboardingEvent({
             eventType: "merchant.onboarding.completed",
             merchantId,
@@ -113,6 +111,7 @@ export class CompleteOnboardingStepUseCase {
           })
         );
       }
+      await this.transitions.persist(state, events);
     }
 
     return state.toResponse();

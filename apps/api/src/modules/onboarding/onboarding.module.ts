@@ -7,6 +7,8 @@ import { GetOnboardingStateUseCase } from "./application/get-onboarding-state.us
 import { CompleteOnboardingStepUseCase } from "./application/complete-onboarding-step.use-case.js";
 import { ONBOARDING_STATE_REPOSITORY } from "./domain/ports/onboarding-state.repository.port.js";
 import { PrismaOnboardingStateRepository } from "./infrastructure/prisma-onboarding-state.repository.js";
+import { PrismaOnboardingTransitionRepository } from "./infrastructure/prisma-onboarding-transition.repository.js";
+import { ONBOARDING_TRANSITION_REPOSITORY } from "./domain/ports/onboarding-transition.repository.port.js";
 import { OnboardingController } from "./presentation/http/onboarding.controller.js";
 
 @Module({
@@ -19,7 +21,12 @@ import { OnboardingController } from "./presentation/http/onboarding.controller.
       provide: ONBOARDING_STATE_REPOSITORY,
       useFactory: (prisma: PrismaClient) => new PrismaOnboardingStateRepository(prisma),
       inject: [PRISMA_CLIENT]
-    }
+    },
+    {
+      provide: ONBOARDING_TRANSITION_REPOSITORY,
+      useFactory: (prisma: PrismaClient) => new PrismaOnboardingTransitionRepository(prisma),
+      inject: [PRISMA_CLIENT]
+    },
   ],
   exports: [ONBOARDING_STATE_REPOSITORY]
 })

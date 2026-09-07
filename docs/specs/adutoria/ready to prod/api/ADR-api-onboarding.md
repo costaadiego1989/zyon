@@ -96,3 +96,7 @@ Decisão: registrar correção priorizada e acompanhar o risco residual. Correç
 ## Reavaliação
 
 Executar o gate específico, os critérios dos achados e testes relevantes da [sequência de correções](<../PLANO-DE-CORRECAO.md>). Guardar commit, configuração não secreta, comandos, resultado e evidência de banco/provedor. A auditoria atual não realizou essas correções.
+
+### Atualização de 2026-09-07
+
+A transição de onboarding e os eventos de outbox agora são persistidos pela mesma transação Prisma, com identidade estável por transição lógica. A validação local cobriu falha de outbox sem salvar estado e os casos de ordem/idempotência. A validação PostgreSQL concorrente e a entrega real do outbox ainda são gates de produção.

@@ -25,11 +25,17 @@ function setup() {
   const repo = new InMemoryOnboardingStateRepository();
   const outbox = new InMemoryOutboxRepository();
   const merchants = new StubMerchantRepository() as unknown as MerchantRepository;
+  const transitions = {
+    persist: async (state: any, events: any[]) => {
+      for (const event of events) await outbox.appendOutbox(event);
+      await repo.save(state);
+    },
+  };
   return {
     repo,
     outbox,
     get: new GetOnboardingStateUseCase(repo),
-    complete: new CompleteOnboardingStepUseCase(repo, outbox, merchants)
+    complete: new CompleteOnboardingStepUseCase(repo, transitions, merchants)
   };
 }
 
@@ -71,6 +77,17 @@ test("CompleteOnboardingStep is idempotent (no duplicate events)", async () => {
 
   const events = await outbox.listOutbox("mrc_1");
   assert.equal(events.filter((e) => e.event_type === "merchant.onboarding.step.completed").length, 1);
+});
+
+test("CompleteOnboardingStep does not persist a transition when its outbox write fails", async () => {
+  const repo = new InMemoryOnboardingStateRepository();
+  const merchants = new StubMerchantRepository() as unknown as MerchantRepository;
+  const complete = new CompleteOnboardingStepUseCase(repo, {
+    persist: async () => { throw new Error("outbox_unavailable"); },
+  }, merchants);
+
+  await assert.rejects(() => complete.execute({ merchantId: "mrc_1", step: "checkout_config" }), /outbox_unavailable/);
+  assert.equal(repo.findByMerchant("mrc_1"), null);
 });
 
 test("CompleteOnboardingStep emits onboarding.completed once all steps done", async () => {

@@ -269,9 +269,9 @@
       "severity": "P2",
       "module": "onboarding",
       "title": "Transição salva antes do evento pode suprimir retry",
-      "status": "OPEN",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
       "productionGateClosed": false,
-      "record": "../../CORRECOES.md"
+      "record": "../../CORRECOES-ONBOARDING.md"
     },
     {
       "id": "API-031",
