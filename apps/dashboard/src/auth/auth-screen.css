@@ -17,7 +17,7 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 24px 24px 24px 24px;
+  padding: 24px;
   margin: 24px 0 24px 24px;
   min-height: calc(100vh - 48px);
   overflow-y: auto;
@@ -25,10 +25,10 @@
   scrollbar-color: oklch(25% 0.006 145) transparent;
   border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.05);
-  /* Glass surface — dark base + heavy backdrop blur so the moving WavesBackground
-     stays visible behind the form without bleeding text legibility. */
+  /* Glass — same low-alpha gradient as the hero panel so the moving waves remain
+     visible behind both surfaces with matching color treatment. */
   background:
-    linear-gradient(180deg, rgba(10, 16, 12, 0.62) 0%, rgba(8, 14, 10, 0.72) 100%);
+    linear-gradient(180deg, rgba(16, 22, 18, 0.32) 0%, rgba(10, 16, 12, 0.42) 100%);
   backdrop-filter: blur(18px) saturate(1.05);
   -webkit-backdrop-filter: blur(18px) saturate(1.05);
   box-shadow:
@@ -582,11 +582,12 @@
   margin: 24px 24px 24px 0;
   border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.05);
-  /* Glass surface — same treatment as the form container so both panels match */
+  /* Glass — matches the form-panel recipe so left and right share the same
+     color and alpha; waves stay readable through both. */
   background:
-    linear-gradient(180deg, rgba(22, 30, 26, 0.4) 0%, rgba(14, 20, 16, 0.5) 100%);
-  backdrop-filter: blur(20px) saturate(1.05);
-  -webkit-backdrop-filter: blur(20px) saturate(1.05);
+    linear-gradient(180deg, rgba(16, 22, 18, 0.32) 0%, rgba(10, 16, 12, 0.42) 100%);
+  backdrop-filter: blur(18px) saturate(1.05);
+  -webkit-backdrop-filter: blur(18px) saturate(1.05);
   box-shadow:
     0 18px 48px rgba(0, 0, 0, 0.32),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
