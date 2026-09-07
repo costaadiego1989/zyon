@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import { NotFoundException } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import { NonProductionRoute } from "./non-production-route.js";
+import { NonProductionRoute, ProductionDisabledRoute } from "./non-production-route.js";
 import { NonProductionRouteGuard } from "./non-production-route.guard.js";
 
 const originalNodeEnv = process.env.NODE_ENV;
@@ -48,6 +48,17 @@ describe("NonProductionRouteGuard", () => {
     assert.equal(guard.canActivate(makeContext(markedController())), true);
   });
 
+  it("keeps explicitly disabled capabilities hidden even when legacy routes are enabled", () => {
+    process.env.NODE_ENV = "production";
+    process.env.ENABLE_LEGACY_ROUTES = "true";
+    const guard = new NonProductionRouteGuard(new Reflector());
+
+    assert.throws(
+      () => guard.canActivate(makeContext(productionDisabledController())),
+      NotFoundException,
+    );
+  });
+
   it("allows unmarked controllers in production", () => {
     process.env.NODE_ENV = "production";
     const guard = new NonProductionRouteGuard(new Reflector());
@@ -60,6 +71,12 @@ function markedController(): Function {
   class LegacyController {}
   NonProductionRoute()(LegacyController);
   return LegacyController;
+}
+
+function productionDisabledController(): Function {
+  class DisabledController {}
+  ProductionDisabledRoute()(DisabledController);
+  return DisabledController;
 }
 
 function makeContext(controller: Function) {

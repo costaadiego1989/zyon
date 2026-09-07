@@ -13,7 +13,7 @@ import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-owne
 
 const request = { tenantPrincipal: { kind: "human" as const, tenantId: "merchant-a", userId: "user-a", email: "a@example.test", role: "owner" as const } };
 
-test("production enables only dashboard handlers and retains their authentication and ownership guards", () => {
+test("production enables public and dashboard storefront handlers while retaining authenticated administration", () => {
   const previous = process.env.NODE_ENV;
   const legacy = process.env.ENABLE_LEGACY_ROUTES;
   process.env.NODE_ENV = "production";
@@ -32,7 +32,11 @@ test("production enables only dashboard handlers and retains their authenticatio
         if (!name.startsWith("handle")) assert.ok(guards.includes(MerchantOwnershipGuard), name);
       }
     }
-    assert.throws(() => guard.canActivate({ getHandler: () => StorefrontController.prototype.handleCreateBudgetRequest, getClass: () => StorefrontController } as never), NotFoundException);
+    for (const name of ["getStoreIndex", "startConversation", "handleCreateBudgetRequest"] as const) {
+      assert.equal(guard.canActivate({ getHandler: () => StorefrontController.prototype[name], getClass: () => StorefrontController } as never), true);
+    }
+    process.env.ENABLE_LEGACY_ROUTES = "true";
+    assert.throws(() => guard.canActivate({ getHandler: () => StorefrontController.prototype.handleAddMarketplaceItem, getClass: () => StorefrontController } as never), NotFoundException);
     const ownership = new MerchantOwnershipGuard();
     assert.throws(() => ownership.canActivate({ switchToHttp: () => ({ getRequest: () => ({ ...request, params: { merchantId: "merchant-b" } }) }) } as never), ForbiddenException);
   } finally {

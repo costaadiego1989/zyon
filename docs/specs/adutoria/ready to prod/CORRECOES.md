@@ -25,8 +25,8 @@ Commits de implementação: `255508f` (financeiro), `e8d2b4b` (catálogo/estoque
 | API-001 | Implementado localmente | Variante/produto/mídia e reserva exigem tenant; tenant ausente também é rejeitado. Upload usa S3 substituído por double no teste. |
 | API-002 | Implementado localmente | Reserva serializada por variante, CAS, idempotência e depósito persistido; confirmação/expiração não repetem baixa/liberação. Migração e legado exigem os cuidados abaixo. |
 | API-003 | Implementado localmente | Stories/categorias/reorder e projeções públicas filtram tenant, inclusive o alias legado. |
-| API-004 | Parcial | Socket e HTTP de conversa exigem capability. Autorização do carrinho legado, marketplace/items e ponte para widget continuam pendentes. |
-| API-005 | Parcial | Administração de orçamento/funnel autenticada e mutation por id+tenant. Compra ainda depende da migração das rotas legadas. |
+| API-004 | Implementado localmente | Socket, HTTP de conversa e carrinho público exigem capability. A ponte storefront → widget usa a mesma credencial para o checkout nativo. |
+| API-005 | Implementado localmente | Rotas públicas seguras do storefront não dependem mais de `ENABLE_LEGACY_ROUTES`; administração de orçamento/funnel permanece autenticada. Inclusão cross-store segue indisponível em produção até haver carrinho e preço autoritativos. |
 | API-006 | Mitigado; comando indisponível | Chargeback verifica papel e tenant nos dois aliases, mas exige confirmação do provedor. Nenhuma liquidação/dívida é alterada pelo comando manual. |
 | API-007 | Mitigado; capacidade indisponível | Reembolso elegível responde 503 `refund_provider_unavailable`, preservando estado e valores. Não existe estorno financeiro implementado neste lote. |
 | API-008 | Mitigado; capacidade indisponível | Repasse devido fica pendente e é contado como bloqueado. Data de repasse preserva política configurada; agendamento usa CAS. Conciliação externa continua necessária. |

@@ -1,6 +1,6 @@
 ﻿import { BadRequestException, Body, Controller, ForbiddenException, Get, Inject, NotFoundException, Optional, Param, Patch, Post, Query, Req, Res, UnauthorizedException, UseGuards } from "@nestjs/common";
 import { RealtimeCapabilityService } from "../../../../shared/auth/realtime-capability.js";
-import { NonProductionRoute, ProductionRoute } from "../../../../shared/http/non-production-route.js";
+import { NonProductionRoute, ProductionDisabledRoute, ProductionRoute } from "../../../../shared/http/non-production-route.js";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-ownership.guard.js";
 import { currentTenantPrincipal, type TenantPrincipalRequest } from "../../../../shared/auth/tenant-principal.js";
@@ -33,7 +33,6 @@ export interface SendMessageRequest {
   history?: Array<{ role: "user" | "assistant"; content: string }>;
 }
 
-@NonProductionRoute()
 @Controller("storefront")
 export class StorefrontController {
   constructor(
@@ -118,9 +117,13 @@ export class StorefrontController {
   }
 
   @Post("nudge")
-  async nudge(@Body() body: { merchant_id: string; trigger: "idle_30_seconds" | "exit_intent_detected"; stage?: "cart" | "browsing"; fallback: string }) {
+  async nudge(
+    @Body() body: { conversation_id: string; merchant_id?: string; trigger: "idle_30_seconds" | "exit_intent_detected"; stage?: "cart" | "browsing"; fallback: string },
+    @Req() request: { headers?: { authorization?: string; origin?: string } },
+  ) {
+    const claims = this.conversationAccess(request, body.conversation_id, body.merchant_id);
     return this.generateNudge.execute({
-      merchant_id: body.merchant_id,
+      merchant_id: claims.merchantId,
       trigger: body.trigger,
       stage: body.stage,
       fallback: body.fallback,
@@ -296,6 +299,7 @@ export class StorefrontController {
   }
 
   @Post("marketplace/items")
+  @ProductionDisabledRoute()
   async handleAddMarketplaceItem(
     @Body()
     body: {

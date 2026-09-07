@@ -245,6 +245,7 @@ export function useConversationViewModel(
         triggerEvent,
         stage,
         merchantId: merchantId || null,
+        conversationId: conversationIdRef.current,
         agentMode: agentModeRef.current,
         widgetConfig: widgetConfigRef.current,
         setMode,

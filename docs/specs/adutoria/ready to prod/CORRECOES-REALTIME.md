@@ -6,8 +6,8 @@ Este registro descreve a implementação desta etapa. A auditoria original conti
 
 | Achado | Implementação local | Pendência |
 | --- | --- | --- |
-| API-004 | Gateway exige capability específica da conversa; HTTP de mensagem, histórico e evento exige a mesma credencial; tenant e carrinho da conversa são derivados dela. | **PARCIAL**: GET/PATCH do carrinho legado e POST marketplace/items ainda precisam de autorização por sessão e da migração da ponte storefront → widget. Não liberar ownership completo de carrinho. |
-| API-005 | Lista/status de orçamento e consultas de funnel exigem AuthGuard. Tenant vem do principal; atualização usa um único updateMany com id + merchantId. | **PARCIAL**: compra com ENABLE_LEGACY_ROUTES=false continua dependendo da migração dos contratos públicos. |
+| API-004 | Gateway exige capability específica da conversa; HTTP de mensagem, histórico, evento e carrinho exigem a mesma credencial; tenant e carrinho são derivados dela. A ponte storefront → widget encaminha a capability para o checkout nativo. | A capability vale por uma hora; navegador/Socket.IO real e revogação distribuída continuam gates operacionais. |
+| API-005 | Lista/status de orçamento e consultas de funnel exigem AuthGuard. Tenant vem do principal; atualização usa um único updateMany com id + merchantId. Rotas públicas seguras do storefront ficam disponíveis sem a flag legada; nudge exige capability da conversa. | Inclusão cross-store fica explicitamente indisponível em produção até o checkout usar carrinho e preço autoritativos. |
 | API-041 | Conexão autenticada, membership de merchant e ownership de ticket nos eventos, senderType derivado da credencial, salas com tenant, origem e expiração verificadas. Consumidores de suporte atualizados. | Implementação validada por testes locais; falta smoke de Nest/Socket.IO real, navegador e configuração de produção. |
 | API-003 (alias) | Projeção legada de histórias filtra também stories.merchantId, além da categoria. | Complementa a correção de stories; não substitui os testes do módulo. |
 

@@ -6,6 +6,7 @@ export interface FireNudgeParams {
   triggerEvent: "idle_30_seconds" | "exit_intent_detected";
   stage?: "cart" | "browsing";
   merchantId: string | null;
+  conversationId: string | null;
   agentMode: "silent_until_trigger" | "proactive" | "manual_only" | undefined;
   widgetConfig: any;
   setMode: (mode: "intro" | "chat") => void;
@@ -41,7 +42,7 @@ function resolveFallback(stage: "cart" | "browsing" | undefined, widgetConfig: a
 }
 
 export function handleFireNudge(params: FireNudgeParams) {
-  const { triggerEvent, stage, merchantId, agentMode, widgetConfig, setMode, setMessages, setIsLoading, canFireTrigger, recordTriggerFired } = params;
+  const { triggerEvent, stage, merchantId, conversationId, agentMode, widgetConfig, setMode, setMessages, setIsLoading, canFireTrigger, recordTriggerFired } = params;
 
   const mid = merchantId || "";
   if (agentMode === "manual_only") return;
@@ -55,7 +56,7 @@ export function handleFireNudge(params: FireNudgeParams) {
   recordTriggerFired(mid, triggerEvent);
   setMode("chat");
 
-  if (!mid) {
+  if (!mid || !conversationId) {
     setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "agent", text: fallback, ephemeral: true }]);
     return;
   }
@@ -71,7 +72,7 @@ export function handleFireNudge(params: FireNudgeParams) {
   const fallbackTimer = setTimeout(() => reveal(fallback), 6000);
 
   checkoutApi
-    .generateNudge(mid, triggerEvent, stage ?? "browsing", fallback)
+    .generateNudge(conversationId, mid, triggerEvent, stage ?? "browsing", fallback)
     .then((res) => {
       clearTimeout(fallbackTimer);
       reveal(res?.message?.trim() || fallback);

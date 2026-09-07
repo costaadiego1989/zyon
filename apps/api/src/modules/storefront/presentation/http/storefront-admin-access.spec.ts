@@ -78,3 +78,21 @@ test("HTTP conversation aliases reject missing/foreign capability before reading
     [{ merchant_id: "merchant_a", conversation_id: "conv_a" }], "tracking",
   ]);
 });
+
+test("nudge derives its merchant from the conversation capability", async () => {
+  const capabilities = new RealtimeCapabilityService("test-realtime-secret-at-least-32-characters");
+  const calls: unknown[] = [];
+  const controller = Object.assign(Object.create(StorefrontController.prototype), {
+    capabilities,
+    generateNudge: { execute: async (input: unknown) => { calls.push(input); return { message: "ok" }; } },
+  }) as StorefrontController;
+  const access = capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant_a", resourceId: "conv_a" });
+  const request = { headers: { authorization: `Bearer ${access.token}` } };
+
+  await assert.rejects(
+    () => controller.nudge({ conversation_id: "conv_a", merchant_id: "merchant_b", trigger: "idle_30_seconds", fallback: "Oi" }, request),
+    /conversation_access_denied/,
+  );
+  await controller.nudge({ conversation_id: "conv_a", merchant_id: "merchant_a", trigger: "idle_30_seconds", fallback: "Oi" }, request);
+  assert.deepEqual(calls, [{ merchant_id: "merchant_a", trigger: "idle_30_seconds", stage: undefined, fallback: "Oi" }]);
+});

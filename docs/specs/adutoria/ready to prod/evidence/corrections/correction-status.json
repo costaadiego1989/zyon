@@ -35,7 +35,7 @@
       "severity": "P0",
       "module": "storefront",
       "title": "WebSocket aceita salas de conversa sem autenticação ou vínculo",
-      "status": "PARTIAL",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
       "productionGateClosed": false,
       "record": "../../CORRECOES.md"
     },
@@ -44,7 +44,7 @@
       "severity": "P0",
       "module": "storefront",
       "title": "Flag de legado expõe consultas e mutações administrativas sem autenticação",
-      "status": "PARTIAL",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
       "productionGateClosed": false,
       "record": "../../CORRECOES.md"
     },
