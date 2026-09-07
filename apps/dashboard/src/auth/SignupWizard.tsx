@@ -35,7 +35,6 @@ interface BusinessDraft {
   name: string;
   segment: string;
   volume: string;
-  url: string;
   taxId: string;
 }
 
@@ -59,7 +58,7 @@ export function SignupWizard(props: SignupWizardProps) {
   const [localBusy, setLocalBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [person, setPerson] = useState<PersonDraft>({ name: props.oauthProfile?.name ?? "", role: "" });
-  const [business, setBusiness] = useState<BusinessDraft>({ name: "", segment: "", volume: "", url: "", taxId: "" });
+  const [business, setBusiness] = useState<BusinessDraft>({ name: "", segment: "", volume: "", taxId: "" });
   const [account, setAccount] = useState<AccountDraft>({ email: props.oauthProfile?.email ?? "", password: "", confirmPassword: "", phone: "" });
 
   const busy = props.busy || localBusy;
@@ -128,7 +127,6 @@ export function SignupWizard(props: SignupWizardProps) {
             cnpj: business.taxId.replace(/\D/g, ""),
             email: account.email.trim(),
             phone: account.phone.replace(/\D/g, ""),
-            ...(business.url && { url: business.url.trim() }),
           },
         });
       }
@@ -287,10 +285,6 @@ function BusinessFields({ draft, onChange }: { draft: BusinessDraft; onChange: (
             {VOLUMES.map((v) => <option key={v} value={v}>{v}</option>)}
           </select>
         </div>
-      </div>
-      <div className="auth-field">
-        <label className="auth-field__label">URL da loja</label>
-        <input value={draft.url} onChange={(e) => onChange({ ...draft, url: e.target.value })} placeholder="sualoja.com.br" className="auth-field__input" />
       </div>
       <div className="auth-field">
         <label className="auth-field__label">CPF ou CNPJ</label>

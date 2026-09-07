@@ -17,9 +17,20 @@
   justify-content: center;
   padding: 24px;
   min-height: 100vh;
-  overflow: visible;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: oklch(25% 0.006 145) transparent;
   background: oklch(7% 0.005 150 / 0.5);
   backdrop-filter: blur(3px);
+}
+.auth-form-panel::-webkit-scrollbar { width: 8px; }
+.auth-form-panel::-webkit-scrollbar-track { background: transparent; }
+.auth-form-panel::-webkit-scrollbar-thumb {
+  background: oklch(25% 0.006 145);
+  border-radius: 8px;
+}
+.auth-form-panel::-webkit-scrollbar-thumb:hover {
+  background: oklch(35% 0.008 145);
 }
 
 .auth-header {
