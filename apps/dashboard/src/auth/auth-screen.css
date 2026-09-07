@@ -53,7 +53,10 @@
   scrollbar-width: thin;
   scrollbar-color: oklch(25% 0.006 145) transparent;
   border-right: 1px solid rgba(255, 255, 255, 0.04);
-  background: transparent;
+  /* Dark semi-transparent base — lets the bg image and waves stay visible
+     around the shell while keeping form text legible inside the column. */
+  background:
+    linear-gradient(180deg, rgba(8, 12, 10, 0.72) 0%, rgba(6, 10, 8, 0.78) 100%);
 }
 .auth-form-panel::-webkit-scrollbar { width: 8px; }
 .auth-form-panel::-webkit-scrollbar-track { background: transparent; }
@@ -599,7 +602,8 @@
   justify-content: center;
   gap: 28px;
   padding: 56px 48px;
-  background: transparent;
+  background:
+    linear-gradient(180deg, rgba(8, 12, 10, 0.72) 0%, rgba(6, 10, 8, 0.78) 100%);
 }
 
 .auth-hero::before {
