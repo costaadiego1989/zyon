@@ -49,7 +49,7 @@ O contrato deve definir URL/método, principal, tenant/session, DTO, envelope, u
 | ID | SF-001 |
 | SEVERITY | P1 |
 | MODULE | storefront |
-| FILE(S) | [apps/storefront/src/lib/api/api-client.ts:68](<../../../../../apps/storefront/src/lib/api/api-client.ts#L68>)<br>[apps/storefront/src/components/blocks/ProductCarouselBlock.tsx:31](<../../../../../apps/storefront/src/components/blocks/ProductCarouselBlock.tsx#L31>)<br>[apps/api/src/modules/catalog/presentation/http/catalog.controller.ts:1](<../../../../../apps/api/src/modules/catalog/presentation/http/catalog.controller.ts#L1>) |
+| FILE(S) | [apps/storefront/src/lib/api/api-client.ts:68](<../../../../../apps/storefront/src/lib/api/api-client.ts#L68>)<br>[apps/storefront/src/components/blocks/ProductCarouselBlock.tsx:31](<../../../../../apps/storefront/src/components/blocks/ProductCarouselBlock.tsx#L31>)<br>[apps/api/src/modules/storefront/presentation/http/storefront.controller.ts](<../../../../../apps/api/src/modules/storefront/presentation/http/storefront.controller.ts>)<br>[apps/api/src/modules/catalog/application/use-cases/list-public-storefront-products.use-case.ts](<../../../../../apps/api/src/modules/catalog/application/use-cases/list-public-storefront-products.use-case.ts>) |
 | ISSUE | Paginação do catálogo público usa endpoint administrativo |
 | EVIDENCE | productsApi.list/get chama /merchants/:id/products com credentials include. Esses endpoints pertencem ao catálogo administrativo protegido; comprador comum não tem cookie merchant. ProductCarouselBlock usa list para carregar a próxima página. O envelope products/nextCursor existe e o componente adapta variantes; o bloqueio confirmado é a credencial. |
 | VERIFICATION | CONFIRMED_STATIC |
@@ -61,7 +61,7 @@ O contrato deve definir URL/método, principal, tenant/session, DTO, envelope, u
 | BLOCKS PROD? | YES |
 | CRITÉRIO DE ACEITE | Navegador sem sessão de lojista lista apenas produtos públicos da loja e escolhe variante válida sem acessar campos administrativos. |
 
-Decisão: bloquear a liberação da capacidade afetada até cumprir o critério de aceite. Correção ainda não implementada nesta auditoria.
+Decisão: implementada localmente. `GET /storefront/catalog/:merchantId/products` e o detalhe correspondente expõem somente produto ativo, variante ativa e dados de venda; valores são retornados em reais. O carrossel deixou de enviar cookies de merchant e usa esse contrato para paginação. O teste unitário focado, os typechecks de API/storefront, o build do storefront e o build Nest passaram. A confirmação final do critério exige smoke em ambiente com catálogo real e visitante sem sessão de merchant; portanto o gate de produção permanece aberto.
 
 <a id="sf-002"></a>
 

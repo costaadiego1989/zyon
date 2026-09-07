@@ -164,6 +164,7 @@ import "./modules/catalog/application/use-cases/confirm-stock.use-case.spec.js";
 import "./modules/catalog/application/use-cases/enqueue-spreadsheet-import.use-case.spec.js";
 import "./modules/catalog/application/use-cases/process-spreadsheet-import.use-case.spec.js";
 import "./modules/catalog/application/use-cases/get-import-job.use-case.spec.js";
+import "./modules/catalog/application/use-cases/list-public-storefront-products.use-case.spec.js";
 import "./modules/catalog/domain/services/product-price-resolver.service.spec.js";
 import "./modules/catalog/domain/services/import-row-normalizer.service.spec.js";
 import "./modules/catalog/domain/services/validate-column-mapping.spec.js";

@@ -6,7 +6,7 @@
  * - External customers are single-tenant (have their own API key)
  *
  * For our storefront:
- * - Catalog/products: internal route (scoped by merchantId param)
+ * - Catalog/products: public read-only route (scoped by merchantId param)
  * - Conversations/messages: capability returned when the conversation is created
  * - Cart: internal route (scoped by merchantId)
  * - Settings: loaded via SSR (server-client.ts)
@@ -74,8 +74,7 @@ export const productsApi = {
 
     const qs = params.toString();
     const result = await safeFetch(
-      `${API_BASE}/merchants/${merchantId}/products${qs ? `?${qs}` : ""}`,
-      { credentials: "include" },
+      `${API_BASE}/storefront/catalog/${encodeURIComponent(merchantId)}/products${qs ? `?${qs}` : ""}`,
     );
     return {
       products: result.products ?? [],
@@ -84,8 +83,7 @@ export const productsApi = {
   },
   async get(merchantId: string, productId: string): Promise<Product | null> {
     const result = await safeFetch(
-      `${API_BASE}/merchants/${merchantId}/products/${productId}`,
-      { credentials: "include" },
+      `${API_BASE}/storefront/catalog/${encodeURIComponent(merchantId)}/products/${encodeURIComponent(productId)}`,
     );
     return result ?? null;
   },

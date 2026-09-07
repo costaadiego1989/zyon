@@ -5,8 +5,8 @@ import type { ProductCarouselBlock as ProductCarouselBlockType, ProductCardBlock
 import { productsApi } from "@/lib/api/api-client";
 import ImageSlideshow from "../ImageSlideshow";
 
-function formatPrice(cents: number): string {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+function formatPrice(reais: number): string {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(reais);
 }
 
 export default function ProductCarouselBlock({
@@ -37,13 +37,14 @@ export default function ProductCarouselBlock({
         id: p.id,
         name: p.name,
         description: p.description,
-        price: p.variants?.[0]?.basePriceInCents ?? 0,
-        priceFormatted: formatPrice(p.variants?.[0]?.basePriceInCents ?? 0),
-        image: p.variants?.[0]?.media?.[0]?.url,
-        images: p.variants?.[0]?.media?.map((m: any) => m.url) ?? [],
-        inStock: p.type === "digital" || p.type === "service" || (p.variants?.some((v: any) => (v.stockQuantity ?? 0) - (v.stockReserved ?? 0) > 0) ?? false),
-        rating: p.averageRating,
+        price: p.price,
+        priceFormatted: formatPrice(p.price),
+        image: p.image,
+        images: p.images ?? [],
+        inStock: p.inStock,
+        rating: p.rating,
         reviewCount: p.reviewCount,
+        variants: p.variants,
       }));
       setProducts((prev) => [...prev, ...newProducts]);
       setCursor(result.nextCursor ?? undefined);

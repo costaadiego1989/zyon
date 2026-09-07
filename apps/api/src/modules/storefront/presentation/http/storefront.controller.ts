@@ -21,6 +21,7 @@ import { GetStorefrontLiveSessionsUseCase } from "../../application/use-cases/ge
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 import { PRODUCT_PROMOTION_REPOSITORY, type ProductPromotionRepositoryPort } from "../../../catalog/domain/ports/product-promotion-repository.port.js";
 import { applyProductPromoPricing } from "../../infrastructure/pricing/storefront-cart-promo.pricing.js";
+import { ListPublicStorefrontProductsUseCase } from "../../../catalog/application/use-cases/list-public-storefront-products.use-case.js";
 
 export interface StartConversationRequest {
   merchant_id: string;
@@ -50,6 +51,7 @@ export class StorefrontController {
     private readonly getPublicStoreResources: GetPublicStoreResourcesUseCase,
     private readonly trackStorefrontEvent: TrackStorefrontEventUseCase,
     private readonly getStorefrontLiveSessions: GetStorefrontLiveSessionsUseCase,
+    private readonly publicCatalog: ListPublicStorefrontProductsUseCase,
     @Inject(STOREFRONT_CART_PORT) private readonly cartRepo: StorefrontCartPort,
     @Inject(RealtimeCapabilityService) private readonly capabilities: RealtimeCapabilityService,
     @Optional() @Inject(PRODUCT_PROMOTION_REPOSITORY) private readonly productPromotionRepo?: ProductPromotionRepositoryPort,
@@ -58,6 +60,32 @@ export class StorefrontController {
   @Get("index")
   async getStoreIndex() {
     return this.getPublicStoreResources.listIndex();
+  }
+
+  @Get("catalog/:merchantId/products")
+  async listPublicCatalog(
+    @Param("merchantId") merchantId: string,
+    @Query("query") query?: string,
+    @Query("categoryId") categoryId?: string,
+    @Query("cursor") cursor?: string,
+    @Query("limit") limit?: string,
+  ) {
+    const parsedLimit = Number(limit);
+    return this.publicCatalog.execute({
+      merchantId,
+      query,
+      categoryId,
+      cursor,
+      limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+    });
+  }
+
+  @Get("catalog/:merchantId/products/:productId")
+  async getPublicCatalogProduct(
+    @Param("merchantId") merchantId: string,
+    @Param("productId") productId: string,
+  ) {
+    return this.publicCatalog.get(merchantId, productId);
   }
 
   @Get(":slug/config")

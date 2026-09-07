@@ -467,7 +467,7 @@
       "severity": "P1",
       "module": "storefront",
       "title": "Paginação do catálogo público usa endpoint administrativo",
-      "status": "OPEN",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
       "productionGateClosed": false,
       "record": "../../CORRECOES.md"
     },

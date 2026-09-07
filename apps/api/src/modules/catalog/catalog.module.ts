@@ -32,6 +32,7 @@ import { CHAT_COMPLETION_PORT } from "../support/domain/ports/chat-completion.po
 import { OpenAIChatAdapter } from "../support/infrastructure/openai-chat.adapter.js";
 import { S3UploadService } from "../../shared/storage/s3-upload.service.js";
 import { SearchProductsUseCase } from "./application/use-cases/search-products.use-case.js";
+import { ListPublicStorefrontProductsUseCase } from "./application/use-cases/list-public-storefront-products.use-case.js";
 import { ReserveStockUseCase } from "./application/use-cases/reserve-stock.use-case.js";
 import { ConfirmStockUseCase } from "./application/use-cases/confirm-stock.use-case.js";
 import { GetProductUseCase } from "./application/use-cases/get-product.use-case.js";
@@ -152,6 +153,7 @@ import { CatalogVariantService } from "./application/services/catalog-variant.se
     GetProductContentUseCase,
     AddProductUseCase,
     SearchProductsUseCase,
+    ListPublicStorefrontProductsUseCase,
     ReserveStockUseCase,
     ConfirmStockUseCase,
     GetProductUseCase,
@@ -198,6 +200,7 @@ import { CatalogVariantService } from "./application/services/catalog-variant.se
     AddStorefrontItemUseCase,
     AddProductUseCase,
     SearchProductsUseCase,
+    ListPublicStorefrontProductsUseCase,
     ReserveStockUseCase,
     ConfirmStockUseCase,
     GetProductUseCase,
