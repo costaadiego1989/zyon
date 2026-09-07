@@ -2014,6 +2014,7 @@ model RevenueManagerObservation {
   currentExperimentJson Json? @map("current_experiment_json")
   cohortsJson           Json  @map("cohorts_json")
   revenueJson           Json  @map("revenue_json")
+  dataQualityJson       Json  @map("data_quality_json")
   aiCostsCents          Int   @map("ai_costs_cents")
 
   fingerprint String   @unique

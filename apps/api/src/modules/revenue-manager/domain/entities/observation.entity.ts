@@ -12,12 +12,12 @@ export type ObservationSnapshot = {
     reached_shipping: number;
     reached_payment: number;
     completed_order: number;
-    conversion_rate: number;
+    conversion_rate: number | null;
   };
   abandonment: {
     abandoned_at_shipping: number;
     abandoned_at_payment: number;
-    abandonment_rate: number;
+    abandonment_rate: number | null;
     top_abandonment_objection: string;
   };
   objections: {
@@ -42,8 +42,8 @@ export type ObservationSnapshot = {
   cohorts: {
     returning_customers_rate: number;
     new_customers_rate: number;
-    high_discount_sensitivity_rate: number;
-    low_discount_sensitivity_rate: number;
+    high_discount_sensitivity_rate: number | null;
+    low_discount_sensitivity_rate: number | null;
   };
   revenue: {
     total_revenue_cents: number;
@@ -51,6 +51,14 @@ export type ObservationSnapshot = {
     total_orders: number;
   };
   ai_costs_cents: number;
+  data_quality: {
+    status: "ready" | "insufficient_data";
+    sample_size: number;
+    observation_window_start: string;
+    observation_window_end: string;
+    sources: Record<string, "measured" | "unavailable">;
+    missing_metrics: string[];
+  };
   fingerprint: string;
   created_at: string;
 };
@@ -70,6 +78,7 @@ export class ObservationEntity {
     cohorts: ObservationSnapshot["cohorts"];
     revenue: ObservationSnapshot["revenue"];
     ai_costs_cents: number;
+    data_quality?: ObservationSnapshot["data_quality"];
   }): ObservationEntity {
     const id = randomUUID();
     const now = new Date().toISOString();
@@ -81,6 +90,7 @@ export class ObservationEntity {
           abandonment: input.abandonment,
           objections: input.objections,
           cross_sell: input.cross_sell,
+          data_quality: input.data_quality,
           revenue: input.revenue,
         })
       )
@@ -105,13 +115,35 @@ export class ObservationEntity {
       cohorts: input.cohorts,
       revenue: input.revenue,
       ai_costs_cents: input.ai_costs_cents,
+      data_quality: input.data_quality ?? {
+        // Construction outside the collection use case is reserved for
+        // imported/test observations that already supply measured metrics.
+        status: "ready",
+        sample_size: input.funnel.total_sessions,
+        observation_window_start: input.observation_window_start.toISOString(),
+        observation_window_end: input.observation_window_end.toISOString(),
+        sources: { imported_observation: "measured" },
+        missing_metrics: []
+      },
       fingerprint,
       created_at: now,
     });
   }
 
   static rehydrate(snap: ObservationSnapshot): ObservationEntity {
-    return new ObservationEntity(snap);
+    return new ObservationEntity({
+      ...snap,
+      // Observations persisted before the provenance field was introduced
+      // must never be treated as measured evidence.
+      data_quality: snap.data_quality ?? {
+        status: "insufficient_data",
+        sample_size: 0,
+        observation_window_start: snap.observation_window_start,
+        observation_window_end: snap.observation_window_end,
+        sources: { legacy_observation: "unavailable" },
+        missing_metrics: ["metric_provenance"]
+      }
+    });
   }
 
   get id(): string { return this._snapshot.id; }
@@ -123,6 +155,11 @@ export class ObservationEntity {
   get cross_sell() { return this._snapshot.cross_sell; }
   get cohorts() { return this._snapshot.cohorts; }
   get revenue() { return this._snapshot.revenue; }
+  get data_quality() { return this._snapshot.data_quality; }
+
+  isReadyForHypothesis(): boolean {
+    return this._snapshot.data_quality.status === "ready";
+  }
 
   snapshot(): ObservationSnapshot { return { ...this._snapshot }; }
 }

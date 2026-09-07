@@ -46,9 +46,12 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
 
   const pendingCount = vm.hypotheses.filter(h => h.status === "pending_review").length;
   const approvedCount = vm.hypotheses.filter(h => h.status === "approved").length;
-  const avgConversion = vm.observations.length > 0
-    ? (vm.observations.reduce((s, o) => s + o.conversion_rate, 0) / vm.observations.length).toFixed(1)
-    : "0.0";
+  const measuredConversions = vm.observations
+    .map((observation) => observation.conversion_rate)
+    .filter((rate): rate is number => rate !== null);
+  const avgConversion = measuredConversions.length > 0
+    ? (measuredConversions.reduce((sum, rate) => sum + rate, 0) / measuredConversions.length).toFixed(1)
+    : "—";
   const lessonsCount = vm.lessons.length;
 
   const hypSlice = vm.hypotheses.slice((hypPage - 1) * PAGE_SIZE, hypPage * PAGE_SIZE);
@@ -202,7 +205,7 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
                 {obsSlice.map((o, i) => (
                   <tr key={o.date} style={{ borderBottom: i < obsSlice.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined }}>
                     <td style={{ padding: "12px 20px", font: "500 13px var(--font-sans)", color: "var(--color-text)" }}>{new Date(o.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}</td>
-                    <td style={{ padding: "12px 20px", font: "600 13px var(--font-data)", color: "var(--color-brand)" }}>{o.conversion_rate.toFixed(1)}%</td>
+                    <td style={{ padding: "12px 20px", font: "600 13px var(--font-data)", color: "var(--color-brand)" }}>{o.conversion_rate === null ? "Dados insuficientes" : `${o.conversion_rate.toFixed(1)}%`}</td>
                     <td style={{ padding: "12px 20px", font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>{o.top_objection}</td>
                     <td style={{ padding: "12px 20px", font: "13px var(--font-data)", color: "var(--color-text-faint)", textAlign: "right" }}>{o.sessions_count.toLocaleString("pt-BR")}</td>
                   </tr>

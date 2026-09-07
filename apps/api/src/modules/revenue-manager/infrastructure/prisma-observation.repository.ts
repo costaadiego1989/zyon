@@ -22,6 +22,7 @@ export class PrismaObservationRepository implements ObservationRepositoryPort {
         currentExperimentJson: snap.current_experiment ?? Prisma.DbNull,
         cohortsJson: snap.cohorts,
         revenueJson: snap.revenue,
+        dataQualityJson: snap.data_quality,
         aiCostsCents: snap.ai_costs_cents,
         fingerprint: snap.fingerprint,
       },
@@ -33,6 +34,7 @@ export class PrismaObservationRepository implements ObservationRepositoryPort {
         currentExperimentJson: snap.current_experiment ?? Prisma.DbNull,
         cohortsJson: snap.cohorts,
         revenueJson: snap.revenue,
+        dataQualityJson: snap.data_quality,
         aiCostsCents: snap.ai_costs_cents,
       },
     });
@@ -82,6 +84,7 @@ export class PrismaObservationRepository implements ObservationRepositoryPort {
     currentExperimentJson: unknown;
     cohortsJson: unknown;
     revenueJson: unknown;
+    dataQualityJson: unknown;
     aiCostsCents: number;
     fingerprint: string;
     createdAt: Date;
@@ -99,8 +102,23 @@ export class PrismaObservationRepository implements ObservationRepositoryPort {
       cohorts: rec.cohortsJson as ObservationSnapshot["cohorts"],
       revenue: rec.revenueJson as ObservationSnapshot["revenue"],
       ai_costs_cents: rec.aiCostsCents,
+      data_quality: parseDataQuality(rec.dataQualityJson, rec.observationWindowStart, rec.observationWindowEnd),
       fingerprint: rec.fingerprint,
       created_at: rec.createdAt.toISOString(),
     };
   }
+}
+
+function parseDataQuality(value: unknown, windowStart: Date, windowEnd: Date): ObservationSnapshot["data_quality"] {
+  if (value && typeof value === "object" && "status" in value && "missing_metrics" in value) {
+    return value as ObservationSnapshot["data_quality"];
+  }
+  return {
+    status: "insufficient_data",
+    sample_size: 0,
+    observation_window_start: windowStart.toISOString(),
+    observation_window_end: windowEnd.toISOString(),
+    sources: { legacy_observation: "unavailable" },
+    missing_metrics: ["metric_provenance"]
+  };
 }

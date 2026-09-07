@@ -48,6 +48,12 @@ export class GenerateHypothesisUseCase {
     if (!Number.isFinite(observation.funnel.total_sessions) || observation.funnel.total_sessions <= 0) {
       throw new Error("HYPOTHESIS_INSUFFICIENT_OBSERVATIONS");
     }
+    if (!observation.isReadyForHypothesis()) {
+      throw new Error("HYPOTHESIS_INSUFFICIENT_MEASURED_DATA");
+    }
+    if (observation.funnel.conversion_rate === null) {
+      throw new Error("HYPOTHESIS_INSUFFICIENT_MEASURED_DATA");
+    }
 
     const rules = await this.merchantContext.getRules(input.merchant_id);
     if (!rules) throw new Error("HYPOTHESIS_MERCHANT_RULES_UNAVAILABLE");

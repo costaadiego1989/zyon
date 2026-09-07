@@ -86,8 +86,8 @@ Consequência: o módulo poderá ser reavaliado isoladamente após a correção,
 | MODULE | revenue-manager |
 | FILE(S) | [apps/api/src/modules/revenue-manager/application/use-cases/observe-metrics.use-case.ts:115](<../../../../../apps/api/src/modules/revenue-manager/application/use-cases/observe-metrics.use-case.ts#L115>) |
 | ISSUE | Observação usa estimativas fixas como métricas |
-| EVIDENCE | Fallbacks calculam parcelas de sessões por 0.6/0.4 e taxas de abandono fixas em vez de retornar ausência de medição. |
-| VERIFICATION | CONFIRMED_STATIC |
+| EVIDENCE | Antes da correção, fallbacks calculavam parcelas de sessões por 0.6/0.4 e taxas de abandono fixas em vez de retornar ausência de medição. |
+| VERIFICATION | IMPLEMENTED_LOCAL_VALIDATION; REQUIRES PRODUCTION WINDOW VALIDATION |
 | PRODUCTION IMPACT | Hipóteses e decisões automáticas podem se apoiar em valores sintéticos apresentados como observação. |
 | ROOT CAUSE | Disponibilidade de dado substituída por número plausível sem provenance. |
 | RECOMMENDED FIX | Retornar unknown/insufficient_data com fonte e janela; bloquear avaliação automática que exige métrica ausente. |
@@ -96,7 +96,7 @@ Consequência: o módulo poderá ser reavaliado isoladamente após a correção,
 | BLOCKS PROD? | NO |
 | CRITÉRIO DE ACEITE | Dataset sem eventos medidos não pode gerar taxa observada; decisão registra origem/amostra e exige dados suficientes. |
 
-Decisão: registrar correção priorizada e acompanhar o risco residual. Correção ainda não implementada nesta auditoria.
+Decisão: correção local implementada. A observação persiste proveniência, janela, amostra e métricas ausentes; eventos sem medição retornam `insufficient_data`, conversão `null` e bloqueiam o gerador de hipóteses tanto no job quanto no use case. O dashboard exibe a ausência em vez de `0%`. Consulte o [registro de correção](<../CORRECOES-REVENUE-MANAGER.md>). O risco residual é aplicar a migração e comprovar a coleta em janela real.
 
 
 ## Reavaliação

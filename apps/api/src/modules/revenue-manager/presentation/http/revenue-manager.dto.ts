@@ -44,6 +44,7 @@ export class ObservationResponseDto {
   @ApiPropertyOptional() current_experiment?: object;
   @ApiProperty() cohorts!: object;
   @ApiProperty() revenue!: object;
+  @ApiProperty() data_quality!: object;
   @ApiProperty() ai_costs_cents!: number;
   @ApiProperty() created_at!: string;
 }

@@ -13,9 +13,13 @@ export interface ObserveMetricsInput {
 export interface ObserveMetricsOutput {
   observation_id: string;
   is_new: boolean;
+  data_ready: boolean;
+  missing_metrics: string[];
   top_abandonment_reason: string;
-  conversion_rate: number;
+  conversion_rate: number | null;
 }
+
+const MINIMUM_OBSERVED_SESSIONS = 30;
 
 /**
  * ObserveMetricsUseCase — Compiles real metrics from checkout data.
@@ -54,6 +58,8 @@ export class ObserveMetricsUseCase {
       return {
         observation_id: existing.id,
         is_new: false,
+        data_ready: existing.isReadyForHypothesis(),
+        missing_metrics: existing.data_quality.missing_metrics,
         top_abandonment_reason: existing.abandonment.top_abandonment_objection,
         conversion_rate: existing.funnel.conversion_rate,
       };
@@ -63,13 +69,15 @@ export class ObserveMetricsUseCase {
 
     this.logger.log(
       `Recorded observation for merchant ${input.merchant_id}: ` +
-      `conversion_rate=${metrics.funnel.conversion_rate.toFixed(3)}, ` +
-      `abandonment_rate=${metrics.abandonment.abandonment_rate.toFixed(3)}`,
+      `conversion_rate=${metrics.funnel.conversion_rate?.toFixed(3) ?? "insufficient_data"}, ` +
+      `abandonment_rate=${metrics.abandonment.abandonment_rate?.toFixed(3) ?? "insufficient_data"}`,
     );
 
     return {
       observation_id: observation.id,
       is_new: true,
+      data_ready: observation.isReadyForHypothesis(),
+      missing_metrics: observation.data_quality.missing_metrics,
       top_abandonment_reason: observation.abandonment.top_abandonment_objection,
       conversion_rate: observation.funnel.conversion_rate,
     };
@@ -96,20 +104,6 @@ export class ObserveMetricsUseCase {
       },
     });
 
-    const conversionRate = totalSessions > 0 ? completedOrders / totalSessions : 0;
-
-    // Abandonment: sessions with high abandonmentScore that did NOT convert
-    const highAbandonmentSessions = await this.prisma.checkoutSession.count({
-      where: {
-        merchantId,
-        createdAt: { gte: windowStart, lte: windowEnd },
-        abandonmentScore: { gte: 0.5 },
-        completedOrders: { none: {} },
-      },
-    });
-
-    const abandonmentRate = totalSessions > 0 ? highAbandonmentSessions / totalSessions : 0;
-
     // Event-based stage analysis
     const eventCounts = await this.prisma.checkoutEvent.groupBy({
       by: ["eventName"],
@@ -125,29 +119,38 @@ export class ObserveMetricsUseCase {
       eventMap[ev.eventName] = ev._count;
     }
 
-    // Infer funnel from events
-    const startedCheckout = eventMap["checkout_started"] ?? totalSessions;
-    const reachedShipping = eventMap["shipping_selected"] ?? Math.round(totalSessions * 0.6);
-    const reachedPayment = eventMap["payment_started"] ?? Math.round(totalSessions * 0.4);
+    const measuredEventCount = Object.values(eventMap).reduce((sum, count) => sum + count, 0);
+    const hasMeasuredCheckoutEvents = measuredEventCount > 0;
+    const missingMetrics = [
+      ...(totalSessions < MINIMUM_OBSERVED_SESSIONS ? ["minimum_session_sample"] : []),
+      ...(!hasMeasuredCheckoutEvents ? ["checkout_events"] : []),
+      ...(eventMap["checkout_started"] === undefined ? ["checkout_started_event"] : [])
+    ];
+    const dataReady = missingMetrics.length === 0;
 
-    // Abandonment reasons: infer from event distribution
-    const shippingAbandoned = eventMap["abandoned_at_shipping"] ?? Math.round(highAbandonmentSessions * 0.4);
-    const paymentAbandoned = eventMap["abandoned_at_payment"] ?? Math.round(highAbandonmentSessions * 0.6);
+    // Only actual event names emitted by checkout are used here. Missing data
+    // remains absent; it is never converted into a plausible synthetic count.
+    const startedCheckout = eventMap["checkout_started"] ?? 0;
+    const reachedShipping = eventMap["shipping_option_selected"] ?? 0;
+    const reachedPayment = eventMap["payment_method_selected"] ?? 0;
+    const shippingAbandoned = eventMap["shipping_objection_detected"] ?? 0;
+    const paymentAbandoned = eventMap["payment_failed"] ?? 0;
+    const conversionRate = dataReady ? completedOrders / totalSessions : null;
+    const abandonmentRate = dataReady ? (shippingAbandoned + paymentAbandoned) / totalSessions : null;
 
-    // Objections: infer from event names containing "objection"
     const objections = {
-      shipping_cost_count: eventMap["objection_shipping_cost"] ?? 0,
-      price_count: eventMap["objection_price"] ?? 0,
-      trust_count: eventMap["objection_trust"] ?? 0,
-      payment_count: eventMap["objection_payment"] ?? 0,
-      unknown_count: eventMap["objection_unknown"] ?? 0,
+      shipping_cost_count: shippingAbandoned,
+      price_count: 0,
+      trust_count: 0,
+      payment_count: paymentAbandoned,
+      unknown_count: eventMap["checkout_abandoned"] ?? 0,
     };
 
     // Top abandonment objection
     const objectionEntries = Object.entries(objections).filter(([, v]) => v > 0);
     const topObjection = objectionEntries.length > 0
       ? objectionEntries.sort((a, b) => b[1] - a[1])[0][0].replace("_count", "")
-      : "unknown";
+      : hasMeasuredCheckoutEvents ? "unknown" : "insufficient_data";
 
     // Cross-sell data from events
     const crossSellShown = eventMap["cross_sell_shown"] ?? 0;
@@ -258,8 +261,8 @@ export class ObserveMetricsUseCase {
       cohorts: {
         returning_customers_rate: returningCustomersRate,
         new_customers_rate: 1 - returningCustomersRate,
-        high_discount_sensitivity_rate: 0.4, // Placeholder: needs buyer-purchase-history analysis
-        low_discount_sensitivity_rate: 0.6,
+        high_discount_sensitivity_rate: null,
+        low_discount_sensitivity_rate: null,
       },
       revenue: {
         total_revenue_cents: totalRevenueCents,
@@ -267,6 +270,19 @@ export class ObserveMetricsUseCase {
         total_orders: totalOrders,
       },
       ai_costs_cents: totalAiCostsCents,
+      data_quality: {
+        status: dataReady ? "ready" : "insufficient_data",
+        sample_size: totalSessions,
+        observation_window_start: windowStart.toISOString(),
+        observation_window_end: windowEnd.toISOString(),
+        sources: {
+          checkout_sessions: "measured",
+          completed_orders: "measured",
+          checkout_events: hasMeasuredCheckoutEvents ? "measured" : "unavailable",
+          buyer_discount_sensitivity: "unavailable"
+        },
+        missing_metrics: missingMetrics
+      }
     };
   }
 

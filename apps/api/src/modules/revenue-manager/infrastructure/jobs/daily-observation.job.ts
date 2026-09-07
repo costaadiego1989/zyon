@@ -186,6 +186,12 @@ export class DailyObservationWorker implements OnModuleInit, OnModuleDestroy {
       this.logger.debug(`Merchant ${merchantId}: observation unchanged (fingerprint dedup)`);
       return;
     }
+    if (!observation.data_ready) {
+      this.logger.log(`Merchant ${merchantId}: observation has insufficient measured data; hypothesis generation skipped`, {
+        missingMetrics: observation.missing_metrics
+      });
+      return;
+    }
 
     // Step 2: Generate hypothesis (LLM call — skip on failure)
     let hypothesis;

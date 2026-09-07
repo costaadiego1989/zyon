@@ -47,7 +47,7 @@ export type ApproveMode = "apply_direct" | "test_ab";
 
 export interface DailyObservation {
   date: string;
-  conversion_rate: number;
+  conversion_rate: number | null;
   top_objection: string;
   sessions_count: number;
 }
@@ -66,7 +66,7 @@ interface ObservationApiResponse {
   merchant_id: string;
   observation_window_start: string;
   observation_window_end: string;
-  funnel: { conversion_rate?: number; sessions_count?: number; total_sessions?: number } & Record<string, unknown>;
+  funnel: { conversion_rate?: number | null; sessions_count?: number; total_sessions?: number } & Record<string, unknown>;
   abandonment: Record<string, unknown>;
   objections: { top_objection?: string; top?: string } & Record<string, unknown>;
   cross_sell: Record<string, unknown>;
@@ -100,7 +100,7 @@ interface StrategyLessonApiResponse {
 function mapObservation(raw: ObservationApiResponse): DailyObservation {
   return {
     date: raw.observation_window_start ?? raw.created_at,
-    conversion_rate: raw.funnel?.conversion_rate ?? 0,
+    conversion_rate: raw.funnel?.conversion_rate ?? null,
     top_objection: raw.objections?.top_objection ?? raw.objections?.top ?? "-",
     sessions_count: raw.funnel?.sessions_count ?? raw.funnel?.total_sessions ?? 0,
   };

@@ -112,12 +112,17 @@ Output MUST be valid JSON in this format:
 
   private buildUserPrompt(request: HypothesisGenerationRequest): string {
     const observation = request.observation;
+    const conversionRate = observation.funnel.conversion_rate;
+    const abandonmentRate = observation.abandonment.abandonment_rate;
+    if (conversionRate === null || abandonmentRate === null) {
+      throw new Error("HYPOTHESIS_INSUFFICIENT_MEASURED_DATA");
+    }
 
     let prompt = `Generate hypothesis for merchant ${request.merchant_id}.\n\n`;
     prompt += `CURRENT BASELINE (copy exactly for control):\n${JSON.stringify(request.current_prompt)}\n\n`;
     prompt += `CURRENT METRICS (24h window):\n`;
-    prompt += `- Conversion rate: ${(observation.funnel.conversion_rate * 100).toFixed(1)}%\n`;
-    prompt += `- Abandonment rate: ${(observation.abandonment.abandonment_rate * 100).toFixed(1)}%\n`;
+    prompt += `- Conversion rate: ${(conversionRate * 100).toFixed(1)}%\n`;
+    prompt += `- Abandonment rate: ${(abandonmentRate * 100).toFixed(1)}%\n`;
     prompt += `- Top abandonment reason: ${observation.abandonment.top_abandonment_objection}\n`;
     prompt += `- Cross-sell acceptance: ${(observation.cross_sell.acceptance_rate * 100).toFixed(1)}%\n`;
     prompt += `- Sessions: ${observation.funnel.total_sessions}\n`;

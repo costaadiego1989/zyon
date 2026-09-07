@@ -157,6 +157,15 @@ test("MI-V20: empty observations and wrong tenant never generate", async () => {
   assert.equal(fixture.requests.length, 0);
 });
 
+test("MI-V20: observations without measured provenance never reach the generator", async () => {
+  const fixture = setup();
+  fixture.obs.data_quality.status = "insufficient_data";
+  fixture.obs.data_quality.missing_metrics = ["checkout_events"];
+  await assert.rejects(fixture.execute(), /HYPOTHESIS_INSUFFICIENT_MEASURED_DATA/);
+  assert.equal(fixture.requests.length, 0);
+  assert.equal(fixture.saved.length, 0);
+});
+
 test("MI-V20: invalid generator payloads are rejected before persistence", async () => {
   const reversed = proposal();
   reversed.template.variant_a.is_control = false;

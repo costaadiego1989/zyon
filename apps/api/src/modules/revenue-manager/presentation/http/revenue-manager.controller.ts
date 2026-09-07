@@ -74,6 +74,7 @@ export class RevenueManagerController {
         current_experiment: snap.current_experiment,
         cohorts: snap.cohorts,
         revenue: snap.revenue,
+        data_quality: snap.data_quality,
         ai_costs_cents: snap.ai_costs_cents,
         created_at: snap.created_at,
       };
