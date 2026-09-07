@@ -654,6 +654,14 @@
   filter: drop-shadow(0 0 40px oklch(55% 0.14 149 / 0.2));
 }
 
+.auth-hero__orb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 0 32px oklch(72% 0.16 152 / 0.35));
+  margin-top: -8px;
+}
+
 .auth-hero__tagline {
   font: 400 18px/1.5 'Manrope', sans-serif;
   color: oklch(60% 0.008 145);

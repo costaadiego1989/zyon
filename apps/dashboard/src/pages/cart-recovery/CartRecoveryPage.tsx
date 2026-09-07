@@ -145,22 +145,6 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
         </div>
       </header>
 
-      {/* Explicação */}
-      <div style={{
-        padding: "16px 20px",
-        borderRadius: "var(--radius-md)",
-        background: "var(--accent-soft)",
-        border: "1px solid var(--accent-line)",
-        font: "13px var(--font-sans)",
-        color: "var(--color-brand)",
-        lineHeight: 1.65,
-      }}>
-        <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong>{" "}
-        Quando um comprador abandona o carrinho, o sistema usa o WhatsApp conectado e ativo da loja com um modelo ativo e aprovado.
-        Se o WhatsApp não estiver disponível para recuperação, o envio usa somente e-mail, quando houver destinatário.
-        Apenas uma estratégia pode estar ativa por vez.
-      </div>
-
       <RecoveryTemplatesPanel key={props.me.id} apiBaseUrl={props.apiBaseUrl} />
 
       {/* KPI cards */}
@@ -383,31 +367,6 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
           </p>
         )}
       </form>
-
-      {/* How it works */}
-      <div className="panel" style={{ padding: "20px 24px" }}>
-        <SectionHeader title="Como a IA identifica Cart Recovery" subtitle="Sistema automático de detecção e decisão." variant="secondary" />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <div>
-            <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)", marginBottom: 8 }}>📊 Detecção Automática</div>
-            <ul style={{ margin: 0, paddingLeft: 16, color: "var(--color-text-muted)", font: "12px var(--font-sans)", lineHeight: 1.8 }}>
-              <li>Scanner roda a cada 15 minutos</li>
-              <li>Identifica sessões com <code style={{ background: "var(--surface-1)", padding: "2px 4px", borderRadius: 2 }}>triggerAgent=true</code></li>
-              <li>Score abandono ≥ 0.55</li>
-              <li>Não duplica: 1 tentativa/sessão</li>
-            </ul>
-          </div>
-          <div>
-            <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)", marginBottom: 8 }}>🎯 Decisão por Estratégia</div>
-            <ul style={{ margin: 0, paddingLeft: 16, color: "var(--color-text-muted)", font: "12px var(--font-sans)", lineHeight: 1.8 }}>
-              <li>Classifica razão: preço, frete, confiança...</li>
-              <li>Ranking (prioridade alta→baixa)</li>
-              <li>Seleciona melhor fit</li>
-              <li>Usa o WhatsApp conectado com modelo aprovado ou envia por e-mail</li>
-            </ul>
-          </div>
-        </div>
-      </div>
 
       {/* Attempts table */}
       <DataPanel

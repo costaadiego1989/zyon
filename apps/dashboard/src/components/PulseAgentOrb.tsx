@@ -19,10 +19,10 @@ export function PulseAgentOrb({ size = 96, avatarUrl, accentColor }: PulseAgentO
   const eyeGap = Math.max(2, Math.round(size * 0.102));
   const glowInset = -Math.max(12, Math.round(size * 0.14));
   const ringInset = -Math.max(4, Math.round(size * 0.05));
-  const accent = accentColor ?? "var(--aacp-accent, #0f766e)";
+  const accent = accentColor ?? "var(--color-brand, #10B981)";
   const accentShadow = accentColor
     ? `inset 0 0 30px rgba(255, 255, 255, 0.28), 0 0 28px color-mix(in srgb, ${accentColor} 50%, transparent)`
-    : "inset 0 0 30px rgba(255, 255, 255, 0.28), 0 0 28px color-mix(in srgb, var(--aacp-accent, #0f766e) 50%, transparent)";
+    : "inset 0 0 30px rgba(255, 255, 255, 0.28), 0 0 28px color-mix(in srgb, var(--color-brand, #10B981) 50%, transparent)";
 
   return (
     <div

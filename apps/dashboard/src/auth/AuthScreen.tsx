@@ -3,6 +3,7 @@ import { KeyRound, UserPlus, Github, Code2, Eye, EyeOff } from "lucide-react";
 import { SignupWizard } from "./SignupWizard.js";
 import { Turnstile } from "./Turnstile.js";
 import { WavesBackground } from "./WavesBackground.js";
+import { PulseAgentOrb } from "../components/PulseAgentOrb.js";
 import { useApi } from "../hooks/useApi.js";
 import { readError } from "../utils/read-error.js";
 import { DashboardHttpError } from "../api-client.js";
@@ -122,9 +123,13 @@ export function AuthScreen(props: AuthScreenProps) {
           <div className="auth-hero__logo-large">
             <img src="/logo-zyon.png" alt="Zyon" className="auth-hero__logo-img" />
           </div>
+          <div className="auth-hero__orb" aria-hidden="true">
+            <PulseAgentOrb size={72} />
+          </div>
           <p className="auth-hero__tagline">
-            IA de checkout que recupera carrinho, personaliza oferta por intenção
-            e sincroniza com seu ERP — em produção desde o primeiro dia.
+            A primeira plataforma de checkout agêntico onde uma IA assume o papel
+            de Gerente de Vendas — conversa, negocia e fecha a compra sob as
+            regras do seu negócio.
           </p>
         </div>
       </section>

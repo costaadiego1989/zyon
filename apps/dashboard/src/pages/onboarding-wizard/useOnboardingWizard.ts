@@ -7,6 +7,7 @@ import type {
 import { useApi } from "../../hooks/useApi.js";
 import { usePlanFeatures } from "../../hooks/api/usePlanFeatures.js";
 import { reportError } from "../../lib/observability/error-reporter.js";
+import { STORE_CATEGORIES } from "../../lib/signup-options.js";
 import {
   validateThemeDraft,
   friendlyError,
@@ -47,48 +48,6 @@ export const FONT_OPTIONS = [
   "Sora, Inter, ui-sans-serif, system-ui, sans-serif",
   "Poppins, Inter, ui-sans-serif, system-ui, sans-serif",
   "Outfit, Inter, ui-sans-serif, system-ui, sans-serif",
-];
-
-export const STORE_CATEGORIES: { value: string; label: string; emoji: string }[] = [
-  { value: "electronics", label: "Eletrônicos & Tecnologia", emoji: "💻" },
-  { value: "fashion", label: "Moda & Vestuário", emoji: "👗" },
-  { value: "beauty", label: "Beleza & Cosméticos", emoji: "💄" },
-  { value: "home_decor", label: "Casa & Decoração", emoji: "🏠" },
-  { value: "sports", label: "Esportes & Fitness", emoji: "⚽" },
-  { value: "food_beverage", label: "Alimentos & Bebidas", emoji: "🍕" },
-  { value: "health", label: "Saúde & Bem-estar", emoji: "💊" },
-  { value: "pet", label: "Pet Shop", emoji: "🐾" },
-  { value: "automotive", label: "Automotivo", emoji: "🚗" },
-  { value: "gaming", label: "Games & Entretenimento", emoji: "🎮" },
-  { value: "books_education", label: "Livros & Educação", emoji: "📚" },
-  { value: "toys_kids", label: "Brinquedos & Infantil", emoji: "🧸" },
-  { value: "jewelry_watches", label: "Joias & Relógios", emoji: "💎" },
-  { value: "furniture", label: "Móveis", emoji: "🛋️" },
-  { value: "groceries", label: "Supermercado & Mercearia", emoji: "🛒" },
-  { value: "pharmacy", label: "Farmácia", emoji: "🏥" },
-  { value: "office_supplies", label: "Papelaria & Escritório", emoji: "📎" },
-  { value: "music_instruments", label: "Instrumentos Musicais", emoji: "🎸" },
-  { value: "digital_products", label: "Produtos Digitais", emoji: "📱" },
-  { value: "services", label: "Serviços", emoji: "🔧" },
-  { value: "saas_software", label: "SaaS & Software", emoji: "☁️" },
-  { value: "courses_education", label: "Cursos & Infoprodutos", emoji: "🎓" },
-  { value: "subscriptions", label: "Assinaturas & Recorrência", emoji: "🔄" },
-  { value: "consulting", label: "Consultoria", emoji: "💼" },
-  { value: "freelance", label: "Freelance & Serviços Criativos", emoji: "🎨" },
-  { value: "events_tickets", label: "Eventos & Ingressos", emoji: "🎟️" },
-  { value: "handmade_artisan", label: "Artesanato & Handmade", emoji: "🧶" },
-  { value: "adult", label: "Adulto & Sensual", emoji: "🔞" },
-  { value: "cannabis_cbd", label: "Cannabis & CBD", emoji: "🌿" },
-  { value: "luxury", label: "Luxo & Premium", emoji: "✨" },
-  { value: "sustainability_eco", label: "Sustentável & Eco", emoji: "♻️" },
-  { value: "religious", label: "Religioso & Espiritual", emoji: "🕊️" },
-  { value: "industrial_b2b", label: "Industrial & B2B", emoji: "🏭" },
-  { value: "wholesale", label: "Atacado", emoji: "📦" },
-  { value: "dropshipping", label: "Dropshipping", emoji: "🚀" },
-  { value: "print_on_demand", label: "Print on Demand", emoji: "🖨️" },
-  { value: "marketplace", label: "Marketplace", emoji: "🏪" },
-  { value: "multi_category", label: "Multi-categoria", emoji: "🗂️" },
-  { value: "others", label: "Outros", emoji: "📋" },
 ];
 
 const DEFAULT_THEME_DRAFT: ThemeDraft = {

@@ -3,10 +3,7 @@ import { ArrowLeft, ArrowRight, CheckCircle2, User, Building2, KeyRound, Github 
 import { friendlyAuthError } from "./auth-error.js";
 import { Turnstile } from "./Turnstile.js";
 import { maskPhone, maskCpfCnpj, validateCpfCnpj } from "../utils/masks.js";
-
-const SEGMENTS = ["Moda", "Eletrônicos", "Alimentos", "Cosméticos", "Serviços", "Outro"] as const;
-const VOLUMES = ["Até 50 pedidos", "50–500 pedidos", "500+ pedidos"] as const;
-const ROLES = ["Proprietário(a)", "CEO / Diretor(a)", "Gerente", "Desenvolvedor(a)", "Marketing", "Outro"] as const;
+import { STORE_CATEGORIES, ROLES, VOLUMES } from "../lib/signup-options.js";
 
 export interface SignupWizardProps {
   busy: boolean;
@@ -256,7 +253,7 @@ function PersonFields({ draft, onChange }: { draft: PersonDraft; onChange: (d: P
         <label className="auth-field__label">Cargo / papel na empresa</label>
         <select value={draft.role} onChange={(e) => onChange({ ...draft, role: e.target.value })} className="auth-field__select">
           <option value="">Selecione seu cargo</option>
-          {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+          {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
         </select>
       </div>
     </>
@@ -275,14 +272,14 @@ function BusinessFields({ draft, onChange }: { draft: BusinessDraft; onChange: (
           <label className="auth-field__label">Segmento</label>
           <select value={draft.segment} onChange={(e) => onChange({ ...draft, segment: e.target.value })} className="auth-field__select">
             <option value="">Selecione</option>
-            {SEGMENTS.map((s) => <option key={s} value={s}>{s}</option>)}
+            {STORE_CATEGORIES.map((s) => <option key={s.value} value={s.value}>{s.emoji ? `${s.emoji} ${s.label}` : s.label}</option>)}
           </select>
         </div>
         <div className="auth-field">
           <label className="auth-field__label">Volume mensal</label>
           <select value={draft.volume} onChange={(e) => onChange({ ...draft, volume: e.target.value })} className="auth-field__select">
             <option value="">Selecione</option>
-            {VOLUMES.map((v) => <option key={v} value={v}>{v}</option>)}
+            {VOLUMES.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
           </select>
         </div>
       </div>

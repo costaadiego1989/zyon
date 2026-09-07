@@ -2,17 +2,18 @@ import React, { useState } from "react";
 import { Check } from "lucide-react";
 import type { ThemeDraft } from "../useOnboardingWizard.js";
 import { FormField, FormSelect } from "../../../components/FormField.js";
+import type { SelectOption } from "../../../lib/signup-options.js";
 
 type StepIdentityProps = {
   themeDraft: ThemeDraft;
   setThemeDraft: React.Dispatch<React.SetStateAction<ThemeDraft>>;
   fieldErrors: Record<string, string>;
   FONT_OPTIONS: string[];
-  STORE_CATEGORIES: { value: string; label: string; emoji: string }[];
+  STORE_CATEGORIES: SelectOption[];
   me: { name: string };
 };
 
-function StoreCategorySelect({ value, onChange, categories }: { value: string; onChange: (v: string) => void; categories: { value: string; label: string; emoji: string }[] }) {
+function StoreCategorySelect({ value, onChange, categories }: { value: string; onChange: (v: string) => void; categories: SelectOption[] }) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
 
