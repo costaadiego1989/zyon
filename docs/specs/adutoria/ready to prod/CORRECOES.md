@@ -33,7 +33,7 @@ Commits de implementação: `255508f` (financeiro), `e8d2b4b` (catálogo/estoque
 | API-041 | Implementado localmente | Suporte autentica JWT+membership ou capability do ticket, deriva papel/tenant e atualiza os três consumidores. Browser/Socket.IO real e revogação distribuída permanecem gates. |
 | API-042 | Implementado localmente | E-mail conhecido/hints não provam identidade; OTP atual é exigido e sessão anterior não verificada não fornece perfil. Troca de e-mail revoga prova anterior. |
 | API-043 | Implementado localmente | Start precifica em catálogo/commerce; ignora valores/flags do cliente. Cotação usa total e dimensões da sessão. Carrinho sem dados confiáveis falha de forma explícita. |
-| API-044 | Parcial | Emissão interna exige instalação/origem; proxy valida origem observada e não aceita cart_ref público. Sessão e endpoints embed vinculados ao nonce. Renovação, múltiplos tenants na mesma origem e quotas permanecem pendentes. |
+| API-044 | Implementado localmente | Emissão interna exige instalação/origem; proxy valida origem observada e não aceita cart_ref público. Sessão e endpoints embed vinculados ao nonce, e a emissão tem quota de 30/minuto. Renovação explícita continua fora do contrato; instalações de tenants diferentes na mesma origem não recebem token ambíguo. |
 
 Detalhes de credenciais e consumidores: [conversa/suporte](CORRECOES-REALTIME.md).
 

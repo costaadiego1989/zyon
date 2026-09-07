@@ -29,6 +29,7 @@ import {
 import { IssueEmbedSessionUseCase } from "../../application/issue-embed-session.use-case.js";
 import { AuthorizeStorefrontCartService } from "../../application/authorize-storefront-cart.service.js";
 import { Idempotent } from "../../../../shared/http/idempotency/idempotent.decorator.js";
+import { RateLimit } from "../../../../shared/http/rate-limit.guard.js";
 import { currentEmbedIssuer, EmbedSessionIssuerGuard } from "./embed-session-issuer.guard.js";
 import { ListInstallationsUseCase, ResolveInstallationForEmbedUseCase } from "../../../installations/application/installation.use-cases.js";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
@@ -88,6 +89,7 @@ export class EmbedSessionsController {
 
   @Post()
   @Idempotent()
+  @RateLimit(30)
   @ApiOperation({
     summary: "Issue an embed session token",
     description:

@@ -1,11 +1,16 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import "reflect-metadata";
 import { EmbedSessionsController } from "./embed-sessions.controller.js";
 import { IssueEmbedSessionUseCase } from "../../application/issue-embed-session.use-case.js";
 import { EmbedTokenService } from "../../domain/embed-token.service.js";
 import type { ResolveInstallationForEmbedUseCase } from "../../../installations/application/installation.use-cases.js";
 
 describe("EmbedSessionsController", () => {
+  it("rate limits credential issuance independently of the storefront proxy", () => {
+    assert.equal(Reflect.getMetadata("rate-limit", EmbedSessionsController.prototype.issueSession), 30);
+  });
+
   it("public service issuance requires a matching installation and refuses borrowed carts", async () => {
     const tokens = new EmbedTokenService({ value: Buffer.from("ctrl-spec-embed-secret-32chr!!!!") });
     const installation = { id: "ins-public", merchantId: "merchant-a", environment: "live", status: "active", allowedOrigins: ["https://a.example"], widgetVersion: "2" };
