@@ -1,39 +1,59 @@
-/* ─── Auth Shell ─── */
+/* ─── Auth Shell — single rounded glass card with 2 internal columns ─── */
 .auth-shell {
   position: relative;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0;
-  min-height: 100vh;
-  padding: 24px;
-  background: transparent;
+  width: min(1080px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  margin: 16px auto;
+  padding: 0;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  /* Glass surface — low-alpha gradient so the moving WavesBackground + the
+     bg-signup image remain readable around the card edges. */
+  background:
+    linear-gradient(180deg, rgba(16, 22, 18, 0.42) 0%, rgba(10, 16, 12, 0.52) 100%);
+  backdrop-filter: blur(18px) saturate(1.05);
+  -webkit-backdrop-filter: blur(18px) saturate(1.05);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
   font-family: 'Manrope', system-ui, sans-serif;
   color: oklch(96% 0.002 145);
-  overflow-x: hidden;
 }
 
-/* ─── Left: Form Panel ─── */
+/* Background image layer — sits behind the glass card so the page background
+   shows the photo around the shell while the card keeps its glass treatment. */
+.auth-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.auth-bg-image {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* ─── Left: Form Panel (column inside the shell) ─── */
 .auth-form-panel {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 24px;
-  margin: 24px 0 24px 24px;
-  min-height: calc(100vh - 48px);
+  padding: 32px 24px;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: oklch(25% 0.006 145) transparent;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  /* Glass — same low-alpha gradient as the hero panel so the moving waves remain
-     visible behind both surfaces with matching color treatment. */
-  background:
-    linear-gradient(180deg, rgba(16, 22, 18, 0.32) 0%, rgba(10, 16, 12, 0.42) 100%);
-  backdrop-filter: blur(18px) saturate(1.05);
-  -webkit-backdrop-filter: blur(18px) saturate(1.05);
-  box-shadow:
-    0 18px 48px rgba(0, 0, 0, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+  background: transparent;
 }
 .auth-form-panel::-webkit-scrollbar { width: 8px; }
 .auth-form-panel::-webkit-scrollbar-track { background: transparent; }
@@ -77,14 +97,14 @@
   color: oklch(58% 0.006 145);
 }
 
-/* Form Container — inner wrapper just for layout, glass lives on the outer panel */
+/* Form Container — inner column layout, no own glass (parent shell owns it) */
 .auth-form-container {
   display: flex;
   flex-direction: column;
-  max-width: 520px;
+  max-width: 460px;
   width: 100%;
   margin: 0 auto;
-  padding: 12px 32px;
+  padding: 0 8px;
 }
 
 .auth-form-area {
@@ -570,7 +590,7 @@
   text-underline-offset: 2px;
 }
 
-/* ─── Right: Hero Panel ─── */
+/* ─── Right: Hero (column inside the shell) ─── */
 .auth-hero {
   position: relative;
   display: flex;
@@ -579,19 +599,7 @@
   justify-content: center;
   gap: 28px;
   padding: 56px 48px;
-  margin: 24px 24px 24px 0;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  /* Glass — matches the form-panel recipe so left and right share the same
-     color and alpha; waves stay readable through both. */
-  background:
-    linear-gradient(180deg, rgba(16, 22, 18, 0.32) 0%, rgba(10, 16, 12, 0.42) 100%);
-  backdrop-filter: blur(18px) saturate(1.05);
-  -webkit-backdrop-filter: blur(18px) saturate(1.05);
-  box-shadow:
-    0 18px 48px rgba(0, 0, 0, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  overflow: hidden;
+  background: transparent;
 }
 
 .auth-hero::before {

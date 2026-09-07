@@ -64,16 +64,28 @@ export function AuthScreen(props: AuthScreenProps) {
   const mode: AuthMode = props.mode;
   const isSignup = mode === "signup";
   return (
-    <main className="auth-shell">
-      {/* Waves background — full screen behind everything */}
-      <div style={{ position: "fixed", inset: 0, zIndex: 0, overflow: "hidden", pointerEvents: "none" }}>
+    <>
+      {/* Layer 1: full-viewport background image (lazy) — sits behind the card */}
+      <img
+        src="/bg-signup.webp"
+        alt=""
+        loading="lazy"
+        decoding="async"
+        aria-hidden="true"
+        className="auth-bg-image"
+      />
+
+      {/* Layer 2: animated waves overlay — also full viewport */}
+      <div className="auth-bg" aria-hidden="true">
         <WavesBackground strokeColor="rgba(180, 220, 200, 0.22)" backgroundColor="transparent" />
       </div>
 
-      {/* Left: Form */}
-      <section className="auth-form-panel" style={{ position: "relative", zIndex: 1 }}>
-        <div className="auth-form-container">
-          <header className="auth-header">
+      {/* Layer 3: the glass card with 2 columns */}
+      <main className="auth-shell">
+        {/* Left: Form */}
+        <section className="auth-form-panel">
+          <div className="auth-form-container">
+            <header className="auth-header">
             <img src="/logo-zyon.png" alt="Zyon" className="auth-header__logo" />
             <div className="auth-header__sep" />
             <span className="auth-header__label">IA First Headless Commerce</span>
@@ -118,7 +130,7 @@ export function AuthScreen(props: AuthScreenProps) {
       </section>
 
       {/* Right: Hero — orb, logo and tagline live directly in the glass panel */}
-      <section className="auth-hero" aria-label="Zyon Platform" style={{ position: "relative", zIndex: 1 }}>
+      <section className="auth-hero" aria-label="Zyon Platform">
         <div className="auth-hero__orb-glow" aria-hidden="true">
           <PulseAgentOrb size={128} />
         </div>
@@ -130,6 +142,7 @@ export function AuthScreen(props: AuthScreenProps) {
         </p>
       </section>
     </main>
+    </>
   );
 }
 
