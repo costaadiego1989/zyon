@@ -644,28 +644,29 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 40px;
-}
-
-.auth-hero__logo-large {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  filter: drop-shadow(0 0 40px oklch(55% 0.14 149 / 0.2));
+  gap: 28px;
+  padding: 32px 16px;
 }
 
 .auth-hero__orb {
   display: flex;
   align-items: center;
   justify-content: center;
-  filter: drop-shadow(0 0 32px oklch(72% 0.16 152 / 0.35));
-  margin-top: -8px;
+  filter: drop-shadow(0 0 48px oklch(72% 0.16 152 / 0.4));
+  margin-bottom: 6px;
+}
+
+.auth-hero__logo-large {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 0 32px oklch(55% 0.14 149 / 0.25));
 }
 
 .auth-hero__tagline {
-  font: 400 18px/1.5 'Manrope', sans-serif;
-  color: oklch(60% 0.008 145);
-  max-width: 340px;
+  font: 400 18px/1.55 'Manrope', sans-serif;
+  color: oklch(65% 0.01 145);
+  max-width: 400px;
   margin: 0;
 }
 

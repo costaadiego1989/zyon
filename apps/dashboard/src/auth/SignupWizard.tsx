@@ -4,6 +4,7 @@ import { friendlyAuthError } from "./auth-error.js";
 import { Turnstile } from "./Turnstile.js";
 import { maskPhone, maskCpfCnpj, validateCpfCnpj } from "../utils/masks.js";
 import { STORE_CATEGORIES, ROLES, VOLUMES } from "../lib/signup-options.js";
+import { SegmentSelect } from "../components/SegmentSelect.js";
 
 export interface SignupWizardProps {
   busy: boolean;
@@ -270,10 +271,12 @@ function BusinessFields({ draft, onChange }: { draft: BusinessDraft; onChange: (
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <div className="auth-field">
           <label className="auth-field__label">Segmento</label>
-          <select value={draft.segment} onChange={(e) => onChange({ ...draft, segment: e.target.value })} className="auth-field__select">
-            <option value="">Selecione</option>
-            {STORE_CATEGORIES.map((s) => <option key={s.value} value={s.value}>{s.emoji ? `${s.emoji} ${s.label}` : s.label}</option>)}
-          </select>
+          <SegmentSelect
+            value={draft.segment}
+            onChange={(v) => onChange({ ...draft, segment: v })}
+            options={STORE_CATEGORIES}
+            placeholder="Buscar segmento…"
+          />
         </div>
         <div className="auth-field">
           <label className="auth-field__label">Volume mensal</label>

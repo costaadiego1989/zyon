@@ -120,11 +120,11 @@ export function AuthScreen(props: AuthScreenProps) {
       {/* Right: Hero with content overlay */}
       <section className="auth-hero" aria-label="Zyon Platform" style={{ position: "relative", zIndex: 1 }}>
         <div className="auth-hero__content">
+          <div className="auth-hero__orb" aria-hidden="true">
+            <PulseAgentOrb size={128} />
+          </div>
           <div className="auth-hero__logo-large">
             <img src="/logo-zyon.png" alt="Zyon" className="auth-hero__logo-img" />
-          </div>
-          <div className="auth-hero__orb" aria-hidden="true">
-            <PulseAgentOrb size={72} />
           </div>
           <p className="auth-hero__tagline">
             A primeira plataforma de checkout agêntico onde uma IA assume o papel
