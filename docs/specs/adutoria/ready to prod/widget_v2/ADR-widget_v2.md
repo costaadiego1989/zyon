@@ -16,7 +16,7 @@ Este relatório verifica integração e comportamento implementado, não é uma 
 
 As evidências originais abaixo preservam o estado auditado. Na `master`, os commits `04fa783` e `f548ea4` passaram a exigir confirmação do servidor antes de marcar cartão como concluído, inclusive no componente legado. O build de produção do widget passou após a alteração.
 
-O contrato de intenção e o polling também foram corrigidos: o client mapeia o payload público, envia `session_id` ao consultar o status e reconhece `approved`. A jornada cripto agora inclui seleção de rede, carteira, envio, confirmação autenticada e verificação no servidor; W2-002, W2-003, W2-005 e W2-006 deixam de bloquear por suas evidências originais. A validação de navegador com Stripe/3DS e provedores reais ainda é necessária.
+O contrato de intenção e o polling também foram corrigidos: o client mapeia o payload público, envia `session_id` ao consultar o status, reconhece `approved` e encerra em `failed`, `cancelled`, `refunded` ou `chargeback_lost`. A jornada cripto agora inclui seleção de rede, carteira, envio, confirmação autenticada e verificação no servidor; W2-002, W2-003, W2-005 e W2-006 deixam de bloquear por suas evidências originais. A validação de navegador com Stripe/3DS e provedores reais ainda é necessária.
 
 W2-001 e W2-007 permanecem bloqueadores. O checkout com `cart_ref` público está deliberadamente rejeitado pela API para evitar vincular um carrinho controlável pelo navegador. A solução exige capability de conversa vinculada ao carrinho e revalidação de preço/opções no servidor; não será liberada por um bypass.
 

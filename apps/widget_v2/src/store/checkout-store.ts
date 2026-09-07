@@ -18,6 +18,7 @@ import type { AdvancedRule, RuleAction } from "@/lib/advanced-rules";
 import { evaluateRules } from "@/lib/advanced-rules";
 import type { DiscountStage } from "@/components/DiscountBanner";
 import { connectPaymentWs } from "@/lib/payment-ws";
+import { paymentPollingOutcome } from "@/lib/payment-status";
 
 export type CheckoutStatus = "loading" | "channel_gate" | "active" | "error" | "completed";
 export type CartStatus = "awaiting" | "shipping_calculated" | "ready_to_pay" | "paid";
@@ -243,11 +244,8 @@ function startPolling(): void {
     }
     try {
       const status = await api.getPaymentStatus(paymentIntent.intent_id);
-      if (
-        status.status === "approved" ||
-        status.status === "paid" ||
-        status.status === "confirmed"
-      ) {
+      const outcome = paymentPollingOutcome(status.status);
+      if (outcome === "completed") {
         useCheckoutStore.getState().stopPolling();
         void trackEvent("order_completed", {
           intent_id: paymentIntent.intent_id,
@@ -256,7 +254,7 @@ function startPolling(): void {
           cart: { ...useCheckoutStore.getState().cart, status: "paid" },
           status: "completed",
         });
-      } else if (status.status === "failed" || status.status === "cancelled") {
+      } else if (outcome === "failed") {
         useCheckoutStore.getState().stopPolling();
         useCheckoutStore.setState({ status: "error", error: "payment_failed" });
       }
