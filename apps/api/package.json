@@ -18,7 +18,8 @@
     "ci": "pnpm typecheck && pnpm lint && pnpm test",
     "seed:dashboard": "npx tsx src/seeds/dashboard-seed.ts",
     "seed:marketplace": "npx tsx prisma/seeds/marketplace-seed.ts",
-    "seed:marketplace:finance": "npx tsx prisma/seeds/marketplace-finance-seed.ts"
+    "seed:marketplace:finance": "npx tsx prisma/seeds/marketplace-finance-seed.ts",
+    "seed:demo-store": "npx tsx prisma/seeds/demo-store-seed.ts"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",

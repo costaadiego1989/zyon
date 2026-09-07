@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { RealtimeCapabilityService } from "../../shared/auth/realtime-capability.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/infrastructure/billing/billing-plan-guard.js";
 import { PersistenceModule, PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { CatalogModule } from "../catalog/catalog.module.js";
 import { CrossSellModule } from "../cross-sell/cross-sell.module.js";
@@ -61,6 +62,8 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
   ],
   controllers: [StorefrontController, StorefrontProductContentController],
   providers: [
+    BillingPlanMeteringService,
+    PlanLimitGuard,
     { provide: RealtimeCapabilityService, useFactory: () => new RealtimeCapabilityService() },
     StorefrontConversationAdapter,
     StorefrontConversationGateway,
@@ -77,12 +80,12 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
       useClass: PrismaStorefrontTelemetryRepository,
     },
     {
-      provide: LocalLLMProvider,
-      useFactory: () => {
-    {
       provide: STOREFRONT_CONFIG_QUERY_PORT,
       useClass: PrismaStorefrontConfigQueryRepository,
     },
+    {
+      provide: LocalLLMProvider,
+      useFactory: () => {
         return new LocalLLMProvider({
           baseUrl: process.env.LOCAL_LLM_BASE_URL || "http://localhost:11434/v1",
           model: process.env.LOCAL_LLM_MODEL || "mistral",
