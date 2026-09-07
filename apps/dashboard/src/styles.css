@@ -230,7 +230,7 @@ main.dashboard-main {
 }
 
 main.auth-shell {
-  width: min(960px, calc(100vw - 48px));
+  width: min(960px, calc(100vw - 120px));
   margin: 24px auto;
   max-width: 960px;
 }
