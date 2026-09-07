@@ -72,13 +72,13 @@ export function AuthScreen(props: AuthScreenProps) {
 
       {/* Left: Form */}
       <section className="auth-form-panel" style={{ position: "relative", zIndex: 1 }}>
-        <header className="auth-header">
-          <img src="/logo-zyon.png" alt="Zyon" className="auth-header__logo" />
-          <div className="auth-header__sep" />
-          <span className="auth-header__label">IA First Headless Commerce</span>
-        </header>
-
         <div className="auth-form-container">
+          <header className="auth-header">
+            <img src="/logo-zyon.png" alt="Zyon" className="auth-header__logo" />
+            <div className="auth-header__sep" />
+            <span className="auth-header__label">IA First Headless Commerce</span>
+          </header>
+
           <div className="auth-tabs" role="tablist">
             <button type="button" onClick={() => props.setMode("login")} className={`auth-tabs__btn ${mode === "login" ? "auth-tabs__btn--active" : ""}`} role="tab" aria-selected={mode === "login"}>
               Entrar
@@ -117,21 +117,17 @@ export function AuthScreen(props: AuthScreenProps) {
         </div>
       </section>
 
-      {/* Right: Hero with content overlay */}
+      {/* Right: Hero — orb, logo and tagline live directly in the glass panel */}
       <section className="auth-hero" aria-label="Zyon Platform" style={{ position: "relative", zIndex: 1 }}>
-        <div className="auth-hero__content">
-          <div className="auth-hero__orb" aria-hidden="true">
-            <PulseAgentOrb size={128} />
-          </div>
-          <div className="auth-hero__logo-large">
-            <img src="/logo-zyon.png" alt="Zyon" className="auth-hero__logo-img" />
-          </div>
-          <p className="auth-hero__tagline">
-            A primeira plataforma de checkout agêntico onde uma IA assume o papel
-            de Gerente de Vendas — conversa, negocia e fecha a compra sob as
-            regras do seu negócio.
-          </p>
+        <div className="auth-hero__orb-glow" aria-hidden="true">
+          <PulseAgentOrb size={128} />
         </div>
+        <img src="/logo-zyon.png" alt="Zyon" className="auth-hero__logo-img" />
+        <p className="auth-hero__tagline">
+          A primeira plataforma de checkout agêntico onde uma IA assume o papel
+          de Gerente de Vendas — conversa, negocia e fecha a compra sob as
+          regras do seu negócio.
+        </p>
       </section>
     </main>
   );
