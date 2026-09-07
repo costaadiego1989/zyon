@@ -18,7 +18,7 @@ import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/domain/billing-plan-guard.js";
-import { ClassifyCustomerIntentUseCase, RecordIntentIfConsentedUseCase } from "../../application/use-cases/classify-customer-intent.use-case.js";
+import { RecordIntentIfConsentedUseCase } from "../../application/use-cases/classify-customer-intent.use-case.js";
 
 @ApiTags("Intent Memory")
 @Controller("intent-memory")
@@ -27,7 +27,6 @@ import { ClassifyCustomerIntentUseCase, RecordIntentIfConsentedUseCase } from ".
 @ApiBearerAuth("JWT")
 export class IntentMemoryController {
   constructor(
-    private readonly classifyCustomerIntent: ClassifyCustomerIntentUseCase,
     private readonly recordIntentIfConsented: RecordIntentIfConsentedUseCase,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
   ) {}
@@ -56,13 +55,13 @@ export class IntentMemoryController {
     const user = currentUser(req);
 
     try {
-      const result = await this.classifyCustomerIntent.execute({
+      const result = await this.recordIntentIfConsented.execute({
         merchantId: user.merchantId,
         globalUserId: body?.globalUserId,
         sessionEvents: body?.sessionEvents ?? [],
         cart: body?.cart ?? { total: 0, items: [] },
       });
-      return result;
+      return result.record ?? null;
     } catch (error: any) {
       throw new BadRequestException(error.message);
     }

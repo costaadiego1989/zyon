@@ -22,3 +22,21 @@ test("consent uses token-bound session tenant/buyer and rejects borrowed identit
   assert.equal(saved[0].merchant_id, claims.merchantId);
   assert.equal(saved[0].global_user_id, "buyer-1");
 });
+
+test("withdrawing consent requests erasure for the token-bound buyer", async () => {
+  const claims = { typ: "aacp_embed_v1" as const, merchantId: "merchant-1", nonce: "buyer-1", issuedAtUnix: 1, expiresAtUnix: 9999999999 };
+  const sessionId = embedCheckoutSessionId(claims);
+  const checkoutRepo = new InMemoryCheckoutRepository();
+  checkoutRepo.saveSession(checkoutSession({ merchantId: claims.merchantId, sessionId, globalUserId: "buyer-1" }));
+  const deleted: Array<[string, string]> = [];
+  const controller = new EmbedConsentController({
+    async saveConsent() {},
+    async deleteConsent(merchantId: string, globalUserId: string) { deleted.push([merchantId, globalUserId]); },
+  } as never, new EmbedCheckoutGuardHelper(checkoutRepo));
+
+  await controller.recordConsent(
+    { embedClaims: claims },
+    { session_id: sessionId, global_user_id: "buyer-1", opted_in: false },
+  );
+  assert.deepEqual(deleted, [[claims.merchantId, "buyer-1"]]);
+});

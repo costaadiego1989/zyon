@@ -1,7 +1,11 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
-import type { CustomerIntentRecord, CheckoutSession } from "@zyon/shared-types";
-import { INTENT_MEMORY_REPOSITORY, type IntentMemoryRepositoryPort } from "../../domain/ports/intent-memory-repository.port.js";
-import { BUYER_INTENT_CONSENT_REPOSITORY, type BuyerIntentConsentRepositoryPort } from "../../domain/ports/intent-memory-repository.port.js";
+import { Inject, Injectable } from "@nestjs/common";
+import type { CustomerIntentRecord } from "@zyon/shared-types";
+import {
+  BUYER_INTENT_CONSENT_REPOSITORY,
+  INTENT_MEMORY_REPOSITORY,
+  type BuyerIntentConsentRepositoryPort,
+  type IntentMemoryRepositoryPort,
+} from "../../domain/ports/intent-memory-repository.port.js";
 import { BuyerIntentMemoryConsentEntity } from "../../domain/entities/buyer-intent-memory-consent.entity.js";
 
 /**
@@ -10,12 +14,6 @@ import { BuyerIntentMemoryConsentEntity } from "../../domain/entities/buyer-inte
  */
 @Injectable()
 export class ClassifyCustomerIntentUseCase {
-  private readonly logger = new Logger(ClassifyCustomerIntentUseCase.name);
-
-  constructor(
-    @Inject(INTENT_MEMORY_REPOSITORY) private readonly repository: IntentMemoryRepositoryPort,
-  ) {}
-
   async execute(input: {
     merchantId: string;
     globalUserId: string;
@@ -49,8 +47,6 @@ export class ClassifyCustomerIntentUseCase {
       generated_at: new Date().toISOString(),
     };
 
-    await this.repository.save(record);
-    this.logger.log(`intent classified`, { merchantId, globalUserId, primaryIntent, urgency });
     return record;
   }
 
@@ -117,10 +113,9 @@ export class ClassifyCustomerIntentUseCase {
  */
 @Injectable()
 export class RecordIntentIfConsentedUseCase {
-  private readonly logger = new Logger(RecordIntentIfConsentedUseCase.name);
-
   constructor(
     @Inject(BUYER_INTENT_CONSENT_REPOSITORY) private readonly consentRepo: BuyerIntentConsentRepositoryPort,
+    @Inject(INTENT_MEMORY_REPOSITORY) private readonly intentRepository: IntentMemoryRepositoryPort,
     private readonly classifyIntent: ClassifyCustomerIntentUseCase,
   ) {}
 
@@ -129,7 +124,7 @@ export class RecordIntentIfConsentedUseCase {
     globalUserId: string;
     sessionEvents: string[];
     cart: { total: number; items: Array<{ name: string; sku: string; price: number }> };
-  }): Promise<{ recorded: boolean }> {
+  }): Promise<{ recorded: boolean; record?: CustomerIntentRecord }> {
     // Check consent
     const consent = await this.consentRepo.getConsent(input.merchantId, input.globalUserId);
     if (!consent) {
@@ -142,7 +137,8 @@ export class RecordIntentIfConsentedUseCase {
     }
 
     // Classify and save (async-safe — errors don't break caller)
-    await this.classifyIntent.execute(input);
-    return { recorded: true };
+    const record = await this.classifyIntent.execute(input);
+    await this.intentRepository.save(record);
+    return { recorded: true, record };
   }
 }

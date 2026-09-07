@@ -59,22 +59,27 @@ export class EmbedConsentController {
       };
     }
 
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
-
-    await this.consentRepo.saveConsent({
-      merchant_id: session.merchantId,
-      global_user_id: session.globalUserId,
-      opted_in: body.opted_in,
-      expires_at: expiresAt.toISOString(),
-      updated_at: now.toISOString(),
-    });
+    if (!body.opted_in) {
+      // This is an idempotent erasure request. The database relation cascades
+      // to the buyer's intent records for this merchant.
+      await this.consentRepo.deleteConsent(session.merchantId, session.globalUserId);
+    } else {
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+      await this.consentRepo.saveConsent({
+        merchant_id: session.merchantId,
+        global_user_id: session.globalUserId,
+        opted_in: true,
+        expires_at: expiresAt.toISOString(),
+        updated_at: now.toISOString(),
+      });
+    }
 
     return {
       success: true,
       message: body.opted_in
         ? "Consentimento registrado com sucesso"
-        : "Consentimento rejeitado",
+        : "Consentimento removido",
     };
   }
 }

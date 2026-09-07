@@ -2154,6 +2154,7 @@ model BuyerIntentMemoryConsent {
   optedIn      Boolean  @map("opted_in")
   expiresAt    DateTime @map("expires_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
+  intents      CustomerIntentRecord[]
 
   @@id([merchantId, globalUserId])
   @@map("buyer_intent_memory_consents")
@@ -2171,6 +2172,7 @@ model CustomerIntentRecord {
   conversionLikelihoodPct Int      @map("conversion_likelihood_pct")
   behavioralSignalsJson   Json     @map("behavioral_signals_json")
   generatedAt             DateTime @map("generated_at")
+  consent                 BuyerIntentMemoryConsent @relation(fields: [merchantId, globalUserId], references: [merchantId, globalUserId], onDelete: Cascade, onUpdate: Cascade)
 
   @@index([merchantId, globalUserId])
   @@index([merchantId, generatedAt])

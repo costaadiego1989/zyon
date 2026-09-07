@@ -97,4 +97,12 @@ Decisão: bloquear a liberação da capacidade afetada até cumprir o critério 
 
 ## Reavaliação
 
+### Atualização de 2026-09-06
+
+API-020 foi corrigido com validação local. A composição já usava os repositórios Prisma; a correção removeu a gravação direta por `ClassifyCustomerIntentUseCase`, para que todo registro passe por `RecordIntentIfConsentedUseCase`. O endpoint `POST /intent-memory/classify` agora também retorna nulo quando não há consentimento ativo, em vez de persistir uma classificação.
+
+A migração estabelece a relação composta entre consentimento e registros. Ela remove os registros legados sem consentimento verificável antes de criar a chave estrangeira com `ON DELETE CASCADE`; a retirada de consentimento pelo embed agora apaga o consentimento, acionando essa exclusão. O teste Prisma deixou de ser placeholder e cobre isolamento entre merchants, bloqueio de registro sem consentimento e cascade de exclusão.
+
+Validação executada: schema Prisma válido, build da API, 8 testes focados de gate/embed/lifecycle. A integração PostgreSQL requer banco descartável com a migração aplicada. O achado passa a **IMPLEMENTED_LOCAL_VALIDATION**; retenção/expurgo programado, testes E2E de browser e operação de exclusão em produção continuam gates abertos.
+
 Executar o gate específico, os critérios dos achados e testes relevantes da [sequência de correções](<../PLANO-DE-CORRECAO.md>). Guardar commit, configuração não secreta, comandos, resultado e evidência de banco/provedor. A auditoria atual não realizou essas correções.
