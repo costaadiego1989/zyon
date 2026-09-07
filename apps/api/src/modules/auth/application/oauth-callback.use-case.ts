@@ -9,6 +9,8 @@ import { normalizeEmail } from "../domain/validators.js";
 import type { AuthResponse } from "../domain/auth.types.js";
 import { toAuthResponse } from "./auth-response.js";
 import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
+import { generateUniqueSlug } from "../../../shared/utils/slugify.js";
+import { MerchantSlugAlreadyTakenError } from "../domain/errors.js";
 
 export interface OAuthCallbackRequest {
   provider: "github" | "google";
@@ -67,14 +69,28 @@ export class OAuthCallbackUseCase {
     const merchantId = this.idGenerator.generate();
     const merchantName = profile.name || email.split("@")[0]!;
 
-    const created = await this.repository.createMerchantWithOAuthOwner({
-      merchantId,
-      merchantName,
-      ownerName: profile.name || "",
-      email,
-      oauthProvider: input.provider,
-      oauthProviderId: profile.providerId,
-    });
+    let created: Awaited<ReturnType<AuthRepository["createMerchantWithOAuthOwner"]>> | undefined;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const slug = await generateUniqueSlug(
+        merchantName,
+        async (candidate) => !(await this.repository.isSlugTaken(candidate)),
+      );
+      try {
+        created = await this.repository.createMerchantWithOAuthOwner({
+          merchantId,
+          merchantName,
+          storeSlug: slug,
+          ownerName: profile.name || "",
+          email,
+          oauthProvider: input.provider,
+          oauthProviderId: profile.providerId,
+        });
+        break;
+      } catch (err: unknown) {
+        if (!(err instanceof MerchantSlugAlreadyTakenError) || attempt === 2) throw err;
+      }
+    }
+    if (!created) throw new BadRequestException("merchant_creation_failed");
 
     await this.recoveryTemplates?.ensure(merchantId).catch(() => {
       this.logger.warn("Recovery template initialization deferred to monitor");

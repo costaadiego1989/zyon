@@ -30,14 +30,27 @@ function ShellImportProgressProvider({ children }: { children: React.ReactNode }
 
 const API_BASE_URL = resolveDashboardApiBaseUrl(import.meta.env);
 
-function getStorefrontUrl(slugOrId: string): string {
+type DomainRecord = { domain?: unknown; verified?: unknown };
+
+function verifiedDomain(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const domain = value.trim().toLowerCase();
+  if (!domain || domain.includes("://") || domain.includes("/") || domain.includes("@")) return undefined;
+  return domain;
+}
+
+function getStorefrontUrl(slug: string | undefined, customDomain?: string): string | undefined {
+  const publicSlug = slug?.trim();
+  if (!publicSlug) return undefined;
+  if (customDomain) return `https://${customDomain}/`;
+
   const env = import.meta.env;
   const storefrontUrl = (env.VITE_STOREFRONT_URL as string | undefined)?.trim();
-  if (storefrontUrl) return `${storefrontUrl}/store/${slugOrId}`;
+  if (storefrontUrl) return `${storefrontUrl.replace(/\/+$/, "")}/store/${encodeURIComponent(publicSlug)}`;
 
   const apiUrl = new URL(API_BASE_URL);
   apiUrl.port = "3001";
-  return `${apiUrl.origin}/store/${slugOrId}`;
+  return `${apiUrl.origin}/store/${encodeURIComponent(publicSlug)}`;
 }
 
 const OverviewPage = lazy(() => import("../pages/overview/index.js").then(m => ({ default: m.OverviewPage })));
@@ -109,6 +122,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   const [hideOnboarding, setHideOnboarding] = useState(initialOnboardingCompleted !== false);
   const appliedOnboardingTabRef = React.useRef(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [customDomain, setCustomDomain] = useState<string>();
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
     const saved = localStorage.getItem("aacp_nav_collapsed");
     if (saved) {
@@ -153,6 +167,25 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   }, [initialTab, initialOnboardingCompleted]);
 
   useEffect(() => {
+    let active = true;
+    void dashboardFetch(API_BASE_URL, "/merchants/me/domains")
+      .then(async (response) => {
+        if (!response.ok) return;
+        const payload: unknown = await response.json();
+        if (!Array.isArray(payload)) return;
+        const match = payload.find((entry): entry is DomainRecord =>
+          typeof entry === "object" && entry !== null && (entry as DomainRecord).verified === true,
+        );
+        const domain = match ? verifiedDomain(match.domain) : undefined;
+        if (active) setCustomDomain(domain);
+      })
+      .catch(() => {
+        if (active) setCustomDomain(undefined);
+      });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem("aacp_nav_collapsed", JSON.stringify(Array.from(collapsedSections)));
   }, [collapsedSections]);
 
@@ -190,6 +223,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
 
   const socket = useSupportSocket(API_BASE_URL, me.id, me.name || undefined);
   const { counts: navCounts, markViewed: markBadgeViewed } = useNavCounts();
+  const storefrontHref = useMemo(() => getStorefrontUrl(me.slug, customDomain), [me.slug, customDomain]);
 
   React.useEffect(() => {
     if (socket.newTickets.length === 0) return;
@@ -497,9 +531,9 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {(me.plan === "STORE_ONLY" || me.plan === "BOTH") && (
+            {(me.plan === "STORE_ONLY" || me.plan === "BOTH") && storefrontHref && (
               <a
-                href={getStorefrontUrl(me.slug ?? me.id)}
+                href={storefrontHref}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: "1px solid var(--color-border)", background: "var(--surface-2)", font: "12.5px var(--font-sans)", color: "var(--color-brand)", textDecoration: "none", cursor: "pointer", transition: "background 0.15s" }}

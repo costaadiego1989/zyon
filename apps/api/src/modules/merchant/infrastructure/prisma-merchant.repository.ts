@@ -19,7 +19,7 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
       theme: decodePersistedTheme(row.theme),
       storeCategory: row.storeCategory ?? undefined,
       plan: row.plan,
-      storeSettings: (row.storeSettings as MerchantStoreSettings) ?? undefined,
+      storeSettings: { ...((row.storeSettings as MerchantStoreSettings) ?? {}), ...(row.storeSlug ? { slug: row.storeSlug } : {}) },
       stripeConnectAccountId: row.stripeConnectAccountId ?? undefined
     };
   }
@@ -93,9 +93,13 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
         : value;
     }
 
+    const requestedSlug = typeof merged.slug === "string" ? merged.slug.trim().toLowerCase() : undefined;
     const updated = await this.prisma.merchant.update({
       where: { id: merchantId },
-      data: { storeSettings: merged as unknown as object }
+      data: {
+        storeSettings: merged as unknown as object,
+        ...(requestedSlug ? { storeSlug: requestedSlug } : {}),
+      }
     });
     return (updated.storeSettings as import("../domain/merchant.types.js").MerchantStoreSettings) ?? merged;
   }
@@ -132,22 +136,13 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
     const normalized = slug?.trim().toLowerCase();
     if (!normalized) return undefined;
 
-    const rows = await (this.prisma.merchant as any).findMany({
-      where: { storeSettings: { not: Prisma.JsonNull } },
-      select: { id: true, name: true, storeSettings: true }
-    });
-    for (const row of rows) {
-      const settings = row.storeSettings as MerchantStoreSettings | null;
-      const candidate = settings?.slug?.trim().toLowerCase();
-      if (candidate === normalized) {
-        return {
-          id: row.id,
-          name: row.name,
-          storeSettings: settings ?? undefined,
-        };
-      }
-    }
-    return undefined;
+    const row = await this.prisma.merchant.findUnique({ where: { storeSlug: normalized } });
+    if (!row) return undefined;
+    return {
+      id: row.id,
+      name: row.name,
+      storeSettings: { ...((row.storeSettings as MerchantStoreSettings) ?? {}), slug: row.storeSlug! },
+    };
   }
 
   async findByCustomDomain(host: string): Promise<MerchantProfile | undefined> {
@@ -169,6 +164,14 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
       name: row.name,
       storeSettings: (row.storeSettings as MerchantStoreSettings) ?? undefined,
     };
+  }
+
+  async listPublicStores(): Promise<Array<{ slug: string; updatedAt: string }>> {
+    const rows = await this.prisma.merchant.findMany({
+      where: { plan: { in: ["STORE_ONLY", "BOTH"] }, storeSlug: { not: null } },
+      select: { storeSlug: true, updatedAt: true },
+    });
+    return rows.map((row) => ({ slug: row.storeSlug!, updatedAt: row.updatedAt.toISOString() }));
   }
 }
 

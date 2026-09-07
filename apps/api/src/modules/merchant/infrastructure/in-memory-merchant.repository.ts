@@ -106,4 +106,13 @@ export class InMemoryMerchantRepository implements MerchantRepository, MerchantR
     if (!merchantId) return undefined;
     return this.profiles.get(merchantId);
   }
+
+  async listPublicStores(): Promise<Array<{ slug: string; updatedAt: string }>> {
+    return [...this.profiles.values()]
+      .filter((profile) => profile.plan === undefined || profile.plan === "STORE_ONLY" || profile.plan === "BOTH")
+      .flatMap((profile) => {
+        const slug = profile.storeSettings?.slug?.trim();
+        return slug ? [{ slug, updatedAt: new Date(0).toISOString() }] : [];
+      });
+  }
 }

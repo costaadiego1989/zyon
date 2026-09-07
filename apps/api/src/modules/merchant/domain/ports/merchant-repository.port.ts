@@ -16,4 +16,5 @@ export interface MerchantRepository {
   updateMelhorEnvioEnabled?(merchantId: string, enabled: boolean): Promise<void>;
   findBySlug?(slug: string): Promise<MerchantProfile | undefined>;
   findByCustomDomain?(host: string): Promise<MerchantProfile | undefined>;
+  listPublicStores?(): Promise<Array<{ slug: string; updatedAt: string }>>;
 }

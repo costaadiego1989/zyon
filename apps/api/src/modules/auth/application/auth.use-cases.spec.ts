@@ -29,6 +29,7 @@ test("register and login return JWTs for the merchant owner", async () => {
   assert.equal(registered.email, "owner@example.com");
   assert.equal(logged.merchant_id, registered.merchant_id);
   assert.ok(logged.access_token);
+  assert.equal(await repository.isSlugTaken("demo-store"), true, "registration stores the public slug atomically");
 });
 
 test("auth rejects duplicate email and invalid credentials", async () => {

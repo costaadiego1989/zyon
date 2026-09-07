@@ -17,6 +17,7 @@ enum MerchantPlan {
 model Merchant {
   id                      String       @id
   name                    String
+  storeSlug               String?      @unique @map("store_slug")
   theme                   Json?
   storeCategory           String?      @map("store_category")
   storeSettings           Json?        @map("store_settings")

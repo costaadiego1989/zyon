@@ -59,7 +59,7 @@
 | [API-028](<api/ADR-api-audit.md#api-028>) | P2 | audit | Trilha de auditoria é gravada fora do commit da mutação | YES | CONFIRMED_STATIC |
 | [API-029](<api/ADR-api-fulfillment.md#api-029>) | P2 | fulfillment | Tracking e evento não são atômicos | NO | CONFIRMED_STATIC |
 | [API-030](<api/ADR-api-onboarding.md#api-030>) | P2 | onboarding | Transição salva antes do evento pode suprimir retry | NO | CONFIRMED_STATIC |
-| [API-031](<api/ADR-api-store-settings.md#api-031>) | P2 | store-settings | Unicidade do slug depende de consulta sem constraint | NO | CONFIRMED_STATIC; migrações aplicadas UNVERIFIED |
+| [API-031](<api/ADR-api-store-settings.md#api-031>) | P2 | store-settings | Unicidade do slug depende de consulta sem constraint | NO | IMPLEMENTED_LOCAL_VALIDATION; migração em banco real UNVERIFIED |
 | [API-032](<api/ADR-api-buyer-purchase-history.md#api-032>) | P2 | buyer-purchase-history | Histórico cresce sem limite nas leituras e saves | NO | CONFIRMED_STATIC; REQUIRES LOAD VALIDATION |
 | [API-033](<api/ADR-api-revenue-manager.md#api-033>) | P2 | revenue-manager | Observação usa estimativas fixas como métricas | NO | CONFIRMED_STATIC |
 | [API-034](<api/ADR-api-revenue-lift.md#api-034>) | P2 | revenue-lift | Atribuição monetária usa unidade divergente e só é logada neste fluxo | NO | CONFIRMED_STATIC |

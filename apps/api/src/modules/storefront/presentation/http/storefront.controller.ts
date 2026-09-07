@@ -17,7 +17,7 @@ import { ListBudgetRequestsUseCase } from "../../application/use-cases/list-budg
 import { UpdateBudgetRequestStatusUseCase } from "../../application/use-cases/update-budget-request-status.use-case.js";
 import { SearchMarketplaceProductsStorefrontUseCase } from "../../application/use-cases/search-marketplace-products-storefront.use-case.js";
 import { AddMarketplaceItemToCartStorefrontUseCase } from "../../application/use-cases/add-marketplace-item-to-cart.use-case.js";
-import { decodePersistedTheme } from "../../../merchant/domain/services/merchant-theme.validators.js";
+import { GetPublicStoreResourcesUseCase } from "../../application/use-cases/get-public-store-resources.use-case.js";
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 import { PRODUCT_PROMOTION_REPOSITORY, type ProductPromotionRepositoryPort } from "../../../catalog/domain/ports/product-promotion-repository.port.js";
 import { applyProductPromoPricing } from "../../infrastructure/pricing/storefront-cart-promo.pricing.js";
@@ -48,6 +48,7 @@ export class StorefrontController {
     private readonly updateBudgetStatus: UpdateBudgetRequestStatusUseCase,
     private readonly searchMarketplace: SearchMarketplaceProductsStorefrontUseCase,
     private readonly addMarketplaceItem: AddMarketplaceItemToCartStorefrontUseCase,
+    private readonly getPublicStoreResources: GetPublicStoreResourcesUseCase,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     @Inject(STOREFRONT_CART_PORT) private readonly cartRepo: StorefrontCartPort,
     @Inject(RealtimeCapabilityService) private readonly capabilities: RealtimeCapabilityService,
@@ -56,20 +57,7 @@ export class StorefrontController {
 
   @Get("index")
   async getStoreIndex() {
-    const merchants = await this.prisma.merchant.findMany({
-      where: { plan: { in: ["STORE_ONLY", "BOTH"] } },
-      select: { id: true, name: true, updatedAt: true },
-    });
-    const stores = merchants.map((m) => ({
-      slug: m.name
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, "")
-        .replace(/\s+/g, "-")
-        .replace(/-+/g, "-")
-        .trim(),
-      updatedAt: m.updatedAt.toISOString(),
-    }));
-    return { stores };
+    return this.getPublicStoreResources.listIndex();
   }
 
   @Get(":slug/config")
@@ -79,33 +67,12 @@ export class StorefrontController {
 
   @Get(":slug/stories")
   async getStories(@Param("slug") slug: string) {
-    let merchant = await this.prisma.merchant.findUnique({ where: { id: slug }, select: { id: true } });
-    if (!merchant) {
-      const all = await this.prisma.merchant.findMany({ select: { id: true, name: true, storeSettings: true } });
-      const match = all.find((m) => {
-        const settings = m.storeSettings as { slug?: string } | null;
-        if (settings?.slug === slug) return true;
-        const slugified = m.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-        return slugified === slug;
-      });
-      if (match) merchant = { id: match.id };
-    }
-    if (!merchant) return { categories: [] };
-    const categories = await this.prisma.storyCategory.findMany({
-      where: { merchantId: merchant.id, isArchived: false },
-      include: { stories: { where: { isArchived: false }, orderBy: { sortOrder: "asc" } } },
-      orderBy: { sortOrder: "asc" },
-    });
-    return { categories };
+    return this.getPublicStoreResources.storiesForSlug(slug);
   }
 
   @Get(":slug/logo")
   async getLogo(@Param("slug") slug: string, @Res() res: any) {
-    const merchant = await this.prisma.merchant.findUnique({ where: { id: slug } });
-    if (!merchant) throw new NotFoundException("store_not_found");
-    const theme = decodePersistedTheme(merchant.theme);
-    const logoUrl = theme?.logoUrl;
-    if (!logoUrl) throw new NotFoundException("logo_not_found");
+    const logoUrl = await this.getPublicStoreResources.logoForSlug(slug);
 
     if (logoUrl.startsWith("data:")) {
       const match = logoUrl.match(/^data:(image\/[^;]+);base64,(.+)$/);
@@ -122,53 +89,7 @@ export class StorefrontController {
 
   @Get(":slug/coupons")
   async getCoupons(@Param("slug") slug: string) {
-    let merchant = await this.prisma.merchant.findUnique({ where: { id: slug }, select: { id: true } });
-    if (!merchant) {
-      const all = await this.prisma.merchant.findMany({ select: { id: true, name: true, storeSettings: true } });
-      const match = all.find((m) => {
-        const settings = m.storeSettings as { slug?: string } | null;
-        if (settings?.slug === slug) return true;
-        const slugified = m.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-        return slugified === slug;
-      });
-      if (match) merchant = { id: match.id };
-    }
-    if (!merchant) throw new NotFoundException("store_not_found");
-
-    const now = new Date();
-    const coupons = await this.prisma.coupon.findMany({
-      where: {
-        merchantId: merchant.id,
-        status: "active",
-        startsAt: { lte: now },
-        OR: [
-          { endsAt: null },
-          { endsAt: { gt: now } }
-        ]
-      },
-      select: {
-        id: true,
-        code: true,
-        discountType: true,
-        discountValue: true,
-        minCartTotal: true,
-        maxUsages: true,
-        usagesCount: true,
-      },
-      orderBy: { createdAt: "desc" }
-    });
-
-    return {
-      items: coupons.map((c) => ({
-        id: c.id,
-        code: c.code,
-        discount_type: c.discountType,
-        discount_value: Number(c.discountValue),
-        min_cart_total: c.minCartTotal ? Number(c.minCartTotal) : null,
-        max_usages: c.maxUsages,
-        usages_count: c.usagesCount,
-      }))
-    };
+    return this.getPublicStoreResources.couponsForSlug(slug);
   }
 
   @Post("conversations")

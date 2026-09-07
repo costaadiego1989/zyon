@@ -11,6 +11,7 @@ import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-rep
 import { SupportModule } from "../support/support.module.js";
 import { MarketplaceModule } from "../marketplace/marketplace.module.js";
 import { KnowledgeBaseModule } from "../knowledge-base/knowledge-base.module.js";
+import { StoriesModule } from "../stories/stories.module.js";
 import { SearchFederatedProductsUseCase } from "../marketplace/application/use-cases/search-federated-products.use-case.js";
 import { PRODUCT_PROMOTION_REPOSITORY } from "../catalog/domain/ports/product-promotion-repository.port.js";
 import { StartStoreConversationUseCase } from "./application/use-cases/start-store-conversation.use-case.js";
@@ -24,6 +25,7 @@ import { ListBudgetRequestsUseCase } from "./application/use-cases/list-budget-r
 import { UpdateBudgetRequestStatusUseCase } from "./application/use-cases/update-budget-request-status.use-case.js";
 import { SearchMarketplaceProductsStorefrontUseCase } from "./application/use-cases/search-marketplace-products-storefront.use-case.js";
 import { AddMarketplaceItemToCartStorefrontUseCase } from "./application/use-cases/add-marketplace-item-to-cart.use-case.js";
+import { GetPublicStoreResourcesUseCase } from "./application/use-cases/get-public-store-resources.use-case.js";
 import { StorefrontConversationAdapter, STOREFRONT_CONVERSATION_ADAPTER } from "./infrastructure/adapters/storefront-conversation.adapter.js";
 import { StorefrontConversationGateway } from "./infrastructure/gateways/conversation.gateway.js";
 import { STOREFRONT_CONVERSATION_PORT } from "./domain/ports/conversation.port.js";
@@ -48,6 +50,7 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
     MarketplaceModule,
     CrossSellModule,
     KnowledgeBaseModule,
+    StoriesModule,
   ],
   controllers: [StorefrontController],
   providers: [
@@ -88,6 +91,7 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
     GenerateNudgeUseCase,
     GetConversationHistoryUseCase,
     GetStoreConfigUseCase,
+    GetPublicStoreResourcesUseCase,
     GetStorefrontFunnelUseCase,
     CreateBudgetRequestUseCase,
     ListBudgetRequestsUseCase,

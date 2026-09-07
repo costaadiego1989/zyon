@@ -26,6 +26,7 @@ export interface AuthRepository {
   createMerchantWithOwner(input: {
     merchantId: string;
     merchantName: string;
+    storeSlug?: string;
     email: string;
     passwordHash: string;
   }): Promise<{ merchant: AuthMerchant; user: AuthUser }>;
@@ -41,6 +42,7 @@ export interface AuthRepository {
   createMerchantWithOAuthOwner(input: {
     merchantId: string;
     merchantName: string;
+    storeSlug?: string;
     ownerName?: string;
     email: string;
     oauthProvider: string;

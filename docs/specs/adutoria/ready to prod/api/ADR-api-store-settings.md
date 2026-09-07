@@ -85,19 +85,19 @@ Consequência: o módulo poderá ser reavaliado isoladamente após a correção,
 | ID | API-031 |
 | SEVERITY | P2 |
 | MODULE | store-settings |
-| FILE(S) | [apps/api/src/modules/store-settings/application/use-cases/update-store-settings.use-case.ts:15](<../../../../../apps/api/src/modules/store-settings/application/use-cases/update-store-settings.use-case.ts#L15>)<br>[apps/api/src/modules/storefront/application/use-cases/get-store-config.use-case.ts:1](<../../../../../apps/api/src/modules/storefront/application/use-cases/get-store-config.use-case.ts#L1>) |
+| FILE(S) | [apps/api/prisma/schema.prisma:17](<../../../../../apps/api/prisma/schema.prisma#L17>)<br>[apps/api/prisma/deploy-migrations/20260907140000_merchant_store_slug/migration.sql:1](<../../../../../apps/api/prisma/deploy-migrations/20260907140000_merchant_store_slug/migration.sql#L1>)<br>[apps/api/src/modules/store-settings/application/use-cases/update-store-settings.use-case.ts:15](<../../../../../apps/api/src/modules/store-settings/application/use-cases/update-store-settings.use-case.ts#L15>) |
 | ISSUE | Unicidade do slug depende de consulta sem constraint |
-| EVIDENCE | Update procura slug já usado e depois grava JSON de configuração. Não foi encontrada constraint única de slug de loja; resolução de config também contém fallback que percorre merchants. |
-| VERIFICATION | CONFIRMED_STATIC; migrações aplicadas UNVERIFIED |
+| EVIDENCE | `Merchant.storeSlug` é único e indexado; a migração preenche-o do JSON histórico e falha diante de duplicidade. Registro e OAuth gravam o slug com a criação; a atualização converte a violação única em 409. Lookups públicos usam `storeSlug`, sem percorrer merchants. |
+| VERIFICATION | IMPLEMENTED_LOCAL_VALIDATION; migração em banco real UNVERIFIED |
 | PRODUCTION IMPACT | Duas lojas podem escolher o mesmo slug simultaneamente; resolução pode tornar-se ambígua e cara. |
 | ROOT CAUSE | Identificador público armazenado em JSON sem invariante de banco. |
-| RECOMMENDED FIX | Promover slug normalizado a campo indexado único e tratar conflito transacional; resolver loja por consulta indexada. |
+| RECOMMENDED FIX | Implementado localmente: promover slug normalizado a campo indexado único, tratar conflito transacional e resolver loja por consulta indexada. |
 | COMPLEXITY | M (S: pequena; M: média; L: ampla, sem estimativa de prazo) |
 | RISK OF CHANGE | Médio |
 | BLOCKS PROD? | NO |
 | CRITÉRIO DE ACEITE | Dois merchants concorrendo por slug normalizado geram um vencedor/409; lookup não percorre todas as lojas. |
 
-Decisão: registrar correção priorizada e acompanhar o risco residual. Correção ainda não implementada nesta auditoria.
+Decisão: correção implementada localmente. Antes do deploy, executar a consulta de duplicidade e aplicar a migração em banco restaurado/compatível; sem essa etapa, não declarar o item fechado em produção.
 
 
 ## Reavaliação

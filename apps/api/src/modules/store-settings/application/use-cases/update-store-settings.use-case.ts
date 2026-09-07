@@ -1,5 +1,5 @@
 import { Injectable, Inject, Logger, ConflictException } from "@nestjs/common";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { MerchantStoreSettings } from "../../../merchant/domain/merchant.types.js";
 import { slugify } from "../../../../shared/utils/slugify.js";
@@ -20,10 +20,7 @@ export class UpdateStoreSettingsUseCase {
 
       // Check uniqueness (another merchant can't have the same slug)
       const taken = await this.prisma.merchant.findFirst({
-        where: {
-          id: { not: merchantId },
-          storeSettings: { path: ["slug"], equals: settings.slug },
-        },
+        where: { id: { not: merchantId }, storeSlug: settings.slug },
         select: { id: true },
       });
       if (taken) {
@@ -31,10 +28,17 @@ export class UpdateStoreSettingsUseCase {
       }
     }
 
-    await this.prisma.merchant.update({
-      where: { id: merchantId },
-      data: { storeSettings: settings as unknown as object },
-    });
+    try {
+      await this.prisma.merchant.update({
+        where: { id: merchantId },
+        data: { storeSettings: settings as unknown as object, ...(settings.slug ? { storeSlug: settings.slug } : {}) },
+      });
+    } catch (error: unknown) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new ConflictException("slug_already_taken");
+      }
+      throw error;
+    }
 
     return settings;
   }

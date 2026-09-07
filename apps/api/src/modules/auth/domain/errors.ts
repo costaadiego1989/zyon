@@ -27,6 +27,14 @@ export class MerchantOwnerNotCreatedError extends Error {
   }
 }
 
+export class MerchantSlugAlreadyTakenError extends Error {
+  readonly code = "slug_already_taken";
+  constructor(slug: string) {
+    super(`slug_already_taken:${slug}`);
+    this.name = "MerchantSlugAlreadyTakenError";
+  }
+}
+
 export class WeakPasswordError extends Error {
   readonly code = "weak_password";
   constructor(reason: string) {

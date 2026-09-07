@@ -15,6 +15,7 @@ export class InMemoryAuthRepository implements AuthRepository {
   async createMerchantWithOwner(input: {
     merchantId: string;
     merchantName: string;
+    storeSlug?: string;
     email: string;
     passwordHash: string;
   }): Promise<{ merchant: AuthMerchant; user: AuthUser }> {
@@ -27,6 +28,7 @@ export class InMemoryAuthRepository implements AuthRepository {
       role: "owner" as const
     };
     this.merchants.set(merchant.id, merchant);
+    if (input.storeSlug) this.slugs.set(input.storeSlug, merchant.id);
     this.users.set(user.email, user);
     this.usedEmails.add(input.email);
     return { merchant, user };
@@ -35,6 +37,7 @@ export class InMemoryAuthRepository implements AuthRepository {
   async createMerchantWithOAuthOwner(input: {
     merchantId: string;
     merchantName: string;
+    storeSlug?: string;
     ownerName?: string;
     email: string;
     oauthProvider: string;
@@ -50,6 +53,7 @@ export class InMemoryAuthRepository implements AuthRepository {
       oauthProviderId: input.oauthProviderId,
     };
     this.merchants.set(merchant.id, merchant);
+    if (input.storeSlug) this.slugs.set(input.storeSlug, merchant.id);
     this.users.set(user.email, user);
     this.oauthUsers.set(`${input.oauthProvider}:${input.oauthProviderId}`, user);
     this.usedEmails.add(input.email);

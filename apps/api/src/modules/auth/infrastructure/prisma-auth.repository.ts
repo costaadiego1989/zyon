@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import type { AuthMerchant, AuthUser } from "../domain/auth.types.js";
 import { createHash } from "node:crypto";
 import type { AuthRepository, OwnerProfile, SessionRecord } from "../domain/ports/auth-repository.port.js";
-import { EmailAlreadyRegisteredError, MerchantOwnerNotCreatedError } from "../domain/errors.js";
+import { EmailAlreadyRegisteredError, MerchantOwnerNotCreatedError, MerchantSlugAlreadyTakenError } from "../domain/errors.js";
 
 /**
  * L9: Mapper functions extracted from inline use.
@@ -49,6 +49,7 @@ export class PrismaAuthRepository implements AuthRepository {
   async createMerchantWithOwner(input: {
     merchantId: string;
     merchantName: string;
+    storeSlug?: string;
     email: string;
     passwordHash: string;
   }): Promise<{ merchant: AuthMerchant; user: AuthUser }> {
@@ -57,7 +58,8 @@ export class PrismaAuthRepository implements AuthRepository {
         data: {
           id: input.merchantId,
           name: input.merchantName,
-          storeSettings: { registration_pending: true },
+          storeSlug: input.storeSlug,
+          storeSettings: { registration_pending: true, ...(input.storeSlug ? { slug: input.storeSlug } : {}) },
           billingSubscription: {
             create: {
               status: "trialing",
@@ -93,9 +95,12 @@ export class PrismaAuthRepository implements AuthRepository {
         err instanceof Prisma.PrismaClientKnownRequestError &&
         err.code === "P2002"
       ) {
-        const target = err.meta?.target as string[] | undefined;
-        if (target?.includes("email")) {
+        const target = Array.isArray(err.meta?.target) ? err.meta.target : [String(err.meta?.target ?? "")];
+        if (target.some((field) => field.includes("email"))) {
           throw new EmailAlreadyRegisteredError(input.email);
+        }
+        if (target.some((field) => field.includes("store_slug"))) {
+          throw new MerchantSlugAlreadyTakenError(input.storeSlug ?? "");
         }
       }
       throw err;
@@ -105,6 +110,7 @@ export class PrismaAuthRepository implements AuthRepository {
   async createMerchantWithOAuthOwner(input: {
     merchantId: string;
     merchantName: string;
+    storeSlug?: string;
     ownerName?: string;
     email: string;
     oauthProvider: string;
@@ -115,7 +121,8 @@ export class PrismaAuthRepository implements AuthRepository {
         data: {
           id: input.merchantId,
           name: input.merchantName,
-          storeSettings: { registration_pending: true, oauth_registration_pending: true, owner_name: input.ownerName ?? "" },
+          storeSlug: input.storeSlug,
+          storeSettings: { registration_pending: true, oauth_registration_pending: true, owner_name: input.ownerName ?? "", ...(input.storeSlug ? { slug: input.storeSlug } : {}) },
           billingSubscription: {
             create: {
               status: "trialing",
@@ -150,9 +157,12 @@ export class PrismaAuthRepository implements AuthRepository {
         err instanceof Prisma.PrismaClientKnownRequestError &&
         err.code === "P2002"
       ) {
-        const target = err.meta?.target as string[] | undefined;
-        if (target?.includes("email")) {
+        const target = Array.isArray(err.meta?.target) ? err.meta.target : [String(err.meta?.target ?? "")];
+        if (target.some((field) => field.includes("email"))) {
           throw new EmailAlreadyRegisteredError(input.email);
+        }
+        if (target.some((field) => field.includes("store_slug"))) {
+          throw new MerchantSlugAlreadyTakenError(input.storeSlug ?? "");
         }
       }
       throw err;
@@ -283,12 +293,7 @@ export class PrismaAuthRepository implements AuthRepository {
   }
 
   async isSlugTaken(slug: string): Promise<boolean> {
-    const match = await this.prisma.merchant.findFirst({
-      where: {
-        storeSettings: { path: ["slug"], equals: slug },
-      },
-      select: { id: true },
-    });
+    const match = await this.prisma.merchant.findUnique({ where: { storeSlug: slug }, select: { id: true } });
     return !!match;
   }
 
@@ -298,9 +303,13 @@ export class PrismaAuthRepository implements AuthRepository {
       select: { storeSettings: true },
     });
     const existing = (merchant?.storeSettings as Record<string, unknown>) ?? {};
+    const storeSlug = typeof settings.slug === "string" ? settings.slug.trim().toLowerCase() : undefined;
     await this.prisma.merchant.update({
       where: { id: merchantId },
-      data: { storeSettings: { ...existing, ...settings } as any },
+      data: {
+        storeSettings: { ...existing, ...settings } as any,
+        ...(storeSlug ? { storeSlug } : {}),
+      },
     });
   }
 
