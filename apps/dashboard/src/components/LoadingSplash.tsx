@@ -1,5 +1,5 @@
 import React from "react";
-import { AgentOrb } from "../pages/onboarding-wizard/components/AgentOrb.js";
+import { PulseAgentOrb } from "./PulseAgentOrb.js";
 
 export interface LoadingSplashProps {
   title?: string;
@@ -18,7 +18,7 @@ export function LoadingSplash({
   return (
     <div className="loading-splash" role="status" aria-live="polite">
       <div className="loading-splash__orb" aria-hidden="true">
-        <AgentOrb color="oklch(74% 0.19 149)" size={88} />
+        <PulseAgentOrb size={88} />
       </div>
       <h1 className="loading-splash__title">{title}</h1>
       <p className="loading-splash__subtitle">{subtitle}</p>

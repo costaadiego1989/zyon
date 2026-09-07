@@ -65,8 +65,8 @@ export function AuthScreen(props: AuthScreenProps) {
   return (
     <main className="auth-shell">
       {/* Waves background — full screen behind everything */}
-      <div style={{ position: "absolute", inset: 0, zIndex: 0, overflow: "hidden" }}>
-        <WavesBackground strokeColor="rgba(255,255,255,0.10)" backgroundColor="transparent" />
+      <div style={{ position: "fixed", inset: 0, zIndex: 0, overflow: "hidden", pointerEvents: "none" }}>
+        <WavesBackground strokeColor="rgba(180, 220, 200, 0.22)" backgroundColor="transparent" />
       </div>
 
       {/* Left: Form */}

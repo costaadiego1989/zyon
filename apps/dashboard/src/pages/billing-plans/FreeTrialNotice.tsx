@@ -28,8 +28,8 @@ export function FreeTrialNotice({ onViewPlans }: { onViewPlans: () => void }) {
         </strong>
         <p className="free-trial-notice__text">
           {expired
-            ? "Seu acesso continua liberado, com taxa de R$ 2,99 por transação."
-            : "Sem taxa de transação Zyon durante o Free."}
+            ? "Renove seu plano para não bloquear recursos do painel."
+            : "Renove seu plano antes do fim do trial para não bloquear recursos."}
         </p>
       </div>
       <button type="button" className="free-trial-notice__cta" onClick={onViewPlans}>

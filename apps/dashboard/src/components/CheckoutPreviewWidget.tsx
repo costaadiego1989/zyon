@@ -1,7 +1,7 @@
 import React from "react";
 import { Tag, Truck, CreditCard } from "lucide-react";
 import type { MerchantTheme } from "@zyon/shared-types";
-import { AgentOrb } from "../pages/onboarding-wizard/components/AgentOrb.js";
+import { PulseAgentOrb } from "./PulseAgentOrb.js";
 
 export interface CheckoutPreviewProps {
   theme: MerchantTheme;
@@ -78,7 +78,7 @@ export function CheckoutPreviewWidget({ theme, merchantName }: CheckoutPreviewPr
             transition: "max-width 0.3s ease, border-radius 0.3s ease, background 0.3s ease",
           }}
         >
-          <AgentOrb color={theme.accentColor} />
+          <PulseAgentOrb size={64} accentColor={theme.accentColor} />
 
           <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, fontWeight: 600, letterSpacing: "0.1em", color: theme.accentColor, textTransform: "uppercase" as const }}>
             GERENTE DE VENDAS{merchantName ? ` DA ${merchantName.toUpperCase()}` : ""}

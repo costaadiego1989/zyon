@@ -923,12 +923,15 @@ label {
 
 /* ── Page Head ────────────────────────────────────────────────── */
 .page-head {
+  --page-head-pad-bottom: 20px;
+  --page-head-mb: 24px;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 16px;
-  margin-bottom: 24px;
-  padding-bottom: 20px;
+  width: 100%;
+  margin-bottom: var(--page-head-mb);
+  padding-bottom: var(--page-head-pad-bottom);
   border-bottom: 1px solid var(--color-border);
   flex-wrap: wrap;
 }
@@ -4054,6 +4057,25 @@ button.dash-tab.active {
 @keyframes onbBlink {
   0%, 90%, 100% { transform: scaleY(1); }
   95% { transform: scaleY(0.1); }
+}
+
+/* ── Pulse Agent Orb (canônico — usado em LoadingSplash + previews) ─────── */
+@keyframes orbFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+@keyframes waveRing {
+  0%   { transform: scale(0.85); opacity: 0.7; }
+  100% { transform: scale(1.18); opacity: 0; }
+}
+@keyframes eyeLookLR {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-1.5px); }
+  75%      { transform: translateX(1.5px); }
+}
+@keyframes eyeBlink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  96%           { transform: scaleY(0.1); }
 }
 
 /* ── Support Chat Drawer ────────────────────────────────────── */

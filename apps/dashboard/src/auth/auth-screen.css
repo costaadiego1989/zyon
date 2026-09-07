@@ -4,7 +4,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   min-height: 100vh;
-  background: oklch(7% 0.005 150);
+  background: transparent;
   font-family: 'Manrope', system-ui, sans-serif;
   color: oklch(96% 0.002 145);
   overflow-x: hidden;
@@ -20,8 +20,8 @@
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: oklch(25% 0.006 145) transparent;
-  background: oklch(7% 0.005 150 / 0.5);
-  backdrop-filter: blur(3px);
+  background: linear-gradient(135deg, oklch(7% 0.005 150 / 0.55) 0%, oklch(7% 0.005 150 / 0.35) 100%);
+  backdrop-filter: blur(6px);
 }
 .auth-form-panel::-webkit-scrollbar { width: 8px; }
 .auth-form-panel::-webkit-scrollbar-track { background: transparent; }
