@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+dist
+**/dist
+playwright-report
+**/playwright-report
+test-results
+**/test-results
+.audit
+.claude
+.env
+.env.*
