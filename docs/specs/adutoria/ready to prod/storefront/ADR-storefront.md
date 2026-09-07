@@ -130,7 +130,7 @@ Decisão: bloquear a liberação da capacidade afetada até cumprir o critério 
 | BLOCKS PROD? | YES |
 | CRITÉRIO DE ACEITE | Busca por produto indexado retorna o item correto para host autorizado; ausência real e erro HTTP têm estados distintos. |
 
-Decisão: bloquear a liberação da capacidade afetada até cumprir o critério de aceite. Correção ainda não implementada nesta auditoria.
+Decisão: implementada localmente. O fluxo ativo `useMarketplaceSearch` usa `query`, `merchantId` e o envelope `products`, preservando estado de erro separado. O cliente legado incompatível, sem consumidores, foi removido para impedir uso futuro de `q`, `items` ou GET em uma rota de inclusão. A inserção cross-store segue desabilitada em produção por não ter liquidação autoritativa; o smoke de busca para visitante/host autorizado continua necessário antes de fechar o gate.
 
 <a id="sf-005"></a>
 

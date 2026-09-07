@@ -494,7 +494,7 @@
       "severity": "P1",
       "module": "storefront",
       "title": "Busca marketplace envia query e interpreta envelope errados",
-      "status": "OPEN",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
       "productionGateClosed": false,
       "record": "../../CORRECOES.md"
     },

@@ -99,27 +99,6 @@ export const settingsApi = {
     return safeFetch(`${API_BASE}/storefront/${slug}/config`);
   },
 };
-export const marketplaceApi = {
-  async search(query: string, options?: { limit?: number }): Promise<any[]> {
-    const params = new URLSearchParams();
-    params.set("q", query);
-    if (options?.limit) params.set("limit", String(options.limit));
-    const result = await safeFetch(
-      `${API_BASE}/storefront/marketplace/search?${params.toString()}`,
-    );
-    return result.items ?? [];
-  },
-  async list(options?: { limit?: number; cursor?: string }): Promise<any[]> {
-    const params = new URLSearchParams();
-    if (options?.limit) params.set("limit", String(options.limit));
-
-    const result = await safeFetch(
-      `${API_BASE}/storefront/marketplace/items?${params.toString()}`,
-    );
-    return result.items ?? [];
-  },
-};
-
 // ─── Checkout / Conversations (conversation capability) ──
 
 export const checkoutApi = {
