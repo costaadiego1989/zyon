@@ -1,22 +1,22 @@
 /* ─── Auth Shell — single rounded glass card with 2 internal columns ─── */
 .auth-shell {
   position: relative;
-  display: grid;
+  display: grid !important;
   grid-template-columns: 1fr 1fr;
   gap: 0;
-  width: min(1080px, calc(100vw - 32px));
-  max-height: calc(100vh - 32px);
-  margin: 16px auto;
+  width: min(960px, calc(100vw - 48px)) !important;
+  max-width: 960px !important;
+  min-height: calc(100vh - 48px);
+  max-height: calc(100vh - 48px);
+  margin: 24px auto !important;
   padding: 0;
   border-radius: 24px;
   border: 1px solid rgba(255, 255, 255, 0.05);
   overflow: hidden;
-  /* Glass surface — low-alpha gradient so the moving WavesBackground + the
-     bg-signup image remain readable around the card edges. */
+  /* Glass surface — NO blur, low alpha so the bg-signup image and the moving
+     WavesBackground stay readable through both columns. */
   background:
-    linear-gradient(180deg, rgba(16, 22, 18, 0.42) 0%, rgba(10, 16, 12, 0.52) 100%);
-  backdrop-filter: blur(18px) saturate(1.05);
-  -webkit-backdrop-filter: blur(18px) saturate(1.05);
+    linear-gradient(180deg, rgba(16, 22, 18, 0.28) 0%, rgba(10, 16, 12, 0.36) 100%);
   box-shadow:
     0 24px 64px rgba(0, 0, 0, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);

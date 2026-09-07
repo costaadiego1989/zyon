@@ -229,6 +229,12 @@ main.dashboard-main {
   padding: 0;
 }
 
+main.auth-shell {
+  width: min(960px, calc(100vw - 48px));
+  margin: 24px auto;
+  max-width: 960px;
+}
+
 /* ── Buttons ──────────────────────────────────────────────────── */
 button {
   min-height: 36px;
