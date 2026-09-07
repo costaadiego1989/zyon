@@ -1,225 +1,99 @@
-# AACP — Plataforma de E-commerce para PMEs
+# Zyon
 
-AACP é uma plataforma SaaS completa de e-commerce pensada para pequenas e médias empresas. PMEs criam sua própria loja virtual, vendem direto ao consumidor ou integram em um marketplace compartilhado com outras marcas. Toda negociação de preço e frete é intermediada por um agente de IA que atua dentro de regras determinísticas aprovadas pelo merchant.
+Zyon é uma plataforma de loja autônoma para pequenas e médias empresas. Ela conecta catálogo, atendimento, checkout e operação em uma experiência contínua: o cliente encontra produtos, tira dúvidas, recebe recomendações e avança para a compra, enquanto o merchant mantém as regras comerciais sob controle.
 
-## Core Value Proposition
+Autonomia significa operação assistida por IA dentro de limites definidos pelo negócio. A IA conversa e sugere; preços, margem, descontos, pagamento e entrega seguem regras configuradas pelo merchant.
 
-- **Loja visual autônoma** — Storefront próprio da PME, sem dependência de terceiros (Shopify, VTEX, etc.)
-- **Negociação conversacional com IA** — Agente conversa com o comprador, identifica objeções e negocia desconto/frete dentro dos limites de margem do merchant
-- **Marketplace integrado** — PMEs podem vender em marketplace de outras marcas e receber comissão via settlement organizado
-- **Buyer Hub** — Comprador acessa histórico de pedidos, rastreia, salva endereços, conversa com IA
-- **Pagamentos multi-forma** — PIX, boleto (Asaas), cartão (Stripe), cripto
-- **Dashboard completo** — Visão de pedidos, integrações (Shopify/VTEX opcional), clientes, promoções, faturamento
-- **🚀 Agentic Commerce Ready** — Detectável por agentes de IA (Opus 5, Gemini, Perplexity); checkout em 1-click dentro de chats; suporta ACP/UCP/AP2 protocols
+## Capacidades
 
-## Stack & Arquitetura
+- **Loja conversacional** — storefront próprio com catálogo, descoberta de produtos e atendimento por IA.
+- **Motor de decisão** — contexto da conversa, catálogo e regras comerciais orientam o próximo passo da jornada.
+- **Operação com controle** — cada empresa define limites de desconto, elegibilidade de frete e tom da marca.
+- **Checkout e pedidos** — carrinho, pagamento, acompanhamento e recuperação de vendas conectados à conversa.
+- **Protocolos agentic commerce** — descoberta UCP, sessões de checkout ACP e mandatos AP2 são expostos pela API pública quando habilitados.
+- **Painel da empresa** — catálogo, pedidos, clientes, regras e planos em um só lugar.
+- **Conhecimento e voz** — busca por intenção, materiais da loja e conversa por voz, conforme o plano e a configuração.
+- **Inteligência comercial** — Revenue Manager e experimentação A/B para avaliar estratégias; resultados dependem de dados e critérios de medição válidos.
 
-```
+## Estrutura
+
+~~~text
 apps/
-  api/              — NestJS + Prisma + PostgreSQL (Clean Architecture + DDD modular)
-  widget/           — React/Vite (storefront + buyer hub + conversas IA)
-  dashboard/        — React (console merchant)
-  fake-commerce-api — Mock para dev/E2E
+  api/          NestJS + Prisma + PostgreSQL; regras, catálogo e operação
+  dashboard/    Console do merchant em React
+  storefront/   Loja pública conversacional em Next.js
+  web/          Landing page institucional estática
+  widget_v2/    Widget embarcável de atendimento e compra
 
 packages/
-  shared-types/            — Contratos TypeScript
-  rules-engine/            — Desconto/frete determinístico
-  decision-engine/         — Próximos passos da conversa
-  conversation-engine/     — LLM wrapper + segurança
-  shipping-engine/         — Subsídio e cotação logística
-  commerce-adapters/       — Shopify, Magento, VTEX, WooCommerce
-  agentic-checkout-js/     — SDK público pra checkout programático
-```
+  shared-types/          Contratos TypeScript compartilhados
+  rules-engine/          Regras comerciais determinísticas
+  decision-engine/       Próximo passo da conversa
+  conversation-engine/   Orquestração e segurança do agente
+  shipping-engine/       Regras e cotações de entrega
+~~~
 
-## Tenancy & Segurança
+Leia a [documentação do produto](docs/README.md) antes de alterar jornadas comerciais. O posicionamento atual da marca e da landing está em [docs/product/autonomous-store-positioning.md](docs/product/autonomous-store-positioning.md).
 
-- **Merchant** é a fronteira de isolamento (tenant)
-- Todo query/comando escopo por `merchant_id` from JWT principal
-- **Buyer global ID** permite personalização cruzada de histórico
-- **IA nunca autoriza ofertas** — só propõe. `rules-engine` aprova desconto (com cap de margem). `shipping-engine` aprova subsídio frete
-- Toda saída LLM passa por `isSafeGeneratedMessage()` (regex + safety battery) — bloqueia promessas proibidas (frete grátis sem autorização, CVV, etc.)
-- **Idempotência HTTP** em todas escrita; `merchant_id` criptografado em webhook
+## Desenvolvimento
 
-## Modelo de Receita
+Pré-requisitos: Node.js atual, pnpm, PostgreSQL e as variáveis de ambiente de cada aplicação.
 
-Por pedido:
-
-| Quem paga | Valor | Coletado em |
-|-----------|-------|-----------|
-| **Buyer** | R$0,99 | Fatura (todo pedido) |
-| **Merchant (Starter)** | R$1,99 | Settlement (sai do repasse) |
-| **Merchant (Growth)** | R$1,49 | Settlement (sai do repasse) + R$249/mês |
-| **Merchant (Scale)** | R$0,99 | Settlement (sai do repasse) + R$599/mês |
-
-## Contextos & Módulos
-
-**Checkout & IA:**
-- `checkout` — Sessão, eventos, scoring, chat, ofertas, read model
-- `agent-rules` — Identidade do agente, capabilities, guardrails
-- `conversation-engine` — Classifica objeções, escreve copy segura
-
-**Agentic Commerce (ACP/UCP):**
-- **`agentic-protocol-adapter`** — Expõe AACP para agentes IA (Opus 5, Gemini, Perplexity)
-  - `GET /.well-known/ucp` — Discovery (AACP é ACP-ready?)
-  - `GET /v1/acp/products/feed` — Google Merchant Feed (CSV/JSON)
-  - `POST /v1/acp/checkout_sessions` — Checkout em 1-click dentro de chat
-  - Webhooks de pedido + Payment mandates (AP2)
-  - [ADR-025](docs/adr/0025-agentic-commerce-protocol.md) | [Spec](specs/features/agentic-commerce-protocol-compliance)
-
-**PME:**
-- `merchant` — Regras, configurações, tema
-- `buyer-purchase-history` — Personalização por compra anterior
-- `checkout-settings` — Comportamento do widget
-
-**Pagamento & Logística:**
-- `payment` — Intents (Asaas/Stripe/Crypto), webhooks
-- `shipping` — Melhor Envio, cotação real, entrega própria
-- `billing` — Planos Asaas, assinatura recorrente
-
-**Marketplace & Vendas:**
-- `marketplace-discovery` — Discovery de lojas
-- `marketplace-settlement` — Timeline de repasse com chargeback window
-- `inventory` — Multi-warehouse, OMS
-- `erp-crm` — Integração com ERPs/CRMs de vendedor
-
-**Experiência:**
-- `storefront` — Loja visual com Stories (Instagram-style)
-- `buyer-hub` — Dashboard cliente (pedidos, endereços, pagamentos)
-- `negotiation` — M2M sessões com ledger de custo
-- `post-sale` — Entrega, reviews, NPS, win-back, lealdade
-
-## Invariantes Críticos
-
-1. **Desconto**: `rules-engine` é autoridade única. Hard cap em % + reais. Margem nunca abaixo de mínimo.
-2. **Frete**: `shipping-engine` aprova subsídio. Sem "frete grátis" não autorizado.
-3. **IA**: Nunca autoriza oferta. Só propõe. Toda output passa `isSafeGeneratedMessage()`.
-4. **Tenant**: `merchant_id` em toda query. Sem cross-tenant leak.
-5. **LGPD**: Audit log, export de dados, delete conta.
-6. **Ofertas determinísticas**: Sem LLM decide sem passar pelo rules-engine.
-7. **Holdout**: 5% dos buyers (SHA256 hash) nunca recebem regra experimental (validação científica).
-
-## Setup Local
-
-```bash
-# Instalar deps
+~~~bash
 pnpm install
+pnpm --filter @zyon/api dev
+pnpm --filter @zyon/dashboard dev
+pnpm --filter @zyon/storefront dev
+~~~
 
-# Env (copiar template, preencher credentials)
-cp apps/api/.env.example apps/api/.env
+Execute verificações por aplicação:
 
-# Dev — todas as apps simultaneamente
-cd apps/api && pnpm dev         # http://localhost:3000
-cd apps/widget && pnpm dev      # http://localhost:5173
-cd apps/dashboard && pnpm dev   # http://localhost:5174
+~~~bash
+pnpm --filter @zyon/api typecheck
+pnpm --filter @zyon/api test
+pnpm --filter @zyon/dashboard build
+pnpm --filter @zyon/storefront build
+~~~
 
-# Typecheck
-cd apps/api && pnpm typecheck
-cd apps/widget && pnpm typecheck
+## Loja demo
 
-# Build
-cd apps/api && pnpm build
-cd apps/widget && pnpm build
+A landing incorpora a loja de demonstração em:
 
-# Testes
-cd apps/api && pnpm test
-cd apps/api && pnpm test:prisma
-cd apps/widget && pnpm test
-cd apps/widget && pnpm test:coverage   # vitest + c8, threshold 70%
-cd apps/widget && pnpm e2e             # Playwright mocked
-cd apps/widget && pnpm e2e:realapi     # Playwright real API
+~~~text
+https://zyon-storefront.vercel.app/store/demo?embed=1
+~~~
 
-# DB
-cd apps/api && pnpm prisma:generate    # Gera cliente
-cd apps/api && pnpm prisma:migrate:dev # Migra local
-cd apps/api && pnpm prisma:deploy      # Migra prod
-```
+Para criar ou atualizar os dados da demo em uma base permitida, configure DATABASE_URL para essa base e execute:
 
-## Estrutura de Especificações
+~~~bash
+pnpm --filter @zyon/api seed:demo-store
+~~~
 
-Todas features pré-implementação vivem em `.specs/`:
+O seed é idempotente e usa o merchant mrc_zyon_demo. Ele cria categorias, seis produtos, estoque, mídia e regras comerciais sem desconto. Não aponte DATABASE_URL para uma base que não deva receber os dados da demo.
 
-```
-.specs/features/[feature]/
-  spec.md      — Requirements, contracts, acceptance criteria
-  design.md    — Arquitetura da solução (quando aplica)
-  tasks.md     — Tasks atômicas com verificação
-```
+A rota /store/demo é a única storefront permitida para incorporação pelas origens da Zyon; as demais lojas mantêm proteção contra framing.
 
-Referência:
+O estado “Loja ao vivo” depende de uma mensagem do iframe com origem verificada e de uma configuração real do merchant retornada pela API. A tela de fallback local da storefront não ativa esse estado. Para disponibilizar a demonstração, é necessário publicar a correção da storefront, garantir acesso às rotas públicas da API e executar o seed na base de destino. A existência do seed no repositório não significa que ele tenha sido executado em produção.
 
-```
-.specs/codebase/
-  STACK.md         — Frontend/backend/database, versões
-  ARCHITECTURE.md  — Clean Architecture + DDD no código
-  STRUCTURE.md     — Organização de pastas
-  TESTING.md       — TDD patterns, cobertura, E2E
-  INTEGRATIONS.md  — Shopify, VTEX, Melhor Envio, etc.
-  CONCERNS.md      — Decisões técnicas abertas
-```
+## Planos
 
-## Convenções de Código
+Os planos configurados são Free, Growth e Scale. Valores, limites, recursos e taxas de transação vêm do catálogo de planos da API; a landing reflete a configuração atual:
 
-**Git Commits:**
-```
-type(scope): short description
+- **Free**: R$ 0/mês; 100 pedidos e 100 conversas com IA por mês.
+- **Growth**: R$ 249/mês; 500 pedidos, 5.000 conversas com IA e recursos avançados.
+- **Scale**: R$ 599/mês; pedidos e conversas sem limite, domínio próprio, Revenue Manager e testes A/B.
 
-type: feat|fix|refactor|test|chore|docs|style|perf|ci
-scope: módulo/app — checkout, payment, widget, auth, etc.
-message: Imperative, ≤72 chars, English
-```
+Taxas de transação da loja: R$ 2,99 no Free (após os primeiros 14 dias), R$ 1,49 no Growth e R$ 0,99 no Scale. O comprador paga R$ 0,99 de serviço por compra. Taxas dos provedores de pagamento são cobradas separadamente.
 
-**Exemplo:**
-```
-feat(checkout): add scoped mission budget validation
-fix(payment): enforce merchant boundary on webhook lookup
-refactor(auth): extract buyer session guard to hook
-```
+## Site e identidade
 
-**API Patterns:**
-- DTOs sempre separados do domain
-- Responses envolvidas em `{ data, meta, pagination?, _links? }`
-- Cursor pagination por padrão (offset opt-in)
-- Resource-based REST L2 (não HATEOAS)
-- OpenAPI decorators para SDK generation
+`apps/web/index.html` apresenta o produto, motor de decisão, controle de margem, busca por intenção, conhecimento, voz, Revenue Manager, protocolos UCP/ACP/AP2 e os planos. Estilos e interações ficam em `assets/landing.css` e `assets/landing.js`.
 
-**Testes:**
-- TDD: red → green → refactor
-- Cobertura mínima 70% (widget + dashboard)
-- E2E em Playwright contra API real (in-memory Prisma)
-- Unit + integration + E2E (não skip E2E)
+O hero compartilha a imagem do cadastro do dashboard (`bg-hero.webp`) e usa waves que respeitam a preferência por movimento reduzido. A imagem do motor está em `engine-core.webp`. Gráficos e exemplos comerciais são identificados como ilustrativos; não representam resultados de clientes.
 
-## Produção
+## Princípios
 
-**Antes de deploy:**
-1. `pnpm typecheck` passa
-2. `pnpm test` passes 100%
-3. `pnpm build` succeeds
-4. Audit log registra mudanças (LGPD)
-5. Merchant não vê dados cruzados
-
-**Monitoramento:**
-- HTTP error rate (5xx)
-- Funnel: sessions → conversations → offers_accepted → orders
-- Settlement pipeline: pending → transfer_scheduled → transferred → finalized
-- IA safety: unsafe_messages_blocked, fallback_count
-
-## Links & Recursos
-
-- **Stack Docs**: `.specs/codebase/STACK.md`
-- **ADRs**: `.specs/features/*/spec.md` (decisões arquitetônicas)
-  - **ADR-025**: [Agentic Commerce Protocol (ACP) Compliance](docs/adr/0025-agentic-commerce-protocol.md) — Strategic decision to implement ACP/UCP/AP2 adapter
-- **Agentic Commerce**: [Analysis + Roadmap](specs/features/agentic-commerce-protocol-compliance/spec.md)
-  - Gap analysis vs ACP/UCP/AP2 standards
-  - 6–8 week implementation roadmap (Phase 1–3)
-- **Referência API**: Será gerada via OpenAPI (em progresso, REQ-001 audit)
-- **Roadmap Produto**: 120+ specs documentadas em `.specs/features/`
-
-## Suporte
-
-- Questões codebase → CLAUDE.md (instrções operacionais)
-- Questões de feature → spec.md na pasta `/features/`
-- Questões de decisão → ADRs (`create-adr` skill)
-
----
-
-**AACP v0.1 — Built by Diego & Crew**. Última atualização: Setembro 2026.
+- A IA não autoriza condições comerciais fora das regras do merchant.
+- Dados de tenant, pagamentos e jornadas financeiras permanecem isolados.
+- A comunicação de marketing deve refletir recursos realmente entregues e configurações habilitadas.
+- Antes de publicar, confirme o projeto Vercel vinculado: os arquivos .vercel/project.json existentes podem apontar para aplicações diferentes da Zyon.
