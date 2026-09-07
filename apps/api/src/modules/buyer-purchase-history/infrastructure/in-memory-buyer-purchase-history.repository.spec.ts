@@ -1,14 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BuyerPurchaseHistoryEntity } from "../domain/entities/buyer-purchase-history.entity.js";
 import { InMemoryBuyerPurchaseHistoryRepository } from "./in-memory-buyer-purchase-history.repository.js";
 
-test("InMemoryBuyerPurchaseHistoryRepository saves and reads history by merchant and buyer identity", async () => {
+test("InMemoryBuyerPurchaseHistoryRepository reads context by merchant and buyer identity", async () => {
   const repository = new InMemoryBuyerPurchaseHistoryRepository();
-  const history = BuyerPurchaseHistoryEntity.create({
-    merchantId: "mrc_1",
-    globalUserId: "usr_global_1"
-  }).recordPurchase({
+  await repository.recordPurchase({
     merchantId: "mrc_1",
     orderId: "ord_1",
     globalUserId: "usr_global_1",
@@ -19,18 +15,16 @@ test("InMemoryBuyerPurchaseHistoryRepository saves and reads history by merchant
     items: [{ sku: "sku_1", title: "Item", quantity: 1, unitPrice: 99, discountAmount: 0 }]
   });
 
-  await repository.save(history);
-
-  const found = await repository.getByBuyer({
+  const found = await repository.getContext({
     merchantId: "mrc_1",
     globalUserId: "usr_global_1"
   });
-  const otherMerchant = await repository.getByBuyer({
+  const otherMerchant = await repository.getContext({
     merchantId: "mrc_2",
     globalUserId: "usr_global_1"
   });
 
-  assert.equal(found?.stats().ordersCount, 1);
+  assert.equal(found?.purchase_history.orders_count, 1);
   assert.equal(otherMerchant, undefined);
 });
 
@@ -52,5 +46,5 @@ test("InMemoryBuyerPurchaseHistoryRepository upserts purchases idempotently by m
 
   assert.equal(first.idempotent, false);
   assert.equal(second.idempotent, true);
-  assert.equal(second.history.stats().ordersCount, 1);
+  assert.equal(second.ordersCount, 1);
 });

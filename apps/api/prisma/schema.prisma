@@ -657,6 +657,8 @@ model BuyerPurchaseRecord {
   @@unique([merchantId, orderId])
   @@index([merchantId, globalUserId])
   @@index([merchantId, merchantCustomerId])
+  @@index([merchantId, globalUserId, completedAt])
+  @@index([merchantId, merchantCustomerId, completedAt])
   @@index([merchantId, completedAt])
   @@map("buyer_purchase_records")
 }

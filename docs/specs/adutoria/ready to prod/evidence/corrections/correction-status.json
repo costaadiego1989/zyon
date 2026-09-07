@@ -287,9 +287,9 @@
       "severity": "P2",
       "module": "buyer-purchase-history",
       "title": "Histórico cresce sem limite nas leituras e saves",
-      "status": "OPEN",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
       "productionGateClosed": false,
-      "record": "../../CORRECOES.md"
+      "record": "../../CORRECOES-BUYER-PURCHASE-HISTORY.md"
     },
     {
       "id": "API-033",

@@ -79,8 +79,8 @@ Consequência: o módulo poderá ser reavaliado isoladamente após a correção,
 | MODULE | buyer-purchase-history |
 | FILE(S) | [apps/api/src/modules/buyer-purchase-history/infrastructure/prisma-buyer-purchase-history.repository.ts:15](<../../../../../apps/api/src/modules/buyer-purchase-history/infrastructure/prisma-buyer-purchase-history.repository.ts#L15>) |
 | ISSUE | Histórico cresce sem limite nas leituras e saves |
-| EVIDENCE | getByBuyer carrega todas as compras; save percorre histórico para upserts. recordPurchase também recarrega histórico após inserir. |
-| VERIFICATION | CONFIRMED_STATIC; REQUIRES LOAD VALIDATION |
+| EVIDENCE | Antes da correção, getByBuyer carregava todas as compras, save percorria o histórico para upserts e recordPurchase recarregava o agregado após inserir. |
+| VERIFICATION | IMPLEMENTED_LOCAL_VALIDATION; REQUIRES POSTGRES LOAD VALIDATION |
 | PRODUCTION IMPACT | Custo de I/O e memória cresce com o comprador; recorrência deixa o caminho de checkout progressivamente mais caro. |
 | ROOT CAUSE | Agregado acumula histórico completo em operações que precisam de estatísticas ou uma compra. |
 | RECOMMENDED FIX | Separar append idempotente, projeção resumida e consulta paginada por cursor; medir com buyer de histórico grande. |
@@ -89,7 +89,7 @@ Consequência: o módulo poderá ser reavaliado isoladamente após a correção,
 | BLOCKS PROD? | NO |
 | CRITÉRIO DE ACEITE | EXPLAIN e teste com 100 mil compras por buyer devem demonstrar leitura limitada e inserção sem regravar o histórico. |
 
-Decisão: registrar correção priorizada e acompanhar o risco residual. Correção ainda não implementada nesta auditoria.
+Decisão: correção local implementada. `recordPurchase` faz um único insert protegido pela constraint de merchant/pedido e responde com `count` indexado. `getContext` usa agregado exato para valores financeiros e uma janela de até 100 pedidos recentes para os hints de personalização. `getByBuyer` ficou limitado a 100 registros por compatibilidade; os consumidores de contexto usam `getContext`. Índices compostos cobrem as duas identidades suportadas. Consulte o [registro de correção](<../CORRECOES-BUYER-PURCHASE-HISTORY.md>). O risco residual é validar o plano real e concorrência em PostgreSQL com 100 mil pedidos.
 
 
 ## Reavaliação

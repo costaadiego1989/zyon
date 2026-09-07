@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { BuyerPurchaseHistoryEntity } from "../domain/entities/buyer-purchase-history.entity.js";
 import type { BuyerPurchaseHistoryRepository } from "../domain/ports/buyer-purchase-history-repository.port.js";
-import type { PurchaseHistoryIdentity, PurchaseRecord } from "../domain/buyer-purchase-history.types.js";
+import type { BuyerPurchaseHistoryContext, PurchaseHistoryIdentity, PurchaseRecord } from "../domain/buyer-purchase-history.types.js";
 
 @Injectable()
 export class InMemoryBuyerPurchaseHistoryRepository implements BuyerPurchaseHistoryRepository {
@@ -12,15 +12,11 @@ export class InMemoryBuyerPurchaseHistoryRepository implements BuyerPurchaseHist
     return this.histories.get(this.identityKey(identity));
   }
 
-  async save(history: BuyerPurchaseHistoryEntity): Promise<BuyerPurchaseHistoryEntity> {
-    this.histories.set(this.identityKey(history.snapshot()), history);
-    for (const purchase of history.snapshot().purchases) {
-      this.orderIndex.add(this.orderKey(purchase));
-    }
-    return history;
+  async getContext(identity: PurchaseHistoryIdentity): Promise<BuyerPurchaseHistoryContext | undefined> {
+    return this.histories.get(this.identityKey(identity))?.toSafeContext();
   }
 
-  async recordPurchase(purchase: PurchaseRecord): Promise<{ history: BuyerPurchaseHistoryEntity; idempotent: boolean }> {
+  async recordPurchase(purchase: PurchaseRecord): Promise<{ ordersCount: number; idempotent: boolean }> {
     const identity = {
       merchantId: purchase.merchantId,
       globalUserId: purchase.globalUserId,
@@ -35,7 +31,7 @@ export class InMemoryBuyerPurchaseHistoryRepository implements BuyerPurchaseHist
     this.histories.set(key, next);
     this.orderIndex.add(orderKey);
 
-    return { history: next, idempotent };
+    return { ordersCount: next.stats().ordersCount, idempotent };
   }
 
   async listPurchasesForGlobalUser(globalUserId: string): Promise<PurchaseRecord[]> {

@@ -148,9 +148,9 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
       recent_skus: [] as string[],
     };
     try {
-      const history = await this.purchaseHistory.getByBuyer({ globalUserId, merchantId: session.merchantId });
+      const history = await this.purchaseHistory.getContext({ globalUserId, merchantId: session.merchantId });
       if (history) {
-        const ctx = history.toSafeContext().purchase_history;
+        const ctx = history.purchase_history;
         buyerHistoryContext = {
           known_buyer: ctx.known_buyer,
           // Strategy selector only knows low/medium/high — map "unknown" → "low".

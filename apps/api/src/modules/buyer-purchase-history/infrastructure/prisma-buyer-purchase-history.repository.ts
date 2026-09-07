@@ -1,7 +1,7 @@
-import type { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { BuyerPurchaseHistoryEntity } from "../domain/entities/buyer-purchase-history.entity.js";
 import type {
-  BuyerPurchaseHistorySnapshot,
+  BuyerPurchaseHistoryContext,
   PurchaseHistoryIdentity,
   PurchaseHistoryItem,
   PurchaseRecord
@@ -9,67 +9,91 @@ import type {
 import type { BuyerPurchaseHistoryRepository } from "../domain/ports/buyer-purchase-history-repository.port.js";
 import { toNumber } from "../../../shared/persistence/decimal.util.js";
 
+const CONTEXT_PURCHASE_LIMIT = 100;
+const RECENT_WINDOW_MS = 12 * 30 * 24 * 60 * 60 * 1000;
+
 export class PrismaBuyerPurchaseHistoryRepository implements BuyerPurchaseHistoryRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
   async getByBuyer(identity: PurchaseHistoryIdentity): Promise<BuyerPurchaseHistoryEntity | undefined> {
-    const where = identity.globalUserId
-      ? { merchantId: identity.merchantId, globalUserId: identity.globalUserId }
-      : { merchantId: identity.merchantId, merchantCustomerId: identity.merchantCustomerId };
-    const rows = await this.prisma.buyerPurchaseRecord.findMany({
-      where,
-      orderBy: { completedAt: "asc" }
-    });
+    const rows = await this.recentRows(identity);
     if (!rows.length) return undefined;
 
     return BuyerPurchaseHistoryEntity.rehydrate({
       merchantId: identity.merchantId,
       globalUserId: identity.globalUserId,
       merchantCustomerId: identity.merchantCustomerId,
-      purchases: rows.map(toPurchaseRecord)
+      purchases: rows.reverse().map(toPurchaseRecord)
     });
   }
 
-  async save(history: BuyerPurchaseHistoryEntity): Promise<BuyerPurchaseHistoryEntity> {
-    const snapshot = history.snapshot();
-    for (const purchase of snapshot.purchases) {
-      await this.upsertPurchase(purchase);
-    }
-    return history;
-  }
+  async getContext(identity: PurchaseHistoryIdentity): Promise<BuyerPurchaseHistoryContext | undefined> {
+    const where = whereForIdentity(identity);
+    const recentSince = new Date(Date.now() - RECENT_WINDOW_MS);
+    const [summary, rows] = await this.prisma.$transaction([
+      this.prisma.buyerPurchaseRecord.aggregate({
+        where,
+        _count: { _all: true },
+        _sum: { totalAmount: true },
+        _max: { completedAt: true }
+      }),
+      this.prisma.buyerPurchaseRecord.findMany({
+        where: { ...where, completedAt: { gte: recentSince } },
+        orderBy: { completedAt: "desc" },
+        take: CONTEXT_PURCHASE_LIMIT
+      })
+    ]);
 
-  async recordPurchase(purchase: PurchaseRecord): Promise<{ history: BuyerPurchaseHistoryEntity; idempotent: boolean }> {
-    const existing = await this.prisma.buyerPurchaseRecord.findUnique({
-      where: { merchantId_orderId: { merchantId: purchase.merchantId, orderId: purchase.orderId } }
+    const ordersCount = summary._count._all;
+    if (!ordersCount) return undefined;
+
+    // Totals come from the aggregate. Recommendation hints are deliberately
+    // derived from a bounded 12-month window so this read cannot grow forever.
+    const recentHistory = BuyerPurchaseHistoryEntity.rehydrate({
+      merchantId: identity.merchantId,
+      globalUserId: identity.globalUserId,
+      merchantCustomerId: identity.merchantCustomerId,
+      purchases: rows.reverse().map(toPurchaseRecord)
     });
-    if (!existing) {
-      await this.upsertPurchase(purchase);
-    }
-
-    const history = await this.getByBuyer({
-      merchantId: purchase.merchantId,
-      globalUserId: purchase.globalUserId,
-      merchantCustomerId: purchase.merchantCustomerId
-    });
-
+    const context = recentHistory.toSafeContext();
+    const lifetimeValue = toNumber(summary._sum.totalAmount ?? 0);
     return {
-      history:
-        history ??
-        BuyerPurchaseHistoryEntity.rehydrate({
-          merchantId: purchase.merchantId,
-          globalUserId: purchase.globalUserId,
-          merchantCustomerId: purchase.merchantCustomerId,
-          purchases: [purchase]
-        }),
-      idempotent: Boolean(existing)
+      ...context,
+      purchase_history: {
+        ...context.purchase_history,
+        known_buyer: true,
+        orders_count: ordersCount,
+        lifetime_value: lifetimeValue,
+        average_order_value: roundMoney(lifetimeValue / ordersCount),
+        last_order_at: summary._max.completedAt?.toISOString()
+      }
     };
   }
 
-  private async upsertPurchase(purchase: PurchaseRecord): Promise<void> {
-    await this.prisma.buyerPurchaseRecord.upsert({
-      where: { merchantId_orderId: { merchantId: purchase.merchantId, orderId: purchase.orderId } },
-      create: toCreate(purchase),
-      update: toUpdate(purchase)
+  async recordPurchase(purchase: PurchaseRecord): Promise<{ ordersCount: number; idempotent: boolean }> {
+    let idempotent = false;
+    try {
+      await this.prisma.buyerPurchaseRecord.create({ data: toCreate(purchase) });
+    } catch (error) {
+      if (!isUniqueOrderConflict(error)) throw error;
+      idempotent = true;
+    }
+
+    const ordersCount = await this.prisma.buyerPurchaseRecord.count({
+      where: whereForIdentity({
+        merchantId: purchase.merchantId,
+        globalUserId: purchase.globalUserId,
+        merchantCustomerId: purchase.merchantCustomerId
+      })
+    });
+    return { ordersCount, idempotent };
+  }
+
+  private async recentRows(identity: PurchaseHistoryIdentity) {
+    return this.prisma.buyerPurchaseRecord.findMany({
+      where: whereForIdentity(identity),
+      orderBy: { completedAt: "desc" },
+      take: CONTEXT_PURCHASE_LIMIT
     });
   }
 }
@@ -78,12 +102,6 @@ function toCreate(purchase: PurchaseRecord) {
   return {
     merchantId: purchase.merchantId,
     orderId: purchase.orderId,
-    ...toUpdate(purchase)
-  };
-}
-
-function toUpdate(purchase: PurchaseRecord) {
-  return {
     globalUserId: purchase.globalUserId,
     merchantCustomerId: purchase.merchantCustomerId,
     currency: purchase.currency,
@@ -92,6 +110,20 @@ function toUpdate(purchase: PurchaseRecord) {
     completedAt: new Date(purchase.completedAt),
     items: purchase.items as unknown as Prisma.InputJsonValue
   };
+}
+
+function whereForIdentity(identity: PurchaseHistoryIdentity) {
+  return identity.globalUserId
+    ? { merchantId: identity.merchantId, globalUserId: identity.globalUserId }
+    : { merchantId: identity.merchantId, merchantCustomerId: identity.merchantCustomerId };
+}
+
+function isUniqueOrderConflict(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 function toPurchaseRecord(row: {

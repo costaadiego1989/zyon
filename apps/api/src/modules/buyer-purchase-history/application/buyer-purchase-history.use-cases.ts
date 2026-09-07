@@ -60,7 +60,7 @@ export class RecordCompletedPurchaseUseCase {
       recorded: true,
       idempotent: result.idempotent,
       order_id: input.orderId,
-      orders_count: result.history.stats().ordersCount
+      orders_count: result.ordersCount
     };
   }
 }
@@ -74,14 +74,13 @@ export class GetBuyerPurchaseContextUseCase {
   ) {}
 
   async execute(input: PurchaseHistoryIdentity): Promise<BuyerPurchaseHistoryContext> {
-    const history = await this.repository.getByBuyer(input);
-    if (history) {
-      const context = history.toSafeContext();
+    const context = await this.repository.getContext(input);
+    if (context) {
       await this.recordContextUsed(input, context.purchase_history.orders_count, context.purchase_history.known_buyer);
       return context;
     }
 
-    const context: BuyerPurchaseHistoryContext = {
+    const unknownContext: BuyerPurchaseHistoryContext = {
       merchant_id: input.merchantId,
       global_user_id: input.globalUserId,
       merchant_customer_id: input.merchantCustomerId,
@@ -97,7 +96,7 @@ export class GetBuyerPurchaseContextUseCase {
       }
     };
     await this.recordContextUsed(input, 0, false);
-    return context;
+    return unknownContext;
   }
 
   private async recordContextUsed(
