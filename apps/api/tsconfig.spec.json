@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules"],
+  "include": ["src/**/*.spec.ts", "src/modules/catalog/application/use-cases/get-product-content.use-case.spec.ts"]
+}

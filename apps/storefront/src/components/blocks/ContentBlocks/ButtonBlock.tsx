@@ -1,0 +1,75 @@
+"use client";
+
+import type { ButtonBlockData } from "./types";
+
+function isSafeHref(href: string): boolean {
+  try {
+    const u = new URL(href, "https://localhost");
+    return u.protocol === "https:" || u.protocol === "http:" || u.protocol === "mailto:" || u.protocol === "tel:";
+  } catch {
+    return false;
+  }
+}
+
+const VARIANT_STYLE: Record<ButtonBlockData["variant"], React.CSSProperties> = {
+  primary: {
+    background: "var(--aacp-accent)",
+    color: "#fff",
+    border: "1px solid var(--aacp-accent)",
+  },
+  secondary: {
+    background: "var(--aacp-surface)",
+    color: "var(--aacp-fg)",
+    border: "1px solid var(--aacp-line-strong)",
+  },
+};
+
+export default function ButtonBlock({
+  block,
+  onCtaClick,
+}: {
+  block: ButtonBlockData;
+  onCtaClick?: (href: string) => void;
+}) {
+  if (!isSafeHref(block.href)) return null;
+  const variant = VARIANT_STYLE[block.variant] ?? VARIANT_STYLE.primary;
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (onCtaClick) {
+      e.preventDefault();
+      onCtaClick(block.href);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "flex-start",
+        margin: "14px 0",
+      }}
+    >
+      <a
+        href={block.href}
+        onClick={handleClick}
+        target="_self"
+        rel="noopener noreferrer"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "10px 22px",
+          borderRadius: "var(--aacp-radius-pill)",
+          fontFamily: "var(--aacp-font)",
+          fontSize: "14px",
+          fontWeight: 600,
+          textDecoration: "none",
+          cursor: "pointer",
+          ...variant,
+        }}
+      >
+        {block.label}
+      </a>
+    </div>
+  );
+}

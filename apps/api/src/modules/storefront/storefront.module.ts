@@ -36,6 +36,7 @@ import { PrismaStorefrontCartRepository } from "./infrastructure/repositories/pr
 import { PrismaStorefrontTelemetryRepository } from "./infrastructure/repositories/prisma-storefront-telemetry.repository.js";
 import { STOREFRONT_TELEMETRY_PORT } from "./domain/ports/storefront-telemetry.port.js";
 import { StorefrontController } from "./presentation/http/storefront.controller.js";
+import { StorefrontProductContentController } from "./presentation/http/storefront-product-content.controller.js";
 import { AIGatewayService } from "./infrastructure/ai/ai-gateway.service.js";
 import { BudgetTrackerService } from "./infrastructure/ai/budget-tracker.service.js";
 import { LocalLLMProvider } from "./infrastructure/ai/local-llm-provider.js";
@@ -56,7 +57,7 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
     KnowledgeBaseModule,
     StoriesModule,
   ],
-  controllers: [StorefrontController],
+  controllers: [StorefrontController, StorefrontProductContentController],
   providers: [
     { provide: RealtimeCapabilityService, useFactory: () => new RealtimeCapabilityService() },
     StorefrontConversationAdapter,

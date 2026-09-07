@@ -1320,6 +1320,10 @@ model Product {
   variants    ProductVariant[]
   reviews     ProductReview[]
   collections CollectionProduct[]
+  contentBlocks     ProductContentBlock[]
+  faqs              ProductFaq[]
+  testimonials      ProductTestimonial[]
+  videos            ProductVideo[]
 
   @@index([merchantId])
   @@index([merchantId, isActive, createdAt])
@@ -1468,6 +1472,86 @@ model CollectionProduct {
 
   @@unique([collectionId, productId])
   @@map("collection_products")
+}
+
+// ─── Advanced Product Layout ──────────────────────────────────────────────────
+// Per-product rich content: JSON blocks, FAQ, testimonials, videos.
+// Tenant scoping lives at the join through `products.merchantId` — no merchant_id
+// column on these tables. All FKs cascade-delete from products.
+
+model ProductContentBlock {
+  id         String   @id @default(cuid())
+  productId  String   @map("product_id")
+  type       String
+  props      Json     @default("{}")
+  order      Int      @default(0)
+  isEnabled  Boolean  @default(true) @map("is_enabled")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, order])
+  @@map("product_content_blocks")
+}
+
+model ProductFaq {
+  id          String   @id @default(cuid())
+  productId   String   @map("product_id")
+  question    String
+  answer      String
+  order       Int      @default(0)
+  isPublished Boolean  @default(false) @map("is_published")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, order])
+  @@map("product_faqs")
+}
+
+model ProductTestimonial {
+  id               String   @id @default(cuid())
+  productId        String   @map("product_id")
+  authorName       String   @map("author_name")
+  authorAvatarUrl  String?  @map("author_avatar_url")
+  body             String
+  rating           Int?
+  source           String   @default("curated")
+  buyerId          String?  @map("buyer_id")
+  orderId          String?  @map("order_id")
+  moderationStatus String   @default("approved") @map("moderation_status")
+  isPublished      Boolean  @default(false) @map("is_published")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([productId, moderationStatus])
+  @@map("product_testimonials")
+}
+
+model ProductVideo {
+  id              String   @id @default(cuid())
+  productId       String   @map("product_id")
+  title           String
+  videoUrl        String   @map("video_url")
+  thumbnailUrl    String?  @map("thumbnail_url")
+  durationSeconds Int?     @map("duration_seconds")
+  source          String   @default("merchant")
+  buyerId         String?  @map("buyer_id")
+  moderationStatus String  @default("pending") @map("moderation_status")
+  isPublished     Boolean  @default(false) @map("is_published")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([productId, moderationStatus])
+  @@map("product_videos")
 }
 
 // ─── Returns / RMA ────────────────────────────────────────────────────────────

@@ -231,6 +231,19 @@ export interface CouponListBlock {
   };
 }
 
+export interface ProductContentConversationBlock {
+  type: "product_content";
+  data: {
+    productId: string;
+    /**
+     * Discriminated union of sub-blocks (paragraph, heading, list, image,
+     * image_text_split, callout, table, faq, video, carousel, banner, button).
+     * Shape lives in components/blocks/ContentBlocks/types.ts.
+     */
+    blocks: Array<Record<string, unknown>>;
+  };
+}
+
 export type ConversationBlock =
   | ProductCardBlock
   | ProductCarouselBlock
@@ -248,4 +261,5 @@ export type ConversationBlock =
   | CrossSellBlock
   | CategoryCarouselBlock
   | MarketplaceProductsBlock
-  | CouponListBlock;
+  | CouponListBlock
+  | ProductContentConversationBlock;

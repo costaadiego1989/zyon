@@ -47,6 +47,15 @@ import { GenerateProductSeoUseCase } from "./application/use-cases/generate-prod
 import { STOREFRONT_CATALOG_PORT } from "./domain/ports/storefront-catalog.port.js";
 import { CROSS_SELL_RESOLVER_PORT } from "./domain/ports/cross-sell-resolver.port.js";
 import { PRODUCT_PROMOTION_REPOSITORY } from "./domain/ports/product-promotion-repository.port.js";
+import { PRODUCT_CONTENT_REPOSITORY } from "./domain/ports/product-content-repository.port.js";
+import { PRODUCT_FAQ_REPOSITORY } from "./domain/ports/product-faq-repository.port.js";
+import { PRODUCT_TESTIMONIAL_REPOSITORY } from "./domain/ports/product-testimonial-repository.port.js";
+import { PRODUCT_VIDEO_REPOSITORY } from "./domain/ports/product-video-repository.port.js";
+import { PrismaProductContentRepository } from "./infrastructure/repositories/prisma-product-content.repository.js";
+import { PrismaProductFaqRepository } from "./infrastructure/repositories/prisma-product-faq.repository.js";
+import { PrismaProductTestimonialRepository } from "./infrastructure/repositories/prisma-product-testimonial.repository.js";
+import { PrismaProductVideoRepository } from "./infrastructure/repositories/prisma-product-video.repository.js";
+import { GetProductContentUseCase } from "./application/use-cases/get-product-content.use-case.js";
 import { TenantStorefrontCatalogAdapter } from "./infrastructure/tenant-storefront-catalog.adapter.js";
 import { DefaultCrossSellResolverAdapter } from "./infrastructure/default-cross-sell-resolver.adapter.js";
 import { CatalogCacheService } from "./infrastructure/cache/catalog-cache.service.js";
@@ -119,6 +128,28 @@ import { CatalogVariantService } from "./application/services/catalog-variant.se
       useFactory: (prisma: PrismaClient) => new PrismaProductPromotionRepository(prisma),
       inject: [PRISMA_CLIENT],
     },
+    {
+      provide: PRODUCT_CONTENT_REPOSITORY,
+      useFactory: (prisma: PrismaClient) => new PrismaProductContentRepository(prisma),
+      inject: [PRISMA_CLIENT],
+    },
+    {
+      provide: PRODUCT_FAQ_REPOSITORY,
+      useFactory: (prisma: PrismaClient) => new PrismaProductFaqRepository(prisma),
+      inject: [PRISMA_CLIENT],
+    },
+    {
+      provide: PRODUCT_TESTIMONIAL_REPOSITORY,
+      useFactory: (prisma: PrismaClient) =>
+        new PrismaProductTestimonialRepository(prisma),
+      inject: [PRISMA_CLIENT],
+    },
+    {
+      provide: PRODUCT_VIDEO_REPOSITORY,
+      useFactory: (prisma: PrismaClient) => new PrismaProductVideoRepository(prisma),
+      inject: [PRISMA_CLIENT],
+    },
+    GetProductContentUseCase,
     AddProductUseCase,
     SearchProductsUseCase,
     ReserveStockUseCase,
@@ -183,6 +214,11 @@ import { CatalogVariantService } from "./application/services/catalog-variant.se
     "ProductRepositoryPort",
     "StockRepositoryPort",
     PRODUCT_PROMOTION_REPOSITORY,
+    PRODUCT_CONTENT_REPOSITORY,
+    PRODUCT_FAQ_REPOSITORY,
+    PRODUCT_TESTIMONIAL_REPOSITORY,
+    PRODUCT_VIDEO_REPOSITORY,
+    GetProductContentUseCase,
   ]
 })
 export class CatalogModule {}

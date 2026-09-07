@@ -31,7 +31,9 @@ export type BillingPlanFeatureKey =
   // Scale (otimização autônoma + M2M)
   | "customDomain"
   | "revenueManager"
-  | "m2mAgents";
+  | "m2mAgents"
+  // Product surface expansion (rich blocks, FAQ, testimonials, videos)
+  | "advancedProductLayout";
 
 export type BillingPlanLimits = Record<BillingPlanLimitKey, number | null>;
 export type BillingPlanFeatures = Record<BillingPlanFeatureKey, boolean>;
@@ -90,6 +92,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       aiSpreadsheetImport: false,
       revenueManager: false,
       m2mAgents: false,
+      advancedProductLayout: false,
     },
   },
   growth: {
@@ -126,6 +129,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       aiSpreadsheetImport: true,
       revenueManager: false,
       m2mAgents: false,
+      advancedProductLayout: true,
     },
   },
   scale: {
@@ -162,6 +166,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       aiSpreadsheetImport: true,
       revenueManager: true,
       m2mAgents: true,
+      advancedProductLayout: true,
     },
   },
 };
