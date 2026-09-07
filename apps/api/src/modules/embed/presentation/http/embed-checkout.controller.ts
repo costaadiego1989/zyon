@@ -107,20 +107,23 @@ export class EmbedCheckoutController {
     // A commerce cart may only enter the checkout through the signed token
     // claim. A top-level cart_ref is browser-controlled and must never become
     // an alternate binding path.
-    if ((body as { cart_ref?: unknown }).cart_ref !== undefined) {
+    const submittedRef = (body as { cart_ref?: unknown }).cart_ref;
+    if (submittedRef !== undefined && submittedRef !== (embed.storefrontCartRef ?? embed.cartRef)) {
       throw new UnauthorizedException("embed_commerce_cart_must_be_token_bound");
     }
     if (body.cart?.commerceCartRef && body.cart.commerceCartRef !== embed.cartRef) {
       throw new UnauthorizedException("embed_commerce_cart_binding_mismatch");
     }
-    const { merchant_id: _discard, merchantId: _d2, ...rest } = body as StartCheckoutRequest & {
+    const { merchant_id: _discard, merchantId: _d2, cart_ref: _ref, ...rest } = body as StartCheckoutRequest & {
       merchantId?: string;
+      cart_ref?: unknown;
     };
     return this.startCheckout.execute({
       ...(rest as Omit<StartCheckoutRequest, "merchant_id">),
       merchant_id: embed.merchantId,
       session_id: sessionId,
-    });
+      cart: embed.cartRef ? { ...body.cart, commerceCartRef: embed.cartRef } : body.cart,
+    }, { storefrontCartRef: embed.storefrontCartRef });
   }
 
   @Post("track")

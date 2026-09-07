@@ -29,10 +29,10 @@ export class CheckoutBootstrapService {
     @Optional() private readonly promoResolution?: CartPromoResolutionService
   ) {}
 
-  async bootstrap(input: StartCheckoutRequest, globalUserId: string): Promise<BootstrapResult> {
+  async bootstrap(input: StartCheckoutRequest, globalUserId: string, cartValidated = false): Promise<BootstrapResult> {
     let enrichedInput = input;
 
-    const cartRef = (input as any).cart_ref?.trim?.();
+    const cartRef = cartValidated ? (input.cart as any)?.cart_ref : (input as any).cart_ref?.trim?.();
     if (this.storefrontCart && cartRef && (!input.cart?.items || input.cart.items.length === 0)) {
       try {
         const storefrontCart = await this.storefrontCart.getOrCreate(input.merchant_id, cartRef);
@@ -64,7 +64,7 @@ export class CheckoutBootstrapService {
       }
     }
 
-    if (enrichedInput.cart) {
+    if (enrichedInput.cart && !cartValidated) {
       enrichedInput.cart = await this.promoResolution?.resolveCartPromos(
         enrichedInput.cart,
         input.merchant_id

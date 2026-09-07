@@ -194,9 +194,11 @@ export class StorefrontController {
   @Get("cart/:cartId")
   async getCart(
     @Param("cartId") cartId: string,
-    @Query("merchantId") merchantId: string
+    @Query("merchantId") merchantId: string,
+    @Req() request: { headers?: { authorization?: string; origin?: string } },
   ) {
     if (!merchantId) throw new NotFoundException("merchantId query param required");
+    this.conversationAccess(request, cartId, merchantId);
     const cart = await this.cartRepo.getOrCreate(merchantId, cartId);
     // Apply product-promo pricing on read; base price is fresh from DB.
     const promoMeta = await applyProductPromoPricing(this.productPromotionRepo, merchantId, cart);
@@ -225,9 +227,11 @@ export class StorefrontController {
     @Param("cartId") cartId: string,
     @Param("variantId") variantId: string,
     @Query("merchantId") merchantId: string,
-    @Body() body: { quantity: number }
+    @Body() body: { quantity: number },
+    @Req() request: { headers?: { authorization?: string; origin?: string } },
   ) {
     if (!merchantId) throw new BadRequestException("merchantId query param required");
+    this.conversationAccess(request, cartId, merchantId);
     if (body.quantity == null || !Number.isInteger(body.quantity) || body.quantity < 0 || body.quantity > 99) {
       throw new BadRequestException("quantity must be an integer between 0 and 99");
     }
@@ -256,9 +260,11 @@ export class StorefrontController {
   @Post("cart/:cartId/clear")
   async clearCart(
     @Param("cartId") cartId: string,
-    @Query("merchantId") merchantId: string
+    @Query("merchantId") merchantId: string,
+    @Req() request: { headers?: { authorization?: string; origin?: string } },
   ) {
     if (!merchantId) throw new NotFoundException("merchantId query param required");
+    this.conversationAccess(request, cartId, merchantId);
     const cart = await this.cartRepo.clear(merchantId, cartId);
     return { cartId: cart.sessionId, items: [], itemCount: 0, discount: 0, total: 0 };
   }

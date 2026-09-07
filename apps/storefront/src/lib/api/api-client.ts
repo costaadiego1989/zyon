@@ -159,7 +159,7 @@ export const checkoutApi = {
   }): Promise<any> {
     return safeFetch(`${API_BASE}/storefront/conversations/${checkoutId}/messages`, {
       method: "POST",
-      headers: conversationAccessHeaders(checkoutId, options?.token),
+      headers: conversationAccessHeaders(checkoutId),
       body: JSON.stringify({
         merchant_id: options?.merchantId,
         user_message: text,
@@ -174,6 +174,7 @@ export const cartApi = {
   async get(cartId: string, merchantId: string): Promise<any> {
     return safeFetch(
       `${API_BASE}/storefront/cart/${encodeURIComponent(cartId)}?merchantId=${encodeURIComponent(merchantId)}`,
+      { headers: conversationAccessHeaders(cartId) },
     );
   },
   async updateItem(
@@ -186,7 +187,7 @@ export const cartApi = {
       `${API_BASE}/storefront/cart/${encodeURIComponent(cartId)}/items/${encodeURIComponent(variantId)}?merchantId=${encodeURIComponent(merchantId)}`,
       {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...conversationAccessHeaders(cartId) },
         body: JSON.stringify({ quantity }),
       },
     );
@@ -194,7 +195,7 @@ export const cartApi = {
   async clear(cartId: string, merchantId: string): Promise<any> {
     return safeFetch(
       `${API_BASE}/storefront/cart/${encodeURIComponent(cartId)}/clear?merchantId=${encodeURIComponent(merchantId)}`,
-      { method: "POST" },
+      { method: "POST", headers: conversationAccessHeaders(cartId) },
     ).catch(() => null);
   },
 };

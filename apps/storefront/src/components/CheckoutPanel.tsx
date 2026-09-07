@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { useCart } from "@/lib/cart-store";
 import { cartApi } from "@/lib/api/api-client";
+import { conversationAccessHeaders } from "@/lib/conversation-access";
 
 interface CheckoutPanelProps {
   merchantId: string;
@@ -69,7 +70,7 @@ export default function CheckoutPanel({
     const cartRefForToken = cartRef || tokenCartRef.current || undefined;
     fetch("/api/checkout-token", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...conversationAccessHeaders(cartRefForToken ?? "") },
       body: JSON.stringify({
         merchant_id: merchantId,
         cart_ref: cartRefForToken,

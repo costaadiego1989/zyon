@@ -1,4 +1,6 @@
 import { Module } from "@nestjs/common";
+import { RealtimeCapabilityService } from "../../shared/auth/realtime-capability.js";
+import { AuthorizeStorefrontCartService } from "./application/authorize-storefront-cart.service.js";
 import { AuthModule } from "../auth/auth.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
@@ -47,6 +49,8 @@ import { ProtocolSessionExpiryReaper } from "./infrastructure/protocol-session-e
     WidgetCatalogController,
   ],
   providers: [
+    { provide: RealtimeCapabilityService, useFactory: () => new RealtimeCapabilityService() },
+    AuthorizeStorefrontCartService,
     EmbedTokenService,
     AgentSessionTokenService,
     AgentCheckoutStateService,

@@ -25,6 +25,7 @@ export type EmbedTokenClaims = {
   allowedOrigin?: string;
   scopes?: EmbedScope[];
   cartRef?: string;
+  storefrontCartRef?: string;
 };
 
 const EMBED_TOKEN_SECRET_DEV_FALLBACK = "dev_embed_token_secret_32_characters_min!!";

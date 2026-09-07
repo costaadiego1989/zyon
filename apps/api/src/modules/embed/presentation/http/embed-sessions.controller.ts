@@ -27,6 +27,7 @@ import {
   Min,
 } from "class-validator";
 import { IssueEmbedSessionUseCase } from "../../application/issue-embed-session.use-case.js";
+import { AuthorizeStorefrontCartService } from "../../application/authorize-storefront-cart.service.js";
 import { Idempotent } from "../../../../shared/http/idempotency/idempotent.decorator.js";
 import { currentEmbedIssuer, EmbedSessionIssuerGuard } from "./embed-session-issuer.guard.js";
 import { ListInstallationsUseCase, ResolveInstallationForEmbedUseCase } from "../../../installations/application/installation.use-cases.js";
@@ -64,6 +65,11 @@ class IssueEmbedSessionDto {
   @IsString()
   @MaxLength(120)
   cart_ref?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4096)
+  conversation_token?: string;
 }
 
 @ApiTags("Embed sessions")
@@ -77,6 +83,7 @@ export class EmbedSessionsController {
     private readonly resolveInstallation: ResolveInstallationForEmbedUseCase,
     @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository,
     @Optional() private readonly listInstallations?: ListInstallationsUseCase,
+    @Optional() private readonly storefrontCartAccess?: AuthorizeStorefrontCartService,
   ) {}
 
   @Post()
@@ -124,13 +131,18 @@ export class EmbedSessionsController {
     const issuer = currentEmbedIssuer(request as never);
     let ttl = typeof body?.ttl_seconds === "number" && Number.isFinite(body.ttl_seconds) ? body.ttl_seconds : 900;
     let installationId = body.installation_id;
+    let storefrontCartRef: string | undefined;
     if (issuer.type === "internal_service") {
-      // This credential is delegated by a public storefront endpoint. A registered
-      // installation, not caller-selected tenant/origin alone, authorizes that context.
       if (!body.allowed_origin) throw new BadRequestException("public_embed_origin_required");
-      if (body.cart_ref !== undefined) throw new BadRequestException("public_embed_cart_ownership_required");
+      if (body.cart_ref !== undefined) {
+        if (!this.storefrontCartAccess) throw new BadRequestException("public_embed_cart_ownership_required");
+        storefrontCartRef = this.storefrontCartAccess.authorize({
+          token: body.conversation_token, merchantId: issuer.merchantId,
+          cartRef: body.cart_ref, origin: body.allowed_origin,
+        });
+      }
       ttl = Math.min(ttl, 900);
-      if (!installationId) {
+      if (!installationId && !storefrontCartRef) {
         if (!this.listInstallations) throw new BadRequestException("public_embed_installation_required");
         const installations = await this.listInstallations.execute(issuer.merchantId, 200);
         const matches = installations.data.filter((installation) =>
@@ -153,11 +165,12 @@ export class EmbedSessionsController {
       merchantId: issuer.merchantId,
       ttlSeconds: ttl,
       installationId: resolved?.installation.id,
-      environment: resolved?.installation.environment,
+      environment: resolved?.installation.environment ?? (storefrontCartRef ? issuer.environment : undefined),
       widgetVersion: resolved?.installation.widgetVersion,
       allowedOrigin: resolved?.allowedOrigin ?? body.allowed_origin,
       scopes: body.scopes,
-      cartRef: body.cart_ref,
+      cartRef: issuer.type === "internal_service" ? undefined : body.cart_ref,
+      storefrontCartRef,
     });
 
     const merchant = await this.merchants.getProfile(issuer.merchantId);

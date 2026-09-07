@@ -522,6 +522,8 @@ export interface TrackEventResponse {
 export interface UpdateCartItemInput {
   sku: string;
   quantity: number;
+  /** Line variant/option identity returned by the checkout experience. */
+  variant?: string;
 }
 
 export interface UpdateCartRequest {

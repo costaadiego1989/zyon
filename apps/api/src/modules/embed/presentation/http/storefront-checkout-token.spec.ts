@@ -21,9 +21,9 @@ function route(upstream: typeof fetch) {
   return module.exports.POST;
 }
 
-function request(body: unknown, origin = "https://a.example") {
+function request(body: unknown, origin = "https://a.example", authorization?: string) {
   return new Request("https://a.example/api/checkout-token", {
-    method: "POST", headers: { origin, "Content-Type": "application/json" }, body: JSON.stringify(body),
+    method: "POST", headers: { origin, "Content-Type": "application/json", ...(authorization ? { authorization } : {}) }, body: JSON.stringify(body),
   });
 }
 
@@ -34,6 +34,18 @@ test("storefront token proxy rejects arbitrary origin and borrowed cart before d
   assert.equal((await post(request({ merchant_id: "a", allowed_origin: "https://b.example" }))).status, 403);
   assert.equal((await post(request({ merchant_id: "a", cart_ref: "victim-cart" }))).status, 403);
   assert.equal(delegated, 0);
+});
+
+test("storefront proxy forwards conversation proof with the cart for API verification", async () => {
+  const post = route(async (_url, init) => {
+    const body = JSON.parse(init!.body as string);
+    assert.equal(body.conversation_token, "conversation-capability");
+    assert.equal(body.cart_ref, "conv_owned");
+    assert.equal(body.allowed_origin, "https://a.example");
+    assert.equal((init!.headers as Record<string, string>).Authorization, undefined);
+    return Response.json({ embed_session_token: "signed", expires_at_unix: 2000 });
+  });
+  assert.equal((await post(request({ merchant_id: "a", cart_ref: "conv_owned" }, "https://a.example", "Bearer conversation-capability"))).status, 200);
 });
 
 test("storefront token proxy binds observed origin, fixed scopes and short TTL, and keeps tokens uncached", async () => {

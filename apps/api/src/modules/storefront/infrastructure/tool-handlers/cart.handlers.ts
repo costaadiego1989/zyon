@@ -424,7 +424,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
     },
 
     getCart: async (args) => {
-      const cart = await deps.cartRepo.getOrCreate(ctx.merchantId, args.cartId || ctx.sessionId);
+      const cart = await deps.cartRepo.getOrCreate(ctx.merchantId, ctx.sessionId);
       // Apply product-promo pricing on read (idempotent — base price comes fresh from DB).
       const promoMeta = await applyProductPromoPricing(deps.productPromotionRepo, ctx.merchantId, cart);
       return {
@@ -439,8 +439,8 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
     },
 
     removeCartItem: async (args) => {
-      const removed = await deps.cartRepo.removeItem(ctx.merchantId, args.cartId, args.variantId);
-      const { cart, nextNudge, activeRules, promoMeta } = await reevaluateCartRules(deps, ctx.merchantId, args.cartId, removed);
+      const removed = await deps.cartRepo.removeItem(ctx.merchantId, ctx.sessionId, args.variantId);
+      const { cart, nextNudge, activeRules, promoMeta } = await reevaluateCartRules(deps, ctx.merchantId, ctx.sessionId, removed);
       return {
         cartId: cart.sessionId,
         items: cart.items.map((i) => toCartLineDto(i, promoMeta)),
@@ -454,8 +454,8 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
     },
 
     updateCartItem: async (args) => {
-      const updated = await deps.cartRepo.updateItemQuantity(ctx.merchantId, args.cartId, args.variantId, args.quantity);
-      const { cart, nextNudge, activeRules, promoMeta } = await reevaluateCartRules(deps, ctx.merchantId, args.cartId, updated);
+      const updated = await deps.cartRepo.updateItemQuantity(ctx.merchantId, ctx.sessionId, args.variantId, args.quantity);
+      const { cart, nextNudge, activeRules, promoMeta } = await reevaluateCartRules(deps, ctx.merchantId, ctx.sessionId, updated);
       return {
         cartId: cart.sessionId,
         items: cart.items.map((i) => toCartLineDto(i, promoMeta)),
@@ -469,15 +469,15 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
     },
 
     clearCart: async (args) => {
-      const cart = await deps.cartRepo.clear(ctx.merchantId, args.cartId);
+      const cart = await deps.cartRepo.clear(ctx.merchantId, ctx.sessionId);
       return { cartId: cart.sessionId, items: [], total: 0, itemCount: 0 };
     },
 
     quoteShipping: async (args) => {
       let totalWeight = 300;
 
-      if (args.cartId) {
-        const cart = await deps.cartRepo.getOrCreate(ctx.merchantId, args.cartId);
+      if (ctx.sessionId) {
+        const cart = await deps.cartRepo.getOrCreate(ctx.merchantId, ctx.sessionId);
         totalWeight = cart.items.length > 0 ? cart.items.length * 300 : 300;
       }
 
@@ -501,7 +501,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
     },
 
     applyCoupon: async (args) => {
-      const sessionId = args.cartId || ctx.sessionId;
+      const sessionId = ctx.sessionId;
       const cart = await deps.cartRepo.getOrCreate(ctx.merchantId, sessionId);
       if (cart.items.length === 0) {
         return { applied: false, reason: "cart_empty" };
@@ -640,7 +640,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
     },
 
     removeCoupon: async (args) => {
-      const cart = await deps.cartRepo.removeCoupon(ctx.merchantId, args.cartId);
+      const cart = await deps.cartRepo.removeCoupon(ctx.merchantId, ctx.sessionId);
       return {
         cartId: cart.sessionId,
         total: cart.total,
@@ -652,7 +652,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
     createCheckoutSession: async (args) => {
       const sessionId = `chk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const widgetBaseUrl = process.env.WIDGET_BASE_URL ?? "http://localhost:5173";
-      const checkoutUrl = `${widgetBaseUrl}/embed/checkout/${sessionId}?cartId=${args.cartId}`;
+      const checkoutUrl = `${widgetBaseUrl}/embed/checkout/${sessionId}?cartId=${ctx.sessionId}`;
       return { checkoutUrl, sessionId };
     }
   };

@@ -189,7 +189,7 @@ export function SmartCart() {
           const unitPrice =
             item.price_cents != null ? item.price_cents / 100 : item.price;
           return (
-            <div key={item.sku}>
+            <div key={JSON.stringify([item.sku, item.variant])}>
               <div
                 style={{
                   display: "flex",
@@ -230,7 +230,7 @@ export function SmartCart() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => void removeCartItem(item.sku)}
+                    onClick={() => void removeCartItem(item.sku, item.variant)}
                     style={{
                       marginTop: "4px",
                       padding: "0",
@@ -257,9 +257,9 @@ export function SmartCart() {
                     type="button"
                     onClick={() => {
                       if (item.quantity <= 1) {
-                        void removeCartItem(item.sku);
+                        void removeCartItem(item.sku, item.variant);
                       } else {
-                        void updateQty(item.sku, item.quantity - 1);
+                        void updateQty(item.sku, item.quantity - 1, item.variant);
                       }
                     }}
                     style={{
@@ -291,7 +291,7 @@ export function SmartCart() {
                   </span>
                   <button
                     type="button"
-                    onClick={() => void updateQty(item.sku, item.quantity + 1)}
+                    onClick={() => void updateQty(item.sku, item.quantity + 1, item.variant)}
                     style={{
                       width: "24px",
                       height: "24px",

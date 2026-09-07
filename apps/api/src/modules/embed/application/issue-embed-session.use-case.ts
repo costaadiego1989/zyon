@@ -40,6 +40,7 @@ export class IssueEmbedSessionUseCase {
     allowedOrigin?: string;
     scopes?: string[];
     cartRef?: string;
+    storefrontCartRef?: string;
   }): {
     embed_session_token: string;
     expires_at_unix: number;
@@ -68,7 +69,8 @@ export class IssueEmbedSessionUseCase {
       nonce: crypto.randomUUID(),
       allowedOrigin,
       scopes,
-      cartRef: sanitizeCartRef(input.cartRef)
+      cartRef: sanitizeCartRef(input.cartRef),
+      storefrontCartRef: sanitizeCartRef(input.storefrontCartRef)
     };
 
     const token = this.tokens.sign(claims);

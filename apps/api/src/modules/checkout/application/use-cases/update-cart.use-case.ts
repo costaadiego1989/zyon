@@ -48,7 +48,8 @@ export class UpdateCartUseCase {
 
     // Server is the price authority: requests only carry sku + quantity, never price.
     const bySku = new Map<string, CartItem>();
-    for (const item of session.cart.items) bySku.set(item.sku, { ...item });
+    const lineKey = (item: { sku: string; variant?: string }) => JSON.stringify([item.sku, item.variant ?? null]);
+    for (const item of session.cart.items) bySku.set(lineKey(item), { ...item });
 
     for (const change of input.items) {
       const sku = change.sku?.trim();
@@ -57,10 +58,13 @@ export class UpdateCartUseCase {
       if (!Number.isInteger(quantity) || quantity < 0 || quantity > MAX_ITEM_QUANTITY) {
         throw new BadRequestException("update_cart_quantity_invalid");
       }
-      const existing = bySku.get(sku);
+      const variant = change.variant;
+      const matches = [...bySku.values()].filter(item => item.sku === sku && (variant === undefined || item.variant === variant));
+      if (matches.length > 1) throw new BadRequestException("update_cart_variant_required");
+      const existing = matches[0];
       if (!existing) throw new BadRequestException("update_cart_unknown_sku");
       if (quantity === 0) {
-        bySku.delete(sku);
+        bySku.delete(lineKey(existing));
       } else {
         existing.quantity = quantity;
       }
@@ -74,6 +78,7 @@ export class UpdateCartUseCase {
     };
 
     const cartChanged = JSON.stringify(nextCart.items) !== JSON.stringify(session.cart.items);
+    if (cartChanged) nextCart.currentDiscount = 0;
     // Cart mutation invalidates any prior freight quote; buyer must re-select shipping
     // so the payment amount stays consistent with the current cart.
     const nextSession: CheckoutSession = {

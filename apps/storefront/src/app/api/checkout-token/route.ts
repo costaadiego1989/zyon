@@ -20,9 +20,9 @@ export async function POST(request: Request) {
   if (body.allowed_origin !== undefined && body.allowed_origin !== origin) {
     return NextResponse.json({ error: "origin_not_allowed" }, { status: 403 });
   }
-  // No browser proof currently binds an existing cart to this request. Native
-  // checkout submits SKU + quantity; commerce cart capabilities need a merchant server.
-  if (body.cart_ref !== undefined) {
+  const conversationToken = request.headers.get("authorization")?.match(/^Bearer (\S+)$/i)?.[1];
+  // The API verifies this capability against the merchant, cart and observed origin.
+  if (body.cart_ref !== undefined && (typeof body.cart_ref !== "string" || !body.cart_ref.trim() || body.cart_ref.length > 120 || !conversationToken || conversationToken.length > 4096)) {
     return NextResponse.json({ error: "cart_ownership_required" }, { status: 403 });
   }
   if (!serviceToken) {
@@ -42,7 +42,8 @@ export async function POST(request: Request) {
         ttl_seconds: 900,
         // The API must resolve an active installation of this merchant for this origin.
         allowed_origin: origin,
-        scopes: ["checkout:start", "checkout:track", "checkout:chat", "payment:intents:create", "payment:intents:confirm", "payment:intents:read", "offers:apply"],
+        ...(body.cart_ref !== undefined ? { cart_ref: body.cart_ref, conversation_token: conversationToken } : {}),
+        scopes: ["checkout:start", "checkout:track", "checkout:chat", "payment:intents:create", "payment:intents:confirm", "payment:intents:read", "offers:apply", "coupons:apply"],
       }),
       cache: "no-store",
       signal: AbortSignal.timeout(10000),

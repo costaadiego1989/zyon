@@ -40,7 +40,7 @@ export class StartCheckoutUseCase {
     @Optional() private readonly cartAuthority?: CheckoutCartAuthorityService
   ) { }
 
-  async execute(input: StartCheckoutRequest): Promise<StartCheckoutResponse> {
+  async execute(input: StartCheckoutRequest, trustedContext?: { storefrontCartRef?: string }): Promise<StartCheckoutResponse> {
     if (typeof input.merchant_id !== "string" || !input.merchant_id.trim()) {
       throw new BadRequestException("checkout_merchant_required");
     }
@@ -48,7 +48,9 @@ export class StartCheckoutUseCase {
     input = {
       ...input,
       merchant_id: input.merchant_id.trim(),
-      cart: await this.cartAuthority.resolve(input.merchant_id.trim(), input.cart),
+      cart: trustedContext?.storefrontCartRef
+        ? await this.cartAuthority.resolveStorefront(input.merchant_id.trim(), trustedContext.storefrontCartRef)
+        : await this.cartAuthority.resolve(input.merchant_id.trim(), input.cart),
       customer: unverifiedCustomerHints(input.customer),
       shipping: undefined,
     };
@@ -74,7 +76,7 @@ export class StartCheckoutUseCase {
     const { agent, buyerIntent } = await this.buyerContext.load(input.merchant_id, globalUserId);
 
     // Phase 3: Checkout Bootstrap
-    const { session } = await this.bootstrap.bootstrap(enrichedInput, globalUserId);
+    const { session } = await this.bootstrap.bootstrap(enrichedInput, globalUserId, true);
 
     // Phase 4: Suggested Products
     const suggestedProducts = await this.resolveSuggestedProducts(input.merchant_id, session);

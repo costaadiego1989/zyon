@@ -2,6 +2,7 @@ import { create } from "zustand";
 import {
   CheckoutSession,
   crossSellBlockFromSuggestions,
+  cartFromExperience,
   type BrandConfig,
   type AgentConfig,
   type CartItem,
@@ -93,6 +94,7 @@ interface CheckoutState {
 
   paymentIntent: PaymentIntent | null;
   paymentPolling: boolean;
+  cartUpdating: boolean;
 
   triggerConfig: TriggerConfig | null;
   triggerMessages: Record<string, { message?: string; couponCode?: string }> | null;
@@ -112,8 +114,8 @@ interface CheckoutState {
   init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; globalUserId?: string }) => Promise<void>;
   selectChannel: (channel: "chat" | "voice") => void;
   sendMessage: (text: string) => Promise<void>;
-  updateQty: (sku: string, quantity: number) => Promise<void>;
-  removeCartItem: (sku: string) => Promise<void>;
+  updateQty: (sku: string, quantity: number, variant?: string) => Promise<void>;
+  removeCartItem: (sku: string, variant?: string) => Promise<void>;
   selectShipping: (key: string) => Promise<void>;
   pay: (method: "pix" | "credito" | "debito" | "crypto", installments?: number) => Promise<void>;
   selectCryptoChain: (chain: "polygon" | "base") => Promise<void>;
@@ -244,6 +246,7 @@ function startPolling(): void {
     }
     try {
       const status = await api.getPaymentStatus(paymentIntent.intent_id);
+      if (useCheckoutStore.getState().cartUpdating || useCheckoutStore.getState().paymentIntent?.intent_id !== paymentIntent.intent_id) return;
       const outcome = paymentPollingOutcome(status.status);
       if (outcome === "completed") {
         useCheckoutStore.getState().stopPolling();
@@ -278,6 +281,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   channel: "chat",
   paymentIntent: null,
   paymentPolling: false,
+  cartUpdating: false,
   triggerConfig: null,
   triggerMessages: null,
   activeDiscount: null,
@@ -297,7 +301,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       const response = await api.start();
       const exp = response.experience;
 
-      const cartData = await api.fetchCart();
+      const cartData = cartFromExperience(exp);
       const items = cartData.items;
       const total = cartData.total || items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
@@ -353,7 +357,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
           cryptoPaymentsEnabled: exp?.cryptoPaymentsEnabled ?? rawBrand.cryptoPaymentsEnabled ?? false,
           cryptoPayments: exp?.cryptoPayments ?? rawBrand.cryptoPayments,
         },
-        cart: { items, total, discount: 0, status: "awaiting" },
+        cart: { items, total, discount: cartData.discount, status: "awaiting" },
         status: "channel_gate",
         error: null,
         _pendingCrossSellBlock: crossSellBlockFromSuggestions(exp?.suggestedProducts),
@@ -436,7 +440,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }
 
     const { api, messages } = get();
-    if (!api) return;
+    if (!api || get().cartUpdating) return;
 
     const userMsg: Message = {
       id: `user_${Date.now()}`,
@@ -664,53 +668,38 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }
   },
 
-  updateQty: async (sku, quantity) => {
-    const { api, cart } = get();
-    if (!api) return;
-
-    const oldItem = cart.items.find((item) => item.sku === sku);
-    const oldQty = oldItem?.quantity ?? 0;
-
-    const updatedItems = cart.items.map((item) =>
-      item.sku === sku ? { ...item, quantity } : item
-    );
-    const newTotal = updatedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
-    set({ cart: { ...cart, items: updatedItems, total: newTotal } });
-
-    void trackEvent("item_quantity_updated", {
-      sku,
-      old_qty: oldQty,
-      new_qty: quantity,
-    });
-
+  updateQty: async (sku, quantity, variant) => {
+    const { api, cartUpdating, status } = get();
+    if (!api || cartUpdating || status === "completed") return;
+    set({ cartUpdating: true });
     try {
-      await api.updateCartItemQty(sku, quantity);
+      const response = await api.updateCartItemQty(sku, quantity, variant);
+      const cart = cartFromExperience(response.experience);
+      get().stopPolling();
+      set((state) => ({
+        cart: { ...cart, status: "awaiting" },
+        paymentIntent: null,
+        activeDiscount: null,
+        messages: [
+          ...state.messages.map(message => ({ ...message, blocks: message.blocks?.filter(block => !["pix_payment", "stripe_card", "crypto_payment", "crypto_chain_select", "shipping_options", "payment_methods", "coupon_input"].includes(block.type)) })),
+          { id: `cart_${Date.now()}`, role: "agent" as const, text: "Carrinho atualizado. Vamos confirmar o frete antes do pagamento.", timestamp: Date.now() },
+        ],
+      }));
+      void trackEvent(quantity === 0 ? "item_removed" : "item_quantity_updated", { sku, new_qty: quantity });
     } catch {
-      set({ cart });
+      set(state => ({ messages: [...state.messages, { id: `cart_error_${Date.now()}`, role: "agent" as const, text: "Não foi possível atualizar o carrinho. Tente novamente.", timestamp: Date.now() }] }));
+    } finally {
+      set({ cartUpdating: false });
     }
   },
 
-  removeCartItem: async (sku) => {
-    const { api, cart } = get();
-
-    const updatedItems = cart.items.filter((item) => item.sku !== sku);
-    const newTotal = updatedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
-    set({ cart: { ...cart, items: updatedItems, total: newTotal } });
-
-    void trackEvent("item_removed", { sku });
-
-    if (api) {
-      try {
-        await api.updateCartItemQty(sku, 0);
-      } catch {
-        set({ cart });
-      }
-    }
+  removeCartItem: async (sku, variant) => {
+    await get().updateQty(sku, 0, variant);
   },
 
   selectShipping: async (key: string) => {
     const { api } = get();
-    if (!api) return;
+    if (!api || get().cartUpdating) return;
     console.log('[WIDGET-DBG] selectShipping called', { key });
     try {
       const result = await api.selectShipping(key);
@@ -745,7 +734,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   pay: async (method, installments) => {
     const { api, buyer, cart } = get();
-    if (!api) return;
+    if (!api || get().cartUpdating) return;
 
     const shippingChosen = Boolean(cart.shipping) ||
       cart.status === "shipping_calculated" || cart.status === "ready_to_pay";
@@ -829,7 +818,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   selectCryptoChain: async (chain) => {
     const { api, buyer } = get();
-    if (!api) return;
+    if (!api || get().cartUpdating) return;
 
     try {
       if (buyer.name || buyer.email || buyer.cpf) {
@@ -904,6 +893,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       token: api.authToken,
       intentId: paymentIntent.intent_id,
       onApproved: () => {
+        if (get().cartUpdating || get().paymentIntent?.intent_id !== paymentIntent.intent_id) return;
         get().stopPolling();
         void trackEvent("order_completed", {
           intent_id: paymentIntent.intent_id,
@@ -914,6 +904,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         });
       },
       onFailed: () => {
+        if (get().cartUpdating || get().paymentIntent?.intent_id !== paymentIntent.intent_id) return;
         get().stopPolling();
         set({ status: "error", error: "payment_failed" });
       },
@@ -1045,6 +1036,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       messages: [],
       paymentIntent: null,
       paymentPolling: false,
+      cartUpdating: false,
       activeDiscount: null,
       error: null,
     });

@@ -116,6 +116,8 @@ export interface SuggestedProduct {
 }
 
 export interface Experience {
+  items?: Array<{ sku: string; name: string; quantity: number; unit_price: number; image_url?: string; variant?: string }>;
+  totals?: { subtotal: number; discount: number; total: number };
   brand?: BrandConfig;
   agent?: AgentConfig;
   buyer?: BuyerConfig;
@@ -132,6 +134,15 @@ export interface Experience {
 export interface StartResponse {
   session_id: string;
   experience?: Experience;
+}
+
+export function cartFromExperience(experience: Experience | undefined): { items: CartItem[]; total: number; discount: number } {
+  if (!experience?.items || !experience.totals) throw new Error("checkout_cart_snapshot_missing");
+  return {
+    items: experience.items.map(item => ({ sku: item.sku, name: item.name, quantity: item.quantity, price: item.unit_price, imageUrl: item.image_url, variant: item.variant })),
+    total: experience.totals.subtotal,
+    discount: experience.totals.discount,
+  };
 }
 
 export interface ChatBlock {
@@ -177,15 +188,15 @@ export interface PaymentIntent {
 export class CheckoutSession {
   private token: string;
   private merchantId: string;
-  private cartRef: string | undefined;
   private baseUrl: string;
   private globalUserId: string | undefined;
   private sessionId: string | null = null;
+  private experience?: Experience;
+  private paymentRevision = 0;
 
   constructor(config: CheckoutSessionConfig) {
     this.token = config.embedToken;
     this.merchantId = config.merchantId;
-    this.cartRef = config.cartRef;
     this.baseUrl = config.apiBaseUrl.replace(/\/$/, "");
     this.globalUserId = config.globalUserId;
   }
@@ -219,7 +230,6 @@ export class CheckoutSession {
       headers: this.headers(),
       body: JSON.stringify({
         merchant_id: this.merchantId,
-        cart_ref: this.cartRef || undefined,
         cart: { items: [] },
         customer_hints: this.globalUserId ? { externalCustomerId: this.globalUserId } : {},
         global_user_id: this.globalUserId || undefined,
@@ -231,28 +241,12 @@ export class CheckoutSession {
     }
     const data = (await res.json()) as StartResponse;
     this.sessionId = data.session_id;
+    this.experience = data.experience;
     return data;
   }
 
-  async fetchCart(): Promise<{ items: CartItem[]; total: number }> {
-    if (!this.cartRef) return { items: [], total: 0 };
-    const res = await fetch(
-      `${this.baseUrl}/storefront/cart/${encodeURIComponent(this.cartRef)}?merchantId=${encodeURIComponent(this.merchantId)}`,
-      { method: "GET", headers: { "Content-Type": "application/json" } }
-    );
-    if (!res.ok) return { items: [], total: 0 };
-    const data = (await res.json()) as {
-      items?: Array<{ variantId: string; productName: string; quantity: number; price: number; subtotal: number; imageUrl?: string }>;
-      total?: number;
-    };
-    const items: CartItem[] = (data.items ?? []).map((i) => ({
-      sku: i.variantId,
-      name: i.productName,
-      price: i.price,
-      quantity: i.quantity,
-      imageUrl: i.imageUrl,
-    }));
-    return { items, total: data.total ?? 0 };
+  async fetchCart(): Promise<{ items: CartItem[]; total: number; discount: number }> {
+    return cartFromExperience(this.experience);
   }
 
   async chat(message: string): Promise<ChatResponse> {
@@ -270,21 +264,11 @@ export class CheckoutSession {
     return res.json() as Promise<ChatResponse>;
   }
 
-  async updateCartItemQty(variantId: string, quantity: number): Promise<unknown> {
-    if (!this.cartRef) throw new Error("no_cart_ref");
-    const res = await fetch(
-      `${this.baseUrl}/storefront/cart/${encodeURIComponent(this.cartRef)}/items/${encodeURIComponent(variantId)}?merchantId=${encodeURIComponent(this.merchantId)}`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quantity }),
-      }
-    );
-    if (!res.ok) throw new Error(`cart_update_failed: ${res.status}`);
-    return res.json();
+  async updateCartItemQty(sku: string, quantity: number, variant?: string): Promise<StartResponse> {
+    return this.updateCart([{ sku, quantity, variant }]);
   }
 
-  async updateCart(items: Array<{ sku: string; quantity: number }>): Promise<unknown> {
+  async updateCart(items: Array<{ sku: string; quantity: number; variant?: string }>): Promise<StartResponse> {
     this.assertSession();
     const res = await fetch(`${this.baseUrl}/embed/cart`, {
       method: "POST",
@@ -292,7 +276,11 @@ export class CheckoutSession {
       body: JSON.stringify({ session_id: this.sessionId, items }),
     });
     if (!res.ok) throw new Error(`embed_cart_failed: ${res.status}`);
-    return res.json();
+    const response = await res.json() as StartResponse;
+    cartFromExperience(response.experience);
+    this.experience = response.experience;
+    this.paymentRevision += 1;
+    return response;
   }
 
   async fetchShippingQuote(destinationZip?: string): Promise<Array<{ key: string; label: string; tag: string; sub: string; cost: number }>> {
@@ -354,7 +342,7 @@ export class CheckoutSession {
   ): Promise<PaymentIntent> {
     this.assertSession();
     const apiMethod = method === "credito" || method === "debito" ? "card" : method;
-    const idempotencyKey = `pay_${this.sessionId}_${apiMethod}`;
+    const idempotencyKey = `pay_${this.sessionId}_${apiMethod}_${this.paymentRevision}`;
     console.log('[WIDGET-DBG] API createPaymentIntent', { method: apiMethod, sessionId: this.sessionId });
     const res = await fetch(`${this.baseUrl}/embed/payment/intents`, {
       method: "POST",
