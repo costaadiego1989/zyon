@@ -14,6 +14,12 @@ export interface RevenueLiftSummary {
     holdoutAvgRevenueCents: number | null;
     treatmentAvgRevenueCents: number | null;
   };
+  dataQuality?: {
+    status: "ready" | "insufficient_data";
+    minimumCohortSessions: number;
+    sources: Record<"checkoutSessions" | "completedOrders" | "attributionTags", "measured" | "partial">;
+    missingMetrics: string[];
+  };
   aiCostCents: number;
   featureBreakout: Array<{ feature: string; orders: number; revenueCents: number }>;
 }

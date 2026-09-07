@@ -406,8 +406,8 @@ export class CompleteOrderUseCase {
           experimentVariantId: session.promptVariantId
         },
         revenue: {
-          orderValueCents: input.order_total,
-          discountCents: session.cart.currentDiscount ?? 0,
+          orderValueCents: toCents(input.order_total),
+          discountCents: toCents(session.cart.currentDiscount ?? 0),
           shippingSubsidyCents
         },
         aiCostCents: session.aiCostCents ?? 0

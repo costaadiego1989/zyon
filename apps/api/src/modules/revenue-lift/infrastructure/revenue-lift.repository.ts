@@ -51,17 +51,31 @@ export class RevenueLiftRepository {
 
   async aggregateByCohort(merchantId: string, from: Date, to: Date): Promise<{ holdout: CohortAggregation; treatment: CohortAggregation }> {
     const rows = await this.prisma.$queryRaw<CohortAggregationRow[]>`
+      WITH cohort_sessions AS (
+        SELECT session_id, cohort, ai_cost_cents
+        FROM checkout_sessions
+        WHERE merchant_id = ${merchantId}
+          AND created_at >= ${from}
+          AND created_at <= ${to}
+          AND cohort IN ('holdout', 'treatment')
+      ), approved_orders AS (
+        SELECT session_id,
+          COUNT(DISTINCT external_order_id)::int AS orders,
+          COALESCE(SUM(ROUND(order_total * 100)), 0)::int AS revenue_cents
+        FROM completed_orders
+        WHERE merchant_id = ${merchantId}
+          AND status = 'approved'
+        GROUP BY session_id
+      )
       SELECT
-        cohort,
-        COUNT(DISTINCT session_id)::int AS sessions,
-        COUNT(*)::int AS orders,
-        COALESCE(SUM(order_value_cents), 0)::int AS total_revenue_cents,
-        COALESCE(SUM(ai_cost_cents), 0)::int AS total_ai_cost_cents
-      FROM attribution_tags
-      WHERE merchant_id = ${merchantId}
-        AND created_at >= ${from}
-        AND created_at <= ${to}
-      GROUP BY cohort
+        sessions.cohort,
+        COUNT(*)::int AS sessions,
+        COALESCE(SUM(orders.orders), 0)::int AS orders,
+        COALESCE(SUM(orders.revenue_cents), 0)::int AS total_revenue_cents,
+        COALESCE(SUM(CASE WHEN sessions.cohort = 'treatment' THEN sessions.ai_cost_cents ELSE 0 END), 0)::int AS total_ai_cost_cents
+      FROM cohort_sessions sessions
+      LEFT JOIN approved_orders orders ON orders.session_id = sessions.session_id
+      GROUP BY sessions.cohort
     `;
 
     const empty: CohortAggregation = { sessions: 0, orders: 0, totalRevenueCents: 0, totalAiCostCents: 0 };
@@ -90,13 +104,20 @@ export class RevenueLiftRepository {
           WHEN intent_personalization_applied THEN 'intent_personalization'
           ELSE 'baseline'
         END AS feature,
-        COUNT(*)::int AS orders,
-        COALESCE(SUM(order_value_cents), 0)::int AS revenue_cents
-      FROM attribution_tags
-      WHERE merchant_id = ${merchantId}
-        AND cohort = 'treatment'
-        AND created_at >= ${from}
-        AND created_at <= ${to}
+        COUNT(DISTINCT orders.external_order_id)::int AS orders,
+        COALESCE(SUM(ROUND(orders.order_total * 100)), 0)::int AS revenue_cents
+      FROM attribution_tags tags
+      INNER JOIN completed_orders orders
+        ON orders.merchant_id = tags.merchant_id
+        AND orders.external_order_id = tags.order_id
+        AND orders.status = 'approved'
+      INNER JOIN checkout_sessions sessions
+        ON sessions.merchant_id = tags.merchant_id
+        AND sessions.session_id = tags.session_id
+      WHERE tags.merchant_id = ${merchantId}
+        AND tags.cohort = 'treatment'
+        AND sessions.created_at >= ${from}
+        AND sessions.created_at <= ${to}
       GROUP BY feature
       ORDER BY revenue_cents DESC
     `;
@@ -111,16 +132,21 @@ export class RevenueLiftRepository {
   async getDailyTrend(merchantId: string, from: Date, to: Date): Promise<DailyTrendPoint[]> {
     const rows = await this.prisma.$queryRaw<DailyTrendRow[]>`
       SELECT
-        DATE(created_at)::text AS date,
-        COALESCE(SUM(CASE WHEN cohort = 'holdout' THEN order_value_cents ELSE 0 END), 0)::int AS holdout_revenue_cents,
-        COALESCE(SUM(CASE WHEN cohort = 'treatment' THEN order_value_cents ELSE 0 END), 0)::int AS treatment_revenue_cents,
-        COUNT(DISTINCT CASE WHEN cohort = 'holdout' THEN session_id END)::int AS holdout_sessions,
-        COUNT(DISTINCT CASE WHEN cohort = 'treatment' THEN session_id END)::int AS treatment_sessions
-      FROM attribution_tags
-      WHERE merchant_id = ${merchantId}
-        AND created_at >= ${from}
-        AND created_at <= ${to}
-      GROUP BY DATE(created_at)
+        DATE(sessions.created_at)::text AS date,
+        COALESCE(SUM(CASE WHEN sessions.cohort = 'holdout' THEN ROUND(orders.order_total * 100) ELSE 0 END), 0)::int AS holdout_revenue_cents,
+        COALESCE(SUM(CASE WHEN sessions.cohort = 'treatment' THEN ROUND(orders.order_total * 100) ELSE 0 END), 0)::int AS treatment_revenue_cents,
+        COUNT(DISTINCT CASE WHEN sessions.cohort = 'holdout' THEN sessions.session_id END)::int AS holdout_sessions,
+        COUNT(DISTINCT CASE WHEN sessions.cohort = 'treatment' THEN sessions.session_id END)::int AS treatment_sessions
+      FROM checkout_sessions sessions
+      LEFT JOIN completed_orders orders
+        ON orders.merchant_id = sessions.merchant_id
+        AND orders.session_id = sessions.session_id
+        AND orders.status = 'approved'
+      WHERE sessions.merchant_id = ${merchantId}
+        AND sessions.created_at >= ${from}
+        AND sessions.created_at <= ${to}
+        AND sessions.cohort IN ('holdout', 'treatment')
+      GROUP BY DATE(sessions.created_at)
       ORDER BY date ASC
     `;
 

@@ -36,6 +36,22 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
   const trendTotal = trendData.length;
   const trendPages = Math.max(1, Math.ceil(trendTotal / PAGE_SIZE));
   const trendSlice = trendData.slice(trendPage * PAGE_SIZE, (trendPage + 1) * PAGE_SIZE);
+  const dataQuality = vm.summary?.dataQuality ?? {
+    status: "insufficient_data" as const,
+    minimumCohortSessions: 30,
+    sources: {
+      checkoutSessions: "partial" as const,
+      completedOrders: "partial" as const,
+      attributionTags: "partial" as const,
+    },
+    missingMetrics: ["measurement_contract"],
+  };
+  const missingMetricLabels: Record<string, string> = {
+    holdout_session_sample: "amostra do grupo de controle",
+    treatment_session_sample: "amostra do grupo com IA",
+    holdout_revenue_baseline: "receita aprovada no grupo de controle",
+    measurement_contract: "contrato de medição atualizado",
+  };
 
   return (
     <div className="page-container">
@@ -72,9 +88,9 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
         lineHeight: 1.65,
       }}>
         <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong>{" "}
-        5% dos compradores passam pelo checkout sem o assistente IA (grupo de controle).
-        Os outros 95% usam todos os recursos IA. Comparamos a receita média por sessão entre os dois grupos para calcular
-        quanto a mais a IA está gerando. O ganho é real — medido a partir dos pedidos pagos, não estimativas.
+        5% das sessões passam pelo checkout sem o assistente IA (grupo de controle).
+        As demais usam o fluxo com IA. Comparamos a receita aprovada por sessão entre os dois grupos para calcular
+        quanto a mais a IA está gerando. O ganho só é exibido após haver amostra suficiente nos dois grupos.
       </div>
 
       {vm.loading ? (
@@ -87,11 +103,24 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
         />
       ) : (
         <>
+          {dataQuality.status !== "ready" && (
+            <div role="status" style={{
+              marginBottom: 14,
+              padding: "12px 16px",
+              borderRadius: "var(--radius-md)",
+              background: "var(--color-warning-bg)",
+              border: "1px solid var(--color-warning-border)",
+              color: "var(--color-warning)",
+              font: "13px var(--font-sans)",
+            }}>
+              Dados insuficientes para calcular impacto: faltam {dataQuality.missingMetrics.map((metric) => missingMetricLabels[metric] ?? metric).join(", ")}. São necessárias ao menos {dataQuality.minimumCohortSessions} sessões em cada grupo.
+            </div>
+          )}
           {/* KPIs */}
           <div className="grid-4" style={{ gap: 14 }}>
             <StatCard
               label="Ganho"
-              value={vm.summary.lift.grossLiftPercent != null ? `+${vm.summary.lift.grossLiftPercent.toFixed(1)}%` : "—"}
+              value={vm.summary.lift.grossLiftPercent != null ? `${vm.summary.lift.grossLiftPercent > 0 ? "+" : ""}${vm.summary.lift.grossLiftPercent.toFixed(1)}%` : "—"}
               icon={<TrendingUp size={16} />}
               accent={vm.summary.lift.grossLiftPercent != null && vm.summary.lift.grossLiftPercent > 0 ? "var(--color-success)" : "var(--color-error)"}
             />
@@ -145,7 +174,7 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
           </div>
 
           {/* Contribuição por recurso */}
-          {vm.summary.featureBreakout.length > 0 && (
+          {dataQuality.sources?.attributionTags === "measured" && vm.summary.featureBreakout.length > 0 && (
             <div className="panel" style={{ padding: "20px 24px" }}>
               <SectionHeader variant="secondary" title="O que mais contribuiu" />
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -174,7 +203,7 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
           )}
 
           {/* Evolução diária */}
-          {trendTotal > 0 && (
+          {dataQuality.status === "ready" && trendTotal > 0 && (
             <DataPanel
               title="Evolução diária"
               page={trendPage + 1}

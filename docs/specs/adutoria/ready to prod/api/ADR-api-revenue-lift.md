@@ -80,17 +80,17 @@ Consequência: o módulo poderá ser reavaliado isoladamente após a correção,
 | MODULE | revenue-lift |
 | FILE(S) | [apps/api/src/modules/checkout/application/use-cases/complete-order.use-case.ts:210](<../../../../../apps/api/src/modules/checkout/application/use-cases/complete-order.use-case.ts#L210>)<br>[apps/api/src/modules/revenue-lift/domain/services/attribution-tagger.service.ts:1](<../../../../../apps/api/src/modules/revenue-lift/domain/services/attribution-tagger.service.ts#L1>) |
 | ISSUE | Atribuição monetária usa unidade divergente e só é logada neste fluxo |
-| EVIDENCE | CompleteOrder passa order_total em moeda principal como orderValueCents ao tagger, com flags/AI cost fixados, e registra resultado por logger.debug. Isso não demonstra persistência completa de attribution_tags consultada pelo relatório. |
-| VERIFICATION | CONFIRMED_STATIC |
-| PRODUCTION IMPACT | Revenue lift pode ficar vazio ou representar valores escalados incorretamente; não há evidência de medição confiável de incrementalidade. |
-| ROOT CAUSE | Contrato de unidade e cadeia de coleta/projeção não estão fechados. |
-| RECOMMENDED FIX | Padronizar centavos, persistir tag versionada e medir tratamento/controle de todas as sessões elegíveis; explicitar ausência de amostra. |
+| EVIDENCE | O checkout preserva o contrato público em reais e converte para centavos no registro interno. O cálculo usa checkout_sessions com cohort e completed_orders aprovados; attribution_tags não é mais o denominador. |
+| VERIFICATION | IMPLEMENTED_LOCAL_VALIDATION; testes focados passaram. Consulta e plano no PostgreSQL de produção pendentes. |
+| PRODUCTION IMPACT | Sem amostra suficiente, o painel informa insuficiência em vez de apresentar lift. O detalhamento por recurso continua indisponível até ter persistência durável. |
+| ROOT CAUSE | O contrato interno de centavos era violado e o cálculo usava somente pedidos convertidos como população. |
+| RECOMMENDED FIX | Aplicar a migração, reconciliar população de sessões e pedidos aprovados em banco real e tornar o detalhamento por recurso durável antes de exibi-lo. |
 | COMPLEXITY | M (S: pequena; M: média; L: ampla, sem estimativa de prazo) |
 | RISK OF CHANGE | Médio |
 | BLOCKS PROD? | NO |
 | CRITÉRIO DE ACEITE | Pedido de R$100 deve persistir 10000 centavos; relatório precisa reconciliar população, conversões e custos com eventos de origem. |
 
-Decisão: registrar correção priorizada e acompanhar o risco residual. Correção ainda não implementada nesta auditoria.
+Decisão: correção implementada localmente. O contrato público permanece em reais; apenas a persistência interna `*_cents` é normalizada. Consultar [registro da correção](<../CORRECOES-REVENUE-LIFT.md>).
 
 
 ## Reavaliação

@@ -40,7 +40,7 @@ export class RevenueLiftCalculatorService {
     const { holdout, treatment, aiCostsTotalCents } = input;
 
     // L5: Division guard — no holdout sessions means no valid metric
-    if (holdout.sessions === 0 || holdout.orders === 0) {
+    if (holdout.sessions === 0 || holdout.orders === 0 || holdout.totalRevenueCents <= 0) {
       return {
         holdoutAvgRevenueCents: null,
         treatmentAvgRevenueCents: null,

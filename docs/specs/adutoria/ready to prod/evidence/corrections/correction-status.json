@@ -305,9 +305,9 @@
       "severity": "P2",
       "module": "revenue-lift",
       "title": "Atribuição monetária usa unidade divergente e só é logada neste fluxo",
-      "status": "OPEN",
+      "status": "IMPLEMENTED_LOCAL_VALIDATION",
       "productionGateClosed": false,
-      "record": "../../CORRECOES.md"
+      "record": "../../CORRECOES-REVENUE-LIFT.md"
     },
     {
       "id": "API-035",

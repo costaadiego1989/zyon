@@ -4,6 +4,7 @@ import { checkoutSession, completeOrderRequest } from "./checkout-test-fixtures.
 import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-memory-checkout.repository.js";
 import { BuyerPurchaseHistoryAdapter } from "../infrastructure/adapters/buyer-purchase-history.adapter.js";
 import { CompleteOrderUseCase } from "../application/use-cases/complete-order.use-case.js";
+import { AttributionTaggerService } from "../../revenue-lift/domain/services/attribution-tagger.service.js";
 import type { PurchaseHistoryPort, RecordCheckoutPurchaseInput } from "../domain/ports/purchase-history.port.js";
 import { InMemoryBuyerPurchaseHistoryRepository } from "../../buyer-purchase-history/infrastructure/in-memory-buyer-purchase-history.repository.js";
 import {
@@ -16,6 +17,14 @@ class RecordingPurchaseHistoryPort implements PurchaseHistoryPort {
 
   async recordCheckoutPurchase(input: RecordCheckoutPurchaseInput): Promise<void> {
     this.records.push(input);
+  }
+}
+
+class RecordingRevenueLiftRepository {
+  public tags: Array<{ orderValueCents: number; discountGivenCents: number }> = [];
+
+  async saveTag(input: { orderValueCents: number; discountGivenCents: number }): Promise<void> {
+    this.tags.push(input);
   }
 }
 
@@ -110,6 +119,33 @@ test("CompleteOrderUseCase records completed checkout into buyer purchase histor
   assert.equal(purchaseHistory.records[0]?.globalUserId, "usr_1");
   assert.equal(purchaseHistory.records[0]?.discountAmount, 20);
   assert.deepEqual(purchaseHistory.records[0]?.items.map((item) => item.title), ["Running Shoe"]);
+});
+
+test("CompleteOrderUseCase normalizes public BRL values before persisting internal attribution cents", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  repository.saveSession(checkoutSession({
+    cart: {
+      currency: "BRL",
+      total: 112.5,
+      currentDiscount: 12.5,
+      items: [{ sku: "sku_1", name: "Produto", price: 112.5, quantity: 1 }],
+    },
+  }));
+  const revenueLiftRepository = new RecordingRevenueLiftRepository();
+  const useCase = new CompleteOrderUseCase(
+    repository, repository, repository,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+    new AttributionTaggerService(),
+    undefined, undefined, undefined,
+    revenueLiftRepository as never,
+  );
+
+  await useCase.execute(completeOrderRequest({ order_total: 100 }));
+  await useCase.execute(completeOrderRequest({ order_total: 100 }));
+
+  assert.equal(revenueLiftRepository.tags.length, 1);
+  assert.equal(revenueLiftRepository.tags[0]?.orderValueCents, 10000);
+  assert.equal(revenueLiftRepository.tags[0]?.discountGivenCents, 1250);
 });
 
 test("CompleteOrderUseCase feeds buyer purchase history so IA can read ticket médio", async () => {

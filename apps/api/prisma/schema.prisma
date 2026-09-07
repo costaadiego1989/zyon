@@ -340,6 +340,7 @@ model CheckoutSession {
   @@unique([merchantId, sessionId])
   @@index([merchantId, updatedAt])
   @@index([merchantId, createdAt])
+  @@index([merchantId, cohort, createdAt])
   @@index([globalUserId, merchantId, createdAt])
   @@map("checkout_sessions")
 }
