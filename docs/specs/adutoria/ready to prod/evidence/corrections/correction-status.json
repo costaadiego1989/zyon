@@ -350,9 +350,9 @@
       "severity": "P1",
       "module": "shared",
       "title": "Auditoria de dependências retornou avisos de segurança pendentes",
-      "status": "OPEN",
+      "status": "PARTIAL",
       "productionGateClosed": false,
-      "record": "../../CORRECOES.md"
+      "record": "../../CORRECOES-DEPENDENCIAS.md"
     },
     {
       "id": "API-040",
@@ -620,8 +620,8 @@
   "latestStage": "../../CORRECOES-ETAPA-3.md",
   "counts": {
     "IMPLEMENTED_LOCAL_VALIDATION": 22,
-    "PARTIAL": 9,
+    "PARTIAL": 10,
     "MITIGATED_CAPABILITY_UNAVAILABLE": 3,
-    "OPEN": 34
+    "OPEN": 33
   }
 }

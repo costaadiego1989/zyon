@@ -16,7 +16,7 @@ export async function resolveCrossSellProduct(
       product = search.products.find(p => p.variants?.some(v => v.sku === sku)) ?? null;
       variant = product?.variants?.find(v => v.sku === sku) ?? undefined;
     }
-    if (!isSellableVariant(product, variant)) {
+    if (!product || !variant || !isSellableVariant(product, variant)) {
       return null;
     }
     return {
@@ -47,7 +47,7 @@ export async function resolveCrossSellCartItem(
       product = search.products.find(p => p.variants?.some(v => v.sku === sku)) ?? null;
       variant = product?.variants?.find(v => v.sku === sku) ?? undefined;
     }
-    if (!isSellableVariant(product, variant)) {
+    if (!product || !variant || !isSellableVariant(product, variant)) {
       return null;
     }
     return {
