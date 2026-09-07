@@ -67,11 +67,6 @@ export class AttemptCartRecoveryUseCase {
       return { created: false };
     }
 
-    const exists = await this.repository.existsForSession(input.merchantId, input.sessionId);
-    if (exists) {
-      return { created: false };
-    }
-
     const reason = AbandonmentReasonClassifier.classify(input.events);
 
     // Merchant dashboard override wins; otherwise the algorithm selects.
@@ -103,7 +98,9 @@ export class AttemptCartRecoveryUseCase {
       createdAt: this.clock.now(),
     });
 
-    await this.repository.save(attempt);
+    if (!await this.repository.createIfAbsent(attempt)) {
+      return { created: false };
+    }
 
     const link = this.linkGenerator(
       input.merchantCheckoutReturnUrl,

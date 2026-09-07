@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import type { ListRecoveryAttemptsOptions, RecoveryAttemptRepositoryPort } from "../../domain/ports/recovery-attempt-repository.port.js";
 import { RecoveryAttempt, type RecoveryAttemptProps, type RecoveryAttemptStatus, type RecoveryChannel } from "../../domain/entities/recovery-attempt.entity.js";
 import type { RecoveryStrategy } from "../../domain/values/recovery-strategy.js";
@@ -18,23 +18,27 @@ export class PrismaRecoveryAttemptRepository implements RecoveryAttemptRepositor
 
   constructor(private readonly prisma: PrismaClient) {}
 
+  async createIfAbsent(attempt: RecoveryAttempt): Promise<boolean> {
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.recoveryAttempt.create({ data: this.toCreateData(attempt) });
+        await tx.recoveryAttemptClaim.create({
+          data: { merchantId: attempt.merchantId, sessionId: attempt.sessionId, attemptId: attempt.id },
+        });
+      });
+      return true;
+    } catch (error) {
+      // The unique claim arbitrates across replicas; the failed transaction
+      // also rolls back the recovery_attempt row created immediately before it.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return false;
+      throw error;
+    }
+  }
+
   async save(attempt: RecoveryAttempt): Promise<void> {
     await this.prisma.recoveryAttempt.upsert({
       where: { id: attempt.id },
-      create: {
-        id: attempt.id,
-        merchantId: attempt.merchantId,
-        sessionId: attempt.sessionId,
-        globalUserId: attempt.globalUserId,
-        abandonmentReason: attempt.abandonmentReason,
-        abandonmentScore: attempt.abandonmentScore,
-        strategyJson: attempt.strategy as any,
-        channel: attempt.channel,
-        sentAt: attempt.sentAt,
-        status: attempt.status,
-        recoveredAt: attempt.recoveredAt,
-        recoveredOrderId: attempt.recoveredOrderId,
-      },
+      create: this.toCreateData(attempt),
       update: {
         status: attempt.status,
         channel: attempt.channel,
@@ -125,6 +129,23 @@ export class PrismaRecoveryAttemptRepository implements RecoveryAttemptRepositor
       recoveredOrderId: row.recoveredOrderId,
       createdAt: row.createdAt,
     });
+  }
+
+  private toCreateData(attempt: RecoveryAttempt) {
+    return {
+      id: attempt.id,
+      merchantId: attempt.merchantId,
+      sessionId: attempt.sessionId,
+      globalUserId: attempt.globalUserId,
+      abandonmentReason: attempt.abandonmentReason,
+      abandonmentScore: attempt.abandonmentScore,
+      strategyJson: attempt.strategy as Prisma.InputJsonValue,
+      channel: attempt.channel,
+      sentAt: attempt.sentAt,
+      status: attempt.status,
+      recoveredAt: attempt.recoveredAt,
+      recoveredOrderId: attempt.recoveredOrderId,
+    };
   }
 }
 

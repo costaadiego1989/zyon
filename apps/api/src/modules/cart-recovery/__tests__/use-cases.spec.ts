@@ -119,6 +119,24 @@ test("UC-AttemptCartRecovery: no_action strategy → does NOT write attempt row"
   assert.equal(repo.count(), 0);
 });
 
+test("UC-16b: concurrent evaluations claim a session only once", async () => {
+  const repo = new InMemoryRecoveryAttemptRepository();
+  const useCase = new AttemptCartRecoveryUseCase(repo, fixedClock);
+  const input = {
+    merchantId: "mrc_1",
+    sessionId: "ses_concurrent",
+    globalUserId: "usr_1",
+    abandonmentScore: 0.6,
+    events: ["shipping_objection_detected"],
+    buyerHistory: defaultBuyerHistory(),
+    merchantRules: defaultMerchantRules(),
+  };
+
+  const [first, second] = await Promise.all([useCase.execute(input), useCase.execute(input)]);
+  assert.equal([first, second].filter((result) => result.created).length, 1);
+  assert.equal(repo.count(), 1);
+});
+
 // --- TrackRecoveryOutcome ---
 
 test("AttemptCartRecovery waits without creating an attempt or dispatching either channel", async () => {

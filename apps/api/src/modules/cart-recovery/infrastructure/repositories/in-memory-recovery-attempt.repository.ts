@@ -8,6 +8,16 @@ import { RecoveryAttempt, type RecoveryAttemptStatus } from "../../domain/entiti
 export class InMemoryRecoveryAttemptRepository implements RecoveryAttemptRepositoryPort {
   private attempts: RecoveryAttempt[] = [];
 
+  async createIfAbsent(attempt: RecoveryAttempt): Promise<boolean> {
+    // Do not await between checking and recording: this double must model the
+    // atomic claim provided by the database implementation.
+    if (this.attempts.some((item) => item.merchantId === attempt.merchantId && item.sessionId === attempt.sessionId)) {
+      return false;
+    }
+    this.attempts.push(attempt);
+    return true;
+  }
+
   async save(attempt: RecoveryAttempt): Promise<void> {
     const idx = this.attempts.findIndex((a) => a.id === attempt.id);
     if (idx >= 0) {

@@ -9,6 +9,8 @@ export interface ListRecoveryAttemptsOptions {
 }
 
 export interface RecoveryAttemptRepositoryPort {
+  /** Atomically records the one attempt allowed for a merchant/session. */
+  createIfAbsent(attempt: RecoveryAttempt): Promise<boolean>;
   save(attempt: RecoveryAttempt): Promise<void>;
   findById(id: string): Promise<RecoveryAttempt | null>;
   findBySessionId(merchantId: string, sessionId: string): Promise<RecoveryAttempt[]>;

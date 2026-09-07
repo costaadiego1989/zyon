@@ -105,4 +105,12 @@ Decisão: bloquear a liberação da capacidade afetada até cumprir o critério 
 
 ## Reavaliação
 
+### Atualização de 2026-09-06
+
+API-019 foi corrigido com validação local. `RecoveryAttemptClaim` usa a chave primária `(merchant_id, session_id)` e a aplicação cria a tentativa e o claim na mesma transação Prisma. Em uma disputa, o conflito de unicidade faz rollback da tentativa nova; somente o vencedor pode chamar o roteador de mensagens. A migração preserva o histórico existente e cria um claim para a tentativa mais antiga de cada sessão, impedindo reenvio após o rollout.
+
+Validação executada: schema Prisma válido, build da API e 25 testes focados de cart-recovery, incluindo duas avaliações concorrentes da mesma sessão.
+
+O achado passa a **IMPLEMENTED_LOCAL_VALIDATION**, mas não fecha a liberação do módulo: consentimento/opt-out, revalidação de abandono e pagamento, reconciliação de `unknown`, TTL de link e E2E com provedor continuam pendentes.
+
 Executar o gate específico, os critérios dos achados e testes relevantes da [sequência de correções](<../PLANO-DE-CORRECAO.md>). Guardar commit, configuração não secreta, comandos, resultado e evidência de banco/provedor. A auditoria atual não realizou essas correções.

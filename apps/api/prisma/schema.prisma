@@ -2116,11 +2116,24 @@ model RecoveryAttempt {
   recoveredAt       DateTime? @map("recovered_at")
   recoveredOrderId  String?   @map("recovered_order_id")
   createdAt         DateTime  @default(now()) @map("created_at")
+  claim             RecoveryAttemptClaim?
 
   @@index([merchantId, status])
   @@index([merchantId, createdAt])
   @@index([sessionId])
   @@map("recovery_attempts")
+}
+
+/// Durable, tenant-scoped arbitration record for recovery dispatch.
+model RecoveryAttemptClaim {
+  merchantId String @map("merchant_id")
+  sessionId  String @map("session_id")
+  attemptId  String @unique @map("attempt_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  attempt    RecoveryAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@id([merchantId, sessionId])
+  @@map("recovery_attempt_claims")
 }
 
 /// Tracks when a merchant last viewed each nav-badge section, so the sidebar
