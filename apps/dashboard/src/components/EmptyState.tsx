@@ -1,4 +1,4 @@
-import React from "react";
+import React, { type ElementType, type ReactNode } from "react";
 
 /**
  * Standardized empty state placeholder for dashboard panels.
@@ -13,13 +13,23 @@ import React from "react";
  * re-implementing the dashed-border container.
  */
 export interface EmptyStateProps {
-  icon?: React.ReactNode;
+  icon?: ReactNode | ElementType;
   title?: string;
-  message: string;
-  action?: React.ReactNode;
+  message?: string;
+  description?: string;
+  action?: ReactNode;
 }
 
-export function EmptyState({ icon, title, message, action }: EmptyStateProps) {
+function renderIcon(icon: EmptyStateProps["icon"]) {
+  if (!icon) return null;
+  if (React.isValidElement(icon)) return icon;
+  const Icon = icon as ElementType;
+  return <Icon size={24} strokeWidth={1.8} />;
+}
+
+export function EmptyState({ icon, title, message, description, action }: EmptyStateProps) {
+  const body = description ?? message;
+
   return (
     <div
       style={{
@@ -36,23 +46,25 @@ export function EmptyState({ icon, title, message, action }: EmptyStateProps) {
         gap: 10,
       }}
     >
-      {icon ? <div style={{ display: "flex" }}>{icon}</div> : null}
+      {icon ? <div style={{ display: "flex" }}>{renderIcon(icon)}</div> : null}
       {title ? (
         <div style={{ font: "600 12px var(--font-sans)", color: "var(--color-text-secondary)" }}>
           {title}
         </div>
       ) : null}
-      <p
-        style={{
-          margin: 0,
-          font: "13px var(--font-sans)",
-          color: "var(--color-text-faint)",
-          maxWidth: 360,
-          lineHeight: 1.5,
-        }}
-      >
-        {message}
-      </p>
+      {body ? (
+        <p
+          style={{
+            margin: 0,
+            font: "13px var(--font-sans)",
+            color: "var(--color-text-faint)",
+            maxWidth: 360,
+            lineHeight: 1.5,
+          }}
+        >
+          {body}
+        </p>
+      ) : null}
       {action ? <div>{action}</div> : null}
     </div>
   );
