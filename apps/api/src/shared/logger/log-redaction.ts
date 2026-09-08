@@ -10,6 +10,7 @@ export const REDACTED_LOG_PATHS = [
   "req.body.code",
   "req.body.otp",
   "req.body.token",
+  "req.body.buyer_access_token",
   "req.body.webhookSecret",
   "req.body.creditCard",
   "req.body.cvv",

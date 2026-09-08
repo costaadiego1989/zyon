@@ -43,6 +43,7 @@ const isProduction = process.env.NODE_ENV === "production";
               "req.headers.authorization",
               "req.headers.cookie",
               "req.headers['x-api-key']",
+              "req.body.buyer_access_token",
               "*.password",
               "*.secret",
               "*.token",

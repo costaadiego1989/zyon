@@ -8,12 +8,22 @@ import {
 import { HandleIncomingMessageUseCase, type IncomingMessageInput } from "../use-cases/handle-incoming-message.use-case.js";
 import { HandleStatusUpdateUseCase, type StatusUpdateInput } from "../use-cases/handle-status-update.use-case.js";
 
+const POLL_INTERVAL_MS = 1_000;
+/** When a poll keeps failing, back off so a misconfigured DB doesn't flood logs. */
+const BACKOFF_BASE_MS = 5_000;
+const BACKOFF_MAX_MS = 60_000;
+
 @Injectable()
 export class WhatsAppWebhookWorker implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(WhatsAppWebhookWorker.name);
   private timer: ReturnType<typeof setInterval> | undefined;
   private active: Promise<void> | undefined;
   private stopping = false;
+  /** Tracks consecutive poll failures so we can throttle the noise. */
+  private consecutiveFailures = 0;
+  private lastFailureMsg = "";
+  /** Wall-clock ms of the last log we emitted, so back-off doesn't spam. */
+  private lastFailureLogAt = 0;
 
   constructor(
     @Inject(WHATSAPP_WEBHOOK_INBOX) private readonly inbox: WhatsAppWebhookInbox,
@@ -23,7 +33,7 @@ export class WhatsAppWebhookWorker implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit(): void {
-    this.timer = setInterval(() => { void this.drain(); }, 1_000);
+    this.timer = setInterval(() => { void this.drain(); }, POLL_INTERVAL_MS);
     this.timer.unref();
     void this.drain();
   }
@@ -38,16 +48,54 @@ export class WhatsAppWebhookWorker implements OnModuleInit, OnModuleDestroy {
   drain(): Promise<void> {
     if (this.stopping) return Promise.resolve();
     if (this.active) return this.active;
-    this.active = this.processBatch().catch(() => {
-      this.logger.error("whatsapp_inbox_poll_failed");
-    }).finally(() => { this.active = undefined; });
+    this.active = this.processBatch()
+      .catch((err: unknown) => {
+        this.recordFailure(err);
+      })
+      .finally(() => { this.active = undefined; });
     return this.active;
+  }
+
+  /** True while a batch is currently running. Test-only escape hatch so spec
+   *  code can deterministically wait between cycles (drain() is internally
+   *  de-duplicated, so two synchronous drain() calls share the same promise). */
+  isDraining(): boolean {
+    return this.active !== undefined;
+  }
+
+  private recordFailure(err: unknown): void {
+    const message = err instanceof Error ? err.message : String(err);
+    // Same error as last poll → suppress the duplicate log unless enough time
+    // has elapsed (back-off). This prevents the per-second ERROR spam when the
+    // underlying cause (e.g. missing migration, DB outage) doesn't change.
+    const now = Date.now();
+    const isRepeat = message === this.lastFailureMsg;
+    this.consecutiveFailures += 1;
+    const backoff = Math.min(BACKOFF_BASE_MS * 2 ** Math.min(this.consecutiveFailures - 1, 6), BACKOFF_MAX_MS);
+    if (!isRepeat || now - this.lastFailureLogAt >= backoff) {
+      this.logger.error(`whatsapp_inbox_poll_failed: ${message}`);
+      this.lastFailureLogAt = now;
+    }
+    this.lastFailureMsg = message;
+  }
+
+  private clearFailure(): void {
+    if (this.consecutiveFailures > 0) {
+      this.logger.log(`whatsapp_inbox_poll_recovered after ${this.consecutiveFailures} failed attempt(s)`);
+    }
+    this.consecutiveFailures = 0;
+    this.lastFailureMsg = "";
   }
 
   private async processBatch(): Promise<void> {
     for (let index = 0; index < 20 && !this.stopping; index++) {
       const claim = await this.inbox.claimNext();
-      if (!claim) return;
+      if (!claim) {
+        // Successful poll with no work → reset the failure streak so the
+        // back-off window collapses once the inbox is healthy again.
+        this.clearFailure();
+        return;
+      }
       let leaseLost = false;
       let renewing: Promise<void> | undefined;
       const heartbeat = setInterval(() => {
@@ -85,5 +133,8 @@ export class WhatsAppWebhookWorker implements OnModuleInit, OnModuleDestroy {
         await renewing;
       }
     }
+    // Batch drained all 20 slots without throwing → inbox is healthy, reset
+    // any prior failure streak so the next batch starts from a clean window.
+    this.clearFailure();
   }
 }

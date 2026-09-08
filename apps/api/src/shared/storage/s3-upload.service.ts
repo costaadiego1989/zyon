@@ -63,7 +63,7 @@ export class S3UploadService {
   }
 
   async uploadBase64(dataUri: string, folder: string): Promise<UploadResult> {
-    const match = dataUri.match(/^data:(image\/[^;]+);base64,(.+)$/);
+    const match = dataUri.match(/^data:(image\/[^;]+|video\/[^;]+);base64,(.+)$/);
     if (!match) throw new Error("invalid_base64_data_uri");
     const contentType = match[1]!;
     const buffer = Buffer.from(match[2]!, "base64");
