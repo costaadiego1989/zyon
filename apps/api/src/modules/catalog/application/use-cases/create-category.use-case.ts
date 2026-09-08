@@ -81,9 +81,11 @@ export class CreateCategoryUseCase {
 
   private generateSlug(name: string): string {
     return name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase()
       .trim()
       .replace(/\s+/g, "-")
-      .replace(/[^\w-]/g, "");
+      .replace(/[^a-z0-9-]/g, "");
   }
 }

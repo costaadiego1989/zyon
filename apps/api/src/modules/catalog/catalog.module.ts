@@ -7,6 +7,7 @@ import { CheckoutPersistenceModule } from "../checkout/checkout-persistence.modu
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { ExperimentsModule } from "../experiments/experiments.module.js";
 import { PersistenceModule, PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
+import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../shared/events/domain-event-bus.port.js";
 import { RedisModule } from "../../shared/cache/redis.module.js";
 import { EmbedTokenService } from "../embed/domain/embed-token.service.js";
 import { EmbedAuthGuard } from "../embed/presentation/http/embed-auth.guard.js";
@@ -114,8 +115,8 @@ import { ListProductLayoutStatusUseCase } from "./application/use-cases/list-pro
     PlanLimitGuard,
     {
       provide: CatalogVariantService,
-      useFactory: (prisma: PrismaClient, s3: S3UploadService) => new CatalogVariantService(prisma, s3),
-      inject: [PRISMA_CLIENT, S3UploadService],
+      useFactory: (prisma: PrismaClient, s3: S3UploadService, eventBus: DomainEventBus) => new CatalogVariantService(prisma, s3, eventBus),
+      inject: [PRISMA_CLIENT, S3UploadService, DOMAIN_EVENT_BUS],
     },
     EmbedTokenService,
     EmbedAuthGuard,

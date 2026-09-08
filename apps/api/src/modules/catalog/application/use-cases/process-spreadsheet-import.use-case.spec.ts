@@ -17,6 +17,7 @@ import type {
   CreateProductInput,
 } from "../../domain/ports/product-repository.port.js";
 import { AddProductUseCase } from "./add-product.use-case.js";
+import type { CreateCategoryUseCase } from "./create-category.use-case.js";
 import type { GenerateProductSeoUseCase } from "./generate-product-seo.use-case.js";
 import { ProductEntity } from "../../domain/entities/product.entity.js";
 
@@ -478,5 +479,40 @@ describe("ProcessSpreadsheetImportUseCase", () => {
     assert.ok(/sku_already_exists/.test(lastUpdate.errors![0].reason));
 
     void realAdd;
+  });
+
+  it("creates a missing spreadsheet category before importing its product", async () => {
+    const sheet: RawSheet = {
+      headers: ["Name", "SKU", "Price", "Weight", "Category"],
+      rows: [{ Name: "Imported product", SKU: "NEW-CATEGORY-SKU", Price: "19.90", Weight: "120", Category: "New arrivals" }],
+    };
+    const mapping: ColumnMapping = {
+      Name: "name",
+      SKU: "sku",
+      Price: "price",
+      Weight: "weight_grams",
+      Category: "category",
+    };
+    const jobRepo = makeJobRepoDouble();
+    const productRepo = makeProductRepoDouble();
+    const createCategory = {
+      execute: async () => ({ id: "cat_new_arrivals", name: "New arrivals" }),
+    } as unknown as CreateCategoryUseCase;
+    const useCase = new ProcessSpreadsheetImportUseCase(
+      jobRepo,
+      makeParserDouble(sheet),
+      makeMapperDouble(mapping),
+      makeAddProductUseCase(productRepo),
+      productRepo,
+      createCategory,
+    );
+
+    await useCase.execute(baseInput);
+
+    assert.equal(productRepo.created.length, 1);
+    assert.equal(productRepo.created[0].categoryId, "cat_new_arrivals");
+    const completed = jobRepo.updates[jobRepo.updates.length - 1];
+    assert.equal(completed.successRows, 1);
+    assert.deepEqual(completed.errors, []);
   });
 });

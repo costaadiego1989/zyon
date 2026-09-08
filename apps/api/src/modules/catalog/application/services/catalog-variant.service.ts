@@ -1,6 +1,8 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, Inject, Logger, NotFoundException, Optional } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 import type { S3UploadService } from "../../../../shared/storage/s3-upload.service.js";
+import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../../../shared/events/domain-event-bus.port.js";
 
 export type VariantChanges = {
   basePriceInCents?: number;
@@ -14,13 +16,19 @@ export type VariantChanges = {
 
 @Injectable()
 export class CatalogVariantService {
-  constructor(private readonly prisma: PrismaClient, private readonly s3: S3UploadService) {}
+  private readonly logger = new Logger(CatalogVariantService.name);
+
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly s3: S3UploadService,
+    @Optional() @Inject(DOMAIN_EVENT_BUS) private readonly eventBus?: DomainEventBus,
+  ) {}
 
   async update(merchantId: string, productId: string, variantId: string, changes: VariantChanges) {
     if (changes.stockQuantity !== undefined && (!Number.isSafeInteger(changes.stockQuantity) || changes.stockQuantity < 0)) {
       throw new BadRequestException("invalid_stock_quantity");
     }
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const owner = { id: variantId, productId, product: { merchantId } };
       if (!await tx.productVariant.findFirst({ where: owner, select: { id: true } })) throw new NotFoundException("variant_not_found");
       if (changes.basePriceInCents !== undefined || changes.costInCents !== undefined) {
@@ -55,6 +63,16 @@ export class CatalogVariantService {
       }
       return { updated: true };
     });
+    await this.eventBus?.publish({
+      eventId: randomUUID(),
+      schemaVersion: 1,
+      eventType: "product.upserted",
+      merchantId,
+      payload: { id: productId, source: "variant_update" },
+    }).catch((err) => {
+      this.logger.warn(`Event publish failed for product ${productId}: ${err instanceof Error ? err.message : String(err)}`);
+    });
+    return result;
   }
 
   async uploadMedia(merchantId: string, body: { variantId: string; image: string }) {
