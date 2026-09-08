@@ -21,6 +21,7 @@ export interface ProductFormProps {
   onIsActiveChange: (v: boolean) => void;
   isEditing: boolean;
   categories: Array<{ id: string; name: string }>;
+  onCreateCategory: (name: string) => Promise<{ id: string; name: string }>;
   generatingDesc: boolean;
   onGenerateDescription: () => void;
   formErrors: Record<string, string>;
@@ -48,6 +49,7 @@ export function ProductForm(props: ProductFormProps) {
     onIsActiveChange,
     isEditing,
     categories,
+    onCreateCategory,
     generatingDesc,
     onGenerateDescription,
     formErrors,
@@ -140,7 +142,7 @@ export function ProductForm(props: ProductFormProps) {
         </div>
         <div style={{ marginBottom: 12 }}>
           <span style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 4 }}>Categoria</span>
-          <CategoryCombobox categoryId={categoryId} onCategoryIdChange={onCategoryIdChange} categories={categories} />
+          <CategoryCombobox categoryId={categoryId} onCategoryIdChange={onCategoryIdChange} categories={categories} onCreateCategory={onCreateCategory} />
         </div>
         {isEditing && (
           <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>

@@ -137,6 +137,7 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
             onIsActiveChange={page.form.setIsActive}
             isEditing={page.isEditing}
             categories={page.categories}
+            onCreateCategory={page.createCategory}
             generatingDesc={page.form.generatingDesc}
             onGenerateDescription={page.generateDescription}
             formErrors={page.formErrors}

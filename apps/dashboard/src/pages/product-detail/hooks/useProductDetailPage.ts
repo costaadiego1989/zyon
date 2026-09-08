@@ -325,6 +325,18 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
     }
   }
 
+  async function createCategory(name: string): Promise<{ id: string; name: string }> {
+    if (!merchantId) throw new Error("merchant_not_available");
+    const created = await api.createCategory(merchantId, { name });
+    const category = { id: created.id, name: created.name };
+    setCategories((current) =>
+      current.some((item) => item.id === category.id)
+        ? current
+        : [...current, category].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
+    );
+    return category;
+  }
+
   return {
     // Identity
     isEditing,
@@ -366,5 +378,6 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
     // Actions
     handleSave,
     generateDescription,
+    createCategory,
   };
 }

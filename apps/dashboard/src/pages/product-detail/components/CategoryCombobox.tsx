@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, LoaderCircle, Plus, X } from "lucide-react";
 
 export interface CategoryComboboxProps {
   categoryId: string;
   onCategoryIdChange: (v: string) => void;
   categories: Array<{ id: string; name: string }>;
+  onCreateCategory?: (name: string) => Promise<{ id: string; name: string }>;
 }
 
 /** Normalize for accent-insensitive, case-insensitive matching. */
@@ -20,9 +21,11 @@ function normalize(s: string): string {
  * onCategoryIdChange); the displayed value is the category NAME. Never exposes
  * a raw id input. Visual pattern mirrors CouponDropdown (RuleEditor.tsx).
  */
-export function CategoryCombobox({ categoryId, onCategoryIdChange, categories }: CategoryComboboxProps) {
+export function CategoryCombobox({ categoryId, onCategoryIdChange, categories, onCreateCategory }: CategoryComboboxProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const selected = useMemo(() => categories.find((c) => c.id === categoryId) ?? null, [categories, categoryId]);
@@ -50,30 +53,55 @@ export function CategoryCombobox({ categoryId, onCategoryIdChange, categories }:
     onCategoryIdChange(id);
     setOpen(false);
     setQuery("");
+    setCreateError(null);
   }
 
-  if (!hasCategories) {
-    return (
-      <input
-        value=""
-        disabled
-        placeholder="Nenhuma categoria cadastrada"
-        style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--color-border)", font: "13px var(--font-sans)", color: "var(--color-text-faint)", outline: "none", background: "var(--surface-1)", cursor: "not-allowed", opacity: 0.7 }}
-      />
-    );
+  async function createCategory() {
+    const name = query.trim();
+    if (!name || !onCreateCategory || creating) return;
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const created = await onCreateCategory(name);
+      selectCategory(created.id);
+    } catch (error) {
+      setCreateError(error instanceof Error ? error.message : "Não foi possível criar a categoria.");
+    } finally {
+      setCreating(false);
+    }
   }
+
+  const requestedName = query.trim();
+  const exactMatch = requestedName
+    ? categories.some((category) => normalize(category.name) === normalize(requestedName))
+    : false;
+  const canCreate = Boolean(onCreateCategory && requestedName && !exactMatch);
 
   return (
     <div ref={containerRef} style={{ position: "relative" }}>
       <div
+        role="combobox"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        tabIndex={0}
         onClick={() => {
           setOpen((v) => !v);
-          if (!open) setQuery("");
+          if (!open) {
+            setQuery("");
+            setCreateError(null);
+          }
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setOpen((value) => !value);
+          }
+          if (event.key === "Escape") setOpen(false);
         }}
         style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-1)", cursor: "pointer" }}
       >
         <span style={{ font: "13px var(--font-sans)", color: selected ? "var(--color-text)" : "var(--color-text-faint)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {selected ? selected.name : "Sem categoria"}
+          {selected ? selected.name : hasCategories ? "Sem categoria" : "Criar ou escolher uma categoria"}
         </span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 4, flex: "none" }}>
           {selected ? (
@@ -107,7 +135,7 @@ export function CategoryCombobox({ categoryId, onCategoryIdChange, categories }:
             placeholder="Buscar categoria..."
             style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--color-border)", font: "12.5px var(--font-sans)", color: "var(--color-text)", outline: "none", background: "var(--surface-1)", marginBottom: 4 }}
           />
-          <div style={{ maxHeight: 180, overflowY: "auto" }}>
+          <div role="listbox" style={{ maxHeight: 180, overflowY: "auto" }}>
             <button
               type="button"
               onClick={() => selectCategory("")}
@@ -117,8 +145,19 @@ export function CategoryCombobox({ categoryId, onCategoryIdChange, categories }:
             >
               Sem categoria
             </button>
+            {canCreate ? (
+              <button
+                type="button"
+                disabled={creating}
+                onClick={() => void createCategory()}
+                style={{ width: "100%", display: "flex", alignItems: "center", gap: 7, padding: "9px 10px", borderRadius: 6, border: "none", background: "var(--color-brand-subtle)", color: "var(--color-brand-hover)", font: "600 12px var(--font-sans)", cursor: creating ? "wait" : "pointer", textAlign: "left" }}
+              >
+                {creating ? <LoaderCircle size={14} aria-hidden="true" /> : <Plus size={14} aria-hidden="true" />}
+                {creating ? "Criando categoria..." : `Criar “${requestedName}”`}
+              </button>
+            ) : null}
             {filtered.length === 0 ? (
-              <div style={{ padding: 10, textAlign: "center", font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>Nenhuma categoria encontrada</div>
+              <div style={{ padding: canCreate ? "7px 10px" : 10, textAlign: "center", font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>{hasCategories ? "Nenhuma categoria encontrada" : "Digite o nome para criar a primeira categoria"}</div>
             ) : (
               filtered.map((c) => (
                 <button
@@ -133,6 +172,7 @@ export function CategoryCombobox({ categoryId, onCategoryIdChange, categories }:
                 </button>
               ))
             )}
+            {createError ? <div role="alert" style={{ padding: "7px 10px", color: "var(--color-error)", font: "11px var(--font-sans)" }}>{createError}</div> : null}
           </div>
         </div>
       )}
