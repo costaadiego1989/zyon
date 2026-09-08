@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { FiArrowRight, FiCheck, FiChevronLeft, FiChevronRight, FiPackage, FiShoppingBag, FiTruck } from "react-icons/fi";
+import { ProductCardShare } from "./parts/ProductCardShare";
 import { useCart } from "@/lib/cart-store";
 import type { ProductContentPurchaseResponse } from "@/lib/api/product-content";
 import ProductContentRenderer, {
@@ -33,7 +34,7 @@ function getImages(purchase: PurchaseTarget | undefined, blocks: ProductContentB
   return candidates.filter((image, index) => safeImage(image.src) && candidates.findIndex((other) => other.src === image.src) === index).slice(0, 8);
 }
 
-export default function RichProductContentRenderer({ blocks, faqs, testimonials, videos, purchase, embedded = false, immersive = false, narrationEnabled = true }: {
+export default function RichProductContentRenderer({ blocks, faqs, testimonials, videos, purchase, embedded = false, immersive = false, narrationEnabled = true, shareUrl }: {
   blocks: ProductContentBlock[];
   faqs: ProductContentSupplementalFaq[];
   testimonials: ProductContentSupplementalTestimonial[];
@@ -43,6 +44,7 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
   embedded?: boolean;
   immersive?: boolean;
   narrationEnabled?: boolean;
+  shareUrl?: string;
 }) {
   const { cart } = useCart();
   const [selectedVariantId, setSelectedVariantId] = useState(purchase?.defaultVariantId ?? purchase?.variants[0]?.id ?? "");
@@ -147,6 +149,7 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
         <section className={styles.hero} data-aacp-rich-product-purchase aria-labelledby="aacp-rich-product-title">
           <ProductGallery images={images} productName={purchase.productName} />
           <div className={styles.summary}>
+            {shareUrl && purchase ? <div className={styles.shareRow}><span>Compartilhe</span><ProductCardShare productName={purchase.productName} shareUrl={shareUrl} /></div> : null}
             {rating ? <a className={styles.rating} href="#product-content-reviews-heading"><span aria-hidden="true">★</span><strong>{rating}</strong><span>{testimonials.length} avaliações</span><FiArrowRight aria-hidden="true" /></a> : null}
             <h1 id="aacp-rich-product-title">{purchase.productName}</h1>
             {purchase.description ? <p className={styles.description}>{purchase.description}</p> : null}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { FiArrowLeft, FiX } from "react-icons/fi";
+import { FiArrowLeft, FiLink, FiX } from "react-icons/fi";
 import type { ConversationBlock } from "@/lib/types";
 import ProductContentBlock from "./ProductContentBlock";
 import styles from "./ProductExperienceOverlay.module.css";
@@ -16,8 +16,20 @@ export default function ProductExperienceOverlay({ productId, merchantSlug, onCl
   const closeCallback = useRef(onClose);
   closeCallback.current = onClose;
   const [closing, setClosing] = useState(false);
+  const [shareUrl, setShareUrl] = useState("");
 
   const close = () => setClosing(true);
+  useEffect(() => {
+    if (!merchantSlug) return;
+    const url = new URL(`/store/${encodeURIComponent(merchantSlug)}`, window.location.origin);
+    url.searchParams.set("show", "content");
+    url.searchParams.set("product", productId);
+    setShareUrl(url.toString());
+  }, [merchantSlug, productId]);
+  const copyShareLink = () => {
+    if (!shareUrl) return;
+    navigator.clipboard?.writeText(shareUrl).catch(() => {});
+  };
   useEffect(() => {
     if (!closing) return;
     const timer = window.setTimeout(() => closeCallback.current(), window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 180);
@@ -66,7 +78,10 @@ export default function ProductExperienceOverlay({ productId, merchantSlug, onCl
     <header className={styles.header}>
       <button type="button" onClick={close} aria-label="Voltar ao chat"><FiArrowLeft aria-hidden="true" /><span>Voltar</span></button>
       <h2 id="product-experience-heading">Conheça o produto</h2>
-      <button type="button" onClick={close} aria-label="Fechar produto e voltar ao chat"><FiX aria-hidden="true" /></button>
+      <div className={styles.actions}>
+        <button type="button" onClick={copyShareLink} aria-label="Copiar link do produto" disabled={!shareUrl}><FiLink aria-hidden="true" /></button>
+        <button type="button" onClick={close} aria-label="Fechar produto e voltar ao chat"><FiX aria-hidden="true" /></button>
+      </div>
     </header>
     <ProductContentBlock
       key={productId}
@@ -74,6 +89,7 @@ export default function ProductExperienceOverlay({ productId, merchantSlug, onCl
       merchantSlug={merchantSlug}
       immersive
       narrationEnabled={!closing}
+      shareUrl={shareUrl}
     />
   </div>;
 }

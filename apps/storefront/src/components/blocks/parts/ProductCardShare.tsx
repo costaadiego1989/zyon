@@ -17,7 +17,8 @@ const iconWrap: React.CSSProperties = {
   padding: 0,
 };
 
-export function ProductCardShare({ productName }: { productName: string }) {
+export function ProductCardShare({ productName, shareUrl }: { productName: string; shareUrl?: string }) {
+  const url = shareUrl ?? (typeof window !== "undefined" ? window.location.href : "");
   return (
     <div
       style={{
@@ -27,7 +28,7 @@ export function ProductCardShare({ productName }: { productName: string }) {
       }}
     >
       <a
-        href={`https://wa.me/?text=${encodeURIComponent(productName + (typeof window !== "undefined" ? " " + window.location.href : ""))}`}
+        href={`https://wa.me/?text=${encodeURIComponent(`${productName} ${url}`.trim())}`}
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Compartilhar no WhatsApp"
@@ -36,7 +37,7 @@ export function ProductCardShare({ productName }: { productName: string }) {
         <FaWhatsapp size={15} />
       </a>
       <a
-        href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : "")}`}
+        href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`}
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Compartilhar no Facebook"
@@ -49,7 +50,7 @@ export function ProductCardShare({ productName }: { productName: string }) {
         aria-label="Copiar link para Instagram"
         onClick={() => {
           if (typeof navigator !== "undefined") {
-            navigator.clipboard.writeText(window.location.href).catch(() => {});
+            navigator.clipboard.writeText(url).catch(() => {});
           }
         }}
         style={{ ...iconWrap, color: "#E4405F" }}

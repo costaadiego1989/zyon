@@ -31,9 +31,10 @@ type Props = {
   productId: string;
   /** Optional override — used by tests / fixtures. */
   productName?: string;
+  shareUrl?: string;
 };
 
-export default async function ContentBlocksWrapper({ slug, productId, productName }: Props) {
+export default async function ContentBlocksWrapper({ slug, productId, productName, shareUrl }: Props) {
   const content = await fetchProductContent(slug, productId);
 
   if (!content) {
@@ -67,6 +68,7 @@ export default async function ContentBlocksWrapper({ slug, productId, productNam
         videos={content.videos}
         purchase={content.purchase}
         embedded={false}
+        shareUrl={shareUrl}
       />
     </article>
   );

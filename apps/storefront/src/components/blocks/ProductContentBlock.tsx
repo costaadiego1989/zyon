@@ -58,12 +58,14 @@ export default function ProductContentBlock({
   onQuickReply,
   immersive = false,
   narrationEnabled = true,
+  shareUrl,
 }: {
   block: ConversationBlock & { type: "product_content" };
   merchantSlug?: string;
   onQuickReply?: (option: string) => void;
   immersive?: boolean;
   narrationEnabled?: boolean;
+  shareUrl?: string;
 }) {
   const data = block.data as unknown as ProductContentData;
   const productId = typeof data?.productId === "string" && CATALOG_ID.test(data.productId) ? data.productId : null;
@@ -131,6 +133,7 @@ export default function ProductContentBlock({
           embedded={!immersive}
           immersive={immersive}
           narrationEnabled={narrationEnabled}
+          shareUrl={shareUrl}
         />
       </article>
     );

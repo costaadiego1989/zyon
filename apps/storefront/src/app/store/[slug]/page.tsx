@@ -3,11 +3,12 @@ import { notFound } from "next/navigation";
 import ConversationShell from "@/components/ConversationShell";
 import { WidgetConfigProvider } from "@/components/WidgetConfigProvider";
 import { CartProvider } from "@/lib/cart-store";
-import { OrganizationSchema, WebSiteSchema, BreadcrumbListSchema } from "@/components/StructuredData";
+import { OrganizationSchema, WebSiteSchema, BreadcrumbListSchema, ProductSchema } from "@/components/StructuredData";
 import { GoogleTagManager } from "@/components/GoogleTagManager";
 import { FacebookPixel, TiktokPixel } from "@/components/PixelTrackers";
 import { getDemoMerchant } from "@/lib/demo-merchant";
 import { fetchStoreConfig, fetchStoreStories } from "@/lib/api/server-client";
+import { fetchProductContent } from "@/lib/api/product-content";
 import { DemoEmbedBridge } from "@/components/DemoEmbedBridge";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://stores.zyon.com";
@@ -36,23 +37,37 @@ type SearchParams = {
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: Promise<Params>;
+  searchParams?: Promise<SearchParams>;
 }): Promise<Metadata> {
   const { slug } = await params;
+  const query = await searchParams;
   const config = await fetchStoreConfig(slug);
   const merchant = config ? null : getDemoMerchant(slug);
   const name = config?.name ?? merchant?.name ?? "Zyon Store";
   const seo = config?.storeSettings?.seo;
+  const sharedProductId = (() => {
+    const wantsRich = query?.show === "content" || query?.show === "product" || query?.show === "rich";
+    const candidate = query?.product ?? query?.productId;
+    return wantsRich && typeof candidate === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(candidate) ? candidate : null;
+  })();
+  const productContent = sharedProductId ? await fetchProductContent(slug, sharedProductId) : null;
+  const purchase = productContent?.purchase;
   const description =
+    purchase?.description ??
     seo?.description ??
     config?.description ??
     merchant?.description ??
     "Loja conversacional com atendimento por IA e checkout integrado.";
-  const title = seo?.title ?? name;
+  const title = purchase?.productName ?? seo?.title ?? name;
   const keywords = seo?.keywords?.join(", ");
-  const logo = seo?.ogImage ?? config?.logo ?? merchant?.logo;
-  const canonicalUrl = seo?.canonicalUrl ?? `${SITE_URL}/store/${slug}`;
+  const productImage = purchase?.images?.find((image) => image.src)?.src;
+  const logo = productImage ?? seo?.ogImage ?? config?.logo ?? merchant?.logo;
+  const canonicalUrl = sharedProductId
+    ? `${SITE_URL}/store/${encodeURIComponent(slug)}?show=content&product=${encodeURIComponent(sharedProductId)}`
+    : seo?.canonicalUrl ?? `${SITE_URL}/store/${slug}`;
   const twitterCard = (seo?.twitterCard ?? "summary_large_image") as any;
 
   return {
@@ -67,11 +82,11 @@ export async function generateMetadata({
     openGraph: {
       title: seo?.ogTitle ?? title,
       description: seo?.ogDescription ?? description,
-      type: "website",
+      type: sharedProductId ? "article" : "website",
       siteName: name,
       url: canonicalUrl,
       locale: "pt_BR",
-      images: logo ? [{ url: logo, width: 1200, height: 630, alt: name }] : [],
+      images: logo ? [{ url: logo, width: 1200, height: 630, alt: purchase?.productName ?? name }] : [],
     },
     twitter: {
       card: twitterCard,
@@ -123,6 +138,11 @@ export default async function StorePage({
     if (!wantsRich) return null;
     return product ?? productId ?? null;
   })();
+  const sharedProduct = richProductId ? await fetchProductContent(slug, richProductId) : null;
+  const sharedPurchase = sharedProduct?.purchase;
+  const sharedProductUrl = richProductId
+    ? `${SITE_URL}/store/${encodeURIComponent(slug)}?show=content&product=${encodeURIComponent(richProductId)}`
+    : undefined;
 
   const name = config?.name ?? merchant!.name;
   const logo = config?.logo ?? merchant?.logo;
@@ -288,6 +308,17 @@ export default async function StorePage({
         sameAs={socialLinks}
       />
       <WebSiteSchema name={name} url={pageUrl} />
+      {sharedPurchase?.priceReais != null ? (
+        <ProductSchema
+          name={sharedPurchase.productName}
+          description={sharedPurchase.description ?? undefined}
+          image={sharedPurchase.images.find((image) => image.src)?.src}
+          price={Math.round(sharedPurchase.priceReais * 100)}
+          currency={sharedPurchase.currency ?? "BRL"}
+          availability={sharedPurchase.variants.some((variant) => variant.available)}
+          url={sharedProductUrl}
+        />
+      ) : null}
       <BreadcrumbListSchema
         items={[
           { name: "Início", url: SITE_URL },

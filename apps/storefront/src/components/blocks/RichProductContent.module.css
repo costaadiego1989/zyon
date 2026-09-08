@@ -30,6 +30,8 @@
 .imageFallback { display: flex; height: 100%; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--product-muted); }
 .imageFallback svg { width: 36px; height: 36px; }
 .summary { padding: 16px 0 0; min-width: 0; }
+.shareRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; color: var(--product-muted); font-size: 12px; }
+.shareRow > span { font-weight: 600; }
 .rating { display: inline-flex; gap: 9px; align-items: center; text-decoration: none; color: var(--product-muted); font-size: 13px; margin-bottom: 20px; }
 .rating > span:first-child { color: var(--aacp-fg); font-size: 17px; }
 .rating strong { color: var(--aacp-fg); }
