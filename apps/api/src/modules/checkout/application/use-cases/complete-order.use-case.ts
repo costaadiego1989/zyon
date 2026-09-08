@@ -188,8 +188,9 @@ export class CompleteOrderUseCase {
 
       const buyerEmail = session.customer?.email;
       const buyerPhone = session.customer?.phone;
-      if (buyerEmail || buyerPhone) {
-        await repo.appendOutbox(
+      // The merchant must always receive the operational order notification.
+      // Buyer delivery is handled independently and skips absent buyer contacts.
+      await repo.appendOutbox(
           createCheckoutEventEnvelope({
             eventType: "order.confirmed",
             merchantId: input.merchant_id,
@@ -218,8 +219,7 @@ export class CompleteOrderUseCase {
             },
             causationId: input.external_order_id
           })
-        );
-      }
+      );
       return false;
     };
 

@@ -13,6 +13,7 @@ import { PersistenceModule } from "../../shared/persistence/persistence.module.j
 import { MERCHANT_NOTIFICATION_INBOX_PORT } from "./domain/ports/merchant-notification-inbox.port.js";
 import { PrismaMerchantNotificationInboxRepository } from "./infrastructure/repositories/prisma-merchant-notification-inbox.repository.js";
 import { ManageMerchantNotificationInboxUseCase } from "./application/use-cases/manage-merchant-notification-inbox.use-case.js";
+import { SendMerchantOrderNotificationUseCase } from "./application/use-cases/send-merchant-order-notification.use-case.js";
 
 @Module({
   imports: [PersistenceModule],
@@ -32,6 +33,7 @@ import { ManageMerchantNotificationInboxUseCase } from "./application/use-cases/
     SendReturnApprovedUseCase,
     NotificationListener,
     ManageMerchantNotificationInboxUseCase,
+    SendMerchantOrderNotificationUseCase,
     { provide: MERCHANT_NOTIFICATION_INBOX_PORT, useClass: PrismaMerchantNotificationInboxRepository },
   ],
   exports: [

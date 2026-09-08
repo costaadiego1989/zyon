@@ -6,6 +6,8 @@ import { SendOrderConfirmationUseCase } from "./send-order-confirmation.use-case
 import { SendOrderShippedUseCase } from "./send-order-shipped.use-case.js";
 import { SendOrderDeliveredUseCase } from "./send-order-delivered.use-case.js";
 import { SendReturnApprovedUseCase } from "./send-return-approved.use-case.js";
+import { SendMerchantOrderNotificationUseCase } from "./send-merchant-order-notification.use-case.js";
+import type { MerchantNotificationInboxPort } from "../../domain/ports/merchant-notification-inbox.port.js";
 
 class RecordingEmailSender implements EmailSenderPort {
   readonly inputs: SendEmailInput[] = [];
@@ -38,4 +40,48 @@ test("transactional order and return emails require provider acceptance", async 
 
   assert.equal(email.inputs.length, 4);
   assert.deepEqual(email.inputs.map((input) => input.requireDelivery), [true, true, true, true]);
+});
+
+test("a paid order always reaches the merchant dashboard and email without a buyer contact", async () => {
+  const email = new RecordingEmailSender();
+  const dashboard: Array<{ merchantId: string; type: string; title: string }> = [];
+  const inbox: MerchantNotificationInboxPort = {
+    list: async () => [],
+    create: async (input) => { dashboard.push(input); },
+    getContact: async () => ({
+      merchantId: "merchant-1",
+      merchantName: "Loja teste",
+      ownerEmail: "owner@example.test",
+      whatsappConnected: false,
+    }),
+    markRead: async () => undefined,
+    markAllRead: async () => undefined,
+  };
+  let whatsappSends = 0;
+  const merchantWhatsApp: WhatsAppSenderPort = {
+    async send() {
+      whatsappSends++;
+      return { status: "accepted" };
+    },
+  };
+
+  await new SendMerchantOrderNotificationUseCase(inbox, email, merchantWhatsApp).execute({
+    type: "ORDER_CONFIRMATION",
+    merchantId: "merchant-1",
+    merchantName: "Loja teste",
+    orderId: "order-1",
+    orderNumber: "1001",
+    buyerEmail: "",
+    items: [{ name: "Produto", quantity: 1, price: "19.90" }],
+    total: "19.90",
+  });
+
+  assert.equal(dashboard.length, 1);
+  assert.equal(dashboard[0].merchantId, "merchant-1");
+  assert.equal(dashboard[0].type, "order_paid");
+  assert.equal(dashboard[0].title, "Novo pedido #1001");
+  assert.equal(email.inputs.length, 1);
+  assert.equal(email.inputs[0].to, "owner@example.test");
+  assert.equal(email.inputs[0].requireDelivery, true);
+  assert.equal(whatsappSends, 0);
 });

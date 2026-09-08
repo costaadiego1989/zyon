@@ -8,6 +8,7 @@ import { SendOrderConfirmationUseCase } from "../../application/use-cases/send-o
 import { SendOrderShippedUseCase } from "../../application/use-cases/send-order-shipped.use-case.js";
 import { SendOrderDeliveredUseCase } from "../../application/use-cases/send-order-delivered.use-case.js";
 import { SendReturnApprovedUseCase } from "../../application/use-cases/send-return-approved.use-case.js";
+import { SendMerchantOrderNotificationUseCase } from "../../application/use-cases/send-merchant-order-notification.use-case.js";
 import {
   OrderConfirmationEvent,
   OrderShippedEvent,
@@ -25,6 +26,7 @@ export class NotificationListener implements OnModuleInit {
     private readonly sendOrderShipped: SendOrderShippedUseCase,
     private readonly sendOrderDelivered: SendOrderDeliveredUseCase,
     private readonly sendReturnApproved: SendReturnApprovedUseCase,
+    private readonly sendMerchantOrderNotification: SendMerchantOrderNotificationUseCase,
   ) {}
 
   onModuleInit() {
@@ -51,11 +53,17 @@ export class NotificationListener implements OnModuleInit {
   }
 
   private async onOrderConfirmed(event: DomainEvent): Promise<void> {
-    try {
-      const payload = event.payload as OrderConfirmationEvent;
-      await this.sendOrderConfirmation.execute(payload);
-    } catch (err) {
-      this.logger.error(`Failed to send order confirmation email:`, err);
+    const payload = event.payload as OrderConfirmationEvent;
+    const deliveries = await Promise.allSettled([
+      this.sendOrderConfirmation.execute(payload),
+      this.sendMerchantOrderNotification.execute(payload),
+    ]);
+    const names = ["buyer", "merchant"];
+    for (const [index, delivery] of deliveries.entries()) {
+      if (delivery.status === "rejected") {
+        const reason = delivery.reason instanceof Error ? delivery.reason.stack ?? delivery.reason.message : String(delivery.reason);
+        this.logger.error(`Failed to send ${names[index]} order confirmation notification: ${reason}`);
+      }
     }
   }
 

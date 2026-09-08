@@ -545,7 +545,13 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             )}
             <NotificationBell
               notifications={notifications}
-              onClear={() => setNotifications([])}
+              onClear={() => {
+                void dashboardFetch(
+                  API_BASE_URL,
+                  `/merchants/${me.id}/notifications/read-all`,
+                  { method: "POST" },
+                ).finally(() => setNotifications([]));
+              }}
               onClickNotification={(n) => {
                 if (n.ticketId) {
                   changeTab("support" as TabKey);
