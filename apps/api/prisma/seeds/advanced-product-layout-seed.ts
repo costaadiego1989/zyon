@@ -75,6 +75,30 @@ async function main() {
     }
 
     const suffix = safeSuffix(merchant.id);
+    const category = await prisma.productCategory.upsert({
+      where: { merchantId_slug: { merchantId: merchant.id, slug: "showroom-advanced-layout" } },
+      create: {
+        id: `apl_category_${suffix}`,
+        merchantId: merchant.id,
+        name: "Produtos em destaque",
+        slug: "showroom-advanced-layout",
+        description: "Produtos de referencia do layout avancado.",
+        isActive: true,
+      },
+      update: {
+        name: "Produtos em destaque",
+        description: "Produtos de referencia do layout avancado.",
+        isActive: true,
+      },
+    });
+    const existingDefaultLocation = await prisma.inventoryLocation.findFirst({
+      where: { merchantId: merchant.id, isDefault: true, isActive: true },
+    });
+    const inventoryLocation = existingDefaultLocation ?? await prisma.inventoryLocation.upsert({
+      where: { merchantId_name: { merchantId: merchant.id, name: "Estoque principal" } },
+      create: { merchantId: merchant.id, name: "Estoque principal", kind: "warehouse", isDefault: true, isActive: true },
+      update: { kind: "warehouse", isDefault: true, isActive: true },
+    });
     const productId = `apl_showcase_${suffix}`;
     const variantId = `${productId}_standard`;
     const productSlug = `nucleo-serum-barreira-apl-${suffix}`;
@@ -83,6 +107,7 @@ async function main() {
       create: {
         id: productId,
         merchantId: merchant.id,
+        categoryId: category.id,
         name: "Núcleo — Sérum de Barreira",
         slug: productSlug,
         description: "Hidratação que encontra o seu ritmo. Textura leve, ceramidas e niacinamida em um cuidado diário, sem fragrância adicionada.",
@@ -92,6 +117,7 @@ async function main() {
       },
       update: {
         merchantId: merchant.id,
+        categoryId: category.id,
         name: "Núcleo — Sérum de Barreira",
         slug: productSlug,
         description: "Hidratação que encontra o seu ritmo. Textura leve, ceramidas e niacinamida em um cuidado diário, sem fragrância adicionada.",
@@ -153,6 +179,39 @@ async function main() {
         where: { id: `${productId}_gallery_${index}` },
         create: { id: `${productId}_gallery_${index}`, variantId, url: entry.url, alt: entry.alt, type: "IMAGE", order: index + 1 },
         update: { url: entry.url, alt: entry.alt, order: index + 1 },
+      });
+    }
+
+    for (const snapshot of [
+      { sku: `APL-NUCLEO-${suffix}`, variantName: "30 ml", quantity: 4, price: 12990, cost: 5196 },
+      { sku: `APL-NUCLEO-${suffix}-large`, variantName: "50 ml", quantity: 24, price: 18990, cost: undefined },
+      { sku: `APL-NUCLEO-${suffix}-family`, variantName: "100 ml", quantity: 0, price: 29990, cost: undefined },
+    ]) {
+      await prisma.inventoryItem.upsert({
+        where: {
+          merchantId_sku_locationId: {
+            merchantId: merchant.id,
+            sku: snapshot.sku,
+            locationId: inventoryLocation.id,
+          },
+        },
+        create: {
+          merchantId: merchant.id,
+          sku: snapshot.sku,
+          productName: product.name,
+          variantName: snapshot.variantName,
+          locationId: inventoryLocation.id,
+          quantity: snapshot.quantity,
+          avgCostCents: snapshot.cost,
+          salePriceCents: snapshot.price,
+        },
+        update: {
+          productName: product.name,
+          variantName: snapshot.variantName,
+          quantity: snapshot.quantity,
+          avgCostCents: snapshot.cost,
+          salePriceCents: snapshot.price,
+        },
       });
     }
 
