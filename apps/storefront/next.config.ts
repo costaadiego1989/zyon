@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const config: NextConfig = {
   reactStrictMode: true,
+  devIndicators: process.env.AACP_VISUAL_REVIEW === "1" ? false : undefined,
   transpilePackages: ["@zyon/checkout-ui", "@zyon/widget-v2"],
   experimental: {
     serverActions: {
@@ -30,7 +31,8 @@ const config: NextConfig = {
       `style-src 'self' 'unsafe-inline'${devStyle}`,
       "img-src 'self' data: https: blob:",
       `connect-src 'self' https: wss://api.zyon-payments.com.br${devConnect} https://api.stripe.com`,
-      "frame-src 'self' https://www.googletagmanager.com https://js.stripe.com https://hooks.stripe.com",
+      "frame-src 'self' https://www.googletagmanager.com https://js.stripe.com https://hooks.stripe.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com",
+      "media-src 'self' https: blob:",
       `font-src 'self' data: https:${devFont}`,
       `frame-ancestors ${frameAncestors}`,
     ].join("; ");

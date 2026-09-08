@@ -134,11 +134,12 @@ export class ProductPromotionController {
   @RequirePlanFeature("advancedRules")
   async upsertRules(
     @Param("mid") merchantId: string,
-    @Body() body: { productSkus: string[]; rules: AdvancedRule[] },
+    @Param("pid") productId: string,
+    @Body() body: { rules: AdvancedRule[] },
   ) {
     const merged = await this.upsertAdvancedRules.execute({
       merchantId,
-      productSkus: body.productSkus ?? [],
+      productId,
       rules: body.rules ?? [],
     });
     return { rules: merged };

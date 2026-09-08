@@ -18,6 +18,7 @@ const block = (overrides: Partial<{ id: string; isEnabled: boolean; order: numbe
     props: { text: "hello" },
     order: overrides.order ?? 0,
     isEnabled: overrides.isEnabled ?? true,
+    locale: "pt-BR",
     createdAt: new Date(),
     updatedAt: new Date(),
   });
@@ -30,6 +31,7 @@ const faq = (overrides: Partial<{ id: string; isPublished: boolean }> = {}) =>
     answer: "A.",
     order: 0,
     isPublished: overrides.isPublished ?? true,
+    locale: "pt-BR",
     createdAt: new Date(),
     updatedAt: new Date(),
   });
@@ -43,6 +45,7 @@ const testimonial = (overrides: Partial<{ isPublished: boolean }> = {}) =>
     source: "curated",
     moderationStatus: "approved",
     isPublished: overrides.isPublished ?? true,
+    locale: "pt-BR",
     createdAt: new Date(),
     updatedAt: new Date(),
   });
@@ -56,6 +59,7 @@ const video = (overrides: Partial<{ isPublished: boolean }> = {}) =>
     source: "merchant",
     moderationStatus: "approved",
     isPublished: overrides.isPublished ?? true,
+    locale: "pt-BR",
     createdAt: new Date(),
     updatedAt: new Date(),
   });
@@ -72,6 +76,9 @@ describe("GetProductContentUseCase", () => {
       upsert: mock.fn(),
       delete: mock.fn(),
       replaceAll: mock.fn(),
+      latestHistoryVersion: mock.fn(),
+      listHistoryVersions: mock.fn(),
+      findHistoryById: mock.fn(),
     };
     faqRepo = {
       findPublishedByProduct: mock.fn(async () => [faq()]),
@@ -109,11 +116,16 @@ describe("GetProductContentUseCase", () => {
       videoRepo,
     );
     const result = await useCase.execute({ merchantId: "m1", productId: "p1" });
+    assert.equal(result.locale, "pt-BR");
     assert.equal(result.blocks.length, 1); // disabled filtered out
     assert.equal(result.blocks[0].id, "b1");
+    assert.equal(result.blocks[0].locale, "pt-BR");
     assert.equal(result.faqs.length, 1);
+    assert.equal(result.faqs[0].locale, "pt-BR");
     assert.equal(result.testimonials.length, 1);
+    assert.equal(result.testimonials[0].locale, "pt-BR");
     assert.equal(result.videos.length, 1);
+    assert.equal(result.videos[0].locale, "pt-BR");
   });
 
   it("filters disabled blocks", async () => {
@@ -135,15 +147,19 @@ describe("GetProductContentUseCase", () => {
     assert.equal(result.blocks[0].id, "y");
   });
 
-  it("passes merchantId to all repos for tenant scoping", async () => {
+  it("passes merchant and requested locale to every repository", async () => {
     const useCase = new GetProductContentUseCase(
       contentRepo,
       faqRepo,
       testimonialRepo,
       videoRepo,
     );
-    await useCase.execute({ merchantId: "m1", productId: "p1" });
+    await useCase.execute({ merchantId: "m1", productId: "p1", locale: "en" });
     assert.equal((contentRepo.findByProduct as any).mock.callCount(), 1);
     assert.equal((contentRepo.findByProduct as any).mock.calls[0].arguments[0].merchantId, "m1");
+    assert.equal((contentRepo.findByProduct as any).mock.calls[0].arguments[0].locale, "en");
+    assert.equal((faqRepo.findPublishedByProduct as any).mock.calls[0].arguments[0].locale, "en");
+    assert.equal((testimonialRepo.findApprovedByProduct as any).mock.calls[0].arguments[0].locale, "en");
+    assert.equal((videoRepo.findApprovedByProduct as any).mock.calls[0].arguments[0].locale, "en");
   });
 });

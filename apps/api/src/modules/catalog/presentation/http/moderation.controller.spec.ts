@@ -1,0 +1,172 @@
+import { describe, it, mock, beforeEach } from "node:test";
+import { strict as assert } from "node:assert";
+import { ModerationController } from "./moderation.controller.js";
+import type { ProductTestimonialRepositoryPort } from "../../domain/ports/product-testimonial-repository.port.js";
+import type { ProductVideoRepositoryPort } from "../../domain/ports/product-video-repository.port.js";
+import { ProductTestimonialEntity } from "../../domain/entities/product-testimonial.entity.js";
+import { ProductVideoEntity } from "../../domain/entities/product-video.entity.js";
+import type { PrismaClient } from "@prisma/client";
+import { NotFoundException } from "@nestjs/common";
+
+const tEntity = (id: string, overrides: Partial<{ moderationStatus: "pending" | "approved" | "rejected" }> = {}) =>
+  ProductTestimonialEntity.rehydrate({
+    id,
+    productId: "p-1",
+    authorName: `Author ${id}`,
+    body: `Body ${id}`,
+    source: "customer_submission",
+    buyerId: null,
+    orderId: null,
+    rating: null,
+    moderationStatus: overrides.moderationStatus ?? "pending",
+    isPublished: false,
+    locale: "pt-BR",
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+const vEntity = (id: string) =>
+  ProductVideoEntity.rehydrate({
+    id,
+    productId: "p-1",
+    title: `Video ${id}`,
+    videoUrl: `https://example.com/${id}.mp4`,
+    source: "customer",
+    thumbnailUrl: null,
+    durationSeconds: null,
+    buyerId: null,
+    orderId: null,
+    moderationStatus: "pending",
+    isPublished: false,
+    locale: "pt-BR",
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+describe("ModerationController", () => {
+  let testimonialRepo: ProductTestimonialRepositoryPort;
+  let videoRepo: ProductVideoRepositoryPort;
+  let moderateTestimonial: { approve: ReturnType<typeof mock.fn>; reject: ReturnType<typeof mock.fn> };
+  let moderateVideo: { approve: ReturnType<typeof mock.fn>; reject: ReturnType<typeof mock.fn> };
+  let prisma: { product: { findFirst: ReturnType<typeof mock.fn> } };
+  let controller: ModerationController;
+
+  beforeEach(() => {
+    testimonialRepo = {
+      findApprovedByProduct: mock.fn(async () => []),
+      listAllForMerchant: mock.fn(async () => [tEntity("t-1"), tEntity("t-2")]),
+      create: mock.fn(),
+      update: mock.fn(),
+      delete: mock.fn(),
+      approve: mock.fn(),
+      reject: mock.fn(),
+    };
+    videoRepo = {
+      findApprovedByProduct: mock.fn(async () => []),
+      listAllForMerchant: mock.fn(async () => [vEntity("v-1")]),
+      create: mock.fn(),
+      update: mock.fn(),
+      delete: mock.fn(),
+      approve: mock.fn(),
+      reject: mock.fn(),
+    };
+    moderateTestimonial = {
+      approve: mock.fn(async (input: { id: string }) => tEntity(input.id, { moderationStatus: "approved" })),
+      reject: mock.fn(async (input: { id: string }) => tEntity(input.id, { moderationStatus: "rejected" })),
+    };
+    moderateVideo = {
+      approve: mock.fn(async (input: { id: string }) => vEntity(input.id)),
+      reject: mock.fn(async (input: { id: string }) => vEntity(input.id)),
+    };
+    prisma = {
+      product: {
+        findFirst: mock.fn(async ({ where }: { where: { id: string; merchantId: string } }) => ({
+          id: where.id,
+          merchantId: where.merchantId,
+        })),
+      },
+    };
+    controller = new ModerationController(
+      prisma as unknown as PrismaClient,
+      testimonialRepo as any,
+      videoRepo as any,
+      moderateTestimonial as any,
+      moderateVideo as any,
+    );
+  });
+
+  it("lists pending testimonials and videos for a merchant+product", async () => {
+    const out = await controller.listPending("m-1", "p-1");
+    assert.equal(out.pendingTestimonials.length, 2);
+    assert.equal(out.pendingVideos.length, 1);
+    assert.equal(out.pendingTestimonials[0].moderationStatus, "pending");
+    assert.equal(out.pendingVideos[0].moderationStatus, "pending");
+    const tArgs = (testimonialRepo.listAllForMerchant as any).mock.calls[0].arguments[0];
+    assert.equal(tArgs.merchantId, "m-1");
+    assert.equal(tArgs.productId, "p-1");
+    assert.equal(tArgs.moderationStatus, "pending");
+  });
+
+  it("returns 404 when the product does not belong to the merchant", async () => {
+    prisma.product.findFirst = mock.fn(async () => null);
+    await assert.rejects(
+      () => controller.listPending("m-1", "p-other"),
+      (err: unknown) => err instanceof NotFoundException
+    );
+    assert.equal((testimonialRepo.listAllForMerchant as any).mock.callCount(), 0);
+  });
+
+  it("approves a testimonial on POST /moderate", async () => {
+    const out = await controller.moderateTestimonialRoute(
+      "m-1",
+      "p-1",
+      "t-1",
+      { moderationStatus: "approved" },
+      { user: { userId: "u-1" } } as any,
+    );
+    assert.equal((moderateTestimonial.approve as any).mock.callCount(), 1);
+    assert.equal((moderateTestimonial.reject as any).mock.callCount(), 0);
+    assert.equal(out.moderationStatus, "approved");
+  });
+
+  it("rejects a testimonial on POST /moderate with status=rejected", async () => {
+    await controller.moderateTestimonialRoute(
+      "m-1",
+      "p-1",
+      "t-1",
+      { moderationStatus: "rejected" },
+      { user: { userId: "u-1" } } as any,
+    );
+    assert.equal((moderateTestimonial.approve as any).mock.callCount(), 0);
+    assert.equal((moderateTestimonial.reject as any).mock.callCount(), 1);
+  });
+
+  it("rejects unknown moderation status", async () => {
+    await assert.rejects(
+      () =>
+        controller.moderateTestimonialRoute(
+          "m-1",
+          "p-1",
+          "t-1",
+          { moderationStatus: "spam" },
+          { user: { userId: "u-1" } } as any,
+        ),
+      (err: unknown) => {
+        if (!(err instanceof Error)) return false;
+        // Nest BadRequestException surfaces as an error; assert message presence.
+        return err.message.includes("invalid_moderation_status") || err.message.includes("Bad Request");
+      }
+    );
+  });
+
+  it("approves a video on POST /moderate", async () => {
+    await controller.moderateVideoRoute(
+      "m-1",
+      "p-1",
+      "v-1",
+      { moderationStatus: "approved" },
+      { user: { userId: "u-1" } } as any,
+    );
+    assert.equal((moderateVideo.approve as any).mock.callCount(), 1);
+  });
+});

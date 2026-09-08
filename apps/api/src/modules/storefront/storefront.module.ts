@@ -1,6 +1,9 @@
 import { Module } from "@nestjs/common";
 import { RealtimeCapabilityService } from "../../shared/auth/realtime-capability.js";
-import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/infrastructure/billing/billing-plan-guard.js";
+import {
+  BillingPlanMeteringService,
+  PlanLimitGuard,
+} from "../payment/infrastructure/billing/billing-plan-guard.js";
 import { PersistenceModule, PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { CatalogModule } from "../catalog/catalog.module.js";
 import { CrossSellModule } from "../cross-sell/cross-sell.module.js";
@@ -40,6 +43,8 @@ import { STOREFRONT_CONFIG_QUERY_PORT } from "./domain/ports/storefront-config-q
 import { PrismaStorefrontConfigQueryRepository } from "./infrastructure/repositories/prisma-storefront-config-query.repository.js";
 import { StorefrontController } from "./presentation/http/storefront.controller.js";
 import { StorefrontProductContentController } from "./presentation/http/storefront-product-content.controller.js";
+import { StorefrontProductSubmissionController } from "./presentation/http/storefront-product-submission.controller.js";
+import { BuyerAccountModule } from "../buyer-account/buyer-account.module.js";
 import { AIGatewayService } from "./infrastructure/ai/ai-gateway.service.js";
 import { BudgetTrackerService } from "./infrastructure/ai/budget-tracker.service.js";
 import { LocalLLMProvider } from "./infrastructure/ai/local-llm-provider.js";
@@ -59,8 +64,9 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
     CrossSellModule,
     KnowledgeBaseModule,
     StoriesModule,
+    BuyerAccountModule,
   ],
-  controllers: [StorefrontController, StorefrontProductContentController],
+  controllers: [StorefrontController, StorefrontProductContentController, StorefrontProductSubmissionController],
   providers: [
     BillingPlanMeteringService,
     PlanLimitGuard,

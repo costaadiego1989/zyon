@@ -9,11 +9,27 @@
  * shape and required fields. Moderation status is `pending` by default for
  * customer-submitted videos; merchant-uploaded videos default to `approved`.
  *
+ * Invariants enforced at rehydrate:
+ *   - `locale` is normalized via `normalizeProductContentLocale`.
+ *
  * Immutable: transformation methods return NEW instances.
  */
 
 export type ProductVideoSource = "merchant" | "customer";
 export type ProductModerationStatus = "pending" | "approved" | "rejected";
+
+/**
+ * Re-exported so the video repository can stay scoped to its own entity file.
+ */
+export {
+  DEFAULT_PRODUCT_CONTENT_LOCALE,
+  normalizeProductContentLocale,
+} from "./product-content-block.entity.js";
+
+import {
+  DEFAULT_PRODUCT_CONTENT_LOCALE,
+  normalizeProductContentLocale,
+} from "./product-content-block.entity.js";
 
 export interface ProductVideoProps {
   id: string;
@@ -27,6 +43,8 @@ export interface ProductVideoProps {
   orderId?: string | null;
   moderationStatus: ProductModerationStatus;
   isPublished: boolean;
+  /** BCP-47 style locale tag; default `pt-BR`. */
+  locale: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -43,6 +61,7 @@ export class ProductVideoEntity {
   readonly orderId?: string | null;
   readonly moderationStatus: ProductModerationStatus;
   readonly isPublished: boolean;
+  readonly locale: string;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 
@@ -58,6 +77,7 @@ export class ProductVideoEntity {
     this.orderId = props.orderId;
     this.moderationStatus = props.moderationStatus;
     this.isPublished = props.isPublished;
+    this.locale = normalizeProductContentLocale(props.locale);
     this.createdAt = props.createdAt;
     this.updatedAt = props.updatedAt;
   }
@@ -138,6 +158,7 @@ export class ProductVideoEntity {
       orderId: this.orderId,
       moderationStatus: this.moderationStatus,
       isPublished: this.isPublished,
+      locale: this.locale,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };

@@ -1,163 +1,212 @@
-/* eslint-disable no-console */
+﻿/* eslint-disable no-console */
 /**
- * Wave-1 demo seed for the Advanced Product Layout feature.
+ * Idempotent showroom seed for Advanced Product Layout.
  *
- * Idempotent: looks up an existing demo merchant first; if absent, bails
- * with a clear message (the marketplace seed should run before this one).
- * Creates one demo product with five content blocks, two FAQs, two
- * testimonials, and one video so the renderer can be exercised manually.
+ * The seed resolves the merchant through the owner email and writes only its
+ * own reserved product and related APL records. It never replaces an existing
+ * catalog product or modifies checkout, payment, discounts, or merchant rules.
  *
- * Run with: `pnpm tsx prisma/seeds/advanced-product-layout-seed.ts`
+ * Optional overrides:
+ *   AACP_DEMO_MERCHANT_EMAIL=<owner-email>
+ *   AACP_DEMO_MERCHANT_ID=<merchant-id>
  */
-import type { PrismaClient } from "@prisma/client";
+import { resolve } from "node:path";
+import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { config as loadDotenv } from "dotenv";
 
-const DEMO_MERCHANT_ID = "mrc_marketplace_01";
-const DEMO_PRODUCT_NAME = "Demo Advanced Layout Product";
+loadDotenv({ path: resolve(import.meta.dirname, "../../.env") });
 
-async function main() {
-  // dynamic import keeps this script out of the prod bundle.
-  const { prisma } = await import("../../src/shared/persistence/prisma-client.js");
-
-  const merchant = await prisma.merchant.findUnique({
-    where: { id: DEMO_MERCHANT_ID },
-  });
-  if (!merchant) {
-    throw new Error(
-      `Seed aborted: merchant ${DEMO_MERCHANT_ID} not found. Run marketplace-seed first.`,
-    );
-  }
-
-  // Upsert product.
-  const product =
-    (await prisma.product.findFirst({
-      where: { merchantId: DEMO_MERCHANT_ID, name: DEMO_PRODUCT_NAME },
-    })) ??
-    (await prisma.product.create({
-      data: {
-        merchantId: DEMO_MERCHANT_ID,
-        name: DEMO_PRODUCT_NAME,
-        description: "Demo product for Advanced Product Layout feature flag.",
-        type: "physical",
-        isActive: true,
-      },
-    }));
-
-  const productId = product.id;
-
-  // Wipe existing demo content for this product so the seed is idempotent.
-  await prisma.productContentBlock.deleteMany({ where: { productId } });
-  await prisma.productFaq.deleteMany({ where: { productId } });
-  await prisma.productTestimonial.deleteMany({ where: { productId } });
-  await prisma.productVideo.deleteMany({ where: { productId } });
-
-  await prisma.productContentBlock.createMany({
-    data: [
-      {
-        productId,
-        type: "heading",
-        order: 0,
-        isEnabled: true,
-        props: { text: "Blend Original", level: 2 },
-      },
-      {
-        productId,
-        type: "paragraph",
-        order: 1,
-        isEnabled: true,
-        props: { text: "Hidratação profunda e brilho natural em uma fórmula vegana." },
-      },
-      {
-        productId,
-        type: "image",
-        order: 2,
-        isEnabled: true,
-        props: {
-          url: "https://placehold.co/1200x800/png?text=Blend+Original",
-          alt: "Frasco do Blend Original",
-        },
-      },
-      {
-        productId,
-        type: "callout",
-        order: 3,
-        isEnabled: true,
-        props: {
-          tone: "info",
-          title: "Como usar",
-          body: "Aplique 3 gotas no rosto limpo, de manhã e à noite.",
-        },
-      },
-      {
-        productId,
-        type: "button",
-        order: 4,
-        isEnabled: true,
-        props: { label: "Comprar agora", linkUrl: "https://example.com/buy", variant: "primary" },
-      },
-    ],
-  });
-
-  await prisma.productFaq.createMany({
-    data: [
-      {
-        productId,
-        question: "O produto é vegano?",
-        answer: "Sim, todos os ingredientes são 100% veganos.",
-        order: 0,
-        isPublished: true,
-      },
-      {
-        productId,
-        question: "Qual o prazo de entrega?",
-        answer: "Entrega em 3-5 dias úteis para todo o Brasil.",
-        order: 1,
-        isPublished: true,
-      },
-    ],
-  });
-
-  await prisma.productTestimonial.createMany({
-    data: [
-      {
-        productId,
-        authorName: "Maria Silva",
-        body: "Resultado visível em 4 semanas. Recomendo!",
-        rating: 5,
-        source: "curated",
-        moderationStatus: "approved",
-        isPublished: true,
-      },
-      {
-        productId,
-        authorName: "João Pereira",
-        body: "Gostei bastante da textura leve.",
-        rating: 4,
-        source: "curated",
-        moderationStatus: "approved",
-        isPublished: true,
-      },
-    ],
-  });
-
-  await prisma.productVideo.create({
-    data: {
-      productId,
-      title: "Tutorial de aplicação",
-      videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-      source: "merchant",
-      moderationStatus: "approved",
-      isPublished: true,
-    },
-  });
-
-  console.log(`✓ Seeded advanced layout for product ${productId}`);
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error("DATABASE_URL is required to seed the advanced layout showroom.");
 }
 
-main()
-  .catch((err) => {
-    console.error(err);
-    process.exit(1);
-  })
-  .finally(() => process.exit(0));
+const targetEmail = (process.env.AACP_DEMO_MERCHANT_EMAIL ?? "costaadiego1989@gmail.com").trim().toLowerCase();
+const configuredMerchantId = process.env.AACP_DEMO_MERCHANT_ID?.trim();
+const locale = "pt-BR";
+
+const image = {
+  hero: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=1800&q=85",
+  ritual: "https://images.unsplash.com/photo-1611930022073-b7a4ba5fcccd?auto=format&fit=crop&w=1400&q=85",
+  // This uses the verified hero asset with a distinct crop. A previous
+  // third-party photo intermittently returned an unusable thumbnail in the
+  // browser test, which is not acceptable even for a local showroom.
+  texture: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=1200&q=85&crop=top",
+  detail: "https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=1200&q=85",
+};
+
+function safeSuffix(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(-36) || "merchant";
+}
+
+async function main() {
+  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+  try {
+    const merchant = configuredMerchantId
+      ? await prisma.merchant.findUnique({
+          where: { id: configuredMerchantId },
+          select: { id: true, name: true, storeSlug: true },
+        })
+      : await prisma.merchantUser.findUnique({
+          where: { email: targetEmail },
+          select: {
+            merchant: { select: { id: true, name: true, storeSlug: true } },
+          },
+        }).then((user) => user?.merchant ?? null);
+
+    if (!merchant) {
+      throw new Error(
+        configuredMerchantId
+          ? `Merchant ${configuredMerchantId} was not found.`
+          : `No merchant owner was found for ${targetEmail}.`,
+      );
+    }
+
+    // New merchants receive a slug at registration. Older local fixtures may
+    // predate that invariant; make the showroom reachable without asking its
+    // operator to discover and repair a legacy record by hand.
+    const storeSlug = merchant.storeSlug ?? `showroom-${safeSuffix(merchant.id)}`;
+    if (!merchant.storeSlug) {
+      await prisma.merchant.update({
+        where: { id: merchant.id },
+        data: { storeSlug },
+      });
+    }
+
+    const suffix = safeSuffix(merchant.id);
+    const productId = `apl_showcase_${suffix}`;
+    const variantId = `${productId}_standard`;
+    const productSlug = `nucleo-serum-barreira-apl-${suffix}`;
+    const product = await prisma.product.upsert({
+      where: { id: productId },
+      create: {
+        id: productId,
+        merchantId: merchant.id,
+        name: "Núcleo — Sérum de Barreira",
+        slug: productSlug,
+        description: "Hidratação que encontra o seu ritmo. Textura leve, ceramidas e niacinamida em um cuidado diário, sem fragrância adicionada.",
+        type: "physical",
+        isActive: true,
+        metadata: { demo: true, advancedLayoutShowcase: true },
+      },
+      update: {
+        merchantId: merchant.id,
+        name: "Núcleo — Sérum de Barreira",
+        slug: productSlug,
+        description: "Hidratação que encontra o seu ritmo. Textura leve, ceramidas e niacinamida em um cuidado diário, sem fragrância adicionada.",
+        type: "physical",
+        isActive: true,
+        deletedAt: null,
+        metadata: { demo: true, advancedLayoutShowcase: true },
+      },
+    });
+
+    await prisma.$transaction([
+      prisma.productContentBlock.deleteMany({ where: { productId: product.id, locale } }),
+      prisma.productFaq.deleteMany({ where: { productId: product.id, locale } }),
+      prisma.productTestimonial.deleteMany({ where: { productId: product.id, locale } }),
+      prisma.productVideo.deleteMany({ where: { productId: product.id, locale } }),
+    ]);
+
+    await prisma.productVariant.upsert({
+      where: { id: variantId },
+      create: { id: variantId, productId: product.id, sku: `APL-NUCLEO-${suffix}`, attributes: { size: "30 ml" }, weightGrams: 90, lengthCm: 16, widthCm: 11, heightCm: 6, isActive: true },
+      update: { productId: product.id, sku: `APL-NUCLEO-${suffix}`, attributes: { size: "30 ml" }, weightGrams: 90, lengthCm: 16, widthCm: 11, heightCm: 6, isActive: true },
+    });
+    await prisma.productPrice.upsert({
+      where: { variantId },
+      create: { variantId, basePriceInCents: 12990, costInCents: 5196, currency: "BRL" },
+      update: { basePriceInCents: 12990, costInCents: 5196, currency: "BRL" },
+    });
+    await prisma.productStock.upsert({
+      where: { variantId_warehouseId: { variantId, warehouseId: "apl-showroom" } },
+      create: { variantId, warehouseId: "apl-showroom", quantity: 4, reserved: 0 },
+      update: { quantity: 4, reserved: 0 },
+    });
+    await prisma.productMedia.upsert({
+      where: { id: `${productId}_hero` },
+      create: { id: `${productId}_hero`, variantId, url: image.hero, type: "IMAGE", alt: "Frasco minimalista do sérum Núcleo", order: 0 },
+      update: { variantId, url: image.hero, type: "IMAGE", alt: "Frasco minimalista do sérum Núcleo", order: 0 },
+    });
+
+    for (const version of [{ key: "large", size: "50 ml", price: 18990, stock: 24 }, { key: "family", size: "100 ml", price: 29990, stock: 0 }]) {
+      const id = `${productId}_${version.key}`;
+      await prisma.productVariant.upsert({
+        where: { id },
+        create: { id, productId, sku: `APL-NUCLEO-${suffix}-${version.key}`, attributes: { size: version.size }, weightGrams: 150, lengthCm: 16, widthCm: 11, heightCm: 6, isActive: true },
+        update: { attributes: { size: version.size }, weightGrams: 150, lengthCm: 16, widthCm: 11, heightCm: 6, isActive: true },
+      });
+      await prisma.productPrice.upsert({
+        where: { variantId: id },
+        create: { variantId: id, basePriceInCents: version.price, currency: "BRL" },
+        update: { basePriceInCents: version.price, currency: "BRL" },
+      });
+      await prisma.productStock.upsert({
+        where: { variantId_warehouseId: { variantId: id, warehouseId: "apl-showroom" } },
+        create: { variantId: id, warehouseId: "apl-showroom", quantity: version.stock, reserved: 0 },
+        update: { quantity: version.stock, reserved: 0 },
+      });
+    }
+    for (const [index, entry] of [{ url: image.texture, alt: "Textura do produto" }, { url: image.detail, alt: "Detalhes do cuidado diário" }].entries()) {
+      await prisma.productMedia.upsert({
+        where: { id: `${productId}_gallery_${index}` },
+        create: { id: `${productId}_gallery_${index}`, variantId, url: entry.url, alt: entry.alt, type: "IMAGE", order: index + 1 },
+        update: { url: entry.url, alt: entry.alt, order: index + 1 },
+      });
+    }
+
+    await prisma.productContentBlock.createMany({
+      data: [
+        { productId: product.id, locale, type: "heading", order: 0, isEnabled: true, props: { level: 2, text: "Pele estável começa com uma barreira bem cuidada." } },
+        { productId: product.id, locale, type: "paragraph", order: 1, isEnabled: true, props: { text: "Núcleo combina textura leve, ativos de alta tolerância e um ritual de dois minutos para quem quer hidratação consistente sem pesar na rotina." } },
+        { productId: product.id, locale, type: "banner", order: 2, isEnabled: true, props: { imageSrc: image.hero, alt: "Frasco minimalista do sérum Núcleo sobre fundo claro", caption: "Tecnologia de barreira, sensorial limpo e resultado que cabe na rotina.", ctaAction: "add_to_cart", ctaLabel: "Adicionar ao carrinho" } },
+        { productId: product.id, locale, type: "image_text_split", order: 3, isEnabled: true, props: { imageSrc: image.ritual, imageAlt: "Pessoa aplicando sérum no rosto", imageSide: "right", heading: "Um ritual que acompanha o seu dia", text: "Use três gotas após a limpeza, manhã e noite. A fórmula foi pensada para somar com sua rotina atual, inclusive em peles sensibilizadas por clima, limpeza excessiva ou ativos intensos." } },
+        { productId: product.id, locale, type: "callout", order: 4, isEnabled: true, props: { tone: "success", title: "Fórmula de uso diário", text: "Sem fragrância adicionada, com acabamento confortável e absorção rápida. Faça teste de sensibilidade antes do primeiro uso." } },
+        { productId: product.id, locale, type: "heading", order: 5, isEnabled: true, props: { level: 3, text: "O que torna a fórmula diferente" } },
+        { productId: product.id, locale, type: "list", order: 6, isEnabled: true, props: { style: "unordered", items: ["Niacinamida para apoiar a uniformidade visual da pele.", "Ceramidas para reforçar a sensação de conforto e hidratação.", "Pantenol para uma rotina simples, inclusive após dias mais intensos."] } },
+        { productId: product.id, locale, type: "table", order: 7, isEnabled: true, props: { caption: "Leitura rápida da fórmula", headers: ["Ativo", "Função", "Quando você percebe"], rows: [["Niacinamida", "Apoia a uniformidade", "Uso contínuo"], ["Ceramidas", "Ajuda a reter hidratação", "Conforto imediato"], ["Pantenol", "Acalma a sensação de ressecamento", "Após a aplicação"]] } },
+        { productId: product.id, locale, type: "image", order: 8, isEnabled: true, props: { src: image.texture, alt: "Textura translúcida do sérum", caption: "Textura fluida, feita para ser aplicada antes do hidratante." } },
+        { productId: product.id, locale, type: "carousel", order: 9, isEnabled: true, props: { images: [{ src: image.hero, alt: "Embalagem do Núcleo" }, { src: image.texture, alt: "Textura do produto" }, { src: image.detail, alt: "Detalhe de cosméticos minimalistas" }], caption: "Uma formulação objetiva, do frasco à última gota." } },
+        { productId: product.id, locale, type: "button", order: 10, isEnabled: true, props: { label: "Quero incluir no meu ritual", linkType: "add_to_cart", variant: "primary" } },
+      ],
+    });
+
+    await prisma.productFaq.createMany({
+      data: [
+        { productId: product.id, locale, question: "Posso usar com vitamina C e retinol?", answer: "Sim. Introduza um produto por vez e, se sua pele for reativa, alterne os ativos mais intensos até encontrar a frequência ideal.", order: 0, isPublished: true },
+        { productId: product.id, locale, question: "Qual é a textura?", answer: "É um sérum fluido de rápida absorção. Ele deixa a pele confortável, sem sensação pegajosa, antes do hidratante e do protetor solar.", order: 1, isPublished: true },
+        { productId: product.id, locale, question: "Em quanto tempo recebo?", answer: "O prazo final aparece no checkout depois da confirmação do CEP. Você acompanha cada atualização do pedido pelo hub da loja.", order: 2, isPublished: true },
+      ],
+    });
+
+    await prisma.productTestimonial.createMany({
+      data: [
+        { productId: product.id, locale, authorName: "Marina R.", body: "Minha pele fica confortável o dia todo e a textura encaixou muito bem antes do protetor.", rating: 5, source: "customer_submission", moderationStatus: "approved", isPublished: true },
+        { productId: product.id, locale, authorName: "Camila S.", body: "A rotina ficou mais simples. Uso há algumas semanas e gosto de como a pele amanhece.", rating: 5, source: "customer_submission", moderationStatus: "approved", isPublished: true },
+        { productId: product.id, locale, authorName: "Rafael M.", body: "Absorve rápido e não deixou brilho. Foi fácil combinar com os outros produtos que já uso.", rating: 4, source: "curated", moderationStatus: "approved", isPublished: true },
+      ],
+    });
+
+    await prisma.productVideo.createMany({
+      data: [
+        { productId: product.id, locale, title: "Player demonstrativo · vídeo enviado pela loja", videoUrl: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", thumbnailUrl: image.ritual, source: "merchant", moderationStatus: "approved", isPublished: true },
+        { productId: product.id, locale, title: "Player demonstrativo · vídeo da comunidade", videoUrl: "https://vimeo.com/76979871", thumbnailUrl: image.detail, source: "customer", moderationStatus: "approved", isPublished: true },
+      ],
+    });
+
+    const preview = `/store/${storeSlug}?show=content&product=${product.id}`;
+    console.log(`Advanced layout showroom ready for ${merchant.name}.`);
+    console.log(`merchant=${merchant.id} productId=${product.id} variantId=${variantId}`);
+    console.log(`preview=${preview}`);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
 
 export default main;

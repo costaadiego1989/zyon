@@ -6,15 +6,9 @@
  * when that product is in the cart. Then merged into the merchant's existing
  * advancedRules array WITHOUT clobbering unrelated rules.
  *
- * SPEC_DEVIATION: product_in_cart condition uses single SKU only.
- * The evaluator's product_in_cart condition expects a single SKU value with "contains" operator
- * (checking if skusInCart array includes that value). To scope to multiple SKUs, we inject
- * ONE condition scoped to the FIRST SKU only. This means a rule will match when ANY of the
- * product's SKUs are in cart (since evaluator checks includes(value)), but if you need to
- * require ALL SKUs to be present, that would require either:
- *  - Multiple product_in_cart conditions (ANDed together), which would require all SKUs
- *  - A modified evaluator that supports OR logic or array values
- * For now, we preserve first-SKU scoping for simplicity and correctness with the evaluator.
+ * A product with several active variations is scoped with an array of its
+ * active SKUs. The evaluator interprets `contains` arrays as ANY-of, while
+ * preserving AND semantics between this and every other rule condition.
  */
 
 import type {
@@ -26,13 +20,13 @@ import type {
  * Scope rules to a product by injecting product_in_cart conditions.
  *
  * For each rule:
- *  - If it has NO product_in_cart condition → inject one scoped to the product's FIRST SKU
- *  - If it HAS a product_in_cart condition → replace it with first SKU of this product
+ *  - If it has NO product_in_cart condition → inject one scoped to all active SKUs
+ *  - If it HAS a product_in_cart condition → replace it with the product's active SKUs
  *  - All other conditions and action are preserved untouched
  *
  * @param rules Array of AdvancedRule to scope
  * @param productSkus Array of SKUs for this product
- * @returns Array of rules with product_in_cart conditions scoped to first SKU
+ * @returns Array of rules with product_in_cart conditions scoped to active SKUs
  */
 export function scopeRulesToProduct(
   rules: AdvancedRule[],
@@ -47,7 +41,7 @@ export function scopeRulesToProduct(
     return rules.map((r) => ({ ...r }));
   }
 
-  const firstSku = productSkus[0];
+  const scopedValue = productSkus.length === 1 ? productSkus[0] : [...productSkus];
 
   return rules.map((rule) => {
     // Find existing product_in_cart condition
@@ -64,7 +58,7 @@ export function scopeRulesToProduct(
           return {
             field: "product_in_cart",
             operator: "contains",
-            value: firstSku,
+            value: scopedValue,
           };
         }
         return c;
@@ -74,7 +68,7 @@ export function scopeRulesToProduct(
       const productCondition: RuleCondition = {
         field: "product_in_cart",
         operator: "contains",
-        value: firstSku,
+        value: scopedValue,
       };
       newConditions = [...rule.conditions, productCondition];
     }

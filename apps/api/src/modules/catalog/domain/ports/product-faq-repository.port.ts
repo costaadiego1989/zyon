@@ -14,6 +14,7 @@ export interface ProductFaqCreateInput {
   answer: string;
   order?: number;
   isPublished?: boolean;
+  locale?: string;
 }
 
 export interface ProductFaqUpdateInput {
@@ -21,6 +22,7 @@ export interface ProductFaqUpdateInput {
   answer?: string;
   order?: number;
   isPublished?: boolean;
+  locale?: string;
 }
 
 /**
@@ -31,12 +33,14 @@ export interface ProductFaqRepositoryPort {
   /** Public storefront view: published only, ordered. */
   findPublishedByProduct(input: {
     productId: string;
+    locale?: string;
   }): Promise<ProductFaqEntity[]>;
 
   /** Merchant-side: every FAQ for a product within a tenant (any status). */
   listAllForMerchant(input: {
     merchantId: string;
     productId: string;
+    locale?: string;
   }): Promise<ProductFaqEntity[]>;
 
   create(input: ProductFaqCreateInput, actor: ProductFaqActor): Promise<ProductFaqEntity>;
@@ -57,5 +61,6 @@ export interface ProductFaqRepositoryPort {
     merchantId: string;
     productId: string;
     orderedIds: readonly string[];
+    locale?: string;
   }): Promise<ProductFaqEntity[]>;
 }

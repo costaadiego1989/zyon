@@ -3,12 +3,15 @@ import { ArrowLeft, Save } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { showToast } from "../../components/Toast.js";
 import { Button } from "../../components/Button.js";
+import { SectionHeader } from "../../components/SectionHeader.js";
 import { useProductDetailPage } from "./hooks/useProductDetailPage.js";
 import { ProductForm } from "./components/ProductForm.js";
 import { VariantManager } from "./components/VariantManager.js";
 import { MediaUploader } from "./components/MediaUploader.js";
 import { SeoSection } from "./components/SeoSection.js";
 import { PromotionSection } from "./components/PromotionSection.js";
+import { AdvancedLayoutTab } from "./components/AdvancedLayoutTab.js";
+import { usePlanFeatures } from "../../hooks/api/usePlanFeatures.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
 
 export type ProductType = "physical" | "digital" | "service" | "food";
@@ -43,6 +46,9 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
     productId: props.productId,
     onSaved: props.onSaved,
   });
+
+  const { hasFeature } = usePlanFeatures();
+  const showAdvancedLayout = hasFeature("advancedProductLayout");
 
   // Save result → toast
   useEffect(() => {
@@ -189,6 +195,15 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
               onPendingPromoChange={page.setPendingPromoConfig}
               onPendingRulesChange={page.setPendingRulesConfig}
             />
+            </SectionErrorBoundary>
+          )}
+
+          {showAdvancedLayout && page.merchantId && (
+            <SectionErrorBoundary sectionName="Conteúdo Avançado">
+              <AdvancedLayoutTab
+                merchantId={page.merchantId}
+                productId={page.createdProductId || props.productId!}
+              />
             </SectionErrorBoundary>
           )}
         </div>

@@ -14,7 +14,7 @@ function isSafeHref(href: string): boolean {
 const VARIANT_STYLE: Record<ButtonBlockData["variant"], React.CSSProperties> = {
   primary: {
     background: "var(--aacp-accent)",
-    color: "#fff",
+    color: "var(--aacp-on-accent, #f8f8f8)",
     border: "1px solid var(--aacp-accent)",
   },
   secondary: {
@@ -31,13 +31,19 @@ export default function ButtonBlock({
   block: ButtonBlockData;
   onCtaClick?: (href: string) => void;
 }) {
-  if (!isSafeHref(block.href)) return null;
+  const href =
+    block.linkType === "add_to_cart"
+      ? "#checkout"
+      : block.linkType === "product" && block.productId
+        ? `?show=content&product=${encodeURIComponent(block.productId)}`
+        : block.href;
+  if (!href || !isSafeHref(href)) return null;
   const variant = VARIANT_STYLE[block.variant] ?? VARIANT_STYLE.primary;
 
   const handleClick = (e: React.MouseEvent) => {
     if (onCtaClick) {
       e.preventDefault();
-      onCtaClick(block.href);
+      onCtaClick(href);
     }
   };
 
@@ -50,7 +56,7 @@ export default function ButtonBlock({
       }}
     >
       <a
-        href={block.href}
+        href={href}
         onClick={handleClick}
         target="_self"
         rel="noopener noreferrer"

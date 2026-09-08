@@ -12,6 +12,7 @@ const baseProps = () => ({
   source: "merchant" as const,
   moderationStatus: "approved" as const,
   isPublished: true,
+  locale: "pt-BR",
   createdAt: new Date("2026-01-01T00:00:00Z"),
   updatedAt: new Date("2026-01-01T00:00:00Z"),
 });

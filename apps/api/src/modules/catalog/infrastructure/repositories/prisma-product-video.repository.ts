@@ -1,6 +1,9 @@
 import type { PrismaClient } from "@prisma/client";
 import type { ProductVideoRepositoryPort } from "../../domain/ports/product-video-repository.port.js";
-import { ProductVideoEntity } from "../../domain/entities/product-video.entity.js";
+import {
+  ProductVideoEntity,
+  DEFAULT_PRODUCT_CONTENT_LOCALE,
+} from "../../domain/entities/product-video.entity.js";
 
 export class PrismaProductVideoRepository implements ProductVideoRepositoryPort {
   constructor(private readonly prisma: PrismaClient) {}
@@ -8,12 +11,14 @@ export class PrismaProductVideoRepository implements ProductVideoRepositoryPort 
   async findApprovedByProduct(input: {
     productId: string;
     limit?: number;
+    locale?: string;
   }): Promise<ProductVideoEntity[]> {
     const rows = await this.prisma.productVideo.findMany({
       where: {
         productId: input.productId,
         isPublished: true,
         moderationStatus: "approved",
+        locale: input.locale ?? DEFAULT_PRODUCT_CONTENT_LOCALE,
       },
       orderBy: { createdAt: "desc" },
       take: input.limit,
@@ -25,6 +30,7 @@ export class PrismaProductVideoRepository implements ProductVideoRepositoryPort 
     merchantId: string;
     productId: string;
     moderationStatus?: "pending" | "approved" | "rejected";
+    locale?: string;
   }): Promise<ProductVideoEntity[]> {
     const rows = await this.prisma.productVideo.findMany({
       where: {
@@ -33,6 +39,7 @@ export class PrismaProductVideoRepository implements ProductVideoRepositoryPort 
         ...(input.moderationStatus
           ? { moderationStatus: input.moderationStatus }
           : {}),
+        locale: input.locale ?? DEFAULT_PRODUCT_CONTENT_LOCALE,
       },
       orderBy: { createdAt: "desc" },
     });
@@ -51,6 +58,7 @@ export class PrismaProductVideoRepository implements ProductVideoRepositoryPort 
         buyerId: input.buyerId ?? null,
         moderationStatus: input.moderationStatus ?? "pending",
         isPublished: input.isPublished ?? false,
+        locale: input.locale ?? DEFAULT_PRODUCT_CONTENT_LOCALE,
       },
     });
     return this.toEntity(row);
@@ -65,6 +73,8 @@ export class PrismaProductVideoRepository implements ProductVideoRepositoryPort 
       thumbnailUrl?: string | null;
       durationSeconds?: number | null;
       isPublished?: boolean;
+      moderationStatus?: "pending" | "approved" | "rejected";
+      locale?: string;
     };
   }): Promise<ProductVideoEntity> {
     const row = await this.prisma.productVideo.update({
@@ -78,6 +88,8 @@ export class PrismaProductVideoRepository implements ProductVideoRepositoryPort 
         thumbnailUrl: input.patch.thumbnailUrl,
         durationSeconds: input.patch.durationSeconds,
         isPublished: input.patch.isPublished,
+        moderationStatus: input.patch.moderationStatus,
+        locale: input.patch.locale,
       },
     });
     return this.toEntity(row);
@@ -122,6 +134,7 @@ export class PrismaProductVideoRepository implements ProductVideoRepositoryPort 
     buyerId: string | null;
     moderationStatus: string;
     isPublished: boolean;
+    locale?: string;
     createdAt: Date;
     updatedAt: Date;
   }): ProductVideoEntity {
@@ -137,6 +150,7 @@ export class PrismaProductVideoRepository implements ProductVideoRepositoryPort 
       orderId: null,
       moderationStatus: row.moderationStatus as "pending" | "approved" | "rejected",
       isPublished: row.isPublished,
+      locale: row.locale ?? DEFAULT_PRODUCT_CONTENT_LOCALE,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     });

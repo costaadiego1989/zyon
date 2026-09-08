@@ -12,8 +12,27 @@ import { DemoEmbedBridge } from "@/components/DemoEmbedBridge";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://stores.zyon.com";
 
+function readableOnAccent(accent: string | undefined): string {
+  const match = accent?.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (!match) return "#f8f8f8";
+  const hex = match[1].length === 3
+    ? match[1].split("").map((part) => part + part).join("")
+    : match[1];
+  const channel = (offset: number) => Number.parseInt(hex.slice(offset, offset + 2), 16) / 255;
+  const linear = (value: number) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  const luminance = 0.2126 * linear(channel(0)) + 0.7152 * linear(channel(2)) + 0.0722 * linear(channel(4));
+  return luminance > 0.43 ? "#171719" : "#f8f8f8";
+}
 type Params = { slug: string };
-type SearchParams = { order?: string };
+type SearchParams = {
+  order?: string;
+  /** Wave 2 (advanced-product-layout): open the rich product in the agent
+   *  history. Accepts both `?show=content&product=<id>` (preferred)
+   *  and the older `?show=product&productId=<id>` alias. */
+  show?: string;
+  product?: string;
+  productId?: string;
+};
 
 export async function generateMetadata({
   params,
@@ -84,7 +103,7 @@ export default async function StorePage({
   searchParams: Promise<SearchParams>;
 }) {
   const { slug } = await params;
-  const { order } = await searchParams;
+  const { order, show, product, productId } = await searchParams;
 
   const config = await fetchStoreConfig(slug);
   const stories = config?.stories ?? await fetchStoreStories(slug);
@@ -93,6 +112,17 @@ export default async function StorePage({
   if (!config && !merchant) {
     notFound();
   }
+
+  // Wave 2 (advanced-product-layout): when the page loads with
+  // `?show=content&product=<id>` (or the older `?show=product&productId=<id>`
+  // alias) the chat shell fetches the same public, flag-gated representation
+  // used by a product card. The buyer remains in a single agentic journey.
+  const richProductId = (() => {
+    if (!show) return null;
+    const wantsRich = show === "content" || show === "product" || show === "rich";
+    if (!wantsRich) return null;
+    return product ?? productId ?? null;
+  })();
 
   const name = config?.name ?? merchant!.name;
   const logo = config?.logo ?? merchant?.logo;
@@ -178,6 +208,7 @@ export default async function StorePage({
       --aacp-accent: ${themeColors.primary};
       --aacp-accent-2: ${themeColors.secondary};
       --aacp-accent-strong: ${themeColors.primary};
+      --aacp-on-accent: ${readableOnAccent(themeColors.primary)};
       ${themeColors.backgroundColor ? `--aacp-bg: ${themeColors.backgroundColor};` : ""}
       ${themeColors.backgroundColor ? `--aacp-shell-bg: ${themeColors.backgroundColor};` : ""}
       ${themeColors.backgroundColor ? `--aacp-panel-bg: ${themeColors.backgroundColor};` : ""}
@@ -289,6 +320,7 @@ export default async function StorePage({
               showBranding={config?.showBranding}
               agentMode={config?.agentMode}
               agentInitialDelaySeconds={config?.agentInitialDelaySeconds}
+              initialRichProductId={richProductId ?? undefined}
             />
           </CartProvider>
         </WidgetConfigProvider>

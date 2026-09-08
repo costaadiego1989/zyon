@@ -701,7 +701,7 @@ function stageMessageForField(
     case "CPF":
       return "Obrigado. Pode me informar o CPF para emitir a nota?";
     case "telefone":
-      return "Precisamos do seu celular com DDD para enviar o rastreio pelo WhatsApp. Qual o número?";
+      return "Qual é seu celular com DDD para contato sobre o pedido? Seu acesso é confirmado por e-mail.";
     case "código de verificação do celular":
       return "Enviei um SMS de confirmação para o seu celular. Pode me informar o código recebido?";
     case "CEP":

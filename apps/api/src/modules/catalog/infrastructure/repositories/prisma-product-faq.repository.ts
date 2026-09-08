@@ -1,15 +1,23 @@
 import type { PrismaClient } from "@prisma/client";
 import type { ProductFaqRepositoryPort } from "../../domain/ports/product-faq-repository.port.js";
-import { ProductFaqEntity } from "../../domain/entities/product-faq.entity.js";
+import {
+  ProductFaqEntity,
+  DEFAULT_PRODUCT_CONTENT_LOCALE,
+} from "../../domain/entities/product-faq.entity.js";
 
 export class PrismaProductFaqRepository implements ProductFaqRepositoryPort {
   constructor(private readonly prisma: PrismaClient) {}
 
   async findPublishedByProduct(input: {
     productId: string;
+    locale?: string;
   }): Promise<ProductFaqEntity[]> {
     const rows = await this.prisma.productFaq.findMany({
-      where: { productId: input.productId, isPublished: true },
+      where: {
+        productId: input.productId,
+        isPublished: true,
+        locale: input.locale ?? DEFAULT_PRODUCT_CONTENT_LOCALE,
+      },
       orderBy: { order: "asc" },
     });
     return rows.map((row) => this.toEntity(row));
@@ -18,11 +26,13 @@ export class PrismaProductFaqRepository implements ProductFaqRepositoryPort {
   async listAllForMerchant(input: {
     merchantId: string;
     productId: string;
+    locale?: string;
   }): Promise<ProductFaqEntity[]> {
     const rows = await this.prisma.productFaq.findMany({
       where: {
         productId: input.productId,
         product: { merchantId: input.merchantId },
+        locale: input.locale ?? DEFAULT_PRODUCT_CONTENT_LOCALE,
       },
       orderBy: { order: "asc" },
     });
@@ -37,6 +47,7 @@ export class PrismaProductFaqRepository implements ProductFaqRepositoryPort {
         answer: input.answer,
         order: input.order ?? 0,
         isPublished: input.isPublished ?? false,
+        locale: input.locale ?? DEFAULT_PRODUCT_CONTENT_LOCALE,
       },
     });
     return this.toEntity(row);
@@ -50,6 +61,7 @@ export class PrismaProductFaqRepository implements ProductFaqRepositoryPort {
       answer?: string;
       order?: number;
       isPublished?: boolean;
+      locale?: string;
     };
   }): Promise<ProductFaqEntity> {
     const row = await this.prisma.productFaq.update({
@@ -62,6 +74,7 @@ export class PrismaProductFaqRepository implements ProductFaqRepositoryPort {
         answer: input.patch.answer,
         order: input.patch.order,
         isPublished: input.patch.isPublished,
+        locale: input.patch.locale,
       },
     });
     return this.toEntity(row);
@@ -77,6 +90,7 @@ export class PrismaProductFaqRepository implements ProductFaqRepositoryPort {
     merchantId: string;
     productId: string;
     orderedIds: readonly string[];
+    locale?: string;
   }): Promise<ProductFaqEntity[]> {
     return this.prisma.$transaction(async (tx) => {
       for (let i = 0; i < input.orderedIds.length; i++) {
@@ -85,6 +99,7 @@ export class PrismaProductFaqRepository implements ProductFaqRepositoryPort {
             id: input.orderedIds[i],
             productId: input.productId,
             product: { merchantId: input.merchantId },
+            locale: input.locale ?? DEFAULT_PRODUCT_CONTENT_LOCALE,
           },
           data: { order: i },
         });
@@ -93,6 +108,7 @@ export class PrismaProductFaqRepository implements ProductFaqRepositoryPort {
         where: {
           productId: input.productId,
           product: { merchantId: input.merchantId },
+          locale: input.locale ?? DEFAULT_PRODUCT_CONTENT_LOCALE,
         },
         orderBy: { order: "asc" },
       });
@@ -107,6 +123,7 @@ export class PrismaProductFaqRepository implements ProductFaqRepositoryPort {
     answer: string;
     order: number;
     isPublished: boolean;
+    locale?: string;
     createdAt: Date;
     updatedAt: Date;
   }): ProductFaqEntity {
@@ -117,6 +134,7 @@ export class PrismaProductFaqRepository implements ProductFaqRepositoryPort {
       answer: row.answer,
       order: row.order,
       isPublished: row.isPublished,
+      locale: row.locale ?? DEFAULT_PRODUCT_CONTENT_LOCALE,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     });

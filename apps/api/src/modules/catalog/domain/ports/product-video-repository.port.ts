@@ -22,6 +22,12 @@ export interface ProductVideoCreateInput {
   source?: ProductVideoSource;
   buyerId?: string | null;
   isPublished?: boolean;
+  locale?: string;
+  /**
+   * Initial moderation status. Defaults to `pending` because v1 ships with
+   * the safest stance; merchant uploaders pass `approved` explicitly.
+   */
+  moderationStatus?: ProductModerationStatus;
 }
 
 export interface ProductVideoUpdateInput {
@@ -30,6 +36,7 @@ export interface ProductVideoUpdateInput {
   thumbnailUrl?: string | null;
   durationSeconds?: number | null;
   isPublished?: boolean;
+  moderationStatus?: ProductModerationStatus;
 }
 
 /**
@@ -41,13 +48,15 @@ export interface ProductVideoRepositoryPort {
   findApprovedByProduct(input: {
     productId: string;
     limit?: number;
+    locale?: string;
   }): Promise<ProductVideoEntity[]>;
 
   /** Merchant-side: every video for a product within a tenant. */
   listAllForMerchant(input: {
     merchantId: string;
     productId: string;
-    status?: ProductModerationStatus;
+    moderationStatus?: ProductModerationStatus;
+    locale?: string;
   }): Promise<ProductVideoEntity[]>;
 
   create(input: ProductVideoCreateInput, actor: ProductVideoActor): Promise<ProductVideoEntity>;

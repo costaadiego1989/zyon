@@ -57,6 +57,20 @@ import { PrismaProductFaqRepository } from "./infrastructure/repositories/prisma
 import { PrismaProductTestimonialRepository } from "./infrastructure/repositories/prisma-product-testimonial.repository.js";
 import { PrismaProductVideoRepository } from "./infrastructure/repositories/prisma-product-video.repository.js";
 import { GetProductContentUseCase } from "./application/use-cases/get-product-content.use-case.js";
+import { PublishProductContentUseCase } from "./application/use-cases/publish-product-content.use-case.js";
+import { ModerateProductTestimonialUseCase } from "./application/use-cases/moderate-product-testimonial.use-case.js";
+import { ModerateProductVideoUseCase } from "./application/use-cases/moderate-product-video.use-case.js";
+import {
+  ProductContentMetricsService,
+  PRODUCT_CONTENT_METRICS,
+} from "./application/services/product-content-metrics.service.js";
+import {
+  ProductContentMetricsAdapter,
+  PRODUCT_CONTENT_METRICS_ADAPTER,
+} from "./infrastructure/metrics/product-content-metrics.adapter.js";
+import { ProductContentCdnPurgeHandler } from "../../shared/messaging/handlers/product-content-cdn-purge.handler.js";
+import { RevertProductContentUseCase } from "./application/use-cases/revert-product-content.use-case.js";
+import { ProductContentHistoryController } from "./presentation/http/product-content.controller.js";
 import { TenantStorefrontCatalogAdapter } from "./infrastructure/tenant-storefront-catalog.adapter.js";
 import { DefaultCrossSellResolverAdapter } from "./infrastructure/default-cross-sell-resolver.adapter.js";
 import { CatalogCacheService } from "./infrastructure/cache/catalog-cache.service.js";
@@ -69,6 +83,7 @@ import { PromotionExpiryScheduler, PromotionExpiryWorker } from "./infrastructur
 import { WidgetCatalogController } from "./presentation/http/widget-catalog.controller.js";
 import { StoreBuilderCatalogController } from "./presentation/http/catalog.controller.js";
 import { ProductPromotionController } from "./presentation/http/product-promotion.controller.js";
+import { ProductContentController } from "./presentation/http/product-content.controller.js";
 import { CreateProductPromotionUseCase } from "./application/use-cases/create-product-promotion.use-case.js";
 import { UpdateProductPromotionUseCase } from "./application/use-cases/update-product-promotion.use-case.js";
 import { ToggleProductPromotionUseCase } from "./application/use-cases/toggle-product-promotion.use-case.js";
@@ -76,6 +91,11 @@ import { DeleteProductPromotionUseCase } from "./application/use-cases/delete-pr
 import { UpsertProductAdvancedRulesUseCase } from "./application/use-cases/upsert-product-advanced-rules.use-case.js";
 import { CheckoutSettingsModule } from "../checkout-settings/checkout-settings.module.js";
 import { CatalogVariantService } from "./application/services/catalog-variant.service.js";
+import { SubmitCustomerTestimonialUseCase } from "./application/use-cases/submit-customer-testimonial.use-case.js";
+import { SubmitCustomerVideoUseCase } from "./application/use-cases/submit-customer-video.use-case.js";
+import { ModerationController } from "./presentation/http/moderation.controller.js";
+import { ProductLayoutStatusController } from "./presentation/http/product-layout-status.controller.js";
+import { ListProductLayoutStatusUseCase } from "./application/use-cases/list-product-layout-status.use-case.js";
 
 @Module({
   imports: [
@@ -88,7 +108,7 @@ import { CatalogVariantService } from "./application/services/catalog-variant.se
     ExperimentsModule,
     CheckoutSettingsModule,
   ],
-  controllers: [WidgetCatalogController, StoreBuilderCatalogController, ProductPromotionController, SpreadsheetImportController],
+  controllers: [WidgetCatalogController, StoreBuilderCatalogController, ProductPromotionController, SpreadsheetImportController, ModerationController, ProductLayoutStatusController, ProductContentHistoryController, ProductContentController],
   providers: [
     BillingPlanMeteringService,
     PlanLimitGuard,
@@ -151,6 +171,14 @@ import { CatalogVariantService } from "./application/services/catalog-variant.se
       inject: [PRISMA_CLIENT],
     },
     GetProductContentUseCase,
+    PublishProductContentUseCase,
+    ModerateProductTestimonialUseCase,
+    ModerateProductVideoUseCase,
+    ProductContentMetricsService,
+    ProductContentMetricsAdapter,
+    PRODUCT_CONTENT_METRICS_ADAPTER,
+    ProductContentCdnPurgeHandler,
+    RevertProductContentUseCase,
     AddProductUseCase,
     SearchProductsUseCase,
     ListPublicStorefrontProductsUseCase,
@@ -175,6 +203,9 @@ import { CatalogVariantService } from "./application/services/catalog-variant.se
     ToggleProductPromotionUseCase,
     DeleteProductPromotionUseCase,
     UpsertProductAdvancedRulesUseCase,
+    SubmitCustomerTestimonialUseCase,
+    SubmitCustomerVideoUseCase,
+    ListProductLayoutStatusUseCase,
     // ── AI spreadsheet import (Growth+) ──────────────────────────────────
     S3UploadService,
     OpenAIChatAdapter,
@@ -222,6 +253,12 @@ import { CatalogVariantService } from "./application/services/catalog-variant.se
     PRODUCT_TESTIMONIAL_REPOSITORY,
     PRODUCT_VIDEO_REPOSITORY,
     GetProductContentUseCase,
+    PublishProductContentUseCase,
+    ModerateProductTestimonialUseCase,
+    ModerateProductVideoUseCase,
+    RevertProductContentUseCase,
+    SubmitCustomerTestimonialUseCase,
+    SubmitCustomerVideoUseCase,
   ]
 })
 export class CatalogModule {}

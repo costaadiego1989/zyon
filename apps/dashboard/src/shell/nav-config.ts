@@ -9,6 +9,7 @@ import {
   FolderTree,
   Globe,
   Handshake,
+  LayoutGrid,
   MessageSquare,
   Package,
   PackageSearch,
@@ -86,7 +87,8 @@ export type TabKey =
   | "chargebacks"
   | "delivery"
   | "post-sale"
-  | "knowledge";
+  | "knowledge"
+  | "advanced-layout";
 
 /**
  * Section metadata drives the collapsible sidebar.
@@ -152,6 +154,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "inventory", label: "Estoque", section: "catalog", icon: Package, requiredPlan: STORE, keywords: ["estoque", "inventory", "inventário", "quantidade"] },
   { key: "delivery", label: "Frete & Entregas", section: "catalog", icon: PackageSearch, requiredPlan: STORE, keywords: ["frete", "entrega", "delivery", "shipping", "melhor envio", "etiqueta", "rastreio"] },
   { key: "stories", label: "Stories", section: "catalog", icon: CircleDashed, requiredPlan: STORE, keywords: ["stories", "histórias", "destaques"] },
+  { key: "advanced-layout", label: "Conteúdo Avançado", section: "catalog", icon: LayoutGrid, requiredPlan: STORE, keywords: ["conteúdo avançado", "advanced", "layout", "blocos", "structured content", "product page"] },
 
   // ─── CANAIS ─── multi-channel + aparência
   { key: "agent-config", label: "Agente IA", section: "channels", icon: Bot, requiredPlan: STORE, keywords: ["agente", "agent", "ia", "ai", "assistente", "bot"] },

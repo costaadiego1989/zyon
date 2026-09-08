@@ -1,6 +1,9 @@
 import type { PrismaClient } from "@prisma/client";
 import type { ProductTestimonialRepositoryPort } from "../../domain/ports/product-testimonial-repository.port.js";
-import { ProductTestimonialEntity } from "../../domain/entities/product-testimonial.entity.js";
+import {
+  ProductTestimonialEntity,
+  DEFAULT_PRODUCT_CONTENT_LOCALE,
+} from "../../domain/entities/product-testimonial.entity.js";
 
 export class PrismaProductTestimonialRepository
   implements ProductTestimonialRepositoryPort
@@ -10,12 +13,14 @@ export class PrismaProductTestimonialRepository
   async findApprovedByProduct(input: {
     productId: string;
     limit?: number;
+    locale?: string;
   }): Promise<ProductTestimonialEntity[]> {
     const rows = await this.prisma.productTestimonial.findMany({
       where: {
         productId: input.productId,
         isPublished: true,
         moderationStatus: "approved",
+        locale: input.locale ?? DEFAULT_PRODUCT_CONTENT_LOCALE,
       },
       orderBy: { createdAt: "desc" },
       take: input.limit,
@@ -27,6 +32,7 @@ export class PrismaProductTestimonialRepository
     merchantId: string;
     productId: string;
     moderationStatus?: "pending" | "approved" | "rejected";
+    locale?: string;
   }): Promise<ProductTestimonialEntity[]> {
     const rows = await this.prisma.productTestimonial.findMany({
       where: {
@@ -35,6 +41,7 @@ export class PrismaProductTestimonialRepository
         ...(input.moderationStatus
           ? { moderationStatus: input.moderationStatus }
           : {}),
+        locale: input.locale ?? DEFAULT_PRODUCT_CONTENT_LOCALE,
       },
       orderBy: { createdAt: "desc" },
     });
@@ -54,6 +61,7 @@ export class PrismaProductTestimonialRepository
         orderId: input.orderId ?? null,
         moderationStatus: input.moderationStatus ?? "approved",
         isPublished: input.isPublished ?? false,
+        locale: input.locale ?? DEFAULT_PRODUCT_CONTENT_LOCALE,
       },
     });
     return this.toEntity(row);
@@ -68,6 +76,8 @@ export class PrismaProductTestimonialRepository
       body?: string;
       rating?: number | null;
       isPublished?: boolean;
+      moderationStatus?: "pending" | "approved" | "rejected";
+      locale?: string;
     };
   }): Promise<ProductTestimonialEntity> {
     const row = await this.prisma.productTestimonial.update({
@@ -81,6 +91,8 @@ export class PrismaProductTestimonialRepository
         body: input.patch.body,
         rating: input.patch.rating,
         isPublished: input.patch.isPublished,
+        moderationStatus: input.patch.moderationStatus,
+        locale: input.patch.locale,
       },
     });
     return this.toEntity(row);
@@ -126,6 +138,7 @@ export class PrismaProductTestimonialRepository
     orderId: string | null;
     moderationStatus: string;
     isPublished: boolean;
+    locale?: string;
     createdAt: Date;
     updatedAt: Date;
   }): ProductTestimonialEntity {
@@ -141,6 +154,7 @@ export class PrismaProductTestimonialRepository
       orderId: row.orderId,
       moderationStatus: row.moderationStatus as "pending" | "approved" | "rejected",
       isPublished: row.isPublished,
+      locale: row.locale ?? DEFAULT_PRODUCT_CONTENT_LOCALE,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     });

@@ -21,6 +21,7 @@ export const PERMISSIONS: Partial<Record<TabKey, ReadonlyArray<Role>>> = {
   inventory: ["OWNER", "ADMIN"],
   delivery: ["OWNER", "ADMIN"],
   stories: ["OWNER", "ADMIN"],
+  "advanced-layout": ["OWNER", "ADMIN"],
   // Canais
   "agent-config": ["OWNER", "ADMIN"],
   theme: ["OWNER", "ADMIN"],

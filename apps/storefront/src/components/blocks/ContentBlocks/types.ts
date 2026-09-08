@@ -87,6 +87,7 @@ export interface VideoBlockData {
   ref: string;
   /** Optional caption rendered below the player. */
   caption?: string;
+  thumbnailUrl?: string;
 }
 
 export interface CarouselBlockData {
@@ -109,6 +110,8 @@ export interface BannerBlockData {
   linkUrl?: string;
   /** Optional label for the CTA button (only shown when linkUrl is set). */
   ctaLabel?: string;
+  /** Semantic storefront action; no client-provided price is accepted. */
+  ctaAction?: "add_to_cart";
 }
 
 export interface ButtonBlockData {
@@ -116,7 +119,11 @@ export interface ButtonBlockData {
   id: string;
   order: number;
   label: string;
-  href: string;
+  /** External target when `linkType` is omitted or `external`. */
+  href?: string;
+  /** Product links stay relative so they preserve the current store slug. */
+  linkType?: "external" | "product" | "add_to_cart";
+  productId?: string;
   variant: "primary" | "secondary";
 }
 

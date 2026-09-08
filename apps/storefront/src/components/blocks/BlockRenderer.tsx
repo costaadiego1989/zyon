@@ -21,9 +21,11 @@ import ProductContentBlock from "./ProductContentBlock";
 export default function BlockRenderer({
   block,
   onQuickReply,
+  merchantSlug,
 }: {
   block: ConversationBlock;
   onQuickReply?: (option: string) => void;
+  merchantSlug?: string;
 }) {
   switch (block.type) {
     case "product_card":
@@ -61,7 +63,7 @@ export default function BlockRenderer({
     case "coupon_list":
       return <CouponListBlock block={block as any} onQuickReply={onQuickReply} />;
     case "product_content":
-      return <ProductContentBlock block={block as any} onQuickReply={onQuickReply} />;
+      return <ProductContentBlock block={block as any} merchantSlug={merchantSlug} onQuickReply={onQuickReply} />;
     default:
       return null;
   }

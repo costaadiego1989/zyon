@@ -8,9 +8,26 @@
  * Invariants enforced at rehydrate:
  *   - `question` is non-empty after trim.
  *   - `answer` is non-empty after trim.
+ *   - `locale` is normalized via `normalizeProductContentLocale`.
  *
  * Immutable: all transformation methods return a new instance.
  */
+
+/**
+ * Re-exported here so repositories and tests can import the i18n helpers
+ * from the FAQ module path. The canonical definition lives in
+ * `product-content-block.entity.ts`; this alias avoids forcing every
+ * consumer to also pull in the block file.
+ */
+export {
+  DEFAULT_PRODUCT_CONTENT_LOCALE,
+  normalizeProductContentLocale,
+} from "./product-content-block.entity.js";
+
+import {
+  DEFAULT_PRODUCT_CONTENT_LOCALE,
+  normalizeProductContentLocale,
+} from "./product-content-block.entity.js";
 
 export interface ProductFaqProps {
   id: string;
@@ -19,6 +36,8 @@ export interface ProductFaqProps {
   answer: string;
   order: number;
   isPublished: boolean;
+  /** BCP-47 style locale tag; default `pt-BR`. */
+  locale: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -30,6 +49,7 @@ export class ProductFaqEntity {
   readonly answer: string;
   readonly order: number;
   readonly isPublished: boolean;
+  readonly locale: string;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 
@@ -40,6 +60,7 @@ export class ProductFaqEntity {
     this.answer = props.answer;
     this.order = props.order;
     this.isPublished = props.isPublished;
+    this.locale = normalizeProductContentLocale(props.locale);
     this.createdAt = props.createdAt;
     this.updatedAt = props.updatedAt;
   }
@@ -59,6 +80,7 @@ export class ProductFaqEntity {
     }
     return new ProductFaqEntity({
       ...props,
+      locale: normalizeProductContentLocale(props.locale),
       question: props.question,
       answer: props.answer,
     });
@@ -75,12 +97,16 @@ export class ProductFaqEntity {
   }
 
   /** Update mutable copy fields — both are required and must be non-empty. */
-  edit(input: { question?: string; answer?: string; order?: number }): ProductFaqEntity {
+  edit(input: { question?: string; answer?: string; order?: number; locale?: string }): ProductFaqEntity {
     const nextQuestion =
       input.question !== undefined ? input.question : this.question;
     const nextAnswer =
       input.answer !== undefined ? input.answer : this.answer;
     const nextOrder = input.order !== undefined ? input.order : this.order;
+    const nextLocale =
+      input.locale !== undefined
+        ? normalizeProductContentLocale(input.locale)
+        : this.locale;
 
     if (nextQuestion.trim().length === 0) {
       throw new Error("product_faq_question_empty");
@@ -94,6 +120,7 @@ export class ProductFaqEntity {
       question: nextQuestion,
       answer: nextAnswer,
       order: nextOrder,
+      locale: nextLocale,
       updatedAt: new Date(),
     });
   }
@@ -106,6 +133,7 @@ export class ProductFaqEntity {
       answer: this.answer,
       order: this.order,
       isPublished: this.isPublished,
+      locale: this.locale,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };

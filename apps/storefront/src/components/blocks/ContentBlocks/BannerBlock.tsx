@@ -23,13 +23,14 @@ export default function BannerBlock({
   block: BannerBlockData;
   onCtaClick?: (href: string) => void;
 }) {
-  const showCta = !!block.linkUrl && isSafeLink(block.linkUrl);
+  const href = block.ctaAction === "add_to_cart" ? "#checkout" : block.linkUrl;
+  const showCta = !!href && isSafeLink(href);
 
   const handleClick = (e: React.MouseEvent) => {
-    if (!showCta || !block.linkUrl) return;
+    if (!showCta || !href) return;
     if (onCtaClick) {
       e.preventDefault();
-      onCtaClick(block.linkUrl);
+      onCtaClick(href);
     }
   };
 
@@ -84,7 +85,7 @@ export default function BannerBlock({
           )}
           {showCta && (
             <a
-              href={block.linkUrl}
+              href={href}
               onClick={handleClick}
               target="_self"
               rel="noopener noreferrer"
@@ -92,7 +93,7 @@ export default function BannerBlock({
                 padding: "8px 16px",
                 borderRadius: "var(--aacp-radius-pill)",
                 background: "var(--aacp-accent)",
-                color: "#fff",
+                color: "var(--aacp-on-accent, #f8f8f8)",
                 fontSize: "13px",
                 fontWeight: 600,
                 textDecoration: "none",

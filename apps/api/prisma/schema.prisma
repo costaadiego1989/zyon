@@ -1324,6 +1324,7 @@ model Product {
   faqs              ProductFaq[]
   testimonials      ProductTestimonial[]
   videos            ProductVideo[]
+  contentHistory    ProductContentHistory[]
 
   @@index([merchantId])
   @@index([merchantId, isActive, createdAt])
@@ -1480,18 +1481,20 @@ model CollectionProduct {
 // column on these tables. All FKs cascade-delete from products.
 
 model ProductContentBlock {
-  id         String   @id @default(cuid())
-  productId  String   @map("product_id")
-  type       String
-  props      Json     @default("{}")
-  order      Int      @default(0)
-  isEnabled  Boolean  @default(true) @map("is_enabled")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(cuid())
+  productId      String   @map("product_id")
+  type           String
+  props          Json     @default("{}")
+  order          Int      @default(0)
+  isEnabled      Boolean  @default(true) @map("is_enabled")
+  locale         String   @default("pt-BR")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product       Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId, order])
+  @@index([productId, locale, order])
   @@map("product_content_blocks")
 }
 
@@ -1502,12 +1505,14 @@ model ProductFaq {
   answer      String
   order       Int      @default(0)
   isPublished Boolean  @default(false) @map("is_published")
+  locale      String   @default("pt-BR")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId, order])
+  @@index([productId, locale, order])
   @@map("product_faqs")
 }
 
@@ -1523,6 +1528,7 @@ model ProductTestimonial {
   orderId          String?  @map("order_id")
   moderationStatus String   @default("approved") @map("moderation_status")
   isPublished      Boolean  @default(false) @map("is_published")
+  locale           String   @default("pt-BR")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
@@ -1530,6 +1536,7 @@ model ProductTestimonial {
 
   @@index([productId])
   @@index([productId, moderationStatus])
+  @@index([productId, locale])
   @@map("product_testimonials")
 }
 
@@ -1544,6 +1551,7 @@ model ProductVideo {
   buyerId         String?  @map("buyer_id")
   moderationStatus String  @default("pending") @map("moderation_status")
   isPublished     Boolean  @default(false) @map("is_published")
+  locale          String   @default("pt-BR")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -1551,7 +1559,25 @@ model ProductVideo {
 
   @@index([productId])
   @@index([productId, moderationStatus])
+  @@index([productId, locale])
   @@map("product_videos")
+}
+
+model ProductContentHistory {
+  id                  String   @id @default(cuid())
+  productId           String   @map("product_id")
+  locale              String   @default("pt-BR")
+  snapshot            Json
+  version             Int
+  savedBy             String   @map("saved_by")
+  restoredFromVersion Int?     @map("restored_from_version")
+  savedAt             DateTime @default(now()) @map("saved_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, locale, version], name: "product_content_history_version_per_product_unique")
+  @@index([productId, locale, version])
+  @@map("product_content_history")
 }
 
 // ─── Returns / RMA ────────────────────────────────────────────────────────────

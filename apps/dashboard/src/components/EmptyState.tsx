@@ -1,40 +1,59 @@
 import React from "react";
-import { Inbox, type LucideIcon } from "lucide-react";
 
+/**
+ * Standardized empty state placeholder for dashboard panels.
+ *
+ * Visual contract:
+ *  - dashed 1px border, radius 10
+ *  - surface-1 background
+ *  - 32px vertical / 16px horizontal padding
+ *  - centered icon (24px, color-text-faint) over a 13px message
+ *
+ * The optional `action` slot lets call sites wire a CTA button without
+ * re-implementing the dashed-border container.
+ */
 export interface EmptyStateProps {
-  icon?: LucideIcon;
-  title: string;
-  description?: string;
+  icon?: React.ReactNode;
+  title?: string;
+  message: string;
   action?: React.ReactNode;
 }
 
-export function EmptyState({ icon: Icon = Inbox, title, description, action }: EmptyStateProps) {
+export function EmptyState({ icon, title, message, action }: EmptyStateProps) {
   return (
-    <div style={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: "48px 24px",
-      textAlign: "center",
-      gap: 12,
-    }}>
-      <div style={{
-        width: 56,
-        height: 56,
-        borderRadius: "50%",
-        background: "var(--color-brand-subtle, rgba(15,118,110,0.08))",
+    <div
+      style={{
+        border: "1px dashed var(--color-border)",
+        borderRadius: 10,
+        padding: "32px 16px",
+        background: "var(--surface-1)",
+        textAlign: "center",
+        color: "var(--color-text-faint)",
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-      }}>
-        <Icon size={24} style={{ color: "var(--color-brand, #0f766e)" }} />
-      </div>
-      <h3 style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)", margin: 0 }}>{title}</h3>
-      {description ? (
-        <p style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", margin: 0, maxWidth: 320, lineHeight: 1.5 }}>{description}</p>
+        gap: 10,
+      }}
+    >
+      {icon ? <div style={{ display: "flex" }}>{icon}</div> : null}
+      {title ? (
+        <div style={{ font: "600 12px var(--font-sans)", color: "var(--color-text-secondary)" }}>
+          {title}
+        </div>
       ) : null}
-      {action ? <div style={{ marginTop: 8 }}>{action}</div> : null}
+      <p
+        style={{
+          margin: 0,
+          font: "13px var(--font-sans)",
+          color: "var(--color-text-faint)",
+          maxWidth: 360,
+          lineHeight: 1.5,
+        }}
+      >
+        {message}
+      </p>
+      {action ? <div>{action}</div> : null}
     </div>
   );
 }

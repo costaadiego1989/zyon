@@ -98,21 +98,21 @@ describe("ProductContentValidatorService", () => {
       assert.strictEqual((r.props as { level: number }).level, 2);
     });
 
-    it("accepts image with safe URL", () => {
+    it("accepts the image shape emitted by the dashboard editor", () => {
       const r = validateBlock({
         type: "image",
         props: {
-          url: "https://cdn.example.com/photo.jpg",
+          src: "https://cdn.example.com/photo.jpg",
           alt: "Photo of product",
         },
       });
       assert.strictEqual(r.type, "image");
     });
 
-    it("accepts callout", () => {
+    it("accepts the callout shape emitted by the dashboard editor", () => {
       const r = validateBlock({
         type: "callout",
-        props: { body: "Heads up!", tone: "warning" },
+        props: { text: "Heads up!", tone: "warn" },
       });
       assert.strictEqual(r.type, "callout");
     });
@@ -130,13 +130,15 @@ describe("ProductContentValidatorService", () => {
       assert.strictEqual(r.type, "faq");
     });
 
-    it("accepts banner with linkUrl", () => {
+    it("accepts the banner shape emitted by the dashboard editor", () => {
       const r = validateBlock({
         type: "banner",
         props: {
-          body: "Free shipping today only",
+          imageSrc: "https://cdn.example.com/sale.jpg",
+          alt: "Free shipping today only",
+          caption: "Free shipping today only",
           linkUrl: "https://shop.example.com/sale",
-          tone: "promo",
+          ctaLabel: "See offer",
         },
       });
       assert.strictEqual(r.type, "banner");
@@ -145,9 +147,48 @@ describe("ProductContentValidatorService", () => {
     it("accepts button", () => {
       const r = validateBlock({
         type: "button",
-        props: { label: "Buy now", linkUrl: "https://shop.example.com/x" },
+        props: { label: "Buy now", href: "https://shop.example.com/x" },
       });
       assert.strictEqual(r.type, "button");
+    });
+
+    it("normalizes a YouTube share URL into the renderer video id", () => {
+      const r = validateBlock({
+        type: "video",
+        props: { provider: "youtube", ref: "https://youtu.be/dQw4w9WgXcQ", caption: "Demo" },
+      });
+      assert.strictEqual((r.props as { ref: string }).ref, "dQw4w9WgXcQ");
+    });
+
+    it("accepts an internal product button target", () => {
+      const r = validateBlock({
+        type: "button",
+        props: { label: "Ver produto", linkType: "product", productId: "prod_123" },
+      });
+      assert.strictEqual(r.type, "button");
+    });
+
+    it("accepts a semantic current-product cart CTA without a URL", () => {
+      const button = validateBlock({
+        type: "button",
+        props: { label: "Adicionar", linkType: "add_to_cart" },
+      });
+      const banner = validateBlock({
+        type: "banner",
+        props: { imageSrc: "https://cdn.example.com/product.jpg", ctaAction: "add_to_cart" },
+      });
+      assert.strictEqual(button.type, "button");
+      assert.strictEqual(banner.type, "banner");
+    });
+
+    it("rejects an ambiguous banner cart action and external URL", () => {
+      assert.throws(
+        () => validateBlock({
+          type: "banner",
+          props: { imageSrc: "https://cdn.example.com/product.jpg", ctaAction: "add_to_cart", linkUrl: "https://example.com" },
+        }),
+        /conflicts_with_url/,
+      );
     });
   });
 
@@ -171,12 +212,12 @@ describe("ProductContentValidatorService", () => {
       );
     });
 
-    it("rejects javascript: URL in image.url", () => {
+    it("rejects javascript: URL in image.src", () => {
       assert.throws(
         () =>
           validateBlock({
             type: "image",
-            props: { url: "javascript:alert(1)" },
+            props: { src: "javascript:alert(1)" },
           }),
         /product_content_validator_url/,
       );
@@ -188,7 +229,7 @@ describe("ProductContentValidatorService", () => {
           validateBlock({
             type: "banner",
             props: {
-              body: "Click me",
+              imageSrc: "https://cdn.example.com/sale.jpg",
               linkUrl: "data:text/html,<script>alert(1)</script>",
             },
           }),
@@ -204,7 +245,7 @@ describe("ProductContentValidatorService", () => {
           validateBlock({
             type: "image",
             props: {
-              url: "https://cdn.example.com/x.jpg",
+              src: "https://cdn.example.com/x.jpg",
               rating: 99,
             },
           }),

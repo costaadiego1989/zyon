@@ -256,7 +256,7 @@ export default function ProductCardBlock({
                   style={{
                     fontSize: "10px",
                     fontWeight: 700,
-                    color: "#fff",
+                    color: "var(--aacp-on-accent, #f8f8f8)",
                     background: "var(--aacp-accent)",
                     padding: "2px 6px",
                     borderRadius: "4px",
@@ -474,6 +474,59 @@ export default function ProductCardBlock({
           </button>
         ))}
       </div>
+      {/* Wave 2 (advanced-product-layout): this emits the chat intent and the
+          shell appends its rich response in the active conversation. */}
+      <button
+        type="button"
+        aria-label={`Ver detalhes ricos de ${data.name}`}
+        data-aacp-product-detail-cta
+        data-product-id={data.id}
+        onClick={() => {
+          // 1) Ask the chat to emit the rich product_content block.
+          onQuickReply?.(`Ver detalhes de ${data.name}`);
+          // 2) The shell opens the product surface over this conversation.
+          try {
+            window.dispatchEvent(
+              new CustomEvent("aacp:open-product-content", {
+                detail: { productId: data.id, name: data.name },
+              }),
+            );
+          } catch {
+            /* SSR / test envs without window — ignore */
+          }
+        }}
+        style={{
+          width: "100%",
+          padding: "10px 14px",
+          margin: 0,
+          border: "none",
+          borderTop: "1px solid var(--aacp-line)",
+          background: "var(--aacp-accent)",
+          color: "var(--aacp-on-accent, #f8f8f8)",
+          fontSize: "12.5px",
+          fontWeight: 700,
+          letterSpacing: "0.02em",
+          fontFamily: "inherit",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "6px",
+          transition: "filter 0.15s ease",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.filter = "brightness(1.08)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.filter = "none";
+        }}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+        Ver detalhes
+      </button>
     </article>
   );
 }

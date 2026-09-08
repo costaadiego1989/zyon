@@ -387,5 +387,35 @@ export function catalogEndpoints(base: string, f: typeof fetch) {
         f,
       );
     },
+    getProductsWithLayoutStatus(merchantId: string): Promise<ProductLayoutStatusResult> {
+      return dashboardJson<ProductLayoutStatusResult>(
+        base,
+        `/merchants/${encodeURIComponent(merchantId)}/products/layout-status`,
+        { method: "GET" },
+        f,
+      );
+    },
   };
+}
+
+/**
+ * Aggregate layout summary for one product — surfaced on the
+ * Catalog → Advanced Layout list page (R5 of the Advanced Product
+ * Layout spec). Each entry tells the merchant whether a product
+ * already has content (and how much) before they jump into the
+ * per-product BlockEditor.
+ */
+export interface ProductLayoutStatusEntry {
+  productId: string;
+  blockCount: number;
+  enabledBlockCount: number;
+  faqCount: number;
+  testimonialCount: number;
+  videoCount: number;
+  lastUpdatedAt: string | null;
+}
+
+export interface ProductLayoutStatusResult {
+  entries: ProductLayoutStatusEntry[];
+  total: number;
 }

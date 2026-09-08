@@ -26,6 +26,12 @@ export interface ProductTestimonialCreateInput {
   buyerId?: string | null;
   orderId?: string | null;
   isPublished?: boolean;
+  locale?: string;
+  /**
+   * Initial moderation status. Defaults to `approved` for merchant-curated
+   * entries; the buyer-submission use-case explicitly passes `pending`.
+   */
+  moderationStatus?: ModerationStatus;
 }
 
 export interface ProductTestimonialUpdateInput {
@@ -34,6 +40,7 @@ export interface ProductTestimonialUpdateInput {
   body?: string;
   rating?: number | null;
   isPublished?: boolean;
+  moderationStatus?: ModerationStatus;
 }
 
 /**
@@ -45,13 +52,15 @@ export interface ProductTestimonialRepositoryPort {
   findApprovedByProduct(input: {
     productId: string;
     limit?: number;
+    locale?: string;
   }): Promise<ProductTestimonialEntity[]>;
 
   /** Merchant-side: every testimonial for a product within a tenant. */
   listAllForMerchant(input: {
     merchantId: string;
     productId: string;
-    status?: ModerationStatus;
+    moderationStatus?: ModerationStatus;
+    locale?: string;
   }): Promise<ProductTestimonialEntity[]>;
 
   create(input: ProductTestimonialCreateInput, actor: ProductTestimonialActor): Promise<ProductTestimonialEntity>;

@@ -71,6 +71,16 @@ pnpm --filter @zyon/api seed:demo-store
 
 O seed é idempotente e usa o merchant mrc_zyon_demo. Ele cria categorias, seis produtos, estoque, mídia e regras comerciais sem desconto. Não aponte DATABASE_URL para uma base que não deva receber os dados da demo.
 
+## Showroom de layout avançado
+
+Para criar uma página de produto preenchida com blocos, FAQ, avaliações e vídeos no merchant do owner configurado, execute em uma base permitida:
+
+~~~bash
+pnpm --filter @zyon/api seed:advanced-layout
+~~~
+
+Por padrão, o seed resolve `costaadiego1989@gmail.com`; `AACP_DEMO_MERCHANT_EMAIL` ou `AACP_DEMO_MERCHANT_ID` permitem apontar outro merchant. Ele só recria o produto reservado `apl_showcase_*` e sua variante demonstrativa. Ao terminar, imprime a rota `/store/<slug>?show=content&product=<id>` para a prévia.
+
 A rota /store/demo é a única storefront permitida para incorporação pelas origens da Zyon; as demais lojas mantêm proteção contra framing.
 
 O estado “Loja ao vivo” depende de uma mensagem do iframe com origem verificada e de uma configuração real do merchant retornada pela API. A tela de fallback local da storefront não ativa esse estado. Para disponibilizar a demonstração, é necessário publicar a correção da storefront, garantir acesso às rotas públicas da API e executar o seed na base de destino. A existência do seed no repositório não significa que ele tenha sido executado em produção.

@@ -91,7 +91,7 @@ describe("ProductRuleScopingService", () => {
         (c) => c.field === "product_in_cart"
       );
       assert.ok(productCondition);
-      assert.strictEqual(productCondition.value, "SKU-NEW-001");
+      assert.deepStrictEqual(productCondition.value, ["SKU-NEW-001", "SKU-NEW-002"]);
 
       // cart_item_count preserved
       const cartItemCondition = scoped[0].conditions.find(
@@ -149,7 +149,7 @@ describe("ProductRuleScopingService", () => {
       });
     });
 
-    it("should handle rule with multiple SKUs (scopes to first SKU)", () => {
+    it("should handle a product with multiple SKUs (matches any active variation)", () => {
       const rule = makeRule({
         conditions: [
           { field: "cart_total", operator: "gt", value: 50 },
@@ -163,8 +163,7 @@ describe("ProductRuleScopingService", () => {
         (c) => c.field === "product_in_cart"
       );
       assert.ok(productCondition);
-      // SPEC_DEVIATION: only first SKU is scoped (limitation of evaluator design)
-      assert.strictEqual(productCondition.value, "SKU-A");
+      assert.deepStrictEqual(productCondition.value, ["SKU-A", "SKU-B", "SKU-C"]);
     });
 
     it("should handle empty rules array", () => {
@@ -282,6 +281,7 @@ describe("ProductRuleScopingService", () => {
 
       // rule_2 is updated, others unchanged
       const updatedRule2 = merged.find((r) => r.id === "rule_2");
+      assert.ok(updatedRule2);
       assert.ok(
         updatedRule2.conditions.find((c) => c.field === "product_in_cart")
       );

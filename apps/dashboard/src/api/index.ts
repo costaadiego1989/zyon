@@ -10,6 +10,7 @@ import { checkoutSettingsEndpoints } from "./endpoints/checkout-settings.js";
 import { supportEndpoints } from "./endpoints/support.js";
 import { otherEndpoints } from "./endpoints/other.js";
 import { catalogEndpoints } from "./endpoints/catalog.js";
+import { productContentEndpoints } from "./endpoints/product-content.js";
 import { experimentsEndpoints } from "./endpoints/experiments.js";
 import { marketplaceEndpoints } from "./endpoints/marketplace-v2.js";
 import { webhookEndpoints } from "./endpoints/webhook.js";
@@ -42,6 +43,7 @@ import { knowledgeEndpoints } from "./endpoints/knowledge.js";
 export * from "./http/index.js";
 export * from "./types.js";
 export * from "./endpoints/catalog.js";
+export * from "./endpoints/product-content.js";
 export * from "./endpoints/marketplace-v2.js";
 export {
   mapWebhookEndpoint,
@@ -80,6 +82,7 @@ export function createDashboardApi(options: {
     ...commerceEndpoints(base, f),
     ...installationEndpoints(base, f),
     ...catalogEndpoints(base, f),
+    ...productContentEndpoints(base, f),
     ...experimentsEndpoints(base, f),
     ...marketplaceEndpoints(base, f),
     ...funnelEndpoints(base, f),

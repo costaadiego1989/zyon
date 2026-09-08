@@ -78,6 +78,11 @@ const safeUrl = z.string().refine(assertSafeUrl, {
   message: "product_content_validator_url_unsafe",
 });
 
+const optionalSafeUrl = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+  safeUrl.optional(),
+);
+
 const richText = z.string().min(1).max(MAX_PROP_STRING);
 const shortText = z.string().min(1).max(280);
 
@@ -88,53 +93,54 @@ const shortText = z.string().min(1).max(280);
 const paragraphProps = z
   .object({
     text: richText,
-    align: z.enum(["left", "center", "right"]).optional(),
   })
   .strict();
 
 const headingProps = z
   .object({
     text: richText,
-    level: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]).optional(),
+    level: z.union([z.literal(2), z.literal(3)]).default(2),
   })
   .strict();
 
 const listProps = z
   .object({
-    style: z.enum(["unordered", "ordered", "checklist"]).default("unordered"),
+    style: z.enum(["unordered", "ordered"]).default("unordered"),
     items: z.array(z.string().min(1).max(MAX_PROP_STRING)).min(1).max(100),
   })
   .strict();
 
 const imageProps = z
   .object({
-    url: safeUrl,
-    alt: z.string().max(280).optional(),
+    src: safeUrl,
+    alt: z.string().max(280).default(""),
     caption: z.string().max(MAX_PROP_STRING).optional(),
-    widthPx: z.number().int().positive().max(20000).optional(),
-    heightPx: z.number().int().positive().max(20000).optional(),
+    width: z.number().int().positive().max(20000).optional(),
+    height: z.number().int().positive().max(20000).optional(),
   })
   .strict();
 
 const imageTextSplitProps = z
   .object({
-    imageUrl: safeUrl,
-    alt: z.string().max(280).optional(),
-    body: richText,
+    imageSrc: safeUrl,
+    imageAlt: z.string().max(280).default(""),
+    text: richText,
+    heading: shortText.optional(),
     imageSide: z.enum(["left", "right"]).default("left"),
   })
   .strict();
 
 const calloutProps = z
   .object({
-    body: richText,
-    tone: z.enum(["info", "success", "warning", "danger"]).default("info"),
+    text: richText,
+    tone: z.enum(["info", "success", "warn", "danger"]).default("info"),
     title: shortText.optional(),
   })
   .strict();
 
 const tableProps = z
   .object({
+    caption: z.string().max(MAX_PROP_STRING).optional(),
     headers: z.array(z.string().min(1).max(200)).min(1).max(20),
     rows: z
       .array(z.array(z.string().max(MAX_PROP_STRING)).max(20))
@@ -161,10 +167,9 @@ const faqProps = z
 
 const videoProps = z
   .object({
-    url: safeUrl,
-    thumbnailUrl: safeUrl.optional(),
-    title: shortText.optional(),
-    autoplay: z.boolean().optional(),
+    provider: z.enum(["youtube", "vimeo", "mp4"]),
+    ref: z.string().trim().min(1).max(2048),
+    caption: z.string().max(MAX_PROP_STRING).optional(),
   })
   .strict();
 
@@ -174,30 +179,43 @@ const carouselProps = z
       .array(
         z
           .object({
-            url: safeUrl,
-            alt: z.string().max(280).optional(),
+            src: safeUrl,
+            alt: z.string().max(280).default(""),
           })
           .strict(),
       )
       .min(1)
       .max(30),
-    intervalMs: z.number().int().min(0).max(60_000).optional(),
+    caption: z.string().max(MAX_PROP_STRING).optional(),
   })
   .strict();
 
 const bannerProps = z
   .object({
-    body: richText,
-    linkUrl: safeUrl.optional(),
-    tone: z.enum(["info", "success", "warning", "danger", "promo"]).default("info"),
+    imageSrc: safeUrl,
+    alt: z.string().max(280).default(""),
+    caption: z.string().max(MAX_PROP_STRING).optional(),
+    linkUrl: optionalSafeUrl,
+    ctaLabel: z.string().max(280).optional(),
+    ctaAction: z.enum(["add_to_cart"]).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((props, ctx) => {
+    if (props.ctaAction && props.linkUrl) {
+      ctx.addIssue({
+        code: "custom",
+        message: "product_content_validator_banner_cta_action_conflicts_with_url",
+      });
+    }
+  });
 
 const buttonProps = z
   .object({
     label: shortText,
-    linkUrl: safeUrl,
-    variant: z.enum(["primary", "secondary", "ghost"]).default("primary"),
+    href: optionalSafeUrl,
+    linkType: z.enum(["external", "product", "add_to_cart"]).default("external"),
+    productId: z.string().trim().min(1).max(191).optional(),
+    variant: z.enum(["primary", "secondary"]).default("primary"),
   })
   .strict();
 
@@ -235,6 +253,80 @@ export const blocksPayloadSchema = z
 export type ValidatedBlock = z.infer<typeof blockSchema>;
 
 /**
+ * Canonicalize a dashboard video reference before persistence. The editor
+ * accepts either a provider id or a share URL; the renderer only needs the
+ * stable provider id. Keeping this conversion at the API boundary prevents a
+ * valid dashboard submission from becoming an invisible storefront block.
+ */
+function normalizeVideoReference(provider: "youtube" | "vimeo" | "mp4", ref: string): string {
+  if (provider === "mp4") {
+    return assertSafeUrl(ref);
+  }
+
+  if (provider === "youtube") {
+    let id = ref.trim();
+    if (/^https?:\/\//i.test(id)) {
+      try {
+        const url = new URL(id);
+        const host = url.hostname.toLowerCase();
+        if (host === "youtu.be" || host === "www.youtu.be") {
+          id = url.pathname.split("/").filter(Boolean)[0] ?? "";
+        } else if (host === "youtube.com" || host === "www.youtube.com") {
+          id =
+            url.searchParams.get("v") ??
+            url.pathname.split("/").filter(Boolean).filter((part) => part !== "embed" && part !== "shorts")[0] ??
+            "";
+        }
+      } catch {
+        id = "";
+      }
+    }
+    if (!/^[A-Za-z0-9_-]{6,20}$/.test(id)) {
+      throw new Error("product_content_validator_youtube_ref_invalid");
+    }
+    return id;
+  }
+
+  let id = ref.trim();
+  if (/^https?:\/\//i.test(id)) {
+    try {
+      const url = new URL(id);
+      const host = url.hostname.toLowerCase();
+      if (host === "vimeo.com" || host === "www.vimeo.com" || host === "player.vimeo.com") {
+        id = [...url.pathname.split("/").filter(Boolean)]
+          .reverse()
+          .find((part) => /^\d+$/.test(part)) ?? "";
+      }
+    } catch {
+      id = "";
+    }
+  }
+  if (!/^\d{6,12}$/.test(id)) {
+    throw new Error("product_content_validator_vimeo_ref_invalid");
+  }
+  return id;
+}
+
+function validateConditionalProps(
+  type: ProductContentBlockType,
+  props: Record<string, unknown>,
+): void {
+  if (type === "button") {
+    const button = props as {
+      href?: string;
+      linkType: "external" | "product" | "add_to_cart";
+      productId?: string;
+    };
+    if (button.linkType === "product" && !button.productId) {
+      throw new Error("product_content_validator_button_product_required");
+    }
+    if (button.linkType === "external" && !button.href) {
+      throw new Error("product_content_validator_button_href_required");
+    }
+  }
+}
+
+/**
  * Validate one block payload (the `type` + `props` pair — no id / timestamps).
  * Throws a descriptive Error on failure.
  */
@@ -246,10 +338,16 @@ export function validateBlock(input: unknown): {
   // Narrow to the discriminated union. The first parse only checks the
   // envelope; the discriminated union then enforces per-type props.
   const narrowed = blockSchema.parse(payload);
+  const props = narrowed.props as Record<string, unknown>;
+  validateConditionalProps(narrowed.type, props);
+  if (narrowed.type === "video") {
+    const video = props as { provider: "youtube" | "vimeo" | "mp4"; ref: string };
+    props.ref = normalizeVideoReference(video.provider, video.ref);
+  }
   // Ensure props is a plain object shape (the union narrows it that way).
   return {
     type: narrowed.type,
-    props: narrowed.props as unknown as Record<string, unknown>,
+    props,
   };
 }
 
@@ -261,9 +359,15 @@ export function validateBlocks(inputs: readonly unknown[]): ReadonlyArray<{
   const arr = blocksPayloadSchema.parse(inputs);
   return arr.map((p) => {
     const n = blockSchema.parse(p);
+    const props = n.props as Record<string, unknown>;
+    validateConditionalProps(n.type, props);
+    if (n.type === "video") {
+      const video = props as { provider: "youtube" | "vimeo" | "mp4"; ref: string };
+      props.ref = normalizeVideoReference(video.provider, video.ref);
+    }
     return {
       type: n.type,
-      props: n.props as unknown as Record<string, unknown>,
+      props,
     };
   });
 }

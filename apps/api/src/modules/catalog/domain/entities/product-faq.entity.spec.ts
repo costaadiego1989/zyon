@@ -9,6 +9,7 @@ const baseProps = () => ({
   answer: "It is a thing.",
   order: 0,
   isPublished: false,
+  locale: "pt-BR",
   createdAt: new Date("2026-01-01T00:00:00Z"),
   updatedAt: new Date("2026-01-01T00:00:00Z"),
 });

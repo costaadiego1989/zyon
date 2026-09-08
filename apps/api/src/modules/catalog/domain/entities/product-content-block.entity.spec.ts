@@ -6,9 +6,10 @@ import {
   ProductContentBlockType,
 } from "./product-content-block.entity.js";
 
-type BlockOverrides = Partial<Omit<ProductContentBlockProps, "createdAt" | "updatedAt">> & {
+type BlockOverrides = Partial<Omit<ProductContentBlockProps, "createdAt" | "updatedAt" | "locale">> & {
   createdAt?: Date;
   updatedAt?: Date;
+  locale?: string;
 };
 
 const baseProps = (overrides: BlockOverrides = {}): ProductContentBlockProps => ({
@@ -18,6 +19,7 @@ const baseProps = (overrides: BlockOverrides = {}): ProductContentBlockProps => 
   props: { text: "hello" },
   order: 0,
   isEnabled: true,
+  locale: "pt-BR",
   createdAt: new Date("2026-01-01T00:00:00Z"),
   updatedAt: new Date("2026-01-01T00:00:00Z"),
   ...overrides,

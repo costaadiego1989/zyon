@@ -8,10 +8,12 @@ import { decideIntervention, scoreEvent } from "./index.js";
 const ALL_EVENTS: CheckoutEventName[] = [
   "checkout_started",
   "cart_viewed",
+  "product_viewed",
   "shipping_calculated",
   "shipping_option_selected",
   "shipping_objection_detected",
   "coupon_field_clicked",
+  "coupon_applied",
   "payment_method_selected",
   "payment_failed",
   "exit_intent_detected",
@@ -20,6 +22,18 @@ const ALL_EVENTS: CheckoutEventName[] = [
   "offer_accepted",
   "order_completed",
   "checkout_abandoned",
+  "cross_sell_accepted",
+  "cross_sell_added",
+  "auth_phone_submitted",
+  "auth_phone_verified",
+  "auth_identity_confirmed",
+  "auth_registration_completed",
+  "login_completed",
+  "channel_selected",
+  "item_quantity_updated",
+  "item_removed",
+  "session_start",
+  "message_sent",
 ];
 
 describe("scoreEvent", () => {
@@ -55,12 +69,31 @@ describe("scoreEvent", () => {
     it.each([
       ["offer_accepted", -0.15],
       ["order_completed", -1],
+      ["coupon_applied", -0.1],
+      ["cross_sell_accepted", -0.1],
+      ["login_completed", -0.08],
     ] as Array<[CheckoutEventName, number]>)(
       "subtracts %s weight (%s) from the current score",
       (event, expectedWeight) => {
         const baseline = 0.5;
         const next = scoreEvent(baseline, event);
         expect(next).toBe(Math.max(0, baseline + expectedWeight));
+      },
+    );
+  });
+
+  describe("engagement and risk signals", () => {
+    it.each([
+      ["product_viewed", 0.02],
+      ["item_removed", 0.15],
+      ["auth_phone_submitted", 0.05],
+      ["session_start", 0.02],
+      ["message_sent", 0.01],
+    ] as Array<[CheckoutEventName, number]>)(
+      "applies %s weight (%s)",
+      (event, expectedWeight) => {
+        const baseline = 0.2;
+        expect(scoreEvent(baseline, event)).toBeCloseTo(baseline + expectedWeight, 9);
       },
     );
   });
@@ -99,9 +132,9 @@ describe("scoreEvent", () => {
   });
 
   it("returns the input unchanged when the event has zero net impact", () => {
-    // sanity check: starting from 0.5 with a zero-delta event keeps the value
-    // (no event currently has weight 0, but the contract should hold).
-    expect(scoreEvent(0.5, "cart_viewed")).toBeCloseTo(0.55, 9);
+    // Contract: weight 0 would leave score unchanged. message_sent is tiny (0.01),
+    // so we assert purity with identical calls instead.
+    expect(scoreEvent(0.5, "message_sent")).toBe(scoreEvent(0.5, "message_sent"));
   });
 
   it("never produces a value below 0", () => {

@@ -7,12 +7,27 @@
  * Invariants enforced at rehydrate:
  *   - `body` is non-empty after trim.
  *   - `rating`, when present, is in [1, 5].
+ *   - `locale` is normalized via `normalizeProductContentLocale`.
  *
  * Immutable: all transformation methods return a new instance.
  */
 
 export type TestimonialSource = "curated" | "customer_submission";
 export type ModerationStatus = "pending" | "approved" | "rejected";
+
+/**
+ * Re-exported so the testimonial repository can stay scoped to its own
+ * entity file without reaching across to the block entity for helpers.
+ */
+export {
+  DEFAULT_PRODUCT_CONTENT_LOCALE,
+  normalizeProductContentLocale,
+} from "./product-content-block.entity.js";
+
+import {
+  DEFAULT_PRODUCT_CONTENT_LOCALE,
+  normalizeProductContentLocale,
+} from "./product-content-block.entity.js";
 
 export interface ProductTestimonialProps {
   id: string;
@@ -26,6 +41,8 @@ export interface ProductTestimonialProps {
   orderId?: string | null;
   moderationStatus: ModerationStatus;
   isPublished: boolean;
+  /** BCP-47 style locale tag; default `pt-BR`. */
+  locale: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -42,6 +59,7 @@ export class ProductTestimonialEntity {
   readonly orderId: string | null;
   readonly moderationStatus: ModerationStatus;
   readonly isPublished: boolean;
+  readonly locale: string;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 
@@ -57,6 +75,7 @@ export class ProductTestimonialEntity {
     this.orderId = props.orderId ?? null;
     this.moderationStatus = props.moderationStatus;
     this.isPublished = props.isPublished;
+    this.locale = normalizeProductContentLocale(props.locale);
     this.createdAt = props.createdAt;
     this.updatedAt = props.updatedAt;
   }
@@ -126,7 +145,7 @@ export class ProductTestimonialEntity {
   }
 
   /** Update mutable copy fields. Caller must ensure body is non-empty. */
-  edit(input: { authorName?: string; authorAvatarUrl?: string | null; body?: string; rating?: number | null }): ProductTestimonialEntity {
+  edit(input: { authorName?: string; authorAvatarUrl?: string | null; body?: string; rating?: number | null; locale?: string }): ProductTestimonialEntity {
     const next: ProductTestimonialProps = {
       ...this.snapshot(),
       updatedAt: new Date(),
@@ -145,6 +164,9 @@ export class ProductTestimonialEntity {
       }
       next.rating = input.rating;
     }
+    if (input.locale !== undefined) {
+      next.locale = normalizeProductContentLocale(input.locale);
+    }
     return ProductTestimonialEntity.rehydrate(next);
   }
 
@@ -161,6 +183,7 @@ export class ProductTestimonialEntity {
       orderId: this.orderId,
       moderationStatus: this.moderationStatus,
       isPublished: this.isPublished,
+      locale: this.locale,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };

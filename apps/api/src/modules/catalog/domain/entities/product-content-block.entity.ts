@@ -9,8 +9,53 @@
  * `ProductContentValidatorService` (zod) uses to validate the per-type
  * `props` shape. Any unknown type is rejected at construction time.
  *
+ * Wave 3 i18n: every block is tagged with a normalized `locale` (BCP-47
+ * style, e.g. `pt-BR`, `en`, `es`). `rehydrate()` runs the locale through
+ * `normalizeProductContentLocale()` so callers can pass loosely-formatted
+ * input ("PT-br", "en_us") and the entity always sees canonical form.
+ *
  * Immutable: all transformation methods return a NEW instance.
  */
+
+/**
+ * Canonical default locale when the caller does not specify one.
+ * Tenant-wide content surface stays pt-BR unless a merchant opts in to
+ * additional locales per product.
+ */
+export const DEFAULT_PRODUCT_CONTENT_LOCALE = "pt-BR";
+
+/**
+ * Loose BCP-47 normalizer. Accepts loose casing / separator input
+ * ("PT_br", "en-US", "es") and emits canonical case ("pt-BR", "en-US",
+ * "es"). Unknown shapes fall back to the default locale rather than
+ * throw — the store-side is forgiving so a misconfigured Accept-Language
+ * header never 5xx's the public storefront.
+ */
+export function normalizeProductContentLocale(
+  input: string | undefined | null,
+): string {
+  if (typeof input !== "string") return DEFAULT_PRODUCT_CONTENT_LOCALE;
+  const trimmed = input.trim();
+  if (trimmed.length === 0) return DEFAULT_PRODUCT_CONTENT_LOCALE;
+
+  // Accept both '-' and '_' as language/region separators.
+  const [rawLang, rawRegion] = trimmed.split(/[-_]/);
+  if (!rawLang) return DEFAULT_PRODUCT_CONTENT_LOCALE;
+
+  const lang = rawLang.toLowerCase();
+  const region = rawRegion ? rawRegion.toUpperCase() : undefined;
+
+  // Minimal BCP-47 shape: language is 2-3 alpha chars; region, when present,
+  // is 2 alpha chars or 3 digits. Anything else falls back.
+  const LANG_OK = /^[a-z]{2,3}$/.test(lang);
+  const REGION_OK =
+    region === undefined ||
+    /^[A-Z]{2}$/.test(region) ||
+    /^[0-9]{3}$/.test(region);
+  if (!LANG_OK || !REGION_OK) return DEFAULT_PRODUCT_CONTENT_LOCALE;
+
+  return region ? `${lang}-${region}` : lang;
+}
 
 export type ProductContentBlockType =
   | "paragraph"
@@ -33,6 +78,8 @@ export interface ProductContentBlockProps {
   props: Record<string, unknown>;
   order: number;
   isEnabled: boolean;
+  /** BCP-47 style locale tag; default `pt-BR`. Normalized via `normalizeProductContentLocale`. */
+  locale: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -60,6 +107,7 @@ export class ProductContentBlockEntity {
   readonly props: Readonly<Record<string, unknown>>;
   readonly order: number;
   readonly isEnabled: boolean;
+  readonly locale: string;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 
@@ -70,6 +118,7 @@ export class ProductContentBlockEntity {
     this.props = Object.freeze({ ...props.props });
     this.order = props.order;
     this.isEnabled = props.isEnabled;
+    this.locale = normalizeProductContentLocale(props.locale);
     this.createdAt = props.createdAt;
     this.updatedAt = props.updatedAt;
   }
@@ -171,6 +220,7 @@ export class ProductContentBlockEntity {
       props: { ...this.props },
       order: this.order,
       isEnabled: this.isEnabled,
+      locale: this.locale,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };

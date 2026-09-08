@@ -97,6 +97,7 @@ const ReturnExchangesPage = lazy(() => import("../pages/returns/ReturnExchangesP
 const DeliveryPage = lazy(() => import("../pages/delivery/index.js").then(m => ({ default: m.DeliveryPage })));
 const PostSalePage = lazy(() => import("../pages/post-sale/index.js").then(m => ({ default: m.PostSalePage })));
 const KnowledgePage = lazy(() => import("../pages/knowledge/index.js").then(m => ({ default: m.KnowledgePage })));
+const AdvancedLayoutListPage = lazy(() => import("../pages/advanced-layout/index.js").then(m => ({ default: m.AdvancedLayoutListPage })));
 
 import { PageLoader } from "../components/PageLoader.js";
 
@@ -720,6 +721,21 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                   description="Alimente seu agente com FAQs, políticas e documentos da loja para respostas mais precisas e personalizadas."
                 >
                   <KnowledgePage apiBaseUrl={API_BASE_URL} me={me} />
+                </PremiumFeatureGate>
+              </RouteGuard>
+            ) : null}
+            {tab === "advanced-layout" ? (
+              <RouteGuard me={me} require="advanced-layout">
+                <PremiumFeatureGate
+                  feature="advancedProductLayout"
+                  requiredPlan="Growth"
+                  featureLabel="Conteúdo Avançado"
+                  description="Páginas de produto ricas com blocos estruturados, FAQ, depoimentos e vídeos — paridade com referências de mercado."
+                >
+                  <AdvancedLayoutListPage
+                    me={me}
+                    onEditProduct={(id) => { setEditingProductId(id); changeTab("product-detail"); }}
+                  />
                 </PremiumFeatureGate>
               </RouteGuard>
             ) : null}

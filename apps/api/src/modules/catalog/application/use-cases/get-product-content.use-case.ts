@@ -17,6 +17,7 @@ import {
 } from "../../domain/ports/product-video-repository.port.js";
 
 export type PublicProductContent = {
+  locale: string;
   blocks: Array<{
     id: string;
     productId: string;
@@ -24,6 +25,7 @@ export type PublicProductContent = {
     props: Record<string, unknown>;
     order: number;
     isEnabled: boolean;
+    locale: string;
   }>;
   faqs: Array<{
     id: string;
@@ -32,6 +34,7 @@ export type PublicProductContent = {
     answer: string;
     order: number;
     isPublished: boolean;
+    locale: string;
   }>;
   testimonials: Array<{
     id: string;
@@ -43,6 +46,7 @@ export type PublicProductContent = {
     source: "curated" | "customer_submission";
     moderationStatus: string;
     isPublished: boolean;
+    locale: string;
   }>;
   videos: Array<{
     id: string;
@@ -54,6 +58,7 @@ export type PublicProductContent = {
     source: "merchant" | "customer";
     moderationStatus: string;
     isPublished: boolean;
+    locale: string;
   }>;
 };
 
@@ -64,6 +69,10 @@ export type PublicProductContent = {
  *   - FAQs where isPublished=true
  *   - testimonials where isPublished=true AND moderationStatus='approved'
  *   - videos where isPublished=true AND moderationStatus='approved'
+ *
+ * Wave 3: accepts an optional `locale` (BCP-47 / simple). Each repository
+ * scopes its read to that locale — public storefront passes the value parsed
+ * from the request's `Accept-Language` header (controller default `pt-BR`).
  *
  * Use-case enforces merchant scoping via productId → product.merchantId lookup
  * (delegated to each repository's findBy* method).
@@ -79,15 +88,21 @@ export class GetProductContentUseCase {
     @Inject(PRODUCT_VIDEO_REPOSITORY) private readonly videoRepo: ProductVideoRepositoryPort,
   ) {}
 
-  async execute(input: { merchantId: string; productId: string }): Promise<PublicProductContent> {
+  async execute(input: {
+    merchantId: string;
+    productId: string;
+    locale?: string;
+  }): Promise<PublicProductContent> {
+    const locale = input.locale ?? "pt-BR";
     const [blocks, faqs, testimonials, videos] = await Promise.all([
-      this.contentRepo.findByProduct(input),
-      this.faqRepo.findPublishedByProduct({ productId: input.productId }),
-      this.testimonialRepo.findApprovedByProduct({ productId: input.productId }),
-      this.videoRepo.findApprovedByProduct({ productId: input.productId }),
+      this.contentRepo.findByProduct({ merchantId: input.merchantId, productId: input.productId, locale }),
+      this.faqRepo.findPublishedByProduct({ productId: input.productId, locale }),
+      this.testimonialRepo.findApprovedByProduct({ productId: input.productId, locale }),
+      this.videoRepo.findApprovedByProduct({ productId: input.productId, locale }),
     ]);
 
     return {
+      locale,
       blocks: blocks
         .filter((b) => b.isEnabled)
         .map((b) => ({
@@ -97,6 +112,7 @@ export class GetProductContentUseCase {
           props: b.props,
           order: b.order,
           isEnabled: b.isEnabled,
+          locale,
         })),
       faqs: faqs.map((f) => ({
         id: f.id,
@@ -105,6 +121,7 @@ export class GetProductContentUseCase {
         answer: f.answer,
         order: f.order,
         isPublished: f.isPublished,
+        locale,
       })),
       testimonials: testimonials.map((t) => ({
         id: t.id,
@@ -116,6 +133,7 @@ export class GetProductContentUseCase {
         source: t.source,
         moderationStatus: t.moderationStatus,
         isPublished: t.isPublished,
+        locale,
       })),
       videos: videos.map((v) => ({
         id: v.id,
@@ -127,6 +145,7 @@ export class GetProductContentUseCase {
         source: v.source,
         moderationStatus: v.moderationStatus,
         isPublished: v.isPublished,
+        locale,
       })),
     };
   }
