@@ -77,6 +77,23 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     });
   }
 
+  async createSessionIfAbsent(session: CheckoutSession): Promise<{ session: CheckoutSession; created: boolean }> {
+    try {
+      const row = await this.prisma.checkoutSession.upsert({
+        where: { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } },
+        create: toCheckoutSessionCreate(session) as any,
+        update: {},
+      });
+      return { session: toCheckoutSession(row), created: row.conversationId === session.conversationId };
+    } catch (error) {
+      // An emulated Prisma upsert can lose a concurrent insert; reread its winner.
+      if ((error as { code?: string })?.code !== "P2002") throw error;
+      const existing = await this.getSession(session.merchantId, session.sessionId);
+      if (!existing) throw error;
+      return { session: existing, created: false };
+    }
+  }
+
   async getSession(merchantId: string, sessionId: string): Promise<CheckoutSession | undefined> {
     const row = await this.prisma.checkoutSession.findUnique({
       where: { merchantId_sessionId: { merchantId, sessionId } }

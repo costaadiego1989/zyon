@@ -92,7 +92,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       aiSpreadsheetImport: false,
       revenueManager: false,
       m2mAgents: false,
-      advancedProductLayout: false,
+      advancedProductLayout: true,
     },
   },
   growth: {

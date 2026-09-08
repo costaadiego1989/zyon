@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import type { CheckoutSession, StartCheckoutRequest } from "@zyon/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { CheckoutSessionEntity } from "../../domain/entities/checkout-session.entity.js";
@@ -9,6 +9,7 @@ import { HoldoutGroupService } from "../../../revenue-lift/domain/services/holdo
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../../storefront/domain/ports/storefront-cart.port.js";
 import { MetricsService } from "../../../../shared/observability/metrics.service.js";
 import { CartPromoResolutionService } from "./cart-promo-resolution.service.js";
+import type { TrustedCheckoutBuyer } from "./trusted-checkout-buyer.js";
 
 interface BootstrapResult {
   session: CheckoutSession;
@@ -29,7 +30,9 @@ export class CheckoutBootstrapService {
     @Optional() private readonly promoResolution?: CartPromoResolutionService
   ) {}
 
-  async bootstrap(input: StartCheckoutRequest, globalUserId: string, cartValidated = false): Promise<BootstrapResult> {
+  async bootstrap(input: StartCheckoutRequest, globalUserId: string, cartValidated = false,
+    identity?: { trustedBuyer?: TrustedCheckoutBuyer; requireBuyerProof?: boolean },
+  ): Promise<BootstrapResult> {
     let enrichedInput = input;
 
     const cartRef = cartValidated ? (input.cart as any)?.cart_ref : (input as any).cart_ref?.trim?.();
@@ -95,8 +98,29 @@ export class CheckoutBootstrapService {
       if (cartRef && session.cart) {
         (session.cart as any).cart_ref = cartRef;
       }
-      await this.sessions.saveSession(session);
-      await this.sessions.recordEvent(input.merchant_id, sessionId, "checkout_started");
+      if (this.sessions.createSessionIfAbsent) {
+        const result = await this.sessions.createSessionIfAbsent(session);
+        session = result.session;
+        if (result.created) await this.sessions.recordEvent(input.merchant_id, sessionId, "checkout_started");
+      } else {
+        if (identity?.requireBuyerProof || identity?.trustedBuyer) {
+          throw new ServiceUnavailableException("checkout_session_binding_unavailable");
+        }
+        await this.sessions.saveSession(session);
+        await this.sessions.recordEvent(input.merchant_id, sessionId, "checkout_started");
+      }
+    }
+
+    // The embed capability remains bound to its first checkout buyer. A new
+    // authenticated buyer (including login after an anonymous start) needs a
+    // fresh embed token, so concurrent starts cannot replace someone else's PII.
+    if (identity?.trustedBuyer) {
+      if (session.globalUserId !== identity.trustedBuyer.globalUserId ||
+        session.customer?.email?.trim().toLowerCase() !== identity.trustedBuyer.customer.email) {
+        throw new UnauthorizedException("checkout_buyer_session_binding_mismatch");
+      }
+    } else if (identity?.requireBuyerProof && session.customer?.email_verified === true) {
+      throw new UnauthorizedException("checkout_buyer_proof_required");
     }
 
     this.logger.warn('[CHECKOUT-DBG] session saved', { sessionId, customer: { cpf: !!session.customer?.cpf, name: !!session.customer?.fullName, asaasId: !!session.customer?.asaasCustomerId } });

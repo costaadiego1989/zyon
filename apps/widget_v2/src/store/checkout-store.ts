@@ -111,7 +111,7 @@ interface CheckoutState {
 
   voiceEnabled: boolean;
 
-  init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; globalUserId?: string }) => Promise<void>;
+  init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; globalUserId?: string; buyerAccessToken?: string }) => Promise<void>;
   selectChannel: (channel: "chat" | "voice") => void;
   sendMessage: (text: string) => Promise<void>;
   updateQty: (sku: string, quantity: number, variant?: string) => Promise<void>;
@@ -217,8 +217,8 @@ function deriveBlocksFromStage(
 
   if (stage === "payment") {
     const methods: Array<{ key: string; label: string; sub: string }> = [];
-    methods.push({ key: "pix", label: "Pix", sub: "Pagamento instantâneo, sem taxas" });
-    methods.push({ key: "credito", label: "Cartão de crédito", sub: "Parcele em até 12x sem juros" });
+    methods.push({ key: "pix", label: "Pix", sub: "Pagamento instantâneo" });
+    methods.push({ key: "credito", label: "Cartão de crédito", sub: "Pagamento seguro com cartão" });
     methods.push({ key: "debito", label: "Cartão de débito", sub: "Débito à vista" });
     if (state.merchantPaymentConfig.cryptoPaymentsEnabled) {
       const token = state.merchantPaymentConfig.cryptoPayments?.token || "USDC";
@@ -293,9 +293,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   showBranding: false,
   voiceEnabled: false,
 
-  init: async ({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId }) => {
+  init: async ({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId, buyerAccessToken }) => {
     try {
-      const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId });
+      const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId, buyerAccessToken });
       set({ api, status: "loading" });
 
       const response = await api.start();
@@ -491,8 +491,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     if (text.startsWith("Entrega ·")) {
       const { merchantPaymentConfig } = get();
       const methods: Array<{ key: string; label: string; sub: string }> = [];
-      methods.push({ key: "pix", label: "Pix", sub: "Pagamento instantâneo, sem taxas" });
-      methods.push({ key: "credito", label: "Cartão de crédito", sub: "Parcele em até 12x sem juros" });
+      methods.push({ key: "pix", label: "Pix", sub: "Pagamento instantâneo" });
+      methods.push({ key: "credito", label: "Cartão de crédito", sub: "Pagamento seguro com cartão" });
       methods.push({ key: "debito", label: "Cartão de débito", sub: "Débito à vista" });
       if (merchantPaymentConfig.cryptoPaymentsEnabled) {
         const token = merchantPaymentConfig.cryptoPayments?.token || "USDC";
@@ -964,8 +964,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     if (!list?.length) {
       const cfg = s.merchantPaymentConfig;
       list = [
-        { key: "pix", label: "Pix", sub: "Pagamento instantâneo, sem taxas" },
-        { key: "credito", label: "Cartão de crédito", sub: "Parcele em até 12x sem juros" },
+        { key: "pix", label: "Pix", sub: "Pagamento instantâneo" },
+        { key: "credito", label: "Cartão de crédito", sub: "Pagamento seguro com cartão" },
         { key: "debito", label: "Cartão de débito", sub: "Débito à vista" },
       ];
       if (cfg?.cryptoPaymentsEnabled) {

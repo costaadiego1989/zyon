@@ -14,6 +14,7 @@ export interface InlineCheckoutProps {
   apiBaseUrl: string;
   cartRef?: string;
   globalUserId?: string;
+  buyerAccessToken?: string;
   theme?: "dark" | "light";
   onClose?: () => void;
 }
@@ -33,8 +34,9 @@ export function InlineCheckout(props: InlineCheckoutProps) {
       cartRef: props.cartRef,
       apiBaseUrl: props.apiBaseUrl,
       globalUserId: props.globalUserId,
+      buyerAccessToken: props.buyerAccessToken,
     });
-  }, [init, props.embedToken, props.merchantId]);
+  }, [init, props.embedToken, props.merchantId, props.buyerAccessToken]);
 
   useEffect(() => {
     if (props.theme === "light") {

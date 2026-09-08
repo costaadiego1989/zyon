@@ -21,7 +21,8 @@ export interface RuleMatchContext {
 export interface RuleCondition {
   field: string; // cart_total, shipping_cost, cart_item_count, product_in_cart, category_in_cart, coupon_applied, buyer_type, payment_method, trigger_fired
   operator: string; // gt, lt, gte, lte, eq, contains, is
-  value: string | number | boolean;
+  /** `contains` may target any of several catalog SKUs for a product. */
+  value: string | number | boolean | string[];
 }
 
 export interface RuleAction {
@@ -173,7 +174,9 @@ export class AdvancedRuleEvaluator {
         return String(contextValue) === String(value);
       case "contains":
         // For arrays (product_in_cart, category_in_cart)
-        return Array.isArray(contextValue) && contextValue.includes(String(value));
+        if (!Array.isArray(contextValue)) return false;
+        const expected = Array.isArray(value) ? value : [String(value)];
+        return expected.some((candidate) => contextValue.includes(String(candidate)));
       case "is":
         return String(contextValue) === String(value);
       default:

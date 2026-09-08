@@ -26,8 +26,7 @@ export class BuyerAccountPersistenceService {
       customer.email &&
       customer.email_verified &&
       customer.cpf &&
-      customer.phone &&
-      customer.phone_verified
+      customer.phone
     );
   }
 

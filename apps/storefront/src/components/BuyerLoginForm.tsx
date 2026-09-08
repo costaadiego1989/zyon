@@ -11,21 +11,12 @@ type Props = {
   onCancel: () => void;
 };
 
-function formatPhone(value: string): string {
-  const digits = value.replace(/\D/g, "").slice(0, 11);
-  if (digits.length <= 2) return digits;
-  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-}
-
-export default function BuyerLoginForm({ merchantId, merchantName, onComplete, onCancel }: Props) {
+export default function BuyerLoginForm({ onComplete, merchantId }: Props) {
   const [step, setStep] = useState<1 | 2>(1);
-  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const phoneDigits = phone.replace(/\D/g, "");
 
   const handleConfirm = async () => {
     setError("");
@@ -33,19 +24,10 @@ export default function BuyerLoginForm({ merchantId, merchantName, onComplete, o
 
     try {
       if (step === 1) {
-        let fallbackEmail: string | undefined;
-        try {
-          const session = localStorage.getItem("zyon_buyer_session");
-          if (session) {
-            const parsed = JSON.parse(session);
-            if (parsed.email) fallbackEmail = parsed.email;
-          }
-        } catch {}
-
-        const res = await fetch(`${API_BASE}/buyer/phone/send`, {
+        const res = await fetch(`${API_BASE}/buyer/email/send`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: phoneDigits, merchant_name: merchantName, fallback_email: fallbackEmail }),
+          body: JSON.stringify({ email, merchant_id: merchantId }),
         });
         if (!res.ok) {
           const errData = await res.json().catch(() => null);
@@ -53,10 +35,10 @@ export default function BuyerLoginForm({ merchantId, merchantName, onComplete, o
         }
         setStep(2);
       } else {
-        const res = await fetch(`${API_BASE}/buyer/phone/verify`, {
+        const res = await fetch(`${API_BASE}/buyer/email/login/verify`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: phoneDigits, code: otp }),
+          body: JSON.stringify({ email, code: otp }),
         });
 
         if (!res.ok) {
@@ -70,10 +52,10 @@ export default function BuyerLoginForm({ merchantId, merchantName, onComplete, o
           throw new Error("Login falhou: servidor não retornou identificação do usuário");
         }
         const token = data.accessToken ?? data.access_token ?? data.token;
-        const email = data.email;
+        const verifiedEmail = data.email ?? email;
         if (token) {
           localStorage.setItem("zyon_buyer_token", token);
-          localStorage.setItem("zyon_buyer_session", JSON.stringify({ globalUserId, token, email }));
+          localStorage.setItem("zyon_buyer_session", JSON.stringify({ globalUserId, token, email: verifiedEmail }));
         }
 
         await onComplete(globalUserId);
@@ -130,7 +112,7 @@ export default function BuyerLoginForm({ merchantId, merchantName, onComplete, o
             color: "var(--aacp-muted, #8b8b95)",
           }}
         >
-          Login · {step === 1 ? "celular" : "código de verificação"}
+          Login · {step === 1 ? "e-mail" : "código de verificação"}
         </span>
         <span
           style={{
@@ -147,13 +129,14 @@ export default function BuyerLoginForm({ merchantId, merchantName, onComplete, o
       {step === 1 && (
         <div style={inputWrapStyle}>
           <input
-            value={phone}
-            onChange={(e) => setPhone(formatPhone(e.target.value))}
-            placeholder="(11) 99999-9999"
-            type="tel"
-            inputMode="tel"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="voce@email.com"
+            type="email"
+            inputMode="email"
+            autoComplete="email"
             autoFocus
-            aria-label="Celular"
+            aria-label="E-mail"
             style={inputStyle}
           />
         </div>
@@ -167,12 +150,19 @@ export default function BuyerLoginForm({ merchantId, merchantName, onComplete, o
             placeholder="000000"
             type="text"
             inputMode="numeric"
+            autoComplete="one-time-code"
             maxLength={6}
             autoFocus
             aria-label="Código de verificação"
             style={inputStyle}
           />
         </div>
+      )}
+
+      {step === 1 && (
+        <p style={{ margin: "-2px 2px 0", fontSize: "11.5px", color: "var(--aacp-muted, #8b8b95)", lineHeight: 1.45 }}>
+          Enviaremos um código de seis dígitos para este e-mail.
+        </p>
       )}
 
       {/* Error */}

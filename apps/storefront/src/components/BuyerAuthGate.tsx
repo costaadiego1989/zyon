@@ -47,11 +47,11 @@ function BiometricIcon() {
   );
 }
 
-function PhoneIcon() {
+function EmailIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <rect x="6" y="2" width="12" height="20" rx="2" />
-      <line x1="11" y1="18" x2="13" y2="18" />
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m3 7 9 6 9-6" />
     </svg>
   );
 }
@@ -263,11 +263,11 @@ export default function BuyerAuthGate({ merchantId, merchantName, onComplete, on
                   flexShrink: 0,
                 }}
               >
-                <PhoneIcon />
+                <EmailIcon />
               </span>
               <span style={{ display: "flex", flexDirection: "column", gap: "2px", flex: 1, minWidth: 0 }}>
-                <span style={{ fontSize: "13.5px", fontWeight: 600 }}>Entrar com celular</span>
-                <span style={{ fontSize: "11.5px", color: "var(--aacp-muted, #8b8b95)" }}>Receba um código por SMS</span>
+                <span style={{ fontSize: "13.5px", fontWeight: 600 }}>Entrar com e-mail</span>
+                <span style={{ fontSize: "11.5px", color: "var(--aacp-muted, #8b8b95)" }}>Receba um código de acesso no seu e-mail</span>
               </span>
             </button>
 

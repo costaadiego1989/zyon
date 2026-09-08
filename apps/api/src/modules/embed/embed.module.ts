@@ -1,6 +1,9 @@
 import { Module } from "@nestjs/common";
 import { RealtimeCapabilityService } from "../../shared/auth/realtime-capability.js";
 import { AuthorizeStorefrontCartService } from "./application/authorize-storefront-cart.service.js";
+import { ResolveEmbedBuyerService } from "./application/resolve-embed-buyer.service.js";
+import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
+import { BuyerJwtService } from "../buyer-account/domain/services/buyer-jwt.service.js";
 import { AuthModule } from "../auth/auth.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
@@ -40,6 +43,7 @@ import { ProtocolSessionExpiryReaper } from "./infrastructure/protocol-session-e
     InstallationsModule,
     MessagingModule,
     IntentMemoryModule,
+    BuyerAccountRepositoryModule,
   ],
   controllers: [
     EmbedSessionsController,
@@ -51,6 +55,8 @@ import { ProtocolSessionExpiryReaper } from "./infrastructure/protocol-session-e
   providers: [
     { provide: RealtimeCapabilityService, useFactory: () => new RealtimeCapabilityService() },
     AuthorizeStorefrontCartService,
+    ResolveEmbedBuyerService,
+    { provide: BuyerJwtService, useFactory: () => new BuyerJwtService() },
     EmbedTokenService,
     AgentSessionTokenService,
     AgentCheckoutStateService,

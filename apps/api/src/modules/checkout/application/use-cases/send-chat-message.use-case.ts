@@ -164,7 +164,10 @@ export class SendChatMessageUseCase {
       });
     }
 
-    const safetyCheck = isSafeGeneratedMessage(reply.message);
+    const safetyCheck = isSafeGeneratedMessage(
+      reply.message,
+      isHoldout ? undefined : offer,
+    );
     const safeMessage = safetyCheck.safe
       ? reply.message
       : "Como posso ajudar com o seu pedido?";
@@ -343,12 +346,12 @@ export class SendChatMessageUseCase {
       const finalMsg = execution.message
         ? `${textContent ? textContent + "\n" : ""}${execution.message}`
         : textContent || fallbackMsg;
-      const safetyCheck = isSafeGeneratedMessage(finalMsg || "ok");
+      const safetyCheck = isSafeGeneratedMessage(finalMsg || "ok", authorizedOffer);
       const safeMsg = safetyCheck.safe ? finalMsg : fallbackMsg;
       return { message: safeMsg, objection: "unknown" as any, blocks: execution.blocks };
     }
 
-    const safetyCheck = isSafeGeneratedMessage(result.content || "");
+    const safetyCheck = isSafeGeneratedMessage(result.content || "", authorizedOffer);
     const safeContent = safetyCheck.safe
       ? result.content || "Como posso ajudar com o seu pedido?"
       : "Como posso ajudar com o seu pedido?";

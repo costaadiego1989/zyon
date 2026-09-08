@@ -259,7 +259,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
                 Pagamento confirmado! 🎉
               </h2>
               <p style={{ margin: 0, fontSize: "14px", color: "var(--mut)", lineHeight: 1.5, maxWidth: "320px" }}>
-                Seu pedido foi confirmado com sucesso. Você receberá os detalhes por e-mail e WhatsApp.
+                Seu pedido foi confirmado com sucesso. Acompanhe os detalhes no seu histórico de compras.
               </p>
             </div>
             <button

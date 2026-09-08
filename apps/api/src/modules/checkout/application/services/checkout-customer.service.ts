@@ -133,14 +133,15 @@ export class CheckoutCustomerService {
       }
     }
 
-    if (!existing?.cpf) {
+    // An 11-digit mobile reply is not a CPF, even though both share a length.
+    const answeringPhone = /\b(celular|telefone|DDD)\b/i.test(lastAgentTurn ?? "");
+    if (!existing?.cpf && !answeringPhone) {
       const cpf = extractCpf(userMessage);
       if (cpf) patch.cpf = cpf;
     }
 
-    let currentPhone = existing?.phone;
-    const phoneOtpPending = Boolean(existing?.phone_otp_code);
-    if (!currentPhone || (!phoneOtpPending && !existing?.phone_verified)) {
+    const currentPhone = existing?.phone;
+    if (!currentPhone || !isBrazilianMobilePhone(currentPhone)) {
       const phone = extractPhone(userMessage);
       const cpfInThisTurn = patch.cpf ?? existing?.cpf;
       if (phone && phone !== cpfInThisTurn) {
@@ -148,30 +149,14 @@ export class CheckoutCustomerService {
           this.otpService.validateBrazilianMobilePhone(phone);
         } else if (!isBrazilianMobilePhone(phone)) {
           throw new OtpValidationError(
-            "Precisamos de um celular com DDD (ex: 11 98888-7777) para enviar o rastreio pelo WhatsApp."
+            "Informe um celular com DDD (ex: 11 98888-7777) para contato sobre o pedido."
           );
         }
         patch.phone = phone;
-        currentPhone = phone;
       }
     }
 
-    // Delegate phone OTP processing
-    if (currentPhone && !existing?.phone_verified && this.otpService) {
-      const isNewPhone = Boolean(patch.phone);
-      const phoneOtpResult = this.otpService.processPhoneOtp(
-        userMessage,
-        existing,
-        currentPhone,
-        isNewPhone
-      );
-      if (phoneOtpResult) {
-        Object.assign(patch, phoneOtpResult);
-        if (phoneOtpResult.phone_verified) {
-          return Object.keys(patch).length === 0 ? null : patch;
-        }
-      }
-    }
+    // Email proves identity. The phone is contact data and does not start an OTP.
 
     if (!existing?.address?.zip) {
       const zip = extractCep(userMessage);

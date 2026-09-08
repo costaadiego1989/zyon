@@ -32,6 +32,8 @@ export type CheckoutEventName =
 
 export interface CartItem {
   sku: string;
+  /** Canonical catalog variant, distinct from the option-selection line key. */
+  variantId?: string;
   name: string;
   price: number;
   cost?: number;
@@ -1298,7 +1300,7 @@ export type ConditionOperator = "gt" | "lt" | "gte" | "lte" | "eq" | "contains" 
 export interface RuleCondition {
   field: ConditionField;
   operator: ConditionOperator;
-  value: string | number | boolean;
+  value: string | number | boolean | string[];
 }
 
 export type ActionType =

@@ -232,6 +232,25 @@ test("AdvancedRuleEvaluator — contains operator (arrays)", async () => {
   assert.equal(evaluator.evaluate([rule], ctx).matched, false);
 });
 
+test("AdvancedRuleEvaluator supports any active SKU of a varied product", async () => {
+  const evaluator = new AdvancedRuleEvaluator();
+  const result = evaluator.evaluate([{
+    enabled: true,
+    priority: 1,
+    conditions: [{ field: "product_in_cart", operator: "contains", value: ["SKU-S", "SKU-M", "SKU-L"] }],
+    action: { type: "offer_discount", params: { percent: 10 } },
+  }], {
+    cartTotal: 100,
+    shippingCost: 0,
+    cartItemCount: 1,
+    skusInCart: ["SKU-M"],
+    categoriesInCart: [],
+    couponApplied: false,
+    buyerType: "new",
+  });
+  assert.equal(result.matched, true);
+});
+
 test("AdvancedRuleEvaluator — is operator (strings)", async () => {
   const evaluator = new AdvancedRuleEvaluator();
   const rule: AdvancedRule = {

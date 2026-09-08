@@ -9,6 +9,7 @@ export interface CheckoutSessionConfig {
   cartRef?: string;
   apiBaseUrl: string;
   globalUserId?: string;
+  buyerAccessToken?: string;
 }
 
 export interface BrandConfig {
@@ -190,6 +191,7 @@ export class CheckoutSession {
   private merchantId: string;
   private baseUrl: string;
   private globalUserId: string | undefined;
+  private buyerAccessToken: string | undefined;
   private sessionId: string | null = null;
   private experience?: Experience;
   private paymentRevision = 0;
@@ -199,6 +201,7 @@ export class CheckoutSession {
     this.merchantId = config.merchantId;
     this.baseUrl = config.apiBaseUrl.replace(/\/$/, "");
     this.globalUserId = config.globalUserId;
+    this.buyerAccessToken = config.buyerAccessToken;
   }
 
   get currentSessionId(): string | null {
@@ -233,6 +236,7 @@ export class CheckoutSession {
         cart: { items: [] },
         customer_hints: this.globalUserId ? { externalCustomerId: this.globalUserId } : {},
         global_user_id: this.globalUserId || undefined,
+        buyer_access_token: this.buyerAccessToken || undefined,
       }),
     });
     if (!res.ok) {

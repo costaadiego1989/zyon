@@ -25,6 +25,7 @@ export function DiscountBanner({
   const buyer = useCheckoutStore((s) => s.buyer);
 
   const isReturning = (buyer.purchaseCount ?? 0) > 0 || buyer.isReturning;
+  if (!message?.trim() && (!Number.isFinite(percent) || percent <= 0 || percent > 100)) return null;
 
   const defaultMessages: Record<string, string> = {
     initial_coupon: isReturning

@@ -1,9 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { AdvancedRule } from "@zyon/shared-types";
+import { DEFAULT_MERCHANT_RULES, type AdvancedRule, type Cart, type MerchantRules } from "@zyon/shared-types";
 import { AdvancedRuleEvaluator } from "../domain/services/advanced-rule-evaluator.service.js";
 import { evaluateDiscountOffer } from "@zyon/rules-engine";
-import type { MerchantRules, Cart } from "@zyon/shared-types";
 
 /**
  * F0-T06 + F0-T07: Integration tests for AdvancedRuleEvaluator integration into checkout-offer.service
@@ -19,12 +18,10 @@ import type { MerchantRules, Cart } from "@zyon/shared-types";
 
 function createMerchantRules(overrides?: Partial<MerchantRules>): MerchantRules {
   const defaults: MerchantRules = {
+    ...DEFAULT_MERCHANT_RULES,
     maxDiscountPercent: 50,
     minimumMarginPercent: 25,
-    minOfferDiscountPercent: 1,
     freeShippingMinCartValue: 150,
-    maxOfferCount: 3,
-    maxOfferFrequency: 1,
     autonomousEngineEnabled: true
   };
   return { ...defaults, ...overrides };

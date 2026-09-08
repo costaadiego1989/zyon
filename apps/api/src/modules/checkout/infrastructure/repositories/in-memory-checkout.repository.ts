@@ -59,6 +59,13 @@ export class InMemoryCheckoutRepository
     return work(this);
   }
 
+  createSessionIfAbsent(session: CheckoutSession): { session: CheckoutSession; created: boolean } {
+    const existing = this.getSession(session.merchantId, session.sessionId);
+    if (existing) return { session: existing, created: false };
+    this.saveSession(session);
+    return { session: this.getSession(session.merchantId, session.sessionId)!, created: true };
+  }
+
   private _getRulesSync(merchantId: string): MerchantRules {
     if (!this.rules.has(merchantId)) this.rules.set(merchantId, { ...DEFAULT_RULES });
     return this.rules.get(merchantId)!;

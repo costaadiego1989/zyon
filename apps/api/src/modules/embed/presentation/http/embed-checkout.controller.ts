@@ -6,6 +6,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  Optional,
   Post,
   Query,
   Req,
@@ -39,6 +40,7 @@ import { EmbedAuthGuard } from "./embed-auth.guard.js";
 import { RequireEmbedScope } from "./embed-scope.decorator.js";
 import { UpdateEmbedCustomerUseCase } from "../../application/update-embed-customer.use-case.js";
 import { embedCheckoutSessionId } from "../../domain/embed-checkout-session.js";
+import { ResolveEmbedBuyerService } from "../../application/resolve-embed-buyer.service.js";
 
 export type EmbedHttpRequest = {
   embedClaims?: EmbedTokenClaims;
@@ -91,14 +93,15 @@ export class EmbedCheckoutController {
     private readonly confirmStripePayment: ConfirmStripePaymentUseCase,
     private readonly getPaymentIntentStatus: GetPaymentIntentStatusUseCase,
     private readonly updateCart: UpdateCartUseCase,
-    private readonly updateEmbedCustomer: UpdateEmbedCustomerUseCase
+    private readonly updateEmbedCustomer: UpdateEmbedCustomerUseCase,
+    @Optional() private readonly resolveBuyer?: ResolveEmbedBuyerService,
   ) {}
 
   private readonly logger = new Logger(EmbedCheckoutController.name);
 
   @Post("start")
   @RequireEmbedScope("checkout:start")
-  async start(@Req() request: EmbedHttpRequest, @Body() body: StartCheckoutRequest) {
+  async start(@Req() request: EmbedHttpRequest, @Body() body: StartCheckoutRequest & { buyer_access_token?: unknown }) {
     const embed = request.embedClaims!;
     const sessionId = embedCheckoutSessionId(embed);
     if (body.session_id !== undefined && body.session_id !== sessionId) {
@@ -114,16 +117,22 @@ export class EmbedCheckoutController {
     if (body.cart?.commerceCartRef && body.cart.commerceCartRef !== embed.cartRef) {
       throw new UnauthorizedException("embed_commerce_cart_binding_mismatch");
     }
-    const { merchant_id: _discard, merchantId: _d2, cart_ref: _ref, ...rest } = body as StartCheckoutRequest & {
+    if (body.buyer_access_token !== undefined && !this.resolveBuyer) {
+      throw new UnauthorizedException("embed_buyer_authentication_unavailable");
+    }
+    const trustedBuyer = await this.resolveBuyer?.resolve(embed.merchantId, body.buyer_access_token);
+    const { merchant_id: _discard, merchantId: _d2, cart_ref: _ref, buyer_access_token: _buyerToken, global_user_id: _buyerId, ...rest } = body as StartCheckoutRequest & {
       merchantId?: string;
       cart_ref?: unknown;
+      buyer_access_token?: unknown;
+      global_user_id?: unknown;
     };
     return this.startCheckout.execute({
       ...(rest as Omit<StartCheckoutRequest, "merchant_id">),
       merchant_id: embed.merchantId,
       session_id: sessionId,
       cart: embed.cartRef ? { ...body.cart, commerceCartRef: embed.cartRef } : body.cart,
-    }, { storefrontCartRef: embed.storefrontCartRef });
+    }, { storefrontCartRef: embed.storefrontCartRef, trustedBuyer, requireBuyerProof: true });
   }
 
   @Post("track")

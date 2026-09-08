@@ -81,11 +81,11 @@ export default function NativeCartPanel({
   };
   return (
     <>
-      <CartFAB
+      {!sheetOpen && <CartFAB
         itemCount={cart.itemCount}
         total={cart.total}
         onClick={handleManualOpen}
-      />
+      />}
       <CartSheet
         open={sheetOpen}
         cart={{

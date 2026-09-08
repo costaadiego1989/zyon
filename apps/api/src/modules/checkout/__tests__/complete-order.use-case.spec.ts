@@ -45,6 +45,19 @@ test("CompleteOrderUseCase records order completion idempotently and emits once"
   assert.equal(completed?.payload.tracking_code, null);
 });
 
+test("CompleteOrderUseCase retains catalog variant identity for returns independently of SKU and selected options", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  const session = checkoutSession();
+  session.cart.items[0]!.variantId = "catalog-variant-50ml";
+  session.cart.items[0]!.variant = JSON.stringify(["catalog-variant-50ml", ["extra"]]);
+  repository.saveSession(session);
+  const useCase = new CompleteOrderUseCase(repository, repository, repository);
+  await useCase.execute(completeOrderRequest());
+  const order = repository.getCompletedOrder("mrc_1", "chk_1", "ord_1");
+  assert.equal(order?.lineItems?.[0]?.variantId, "catalog-variant-50ml");
+  assert.equal(order?.lineItems?.[0]?.sku, session.cart.items[0]!.sku);
+});
+
 test("CompleteOrderUseCase commits order and outbox through the transaction boundary", async () => {
   const repository = new InMemoryCheckoutRepository();
   repository.saveSession(checkoutSession());

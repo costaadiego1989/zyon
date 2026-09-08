@@ -5,6 +5,8 @@ export const CHECKOUT_SESSION_REPOSITORY = Symbol("CHECKOUT_SESSION_REPOSITORY")
 export type MaybePromise<T> = T | Promise<T>;
 
 export interface CheckoutSessionRepository {
+  /** Atomically creates a checkout without replacing an existing buyer/session. */
+  createSessionIfAbsent?(session: CheckoutSession): MaybePromise<{ session: CheckoutSession; created: boolean }>;
   saveSession(session: CheckoutSession): MaybePromise<void>;
   getSession(merchantId: string, sessionId: string): MaybePromise<CheckoutSession | undefined>;
   findSessionsByEmail(merchantId: string, email: string): MaybePromise<CheckoutSession[]>;

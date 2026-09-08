@@ -6,6 +6,7 @@ import { useCart } from "@/lib/cart-store";
 import { useConversationViewModel, type Message } from "@/lib/viewmodels/useConversationViewModel";
 import { getValidBuyer } from "@/lib/buyer-auth";
 import BlockRenderer from "./blocks/BlockRenderer";
+import ProductExperienceOverlay from "./blocks/ProductExperienceOverlay";
 import { BuyerHub } from "./BuyerHub";
 import { BuyerHubTrigger } from "./BuyerHubTrigger";
 import SupportPanel from "./SupportPanel";
@@ -34,6 +35,11 @@ function renderMarkdownText(text: string): string {
     .replace(/\n/g, "<br/>");
   return html;
 }
+
+function renderBuyerMessage(text: string): string {
+  // Keep catalog routing metadata in the API/history, outside the visible copy.
+  return text.replace(/^([Aa]dicionar .+ ao carrinho)\s+\[variantId:[A-Za-z0-9_-]{1,191}\](?:\s*\[(?:optionItemIds|crossSellPromoId):[A-Za-z0-9_,-]+\])*\s*$/, "$1");
+}
 export default function ConversationShell({
   storeName,
   logo,
@@ -50,6 +56,7 @@ export default function ConversationShell({
   showBranding,
   agentMode,
   agentInitialDelaySeconds,
+  initialRichProductId,
 }: {
   storeName: string;
   logo?: string;
@@ -65,6 +72,7 @@ export default function ConversationShell({
   showBranding?: boolean;
   agentMode?: "silent_until_trigger" | "proactive" | "manual_only";
   agentInitialDelaySeconds?: number;
+  initialRichProductId?: string;
   storeSettings?: {
     social?: { instagram?: string; facebook?: string; linkedin?: string; youtube?: string; googleMaps?: string };
     company?: { cnpj?: string; razaoSocial?: string; email?: string; phone?: string; businessHours?: string; address?: { city?: string; state?: string } };
@@ -102,13 +110,83 @@ export default function ConversationShell({
   const [logoError, setLogoError] = useState(false);
   const [checkoutUserId, setCheckoutUserId] = useState("");
   const [mounted, setMounted] = useState(false);
+  const [richProduct, setRichProduct] = useState<{ productId: string } | null>(() =>
+    typeof initialRichProductId === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(initialRichProductId)
+      ? { productId: initialRichProductId }
+      : null,
+  );
+  const openedInitialRichProduct = useRef(false);
+  const openedProductMessages = useRef(new Set<string>());
   useEffect(() => { setMounted(true); }, []);
   const effectiveMode = mounted ? mode : "intro";
+  useEffect(() => {
+    if (!richProduct || openedInitialRichProduct.current) return;
+    openedInitialRichProduct.current = true;
+    selectChannel("chat");
+  }, [richProduct, selectChannel]);
+  useEffect(() => {
+    const latest = messages.at(-1);
+    if (!latest || latest.role !== "agent") return;
+    const block = latest.blocks?.find((item) => item.type === "product_content")
+      ?? latest.blocks?.find((item) => item.type === "product_card");
+    const productId = block?.type === "product_content" ? block.data?.productId : block?.data?.id;
+    if (typeof productId !== "string" || !/^[A-Za-z0-9_-]{1,191}$/.test(productId)) return;
+    const key = `${latest.id}:${productId}`;
+    if (openedProductMessages.current.has(key)) return;
+    if (block?.type === "product_content") {
+      openedProductMessages.current.add(key);
+      setRichProduct({ productId });
+      return;
+    }
+    // The current agent's get_product_details tool emits product_card. Open
+    // its advanced experience only if the public API confirms published content
+    // and the merchant entitlement, preserving ordinary product cards otherwise.
+    if (!merchantSlug) return;
+    const controller = new AbortController();
+    fetch(`${API_BASE}/storefront/${encodeURIComponent(merchantSlug)}/products/${encodeURIComponent(productId)}/content`, {
+      headers: { Accept: "application/json", "Accept-Language": document.documentElement.lang || "pt-BR" },
+      signal: controller.signal,
+      cache: "no-store",
+    }).then(async (response) => response.ok ? response.json() : null).then((content) => {
+      if (controller.signal.aborted) return;
+      openedProductMessages.current.add(key);
+      if (content && [content.blocks, content.faqs, content.testimonials, content.videos].some((items) => Array.isArray(items) && items.length > 0)) setRichProduct({ productId });
+    }).catch(() => {});
+    return () => controller.abort();
+  }, [messages, merchantSlug]);
   useEffect(() => {
     const onOpenSupport = () => setSupportOpen(true);
     window.addEventListener("zyon:open-support", onOpenSupport);
     return () => window.removeEventListener("zyon:open-support", onOpenSupport);
   }, []);
+  useEffect(() => {
+    const onRichProductAdd = (event: Event) => {
+      const detail = (event as CustomEvent<{ variantId?: unknown; optionItemIds?: unknown }>).detail;
+      const variantId = detail?.variantId;
+      // Do not turn arbitrary browser events into chat markup. Catalog ids are
+      // constrained before we hand the command to the existing API-backed path.
+      if (typeof variantId !== "string" || !/^[A-Za-z0-9_-]{1,191}$/.test(variantId)) return;
+      const optionItemIds = Array.isArray(detail?.optionItemIds)
+        ? detail.optionItemIds.filter((id): id is string => typeof id === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(id))
+        : [];
+      const optionTag = optionItemIds.length ? ` [optionItemIds:${optionItemIds.join(",")}]` : "";
+      handleQuickReply(`Adicionar produto ao carrinho [variantId:${variantId}]${optionTag}`);
+    };
+    window.addEventListener("aacp:add-rich-product-to-cart", onRichProductAdd);
+    const onRichProductCart = () => { setRichProduct(null); handleQuickReply("Ver carrinho"); };
+    window.addEventListener("aacp:open-rich-product-cart", onRichProductCart);
+    const onOpenRichProduct = (event: Event) => {
+      const productId = (event as CustomEvent<{ productId?: unknown }>).detail?.productId;
+      if (typeof productId !== "string" || !/^[A-Za-z0-9_-]{1,191}$/.test(productId)) return;
+      setRichProduct({ productId });
+    };
+    window.addEventListener("aacp:open-product-content", onOpenRichProduct);
+    return () => {
+      window.removeEventListener("aacp:add-rich-product-to-cart", onRichProductAdd);
+      window.removeEventListener("aacp:open-rich-product-cart", onRichProductCart);
+      window.removeEventListener("aacp:open-product-content", onOpenRichProduct);
+    };
+  }, [handleQuickReply]);
   useEffect(() => {
     if (checkoutIntent) {
       setCheckoutUserId(checkoutIntent);
@@ -195,7 +273,7 @@ export default function ConversationShell({
     "Ofertas",
   ];
   return (
-    <div className="pulse-widget-shell" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", position: "relative", borderRadius: "19px", padding: "1.5px" }}>
+    <div id="storefront-chat" className="pulse-widget-shell" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", position: "relative", borderRadius: "19px", padding: "1.5px" }}>
       {/* Shimmer border — rotating conic gradient around entire chat container */}
       <div style={{ position: "absolute", inset: 0, borderRadius: "19px", overflow: "hidden", pointerEvents: "none", zIndex: 0 }}>
         <div style={{ position: "absolute", inset: "-50%", background: "conic-gradient(from 0deg, transparent 0%, transparent 70%, var(--aacp-accent, #0f766e) 80%, transparent 90%, transparent 100%)", animation: "shimmerRotate 4s linear infinite", opacity: 0.7 }} />
@@ -204,7 +282,7 @@ export default function ConversationShell({
       {/* Static border */}
       <div style={{ position: "absolute", inset: 0, borderRadius: "19px", border: "1px solid var(--aacp-line, rgba(255,255,255,0.1))", pointerEvents: "none", zIndex: 1 }} />
       {/* Content */}
-      <div style={{ position: "relative", display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", borderRadius: "17.5px", overflow: "hidden", background: "var(--aacp-bg, #08080c)", zIndex: 2 }}>
+      <div data-aacp-chat-content style={{ position: "relative", display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", borderRadius: "17.5px", overflow: "hidden", background: "var(--aacp-bg, #08080c)", zIndex: 2 }}>
       <h1 style={{ position: "absolute", width: "1px", height: "1px", padding: 0, margin: "-1px", overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0 }}>
         {storeName} - Loja Online
       </h1>
@@ -377,7 +455,8 @@ export default function ConversationShell({
                   b.type === "product_carousel" ||
                   b.type === "coupon_list" ||
                   b.type === "category_carousel" ||
-                  b.type === "marketplace_products"
+                  b.type === "marketplace_products" ||
+                  b.type === "product_content"
                 );
                 const isFullWidth = hasOnlyBlocks || hasProductCard || hasWideBlock;
                 if (hasProductCard) {
@@ -393,10 +472,10 @@ export default function ConversationShell({
                           config={{ ALLOWED_TAGS: ["strong", "em", "br"] }}
                         />
                       )}
-                      <BlockRenderer block={cardBlock} onQuickReply={handleQuickReply} />
+                      <BlockRenderer block={cardBlock} merchantSlug={merchantSlug} onQuickReply={handleQuickReply} />
                       {otherBlocks.map((block, idx) => (
                         <div key={idx} style={{ maxWidth: "100%" }}>
-                          <BlockRenderer block={block} onQuickReply={handleQuickReply} />
+                          <BlockRenderer block={block} merchantSlug={merchantSlug} onQuickReply={handleQuickReply} />
                         </div>
                       ))}
                     </div>
@@ -414,7 +493,7 @@ export default function ConversationShell({
                       {m.text && <SafeStoreHtml style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", fontSize: "13.5px", lineHeight: 1.55, whiteSpace: "pre-wrap", background: "var(--aacp-card)", color: "var(--aacp-fg)", wordWrap: "break-word", border: "1px solid var(--aacp-line)" }} html={renderMarkdownText(m.text)} config={{ ALLOWED_TAGS: ["strong", "em", "br"] }} />}
                       {m.blocks?.map((block, idx) => (
                         <div key={idx} style={{ maxWidth: "100%" }}>
-                          <BlockRenderer block={block} onQuickReply={handleQuickReply} />
+                          <BlockRenderer block={block} merchantSlug={merchantSlug} onQuickReply={handleQuickReply} />
                         </div>
                       ))}
                     </div>
@@ -423,7 +502,7 @@ export default function ConversationShell({
               } else {
                 return (
                   <div key={m.id} style={{ display: "flex", flexDirection: "column", gap: "6px", maxWidth: "min(76%, 480px)", alignSelf: "flex-end", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
-                    {m.text && <div style={{ padding: "11px 14px", borderRadius: "16px 16px 4px 16px", fontSize: "13.5px", lineHeight: 1.5, fontWeight: 500, whiteSpace: "pre-wrap", background: "var(--aacp-accent)", color: "#fff", wordWrap: "break-word" }}>{m.text}</div>}
+                    {m.text && <div style={{ padding: "11px 14px", borderRadius: "16px 16px 4px 16px", fontSize: "13.5px", lineHeight: 1.5, fontWeight: 500, whiteSpace: "pre-wrap", background: "var(--aacp-accent)", color: "#fff", wordWrap: "break-word" }}>{renderBuyerMessage(m.text)}</div>}
                   </div>
                 );
               }
@@ -545,7 +624,7 @@ export default function ConversationShell({
           onUpdateQty={handleUpdateQuantity}
           onRemoveItem={(variantId) => handleUpdateQuantity(variantId, 0)}
           forceOpen={cartDrawerForceOpen}
-          suppressAutoOpen={Boolean(crossSellPending)}
+          suppressAutoOpen={Boolean(crossSellPending) || Boolean(richProduct)}
         />
       )}
       {/* Cross-sell interstitial — shows before the cart drawer after add-to-cart */}
@@ -600,6 +679,7 @@ export default function ConversationShell({
         />
       )}
       </div>{/* end content wrapper */}
+      {richProduct ? <ProductExperienceOverlay key={richProduct.productId} productId={richProduct.productId} merchantSlug={merchantSlug} onClose={() => setRichProduct(null)} /> : null}
     </div>
   );
 }

@@ -204,10 +204,12 @@ function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
 
 function StripeCardBlockForm({
   clientSecret,
-  intentId
+  intentId,
+  totalLabel,
 }: {
   clientSecret: string;
   intentId: string;
+  totalLabel: string;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -322,7 +324,7 @@ function StripeCardBlockForm({
           padding: "10px 14px",
           borderRadius: "8px",
           background: loading || !stripe ? "var(--bd)" : "var(--aacp-accent, #0f766e)",
-          color: "#fff",
+          color: "var(--aacp-on-accent, #fff)",
           border: "none",
           fontSize: "13px",
           fontWeight: 600,
@@ -330,7 +332,7 @@ function StripeCardBlockForm({
           cursor: loading || !stripe ? "not-allowed" : "pointer",
         }}
       >
-        {loading ? "Processando..." : "Pagar"}
+        {loading ? "Processando..." : `Pagar ${totalLabel}`}
       </button>
     </form>
   );
@@ -350,8 +352,10 @@ function StripeCardBlock({ data }: { data?: Record<string, unknown> }) {
   const clientSecret = data?.stripe_client_secret as string | undefined;
   const publishableKey = data?.stripe_publishable_key as string | undefined;
   const intentId = data?.intent_id as string | undefined;
+  const amountCents = data?.amount_cents;
+  const elementsOptions = useMemo(() => ({ clientSecret }), [clientSecret]);
 
-  if (!clientSecret || !publishableKey || !intentId) {
+  if (!clientSecret || !publishableKey || !intentId || typeof amountCents !== "number" || !Number.isSafeInteger(amountCents) || amountCents <= 0) {
     return (
       <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
         <p style={{ fontSize: "12px", color: "var(--mut)", margin: 0 }}>Erro: dados de pagamento incompletos</p>
@@ -360,16 +364,19 @@ function StripeCardBlock({ data }: { data?: Record<string, unknown> }) {
   }
 
   const stripePromise = getStripePromise(publishableKey);
-  const elementsOptions = useMemo(() => ({ clientSecret }), [clientSecret]);
+  const totalLabel = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(amountCents / 100);
 
   return (
     <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
       <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px" }}>Pague com Cartão de Crédito</div>
       <p style={{ fontSize: "12px", color: "var(--mut)", margin: "0 0 12px", lineHeight: 1.4 }}>
-        Seus dados do cartão são seguros e encriptados.
+        Pagamento processado pela Stripe. Confira o total antes de confirmar.
       </p>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", marginBottom: "12px", color: "var(--tx)" }}>
+        <span>Total a pagar</span><strong>{totalLabel}</strong>
+      </div>
       <Elements stripe={stripePromise} options={elementsOptions}>
-        <StripeCardBlockForm clientSecret={clientSecret} intentId={intentId} />
+        <StripeCardBlockForm clientSecret={clientSecret} intentId={intentId} totalLabel={totalLabel} />
       </Elements>
     </div>
   );

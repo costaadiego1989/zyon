@@ -66,6 +66,8 @@ test("native conversation capability issues a cart-bound token without requiring
   assert.equal((session.cart as any).cart_ref, "conv_cart");
   assert.equal(session.cart.items[1]!.selected_options?.[0]?.item_name, "Queijo");
   assert.notEqual(session.cart.items[0]!.variant, session.cart.items[1]!.variant);
+  assert.equal(session.cart.items[0]!.variantId, "variant");
+  assert.equal(session.cart.items[1]!.variantId, "variant");
 
   const update = new UpdateCartUseCase(repo, repo);
   await assert.rejects(update.execute({ merchant_id: "merchant", session_id: response.session_id, items: [{ sku: "sku", quantity: 3 }] }), /update_cart_variant_required/);

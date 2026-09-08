@@ -29,6 +29,8 @@ import { SendBuyerPhoneCodeUseCase } from "../../application/use-cases/send-buye
 import { VerifyBuyerPhoneCodeUseCase } from "../../application/use-cases/verify-buyer-phone-code.use-case.js";
 import { SendBuyerEmailCodeUseCase } from "../../application/use-cases/send-buyer-email-code.use-case.js";
 import { VerifyBuyerEmailCodeUseCase } from "../../application/use-cases/verify-buyer-email-code.use-case.js";
+import { VerifyBuyerEmailLoginUseCase } from "../../application/use-cases/verify-buyer-email-login.use-case.js";
+import { EmailVerificationReceiptService } from "../../domain/services/email-verification-receipt.service.js";
 import { BuyerJwtAuthGuard, currentBuyer } from "./buyer-jwt-auth.guard.js";
 import { purchaseItems } from "./purchase.transformer.js";
 
@@ -48,6 +50,8 @@ export class BuyerAccountController {
     private readonly verifyPhoneCode: VerifyBuyerPhoneCodeUseCase,
     private readonly sendEmailCode: SendBuyerEmailCodeUseCase,
     private readonly verifyEmailCode: VerifyBuyerEmailCodeUseCase,
+    private readonly verifyEmailLogin: VerifyBuyerEmailLoginUseCase,
+    private readonly emailVerificationReceipts: EmailVerificationReceiptService,
     @Optional() private readonly registerBuyerWallet?: RegisterBuyerUserUseCase,
   ) {}
 
@@ -67,6 +71,7 @@ export class BuyerAccountController {
       dateOfBirth?: string;
       gender?: string;
       merchantId?: string;
+      email_verification_token?: string;
     },
     @Ip() ip: string
   ) {
@@ -84,6 +89,8 @@ export class BuyerAccountController {
     if (missing.length > 0) {
       throw new BadRequestException(`missing_required_fields: ${missing.join(", ")}`);
     }
+
+    this.emailVerificationReceipts.assertValid(body.email_verification_token, body.email);
 
     const result = await this.registerBuyerWithRateLimit.execute(
       {
@@ -308,13 +315,18 @@ export class BuyerAccountController {
   }
 
   @Post("email/send")
-  async handleSendEmailCode(@Body() body: { email: string }) {
-    return this.sendEmailCode.execute(body);
+  async handleSendEmailCode(@Body() body: { email: string; merchant_id?: string }) {
+    return this.sendEmailCode.execute({ email: body.email, merchantId: body.merchant_id });
   }
 
   @Post("email/verify")
   async handleVerifyEmailCode(@Body() body: { email: string; code: string }) {
     return this.verifyEmailCode.execute(body);
+  }
+
+  @Post("email/login/verify")
+  async handleVerifyEmailLogin(@Body() body: { email: string; code: string }) {
+    return this.verifyEmailLogin.execute(body);
   }
 }
 

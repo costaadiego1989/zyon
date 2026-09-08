@@ -1,6 +1,7 @@
-import { BadRequestException, Inject, Injectable, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Optional, UnauthorizedException } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { OTP_STORE, type OtpStore } from "../../domain/ports/otp-store.port.js";
+import { EmailVerificationReceiptService } from "../../domain/services/email-verification-receipt.service.js";
 
 export interface VerifyBuyerEmailCodeRequest {
   email: string;
@@ -11,9 +12,10 @@ export interface VerifyBuyerEmailCodeRequest {
 export class VerifyBuyerEmailCodeUseCase {
   constructor(
     @Inject(OTP_STORE) private readonly otpStore: OtpStore,
+    @Optional() private readonly receipts?: EmailVerificationReceiptService,
   ) {}
 
-  async execute(input: VerifyBuyerEmailCodeRequest): Promise<{ verified: boolean }> {
+  async execute(input: VerifyBuyerEmailCodeRequest): Promise<{ verified: boolean; verificationToken?: string }> {
     const email = input.email?.trim().toLowerCase();
     if (!email || !input.code) {
       throw new BadRequestException("email_and_code_required");
@@ -40,6 +42,9 @@ export class VerifyBuyerEmailCodeUseCase {
     // Mark as consumed
     await this.otpStore.consume(key);
 
-    return { verified: true };
+    return {
+      verified: true,
+      ...(this.receipts ? { verificationToken: this.receipts.issue(email) } : {}),
+    };
   }
 }

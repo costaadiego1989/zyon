@@ -9,6 +9,8 @@ export interface StorefrontCartSelectedOption {
 export interface StorefrontCartItem {
   variantId: string;
   productId: string;
+  /** Product category captured from the merchant catalog for rule evaluation. */
+  categoryId?: string;
   name: string;
   sku: string;
   quantity: number;

@@ -9,6 +9,7 @@ import { ResendEmailOtpSender } from "./infrastructure/resend-email-otp-sender.j
 import { REDIS_CLIENT_TOKEN } from "../../shared/cache/redis.module.js";
 import { SendBuyerEmailCodeUseCase } from "./application/use-cases/send-buyer-email-code.use-case.js";
 import { VerifyBuyerEmailCodeUseCase } from "./application/use-cases/verify-buyer-email-code.use-case.js";
+import { VerifyBuyerEmailLoginUseCase } from "./application/use-cases/verify-buyer-email-login.use-case.js";
 import { RegisterBuyerUseCase } from "./application/use-cases/register-buyer.use-case.js";
 import { RegisterBuyerWithRateLimitUseCase } from "./application/use-cases/register-buyer-with-rate-limit.use-case.js";
 import { BUYER_REGISTRATION_RATE_LIMITER } from "./domain/ports/buyer-registration-rate-limiter.port.js";
@@ -33,6 +34,7 @@ import { WebAuthnRegisterVerifyUseCase } from "./application/use-cases/webauthn-
 import { WebAuthnLoginOptionsUseCase } from "./application/use-cases/webauthn-login-options.use-case.js";
 import { WebAuthnLoginVerifyUseCase } from "./application/use-cases/webauthn-login-verify.use-case.js";
 import { BuyerJwtService } from "./domain/services/buyer-jwt.service.js";
+import { EmailVerificationReceiptService } from "./domain/services/email-verification-receipt.service.js";
 import { M2mTokenService } from "./domain/services/m2m-token.service.js";
 import { WebAuthnChallengeService } from "./domain/services/webauthn-challenge.service.js";
 import { WebAuthnVerifierService } from "./domain/services/webauthn-verifier.service.js";
@@ -64,6 +66,7 @@ import { CheckoutModule } from "../checkout/checkout.module.js";
 import { SelfCheckoutModule } from "../self-checkout/self-checkout.module.js";
 import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
+import { MerchantModule } from "../merchant/merchant.module.js";
 import { OTP_STORE } from "./domain/ports/otp-store.port.js";
 import { WEBAUTHN_CREDENTIAL_STORE } from "./domain/ports/webauthn-credential.port.js";
 import { BUYER_ACCOUNT_PRISMA_CLIENT } from "./buyer-account.tokens.js";
@@ -72,7 +75,7 @@ import { RedisOtpStore } from "./infrastructure/redis-otp-store.js";
 import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-webauthn-credential.repository.js";
 
 @Module({
-  imports: [BuyerAccountRepositoryModule, BuyerPurchaseHistoryModule, forwardRef(() => CheckoutModule), IntegrationsModule, SelfCheckoutModule],
+  imports: [BuyerAccountRepositoryModule, BuyerPurchaseHistoryModule, forwardRef(() => CheckoutModule), IntegrationsModule, SelfCheckoutModule, MerchantModule],
   controllers: [BuyerAccountController, BuyerAgentController, BuyerHubController, BuyerWebAuthnController, BuyerPreferencesController, BuyerIntentController, BuyerReviewsController, BuyerAddressesController],
   providers: [
     RegisterBuyerUseCase,
@@ -101,6 +104,8 @@ import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-weba
     VerifyBuyerPhoneCodeUseCase,
     SendBuyerEmailCodeUseCase,
     VerifyBuyerEmailCodeUseCase,
+    VerifyBuyerEmailLoginUseCase,
+    EmailVerificationReceiptService,
     GetBuyerPreferencesUseCase,
     UpdateBuyerPreferencesUseCase,
     GetBuyerIntentProfileUseCase,

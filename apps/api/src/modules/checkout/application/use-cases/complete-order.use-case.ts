@@ -139,7 +139,7 @@ export class CompleteOrderUseCase {
     // + quantity, not prices).
     const lineItems = (session.cart?.items ?? []).map((it) => ({
       sku: it.sku,
-      variantId: (it as { variantId?: string }).variantId ?? it.sku,
+      variantId: it.variantId ?? it.sku,
       name: it.name,
       unitPriceCents: Math.round((it.price ?? 0) * 100),
       quantity: it.quantity,

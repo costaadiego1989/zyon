@@ -6,7 +6,7 @@ const adapter = new DeterministicConversationAdapter();
 
 // ─── RED tests written before implementation ──────────────────────────────────
 
-test("DeterministicConversationAdapter.reply never calls fetch", async () => {
+test("DeterministicConversationAdapter.reply never calls fetch even for off-script objections", async () => {
   const originalFetch = globalThis.fetch;
   let called = false;
   globalThis.fetch = (async () => {
@@ -15,6 +15,12 @@ test("DeterministicConversationAdapter.reply never calls fetch", async () => {
   }) as typeof fetch;
   try {
     await adapter.reply({ userMessage: "esta caro", brandVoice: "consultative" });
+    await adapter.reply({
+      userMessage: "quanto custa o frete gratis?",
+      brandVoice: "consultative",
+      stage: "shipping",
+      missingFields: ["CEP"],
+    });
     assert.equal(called, false, "must not call fetch");
   } finally {
     globalThis.fetch = originalFetch;

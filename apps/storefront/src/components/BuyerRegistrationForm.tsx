@@ -33,12 +33,11 @@ type StepConfig = {
 };
 
 const STEPS: StepConfig[] = [
-  { step: 1, label: "celular", placeholder: "(11) 99999-9999", type: "tel" },
-  { step: 2, label: "código de verificação", placeholder: "000000", type: "text" },
-  { step: 3, label: "e-mail", placeholder: "voce@email.com", type: "email" },
-  { step: 4, label: "código do e-mail", placeholder: "000000", type: "text" },
-  { step: 5, label: "nome e CPF", placeholder: "", type: "text" },
-  { step: 6, label: "endereço", placeholder: "", type: "text" },
+  { step: 1, label: "e-mail", placeholder: "voce@email.com", type: "email" },
+  { step: 2, label: "código do e-mail", placeholder: "000000", type: "text" },
+  { step: 3, label: "celular para contato", placeholder: "(11) 99999-9999", type: "tel" },
+  { step: 4, label: "nome e CPF", placeholder: "", type: "text" },
+  { step: 5, label: "endereço", placeholder: "", type: "text" },
 ];
 
 type AddressData = {
@@ -83,15 +82,15 @@ function formatCEP(value: string): string {
   return `${digits.slice(0, 5)}-${digits.slice(5)}`;
 }
 
-export default function BuyerRegistrationForm({ merchantId, merchantName, onComplete, onCancel }: Props) {
+export default function BuyerRegistrationForm({ merchantId, onComplete }: Props) {
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const [phone, setPhone] = useState("");
-  const [phoneOtp, setPhoneOtp] = useState("");
   const [email, setEmail] = useState("");
   const [emailOtp, setEmailOtp] = useState("");
+  const [emailVerificationToken, setEmailVerificationToken] = useState("");
   const [name, setName] = useState("");
   const [cpf, setCpf] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
@@ -140,57 +139,6 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
     try {
       switch (currentStep) {
         case 1: {
-          let fallbackEmail: string | undefined;
-          try {
-            const session = localStorage.getItem("zyon_buyer_session");
-            if (session) {
-              const parsed = JSON.parse(session);
-              if (parsed.email) fallbackEmail = parsed.email;
-            }
-          } catch {}
-
-          const res = await fetch(`${API_BASE}/buyer/phone/send`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ phone: phoneDigits, merchant_name: merchantName, fallback_email: fallbackEmail }),
-          });
-          if (!res.ok && res.status !== 404) {
-            const errData = await res.json().catch(() => null);
-            throw new Error(errData?.message ?? "Erro ao enviar código");
-          }
-          if (res.status === 404) {
-            if (process.env.NODE_ENV === 'development') {
-              console.warn("[BuyerRegistrationForm] send-otp endpoint not found (404), skipping for dev");
-            } else {
-              throw new Error("Serviço de verificação indisponível");
-            }
-          }
-          setCurrentStep(2);
-          trackRegistrationStep(merchantId, "auth_phone_submitted");
-          break;
-        }
-        case 2: {
-          const res = await fetch(`${API_BASE}/buyer/phone/verify`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ phone: phoneDigits, code: phoneOtp }),
-          });
-          if (!res.ok && res.status !== 404) {
-            const errData = await res.json().catch(() => null);
-            throw new Error(errData?.message ?? "Código inválido");
-          }
-          if (res.status === 404) {
-            if (process.env.NODE_ENV === 'development') {
-              console.warn("[BuyerRegistrationForm] verify-otp endpoint not found (404), skipping for dev");
-            } else {
-              throw new Error("Serviço de verificação indisponível");
-            }
-          }
-          setCurrentStep(3);
-          trackRegistrationStep(merchantId, "auth_phone_verified");
-          break;
-        }
-        case 3: {
           const res = await fetch(`${API_BASE}/buyer/email/send`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -198,18 +146,14 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
           });
           if (!res.ok && res.status !== 404) {
             const errData = await res.json().catch(() => null);
-            throw new Error(errData?.detail ?? "Erro ao enviar código");
+            throw new Error(errData?.message ?? "Erro ao enviar código");
           }
-          if (res.status === 404) {
-            if (process.env.NODE_ENV !== 'development') {
-              throw new Error("Serviço de verificação indisponível");
-            }
-          }
-          setCurrentStep(4);
+          if (res.status === 404) throw new Error("Serviço de verificação indisponível");
+          setCurrentStep(2);
           trackRegistrationStep(merchantId, "auth_email_submitted");
           break;
         }
-        case 4: {
+        case 2: {
           const res = await fetch(`${API_BASE}/buyer/email/verify`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -217,29 +161,35 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
           });
           if (!res.ok && res.status !== 404) {
             const errData = await res.json().catch(() => null);
-            throw new Error(errData?.detail ?? "Código inválido");
+            throw new Error(errData?.message ?? "Código inválido");
           }
-          if (res.status === 404) {
-            if (process.env.NODE_ENV !== 'development') {
-              throw new Error("Serviço de verificação indisponível");
-            }
-          }
-          setCurrentStep(5);
+          if (res.status === 404) throw new Error("Serviço de verificação indisponível");
+          const data = res.ok ? await res.json() : null;
+          const verificationToken = data?.verificationToken ?? data?.verification_token;
+          if (!verificationToken) throw new Error("Não foi possível confirmar a verificação do e-mail");
+          setEmailVerificationToken(verificationToken);
+          setCurrentStep(3);
           trackRegistrationStep(merchantId, "auth_email_verified");
           break;
         }
-        case 5: {
+        case 3: {
+          if (phoneDigits.length < 10 || phoneDigits.length > 11) throw new Error("Informe um celular válido para contato");
+          setCurrentStep(4);
+          trackRegistrationStep(merchantId, "auth_phone_contact_submitted");
+          break;
+        }
+        case 4: {
           if (!name.trim() || name.trim().split(" ").length < 2) {
             throw new Error("Informe seu nome completo");
           }
           if (!isValidCPF(cpf)) {
             throw new Error("CPF inválido. Verifique os dígitos.");
           }
-          setCurrentStep(6);
+          setCurrentStep(5);
           trackRegistrationStep(merchantId, "auth_identity_confirmed");
           break;
         }
-        case 6: {
+        case 5: {
           if (!address) {
             throw new Error("Busque o CEP primeiro");
           }
@@ -255,6 +205,7 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
             body: JSON.stringify({
               phone: phoneDigits,
               email,
+              email_verification_token: emailVerificationToken,
               name: name.trim(),
               cpf: cpfDigits,
               ...(dateOfBirth ? { dateOfBirth } : {}),
@@ -407,42 +358,19 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
       {/* Header */}
       <div style={headerStyle}>
         <span style={labelStyle}>Seus dados · {stepConfig.label}</span>
-        <span style={stepLabelStyle}>Passo {currentStep}/6</span>
+        <span style={stepLabelStyle}>Passo {currentStep}/5</span>
       </div>
 
       {/* Content per step */}
       {currentStep === 1 && (
         <div style={inputWrapStyle}>
           <input
-            value={phone}
-            onChange={(e) => setPhone(formatPhone(e.target.value))}
-            placeholder={stepConfig.placeholder}
-            type={stepConfig.type}
-            inputMode="tel"
-            autoFocus
-            aria-label="Celular"
-            style={inputStyle}
-          />
-        </div>
-      )}
-
-      {currentStep === 2 && (
-        <OtpInput
-          value={phoneOtp}
-          onChange={setPhoneOtp}
-          length={6}
-          autoFocus
-          label="Código de verificação do celular"
-        />
-      )}
-
-      {currentStep === 3 && (
-        <div style={inputWrapStyle}>
-          <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder={stepConfig.placeholder}
-            type="email"
+            type={stepConfig.type}
+            inputMode="email"
+            autoComplete="email"
             autoFocus
             aria-label="E-mail"
             style={inputStyle}
@@ -450,17 +378,39 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
         </div>
       )}
 
-      {currentStep === 4 && (
+      {currentStep === 2 && (
         <OtpInput
           value={emailOtp}
           onChange={setEmailOtp}
           length={6}
           autoFocus
-          label="Código de verificação do e-mail"
+          label="Código enviado para seu e-mail"
         />
       )}
 
-      {currentStep === 5 && (
+      {currentStep === 3 && (
+        <div style={inputWrapStyle}>
+          <input
+            value={phone}
+            onChange={(e) => setPhone(formatPhone(e.target.value))}
+            placeholder={stepConfig.placeholder}
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            autoFocus
+            aria-label="Celular para contato"
+            style={inputStyle}
+          />
+        </div>
+      )}
+
+      {currentStep === 3 && (
+        <p style={{ margin: "-2px 2px 0", fontSize: "11.5px", color: "var(--aacp-muted, #8b8b95)", lineHeight: 1.45 }}>
+          Usaremos este número apenas para contato sobre o pedido. Seu acesso será por e-mail.
+        </p>
+      )}
+
+      {currentStep === 4 && (
         <>
           <div style={inputWrapStyle}>
             <input
@@ -511,7 +461,7 @@ export default function BuyerRegistrationForm({ merchantId, merchantName, onComp
         </>
       )}
 
-      {currentStep === 6 && (
+      {currentStep === 5 && (
         <>
           <div style={inputWrapStyle}>
             <input

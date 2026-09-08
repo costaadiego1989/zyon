@@ -150,7 +150,7 @@ export class OtpService {
   validateBrazilianMobilePhone(phone: string): void {
     if (!isBrazilianMobilePhone(phone)) {
       throw new OtpValidationError(
-        "Precisamos de um celular com DDD (ex: 11 98888-7777) para enviar o rastreio pelo WhatsApp."
+        "Informe um celular com DDD (ex: 11 98888-7777) para contato sobre o pedido."
       );
     }
   }

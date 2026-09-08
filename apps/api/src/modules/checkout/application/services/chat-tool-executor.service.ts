@@ -80,7 +80,17 @@ export class ChatToolExecutorService {
         }
 
         case "apply_coupon": {
-          results.push(`Verificando cupom ${args.code}...`);
+          // Coupons are applied via the checkout coupon box / promo path — never
+          // invent approval here. Chat tool only guides the buyer.
+          const code = String(args.code ?? "").trim();
+          if (!code) {
+            results.push("Me passa o código do cupom que eu te oriento a aplicar no checkout.");
+          } else {
+            this.logger.log(`apply_coupon deferred to coupon box: ${code}`);
+            results.push(
+              `Para o cupom ${code}, use o campo de cupom no checkout — eu não libero cupons por aqui.`,
+            );
+          }
           break;
         }
 

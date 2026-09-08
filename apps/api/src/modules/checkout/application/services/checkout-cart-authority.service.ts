@@ -49,7 +49,7 @@ export class CheckoutCartAuthorityService {
         resolveSelectedOptions(extractOptionGroups(variant.product.metadata), (line.selectedOptions ?? []).map(option => option.itemId));
       } catch { throw new BadRequestException("checkout_product_options_changed"); }
       return {
-        sku: variant.sku, product_id: variant.productId,
+        sku: variant.sku, variantId: variant.id, product_id: variant.productId,
         variant: JSON.stringify([variant.id, (line.selectedOptions ?? []).map(option => option.itemId).sort()]),
         name: line.name, quantity: line.quantity, price: line.unitPriceCents / 100,
         imageUrl: line.imageUrl,
@@ -157,7 +157,7 @@ export class CheckoutCartAuthorityService {
       }
       totalCents += priceCents * quantity;
       items.push({
-        sku, quantity, name: variant.product.name, price: priceCents / 100,
+        sku, variantId: variant.id, quantity, name: variant.product.name, price: priceCents / 100,
         cost: variant.price.costInCents == null ? undefined : variant.price.costInCents / 100,
         weightGrams: variant.weightGrams ?? undefined,
         height_cm: variant.heightCm ?? undefined,

@@ -66,8 +66,7 @@ export class BuyerRecognitionService {
       phone,
       phone_verified: Boolean(
         current?.phone_verified ||
-        (phone && phone === priorCustomer?.phone && priorCustomer.phone_verified) ||
-        (phone && phone === account?.phone)
+        (phone && phone === priorCustomer?.phone && priorCustomer.phone_verified)
       ),
       cpf: current?.cpf ?? account?.cpf ?? priorCustomer?.cpf,
       address,

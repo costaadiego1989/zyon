@@ -66,7 +66,7 @@ async function reevaluateCartRules(
       return { cart, promoMeta: meta };
     }
     const categoriesInCart = cart.items
-      .map((i) => (i as { category?: string }).category ?? "")
+      .map((i) => i.categoryId ?? "")
       .filter(Boolean);
     const ctx = buildCartRuleContext(cart, { categoriesInCart });
     const outcome = cartRulesEngine.evaluate(cart, advancedRules, merchantRules, ctx);
@@ -358,6 +358,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       const addedCart = await deps.cartRepo.addItem(ctx.merchantId, sessionId, {
         variantId: resolvedVariantId,
         productId: resolvedProductId ?? args.variantId,
+        categoryId: resolvedProduct?.categoryId,
         name: productName,
         sku: resolvedSku ?? resolvedVariantId,
         unitPriceCents,
@@ -526,7 +527,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
           name: i.name,
           price: i.unitPriceCents / 100,
           quantity: i.quantity,
-          category: (i as { category?: string }).category,
+          category: i.categoryId,
         })) as Cart["items"],
         source: "storefront",
       };

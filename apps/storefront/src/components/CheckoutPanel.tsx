@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { useCart } from "@/lib/cart-store";
 import { cartApi } from "@/lib/api/api-client";
 import { conversationAccessHeaders } from "@/lib/conversation-access";
+import { getValidBuyer } from "@/lib/buyer-auth";
 
 interface CheckoutPanelProps {
   merchantId: string;
@@ -126,6 +127,7 @@ export default function CheckoutPanel({
           apiBaseUrl={apiBase}
           cartRef={cartRef || tokenCartRef.current || undefined}
           globalUserId={globalUserId}
+          buyerAccessToken={getValidBuyer()?.token}
           theme={effectiveTheme}
           onClose={onClose}
         />

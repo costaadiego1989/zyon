@@ -29,7 +29,6 @@ interface AuthSession {
   email: string;
   access_token: string;
   expires_at: number;
-  phone: string;
 }
 
 
@@ -114,35 +113,22 @@ const TABS: TabDef[] = [
 ];
 
 
-function formatPhone(value: string): string {
-  const numbers = value.replace(/\D/g, "").slice(0, 11);
-  if (numbers.length > 7) return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7)}`;
-  if (numbers.length > 2) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
-  return numbers;
-}
-
-
-function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
-  const [phone, setPhone] = useState("");
-  const [phoneCode, setPhoneCode] = useState("");
+function EmailLoginForm({ onAuthSuccess, merchantId }: { onAuthSuccess: () => void; merchantId?: string }) {
+  const [email, setEmail] = useState("");
+  const [emailCode, setEmailCode] = useState("");
   const [codeSent, setCodeSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handlePhoneChange = useCallback((value: string) => {
-    setPhone(formatPhone(value));
-  }, []);
-
   async function handleSendCode() {
-    const normalizedPhone = phone.replace(/\D/g, "");
-    if (normalizedPhone.length < 10) return;
+    if (!email.includes("@")) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/buyer/phone/send`, {
+      const res = await fetch(`${API_BASE}/buyer/email/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: normalizedPhone }),
+        body: JSON.stringify({ email, merchant_id: merchantId }),
       });
       if (!res.ok) {
         const payload = await res.json().catch(() => null);
@@ -158,15 +144,14 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
   }
 
   async function handleVerifyCode() {
-    const normalizedPhone = phone.replace(/\D/g, "");
-    if (phoneCode.length !== 6) return;
+    if (emailCode.length !== 6) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/buyer/phone/verify`, {
+      const res = await fetch(`${API_BASE}/buyer/email/login/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: normalizedPhone, code: phoneCode }),
+        body: JSON.stringify({ email, code: emailCode }),
       });
       const payload = await res.json().catch(() => null);
       if (!res.ok) {
@@ -175,7 +160,7 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
       }
       const globalUserId = payload.globalUserId ?? payload.global_user_id;
       const accessToken = payload.accessToken ?? payload.access_token;
-      const email = payload.email ?? "";
+      const verifiedEmail = payload.email ?? email;
       const expiresIn = payload.expiresIn ?? payload.expires_in ?? 3600;
       if (!globalUserId || !accessToken) {
         setError("Resposta invalida do servidor.");
@@ -183,15 +168,14 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
       }
       const newSession: AuthSession = {
         global_user_id: globalUserId,
-        email,
+        email: verifiedEmail,
         access_token: accessToken,
         expires_at: Date.now() + (expiresIn - 60) * 1000,
-        phone: normalizedPhone,
       };
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(newSession));
       try {
         localStorage.setItem("zyon_buyer_token", accessToken);
-        localStorage.setItem("zyon_buyer_session", JSON.stringify({ globalUserId, token: accessToken, email }));
+        localStorage.setItem("zyon_buyer_session", JSON.stringify({ globalUserId, token: accessToken, email: verifiedEmail }));
       } catch {}
       onAuthSuccess();
     } catch {
@@ -201,8 +185,8 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
     }
   }
 
-  const canSendCode = phone.replace(/\D/g, "").length >= 10;
-  const canConfirmCode = codeSent && phoneCode.length === 6;
+  const canSendCode = email.includes("@");
+  const canConfirmCode = codeSent && emailCode.length === 6;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px", padding: "24px 0" }}>
@@ -227,7 +211,7 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
       {/* Title */}
       <div style={{ textAlign: "center" }}>
         <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--aacp-muted)", marginBottom: "8px" }}>Conta segura</div>
-        <div style={{ fontSize: "18px", fontWeight: 700, color: "var(--aacp-fg)", marginBottom: "8px", lineHeight: 1.3 }}>Entrar com celular</div>
+        <div style={{ fontSize: "18px", fontWeight: 700, color: "var(--aacp-fg)", marginBottom: "8px", lineHeight: 1.3 }}>Entrar com e-mail</div>
         <div style={{ fontSize: "13px", color: "var(--aacp-muted)", lineHeight: 1.5 }}>Acesse pedidos anteriores e conclua compras futuras com menos etapas.</div>
       </div>
 
@@ -255,7 +239,7 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
       <form onSubmit={(e) => e.preventDefault()} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         {!codeSent ? (
           <label style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
-            <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--aacp-muted)" }}>Celular</span>
+            <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--aacp-muted)" }}>E-mail</span>
             <div style={{
               display: "flex",
               alignItems: "center",
@@ -271,13 +255,13 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
                 <line x1="12" y1="18" x2="12.01" y2="18" />
               </svg>
               <input
-                value={phone}
-                onChange={(e) => handlePhoneChange(e.target.value)}
-                type="tel"
-                inputMode="tel"
-                autoComplete="tel"
-                placeholder="(11) 99999-9999"
-                aria-label="Numero do celular"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                placeholder="voce@email.com"
+                aria-label="E-mail"
                 style={{
                   flex: 1,
                   background: "transparent",
@@ -307,8 +291,8 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
                 <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
               </svg>
               <input
-                value={phoneCode}
-                onChange={(e) => setPhoneCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                value={emailCode}
+                onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 type="text"
                 inputMode="numeric"
                 autoComplete="one-time-code"
@@ -333,7 +317,7 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
 
         {codeSent && (
           <p style={{ fontSize: "13px", color: "var(--aacp-muted)", textAlign: "center" }} role="status">
-            Codigo enviado para {phone}
+            Código enviado para {email}
           </p>
         )}
 
@@ -368,7 +352,7 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
             (e.target as HTMLButtonElement).style.transform = "scale(1)";
           }}
         >
-          {loading ? "Processando..." : codeSent ? "Confirmar codigo" : "Enviar codigo por SMS"}
+          {loading ? "Processando..." : codeSent ? "Confirmar código" : "Enviar código por e-mail"}
         </button>
 
         {codeSent && (
@@ -387,7 +371,7 @@ function PhoneLoginForm({ onAuthSuccess }: { onAuthSuccess: () => void }) {
               transition: "color 0.15s ease",
             }}
           >
-            Alterar numero
+            Alterar e-mail
           </button>
         )}
       </form>
@@ -585,7 +569,7 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
         {/* Content area */}
         {!isAuthenticated ? (
           <div style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column" }}>
-            <PhoneLoginForm onAuthSuccess={handleAuthSuccess} />
+            <EmailLoginForm onAuthSuccess={handleAuthSuccess} merchantId={merchantId} />
           </div>
         ) : (
           <>

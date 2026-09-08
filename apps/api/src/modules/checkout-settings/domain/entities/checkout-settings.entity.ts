@@ -48,6 +48,16 @@ const DEFAULT_PROGRESSIVE_DISCOUNT = {
   }
 };
 
+const SUPPORTED_ADVANCED_RULE_ACTIONS = new Set([
+  "offer_discount",
+  "offer_free_shipping",
+  "offer_coupon",
+  "show_message",
+  "suggest_product",
+  "offer_installments",
+  "do_nothing",
+]);
+
 export class CheckoutSettingsEntity {
   private constructor(private readonly props: CheckoutSettings) {
     this.validate();
@@ -343,6 +353,9 @@ function validateAdvancedRules(rules: AdvancedRule[]): void {
     }
     if (!rule.action) {
       throw new CheckoutSettingsValidationError("advanced_rule_action_required");
+    }
+    if (!SUPPORTED_ADVANCED_RULE_ACTIONS.has(rule.action.type)) {
+      throw new CheckoutSettingsValidationError("advanced_rule_action_unsupported");
     }
     if (rule.action.type === "offer_discount") {
       const percent = rule.action.params.percent;

@@ -21,6 +21,7 @@ import { CheckoutBootstrapService } from "../services/checkout-bootstrap.service
 import { InterventionRuleTextBuilder } from "../services/intervention-rule-text.builder.js";
 import { CheckoutCartAuthorityService } from "../services/checkout-cart-authority.service.js";
 import { unverifiedCustomerHints } from "../services/checkout-input-policy.js";
+import type { TrustedCheckoutBuyer } from "../services/trusted-checkout-buyer.js";
 
 @Injectable()
 export class StartCheckoutUseCase {
@@ -40,18 +41,19 @@ export class StartCheckoutUseCase {
     @Optional() private readonly cartAuthority?: CheckoutCartAuthorityService
   ) { }
 
-  async execute(input: StartCheckoutRequest, trustedContext?: { storefrontCartRef?: string }): Promise<StartCheckoutResponse> {
+  async execute(input: StartCheckoutRequest, trustedContext?: { storefrontCartRef?: string; trustedBuyer?: TrustedCheckoutBuyer; requireBuyerProof?: boolean }): Promise<StartCheckoutResponse> {
     if (typeof input.merchant_id !== "string" || !input.merchant_id.trim()) {
       throw new BadRequestException("checkout_merchant_required");
     }
     if (!this.cartAuthority) throw new ServiceUnavailableException("checkout_cart_authority_unavailable");
+    const { global_user_id: _untrustedBuyerId, ...untrustedInput } = input as StartCheckoutRequest & { global_user_id?: unknown };
     input = {
-      ...input,
+      ...untrustedInput,
       merchant_id: input.merchant_id.trim(),
       cart: trustedContext?.storefrontCartRef
         ? await this.cartAuthority.resolveStorefront(input.merchant_id.trim(), trustedContext.storefrontCartRef)
         : await this.cartAuthority.resolve(input.merchant_id.trim(), input.cart),
-      customer: unverifiedCustomerHints(input.customer),
+      customer: trustedContext?.trustedBuyer?.customer ?? unverifiedCustomerHints(input.customer),
       shipping: undefined,
     };
     const settings = await this.checkoutSettings?.getContext(input.merchant_id);
@@ -63,20 +65,22 @@ export class StartCheckoutUseCase {
     // Starter (Free) e trial caem em Starter (effectiveBillingPlan).
     const { showBranding, voiceEnabled } = await this.merchantPlan?.resolveExperienceFlags(input.merchant_id) ?? { showBranding: true, voiceEnabled: false };
     const merchantRules = await this.merchantRepository?.getRules(input.merchant_id);
-    // Browser identity hints are deliberately not a login assertion. Resolve an
-    // anonymous checkout identity and retain the sanitized hints solely for the
-    // checkout conversation; BuyerRecognition upgrades it only after OTP proof.
-    const { globalUserId } = await this.buyerResolution.resolve({
+    // Only application-verified proof may provide the buyer identity. Browser
+    // hints stay anonymous until this bridge or checkout OTP authenticates them.
+    const globalUserId = trustedContext?.trustedBuyer?.globalUserId ?? (await this.buyerResolution.resolve({
       ...input,
       customer: undefined
-    });
+    })).globalUserId;
     const enrichedInput = input;
 
     // Phase 2: Buyer Context
     const { agent, buyerIntent } = await this.buyerContext.load(input.merchant_id, globalUserId);
 
     // Phase 3: Checkout Bootstrap
-    const { session } = await this.bootstrap.bootstrap(enrichedInput, globalUserId, true);
+    const { session } = await this.bootstrap.bootstrap(enrichedInput, globalUserId, true, {
+      trustedBuyer: trustedContext?.trustedBuyer,
+      requireBuyerProof: trustedContext?.requireBuyerProof,
+    });
 
     // Phase 4: Suggested Products
     const suggestedProducts = await this.resolveSuggestedProducts(input.merchant_id, session);
