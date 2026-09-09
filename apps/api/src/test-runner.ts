@@ -238,6 +238,7 @@ import "./modules/whatsapp-templates/application/use-cases/send-whatsapp-message
 import "./modules/whatsapp-templates/application/use-cases/recovery-channel-routing.spec.js";
 import "./modules/auth/application/recovery-template-signup.spec.js";
 import "./modules/cart-recovery/__tests__/recovery-templates.controller.spec.js";
+import "./modules/cart-recovery/application/use-cases/generate-recovery-templates.use-case.spec.js";
 import "./modules/whatsapp-templates/domain/recovery-template-content.spec.js";
 import "./modules/whatsapp-templates/domain/recovery-email.spec.js";
 import "./modules/whatsapp-templates/application/use-cases/recovery-template-lifecycle.spec.js";
@@ -255,6 +256,7 @@ import "./modules/intent-memory/__tests__/intent-memory.e2e.spec.js";
 import "./modules/intent-memory/__tests__/intent-memory.int-spec.js";
 import "./modules/negotiation/__tests__/llm-safety.spec.js";
 import "./modules/storefront/domain/services/cart-rules-and-proximity.spec.js";
+import "./modules/storefront/infrastructure/product-gallery.spec.js";
 import "./modules/public-api/ucp-discovery/ucp-discovery.controller.spec.js";
 import "./modules/public-api/ucp-discovery/ucp-discovery.e2e-spec.js";
 import "./modules/public-api/__tests__/acp-checkout.e2e-spec.js";

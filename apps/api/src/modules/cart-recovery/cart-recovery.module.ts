@@ -28,6 +28,10 @@ import { CartRecoveryDashboardController } from "./presentation/http/cart-recove
 import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-templates.module.js";
 import { SendWhatsAppMessageUseCase } from "../whatsapp-templates/application/use-cases/send-whatsapp-message.use-case.js";
 import { RecoveryTemplatesController } from "./presentation/http/recovery-templates.controller.js";
+import { GenerateRecoveryTemplatesUseCase } from "./application/use-cases/generate-recovery-templates.use-case.js";
+import { CHAT_COMPLETION_PORT } from "../support/domain/ports/chat-completion.port.js";
+import { OpenAIChatAdapter } from "../support/infrastructure/openai-chat.adapter.js";
+import { HttpClientService } from "../../shared/http/http-client.service.js";
 
 // Imported from tokens file (single source) to avoid the module↔handler cycle;
 // re-exported so existing importers of this module keep working.
@@ -53,6 +57,11 @@ export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_US
   ],
   controllers: [CartRecoveryController, CartRecoveryDashboardController, RecoveryTemplatesController],
   providers: [
+    GenerateRecoveryTemplatesUseCase,
+    {
+      provide: CHAT_COMPLETION_PORT,
+      useFactory: () => new OpenAIChatAdapter(new HttpClientService({ timeout: 20_000, retries: 0 })),
+    },
     {
       provide: CHECKOUT_SESSION_REPOSITORY,
       useFactory: (prisma: PrismaClient) => new PrismaCheckoutRepository(prisma),

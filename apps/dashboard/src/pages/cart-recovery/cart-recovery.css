@@ -1,0 +1,49 @@
+.recovery-page-tabs { align-self: flex-start; max-width: 100%; }
+.recovery-page-tabs [role="tablist"] { background: var(--surface-1) !important; }
+.recovery-overview:not([hidden]) { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.recovery-templates { padding: 24px; min-width: 0; }
+.recovery-templates p { font: 13px/1.6 var(--font-sans); color: var(--color-text-secondary); max-width: 72ch; }
+.recovery-ai-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; padding: 4px 0 24px; }
+.recovery-ai-tools > div { flex: 1 1 320px; min-width: 0; }
+.recovery-ai-tools h3 { margin: 0 0 6px; font: 600 14px var(--font-sans); color: var(--color-text); }
+.recovery-ai-tools p { margin: 0; }
+.recovery-button-label { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.recovery-channel-status { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 18px 0; border-block: 1px solid var(--color-border); }
+.recovery-channel-status > div { flex: 1 1 300px; min-width: 0; }
+.recovery-status-label { display: flex; align-items: center; gap: 8px; font: 600 13px var(--font-sans); color: var(--color-text); }
+.recovery-status-label svg { color: var(--color-success); flex-shrink: 0; }
+.recovery-channel-status p { margin: 5px 0 0; }
+.recovery-rejection { overflow-wrap: anywhere; }
+.recovery-message-editors { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; padding-top: 28px; }
+.recovery-message-editors fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.recovery-message-editors legend { display: flex; align-items: center; gap: 8px; padding: 0; font: 600 15px var(--font-sans); color: var(--color-text); }
+.recovery-message-editors legend svg { color: var(--color-text-muted); }
+.recovery-templates .recovery-channel-description { margin: 10px 0 20px; min-height: 42px; }
+.recovery-message-editors .field-label { display: block; margin: 18px 0 8px; font: 500 13px var(--font-sans); color: var(--color-text); }
+.recovery-message-editors .field-input { width: 100%; min-width: 0; box-sizing: border-box; font: 14px/1.65 var(--font-sans); }
+.recovery-message-editors textarea { padding: 12px 14px; resize: vertical; min-height: 180px; }
+.recovery-message-editors .recovery-whatsapp-body { min-height: 264px; }
+.recovery-field-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 14px; margin-top: 8px; font: 12px/1.5 var(--font-sans); color: var(--color-text-secondary); }
+.recovery-variables { margin-top: 24px; font: 13px/1.6 var(--font-sans); color: var(--color-text); }
+.recovery-variables summary, .recovery-feedback summary { cursor: pointer; width: fit-content; }
+.recovery-variables code { color: var(--color-text); }
+.recovery-help { margin: 10px 0 0; }
+.recovery-templates .recovery-feedback { max-width: none; padding: 12px 16px; margin: 16px 0; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--surface-0); color: var(--color-text); font: 13px/1.6 var(--font-sans); }
+.recovery-templates .recovery-feedback--error { color: var(--color-error); }
+.recovery-saved-copy { white-space: pre-wrap; overflow-wrap: anywhere; }
+.recovery-template-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; border-top: 1px solid var(--color-border); padding-top: 20px; margin-top: 24px; }
+.recovery-loading { color: var(--color-text-secondary); font: 13px var(--font-sans); }
+.recovery-loading-line { background: var(--color-border); height: 14px; max-width: 320px; margin-bottom: 12px; border-radius: 4px; }
+.recovery-loading-line + .recovery-loading-line { max-width: 480px; }
+@media (max-width: 900px) {
+  .recovery-message-editors { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .recovery-message-editors fieldset + fieldset { border-top: 1px solid var(--color-border); padding-top: 24px; }
+  .recovery-message-editors fieldset + fieldset legend { padding-top: 24px; }
+  .recovery-templates .recovery-channel-description { min-height: 0; }
+  .recovery-message-editors .recovery-whatsapp-body { min-height: 220px; }
+}
+@media (max-width: 560px) {
+  .recovery-templates { padding: 20px 16px; }
+  .recovery-template-actions > button:first-child, .recovery-ai-tools > button { width: 100%; }
+  .recovery-message-editors .field-input { font-size: 16px; }
+}

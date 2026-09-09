@@ -17,6 +17,16 @@ export interface RecoveryTemplatesUpdate {
   whatsapp: { body: string; revision: number };
 }
 
+export interface GeneratedRecoveryTemplates {
+  source: "ai";
+  email: { subject: string; body: string };
+  whatsapp: { body: string };
+}
+
+export function generateRecoveryTemplates(apiBaseUrl: string, fetchImpl?: typeof fetch): Promise<GeneratedRecoveryTemplates> {
+  return dashboardJson(apiBaseUrl, "/cart-recovery/templates/generate", { method: "POST", jsonBody: {} }, fetchImpl);
+}
+
 export function getRecoveryTemplates(apiBaseUrl: string, fetchImpl?: typeof fetch): Promise<RecoveryTemplates> {
   return dashboardJson(apiBaseUrl, "/cart-recovery/templates", {}, fetchImpl);
 }

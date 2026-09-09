@@ -1,16 +1,15 @@
 import React, { useState } from "react";
-import { ShoppingCart, Activity, CheckCircle, DollarSign, Clock, XCircle, RefreshCw, Edit, Send } from "lucide-react";
+import { ShoppingCart, Activity, CheckCircle, DollarSign, Clock, XCircle, RefreshCw, Edit } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
 import { DataPanel } from "../../components/DataPanel.js";
 import { SidePanel } from "../../components/SidePanel.js";
-import { Button } from "../../components/Button.js";
-import { showToast } from "../../components/Toast.js";
+import { TabBar } from "../../components/TabBar.js";
 import { useCartRecoveryPage } from "./useCartRecoveryPage.js";
 import type { CartRecoveryStrategyKey } from "../../api/endpoints/cart-recovery.js";
-import { sendRecoveryTest, type RecoveryTestFeedback } from "./recovery-test-send.js";
 import { RecoveryTemplatesPanel } from "./RecoveryTemplatesPanel.js";
+import "./cart-recovery.css";
 
 export interface CartRecoveryPageProps {
   apiBaseUrl: string;
@@ -49,18 +48,15 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
   } = useCartRecoveryPage();
 
   const [page, setPage] = useState(1);
+  const [tab, setTab] = useState("overview");
   const [panelOpen, setPanelOpen] = useState<"coupon" | "rule" | null>(null);
-  const [testSending, setTestSending] = useState(false);
-  const [testPhone, setTestPhone] = useState("");
-  const [testEmail, setTestEmail] = useState("");
-  const [testFeedback, setTestFeedback] = useState<RecoveryTestFeedback | null>(null);
 
   if (!props.me) {
     return (
       <header className="page-head">
         <div>
           <span className="eyebrow">Inteligência IA</span>
-          <h1>Cart Recovery</h1>
+          <h1>Recuperação de Carrinho</h1>
           <p className="page-lead">Login necessário</p>
         </div>
       </header>
@@ -114,38 +110,29 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
   const paginatedAttempts = attempts.slice(startIdx, startIdx + PAGE_SIZE);
   const activeKey = (Object.entries(strategies).find(([, v]) => v)?.[0] ?? "offer_coupon") as CartRecoveryStrategyKey;
 
-  const handleSendTest = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (testSending) return;
-    setTestSending(true);
-    setTestFeedback(null);
-    try {
-      const feedback = await sendRecoveryTest(props.apiBaseUrl, { phone: testPhone, email: testEmail });
-      setTestFeedback(feedback);
-      showToast(feedback.type, feedback.text);
-    } catch {
-      const feedback: RecoveryTestFeedback = {
-        type: "error",
-        text: "Não foi possível confirmar o teste. Verifique sua conexão e o recebimento antes de tentar novamente.",
-      };
-      setTestFeedback(feedback);
-      showToast(feedback.type, feedback.text);
-    } finally {
-      setTestSending(false);
-    }
-  };
-
   return (
     <div className="page-container">
       <header className="page-head">
         <div>
           <span className="eyebrow">Inteligência IA</span>
-          <h1>Cart Recovery</h1>
+          <h1>Recuperação de Carrinho</h1>
           <p className="page-lead">Recuperação automática de carrinhos abandonados por WhatsApp ou e-mail</p>
         </div>
       </header>
 
-      <RecoveryTemplatesPanel key={props.me.id} apiBaseUrl={props.apiBaseUrl} />
+      <div className="recovery-page-tabs">
+        <TabBar
+          tabs={[{ key: "overview", label: "Visão geral" }, { key: "messages", label: "Mensagens" }]}
+          activeTab={tab}
+          onTabChange={setTab}
+        />
+      </div>
+
+      <div hidden={tab !== "messages"} role="tabpanel" aria-label="Mensagens">
+        <RecoveryTemplatesPanel key={props.me.id} apiBaseUrl={props.apiBaseUrl} />
+      </div>
+
+      <div hidden={tab !== "overview"} role="tabpanel" aria-label="Visão geral" className="recovery-overview">
 
       {/* KPI cards */}
       {metrics && (
@@ -300,10 +287,10 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
               marginTop: 12,
               padding: "12px 14px",
               borderRadius: "var(--radius-sm)",
-              background: "#fef3c7",
-              borderLeft: "4px solid #f59e0b",
+              background: "var(--color-warning-bg)",
+              border: "1px solid var(--color-border)",
               font: "12px var(--font-sans)",
-              color: "#78350f",
+              color: "var(--color-text)",
               lineHeight: 1.5,
             }}
           >
@@ -314,59 +301,6 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
           </div>
         )}
       </div>
-
-      {/* Test delivery follows the same channel policy as automatic recovery. */}
-      <form className="panel" style={{ padding: "20px 24px" }} onSubmit={handleSendTest} aria-busy={testSending}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <SectionHeader title="Testar canal de recuperação" subtitle="Informe seus dados para receber uma mensagem de teste no canal disponível." variant="secondary" />
-          <Button
-            type="submit"
-            variant="primary"
-            size="sm"
-            disabled={testSending || (!testPhone.trim() && !testEmail.trim())}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-          >
-            <Send size={14} />
-            {testSending ? "Enviando..." : "Testar Envio"}
-          </Button>
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
-          <label style={{ display: "flex", flex: "1 1 220px", minWidth: 0, flexDirection: "column", gap: 6, font: "13px var(--font-sans)" }}>
-            Telefone com código do país (opcional)
-            <input
-              type="tel"
-              autoComplete="tel"
-              value={testPhone}
-              onChange={(event) => setTestPhone(event.target.value)}
-              disabled={testSending}
-              aria-describedby="recovery-test-policy"
-              style={{ padding: "10px 12px", borderRadius: "var(--radius-sm)", background: "var(--surface-0)", border: "1px solid var(--color-border)", color: "var(--color-text)", font: "inherit", minWidth: 0 }}
-            />
-          </label>
-          <label style={{ display: "flex", flex: "1 1 220px", minWidth: 0, flexDirection: "column", gap: 6, font: "13px var(--font-sans)" }}>
-            E-mail para envio alternativo (opcional)
-            <input
-              type="email"
-              autoComplete="email"
-              value={testEmail}
-              onChange={(event) => setTestEmail(event.target.value)}
-              disabled={testSending}
-              aria-describedby="recovery-test-policy"
-              style={{ padding: "10px 12px", borderRadius: "var(--radius-sm)", background: "var(--surface-0)", border: "1px solid var(--color-border)", color: "var(--color-text)", font: "inherit", minWidth: 0 }}
-            />
-          </label>
-        </div>
-        <p id="recovery-test-policy" style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.6 }}>
-          O WhatsApp usa o modelo ativo e aprovado da loja, quando a conexão estiver ativa.
-          Caso contrário, o teste usa apenas o e-mail informado. Informe ao menos um destinatário.
-          O teste verifica o canal e não adiciona descontos ou ofertas.
-        </p>
-        {testFeedback && (
-          <p role="status" style={{ marginBottom: 0, font: "13px var(--font-sans)", lineHeight: 1.6, color: "var(--color-text)" }}>
-            {testFeedback.text}
-          </p>
-        )}
-      </form>
 
       {/* Attempts table */}
       <DataPanel
@@ -408,6 +342,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
           </table>
         </div>
       </DataPanel>
+      </div>
 
       {/* Side Panel — Coupon Selection */}
       <SidePanel

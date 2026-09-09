@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { getRecoveryTemplates, saveRecoveryTemplates, type RecoveryTemplates } from "./cart-recovery-templates.js";
+import { generateRecoveryTemplates, getRecoveryTemplates, saveRecoveryTemplates, type RecoveryTemplates } from "./cart-recovery-templates.js";
 import { DashboardHttpError } from "../http/error.js";
 
 const templates: RecoveryTemplates = {
@@ -9,6 +9,17 @@ const templates: RecoveryTemplates = {
 };
 
 describe("recovery templates API", () => {
+  it("generates drafts with authenticated cookies without submitting tenant or approval fields", async () => {
+    const generated = { source: "ai", email: templates.email, whatsapp: { body: templates.whatsapp.body } };
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(generated)));
+    expect(await generateRecoveryTemplates("https://api.example.test", fetchImpl)).toEqual(generated);
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(url).toBe("https://api.example.test/v1/cart-recovery/templates/generate");
+    expect(init?.method).toBe("POST");
+    expect(init?.credentials).toBe("include");
+    expect(JSON.parse(String(init?.body))).toEqual({});
+  });
+
   it("reads the authenticated merchant's current approval state", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(templates)));
     expect(await getRecoveryTemplates("https://api.example.test", fetchImpl)).toEqual(templates);
