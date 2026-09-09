@@ -1,0 +1,4 @@
+.finance-page__tabs { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+.finance-page__columns { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(280px, .85fr); gap: 16px; }
+.finance-page__explainers { padding: 0 20px 20px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 900px) { .finance-page__columns, .finance-page__explainers { grid-template-columns: minmax(0, 1fr); } }

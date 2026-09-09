@@ -1,3 +1,4 @@
+import "./dashboard-responsive.css";
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { LogOut, ShieldCheck, ExternalLink, ChevronDown, Search, X } from "lucide-react";
 import { PageErrorBoundary } from "./PageErrorBoundary.js";
@@ -310,7 +311,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     <AccessModalProvider>
     <PlanProvider merchantPlan={me.plan}>
       <ShellImportProgressProvider>
-      <div style={{ "--ink": "oklch(96% 0.002 145)", "--muted": "oklch(70% 0.006 145)", "--faint": "oklch(52% 0.006 145)", "--border": "oklch(27% 0.006 145)", "--bg": "oklch(13% 0.002 145)", "--card": "oklch(18.5% 0.004 145)", "--accent": "oklch(74% 0.19 149)", "--accent-dark": "oklch(60% 0.17 149)", "--accent-soft": "oklch(26% 0.05 149)", "--accent-line": "oklch(42% 0.1 149)", "--warn": "oklch(76% 0.15 80)", "--warn-soft": "oklch(26% 0.05 80)", "--good": "oklch(74% 0.17 149)", "--good-soft": "oklch(26% 0.05 149)", "--danger": "oklch(68% 0.18 25)", "--danger-soft": "oklch(28% 0.06 25)", "--sidebar-bg": "oklch(8% 0.002 145)", "--sidebar-border": "oklch(20% 0.006 145)", "--sidebar-text": "oklch(96% 0.002 145)", "--sidebar-muted": "oklch(58% 0.008 145)", "--sidebar-active": "oklch(23% 0.045 149)", "--serif": "'Source Serif 4', Georgia, 'Times New Roman', serif", "--mono": "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", "--sans": "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif", display: "flex", width: "100%", minWidth: 1320, height: "100vh", minHeight: 720, background: "var(--bg)", fontFamily: "var(--sans)", color: "var(--ink)", letterSpacing: "-0.001em" } as React.CSSProperties}>
+      <div className="merchant-console" style={{ "--ink": "oklch(96% 0.002 145)", "--muted": "oklch(70% 0.006 145)", "--faint": "oklch(52% 0.006 145)", "--border": "oklch(27% 0.006 145)", "--bg": "oklch(13% 0.002 145)", "--card": "oklch(18.5% 0.004 145)", "--accent": "oklch(74% 0.19 149)", "--accent-dark": "oklch(60% 0.17 149)", "--accent-soft": "oklch(26% 0.05 149)", "--accent-line": "oklch(42% 0.1 149)", "--warn": "oklch(76% 0.15 80)", "--warn-soft": "oklch(26% 0.05 80)", "--good": "oklch(74% 0.17 149)", "--good-soft": "oklch(26% 0.05 149)", "--danger": "oklch(68% 0.18 25)", "--danger-soft": "oklch(28% 0.06 25)", "--sidebar-bg": "oklch(8% 0.002 145)", "--sidebar-border": "oklch(20% 0.006 145)", "--sidebar-text": "oklch(96% 0.002 145)", "--sidebar-muted": "oklch(58% 0.008 145)", "--sidebar-active": "oklch(23% 0.045 149)", "--serif": "'Source Serif 4', Georgia, 'Times New Roman', serif", "--mono": "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", "--sans": "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif", display: "flex", width: "100%", minWidth: 0, height: "100dvh", minHeight: 0, background: "var(--bg)", fontFamily: "var(--sans)", color: "var(--ink)", letterSpacing: "-0.001em" } as React.CSSProperties}>
       {/* ── SIDEBAR ── */}
       <aside style={{ width: 252, flex: "none", background: "var(--sidebar-bg)", display: "flex", flexDirection: "column", padding: "20px 14px", overflowY: "auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 8px 18px", borderBottom: "1px solid var(--sidebar-border)", marginBottom: 14 }}>
@@ -521,8 +522,12 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
 
       {/* ── MAIN ── */}
       <main className="dashboard-main" style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden", position: "relative", padding: 0 }}>
-        <div style={{ flex: "none", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 32px", borderBottom: "1px solid var(--color-border)", background: "var(--surface-2)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div className="console-topbar" style={{ flex: "none", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 32px", borderBottom: "1px solid var(--color-border)", background: "var(--surface-2)" }}>
+          <select className="console-mobile-nav" aria-label="Navegar no dashboard" value={tab} onChange={event => event.target.value === "logout" ? onLogout() : changeTab(event.target.value as TabKey)}>
+            {visibleNavItems.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}
+            <option value="logout">Sair da conta</option>
+          </select>
+          <div className="console-desktop-heading" style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 34, height: 34, borderRadius: 9, background: "var(--color-brand-subtle)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <ActiveIcon size={17} color="var(--color-brand-hover)" />
             </div>
@@ -533,7 +538,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
               <div style={{ font: "600 22px var(--font-serif)", color: "var(--color-text)", letterSpacing: "-0.005em" }}>{activeItem.label}</div>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div className="console-topbar-actions" style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {(me.plan === "STORE_ONLY" || me.plan === "BOTH") && storefrontHref && (
               <a
                 href={storefrontHref}
@@ -561,13 +566,13 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 setNotifications((prev) => prev.filter((x) => x.id !== n.id));
               }}
             />
-            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 12px", borderRadius: 9, border: "1px solid var(--color-border)", background: "var(--surface-2)", font: "12.5px var(--font-sans)", color: "var(--color-text-muted)" }}>
+            <div className="console-merchant-label" style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 12px", borderRadius: 9, border: "1px solid var(--color-border)", background: "var(--surface-2)", font: "12.5px var(--font-sans)", color: "var(--color-text-muted)" }}>
               <ShieldCheck size={14} />
               {me.name || me.id}
             </div>
           </div>
         </div>
-        <section style={{ flex: 1, overflowY: "auto", padding: "48px 32px 60px", scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.06) transparent" }}>
+        <section className="console-content" style={{ flex: 1, overflowY: "auto", padding: "48px 32px 60px", scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.06) transparent" }}>
           <FreeTrialNotice onViewPlans={() => changeTab("billing-plans")} />
           <PageErrorBoundary key={tab}>
             <Suspense fallback={<LoadingFallback />}>

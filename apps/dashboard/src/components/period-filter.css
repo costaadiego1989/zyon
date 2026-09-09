@@ -1,0 +1,16 @@
+.period-filter { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 12px 0; min-width: 0; }
+.period-filter__presets, .period-filter__range { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.period-filter__presets { flex-wrap: wrap; }
+.period-filter__presets button { min-height: 40px; padding: 6px 14px; border-radius: var(--radius-full); border: 1px solid var(--color-border); background: transparent; color: var(--color-text-muted); font: 500 12px var(--font-sans); white-space: nowrap; cursor: pointer; transition: background 150ms ease, border-color 150ms ease; }
+.period-filter__presets button[aria-pressed="true"] { background: var(--color-brand); border-color: var(--color-brand); color: var(--color-on-brand, #fff); }
+.period-filter__presets button:hover:not([aria-pressed="true"]) { background: var(--surface-2); }
+.period-filter__range input { width: 148px; min-width: 0; height: 40px; min-height: 40px; padding: 7px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--color-text); font: 12px var(--font-sans); }
+.period-filter__range > span { font: 12px var(--font-sans); color: var(--color-text-muted); }
+.period-filter__range input { color-scheme: dark; }
+.period-filter__range > button { min-height: 40px; }
+.period-filter :is(button, input):focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
+@media (max-width: 600px) {
+  .period-filter__range { width: 100%; flex-wrap: wrap; }
+  .period-filter__range input { flex: 1; width: 0; min-width: 112px; }
+  .period-filter__range > button { width: 100%; }
+}

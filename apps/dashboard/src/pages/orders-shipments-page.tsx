@@ -9,8 +9,9 @@ import {
   Truck,
   X,
 } from "lucide-react";
+import { PeriodFilter } from "../components/PeriodFilter.js";
 import { EmptyState } from "../components/EmptyState.js";
-import { StatCard } from "./overview/components/StatCard.js";
+import { StatCard, StatCardGroup } from "./overview/components/StatCard.js";
 import type { MerchantProfile, TenantOrder } from "../api-client.js";
 import { useOrdersShipmentsPage } from "./orders-shipments/useOrdersShipmentsPage.js";
 import { Button } from "../components/Button.js";
@@ -159,59 +160,23 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
       </header>
 
       {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14 }}>
+      <StatCardGroup>
         <StatCard label="Pedidos" value={vm.hasLoaded ? vm.metrics.totalOrders : 0} icon={<ShoppingCart size={16} />} />
         <StatCard label="Aprovados" value={vm.hasLoaded ? Math.round(vm.metrics.approvalRate * 100) + "%" : "0%"} icon={<CheckCircle size={16} />} accent="var(--color-success)" />
         <StatCard label="Receita" value={vm.hasLoaded ? formatMinor(vm.metrics.totalRevenue, "BRL") : "R$ 0"} icon={<DollarSign size={16} />} accent="var(--color-brand)" />
         <StatCard label="Rastreados" value={vm.hasLoaded ? vm.metrics.trackedCount : 0} icon={<Truck size={16} />} />
         <StatCard label="Ticket Médio" value={vm.hasLoaded ? formatMinor(vm.metrics.averageOrderValue, "BRL") : "R$ 0"} icon={<Receipt size={16} />} />
-      </div>
+      </StatCardGroup>
 
       {vm.message ? <div className="panel-error">{vm.message}</div> : null}
 
-      {/* Period filter bar — tabs left, date range right */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", gap: "16px", flexWrap: "wrap" }}>
-        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          {(["all", "today", "7d", "15d", "30d"] as const).map((key) => {
-            const labels: Record<string, string> = { all: "Todos", today: "Hoje", "7d": "Últimos 7 dias", "15d": "Últimos 15 dias", "30d": "Últimos 30 dias" };
-            const isActive = period === key;
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => { setPeriod(key); setDateRange({ from: "", to: "" }); }}
-                style={{
-                  padding: "6px 14px",
-                  borderRadius: "var(--radius-full, 20px)",
-                  border: isActive ? "1px solid var(--color-brand)" : "1px solid var(--color-border)",
-                  background: isActive ? "var(--color-brand)" : "transparent",
-                  color: isActive ? "#fff" : "var(--color-text-muted)",
-                  font: "500 12px var(--font-sans)",
-                  cursor: "pointer",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                {labels[key]}
-              </button>
-            );
-          })}
-        </div>
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <input
-            type="date"
-            value={dateRange.from}
-            onChange={(e) => { setDateRange((d) => ({ ...d, from: e.target.value })); setPeriod("all"); }}
-            style={{ padding: "7px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "#fff", font: "12px var(--font-sans)", colorScheme: "dark" }}
-          />
-          <span style={{ color: "var(--color-text-muted)", fontSize: "12px" }}>até</span>
-          <input
-            type="date"
-            value={dateRange.to}
-            onChange={(e) => { setDateRange((d) => ({ ...d, to: e.target.value })); setPeriod("all"); }}
-            style={{ padding: "7px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "#fff", font: "12px var(--font-sans)", colorScheme: "dark" }}
-          />
-        </div>
-      </div>
+      <PeriodFilter
+        presets={[{ key: "all", label: "Todos" }, { key: "today", label: "Hoje" }, { key: "7d", label: "Últimos 7 dias" }, { key: "15d", label: "Últimos 15 dias" }, { key: "30d", label: "Últimos 30 dias" }]}
+        active={period}
+        onPreset={key => { setPeriod(key as typeof period); setDateRange({ from: "", to: "" }); }}
+        from={dateRange.from} to={dateRange.to}
+        onDate={(field, value) => { setDateRange(range => ({ ...range, [field]: value })); setPeriod("all"); }}
+      />
 
       {/* Kanban Board */}
       {!vm.hasLoaded ? (

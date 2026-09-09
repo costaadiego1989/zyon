@@ -1,4 +1,5 @@
-import React, { type ReactNode, useEffect, useState } from "react";
+import React, { type ReactNode } from "react";
+import "./stat-card.css";
 
 export type StatCardProps = {
   label: string;
@@ -9,34 +10,12 @@ export type StatCardProps = {
   icon?: ReactNode;
   accent?: string;
   sparkline?: number[];
+  note?: string;
+  primary?: boolean;
 };
 
-function AnimatedCounter({ value, duration = 800 }: { value: string | number; duration?: number }) {
-  const [displayValue, setDisplayValue] = useState<string | number>(value);
-
-  useEffect(() => {
-    if (typeof value === "string") {
-      setDisplayValue(value);
-      return;
-    }
-
-    const numValue = typeof value === "number" ? value : 0;
-    let currentValue = 0;
-    const increment = numValue / (duration / 16);
-    const interval = setInterval(() => {
-      currentValue += increment;
-      if (currentValue >= numValue) {
-        setDisplayValue(Math.floor(numValue));
-        clearInterval(interval);
-      } else {
-        setDisplayValue(Math.floor(currentValue));
-      }
-    }, 16);
-
-    return () => clearInterval(interval);
-  }, [value, duration]);
-
-  return displayValue;
+export function StatCardGroup({ children, primary = false }: { children: ReactNode; primary?: boolean }) {
+  return <section className={`stat-card-group${primary ? " stat-card-group--primary" : ""}`} aria-label="Indicadores">{children}</section>;
 }
 
 function MiniSparkline({ data }: { data: number[] }) {
@@ -76,6 +55,8 @@ export function StatCard({
   icon,
   accent,
   sparkline,
+  note,
+  primary = false,
 }: StatCardProps) {
   const trendPositive = trend !== undefined && trend >= 0;
   const trendBg = trendPositive ? "var(--color-success-bg)" : "var(--color-error-bg)";
@@ -83,25 +64,16 @@ export function StatCard({
 
   return (
     <article
-      className="stat-card"
+      className={`stat-card${primary ? " stat-card--primary" : ""}`}
       style={{
-        background: "var(--surface-2)",
-        border: "1px solid var(--color-border)",
-        borderRadius: "var(--radius-md)",
-        padding: "18px 20px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-        minWidth: 0,
-        position: "relative",
-        overflow: "hidden",
-      }}
+        "--stat-accent": accent ?? (primary ? "var(--color-brand)" : "var(--color-text)"),
+      } as React.CSSProperties}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, position: "relative", zIndex: 1 }}>
         <span
           style={{
             font: "600 10px var(--font-mono)",
-            color: "var(--color-text-muted)",
+            color: "var(--color-text-faint)",
             textTransform: "uppercase",
             letterSpacing: "0.06em",
           }}
@@ -121,22 +93,15 @@ export function StatCard({
             {prefix}
           </span>
         ) : null}
-        <span
-          style={{
-            font: "700 26px var(--font-mono)",
-            color: accent ?? "var(--color-text)",
-            letterSpacing: -0.5,
-            lineHeight: 1.1,
-          }}
-        >
-          <AnimatedCounter value={value} />
-        </span>
+        <strong className="stat-card__value">{typeof value === "number" ? value.toLocaleString("pt-BR") : value}</strong>
         {suffix ? (
           <span style={{ font: "12px var(--font-mono)", color: "var(--color-text-muted)" }}>
             {suffix}
           </span>
         ) : null}
       </div>
+
+      {note ? <span className="stat-card__note">{note}</span> : null}
 
       {sparkline && sparkline.length > 1 && (
         <div style={{ color: accent ?? "var(--color-brand)", opacity: 0.6, position: "relative", zIndex: 1 }}>

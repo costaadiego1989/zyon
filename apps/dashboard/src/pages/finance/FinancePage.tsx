@@ -3,7 +3,6 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
-  CalendarDays,
   CheckCircle2,
   Download,
   FileSpreadsheet,
@@ -30,6 +29,10 @@ import { PageLoader } from "../../components/PageLoader.js";
 import { SidePanel } from "../../components/SidePanel.js";
 import { TabBar } from "../../components/TabBar.js";
 import { showToast } from "../../components/Toast.js";
+
+import { PeriodFilter } from "../../components/PeriodFilter.js";
+import { StatCard, StatCardGroup } from "../overview/components/StatCard.js";
+import "./finance-page.css";
 
 type FinanceTab = "overview" | "transactions" | "reports";
 type RangePreset = "today" | "7d" | "15d" | "30d" | "custom";
@@ -156,20 +159,9 @@ export function FinancePage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Mercha
         </Button>
       </header>
 
-      <section className="panel" style={{ padding: 0, overflow: "hidden" }} aria-label="Período financeiro">
-        <FilterToolbar
-          tabs={PERIOD_TABS}
-          activeTab={preset}
-          onTabChange={(next) => applyPreset(next as RangePreset)}
-          extra={<div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <DateInput label="De" value={from} onChange={(value) => editDate("from", value)} />
-            <DateInput label="Até" value={to} onChange={(value) => editDate("to", value)} />
-            <Button variant="outline" size="sm" onClick={() => { void loadSummary(); if (tab === "transactions") void loadTransactions(); }} disabled={summaryLoading || transactionsLoading}><RefreshCw size={14} /> Atualizar</Button>
-          </div>}
-        />
-      </section>
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", margin: "18px 0 20px" }}>
+      <PeriodFilter presets={PERIOD_TABS} active={preset} onPreset={(next) => applyPreset(next as RangePreset)} from={from} to={to} onDate={editDate}
+        action={<Button variant="outline" size="sm" onClick={() => { void loadSummary(); if (tab === "transactions") void loadTransactions(); }} disabled={summaryLoading || transactionsLoading}><RefreshCw size={14} /> Atualizar</Button>} />
+      <div className="finance-page__tabs">
         <TabBar tabs={MAIN_TABS} activeTab={tab} onTabChange={(next) => setTab(next as FinanceTab)} />
         {summary?.period ? <PeriodLabel period={summary.period} /> : null}
       </div>
@@ -185,20 +177,20 @@ export function FinancePage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Mercha
 function Overview({ summary, onTransactions }: { summary: FinanceSummary; onTransactions: () => void }) {
   const { metrics } = summary;
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-    <section style={{ display: "grid", gridTemplateColumns: "minmax(300px, 1.6fr) repeat(3, minmax(160px, 1fr))", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", overflow: "hidden", background: "var(--surface-2)" }}>
-      <Metric primary icon={<WalletCards size={18} />} label="Vendas confirmadas" value={formatBrl(metrics.sales_confirmed_brl)} note={`${metrics.completed_orders} pedido${metrics.completed_orders === 1 ? "" : "s"} concluído${metrics.completed_orders === 1 ? "" : "s"}`} />
-      <Metric icon={<ReceiptText size={16} />} label="Pedidos concluídos" value={formatInteger(metrics.completed_orders)} note="No período selecionado" />
-      <Metric icon={<BarChart3 size={16} />} label="Ticket médio" value={formatBrl(metrics.average_order_value_brl)} note="Por pedido concluído" />
-      <Metric tone="refund" icon={<RotateCcw size={16} />} label="Reembolsos confirmados" value={formatBrl(metrics.refunds_confirmed_brl)} note="Processados pelo provedor" />
-    </section>
+    <StatCardGroup primary>
+      <StatCard primary icon={<WalletCards size={18} />} label="Vendas confirmadas" value={formatBrl(metrics.sales_confirmed_brl)} note={`${metrics.completed_orders} pedido${metrics.completed_orders === 1 ? "" : "s"} concluído${metrics.completed_orders === 1 ? "" : "s"}`} />
+      <StatCard icon={<ReceiptText size={16} />} label="Pedidos concluídos" value={formatInteger(metrics.completed_orders)} note="No período selecionado" />
+      <StatCard icon={<BarChart3 size={16} />} label="Ticket médio" value={formatBrl(metrics.average_order_value_brl)} note="Por pedido concluído" />
+      <StatCard accent="var(--color-error)" icon={<RotateCcw size={16} />} label="Reembolsos confirmados" value={formatBrl(metrics.refunds_confirmed_brl)} note="Processados pelo provedor" />
+    </StatCardGroup>
     <p style={{ margin: 0, padding: "12px 14px", borderRadius: 10, background: "var(--color-brand-subtle)", border: "1px solid var(--color-brand-ring)", color: "var(--color-text-muted)", font: "12.5px/1.55 var(--font-sans)" }}><Landmark size={15} style={{ verticalAlign: "-3px", marginRight: 7, color: "var(--color-brand)" }} />{summary.scope_note}</p>
-    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.55fr) minmax(280px, .85fr)", gap: 16 }}>
+    <div className="finance-page__columns">
       <section className="panel" style={{ padding: 0, overflow: "hidden" }}><PanelHeader eyebrow="EVOLUÇÃO" title="Entradas e reembolsos" note="Valores em reais" /><RevenueChart points={summary.series} /></section>
       <section className="panel" style={{ padding: 0, overflow: "hidden" }}><PanelHeader eyebrow="PAGAMENTOS" title="Meios de pagamento" /><PaymentMethods items={summary.payment_methods} /></section>
     </div>
     <section className="panel" style={{ padding: 0, overflow: "hidden" }}>
       <PanelHeader eyebrow="CONFERÊNCIA" title="Cada valor pode ser conferido" trailing={<Button variant="outline" size="sm" onClick={onTransactions}>Ver transações</Button>} />
-      <div style={{ padding: "0 20px 20px", display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
+      <div className="finance-page__explainers">
         <Explainer icon={<CheckCircle2 size={16} />} title="Vendas concluídas" text="Cada pedido aparece uma vez no relatório, com o total registrado na compra." />
         <Explainer icon={<RotateCcw size={16} />} title="Reembolsos separados" text="Reembolsos parciais e totais entram somente após a confirmação do provedor." />
         <Explainer icon={<Landmark size={16} />} title="Repasses depois" text="Saldo disponível, taxa e previsão de repasse entram quando houver conciliação." />
@@ -218,19 +210,17 @@ function Transactions(props: { summary: FinanceSummary | null; loading: boolean;
 }
 
 function Reports({ period, exporting, onExport }: { period?: { from: string; to: string; time_zone: string }; exporting: boolean; onExport: () => Promise<void> }) {
-  return <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(280px, .8fr)", gap: 16 }}>
+  return <div className="finance-page__columns">
     <section className="panel" style={{ padding: 0, overflow: "hidden" }}><PanelHeader eyebrow="RELATÓRIO DISPONÍVEL" title="Movimentações financeiras" trailing={<FileSpreadsheet size={20} color="var(--color-brand)" />} /><div style={{ padding: "0 20px 22px" }}><p style={{ margin: "0 0 16px", color: "var(--color-text-muted)", font: "13px/1.6 var(--font-sans)", maxWidth: 560 }}>Baixe todas as vendas concluídas e os reembolsos confirmados do período selecionado. O arquivo traz valores em BRL, método de pagamento e referência do pedido.</p><Button variant="primary" onClick={() => void onExport()} disabled={exporting}>{exporting ? <LoaderCircle size={15} /> : <Download size={15} />}{exporting ? "Gerando relatório..." : "Baixar CSV"}</Button></div></section>
     <section className="panel" style={{ padding: 20 }}><span style={kickerStyle}>ESCOPO DO ARQUIVO</span><div style={{ display: "grid", gap: 12, marginTop: 14 }}><ReportDetail label="Período" value={period ? `${formatDateOnly(period.from)} até ${formatDateOnly(period.to)}` : "Carregando..."} /><ReportDetail label="Fuso" value={period?.time_zone ?? "America/Sao_Paulo"} /><ReportDetail label="Moeda" value="BRL (R$)" /><ReportDetail label="Cobertura" value="Pedidos concluídos e reembolsos confirmados" /></div></section>
   </div>;
 }
 
-function Metric({ primary, tone, icon, label, value, note }: { primary?: boolean; tone?: "refund"; icon: React.ReactNode; label: string; value: string; note: string }) { const color = tone === "refund" ? "var(--color-error)" : primary ? "var(--color-brand)" : "var(--color-text)"; return <article style={{ minWidth: 0, padding: primary ? "23px 24px" : "22px 20px", borderRight: "1px solid var(--color-border)", background: primary ? "var(--surface-1)" : "transparent" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, color: tone === "refund" ? "var(--color-error)" : "var(--color-brand)" }}><span style={kickerStyle}>{label}</span>{icon}</div><strong style={{ display: "block", marginTop: primary ? 13 : 15, color, font: primary ? "700 31px var(--font-mono)" : "700 22px var(--font-mono)", letterSpacing: "-0.04em", whiteSpace: "nowrap" }}>{value}</strong><span style={{ display: "block", marginTop: 8, color: "var(--color-text-faint)", font: "12px/1.4 var(--font-sans)" }}>{note}</span></article>; }
 function PanelHeader({ eyebrow, title, note, trailing }: { eyebrow: string; title: string; note?: string; trailing?: React.ReactNode }) { return <div style={panelHeaderStyle}><div><span style={kickerStyle}>{eyebrow}</span><h2 style={panelTitleStyle}>{title}</h2></div>{trailing ?? (note ? <span style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)" }}>{note}</span> : null)}</div>; }
 function RevenueChart({ points }: { points: FinanceSummary["series"] }) { if (points.length === 0) return <EmptyChart />; const width = 760; const height = 240; const pad = { top: 20, right: 20, bottom: 32, left: 52 }; const max = Math.max(...points.flatMap((point) => [point.sales_brl, point.refunds_brl]), 1); const x = (index: number) => pad.left + (index / Math.max(points.length - 1, 1)) * (width - pad.left - pad.right); const y = (value: number) => height - pad.bottom - (value / max) * (height - pad.top - pad.bottom); const pathFor = (read: (point: FinanceSummary["series"][number]) => number) => points.map((point, index) => `${index === 0 ? "M" : "L"}${x(index)},${y(read(point))}`).join(" "); return <div style={{ padding: "8px 18px 16px" }}><svg viewBox={`0 0 ${width} ${height}`} width="100%" height={240} role="img" aria-label="Evolução de vendas e reembolsos no período">{[0, .5, 1].map((factor) => <g key={factor}><line x1={pad.left} x2={width - pad.right} y1={y(max * factor)} y2={y(max * factor)} stroke="var(--color-border)" strokeDasharray="4 6" /><text x={pad.left - 9} y={y(max * factor) + 4} textAnchor="end" fill="var(--color-text-faint)" fontSize="10" fontFamily="var(--font-mono)">{formatCompactBrl(max * factor)}</text></g>)}<path d={pathFor((point) => point.sales_brl)} fill="none" stroke="var(--color-brand)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />{points.some((point) => point.refunds_brl > 0) ? <path d={pathFor((point) => point.refunds_brl)} fill="none" stroke="var(--color-error)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /> : null}{points.map((point, index) => <text key={point.date} x={x(index)} y={height - 10} textAnchor="middle" fill="var(--color-text-faint)" fontSize="10" fontFamily="var(--font-mono)">{shortDate(point.date)}</text>)}</svg><div style={{ display: "flex", gap: 16, padding: "0 4px", color: "var(--color-text-muted)", font: "11px var(--font-sans)" }}><Legend color="var(--color-brand)" label="Vendas" /><Legend color="var(--color-error)" label="Reembolsos" /></div></div>; }
 function PaymentMethods({ items }: { items: FinanceSummary["payment_methods"] }) { if (items.length === 0) return <EmptyChart message="Os métodos aparecem depois das primeiras vendas concluídas." />; const total = items.reduce((sum, item) => sum + item.sales_brl, 0) || 1; return <div style={{ padding: "0 20px 20px", display: "grid", gap: 14 }}>{items.map((item) => <div key={item.method}><div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, marginBottom: 7 }}><span style={{ color: "var(--color-text)", font: "600 13px var(--font-sans)" }}>{item.method}</span><span style={{ color: "var(--color-text-muted)", font: "12px var(--font-mono)" }}>{formatBrl(item.sales_brl)} · {item.orders} pedido{item.orders === 1 ? "" : "s"}</span></div><div style={{ height: 6, borderRadius: 99, background: "var(--surface-3)", overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.max(3, (item.sales_brl / total) * 100)}%`, borderRadius: "inherit", background: "var(--color-brand)" }} /></div></div>)}</div>; }
 function TransactionRow({ transaction, onClick }: { transaction: FinanceTransaction; onClick: () => void }) { const refund = transaction.kind === "refund"; return <tr onClick={onClick} style={{ cursor: "pointer" }} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onClick(); }}><td style={tableCellStyle}>{formatDateTime(transaction.occurred_at)}</td><td style={tableCellStyle}><MovementBadge kind={transaction.kind} /></td><td style={{ ...tableCellStyle, color: "var(--color-text)", fontWeight: 600 }}>{transaction.order_reference}</td><td style={tableCellStyle}>{transaction.payment_method ?? "Não informado"}</td><td style={tableCellStyle}><StatusBadge kind={transaction.kind} status={transaction.status} /></td><td style={{ ...tableCellStyle, color: refund ? "var(--color-error)" : "var(--color-brand)", textAlign: "right", font: "700 13px var(--font-mono)" }}>{refund ? "−" : "+"}{formatBrl(Math.abs(transaction.amount_brl))}</td></tr>; }
 function TransactionDetails({ transaction }: { transaction: FinanceTransaction }) { const refund = transaction.kind === "refund"; return <div style={{ display: "grid", gap: 18 }}><div style={{ padding: 16, borderRadius: 10, border: "1px solid var(--color-border)", background: "var(--surface-2)" }}><span style={kickerStyle}>{refund ? "SAÍDA CONFIRMADA" : "ENTRADA CONFIRMADA"}</span><strong style={{ display: "block", marginTop: 10, color: refund ? "var(--color-error)" : "var(--color-brand)", font: "700 29px var(--font-mono)" }}>{refund ? "−" : "+"}{formatBrl(Math.abs(transaction.amount_brl))}</strong></div><div style={{ display: "grid", gap: 14 }}><Detail label="Data" value={formatDateTime(transaction.occurred_at)} /><Detail label="Pedido" value={transaction.order_reference} /><Detail label="Método" value={transaction.payment_method ?? "Não informado"} /><Detail label="Situação" value={<StatusBadge kind={transaction.kind} status={transaction.status} />} /><Detail label="Referência do pagamento" value={transaction.payment_intent_id ?? "Não informado"} mono /></div><p style={{ margin: 0, padding: 12, borderRadius: 9, background: "var(--surface-2)", color: "var(--color-text-faint)", font: "12px/1.55 var(--font-sans)" }}>{refund ? "O valor foi incluído após a confirmação do reembolso pelo provedor." : "O valor corresponde ao total registrado no pedido concluído."}</p></div>; }
-function DateInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { return <label style={{ display: "inline-flex", alignItems: "center", gap: 6, width: 164, height: 32, boxSizing: "border-box", padding: "0 8px 0 10px", border: "1px solid var(--color-border)", borderRadius: 7, color: "var(--color-text-muted)", font: "600 11px var(--font-sans)", background: "var(--surface-1)" }}><CalendarDays size={13} />{label}<input type="date" value={value} onChange={(event) => onChange(event.target.value)} aria-label={`Data ${label}`} style={{ minWidth: 0, flex: 1, border: 0, outline: 0, background: "transparent", color: "var(--color-text)", font: "12px var(--font-sans)" }} /></label>; }
 function PeriodLabel({ period }: { period: { from: string; to: string; time_zone: string } }) { return <span style={{ color: "var(--color-text-faint)", font: "11px var(--font-mono)" }}>{formatDateOnly(period.from)} a {formatDateOnly(period.to)} · {period.time_zone}</span>; }
 function ErrorPanel({ message, onRetry }: { message: string; onRetry: () => Promise<void> }) { return <div role="alert" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "12px 16px", borderRadius: 10, border: "1px solid var(--color-error)", background: "var(--color-error-bg)", color: "var(--color-error)", font: "13px var(--font-sans)" }}><span>{message}</span><Button variant="outline" size="sm" onClick={() => void onRetry()}>Tentar novamente</Button></div>; }
 function MovementBadge({ kind }: { kind: FinanceTransactionKind }) { const refund = kind === "refund"; return <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 8px", borderRadius: 999, color: refund ? "var(--color-error)" : "var(--color-brand)", background: refund ? "var(--color-error-bg)" : "var(--color-brand-subtle)", font: "700 10.5px var(--font-mono)" }}>{refund ? <ArrowDownRight size={12} /> : <ArrowUpRight size={12} />}{refund ? "Reembolso" : "Venda"}</span>; }
