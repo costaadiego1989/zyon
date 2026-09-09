@@ -129,8 +129,8 @@ export function CartSheet({ open, cart, mode = "checkout", onClose, onCheckout, 
                     marginBottom: "10px",
                   }}
                 >
-                  {/* Product thumbnail placeholder */}
-                  <div style={{ width: "46px", height: "46px", borderRadius: "10px", flexShrink: 0, background: "linear-gradient(135deg, var(--aacp-surface-2), var(--aacp-surface-3, rgba(255,255,255,0.08)))", border: "1px solid var(--aacp-line)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div style={{ position: "relative", width: "46px", height: "46px", borderRadius: "10px", flexShrink: 0, overflow: "hidden", background: "linear-gradient(135deg, var(--aacp-surface-2), var(--aacp-surface-3, rgba(255,255,255,0.08)))", border: "1px solid var(--aacp-line)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {item.image ? <img src={item.image} alt="" onError={(event) => { event.currentTarget.style.display = "none"; }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} /> : null}
                     <span style={{ fontSize: "18px", fontWeight: 700, color: "var(--aacp-accent)", opacity: 0.4 }}>
                       {item.productName.charAt(0).toUpperCase()}
                     </span>

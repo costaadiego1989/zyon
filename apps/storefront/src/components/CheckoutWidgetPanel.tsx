@@ -90,7 +90,10 @@ export default function NativeCartPanel({
         open={sheetOpen}
         cart={{
           cartId: cart.cartId,
-          items: cart.items,
+          items: cart.items.map((item) => ({
+            ...item,
+            image: item.image,
+          })),
           itemCount: cart.itemCount,
           subtotal: cart.total + (cart.discount ?? 0),
           discount: cart.discount ?? 0,

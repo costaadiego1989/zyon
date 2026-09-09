@@ -9,6 +9,8 @@ export interface CartItem {
   quantity: number;
   price: number;
   subtotal: number;
+  /** Public product media returned by the tenant-scoped cart API. */
+  image?: string;
 }
 
 export interface ActiveOffer {
@@ -120,7 +122,14 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
 
         setCart({
           cartId: data.cartId,
-          items: data.items,
+          items: data.items.map((item: any) => ({
+            variantId: item.variantId,
+            productName: item.productName,
+            quantity: item.quantity,
+            price: item.price,
+            subtotal: item.subtotal,
+            image: item.imageUrl ?? item.image_url ?? item.image,
+          })),
           itemCount: data.itemCount,
           discount: data.discount ?? 0,
           total: baseTotal,
@@ -177,6 +186,7 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
             quantity: qty,
             price,
             subtotal: i.subtotal ?? price * qty,
+            image: i.imageUrl ?? i.image_url ?? i.image,
           };
         }),
         itemCount: itemCount ?? items.reduce((sum: number, i: any) => sum + (i.quantity ?? 1), 0),
@@ -220,6 +230,7 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
         quantity: item.quantity,
         price: item.price,
         subtotal: item.subtotal,
+        image: item.imageUrl ?? item.image_url ?? item.image,
       })),
       itemCount: data.itemCount,
       discount: data.discount ?? 0,

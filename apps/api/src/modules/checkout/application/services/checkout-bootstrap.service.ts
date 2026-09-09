@@ -52,6 +52,7 @@ export class CheckoutBootstrapService {
                 name: i.name,
                 price: i.unitPriceCents / 100,
                 quantity: i.quantity,
+                imageUrl: i.imageUrl,
                 selected_options: i.selectedOptions?.map((o) => ({
                   group_name: o.groupName,
                   item_name: o.itemName,

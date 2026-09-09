@@ -34,11 +34,9 @@ export function ProductCardMedia({
           src={data.image}
           alt={data.name}
           style={{
-            maxWidth: "100%",
-            maxHeight: "100%",
-            width: "auto",
-            height: "auto",
-            objectFit: "contain",
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
             display: "block",
           }}
           loading="lazy"

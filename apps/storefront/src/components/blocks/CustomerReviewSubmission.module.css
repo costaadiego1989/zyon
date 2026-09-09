@@ -3,15 +3,14 @@
   padding: 24px 0 4px;
   border-top: 1px solid var(--product-line, var(--aacp-line));
   color: var(--aacp-fg);
+  font-family: var(--aacp-font, inherit);
 }
 
-.intro { display: flex; gap: 12px; align-items: flex-start; }
-.icon { display: grid; flex: 0 0 auto; width: 38px; height: 38px; place-items: center; border: 1px solid var(--product-line, var(--aacp-line)); border-radius: 50%; color: var(--aacp-accent); }
-.icon svg { width: 17px; height: 17px; }
+.intro { max-width: 620px; margin: 0 auto; }
 .intro h2 { margin: 0; font-size: 20px; line-height: 1.25; letter-spacing: -.02em; }
 .intro p { margin: 5px 0 0; color: var(--product-muted, var(--aacp-muted)); font-size: 13px; line-height: 1.6; }
 
-.authToast { position: sticky; z-index: 4; bottom: 16px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; max-width: 720px; margin: 18px 0 0 50px; padding: 13px 14px; border: 1px solid color-mix(in srgb, var(--aacp-accent) 45%, var(--product-line, var(--aacp-line))); border-radius: 10px; background: color-mix(in srgb, var(--aacp-surface) 92%, var(--aacp-accent)); color: var(--aacp-fg); box-shadow: 0 12px 28px color-mix(in srgb, #000 18%, transparent); animation: reviewToastIn .22s cubic-bezier(.22, 1, .36, 1); }
+.authToast { position: sticky; z-index: 4; bottom: 16px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; max-width: 620px; margin: 18px auto 0; padding: 13px 14px; border: 1px solid color-mix(in srgb, var(--aacp-accent) 45%, var(--product-line, var(--aacp-line))); border-radius: 10px; background: color-mix(in srgb, var(--aacp-surface) 92%, var(--aacp-accent)); color: var(--aacp-fg); box-shadow: 0 12px 28px color-mix(in srgb, #000 18%, transparent); animation: reviewToastIn .22s cubic-bezier(.22, 1, .36, 1); }
 .authToast div { display: grid; gap: 3px; min-width: 0; }
 .authToast strong { font-size: 13px; line-height: 1.35; }
 .authToast span { color: var(--product-muted, var(--aacp-muted)); font-size: 12px; line-height: 1.45; }
@@ -20,9 +19,9 @@
 .authToast button:focus-visible { outline: 2px solid var(--aacp-accent); outline-offset: 3px; }
 @keyframes reviewToastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-.form { display: grid; gap: 15px; max-width: 620px; margin: 20px 0 0 50px; }
-.kindSwitch { display: inline-flex; align-self: start; overflow: hidden; border: 1px solid var(--product-line, var(--aacp-line)); border-radius: 7px; }
-.kindSwitch button { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 8px 12px; border: 0; border-right: 1px solid var(--product-line, var(--aacp-line)); background: transparent; color: var(--product-muted, var(--aacp-muted)); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.form { display: grid; gap: 15px; max-width: 620px; margin: 20px auto 0; }
+.kindSwitch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(100%, 360px); justify-self: center; overflow: hidden; border: 1px solid var(--product-line, var(--aacp-line)); border-radius: 7px; }
+.kindSwitch button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 8px 12px; border: 0; border-right: 1px solid var(--product-line, var(--aacp-line)); background: transparent; color: var(--product-muted, var(--aacp-muted)); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 .kindSwitch button:last-child { border-right: 0; }
 .kindSwitch button[aria-pressed="true"] { background: color-mix(in srgb, var(--aacp-accent) 11%, var(--aacp-surface)); color: var(--aacp-fg); }
 .kindSwitch button:focus-visible, .submit:focus-visible, .success button:focus-visible { outline: 2px solid var(--aacp-accent); outline-offset: 3px; }
@@ -48,17 +47,16 @@
 .submit svg { width: 16px; height: 16px; }
 .error, .success { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 11px 12px; border-radius: 7px; font-size: 12px; line-height: 1.55; }
 .error { border: 1px solid color-mix(in srgb, #dc2626 38%, var(--product-line, var(--aacp-line))); color: var(--aacp-fg); }
-.success { margin: 20px 0 0 50px; border: 1px solid color-mix(in srgb, #16a34a 35%, var(--product-line, var(--aacp-line))); color: var(--aacp-fg); }
+.success { max-width: 620px; margin: 20px auto 0; border: 1px solid color-mix(in srgb, #16a34a 35%, var(--product-line, var(--aacp-line))); color: var(--aacp-fg); }
 .success > svg { flex: 0 0 auto; width: 17px; height: 17px; color: #16a34a; margin-top: 1px; }
 .success button { margin-left: auto; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; font-weight: 650; text-decoration: underline; white-space: nowrap; cursor: pointer; }
 
 @media (max-width: 560px) {
   .section { margin-top: 28px; }
-  .form, .success, .authToast { margin-left: 0; }
   .authToast { grid-template-columns: 1fr auto; gap: 10px; bottom: 12px; }
   .authToast > div { grid-column: 1 / -1; }
   .kindSwitch { width: 100%; }
-  .kindSwitch button { flex: 1; justify-content: center; padding-inline: 8px; }
+  .kindSwitch button { padding-inline: 8px; }
 }
 
 @media (prefers-reduced-motion: reduce) { .section *, .section *::before, .section *::after { transition: none !important; animation: none !important; } }

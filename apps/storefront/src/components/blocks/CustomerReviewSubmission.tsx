@@ -145,15 +145,10 @@ export function CustomerReviewSubmission({
   return (
     <section className={styles.section} aria-labelledby="customer-review-heading">
       <div className={styles.intro}>
-        <div className={styles.icon} aria-hidden="true">
-          {kind === "testimonial" ? <FiMessageSquare /> : <FiFilm />}
-        </div>
-        <div>
-          <h2 id="customer-review-heading">Conte sua experiência</h2>
-          <p>
-            Ajude outras pessoas com uma avaliação de {productName ?? "produto"}. A loja revisa cada envio antes de publicar.
-          </p>
-        </div>
+        <h2 id="customer-review-heading">Conte sua experiência</h2>
+        <p>
+          Ajude outras pessoas com uma avaliação de {productName ?? "produto"}. A loja revisa cada envio antes de publicar.
+        </p>
       </div>
 
       {showAuthToast ? (
