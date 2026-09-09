@@ -71,6 +71,22 @@ describe("CancelOrderUseCase", () => {
     assert.equal(commerce.cancelled.length, 0);
   });
 
+  it("rejects cancellation after shipment has started", async () => {
+    const commerce = new FakeCommerceOrderPort();
+    const useCase = new CancelOrderUseCase(
+      new StaticStatusOperationsRepository("shipped"),
+      completedOrderRepository(),
+      commerce,
+      { publish: async () => [] } as unknown as TenantWebhookPublisher,
+    );
+
+    await assert.rejects(
+      useCase.execute({ merchantId: "mrc_a", orderId: "ord_1", reason: "Customer requested" }),
+      /order_cancellation_not_allowed/,
+    );
+    assert.equal(commerce.cancelled.length, 0);
+  });
+
   it("P1 — cancels the commerce provider BEFORE committing local cancellation", async () => {
     // The provider call must happen while the local order is still retryable.
     // We track the order's persisted status at the moment the provider is called.
@@ -198,6 +214,42 @@ describe("UpdateOrderStatusUseCase", () => {
         status: "pending",
       }),
       /order_status_transition_invalid/,
+    );
+  });
+
+  it("allows an order already processing to move to paid", async () => {
+    const mockPrisma = {
+      checkoutSession: { findUnique: async () => ({ globalUserId: "buyer_123" }) },
+    } as any;
+    const useCase = new UpdateOrderStatusUseCase(
+      new StaticStatusOperationsRepository("processing"),
+      completedOrderRepository(),
+      { publish: async () => [] } as unknown as TenantWebhookPublisher,
+      { publish: async () => {}, subscribe: () => {}, handlersFor: () => [] } as any,
+      mockPrisma,
+    );
+
+    const result = await useCase.execute({ merchantId: "mrc_a", orderId: "ord_1", status: "paid" });
+    assert.equal(result.status, "paid");
+  });
+
+  it("does not allow the generic status endpoint to bypass cancellation effects", async () => {
+    const mockPrisma = {
+      checkoutSession: {
+        findUnique: async () => ({ globalUserId: "buyer_123" }),
+      },
+    } as any;
+    const useCase = new UpdateOrderStatusUseCase(
+      new StubOperationsRepository(),
+      completedOrderRepository(),
+      { publish: async () => [] } as unknown as TenantWebhookPublisher,
+      { publish: async () => {}, subscribe: () => {}, handlersFor: () => [] } as any,
+      mockPrisma,
+    );
+
+    await assert.rejects(
+      useCase.execute({ merchantId: "mrc_a", orderId: "ord_1", status: "cancelled" }),
+      /use_order_cancel_endpoint/,
     );
   });
 

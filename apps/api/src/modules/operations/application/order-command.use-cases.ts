@@ -61,6 +61,10 @@ export class CancelOrderUseCase {
       return cancellationResponse(order, true, false, null);
     }
 
+    if (!CANCELLABLE_ORDER_STATUSES.has(order.status)) {
+      throw new BadRequestException("order_cancellation_not_allowed");
+    }
+
     // The provider action is irreversible from this service's perspective.
     // Keep the local order retryable until the provider confirms cancellation.
     let providerCancellationRequested = false;
@@ -172,6 +176,9 @@ export class UpdateOrderStatusUseCase {
     const merchantId = required(input.merchantId, "merchant_id");
     const orderId = required(input.orderId, "order_id");
     const status = normalizeOrderStatus(input.status);
+    if (status === "cancelled") {
+      throw new BadRequestException("use_order_cancel_endpoint");
+    }
     const order = await this.readRepository.getOrder(merchantId, orderId);
     if (!order) throw new NotFoundException("order_not_found");
 
@@ -187,10 +194,9 @@ export class UpdateOrderStatusUseCase {
     });
     if (!updated) throw new NotFoundException("order_not_found");
 
-    const eventType = status === "cancelled" ? "order.cancelled" : "order.approved";
     await this.webhooks.publish({
       merchantId,
-      eventType,
+      eventType: "order.approved",
       data: {
         order: {
           id: order.id,
@@ -308,14 +314,17 @@ export class CreateOrderFromPaymentUseCase {
 }
 
 const ORDER_STATUS_TRANSITIONS: Record<CompletedOrderStatus, CompletedOrderStatus[]> = {
-  pending: ["paid", "cancelled"],
-  approved: ["paid", "shipped", "cancelled"],
-  paid: ["shipped", "cancelled"],
+  pending: ["processing", "paid"],
+  processing: ["paid"],
+  approved: ["paid", "shipped"],
+  paid: ["shipped"],
   shipped: ["delivered", "returned"],
   delivered: [],
   cancelled: [],
   returned: [],
 };
+
+const CANCELLABLE_ORDER_STATUSES = new Set(["pending", "processing", "approved", "paid"]);
 
 function canTransitionOrderStatus(from: string, to: CompletedOrderStatus): boolean {
   if (from === to) return true;

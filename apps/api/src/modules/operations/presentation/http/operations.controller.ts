@@ -215,13 +215,13 @@ export class OrdersController {
   @Idempotent()
   @ApiOperation({
     summary: "Update order status",
-    description: "Updates order status in the lifecycle: pending → processing → fulfilled (or cancelled at any stage). Invalid transitions are rejected.",
+    description: "Updates a non-cancellation order lifecycle transition. Cancellation must use POST /orders/:orderId/cancel so reason, provider, inventory and notification semantics are preserved.",
   })
   @ApiParam({ name: "orderId", type: "string", description: "Order ID" })
   @ApiBody({
     schema: {
       properties: {
-        status: { type: "string", enum: ["pending", "processing", "fulfilled", "cancelled"] },
+        status: { type: "string", enum: ["pending", "processing", "approved", "paid", "shipped", "delivered", "returned"] },
       },
       required: ["status"],
     },

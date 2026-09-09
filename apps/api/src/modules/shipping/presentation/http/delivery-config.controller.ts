@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put, Req, UseGuards, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Put, Req, UseGuards, Query, Post } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiCookieAuth,
@@ -13,7 +13,6 @@ import { RequireTenantAccess } from "../../../integrations/presentation/http/ten
 import { GetDeliveryConfigUseCase } from "../../application/use-cases/get-delivery-config.use-case.js";
 import { UpdateDeliveryConfigUseCase } from "../../application/use-cases/update-delivery-config.use-case.js";
 import { ListMerchantShipmentsUseCase } from "../../application/use-cases/list-merchant-shipments.use-case.js";
-import { PurchaseShippingLabelUseCase } from "../../application/use-cases/shipping-label.use-cases.js";
 import { QuoteRadiusDeliveryUseCase } from "../../application/use-cases/quote-radius-delivery.use-case.js";
 
 @ApiTags("Delivery config")
@@ -26,7 +25,6 @@ export class DeliveryConfigController {
     private readonly getDeliveryConfig: GetDeliveryConfigUseCase,
     private readonly updateDeliveryConfig: UpdateDeliveryConfigUseCase,
     private readonly listShipmentsUseCase: ListMerchantShipmentsUseCase,
-    private readonly purchaseLabelUseCase: PurchaseShippingLabelUseCase,
     private readonly quoteRadiusDelivery: QuoteRadiusDeliveryUseCase
   ) {}
 
@@ -121,50 +119,15 @@ export class DeliveryConfigController {
   @RequireTenantAccess({ serviceScopes: ["orders:read"] })
   async listShipments(
     @Req() request: unknown,
-    @Param("status") status?: string
+    @Query("status") status?: string,
+    @Query("page") page?: string,
+    @Query("page_size") pageSize?: string,
   ) {
     return this.listShipmentsUseCase.execute({
       merchantId: tenantId(request),
-      status,
-      page: 1,
-      pageSize: 20
-    });
-  }
-
-  @ApiOperation({
-    summary: "Purchase shipping label",
-    description: "Purchase a shipping label for an order via the configured carrier"
-  })
-  @ApiResponse({
-    status: 201,
-    description: "Label purchased",
-    schema: {
-      example: {
-        id: "shipment_123",
-        tracking_code: "BR123456789",
-        label_url: "https://...",
-        carrier: "correios",
-        status: "created"
-      }
-    }
-  })
-  @Put("shipments/:shipmentId/label")
-  @RequireTenantAccess({ serviceScopes: ["orders:write"] })
-  async purchaseLabel(
-    @Req() request: unknown,
-    @Param("shipmentId") shipmentId: string,
-    @Body() body: PurchaseLabelDto
-  ) {
-    return this.purchaseLabelUseCase.execute({
-      merchantId: tenantId(request),
-      externalOrderId: body.order_id,
-      serviceId: body.service_id,
-      fromZip: body.from_zip,
-      toZip: body.to_zip,
-      toName: body.to_name,
-      toDocument: body.to_document,
-      packages: body.packages,
-      invoiceKey: body.invoice_key
+      status: status?.trim() || undefined,
+      page: parsePositiveInteger(page, 1, 100_000),
+      pageSize: parsePositiveInteger(pageSize, 20, 100),
     });
   }
 
@@ -201,6 +164,12 @@ function tenantId(request: unknown): string {
   return currentTenantPrincipal(request as Parameters<typeof currentTenantPrincipal>[0]).tenantId;
 }
 
+function parsePositiveInteger(value: string | undefined, fallback: number, maximum: number): number {
+  if (!value) return fallback;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 && parsed <= maximum ? parsed : fallback;
+}
+
 export type UpdateDeliveryConfigDto = {
   melhor_envio_enabled?: boolean;
   own_delivery?: {
@@ -213,17 +182,6 @@ export type UpdateDeliveryConfigDto = {
     estimated_value?: number;
     estimated_unit?: "minutes" | "days";
   };
-};
-
-export type PurchaseLabelDto = {
-  order_id: string;
-  service_id: number;
-  from_zip: string;
-  to_zip: string;
-  to_name: string;
-  to_document: string;
-  packages: Array<{ weightKg: number; widthCm: number; heightCm: number; lengthCm: number; quantity: number }>;
-  invoice_key?: string;
 };
 
 export type QuoteRadiusDeliveryDto = {

@@ -3,6 +3,7 @@ import { Package, Link2 } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { DataPanel } from "../../components/DataPanel.js";
 import { SidePanel } from "../../components/SidePanel.js";
+import { Button } from "../../components/Button.js";
 import { useDeliveryPage } from "./useDeliveryPage.js";
 import { MelhorEnvioCard } from "./components/MelhorEnvioCard.js";
 import { OwnDeliveryCard, OwnDeliveryConfigPanel } from "./components/OwnDeliveryCard.js";
@@ -16,9 +17,28 @@ const SHIPMENT_STATUSES = [
   { value: "all", label: "Todos" },
   { value: "created", label: "Criado" },
   { value: "sent", label: "Enviado" },
+  { value: "label_generated", label: "Etiqueta gerada" },
+  { value: "dispatched", label: "Despachado" },
   { value: "in_transit", label: "Em trânsito" },
+  { value: "out_for_delivery", label: "Saiu para entrega" },
   { value: "delivered", label: "Entregue" },
+  { value: "returned", label: "Devolvido" },
+  { value: "cancelled", label: "Cancelado" },
 ];
+
+const SHIPMENT_STATUS_LABELS: Record<string, string> = Object.fromEntries(
+  SHIPMENT_STATUSES.filter((status) => status.value !== "all").map((status) => [status.value, status.label]),
+);
+
+function shipmentStatusLabel(status: string): string {
+  return SHIPMENT_STATUS_LABELS[status] ?? status.replaceAll("_", " ");
+}
+
+function shipmentStatusColor(status: string): string {
+  if (status === "delivered") return "var(--good)";
+  if (status === "returned" || status === "cancelled") return "var(--color-error)";
+  return "var(--color-text-muted)";
+}
 
 const OWN_DELIVERY_CARRIERS = new Set(["flat-rate", "flat_rate", "flat", "own", "own-delivery", "local", "motoboy"]);
 const isCarrierShipment = (carrier: string | null | undefined): boolean =>
@@ -45,6 +65,15 @@ export function DeliveryPage(props: DeliveryPageProps) {
     return (
       <div style={{ padding: "60px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>
         Carregando...
+      </div>
+    );
+  }
+
+  if (vm.configError) {
+    return (
+      <div style={{ padding: "60px 22px", textAlign: "center", color: "var(--color-text-muted)", font: "13px var(--font-sans)" }} role="alert">
+        <p>{vm.configError}</p>
+        <Button size="md" onClick={() => void vm.reloadConfig()}>Tentar novamente</Button>
       </div>
     );
   }
@@ -91,8 +120,8 @@ export function DeliveryPage(props: DeliveryPageProps) {
         isEmpty={vm.shipments.length === 0}
         empty={{
           icon: Package,
-          title: "Nenhuma entrega registrada",
-          description: "As entregas aparecerão aqui conforme pedidos forem concluídos.",
+          title: vm.shipmentsError ? "Não foi possível carregar as entregas" : "Nenhuma entrega registrada",
+          description: vm.shipmentsError ?? "As entregas aparecerão aqui conforme pedidos forem concluídos.",
         }}
         page={vm.shipmentsPage}
         pageSize={vm.shipmentsPageSize}
@@ -116,21 +145,17 @@ export function DeliveryPage(props: DeliveryPageProps) {
                 <td style={{ padding: "12px 16px", font: "13px var(--font-sans)", color: "var(--color-text)" }}>{carrierLabel(s.carrier)}</td>
                 <td style={{ padding: "12px 16px", font: "12px var(--font-mono)", color: "var(--color-text-muted)" }}>{isRealTrackingCode(s.trackingCode) ? s.trackingCode : "—"}</td>
                 <td style={{ padding: "12px 16px" }}>
-                  <span style={{ padding: "3px 8px", borderRadius: 99, font: "11px var(--font-mono)", fontWeight: 600, background: s.status === "delivered" ? "var(--good-soft)" : "var(--surface-2)", color: s.status === "delivered" ? "var(--good)" : "var(--color-text-muted)" }}>
-                    {s.status === "created" ? "Criado" : s.status === "sent" ? "Enviado" : s.status === "in_transit" ? "Em trânsito" : "Entregue"}
+                  <span style={{ padding: "3px 8px", borderRadius: 99, font: "11px var(--font-mono)", fontWeight: 600, background: s.status === "delivered" ? "var(--good-soft)" : "var(--surface-2)", color: shipmentStatusColor(s.status) }}>
+                    {shipmentStatusLabel(s.status)}
                   </span>
                 </td>
                 <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                  {s.status === "created" && isCarrierShipment(s.carrier) ? (
-                    <button onClick={() => vm.buyLabel(s.id)} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid var(--color-brand)", background: "transparent", color: "var(--color-brand)", font: "11px var(--font-sans)", cursor: "pointer" }}>
-                      Gerar etiqueta
-                    </button>
-                  ) : isRealTrackingCode(s.trackingCode) ? (
+                  {isRealTrackingCode(s.trackingCode) ? (
                     <button onClick={() => navigator.clipboard.writeText(s.trackingCode!)} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid var(--color-border)", background: "transparent", color: "var(--color-text-muted)", font: "11px var(--font-sans)", cursor: "pointer" }}>
                       <Link2 size={11} /> Copiar
                     </button>
                   ) : (
-                    <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>Entrega própria</span>
+                    <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>{isCarrierShipment(s.carrier) ? "Aguardando etiqueta" : "Entrega própria"}</span>
                   )}
                 </td>
               </tr>

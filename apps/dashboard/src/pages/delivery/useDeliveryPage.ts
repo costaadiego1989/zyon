@@ -46,6 +46,7 @@ export function useDeliveryPage() {
   const api = useApi();
   const [config, setConfig] = useState<DeliveryConfig>(DEFAULT_CONFIG);
   const [loading, setLoading] = useState(true);
+  const [configError, setConfigError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [ownDeliveryPanelOpen, setOwnDeliveryPanelOpen] = useState(false);
   const configRef = useRef(config);
@@ -54,6 +55,7 @@ export function useDeliveryPage() {
 
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [shipmentsLoading, setShipmentsLoading] = useState(false);
+  const [shipmentsError, setShipmentsError] = useState<string | null>(null);
   const [shipmentsFilter, setShipmentsFilter] = useState("all");
   const [shipmentsPage, setShipmentsPage] = useState(1); // 1-based
   const [shipmentsTotal, setShipmentsTotal] = useState(0);
@@ -74,32 +76,39 @@ export function useDeliveryPage() {
     }
   }, []);
 
+  const reloadConfig = useCallback(async () => {
+    setLoading(true);
+    setConfigError(null);
+    try {
+      const cfgData = await api.getDeliveryConfig();
+      setConfig(normalizeConfig(cfgData));
+    } catch {
+      setConfigError("Não foi possível carregar a configuração de entregas.");
+    } finally {
+      setLoading(false);
+    }
+  }, [api]);
+
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const cfgData = await api.getDeliveryConfig?.().catch(() => null);
-        if (!cancelled && cfgData) setConfig(normalizeConfig(cfgData));
-      } catch { /* silently use defaults */ }
-      finally { if (!cancelled) setLoading(false); }
-    })();
-    return () => { cancelled = true; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    void reloadConfig();
+  }, [reloadConfig]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setShipmentsLoading(true);
+      setShipmentsError(null);
       try {
         const status = shipmentsFilter !== "all" ? shipmentsFilter : undefined;
-        const offset = (shipmentsPage - 1) * PAGE_SIZE;
-        const data = await api.getShipments?.(status, PAGE_SIZE, offset).catch(() => null);
-        if (cancelled || !data) return;
+        const data = await api.getShipments(status, shipmentsPage, PAGE_SIZE);
+        if (cancelled) return;
         setShipments(data.items ?? []);
         setShipmentsTotal(data.total ?? 0);
       } catch {
-        if (!cancelled) showToast("error", "Erro ao carregar entregas");
+        if (!cancelled) {
+          setShipmentsError("Não foi possível carregar as entregas.");
+          showToast("error", "Erro ao carregar entregas");
+        }
       } finally {
         if (!cancelled) setShipmentsLoading(false);
       }
@@ -115,20 +124,22 @@ export function useDeliveryPage() {
   // Toggle Melhor Envio
   const toggleMelhorEnvio = useCallback(async (enabled: boolean) => {
     // Immediate optimistic update — NO revert
-    setConfig((c) => ({
-      ...c,
+    const previous = configRef.current;
+    setConfig({
+      ...previous,
       melhorEnvioEnabled: enabled,
-      ownDelivery: enabled ? { ...c.ownDelivery, enabled: false } : c.ownDelivery,
-    }));
+      ownDelivery: enabled ? { ...previous.ownDelivery, enabled: false } : previous.ownDelivery,
+    });
 
     setSaving(true);
     try {
-      await api.updateDeliveryConfig?.({
+      await api.updateDeliveryConfig({
         melhorEnvioEnabled: enabled,
         ...(enabled ? { ownDelivery: { enabled: false } } : {}),
       });
       showToast("success", enabled ? "Melhor Envio ativado" : "Melhor Envio desativado");
     } catch {
+      setConfig(previous);
       showToast("error", "Erro ao salvar — tente novamente");
     } finally {
       setSaving(false);
@@ -138,22 +149,24 @@ export function useDeliveryPage() {
   // Toggle own delivery
   const toggleOwnDelivery = useCallback(async (enabled: boolean) => {
     // Immediate optimistic update — NO revert
-    setConfig((c) => ({
-      ...c,
-      melhorEnvioEnabled: enabled ? false : c.melhorEnvioEnabled,
-      ownDelivery: { ...c.ownDelivery, enabled },
-    }));
+    const previous = configRef.current;
+    setConfig({
+      ...previous,
+      melhorEnvioEnabled: enabled ? false : previous.melhorEnvioEnabled,
+      ownDelivery: { ...previous.ownDelivery, enabled },
+    });
 
     if (enabled) setOwnDeliveryPanelOpen(true);
 
     setSaving(true);
     try {
-      await api.updateDeliveryConfig?.({
+      await api.updateDeliveryConfig({
         ownDelivery: { enabled },
         ...(enabled ? { melhorEnvioEnabled: false } : {}),
       });
       showToast("success", enabled ? "Entrega própria ativada" : "Entrega própria desativada");
     } catch {
+      setConfig(previous);
       showToast("error", "Erro ao salvar — tente novamente");
     } finally {
       setSaving(false);
@@ -162,14 +175,16 @@ export function useDeliveryPage() {
 
   // Save own delivery config from SidePanel
   const saveOwnDeliveryConfig = useCallback(async (patch: Partial<OwnDeliveryConfig>) => {
-    const updated = { ...configRef.current.ownDelivery, ...patch, enabled: true };
-    setConfig((c) => ({ ...c, ownDelivery: updated }));
+    const previous = configRef.current;
+    const updated = { ...previous.ownDelivery, ...patch, enabled: true };
+    setConfig({ ...previous, ownDelivery: updated });
 
     setSaving(true);
     try {
-      await api.updateDeliveryConfig?.({ ownDelivery: updated });
+      await api.updateDeliveryConfig({ ownDelivery: updated });
       showToast("success", "Configuração salva");
     } catch {
+      setConfig(previous);
       showToast("error", "Erro ao salvar configuração");
     } finally {
       setSaving(false);
@@ -186,21 +201,11 @@ export function useDeliveryPage() {
     if (url) window.location.assign(url);
   }, [api]);
 
-  const buyLabel = useCallback(async (shipmentId: string) => {
-    try {
-      const result = await api.buyShippingLabel?.(shipmentId);
-      if (result?.labelUrl) {
-        window.open(result.labelUrl, "_blank");
-        showToast("success", "Etiqueta gerada");
-      }
-    } catch {
-      showToast("error", "Erro ao gerar etiqueta");
-    }
-  }, [api]);
-
   return {
     config,
     loading,
+    configError,
+    reloadConfig,
     saving,
     toggleMelhorEnvio,
     toggleOwnDelivery,
@@ -210,12 +215,12 @@ export function useDeliveryPage() {
     saveOwnDeliveryConfig,
     shipments,
     shipmentsLoading,
+    shipmentsError,
     shipmentsFilter,
     setShipmentsFilter: changeFilter,
     shipmentsPage,
     setShipmentsPage,
     shipmentsTotal,
     shipmentsPageSize: PAGE_SIZE,
-    buyLabel,
   };
 }

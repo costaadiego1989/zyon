@@ -15,11 +15,10 @@ import { StatCard, StatCardGroup } from "./overview/components/StatCard.js";
 import type { MerchantProfile, TenantOrder } from "../api-client.js";
 import { useOrdersShipmentsPage } from "./orders-shipments/useOrdersShipmentsPage.js";
 import { Button } from "../components/Button.js";
-import { showToast } from "../components/Toast.js";
-import { STATUS_LABELS, formatMinor, formatDate, formatPhone } from "./orders-shipments/utils.js";
+import { STATUS_LABELS, computeOrderMetrics, filterOrdersByPeriod, formatMinor, formatDate, formatPhone } from "./orders-shipments/utils.js";
 import { OrderStatusBadge } from "./orders-shipments/components/OrderStatusBadge.js";
 
-export { STATUS_LABELS, computeOrderMetrics, filterOrders } from "./orders-shipments/utils.js";
+export { STATUS_LABELS, computeOrderMetrics, filterOrders, filterOrdersByPeriod } from "./orders-shipments/utils.js";
 
 // ── Kanban Column Definitions ───────────────────────────────────────────────
 
@@ -36,7 +35,7 @@ const KANBAN_COLUMNS: KanbanColumnDef[] = [
   { id: "paid", label: "Pago", statuses: ["paid", "approved"], color: "var(--color-brand)", acceptsFrom: ["pending", "processing"] },
   { id: "shipped", label: "Enviado", statuses: ["shipped"], color: "oklch(70% 0.14 250)", acceptsFrom: ["paid", "approved"] },
   { id: "delivered", label: "Entregue", statuses: ["delivered"], color: "var(--color-success)", acceptsFrom: ["shipped"] },
-  { id: "cancelled", label: "Cancelado", statuses: ["cancelled", "failed", "refunded", "returned"], color: "var(--color-error)", acceptsFrom: ["pending", "approved", "processing", "paid"] },
+  { id: "cancelled", label: "Cancelado", statuses: ["cancelled", "failed", "refunded", "returned"], color: "var(--color-error)", acceptsFrom: [] },
 ];
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
@@ -91,26 +90,12 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
   const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: "", to: "" });
 
   const filteredOrders = useMemo(() => {
-    let result = vm.orders;
-
-    // Preset period filter (relative to now)
-    if (period !== "all") {
-      const days = period === "today" ? 0 : period === "7d" ? 7 : period === "15d" ? 15 : 30;
-      const cutoff = new Date();
-      if (period === "today") cutoff.setHours(0, 0, 0, 0);
-      else cutoff.setDate(cutoff.getDate() - days);
-      const cutoffIso = cutoff.toISOString();
-      result = result.filter((o) => o.completed_at >= cutoffIso);
-    }
-
-    // Custom date range (overrides/combines with preset)
-    if (dateRange.from) result = result.filter((o) => o.completed_at >= dateRange.from);
-    if (dateRange.to) result = result.filter((o) => o.completed_at <= dateRange.to + "T23:59:59");
-
-    return result;
+    return filterOrdersByPeriod(vm.orders, period, dateRange);
   }, [vm.orders, period, dateRange]);
+  const metrics = useMemo(() => computeOrderMetrics(filteredOrders), [filteredOrders]);
 
   function handleDragStart(e: React.DragEvent, order: TenantOrder) {
+    if (vm.busy) return;
     setDraggedOrder(order);
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", order.id);
@@ -133,16 +118,14 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
     setDropTarget(null);
   }
 
-  function handleDrop(e: React.DragEvent, columnId: string) {
+  async function handleDrop(e: React.DragEvent, columnId: string) {
     e.preventDefault();
     setDropTarget(null);
     if (!draggedOrder) return;
     if (!canDrop(draggedOrder.status, columnId)) return;
 
     const targetStatus = columnId === "pending" ? "pending" : columnId;
-    const col = KANBAN_COLUMNS.find((c) => c.id === columnId);
-    void vm.changeOrderStatus(draggedOrder, targetStatus);
-    showToast("success", `Pedido #${draggedOrder.external_order_id.slice(-6)} → ${col?.label ?? targetStatus}`);
+    await vm.changeOrderStatus(draggedOrder, targetStatus);
     setDraggedOrder(null);
   }
 
@@ -161,11 +144,11 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
 
       {/* Stats */}
       <StatCardGroup>
-        <StatCard label="Pedidos" value={vm.hasLoaded ? vm.metrics.totalOrders : 0} icon={<ShoppingCart size={16} />} />
-        <StatCard label="Aprovados" value={vm.hasLoaded ? Math.round(vm.metrics.approvalRate * 100) + "%" : "0%"} icon={<CheckCircle size={16} />} accent="var(--color-success)" />
-        <StatCard label="Receita" value={vm.hasLoaded ? formatMinor(vm.metrics.totalRevenue, "BRL") : "R$ 0"} icon={<DollarSign size={16} />} accent="var(--color-brand)" />
-        <StatCard label="Rastreados" value={vm.hasLoaded ? vm.metrics.trackedCount : 0} icon={<Truck size={16} />} />
-        <StatCard label="Ticket Médio" value={vm.hasLoaded ? formatMinor(vm.metrics.averageOrderValue, "BRL") : "R$ 0"} icon={<Receipt size={16} />} />
+        <StatCard label="Pedidos" value={vm.hasLoaded ? metrics.totalOrders : 0} icon={<ShoppingCart size={16} />} />
+        <StatCard label="Aprovados" value={vm.hasLoaded ? Math.round(metrics.approvalRate * 100) + "%" : "0%"} icon={<CheckCircle size={16} />} accent="var(--color-success)" />
+        <StatCard label="Receita" value={vm.hasLoaded ? formatMinor(metrics.totalRevenue, "BRL") : "R$ 0"} icon={<DollarSign size={16} />} accent="var(--color-brand)" />
+        <StatCard label="Rastreados" value={vm.hasLoaded ? metrics.trackedCount : 0} icon={<Truck size={16} />} />
+        <StatCard label="Ticket Médio" value={vm.hasLoaded ? formatMinor(metrics.averageOrderValue, "BRL") : "R$ 0"} icon={<Receipt size={16} />} accent="var(--color-brand)" />
       </StatCardGroup>
 
       {vm.message ? <div className="panel-error">{vm.message}</div> : null}
@@ -238,6 +221,7 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
                         onDragEnd={handleDragEnd}
                         onClick={() => vm.setExpandedOrderId(order.id)}
                         isDragging={draggedOrder?.id === order.id}
+                        disabled={vm.busy}
                       />
                     ))}
                   </div>
@@ -256,19 +240,21 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
 
 // ── Kanban Card ─────────────────────────────────────────────────────────────
 
-function KanbanCard({ order, onDragStart, onDragEnd, onClick, isDragging }: {
+function KanbanCard({ order, onDragStart, onDragEnd, onClick, isDragging, disabled }: {
   order: TenantOrder;
   onDragStart: (e: React.DragEvent) => void;
   onDragEnd: () => void;
   onClick: () => void;
   isDragging: boolean;
+  disabled: boolean;
 }) {
   const customer = order.customer as { full_name?: string; email?: string } | null;
   const name = customer?.full_name || customer?.email || "—";
 
   return (
     <div
-      draggable
+      draggable={!disabled}
+      aria-disabled={disabled}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
@@ -277,7 +263,7 @@ function KanbanCard({ order, onDragStart, onDragEnd, onClick, isDragging }: {
         border: "1px solid var(--color-border)",
         borderRadius: "var(--radius-sm)",
         padding: "12px 14px",
-        cursor: "grab",
+        cursor: disabled ? "not-allowed" : "grab",
         opacity: isDragging ? 0.5 : 1,
         transition: "all 0.15s ease",
         display: "flex",
@@ -434,7 +420,7 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
           {order.tracking_code ? (
             <div style={{ padding: "10px 14px", borderRadius: 8, background: "var(--color-success-bg)", border: "1px solid var(--color-success)", marginBottom: 12 }}>
               <div style={{ font: "600 13px var(--font-mono)", color: "var(--color-success)" }}>{order.tracking_code}</div>
-              <div style={{ font: "500 11px var(--font-sans)", color: "var(--color-success)", marginTop: 4 }}>Código de rastreio enviado</div>
+              <div style={{ font: "500 11px var(--font-sans)", color: "var(--color-success)", marginTop: 4 }}>Código registrado no pedido</div>
             </div>
           ) : (
             <p style={{ ...valueStyle, color: "var(--color-text-muted)", marginBottom: 12 }}>Sem código de rastreio</p>
@@ -451,23 +437,19 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
               Salvar
             </Button>
           </div>
-          <button
-            type="button"
-            onClick={() => void vm.buyLabel(order)}
-            disabled={vm.labelBusyOrderId === order.id}
-            style={{ marginTop: 10, padding: "9px 14px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", font: "500 12px var(--font-sans)", cursor: vm.labelBusyOrderId === order.id ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 6, transition: "all 0.15s" }}
-          >
-            <Truck size={14} />
-            {vm.labelBusyOrderId === order.id ? "Gerando etiqueta..." : "Gerar etiqueta de envio"}
-          </button>
+          <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 10 }}>
+            A etiqueta exige uma cotação confirmada e as dimensões reais dos itens. Este painel não gera etiquetas com dados estimados.
+          </p>
         </div>
 
         {/* Status — info only, change via drag on board */}
         <div style={{ ...sectionStyle, borderBottom: "none" }}>
           <div style={labelStyle}>Status atual</div>
           <OrderStatusBadge status={order.status} />
-          <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 8 }}>Arraste o card no board para alterar o status</p>
+          <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 8 }}>Arraste o card no board para atualizar o fluxo. Cancelamentos exigem motivo e usam a ação abaixo.</p>
         </div>
+
+        <CancelOrderAction order={order} vm={vm} />
 
         {order.cancellation_reason ? (
           <div style={{ padding: "12px 14px", borderRadius: 8, background: "var(--color-error-bg)", border: "1px solid var(--color-error-border)", marginTop: 12 }}>
@@ -476,6 +458,28 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
           </div>
         ) : null}
       </aside>
+    </div>
+  );
+}
+
+function CancelOrderAction({ order, vm }: { order: TenantOrder; vm: ReturnType<typeof useOrdersShipmentsPage> }) {
+  const [reason, setReason] = useState("");
+  const [notifyCustomer, setNotifyCustomer] = useState(true);
+  const [restock, setRestock] = useState(false);
+  const cancellable = ["pending", "processing", "approved", "paid"].includes(order.status);
+
+  if (!cancellable) return null;
+
+  return (
+    <div style={{ padding: "16px 0", borderBottom: "1px solid var(--color-border)" }}>
+      <div style={{ font: "600 11px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-error)", marginBottom: 10, textTransform: "uppercase" }}>Cancelar pedido</div>
+      <label style={{ display: "block", font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 8 }}>
+        Motivo
+        <input value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} placeholder="Explique o cancelamento" style={{ width: "100%", height: 38, marginTop: 6, padding: "0 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-3)", color: "var(--color-text)", font: "13px var(--font-sans)" }} />
+      </label>
+      <label style={{ display: "flex", gap: 8, alignItems: "center", font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 8 }}><input type="checkbox" checked={notifyCustomer} onChange={(event) => setNotifyCustomer(event.target.checked)} /> Solicitar notificação ao cliente</label>
+      <label style={{ display: "flex", gap: 8, alignItems: "center", font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 12 }}><input type="checkbox" checked={restock} onChange={(event) => setRestock(event.target.checked)} /> Solicitar reposição de estoque</label>
+      <Button variant="danger" size="md" loading={vm.cancelBusyOrderId === order.id} disabled={!reason.trim() || vm.busy} onClick={() => void vm.cancelOrder(order, { reason, notifyCustomer, restock })}>Cancelar pedido</Button>
     </div>
   );
 }

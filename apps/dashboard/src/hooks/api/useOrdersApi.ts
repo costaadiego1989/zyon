@@ -3,7 +3,7 @@ import { useApi } from "../useApi.js";
 /**
  * Domain-scoped hook for orders and shipments operations.
  *
- * Use this hook when your page lists, tracks, or manages orders and shipping labels.
+ * Use this hook when your page lists, tracks, or manages orders.
  * It exposes commonly-used order and shipping methods without the full API surface.
  *
  * For order operations not listed here, fall back to `useApi()` and access `api.methodName()`.
@@ -19,6 +19,6 @@ export function useOrdersApi() {
     getOrders: api.getOrders,
     updateOrderTracking: api.updateOrderTracking,
     updateOrderStatus: api.updateOrderStatus,
-    purchaseShippingLabel: api.purchaseShippingLabel,
+    cancelOrder: api.cancelOrder,
   };
 }

@@ -31,16 +31,14 @@ export interface Shipment {
   carrier: string;
   trackingCode: string | null;
   status: string;
-  labelUrl: string | null;
   createdAt: string;
-  updatedAt: string;
 }
 
 export interface ShipmentsPage {
   items: Shipment[];
   total: number;
-  limit: number;
-  offset: number;
+  page: number;
+  pageSize: number;
 }
 
 export function deliveryEndpoints(base: string, f: typeof fetch) {
@@ -71,7 +69,7 @@ export function deliveryEndpoints(base: string, f: typeof fetch) {
       };
     },
 
-    async updateDeliveryConfig(payload: { melhorEnvioEnabled?: boolean; ownDelivery?: Partial<OwnDeliveryConfig> }): Promise<DeliveryConfig> {
+    async updateDeliveryConfig(payload: { melhorEnvioEnabled?: boolean; ownDelivery?: Partial<OwnDeliveryConfig> }): Promise<{ success: true }> {
       // Transform camelCase → snake_case; map mode values (fixed→flat, by_neighborhood→neighborhood)
       const body: Record<string, unknown> = {};
       if (payload.melhorEnvioEnabled !== undefined) body.melhor_envio_enabled = payload.melhorEnvioEnabled;
@@ -87,7 +85,7 @@ export function deliveryEndpoints(base: string, f: typeof fetch) {
         if (od.estimatedUnit !== undefined) snake.estimated_unit = od.estimatedUnit;
         body.own_delivery = snake;
       }
-      return dashboardJson<DeliveryConfig>(
+      return dashboardJson<{ success: true }>(
         base,
         `/merchants/me/delivery/config`,
         { method: "PUT", jsonBody: body },
@@ -95,25 +93,16 @@ export function deliveryEndpoints(base: string, f: typeof fetch) {
       );
     },
 
-    async getShipments(status?: string, limit?: number, offset?: number): Promise<ShipmentsPage> {
+    async getShipments(status?: string, page = 1, pageSize = 10): Promise<ShipmentsPage> {
       const params = new URLSearchParams();
       if (status) params.set("status", status);
-      if (limit) params.set("limit", String(limit));
-      if (offset) params.set("offset", String(offset));
+      params.set("page", String(page));
+      params.set("page_size", String(pageSize));
       const query = params.toString() ? `?${params.toString()}` : "";
       return dashboardJson<ShipmentsPage>(
         base,
         `/merchants/me/delivery/shipments${query}`,
         { method: "GET" },
-        f
-      );
-    },
-
-    async buyShippingLabel(shipmentId: string): Promise<{ labelUrl: string }> {
-      return dashboardJson<{ labelUrl: string }>(
-        base,
-        `/merchants/me/delivery/shipments/${encodeURIComponent(shipmentId)}/label`,
-        { method: "PUT" },
         f
       );
     },

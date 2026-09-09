@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeOrderMetrics,
   filterOrders,
+  filterOrdersByPeriod,
   STATUS_LABELS,
 } from "./orders-shipments-page.js";
 import type { TenantOrder } from "../api-client.js";
@@ -102,6 +103,39 @@ describe("computeOrderMetrics", () => {
     ];
     const metrics = computeOrderMetrics(orders);
     expect(metrics.trackedCount).toBe(2);
+  });
+
+  it("does not count missing or blank tracking codes", () => {
+    const orders = [
+      makeOrder({ id: "1", tracking_code: undefined }),
+      makeOrder({ id: "2", tracking_code: "   " }),
+      makeOrder({ id: "3", tracking_code: "BR123" }),
+    ];
+    expect(computeOrderMetrics(orders).trackedCount).toBe(1);
+  });
+});
+
+describe("filterOrdersByPeriod", () => {
+  const now = new Date("2026-09-09T15:00:00.000Z");
+
+  it("uses the dashboard timezone for today's orders", () => {
+    const orders = [
+      makeOrder({ id: "late-yesterday", completed_at: "2026-09-09T02:59:59.000Z" }),
+      makeOrder({ id: "today", completed_at: "2026-09-09T03:00:00.000Z" }),
+    ];
+
+    expect(filterOrdersByPeriod(orders, "today", { from: "", to: "" }, now).map((order) => order.id)).toEqual(["today"]);
+  });
+
+  it("applies custom ranges to the same orders used by KPI metrics", () => {
+    const orders = [
+      makeOrder({ id: "inside", total: 1200, completed_at: "2026-09-08T12:00:00.000Z" }),
+      makeOrder({ id: "outside", total: 2200, completed_at: "2026-09-06T12:00:00.000Z" }),
+    ];
+    const filtered = filterOrdersByPeriod(orders, "all", { from: "2026-09-08", to: "2026-09-08" }, now);
+
+    expect(filtered.map((order) => order.id)).toEqual(["inside"]);
+    expect(computeOrderMetrics(filtered).totalRevenue).toBe(1200);
   });
 });
 

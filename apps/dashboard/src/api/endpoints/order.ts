@@ -31,17 +31,13 @@ export function orderEndpoints(base: string, f: typeof fetch) {
         f,
       );
     },
-    purchaseShippingLabel(payload: {
-      order_id: string;
-      service_id: number;
-      from_zip: string;
-      to_zip: string;
-      to_name: string;
-      to_document: string;
-      packages: Array<{ weightKg: number; widthCm: number; heightCm: number; lengthCm: number; quantity: number }>;
-      invoice_key?: string;
-    }): Promise<unknown> {
-      return dashboardJson(base, "/shipping/labels", { method: "POST", jsonBody: payload }, f);
+    cancelOrder(orderId: string, payload: { reason: string; notify_customer?: boolean; restock?: boolean }): Promise<unknown> {
+      return dashboardJson(
+        base,
+        `/orders/${encodeURIComponent(orderId)}/cancel`,
+        { method: "POST", jsonBody: payload },
+        f,
+      );
     },
   };
 }

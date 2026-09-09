@@ -37,6 +37,60 @@ export type OrderMetrics = {
   averageOrderValue: number;
 };
 
+export type OrderPeriod = "all" | "today" | "7d" | "15d" | "30d";
+
+const DASHBOARD_TIME_ZONE = "America/Sao_Paulo";
+
+function dateKeyInDashboardTimeZone(value: string, timeZone = DASHBOARD_TIME_ZONE): string | null {
+  const instant = new Date(value);
+  if (Number.isNaN(instant.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(instant);
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value;
+  const year = get("year");
+  const month = get("month");
+  const day = get("day");
+  return year && month && day ? `${year}-${month}-${day}` : null;
+}
+
+function subtractCalendarDays(dateKey: string, days: number): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day - days)).toISOString().slice(0, 10);
+}
+
+export function filterOrdersByPeriod(
+  orders: TenantOrder[],
+  period: OrderPeriod,
+  dateRange: { from: string; to: string },
+  now = new Date(),
+): TenantOrder[] {
+  const today = dateKeyInDashboardTimeZone(now.toISOString());
+  if (!today) return [];
+  const presetStart = period === "today"
+    ? today
+    : period === "7d"
+      ? subtractCalendarDays(today, 6)
+      : period === "15d"
+        ? subtractCalendarDays(today, 14)
+        : period === "30d"
+          ? subtractCalendarDays(today, 29)
+          : undefined;
+  const start = dateRange.from || presetStart;
+  const end = dateRange.to || (period === "all" && !dateRange.from ? undefined : today);
+
+  if (start && end && start > end) return [];
+  if (!start && !end) return orders;
+
+  return orders.filter((order) => {
+    const dateKey = dateKeyInDashboardTimeZone(order.completed_at ?? order.cancelled_at ?? "");
+    return Boolean(dateKey && (!start || dateKey >= start) && (!end || dateKey <= end));
+  });
+}
+
 // ── Pure utility functions ───────────────────────────────────────────────────
 
 // A paid/realized order contributes to revenue at every lifecycle stage AFTER
@@ -61,7 +115,7 @@ export function computeOrderMetrics(orders: TenantOrder[]): OrderMetrics {
 
   const paid = orders.filter((o) => PAID_STATUSES.has(o.status));
   const totalRevenue = paid.reduce((sum, o) => sum + o.total, 0);
-  const trackedCount = orders.filter((o) => o.tracking_code !== null).length;
+  const trackedCount = orders.filter((o) => Boolean(o.tracking_code?.trim())).length;
 
   return {
     totalOrders: orders.length,
@@ -97,18 +151,7 @@ export function filterOrders(
   }
 
   if (startDate || endDate) {
-    // Parse date-only bounds as UTC to avoid a timezone bug: `new Date("YYYY-MM-DD")`
-    // is UTC midnight, but `.setHours()` mutates in LOCAL time, which in negative
-    // offsets (e.g. UTC-3) rolled the end bound back to the previous day and
-    // silently dropped same-day orders. Build explicit UTC instants instead.
-    const start = startDate ? Date.parse(`${startDate}T00:00:00.000Z`) : -Infinity;
-    const end = endDate ? Date.parse(`${endDate}T23:59:59.999Z`) : Infinity;
-    filtered = filtered.filter((o) => {
-      const raw = o.completed_at ?? o.cancelled_at ?? "";
-      if (!raw) return false;
-      const t = new Date(raw).getTime();
-      return t >= start && t <= end;
-    });
+    filtered = filterOrdersByPeriod(filtered, "all", { from: startDate ?? "", to: endDate ?? "" });
   }
 
   return filtered;

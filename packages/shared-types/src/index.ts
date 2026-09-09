@@ -616,6 +616,7 @@ export interface AcceptedOffer {
 
 export type CompletedOrderStatus =
   | "pending"
+  | "processing"
   | "approved"
   | "paid"
   | "shipped"

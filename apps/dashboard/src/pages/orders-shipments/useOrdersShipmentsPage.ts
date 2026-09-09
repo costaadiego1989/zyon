@@ -7,14 +7,6 @@ import { showToast } from "../../components/Toast.js";
 import { downloadCsv } from "../../hooks/useCsvExport.js";
 
 const PAGE_SIZE = 10;
-// KPI tiles (Pedidos/Receita/Ticket) and the period tabs filter client-side over
-// the loaded set, so the whole order set must be in memory or the totals reflect
-// only page 1 (a merchant with 33 orders showed "Pedidos 10 / R$5.124"). Load all
-// pages up to this cap so the numbers are truthful; beyond the cap the tiles would
-// undercount, which is acceptable for very large merchants (rare) and far better
-// than always capping at 10.
-const MAX_ORDERS_LOAD = 1000;
-
 export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
   const api = useApi();
   const [orders, setOrders] = useState<TenantOrder[]>([]);
@@ -30,7 +22,7 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [trackingDrafts, setTrackingDrafts] = useState<Record<string, string>>({});
-  const [labelBusyOrderId, setLabelBusyOrderId] = useState<string | null>(null);
+  const [cancelBusyOrderId, setCancelBusyOrderId] = useState<string | null>(null);
 
   const load = useCallback(async (cursor?: string) => {
     setBusy(true);
@@ -59,22 +51,27 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
     }
   }, [api]);
 
-  // Fetch every order page (up to the cap) so KPI tiles and period filters reflect
-  // the full set, not just the first page. Fixes the "Pedidos 10 / R$5.124" undercount.
+  // This page derives KPIs from the loaded population, so it must follow every
+  // cursor instead of presenting an arbitrary client-side subset as a total.
   const loadAll = useCallback(async () => {
     setBusy(true);
     setMessage(null);
     try {
       const all: TenantOrder[] = [];
       let cursor: string | undefined = undefined;
+      const seenCursors = new Set<string>();
       // Larger server page reduces round-trips; the API caps at its own max.
       const PER_REQUEST = 100;
       do {
+        if (cursor) {
+          if (seenCursors.has(cursor)) throw new Error("Order pagination returned a repeated cursor.");
+          seenCursors.add(cursor);
+        }
         const result: CursorPage<TenantOrder> = await api.getOrders(PER_REQUEST, cursor);
         const items = Array.isArray(result?.data) ? result.data : Array.isArray(result) ? result as unknown as TenantOrder[] : [];
         all.push(...items);
         cursor = result?.next_cursor ?? undefined;
-      } while (cursor && all.length < MAX_ORDERS_LOAD);
+      } while (cursor);
 
       setOrders(all);
       setNextCursor(null);
@@ -114,7 +111,7 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
 
   const exportCsv = useCallback((ordersToExport?: TenantOrder[]) => {
     const data = ordersToExport ?? filteredOrders;
-    const header = "id,cliente,email,telefone,endereco,status,total,moeda,metodo_pagamento,provider,data_pagamento,rastreio,data_pedido";
+    const header = "id,cliente,email,telefone,endereco,status,total_minor,moeda,metodo_pagamento,provider,data_pagamento,rastreio,data_pedido";
     const rows = data.map((o: TenantOrder) => {
       const customer = o.customer as { full_name?: string; email?: string; phone?: string; address?: { street?: string; number?: string; complement?: string; neighborhood?: string; city?: string; state?: string; zip?: string } } | null;
       const name = customer?.full_name ?? "";
@@ -125,21 +122,22 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
         ? [addr.street, addr.number, addr.complement, addr.neighborhood, `${addr.city ?? ""}/${addr.state ?? ""}`, addr.zip].filter(Boolean).join(" - ")
         : "";
       const createdAt = o.completed_at ?? o.cancelled_at ?? "";
-      const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+      const safeCell = (value: string) => /^[=+\-@]/.test(value.trimStart()) ? `'${value}` : value;
+      const esc = (v: string) => `"${safeCell(v).replace(/"/g, '""')}"`;
       return [
-        o.id,
+        esc(o.id),
         esc(name),
         esc(email),
-        phone,
+        esc(phone),
         esc(endereco),
-        o.status,
+        esc(o.status),
         String(o.total),
-        o.currency,
-        o.payment_method ?? "",
-        o.payment_provider ?? "",
-        o.paid_at ?? "",
-        o.tracking_code ?? "",
-        createdAt,
+        esc(o.currency),
+        esc(o.payment_method ?? ""),
+        esc(o.payment_provider ?? ""),
+        esc(o.paid_at ?? ""),
+        esc(o.tracking_code ?? ""),
+        esc(createdAt),
       ].join(",");
     });
     const bom = String.fromCharCode(0xfeff);
@@ -162,44 +160,13 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
       });
       setOrders((prev) => prev.map((item) => item.id === order.id ? { ...item, tracking_code: trackingCode } : item));
       setTrackingDrafts((prev) => ({ ...prev, [order.id]: "" }));
-      setMessage("Rastreio salvo. Notificação enviada ao cliente via WhatsApp.");
+      setMessage("Rastreio salvo. Verifique o envio ao cliente no histórico de comunicações.");
     } catch (e) {
       setMessage(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
   }, [api, trackingDrafts]);
-
-  const buyLabel = useCallback(async (order: TenantOrder) => {
-    const customer = order.customer as { full_name?: string; document?: string; address?: { zip?: string } } | null;
-    const toZip = customer?.address?.zip ?? "";
-    if (!toZip) {
-      setMessage("CEP do cliente não disponível. Cadastre o endereço antes de gerar etiqueta.");
-      return;
-    }
-    const cart = order.cart as { items?: Array<{ quantity?: number }> };
-    setLabelBusyOrderId(order.id);
-    setMessage(null);
-    try {
-      const result = await api.purchaseShippingLabel({
-        order_id: order.external_order_id,
-        service_id: 1,
-        from_zip: (order as any).merchant_origin_zip ?? "",
-        to_zip: toZip,
-        to_name: customer?.full_name ?? "",
-        to_document: customer?.document ?? "",
-        packages: [{ weightKg: 1, widthCm: 20, heightCm: 10, lengthCm: 20, quantity: Math.max(1, cart.items?.[0]?.quantity ?? 1) }],
-      }) as { tracking_code?: string };
-      if (result.tracking_code) {
-        setOrders((prev) => prev.map((item) => item.id === order.id ? { ...item, tracking_code: result.tracking_code ?? item.tracking_code } : item));
-      }
-      setMessage("Etiqueta gerada e rastreio sincronizado.");
-    } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLabelBusyOrderId(null);
-    }
-  }, [api]);
 
   const changeOrderStatus = useCallback(async (order: TenantOrder, status: string) => {
     setBusy(true);
@@ -208,10 +175,39 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
       await api.updateOrderStatus(order.id, status);
       setOrders((prev) => prev.map((item) => item.id === order.id ? { ...item, status } : item));
       showToast("success", `Pedido #${order.external_order_id?.slice(-6) ?? order.id.slice(-6)} → ${STATUS_LABELS[status] ?? status}`);
+      return true;
     } catch (e) {
       showToast("error", e instanceof Error ? e.message : "Erro ao atualizar status");
+      return false;
     } finally {
       setBusy(false);
+    }
+  }, [api]);
+
+  const cancelOrder = useCallback(async (order: TenantOrder, input: { reason: string; notifyCustomer: boolean; restock: boolean }) => {
+    const reason = input.reason.trim();
+    if (!reason) {
+      setMessage("Informe o motivo do cancelamento.");
+      return false;
+    }
+    setCancelBusyOrderId(order.id);
+    setMessage(null);
+    try {
+      await api.cancelOrder(order.id, {
+        reason,
+        notify_customer: input.notifyCustomer,
+        restock: input.restock,
+      });
+      setOrders((prev) => prev.map((item) => item.id === order.id
+        ? { ...item, status: "cancelled", cancellation_reason: reason, cancelled_at: new Date().toISOString() }
+        : item));
+      showToast("success", `Pedido #${order.external_order_id?.slice(-6) ?? order.id.slice(-6)} cancelado`);
+      return true;
+    } catch (e) {
+      showToast("error", e instanceof Error ? e.message : "Erro ao cancelar pedido");
+      return false;
+    } finally {
+      setCancelBusyOrderId(null);
     }
   }, [api]);
 
@@ -267,7 +263,6 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
     page,
     setPage,
     trackingDrafts,
-    labelBusyOrderId,
     metrics,
     filteredOrders,
     paginatedOrders,
@@ -275,8 +270,9 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
     load,
     exportCsv,
     saveManualTracking,
-    buyLabel,
     changeOrderStatus,
+    cancelBusyOrderId,
+    cancelOrder,
     updateTrackingDraft,
     budgetRequests,
     budgetLoading,
