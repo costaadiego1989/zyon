@@ -21,22 +21,59 @@ interface NotificationBellProps {
 
 export function NotificationBell({ notifications, onClear, onClickNotification }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
-  const prevCountRef = useRef(0);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const seenNotificationIdsRef = useRef<Set<string> | null>(null);
+  const chimeQueueRef = useRef(Promise.resolve());
 
-  // Play sound when new notification arrives
+  const queueChime = () => {
+    // A separate Audio instance lets closely-arriving notifications remain
+    // distinct instead of restarting and cutting one another off.
+    chimeQueueRef.current = chimeQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        const audio = new Audio(NOTIFICATION_SOUND);
+        audio.preload = "auto";
+        audio.volume = 0.4;
+
+        await new Promise<void>((resolve) => {
+          let completed = false;
+          const finish = () => {
+            if (completed) return;
+            completed = true;
+            window.clearTimeout(timeout);
+            resolve();
+          };
+          // A timeout keeps the next sound moving even on a browser that does
+          // not emit `ended` for a data-URL audio clip.
+          const timeout = window.setTimeout(finish, 1_500);
+          audio.addEventListener("ended", finish, { once: true });
+          audio.addEventListener("error", finish, { once: true });
+          void audio.play().catch(finish);
+        });
+      });
+  };
+
+  // A count comparison misses replacements and simultaneous updates. Track
+  // identities so every notification that was not in the previous snapshot
+  // receives its own chime, while the initial historical load stays silent.
   useEffect(() => {
-    if (notifications.length > prevCountRef.current && prevCountRef.current >= 0) {
-      try {
-        if (!audioRef.current) {
-          audioRef.current = new Audio(NOTIFICATION_SOUND);
-          audioRef.current.volume = 0.4;
-        }
-        void audioRef.current.play().catch(() => {});
-      } catch { /* ignore audio errors */ }
+    const currentIds = new Set(notifications.map((notification) => notification.id));
+    const seenIds = seenNotificationIdsRef.current;
+
+    if (seenIds === null) {
+      seenNotificationIdsRef.current = currentIds;
+      return;
     }
-    prevCountRef.current = notifications.length;
-  }, [notifications.length]);
+
+    const newNotificationCount = notifications.reduce(
+      (total, notification) => total + (seenIds.has(notification.id) ? 0 : 1),
+      0,
+    );
+    seenNotificationIdsRef.current = currentIds;
+
+    for (let index = 0; index < newNotificationCount; index += 1) {
+      queueChime();
+    }
+  }, [notifications]);
 
   const count = notifications.length;
 
