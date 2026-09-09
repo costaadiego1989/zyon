@@ -695,7 +695,7 @@ export default function ConversationShell({
         />
       )}
       </div>{/* end content wrapper */}
-      {richProduct ? <ProductExperienceOverlay key={richProduct.productId} productId={richProduct.productId} merchantSlug={merchantSlug} onClose={({ productId, productName, defaultVariantId, cartAdded }) => {
+      {richProduct ? <ProductExperienceOverlay key={richProduct.productId} productId={richProduct.productId} merchantSlug={merchantSlug} suspended={buyerHubOpen || cartDrawerForceOpen || showBuyerAuth || checkoutOpen} onClose={({ productId, productName, defaultVariantId, cartAdded }) => {
         setRichProduct(null);
         if (cartAdded || !productName || !defaultVariantId || promptedProductClose.current.has(productId)) return;
         promptedProductClose.current.add(productId);

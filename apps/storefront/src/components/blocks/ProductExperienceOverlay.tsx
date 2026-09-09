@@ -8,9 +8,10 @@ import ProductNarration from "./ProductNarration";
 import styles from "./ProductExperienceOverlay.module.css";
 
 /** A product surface contained by the chat. Its scroll never moves the conversation. */
-export default function ProductExperienceOverlay({ productId, merchantSlug, onClose }: {
+export default function ProductExperienceOverlay({ productId, merchantSlug, suspended = false, onClose }: {
   productId: string;
   merchantSlug?: string;
+  suspended?: boolean;
   onClose: (result: { productId: string; productName?: string; defaultVariantId?: string | null; cartAdded: boolean }) => void;
 }) {
   const panel = useRef<HTMLDivElement>(null);
@@ -47,7 +48,7 @@ export default function ProductExperienceOverlay({ productId, merchantSlug, onCl
 
   useEffect(() => {
     const root = panel.current;
-    if (!root) return;
+    if (!root || suspended) return;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const chatContent = root.parentElement?.querySelector<HTMLElement>("[data-aacp-chat-content]");
     const wasInert = chatContent?.inert ?? false;
@@ -63,17 +64,18 @@ export default function ProductExperienceOverlay({ productId, merchantSlug, onCl
       if (previousFocus?.isConnected && previousFocus !== document.body) previousFocus.focus({ preventScroll: true });
       else chatContent?.querySelector<HTMLInputElement>("input")?.focus({ preventScroll: true });
     };
-  }, []);
+  }, [suspended]);
 
   return <div
     ref={panel}
     tabIndex={-1}
     role="dialog"
-    aria-modal="true"
+    aria-modal={!suspended}
     aria-labelledby="product-experience-heading"
     className={styles.panel}
     data-aacp-product-experience
     data-closing={closing || undefined}
+    data-suspended={suspended || undefined}
     onKeyDown={(event) => {
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); }
       if (event.key !== "Tab") return;
@@ -89,7 +91,7 @@ export default function ProductExperienceOverlay({ productId, merchantSlug, onCl
       <button type="button" onClick={close} aria-label="Voltar ao chat"><FiArrowLeft aria-hidden="true" /><span>Voltar</span></button>
       <h2 id="product-experience-heading" className={styles.visuallyHidden}>Detalhes do produto</h2>
       <div className={styles.headerNarration}>
-        {narration ? <ProductNarration summary={narration.summary} enabled={narration.enabled && !closing} placement="header" /> : <span>Detalhes do produto</span>}
+        {narration ? <ProductNarration summary={narration.summary} enabled={narration.enabled && !closing && !suspended} placement="header" /> : <span>Detalhes do produto</span>}
       </div>
       <div className={styles.actions}>
         <button type="button" onClick={copyShareLink} aria-label="Copiar link do produto" disabled={!shareUrl}><FiLink aria-hidden="true" /></button>
@@ -101,7 +103,7 @@ export default function ProductExperienceOverlay({ productId, merchantSlug, onCl
       block={{ type: "product_content", data: { productId, blocks: [] } } as ConversationBlock & { type: "product_content" }}
       merchantSlug={merchantSlug}
       immersive
-      narrationEnabled={!closing}
+      narrationEnabled={!closing && !suspended}
       shareUrl={shareUrl}
       onNarrationChange={setNarration}
       onProductResolved={setProduct}
