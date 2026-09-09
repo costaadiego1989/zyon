@@ -9,6 +9,7 @@ import type { Role } from "./roles.js";
 export const PERMISSIONS: Partial<Record<TabKey, ReadonlyArray<Role>>> = {
   // Diário
   "cart-recovery": ["OWNER", "ADMIN"],
+  finance: ["OWNER", "ADMIN"],
   // Vendas (configurações)
   settings: ["OWNER", "ADMIN"],
   coupons: ["OWNER", "ADMIN"],

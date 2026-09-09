@@ -274,6 +274,7 @@ import "./modules/public-api/agentic-protocol/acp-fulfillment.selector.spec.js";
 import "./modules/public-api/agentic-protocol/acp-payment.orchestrator.spec.js";
 import "./modules/public-api/agentic-protocol/acp-store-domain.service.spec.js";
 import "./modules/public-api/acp-mandates/acp-mandates.spec.js";
+import "./modules/dashboard/application/finance-dashboard.use-case.spec.js";
 if (process.env.E2E_SEED_ENABLED === "true") {
   await import("./modules/__test__/test-seed.controller.spec.js");
 }

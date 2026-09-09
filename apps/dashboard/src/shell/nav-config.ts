@@ -1,5 +1,6 @@
 import {
   Activity,
+  Landmark,
   AlertTriangle,
   Bot,
   Brain,
@@ -42,6 +43,7 @@ export type MerchantPlan = "STORE_ONLY" | "BOTH" | "API";
 export type TabKey =
   | "onboarding"
   | "overview"
+  | "finance"
   | "integrations"
   | "integrations-api"
   | "crm-integrations"
@@ -135,6 +137,7 @@ export const NAV_ITEMS: NavItem[] = [
 
   // ─── DIÁRIO ─── operações que o lojista abre todo dia
   { key: "overview", label: "Visão Geral", section: "daily", icon: Activity, keywords: ["dashboard", "home", "resumo", "métricas"] },
+  { key: "finance", label: "Financeiro", section: "daily", icon: Landmark, requiredPlan: STORE, keywords: ["financeiro", "finance", "transações", "receita", "reembolsos", "relatórios"] },
   { key: "shipments", label: "Pedidos & Envios", section: "daily", icon: PackageSearch, requiredPlan: STORE, badgeKey: "orders", keywords: ["pedidos", "orders", "envios", "shipments", "entregas"] },
   { key: "customers", label: "Clientes", section: "daily", icon: UsersRound, requiredPlan: STORE, keywords: ["clientes", "customers", "compradores"] },
   { key: "cart-recovery", label: "Recuperação de Carrinho", section: "daily", icon: ShoppingCart, requiredPlan: STORE, badgeKey: "cart-recovery", keywords: ["carrinho", "cart", "recovery", "abandonado", "recuperação"] },

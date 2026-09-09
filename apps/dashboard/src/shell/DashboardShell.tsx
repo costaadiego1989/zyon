@@ -60,6 +60,7 @@ const SupportSettingsPage = lazy(() => import("../pages/support-settings-page.js
 const IntegrationsPage = lazy(() => import("../pages/integrations-page.js").then(m => ({ default: m.IntegrationsPage })));
 const CrmIntegrationsPage = lazy(() => import("../pages/crm-integrations/index.js").then(m => ({ default: m.IntegrationsPage })));
 const OrdersShipmentsPage = lazy(() => import("../pages/orders-shipments-page.js").then(m => ({ default: m.OrdersShipmentsPage })));
+const FinancePage = lazy(() => import("../pages/finance/FinancePage.js").then(m => ({ default: m.FinancePage })));
 const CustomersPage = lazy(() => import("../pages/customers-page.js").then(m => ({ default: m.CustomersPage })));
 const FunnelPage = lazy(() => import("../pages/funnel/index.js").then(m => ({ default: m.FunnelPage })));
 const EmbedPage = lazy(() => import("../pages/embed-page.js").then(m => ({ default: m.EmbedPage })));
@@ -602,6 +603,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
               </RouteGuard>
             ) : null}
             {tab === "shipments" ? <RouteGuard me={me} require="shipments"><OrdersShipmentsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "finance" ? <RouteGuard me={me} require="finance"><FinancePage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "customers" ? <RouteGuard me={me} require="customers"><CustomersPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "funnel" ? <RouteGuard me={me} require="funnel"><FunnelPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "embed" ? <RouteGuard me={me} require="embed"><EmbedPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
