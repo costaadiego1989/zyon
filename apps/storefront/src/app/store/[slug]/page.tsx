@@ -11,7 +11,7 @@ import { fetchStoreConfig, fetchStoreStories } from "@/lib/api/server-client";
 import { fetchProductContent } from "@/lib/api/product-content";
 import { DemoEmbedBridge } from "@/components/DemoEmbedBridge";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://stores.zyon.com";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://zyon-storefront.vercel.app";
 
 function readableOnAccent(accent: string | undefined): string {
   const match = accent?.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
