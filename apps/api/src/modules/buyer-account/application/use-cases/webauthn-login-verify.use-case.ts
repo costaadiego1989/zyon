@@ -84,9 +84,12 @@ export class WebAuthnLoginVerifyUseCase {
   async execute(input: LoginVerifyRequest): Promise<LoginVerifyResponse> {
     // Verify challenge scope
     const challengeB64 = Buffer.from(input.challenge).toString("base64url");
-    const consumed = this.challengeService.consume(challengeB64, "login");
+    const consumed = await this.challengeService.consume(challengeB64, "login");
     if (!consumed) throw new BadRequestException("webauthn_challenge_invalid_or_expired");
 
+    if (input.credential.id !== input.credential.rawId || input.credential.type !== "public-key") {
+      throw new BadRequestException("webauthn_credential_invalid");
+    }
     // Decode assertion response
     const authData = new Uint8Array(
       Buffer.from(input.credential.authenticatorData, "base64url")
@@ -115,7 +118,11 @@ export class WebAuthnLoginVerifyUseCase {
     if (!result.ok) throw new UnauthorizedException(`assertion_verification_failed: ${result.reason}`);
 
     // Update counter (replay protection)
-    await this.credentialStore.updateCounter(credential.id, result.newCounter);
+    try {
+      await this.credentialStore.updateCounter(credential.id, result.newCounter);
+    } catch {
+      throw new UnauthorizedException("webauthn_credential_update_failed");
+    }
 
     // Lookup buyer and issue JWT
     const buyer = await this.buyerRepo.findByGlobalUserId(credential.globalUserId);

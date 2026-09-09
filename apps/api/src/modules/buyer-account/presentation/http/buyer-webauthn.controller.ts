@@ -1,3 +1,4 @@
+import { WebAuthnRegistrationDto, WebAuthnLoginDto, WebAuthnLoginOptionsDto } from "./buyer-webauthn.dto.js";
 import { Body, Controller, Post, Req, UseGuards } from "@nestjs/common";
 import { WebAuthnRegisterOptionsUseCase } from "../../application/use-cases/webauthn-register-options.use-case.js";
 import { WebAuthnRegisterVerifyUseCase } from "../../application/use-cases/webauthn-register-verify.use-case.js";
@@ -42,15 +43,7 @@ export class BuyerWebAuthnController {
   @UseGuards(BuyerJwtAuthGuard)
   async verifyRegistration(
     @Req() req: { user?: unknown },
-    @Body() body: {
-      challenge: string;
-      credential: {
-        id: string;
-        rawId: string;
-        response: { attestationObject: string; clientDataJSON: string };
-        type: "public-key";
-      };
-    },
+    @Body() body: WebAuthnRegistrationDto,
   ) {
     const buyer = currentBuyer(req);
     const challengeBytes = new Uint8Array(Buffer.from(body.challenge, "base64url"));
@@ -72,7 +65,7 @@ export class BuyerWebAuthnController {
    * Public endpoint. Client provides email to fetch allowed credentials.
    */
   @Post("login/options")
-  async getLoginOptions(@Body() body: { email?: string }) {
+  async getLoginOptions(@Body() body: WebAuthnLoginOptionsDto) {
     return this.loginOptions.execute({ email: body.email });
   }
 
@@ -82,15 +75,7 @@ export class BuyerWebAuthnController {
    */
   @Post("login/verify")
   async verifyLogin(
-    @Body() body: {
-      challenge: string;
-      credential: {
-        id: string;
-        rawId: string;
-        response: { authenticatorData: string; clientDataJSON: string; signature: string };
-        type: "public-key";
-      };
-    },
+    @Body() body: WebAuthnLoginDto,
   ) {
     const challengeBytes = new Uint8Array(Buffer.from(body.challenge, "base64url"));
     return this.loginVerify.execute({

@@ -17,7 +17,7 @@ export interface WebAuthnCredentialProps {
   id: string;
   credentialId: string; // base64url
   globalUserId: string;
-  publicKey: Uint8Array; // COSE-encoded (raw for ES256 = uncompressed X9.62)
+  publicKey: Uint8Array; // COSE-encoded public key
   counter: number;
   transports: WebAuthnTransport[];
   createdAt: Date;
@@ -44,7 +44,8 @@ export class WebAuthnCredential {
     if (!props.publicKey || props.publicKey.length === 0) {
       throw new Error("webauthn_credential_public_key_required");
     }
-    if (!props.origin || !props.origin.startsWith("https://")) {
+    const origin = new URL(props.origin);
+    if (origin.protocol !== "https:" && !(origin.protocol === "http:" && origin.hostname === "localhost")) {
       throw new Error("webauthn_credential_origin_invalid");
     }
     this.id = props.id;

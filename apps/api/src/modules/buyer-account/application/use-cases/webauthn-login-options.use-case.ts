@@ -11,6 +11,7 @@ export interface LoginOptionsRequest {
 }
 
 export interface LoginOptionsResponse {
+  rpId: string;
   challenge: string;
   allowCredentials: Array<{ id: string; type: "public-key" }>;
   timeout: number;
@@ -87,10 +88,11 @@ export class WebAuthnLoginOptionsUseCase {
       }
     }
 
-    const issued = this.challengeService.issue("login");
+    const issued = await this.challengeService.issue("login");
 
     return {
       challenge: issued.challenge,
+      rpId: this.rpId,
       allowCredentials,
       timeout: 60_000,
       userVerification: "required",

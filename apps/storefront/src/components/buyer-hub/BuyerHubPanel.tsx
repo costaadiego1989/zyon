@@ -1,5 +1,6 @@
 "use client";
 
+import { BuyerBiometricAccess } from "../BuyerBiometricAccess";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useBuyerHub, type TabType } from "@/lib/viewmodels/useBuyerHub";
 import { getValidBuyer } from "@/lib/buyer-auth";
@@ -214,6 +215,8 @@ function EmailLoginForm({ onAuthSuccess, merchantId }: { onAuthSuccess: () => vo
         <div style={{ fontSize: "18px", fontWeight: 700, color: "var(--aacp-fg)", marginBottom: "8px", lineHeight: 1.3 }}>Entrar com e-mail</div>
         <div style={{ fontSize: "13px", color: "var(--aacp-muted)", lineHeight: 1.5 }}>Acesse pedidos anteriores e conclua compras futuras com menos etapas.</div>
       </div>
+
+      <BuyerBiometricAccess onComplete={() => onAuthSuccess()} />
 
       {/* Assurance strip */}
       <div style={{

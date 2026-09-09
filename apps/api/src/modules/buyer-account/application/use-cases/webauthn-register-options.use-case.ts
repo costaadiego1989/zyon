@@ -6,7 +6,6 @@ import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.s
 
 export interface RegisterOptionsRequest {
   buyer_id: string;
-  origin_hostname?: string;
 }
 
 export interface RegisterOptionsResponse {
@@ -17,6 +16,8 @@ export interface RegisterOptionsResponse {
   authenticatorSelection: {
     authenticatorAttachment: "platform";
     userVerification: "required";
+    residentKey: "required";
+    requireResidentKey: true;
   };
   timeout: number;
   attestation: "none";
@@ -50,20 +51,13 @@ export class WebAuthnRegisterOptionsUseCase {
     const buyer = await this.buyers.findByGlobalUserId(input.buyer_id);
     if (!buyer) throw new NotFoundException("buyer_account_not_found");
 
-    const issued = this.challenges.issue(`register:${buyer.globalUserId}`);
-
-    // Use provided origin_hostname if available (for Web Component embedding),
-    // otherwise fall back to configured RP ID
-    let rpId = this.rpMetadata.rpId;
-    if (input.origin_hostname && this.isValidRpId(input.origin_hostname)) {
-      rpId = input.origin_hostname;
-    }
+    const issued = await this.challenges.issue(`register:${buyer.globalUserId}`);
 
     return {
       challenge: issued.challenge,
-      rp: { id: rpId, name: this.rpMetadata.rpName },
+      rp: { id: this.rpMetadata.rpId, name: this.rpMetadata.rpName },
       user: {
-        id: buyer.globalUserId,
+        id: Buffer.from(buyer.globalUserId).toString("base64url"),
         name: buyer.email,
         displayName: buyer.displayName,
       },
@@ -74,18 +68,12 @@ export class WebAuthnRegisterOptionsUseCase {
       authenticatorSelection: {
         authenticatorAttachment: "platform",
         userVerification: "required",
+        residentKey: "required",
+        requireResidentKey: true,
       },
       timeout: 60_000,
       attestation: "none",
     };
   }
 
-  private isValidRpId(hostname: string): boolean {
-    // Basic validation: must be a valid hostname (no special chars except dots and hyphens)
-    // Reject localhost and common private IPs when used as a Web Component
-    if (!hostname || hostname === "localhost" || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
-      return false;
-    }
-    return /^[\w.-]+$/.test(hostname);
-  }
 }

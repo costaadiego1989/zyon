@@ -27,19 +27,26 @@ interface StoredChallenge {
   expiresAt: number;
 }
 
+export interface WebAuthnChallengePersistence {
+  put(key: string, expiresAt: number, ttlMs: number): Promise<void>;
+  take(key: string): Promise<number | null>;
+}
+
 export class WebAuthnChallengeService {
+  constructor(private readonly persistence?: WebAuthnChallengePersistence) {}
   private readonly records = new Map<string, StoredChallenge>();
 
   /**
    * Issue a new 32-byte challenge bound to the given scope key. The challenge
    * is returned base64url-encoded, ready to be passed to navigator.credentials.
    */
-  issue(scopeKey: string, ttlMs: number = WEBAUTHN_CHALLENGE_TTL_MS): IssuedChallenge {
+  async issue(scopeKey: string, ttlMs: number = WEBAUTHN_CHALLENGE_TTL_MS): Promise<IssuedChallenge> {
     if (!scopeKey) throw new Error("webauthn_challenge_scope_required");
     const bytes = randomBytes(32);
     const challenge = bytes.toString("base64url");
     const expiresAt = Date.now() + ttlMs;
-    this.records.set(`${scopeKey}:${challenge}`, { scopeKey, expiresAt });
+    if (this.persistence) await this.persistence.put(`${scopeKey}:${challenge}`, expiresAt, ttlMs);
+    else this.records.set(`${scopeKey}:${challenge}`, { scopeKey, expiresAt });
     return { challenge, scopeKey, expiresAt };
   }
 
@@ -53,9 +60,13 @@ export class WebAuthnChallengeService {
    *
    * This implements the single-use and 5-minute expiry invariants.
    */
-  consume(challenge: string, scopeKey: string, nowMs: number = Date.now()): IssuedChallenge | null {
+  async consume(challenge: string, scopeKey: string, nowMs: number = Date.now()): Promise<IssuedChallenge | null> {
     if (!challenge || !scopeKey) return null;
     const key = `${scopeKey}:${challenge}`;
+    if (this.persistence) {
+      const expiresAt = await this.persistence.take(key);
+      return expiresAt && expiresAt > nowMs ? { challenge, scopeKey, expiresAt } : null;
+    }
     const stored = this.records.get(key);
     if (!stored) return null;
     this.records.delete(key);

@@ -19,7 +19,6 @@ export interface RegisterVerifyRequest {
     type: "public-key";
   };
   challenge: Uint8Array;
-  origin_hostname?: string;
 }
 
 export interface RegisterVerifyResponse {
@@ -76,48 +75,42 @@ export class WebAuthnRegisterVerifyUseCase {
 
     // Verify challenge scope
     const challengeB64 = Buffer.from(input.challenge).toString("base64url");
-    const consumed = this.challengeService.consume(challengeB64, `register:${buyer.globalUserId}`);
+    const consumed = await this.challengeService.consume(challengeB64, `register:${buyer.globalUserId}`);
     if (!consumed) throw new BadRequestException("webauthn_challenge_invalid_or_expired");
 
-    // Decode attestation object
-    const authData = new Uint8Array(
-      Buffer.from(input.credential.authenticatorData, "base64url")
-    );
-
-    // Parse attestation ("none" format)
-    const credentialIdBytes = new TextEncoder().encode(input.credential.id);
-    const parsed = this.verifier.parseAttestation({
-      authenticatorData: authData,
-      credentialIdLength: credentialIdBytes.length,
-      rpIdOverride: input.origin_hostname,
-    });
-    if (!parsed.ok) throw new BadRequestException(`webauthn_attestation_invalid: ${parsed.reason}`);
-
-    // Extract origin from clientDataJSON
-    const clientDataJSON = Buffer.from(input.credential.clientDataJSON, "base64url").toString("utf8");
-    let origin: string;
-    try {
-      origin = JSON.parse(clientDataJSON).origin;
-    } catch {
-      throw new BadRequestException("webauthn_client_data_malformed");
+    if (input.credential.id !== input.credential.rawId) {
+      throw new BadRequestException("webauthn_credential_id_mismatch");
     }
-    if (!origin || (!origin.startsWith("https://") && !origin.startsWith("http://localhost"))) {
-      throw new BadRequestException("webauthn_origin_invalid");
+    let verified: Awaited<ReturnType<WebAuthnVerifierService["verifyRegistration"]>>;
+    try {
+      verified = await this.verifier.verifyRegistration(challengeB64, {
+        id: input.credential.id, rawId: input.credential.rawId,
+        type: input.credential.type, clientExtensionResults: {},
+        response: {
+          attestationObject: input.credential.authenticatorData,
+          clientDataJSON: input.credential.clientDataJSON,
+        },
+      });
+    } catch {
+      throw new BadRequestException("webauthn_registration_invalid");
+    }
+    if (await this.credentialStore.findByCredentialId(verified.credential.id)) {
+      throw new BadRequestException("webauthn_credential_already_registered");
     }
 
     // Store credential
     const now = new Date();
     const credential = new WebAuthnCredential({
       id: `cred_${randomUUID().replace(/-/g, "")}`,
-      credentialId: parsed.credentialId,
+      credentialId: verified.credential.id,
       globalUserId: buyer.globalUserId,
-      publicKey: parsed.publicKey,
-      counter: parsed.counter,
+      publicKey: verified.credential.publicKey,
+      counter: verified.credential.counter,
       transports: ["internal"],
       createdAt: now,
       lastUsedAt: null,
-      aaguid: parsed.aaguid,
-      origin,
+      aaguid: verified.aaguid,
+      origin: verified.origin,
     });
     await this.credentialStore.save(credential);
 

@@ -7,9 +7,7 @@ import type { WebAuthnCredential } from "../entities/webauthn-credential.entity.
  *   - InMemoryWebAuthnCredentialStore (tests only)
  *   - PrismaWebAuthnCredentialRepository (runtime)
  *
- * Implementations MUST encrypt the public-key bytes at rest. The decryption
- * happens inside the `findByCredentialId` method so the domain layer never
- * sees encrypted buffers.
+ * updateCounter must reject counter rollback atomically; zero-only passkeys are supported.
  */
 export interface WebAuthnCredentialStore {
   save(credential: WebAuthnCredential): Promise<void>;

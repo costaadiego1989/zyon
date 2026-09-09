@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { BuyerBiometricAccess } from "./BuyerBiometricAccess";
 import BuyerRegistrationForm from "./BuyerRegistrationForm";
 import BuyerLoginForm from "./BuyerLoginForm";
 import { getValidBuyer } from "@/lib/buyer-auth";
@@ -13,39 +14,6 @@ type Props = {
 };
 
 type Mode = "choose" | "register" | "login" | "biometric";
-
-const BIOMETRIC_KEY = "zyon_biometric_registered";
-
-function isBiometricAvailable(): boolean {
-  if (typeof window === "undefined") return false;
-  if (
-    typeof navigator === "undefined" ||
-    !navigator.credentials ||
-    typeof (window as unknown as { PublicKeyCredential?: unknown }).PublicKeyCredential === "undefined"
-  ) {
-    return false;
-  }
-  try {
-    return Boolean(localStorage.getItem(BIOMETRIC_KEY));
-  } catch {
-    return false;
-  }
-}
-
-function BiometricIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M4 8V6a2 2 0 0 1 2-2h2" />
-      <path d="M16 4h2a2 2 0 0 1 2 2v2" />
-      <path d="M20 16v2a2 2 0 0 1-2 2h-2" />
-      <path d="M8 20H6a2 2 0 0 1-2-2v-2" />
-      <circle cx="12" cy="12" r="3" />
-      <line x1="12" y1="9" x2="12" y2="9.01" />
-      <line x1="9" y1="12" x2="9" y2="12.01" />
-      <line x1="15" y1="12" x2="15" y2="12.01" />
-    </svg>
-  );
-}
 
 function EmailIcon() {
   return (
@@ -78,7 +46,6 @@ function ArrowLeftIcon() {
 
 export default function BuyerAuthGate({ merchantId, merchantName, onComplete, onCancel }: Props) {
   const [mode, setMode] = useState<Mode>("choose");
-  const biometricAvailable = isBiometricAvailable();
 
   useEffect(() => {
     const buyer = getValidBuyer();
@@ -86,20 +53,6 @@ export default function BuyerAuthGate({ merchantId, merchantName, onComplete, on
       void onComplete(buyer.globalUserId);
     }
   }, []);
-
-  const handleBiometric = async () => {
-    try {
-      const stored = localStorage.getItem(BIOMETRIC_KEY);
-      if (stored) {
-        const data = JSON.parse(stored) as { globalUserId?: string; token?: string };
-        if (data.token) {
-          localStorage.setItem("zyon_buyer_token", data.token);
-        }
-        await onComplete(data.globalUserId ?? "biometric-user");
-      }
-    } catch {
-    }
-  };
 
   return (
     <div
@@ -190,47 +143,7 @@ export default function BuyerAuthGate({ merchantId, merchantName, onComplete, on
             </p>
 
             {}
-            <button
-              type="button"
-              onClick={handleBiometric}
-              disabled={!biometricAvailable}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                padding: "14px",
-                borderRadius: "14px",
-                border: "1px solid var(--aacp-line, rgba(255,255,255,0.08))",
-                background: "var(--aacp-surface-2, rgba(255,255,255,0.05))",
-                cursor: biometricAvailable ? "pointer" : "not-allowed",
-                opacity: biometricAvailable ? 1 : 0.45,
-                textAlign: "left",
-                color: "var(--aacp-fg, #f5f5f7)",
-                fontFamily: "inherit",
-              }}
-            >
-              <span
-                style={{
-                  width: "40px",
-                  height: "40px",
-                  borderRadius: "12px",
-                  background: "var(--aacp-accent, #0f766e)",
-                  color: "#fff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <BiometricIcon />
-              </span>
-              <span style={{ display: "flex", flexDirection: "column", gap: "2px", flex: 1, minWidth: 0 }}>
-                <span style={{ fontSize: "13.5px", fontWeight: 600 }}>Entrar com Face ID</span>
-                <span style={{ fontSize: "11.5px", color: "var(--aacp-muted, #8b8b95)" }}>
-                  {biometricAvailable ? "Use seu rosto para entrar" : "Não configurado neste dispositivo"}
-                </span>
-              </span>
-            </button>
+            <BuyerBiometricAccess onComplete={onComplete} />
 
             {}
             <button

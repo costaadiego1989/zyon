@@ -2,14 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { WebAuthnCredential, type WebAuthnTransport } from "../domain/entities/webauthn-credential.entity.js";
 import type { WebAuthnCredentialStore } from "../domain/ports/webauthn-credential.port.js";
 
-/**
- * Prisma-backed WebAuthn credential repository (runtime).
- *
- * Public keys are stored encrypted per spec REQ-WA-005 ("credential public
- * key stored encrypted at rest"). The encryption/decryption is opaque to
- * this class: the Prisma schema defines encrypted blob columns and a field
- * encoder, so the database layer handles key derivation and crypto.
- */
+/** Persists COSE public keys; private keys stay on the authenticator. */
 export class PrismaWebAuthnCredentialRepository implements WebAuthnCredentialStore {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -56,13 +49,11 @@ export class PrismaWebAuthnCredentialRepository implements WebAuthnCredentialSto
   }
 
   async updateCounter(id: string, newCounter: number, lastUsedAt?: Date): Promise<void> {
-    await (this.prisma as any).webAuthnCredential.update({
-      where: { id },
-      data: {
-        counter: newCounter,
-        lastUsedAt: lastUsedAt ?? new Date(),
-      },
+    const result = await this.prisma.webAuthnCredential.updateMany({
+      where: { id, counter: newCounter === 0 ? 0 : { lt: newCounter } },
+      data: { counter: newCounter, lastUsedAt: lastUsedAt ?? new Date() },
     });
+    if (result.count !== 1) throw new Error("webauthn_counter_replayed");
   }
 }
 

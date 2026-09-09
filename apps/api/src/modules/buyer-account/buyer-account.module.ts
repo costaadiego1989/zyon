@@ -1,3 +1,4 @@
+import { RedisWebAuthnChallengePersistence } from "./infrastructure/redis-webauthn-challenge.persistence.js";
 import { Module, forwardRef, Logger } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import type { Redis } from "ioredis";
@@ -131,7 +132,11 @@ import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-weba
       }),
     },
     // WebAuthn dependencies
-    WebAuthnChallengeService,
+    {
+      provide: WebAuthnChallengeService,
+      useFactory: (redis: Redis | null) => new WebAuthnChallengeService(new RedisWebAuthnChallengePersistence(redis)),
+      inject: [REDIS_CLIENT_TOKEN],
+    },
     {
       provide: WebAuthnVerifierService,
       useFactory: (config: { rpId: string; origin: string }) => new WebAuthnVerifierService(config),
@@ -174,7 +179,7 @@ import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-weba
       provide: "WebAuthnVerifierConfig",
       useValue: {
         rpId: process.env.WEBAUTHN_RP_ID || "localhost",
-        origin: process.env.WEBAUTHN_ORIGIN || "http://localhost:3000",
+        origin: process.env.WEBAUTHN_ORIGIN || "http://localhost:3001",
       },
     },
   ],

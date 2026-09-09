@@ -1,5 +1,6 @@
 "use client";
 
+import { BuyerBiometricAccess } from "../../BuyerBiometricAccess";
 import { useState } from "react";
 import { FiSun, FiMoon, FiDownload, FiTrash2, FiLogOut, FiLoader } from "react-icons/fi";
 
@@ -109,6 +110,8 @@ export function SettingsTab({
           )}
         </button>
       </div>
+
+      <BuyerBiometricAccess enroll />
 
       {/* LGPD Data Export */}
       <div style={{ paddingTop: "8px", borderTop: "1px solid var(--aacp-line)" }}>

@@ -52,6 +52,9 @@ export class InMemoryWebAuthnCredentialStore implements WebAuthnCredentialStore 
   async updateCounter(id: string, newCounter: number, lastUsedAt?: Date): Promise<void> {
     const cred = this.records.get(id);
     if (!cred) return;
+    if ((newCounter !== 0 || cred.counter !== 0) && newCounter <= cred.counter) {
+      throw new Error("webauthn_counter_replayed");
+    }
     const updated = cred.withCounter(newCounter, lastUsedAt ?? new Date());
     this.records.set(id, updated);
   }
