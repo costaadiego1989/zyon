@@ -41,7 +41,7 @@ export default function ProductExperienceOverlay({ productId, merchantSlug, onCl
       productName: product?.name,
       defaultVariantId: product?.defaultVariantId,
       cartAdded,
-    }), window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 240);
+    }), window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 280);
     return () => window.clearTimeout(timer);
   }, [cartAdded, closing, product, productId]);
 
@@ -52,9 +52,9 @@ export default function ProductExperienceOverlay({ productId, merchantSlug, onCl
     const chatContent = root.parentElement?.querySelector<HTMLElement>("[data-aacp-chat-content]");
     const wasInert = chatContent?.inert ?? false;
     if (chatContent) chatContent.inert = true;
-    root.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+    root.focus({ preventScroll: true });
     const containFocus = (event: FocusEvent) => {
-      if (event.target instanceof Node && !root.contains(event.target)) root.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+      if (event.target instanceof Node && !root.contains(event.target)) root.focus({ preventScroll: true });
     };
     document.addEventListener("focusin", containFocus);
     return () => {
@@ -67,6 +67,7 @@ export default function ProductExperienceOverlay({ productId, merchantSlug, onCl
 
   return <div
     ref={panel}
+    tabIndex={-1}
     role="dialog"
     aria-modal="true"
     aria-labelledby="product-experience-heading"
@@ -76,11 +77,11 @@ export default function ProductExperienceOverlay({ productId, merchantSlug, onCl
     onKeyDown={(event) => {
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); }
       if (event.key !== "Tab") return;
-      const focusable = Array.from(panel.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), summary, iframe, video[controls], [tabindex="0"]') ?? [])
+      const focusable = Array.from(panel.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled), select:not(:disabled), summary, iframe, video[controls], [tabindex="0"]') ?? [])
         .filter((element) => element.getClientRects().length > 0 && !element.closest("[inert]"));
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === panel.current)) { event.preventDefault(); last?.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     }}
   >
@@ -88,7 +89,7 @@ export default function ProductExperienceOverlay({ productId, merchantSlug, onCl
       <button type="button" onClick={close} aria-label="Voltar ao chat"><FiArrowLeft aria-hidden="true" /><span>Voltar</span></button>
       <h2 id="product-experience-heading" className={styles.visuallyHidden}>Detalhes do produto</h2>
       <div className={styles.headerNarration}>
-        {narration ? <ProductNarration summary={narration.summary} enabled={narration.enabled} placement="header" /> : <span>Detalhes do produto</span>}
+        {narration ? <ProductNarration summary={narration.summary} enabled={narration.enabled && !closing} placement="header" /> : <span>Detalhes do produto</span>}
       </div>
       <div className={styles.actions}>
         <button type="button" onClick={copyShareLink} aria-label="Copiar link do produto" disabled={!shareUrl}><FiLink aria-hidden="true" /></button>

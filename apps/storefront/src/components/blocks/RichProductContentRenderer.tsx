@@ -14,6 +14,7 @@ import type { ProductContentBlock } from "./ContentBlocks";
 import styles from "./RichProductContent.module.css";
 import ProductNarration from "./ProductNarration";
 import { buildProductNarration } from "@/lib/services/product-narration";
+import { useGallerySwipe } from "../useGallerySwipe";
 
 type PurchaseTarget = ProductContentPurchaseResponse;
 type GalleryImage = { src: string; alt: string };
@@ -200,9 +201,10 @@ function ProductGallery({ images, productName }: { images: GalleryImage[]; produ
   const [failed, setFailed] = useState<Set<string>>(new Set());
   const current = images[index] ?? images[0];
   const move = (direction: number) => setIndex((value) => (value + direction + images.length) % images.length);
+  const swipe = useGallerySwipe(images.length > 1, move);
   return <div className={styles.gallery} role="group" aria-label={"Imagens de " + productName}>
-    <div className={styles.mainImage}>
-      {current && !failed.has(current.src) ? <img key={current.src} src={current.src} alt={current.alt || productName} fetchPriority="high" onError={() => setFailed((previous) => new Set(previous).add(current.src))} /> : <div className={styles.imageFallback}><FiPackage aria-hidden="true" /><span>Imagem indisponível</span></div>}
+    <div className={styles.mainImage} {...swipe} style={{ touchAction: images.length > 1 ? "pan-y pinch-zoom" : "auto" }}>
+      {current && !failed.has(current.src) ? <img key={current.src} src={current.src} alt={current.alt || productName} fetchPriority="high" draggable={false} onError={() => setFailed((previous) => new Set(previous).add(current.src))} /> : <div className={styles.imageFallback}><FiPackage aria-hidden="true" /><span>Imagem indisponível</span></div>}
       {images.length > 1 ? <div className={styles.galleryControls}><span aria-live="polite">{String(index + 1).padStart(2, "0")} / {String(images.length).padStart(2, "0")}</span><button type="button" onClick={() => move(-1)} aria-label="Foto anterior"><FiChevronLeft /></button><button type="button" onClick={() => move(1)} aria-label="Próxima foto"><FiChevronRight /></button></div> : null}
     </div>
     {images.length > 1 ? <div className={styles.thumbnails} aria-label="Escolher foto">{images.map((image, i) => <button key={image.src} type="button" aria-label={"Ver foto " + (i + 1) + ": " + image.alt} aria-pressed={i === index} onClick={() => setIndex(i)}><img src={image.src} alt="" loading="lazy" /></button>)}</div> : null}

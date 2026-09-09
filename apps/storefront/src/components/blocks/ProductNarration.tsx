@@ -49,7 +49,7 @@ export default function ProductNarration({ summary, enabled, voice = browserProd
       <details><summary>Resumo do produto</summary><p>{summary}</p></details>
       {available ? <button type="button" onClick={playing ? stop : start} aria-label={playing ? "Parar narração" : "Ouvir resumo"} disabled={!enabled}>
         {playing ? <FiVolumeX aria-hidden="true" /> : <FiVolume2 aria-hidden="true" />}
-        {state === "speaking" ? "Parar áudio" : state === "starting" ? "Cancelar áudio" : "Ouvir resumo"}
+        <span>{state === "speaking" ? "Parar áudio" : state === "starting" ? "Cancelar áudio" : "Ouvir resumo"}</span>
       </button> : null}
     </div>
     {blocked ? <small className={styles.voiceStatus} role="status">Toque em “Ouvir resumo” para iniciar o áudio.</small> : null}

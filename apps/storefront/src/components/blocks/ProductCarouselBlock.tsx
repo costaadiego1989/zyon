@@ -1,461 +1,89 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { FiChevronLeft, FiChevronRight, FiHeart, FiPackage, FiStar } from "react-icons/fi";
 import type { ProductCarouselBlock as ProductCarouselBlockType, ProductCardBlock } from "@/lib/types";
 import { productsApi } from "@/lib/api/api-client";
 import ImageSlideshow from "../ImageSlideshow";
+import styles from "./ProductCarouselBlock.module.css";
 
-function formatPrice(reais: number): string {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(reais);
-}
+const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
-export default function ProductCarouselBlock({
-  block,
-  onQuickReply,
-}: {
+export default function ProductCarouselBlock({ block, onQuickReply }: {
   block: ProductCarouselBlockType;
   onQuickReply?: (option: string) => void;
 }) {
   const { data } = block;
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const observerRef = useRef<HTMLDivElement>(null);
   const [products, setProducts] = useState<ProductCardBlock["data"][]>(data.products);
-  const [cursor, setCursor] = useState<string | undefined>(data.nextCursor);
+  const [cursor, setCursor] = useState(data.nextCursor);
   const [loadingMore, setLoadingMore] = useState(false);
-  const observerRef = useRef<HTMLDivElement | null>(null);
-
+  const [loadError, setLoadError] = useState(false);
+  const loading = useRef(false);
   const loadMore = useCallback(async () => {
-    if (!cursor || loadingMore || !data.merchantId) return;
+    if (!cursor || loading.current || !data.merchantId) return;
+    loading.current = true;
     setLoadingMore(true);
+    setLoadError(false);
     try {
-      const result = await productsApi.list(data.merchantId, {
-        query: data.query,
-        categoryId: data.categoryId,
-        limit: 10,
-        cursor,
-      });
-      const newProducts: ProductCardBlock["data"][] = result.products.map((p: any) => ({
-        id: p.id,
-        name: p.name,
-        description: p.description,
-        price: p.price,
-        priceFormatted: formatPrice(p.price),
-        image: p.image,
-        images: p.images ?? [],
-        inStock: p.inStock,
-        rating: p.rating,
-        reviewCount: p.reviewCount,
-        variants: p.variants,
-      }));
-      setProducts((prev) => [...prev, ...newProducts]);
+      const result = await productsApi.list(data.merchantId, { query: data.query, categoryId: data.categoryId, limit: 10, cursor });
+      const next = result.products.map((p) => ({ ...p, priceFormatted: currency.format(p.price), variants: p.variants?.map((variant) => ({ ...variant, name: variant.value })) }));
+      setProducts((previous) => [...previous, ...next.filter((p) => !previous.some((existing) => existing.id === p.id))]);
       setCursor(result.nextCursor ?? undefined);
-    } catch {  } finally {
-      setLoadingMore(false);
-    }
-  }, [cursor, loadingMore, data.merchantId, data.query, data.categoryId]);
+    } catch { setLoadError(true); }
+    finally { loading.current = false; setLoadingMore(false); }
+  }, [cursor, data.merchantId, data.query, data.categoryId]);
 
   useEffect(() => {
-    if (!observerRef.current) return;
-    const observer = new IntersectionObserver(
-      (entries) => { if (entries[0]?.isIntersecting && cursor && !loadingMore) void loadMore(); },
-      { root: scrollRef.current, threshold: 0.1 }
-    );
-    observer.observe(observerRef.current);
+    const target = observerRef.current;
+    if (!target || loadError) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting && cursor && !loadingMore) void loadMore();
+    }, { root: scrollRef.current, rootMargin: "0px 120px", threshold: 0.1 });
+    observer.observe(target);
     return () => observer.disconnect();
-  }, [cursor, loadingMore, loadMore]);
+  }, [cursor, loadingMore, loadError, loadMore]);
 
-  const scrollLeft = () => {
-    scrollRef.current?.scrollBy({ left: -240, behavior: "smooth" });
-  };
-  const scrollRight = () => {
-    scrollRef.current?.scrollBy({ left: 240, behavior: "smooth" });
+  const scroll = (direction: number) => {
+    const track = scrollRef.current;
+    if (track) track.scrollBy({ left: direction * (track.firstElementChild?.getBoundingClientRect().width ?? 250) + direction * 16, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   };
 
-  return (
-    <div style={{ position: "relative", margin: "0 -18px", padding: "0 18px" }}>
-      <style>{`
-        .aacp-carousel-scroll::-webkit-scrollbar { display: none; }
-        .aacp-carousel-scroll { -ms-overflow-style: none; scrollbar-width: none; }
-      `}</style>
-
-      {}
-      {products.length > 2 && (
-        <button
-          type="button"
-          onClick={scrollLeft}
-          aria-label="Anterior"
-          style={{
-            position: "absolute",
-            left: "4px",
-            top: "50%",
-            transform: "translateY(-50%)",
-            zIndex: 2,
-            width: "32px",
-            height: "32px",
-            borderRadius: "50%",
-            border: "1px solid var(--aacp-line)",
-            background: "var(--aacp-surface)",
-            color: "var(--aacp-muted)",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-            transition: "all 0.15s ease",
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.color = "var(--aacp-accent)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.color = "var(--aacp-muted)"; }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-        </button>
-      )}
-
-      {}
-      {products.length > 2 && (
-        <button
-          type="button"
-          onClick={scrollRight}
-          aria-label="Próximo"
-          style={{
-            position: "absolute",
-            right: "4px",
-            top: "50%",
-            transform: "translateY(-50%)",
-            zIndex: 2,
-            width: "32px",
-            height: "32px",
-            borderRadius: "50%",
-            border: "1px solid var(--aacp-line)",
-            background: "var(--aacp-surface)",
-            color: "var(--aacp-muted)",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-            transition: "all 0.15s ease",
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.color = "var(--aacp-accent)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.color = "var(--aacp-muted)"; }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-        </button>
-      )}
-
-      <div
-        ref={scrollRef}
-        className="aacp-carousel-scroll"
-        style={{
-          display: "flex",
-          gap: "14px",
-          overflowX: "auto",
-          paddingBottom: "6px",
-          scrollSnapType: "x mandatory",
-          WebkitOverflowScrolling: "touch",
-          scrollBehavior: "smooth",
-        }}
-      >
-        {products.map((product) => (
-          <div
-            key={product.id}
-            onClick={() => onQuickReply?.(`Detalhes ${product.name}`)}
-            style={{
-              minWidth: "220px",
-              maxWidth: "240px",
-              flex: "0 0 220px",
-              scrollSnapAlign: "start",
-              cursor: "pointer",
-            }}
-          >
-            {/* Premium Card — dark surface, large image, clean typography */}
-            <div
-              style={{
-                background: "var(--aacp-surface-2, rgba(255,255,255,0.04))",
-                border: "1px solid var(--aacp-line)",
-                borderRadius: "14px",
-                overflow: "hidden",
-                display: "flex",
-                flexDirection: "column",
-                height: "100%",
-                transition: "border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "var(--aacp-accent)";
-                e.currentTarget.style.transform = "translateY(-3px)";
-                e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.2)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = "var(--aacp-line)";
-                e.currentTarget.style.transform = "none";
-                e.currentTarget.style.boxShadow = "none";
-              }}
-            >
-              {/* Product image — tall, centered, with slide if multiple */}
-              <div
-                style={{
-                  width: "100%",
-                  height: "160px",
-                  background: (product as any).images?.length > 0 || product.image
-                    ? "var(--aacp-surface-3, rgba(255,255,255,0.06))"
-                    : "linear-gradient(135deg, var(--aacp-surface-2, rgba(255,255,255,0.04)), var(--aacp-surface-3, rgba(255,255,255,0.08)))",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "16px",
-                  position: "relative",
-                }}
-              >
-                {(() => {
-                  const images: string[] = (product as any).images?.length > 0
-                    ? (product as any).images
-                    : product.image ? [product.image] : [];
-                  if (images.length > 0) {
-                    return <ImageSlideshow images={images} alt={product.name} objectFit="contain" showDots={images.length > 1} showArrows={images.length > 1} />;
-                  }
-                  return (
-                    <div style={{ fontSize: "48px", fontWeight: 800, color: "var(--aacp-accent)", opacity: 0.25, fontFamily: "var(--aacp-font-display, var(--aacp-font))", letterSpacing: "-2px" }}>
-                      {product.name.charAt(0).toUpperCase()}
-                    </div>
-                  );
-                })()}
-                {/* Stock badge — top left */}
-                <div style={{
-                  position: "absolute",
-                  top: "8px",
-                  left: "8px",
-                  padding: "3px 8px",
-                  borderRadius: "6px",
-                  background: product.inStock ? "color-mix(in srgb, var(--aacp-success) 15%, var(--aacp-surface))" : "color-mix(in srgb, #ef4444 12%, var(--aacp-surface))",
-                  border: product.inStock ? "1px solid color-mix(in srgb, var(--aacp-success) 30%, transparent)" : "1px solid color-mix(in srgb, #ef4444 30%, transparent)",
-                  fontSize: "9.5px",
-                  fontWeight: 600,
-                  color: product.inStock ? "var(--aacp-success)" : "#ef4444",
-                  letterSpacing: "0.02em",
-                }}>
-                  {product.inStock ? "Pronta entrega" : "Indisponível"}
-                </div>
-                {/* Discount badge */}
-                {(product as any).discountPercent > 0 && (
-                  <div style={{ position: "absolute", top: "32px", left: "8px", padding: "3px 8px", borderRadius: "6px", background: "var(--aacp-accent)", color: "#fff", fontSize: "10px", fontWeight: 700, letterSpacing: "0.02em" }}>
-                    -{(product as any).discountPercent}%
-                  </div>
-                )}
-                {/* Wishlist heart — top right */}
-                <button
-                  type="button"
-                  aria-label="Adicionar à lista de desejos"
-                  onClick={(e) => { e.stopPropagation(); onQuickReply?.(`Adicionar ${product.name} à lista de desejos`); }}
-                  style={{
-                    position: "absolute",
-                    top: "8px",
-                    right: "8px",
-                    width: "28px",
-                    height: "28px",
-                    borderRadius: "50%",
-                    background: "color-mix(in srgb, var(--aacp-surface) 80%, transparent)",
-                    border: "1px solid var(--aacp-line)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    color: "var(--aacp-muted)",
-                    backdropFilter: "blur(6px)",
-                    transition: "all 0.15s ease",
-                    padding: 0,
-                    zIndex: 1,
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.color = "#ef4444"; e.currentTarget.style.borderColor = "#ef4444"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.color = "var(--aacp-muted)"; e.currentTarget.style.borderColor = "var(--aacp-line)"; }}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-                </button>
-              </div>
-
-              {/* Card body */}
-              <div style={{ padding: "16px 16px 18px", display: "flex", flexDirection: "column", gap: "4px", flex: 1, textAlign: "center" }}>
-                {/* Product name */}
-                <h4 style={{
-                  fontSize: "13.5px",
-                  fontWeight: 600,
-                  margin: 0,
-                  color: "var(--aacp-fg)",
-                  lineHeight: 1.35,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  display: "-webkit-box",
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: "vertical",
-                }}>
-                  {product.name}
-                </h4>
-
-                {/* Brief description (max 150 chars) */}
-                {(product as any).description && (
-                  <p style={{
-                    fontSize: "11px",
-                    color: "var(--aacp-muted)",
-                    margin: "4px 0 0",
-                    lineHeight: 1.4,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    display: "-webkit-box",
-                    WebkitLineClamp: 3,
-                    WebkitBoxOrient: "vertical",
-                    textAlign: "left",
-                  }}>
-                    {(product as any).description.length > 150
-                      ? (product as any).description.slice(0, 150) + "…"
-                      : (product as any).description}
-                  </p>
-                )}
-
-                {/* Star rating — always show, placeholder if no rating */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px", marginTop: "6px" }}>
-                  <span style={{ display: "inline-flex", gap: "1px", fontSize: "12px", lineHeight: 1, color: "#F5B301" }} aria-label={(product as any).rating != null ? `${((product as any).rating as number).toFixed(1)} de 5` : "Sem avaliações"}>
-                    {Array.from({ length: 5 }).map((_, i) => {
-                      const rating = ((product as any).rating as number) ?? 0;
-                      const filled = i < Math.floor(rating);
-                      const partial = !filled && i === Math.floor(rating) && rating % 1 >= 0.3;
-                      return (
-                        <span key={i} style={{ position: "relative", display: "inline-block" }}>
-                          <span style={{ color: "rgba(245, 179, 1, 0.22)" }}>★</span>
-                          {(filled || partial) && (
-                            <span style={{ position: "absolute", inset: 0, width: filled ? "100%" : `${(rating % 1) * 100}%`, overflow: "hidden", color: "#F5B301" }}>★</span>
-                          )}
-                        </span>
-                      );
-                    })}
-                  </span>
-                  {(product as any).rating != null ? (
-                    <>
-                      <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--aacp-fg)" }}>{((product as any).rating as number).toFixed(1)}</span>
-                      <span style={{ fontSize: "10px", color: "var(--aacp-muted)" }}>({(product as any).reviewCount ?? 0})</span>
-                    </>
-                  ) : (
-                    <span style={{ fontSize: "10px", color: "var(--aacp-muted)", fontStyle: "italic" }}>Sem avaliações</span>
-                  )}
-                </div>
-
-                {/* Variant pills (if available) */}
-                {product.variants && product.variants.length > 1 && (
-                  <div style={{ display: "flex", gap: "4px", justifyContent: "center", marginTop: "6px", flexWrap: "wrap" }}>
-                    {product.variants.slice(0, 4).map((v) => (
-                      <span key={v.id} style={{ fontSize: "9px", padding: "2px 6px", borderRadius: "4px", border: "1px solid var(--aacp-line)", color: "var(--aacp-muted)", fontWeight: 500 }}>
-                        {v.value}
-                      </span>
-                    ))}
-                    {product.variants.length > 4 && (
-                      <span style={{ fontSize: "9px", padding: "2px 6px", color: "var(--aacp-muted)" }}>+{product.variants.length - 4}</span>
-                    )}
-                  </div>
-                )}
-
-                {/* Spacer */}
-                <div style={{ flex: 1, minHeight: "10px" }} />
-
-                {/* Price — large, accent, bold + old price strikethrough */}
-                <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
-                  <span style={{
-                    fontSize: "20px",
-                    fontWeight: 800,
-                    color: "var(--aacp-accent)",
-                    letterSpacing: "-0.02em",
-                  }}>
-                    {product.priceFormatted}
-                  </span>
-                  {(product as any).originalPriceFormatted && (
-                    <span style={{ fontSize: "11px", color: "var(--aacp-muted)", textDecoration: "line-through" }}>
-                      {(product as any).originalPriceFormatted}
-                    </span>
-                  )}
-                </div>
-
-                {/* "Vendido e entregue por" badge for marketplace products */}
-                {(product as any).source === "marketplace" && (product as any).sellerName && (
-                  <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "4px",
-                    marginTop: "6px",
-                    padding: "4px 8px",
-                    borderRadius: "6px",
-                    background: "color-mix(in srgb, var(--aacp-accent) 8%, var(--aacp-surface-2))",
-                    border: "1px solid color-mix(in srgb, var(--aacp-accent) 20%, var(--aacp-line))",
-                  }}>
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                    <span style={{ fontSize: "9.5px", fontWeight: 600, color: "var(--aacp-fg)", lineHeight: 1.2 }}>
-                      Vendido por <span style={{ color: "var(--aacp-accent)" }}>{(product as any).sellerName}</span>
-                    </span>
-                  </div>
-                )}
-
-                {/* "Saber mais" outline button */}
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); onQuickReply?.(`Detalhes ${product.name}`); }}
-                  style={{
-                    width: "100%",
-                    padding: "9px 12px",
-                    borderRadius: "8px",
-                    border: "1.5px solid var(--aacp-accent)",
-                    background: "transparent",
-                    color: "var(--aacp-accent)",
-                    fontSize: "11.5px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    transition: "all 0.15s ease",
-                    marginTop: "12px",
-                    letterSpacing: "0.01em",
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "color-mix(in srgb, var(--aacp-accent) 10%, transparent)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                >
-                  Saber mais
-                </button>
-
-                {/* Add to cart button */}
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); onQuickReply?.(`Adicionar ${product.name} ao carrinho`); }}
-                  disabled={!product.inStock}
-                  style={{
-                    width: "100%",
-                    padding: "9px 12px",
-                    borderRadius: "8px",
-                    border: "none",
-                    background: product.inStock ? "var(--aacp-accent)" : "var(--aacp-surface-3, rgba(255,255,255,0.08))",
-                    color: product.inStock ? "#fff" : "var(--aacp-muted)",
-                    fontSize: "11.5px",
-                    fontWeight: 600,
-                    cursor: product.inStock ? "pointer" : "not-allowed",
-                    opacity: product.inStock ? 1 : 0.5,
-                    fontFamily: "inherit",
-                    transition: "all 0.15s ease",
-                    marginTop: "6px",
-                    letterSpacing: "0.01em",
-                  }}
-                >
-                  Adicionar ao carrinho
-                </button>
-              </div>
+  return <section className={styles.carousel} aria-label="Produtos da loja">
+    {products.length > 1 ? <div className={styles.navigation}>
+      <span>Explore os produtos</span>
+      <div><button type="button" aria-label="Produtos anteriores" onClick={() => scroll(-1)}><FiChevronLeft /></button><button type="button" aria-label="Próximos produtos" onClick={() => scroll(1)}><FiChevronRight /></button></div>
+    </div> : null}
+    <div ref={scrollRef} className={styles.track} tabIndex={0} aria-label="Lista de produtos; deslize para explorar">
+      {products.map((product) => {
+        const images = product.images?.length ? product.images : product.image ? [product.image] : [];
+        const details = () => onQuickReply?.("Detalhes " + product.name);
+        const customizable = (product.variants?.length ?? 0) > 1 || (product.optionGroups?.length ?? 0) > 0;
+        return <article key={product.id} className={styles.card} data-aacp-carousel-product={product.id}>
+          <div className={styles.media} onClick={details}>
+            {images.length ? <ImageSlideshow images={images} alt={product.name} objectFit="cover" /> : <div className={styles.noImage}><FiPackage aria-hidden="true" /><span>Imagem indisponível</span></div>}
+            <span className={styles.stock} data-available={product.inStock}>{product.inStock ? "Pronta entrega" : "Indisponível"}</span>
+            {(product.discountPercent ?? 0) > 0 ? <span className={styles.discount}>−{product.discountPercent}%</span> : null}
+            <button type="button" className={styles.wishlist} aria-label={"Adicionar " + product.name + " à lista de desejos"} onClick={(event) => { event.stopPropagation(); onQuickReply?.("Adicionar " + product.name + " à lista de desejos"); }}><FiHeart aria-hidden="true" /></button>
+          </div>
+          <div className={styles.body}>
+            <h4><button type="button" onClick={details}>{product.name}</button></h4>
+            {product.description ? <p className={styles.description}>{product.description}</p> : null}
+            <div className={styles.rating}>
+              {product.rating != null && (product.reviewCount ?? 0) > 0 ? <><FiStar aria-hidden="true" /><strong>{product.rating.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</strong><span>({product.reviewCount} avaliações)</span></> : <span>Ainda sem avaliações</span>}
+            </div>
+            {product.variants && product.variants.length > 1 ? <div className={styles.variants}>{product.variants.slice(0, 3).map((variant) => <span key={variant.id}>{variant.value}</span>)}{product.variants.length > 3 ? <span>+{product.variants.length - 3}</span> : null}</div> : null}
+            <div className={styles.price}>{product.originalPriceFormatted ? <del>{product.originalPriceFormatted}</del> : null}<strong>{product.priceFormatted}</strong></div>
+            {product.source === "marketplace" && product.sellerName ? <p className={styles.seller}>Vendido por {product.sellerName}</p> : null}
+            <div className={styles.ctas}>
+              <button type="button" onClick={details}>Saber mais</button>
+              <button type="button" className={styles.buy} disabled={!product.inStock} onClick={() => customizable ? details() : onQuickReply?.("Adicionar " + product.name + " ao carrinho")}>{customizable ? "Escolher opções" : "Adicionar ao carrinho"}</button>
             </div>
           </div>
-        ))}
-
-        {/* Sentinel for infinite scroll */}
-        {cursor && (
-          <div ref={observerRef} style={{ minWidth: "60px", flex: "0 0 60px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {loadingMore ? (
-              <div style={{ display: "flex", gap: "4px" }}>
-                {[0, 1, 2].map((i) => <span key={i} style={{ width: "5px", height: "5px", borderRadius: "50%", background: "var(--aacp-muted)", animation: "dot-pulse 1.2s infinite", animationDelay: `${i * 0.2}s` }} />)}
-              </div>
-            ) : (
-              <span style={{ fontSize: "18px", color: "var(--aacp-muted)", opacity: 0.4 }}>›</span>
-            )}
-          </div>
-        )}
-      </div>
+        </article>;
+      })}
+      {cursor ? <div ref={observerRef} className={styles.more} role="status">{loadError ? <><span>Não foi possível carregar mais produtos.</span><button type="button" onClick={() => void loadMore()}>Tentar novamente</button></> : loadingMore ? "Carregando…" : "Mais produtos"}</div> : null}
     </div>
-  );
+  </section>;
 }

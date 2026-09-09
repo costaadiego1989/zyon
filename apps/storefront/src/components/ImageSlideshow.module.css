@@ -1,0 +1,17 @@
+.gallery { position: relative; overflow: hidden; user-select: none; }
+.image { display: block; width: 100%; height: 100%; animation: appear 220ms ease-out; }
+.fallback { display: flex; height: 100%; align-items: center; justify-content: center; flex-direction: column; gap: 8px; color: var(--aacp-muted); font-size: 12px; }
+.fallback svg { width: 28px; height: 28px; }
+.arrow { position: absolute; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 36px; height: 44px; padding: 0; border: 0; border-radius: 8px; background: var(--aacp-surface); color: var(--aacp-fg); cursor: pointer; }
+.arrow svg { width: 20px; height: 20px; }
+.previous { left: 8px; }
+.next { right: 8px; }
+.dots { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); display: flex; padding-inline: 5px; border-radius: 20px; background: var(--aacp-surface); max-width: calc(100% - 16px); overflow-x: auto; }
+.dots button { display: grid; place-items: center; flex: 0 0 24px; width: 24px; height: 28px; border: 0; padding: 0; background: transparent; color: var(--aacp-muted); cursor: pointer; }
+.dots span { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.dots [aria-pressed="true"] { color: var(--aacp-accent); }
+.dots [aria-pressed="true"] span { width: 12px; border-radius: 3px; }
+.gallery button:focus-visible { outline: 2px solid var(--aacp-accent); outline-offset: -2px; }
+@media (hover: hover) { .arrow { opacity: 0; transition: opacity 160ms ease; } .gallery:hover .arrow, .gallery:focus-within .arrow { opacity: 1; } }
+@keyframes appear { from { opacity: .5; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .image { animation: none; } .arrow { transition: none; } }

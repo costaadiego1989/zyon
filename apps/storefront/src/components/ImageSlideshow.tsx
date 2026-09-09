@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useEffect } from "react";
+import { FiChevronLeft, FiChevronRight, FiImage } from "react-icons/fi";
+import { useGallerySwipe } from "./useGallerySwipe";
+import styles from "./ImageSlideshow.module.css";
 
 export interface SlideShowProps {
   images: string[];
@@ -15,133 +18,27 @@ export interface SlideShowProps {
   autoPlayInterval?: number;
 }
 
-export default function ImageSlideshow({
-  images,
-  alt = "",
-  width = "100%",
-  height = "100%",
-  objectFit = "contain",
-  borderRadius = "0",
-  showDots = true,
-  showArrows = true,
-  autoPlay = false,
-  autoPlayInterval = 5000,
-}: SlideShowProps) {
+export default function ImageSlideshow({ images, alt = "", width = "100%", height = "100%", objectFit = "contain", borderRadius = "0", showDots = true, showArrows = true, autoPlay = false, autoPlayInterval = 5000 }: SlideShowProps) {
   const [current, setCurrent] = useState(0);
-  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [failed, setFailed] = useState<Set<string>>(new Set());
   const count = images.length;
-  const goNext = useCallback(() => setCurrent((c) => (c + 1) % count), [count]);
-  const goPrev = useCallback(() => setCurrent((c) => (c - 1 + count) % count), [count]);
-  if (autoPlay && count > 1) {
-    
-  }
-  if (count === 0) return null;
-  if (count === 1) {
-    return (
-      <div style={{ position: "relative", width, height, borderRadius, overflow: "hidden" }}>
-        <img src={images[0]} alt={alt} loading="lazy" style={{ width: "100%", height: "100%", objectFit, display: "block" }} />
-      </div>
-    );
-  }
-  return (
-    <div
-      style={{ position: "relative", width, height, borderRadius, overflow: "hidden" }}
-      onTouchStart={(e) => setTouchStart(e.touches[0]?.clientX ?? null)}
-      onTouchEnd={(e) => {
-        if (touchStart === null) return;
-        const diff = (e.changedTouches[0]?.clientX ?? 0) - touchStart;
-        if (diff > 40) goPrev();
-        else if (diff < -40) goNext();
-        setTouchStart(null);
-      }}
-    >
-      <img
-        src={images[current]}
-        alt={`${alt} ${current + 1}/${count}`}
-        loading="lazy"
-        style={{ width: "100%", height: "100%", objectFit, display: "block", transition: "opacity 0.2s ease" }}
-      />
-      {/* Left arrow */}
-      {showArrows && (
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); goPrev(); }}
-          aria-label="Anterior"
-          style={{
-            position: "absolute",
-            left: "6px",
-            top: "50%",
-            transform: "translateY(-50%)",
-            width: "28px",
-            height: "28px",
-            borderRadius: "50%",
-            border: "none",
-            background: "rgba(0,0,0,0.45)",
-            color: "#fff",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 2,
-            opacity: 0.8,
-            transition: "opacity 0.15s",
-          }}
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-        </button>
-      )}
-      {/* Right arrow */}
-      {showArrows && (
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); goNext(); }}
-          aria-label="Próximo"
-          style={{
-            position: "absolute",
-            right: "6px",
-            top: "50%",
-            transform: "translateY(-50%)",
-            width: "28px",
-            height: "28px",
-            borderRadius: "50%",
-            border: "none",
-            background: "rgba(0,0,0,0.45)",
-            color: "#fff",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 2,
-            opacity: 0.8,
-            transition: "opacity 0.15s",
-          }}
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-        </button>
-      )}
-      {/* Dots */}
-      {showDots && (
-        <div style={{ position: "absolute", bottom: "8px", left: "50%", transform: "translateX(-50%)", display: "flex", gap: "4px", zIndex: 2 }}>
-          {images.map((_, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={(e) => { e.stopPropagation(); setCurrent(i); }}
-              aria-label={`Imagem ${i + 1}`}
-              style={{
-                width: i === current ? "14px" : "6px",
-                height: "6px",
-                borderRadius: "3px",
-                border: "none",
-                padding: 0,
-                background: i === current ? "#fff" : "rgba(255,255,255,0.45)",
-                cursor: "pointer",
-                transition: "all 0.2s ease",
-              }}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
+  const index = count ? current % count : 0;
+  const move = (direction: number) => setCurrent((value) => (value + direction + count) % count);
+  const swipe = useGallerySwipe(count > 1, move);
+  useEffect(() => {
+    if (!autoPlay || count < 2 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(() => {
+      if (!document.hidden) setCurrent((value) => (value + 1) % count);
+    }, Math.max(2000, autoPlayInterval));
+    return () => window.clearInterval(timer);
+  }, [autoPlay, autoPlayInterval, count]);
+  if (!count) return null;
+  return <div className={styles.gallery} style={{ width, height, borderRadius, touchAction: count > 1 ? "pan-y pinch-zoom" : "auto" }} {...swipe} role="group" aria-label={"Imagens de " + alt}>
+    {!failed.has(images[index]) ? <img key={images[index]} className={styles.image} src={images[index]} alt={alt + (count > 1 ? " — foto " + (index + 1) + " de " + count : "")} loading="lazy" draggable={false} style={{ objectFit }} onError={() => setFailed((previous) => new Set(previous).add(images[index]))} /> : <div className={styles.fallback}><FiImage aria-hidden="true" /><span>Imagem indisponível</span></div>}
+    {count > 1 && showArrows ? <>
+      <button type="button" className={styles.arrow + " " + styles.previous} aria-label="Imagem anterior" onClick={(event) => { event.stopPropagation(); move(-1); }}><FiChevronLeft aria-hidden="true" /></button>
+      <button type="button" className={styles.arrow + " " + styles.next} aria-label="Próxima imagem" onClick={(event) => { event.stopPropagation(); move(1); }}><FiChevronRight aria-hidden="true" /></button>
+    </> : null}
+    {count > 1 && showDots ? <div className={styles.dots} aria-label="Escolher imagem">{images.map((_, i) => <button key={i} type="button" aria-label={"Imagem " + (i + 1)} aria-pressed={i === index} onClick={(event) => { event.stopPropagation(); setCurrent(i); }}><span /></button>)}</div> : null}
+  </div>;
 }

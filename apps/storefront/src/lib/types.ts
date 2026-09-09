@@ -6,6 +6,7 @@ export interface ProductCardBlock {
     price: number;
     priceFormatted: string;
     image?: string;
+    images?: string[];
     variants?: Array<{ id: string; name: string; value: string; price?: number; priceFormatted?: string; stock?: number; sku?: string }>;
     inStock: boolean;
     rating?: number;

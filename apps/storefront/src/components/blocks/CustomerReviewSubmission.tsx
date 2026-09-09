@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { FiCheckCircle, FiFilm, FiMessageSquare, FiSend, FiStar } from "react-icons/fi";
+import { useEffect, useId, useRef, useState } from "react";
+import { FiCheckCircle, FiFilm, FiMessageSquare, FiSend, FiStar, FiUploadCloud, FiX } from "react-icons/fi";
 import { getValidBuyer } from "@/lib/buyer-auth";
 import styles from "./CustomerReviewSubmission.module.css";
 
@@ -34,12 +34,46 @@ export function CustomerReviewSubmission({
   const [body, setBody] = useState("");
   const [videoTitle, setVideoTitle] = useState("");
   const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoPreview, setVideoPreview] = useState<string | null>(null);
+  const [videoError, setVideoError] = useState("");
+  const [isDraggingVideo, setIsDraggingVideo] = useState(false);
   const [state, setState] = useState<SubmissionState>("idle");
   const [message, setMessage] = useState("");
   const [showAuthToast, setShowAuthToast] = useState(false);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const reviewId = useId();
+
+  useEffect(() => {
+    if (!videoFile) {
+      setVideoPreview(null);
+      return;
+    }
+    const preview = URL.createObjectURL(videoFile);
+    setVideoPreview(preview);
+    return () => URL.revokeObjectURL(preview);
+  }, [videoFile]);
 
   if (!merchantSlug || !productId) return null;
+
+  const chooseVideo = (file: File | null) => {
+    if (state === "sending" || !file) return;
+    const error = file.type !== "video/mp4"
+      ? "Escolha um vídeo no formato MP4."
+      : file.size === 0
+        ? "O arquivo está vazio. Escolha outro vídeo."
+        : file.size > MAX_VIDEO_BYTES
+          ? "Seu vídeo deve ter até 50 MB. Escolha um arquivo menor."
+          : "";
+    setVideoError(error);
+    setVideoFile(error ? null : file);
+    if (videoInputRef.current) videoInputRef.current.value = "";
+  };
+
+  const removeVideo = () => {
+    setVideoFile(null);
+    setVideoError("");
+    if (videoInputRef.current) videoInputRef.current.value = "";
+  };
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -134,6 +168,7 @@ export function CustomerReviewSubmission({
       setBody("");
       setVideoTitle("");
       setVideoFile(null);
+      setVideoError("");
       if (videoInputRef.current) videoInputRef.current.value = "";
       setMessage("Recebemos sua contribuição. Ela aparecerá no produto após a aprovação da loja.");
     } catch (error) {
@@ -143,9 +178,9 @@ export function CustomerReviewSubmission({
   };
 
   return (
-    <section className={styles.section} aria-labelledby="customer-review-heading">
+    <section className={styles.section} aria-labelledby={`${reviewId}-heading`}>
       <div className={styles.intro}>
-        <h2 id="customer-review-heading">Conte sua experiência</h2>
+        <h2 id={`${reviewId}-heading`}>Conte sua experiência</h2>
         <p>
           Ajude outras pessoas com uma avaliação de {productName ?? "produto"}. A loja revisa cada envio antes de publicar.
         </p>
@@ -181,10 +216,10 @@ export function CustomerReviewSubmission({
       ) : (
         <form className={styles.form} onSubmit={(event) => void submit(event)}>
           <div className={styles.kindSwitch} role="group" aria-label="Tipo de avaliação">
-            <button type="button" aria-pressed={kind === "testimonial"} onClick={() => { setKind("testimonial"); setState("idle"); setMessage(""); }}>
+            <button type="button" disabled={state === "sending"} aria-pressed={kind === "testimonial"} onClick={() => { setKind("testimonial"); setState("idle"); setMessage(""); }}>
               <FiMessageSquare aria-hidden="true" /> Avaliação escrita
             </button>
-            <button type="button" aria-pressed={kind === "video"} onClick={() => { setKind("video"); setState("idle"); setMessage(""); }}>
+            <button type="button" disabled={state === "sending"} aria-pressed={kind === "video"} onClick={() => { setKind("video"); setState("idle"); setMessage(""); }}>
               <FiFilm aria-hidden="true" /> Vídeo
             </button>
           </div>
@@ -199,8 +234,8 @@ export function CustomerReviewSubmission({
                 <legend>Sua nota</legend>
                 <div>
                   {[1, 2, 3, 4, 5].map((value) => (
-                    <label key={value} aria-label={`${value} de 5 estrelas`}>
-                      <input type="radio" name="customer-review-rating" value={value} checked={rating === value} onChange={() => setRating(value)} />
+                    <label key={value} className={value <= rating ? styles.ratedStar : undefined} aria-label={`${value} de 5 estrelas`}>
+                      <input type="radio" name={`${reviewId}-rating`} value={value} checked={rating === value} onChange={() => setRating(value)} />
                       <FiStar aria-hidden="true" fill={value <= rating ? "currentColor" : "none"} />
                     </label>
                   ))}
@@ -217,17 +252,67 @@ export function CustomerReviewSubmission({
                 Título do vídeo
                 <input value={videoTitle} onChange={(event) => setVideoTitle(event.target.value)} maxLength={200} required />
               </label>
-              <label>
-                Arquivo de vídeo
+              <div className={styles.videoField}>
+                <span id={`${reviewId}-video-label`} className={styles.fieldLabel}>Arquivo de vídeo</span>
                 <input
                   ref={videoInputRef}
+                  id={`${reviewId}-video-input`}
                   type="file"
                   accept="video/mp4"
-                  onChange={(event) => setVideoFile(event.target.files?.[0] ?? null)}
-                  required
+                  hidden
+                  disabled={state === "sending"}
+                  aria-labelledby={`${reviewId}-video-label`}
+                  onChange={(event) => chooseVideo(event.target.files?.[0] ?? null)}
                 />
-                <small>Envie um arquivo MP4 de até 50 MB. O vídeo só aparece na loja após a aprovação.</small>
-              </label>
+                <div
+                  className={`${styles.videoUpload} ${isDraggingVideo ? styles.videoUploadActive : ""}`}
+                  data-has-file={Boolean(videoFile)}
+                  aria-busy={state === "sending"}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    if (state !== "sending") setIsDraggingVideo(true);
+                  }}
+                  onDragLeave={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsDraggingVideo(false);
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setIsDraggingVideo(false);
+                    chooseVideo(event.dataTransfer.files[0] ?? null);
+                  }}
+                >
+                  {videoFile ? (
+                    <>
+                      {videoPreview ? <video className={styles.videoPreview} src={videoPreview} controls playsInline preload="metadata" aria-label="Prévia do vídeo selecionado" /> : null}
+                      <div className={styles.videoSelection}>
+                        <FiFilm aria-hidden="true" />
+                        <div className={styles.videoFileInfo} aria-live="polite">
+                          <strong>{videoFile.name}</strong>
+                          <span>MP4 · {(videoFile.size / (1024 * 1024)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB</span>
+                        </div>
+                        <button type="button" className={styles.removeVideo} disabled={state === "sending"} onClick={removeVideo} aria-label="Remover vídeo">
+                          <FiX aria-hidden="true" />
+                        </button>
+                      </div>
+                      <button type="button" className={styles.replaceVideo} disabled={state === "sending"} onClick={() => videoInputRef.current?.click()}>Substituir vídeo</button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className={styles.chooseVideo}
+                      disabled={state === "sending"}
+                      onClick={() => videoInputRef.current?.click()}
+                      aria-describedby={`${reviewId}-video-hint${videoError ? ` ${reviewId}-video-error` : ""}`}
+                    >
+                      <FiUploadCloud aria-hidden="true" />
+                      <strong>Escolher vídeo</strong>
+                      <span>ou arraste o arquivo até aqui</span>
+                    </button>
+                  )}
+                </div>
+                <small id={`${reviewId}-video-hint`}>MP4 de até 50 MB. Seu vídeo será publicado após a aprovação da loja.</small>
+                {videoError ? <p id={`${reviewId}-video-error`} className={styles.error} role="alert">{videoError}</p> : null}
+              </div>
             </>
           )}
 
