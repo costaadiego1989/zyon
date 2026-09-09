@@ -62,6 +62,7 @@ export interface ConversationViewModelActions {
   toggleTheme: () => void;
   sendMessage: (text: string) => Promise<void>;
   handleQuickReply: (option: string) => void;
+  appendAgentMessage: (message: Pick<Message, "text" | "blocks">) => void;
   handleUpdateQuantity: (variantId: string, quantity: number) => void;
   setInput: (value: string) => void;
   setSupportOpen: (value: boolean | ((prev: boolean) => boolean)) => void;

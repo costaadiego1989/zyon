@@ -3,20 +3,24 @@
 import { useEffect, useRef, useState } from "react";
 import { FiArrowLeft, FiLink, FiX } from "react-icons/fi";
 import type { ConversationBlock } from "@/lib/types";
-import ProductContentBlock from "./ProductContentBlock";
+import ProductContentBlock, { type ProductNarrationDetails } from "./ProductContentBlock";
+import ProductNarration from "./ProductNarration";
 import styles from "./ProductExperienceOverlay.module.css";
 
 /** A product surface contained by the chat. Its scroll never moves the conversation. */
 export default function ProductExperienceOverlay({ productId, merchantSlug, onClose }: {
   productId: string;
   merchantSlug?: string;
-  onClose: () => void;
+  onClose: (result: { productId: string; productName?: string; defaultVariantId?: string | null; cartAdded: boolean }) => void;
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const closeCallback = useRef(onClose);
   closeCallback.current = onClose;
   const [closing, setClosing] = useState(false);
   const [shareUrl, setShareUrl] = useState("");
+  const [narration, setNarration] = useState<ProductNarrationDetails | null>(null);
+  const [product, setProduct] = useState<{ name: string; defaultVariantId: string | null } | null>(null);
+  const [cartAdded, setCartAdded] = useState(false);
 
   const close = () => setClosing(true);
   useEffect(() => {
@@ -32,9 +36,14 @@ export default function ProductExperienceOverlay({ productId, merchantSlug, onCl
   };
   useEffect(() => {
     if (!closing) return;
-    const timer = window.setTimeout(() => closeCallback.current(), window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 180);
+    const timer = window.setTimeout(() => closeCallback.current({
+      productId,
+      productName: product?.name,
+      defaultVariantId: product?.defaultVariantId,
+      cartAdded,
+    }), window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 240);
     return () => window.clearTimeout(timer);
-  }, [closing]);
+  }, [cartAdded, closing, product, productId]);
 
   useEffect(() => {
     const root = panel.current;
@@ -77,7 +86,10 @@ export default function ProductExperienceOverlay({ productId, merchantSlug, onCl
   >
     <header className={styles.header}>
       <button type="button" onClick={close} aria-label="Voltar ao chat"><FiArrowLeft aria-hidden="true" /><span>Voltar</span></button>
-      <h2 id="product-experience-heading">Conheça o produto</h2>
+      <h2 id="product-experience-heading" className={styles.visuallyHidden}>Detalhes do produto</h2>
+      <div className={styles.headerNarration}>
+        {narration ? <ProductNarration summary={narration.summary} enabled={narration.enabled} placement="header" /> : <span>Detalhes do produto</span>}
+      </div>
       <div className={styles.actions}>
         <button type="button" onClick={copyShareLink} aria-label="Copiar link do produto" disabled={!shareUrl}><FiLink aria-hidden="true" /></button>
         <button type="button" onClick={close} aria-label="Fechar produto e voltar ao chat"><FiX aria-hidden="true" /></button>
@@ -90,6 +102,9 @@ export default function ProductExperienceOverlay({ productId, merchantSlug, onCl
       immersive
       narrationEnabled={!closing}
       shareUrl={shareUrl}
+      onNarrationChange={setNarration}
+      onProductResolved={setProduct}
+      onCartAdded={() => setCartAdded(true)}
     />
   </div>;
 }

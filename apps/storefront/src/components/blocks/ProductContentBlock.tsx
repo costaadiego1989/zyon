@@ -7,6 +7,7 @@ import ProductContentRenderer from "./ProductContentRenderer";
 import RichProductContentRenderer from "./RichProductContentRenderer";
 import { flattenProductContentBlocks } from "./product-content-normalizer";
 import type { ProductContentBlock as ProductContentBlockType } from "./ContentBlocks";
+import { buildProductNarration } from "@/lib/services/product-narration";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 const CATALOG_ID = /^[A-Za-z0-9_-]{1,191}$/;
@@ -14,6 +15,11 @@ const CATALOG_ID = /^[A-Za-z0-9_-]{1,191}$/;
 type ProductContentData = {
   productId?: unknown;
   blocks?: unknown;
+};
+
+export type ProductNarrationDetails = {
+  summary: string;
+  enabled: boolean;
 };
 
 function readPublicContent(body: unknown, fallbackProductId: string): PublicProductContent | null {
@@ -59,6 +65,9 @@ export default function ProductContentBlock({
   immersive = false,
   narrationEnabled = true,
   shareUrl,
+  onNarrationChange,
+  onProductResolved,
+  onCartAdded,
 }: {
   block: ConversationBlock & { type: "product_content" };
   merchantSlug?: string;
@@ -66,6 +75,9 @@ export default function ProductContentBlock({
   immersive?: boolean;
   narrationEnabled?: boolean;
   shareUrl?: string;
+  onNarrationChange?: (details: ProductNarrationDetails | null) => void;
+  onProductResolved?: (product: { name: string; defaultVariantId: string | null }) => void;
+  onCartAdded?: () => void;
 }) {
   const data = block.data as unknown as ProductContentData;
   const productId = typeof data?.productId === "string" && CATALOG_ID.test(data.productId) ? data.productId : null;
@@ -102,6 +114,16 @@ export default function ProductContentBlock({
     return () => controller.abort();
   }, [merchantSlug, productId, immersive, attempt]);
 
+  useEffect(() => {
+    const purchase = immersive ? content?.purchase : undefined;
+    if (!purchase) {
+      onNarrationChange?.(null);
+      return;
+    }
+    onProductResolved?.({ name: purchase.productName, defaultVariantId: purchase.defaultVariantId });
+    onNarrationChange?.({ summary: buildProductNarration(purchase), enabled: narrationEnabled });
+  }, [content?.purchase, immersive, narrationEnabled, onNarrationChange, onProductResolved]);
+
   const onCtaClick = (href: string) => onQuickReply?.(href);
   const fallbackBlocks = Array.isArray(data?.blocks) ? data.blocks as ProductContentBlockType[] : [];
 
@@ -130,10 +152,14 @@ export default function ProductContentBlock({
           testimonials={content.testimonials}
           videos={content.videos}
           purchase={content.purchase}
+          merchantSlug={merchantSlug}
+          productId={content.productId}
           embedded={!immersive}
           immersive={immersive}
           narrationEnabled={narrationEnabled}
           shareUrl={shareUrl}
+          showNarration={!onNarrationChange}
+          onCartAdded={onCartAdded}
         />
       </article>
     );
@@ -142,7 +168,7 @@ export default function ProductContentBlock({
   if (fallbackBlocks.length > 0) {
     return (
       <section aria-label="Conteúdo do produto" style={{ width: "100%", minWidth: 0 }}>
-        <ProductContentRenderer blocks={fallbackBlocks} onCtaClick={onCtaClick} />
+        <ProductContentRenderer blocks={fallbackBlocks} onCtaClick={onCtaClick} merchantSlug={merchantSlug} productId={productId ?? undefined} />
       </section>
     );
   }

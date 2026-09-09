@@ -17,6 +17,7 @@ import {
   ButtonBlock,
   type ProductContentBlock as ProductContentBlockType,
 } from "./ContentBlocks";
+import { CustomerReviewSubmission } from "./CustomerReviewSubmission";
 
 export type ProductContentSupplementalFaq = {
   id: string;
@@ -53,14 +54,20 @@ export default function ProductContentRenderer({
   testimonials = [],
   videos = [],
   onCtaClick,
+  merchantSlug,
+  productId,
+  productName,
 }: {
   blocks: ProductContentBlockType[];
   faqs?: ProductContentSupplementalFaq[];
   testimonials?: ProductContentSupplementalTestimonial[];
   videos?: ProductContentSupplementalVideo[];
   onCtaClick?: (href: string) => void;
+  merchantSlug?: string;
+  productId?: string;
+  productName?: string;
 }) {
-  if (!blocks || (blocks.length === 0 && faqs.length === 0 && testimonials.length === 0 && videos.length === 0)) return null;
+  if (!blocks || (blocks.length === 0 && faqs.length === 0 && testimonials.length === 0 && videos.length === 0 && !productId)) return null;
 
   // Sort defensively by `order` in case the producer forgot to.
   const sorted = [...blocks].sort((a, b) => a.order - b.order);
@@ -115,6 +122,9 @@ export default function ProductContentRenderer({
         faqs={faqs}
         testimonials={testimonials}
         videos={videos}
+        merchantSlug={merchantSlug}
+        productId={productId}
+        productName={productName}
       />
     </div>
   );
@@ -124,10 +134,16 @@ function ProductContentSupplementalSections({
   faqs,
   testimonials,
   videos,
+  merchantSlug,
+  productId,
+  productName,
 }: {
   faqs: ProductContentSupplementalFaq[];
   testimonials: ProductContentSupplementalTestimonial[];
   videos: ProductContentSupplementalVideo[];
+  merchantSlug?: string;
+  productId?: string;
+  productName?: string;
 }) {
   const faqItems = faqs
     .filter((faq) => typeof faq.question === "string" && faq.question.trim() && typeof faq.answer === "string" && faq.answer.trim())
@@ -170,6 +186,7 @@ function ProductContentSupplementalSections({
           </div>
         </section>
       ) : null}
+      <CustomerReviewSubmission merchantSlug={merchantSlug} productId={productId} productName={productName} />
     </>
   );
 }

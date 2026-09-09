@@ -87,7 +87,7 @@ test.describe(
       }
     });
 
-    test("public testimonial submission lands in moderation queue", async ({
+    test("anonymous testimonial submission is redirected to authenticated review flow", async ({
       request,
     }) => {
       const payload = {
@@ -99,41 +99,23 @@ test.describe(
         `${API_BASE}/storefront/${ctx!.slug}/products/${ctx!.productId}/testimonials`,
         { data: payload },
       );
-      // Tenant guard returns 404 when the product doesn't belong to the slug
-      // (e.g. demo merchant not yet flagged). 201 = created; 429 = rate-limited
-      // because the @RateLimit(1, 5min) bucket is per-IP and a previous test
-      // in this run already submitted.
-      expect([201, 404, 429]).toContain(res.status());
-
-      if (res.status() === 201) {
-        const body = await res.json();
-        // Server should echo the pending moderation status so the storefront
-        // can show a "awaiting approval" toast without a follow-up read.
-        expect(body).toHaveProperty("moderationStatus");
-        expect(body.moderationStatus).toBe("pending");
-        expect(body).toHaveProperty("productId", ctx!.productId);
-      }
+      // The browser shows its account CTA before this call. The API enforces
+      // the same invariant for callers bypassing that UI.
+      expect([401, 404]).toContain(res.status());
     });
 
-    test("public video submission accepts a YouTube URL and persists pending", async ({
+    test("anonymous video-link submission is rejected", async ({
       request,
     }) => {
       const payload = {
-        authorName: "Smoke Tester",
+        title: "Vídeo de teste",
         videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-        caption: "Smoke-test video submission",
       };
       const res = await request.post(
         `${API_BASE}/storefront/${ctx!.slug}/products/${ctx!.productId}/videos`,
         { data: payload },
       );
-      expect([201, 404, 429]).toContain(res.status());
-
-      if (res.status() === 201) {
-        const body = await res.json();
-        expect(body).toHaveProperty("moderationStatus");
-        expect(body.moderationStatus).toBe("pending");
-      }
+      expect([401, 404]).toContain(res.status());
     });
   },
 );

@@ -34,17 +34,21 @@ function getImages(purchase: PurchaseTarget | undefined, blocks: ProductContentB
   return candidates.filter((image, index) => safeImage(image.src) && candidates.findIndex((other) => other.src === image.src) === index).slice(0, 8);
 }
 
-export default function RichProductContentRenderer({ blocks, faqs, testimonials, videos, purchase, embedded = false, immersive = false, narrationEnabled = true, shareUrl }: {
+export default function RichProductContentRenderer({ blocks, faqs, testimonials, videos, purchase, merchantSlug, productId, embedded = false, immersive = false, narrationEnabled = true, shareUrl, showNarration = true, onCartAdded }: {
   blocks: ProductContentBlock[];
   faqs: ProductContentSupplementalFaq[];
   testimonials: ProductContentSupplementalTestimonial[];
   videos: ProductContentSupplementalVideo[];
   purchase?: PurchaseTarget;
+  merchantSlug?: string;
+  productId?: string;
   /** Product content is normally a response inside the chat, not a parallel PDP. */
   embedded?: boolean;
   immersive?: boolean;
   narrationEnabled?: boolean;
   shareUrl?: string;
+  showNarration?: boolean;
+  onCartAdded?: () => void;
 }) {
   const { cart } = useCart();
   const [selectedVariantId, setSelectedVariantId] = useState(purchase?.defaultVariantId ?? purchase?.variants[0]?.id ?? "");
@@ -70,8 +74,9 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
     if (quantity > request.previousQuantity) {
       pending.current = null;
       setStatus("added");
+      onCartAdded?.();
     }
-  }, [cart.items]);
+  }, [cart.items, onCartAdded]);
 
   useEffect(() => {
     if (status !== "pending") return;
@@ -142,9 +147,8 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
       data-aacp-rich-product-renderer
       data-aacp-rich-product-embedded={embedded || undefined}
     >
-      {immersive && purchase ? <ProductNarration summary={buildProductNarration(purchase)} enabled={narrationEnabled} /> : null}
+      {immersive && purchase && showNarration ? <ProductNarration summary={buildProductNarration(purchase)} enabled={narrationEnabled} /> : null}
       <div className={immersive ? styles.scrollBody : undefined} data-aacp-product-scroll={immersive || undefined}>
-      {purchase?.isDemo ? <p className={styles.demoNote}>Showroom · Produto e avaliações de demonstração</p> : null}
       {purchase ? (
         <section className={styles.hero} data-aacp-rich-product-purchase aria-labelledby="aacp-rich-product-title">
           <ProductGallery images={images} productName={purchase.productName} />
@@ -179,7 +183,7 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
         </section>
       ) : null}
       <div id="rich-product-details" className={styles.editorial}>
-        <ProductContentRenderer blocks={blocks} faqs={faqs} testimonials={testimonials} videos={videos} onCtaClick={onCtaClick} />
+        <ProductContentRenderer blocks={blocks} faqs={faqs} testimonials={testimonials} videos={videos} onCtaClick={onCtaClick} merchantSlug={merchantSlug} productId={productId} productName={purchase?.productName} />
       </div>
       {purchase ? <div className={styles.closing}><div><span>Pronto para escolher?</span><strong>{purchase.productName}</strong></div><a href="#aacp-rich-product-title">Ver opções <FiArrowRight aria-hidden="true" /></a></div> : null}
       </div>

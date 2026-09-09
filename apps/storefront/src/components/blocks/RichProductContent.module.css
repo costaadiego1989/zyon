@@ -160,6 +160,11 @@
 .narration details { min-width: 0; }
 .narration summary { cursor: pointer; color: var(--aacp-fg); width: fit-content; min-height: 44px; padding: 12px 0; font-weight: 600; }
 .narration p { max-height: 16vh; overflow-y: auto; margin: 8px 0; font-size: 13px; line-height: 1.65; }
+.narrationInHeader { flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; }
+.narrationInHeader .narrationHeader { align-items: center; }
+.narrationInHeader .narrationHeader > button { padding-inline: 6px; font-size: 12px; }
+.narrationInHeader summary { max-width: 20ch; overflow: hidden; padding-block: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.narrationInHeader p { position: absolute; z-index: 2; top: calc(100% + 6px); left: 12px; right: 12px; max-height: min(32vh, 240px); padding: 12px; overflow-y: auto; border: 1px solid var(--product-line); border-radius: 10px; background: var(--aacp-surface); box-shadow: 0 14px 32px -20px color-mix(in srgb, var(--aacp-fg) 50%, transparent); }
 .voiceStatus { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (max-width: 480px) {
   .scrollBody { padding: 16px; }

@@ -175,6 +175,13 @@ export function useConversationViewModel(
     [cart.itemCount, merchantId, conversationId, sendMessage],
   );
 
+  const appendAgentMessage = useCallback((message: Pick<Message, "text" | "blocks">) => {
+    setMessages((previous) => [
+      ...previous,
+      { id: `a-local-${Date.now()}`, role: "agent", ...message },
+    ]);
+  }, []);
+
   const handleUpdateQuantityAction = useCallback(
     (variantId: string, quantity: number) => {
       void handleUpdateQuantity({
@@ -285,6 +292,7 @@ export function useConversationViewModel(
     toggleTheme,
     sendMessage,
     handleQuickReply: handleQuickReplyAction,
+    appendAgentMessage,
     handleUpdateQuantity: handleUpdateQuantityAction,
     setInput,
     setSupportOpen,

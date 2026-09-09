@@ -5,10 +5,11 @@ import { FiVolume2, FiVolumeX } from "react-icons/fi";
 import { browserProductVoice, type ProductVoicePlayback, type ProductVoiceProvider } from "@/lib/services/product-narration";
 import styles from "./RichProductContent.module.css";
 
-export default function ProductNarration({ summary, enabled, voice = browserProductVoice }: {
+export default function ProductNarration({ summary, enabled, voice = browserProductVoice, placement = "body" }: {
   summary: string;
   enabled: boolean;
   voice?: ProductVoiceProvider;
+  placement?: "body" | "header";
 }) {
   const [available, setAvailable] = useState(false);
   const [state, setState] = useState<"idle" | "starting" | "speaking">("idle");
@@ -43,7 +44,7 @@ export default function ProductNarration({ summary, enabled, voice = browserProd
   }, [stop]);
 
   const playing = state !== "idle";
-  return <aside className={styles.narration} aria-label="Resumo do produto">
+  return <aside className={`${styles.narration} ${placement === "header" ? styles.narrationInHeader : ""}`} aria-label="Resumo do produto">
     <div className={styles.narrationHeader}>
       <details><summary>Resumo do produto</summary><p>{summary}</p></details>
       {available ? <button type="button" onClick={playing ? stop : start} aria-label={playing ? "Parar narração" : "Ouvir resumo"} disabled={!enabled}>

@@ -96,7 +96,7 @@ export default function ConversationShell({
     conversationId, supportOpen, buyerHubOpen, cartDrawerForceOpen,
     showBuyerAuth, checkoutIntent, policyModal, crossSellPending,
     selectChannel, toggleChannel, toggleTheme, sendMessage,
-    handleQuickReply, handleUpdateQuantity, setInput,
+    handleQuickReply, appendAgentMessage, handleUpdateQuantity, setInput,
     setSupportOpen, setBuyerHubOpen, setShowBuyerAuth, setCheckoutIntent, setPolicyModal,
     setCartDrawerForceOpen, dismissCrossSell, startListening, stopListening,
   } = vm;
@@ -117,6 +117,8 @@ export default function ConversationShell({
   );
   const openedInitialRichProduct = useRef(false);
   const openedProductMessages = useRef(new Set<string>());
+  const promptedProductClose = useRef(new Set<string>());
+  const pendingProductCart = useRef<{ variantId: string } | null>(null);
   useEffect(() => { setMounted(true); }, []);
   const effectiveMode = mounted ? mode : "intro";
   useEffect(() => {
@@ -159,6 +161,11 @@ export default function ConversationShell({
     window.addEventListener("zyon:open-support", onOpenSupport);
     return () => window.removeEventListener("zyon:open-support", onOpenSupport);
   }, []);
+  useEffect(() => {
+    const onOpenBuyerHub = () => setBuyerHubOpen(true);
+    window.addEventListener("aacp:open-buyer-hub", onOpenBuyerHub);
+    return () => window.removeEventListener("aacp:open-buyer-hub", onOpenBuyerHub);
+  }, [setBuyerHubOpen]);
   useEffect(() => {
     const onRichProductAdd = (event: Event) => {
       const detail = (event as CustomEvent<{ variantId?: unknown; optionItemIds?: unknown }>).detail;
@@ -272,6 +279,15 @@ export default function ConversationShell({
     "Meus Dados",
     "Ofertas",
   ];
+  const handleProductQuickReply = (option: string) => {
+    const pending = pendingProductCart.current;
+    if (option === "Adicionar ao carrinho" && pending) {
+      pendingProductCart.current = null;
+      window.dispatchEvent(new CustomEvent("aacp:add-rich-product-to-cart", { detail: { variantId: pending.variantId } }));
+      return;
+    }
+    handleQuickReply(option);
+  };
   return (
     <div id="storefront-chat" className="pulse-widget-shell" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", position: "relative", borderRadius: "19px", padding: "1.5px" }}>
       {/* Shimmer border — rotating conic gradient around entire chat container */}
@@ -472,10 +488,10 @@ export default function ConversationShell({
                           config={{ ALLOWED_TAGS: ["strong", "em", "br"] }}
                         />
                       )}
-                      <BlockRenderer block={cardBlock} merchantSlug={merchantSlug} onQuickReply={handleQuickReply} />
+                      <BlockRenderer block={cardBlock} merchantSlug={merchantSlug} onQuickReply={handleProductQuickReply} />
                       {otherBlocks.map((block, idx) => (
                         <div key={idx} style={{ maxWidth: "100%" }}>
-                          <BlockRenderer block={block} merchantSlug={merchantSlug} onQuickReply={handleQuickReply} />
+                          <BlockRenderer block={block} merchantSlug={merchantSlug} onQuickReply={handleProductQuickReply} />
                         </div>
                       ))}
                     </div>
@@ -493,7 +509,7 @@ export default function ConversationShell({
                       {m.text && <SafeStoreHtml style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", fontSize: "13.5px", lineHeight: 1.55, whiteSpace: "pre-wrap", background: "var(--aacp-card)", color: "var(--aacp-fg)", wordWrap: "break-word", border: "1px solid var(--aacp-line)" }} html={renderMarkdownText(m.text)} config={{ ALLOWED_TAGS: ["strong", "em", "br"] }} />}
                       {m.blocks?.map((block, idx) => (
                         <div key={idx} style={{ maxWidth: "100%" }}>
-                          <BlockRenderer block={block} merchantSlug={merchantSlug} onQuickReply={handleQuickReply} />
+                          <BlockRenderer block={block} merchantSlug={merchantSlug} onQuickReply={handleProductQuickReply} />
                         </div>
                       ))}
                     </div>
@@ -679,7 +695,16 @@ export default function ConversationShell({
         />
       )}
       </div>{/* end content wrapper */}
-      {richProduct ? <ProductExperienceOverlay key={richProduct.productId} productId={richProduct.productId} merchantSlug={merchantSlug} onClose={() => setRichProduct(null)} /> : null}
+      {richProduct ? <ProductExperienceOverlay key={richProduct.productId} productId={richProduct.productId} merchantSlug={merchantSlug} onClose={({ productId, productName, defaultVariantId, cartAdded }) => {
+        setRichProduct(null);
+        if (cartAdded || !productName || !defaultVariantId || promptedProductClose.current.has(productId)) return;
+        promptedProductClose.current.add(productId);
+        pendingProductCart.current = { variantId: defaultVariantId };
+        appendAgentMessage({
+          text: `Olá, gostou de ${productName}? Vamos adicioná-lo agora ao seu carrinho?`,
+          blocks: [{ type: "quick_replies", data: { options: ["Adicionar ao carrinho"] } }],
+        });
+      }} /> : null}
     </div>
   );
 }
