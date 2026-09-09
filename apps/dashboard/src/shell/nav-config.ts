@@ -33,6 +33,7 @@ import {
   ShoppingCart,
   Smartphone,
   Network,
+  Star,
   type LucideIcon
 } from "lucide-react";
 
@@ -60,6 +61,7 @@ export type TabKey =
   | "payment-connections"
   | "audit-log"
   | "catalog"
+  | "reviews"
   | "product-detail"
   | "categories"
   | "store-settings"
@@ -150,6 +152,7 @@ export const NAV_ITEMS: NavItem[] = [
 
   // ─── CATÁLOGO ─── gestão de produtos
   { key: "catalog", label: "Produtos", section: "catalog", icon: ShoppingBag, requiredPlan: STORE, keywords: ["produtos", "products", "catálogo", "catalog", "itens"] },
+  { key: "reviews", label: "Avaliações", section: "catalog", icon: Star, requiredPlan: STORE, keywords: ["avaliações", "reviews", "depoimentos", "vídeos", "moderação"] },
   { key: "categories", label: "Categorias", section: "catalog", icon: FolderTree, requiredPlan: STORE, keywords: ["categorias", "categories", "coleções"] },
   { key: "inventory", label: "Estoque", section: "catalog", icon: Package, requiredPlan: STORE, keywords: ["estoque", "inventory", "inventário", "quantidade"] },
   { key: "delivery", label: "Frete & Entregas", section: "catalog", icon: PackageSearch, requiredPlan: STORE, keywords: ["frete", "entrega", "delivery", "shipping", "melhor envio", "etiqueta", "rastreio"] },

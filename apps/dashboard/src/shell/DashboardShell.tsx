@@ -69,6 +69,7 @@ const BillingPage = lazy(() => import("../pages/billing-page.js").then(m => ({ d
 const PaymentConnectionsPage = lazy(() => import("../pages/payment-connections/index.js").then(m => ({ default: m.PaymentConnectionsPage })));
 const AuditLogPage = lazy(() => import("../pages/audit-log-page.js").then(m => ({ default: m.AuditLogPage })));
 const CatalogPage = lazy(() => import("../pages/catalog-page.js").then(m => ({ default: m.CatalogPage })));
+const ReviewsPage = lazy(() => import("../pages/reviews/ReviewsPage.js").then(m => ({ default: m.ReviewsPage })));
 const ProductDetailPage = lazy(() => import("../pages/product-detail-page.js").then(m => ({ default: m.ProductDetailPage })));
 const CategoriesPage = lazy(() => import("../pages/categories/index.js"));
 const StoreSettingsPage = lazy(() => import("../pages/store-settings/index.js").then(m => ({ default: m.StoreSettingsPage })));
@@ -618,6 +619,18 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                   onCreate={() => { setEditingProductId(null); changeTab("product-detail"); }}
                   onEdit={(id) => { setEditingProductId(id); changeTab("product-detail"); }}
                 />
+              </RouteGuard>
+            ) : null}
+            {tab === "reviews" ? (
+              <RouteGuard me={me} require="reviews">
+                <PremiumFeatureGate
+                  feature="advancedProductLayout"
+                  requiredPlan="Growth"
+                  featureLabel="Avaliações de produto"
+                  description="Revise avaliações escritas e em vídeo antes de publicá-las na loja."
+                >
+                  <ReviewsPage apiBaseUrl={API_BASE_URL} me={me} />
+                </PremiumFeatureGate>
               </RouteGuard>
             ) : null}
             {tab === "product-detail" ? (

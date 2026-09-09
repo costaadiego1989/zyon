@@ -17,6 +17,7 @@ export const PERMISSIONS: Partial<Record<TabKey, ReadonlyArray<Role>>> = {
   "negotiation-policy": ["OWNER", "ADMIN"],
   // Catálogo
   catalog: ["OWNER", "ADMIN"],
+  reviews: ["OWNER", "ADMIN"],
   categories: ["OWNER", "ADMIN"],
   inventory: ["OWNER", "ADMIN"],
   delivery: ["OWNER", "ADMIN"],
