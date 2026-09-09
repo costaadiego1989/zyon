@@ -14,8 +14,8 @@ describe("recovery chooses a connected merchant template or email", () => {
   });
 
   const config: WhatsAppChannelConfigEntity = {
-    id: "connection-1", merchantId: "m1", enabled: true, provider: "TWILIO", status: "ACTIVE",
-    credentials: { accountSid: "AC-merchant", authToken: "fake-token", senderId: "whatsapp:+5511999990000" },
+    id: "connection-1", merchantId: "m1", enabled: true, provider: "META_CLOUD", status: "ACTIVE",
+    credentials: { accessToken: "merchant-token", wabaId: "123456789", phoneNumberId: "987654321" },
     whatsappNumber: "5511999990000", createdAt: new Date(0), updatedAt: new Date(0),
   };
   const template: WhatsAppTemplateRecord = {
@@ -86,7 +86,7 @@ describe("recovery chooses a connected merchant template or email", () => {
     };
   }
 
-  for (const provider of ["twilio", "email", "bubblewhats"]) {
+  for (const provider of ["meta", "email", "bubblewhats"]) {
     test(`active connection and approved template choose WhatsApp despite global ${provider}`, async () => {
       process.env.WHATSAPP_PROVIDER = provider;
       const h = harness();
@@ -94,6 +94,7 @@ describe("recovery chooses a connected merchant template or email", () => {
       assert.deepEqual(h.reads, [["m1", "cart_recovery", "whatsapp"]]);
       assert.deepEqual(h.sent.whatsapp[0], {
         merchantId: "m1", type: "cart_recovery", toNumber: input.toPhone, contentSid: "HX-merchant",
+        language: "pt_BR",
         contentVariables: { "1": "Ana", "2": input.variables.link },
       });
       assert.equal(h.sent.email.length, 0);
@@ -105,9 +106,9 @@ describe("recovery chooses a connected merchant template or email", () => {
     ["missing", null], ["disconnected with credentials", { status: "DISCONNECTED" }],
     ["pending verification", { status: "PENDING_VERIFICATION" }], ["disabled", { enabled: false }],
     ["inactive", { status: "INACTIVE" }], ["another merchant", { merchantId: "m2" }],
-    ["legacy Bubble", { provider: "BUBBLEWHATS" }], ["unsupported provider", { provider: "META_CLOUD" }],
-    ["missing credentials", { credentials: {} }], ["missing connected number", { whatsappNumber: undefined }],
-    ["sender differs from connected number", { whatsappNumber: "5511999990001" }],
+    ["legacy Bubble", { provider: "BUBBLEWHATS" }], ["legacy Twilio", { provider: "TWILIO" }],
+    ["missing credentials", { credentials: {} }], ["missing WABA", { credentials: { accessToken: "merchant-token", phoneNumberId: "987654321" } }],
+    ["missing phone ID", { credentials: { accessToken: "merchant-token", wabaId: "123456789" } }],
   ];
   for (const [label, connection] of unavailableConnections) {
     test(`${label} selects email without WhatsApp dispatch`, async () => {
@@ -154,14 +155,14 @@ describe("recovery chooses a connected merchant template or email", () => {
   });
 
   test("generic provider failure lacks proof permitting a second channel", async () => {
-    const h = harness({ templateResult: { status: "failed", messageId: "", reason: "twilio_400" } });
-    assert.deepEqual(await h.uc.execute(input), { channel: "whatsapp_template", status: "failed", reason: "twilio_400" });
+    const h = harness({ templateResult: { status: "failed", messageId: "", reason: "meta_http_400" } });
+    assert.deepEqual(await h.uc.execute(input), { channel: "whatsapp_template", status: "failed", reason: "meta_http_400" });
     assert.equal(h.sent.email.length, 0);
   });
 
   test("explicit not-accepted proof permits email exactly once", async () => {
     const h = harness({ templateResult: {
-      status: "failed", messageId: "", acceptance: "not_accepted", reason: "twilio_63040",
+      status: "failed", messageId: "", acceptance: "not_accepted", reason: "meta_http_400",
     } });
     assert.deepEqual(await h.uc.execute(input), { channel: "email", status: "sent", messageId: "email-test" });
     assert.equal(h.sent.whatsapp.length, 1);
@@ -171,7 +172,7 @@ describe("recovery chooses a connected merchant template or email", () => {
 
   test("contradictory proof with a provider ID cannot enable another channel", async () => {
     const h = harness({ templateResult: {
-      status: "failed", messageId: "SM-created", acceptance: "not_accepted", reason: "twilio_63040",
+      status: "failed", messageId: "SM-created", acceptance: "not_accepted", reason: "meta_http_400",
     } });
     const result = await h.uc.execute(input);
     assert.equal(result.channel, "whatsapp_template");
@@ -183,7 +184,7 @@ describe("recovery chooses a connected merchant template or email", () => {
 
   test("verified WhatsApp refusal without a reachable email records no sent message", async () => {
     const h = harness({ templateResult: {
-      status: "failed", messageId: "", acceptance: "not_accepted", reason: "twilio_63040",
+      status: "failed", messageId: "", acceptance: "not_accepted", reason: "meta_http_400",
     } });
     assert.deepEqual(await h.uc.execute({ ...input, fallbackEmail: undefined }), {
       channel: "none", status: "skipped", reason: "no_reachable_channel",

@@ -1,5 +1,6 @@
 import type { WhatsAppChannelConfigEntity } from "../../../whatsapp-channel/domain/ports/whatsapp-config-repository.port.js";
 import type { WhatsAppTemplateRecord } from "../ports/whatsapp-template-repository.port.js";
+import { connectedMetaCloudCredentials } from "../../../whatsapp-channel/domain/services/connected-meta-cloud-credentials.js";
 
 export interface ConnectedTwilioCredentials {
   accountSid: string;
@@ -35,6 +36,14 @@ export function connectedTwilioCredentials(
   const connectedNumber = config.whatsappNumber?.replace(/\D/g, "");
   if (!accountSid || !authToken || !connectedNumber || senderId !== `whatsapp:+${connectedNumber}`) return null;
   return { accountSid, authToken, senderId };
+}
+
+/** Only an active direct Meta connection may authorize a recovery template send. */
+export function connectedMetaCloudRecoveryCredentials(
+  config: WhatsAppChannelConfigEntity | null | undefined,
+  merchantId: string,
+) {
+  return connectedMetaCloudCredentials(config, merchantId);
 }
 
 export function isApprovedRecoveryTemplate(

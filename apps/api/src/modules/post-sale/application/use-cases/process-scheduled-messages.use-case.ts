@@ -25,11 +25,11 @@ import {
  * (no Meta ban risk). `twilio` uses Meta-approved templates; `bubblewhats` is
  * the legacy informal path (risky, kept only for explicit opt-in).
  */
-type PostSaleWhatsAppProvider = "email" | "bubblewhats" | "twilio";
+type PostSaleWhatsAppProvider = "email" | "bubblewhats" | "meta";
 
 function resolveProvider(): PostSaleWhatsAppProvider {
   const raw = (process.env.POST_SALE_WHATSAPP_PROVIDER || "email").trim().toLowerCase();
-  return raw === "twilio" || raw === "bubblewhats" ? raw : "email";
+  return raw === "meta" || raw === "meta_cloud" ? "meta" : raw === "bubblewhats" ? "bubblewhats" : "email";
 }
 
 @Injectable()
@@ -212,7 +212,7 @@ export class ProcessScheduledMessagesUseCase {
     const provider = resolveProvider();
     const wantsWhatsApp = msg.channel === "whatsapp" && !!msg.buyerPhone;
 
-    if (wantsWhatsApp && provider === "twilio" && this.templateSender && this.templates) {
+    if (wantsWhatsApp && provider === "meta" && this.templateSender && this.templates) {
       const tpl = await this.templates
         .findByMerchantAndType(msg.merchantId, msg.type, "whatsapp")
         .catch(() => null);
@@ -221,6 +221,7 @@ export class ProcessScheduledMessagesUseCase {
           merchantId: msg.merchantId,
           toNumber: msg.buyerPhone!,
           contentSid: tpl.twilioContentSid,
+          language: tpl.metaLanguage ?? "pt_BR",
           contentVariables: this.resolveContentVariables(tpl, args),
         });
         if (result.status === "sent" || result.status === "queued") {

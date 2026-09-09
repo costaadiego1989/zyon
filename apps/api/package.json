@@ -12,6 +12,7 @@
     "test": "pnpm --filter @zyon/contracts build && pnpm --filter @zyon/shared-types build && pnpm build && node dist/test-runner.js",
     "test:buyer-email-otp": "pnpm build && node dist/buyer-email-otp-test-runner.js",
     "test:buyer-webauthn": "pnpm build && node dist/buyer-webauthn-test-runner.js",
+    "test:whatsapp-onboarding": "pnpm build && node dist/whatsapp-onboarding-test-runner.js",
     "test:advanced-product-layout": "pnpm build && node dist/advanced-product-layout-test-runner.js",
     "test:prisma": "pnpm --filter @zyon/shared-types build && pnpm build && node dist/test-runner-prisma.js",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",

@@ -10,7 +10,7 @@ import { TEMPLATE_SUBMISSION_PORT } from "./domain/ports/template-submission.por
 
 import { PrismaWhatsAppTemplateRepository } from "./infrastructure/repositories/prisma-whatsapp-template.repository.js";
 import { WhatsAppTemplateSenderAdapter } from "./infrastructure/adapters/whatsapp-template-sender.adapter.js";
-import { TwilioContentTemplateAdapter } from "./infrastructure/adapters/twilio-content-template.adapter.js";
+import { MetaCloudTemplateAdapter } from "./infrastructure/adapters/meta-cloud-template.adapter.js";
 
 import { SendWhatsAppMessageUseCase } from "./application/use-cases/send-whatsapp-message.use-case.js";
 import { SubmitTemplatePackageUseCase } from "./application/use-cases/submit-template-package.use-case.js";
@@ -22,13 +22,13 @@ import { RecoveryTemplateNoticeWorker } from "./infrastructure/recovery-template
 import { RECOVERY_TEMPLATE_INITIALIZER, RECOVERY_TEMPLATE_LIFECYCLE_REPOSITORY } from "./domain/ports/recovery-template-lifecycle.port.js";
 
 /**
- * Shared WhatsApp templates module: central catalog, Meta submission (Twilio
- * Content), approval-status sync, and the single safe send path. Consumed by
+ * Shared WhatsApp templates module: central catalog, direct Meta Cloud API
+ * submission, approval-status sync, and the single safe send path. Consumed by
  * post-sale, cart-recovery and notifications.
  *
  * Depends ONLY on two dependency-free base modules — no cycle, no forwardRef:
  *   MessagingChannelsModule → email + legacy WhatsApp fallback ports
- *   WhatsAppConfigModule    → current merchant connection and Twilio/WABA credentials
+ *   WhatsAppConfigModule    → current merchant connection and Meta Cloud/WABA credentials
  * Recovery routing and the sender both inject this repository; the sender also
  * re-reads the template repository before dispatch. Neither uses env as recovery authority.
  */
@@ -41,7 +41,7 @@ import { RECOVERY_TEMPLATE_INITIALIZER, RECOVERY_TEMPLATE_LIFECYCLE_REPOSITORY }
       inject: [PRISMA_CLIENT],
     },
     { provide: WHATSAPP_TEMPLATE_SENDER, useClass: WhatsAppTemplateSenderAdapter },
-    { provide: TEMPLATE_SUBMISSION_PORT, useClass: TwilioContentTemplateAdapter },
+    { provide: TEMPLATE_SUBMISSION_PORT, useClass: MetaCloudTemplateAdapter },
     SendWhatsAppMessageUseCase,
     SubmitTemplatePackageUseCase,
     SyncTemplateStatusesUseCase,
@@ -60,6 +60,7 @@ import { RECOVERY_TEMPLATE_INITIALIZER, RECOVERY_TEMPLATE_LIFECYCLE_REPOSITORY }
     SyncTemplateStatusesUseCase,
     RecoveryTemplateLifecycleUseCase,
     RECOVERY_TEMPLATE_INITIALIZER,
+    WhatsAppConfigModule,
   ],
 })
 export class WhatsAppTemplatesModule {}

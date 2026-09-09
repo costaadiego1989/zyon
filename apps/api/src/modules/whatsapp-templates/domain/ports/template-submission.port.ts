@@ -1,6 +1,6 @@
 /**
- * Port for submitting WhatsApp templates to Meta for approval (bridged via
- * Twilio Content API) and reading their approval status.
+ * Port for submitting WhatsApp templates to Meta for approval through the
+ * official Cloud API and reading their status.
  */
 export const TEMPLATE_SUBMISSION_PORT = Symbol("TemplateSubmissionPort");
 

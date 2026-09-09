@@ -20,7 +20,7 @@ import { GeneratePostSaleTemplateUseCase } from "../../application/use-cases/gen
 import { REVIEW_REPOSITORY, type ReviewRepositoryPort } from "../../domain/ports/review-repository.port.js";
 import { NPS_REPOSITORY, type NpsRepositoryPort } from "../../domain/ports/nps-repository.port.js";
 import { POST_SALE_TEMPLATE_REPOSITORY, type PostSaleTemplateRepositoryPort } from "../../domain/ports/post-sale-template-repository.port.js";
-import { TwilioContentTemplateAdapter } from "../../infrastructure/adapters/twilio-content-template.adapter.js";
+import { TEMPLATE_SUBMISSION_PORT, type TemplateSubmissionPort } from "../../../whatsapp-templates/domain/ports/template-submission.port.js";
 import { SubmitTemplatePackageUseCase } from "../../../whatsapp-templates/application/use-cases/submit-template-package.use-case.js";
 import { SyncTemplateStatusesUseCase } from "../../../whatsapp-templates/application/use-cases/sync-template-statuses.use-case.js";
 import { Inject, Optional } from "@nestjs/common";
@@ -40,8 +40,8 @@ export class PostSaleDashboardController {
     private readonly nps: NpsRepositoryPort,
     @Optional() @Inject(POST_SALE_TEMPLATE_REPOSITORY)
     private readonly templates?: PostSaleTemplateRepositoryPort,
-    @Optional()
-    private readonly twilioContent?: TwilioContentTemplateAdapter,
+    @Optional() @Inject(TEMPLATE_SUBMISSION_PORT)
+    private readonly templateSubmission?: TemplateSubmissionPort,
     @Optional()
     private readonly submitPackage?: SubmitTemplatePackageUseCase,
     @Optional()
@@ -197,8 +197,8 @@ export class PostSaleDashboardController {
     if (!tpl.metaTemplateBody || !tpl.metaVariableMap) {
       throw new BadRequestException("meta_template_not_prepared");
     }
-    if (!this.twilioContent) {
-      return { status: "draft", reason: "twilio_not_available" };
+    if (!this.templateSubmission) {
+      return { status: "draft", reason: "meta_cloud_not_available" };
     }
 
     const sample: Record<string, string> = {};
@@ -212,7 +212,7 @@ export class PostSaleDashboardController {
         : "https://loja.exemplo";
     }
 
-    const result = await this.twilioContent.createAndSubmit({
+    const result = await this.templateSubmission.createAndSubmit({
       merchantId: tenant.tenantId,
       friendlyName: `${tenant.tenantId}_${type}_${channel}`.slice(0, 64),
       language: tpl.metaLanguage || "pt_BR",
@@ -245,11 +245,11 @@ export class PostSaleDashboardController {
 
     const tpl = await this.templates.findByMerchantAndType(tenant.tenantId, type, channel);
     if (!tpl) throw new BadRequestException("template_not_found");
-    if (!tpl.twilioContentSid || !this.twilioContent) {
+    if (!tpl.twilioContentSid || !this.templateSubmission) {
       return { status: tpl.metaStatus ?? "draft", contentSid: tpl.twilioContentSid ?? null };
     }
 
-    const synced = await this.twilioContent.syncStatus(tenant.tenantId, tpl.twilioContentSid);
+    const synced = await this.templateSubmission.syncStatus(tenant.tenantId, tpl.twilioContentSid);
     if (synced.status !== "unknown" && synced.status !== tpl.metaStatus) {
       await this.templates.updateMeta({
         merchantId: tenant.tenantId,

@@ -9,6 +9,7 @@ import { ConfigureWhatsAppUseCase } from "./application/use-cases/configure-what
 import { MessageDebouncerService } from "./application/services/message-debouncer.service.js";
 import { BubbleWhatsSenderAdapter } from "./infrastructure/adapters/bubblewhats-sender.adapter.js";
 import { TwilioSenderAdapter } from "./infrastructure/adapters/twilio-sender.adapter.js";
+import { MetaCloudSenderAdapter } from "./infrastructure/adapters/meta-cloud-sender.adapter.js";
 import { TwilioDeduplicatorService } from "./infrastructure/services/twilio-deduplicator.service.js";
 import { WHATSAPP_SENDER_PORT } from "./domain/ports/whatsapp-sender.port.js";
 import { WHATSAPP_SESSION_REPOSITORY, type WhatsAppSessionRepository } from "./domain/ports/whatsapp-session-repository.port.js";
@@ -25,30 +26,33 @@ import { AcceptBubbleWhatsWebhookUseCase } from "./application/use-cases/accept-
 import { WhatsAppWebhookWorker } from "./application/services/whatsapp-webhook-worker.service.js";
 import { WHATSAPP_WEBHOOK_INBOX } from "./domain/ports/whatsapp-webhook-inbox.port.js";
 import { PrismaWhatsAppWebhookInbox } from "./infrastructure/repositories/prisma-whatsapp-webhook-inbox.repository.js";
+import { TWILIO_ONBOARDING, WHATSAPP_ONBOARDING_STORE } from "./domain/ports/whatsapp-onboarding.port.js";
+import { TwilioOnboardingAdapter } from "./infrastructure/adapters/twilio-onboarding.adapter.js";
+import { PrismaWhatsAppOnboardingStore } from "./infrastructure/repositories/prisma-whatsapp-onboarding.repository.js";
+import { WHATSAPP_SIGNUP_AUTHORIZATION } from "./domain/ports/whatsapp-signup-authorization.port.js";
+import { MetaSignupAuthorizationAdapter } from "./infrastructure/adapters/meta-signup-authorization.adapter.js";
 
 /**
  * Multi-tenant sender resolver.
- * Routes to BubbleWhats or Twilio based on merchant config provider.
+ * Routes legacy BubbleWhats, legacy Twilio, or the official Meta Cloud API.
  */
 export class MultiProviderSenderAdapter {
   constructor(
     private readonly bubblewhats: BubbleWhatsSenderAdapter,
     private readonly twilio: TwilioSenderAdapter,
+    private readonly metaCloud: MetaCloudSenderAdapter,
   ) {}
 
   async sendText(msg: any) {
     if (msg.provider === "BUBBLEWHATS") return this.bubblewhats.sendText(msg);
-    // For now, try Twilio first, fallback to BubbleWhats
-    // Future: lookup merchant config and choose provider
-    const result = await this.twilio.sendText(msg);
-    if (result.status === "sent") return result;
-    return this.bubblewhats.sendText(msg);
+    if (msg.provider === "META_CLOUD") return this.metaCloud.sendText(msg);
+    return this.twilio.sendText(msg);
   }
 
   async sendMedia(msg: any) {
-    const result = await this.twilio.sendMedia?.(msg);
-    if (result?.status === "sent") return result;
-    return this.bubblewhats.sendMedia?.(msg);
+    if (msg.provider === "BUBBLEWHATS") return this.bubblewhats.sendMedia(msg);
+    if (msg.provider === "META_CLOUD") return this.metaCloud.sendMedia(msg);
+    return this.twilio.sendMedia(msg);
   }
 }
 
@@ -61,6 +65,9 @@ export class MultiProviderSenderAdapter {
     RouteToSessionUseCase,
     SendWhatsAppResponseUseCase,
     ConfigureWhatsAppUseCase,
+    { provide: TWILIO_ONBOARDING, useClass: TwilioOnboardingAdapter },
+    { provide: WHATSAPP_ONBOARDING_STORE, useClass: PrismaWhatsAppOnboardingStore },
+    { provide: WHATSAPP_SIGNUP_AUTHORIZATION, useClass: MetaSignupAuthorizationAdapter },
     AcceptBubbleWhatsWebhookUseCase,
     WhatsAppWebhookWorker,
 
@@ -69,12 +76,13 @@ export class MultiProviderSenderAdapter {
     TwilioDeduplicatorService,
     BubbleWhatsSenderAdapter,
     TwilioSenderAdapter,
+    MetaCloudSenderAdapter,
     {
       provide: WHATSAPP_SENDER_PORT,
-      useFactory: (bw: BubbleWhatsSenderAdapter, tw: TwilioSenderAdapter) => {
-        return new MultiProviderSenderAdapter(bw, tw);
+      useFactory: (bw: BubbleWhatsSenderAdapter, tw: TwilioSenderAdapter, meta: MetaCloudSenderAdapter) => {
+        return new MultiProviderSenderAdapter(bw, tw, meta);
       },
-      inject: [BubbleWhatsSenderAdapter, TwilioSenderAdapter],
+      inject: [BubbleWhatsSenderAdapter, TwilioSenderAdapter, MetaCloudSenderAdapter],
     },
     { provide: WHATSAPP_SESSION_REPOSITORY, useClass: PrismaWhatsAppSessionRepository },
     { provide: TEMPLATE_PACKAGE_SUBMITTER, useExisting: SubmitTemplatePackageUseCase },

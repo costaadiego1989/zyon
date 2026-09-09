@@ -1,6 +1,6 @@
 /**
  * Port for business-initiated WhatsApp messages using Meta-approved templates
- * (Twilio Content). Templates are required outside the 24h session window.
+ * (Cloud API). Templates are required outside the 24h session window.
  *
  * BubbleWhats (informal) MUST NOT be used here. Template approval does not
  * replace recipient permission or guarantee freedom from provider restrictions.
@@ -13,8 +13,10 @@ export interface TemplateSendInput {
   type?: "cart_recovery";
   /** Recovery preserves explicit +E.164; only valid Brazilian national numbers infer +55. */
   toNumber: string;
-  /** Twilio Content Template SID (e.g. "HXabc123…"). */
+  /** Opaque approved provider template identifier. */
   contentSid: string;
+  /** Meta template language, e.g. pt_BR. */
+  language?: string;
   /** position → value ("1" → "Ana"). */
   contentVariables: Record<string, string>;
 }

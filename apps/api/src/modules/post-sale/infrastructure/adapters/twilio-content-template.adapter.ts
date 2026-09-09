@@ -1,4 +1,5 @@
 import { Injectable, Logger, Inject, Optional } from "@nestjs/common";
+import { connectedTwilioCredentials } from "../../../whatsapp-channel/domain/services/connected-twilio-credentials.js";
 import {
   WHATSAPP_CONFIG_REPOSITORY,
   type WhatsAppConfigRepository,
@@ -150,25 +151,11 @@ export class TwilioContentTemplateAdapter {
   }
 
   private async resolveAuth(merchantId: string): Promise<string | null> {
-    let accountSid: string | undefined;
-    let authToken: string | undefined;
-
-    if (this.configRepo) {
-      try {
-        const cfg = await this.configRepo.findByMerchantId(merchantId);
-        const c = (cfg?.credentials ?? {}) as Record<string, unknown>;
-        if (c.accountSid && c.authToken) {
-          accountSid = String(c.accountSid);
-          authToken = String(c.authToken);
-        }
-      } catch {
-        // fall through to env
-      }
-    }
-    accountSid ??= process.env.TWILIO_ACCOUNT_SID;
-    authToken ??= process.env.TWILIO_AUTH_TOKEN;
-
-    if (!accountSid || !authToken) return null;
-    return Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+    try {
+      if (!this.configRepo) return null;
+      const credentials = connectedTwilioCredentials(await this.configRepo.findByMerchantId(merchantId), merchantId);
+      if (!credentials) return null;
+      return Buffer.from(credentials.accountSid + ":" + credentials.authToken).toString("base64");
+    } catch { return null; }
   }
 }

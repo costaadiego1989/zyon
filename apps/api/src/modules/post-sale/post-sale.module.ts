@@ -6,6 +6,7 @@ import { DOMAIN_EVENT_BUS } from "../../shared/events/domain-event-bus.port.js";
 import { NotificationsModule } from "../notifications/notifications.module.js";
 import { WhatsAppChannelModule } from "../whatsapp-channel/whatsapp-channel.module.js";
 import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-templates.module.js";
+import { WhatsAppConfigModule } from "../whatsapp-channel/whatsapp-config.module.js";
 
 // Ports
 import {
@@ -52,10 +53,9 @@ import { GeneratePostSaleTemplateUseCase } from "./application/use-cases/generat
 import { PostSaleAiCopywriterService } from "./application/services/post-sale-ai-copywriter.service.js";
 import { PostSaleConfigService } from "./application/services/post-sale-config.service.js";
 
-// WhatsApp official template sender (Meta via Twilio) + submission bridge
+// WhatsApp official template sender (direct Meta Cloud API)
 import { POST_SALE_WHATSAPP_SENDER } from "./domain/ports/post-sale-whatsapp-sender.port.js";
 import { WhatsAppTemplateSenderAdapter } from "./infrastructure/adapters/whatsapp-template-sender.adapter.js";
-import { TwilioContentTemplateAdapter } from "./infrastructure/adapters/twilio-content-template.adapter.js";
 
 // Jobs (BullMQ queues + workers; setInterval fallback when REDIS_URL absent)
 import { PostSaleMessageScheduler, PostSaleMessageWorker } from "./infrastructure/jobs/post-sale-message.queue.js";
@@ -79,6 +79,7 @@ import { PostSaleDashboardController } from "./presentation/http/post-sale-dashb
     forwardRef(() => NotificationsModule),
     forwardRef(() => WhatsAppChannelModule),
     WhatsAppTemplatesModule,
+    WhatsAppConfigModule,
   ],
   controllers: [BuyerPostSaleController, PostSaleDashboardController],
   providers: [
@@ -117,10 +118,9 @@ import { PostSaleDashboardController } from "./presentation/http/post-sale-dashb
     },
     PostSaleAiCopywriterService,
     PostSaleConfigService,
-    TwilioContentTemplateAdapter,
     {
-      // Optional config repo → adapter falls back to platform Twilio env when
-      // the merchant has no WABA credentials. No cross-module import needed.
+      // The adapter revalidates the merchant's active Meta connection before
+      // each dispatch and never falls back to platform credentials.
       provide: POST_SALE_WHATSAPP_SENDER,
       useClass: WhatsAppTemplateSenderAdapter,
     },

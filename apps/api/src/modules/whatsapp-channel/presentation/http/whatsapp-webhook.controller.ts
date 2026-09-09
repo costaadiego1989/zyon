@@ -1,8 +1,8 @@
 /**
  * WhatsApp Webhook Controller
  *
- * Receives messages from BubbleWhats and Twilio and dispatches to the message pipeline.
- * No auth guard — authenticates via webhook secret header (BubbleWhats) or HMAC signature (Twilio).
+ * Receives messages from Meta Cloud API and legacy providers, then dispatches to the message pipeline.
+ * No auth guard — authenticates via webhook secret header or provider HMAC signature.
  * BubbleWhats acknowledges only after durable inbox persistence.
  */
 
@@ -27,6 +27,7 @@ import { WHATSAPP_CONFIG_REPOSITORY, type WhatsAppConfigRepository } from "../..
 import { AcceptBubbleWhatsWebhookUseCase } from "../../application/use-cases/accept-bubblewhats-webhook.use-case.js";
 import { validateTwilioSignature } from "../../domain/services/twilio-signature-validator.js";
 import { parseTwilioInbound } from "../../infrastructure/adapters/twilio-webhook-parser.js";
+import { twilioWhatsAppCallbackUrl } from "../../domain/services/public-url.js";
 
 interface BubbleWhatsMessagePayload {
   id: string;
@@ -206,13 +207,16 @@ export class WhatsAppWebhookController {
     if (!normalized) return "";
 
     const config = await this.configRepo.findByWhatsAppNumber(normalized.toNumber);
-    if (!config || !config.enabled || config.provider !== "TWILIO") return "";
+    if (!config || !config.enabled || config.status !== "ACTIVE" || config.provider !== "TWILIO") return "";
+    if (config.credentials.onboardingVersion === 2 && body.AccountSid !== config.credentials.accountSid) {
+      throw new UnauthorizedException("invalid_twilio_account");
+    }
 
     const authToken = String(config.credentials?.authToken ?? "");
     if (!signature || !authToken) {
       throw new ServiceUnavailableException("twilio_webhook_auth_not_configured");
     }
-    const requestUrl = `${req.protocol}://${req.get("host")}${req.originalUrl}`;
+    const requestUrl = twilioWhatsAppCallbackUrl() ?? `${req.protocol}://${req.get("host")}${req.originalUrl}`;
     if (!validateTwilioSignature(signature, requestUrl, body, authToken)) {
       throw new UnauthorizedException("invalid_twilio_signature");
     }

@@ -16,6 +16,8 @@ export interface PostSaleTemplateSendInput {
   toNumber: string;
   /** Twilio Content Template SID (e.g. "HXabc123…") for this approved template. */
   contentSid: string;
+  /** Meta template language, e.g. pt_BR. */
+  language?: string;
   /** Positional variable substitutions matching the approved template body.
    *  Key = position string ("1", "2", …), value = runtime value. */
   contentVariables: Record<string, string>;

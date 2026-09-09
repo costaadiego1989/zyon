@@ -67,8 +67,8 @@ describe("SendWhatsAppMessageUseCase provider acceptance", () => {
     freeformText: "Oi Ana! cupom VOLTA10",
   };
 
-  test("twilio + approved template → sends template with resolved vars", async () => {
-    const h = harness({ provider: "twilio", template: {} });
+  test("meta + approved template → sends template with resolved vars", async () => {
+    const h = harness({ provider: "meta", template: {} });
     const r = await h.uc.execute(base);
     assert.equal(r.channel, "whatsapp_template");
     assert.equal(r.status, "sent");
@@ -77,16 +77,16 @@ describe("SendWhatsAppMessageUseCase provider acceptance", () => {
     assert.equal(h.sent.email.length, 0);
   });
 
-  test("twilio + no approved template → email fallback", async () => {
-    const h = harness({ provider: "twilio", template: null });
+  test("meta + no approved template → email fallback", async () => {
+    const h = harness({ provider: "meta", template: null });
     const r = await h.uc.execute(base);
     assert.equal(r.channel, "email");
     assert.equal(h.sent.template.length, 0);
     assert.equal(h.sent.email.length, 1);
   });
 
-  test("twilio template skipped (no creds) → email fallback", async () => {
-    const h = harness({ provider: "twilio", template: {}, templateResult: { status: "skipped", reason: "twilio_credentials_missing" } });
+  test("meta template skipped (no connection) → email fallback", async () => {
+    const h = harness({ provider: "meta", template: {}, templateResult: { status: "skipped", reason: "meta_connection_unavailable" } });
     const r = await h.uc.execute(base);
     assert.equal(r.channel, "email");
     assert.equal(h.sent.template.length, 1);
@@ -143,14 +143,14 @@ describe("SendWhatsAppMessageUseCase provider acceptance", () => {
   });
 
   test("no phone + no email → none/skipped", async () => {
-    const h = harness({ provider: "twilio", template: {} });
+    const h = harness({ provider: "meta", template: {} });
     const r = await h.uc.execute({ ...base, toPhone: undefined, fallbackEmail: undefined });
     assert.equal(r.channel, "none");
     assert.equal(r.status, "skipped");
   });
 
   test("no phone but has email → email", async () => {
-    const h = harness({ provider: "twilio", template: {} });
+    const h = harness({ provider: "meta", template: {} });
     const r = await h.uc.execute({ ...base, toPhone: undefined });
     assert.equal(r.channel, "email");
   });

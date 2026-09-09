@@ -8,7 +8,6 @@ import { SendWhatsAppResponseUseCase } from "./send-whatsapp-response.use-case.j
 import { RouteToSessionUseCase } from "./route-to-session.use-case.js";
 import { WhatsAppWebhookWorker } from "../services/whatsapp-webhook-worker.service.js";
 import { WhatsAppWebhookController } from "../../presentation/http/whatsapp-webhook.controller.js";
-import { WhatsAppConfigController } from "../../presentation/http/whatsapp-config.controller.js";
 import { MultiProviderSenderAdapter } from "../../whatsapp-channel.module.js";
 import { PrismaWhatsAppConfigRepository } from "../../infrastructure/repositories/prisma-whatsapp-config.repository.js";
 import { BubbleWhatsSenderAdapter } from "../../infrastructure/adapters/bubblewhats-sender.adapter.js";
@@ -105,19 +104,49 @@ describe("BubbleWhats authenticated durable acceptance", () => {
     assert.equal((batches[2][0].payload as any).ignored, true);
   });
 
-  it("rejects ambiguous device mappings and activation without a configured shared secret", async () => {
+  it("rejects ambiguous device mappings", async () => {
     const repo = new PrismaWhatsAppConfigRepository({ whatsAppChannelConfig: { findMany: async () => [config(), config()] } } as any);
     await assert.rejects(repo.findByDeviceId("device-a"), ServiceUnavailableException);
-    let writes = 0;
-    const controller = new WhatsAppConfigController({} as any, {
-      findByMerchantId: async () => ({ ...config(), webhookSecret: undefined }),
-      upsert: async () => { writes++; },
-    } as any);
-    await assert.rejects(controller.toggle("merchant-a", { enabled: true }), ServiceUnavailableException);
-    assert.equal(writes, 0);
+    // Activation-without-secret coverage lives in configure-whatsapp.spec.ts,
+    // where channel state changes now belong (application, not controller).
   });
 
-  it("keeps Meta and Twilio acknowledgements behind durable inbox acceptance", async () => {
+  it("accepts a signed Meta webhook only for the matching connected phone", async t => {
+    const previousSecret = process.env.META_APP_SECRET;
+    process.env.META_APP_SECRET = "meta-webhook-secret";
+    t.after(() => { if (previousSecret === undefined) delete process.env.META_APP_SECRET; else process.env.META_APP_SECRET = previousSecret; });
+    const metaConfig = {
+      ...config(), deviceId: undefined, provider: "META_CLOUD", webhookSecret: undefined,
+      credentials: { wabaId: "123456789", phoneNumberId: "987654321", accessToken: "merchant-token" },
+    };
+    const accepted: unknown[][] = [];
+    const controller = new WhatsAppWebhookController({
+      findByMetaPhoneNumberId: async (phoneNumberId: string) => phoneNumberId === "987654321" ? metaConfig : null,
+    } as any, {
+      messageForAuthenticatedConfig: async (...input: unknown[]) => { accepted.push(input); return { received: true }; },
+    } as any);
+    const payload = {
+      entry: [{ changes: [{ field: "messages", value: {
+        metadata: { phone_number_id: "987654321" }, contacts: [{ profile: { name: "Ana" } }],
+        messages: [{ id: "wamid-1", from: "5511988888888", timestamp: "1750000000", type: "text", text: { body: "Oi" } }],
+      } }] }],
+    };
+    const rawBody = Buffer.from(JSON.stringify(payload));
+    const signature = `sha256=${createHmac("sha256", process.env.META_APP_SECRET).update(rawBody).digest("hex")}`;
+    assert.deepEqual(await controller.receiveMetaWebhook(signature, payload, { rawBody } as any), { received: true });
+    assert.equal(accepted.length, 1);
+    assert.equal(accepted[0][1], "META");
+    assert.equal(accepted[0][2], "wamid-1");
+    assert.deepEqual(accepted[0][3], {
+      fromNumber: "+5511988888888", fromAlias: "Ana", body: "Oi", messageType: "text", timestamp: 1_750_000_000_000,
+    });
+    await assert.rejects(controller.receiveMetaWebhook("sha256=invalid", payload, { rawBody } as any), UnauthorizedException);
+  });
+
+  it("keeps Meta and Twilio acknowledgements behind durable inbox acceptance", async t => {
+    const previousUrl = process.env.API_PUBLIC_URL;
+    process.env.API_PUBLIC_URL = "https://api.example.test";
+    t.after(() => { if (previousUrl === undefined) delete process.env.API_PUBLIC_URL; else process.env.API_PUBLIC_URL = previousUrl; });
     let release!: () => void;
     const persisted = new Promise<void>((resolve) => { release = resolve; });
     const twilioConfig = {
@@ -218,6 +247,7 @@ describe("BubbleWhats worker failure propagation", () => {
 
   it("routes an authenticated BubbleWhats response only to its provider", async () => {
     const sender = new MultiProviderSenderAdapter({ sendText: async () => ({ status: "sent", messageId: "sent-1" }) } as any,
+      { sendText: async () => { assert.fail("must not attempt a different provider"); } } as any,
       { sendText: async () => { assert.fail("must not attempt a different provider"); } } as any);
     assert.equal((await sender.sendText({ provider: "BUBBLEWHATS" })).messageId, "sent-1");
   });

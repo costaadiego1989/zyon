@@ -92,11 +92,12 @@ function harness(opts: {
 const approvedTemplate = {
   metaStatus: "approved",
   twilioContentSid: "HX123",
+  metaLanguage: "pt_BR",
   metaVariableMap: { "1": "buyerName", "2": "couponBlock" },
 };
 
-test("twilio provider + approved template → sends via template sender", async () => {
-  const h = harness({ msgs: [baseMsg({})], provider: "twilio", template: approvedTemplate });
+test("meta provider + approved template → sends via template sender", async () => {
+  const h = harness({ msgs: [baseMsg({})], provider: "meta", template: approvedTemplate });
   const stats = await h.uc.execute();
   assert.equal(stats.sent, 1);
   assert.equal(h.templateSent.length, 1);
@@ -105,22 +106,23 @@ test("twilio provider + approved template → sends via template sender", async 
   assert.equal(h.templateSent[0].contentVariables["1"], "Ana");
   assert.match(h.templateSent[0].contentVariables["2"], /LY10/);
   assert.equal(h.templateSent[0].contentSid, "HX123");
+  assert.equal(h.templateSent[0].language, "pt_BR");
 });
 
-test("twilio provider + NO approved template → falls back to email", async () => {
-  const h = harness({ msgs: [baseMsg({})], provider: "twilio", template: null });
+test("meta provider + NO approved template → falls back to email", async () => {
+  const h = harness({ msgs: [baseMsg({})], provider: "meta", template: null });
   const stats = await h.uc.execute();
   assert.equal(stats.sent, 1);
   assert.equal(h.templateSent.length, 0);
   assert.equal(h.emailsSent.length, 1);
 });
 
-test("twilio template skipped (no creds) → falls back to email", async () => {
+test("meta template skipped (no connection) → falls back to email", async () => {
   const h = harness({
     msgs: [baseMsg({})],
-    provider: "twilio",
+    provider: "meta",
     template: approvedTemplate,
-    templateSendResult: { status: "skipped", reason: "twilio_credentials_missing" },
+    templateSendResult: { status: "skipped", reason: "meta_connection_unavailable" },
   });
   const stats = await h.uc.execute();
   assert.equal(stats.sent, 1);
@@ -148,7 +150,7 @@ test("bubblewhats provider → legacy send (opt-in)", async () => {
 test("no phone + no email → skipped, not sent", async () => {
   const h = harness({
     msgs: [baseMsg({ buyerPhone: null, buyerEmail: null })],
-    provider: "twilio",
+    provider: "meta",
     template: approvedTemplate,
   });
   const stats = await h.uc.execute();

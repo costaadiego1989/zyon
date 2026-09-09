@@ -12,11 +12,11 @@ import { WHATSAPP_SENDER_PORT, type WhatsAppSenderPort } from "../../../notifica
 import { EMAIL_SENDER_PORT, type EmailSenderPort } from "../../../notifications/domain/ports/email-sender.port.js";
 import type { WhatsAppTemplateType } from "../../domain/catalog/template-types.js";
 import { WHATSAPP_CONFIG_REPOSITORY, type WhatsAppConfigRepository } from "../../../whatsapp-channel/domain/ports/whatsapp-config-repository.port.js";
-import { connectedTwilioCredentials, isApprovedRecoveryTemplate } from "../../domain/services/recovery-whatsapp-policy.js";
+import { connectedMetaCloudRecoveryCredentials, isApprovedRecoveryTemplate } from "../../domain/services/recovery-whatsapp-policy.js";
 import { renderRecoveryText } from "../../domain/recovery-template-content.js";
 import { renderRecoveryEmail } from "../../domain/recovery-email.js";
 
-export type WhatsAppProvider = "email" | "bubblewhats" | "twilio";
+export type WhatsAppProvider = "email" | "bubblewhats" | "meta";
 
 /**
  * Reads the WhatsApp provider from env. Prefers WHATSAPP_PROVIDER, falls back to
@@ -26,7 +26,7 @@ export function resolveWhatsAppProvider(): WhatsAppProvider {
   const raw = (process.env.WHATSAPP_PROVIDER || process.env.POST_SALE_WHATSAPP_PROVIDER || "email")
     .trim()
     .toLowerCase();
-  return raw === "twilio" || raw === "bubblewhats" ? raw : "email";
+  return raw === "meta" || raw === "meta_cloud" ? "meta" : raw === "bubblewhats" ? "bubblewhats" : "email";
 }
 
 export interface SendWhatsAppMessageInput {
@@ -88,7 +88,7 @@ export class SendWhatsAppMessageUseCase {
     const provider = resolveWhatsAppProvider();
     const wantsWhatsApp = !!input.toPhone;
 
-    if (wantsWhatsApp && provider === "twilio" && this.templateSender) {
+    if (wantsWhatsApp && provider === "meta" && this.templateSender) {
       const tpl = await this.templates
         .findByMerchantAndType(input.merchantId, input.type, "whatsapp")
         .catch(() => null);
@@ -98,6 +98,7 @@ export class SendWhatsAppMessageUseCase {
             merchantId: input.merchantId,
             toNumber: input.toPhone!,
             contentSid: tpl.twilioContentSid,
+            language: tpl.metaLanguage ?? "pt_BR",
             contentVariables: this.resolveVariables(tpl, input.variables ?? {}),
           });
           if (result.status === "sent" || result.status === "queued") {
@@ -130,7 +131,7 @@ export class SendWhatsAppMessageUseCase {
   private async sendRecovery(input: SendWhatsAppMessageInput): Promise<SendWhatsAppMessageResult> {
     if (input.toPhone?.trim() && this.templateSender && this.configRepo) {
       const config = await this.configRepo.findByMerchantId(input.merchantId).catch(() => null);
-      if (connectedTwilioCredentials(config, input.merchantId)) {
+      if (connectedMetaCloudRecoveryCredentials(config, input.merchantId)) {
         const template = await this.templates
           .findByMerchantAndType(input.merchantId, "cart_recovery", "whatsapp")
           .catch(() => null);
@@ -141,6 +142,7 @@ export class SendWhatsAppMessageUseCase {
               type: "cart_recovery",
               toNumber: input.toPhone,
               contentSid: template.twilioContentSid,
+              language: template.metaLanguage ?? "pt_BR",
               contentVariables: this.resolveVariables(template, input.variables ?? {}),
             });
             if ((result.status === "sent" || result.status === "queued") && result.messageId?.trim()) {

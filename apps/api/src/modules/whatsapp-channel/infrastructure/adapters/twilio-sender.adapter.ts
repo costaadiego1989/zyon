@@ -13,6 +13,8 @@ import {
   WHATSAPP_CONFIG_REPOSITORY,
   type WhatsAppConfigRepository,
 } from "../../domain/ports/whatsapp-config-repository.port.js";
+import { connectedTwilioCredentials } from "../../domain/services/connected-twilio-credentials.js";
+import { whatsappE164 } from "../../domain/services/whatsapp-phone.js";
 
 interface TwilioCredentials {
   accountSid: string;
@@ -37,7 +39,7 @@ export class TwilioSenderAdapter implements WhatsAppSenderPort {
       const config = msg.deviceId.startsWith("twilio:")
         ? await this.configRepo.findById(msg.deviceId.slice("twilio:".length))
         : await this.configRepo.findByDeviceId(msg.deviceId);
-      if (!config) {
+      if (!config || !connectedTwilioCredentials(config, config.merchantId)) {
         this.logger.error(`Twilio config not found for deviceId ${msg.deviceId}`);
         return { messageId: "", status: "failed" };
       }
@@ -54,9 +56,9 @@ export class TwilioSenderAdapter implements WhatsAppSenderPort {
       }
 
       // Format recipient: E.164 format
-      const cleanDigits = msg.toNumber.replace(/\D/g, "");
-      const toNumber = cleanDigits.startsWith("55") ? cleanDigits : `55${cleanDigits}`;
-      const toWhatsApp = `whatsapp:+${toNumber}`;
+      const toNumber = whatsappE164(msg.toNumber);
+      if (!toNumber) return { messageId: "", status: "failed" };
+      const toWhatsApp = `whatsapp:${toNumber}`;
 
       // Build auth header
       const authString = `${accountSid}:${authToken}`;
@@ -73,6 +75,8 @@ export class TwilioSenderAdapter implements WhatsAppSenderPort {
         `${this.baseUrl}/${accountSid}/Messages.json`,
         {
           method: "POST",
+          redirect: "error",
+          signal: AbortSignal.timeout(15_000),
           headers: {
             Authorization: `Basic ${authBase64}`,
             "Content-Type": "application/x-www-form-urlencoded",
@@ -84,18 +88,17 @@ export class TwilioSenderAdapter implements WhatsAppSenderPort {
       if (response.ok) {
         const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
         const messageSid = String(data.sid ?? data.messageId ?? "");
-        this.logger.log(`Twilio sent to ${toNumber} (SID: ${messageSid})`);
+        this.logger.log("Twilio outbound message accepted");
         return {
           messageId: messageSid,
           status: "sent",
         };
       }
 
-      const errText = await response.text();
-      this.logger.error(`Twilio send failed: ${response.status} — ${errText}`);
+      this.logger.error(`Twilio send failed: HTTP ${response.status}`);
       return { messageId: "", status: "failed" };
     } catch (error) {
-      this.logger.error(`Twilio network error: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error("Twilio transport failed");
       return { messageId: "", status: "failed" };
     }
   }
