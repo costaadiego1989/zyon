@@ -2,6 +2,7 @@ import type { ProductRepositoryPort } from "../../../catalog/domain/ports/produc
 import type { StorefrontConversationInput, StorefrontConversationOutput } from "../../domain/ports/conversation.port.js";
 import type { ConversationBlock } from "../../domain/types/conversation-block.js";
 import type { AgentCopyService } from "../copy/agent-copy.service.js";
+import { productGallery } from "../product-gallery.js";
 
 export interface DeterministicShortcutDeps {
   productRepo: ProductRepositoryPort;
@@ -46,9 +47,11 @@ async function resolveOffersShortcut(
           name: p.name,
           price: p.defaultVariant?.basePriceInCents ?? 0,
           priceFormatted: formatPrice(p.defaultVariant?.basePriceInCents ?? 0),
-          image: p.defaultVariant?.media?.[0]?.url,
+          ...productGallery(p),
           inStock: p.hasStock,
         })),
+        nextCursor: result.nextCursor,
+        merchantId: input.merchantId,
       },
     } as ConversationBlock];
 
@@ -99,7 +102,7 @@ async function resolveDetailsShortcut(
         name: product.name,
         price,
         priceFormatted: formatPrice(price),
-        image: product.defaultVariant?.media?.[0]?.url,
+        ...productGallery(product),
         description: product.description ?? undefined,
         inStock: product.hasStock,
         rating: product.averageRating ?? undefined,

@@ -36,6 +36,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
         price,
         priceFormatted: formatPrice(price),
         image: p.image,
+        images: p.images ?? (p.image ? [p.image] : []),
         inStock: p.inStock ?? true,
         rating: p.rating ?? undefined,
         reviewCount: p.reviewCount ?? 0,
@@ -110,7 +111,8 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           description: p.description,
           price,
           priceFormatted: formatPrice(price),
-          image: p.media?.[0]?.url ?? p.image,
+          image: Array.isArray(p.images) ? p.images[0] : p.image ?? p.media?.find((media: { type?: string }) => media.type === "IMAGE")?.url,
+          images: p.images ?? p.media?.filter((media: { type?: string }) => media.type === "IMAGE").map((media: { url: string }) => media.url) ?? (p.image ? [p.image] : []),
           inStock: isDigitalOrService || (p.stock ?? 0) > 0,
           rating: p.rating ?? 4.3,
           reviewCount: p.reviewCount ?? 0,
@@ -324,6 +326,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
             price: p.price,
             priceFormatted: formatPrice(p.price),
             image: p.image,
+            images: p.images ?? (p.image ? [p.image] : []),
             inStock: p.inStock ?? true,
           }))
         }
@@ -346,6 +349,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
             originalPriceFormatted: p.originalPrice ? formatPrice(p.originalPrice) : undefined,
             discountPercent: p.discountPercent,
             image: p.image,
+            images: p.images ?? (p.image ? [p.image] : []),
             inStock: p.inStock ?? true,
           })),
           merchantId: input.merchantId,

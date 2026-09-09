@@ -5,6 +5,7 @@ import type { MerchantRepository } from "../../../merchant/domain/ports/merchant
 import type { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
 import type { PrismaClient } from "@prisma/client";
 import { extractOptionGroups } from "../../domain/food-options.js";
+import { productGallery } from "../product-gallery.js";
 
 export interface ProductHandlerDeps {
   productRepo: ProductRepositoryPort;
@@ -32,8 +33,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
         name: p.name,
         description: p.description,
         price: p.defaultVariant?.basePriceInCents ?? 0,
-        image: p.defaultVariant?.media?.[0]?.url,
-        images: p.defaultVariant?.media?.map((m) => m.url) ?? [],
+        ...productGallery(p),
         inStock: p.hasStock,
         rating: p.averageRating,
         reviewCount: p.reviewCount,
@@ -114,6 +114,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
           variants: product.variants,
           optionGroups: extractOptionGroups(product.metadata),
           media: product.defaultVariant?.media ?? [],
+          ...productGallery(product),
           stock: product.totalStock,
           inStock: product.hasStock,
           rating: product.averageRating,
@@ -174,7 +175,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
             name: p.name,
             price: p.defaultVariant?.basePriceInCents ?? 0,
             priceFormatted: formatPrice(p.defaultVariant?.basePriceInCents ?? 0),
-            image: p.defaultVariant?.media?.[0]?.url,
+            ...productGallery(p),
             inStock: p.hasStock,
             rating: p.averageRating ?? undefined,
             reviewCount: p.reviewCount ?? 0,
@@ -215,7 +216,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
         return null;
       };
 
-      const deals: Array<{ id: string; name: string; price: number; originalPrice?: number; discountPercent?: number; image?: string; inStock: boolean; coupon?: boolean }> = [];
+      const deals: Array<{ id: string; name: string; price: number; originalPrice?: number; discountPercent?: number; image?: string; images: string[]; inStock: boolean; coupon?: boolean }> = [];
       for (const p of result.products) {
         const variant = p.defaultVariant;
         const base = variant?.basePriceInCents ?? 0;
@@ -231,7 +232,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
             id: p.id,
             name: p.name,
             price: base,
-            image: variant?.media?.[0]?.url,
+            ...productGallery(p),
             inStock: p.hasStock,
             coupon: true,
           });
@@ -247,7 +248,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
           price: sale,
           originalPrice: base,
           discountPercent: Math.round((1 - sale / base) * 100),
-          image: variant?.media?.[0]?.url,
+          ...productGallery(p),
           inStock: p.hasStock,
         });
         if (deals.length >= limit) break;
