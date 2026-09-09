@@ -25,9 +25,9 @@ import { ProductContentMetricsService } from "../services/product-content-metric
  *  - `authorAvatarUrl`, when present, passes the URL allowlist (http(s) only,
  *    rejects `javascript:` / `data:` / `vbscript:`).
  *
- * Buyer identity is optional. When a `BuyerJwtAuthGuard` principal is attached
- * to the request, the use-case copies `globalUserId` into `buyerId` so future
- * "your submissions" UX can scope by buyer without re-resolving.
+ * The HTTP boundary requires a `BuyerJwtAuthGuard` principal and copies its
+ * `globalUserId` into `buyerId`, allowing the buyer hub and moderation flows
+ * to keep the submission associated with its author.
  *
  * Outbox durability: the event publish happens after the Prisma write
  * succeeds and is wrapped in a `.catch(...)` so a downstream bus outage does

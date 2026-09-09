@@ -97,6 +97,7 @@ import { SubmitCustomerVideoUseCase } from "./application/use-cases/submit-custo
 import { ModerationController } from "./presentation/http/moderation.controller.js";
 import { ProductLayoutStatusController } from "./presentation/http/product-layout-status.controller.js";
 import { ListProductLayoutStatusUseCase } from "./application/use-cases/list-product-layout-status.use-case.js";
+import { ListMerchantProductReviewsUseCase } from "./application/use-cases/list-merchant-product-reviews.use-case.js";
 
 @Module({
   imports: [
@@ -207,6 +208,7 @@ import { ListProductLayoutStatusUseCase } from "./application/use-cases/list-pro
     SubmitCustomerTestimonialUseCase,
     SubmitCustomerVideoUseCase,
     ListProductLayoutStatusUseCase,
+    ListMerchantProductReviewsUseCase,
     // ── AI spreadsheet import (Growth+) ──────────────────────────────────
     S3UploadService,
     OpenAIChatAdapter,

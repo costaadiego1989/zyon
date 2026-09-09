@@ -2,10 +2,12 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   Inject,
   NotFoundException,
   Param,
   Post,
+  Query,
   Req,
   UseGuards,
 } from "@nestjs/common";
@@ -25,6 +27,11 @@ import {
 } from "../../domain/ports/product-video-repository.port.js";
 import { ModerateProductTestimonialUseCase } from "../../application/use-cases/moderate-product-testimonial.use-case.js";
 import { ModerateProductVideoUseCase } from "../../application/use-cases/moderate-product-video.use-case.js";
+import {
+  ListMerchantProductReviewsUseCase,
+  type MerchantProductReviewKind,
+  type MerchantProductReviewStatus,
+} from "../../application/use-cases/list-merchant-product-reviews.use-case.js";
 
 /**
  * Wave 3 — Merchant moderation endpoints (R3 + R4 of the Advanced Product
@@ -51,7 +58,43 @@ export class ModerationController {
     private readonly videoRepo: ProductVideoRepositoryPort,
     private readonly moderateTestimonial: ModerateProductTestimonialUseCase,
     private readonly moderateVideo: ModerateProductVideoUseCase,
+    private readonly listMerchantReviews: ListMerchantProductReviewsUseCase,
   ) {}
+
+  @UseGuards(AuthGuard, MerchantOwnershipGuard, PlanLimitGuard)
+  @RequirePlanFeature("advancedProductLayout")
+  @Get(":mid/reviews")
+  async listMerchantReviewsRoute(
+    @Param("mid") merchantId: string,
+    @Query() query: {
+      kind?: string;
+      moderationStatus?: string;
+      productId?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      page?: string;
+      pageSize?: string;
+    },
+  ) {
+    const kind = parseReviewKind(query.kind);
+    const moderationStatus = parseReviewStatus(query.moderationStatus);
+    const createdFrom = parseReviewDate(query.dateFrom, false);
+    const createdTo = parseReviewDate(query.dateTo, true);
+    if (createdFrom && createdTo && createdFrom > createdTo) {
+      throw new BadRequestException({ code: "invalid_review_date_range" });
+    }
+
+    return this.listMerchantReviews.execute({
+      merchantId,
+      kind,
+      moderationStatus,
+      productId: textOrUndefined(query.productId),
+      createdFrom,
+      createdTo,
+      page: parsePositiveQueryInteger(query.page),
+      pageSize: parsePositiveQueryInteger(query.pageSize),
+    });
+  }
 
   @UseGuards(AuthGuard, MerchantOwnershipGuard, PlanLimitGuard)
   @RequirePlanFeature("advancedProductLayout")
@@ -224,4 +267,43 @@ export class ModerationController {
       actor,
     });
   }
+}
+
+function parseReviewKind(value: string | undefined): MerchantProductReviewKind {
+  if (value === undefined || value === "testimonial") return "testimonial";
+  if (value === "video") return "video";
+  throw new BadRequestException({ code: "invalid_review_kind" });
+}
+
+function parseReviewStatus(value: string | undefined): MerchantProductReviewStatus | undefined {
+  if (value === undefined || value === "") return undefined;
+  if (value === "pending" || value === "approved" || value === "rejected") return value;
+  throw new BadRequestException({ code: "invalid_review_moderation_status" });
+}
+
+function parseReviewDate(value: string | undefined, endOfDay: boolean): Date | undefined {
+  if (value === undefined || value.trim() === "") return undefined;
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? `${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`
+    : value;
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new BadRequestException({ code: "invalid_review_date" });
+  }
+  return parsed;
+}
+
+function parsePositiveQueryInteger(value: string | undefined): number | undefined {
+  if (value === undefined || value === "") return undefined;
+  if (!/^\d+$/.test(value)) throw new BadRequestException({ code: "invalid_review_pagination" });
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) {
+    throw new BadRequestException({ code: "invalid_review_pagination" });
+  }
+  return parsed;
+}
+
+function textOrUndefined(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  return normalized || undefined;
 }

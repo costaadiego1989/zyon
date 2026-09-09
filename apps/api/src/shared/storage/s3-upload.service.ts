@@ -1,11 +1,18 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import { randomUUID } from "node:crypto";
 
 export interface UploadResult {
   url: string;
   key: string;
   bucket: string;
+}
+
+export interface PresignedPostUploadResult extends UploadResult {
+  uploadUrl: string;
+  uploadFields: Record<string, string>;
+  expiresAt: string;
 }
 
 @Injectable()
@@ -54,12 +61,55 @@ export class S3UploadService {
       CacheControl: "public, max-age=31536000, immutable",
     }));
 
-    const url = this.endpoint
-      ? `${this.endpoint}/${this.bucket}/${key}`
-      : `https://${this.bucket}.s3.${this.region}.amazonaws.com/${key}`;
+    const url = this.publicUrl(key);
 
     this.logger.log(`Uploaded ${key} (${buffer.length} bytes) → ${url}`);
     return { url, key, bucket: this.bucket };
+  }
+
+  /**
+   * Gives a browser a short-lived, size-bounded capability to upload one
+   * object directly. POST conditions are enforced by S3 itself.
+   */
+  async createPresignedPostUpload(input: {
+    contentType: string;
+    folder: string;
+    filename?: string;
+    expiresInSeconds?: number;
+    maxContentLength: number;
+  }): Promise<PresignedPostUploadResult> {
+    if (!this.client) throw new Error("s3_not_configured");
+    if (!Number.isSafeInteger(input.maxContentLength) || input.maxContentLength < 1) {
+      throw new Error("invalid_max_content_length");
+    }
+
+    const ext = input.contentType.split("/")[1]?.replace("jpeg", "jpg") ?? "bin";
+    const key = `${input.folder}/${input.filename ?? randomUUID()}.${ext}`;
+    const expiresInSeconds = Math.min(Math.max(input.expiresInSeconds ?? 300, 60), 900);
+    const cacheControl = "public, max-age=31536000, immutable";
+    const { url: uploadUrl, fields: uploadFields } = await createPresignedPost(this.client, {
+      Bucket: this.bucket,
+      Key: key,
+      Fields: {
+        "Content-Type": input.contentType,
+        "Cache-Control": cacheControl,
+      },
+      Conditions: [
+        ["content-length-range", 1, input.maxContentLength],
+        ["eq", "$Content-Type", input.contentType],
+        ["eq", "$Cache-Control", cacheControl],
+      ],
+      Expires: expiresInSeconds,
+    });
+
+    return {
+      url: this.publicUrl(key),
+      key,
+      bucket: this.bucket,
+      uploadUrl,
+      uploadFields,
+      expiresAt: new Date(Date.now() + expiresInSeconds * 1_000).toISOString(),
+    };
   }
 
   async uploadBase64(dataUri: string, folder: string): Promise<UploadResult> {
@@ -72,6 +122,12 @@ export class S3UploadService {
 
   isConfigured(): boolean {
     return this.client !== null;
+  }
+
+  /** True only when the URL is an object in this configured bucket and folder. */
+  isObjectUrlWithinFolder(url: string, folder: string): boolean {
+    const key = this.extractKeyFromUrl(url);
+    return key?.startsWith(`${folder}/`) ?? false;
   }
 
   async delete(url: string): Promise<void> {
@@ -91,14 +147,24 @@ export class S3UploadService {
       const parsed = new URL(url);
       if (this.endpoint) {
         // LocalStack/R2: endpoint/bucket/key
+        if (parsed.origin !== new URL(this.endpoint).origin) return null;
         const prefix = `/${this.bucket}/`;
         const idx = parsed.pathname.indexOf(prefix);
         return idx >= 0 ? parsed.pathname.slice(idx + prefix.length) : null;
       }
       // Standard S3: bucket.s3.region.amazonaws.com/key
+      const regionalHost = `${this.bucket}.s3.${this.region}.amazonaws.com`;
+      const legacyHost = `${this.bucket}.s3.amazonaws.com`;
+      if (parsed.hostname !== regionalHost && parsed.hostname !== legacyHost) return null;
       return parsed.pathname.startsWith("/") ? parsed.pathname.slice(1) : parsed.pathname;
     } catch {
       return null;
     }
+  }
+
+  private publicUrl(key: string): string {
+    return this.endpoint
+      ? `${this.endpoint.replace(/\/$/, "")}/${this.bucket}/${key}`
+      : `https://${this.bucket}.s3.${this.region}.amazonaws.com/${key}`;
   }
 }

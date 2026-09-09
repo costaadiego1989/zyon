@@ -48,6 +48,7 @@ describe("ModerationController", () => {
   let videoRepo: ProductVideoRepositoryPort;
   let moderateTestimonial: { approve: ReturnType<typeof mock.fn>; reject: ReturnType<typeof mock.fn> };
   let moderateVideo: { approve: ReturnType<typeof mock.fn>; reject: ReturnType<typeof mock.fn> };
+  let listMerchantReviews: { execute: ReturnType<typeof mock.fn> };
   let prisma: { product: { findFirst: ReturnType<typeof mock.fn> } };
   let controller: ModerationController;
 
@@ -78,6 +79,9 @@ describe("ModerationController", () => {
       approve: mock.fn(async (input: { id: string }) => vEntity(input.id)),
       reject: mock.fn(async (input: { id: string }) => vEntity(input.id)),
     };
+    listMerchantReviews = {
+      execute: mock.fn(async () => ({ items: [], page: 1, pageSize: 20, total: 0 })),
+    };
     prisma = {
       product: {
         findFirst: mock.fn(async ({ where }: { where: { id: string; merchantId: string } }) => ({
@@ -92,6 +96,7 @@ describe("ModerationController", () => {
       videoRepo as any,
       moderateTestimonial as any,
       moderateVideo as any,
+      listMerchantReviews as any,
     );
   });
 
@@ -105,6 +110,28 @@ describe("ModerationController", () => {
     assert.equal(tArgs.merchantId, "m-1");
     assert.equal(tArgs.productId, "p-1");
     assert.equal(tArgs.moderationStatus, "pending");
+  });
+
+  it("passes review filters to the tenant-scoped list use case", async () => {
+    const out = await controller.listMerchantReviewsRoute("m-1", {
+      kind: "video",
+      moderationStatus: "pending",
+      productId: "p-1",
+      dateFrom: "2026-09-01",
+      dateTo: "2026-09-08",
+      page: "2",
+      pageSize: "10",
+    });
+    assert.equal(out.page, 1);
+    const args = (listMerchantReviews.execute as any).mock.calls[0].arguments[0];
+    assert.equal(args.merchantId, "m-1");
+    assert.equal(args.kind, "video");
+    assert.equal(args.moderationStatus, "pending");
+    assert.equal(args.productId, "p-1");
+    assert.equal(args.page, 2);
+    assert.equal(args.pageSize, 10);
+    assert.equal(args.createdFrom.toISOString(), "2026-09-01T00:00:00.000Z");
+    assert.equal(args.createdTo.toISOString(), "2026-09-08T23:59:59.999Z");
   });
 
   it("returns 404 when the product does not belong to the merchant", async () => {
@@ -153,8 +180,9 @@ describe("ModerationController", () => {
         ),
       (err: unknown) => {
         if (!(err instanceof Error)) return false;
-        // Nest BadRequestException surfaces as an error; assert message presence.
-        return err.message.includes("invalid_moderation_status") || err.message.includes("Bad Request");
+        return "getStatus" in err && typeof (err as { getStatus?: unknown }).getStatus === "function"
+          ? (err as { getStatus: () => number }).getStatus() === 400
+          : false;
       }
     );
   });
