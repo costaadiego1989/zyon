@@ -1,8 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useApi } from "../../../hooks/useApi.js";
-import { PlanCard, type PlanDef } from "../../billing-plans/components/PlanCard.js";
+import type { PlanDef } from "../../billing-plans/components/PlanCard.js";
+import { ArrowRight, Check, CheckCircle2, LoaderCircle, ShieldCheck } from "lucide-react";
+import { Button } from "../../../components/Button.js";
 import { toPlanDef } from "../../billing-plans/plan-catalog.js";
 import "../../billing-plans/billing-plans-page.css";
+import "./plan-selection.css";
 
 type Props = {
   merchantName: string;
@@ -14,6 +17,7 @@ export function PlanSelection({ merchantName, onDone }: Props) {
   const api = useApi();
   const [plans, setPlans] = useState<PlanDef[]>([]);
   const [busy, setBusy] = useState(false);
+  const [selected, setSelected] = useState<PlanDef["key"]>("starter");
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(new URLSearchParams(window.location.search).get("billing") === "success");
   const [error, setError] = useState<string | null>(null);
@@ -76,24 +80,51 @@ export function PlanSelection({ merchantName, onDone }: Props) {
     } finally { setBusy(false); }
   }
 
-  return (
-    <div className="billing-plans">
-      <header className="billing-plans__header">
-        <p className="billing-plans__subtitle">Última etapa · {merchantName}</p>
-        <h1 className="billing-plans__title">Escolha como começar</h1>
-        <p className="billing-plans__subtitle">Sua conta começa no Free: 14 dias sem taxa de transação Zyon. Depois, R$ 2,99 por transação, com acesso mantido. Escolha um plano pago para ampliar os recursos.</p>
-        <p className="billing-plans__subtitle">Planos pagos têm cobrança mensal. Você confirma o valor e o pagamento no Stripe. Taxas dos provedores de pagamento continuam aplicáveis.</p>
-      </header>
-      {error && <div role="alert" className="billing-plans__error">{error} {!plans.length && <button type="button" onClick={() => void loadPlans()}>Tentar novamente</button>}</div>}
-      {notice && <p role="status">{notice} <button type="button" onClick={() => setConfirming(true)}>Atualizar status</button></p>}
-      {confirming && <p role="status">Confirmando sua assinatura…</p>}
-      {loading ? <p role="status">Carregando planos…</p> : (
-        <div className="billing-plans__plans-grid">
-          {plans.map(plan => <PlanCard key={plan.key} plan={plan} isCurrent={false} isDowngrade={false}
-            upgrading={busy || confirming} onUpgrade={() => void select(plan.key)}
-            actionLabel={busy ? "Aguarde…" : plan.key === "starter" ? "Continuar no Free" : `Escolher ${plan.name}`} />)}
-        </div>
-      )}
-    </div>
-  );
+  const selectedPlan = plans.find(plan => plan.key === selected);
+  return <section className="plan-selection" aria-labelledby="plan-selection-title">
+    <div className="plan-selection__brand"><img src="/logo-zyon.png" alt="Zyon" /><span><CheckCircle2 size={15} /> Conta criada</span></div>
+    <header className="plan-selection__header">
+      <p className="plan-selection__eyebrow">ÚLTIMA ETAPA · {merchantName}</p>
+      <h1 id="plan-selection-title">Sua loja pronta para o próximo passo.</h1>
+      <p>Escolha o plano que acompanha sua operação. Compare os limites, confira as taxas e comece a vender com a Zyon.</p>
+    </header>
+    {error && <div role="alert" className="plan-selection__message plan-selection__message--error">{error} {!plans.length && <Button variant="outline" onClick={() => void loadPlans()}>Tentar novamente</Button>}</div>}
+    {notice && <div role="status" className="plan-selection__message">{notice}<Button variant="outline" onClick={() => setConfirming(true)}>Atualizar status</Button></div>}
+    {confirming && <p role="status" className="plan-selection__message"><LoaderCircle size={18} /> Confirmando sua assinatura…</p>}
+    {loading ? <div className="plan-selection__loading" role="status">Carregando planos…</div> : <fieldset className="plan-selection__grid" disabled={busy || confirming}>
+      <legend className="sr-only">Escolha seu plano</legend>
+      {plans.map(plan => <SignupPlan key={plan.key} plan={plan} selected={selected === plan.key} onSelect={() => setSelected(plan.key)} />)}
+    </fieldset>}
+    <p className="plan-selection__terms"><ShieldCheck size={18} /> Planos pagos têm cobrança mensal, confirmada no Stripe antes de assinar. Taxas do seu provedor de pagamento são cobradas separadamente.</p>
+    <footer className="plan-selection__footer">
+      <div aria-live="polite"><span>Plano selecionado</span><strong>{selectedPlan ? `${selectedPlan.name} · ${money(selectedPlan.price)}` : "Carregando…"}<small>/mês</small></strong></div>
+      <Button variant="primary" disabled={loading || busy || confirming || !selectedPlan} onClick={() => void select(selected)}>
+        {busy || confirming ? <><LoaderCircle size={16} /> Aguarde…</> : <>{selected === "starter" ? "Começar no Free" : `Continuar com ${selectedPlan?.name ?? "plano"}`}<ArrowRight size={16} /></>}
+      </Button>
+    </footer>
+  </section>;
+}
+
+const PLAN_COPY = {
+  starter: "Coloque sua loja no ar e faça suas primeiras vendas.",
+  growth: "Amplie o atendimento e conecte sua operação.",
+  scale: "Mais capacidade e controle para uma operação em expansão.",
+};
+function money(value: number) { return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
+function limit(value: number) { return value < 0 ? "Ilimitado" : value.toLocaleString("pt-BR"); }
+function SignupPlan({ plan, selected, onSelect }: { plan: PlanDef; selected: boolean; onSelect: () => void }) {
+  return <article className={`signup-plan${selected ? " signup-plan--selected" : ""}`}>
+    <label className="signup-plan__choice">
+      <div className="signup-plan__heading"><h2>{plan.name}</h2><input type="radio" name="signup-plan" value={plan.key} checked={selected} onChange={onSelect} aria-label={`Selecionar ${plan.name}`} /></div>
+      <span className="signup-plan__badge" aria-hidden={!plan.recommended}>{plan.recommended ? "Recomendado" : "\u00a0"}</span>
+      <p className="signup-plan__description">{PLAN_COPY[plan.key]}</p>
+      <div className="signup-plan__price"><strong>{money(plan.price)}</strong><span>/mês</span></div>
+      <p className="signup-plan__fee">{plan.key === "starter" ? `14 dias sem taxa Zyon. Depois, ${plan.fee} por transação.` : `${plan.fee} por transação Zyon.`}</p>
+    </label>
+    <dl className="signup-plan__limits">
+      {[["Pedidos por mês", plan.limits.orders], ["Sessões por mês", plan.limits.sessions], ["Conversas IA por mês", plan.limits.ai], ["Conexões", plan.limits.connections]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{limit(value as number)}</dd></div>)}
+    </dl>
+    <ul className="signup-plan__features">{plan.features.slice(0, 4).map(feature => <li key={feature}><Check size={15} />{feature}</li>)}</ul>
+    {plan.features.length > 4 ? <details className="signup-plan__details"><summary>Ver todos os {plan.features.length} recursos</summary><ul className="signup-plan__features">{plan.features.slice(4).map(feature => <li key={feature}><Check size={15} />{feature}</li>)}</ul></details> : null}
+  </article>;
 }

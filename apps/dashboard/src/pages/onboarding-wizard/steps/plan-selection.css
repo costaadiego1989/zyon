@@ -1,0 +1,47 @@
+.signup-plans { height: 100dvh; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior-y: contain; scrollbar-gutter: stable; width: 100%; max-width: none; padding: 0 24px; }
+.plan-selection { width: 100%; max-width: 1140px; margin: 0 auto; padding-top: 28px; color: var(--color-text); font-family: var(--font-sans); }
+.plan-selection__brand { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-bottom: 28px; border-bottom: 1px solid var(--color-border); }
+.plan-selection__brand img { width: 96px; height: auto; }
+.plan-selection__brand span { display: inline-flex; align-items: center; gap: 8px; color: var(--color-brand); font-size: 12px; }
+.plan-selection__header { padding: 32px 0 28px; max-width: 760px; }
+.plan-selection__eyebrow { margin: 0 0 12px; color: var(--color-brand); font: 600 10px var(--font-mono); letter-spacing: .07em; overflow-wrap: anywhere; }
+.plan-selection__header h1 { margin: 0; color: var(--color-text); font: 600 36px/1.18 var(--font-serif); letter-spacing: -.025em; text-wrap: balance; }
+.plan-selection__header > p:last-child { margin: 14px 0 0; font: 14px/1.65 var(--font-sans); color: var(--color-text-muted); max-width: 65ch; }
+.plan-selection__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; padding: 0; margin: 0; border: 0; min-width: 0; align-items: start; }
+.signup-plan { padding: 24px; min-width: 0; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--surface-2); transition: border-color 150ms ease, background 150ms ease; }
+.signup-plan--selected { border-color: var(--color-brand); background: color-mix(in oklab, var(--color-brand-subtle) 35%, var(--surface-2)); }
+.signup-plan:focus-within { outline: 2px solid var(--color-brand); outline-offset: 3px; }
+.signup-plan__choice { display: block; cursor: pointer; }
+.signup-plan__heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.signup-plan__heading h2 { margin: 0; font: 650 21px var(--font-sans); color: var(--color-text); }
+.signup-plan__heading input[type="radio"] { appearance: auto; width: 20px; height: 20px; min-height: 0; margin: 0; padding: 0; accent-color: var(--color-brand); cursor: pointer; flex: none; }
+.signup-plan__badge { display: inline-block; margin-top: 10px; font: 600 10px var(--font-sans); color: var(--color-brand); }
+.signup-plan__description { min-height: 44px; margin: 14px 0 20px; color: var(--color-text-muted); font: 13px/1.65 var(--font-sans); }
+.signup-plan__price { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px; }
+.signup-plan__price strong { font: 650 30px/1.2 var(--font-sans); letter-spacing: -.04em; font-variant-numeric: tabular-nums; color: var(--color-text); }
+.signup-plan__price > span { font: 12px var(--font-sans); color: var(--color-text-muted); }
+.signup-plan__fee { margin: 9px 0 22px; min-height: 38px; color: var(--color-text-muted); font: 12px/1.55 var(--font-sans); }
+.signup-plan__limits { margin: 0 0 20px; padding: 18px 0; border-block: 1px solid var(--color-border); display: grid; gap: 12px; }
+.signup-plan__limits > div { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+.signup-plan__limits dt { color: var(--color-text-muted); }
+.signup-plan__limits dd { margin: 0; font: 600 12px var(--font-mono); }
+.signup-plan__features { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.signup-plan__features li { display: flex; align-items: start; gap: 9px; font: 12px/1.5 var(--font-sans); }
+.signup-plan__features svg { flex: none; color: var(--color-brand); margin-top: 2px; }
+.signup-plan__details { margin-top: 16px; }
+.signup-plan__details summary { cursor: pointer; color: var(--color-text-muted); font: 600 12px var(--font-sans); padding: 8px 0; }
+.signup-plan__details[open] summary { margin-bottom: 12px; }
+.plan-selection__terms { display: flex; align-items: start; gap: 10px; font: 12px/1.6 var(--font-sans); color: var(--color-text-muted); margin: 24px 0; max-width: 84ch; }
+.plan-selection__terms svg { flex: none; }
+.plan-selection__footer { position: sticky; bottom: 0; z-index: 3; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 20px 0 max(20px, env(safe-area-inset-bottom)); border-top: 1px solid var(--color-border); background: var(--surface-1); }
+.plan-selection__footer > div { display: grid; gap: 5px; }
+.plan-selection__footer > div > span { font-size: 11px; color: var(--color-text-muted); }
+.plan-selection__footer strong { font: 600 16px var(--font-sans); }
+.plan-selection__footer small { margin-left: 4px; font-size: 12px; font-weight: 400; color: var(--color-text-muted); }
+.plan-selection__footer button { min-height: 44px; padding-inline: 24px; }
+.plan-selection__message { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 16px; margin: 0 0 20px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); color: var(--color-text-muted); font: 13px/1.5 var(--font-sans); }
+.plan-selection__message--error { color: var(--color-error); }
+.plan-selection__loading { min-height: 320px; display: grid; place-items: center; color: var(--color-text-muted); }
+@media (max-width: 850px) { .plan-selection__grid { grid-template-columns: minmax(0, 1fr); } .signup-plan__description, .signup-plan__fee { min-height: 0; } }
+@media (max-width: 540px) { .signup-plans { padding-inline: 16px; } .plan-selection__header h1 { font-size: 28px; } .plan-selection__header { padding-block: 24px; } .plan-selection__footer button { width: 100%; } .signup-plan { padding: 20px; } }
+@media (prefers-reduced-motion: reduce) { .signup-plan { transition: none; } }

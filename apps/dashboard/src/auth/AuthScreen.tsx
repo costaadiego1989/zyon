@@ -131,18 +131,15 @@ export function AuthScreen(props: AuthScreenProps) {
 
       {/* Right: Hero — orb, logo and tagline live directly in the glass panel */}
       <section className="auth-hero" aria-label="Sobre a Zyon">
-        <p className="auth-hero__eyebrow">Zyon para PMEs</p>
         <div className="auth-hero__orb-glow" aria-hidden="true">
           <PulseAgentOrb size={128} />
         </div>
         <img src="/logo-zyon.png" alt="Zyon" className="auth-hero__logo-img" />
-        <h1 className="auth-hero__title">Sua loja vende.<br />Você vai além.</h1>
-        <p className="auth-hero__tagline">Organize seu catálogo, defina suas regras e deixe a IA ajudar cada cliente a encontrar o próximo passo.</p>
-        <div className="auth-hero__principles" aria-label="Capacidades principais">
-          <span>Catálogo vivo</span>
-          <span>Regras visíveis</span>
-          <span>Checkout integrado</span>
-        </div>
+        <p className="auth-hero__tagline">
+          A primeira plataforma de checkout agêntico onde uma IA assume o papel
+          de Gerente de Vendas — conversa, negocia e fecha a compra sob as
+          regras do seu negócio.
+        </p>
       </section>
     </main>
     </>
