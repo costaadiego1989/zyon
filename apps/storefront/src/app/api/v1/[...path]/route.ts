@@ -69,9 +69,11 @@ async function proxyRequest(
     Accept: "application/json",
   };
 
-  if (API_KEY) {
-    headers["Authorization"] = `Bearer ${API_KEY}`;
-  }
+  // Buyer-facing routes must preserve the buyer JWT. The service credential is
+  // only a fallback for public routes that do not carry an end-user session.
+  const authorization = request.headers.get("Authorization");
+  if (authorization) headers.Authorization = authorization;
+  else if (API_KEY) headers.Authorization = `Bearer ${API_KEY}`;
 
   const idempotencyKey = request.headers.get("Idempotency-Key");
   if (idempotencyKey) {

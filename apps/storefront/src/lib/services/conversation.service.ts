@@ -4,7 +4,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009"
 export const CONVERSATION_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 
 export function trackFunnelEvent(merchantId: string, sessionId: string, event: string) {
-  fetch(`${API_BASE}/v1/storefront/conversations/${encodeURIComponent(sessionId)}/events`, {
+  fetch(`${API_BASE}/storefront/conversations/${encodeURIComponent(sessionId)}/events`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ merchant_id: merchantId, event, metadata: { timestamp: new Date().toISOString() } }),

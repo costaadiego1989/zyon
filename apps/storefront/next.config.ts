@@ -1,5 +1,10 @@
 import type { NextConfig } from "next";
 
+const publicApiBaseUrl =
+  process.env.NODE_ENV === "production"
+    ? "/api/v1"
+    : process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1";
+
 const config: NextConfig = {
   reactStrictMode: true,
   devIndicators: process.env.AACP_VISUAL_REVIEW === "1" ? false : undefined,
@@ -10,8 +15,9 @@ const config: NextConfig = {
     },
   },
   env: {
-    NEXT_PUBLIC_API_BASE_URL:
-      process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009",
+    // Browser requests stay same-origin in production. The route handler uses
+    // AACP_API_URL server-side, avoiding a fragile public API hostname/CORS hop.
+    NEXT_PUBLIC_API_BASE_URL: publicApiBaseUrl,
     NEXT_PUBLIC_WIDGET_BASE_URL:
       process.env.NEXT_PUBLIC_WIDGET_BASE_URL ?? "http://localhost:5173",
   },
