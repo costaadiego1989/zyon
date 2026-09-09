@@ -16,7 +16,7 @@ import {
  * Two layers:
  *  - Freeform body → e-mail + WhatsApp inside the 24h session window.
  *  - Meta template (positional {{1}} vars) → business-initiated WhatsApp, must
- *    be approved by Meta (submitted via Twilio) before it can be sent. Without
+ *    be approved by Meta before it can be sent. Without
  *    an approved template the system falls back to e-mail (no ban risk).
  */
 export function TemplateEditor(props: { me: MerchantProfile | null }) {

@@ -1,0 +1,49 @@
+:root {
+  color-scheme: light;
+  --ink: #0a1511;
+  --forest: #0a211a;
+  --green: #69e0a6;
+  --paper: #f6f8f5;
+  --muted: #52635b;
+  --line: #d6ded8;
+  --body: "Manrope", sans-serif;
+  --display: "Sora", sans-serif;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+body { margin: 0; color: var(--ink); background: var(--paper); font-family: var(--body); line-height: 1.8; -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-underline-offset: .22em; }
+a:hover { color: #17623c; }
+a:focus-visible { outline: 3px solid #25804f; outline-offset: 5px; border-radius: 2px; }
+.skip-link { position: absolute; top: 12px; left: 12px; z-index: 2; padding: 8px 16px; color: var(--ink); background: var(--green); transform: translateY(-160%); }
+.skip-link:focus { transform: none; }
+.site-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px max(24px, calc((100% - 1100px) / 2)); color: #e8eee9; background: var(--forest); }
+.brand { display: inline-flex; align-items: center; gap: 10px; font-family: var(--display); font-size: 26px; letter-spacing: -.03em; text-decoration: none; }
+.brand img { object-fit: contain; }
+.site-header a:hover { color: var(--green); }
+.back-link { display: inline-flex; align-items: center; gap: 14px; min-height: 44px; font-size: 14px; text-decoration: none; }
+main { width: min(100% - 48px, 800px); margin: 0 auto; padding: clamp(40px, 7vw, 88px) 0 64px; }
+.document-header { padding-bottom: 28px; }
+.kicker { margin: 0 0 16px; color: var(--muted); font-size: 14px; font-weight: 600; }
+h1, h2 { font-family: var(--display); text-wrap: balance; font-weight: 600; }
+h1 { margin: 0 0 20px; font-size: clamp(30px, 5vw, 48px); line-height: 1.16; letter-spacing: -.03em; }
+.lead { margin: 0; max-width: 62ch; font-size: clamp(16px, 2vw, 19px); line-height: 1.7; color: var(--muted); }
+.updated { margin: 22px 0 0; font-size: 13px; color: var(--muted); }
+.document-nav { display: flex; flex-wrap: wrap; gap: 4px 24px; padding: 14px 0; border-block: 1px solid var(--line); }
+.document-nav a { display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; text-decoration: none; color: var(--muted); }
+.document-nav a[aria-current="page"] { font-weight: 700; color: var(--ink); text-decoration: underline; text-decoration-color: #25804f; text-decoration-thickness: 2px; }
+.document-body { max-width: 72ch; font-size: 16px; overflow-wrap: anywhere; }
+section { margin-top: 40px; }
+h2 { font-size: clamp(20px, 3vw, 24px); line-height: 1.4; letter-spacing: -.02em; margin: 0 0 16px; }
+p { margin: 0 0 16px; text-wrap: pretty; }
+ul, ol { margin: 0 0 20px; padding-left: 24px; }
+li { padding-left: 4px; margin-bottom: 12px; }
+strong { font-weight: 700; }
+.contact-button { display: inline-flex; justify-content: center; align-items: center; gap: 20px; min-height: 48px; margin: 8px 0 14px; padding: 12px 22px; color: #f6f8f5; background: var(--forest); font-size: 15px; font-weight: 700; border-radius: 8px; text-decoration: none; }
+.contact-button:hover { color: var(--green); }
+.note { color: var(--muted); font-size: 14px; }
+.site-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px 24px; width: min(100% - 48px, 800px); margin: 0 auto; padding: 24px 0 40px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+.site-footer a { display: inline-flex; align-items: center; min-height: 44px; }
+@media (max-width: 400px) { .site-header { padding-inline: 20px; } main, .site-footer { width: calc(100% - 40px); } .document-nav { gap: 0 16px; } .contact-button { width: 100%; padding-inline: 14px; gap: 10px; } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+@media print { body { background: white; color: black; } .site-header, .document-nav, .skip-link, .contact-button { display: none; } main { width: 100%; padding: 0; } h1 { font-size: 28px; } h2 { break-after: avoid; } p, li { orphans: 3; widows: 3; } .site-footer { width: 100%; } }

@@ -1,0 +1,26 @@
+.whatsapp-seller__content { display: grid; gap: 24px; }
+.whatsapp-seller__panel { padding: clamp(20px, 3vw, 32px); }
+.whatsapp-seller__panel h2,
+.whatsapp-seller__guidance h2 { margin: 0 0 10px; font: 600 18px/1.4 var(--font-sans); color: var(--color-text); }
+.whatsapp-seller__panel p,
+.whatsapp-seller__guidance p { max-width: 76ch; margin: 0 0 20px; color: var(--color-text-muted); font: 400 14px/1.7 var(--font-sans); }
+.whatsapp-seller__panel .eyebrow { display: block; margin-bottom: 12px; }
+.whatsapp-seller__form { max-width: 520px; margin-block: 24px; display: grid; gap: 16px; }
+.whatsapp-seller__form input { min-height: 44px; }
+.whatsapp-seller__actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.whatsapp-seller__actions button { min-height: 44px; }
+.whatsapp-seller__row { display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 20px; }
+.whatsapp-seller__connected,
+.whatsapp-seller__inline { display: inline-flex; gap: 8px; align-items: center; }
+.whatsapp-seller__connected { color: var(--color-success); font: 500 13px var(--font-sans); }
+.whatsapp-seller__panel .whatsapp-seller__number { font-weight: 600; color: var(--color-text); }
+.whatsapp-seller__panel .whatsapp-seller__hint { font-size: 12px; margin-top: 16px; margin-bottom: 0; }
+.whatsapp-seller__guidance { display: flex; align-items: start; gap: 12px; padding-block: 8px; }
+.whatsapp-seller__guidance > svg { flex: 0 0 20px; color: var(--color-brand); margin-top: 3px; }
+.whatsapp-seller__guidance p { margin-bottom: 8px; }
+.whatsapp-seller__error { border: 1px solid var(--color-error); border-radius: 12px; padding: 16px 20px; }
+.whatsapp-seller__error p { margin: 0 0 12px; color: var(--color-text); line-height: 1.6; }
+@media (max-width: 560px) {
+  .whatsapp-seller__actions { align-items: stretch; flex-direction: column; }
+  .whatsapp-seller__actions button { width: 100%; }
+}

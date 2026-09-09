@@ -168,18 +168,17 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
       return dashboardJson(base, `/merchants/${merchantId}/whatsapp/connection`, { method: "GET" }, f);
     },
 
+    getWhatsAppOnboarding(merchantId: string): Promise<{ configured: boolean; appId: string; configId: string }> {
+      return dashboardJson(base, `/merchants/${merchantId}/whatsapp/onboarding`, { method: "GET" }, f);
+    },
+
+    refreshWhatsApp(merchantId: string): Promise<any> {
+      return dashboardJson(base, `/merchants/${merchantId}/whatsapp/refresh`, { method: "POST" }, f);
+    },
+
     /** Meta Embedded Signup flow (production) */
     connectWhatsAppViaEmbeddedSignup(merchantId: string, payload: { code: string; wabaId: string; phoneNumberId: string }): Promise<any> {
       return dashboardJson(base, `/merchants/${merchantId}/whatsapp/meta/connect`, { method: "POST", jsonBody: payload }, f);
-    },
-
-    /** Legacy phone-only flow (backward compat) */
-    connectWhatsApp(merchantId: string, payload: { provider: string; phoneNumber: string }): Promise<any> {
-      return dashboardJson(base, `/merchants/${merchantId}/whatsapp/twilio/connect`, { method: "POST", jsonBody: payload }, f);
-    },
-
-    verifyWhatsApp(merchantId: string, payload: { code: string }): Promise<any> {
-      return dashboardJson(base, `/merchants/${merchantId}/whatsapp/twilio/verify`, { method: "POST", jsonBody: payload }, f);
     },
 
     disconnectWhatsApp(merchantId: string): Promise<any> {
