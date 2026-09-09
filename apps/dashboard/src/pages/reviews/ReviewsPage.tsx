@@ -171,26 +171,24 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
           onTabChange={(next) => resetPage(() => setKind(next as ReviewKind))}
           extra={
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-              <div style={{ width: 150, flex: "0 0 auto" }}>
-                <FilterSelect
-                  value={status}
-                  onChange={(next) => resetPage(() => setStatus(next as ModerationStatus))}
-                  options={[
-                    { value: "all", label: "Todos os status" },
-                    { value: "pending", label: "Pendentes" },
-                    { value: "approved", label: "Aprovadas" },
-                    { value: "rejected", label: "Rejeitadas" },
-                  ]}
-                />
-              </div>
-              <div style={{ width: 210, flex: "0 0 auto" }}>
-                <FilterSelect
-                  value={productId}
-                  onChange={(next) => resetPage(() => setProductId(next))}
-                  options={currentProducts.map((product) => ({ value: product.id, label: product.name }))}
-                  placeholder={productsLoading ? "Carregando produtos..." : "Todos os produtos"}
-                />
-              </div>
+              <FilterSelect
+                width={150}
+                value={status}
+                onChange={(next) => resetPage(() => setStatus(next as ModerationStatus))}
+                options={[
+                  { value: "all", label: "Todos os status" },
+                  { value: "pending", label: "Pendentes" },
+                  { value: "approved", label: "Aprovadas" },
+                  { value: "rejected", label: "Rejeitadas" },
+                ]}
+              />
+              <FilterSelect
+                width={210}
+                value={productId}
+                onChange={(next) => resetPage(() => setProductId(next))}
+                options={currentProducts.map((product) => ({ value: product.id, label: product.name }))}
+                placeholder={productsLoading ? "Carregando produtos..." : "Todos os produtos"}
+              />
               <DateFilter label="De" value={dateFrom} onChange={(next) => resetPage(() => setDateFrom(next))} />
               <DateFilter label="Até" value={dateTo} onChange={(next) => resetPage(() => setDateTo(next))} />
             </div>

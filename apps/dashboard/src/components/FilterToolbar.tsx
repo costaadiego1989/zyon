@@ -52,27 +52,31 @@ export function FilterToolbar({
   extra,
 }: FilterToolbarProps) {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, padding: "12px 22px", borderBottom: "1px solid var(--color-border)" }}>
-      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            onClick={() => onTabChange(tab.key)}
-            style={activeTab === tab.key ? TAB_STYLE_ACTIVE : TAB_STYLE_BASE}
-          >
-            {tab.label}
-          </button>
-        ))}
-        {extra}
+    <div className="filter-toolbar">
+      <div className="filter-toolbar__controls">
+        <div className="filter-toolbar__tabs">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => onTabChange(tab.key)}
+              style={activeTab === tab.key ? TAB_STYLE_ACTIVE : TAB_STYLE_BASE}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        {extra ? <div className="filter-toolbar__extra">{extra}</div> : null}
       </div>
       {onSearchChange !== undefined && search !== undefined && (
-        <SearchInput
-          value={search}
-          onChange={onSearchChange}
-          placeholder={searchPlaceholder}
-          width={searchWidth}
-        />
+        <div className="filter-toolbar__search">
+          <SearchInput
+            value={search}
+            onChange={onSearchChange}
+            placeholder={searchPlaceholder}
+            width={searchWidth}
+          />
+        </div>
       )}
     </div>
   );
@@ -84,6 +88,7 @@ export function FilterSelect(props: {
   onChange: (value: string) => void;
   options: Array<{ value: string; label: string }>;
   placeholder?: string;
+  width?: number | string;
 }) {
   return (
     <select
@@ -91,6 +96,7 @@ export function FilterSelect(props: {
       onChange={(e) => props.onChange(e.target.value)}
       style={{
         height: 32,
+        width: props.width ?? 200,
         padding: "0 26px 0 12px",
         borderRadius: 7,
         border: "1px solid var(--color-border)",

@@ -4626,6 +4626,74 @@ button:active:not(:disabled) {
 .spin {
   animation: support-spin 0.8s linear infinite;
 }
+
+/* Shared catalog-style filter toolbar. Controls remain on one desktop row,
+   then move as a group at tablet and mobile widths. */
+.filter-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 12px 22px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.filter-toolbar__controls,
+.filter-toolbar__tabs,
+.filter-toolbar__extra {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.filter-toolbar__controls {
+  flex: 1 1 auto;
+}
+
+.filter-toolbar__tabs,
+.filter-toolbar__extra,
+.filter-toolbar__search {
+  flex: 0 0 auto;
+}
+
+.filter-toolbar__search > * {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 900px) {
+  .filter-toolbar {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .filter-toolbar__controls,
+  .filter-toolbar__extra {
+    flex-wrap: wrap;
+  }
+
+  .filter-toolbar__search {
+    flex: 1 1 260px;
+  }
+
+  .filter-toolbar__search > * {
+    width: 100%;
+  }
+
+  .filter-toolbar__search input {
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .filter-toolbar {
+    padding: 12px var(--space-4);
+  }
+
+  .filter-toolbar__controls {
+    flex-basis: 100%;
+  }
+}
+
 @keyframes support-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
