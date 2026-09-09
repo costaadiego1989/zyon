@@ -41,6 +41,8 @@ POST_SALE_WHATSAPP_PROVIDER=meta
 API_PUBLIC_URL=https://api.zyon-payments.com.br
 ```
 
+`POST_SALE_WHATSAPP_PROVIDER=meta` deve ser aplicado somente depois que o app Meta, webhook, templates aprovados e conexao do merchant estiverem prontos em producao. Antes desse gate, manter `POST_SALE_WHATSAPP_PROVIDER=email` para nao interromper pos-venda e recuperacao por e-mail durante deploys parciais.
+
 `AACP_PII_ENC_KEY` já é obrigatória para persistir dados sensíveis e também protege o token Meta da loja. Ela não pode ser trocada sem um plano de rotação.
 
 ## Configuração no app Zyon Prod
