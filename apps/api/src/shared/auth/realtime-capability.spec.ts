@@ -44,3 +44,19 @@ test("no predictable secret fallback and no room collision across tenants", () =
   assert.notEqual(realtimeRoom("ticket", "a", "same"), realtimeRoom("ticket", "b", "same"));
   assert.notEqual(realtimeRoom("ticket", "a:b", "c"), realtimeRoom("ticket", "a", "b:c"));
 });
+
+test("expired conversations renew only with signed, tenant-bound proof within 24 hours", () => {
+  const conversation = { ...input, purpose: "storefront-conversation" as const };
+  const issued = service.issue(conversation, 1000);
+  assert.throws(() => service.verify(issued.token, conversation.purpose, input.origin, 5000));
+  const renewed = service.renewConversation(issued.token, input.resourceId, input.origin, 5000);
+  assert.equal(service.verify(renewed.token, conversation.purpose, input.origin, 5001).merchantId, input.merchantId);
+  assert.throws(() => service.renewConversation(issued.token, "other-cart", input.origin, 5000));
+  assert.throws(() => service.renewConversation(issued.token, input.resourceId, "https://other.example", 5000));
+  assert.throws(() => service.renewConversation(issued.token, input.resourceId, input.origin, 87400));
+  assert.throws(() => service.renewConversation(service.issue(input, 1000).token, input.resourceId, input.origin, 5000));
+  assert.throws(() => service.renewConversation(issued.token + "x", input.resourceId, input.origin, 5000));
+  assert.throws(() => service.renewConversation(undefined, input.resourceId, input.origin, 5000));
+  // A process restart with the configured secret preserves existing sessions.
+  assert.doesNotThrow(() => new RealtimeCapabilityService(secret).verify(renewed.token, conversation.purpose, input.origin, 5001));
+});

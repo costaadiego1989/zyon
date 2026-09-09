@@ -15,6 +15,8 @@ export interface RealtimeCapability {
 }
 
 const MAX_LIFETIME_SECONDS = 3600;
+// Cart access can be renewed after an idle tab, but never from an unsigned ID.
+const CONVERSATION_RENEWAL_WINDOW_SECONDS = 24 * 3600;
 
 /** Bearer capability issued only when the server creates a new resource. */
 export class RealtimeCapabilityService {
@@ -38,6 +40,19 @@ export class RealtimeCapabilityService {
   }
 
   verify(token: unknown, purpose: RealtimePurpose, origin?: string, now = Math.floor(Date.now() / 1000)): RealtimeCapability {
+    const claims = this.readSignedClaims(token);
+    this.validate(claims, purpose, origin, now);
+    return claims;
+  }
+
+  renewConversation(token: unknown, resourceId: string, origin?: string, now = Math.floor(Date.now() / 1000)) {
+    const claims = this.readSignedClaims(token);
+    this.validate(claims, "storefront-conversation", origin, now, CONVERSATION_RENEWAL_WINDOW_SECONDS);
+    if (claims.resourceId !== resourceId) throw new Error("conversation_access_denied");
+    return this.issue({ purpose: claims.purpose, merchantId: claims.merchantId, resourceId: claims.resourceId, origin: claims.origin }, now);
+  }
+
+  private readSignedClaims(token: unknown): RealtimeCapability {
     if (typeof token !== "string" || token.length > 4096) throw new Error("invalid_realtime_token");
     const parts = token.split(".");
     if (parts.length !== 2 || !parts.every((part) => /^[A-Za-z0-9_-]+$/.test(part))) throw new Error("invalid_realtime_token");
@@ -46,7 +61,6 @@ export class RealtimeCapabilityService {
     const actual = Buffer.from(signature!);
     if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) throw new Error("invalid_realtime_token");
     const claims = JSON.parse(Buffer.from(payload!, "base64url").toString("utf8")) as RealtimeCapability;
-    this.validate(claims, purpose, origin, now);
     return claims;
   }
 
@@ -54,11 +68,11 @@ export class RealtimeCapabilityService {
     return createHmac("sha256", this.secret).update(`aacp_realtime_v1:${payload}`).digest("base64url");
   }
 
-  private validate(claims: RealtimeCapability, purpose: RealtimePurpose, origin: string | undefined, now: number): void {
+  private validate(claims: RealtimeCapability, purpose: RealtimePurpose, origin: string | undefined, now: number, renewalWindow = 0): void {
     if (!claims || claims.typ !== "aacp_realtime_v1" || claims.purpose !== purpose ||
       !isRealtimeId(claims.merchantId) || !isRealtimeId(claims.resourceId) || !isRealtimeId(claims.nonce) ||
       !Number.isSafeInteger(claims.issuedAt) || !Number.isSafeInteger(claims.expiresAt) ||
-      claims.issuedAt > now || claims.expiresAt <= now ||
+      claims.issuedAt > now || (renewalWindow ? claims.issuedAt + renewalWindow <= now : claims.expiresAt <= now) ||
       claims.expiresAt <= claims.issuedAt || claims.expiresAt - claims.issuedAt > MAX_LIFETIME_SECONDS) {
       throw new Error("invalid_or_expired_realtime_token");
     }

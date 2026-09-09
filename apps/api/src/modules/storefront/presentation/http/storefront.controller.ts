@@ -144,6 +144,20 @@ export class StorefrontController {
     });
   }
 
+  @Post("conversations/:conversationId/access")
+  renewConversationAccess(
+    @Param("conversationId") conversationId: string,
+    @Req() request: { headers?: { authorization?: string; origin?: string } },
+  ) {
+    const token = request.headers?.authorization?.match(/^Bearer (\S+)$/i)?.[1];
+    try {
+      const access = this.capabilities.renewConversation(token, conversationId, request.headers?.origin);
+      return { conversation_id: conversationId, conversation_token: access.token, conversation_token_expires_at: access.expiresAt };
+    } catch {
+      throw new UnauthorizedException("invalid_conversation_token");
+    }
+  }
+
   @Post("nudge")
   async nudge(
     @Body() body: { conversation_id: string; merchant_id?: string; trigger: "idle_30_seconds" | "exit_intent_detected"; stage?: "cart" | "browsing"; fallback: string },
