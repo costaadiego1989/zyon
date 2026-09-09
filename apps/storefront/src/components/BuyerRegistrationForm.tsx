@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { OtpInput } from "./OtpInput";
-import { conversationAccessHeaders } from "@/lib/conversation-access";
+import { conversationFetch } from "@/lib/conversation-access";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
@@ -11,9 +11,9 @@ function trackRegistrationStep(merchantId: string | undefined, event: string) {
   const sessionId = typeof sessionStorage !== "undefined"
     ? sessionStorage.getItem("zyon_conversation_id") ?? "unknown"
     : "unknown";
-  fetch(`${API_BASE}/storefront/conversations/${encodeURIComponent(sessionId)}/events`, {
+  conversationFetch(sessionId, `${API_BASE}/storefront/conversations/${encodeURIComponent(sessionId)}/events`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...conversationAccessHeaders(sessionId) },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ merchant_id: merchantId, event, metadata: { timestamp: new Date().toISOString() } }),
   }).catch(() => {});
 }

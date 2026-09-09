@@ -19,7 +19,7 @@ import CrossSellInterstitial from "./CrossSellInterstitial";
 import { PulseAgentOrb } from "./conversation/PulseAgentOrb";
 import { THEME_TOKENS, type Theme } from "./conversation/theme-tokens";
 import { redirectToCheckout } from "./conversation/checkout-redirect";
-import { conversationAccessHeaders } from "@/lib/conversation-access";
+import { conversationFetch } from "@/lib/conversation-access";
 
 type Channel = "chat" | "voice";
 
@@ -671,9 +671,9 @@ export default function ConversationShell({
             setShowBuyerAuth(false);
             if (merchantId && conversationId) {
               const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
-              fetch(`${API_BASE}/storefront/conversations/${encodeURIComponent(conversationId)}/events`, {
+              conversationFetch(conversationId, `${API_BASE}/storefront/conversations/${encodeURIComponent(conversationId)}/events`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json", ...conversationAccessHeaders(conversationId) },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ merchant_id: merchantId, event: "login_completed", metadata: { timestamp: new Date().toISOString() } }),
               }).catch(() => {});
             }

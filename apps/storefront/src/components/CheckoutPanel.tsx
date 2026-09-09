@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { useCart } from "@/lib/cart-store";
 import { cartApi } from "@/lib/api/api-client";
-import { conversationAccessHeaders } from "@/lib/conversation-access";
+import { conversationFetch } from "@/lib/conversation-access";
 import { getValidBuyer } from "@/lib/buyer-auth";
 
 interface CheckoutPanelProps {
@@ -43,7 +43,7 @@ export default function CheckoutPanel({
   useEffect(() => {
     const onOrderCompleted = () => {
       const cid = cart.cartId;
-      if (cid && merchantId) void cartApi.clear(cid, merchantId);
+      if (cid && merchantId) void cartApi.clear(cid, merchantId).catch(() => {});
       clearCart();
     };
     window.addEventListener("aacp:order-completed", onOrderCompleted);
@@ -69,9 +69,9 @@ export default function CheckoutPanel({
   }
   useEffect(() => {
     const cartRefForToken = cartRef || tokenCartRef.current || undefined;
-    fetch("/api/checkout-token", {
+    conversationFetch(cartRefForToken ?? "", "/api/checkout-token", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...conversationAccessHeaders(cartRefForToken ?? "") },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         merchant_id: merchantId,
         cart_ref: cartRefForToken,

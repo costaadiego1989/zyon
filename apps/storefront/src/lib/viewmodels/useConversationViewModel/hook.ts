@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWidgetConfig } from "@/lib/widget-config";
 import { useCart } from "@/lib/cart-store";
+import { conversationAccessHeaders } from "@/lib/conversation-access";
 import { canFireTrigger, recordTriggerFired, noteActivity } from "@/lib/intervention-tracker";
 import { trackConversationStart } from "@/lib/analytics";
 import { useNudgeTriggers, useProactiveMode, useReturnOrderTracking } from "./effects";
@@ -58,7 +59,15 @@ export function useConversationViewModel(
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [listening, setListening] = useState(false);
-  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversationId, setConversationIdState] = useState<string | null>(null);
+  const conversationIdRef = useRef<string | null>(null);
+  const initializationRef = useRef<Promise<void> | null>(null);
+  const sendingRef = useRef(false);
+  const setConversationId = useCallback((id: string) => {
+    conversationIdRef.current = id;
+    setConversationIdState(id);
+    try { sessionStorage.setItem("zyon_conversation_id", id); } catch { /* Storage may be unavailable. */ }
+  }, []);
   const [history, setHistory] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [supportOpen, setSupportOpen] = useState(false);
   const [buyerHubOpen, setBuyerHubOpen] = useState(false);
@@ -70,18 +79,22 @@ export function useConversationViewModel(
   const dismissCrossSell = useCallback(() => setCrossSellPending(null), []);
   const recognitionRef = useRef<any>(null);
   const { config: widgetConfig } = useWidgetConfig();
-  const { cart, updateFromBlocks, updateItemQuantity } = useCart();
+  const { cart, updateFromBlocks, updateItemQuantity, clearCart } = useCart();
   const experimentVM = useCheckoutExperiment();
 
   const initConversation = useCallback(async () => {
-    await runInitConversation({
+    if (conversationIdRef.current) return;
+    if (initializationRef.current) return initializationRef.current;
+    const pending = runInitConversation({
       merchantId,
-      conversationId,
+      conversationId: conversationIdRef.current,
       cartId: cart.cartId,
       setConversationId,
       captureFromConversationStart: experimentVM.captureFromConversationStart,
       setExperimentGreeting: experimentVM.setExperimentGreeting,
     });
+    initializationRef.current = pending;
+    try { await pending; } finally { initializationRef.current = null; }
   }, [merchantId, conversationId, agent, storeName, cart.cartId, experimentVM]);
 
   const applyTheme = useCallback((t: Theme) => {
@@ -136,27 +149,31 @@ export function useConversationViewModel(
   const sendMessage = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
-      if (!trimmed) return;
-
-      const variantId = experimentVM.getTrackingVariantId() || undefined;
-
-      await handleSendMessage({
-        trimmed,
-        conversationId,
-        merchantId: merchantId || null,
-        history,
-        cartId: cart.cartId,
-        variantId,
-        setMessages,
-        setHistory,
-        setIsLoading,
-        setInput,
-        setCrossSellPending,
-        updateFromBlocks,
-        noteActivity,
-      });
+      if (!trimmed || sendingRef.current) return;
+      sendingRef.current = true;
+      try {
+        await initConversation();
+        const variantId = experimentVM.getTrackingVariantId() || undefined;
+        await handleSendMessage({
+          trimmed,
+          conversationId: conversationIdRef.current,
+          setConversationId,
+          clearCart,
+          merchantId: merchantId || null,
+          history,
+          cartId: cart.cartId,
+          variantId,
+          setMessages,
+          setHistory,
+          setIsLoading,
+          setInput,
+          setCrossSellPending,
+          updateFromBlocks,
+          noteActivity,
+        });
+      } finally { sendingRef.current = false; }
     },
-    [conversationId, merchantId, history, cart.cartId, experimentVM],
+    [merchantId, history, cart.cartId, experimentVM, initConversation, setConversationId, clearCart, updateFromBlocks],
   );
 
   const handleQuickReplyAction = useCallback(
@@ -216,6 +233,12 @@ export function useConversationViewModel(
         restoredRef.current = true;
         return;
       }
+      // Chat history may expire before the cart. Keep their identity aligned;
+      // the API will verify/renew the stored proof before either is accessed.
+      const savedCartId = merchantId ? sessionStorage.getItem(`zyon-cart-id:${merchantId}`) : null;
+      if (savedCartId && conversationAccessHeaders(savedCartId).Authorization) {
+        setConversationId(savedCartId);
+      }
       if (savedChannel === "chat" || savedChannel === "voice") {
         setChannel(savedChannel);
         setMode("chat");
@@ -237,8 +260,6 @@ export function useConversationViewModel(
   agentModeRef.current = agentMode;
   const widgetConfigRef = useRef(widgetConfig);
   widgetConfigRef.current = widgetConfig;
-  const conversationIdRef = useRef(conversationId);
-  conversationIdRef.current = conversationId;
   const experimentVMRef = useRef(experimentVM);
   experimentVMRef.current = experimentVM;
 

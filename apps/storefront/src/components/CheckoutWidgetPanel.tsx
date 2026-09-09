@@ -22,10 +22,11 @@ export default function NativeCartPanel({
   forceOpen,
   suppressAutoOpen,
 }: NativeCartPanelProps) {
-  const { cart, clearCart } = useCart();
+  const { cart, clearCart, updating, error } = useCart();
   const { config: widgetConfig } = useWidgetConfig();
   const [sheetOpen, setSheetOpen] = useState(false);
   const prevCountRef = useRef(cart.itemCount);
+  const manuallyOpenedRef = useRef(false);
   const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isBudgetMode = widgetConfig?.budgetModeEnabled === true;
   
@@ -36,7 +37,7 @@ export default function NativeCartPanel({
   }, [forceOpen]);
   
   useEffect(() => {
-    if (!suppressAutoOpen && cart.itemCount > prevCountRef.current && cart.itemCount > 0) {
+    if (!manuallyOpenedRef.current && !suppressAutoOpen && cart.itemCount > prevCountRef.current && cart.itemCount > 0) {
       setSheetOpen(true);
       if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
       autoCloseTimerRef.current = setTimeout(() => {
@@ -48,12 +49,15 @@ export default function NativeCartPanel({
   }, [cart.itemCount, suppressAutoOpen]);
   
   const handleManualOpen = () => {
+    manuallyOpenedRef.current = true;
     if (autoCloseTimerRef.current) {
       clearTimeout(autoCloseTimerRef.current);
       autoCloseTimerRef.current = null;
     }
     setSheetOpen(true);
   };
+  const closeSheet = () => { manuallyOpenedRef.current = false; setSheetOpen(false); };
+  useEffect(() => () => { if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current); }, []);
   
   useEffect(() => {
     if (cart.items.length > 0) {
@@ -100,7 +104,9 @@ export default function NativeCartPanel({
           total: cart.total,
         }}
         mode={isBudgetMode ? "budget" : "checkout"}
-        onClose={() => setSheetOpen(false)}
+        updating={updating}
+        error={error}
+        onClose={closeSheet}
         onCheckout={() => {
           void (async () => {
             await onCheckout();
@@ -112,8 +118,8 @@ export default function NativeCartPanel({
           setSheetOpen(false);
           onViewCart();
         }}
-        onUpdateQty={onUpdateQty}
-        onRemoveItem={onRemoveItem}
+        onUpdateQty={(id, quantity) => { handleManualOpen(); onUpdateQty(id, quantity); }}
+        onRemoveItem={(id) => { handleManualOpen(); onRemoveItem(id); }}
       />
     </>
   );

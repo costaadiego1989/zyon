@@ -366,6 +366,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
         <button
           type="button"
           className="cart-fab-mobile"
+          aria-label="Abrir carrinho"
           onClick={() => setCartDrawerOpen(true)}
           style={{
             position: "fixed",

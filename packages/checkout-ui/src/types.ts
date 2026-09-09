@@ -18,6 +18,8 @@ export interface CartState {
 
 export interface CartSheetProps {
   open: boolean;
+  updating?: boolean;
+  error?: string | null;
   cart: CartState;
   mode?: "checkout" | "budget";
   onClose: () => void;

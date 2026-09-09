@@ -17,14 +17,14 @@ test("cart quantities use the authenticated checkout and render the authoritativ
   await navigateToCheckout(page);
   await selectChatChannel(page);
   await expect(page.getByText("Camiseta Zyon", { exact: true }).first()).toBeVisible();
-  await page.getByRole("button", { name: "+", exact: true }).first().click();
+  await page.getByRole("button", { name: "Aumentar quantidade de Camiseta Zyon", exact: true }).first().click();
   await expect(page.getByText("Carrinho atualizado. Vamos confirmar o frete antes do pagamento.", { exact: true })).toBeVisible();
   expect(updateBody).toEqual({ session_id: "chk_e2e_test_001", items: [{ sku: "SKU-001", quantity: 2 }] });
   expect(publicCartCalls).toBe(0);
   await expect(page.getByText(/179,80/).first()).toBeVisible();
 
   await page.route("**/embed/cart", route => route.fulfill({ status: 500, json: { error: "unavailable" } }));
-  await page.getByRole("button", { name: "+", exact: true }).first().click();
-  await expect(page.getByText("Não foi possível atualizar o carrinho. Tente novamente.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Aumentar quantidade de Camiseta Zyon", exact: true }).first().click();
+  await expect(page.getByRole("alert").first()).toContainText("Seus itens foram mantidos");
   await expect(page.getByText(/179,80/).first()).toBeVisible();
 });

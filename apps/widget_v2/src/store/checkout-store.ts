@@ -95,6 +95,7 @@ interface CheckoutState {
   paymentIntent: PaymentIntent | null;
   paymentPolling: boolean;
   cartUpdating: boolean;
+  cartError: string | null;
 
   triggerConfig: TriggerConfig | null;
   triggerMessages: Record<string, { message?: string; couponCode?: string }> | null;
@@ -282,6 +283,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   paymentIntent: null,
   paymentPolling: false,
   cartUpdating: false,
+  cartError: null,
   triggerConfig: null,
   triggerMessages: null,
   activeDiscount: null,
@@ -671,7 +673,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   updateQty: async (sku, quantity, variant) => {
     const { api, cartUpdating, status } = get();
     if (!api || cartUpdating || status === "completed") return;
-    set({ cartUpdating: true });
+    set({ cartUpdating: true, cartError: null });
     try {
       const response = await api.updateCartItemQty(sku, quantity, variant);
       const cart = cartFromExperience(response.experience);
@@ -682,12 +684,12 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         activeDiscount: null,
         messages: [
           ...state.messages.map(message => ({ ...message, blocks: message.blocks?.filter(block => !["pix_payment", "stripe_card", "crypto_payment", "crypto_chain_select", "shipping_options", "payment_methods", "coupon_input"].includes(block.type)) })),
-          { id: `cart_${Date.now()}`, role: "agent" as const, text: "Carrinho atualizado. Vamos confirmar o frete antes do pagamento.", timestamp: Date.now() },
+          { id: `cart_${Date.now()}`, role: "agent" as const, text: cart.items.length ? "Carrinho atualizado. Vamos confirmar o frete antes do pagamento." : "Produto removido. Seu carrinho está vazio.", timestamp: Date.now() },
         ],
       }));
       void trackEvent(quantity === 0 ? "item_removed" : "item_quantity_updated", { sku, new_qty: quantity });
     } catch {
-      set(state => ({ messages: [...state.messages, { id: `cart_error_${Date.now()}`, role: "agent" as const, text: "Não foi possível atualizar o carrinho. Tente novamente.", timestamp: Date.now() }] }));
+      set({ cartError: "Não foi possível atualizar o carrinho. Seus itens foram mantidos; tente novamente." });
     } finally {
       set({ cartUpdating: false });
     }
@@ -1037,6 +1039,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       paymentIntent: null,
       paymentPolling: false,
       cartUpdating: false,
+      cartError: null,
       activeDiscount: null,
       error: null,
     });

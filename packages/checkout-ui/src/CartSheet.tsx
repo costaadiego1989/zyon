@@ -7,7 +7,7 @@ function formatPrice(value: number): string {
 
 export type CartSheetPosition = "bottom" | "right";
 
-export function CartSheet({ open, cart, mode = "checkout", onClose, onCheckout, onBudgetSubmit, onUpdateQty, onRemoveItem, onViewCart, position = "bottom" }: CartSheetProps & { onViewCart?: () => void; position?: CartSheetPosition; onBudgetSubmit?: (data: { customerName: string; customerEmail: string; customerPhone: string; note?: string }) => void }) {
+export function CartSheet({ open, cart, updating = false, error, mode = "checkout", onClose, onCheckout, onBudgetSubmit, onUpdateQty, onRemoveItem, onViewCart, position = "bottom" }: CartSheetProps & { onViewCart?: () => void; position?: CartSheetPosition; onBudgetSubmit?: (data: { customerName: string; customerEmail: string; customerPhone: string; note?: string }) => void }) {
   const [showBudgetForm, setShowBudgetForm] = useState(false);
   const [budgetName, setBudgetName] = useState("");
   const [budgetEmail, setBudgetEmail] = useState("");
@@ -26,6 +26,8 @@ export function CartSheet({ open, cart, mode = "checkout", onClose, onCheckout, 
         @keyframes ckui-sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
         @keyframes ckui-drawer-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
         @keyframes ckui-scrim-in { from { opacity: 0; } to { opacity: 1; } }
+        .ckui-quantity { width: 40px; height: 40px; flex-shrink: 0; touch-action: manipulation; }
+        .ckui-quantity:disabled { opacity: .45; cursor: wait !important; }
       `}</style>
 
       {/* Scrim */}
@@ -45,6 +47,7 @@ export function CartSheet({ open, cart, mode = "checkout", onClose, onCheckout, 
       <div
         role="dialog"
         aria-label="Carrinho"
+        aria-busy={updating}
         style={{
           position: "absolute",
           ...(isBottom
@@ -108,6 +111,8 @@ export function CartSheet({ open, cart, mode = "checkout", onClose, onCheckout, 
 
         {/* Items list */}
         <div style={{ flex: 1, overflowY: "auto", padding: "4px 18px 20px" }}>
+          {updating && <p role="status" style={{ color: "var(--aacp-muted)", fontSize: 13 }}>Atualizando carrinho…</p>}
+          {error && <p role="alert" style={{ color: "var(--aacp-fg)", fontSize: 13, padding: 12, border: "1px solid var(--aacp-line)", borderRadius: 8 }}>{error}</p>}
           {cart.items.length === 0 ? (
             <div style={{ textAlign: "center", padding: "40px 10px", color: "var(--aacp-muted)" }}>
               <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--aacp-fg)" }}>Carrinho vazio</div>
@@ -150,18 +155,24 @@ export function CartSheet({ open, cart, mode = "checkout", onClose, onCheckout, 
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                     <button
                       type="button"
+                      className="ckui-quantity"
+                      disabled={updating}
+                      aria-label={`Diminuir quantidade de ${item.productName}`}
                       onClick={() => item.quantity <= 1 ? onRemoveItem(item.variantId) : onUpdateQty(item.variantId, item.quantity - 1)}
-                      style={{ width: "24px", height: "24px", borderRadius: "7px", border: "1px solid var(--aacp-line)", background: "var(--aacp-surface-2, rgba(255,255,255,0.05))", color: "var(--aacp-fg)", fontSize: "14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                      style={{ borderRadius: "7px", border: "1px solid var(--aacp-line)", background: "var(--aacp-surface-2, rgba(255,255,255,0.05))", color: "var(--aacp-fg)", fontSize: "14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
                     >
                       −
                     </button>
-                    <span style={{ fontSize: "13px", fontWeight: 600, minWidth: "14px", textAlign: "center", color: "var(--aacp-fg)" }}>
+                    <span aria-label={`Quantidade de ${item.productName}`} aria-live="polite" style={{ fontSize: "13px", fontWeight: 600, minWidth: "14px", textAlign: "center", color: "var(--aacp-fg)" }}>
                       {item.quantity}
                     </span>
                     <button
                       type="button"
+                      className="ckui-quantity"
+                      disabled={updating || item.quantity >= 99}
+                      aria-label={`Aumentar quantidade de ${item.productName}`}
                       onClick={() => onUpdateQty(item.variantId, item.quantity + 1)}
-                      style={{ width: "24px", height: "24px", borderRadius: "7px", border: "1px solid var(--aacp-line)", background: "var(--aacp-surface-2, rgba(255,255,255,0.05))", color: "var(--aacp-fg)", fontSize: "14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                      style={{ borderRadius: "7px", border: "1px solid var(--aacp-line)", background: "var(--aacp-surface-2, rgba(255,255,255,0.05))", color: "var(--aacp-fg)", fontSize: "14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
                     >
                       +
                     </button>
@@ -210,7 +221,7 @@ export function CartSheet({ open, cart, mode = "checkout", onClose, onCheckout, 
                     <textarea placeholder="Observação (opcional)" value={budgetNote} onChange={(e) => setBudgetNote(e.target.value)} rows={2} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "var(--aacp-bg, #08080c)", color: "var(--aacp-fg)", fontSize: 13, fontFamily: "inherit", resize: "none" }} />
                 <button
                   type="button"
-                  disabled={!budgetName.trim() || !budgetEmail.trim() || !budgetPhone.trim() || budgetSending}
+                  disabled={updating || !budgetName.trim() || !budgetEmail.trim() || !budgetPhone.trim() || budgetSending}
                   onClick={async () => {
                     setBudgetSending(true);
                     try {
@@ -228,6 +239,7 @@ export function CartSheet({ open, cart, mode = "checkout", onClose, onCheckout, 
               <button
                 type="button"
                 onClick={mode === "budget" ? () => setShowBudgetForm(true) : onCheckout}
+                disabled={updating}
                 style={{
                   width: "100%",
                   height: "48px",

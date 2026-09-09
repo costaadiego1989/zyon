@@ -2,10 +2,13 @@ import type { Message, CrossSellInterstitialData } from "@/lib/viewmodels/useCon
 import { narrateStorefrontBlock, trackFunnelEvent } from "@/lib/services/conversation.service";
 import { checkoutApi } from "@/lib/api/api-client";
 import { getValidBuyer } from "@/lib/buyer-auth";
+import { ConversationSessionExpiredError } from "@/lib/conversation-access";
 
 export interface SendMessageParams {
   trimmed: string;
   conversationId: string | null;
+  setConversationId: (id: string) => void;
+  clearCart: () => void;
   merchantId: string | null;
   history: Array<{ role: "user" | "assistant"; content: string }>;
   cartId: string | null | undefined;
@@ -52,16 +55,32 @@ export async function handleSendMessage(params: SendMessageParams) {
       const startData = await checkoutApi.create({ merchantId });
       if (startData?.conversation_id) {
         convId = startData.conversation_id;
+        params.setConversationId(convId!);
       }
     }
     if (convId && merchantId) {
-      const data = await checkoutApi.sendMessage(convId, trimmed, {
+      const requestOptions = {
         merchantId,
         cartId: cartId || undefined,
         history: newHistory,
         variantId: variantId || undefined,
         token: getValidBuyer()?.token,
-      });
+      };
+      let data;
+      try {
+        data = await checkoutApi.sendMessage(convId, trimmed, requestOptions);
+      } catch (error) {
+        if (!(error instanceof ConversationSessionExpiredError)) throw error;
+        // No usable signed credential remains. Start a new scoped session instead
+        // of repeatedly sending an invalid token or trusting a cart ID alone.
+        const fresh = await checkoutApi.create({ merchantId });
+        convId = fresh.conversation_id;
+        params.setConversationId(convId!);
+        params.clearCart();
+        setHistory([{ role: "user", content: trimmed }]);
+        setMessages((prev) => [...prev, { id: `session-${Date.now()}`, role: "agent", text: "Sua sessão anterior expirou. Abri uma nova conversa; adicione novamente os produtos que deseja comprar." }]);
+        data = await checkoutApi.sendMessage(convId!, trimmed, { ...requestOptions, cartId: undefined, history: [{ role: "user", content: trimmed }] });
+      }
 
       if (data) {
         const blocks = data.blocks ?? [];
@@ -119,7 +138,7 @@ export async function handleSendMessage(params: SendMessageParams) {
       setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: "agent", text: `Entendi, "${trimmed}". Deixa eu verificar para você...` }]);
     }
   } catch {
-    setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: "agent", text: "Não consegui conectar ao servidor. Verifique sua conexão." }]);
+    setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: "agent", text: "Não consegui concluir sua solicitação agora. Tente novamente em instantes." }]);
   }
   setIsLoading(false);
 }

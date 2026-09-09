@@ -17,6 +17,10 @@ function translateShippingLabel(label: string): string {
 
 export function SmartCart() {
   const cart = useCheckoutStore((s) => s.cart);
+  const cartUpdating = useCheckoutStore((s) => s.cartUpdating);
+  const cartError = useCheckoutStore((s) => s.cartError);
+  const completed = useCheckoutStore((s) => s.status === "completed");
+  const controlsDisabled = cartUpdating || completed;
   const agent = useCheckoutStore((s) => s.agent);
   const updateQty = useCheckoutStore((s) => s.updateQty);
   const removeCartItem = useCheckoutStore((s) => s.removeCartItem);
@@ -43,6 +47,8 @@ export function SmartCart() {
 
   return (
     <div
+      aria-label="Carrinho do checkout"
+      aria-busy={cartUpdating}
       style={{
         height: "100%",
         display: "flex",
@@ -132,6 +138,8 @@ export function SmartCart() {
       </div>
 
       {/* Items */}
+      {cartUpdating && <p role="status" style={{ color: "var(--mut)", fontSize: 13 }}>Atualizando carrinho…</p>}
+      {cartError && <p role="alert" style={{ color: "var(--tx)", fontSize: 13, padding: 12, border: "1px solid var(--bd)", borderRadius: 8 }}>{cartError}</p>}
       <div
         style={{
           flex: 1,
@@ -230,6 +238,8 @@ export function SmartCart() {
                   </div>
                   <button
                     type="button"
+                    disabled={controlsDisabled}
+                    aria-label={`Remover ${item.name}`}
                     onClick={() => void removeCartItem(item.sku, item.variant)}
                     style={{
                       marginTop: "4px",
@@ -255,6 +265,8 @@ export function SmartCart() {
                 >
                   <button
                     type="button"
+                    disabled={controlsDisabled}
+                    aria-label={`Diminuir quantidade de ${item.name}`}
                     onClick={() => {
                       if (item.quantity <= 1) {
                         void removeCartItem(item.sku, item.variant);
@@ -263,8 +275,11 @@ export function SmartCart() {
                       }
                     }}
                     style={{
-                      width: "24px",
-                      height: "24px",
+                      width: "40px",
+                      height: "40px",
+                      flexShrink: 0,
+                      touchAction: "manipulation",
+                      opacity: controlsDisabled ? 0.45 : 1,
                       borderRadius: "7px",
                       border: "1px solid var(--bd)",
                       background: "var(--chip)",
@@ -280,6 +295,8 @@ export function SmartCart() {
                     −
                   </button>
                   <span
+                    aria-label={`Quantidade de ${item.name}`}
+                    aria-live="polite"
                     style={{
                       fontSize: "13px",
                       fontWeight: 600,
@@ -291,10 +308,15 @@ export function SmartCart() {
                   </span>
                   <button
                     type="button"
+                    disabled={controlsDisabled || item.quantity >= 99}
+                    aria-label={`Aumentar quantidade de ${item.name}`}
                     onClick={() => void updateQty(item.sku, item.quantity + 1, item.variant)}
                     style={{
-                      width: "24px",
-                      height: "24px",
+                      width: "40px",
+                      height: "40px",
+                      flexShrink: 0,
+                      touchAction: "manipulation",
+                      opacity: controlsDisabled || item.quantity >= 99 ? 0.45 : 1,
                       borderRadius: "7px",
                       border: "1px solid var(--bd)",
                       background: "var(--chip)",

@@ -1,7 +1,8 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { cartApi } from "@/lib/api/api-client";
+import { ConversationSessionExpiredError } from "@/lib/conversation-access";
 
 export interface CartItem {
   variantId: string;
@@ -42,6 +43,8 @@ export interface CartState {
 
 interface CartContextValue {
   cart: CartState;
+  updating: boolean;
+  error: string | null;
   updateFromBlocks: (blocks: any[]) => void;
   updateItemQuantity: (variantId: string, quantity: number) => Promise<void>;
   clearCart: () => void;
@@ -77,6 +80,8 @@ function saveCartId(cartId: string, merchantId: string): void {
 
 const CartContext = createContext<CartContextValue>({
   cart: EMPTY_CART,
+  updating: false,
+  error: null,
   updateFromBlocks: () => {},
   updateItemQuantity: async () => {},
   clearCart: () => {},
@@ -88,6 +93,9 @@ export function useCart(): CartContextValue {
 
 export function CartProvider({ children, merchantId }: { children: ReactNode; merchantId?: string }) {
   const [cart, setCart] = useState<CartState>(EMPTY_CART);
+  const [updating, setUpdating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const updatingRef = useRef(false);
 
   useEffect(() => {
     if (!merchantId) return;
@@ -98,7 +106,7 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
 
     cartApi.get(savedId, merchantId)
       .then((data) => {
-        if (!data || !data.items?.length) return;
+        if (!data || !Array.isArray(data.items)) return;
         const baseTotal = data.total;
         let discountedTotal = baseTotal;
         let activeOffer: ActiveOffer | undefined;
@@ -137,14 +145,15 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
           discountedTotal,
         });
       })
-      .catch(() => { /* silent — cart stays empty until next interaction */ });
+      .catch(() => { setError("Não foi possível carregar o carrinho. Tente novamente em instantes."); });
   }, [merchantId]);
 
   const updateFromBlocks = useCallback((blocks: any[]) => {
     const cartBlock = blocks?.find(
-      (b: any) => b.type === "cart_summary" && b.data?.items?.length > 0
+      (b: any) => b.type === "cart_summary" && Array.isArray(b.data?.items)
     );
     if (!cartBlock) return;
+    setError(null);
 
     const { items, itemCount, total, discount, cartId, authorizedOffer, shippingTotal, freeShipping, nextNudge, activeRules } = cartBlock.data;
 
@@ -206,6 +215,7 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
 
   const clearCart = useCallback(() => {
     setCart(EMPTY_CART);
+    setError(null);
     if (!merchantId) return;
     try {
       sessionStorage.removeItem(getStorageKey(merchantId));
@@ -213,33 +223,32 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
   }, [merchantId]);
 
   const updateItemQuantity = useCallback(async (variantId: string, quantity: number) => {
+    if (updatingRef.current) return;
     if (!merchantId) throw new Error("merchant_id_required");
     const cartId = cart.cartId;
     if (!cartId) throw new Error("cart_id_required");
 
-    const data = await cartApi.updateItem(cartId, variantId, quantity, merchantId);
-    if (!data || typeof data.cartId !== "string" || !Array.isArray(data.items)) {
-      throw new Error("invalid_cart_response");
+    updatingRef.current = true;
+    setUpdating(true);
+    setError(null);
+    try {
+      const data = await cartApi.updateItem(cartId, variantId, quantity, merchantId);
+      if (!data || typeof data.cartId !== "string" || !Array.isArray(data.items)) {
+        throw new Error("invalid_cart_response");
+      }
+      updateFromBlocks([{ type: "cart_summary", data }]);
+    } catch (cause) {
+      setError(cause instanceof ConversationSessionExpiredError
+        ? "Sua sessão expirou. Volte ao chat para iniciar uma nova conversa e adicionar seus produtos."
+        : "Não foi possível atualizar o carrinho. Seus itens foram mantidos; tente novamente.");
+    } finally {
+      updatingRef.current = false;
+      setUpdating(false);
     }
-
-    setCart({
-      cartId: data.cartId,
-      items: data.items.map((item: any) => ({
-        variantId: item.variantId,
-        productName: item.productName,
-        quantity: item.quantity,
-        price: item.price,
-        subtotal: item.subtotal,
-        image: item.imageUrl ?? item.image_url ?? item.image,
-      })),
-      itemCount: data.itemCount,
-      discount: data.discount ?? 0,
-      total: data.total,
-    });
-  }, [cart.cartId, merchantId]);
+  }, [cart.cartId, merchantId, updateFromBlocks]);
 
   return (
-    <CartContext.Provider value={{ cart, updateFromBlocks, updateItemQuantity, clearCart }}>
+    <CartContext.Provider value={{ cart, updating, error, updateFromBlocks, updateItemQuantity, clearCart }}>
       {children}
     </CartContext.Provider>
   );
