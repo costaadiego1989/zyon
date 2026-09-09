@@ -5,7 +5,6 @@ import type { Product, ProductLayoutStatusEntry } from "../../api/endpoints/cata
 import { DataPanel } from "../../components/DataPanel.js";
 import { FilterToolbar, FilterSelect } from "../../components/FilterToolbar.js";
 import { PageLoader } from "../../components/PageLoader.js";
-import { SectionHeader } from "../../components/SectionHeader.js";
 import { useCatalogApi } from "../../hooks/api/useCatalogApi.js";
 
 export interface AdvancedLayoutListPageProps {
@@ -15,6 +14,7 @@ export interface AdvancedLayoutListPageProps {
 
 type SortKey = "name-asc" | "name-desc" | "updated-desc" | "updated-asc" | "blocks-desc";
 type StatusFilter = "all" | "configured" | "empty";
+const PAGE_SIZE = 20;
 
 /**
  * Catalog → Conteúdo Avançado — Wave 2 list page (R5 of the Advanced
@@ -37,6 +37,7 @@ export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutList
   const [categoryFilter, setCategoryFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sort, setSort] = useState<SortKey>("updated-desc");
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     let cancelled = false;
@@ -133,12 +134,25 @@ export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutList
     };
   }, [products, statuses]);
 
+  const paginated = useMemo(
+    () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filtered, page],
+  );
+
+  const resetPage = (change: () => void) => {
+    change();
+    setPage(1);
+  };
+
   return (
     <div>
-      <SectionHeader
-        title="Conteúdo Avançado"
-        subtitle="Catálogo · Monte páginas de produto ricas com blocos estruturados, FAQ, depoimentos e vídeos."
-      />
+      <header className="page-head">
+        <div>
+          <span className="eyebrow">LOJA</span>
+          <h1>Conteúdo avançado</h1>
+          <p className="page-lead">Monte páginas de produto ricas com blocos estruturados, FAQ, depoimentos e vídeos.</p>
+        </div>
+      </header>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 20 }}>
         <SummaryCard icon={<LayoutGrid size={16} />} label="Produtos ativos" value={totals.products} />
@@ -183,21 +197,21 @@ export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutList
             { key: "empty", label: "Sem conteúdo" },
           ]}
           activeTab={statusFilter}
-          onTabChange={(k) => setStatusFilter(k as StatusFilter)}
+          onTabChange={(k) => resetPage(() => setStatusFilter(k as StatusFilter))}
           search={search}
-          onSearchChange={setSearch}
+          onSearchChange={(next) => resetPage(() => setSearch(next))}
           searchPlaceholder="Buscar por nome..."
           extra={
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               {categories.length > 0 ? (
                 <FilterSelect
                   value={categoryFilter}
-                  onChange={setCategoryFilter}
+                  onChange={(next) => resetPage(() => setCategoryFilter(next))}
                   options={categories.map((c) => ({ value: c.id, label: c.name }))}
                   placeholder="Todas categorias"
                 />
               ) : null}
-              <SortSelect value={sort} onChange={setSort} />
+              <SortSelect value={sort} onChange={(next) => resetPage(() => setSort(next))} />
             </div>
           }
         />
@@ -207,10 +221,10 @@ export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutList
         ) : (
           <DataPanel
             title="Produtos"
-            page={1}
-            pageSize={filtered.length || 1}
+            page={page}
+            pageSize={PAGE_SIZE}
             total={filtered.length}
-            onPageChange={() => undefined}
+            onPageChange={setPage}
             isEmpty={filtered.length === 0}
             empty={{
               icon: LayoutGrid,
@@ -242,7 +256,7 @@ export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutList
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(({ product, status }) => {
+                {paginated.map(({ product, status }) => {
                   const firstMedia = product.variants?.[0]?.media?.[0]?.url;
                   return (
                     <tr

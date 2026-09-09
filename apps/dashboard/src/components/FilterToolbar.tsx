@@ -52,8 +52,8 @@ export function FilterToolbar({
   extra,
 }: FilterToolbarProps) {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 22px", borderBottom: "1px solid var(--color-border)" }}>
-      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, padding: "12px 22px", borderBottom: "1px solid var(--color-border)" }}>
+      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap", minWidth: 0 }}>
         {tabs.map((tab) => (
           <button
             key={tab.key}

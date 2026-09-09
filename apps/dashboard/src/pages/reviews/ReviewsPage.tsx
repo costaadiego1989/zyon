@@ -7,7 +7,6 @@ import { Button } from "../../components/Button.js";
 import { DataPanel } from "../../components/DataPanel.js";
 import { FilterSelect, FilterToolbar } from "../../components/FilterToolbar.js";
 import { PageLoader } from "../../components/PageLoader.js";
-import { SectionHeader } from "../../components/SectionHeader.js";
 import { SidePanel } from "../../components/SidePanel.js";
 import { showToast } from "../../components/Toast.js";
 import { useCatalogApi } from "../../hooks/api/useCatalogApi.js";
@@ -146,11 +145,14 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
 
   return (
     <div>
-      <SectionHeader
-        title="Avaliações"
-        subtitle="Revise contribuições dos compradores antes que apareçam na página do produto."
-        trailing={<Button variant="outline" onClick={() => void load()} disabled={loading}>Atualizar</Button>}
-      />
+      <header className="page-head">
+        <div>
+          <span className="eyebrow">LOJA</span>
+          <h1>Avaliações</h1>
+          <p className="page-lead">Revise contribuições dos compradores antes que apareçam na página do produto.</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>Atualizar</Button>
+      </header>
 
       {error ? (
         <div role="alert" style={errorStyle}>
@@ -169,22 +171,26 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
           onTabChange={(next) => resetPage(() => setKind(next as ReviewKind))}
           extra={
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-              <FilterSelect
-                value={status}
-                onChange={(next) => resetPage(() => setStatus(next as ModerationStatus))}
-                options={[
-                  { value: "all", label: "Todos os status" },
-                  { value: "pending", label: "Pendentes" },
-                  { value: "approved", label: "Aprovadas" },
-                  { value: "rejected", label: "Rejeitadas" },
-                ]}
-              />
-              <FilterSelect
-                value={productId}
-                onChange={(next) => resetPage(() => setProductId(next))}
-                options={currentProducts.map((product) => ({ value: product.id, label: product.name }))}
-                placeholder={productsLoading ? "Carregando produtos..." : "Todos os produtos"}
-              />
+              <div style={{ width: 150, flex: "0 0 auto" }}>
+                <FilterSelect
+                  value={status}
+                  onChange={(next) => resetPage(() => setStatus(next as ModerationStatus))}
+                  options={[
+                    { value: "all", label: "Todos os status" },
+                    { value: "pending", label: "Pendentes" },
+                    { value: "approved", label: "Aprovadas" },
+                    { value: "rejected", label: "Rejeitadas" },
+                  ]}
+                />
+              </div>
+              <div style={{ width: 210, flex: "0 0 auto" }}>
+                <FilterSelect
+                  value={productId}
+                  onChange={(next) => resetPage(() => setProductId(next))}
+                  options={currentProducts.map((product) => ({ value: product.id, label: product.name }))}
+                  placeholder={productsLoading ? "Carregando produtos..." : "Todos os produtos"}
+                />
+              </div>
               <DateFilter label="De" value={dateFrom} onChange={(next) => resetPage(() => setDateFrom(next))} />
               <DateFilter label="Até" value={dateTo} onChange={(next) => resetPage(() => setDateTo(next))} />
             </div>
@@ -303,9 +309,9 @@ function Detail({ label, value }: { label: string; value: React.ReactNode }) {
 
 function DateFilter({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
-    <label style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 8px 0 10px", border: "1px solid var(--color-border)", borderRadius: 7, color: "var(--color-text-muted)", font: "600 11px var(--font-sans)", background: "var(--surface-1)" }}>
+    <label style={{ display: "inline-flex", alignItems: "center", gap: 6, width: 166, height: 32, boxSizing: "border-box", padding: "0 8px 0 10px", border: "1px solid var(--color-border)", borderRadius: 7, color: "var(--color-text-muted)", font: "600 11px var(--font-sans)", background: "var(--surface-1)" }}>
       {label}
-      <input type="date" value={value} onChange={(event) => onChange(event.target.value)} aria-label={`Data ${label}`} style={{ border: 0, outline: 0, background: "transparent", color: "var(--color-text)", font: "12px var(--font-sans)", minWidth: 124 }} />
+      <input type="date" value={value} onChange={(event) => onChange(event.target.value)} aria-label={`Data ${label}`} style={{ minWidth: 0, flex: 1, border: 0, outline: 0, background: "transparent", color: "var(--color-text)", font: "12px var(--font-sans)" }} />
     </label>
   );
 }
