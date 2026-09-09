@@ -23,18 +23,17 @@ const config: NextConfig = {
   },
   async headers() {
     const isDev = process.env.NODE_ENV !== "production";
-    // In dev, the API (localhost:3009), widget (localhost:5174) and Google Fonts
-    // are served over http/cross-origin, so the strict prod CSP would block them.
-    // Relax connect/style/font sources for local development only.
+    // Merchant themes may opt into the configured Google Font family. Keep that
+    // stylesheet source explicit in production rather than silently falling back.
+    // The API and widget local origins remain development-only.
     const devConnect = isDev
       ? " http://localhost:3009 http://localhost:5174 http://127.0.0.1:3009 ws://localhost:3001 ws://localhost:3009"
       : "";
-    const devStyle = isDev ? " https://fonts.googleapis.com" : "";
     const devFont = isDev ? " https://fonts.gstatic.com" : "";
     const contentSecurityPolicy = (frameAncestors: string) => [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://analytics.tiktok.com https://js.stripe.com",
-      `style-src 'self' 'unsafe-inline'${devStyle}`,
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: https: blob:",
       `connect-src 'self' https: wss://api.zyon-payments.com.br${devConnect} https://api.stripe.com`,
       "frame-src 'self' https://www.googletagmanager.com https://js.stripe.com https://hooks.stripe.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com",
