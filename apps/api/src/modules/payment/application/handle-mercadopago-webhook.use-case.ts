@@ -140,9 +140,19 @@ export class HandleMercadoPagoWebhookUseCase {
 
     // Resolve merchant BEFORE idempotency gate to ensure tenant scoping
     // (ADR 0001 #3: do not gate on external ID alone).
-    const ref = await this.payments.getIntentByExternalReference(paymentId);
+    const ref = await this.payments.getIntentReferenceByProviderPaymentId?.(paymentId) ?? null;
     const merchantId = ref?.merchantId ?? null;
-    const eventKey: ProviderEventKey = { provider: "mercadopago", merchantId, eventId: paymentId };
+    const state = await this.resolveAuthoritativeState(body, paymentId, ref);
+
+    // Mercado Pago identifies every payment.updated notification with the
+    // payment id, including transitions such as pending -> approved. Reserve
+    // each authoritative state once, rather than permanently consuming the
+    // payment id after an informational pending delivery.
+    const eventKey: ProviderEventKey = {
+      provider: "mercadopago",
+      merchantId,
+      eventId: `${paymentId}:${state ?? "ignored"}`
+    };
 
     // Atomic idempotency gate: record the marker BEFORE any side effect.
     const reserved = await this.payments.recordProcessedProviderEvent(eventKey);
@@ -151,7 +161,7 @@ export class HandleMercadoPagoWebhookUseCase {
     }
 
     try {
-      const effect = await this.dispatch(body, paymentId, ref);
+      const effect = await this.dispatch(body, paymentId, ref, state);
       return { outcome: "processed", effect };
     } catch (e) {
       const msg = e instanceof Error ? e.message : "unknown_error";
@@ -173,7 +183,8 @@ export class HandleMercadoPagoWebhookUseCase {
   private async dispatch(
     body: MercadoPagoWebhookInbound,
     paymentId: string,
-    ref: { id: string; merchantId: string } | null
+    ref: { id: string; merchantId: string } | null,
+    state: "approved" | "failed" | "pending" | "unknown" | null
   ): Promise<string> {
     // MercadoPago sends action="payment.updated" for most payment events.
     // Fetch payment status via provider to determine authoritative state.
@@ -191,18 +202,6 @@ export class HandleMercadoPagoWebhookUseCase {
       return "ignored_intent_not_found";
     }
 
-    // Fetch authoritative payment status from MercadoPago provider
-    if (!this.provider) {
-      throw new BadRequestException("mercadopago_provider_not_configured");
-    }
-
-    const statusOutput = await this.provider.fetchPaymentStatus({
-      merchantId: ref.merchantId,
-      providerPaymentId: paymentId
-    });
-
-    const state = statusOutput.state;
-
     if (state === "approved") {
       return await this.paymentDispatch.markApprovedAndComplete(intentEntity, paymentId);
     } else if (state === "failed") {
@@ -212,5 +211,22 @@ export class HandleMercadoPagoWebhookUseCase {
 
     // For pending/unknown states, do nothing — webhook is informational
     return "noop_payment_pending_or_unknown";
+  }
+
+  private async resolveAuthoritativeState(
+    body: MercadoPagoWebhookInbound,
+    paymentId: string,
+    ref: { id: string; merchantId: string } | null
+  ): Promise<"approved" | "failed" | "pending" | "unknown" | null> {
+    if (body.action !== "payment.updated" || !ref) return null;
+    if (!this.provider) {
+      throw new BadRequestException("mercadopago_provider_not_configured");
+    }
+
+    const statusOutput = await this.provider.fetchPaymentStatus({
+      merchantId: ref.merchantId,
+      providerPaymentId: paymentId
+    });
+    return statusOutput.state;
   }
 }

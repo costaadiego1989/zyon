@@ -293,6 +293,16 @@ export class PrismaPaymentRepository implements PaymentRepository {
     return row ? { id: row.id, merchantId: row.merchantId } : null;
   }
 
+  async getIntentReferenceByProviderPaymentId(
+    providerPaymentId: string
+  ): Promise<{ id: string; merchantId: string } | null> {
+    const row = await this.prisma.paymentIntent.findFirst({
+      where: { providerPaymentId: providerPaymentId.trim() },
+      select: { id: true, merchantId: true }
+    });
+    return row ? { id: row.id, merchantId: row.merchantId } : null;
+  }
+
   async hasProcessedProviderEvent(key: ProviderEventKey): Promise<boolean> {
     const row = await this.prisma.paymentProviderEvent.findFirst({
       where: {

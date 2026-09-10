@@ -49,6 +49,14 @@ export interface PaymentRepository {
     providerPaymentId: string
   ): Promise<PaymentIntentEntity | null>;
   /**
+   * Resolves the tenant-scoped intent reference from a provider payment id on
+   * an authenticated provider webhook. The caller must re-fetch through
+   * `getIntentById` before applying a state transition.
+   */
+  getIntentReferenceByProviderPaymentId?(
+    providerPaymentId: string
+  ): Promise<{ id: string; merchantId: string } | null>;
+  /**
    * Most recent approved intent for a checkout session. Used by the refund flow
    * to resolve the provider payment to reverse when a return is refunded.
    */

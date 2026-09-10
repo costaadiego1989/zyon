@@ -39,6 +39,7 @@ import "./modules/payment/application/confirm-crypto-payment.use-case.spec.js";
 import "./modules/payment/application/reconcile-payment-intents.use-case.spec.js";
 import "./modules/payment/application/get-payment-intent-status.use-case.spec.js";
 import "./modules/payment/application/handle-asaas-webhook.use-case.spec.js";
+import "./modules/payment/application/handle-mercadopago-webhook.use-case.spec.js";
 import "./modules/payment/infrastructure/asaas-env.spec.js";
 import "./modules/payment/infrastructure/asaas-payment.adapter.spec.js";
 import "./modules/payment/infrastructure/payment-secret-cipher.spec.js";

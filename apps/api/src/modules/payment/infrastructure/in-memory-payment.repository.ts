@@ -121,6 +121,19 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     return entity ? PaymentIntentEntity.rehydrate(entity.snapshot()) : null;
   }
 
+  async getIntentReferenceByProviderPaymentId(
+    providerPaymentId: string
+  ): Promise<{ id: string; merchantId: string } | null> {
+    const normalizedProviderPaymentId = trim(providerPaymentId);
+    for (const entity of this.byIntentId.values()) {
+      const snapshot = entity.snapshot();
+      if (snapshot.providerPaymentId === normalizedProviderPaymentId) {
+        return { id: snapshot.id, merchantId: snapshot.merchantId };
+      }
+    }
+    return null;
+  }
+
   async findApprovedBySessionId(
     merchantId: string,
     sessionId: string
