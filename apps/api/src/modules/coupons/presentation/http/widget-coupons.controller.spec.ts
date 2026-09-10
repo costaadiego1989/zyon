@@ -90,6 +90,88 @@ test("WidgetCouponsController uses merchant from embed token and ignores body me
   assert.equal((await checkout.getSession("m_token", sessionId))?.cart.currentDiscount, 10);
 });
 
+test("WidgetCouponsController derives the coupon buyer from the persisted session", async () => {
+  const checkout = new InMemoryCheckoutRepository();
+  const now = Math.floor(Date.now() / 1000);
+  const tokens = new EmbedTokenService({ value: Buffer.from("embed-coupon-spec-secret-32chars!!") });
+  const embedClaims = tokens.verify(
+    tokens.sign({
+      typ: "aacp_embed_v1",
+      merchantId: "m_token",
+      issuedAtUnix: now,
+      expiresAtUnix: now + 900,
+      nonce: "coupon-buyer"
+    })
+  );
+  const sessionId = embedCheckoutSessionId(embedClaims);
+  checkout.saveSession(checkoutSession({ merchantId: "m_token", sessionId, globalUserId: "usr_persisted_buyer" }));
+
+  let seen: Record<string, unknown> | undefined;
+  const controller = new WidgetCouponsController(
+    { async execute(input: Record<string, unknown>) { seen = input; return { redemption_id: "red_1", discount_applied: 10, coupon: { code: "PROMO10" } }; } } as never,
+    new EmbedCheckoutGuardHelper(checkout),
+    checkout,
+    merchantRepo as never,
+    { platformFeeBrl: 1.99 },
+    { checkoutEvent: { findFirst: async () => null, create: async () => ({}) } } as never
+  );
+
+  await controller.apply(
+    { embedClaims },
+    {
+      session_id: sessionId,
+      merchant_id: "m_token",
+      code: "PROMO10",
+      cart: { currency: "BRL", total: 250, items: [] },
+      buyer_global_user_id: "usr_forged_buyer"
+    }
+  );
+
+  assert.equal(seen?.buyer_global_user_id, "usr_persisted_buyer");
+});
+
+test("WidgetCouponsController does not accept a buyer id from the widget for a legacy session", async () => {
+  const checkout = new InMemoryCheckoutRepository();
+  const now = Math.floor(Date.now() / 1000);
+  const tokens = new EmbedTokenService({ value: Buffer.from("embed-coupon-spec-secret-32chars!!") });
+  const embedClaims = tokens.verify(
+    tokens.sign({
+      typ: "aacp_embed_v1",
+      merchantId: "m_token",
+      issuedAtUnix: now,
+      expiresAtUnix: now + 900,
+      nonce: "coupon-no-buyer"
+    })
+  );
+  const sessionId = embedCheckoutSessionId(embedClaims);
+  const session = checkoutSession({ merchantId: "m_token", sessionId });
+  delete (session as { globalUserId?: string }).globalUserId;
+  checkout.saveSession(session);
+
+  let seen: Record<string, unknown> | undefined;
+  const controller = new WidgetCouponsController(
+    { async execute(input: Record<string, unknown>) { seen = input; return { redemption_id: "red_1", discount_applied: 10, coupon: { code: "PROMO10" } }; } } as never,
+    new EmbedCheckoutGuardHelper(checkout),
+    checkout,
+    merchantRepo as never,
+    { platformFeeBrl: 1.99 },
+    { checkoutEvent: { findFirst: async () => null, create: async () => ({}) } } as never
+  );
+
+  await controller.apply(
+    { embedClaims },
+    {
+      session_id: sessionId,
+      merchant_id: "m_token",
+      code: "PROMO10",
+      cart: { currency: "BRL", total: 250, items: [] },
+      buyer_global_user_id: "usr_forged_buyer"
+    }
+  );
+
+  assert.equal(seen?.buyer_global_user_id, undefined);
+});
+
 test("WidgetCouponsController rejects session from another merchant", async () => {
   const checkout = new InMemoryCheckoutRepository();
   checkout.saveSession(checkoutSession({ merchantId: "m_other", sessionId: "sess_coupon" }));

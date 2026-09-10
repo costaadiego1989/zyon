@@ -58,8 +58,16 @@ export class WidgetCouponsController {
       // be charged when the order is completed.
       cart: session.cart,
       merchantRules: rules, // P0: pass rules so engine can cap/reject discount
+      // The widget body is browser-controlled. A buyer id supplied there
+      // could make a per-buyer limit apply to another account or be bypassed
+      // by rotating arbitrary ids. Only use the identity already persisted
+      // for the signed checkout session (which may have originated from a
+      // verified buyer access token). Legacy sessions without an identity
+      // remain supported, but cannot claim one through this endpoint.
       buyer_global_user_id:
-        typeof body.buyer_global_user_id === "string" ? body.buyer_global_user_id.trim() : undefined,
+        typeof session.globalUserId === "string" && session.globalUserId.trim()
+          ? session.globalUserId.trim()
+          : undefined,
       buyer_region: typeof body.buyer_region === "string" ? body.buyer_region.trim() : undefined,
       source: "manual"
     });
