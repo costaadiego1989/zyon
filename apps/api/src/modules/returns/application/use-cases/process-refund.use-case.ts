@@ -39,7 +39,12 @@ export class ProcessRefundUseCase {
       const amountInCents = result?.amountCents ?? 0;
       const status = result?.refunded ? "COMPLETED" : "PENDING";
 
-      await this.returnRepo.saveRefund({ returnId, amountInCents, status });
+      await this.returnRepo.saveRefund({
+        returnId,
+        paymentIntentId: result?.paymentIntentId,
+        amountInCents,
+        status,
+      });
       if (result?.refunded) {
         await this.returnRepo.updateRefundStatus(returnId, "COMPLETED", new Date());
         await this.returnRepo.updateStatus(returnId, "REFUND_COMPLETED");

@@ -78,7 +78,7 @@ const CONFIRMED_PAYMENT_STATUSES = new Set([
 /**
  * Financial read model for the merchant dashboard.
  *
- * It deliberately treats CompletedOrder and provider-confirmed ReturnRefund as
+ * It deliberately treats CompletedOrder and provider-confirmed refunds as
  * different movements. A fully refunded order therefore remains visible as a
  * sale and a refund, which explains the gross figures without inventing a
  * provider payout balance or platform fee.
@@ -144,7 +144,7 @@ export class FinanceDashboardUseCase {
     const movements = await this.loadMovements(merchantId, period);
     const filtered = movements.filter((movement) => {
       if (type && movement.kind !== type) return false;
-      if (method && (movement.payment_method ?? "").toLowerCase() !== method) return false;
+      if (method && canonicalPaymentMethod(movement.payment_method) !== canonicalPaymentMethod(method)) return false;
       if (query) {
         const haystack = `${movement.order_reference} ${movement.payment_method ?? ""} ${movement.status}`.toLowerCase();
         if (!haystack.includes(query)) return false;
@@ -171,7 +171,7 @@ export class FinanceDashboardUseCase {
     const query = parseOptionalText(input.q, "q", 160)?.toLowerCase();
     const movements = (await this.loadMovements(merchantId, period)).filter((movement) => {
       if (type && movement.kind !== type) return false;
-      if (method && (movement.payment_method ?? "").toLowerCase() !== method) return false;
+      if (method && canonicalPaymentMethod(movement.payment_method) !== canonicalPaymentMethod(method)) return false;
       if (!query) return true;
       return `${movement.order_reference} ${movement.payment_method ?? ""} ${movement.status}`.toLowerCase().includes(query);
     });
@@ -197,7 +197,7 @@ export class FinanceDashboardUseCase {
   }
 
   private async loadMovements(merchantId: string, period: PeriodBounds): Promise<Movement[]> {
-    const [orders, refunds] = await Promise.all([
+    const [orders, refunds, providerRefunds] = await Promise.all([
       this.prisma.completedOrder.findMany({
         where: {
           merchantId,
@@ -231,9 +231,40 @@ export class FinanceDashboardUseCase {
         },
         orderBy: [{ processedAt: "desc" }, { id: "desc" }],
       }),
+      this.prisma.paymentIntent.findMany({
+        where: {
+          merchantId,
+          status: "refunded",
+          updatedAt: { gte: period.start, lt: period.endExclusive },
+        },
+        select: { id: true, sessionId: true, method: true, status: true, updatedAt: true },
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      }),
     ]);
 
     const sessionIds = orders.map((order) => order.sessionId);
+    const providerRefundSessionIds = providerRefunds
+      .map((payment) => payment.sessionId)
+      .filter((sessionId) => !sessionIds.includes(sessionId));
+    const providerRefundOrders = providerRefundSessionIds.length > 0
+      ? await this.prisma.completedOrder.findMany({
+          where: {
+            merchantId,
+            sessionId: { in: providerRefundSessionIds },
+            status: { notIn: ["cancelled", "canceled"] },
+          },
+          select: {
+            id: true,
+            sessionId: true,
+            externalOrderId: true,
+            orderTotal: true,
+            currency: true,
+            status: true,
+            completedAt: true,
+          },
+          orderBy: [{ completedAt: "desc" }, { id: "desc" }],
+        })
+      : [];
     const intentIds = refunds.flatMap((refund) => refund.paymentIntentId ? [refund.paymentIntentId] : []);
     const paymentIntents = sessionIds.length > 0 || intentIds.length > 0
       ? await this.prisma.paymentIntent.findMany({
@@ -258,6 +289,14 @@ export class FinanceDashboardUseCase {
         paymentBySession.set(payment.sessionId, payment);
       }
     }
+    const orderBySession = new Map<string, (typeof orders)[number]>();
+    for (const order of [...orders, ...providerRefundOrders]) {
+      if (!orderBySession.has(order.sessionId)) orderBySession.set(order.sessionId, order);
+    }
+    const confirmedRefundPaymentIds = new Set(
+      refunds.flatMap((refund) => refund.paymentIntentId ? [refund.paymentIntentId] : []),
+    );
+    const confirmedRefundOrderReferences = new Set(refunds.map((refund) => refund.return.orderId));
 
     const movements: Movement[] = [
       ...orders
@@ -291,6 +330,31 @@ export class FinanceDashboardUseCase {
           status: refund.status,
           payment_intent_id: refund.paymentIntentId ?? null,
         };
+      }),
+      ...providerRefunds.flatMap((payment) => {
+        const order = orderBySession.get(payment.sessionId);
+        if (
+          !order ||
+          order.currency.toUpperCase() !== "BRL" ||
+          confirmedRefundPaymentIds.has(payment.id) ||
+          confirmedRefundOrderReferences.has(order.externalOrderId)
+        ) {
+          return [];
+        }
+        return [{
+          id: `provider-refund:${payment.id}`,
+          sortId: payment.id,
+          kind: "refund" as const,
+          occurred_at: payment.updatedAt.toISOString(),
+          // Payment intents can include a buyer-facing fee. Financeiro reports
+          // the store order total, the same basis used for the sale movement.
+          amount_brl: preciseBrl(-decimalToBrl(order.orderTotal)),
+          currency: "BRL" as const,
+          order_reference: order.externalOrderId,
+          payment_method: payment.method,
+          status: payment.status,
+          payment_intent_id: payment.id,
+        }];
       }),
     ];
 
@@ -399,13 +463,20 @@ function paymentRank(status: string): number {
   return CONFIRMED_PAYMENT_STATUSES.has(status.toLowerCase()) ? 2 : 1;
 }
 
+function canonicalPaymentMethod(method: string | null | undefined): string {
+  const normalized = method?.trim().toLowerCase() ?? "";
+  if (["credit_card", "card", "cartao", "cartão"].includes(normalized)) return "card";
+  if (["boleto", "bank_slip"].includes(normalized)) return "boleto";
+  return normalized;
+}
+
 function normalizePaymentMethod(method: string | null): string {
-  if (!method) return "Não informado";
-  const normalized = method.trim().toLowerCase();
-  if (normalized === "pix") return "PIX";
-  if (["credit_card", "card", "cartao", "cartão"].includes(normalized)) return "Cartão";
-  if (["boleto", "bank_slip"].includes(normalized)) return "Boleto";
-  return method;
+  const canonical = canonicalPaymentMethod(method);
+  if (!canonical) return "Não informado";
+  if (canonical === "pix") return "PIX";
+  if (canonical === "card") return "Cartão";
+  if (canonical === "boleto") return "Boleto";
+  return method!;
 }
 
 function formatCsvBrl(value: number): string {

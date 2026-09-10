@@ -29,6 +29,7 @@ export interface RefundOrderPaymentInput {
 export interface RefundOrderPaymentResult {
   refunded: boolean;
   amountCents: number;
+  paymentIntentId?: string;
   providerRefundId?: string;
   reason?: string;
 }
@@ -169,7 +170,7 @@ export class RefundPaymentService {
     }
 
     if (typeof this.provider.refundPayment !== "function") {
-      return { refunded: false, amountCents, reason: "provider_refund_unsupported" };
+      return { refunded: false, amountCents, paymentIntentId: snap.id, reason: "provider_refund_unsupported" };
     }
 
     try {
@@ -189,13 +190,14 @@ export class RefundPaymentService {
       return {
         refunded,
         amountCents,
+        paymentIntentId: snap.id,
         providerRefundId: result.refundId,
         reason: refunded ? undefined : `provider_refund_${result.status}`,
       };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`Refund failed for order ${input.externalOrderId}: ${msg}`);
-      return { refunded: false, amountCents, reason: `provider_error: ${msg}` };
+      return { refunded: false, amountCents, paymentIntentId: snap.id, reason: `provider_error: ${msg}` };
     }
   }
 }

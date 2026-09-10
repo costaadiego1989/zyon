@@ -126,7 +126,12 @@ export function FinancePage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Mercha
   const downloadCsv = async () => {
     setExporting(true);
     try {
-      const response = await api.getFinanceCsv(period);
+      const response = await api.getFinanceCsv({
+        ...period,
+        type: transactionFilter,
+        method: method || undefined,
+        q: search || undefined,
+      });
       if (!response.ok) throw new DashboardHttpError(response.status, await response.text());
       const blob = await response.blob();
       const href = URL.createObjectURL(blob);
