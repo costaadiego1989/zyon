@@ -87,12 +87,21 @@ export function normalizePlannedSettlement(plan: PlannedPaymentSettlement): Plan
       const entryType = entry.entryType.trim();
       const recipientType = entry.recipientType.trim();
       const recipientReference = entry.recipientReference?.trim() || undefined;
-      if (!entryKey || !entryType || !recipientType || entry.direction !== "credit" ||
+      if ((entryKey !== "platform_fee" && entryKey !== "merchant_payout") ||
+        (entryType !== "platform_fee" && entryType !== "merchant_payout") ||
+        (recipientType !== "platform" && recipientType !== "merchant") ||
+        entry.direction !== "credit" ||
         !nonNegativeCents(entry.plannedAmountCents) || seen.has(entryKey)) {
         throw new Error("payment_settlement_plan_invalid");
       }
       seen.add(entryKey);
-      return { ...entry, entryKey, entryType, recipientType, recipientReference };
+      return {
+        ...entry,
+        entryKey: entryKey as PlannedSettlementEntry["entryKey"],
+        entryType: entryType as PlannedSettlementEntry["entryType"],
+        recipientType: recipientType as PlannedSettlementEntry["recipientType"],
+        recipientReference,
+      };
     });
   const entries = normalizedEntries.filter(entry => entry.plannedAmountCents > 0);
   if (entries.reduce((total, entry) => total + entry.plannedAmountCents, 0) !== plan.plannedGrossCents - plan.plannedProviderFeeCents) {
