@@ -18,7 +18,7 @@ import { GetPaymentAllocationHistoryUseCase } from "../../application/get-paymen
 export class FinanceDashboardController {
   constructor(
     private readonly finance: FinanceDashboardUseCase,
-    private readonly paymentAllocationHistory: GetPaymentAllocationHistoryUseCase,
+    private readonly paymentAllocationHistoryUseCase: GetPaymentAllocationHistoryUseCase,
   ) {}
 
   @Get("summary")
@@ -50,7 +50,7 @@ export class FinanceDashboardController {
   })
   @ApiOkResponse({ description: "Immutable allocation plan and any provider observations visible only to the authenticated merchant" })
   async paymentAllocationHistory(@Req() req: any, @Param("paymentIntentId") paymentIntentId: string) {
-    return this.paymentAllocationHistory.execute({
+    return this.paymentAllocationHistoryUseCase.execute({
       merchantId: currentUser(req).merchantId,
       paymentIntentId,
     });
