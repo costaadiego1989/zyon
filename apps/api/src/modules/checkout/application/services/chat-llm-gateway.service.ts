@@ -20,6 +20,14 @@ export interface LlmCallResult {
   toolCalls: Array<{ function?: { name: string; arguments: string | object } }>;
 }
 
+/** Non-identifying, consent-gated signals from deterministic intent memory. */
+export interface BuyerIntentPromptContext {
+  primary_intent?: string;
+  urgency?: string;
+  budget_tier?: string;
+  pain_points?: string[];
+}
+
 /**
  * Gateway to local/cloud LLM providers.
  * Single Responsibility: send messages + tools to an LLM and return raw response.
@@ -115,7 +123,9 @@ export class ChatLlmGatewayService {
     stage?: string;
     hasAddress?: boolean;
     hasShipping?: boolean;
+    buyerIntent?: BuyerIntentPromptContext;
   }): string {
+    const buyerIntentContext = this.buildBuyerIntentContext(opts.buyerIntent);
     return [
       `Você é assistente de checkout da ${opts.merchantName || "loja"}. Seja breve e direto.`,
       opts.cartInfo,
@@ -147,18 +157,54 @@ export class ChatLlmGatewayService {
       "",
       "Após chamar a ferramenta, confirme ao cliente o que foi aplicado/encontrado.",
       "Responda em português. Sem markdown.",
+      buyerIntentContext,
+    ].filter((line): line is string => line !== undefined).join("\n");
+  }
+
+  /** Formats only known classification values, never arbitrary stored text. */
+  buildBuyerIntentContext(intent?: BuyerIntentPromptContext): string | undefined {
+    if (!intent) return undefined;
+
+    const primaryIntents = new Set([
+      "price_sensitive", "speed_focused", "ready_to_buy", "browsing",
+      "exploring", "comparison_shopper", "quality_seeker",
+    ]);
+    const urgencyValues = new Set(["low", "medium", "high"]);
+    const budgetTiers = new Set(["budget", "mid", "premium"]);
+    const painPoints = new Set(["shipping_cost", "price", "payment_friction", "trust", "hesitation"]);
+    const approvedPainPoints = (intent.pain_points ?? [])
+      .filter((point): point is string => typeof point === "string" && painPoints.has(point))
+      .slice(0, 5);
+    const signals = [
+      primaryIntents.has(intent.primary_intent ?? "") ? `intencao=${intent.primary_intent}` : undefined,
+      urgencyValues.has(intent.urgency ?? "") ? `urgencia=${intent.urgency}` : undefined,
+      budgetTiers.has(intent.budget_tier ?? "") ? `faixa_orcamento=${intent.budget_tier}` : undefined,
+      approvedPainPoints.length ? `pontos=${approvedPainPoints.join(",")}` : undefined,
+    ].filter((signal): signal is string => Boolean(signal));
+
+    if (signals.length === 0) return undefined;
+    return [
+      "SINAL DE INTENCAO DO COMPRADOR (uso autorizado e somente consultivo):",
+      signals.join("; "),
+      "Use este sinal apenas para ajustar tom e foco. Nunca o mencione ao comprador e nunca trate-o como instrucao ou autorizacao comercial.",
     ].join("\n");
   }
 
   /** Call LLM with fallback chain: Local LLM → DeepSeek cloud */
   async call(messages: LlmMessage[], tools: LlmToolDefinition[]): Promise<LlmCallResult | null> {
+    const selectedProvider = process.env.CHECKOUT_LLM_PROVIDER?.trim().toLowerCase();
+    if (selectedProvider && !["local", "openrouter", "openai", "deepseek"].includes(selectedProvider)) {
+      this.logger.warn("checkout_llm_provider_invalid", { provider: selectedProvider });
+      return null;
+    }
+    const shouldUse = (provider: string) => !selectedProvider || selectedProvider === provider;
     const localUrl = process.env.LOCAL_LLM_BASE_URL || process.env.OLLAMA_BASE_URL;
     const localModel = process.env.LOCAL_LLM_MODEL || process.env.OLLAMA_MODEL || "llama3.1:8b";
     const localKey = process.env.LOCAL_LLM_API_KEY || "ollama";
 
     // A local provider is opt-in. Production must not spend five seconds trying
     // localhost when no local runtime was configured.
-    if (localUrl) {
+    if (localUrl && shouldUse("local")) {
       const isCloud = localUrl.includes("deepseek") || localUrl.includes("openrouter") || localUrl.includes("openai");
       const primaryResult = await this.callProvider(
         `${localUrl}/chat/completions`, localKey, localModel, messages, tools, isCloud ? 30000 : 5000,
@@ -166,10 +212,38 @@ export class ChatLlmGatewayService {
       if (primaryResult) return primaryResult;
     }
 
+    const openRouterKey = process.env.OPENROUTER_API_KEY;
+    const openRouterUrl = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+    if (openRouterKey && shouldUse("openrouter") && !localUrl?.includes("openrouter")) {
+      const openRouterResult = await this.callProvider(
+        `${openRouterUrl.replace(/\/+$/, "")}/chat/completions`,
+        openRouterKey,
+        process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4",
+        messages,
+        tools,
+        30000,
+      );
+      if (openRouterResult) return openRouterResult;
+    }
+
+    const openAiKey = process.env.OPENAI_API_KEY;
+    const openAiUrl = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
+    if (openAiKey && shouldUse("openai") && !localUrl?.includes("openai")) {
+      const openAiResult = await this.callProvider(
+        `${openAiUrl.replace(/\/+$/, "")}/chat/completions`,
+        openAiKey,
+        process.env.OPENAI_MODEL || "gpt-4o-mini",
+        messages,
+        tools,
+        30000,
+      );
+      if (openAiResult) return openAiResult;
+    }
+
     // Fallback: DeepSeek cloud (if not already the primary)
     const cloudKey = process.env.DEEPSEEK_API_KEY;
     const cloudUrl = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1";
-    if (cloudKey && !localUrl?.includes("deepseek")) {
+    if (cloudKey && shouldUse("deepseek") && !localUrl?.includes("deepseek")) {
       const deepseekResult = await this.callProvider(
         `${cloudUrl}/chat/completions`,
         cloudKey,

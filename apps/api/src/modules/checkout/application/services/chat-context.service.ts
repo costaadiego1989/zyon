@@ -18,6 +18,13 @@ import { TenantBoundaryGuard } from "../../domain/services/tenant-boundary.guard
 import { InterventionRuleTextBuilder } from "./intervention-rule-text.builder.js";
 import { BuyerContextService } from "./buyer-context.service.js";
 
+export interface ConsentedBuyerIntent {
+  primary_intent?: string;
+  urgency?: string;
+  budget_tier?: string;
+  pain_points?: string[];
+}
+
 export interface ChatContextLoaded {
   session: CheckoutSession;
   merchant: { id: string; name?: string } | undefined;
@@ -26,6 +33,7 @@ export interface ChatContextLoaded {
   preSearchedProducts: SuggestedProduct[];
   merchantRules: string[] | undefined;
   paymentJustFailed: boolean;
+  buyerIntent: ConsentedBuyerIntent | undefined;
 }
 
 /**
@@ -75,9 +83,12 @@ export class ChatContextService {
     // F1-T03: Attach buyer intent (LGPD-consent-gated inside BuyerContextService)
     // onto the session so CheckoutOfferService can modulate the discount cap for
     // treatment cohort. No consent / no intent → nothing attached (fallback path).
+    let buyerIntent: ConsentedBuyerIntent | undefined;
+    delete (session as any).buyerIntent;
     if (this.buyerContext && session.globalUserId) {
       try {
-        const { buyerIntent } = await this.buyerContext.load(merchantId, session.globalUserId);
+        const buyerContext = await this.buyerContext.load(merchantId, session.globalUserId);
+        buyerIntent = buyerContext.buyerIntent;
         if (buyerIntent) {
           (session as any).buyerIntent = buyerIntent;
         }
@@ -120,7 +131,8 @@ export class ChatContextService {
       agentContext,
       preSearchedProducts,
       merchantRules,
-      paymentJustFailed
+      paymentJustFailed,
+      buyerIntent
     };
   }
 

@@ -27,7 +27,7 @@ import { SafeAuthorizedOffer } from "../../domain/types/safe-authorized-offer.js
 import { PROMPT_EXPERIMENT_PORT, type PromptExperimentPort } from "../../domain/ports/prompt-experiment.port.js";
 import { PRODUCT_VARIANT_LOOKUP_PORT, type ProductVariantLookupPort } from "../../domain/ports/product-variant-lookup.port.js";
 import { ChatToolExecutorService } from "../services/chat-tool-executor.service.js";
-import { ChatLlmGatewayService } from "../services/chat-llm-gateway.service.js";
+import { ChatLlmGatewayService, type BuyerIntentPromptContext } from "../services/chat-llm-gateway.service.js";
 import { ChatContextService, type ChatContextLoaded } from "../services/chat-context.service.js";
 import { ChatResponseBuilder } from "../services/chat-response.builder.js";
 import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
@@ -118,7 +118,7 @@ export class SendChatMessageUseCase {
     if (!isHoldout && !forceDeterministic) {
       const experimentPromptOverride = await this.resolveExperimentPrompt(input.merchant_id, input.session_id);
       llmReply = await this.callLocalLlm(
-        input.user_message, context.merchantRules ?? [], context.merchant?.name, working.cart, input.merchant_id, experimentPromptOverride, offer,
+        input.user_message, context.merchantRules ?? [], context.merchant?.name, working.cart, input.merchant_id, context.buyerIntent, experimentPromptOverride, offer,
         this.buildLlmUiContext(working, context.rules, stage),
       );
     } else if (forceDeterministic) {
@@ -135,7 +135,7 @@ export class SendChatMessageUseCase {
       }
       // Intent personalization = the AI had consented buyer-intent memory to
       // personalize this turn (attached by ChatContextService under LGPD consent).
-      if ((working as any).buyerIntent) {
+      if (context.buyerIntent) {
         features.intentPersonalization = true;
       }
       working.featuresApplied = features;
@@ -295,6 +295,7 @@ export class SendChatMessageUseCase {
     merchantName?: string,
     cart?: { items?: Array<{ name?: string; unit_price?: number }>; total?: number },
     merchantId?: string,
+    buyerIntent?: BuyerIntentPromptContext,
     experimentPromptOverride?: string,
     authorizedOffer?: SafeAuthorizedOffer,
     uiContext?: {
@@ -311,15 +312,18 @@ export class SendChatMessageUseCase {
 
     const cartInfo = cart?.total ? `Carrinho: R$${(cart.total / 100).toFixed(2)}` : "";
     const tools = this.chatLlmGateway.getTools();
-    const systemPrompt = experimentPromptOverride
-      || this.chatLlmGateway.buildSystemPrompt({
+    const generatedSystemPrompt = this.chatLlmGateway.buildSystemPrompt({
         merchantName,
         merchantRules,
         cartInfo,
         stage: uiContext?.stage,
         hasAddress: Boolean(uiContext?.address?.formatted),
         hasShipping: Boolean(uiContext?.shippingOptions?.length),
+        buyerIntent,
       });
+    const systemPrompt = experimentPromptOverride
+      ? [experimentPromptOverride, this.chatLlmGateway.buildBuyerIntentContext(buyerIntent)].filter(Boolean).join("\n\n")
+      : generatedSystemPrompt;
 
     const messages: Array<{ role: "system" | "user"; content: string }> = [
       { role: "system", content: systemPrompt },
