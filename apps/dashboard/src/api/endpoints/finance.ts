@@ -44,6 +44,32 @@ export interface FinanceTransactionsPage {
   items: FinanceTransaction[];
 }
 
+export interface PaymentAllocationHistory {
+  payment_intent_id: string;
+  scope_note: string;
+  snapshots: Array<{
+    sequence: number;
+    kind: "planned_allocation" | "provider_observation";
+    observation_status?: "confirmed" | "blocked";
+    provider: string;
+    currency: "BRL";
+    occurred_at: string;
+    confirmed_at?: string;
+    planned: {
+      gross_cents: number;
+      platform_fee_cents: number;
+      merchant_net_cents: number;
+      provider_fee_cents: number;
+    };
+    provider_observed?: {
+      gross_cents?: number;
+      platform_fee_cents?: number;
+      merchant_net_cents?: number;
+      provider_fee_cents?: number;
+    };
+  }>;
+}
+
 export interface FinanceTransactionsFilters extends FinanceFilters {
   page?: number;
   limit?: number;
@@ -69,6 +95,9 @@ export function financeEndpoints(base: string, f: typeof fetch) {
     },
     getFinanceTransactions(filters: FinanceTransactionsFilters): Promise<FinanceTransactionsPage> {
       return dashboardJson<FinanceTransactionsPage>(base, `/dashboard/finance/transactions?${queryFor(filters)}`, { method: "GET" }, f);
+    },
+    getPaymentAllocationHistory(paymentIntentId: string): Promise<PaymentAllocationHistory> {
+      return dashboardJson<PaymentAllocationHistory>(base, `/dashboard/finance/payment-intents/${encodeURIComponent(paymentIntentId)}/allocation-history`, { method: "GET" }, f);
     },
     getFinanceCsv(filters: FinanceTransactionsFilters): Promise<Response> {
       return dashboardFetch(base, `/dashboard/finance/export.csv?${queryFor(filters)}`, { method: "GET" }, f);
