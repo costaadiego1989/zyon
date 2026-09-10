@@ -131,8 +131,7 @@ async function driveToPayment(repo: InMemoryCheckoutRepository, ctrl: any, sid: 
 
   await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "123.456.789-01" });
   await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "(11) 98888-7777" });
-  const phoneOtp = repo.getSession(MERCHANT, sid)?.customer?.phone_otp_code;
-  await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: phoneOtp! });
+  assert.equal(repo.getSession(MERCHANT, sid)?.customer?.phone_otp_code, undefined);
 
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input: RequestInfo | URL) => {

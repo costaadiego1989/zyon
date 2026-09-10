@@ -141,13 +141,8 @@ test("E2E Prisma Full Flow: data_collection → shipping → payment → complet
 
   // 6. Phone
   res = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "(21) 99300-1883" });
-  assert.equal(res.stage, "data_collection");
-  const phoneOtp = repo.getSession(MERCHANT, sid)?.customer?.phone_otp_code;
-  assert.ok(phoneOtp, "Phone OTP generated");
-
-  // 6.5. Verify Phone OTP → transitions to shipping
-  res = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: phoneOtp });
-  assert.equal(res.stage, "shipping", "Stage transitions to shipping after phone verification");
+  assert.equal(res.stage, "shipping", "Verified email and contact phone transition to shipping");
+  assert.equal(repo.getSession(MERCHANT, sid)?.customer?.phone_otp_code, undefined);
 
   // 7. CEP with mocked ViaCEP
   const originalFetch = globalThis.fetch;

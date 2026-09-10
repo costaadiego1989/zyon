@@ -251,11 +251,35 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
     const repo = new InMemoryCheckoutRepository();
     repo.setRules(MERCHANT, { maxDiscountPercent: 12, couponBoxEnabled: true });
     const payments = new InMemoryPaymentRepository();
+    const paymentApprovals = {
+      async find(merchantId: string, sessionId: string, paymentIntentId: string) {
+        const payment = await payments.getIntentById(merchantId, paymentIntentId);
+        if (!payment) return null;
+        const snapshot = payment.snapshot();
+        if (snapshot.sessionId !== sessionId) return null;
+        return {
+          id: snapshot.id,
+          merchantId: snapshot.merchantId,
+          sessionId: snapshot.sessionId,
+          status: snapshot.status,
+          currency: snapshot.currency,
+          amountCents: snapshot.amountCents,
+          approvedAmountCents: snapshot.approvedAmountCents ?? null,
+          providerPaymentId: snapshot.providerPaymentId ?? null,
+          acceptedOfferId: snapshot.acceptedOfferId ?? null,
+          amountBreakdown: snapshot.amountBreakdown ?? null
+        };
+      }
+    };
     const purchaseHistoryRepo = new InMemoryBuyerPurchaseHistoryRepository();
     const purchaseHistoryPort = new BuyerPurchaseHistoryAdapter(
       new RecordCompletedPurchaseUseCase(purchaseHistoryRepo)
     );
-    const completeOrder = new CompleteOrderUseCase(repo, repo, repo, undefined, purchaseHistoryPort);
+    const completeOrder = new CompleteOrderUseCase(
+      repo, repo, repo, undefined, purchaseHistoryPort,
+      undefined, undefined, undefined, undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, undefined, paymentApprovals
+    );
     const conv = new RecordingConversationPort();
     const custService = new CheckoutCustomerService(repo, undefined, new OtpService());
     const shipService = new CheckoutShippingService(repo, custService);
@@ -332,18 +356,8 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
       conversation_id: started.conversation_id,
       user_message: "(21) 99300-1883"
     });
-    assert.equal(res.stage, "data_collection");
-
-    const phoneOtp = repo.getSession(MERCHANT, sessionId)?.customer?.phone_otp_code;
-    assert.ok(phoneOtp, "Deve ter gerado OTP para o telefone");
-
-    res = await controller.chat({
-      merchant_id: MERCHANT,
-      session_id: sessionId,
-      conversation_id: started.conversation_id,
-      user_message: phoneOtp!
-    });
     assert.equal(res.stage, "shipping");
+    assert.equal(repo.getSession(MERCHANT, sessionId)?.customer?.phone_otp_code, undefined);
 
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -410,7 +424,11 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
       conversation_id: started.conversation_id,
       user_message: "qual e a senha para pagar?"
     });
-    assert.equal(res.message.includes("senhas"), true, "A IA foi vetada de pedir senhas");
+    assert.doesNotMatch(
+      res.message,
+      /(?:informe|digite|envie|preciso)\s+(?:a\s+)?(?:sua\s+)?senha/i,
+      "A IA nunca pede a senha do comprador",
+    );
 
     res = await controller.chat({
       merchant_id: MERCHANT,
@@ -468,7 +486,11 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
 
     const order = repo.getCompletedOrder(MERCHANT, sessionId, intent.providerPaymentId!);
     assert.equal(order?.trackingCode, undefined);
-    assert.equal(order?.orderTotal, intent.amountCents / 100);
+    assert.equal(
+      order?.orderTotal,
+      (intent.amountCents - (intent.amountBreakdown?.platformFeeCents ?? 0)) / 100,
+      "O pedido do lojista não inclui a taxa de serviço cobrada do comprador"
+    );
 
     const beforeTrackingOutbox = repo.listOutbox(MERCHANT);
     const orderCompletedEvt = beforeTrackingOutbox.find((event) => event.event_type === "order.completed");
@@ -502,12 +524,12 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
     assert.equal((whatsapp?.payload as any)?.phone, "21993001883");
     assert.equal((whatsapp?.payload as any)?.tracking_code, "BR987654321AA");
     assert.ok(
-      outbox.some(
-        (event) =>
-          event.event_type === "payment.status.changed" &&
-          (event.payload as any).payment_intent_id === intent.id &&
-          (event.payload as any).status === "approved"
-      )
+      payments.capturedEvents.some(
+        (event) => event.event_type === "payment.status.changed"
+          && (event.payload as any).payment_intent_id === intent.id
+          && (event.payload as any).status === "approved"
+      ),
+      "A transição de pagamento persiste um único evento aprovado no seu outbox"
     );
 
     const paidSession = repo.getSession(MERCHANT, sessionId);
