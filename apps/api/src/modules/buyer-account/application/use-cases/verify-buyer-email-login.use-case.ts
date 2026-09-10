@@ -24,9 +24,16 @@ export class VerifyBuyerEmailLoginUseCase {
 
   async execute(input: VerifyBuyerEmailLoginRequest): Promise<BuyerAuthResponse> {
     const email = typeof input.email === "string" ? input.email.trim().toLowerCase() : "";
-    await this.verifyEmailCode.execute({ email, code: input.code });
+    // A login attempt for an address that has not completed registration must
+    // not invalidate the same challenge the registration flow needs next.
+    // Validate first so this lookup cannot be used to enumerate accounts.
+    await this.verifyEmailCode.execute(
+      { email, code: input.code },
+      { consume: false, issueVerificationReceipt: false },
+    );
     const account = await this.accounts.findByEmail(email);
     if (!account) throw new UnauthorizedException("email_otp_account_not_found");
+    await this.verifyEmailCode.consumeVerifiedEmail(email);
     return toBuyerAuthResponse(account, this.jwt);
   }
 }

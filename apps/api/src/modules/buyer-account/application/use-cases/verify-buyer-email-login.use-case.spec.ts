@@ -42,3 +42,28 @@ test("email OTP authenticates an existing buyer and consumes the challenge", asy
   assert.equal(jwt.verify(result.accessToken).email, email);
   assert.equal(await otpStore.findActive(`email:${email}`), null);
 });
+
+test("a login attempt for an unregistered buyer preserves the valid OTP for registration", async () => {
+  const email = "new-buyer@example.test";
+  const code = "654321";
+  const accounts = new InMemoryBuyerAccountRepository();
+  const otpStore = new InMemoryOtpStore();
+  const verifyEmailCode = new VerifyBuyerEmailCodeUseCase(otpStore, new EmailVerificationReceiptService());
+  await otpStore.save({
+    phone: `email:${email}`,
+    codeHash: createHash("sha256").update(code).digest("hex"),
+    maxAttempts: 5,
+    expiresAt: new Date(Date.now() + 60_000),
+  });
+
+  const login = new VerifyBuyerEmailLoginUseCase(
+    verifyEmailCode,
+    accounts,
+    new BuyerJwtService("buyer-test-secret", 3600),
+  );
+
+  await assert.rejects(login.execute({ email, code }), /email_otp_account_not_found/);
+  assert.ok(await otpStore.findActive(`email:${email}`));
+  assert.equal((await verifyEmailCode.execute({ email, code })).verified, true);
+  assert.equal(await otpStore.findActive(`email:${email}`), null);
+});
