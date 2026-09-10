@@ -1,6 +1,6 @@
 import React, { createContext, useContext } from "react";
 
-export type MerchantPlanType = "STORE_ONLY" | "BOTH" | "API";
+export type MerchantPlanType = "CHECKOUT_ONLY" | "STORE_ONLY" | "BOTH" | "API";
 
 export interface FeatureGateProps {
   plan: MerchantPlanType | MerchantPlanType[];
@@ -29,8 +29,10 @@ interface PlanContextType {
 const PlanContext = createContext<PlanContextType>({ merchantPlan: undefined });
 
 export function PlanProvider({ children, merchantPlan }: { children: React.ReactNode; merchantPlan?: MerchantPlanType }) {
+  // Match the API's backward-compatible authorization for existing records.
+  const effectivePlan = merchantPlan === "CHECKOUT_ONLY" ? "BOTH" : merchantPlan;
   return (
-    <PlanContext.Provider value={{ merchantPlan }}>
+    <PlanContext.Provider value={{ merchantPlan: effectivePlan }}>
       {children}
     </PlanContext.Provider>
   );

@@ -7,7 +7,7 @@ import { reportError } from "../../hooks/useErrorReporter.js";
 export type FunnelPeriod = "today" | "7d" | "30d" | "90d";
 export type FunnelBreakdownDimension = "none" | "device" | "buyer_type" | "payment_method";
 export type FunnelSource = "storefront" | "checkout";
-export type FunnelPlan = "STORE_ONLY" | "BOTH" | "API";
+export type FunnelPlan = "CHECKOUT_ONLY" | "STORE_ONLY" | "BOTH" | "API";
 
 export interface FunnelStep {
   name: string;
@@ -365,7 +365,8 @@ export function useFunnelPage(props: {
   const { apiBaseUrl: _apiBaseUrl, merchantId, merchantName, plan } = props;
   const api = useApi();
 
-  const resolvedPlan: FunnelPlan = plan ?? "BOTH";
+  const resolvedPlan: Exclude<FunnelPlan, "CHECKOUT_ONLY"> =
+    plan === "CHECKOUT_ONLY" ? "BOTH" : (plan ?? "BOTH");
   const showSourceTabs = resolvedPlan === "BOTH";
 
   const initialSource: FunnelSource =
