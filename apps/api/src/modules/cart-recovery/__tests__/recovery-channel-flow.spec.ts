@@ -39,9 +39,9 @@ for (const scenario of scenarios) {
       displayName: "Test buyer", phone: "+5511999991111", createdAt: now, updatedAt: now,
     }));
     const configs: WhatsAppConfigRepository = { findByMerchantId: async (merchantId: string) => ({
-      id: "connection", merchantId, enabled: true, status: scenario.status, provider: "TWILIO",
+      id: "connection", merchantId, enabled: true, status: scenario.status, provider: "META_CLOUD",
       whatsappNumber: "+5511999990000", createdAt: now, updatedAt: now,
-      credentials: { accountSid: "AC-test", authToken: "fake-token", senderId: "whatsapp:+5511999990000" },
+      credentials: { accessToken: "merchant-token", wabaId: "123456789", phoneNumberId: "987654321" },
     }),
       findById: async () => null, findByDeviceId: async () => null,
       findByWhatsAppNumber: async () => null, findByMetaPhoneNumberId: async () => null,
