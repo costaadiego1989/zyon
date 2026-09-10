@@ -89,6 +89,7 @@ import "./modules/checkout/domain/policies/omnichannel-confirmation.policy.spec.
 import "./modules/checkout/presentation/http/checkout.agentic-journey.e2e-spec.js";
 import "./modules/checkout/presentation/http/checkout.intervention-ledger.e2e-spec.js";
 import "./modules/checkout/infrastructure/prisma/prisma-checkout.repository.int-spec.js";
+import "./modules/checkout/infrastructure/prisma/prisma-store-overview.repository.spec.js";
 import "./modules/checkout/infrastructure/prisma-intervention-ledger.repository.int-spec.js";
 import "./modules/payment/infrastructure/prisma-payment.repository.int-spec.js";
 import "./modules/checkout/presentation/http/checkout.controller.prisma-e2e-spec.js";

@@ -7,6 +7,7 @@ import type {
   TimeseriesDataPoint,
   TimeseriesResponse,
   Cart,
+  CompletedOrderLineItem,
   CustomerHints,
 } from "@zyon/shared-types";
 import type { StoreOverviewReadModel } from "../../domain/ports/store-overview-read-model.port.js";
@@ -18,20 +19,17 @@ export class PrismaStoreOverviewRepository implements StoreOverviewReadModel {
   async storeOverview(merchantId: string, period: StorePeriod): Promise<StoreOverview> {
     const { from, to } = resolveDateRange(period);
 
-    const [orders, sessions, allSessions] = await Promise.all([
+    const [orders, allSessions] = await Promise.all([
       this.prisma.completedOrder.findMany({
         where: { merchantId, completedAt: { gte: from, lte: to } },
         orderBy: { completedAt: "desc" },
-      }),
-      this.prisma.checkoutSession.findMany({
-        where: { merchantId, createdAt: { gte: from, lte: to } },
       }),
       this.prisma.checkoutSession.count({
         where: { merchantId, createdAt: { gte: from, lte: to } },
       }),
     ]);
 
-    if (orders.length === 0 && sessions.length === 0) {
+    if (orders.length === 0 && allSessions === 0) {
       return {
         merchant_id: merchantId,
         period,
@@ -51,35 +49,57 @@ export class PrismaStoreOverviewRepository implements StoreOverviewReadModel {
     const ordersCount = orders.length;
     const averageTicket = ordersCount > 0 ? revenue / ordersCount : 0;
 
-    // Only count products from sessions that completed an order
-    const completedSessionIds = new Set(orders.map((o) => o.sessionId).filter(Boolean));
+    const orderSessionIds = [...new Set(orders.map((order) => order.sessionId))];
+    const orderSessions = orderSessionIds.length > 0
+      ? await this.prisma.checkoutSession.findMany({
+          where: { merchantId, sessionId: { in: orderSessionIds } },
+          select: { sessionId: true, globalUserId: true, customer: true, cart: true },
+        })
+      : [];
+    const sessionById = new Map(orderSessions.map((session) => [session.sessionId, session]));
+    const buyerIds = [...new Set(orderSessions.map((session) => session.globalUserId).filter(Boolean))];
+    const priorOrders = buyerIds.length > 0
+      ? await this.prisma.completedOrder.findMany({
+          where: {
+            merchantId,
+            completedAt: { lt: from },
+            session: { globalUserId: { in: buyerIds } },
+          },
+          select: { session: { select: { globalUserId: true } } },
+        })
+      : [];
+    const existingBuyerIds = new Set(priorOrders.map((order) => order.session.globalUserId));
+    const newCustomers = buyerIds.filter((buyerId) => !existingBuyerIds.has(buyerId)).length;
 
-    const uniqueBuyers = new Set<string>();
     const productMap = new Map<string, { name: string; image_url?: string; quantity: number; revenue: number }>();
 
-    for (const session of sessions) {
-      const customer = session.customer as unknown as CustomerHints | null;
-      if (customer?.email) uniqueBuyers.add(customer.email);
-
-      // Products sold = only from completed orders
-      if (!completedSessionIds.has(session.sessionId)) continue;
-
-      const cart = session.cart as unknown as Cart | null;
-      if (cart?.items) {
-        for (const item of cart.items) {
-          const itemId = item.product_id ?? item.sku;
-          const existing = productMap.get(itemId);
-          if (existing) {
-            existing.quantity += item.quantity;
-            existing.revenue += item.price * item.quantity;
-          } else {
-            productMap.set(itemId, {
-              name: item.name,
-              image_url: item.imageUrl,
-              quantity: item.quantity,
-              revenue: item.price * item.quantity,
-            });
-          }
+    for (const order of orders) {
+      const snapshot = Array.isArray(order.lineItemsJson)
+        ? order.lineItemsJson as unknown as CompletedOrderLineItem[]
+        : undefined;
+      const cart = sessionById.get(order.sessionId)?.cart as unknown as Cart | null;
+      const items = snapshot?.map((item) => ({
+        id: item.variantId ?? item.sku,
+        name: item.name ?? item.sku,
+        quantity: item.quantity,
+        revenue: (item.unitPriceCents * item.quantity) / 100,
+      })) ?? cart?.items?.map((item) => ({
+        id: item.product_id ?? item.sku,
+        name: item.name,
+        quantity: item.quantity,
+        revenue: item.price * item.quantity,
+      })) ?? [];
+      for (const item of items) {
+        const existing = productMap.get(item.id);
+        if (existing) {
+          existing.quantity += item.quantity;
+          existing.revenue += item.revenue;
+        } else {
+          productMap.set(item.id, {
+            name: item.name,
+            quantity: item.quantity,
+            revenue: item.revenue,
+          });
         }
       }
     }
@@ -98,7 +118,7 @@ export class PrismaStoreOverviewRepository implements StoreOverviewReadModel {
       .map(([product_id, data]) => ({ product_id, ...data }));
 
     const recentOrders: StoreOverviewRecentOrder[] = orders.slice(0, 10).map((o) => {
-      const session = sessions.find((s) => s.sessionId === o.sessionId);
+      const session = sessionById.get(o.sessionId);
       const customer = session?.customer as unknown as CustomerHints | null;
       return {
         id: o.externalOrderId,
@@ -116,7 +136,7 @@ export class PrismaStoreOverviewRepository implements StoreOverviewReadModel {
       orders_count: ordersCount,
       average_ticket: Math.round(averageTicket * 100) / 100,
       products_sold: productsSold,
-      new_customers: uniqueBuyers.size,
+      new_customers: newCustomers,
       abandonment_rate: Math.round(abandonmentRate * 10000) / 10000,
       orders_by_status: ordersByStatus,
       top_products: topProducts,
