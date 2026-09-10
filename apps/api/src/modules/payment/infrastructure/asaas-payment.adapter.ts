@@ -138,8 +138,10 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
       signal: AbortSignal.timeout(15_000)
     });
     if (!res.ok) {
-      const errorText = await res.text().catch(() => "");
-      throw new Error(`asaas_payment_fetch_failed:${res.status}:${errorText}`);
+      // Provider error bodies can contain customer and payment metadata. Keep
+      // the status for operational diagnosis without letting that data reach
+      // application logs or error reporting.
+      throw new Error(`asaas_payment_fetch_failed:${res.status}`);
     }
     const payment = (await res.json()) as { status?: string; value?: number };
     const state = asaasStateFromStatus(typeof payment.status === "string" ? payment.status : undefined);
@@ -208,12 +210,10 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
     });
 
     if (!res.ok) {
-      const errorText = await res.text().catch(() => "");
-      console.error(`[asaas-adapter] createCustomer failed: status=${res.status} body=${errorText.slice(0, 500)}`);
       // On duplicate/validation error, try one more lookup before giving up
       const recovered = await this.findCustomerByCpf(base, cpfDigits);
       if (recovered) return recovered;
-      throw new Error(`asaas_customer_create_failed:${res.status}:${errorText}`);
+      throw new Error(`asaas_customer_create_failed:${res.status}`);
     }
 
     const result = (await res.json()) as { id?: string };
@@ -233,12 +233,10 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
         },
         signal: AbortSignal.timeout(15_000)
       });
-      if (!res.ok) { console.error(`[asaas-adapter] findCustomerByCpf status=${res.status}`); return undefined; }
+      if (!res.ok) return undefined;
       const data = (await res.json()) as { data?: Array<{ id?: string }> };
-      console.error(`[asaas-adapter] findCustomerByCpf cpf=${cpfDigits} found=${data.data?.length ?? 0} id=${data.data?.[0]?.id}`);
       return data.data?.[0]?.id ?? undefined;
-    } catch (e) {
-      console.error(`[asaas-adapter] findCustomerByCpf exception: ${e instanceof Error ? e.message : String(e)}`);
+    } catch {
       return undefined;
     }
   }
@@ -281,8 +279,7 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
     });
 
     if (!res.ok) {
-      const errorText = await res.text().catch(() => "");
-      throw new Error(`asaas_tokenize_failed:${res.status}:${errorText}`);
+      throw new Error(`asaas_tokenize_failed:${res.status}`);
     }
 
     const result = (await res.json()) as { creditCardToken?: string };
@@ -341,8 +338,7 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
     });
 
     if (!res.ok) {
-      const errorText = await res.text().catch(() => "");
-      throw new Error(`asaas_payment_create_failed:${res.status}:${errorText}`);
+      throw new Error(`asaas_payment_create_failed:${res.status}`);
     }
 
     const created = (await res.json()) as { id?: string; status?: string; invoiceUrl?: string };
@@ -401,8 +397,7 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
       signal: AbortSignal.timeout(15_000)
     });
     if (!res.ok) {
-      const err = await res.text().catch(() => "");
-      throw new Error(`asaas_refund_failed: ${res.status} ${err}`);
+      throw new Error(`asaas_refund_failed:${res.status}`);
     }
     const data = await res.json() as { id?: string; refunds?: AsaasRefund[] };
     const reference = input.reason;

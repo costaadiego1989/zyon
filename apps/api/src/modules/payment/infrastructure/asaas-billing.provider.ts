@@ -58,12 +58,11 @@ export class AsaasBillingProvider implements BillingProviderPort {
       signal: AbortSignal.timeout(15_000)
     });
     if (!res.ok) {
-      const err = await res.text().catch(() => "");
       if (cpf) {
         const recovered = await this.findCustomerByCpf(cpf);
         if (recovered) return { customerId: recovered };
       }
-      throw new Error(`asaas_billing_customer_failed:${res.status}:${err}`);
+      throw new Error(`asaas_billing_customer_failed:${res.status}`);
     }
     const json = (await res.json()) as { id?: string };
     if (!json.id) throw new Error("asaas_billing_customer_failed:no_id");
@@ -124,10 +123,9 @@ export class AsaasBillingProvider implements BillingProviderPort {
       signal: AbortSignal.timeout(15_000)
     });
     if (!res.ok) {
-      const err = await res.text().catch(() => "");
       // Do not include the request body (card data) in logs/errors.
       this.logger.error(`createSubscription failed status=${res.status}`);
-      throw new Error(`asaas_billing_subscription_failed:${res.status}:${err}`);
+      throw new Error(`asaas_billing_subscription_failed:${res.status}`);
     }
     const json = (await res.json()) as { id?: string; status?: string };
     if (!json.id) throw new Error("asaas_billing_subscription_failed:no_id");
@@ -145,8 +143,7 @@ export class AsaasBillingProvider implements BillingProviderPort {
       }
     );
     if (!res.ok) {
-      const err = await res.text().catch(() => "");
-      throw new Error(`asaas_billing_update_failed:${res.status}:${err}`);
+      throw new Error(`asaas_billing_update_failed:${res.status}`);
     }
     const json = (await res.json()) as { status?: string };
     return { status: json.status ?? "ACTIVE" };
@@ -158,8 +155,7 @@ export class AsaasBillingProvider implements BillingProviderPort {
       { method: "DELETE", headers: this.headers(), signal: AbortSignal.timeout(15_000) }
     );
     if (!res.ok) {
-      const err = await res.text().catch(() => "");
-      throw new Error(`asaas_billing_cancel_failed:${res.status}:${err}`);
+      throw new Error(`asaas_billing_cancel_failed:${res.status}`);
     }
   }
 
@@ -170,8 +166,7 @@ export class AsaasBillingProvider implements BillingProviderPort {
     );
     if (res.status === 404) return null;
     if (!res.ok) {
-      const err = await res.text().catch(() => "");
-      throw new Error(`asaas_billing_get_failed:${res.status}:${err}`);
+      throw new Error(`asaas_billing_get_failed:${res.status}`);
     }
     const json = (await res.json()) as { status?: string; nextDueDate?: string };
     return { status: json.status ?? "unknown", nextDueDate: json.nextDueDate };
