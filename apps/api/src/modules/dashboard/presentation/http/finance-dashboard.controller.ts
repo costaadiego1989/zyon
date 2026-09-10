@@ -19,7 +19,7 @@ export class FinanceDashboardController {
 
   @Get("summary")
   @ApiOperation({ summary: "Get merchant financial summary" })
-  @ApiOkResponse({ description: "Completed orders and provider-confirmed refunds in BRL" })
+  @ApiOkResponse({ description: "Completed-order gross values and provider-confirmed refunds in BRL; not a payout or cleared-balance statement" })
   async summary(@Req() req: any, @Query() query: FinancePeriodInput) {
     return this.finance.summary(currentUser(req).merchantId, query);
   }

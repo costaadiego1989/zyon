@@ -43,13 +43,13 @@ export interface FinanceSummary {
   generated_at: string;
   currency: "BRL";
   metrics: {
-    sales_confirmed_brl: number;
+    completed_orders_gross_brl: number;
     completed_orders: number;
-    average_order_value_brl: number;
+    average_completed_order_value_brl: number;
     refunds_confirmed_brl: number;
   };
-  series: Array<{ date: string; sales_brl: number; refunds_brl: number }>;
-  payment_methods: Array<{ method: string; sales_brl: number; orders: number }>;
+  series: Array<{ date: string; completed_orders_gross_brl: number; refunds_brl: number }>;
+  payment_methods: Array<{ method: string; completed_orders_gross_brl: number; orders: number }>;
   scope_note: string;
 }
 
@@ -89,26 +89,30 @@ export class FinanceDashboardUseCase {
   async summary(merchantId: string, input: FinancePeriodInput): Promise<FinanceSummary> {
     const period = normalizePeriod(input);
     const movements = await this.loadMovements(merchantId, period);
-    const sales = movements.filter((movement) => movement.kind === "sale");
+    const completedOrders = movements.filter((movement) => movement.kind === "sale");
     const refunds = movements.filter((movement) => movement.kind === "refund");
 
-    const salesConfirmed = sumBrl(sales.map((movement) => movement.amount_brl));
+    const completedOrdersGross = sumBrl(completedOrders.map((movement) => movement.amount_brl));
     const refundsConfirmed = sumBrl(refunds.map((movement) => Math.abs(movement.amount_brl)));
-    const byDate = new Map<string, { sales_brl: number; refunds_brl: number }>();
+    const byDate = new Map<string, { completed_orders_gross_brl: number; refunds_brl: number }>();
 
     for (const movement of movements) {
       const date = formatSaoPauloDate(new Date(movement.occurred_at));
-      const current = byDate.get(date) ?? { sales_brl: 0, refunds_brl: 0 };
-      if (movement.kind === "sale") current.sales_brl = preciseBrl(current.sales_brl + movement.amount_brl);
+      const current = byDate.get(date) ?? { completed_orders_gross_brl: 0, refunds_brl: 0 };
+      if (movement.kind === "sale") {
+        current.completed_orders_gross_brl = preciseBrl(current.completed_orders_gross_brl + movement.amount_brl);
+      }
       else current.refunds_brl = preciseBrl(current.refunds_brl + Math.abs(movement.amount_brl));
       byDate.set(date, current);
     }
 
-    const byMethod = new Map<string, { sales_brl: number; orders: number }>();
-    for (const sale of sales) {
-      const method = normalizePaymentMethod(sale.payment_method);
-      const current = byMethod.get(method) ?? { sales_brl: 0, orders: 0 };
-      current.sales_brl = preciseBrl(current.sales_brl + sale.amount_brl);
+    const byMethod = new Map<string, { completed_orders_gross_brl: number; orders: number }>();
+    for (const completedOrder of completedOrders) {
+      const method = normalizePaymentMethod(completedOrder.payment_method);
+      const current = byMethod.get(method) ?? { completed_orders_gross_brl: 0, orders: 0 };
+      current.completed_orders_gross_brl = preciseBrl(
+        current.completed_orders_gross_brl + completedOrder.amount_brl,
+      );
       current.orders += 1;
       byMethod.set(method, current);
     }
@@ -118,9 +122,10 @@ export class FinanceDashboardUseCase {
       generated_at: new Date().toISOString(),
       currency: "BRL",
       metrics: {
-        sales_confirmed_brl: salesConfirmed,
-        completed_orders: sales.length,
-        average_order_value_brl: sales.length === 0 ? 0 : preciseBrl(salesConfirmed / sales.length),
+        completed_orders_gross_brl: completedOrdersGross,
+        completed_orders: completedOrders.length,
+        average_completed_order_value_brl:
+          completedOrders.length === 0 ? 0 : preciseBrl(completedOrdersGross / completedOrders.length),
         refunds_confirmed_brl: refundsConfirmed,
       },
       series: Array.from(byDate.entries())
@@ -128,9 +133,12 @@ export class FinanceDashboardUseCase {
         .map(([date, values]) => ({ date, ...values })),
       payment_methods: Array.from(byMethod.entries())
         .map(([method, values]) => ({ method, ...values }))
-        .sort((a, b) => b.sales_brl - a.sales_brl || a.method.localeCompare(b.method)),
+        .sort(
+          (a, b) =>
+            b.completed_orders_gross_brl - a.completed_orders_gross_brl || a.method.localeCompare(b.method),
+        ),
       scope_note:
-        "Valores baseados em pedidos concluídos e reembolsos confirmados pela Zyon. Repasses, saldo disponível e taxas dependem da conciliação do provedor.",
+        "Valores brutos de pedidos concluídos e reembolsos confirmados. Eles não representam saldo liquidado, valor disponível ou repasse confirmado; esses dados dependem da conciliação do provedor.",
     };
   }
 
@@ -178,14 +186,14 @@ export class FinanceDashboardUseCase {
 
     const generatedAt = new Date().toISOString();
     const lines = [
-      ["Relatório financeiro", "", "", "", "", "", ""],
+      ["Relatório de pedidos e reembolsos", "", "", "", "", "", ""],
       ["Período", `${period.from} a ${period.to}`, "Fuso", period.time_zone, "Moeda", "BRL", ""],
       ["Gerado em", generatedAt, "", "", "", "", ""],
       [],
       ["Data", "Tipo", "Pedido", "Método", "Valor (BRL)", "Situação", "Referência do pagamento"],
       ...movements.map((movement) => [
         movement.occurred_at,
-        movement.kind === "sale" ? "Venda" : "Reembolso",
+        movement.kind === "sale" ? "Pedido concluído" : "Reembolso",
         movement.order_reference,
         normalizePaymentMethod(movement.payment_method),
         formatCsvBrl(movement.amount_brl),

@@ -15,21 +15,22 @@ describe("FinanceDashboardUseCase", () => {
     const summary = await finance.summary("merchant_a", { from: "2026-09-01", to: "2026-09-10" });
 
     assert.deepEqual(summary.metrics, {
-      sales_confirmed_brl: 149.9,
+      completed_orders_gross_brl: 149.9,
       completed_orders: 2,
-      average_order_value_brl: 74.95,
+      average_completed_order_value_brl: 74.95,
       refunds_confirmed_brl: 105.99,
     });
     assert.deepEqual(summary.payment_methods, [
-      { method: "PIX", sales_brl: 100, orders: 1 },
-      { method: "Cartão", sales_brl: 49.9, orders: 1 },
+      { method: "PIX", completed_orders_gross_brl: 100, orders: 1 },
+      { method: "Cartão", completed_orders_gross_brl: 49.9, orders: 1 },
     ]);
     assert.deepEqual(summary.series, [
-      { date: "2026-09-03", sales_brl: 100, refunds_brl: 0 },
-      { date: "2026-09-04", sales_brl: 49.9, refunds_brl: 0 },
-      { date: "2026-09-05", sales_brl: 0, refunds_brl: 25.99 },
-      { date: "2026-09-06", sales_brl: 0, refunds_brl: 80 },
+      { date: "2026-09-03", completed_orders_gross_brl: 100, refunds_brl: 0 },
+      { date: "2026-09-04", completed_orders_gross_brl: 49.9, refunds_brl: 0 },
+      { date: "2026-09-05", completed_orders_gross_brl: 0, refunds_brl: 25.99 },
+      { date: "2026-09-06", completed_orders_gross_brl: 0, refunds_brl: 80 },
     ]);
+    assert.match(summary.scope_note, /não representam saldo liquidado, valor disponível ou repasse confirmado/i);
 
     const transactions = await finance.transactions("merchant_a", {
       from: "2026-09-01",

@@ -12,13 +12,13 @@ export interface FinanceSummary {
   generated_at: string;
   currency: "BRL";
   metrics: {
-    sales_confirmed_brl: number;
+    completed_orders_gross_brl: number;
     completed_orders: number;
-    average_order_value_brl: number;
+    average_completed_order_value_brl: number;
     refunds_confirmed_brl: number;
   };
-  series: Array<{ date: string; sales_brl: number; refunds_brl: number }>;
-  payment_methods: Array<{ method: string; sales_brl: number; orders: number }>;
+  series: Array<{ date: string; completed_orders_gross_brl: number; refunds_brl: number }>;
+  payment_methods: Array<{ method: string; completed_orders_gross_brl: number; orders: number }>;
   scope_note: string;
 }
 
