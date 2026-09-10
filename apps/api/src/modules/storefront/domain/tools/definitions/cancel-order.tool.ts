@@ -4,7 +4,7 @@ import { wrapHandler } from "../types.js";
 export const CANCEL_ORDER: ToolDefinition = {
   name: "cancel_order",
   description:
-    "Request cancellation of an order. Optional reason. Returns cancellation status (approved/rejected) and any refund info.",
+    "Request order cancellation only through an authorized persisted workflow. If that workflow is unavailable, return explicit unavailability without claiming cancellation or refund.",
   parameters: {
     type: "object",
     properties: {

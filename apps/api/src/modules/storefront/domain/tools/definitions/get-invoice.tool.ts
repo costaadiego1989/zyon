@@ -4,7 +4,7 @@ import { wrapHandler } from "../types.js";
 export const GET_INVOICE: ToolDefinition = {
   name: "get_invoice",
   description:
-    "Get invoice/nota fiscal for an order. Returns invoice URL and details (number, issue date, total, tax info).",
+    "Check whether a fiscal invoice is available for an order. Never invent a fiscal document, URL, number, or issue date.",
   parameters: {
     type: "object",
     properties: {
