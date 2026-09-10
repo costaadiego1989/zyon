@@ -47,7 +47,7 @@ test("Mercado Pago processes pending then approved once for the same payment", a
     async fetchPaymentStatus() {
       return { state: states.shift() ?? "approved" };
     }
-  } as MercadoPagoPaymentAdapter;
+  } as unknown as MercadoPagoPaymentAdapter;
   const useCase = new HandleMercadoPagoWebhookUseCase(payments, dispatch, undefined, provider);
 
   const intent = PaymentIntentEntity.create({
