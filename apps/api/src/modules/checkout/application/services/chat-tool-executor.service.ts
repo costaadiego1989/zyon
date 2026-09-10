@@ -51,9 +51,7 @@ export class ChatToolExecutorService {
 
     for (const tc of toolCalls) {
       const fn = tc.function?.name ?? "";
-      const args = typeof tc.function?.arguments === "string"
-        ? JSON.parse(tc.function.arguments)
-        : tc.function?.arguments ?? {};
+      const args = this.parseArguments(tc.function?.arguments);
 
       executed.push({ name: fn, args });
 
@@ -61,7 +59,7 @@ export class ChatToolExecutorService {
         case "apply_discount": {
           const requestedPercent = Number(args.percent) || 0;
           if (offer?.approved && offer.type === "discount_percent" && offer.value >= requestedPercent) {
-            results.push(`✅ Desconto de ${offer.value}% aplicado no carrinho`);
+            results.push(`Desconto de ${offer.value}% disponível para este carrinho.`);
           } else {
             this.logger.warn(`Blocked unauthorized discount tool call: ${requestedPercent}% (authorized: ${offer?.value ?? 0}%)`);
             results.push("Vou verificar a melhor condição disponível para o seu pedido.");
@@ -71,7 +69,7 @@ export class ChatToolExecutorService {
 
         case "apply_free_shipping": {
           if (offer?.approved && offer.type === "shipping_free") {
-            results.push(`✅ Frete grátis aplicado`);
+            results.push("Frete grátis disponível para este pedido.");
           } else {
             this.logger.warn("Blocked unauthorized free shipping tool call");
             results.push("Vou verificar as opções de frete disponíveis para sua região.");
@@ -153,6 +151,24 @@ export class ChatToolExecutorService {
     }
 
     return { toolCalls: executed, message: results.join("\n"), blocks: blocks.length ? blocks : undefined };
+  }
+
+  private parseArguments(raw: string | object | undefined): Record<string, any> {
+    if (typeof raw === "string") {
+      try {
+        const parsed = JSON.parse(raw) as unknown;
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          return parsed as Record<string, any>;
+        }
+      } catch {
+        this.logger.warn("Ignoring malformed LLM tool arguments");
+      }
+      return {};
+    }
+
+    return raw && typeof raw === "object" && !Array.isArray(raw)
+      ? raw as Record<string, any>
+      : {};
   }
 
   private async executeMarketplaceSearch(query: string, merchantId: string): Promise<string> {

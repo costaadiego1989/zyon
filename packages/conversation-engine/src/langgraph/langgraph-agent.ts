@@ -17,7 +17,7 @@ import type {
   OpenRouterChatResult,
   OpenRouterToolDefinition
 } from "./openrouter-provider.js";
-import type { ExecutableTool, ToolDefinition, ToolHandlers } from "./chat-tools.js";
+import type { ToolDefinition, ToolHandlers } from "./chat-tools.js";
 import { buildExecutableTools, buildChatTools } from "./chat-tools.js";
 import { ContextManager, type ContextMessage, DEFAULT_CONTEXT_WINDOW } from "./context-manager.js";
 import { CostTracker } from "./cost-tracker.js";
@@ -87,7 +87,7 @@ function inferState(objection: Objection, hasToolCall: boolean): AgentState {
 export class LangGraphChatAgent {
   private readonly provider: OpenRouterProvider;
   private readonly tools: ToolDefinition[];
-  private readonly executableTools: ExecutableTool[];
+  private readonly toolHandlers: ToolHandlers;
   private readonly safety: SafetyValidator;
   private readonly costTracker: CostTracker;
   private readonly contextManager: ContextManager;
@@ -98,6 +98,7 @@ export class LangGraphChatAgent {
   constructor(deps: ChatAgentDeps) {
     this.provider = deps.provider;
     this.tools = deps.tools ?? buildChatTools();
+    this.toolHandlers = deps.toolHandlers;
     this.safety = deps.safety;
     this.maxTurns = deps.maxTurns ?? DEFAULT_MAX_TURNS;
     this.baseSystemPrompt = deps.systemPrompt ?? "";
@@ -110,12 +111,6 @@ export class LangGraphChatAgent {
 
     this.contextManager = new ContextManager({ maxTokens: DEFAULT_CONTEXT_WINDOW });
 
-    const toolCtx = {
-      merchantId: "",
-      sessionId: "",
-      handlers: deps.toolHandlers
-    };
-    this.executableTools = buildExecutableTools(toolCtx);
   }
 
   async run(input: ChatAgentInput): Promise<ChatAgentResult> {
@@ -157,6 +152,11 @@ export class LangGraphChatAgent {
       type: "function" as const,
       function: { name: t.name, description: t.description, parameters: t.parameters }
     }));
+    const executableTools = buildExecutableTools({
+      merchantId: input.merchantId,
+      sessionId: input.sessionId,
+      handlers: this.toolHandlers
+    });
 
     while (loops < MAX_TOOL_LOOPS) {
       loops += 1;
@@ -184,7 +184,7 @@ export class LangGraphChatAgent {
           currentState = "offer_proposal";
           input.callbacks?.onToolCall?.(tc.name, tc.args);
 
-          const execTool = this.executableTools.find((t) => t.name === tc.name);
+          const execTool = executableTools.find((t) => t.name === tc.name);
           if (execTool) {
             const toolResult = await execTool.execute(tc.args);
             input.callbacks?.onToolResult?.(tc.name, toolResult);

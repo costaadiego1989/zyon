@@ -180,7 +180,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "intent-memory", label: "Memória de Intenção", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["intent", "intenção", "memória", "memory", "perfil"] },
   { key: "post-sale", label: "Pós-Venda", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["pós-venda", "post-sale", "follow-up", "reviews", "nps", "engajamento"] },
   { key: "knowledge", label: "Base de Conhecimento", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["base de conhecimento", "knowledge", "políticas", "faq", "chunks"] },
-  { key: "m2m-agents", label: "Agentes M2M", section: "intelligence", icon: Bot, keywords: ["m2m", "agentes", "machine to machine", "protocolo"] },
+  // Temporarily hidden while M2M is outside the current product scope. Route and page remain available for a future reactivation.
 
   // ─── CONFIGURAÇÕES ─── raramente mexido
   { key: "account-settings", label: "Conta", section: "settings", icon: Settings, keywords: ["conta", "account", "perfil", "senha", "email"] },

@@ -122,6 +122,20 @@ test("UpdateAgentRules rejects disabling forbidUnauthorizedFreeShipping", async 
   );
 });
 
+test("UpdateAgentRules rejects an empty patch", async () => {
+  const repository = new InMemoryAgentRulesRepository();
+  const updateRules = new UpdateAgentRulesUseCase(repository);
+
+  await assert.rejects(
+    () => updateRules.execute({ merchantId: "mrc_1", userId: "usr_1" }, {}),
+    (err: unknown) => {
+      assert.ok(err instanceof BadRequestException);
+      assert.equal((err as BadRequestException).message, "agent_rules_patch_empty");
+      return true;
+    }
+  );
+});
+
 test("GetAgentRules does NOT persist on read (side-effect-free)", async () => {
   const repository = new InMemoryAgentRulesRepository();
   const getRules = new GetAgentRulesUseCase(repository);

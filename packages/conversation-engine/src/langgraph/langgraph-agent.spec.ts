@@ -126,6 +126,48 @@ test("LangGraphChatAgent.run transitions to offer_proposal when LLM requests too
   assert.match(result.message, /camiseta/);
 });
 
+test("LangGraphChatAgent scopes tool calls to the active merchant and checkout session", async () => {
+  let calls = 0;
+  let receivedContext: { merchantId: string; sessionId: string } | undefined;
+  const provider: FakeProvider = {
+    chat: async () => {
+      calls += 1;
+      if (calls === 1) {
+        return {
+          content: "",
+          toolCalls: [{ name: "search_catalog", args: { query: "camiseta" } }],
+          usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 }
+        };
+      }
+      return {
+        content: "Encontrei uma camiseta.",
+        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 }
+      };
+    }
+  };
+  const agent = new LangGraphChatAgent({
+    ...baseDeps,
+    provider: provider as never,
+    tools: [{ name: "search_catalog", description: "find products", parameters: { type: "object", properties: {} } }],
+    toolHandlers: {
+      ...baseDeps.toolHandlers,
+      searchCatalog: async (_args, context) => {
+        receivedContext = context;
+        return [];
+      }
+    }
+  });
+
+  await agent.run({
+    merchantId: "mrc_isolated",
+    sessionId: "chk_isolated",
+    userMessage: "tem camiseta?",
+    history: []
+  });
+
+  assert.deepEqual(receivedContext, { merchantId: "mrc_isolated", sessionId: "chk_isolated" });
+});
+
 test("LangGraphChatAgent.run falls back to safe message when LLM output unsafe", async () => {
   const provider: FakeProvider = {
     chat: async () => ({

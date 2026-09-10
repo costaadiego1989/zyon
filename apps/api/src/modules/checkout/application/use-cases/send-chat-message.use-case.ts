@@ -161,7 +161,9 @@ export class SendChatMessageUseCase {
         missingFields,
         deliverySummary: this.shippingService.summarizeDelivery(working),
         shippingOptions: working.shippingOptions,
-        merchantRules: context.merchantRules
+        merchantRules: context.merchantRules,
+        merchantId: input.merchant_id,
+        sessionId: input.session_id
       });
     }
 

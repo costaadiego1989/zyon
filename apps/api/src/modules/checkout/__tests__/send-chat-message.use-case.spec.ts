@@ -96,6 +96,8 @@ test("SendChatMessageUseCase passes merchant agent context to conversation witho
   assert.equal(agentContext.calls[0]?.agentId, "closer-1");
   assert.equal(agentContext.calls[0]?.globalUserId, started.global_user_id);
   assert.equal(conversation.calls[0]?.agentContext?.agent.agentName, "Nina");
+  assert.equal(conversation.calls[0]?.merchantId, "mrc_1");
+  assert.equal(conversation.calls[0]?.sessionId, "chk_1");
   assert.notEqual(response.authorized_offer?.value, 90);
   assert.equal((response.authorized_offer?.value ?? 0) <= 10, true);
 });

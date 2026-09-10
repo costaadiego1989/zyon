@@ -21,8 +21,7 @@ test("AgentRulesController manages authenticated user's agent rules", async () =
 
   const updated = await controller.updateDefault(request, {
     identity: { agentName: "Clara Prime" },
-    capabilities: { machineToMachineNegotiation: true },
-    hasAnySection: () => true
+    capabilities: { machineToMachineNegotiation: true }
   } as unknown as Parameters<typeof controller.updateDefault>[1]);
   const context = await controller.defaultContext(request);
 

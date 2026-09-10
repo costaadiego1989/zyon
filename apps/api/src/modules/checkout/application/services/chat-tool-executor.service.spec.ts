@@ -31,3 +31,25 @@ test("apply_discount blocked without authorized offer", async () => {
   assert.doesNotMatch(result.message, /✅/);
   assert.match(result.message, /verificar/i);
 });
+
+test("malformed LLM tool arguments are rejected without breaking checkout chat", async () => {
+  const result = await executor.executeToolCalls(
+    [{ function: { name: "apply_discount", arguments: "{invalid" } }],
+    { merchantId: "mrc_1" },
+  );
+
+  assert.match(result.message, /verificar/i);
+});
+
+test("authorized commercial tools do not claim the cart was mutated", async () => {
+  const result = await executor.executeToolCalls(
+    [{ function: { name: "apply_discount", arguments: { percent: 10 } } }],
+    {
+      merchantId: "mrc_1",
+      authorizedOffer: { approved: true, type: "discount_percent", value: 10 } as any,
+    },
+  );
+
+  assert.match(result.message, /disponível/i);
+  assert.doesNotMatch(result.message, /aplicado/i);
+});

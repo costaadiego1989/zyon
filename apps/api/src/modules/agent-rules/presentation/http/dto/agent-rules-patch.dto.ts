@@ -180,9 +180,4 @@ export class AgentRulesPatchDto {
 
   // H2 fix: cross-field rule — patch must carry at least one section so an empty body
   // is rejected as a no-op rather than silently accepted.
-  hasAnySection(): boolean {
-    return Boolean(
-      this.identity ?? this.capabilities ?? this.guardrails ?? this.checkoutSettings
-    );
-  }
 }

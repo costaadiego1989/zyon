@@ -122,6 +122,8 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [activeTab, setActiveTab] = useState<"identity" | "quick-replies">("identity");
   const [stageQrConfig, setStageQrConfig] = useState<StageQrConfig>(DEFAULT_STAGE_QR);
 
@@ -129,10 +131,16 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
   const hasErrors = Object.keys(errors).length > 0;
 
   useEffect(() => {
-    if (!props.me) { setLoaded(true); return; }
+    if (!props.me) {
+      setLoadError(null);
+      setLoaded(true);
+      return;
+    }
     let cancelled = false;
     (async () => {
       setLoading(true);
+      setLoaded(false);
+      setLoadError(null);
       try {
         const rules = await api.getMerchantRules();
         const ar = await api.getAgentRules();
@@ -167,20 +175,28 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
         });
         setStageQrConfig(stageConfigFromMap(rulesUnknown.quickReplies as Record<string, string[]> | undefined));
       } catch {
-        // silent — form stays at defaults
+        if (!cancelled) {
+          setLoadError("Não foi possível carregar a configuração atual do agente.");
+        }
       } finally {
-        setLoading(false);
-        setLoaded(true);
+        if (!cancelled) {
+          setLoading(false);
+          setLoaded(true);
+        }
       }
     })();
     return () => { cancelled = true; };
-  }, [api, props.me]);
+  }, [api, props.me, loadAttempt]);
 
   function patch(p: Partial<AgentConfigForm>) {
     setForm((prev) => ({ ...prev, ...p }));
   }
 
   async function handleSave() {
+    if (loadError) {
+      showToast("error", "Recarregue a configuração antes de salvar");
+      return;
+    }
     if (hasErrors) {
       showToast("error", "Corrija os erros antes de salvar");
       return;
@@ -226,6 +242,11 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
     }
   }
 
+  function reload() {
+    setLoadError(null);
+    setLoadAttempt((attempt) => attempt + 1);
+  }
+
   return {
     form,
     patch,
@@ -234,6 +255,8 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
     loading,
     saving,
     loaded,
+    loadError,
+    reload,
     activeTab,
     setActiveTab,
     stageQrConfig,

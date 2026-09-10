@@ -16,6 +16,8 @@ export interface ConversationReplyInput {
   deliverySummary?: string;
   shippingOptions?: ShippingQuote[];
   merchantRules?: string[];
+  merchantId?: string;
+  sessionId?: string;
 }
 
 export interface ConversationPort {

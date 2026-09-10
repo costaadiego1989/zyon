@@ -39,11 +39,11 @@ export class LangGraphConversationAdapter implements ConversationPort {
   constructor(
     @Optional()
     toolHandlers?: {
-      searchCatalog?: (query: string) => Promise<unknown>;
-      checkShipping?: (zip: string) => Promise<unknown>;
-      checkInventory?: (sku: string) => Promise<unknown>;
-      getBuyerHistory?: () => Promise<unknown>;
-      applyDiscount?: (discount_percent: number) => Promise<unknown>;
+      searchCatalog?: (query: string, context: { merchantId: string; sessionId: string }) => Promise<unknown>;
+      checkShipping?: (zip: string, context: { merchantId: string; sessionId: string }) => Promise<unknown>;
+      checkInventory?: (sku: string, context: { merchantId: string; sessionId: string }) => Promise<unknown>;
+      getBuyerHistory?: (context: { merchantId: string; sessionId: string }) => Promise<unknown>;
+      applyDiscount?: (discount_percent: number, context: { merchantId: string; sessionId: string }) => Promise<unknown>;
     }
   ) {
     if (!OPENROUTER_API_KEY) {
@@ -59,21 +59,21 @@ export class LangGraphConversationAdapter implements ConversationPort {
       });
 
       const handlers: ToolHandlers = {
-        searchCatalog: async ({ query }: { query: string }) => {
-          return toolHandlers?.searchCatalog?.(query) ?? [];
+        searchCatalog: async ({ query }: { query: string }, context) => {
+          return toolHandlers?.searchCatalog?.(query, context) ?? [];
         },
-        checkShipping: async ({ zip }: { zip: string }) => {
-          return toolHandlers?.checkShipping?.(zip) ?? { zip, options: [] };
+        checkShipping: async ({ zip }: { zip: string }, context) => {
+          return toolHandlers?.checkShipping?.(zip, context) ?? { zip, options: [] };
         },
-        checkInventory: async ({ sku }: { sku: string }) => {
-          return toolHandlers?.checkInventory?.(sku) ?? { sku, inStock: false, qty: 0 };
+        checkInventory: async ({ sku }: { sku: string }, context) => {
+          return toolHandlers?.checkInventory?.(sku, context) ?? { sku, inStock: false, qty: 0 };
         },
-        getBuyerHistory: async () => {
-          return toolHandlers?.getBuyerHistory?.() ?? { purchases: 0, lifetimeValue: 0 };
+        getBuyerHistory: async (_args, context) => {
+          return toolHandlers?.getBuyerHistory?.(context) ?? { purchases: 0, lifetimeValue: 0 };
         },
-        applyDiscount: async ({ discount_percent }: { discount_percent: number }) => {
+        applyDiscount: async ({ discount_percent }: { discount_percent: number }, context) => {
           return (
-            toolHandlers?.applyDiscount?.(discount_percent) ?? {
+            toolHandlers?.applyDiscount?.(discount_percent, context) ?? {
               approved: false,
               discount_percent,
               reason: "no_handler"
@@ -113,8 +113,8 @@ export class LangGraphConversationAdapter implements ConversationPort {
       }));
 
       const result = await this.agent.run({
-        sessionId: "checkout_session",
-        merchantId: "checkout",
+        sessionId: input.sessionId ?? "checkout_session",
+        merchantId: input.merchantId ?? "checkout",
         userMessage: input.userMessage,
         history,
         systemPrompt: this.buildContextualSystemPrompt(input)

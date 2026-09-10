@@ -38,6 +38,10 @@ export class UpdateAgentRulesUseCase {
   constructor(@Inject(AGENT_RULES_REPOSITORY) private readonly repository: AgentRulesRepository) {}
 
   async execute(principal: AgentRulesPrincipal, patch: AgentRulesPatch, agentId?: string): Promise<AgentRules> {
+    if (!patch.identity && !patch.capabilities && !patch.guardrails && !patch.checkoutSettings) {
+      throw new BadRequestException("agent_rules_patch_empty");
+    }
+
     // Domain guardrail: safety toggles cannot be disabled.
     if (patch.guardrails?.forbidUnauthorizedDiscounts === false) {
       throw new BadRequestException("guardrail_safety_toggle_forbidden");

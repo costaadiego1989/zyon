@@ -35,7 +35,7 @@ export class ChatLlmGatewayService {
         type: "function",
         function: {
           name: "apply_discount",
-          description: "Aplica desconto percentual no carrinho do comprador",
+          description: "Apresenta o desconto percentual autorizado para o carrinho do comprador",
           parameters: { type: "object", properties: { percent: { type: "number", description: "Percentual de desconto (ex: 10 para 10%)" } }, required: ["percent"] },
         },
       },
@@ -43,7 +43,7 @@ export class ChatLlmGatewayService {
         type: "function",
         function: {
           name: "apply_free_shipping",
-          description: "Aplica frete grátis no pedido do comprador",
+          description: "Apresenta a condição de frete grátis autorizada para o pedido do comprador",
           parameters: { type: "object", properties: {}, required: [] },
         },
       },
@@ -133,6 +133,7 @@ export class ChatLlmGatewayService {
       ...opts.merchantRules.map((r, i) => `${i + 1}. ${r}`),
       "",
       "IMPORTANTE: Quando uma regra diz 'ofereça X% desconto', CHAME apply_discount. Quando diz 'frete grátis', CHAME apply_free_shipping. Quando diz 'cupom CODIGO', CHAME apply_coupon.",
+      "Nunca diga que desconto ou frete grátis foi aplicado: a condição fica disponível e depende da confirmação do comprador no checkout.",
       "",
       "CROSS-SELL (itens sugeridos):",
       "- Quando o cliente disser 'Adicionar <produto> ao carrinho' referindo-se a um item SUGERIDO (a mensagem traz 'SKU: XXX'), CHAME add_cross_sell_item com esse sku. NUNCA use search_marketplace para um item sugerido.",
@@ -151,23 +152,24 @@ export class ChatLlmGatewayService {
 
   /** Call LLM with fallback chain: Local LLM → DeepSeek cloud */
   async call(messages: LlmMessage[], tools: LlmToolDefinition[]): Promise<LlmCallResult | null> {
-    const localUrl = process.env.LOCAL_LLM_BASE_URL || process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1";
+    const localUrl = process.env.LOCAL_LLM_BASE_URL || process.env.OLLAMA_BASE_URL;
     const localModel = process.env.LOCAL_LLM_MODEL || process.env.OLLAMA_MODEL || "llama3.1:8b";
-    const localKey = process.env.DEEPSEEK_API_KEY || "ollama";
+    const localKey = process.env.LOCAL_LLM_API_KEY || "ollama";
 
-    // Primary: local/configured LLM (5s timeout for local Ollama, 30s for cloud)
-    const isCloud = localUrl.includes("deepseek") || localUrl.includes("openrouter") || localUrl.includes("openai");
-    const timeout = isCloud ? 30000 : 5000;
-
-    const primaryResult = await this.callProvider(
-      `${localUrl}/chat/completions`, localKey, localModel, messages, tools, timeout,
-    );
-    if (primaryResult) return primaryResult;
+    // A local provider is opt-in. Production must not spend five seconds trying
+    // localhost when no local runtime was configured.
+    if (localUrl) {
+      const isCloud = localUrl.includes("deepseek") || localUrl.includes("openrouter") || localUrl.includes("openai");
+      const primaryResult = await this.callProvider(
+        `${localUrl}/chat/completions`, localKey, localModel, messages, tools, isCloud ? 30000 : 5000,
+      );
+      if (primaryResult) return primaryResult;
+    }
 
     // Fallback: DeepSeek cloud (if not already the primary)
     const cloudKey = process.env.DEEPSEEK_API_KEY;
     const cloudUrl = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1";
-    if (cloudKey && !localUrl.includes("deepseek")) {
+    if (cloudKey && !localUrl?.includes("deepseek")) {
       const deepseekResult = await this.callProvider(
         `${cloudUrl}/chat/completions`,
         cloudKey,

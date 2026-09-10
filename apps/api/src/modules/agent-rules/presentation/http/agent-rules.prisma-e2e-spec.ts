@@ -62,8 +62,7 @@ test(
       const dto = {
         identity: { agentName: "Maya" },
         capabilities: { machineToMachineNegotiation: true },
-        checkoutSettings: { maxInterventionsPerSession: 4 },
-        hasAnySection: () => true
+        checkoutSettings: { maxInterventionsPerSession: 4 }
       } as unknown as AgentRulesPatchDto;
       await controller.updateDefault(request, dto);
       const context = await controller.defaultContext(request);

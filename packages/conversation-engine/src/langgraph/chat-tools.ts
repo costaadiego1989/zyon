@@ -32,16 +32,19 @@ export interface ExecutableTool {
 }
 
 export interface ToolHandlers {
-  searchCatalog: (args: { query: string }) => Promise<unknown>;
-  checkShipping: (args: { zip: string }) => Promise<unknown>;
-  checkInventory: (args: { sku: string }) => Promise<unknown>;
-  getBuyerHistory: (args?: Record<string, unknown>) => Promise<unknown>;
-  applyDiscount: (args: { discount_percent: number }) => Promise<unknown>;
+  searchCatalog: (args: { query: string }, context: ToolExecutionContext) => Promise<unknown>;
+  checkShipping: (args: { zip: string }, context: ToolExecutionContext) => Promise<unknown>;
+  checkInventory: (args: { sku: string }, context: ToolExecutionContext) => Promise<unknown>;
+  getBuyerHistory: (args: Record<string, unknown> | undefined, context: ToolExecutionContext) => Promise<unknown>;
+  applyDiscount: (args: { discount_percent: number }, context: ToolExecutionContext) => Promise<unknown>;
 }
 
-export interface ToolContext {
+export interface ToolExecutionContext {
   merchantId: string;
   sessionId: string;
+}
+
+export interface ToolContext extends ToolExecutionContext {
   handlers: ToolHandlers;
 }
 
@@ -137,24 +140,28 @@ function wrapHandler(
   };
 }
 
+function executionContext(ctx: ToolContext): ToolExecutionContext {
+  return { merchantId: ctx.merchantId, sessionId: ctx.sessionId };
+}
+
 export function createSearchCatalogTool(ctx: ToolContext): ExecutableTool {
-  return wrapHandler("search_catalog", (args) => ctx.handlers.searchCatalog(args));
+  return wrapHandler("search_catalog", (args) => ctx.handlers.searchCatalog(args, executionContext(ctx)));
 }
 
 export function createCheckShippingTool(ctx: ToolContext): ExecutableTool {
-  return wrapHandler("check_shipping", (args) => ctx.handlers.checkShipping(args));
+  return wrapHandler("check_shipping", (args) => ctx.handlers.checkShipping(args, executionContext(ctx)));
 }
 
 export function createCheckInventoryTool(ctx: ToolContext): ExecutableTool {
-  return wrapHandler("check_inventory", (args) => ctx.handlers.checkInventory(args));
+  return wrapHandler("check_inventory", (args) => ctx.handlers.checkInventory(args, executionContext(ctx)));
 }
 
 export function createGetBuyerHistoryTool(ctx: ToolContext): ExecutableTool {
-  return wrapHandler("get_buyer_history", (args) => ctx.handlers.getBuyerHistory(args));
+  return wrapHandler("get_buyer_history", (args) => ctx.handlers.getBuyerHistory(args, executionContext(ctx)));
 }
 
 export function createApplyDiscountTool(ctx: ToolContext): ExecutableTool {
-  return wrapHandler("apply_discount", (args) => ctx.handlers.applyDiscount(args));
+  return wrapHandler("apply_discount", (args) => ctx.handlers.applyDiscount(args, executionContext(ctx)));
 }
 
 export function buildExecutableTools(ctx: ToolContext): ExecutableTool[] {
