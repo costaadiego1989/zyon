@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { CursorPage, MerchantProfile, TenantCustomer } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
 import { DashboardHttpError } from "../api/http/index.js";
+import type { CustomerMetricsResponse } from "../api/endpoints/customer.js";
 import { reportError } from "../lib/observability/error-reporter.js";
 import { toCustomerRows, type CustomerRow } from "./customers-page.js";
 
@@ -23,6 +24,7 @@ export interface CustomersPageViewModel {
   selectedCustomerId: string | null;
   customerDetail: unknown | null;
   loadingDetail: boolean;
+  metrics: CustomerKpis | null;
   setSearchTerm: (v: string) => void;
   setSortCol: (col: "name" | "email" | "lastSeen") => void;
   setSortDir: (dir: "asc" | "desc") => void;
@@ -36,7 +38,42 @@ export interface CustomersPageViewModel {
   apiBaseUrl: string;
 }
 
+export type CustomerKpis = {
+  totalCustomers: number;
+  newCustomersLast7Days: number;
+  repeatRateLast7Days: number;
+};
+
 const PAGE_SIZE = 10;
+const CUSTOMER_METRICS_START = "1970-01-01";
+
+export function customerMetricPeriods(now = new Date()): {
+  allTime: { dateFrom: string; dateTo: string };
+  last7Days: { dateFrom: string; dateTo: string };
+} {
+  const end = new Date(now);
+  const start = new Date(now);
+  start.setUTCDate(start.getUTCDate() - 6);
+  return {
+    allTime: { dateFrom: CUSTOMER_METRICS_START, dateTo: toIsoDate(end) },
+    last7Days: { dateFrom: toIsoDate(start), dateTo: toIsoDate(end) },
+  };
+}
+
+export function toCustomerKpis(
+  allTime: CustomerMetricsResponse,
+  last7Days: CustomerMetricsResponse,
+): CustomerKpis {
+  return {
+    totalCustomers: allTime.total_customers,
+    newCustomersLast7Days: last7Days.new_customers,
+    repeatRateLast7Days: last7Days.repeat_rate,
+  };
+}
+
+function toIsoDate(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
 
 function errorMessage(e: unknown): string {
   if (e instanceof DashboardHttpError) return e.responseBody.slice(0, 160);
@@ -64,6 +101,7 @@ export function useCustomersPage(props: {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [customerDetail, setCustomerDetail] = useState<unknown | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [metrics, setMetrics] = useState<CustomerKpis | null>(null);
 
   const load = useCallback(async () => {
     if (!props.me) return;
@@ -73,11 +111,22 @@ export function useCustomersPage(props: {
     setRows([]);
     setNextCursor(null);
     setHasMore(false);
+    setMetrics(null);
     try {
       const page: CursorPage<TenantCustomer> = await api.getCustomersPage(PAGE_SIZE);
       setRows(toCustomerRows(page.data));
       setNextCursor(page.next_cursor);
       setHasMore(page.has_more);
+      try {
+        const periods = customerMetricPeriods();
+        const [allTime, last7Days] = await Promise.all([
+          api.getCustomerMetrics(periods.allTime),
+          api.getCustomerMetrics(periods.last7Days),
+        ]);
+        setMetrics(toCustomerKpis(allTime, last7Days));
+      } catch (e) {
+        reportError({ source: "customers.metrics", error: e, severity: "warning" });
+      }
     } catch (e) {
       reportError({ source: "customers.load", error: e, severity: "warning" });
       setMessage(errorMessage(e));
@@ -163,6 +212,7 @@ export function useCustomersPage(props: {
     selectedCustomerId,
     customerDetail,
     loadingDetail,
+    metrics,
     setSearchTerm,
     setSortCol,
     setSortDir,

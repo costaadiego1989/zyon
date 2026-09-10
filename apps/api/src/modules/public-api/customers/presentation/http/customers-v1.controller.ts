@@ -24,7 +24,7 @@ import { RequireTenantAccess } from '../../../../integrations/presentation/http/
 import {
   ListCustomersUseCase,
   GetCustomerUseCase,
-  ListOrdersUseCase,
+  ListCustomerOrdersUseCase,
 } from '../../../../operations/application/operations-read.use-cases.js';
 import { CustomerEntityMapper } from '../../application/mappers/customer-entity.mapper.js';
 import {
@@ -43,7 +43,7 @@ export class CustomersV1Controller {
   constructor(
     private readonly listCustomersUseCase: ListCustomersUseCase,
     private readonly getCustomerUseCase: GetCustomerUseCase,
-    private readonly listOrdersUseCase: ListOrdersUseCase,
+    private readonly listCustomerOrdersUseCase: ListCustomerOrdersUseCase,
   ) {}
 
   @Get()
@@ -58,13 +58,6 @@ export class CustomersV1Controller {
     const merchantId = req.tenantPrincipal?.tenantId;
 
     const pageSize = Math.min(limit ?? 20, 100);
-
-    if (cursor) {
-      const { valid, error } = CursorPaginationHelper.validateCursor(cursor);
-      if (!valid) {
-        throw new Error(`Invalid cursor: ${error}`);
-      }
-    }
 
     const result = await this.listCustomersUseCase.execute({
       merchantId,
@@ -107,32 +100,15 @@ export class CustomersV1Controller {
 
     const pageSize = Math.min(limit ?? 20, 100);
 
-    if (cursor) {
-      const { valid, error } = CursorPaginationHelper.validateCursor(cursor);
-      if (!valid) {
-        throw new Error(`Invalid cursor: ${error}`);
-      }
-    }
-
-    const customer = await this.getCustomerUseCase.execute(
+    const result = await this.listCustomerOrdersUseCase.execute({
       merchantId,
       customerId,
-    );
-
-    const orders = customer.purchaseHistory || [];
-    const start = 0;
-    const end = Math.min(start + pageSize, orders.length);
-    const data = orders.slice(start, end);
-    const nextCursor =
-      end < orders.length
-        ? CursorPaginationHelper.encodeCursor(
-            data[data.length - 1]?.completedAt || new Date().toISOString(),
-            data[data.length - 1]?.orderId || '',
-          )
-        : null;
+      limit: pageSize,
+      cursor,
+    });
 
     return CursorPaginationHelper.format(
-      { data, nextCursor },
+      result,
       (order) => CustomerEntityMapper.toCustomerOrderResponse(order),
     );
   }

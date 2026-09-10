@@ -79,6 +79,33 @@ export class GetCustomerUseCase {
 }
 
 @Injectable()
+export class ListCustomerOrdersUseCase {
+  constructor(
+    @Inject(OPERATIONS_READ_REPOSITORY)
+    private readonly repository: OperationsReadRepository,
+  ) {}
+
+  async execute(input: CustomerOrdersPageInput) {
+    const limit = clampLimit(input.limit);
+    const rows = await this.repository.listCustomerPurchases({
+      merchantId: required(input.merchantId, "merchant_id"),
+      customerId: required(input.customerId, "customer_id"),
+      limit: limit + 1,
+      cursor: decodeCursor(input.cursor),
+    });
+    const data = rows.slice(0, limit);
+    const last = data.at(-1);
+    return {
+      data,
+      nextCursor:
+        rows.length > limit && last
+          ? encodeCursor({ occurredAt: last.completedAt, id: last.orderId })
+          : null,
+    };
+  }
+}
+
+@Injectable()
 export class ListPaymentsUseCase {
   constructor(
     @Inject(OPERATIONS_READ_REPOSITORY)
@@ -115,6 +142,10 @@ interface PageInput {
   merchantId: string;
   limit?: number;
   cursor?: string;
+}
+
+interface CustomerOrdersPageInput extends PageInput {
+  customerId: string;
 }
 
 async function page<T>(

@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { toNumber } from "../../../shared/persistence/decimal.util.js";
 import type {
   CustomerDetail,
+  CustomerPurchase,
   CustomerSummary,
   OperationsCursor,
   OperationsReadRepository,
@@ -239,15 +240,36 @@ export class PrismaOperationsReadRepository
       profile: sanitizeCustomer(session.customer),
       firstSeenAt: (first?.createdAt ?? session.createdAt).toISOString(),
       lastSeenAt: session.updatedAt.toISOString(),
-      purchaseHistory: purchases.map((purchase) => ({
-        orderId: purchase.orderId,
-        currency: purchase.currency,
-        totalMinor: toMinor(purchase.totalAmount),
-        discountMinor: toMinor(purchase.discountAmount),
-        items: purchase.items,
-        completedAt: purchase.completedAt.toISOString(),
-      })),
+      purchaseHistory: purchases.map(toCustomerPurchase),
     };
+  }
+
+  async listCustomerPurchases(input: {
+    merchantId: string;
+    customerId: string;
+    limit: number;
+    cursor?: OperationsCursor;
+  }): Promise<CustomerPurchase[]> {
+    const completedAt = input.cursor
+      ? new Date(input.cursor.occurredAt)
+      : undefined;
+    const purchases = await this.prisma.buyerPurchaseRecord.findMany({
+      where: {
+        merchantId: input.merchantId,
+        globalUserId: input.customerId,
+        ...(completedAt && input.cursor
+          ? {
+              OR: [
+                { completedAt: { lt: completedAt } },
+                { completedAt, orderId: { lt: input.cursor.id } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ completedAt: "desc" }, { orderId: "desc" }],
+      take: input.limit,
+    });
+    return purchases.map(toCustomerPurchase);
   }
 
   async listPayments(input: {
@@ -376,6 +398,24 @@ function toCustomerSummary(row: CustomerRow): CustomerSummary {
     profile: sanitizeCustomer(row.customer),
     firstSeenAt: row.first_seen_at.toISOString(),
     lastSeenAt: row.last_seen_at.toISOString(),
+  };
+}
+
+function toCustomerPurchase(purchase: {
+  orderId: string;
+  currency: string;
+  totalAmount: { toNumber(): number } | number;
+  discountAmount: { toNumber(): number } | number;
+  items: unknown;
+  completedAt: Date;
+}): CustomerPurchase {
+  return {
+    orderId: purchase.orderId,
+    currency: purchase.currency,
+    totalMinor: toMinor(purchase.totalAmount),
+    discountMinor: toMinor(purchase.discountAmount),
+    items: purchase.items,
+    completedAt: purchase.completedAt.toISOString(),
   };
 }
 

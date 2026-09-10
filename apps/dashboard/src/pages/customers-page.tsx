@@ -20,12 +20,6 @@ export type CustomerRow = {
   initials: string;
 };
 
-export interface CustomerMetrics {
-  total: number;
-  newLast7Days: number;
-  returningRate: number;
-}
-
 export interface CustomerPurchase {
   order_id: string;
   total_minor: number;
@@ -88,19 +82,6 @@ export function formatDate(value: string): string {
   }).format(date);
 }
 
-export function computeMetrics(rows: CustomerRow[]): CustomerMetrics {
-  const total = rows.length;
-  const now = Date.now();
-  const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
-  const newLast7Days = rows.filter((r) => {
-    const d = new Date(r.firstSeen).getTime();
-    return !isNaN(d) && d >= sevenDaysAgo;
-  }).length;
-  const returning = rows.filter((r) => r.firstSeen !== r.lastSeen).length;
-  const returningRate = total > 0 ? returning / total : 0;
-  return { total, newLast7Days, returningRate };
-}
-
 export function filterRows(rows: CustomerRow[], term: string): CustomerRow[] {
   if (!term.trim()) return rows;
   const normalized = term.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -115,7 +96,7 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
   const vm = useCustomersPage(props);
   const {
     rows, loading, message, searchTerm, sortCol, sortDir, dateFilter, page, pageSize: PAGE_SIZE,
-    selectedCustomerId, customerDetail, loadingDetail,
+    selectedCustomerId, customerDetail, loadingDetail, metrics,
     setSearchTerm, setDateFilter, setPage, openCustomerDetail, closeCustomerDetail,
   } = vm;
 
@@ -138,8 +119,6 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
     const start = (page - 1) * PAGE_SIZE;
     return filteredRows.slice(start, start + PAGE_SIZE);
   }, [filteredRows, page, PAGE_SIZE]);
-
-  const metrics = useMemo(() => computeMetrics(rows), [rows]);
 
   function exportCsv() {
     const header = "Nome,Email,Telefone,Primeira visita,Última atividade";
@@ -180,25 +159,27 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
       {/* KPI cards */}
       <div className="grid-3" style={{ gap: 14 }}>
         <StatCard
-          label="Total de Clientes"
-          value={metrics.total}
+          label="Total de Compradores"
+          value={metrics?.totalCustomers ?? "—"}
           icon={<UsersRound size={16} />}
           trend={0}
+          note="Pedidos concluídos desde o início"
         />
         <StatCard
-          label="Novos (7 dias)"
-          value={metrics.newLast7Days}
+          label="Novos Compradores (7 dias)"
+          value={metrics?.newCustomersLast7Days ?? "—"}
           icon={<UserPlus size={16} />}
           accent="var(--color-success)"
           trend={0}
         />
         <StatCard
-          label="Taxa de Retorno"
-          value={`${Math.round(metrics.returningRate * 100)}`}
+          label="Taxa de Recompra (7 dias)"
+          value={metrics ? `${Math.round(metrics.repeatRateLast7Days * 100)}` : "—"}
           suffix="%"
           icon={<Repeat size={16} />}
           accent="var(--color-brand)"
           trend={0}
+          note="Somente compradores com pedido anterior"
         />
       </div>
 

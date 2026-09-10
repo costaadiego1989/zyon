@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   getInitials,
   toCustomerRows,
-  computeMetrics,
   calculatePurchaseMetrics,
   filterRows,
   formatDate,
 } from "./customers-page.js";
+import { customerMetricPeriods, toCustomerKpis } from "./useCustomersPage.js";
 import type { TenantCustomer } from "../api-client.js";
 
 // ── getInitials ─────────────────────────────────────────────────────────────
@@ -108,39 +108,19 @@ describe("formatDate", () => {
 
 // ── computeMetrics ──────────────────────────────────────────────────────────
 
-describe("computeMetrics", () => {
-  it("counts total from all rows", () => {
-    const rows = [
-      { globalUserId: "1", name: "A", email: "a@a.com", phone: "-", firstSeen: "2026-06-01T00:00:00Z", lastSeen: "2026-06-28T00:00:00Z", initials: "A" },
-      { globalUserId: "2", name: "B", email: "b@b.com", phone: "-", firstSeen: "2026-06-10T00:00:00Z", lastSeen: "2026-06-10T00:00:00Z", initials: "B" },
-    ];
-    expect(computeMetrics(rows).total).toBe(2);
+describe("customer KPIs", () => {
+  it("uses stable all-time and seven-day server periods", () => {
+    expect(customerMetricPeriods(new Date("2026-09-10T12:00:00Z"))).toEqual({
+      allTime: { dateFrom: "1970-01-01", dateTo: "2026-09-10" },
+      last7Days: { dateFrom: "2026-09-04", dateTo: "2026-09-10" },
+    });
   });
 
-  it("counts new in last 7 days based on firstSeen", () => {
-    const now = new Date();
-    const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString();
-    const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString();
-    const rows = [
-      { globalUserId: "1", name: "A", email: "a@a.com", phone: "-", firstSeen: threeDaysAgo, lastSeen: threeDaysAgo, initials: "A" },
-      { globalUserId: "2", name: "B", email: "b@b.com", phone: "-", firstSeen: tenDaysAgo, lastSeen: tenDaysAgo, initials: "B" },
-    ];
-    expect(computeMetrics(rows).newLast7Days).toBe(1);
-  });
-
-  it("computes returning rate as fraction of rows where firstSeen !== lastSeen", () => {
-    const rows = [
-      { globalUserId: "1", name: "A", email: "a@a.com", phone: "-", firstSeen: "2026-06-01T00:00:00Z", lastSeen: "2026-06-28T00:00:00Z", initials: "A" },
-      { globalUserId: "2", name: "B", email: "b@b.com", phone: "-", firstSeen: "2026-06-10T00:00:00Z", lastSeen: "2026-06-10T00:00:00Z", initials: "B" },
-    ];
-    expect(computeMetrics(rows).returningRate).toBe(0.5);
-  });
-
-  it("returns zeros for empty array", () => {
-    const metrics = computeMetrics([]);
-    expect(metrics.total).toBe(0);
-    expect(metrics.newLast7Days).toBe(0);
-    expect(metrics.returningRate).toBe(0);
+  it("uses completed-purchase metrics returned by the server", () => {
+    expect(toCustomerKpis(
+      { total_customers: 42, new_customers: 42, returning_customers: 0, repeat_rate: 0, period_from: "1970-01-01", period_to: "2026-09-10" },
+      { total_customers: 8, new_customers: 3, returning_customers: 5, repeat_rate: 0.625, period_from: "2026-09-04", period_to: "2026-09-10" },
+    )).toEqual({ totalCustomers: 42, newCustomersLast7Days: 3, repeatRateLast7Days: 0.625 });
   });
 });
 

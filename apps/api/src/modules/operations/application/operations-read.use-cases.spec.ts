@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   GetOrderUseCase,
+  ListCustomerOrdersUseCase,
   ListOrdersUseCase,
 } from "./operations-read.use-cases.js";
 import type {
@@ -33,6 +34,26 @@ describe("operational read models", () => {
       get.execute("mrc_b", "ord_1"),
       /order_not_found/,
     );
+  });
+
+  it("paginates a customer's purchase history with the opaque cursor", async () => {
+    const list = new ListCustomerOrdersUseCase(new StubOperationsRepository());
+
+    const first = await list.execute({
+      merchantId: "mrc_a",
+      customerId: "buyer_1",
+      limit: 1,
+    });
+    assert.equal(first.data[0]?.orderId, "purchase_2");
+    assert.ok(first.nextCursor);
+
+    const second = await list.execute({
+      merchantId: "mrc_a",
+      customerId: "buyer_1",
+      limit: 1,
+      cursor: first.nextCursor!,
+    });
+    assert.equal(second.data[0]?.orderId, "purchase_1");
   });
 });
 
@@ -82,6 +103,22 @@ class StubOperationsRepository implements OperationsReadRepository {
 
   async getCustomer() {
     return undefined;
+  }
+
+  async listCustomerPurchases(input: {
+    merchantId: string;
+    customerId: string;
+    limit: number;
+    cursor?: { occurredAt: string; id: string };
+  }) {
+    if (input.merchantId !== "mrc_a" || input.customerId !== "buyer_1") return [];
+    const purchases = [
+      { orderId: "purchase_2", currency: "BRL", totalMinor: 29_990, discountMinor: 0, items: [], completedAt: "2026-06-15T12:00:02.000Z" },
+      { orderId: "purchase_1", currency: "BRL", totalMinor: 19_990, discountMinor: 0, items: [], completedAt: "2026-06-15T12:00:01.000Z" },
+    ];
+    return purchases
+      .filter((row) => !input.cursor || row.completedAt < input.cursor.occurredAt || (row.completedAt === input.cursor.occurredAt && row.orderId < input.cursor.id))
+      .slice(0, input.limit);
   }
 
   async listPayments() {

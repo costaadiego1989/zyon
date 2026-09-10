@@ -306,45 +306,40 @@ export class PrismaAnalyticsRepository implements AnalyticsRepositoryPort {
       },
     });
 
-    const totalCustomers = new Set(purchases.map((p) => p.globalUserId || p.merchantCustomerId || p.id)).size;
+    const customerIds = new Set(
+      purchases
+        .map(customerMetricIdentity)
+        .filter((identity): identity is string => identity !== null),
+    );
+    const totalCustomers = customerIds.size;
 
-    // Count new customers (first purchase in this period)
-    const globalUserIds = purchases.filter((p) => p.globalUserId).map((p) => p.globalUserId!);
-    const merchantCustomerIds = purchases.filter((p) => p.merchantCustomerId).map((p) => p.merchantCustomerId!);
-
-    let newCustomers = 0;
-    let returningCustomers = 0;
-
-    if (globalUserIds.length > 0) {
-      const earlierGlobalPurchases = await this.prisma.buyerPurchaseRecord.count({
-        where: {
-          merchantId,
-          globalUserId: { in: globalUserIds },
-          completedAt: { lt: from },
-        },
-      });
-      const globalCustomerCount = new Set(globalUserIds).size;
-      returningCustomers = earlierGlobalPurchases > 0 ? globalCustomerCount : 0;
-      newCustomers += globalCustomerCount - (returningCustomers > 0 ? globalCustomerCount : 0);
-    }
-
-    if (merchantCustomerIds.length > 0) {
-      const earlierMerchantPurchases = await this.prisma.buyerPurchaseRecord.count({
-        where: {
-          merchantId,
-          merchantCustomerId: { in: merchantCustomerIds },
-          completedAt: { lt: from },
-        },
-      });
-      const merchantCustomerCount = new Set(merchantCustomerIds).size;
-      returningCustomers += earlierMerchantPurchases > 0 ? merchantCustomerCount : 0;
-      newCustomers += merchantCustomerCount - (earlierMerchantPurchases > 0 ? merchantCustomerCount : 0);
-    }
-
-    // Ensure counts add up
-    newCustomers = Math.max(0, totalCustomers - returningCustomers);
-
-    const repeatRate = totalCustomers > 0 ? Math.round((returningCustomers / totalCustomers) * 10000) / 10000 : 0;
+    // A repeat customer must have a purchase before the selected period. Counting
+    // rows cannot establish that: one prior row used to mark every current buyer
+    // as returning. Anonymous purchases have no durable buyer identity, so they
+    // are deliberately excluded from customer and retention metrics.
+    const previousPurchases = customerIds.size
+      ? await this.prisma.buyerPurchaseRecord.findMany({
+          where: {
+            merchantId,
+            completedAt: { lt: from },
+            OR: [
+              { globalUserId: { in: purchases.flatMap((purchase) => purchase.globalUserId ? [purchase.globalUserId] : []) } },
+              { merchantCustomerId: { in: purchases.flatMap((purchase) => purchase.merchantCustomerId ? [purchase.merchantCustomerId] : []) } },
+            ],
+          },
+          select: { globalUserId: true, merchantCustomerId: true },
+        })
+      : [];
+    const previousCustomerIds = new Set(
+      previousPurchases
+        .map(customerMetricIdentity)
+        .filter((identity): identity is string => identity !== null),
+    );
+    const returningCustomers = [...customerIds].filter((id) => previousCustomerIds.has(id)).length;
+    const newCustomers = totalCustomers - returningCustomers;
+    const repeatRate = totalCustomers > 0
+      ? Math.round((returningCustomers / totalCustomers) * 10000) / 10000
+      : 0;
 
     return {
       totalCustomers,
@@ -354,4 +349,13 @@ export class PrismaAnalyticsRepository implements AnalyticsRepositoryPort {
       period: { from, to },
     };
   }
+}
+
+function customerMetricIdentity(value: {
+  globalUserId?: string | null;
+  merchantCustomerId?: string | null;
+}): string | null {
+  if (value.globalUserId) return `global:${value.globalUserId}`;
+  if (value.merchantCustomerId) return `merchant:${value.merchantCustomerId}`;
+  return null;
 }

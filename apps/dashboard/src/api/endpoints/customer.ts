@@ -2,6 +2,15 @@ import { dashboardJson } from "../http/client.js";
 import type { TenantCustomer, CursorPage, DashboardOverview, TenantPayment } from "../types.js";
 import type { StoreOverview, TimeseriesResponse } from "@zyon/shared-types";
 
+export type CustomerMetricsResponse = {
+  total_customers: number;
+  new_customers: number;
+  returning_customers: number;
+  repeat_rate: number;
+  period_from: string;
+  period_to: string;
+};
+
 export function customerEndpoints(base: string, f: typeof fetch) {
   return {
     async getCustomers(limit?: number): Promise<TenantCustomer[]> {
@@ -31,6 +40,21 @@ export function customerEndpoints(base: string, f: typeof fetch) {
       return dashboardJson(
         base,
         `/customers/${encodeURIComponent(customerId)}`,
+        { method: "GET" },
+        f,
+      );
+    },
+    getCustomerMetrics(input: {
+      dateFrom: string;
+      dateTo: string;
+    }): Promise<CustomerMetricsResponse> {
+      const params = new URLSearchParams({
+        date_from: input.dateFrom,
+        date_to: input.dateTo,
+      });
+      return dashboardJson<CustomerMetricsResponse>(
+        base,
+        `/analytics/customers?${params.toString()}`,
         { method: "GET" },
         f,
       );

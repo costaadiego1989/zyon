@@ -447,6 +447,30 @@ describe("createDashboardApi — getCustomersPage", () => {
   });
 });
 
+describe("createDashboardApi getCustomerMetrics", () => {
+  it("uses the public analytics contract with an explicit date range", async () => {
+    const f = makeFetch({
+      total_customers: 42,
+      new_customers: 3,
+      returning_customers: 5,
+      repeat_rate: 0.625,
+      period_from: "2026-09-04",
+      period_to: "2026-09-10",
+    });
+    const api = createDashboardApi({ baseUrl: BASE, fetchImpl: asF(f) });
+
+    const result = await api.getCustomerMetrics({
+      dateFrom: "2026-09-04",
+      dateTo: "2026-09-10",
+    });
+
+    expect(result.repeat_rate).toBe(0.625);
+    expect(capturedUrl(f)).toContain("/analytics/customers?");
+    expect(capturedUrl(f)).toContain("date_from=2026-09-04");
+    expect(capturedUrl(f)).toContain("date_to=2026-09-10");
+  });
+});
+
 // ── 401 / session expiry contract ─────────────────────────────────────────────
 
 describe("session expiry contract", () => {

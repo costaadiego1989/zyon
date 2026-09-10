@@ -54,14 +54,16 @@ export interface CustomerSummary {
 }
 
 export interface CustomerDetail extends CustomerSummary {
-  purchaseHistory: Array<{
-    orderId: string;
-    currency: string;
-    totalMinor: number;
-    discountMinor: number;
-    items: unknown;
-    completedAt: string;
-  }>;
+  purchaseHistory: CustomerPurchase[];
+}
+
+export interface CustomerPurchase {
+  orderId: string;
+  currency: string;
+  totalMinor: number;
+  discountMinor: number;
+  items: unknown;
+  completedAt: string;
 }
 
 export interface PaymentSummary {
@@ -103,6 +105,12 @@ export interface OperationsReadRepository {
     merchantId: string,
     customerId: string,
   ): Promise<CustomerDetail | undefined>;
+  listCustomerPurchases(input: {
+    merchantId: string;
+    customerId: string;
+    limit: number;
+    cursor?: OperationsCursor;
+  }): Promise<CustomerPurchase[]>;
   listPayments(input: {
     merchantId: string;
     limit: number;
