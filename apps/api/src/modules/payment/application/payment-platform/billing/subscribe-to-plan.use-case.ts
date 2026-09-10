@@ -85,19 +85,20 @@ export class SubscribeToPlanUseCase {
       remoteIp: input.remoteIp,
     });
 
-    const now = new Date();
-    const currentPeriodEnd = new Date(now);
-    currentPeriodEnd.setDate(currentPeriodEnd.getDate() + 30);
+    const trialIsStillActive = billing.status === "trialing" &&
+      Boolean(billing.trialEndsAt) && new Date(billing.trialEndsAt!).getTime() > Date.now();
 
     await this.repository.saveBilling({
       merchantId: input.merchantId,
       provider: "asaas",
       planKey: input.planKey as BillingPlan,
-      status: "active",
+      // Asaas validates a card when creating a subscription, but the first
+      // charge happens on `nextDueDate`. Paid access must wait for the billing
+      // webhook; keep an existing Free trial intact in the meantime.
+      status: trialIsStillActive ? "trialing" : "incomplete",
       asaasCustomerId: customerId,
       asaasSubscriptionId: result.subscriptionId,
       cancelAtPeriodEnd: false,
-      currentPeriodEnd: currentPeriodEnd.toISOString(),
     });
 
     return this.repository.getBilling(input.merchantId);

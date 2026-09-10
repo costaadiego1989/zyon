@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { effectiveBillingPlan, freeTrialState, merchantTransactionFeeCentsFor } from "../domain/billing-plans.js";
 import { InMemoryPaymentPlatformRepository } from "../infrastructure/in-memory-payment-platform.repository.js";
 import { StartTrialUseCase } from "./payment-platform/billing/start-trial.use-case.js";
+import { SubscribeToPlanUseCase } from "./payment-platform/billing/subscribe-to-plan.use-case.js";
+import { HandleAsaasBillingWebhookUseCase } from "./payment-platform/billing/handle-asaas-billing-webhook.use-case.js";
 import { HandleStripePlatformEventUseCase } from "./payment-platform/platform-events/handle-stripe-platform-event.use-case.js";
 import { GetBillingSubscriptionUseCase } from "./payment-platform/billing/get-billing-subscription.use-case.js";
 import { BillingEntityMapper } from "../../public-api/billing/application/mappers/billing-entity.mapper.js";
@@ -49,6 +51,33 @@ test("checkout completion does not grant paid access; subscription status does",
   assert.equal(sub?.cancelAtPeriodEnd, true);
   await events.subscriptionUpdated({ customerId: "cus_1", subscriptionId: "sub_1", priceId: "growth", status: "cancelled", cancelAtPeriodEnd: false });
   assert.equal(effectiveBillingPlan(await repository.getBilling("paid")), "starter");
+});
+
+test("Asaas subscription creation does not grant paid access before the first confirmed charge", async () => {
+  const repository = new InMemoryPaymentPlatformRepository();
+  const provider = {
+    async createCustomer() { return { customerId: "cus_asaas_1" }; },
+    async createSubscription() { return { subscriptionId: "sub_asaas_1" }; },
+  };
+  const subscribe = new SubscribeToPlanUseCase(repository, provider as any);
+  await subscribe.execute({
+    merchantId: "asaas_pending",
+    planKey: "growth",
+    card: { holderName: "Merchant", number: "4111111111111111", expiryMonth: "12", expiryYear: "2030", ccv: "123" },
+    holderInfo: { name: "Merchant", email: "merchant@example.test", cpfCnpj: "12345678909", postalCode: "01001000", addressNumber: "1", phone: "11999999999" },
+  });
+
+  const pending = await repository.getBilling("asaas_pending");
+  assert.equal(pending?.status, "trialing");
+  assert.equal(effectiveBillingPlan(pending), "starter");
+
+  await new HandleAsaasBillingWebhookUseCase(repository).execute({
+    event: "PAYMENT_CONFIRMED",
+    subscriptionId: "sub_asaas_1",
+  });
+  const active = await repository.getBilling("asaas_pending");
+  assert.equal(active?.status, "active");
+  assert.equal(effectiveBillingPlan(active), "growth");
 });
 
 test("billing API returns the plan, trial and portal fields needed by dashboard", async () => {

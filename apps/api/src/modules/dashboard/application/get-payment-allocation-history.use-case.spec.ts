@@ -44,7 +44,7 @@ describe("GetPaymentAllocationHistoryUseCase", () => {
     });
 
     assert.equal(history.payment_intent_id, "intent_shared");
-    assert.match(history.scope_note, /n.o representa saldo dispon.vel, valor liquidado, repasse conclu.do ou concilia..o completa/i);
+    assert.match(history.scope_note, /n.o representa saldo dispon.vel, repasse banc.rio conclu.do ou concilia..o completa/i);
     assert.deepEqual(history.snapshots.map(snapshot => [snapshot.kind, snapshot.observation_status]), [
       ["planned_allocation", undefined],
       ["provider_observation", "confirmed"],

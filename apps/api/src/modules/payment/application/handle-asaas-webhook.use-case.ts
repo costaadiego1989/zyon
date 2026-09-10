@@ -24,6 +24,7 @@ export type AsaasWebhookInbound = {
     id?: string;
     status?: string;
     value?: number;
+    netValue?: number;
     externalReference?: string;
     split?: Array<{ id?: string; fixedValue?: number }>;
   };
@@ -45,6 +46,7 @@ function normalizeInbound(body: unknown): AsaasWebhookInbound {
   if (pay && typeof pay === "object" && !Array.isArray(pay)) {
     const p = pay as Record<string, unknown>;
     const rawVal = p.value;
+    const rawNetValue = p.netValue;
     const rawSplit = p.split;
     const split = Array.isArray(rawSplit)
       ? rawSplit.flatMap(item => {
@@ -67,6 +69,12 @@ function normalizeInbound(body: unknown): AsaasWebhookInbound {
           ? rawVal
           : typeof rawVal === "string" && rawVal.trim() !== ""
             ? Number(rawVal)
+            : undefined,
+      netValue:
+        typeof rawNetValue === "number"
+          ? rawNetValue
+          : typeof rawNetValue === "string" && rawNetValue.trim() !== ""
+            ? Number(rawNetValue)
             : undefined,
       externalReference: typeof p.externalReference === "string" ? p.externalReference.trim() : undefined,
       split,
@@ -108,6 +116,11 @@ function majorUnitsFromCents(amountCents: number): number {
 function paymentValueAsCents(paymentSlice: NonNullable<AsaasWebhookInbound["payment"]> | undefined): number | undefined {
   if (!paymentSlice || typeof paymentSlice.value !== "number" || !Number.isFinite(paymentSlice.value)) return undefined;
   return Math.round(paymentSlice.value * 100);
+}
+
+function paymentNetValueAsCents(paymentSlice: NonNullable<AsaasWebhookInbound["payment"]> | undefined): number | undefined {
+  if (!paymentSlice || typeof paymentSlice.netValue !== "number" || !Number.isFinite(paymentSlice.netValue)) return undefined;
+  return Math.round(paymentSlice.netValue * 100);
 }
 
 @Injectable()
@@ -289,8 +302,20 @@ export class HandleAsaasWebhookUseCase {
       ? Math.round(split.fixedValue * 100)
       : undefined;
     const plannedPlatformEntry = plan.entries.find(entry => entry.entryKey === "platform_fee");
+    const plannedMerchantEntry = plan.entries.find(entry => entry.entryKey === "merchant_payout");
     const isExpectedPlatformSplit = fixedValueCents !== undefined && plannedPlatformEntry !== undefined &&
       fixedValueCents === plannedPlatformEntry.plannedAmountCents;
+    const grossValueCents = paymentValueAsCents(inbound.payment);
+    const netValueCents = paymentNetValueAsCents(inbound.payment);
+    // `netValue` is the provider's amount after its own fee. It lets the
+    // ledger distinguish an observed issuer balance from the planned merchant
+    // allocation, without presenting it as a bank payout.
+    const hasObservedNetValue = grossValueCents === plan.plannedGrossCents &&
+      netValueCents !== undefined && netValueCents >= 0 && netValueCents <= grossValueCents;
+    const confirmedMerchantNetCents = hasObservedNetValue && isExpectedPlatformSplit && plannedMerchantEntry &&
+      netValueCents >= fixedValueCents
+      ? netValueCents - fixedValueCents
+      : undefined;
     const settledAt = new Date();
     const observation: ObservedPaymentSettlement = {
       merchantId: snapshot.merchantId,
@@ -302,11 +327,19 @@ export class HandleAsaasWebhookUseCase {
       providerSettlementId: splitId ? `asaas:split:${splitId}` : `asaas:webhook:${inbound.id}`,
       providerReference: inbound.event,
       ...(status === "confirmed" ? {
+        confirmedGrossCents: hasObservedNetValue ? grossValueCents : undefined,
         confirmedPlatformFeeCents: isExpectedPlatformSplit ? fixedValueCents : undefined,
+        confirmedMerchantNetCents,
+        confirmedProviderFeeCents: hasObservedNetValue ? grossValueCents - netValueCents : undefined,
         confirmedAt: settledAt,
-        entries: isExpectedPlatformSplit
-          ? [{ entryKey: "platform_fee", confirmedAmountCents: fixedValueCents, providerTransferId: splitId }]
-          : [],
+        entries: [
+          ...(isExpectedPlatformSplit
+            ? [{ entryKey: "platform_fee" as const, confirmedAmountCents: fixedValueCents, providerTransferId: splitId }]
+            : []),
+          ...(confirmedMerchantNetCents !== undefined
+            ? [{ entryKey: "merchant_payout" as const, confirmedAmountCents: confirmedMerchantNetCents }]
+            : []),
+        ],
       } : { entries: [] }),
       occurredAt: settledAt,
     };

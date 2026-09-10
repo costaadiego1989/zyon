@@ -254,7 +254,7 @@ test("PAYMENT_DELETED marks failed and records payment_failed event", async () =
   assert.ok(payments.capturedEvents.map(event => event.payload as { status: string; reason?: string }).some((entry) => entry.status === "failed" && entry.reason === "PAYMENT_DELETED"));
 });
 
-test("Asaas split events append only the confirmed split allocation and divergence fact", async () => {
+test("Asaas split events record the confirmed platform split and observed issuer balance", async () => {
   const payments = new InMemoryPaymentRepository();
   const checkoutPort = new RecordingCheckoutPayment();
   const dispatch = new PaymentDispatchService(payments, checkoutPort);
@@ -304,10 +304,10 @@ test("Asaas split events append only the confirmed split allocation and divergen
   assert.equal(afterSplit.length, 2);
   assert.equal(afterSplit[1]?.status, "confirmed");
   assert.equal(afterSplit[1]?.confirmedPlatformFeeCents, 99);
-  assert.equal(afterSplit[1]?.confirmedGrossCents, undefined);
-  assert.equal(afterSplit[1]?.confirmedMerchantNetCents, undefined);
-  assert.equal(afterSplit[1]?.confirmedProviderFeeCents, undefined);
-  assert.deepEqual(afterSplit[1]?.entries.map(entry => [entry.entryKey, entry.confirmedAmountCents]), [["platform_fee", 99]]);
+  assert.equal(afterSplit[1]?.confirmedGrossCents, 30_000);
+  assert.equal(afterSplit[1]?.confirmedMerchantNetCents, 29_352);
+  assert.equal(afterSplit[1]?.confirmedProviderFeeCents, 549);
+  assert.deepEqual(afterSplit[1]?.entries.map(entry => [entry.entryKey, entry.confirmedAmountCents]), [["platform_fee", 99], ["merchant_payout", 29_352]]);
 
   const blocked = await uc.execute(WEBHOOK_HEADER, {
     id: "evt_split_blocked",
