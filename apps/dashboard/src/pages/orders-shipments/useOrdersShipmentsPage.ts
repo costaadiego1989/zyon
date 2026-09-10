@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import { DashboardHttpError } from "../../api/http/index.js";
-import type { CursorPage, MerchantProfile, TenantOrder } from "../../api-client.js";
+import type { CursorPage, MerchantProfile, TenantOrder, TenantOrderDetail } from "../../api-client.js";
 import { computeOrderMetrics, filterOrders, STATUS_LABELS } from "./utils.js";
 import { showToast } from "../../components/Toast.js";
 import { downloadCsv } from "../../hooks/useCsvExport.js";
@@ -14,6 +14,10 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
   const [busy, setBusy] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [orderDetail, setOrderDetail] = useState<TenantOrderDetail | null>(null);
+  const [orderDetailLoading, setOrderDetailLoading] = useState(false);
+  const [orderDetailError, setOrderDetailError] = useState<string | null>(null);
+  const [orderDetailReloadToken, setOrderDetailReloadToken] = useState(0);
   const [statusFilter, setStatusFilter] = useState<"all" | "approved" | "cancelled" | "budgets">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [startDate, setStartDate] = useState<string>("");
@@ -98,6 +102,56 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
     }
     void loadAll();
   }, [props.me, loadAll]);
+
+  useEffect(() => {
+    if (!expandedOrderId) {
+      setOrderDetail(null);
+      setOrderDetailLoading(false);
+      setOrderDetailError(null);
+      return;
+    }
+
+    let active = true;
+    setOrderDetail(null);
+    setOrderDetailLoading(true);
+    setOrderDetailError(null);
+
+    void api.getOrderDetail(expandedOrderId)
+      .then((detail) => {
+        if (active) setOrderDetail(detail);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setOrderDetailError(
+          error instanceof DashboardHttpError && error.status === 404
+            ? "Este pedido não está mais disponível. Atualize a lista e tente novamente."
+            : "Não foi possível carregar o histórico deste pedido.",
+        );
+      })
+      .finally(() => {
+        if (active) setOrderDetailLoading(false);
+      });
+
+    return () => { active = false; };
+  }, [api, expandedOrderId, orderDetailReloadToken]);
+
+  const openOrderDetails = useCallback((orderId: string) => {
+    setOrderDetail(null);
+    setOrderDetailError(null);
+    setOrderDetailLoading(true);
+    setExpandedOrderId(orderId);
+  }, []);
+
+  const closeOrderDetails = useCallback(() => {
+    setExpandedOrderId(null);
+  }, []);
+
+  const reloadOrderDetail = useCallback(() => {
+    if (!expandedOrderId) return;
+    setOrderDetailLoading(true);
+    setOrderDetailError(null);
+    setOrderDetailReloadToken((token) => token + 1);
+  }, [expandedOrderId]);
 
   const metrics = useMemo(() => computeOrderMetrics(orders), [orders]);
   const filteredOrders = useMemo(
@@ -250,6 +304,12 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
     hasLoaded,
     expandedOrderId,
     setExpandedOrderId,
+    openOrderDetails,
+    closeOrderDetails,
+    orderDetail,
+    orderDetailLoading,
+    orderDetailError,
+    reloadOrderDetail,
     statusFilter,
     setStatusFilter,
     searchQuery,

@@ -11,8 +11,9 @@ import {
 } from "lucide-react";
 import { PeriodFilter } from "../components/PeriodFilter.js";
 import { EmptyState } from "../components/EmptyState.js";
+import { PageLoader } from "../components/PageLoader.js";
 import { StatCard, StatCardGroup } from "./overview/components/StatCard.js";
-import type { MerchantProfile, TenantOrder } from "../api-client.js";
+import type { MerchantProfile, OrderTimelineEntry, TenantOrder, TenantOrderDetail } from "../api-client.js";
 import { useOrdersShipmentsPage } from "./orders-shipments/useOrdersShipmentsPage.js";
 import { Button } from "../components/Button.js";
 import { STATUS_LABELS, computeOrderMetrics, filterOrdersByPeriod, formatMinor, formatDate, formatPhone } from "./orders-shipments/utils.js";
@@ -219,7 +220,7 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
                         order={order}
                         onDragStart={(e) => handleDragStart(e, order)}
                         onDragEnd={handleDragEnd}
-                        onClick={() => vm.setExpandedOrderId(order.id)}
+                        onClick={() => vm.openOrderDetails(order.id)}
                         isDragging={draggedOrder?.id === order.id}
                         disabled={vm.busy}
                       />
@@ -306,6 +307,8 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
   const order = vm.orders.find((o) => o.id === vm.expandedOrderId);
   if (!order) return null;
 
+  const detail = vm.orderDetail?.id === order.id ? vm.orderDetail : null;
+
   const cart = order.cart as { items?: Array<{ name?: string; title?: string; quantity?: number; price?: number; unit_price?: number }> };
   const items = Array.isArray(cart?.items) ? cart.items : [];
   const customer = order.customer as {
@@ -332,12 +335,12 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
   const valueStyle: React.CSSProperties = { font: "13px var(--font-sans)", color: "var(--color-text)" };
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 900, display: "flex", justifyContent: "flex-end" }} onClick={() => vm.setExpandedOrderId(null)}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 900, display: "flex", justifyContent: "flex-end" }} onClick={vm.closeOrderDetails}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }} />
       <aside style={{ position: "relative", width: 480, maxWidth: "90vw", height: "100vh", overflowY: "auto", background: "var(--surface-2)", borderLeft: "1px solid var(--color-border)", padding: "28px 24px", display: "flex", flexDirection: "column", gap: 20, animation: "slideInRight 0.2s ease-out", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ font: "600 18px var(--font-sans)", color: "var(--color-brand)", margin: 0 }}>Pedido {order.external_order_id}</h2>
-          <button type="button" onClick={() => vm.setExpandedOrderId(null)} aria-label="Fechar" style={{ width: 40, height: 40, borderRadius: 8, border: "1px solid var(--color-border)", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text)" }}><X size={20} /></button>
+          <button type="button" onClick={vm.closeOrderDetails} aria-label="Fechar" style={{ width: 40, height: 40, borderRadius: 8, border: "1px solid var(--color-border)", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text)" }}><X size={20} /></button>
         </div>
 
         {/* Status + Total */}
@@ -414,6 +417,15 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
           </div>
         )}
 
+        <OrderTimelineSection
+          detail={detail}
+          loading={vm.orderDetailLoading}
+          error={vm.orderDetailError}
+          onRetry={vm.reloadOrderDetail}
+          sectionStyle={sectionStyle}
+          labelStyle={labelStyle}
+        />
+
         {/* Tracking */}
         <div style={sectionStyle}>
           <div style={labelStyle}>Rastreamento</div>
@@ -482,4 +494,69 @@ function CancelOrderAction({ order, vm }: { order: TenantOrder; vm: ReturnType<t
       <Button variant="danger" size="md" loading={vm.cancelBusyOrderId === order.id} disabled={!reason.trim() || vm.busy} onClick={() => void vm.cancelOrder(order, { reason, notifyCustomer, restock })}>Cancelar pedido</Button>
     </div>
   );
+}
+
+function OrderTimelineSection({
+  detail,
+  loading,
+  error,
+  onRetry,
+  sectionStyle,
+  labelStyle,
+}: {
+  detail: TenantOrderDetail | null;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+  sectionStyle: React.CSSProperties;
+  labelStyle: React.CSSProperties;
+}) {
+  return (
+    <section style={sectionStyle} aria-labelledby="order-timeline-title">
+      <div id="order-timeline-title" style={labelStyle}>Histórico do pedido</div>
+      {loading ? <PageLoader variant="section" /> : null}
+      {!loading && error ? (
+        <div role="alert" style={{ display: "grid", gap: 10, padding: 12, borderRadius: 8, background: "var(--color-error-bg)", border: "1px solid var(--color-error-border)" }}>
+          <span style={{ font: "12px/1.5 var(--font-sans)", color: "var(--color-text)" }}>{error}</span>
+          <div><Button variant="outline" size="sm" onClick={onRetry}>Tentar novamente</Button></div>
+        </div>
+      ) : null}
+      {!loading && !error && detail ? (
+        detail.timeline.length > 0 ? (
+          <ol style={{ display: "grid", gap: 0, margin: 0, padding: 0, listStyle: "none" }}>
+            {detail.timeline.map((event) => <TimelineEntry key={event.id} event={event} />)}
+          </ol>
+        ) : <p style={{ margin: 0, font: "12px/1.5 var(--font-sans)", color: "var(--color-text-muted)" }}>Ainda não há eventos registrados para este pedido.</p>
+      ) : null}
+    </section>
+  );
+}
+
+function TimelineEntry({ event }: { event: OrderTimelineEntry }) {
+  const location = typeof event.data?.location === "string" ? event.data.location : null;
+  const label = timelineLabel(event);
+  const description = event.description?.trim();
+  return (
+    <li style={{ display: "grid", gridTemplateColumns: "10px minmax(0, 1fr)", gap: 10, padding: "10px 0", borderTop: "1px solid var(--color-border)" }}>
+      <span aria-hidden style={{ width: 8, height: 8, borderRadius: "50%", marginTop: 5, background: event.type === "tracking" ? "var(--color-brand)" : "var(--color-text-faint)" }} />
+      <div style={{ display: "grid", gap: 3 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+          <span style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>{label}</span>
+          <time dateTime={event.occurredAt} style={{ flex: "0 0 auto", font: "10px var(--font-mono)", color: "var(--color-text-faint)" }}>{formatDate(event.occurredAt)}</time>
+        </div>
+        {description ? <span style={{ font: "12px/1.45 var(--font-sans)", color: "var(--color-text-muted)" }}>{description}</span> : null}
+        {location ? <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>{location}</span> : null}
+      </div>
+    </li>
+  );
+}
+
+function timelineLabel(event: OrderTimelineEntry): string {
+  const status = event.status?.trim();
+  const statusLabel = status ? STATUS_LABELS[status] ?? status.replaceAll("_", " ") : undefined;
+  if (event.type === "tracking") return statusLabel ? `Rastreio: ${statusLabel}` : "Atualização de rastreio";
+  if (event.type === "payment") return statusLabel ? `Pagamento: ${statusLabel}` : "Atualização de pagamento";
+  if (event.type === "checkout") return statusLabel ? `Checkout: ${statusLabel}` : "Atualização do checkout";
+  if (event.type === "order") return statusLabel ? `Pedido: ${statusLabel}` : "Atualização do pedido";
+  return statusLabel ?? "Atualização registrada";
 }

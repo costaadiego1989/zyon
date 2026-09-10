@@ -1,5 +1,5 @@
 import { dashboardJson } from "../http/client.js";
-import type { TenantOrder, CursorPage } from "../types.js";
+import type { TenantOrder, TenantOrderDetail, CursorPage } from "../types.js";
 
 export function orderEndpoints(base: string, f: typeof fetch) {
   return {
@@ -11,6 +11,14 @@ export function orderEndpoints(base: string, f: typeof fetch) {
       return dashboardJson<CursorPage<TenantOrder>>(
         base,
         `/orders${query}`,
+        { method: "GET" },
+        f,
+      );
+    },
+    getOrderDetail(orderId: string): Promise<TenantOrderDetail> {
+      return dashboardJson<TenantOrderDetail>(
+        base,
+        `/orders/${encodeURIComponent(orderId)}`,
         { method: "GET" },
         f,
       );

@@ -107,6 +107,19 @@ export type TenantOrder = {
   paid_at: string | null;
 };
 
+export type OrderTimelineEntry = {
+  id: string;
+  type: string;
+  status?: string;
+  description?: string;
+  occurredAt: string;
+  data?: Record<string, unknown>;
+};
+
+export type TenantOrderDetail = TenantOrder & {
+  timeline: OrderTimelineEntry[];
+};
+
 export type TenantCustomer = {
   id: string;
   profile: Record<string, unknown>;
