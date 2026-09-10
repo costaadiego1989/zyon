@@ -20,6 +20,9 @@ export class DeterministicConversationAdapter implements ConversationPort {
     this.logger.debug(
       `[deterministic] msg="${input.userMessage.slice(0, 40)}" stage=${input.stage} missing=${input.missingFields?.join(",")}`,
     );
-    return generateDeterministicReply(input);
+    const reply = generateDeterministicReply(input);
+    const agentName = input.agentContext?.agent.agentName?.trim();
+    if (!agentName || reply.message.startsWith(`${agentName}:`)) return reply;
+    return { ...reply, message: `${agentName}: ${reply.message}` };
   }
 }
