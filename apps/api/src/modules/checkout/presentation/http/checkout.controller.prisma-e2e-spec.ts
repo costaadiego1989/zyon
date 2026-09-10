@@ -91,6 +91,8 @@ test(
       const shipping = await controller.shipping({
         merchant_id: merchantId,
         session_id: started.session_id,
+        shipping_price: 35,
+        shipping_real_cost: 37,
         abandonment_score: Math.max(tracked.abandonment_score, 0.7)
       });
       const applied = await controller.offer({
