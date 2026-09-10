@@ -61,9 +61,25 @@ export function fetchPurchases(cursor: string, limit = 10): Promise<PurchasePage
 }
 
 export async function fetchTracking(): Promise<BuyerPurchase[]> {
-  const data = await apiCall<PurchasePage>("/buyer/me/purchases?limit=50");
-  return data.items.filter(
-    (p) => p.tracking_status !== "cancelled" && p.tracking_status !== "cancelado",
+  const purchases: BuyerPurchase[] = [];
+  const seenCursors = new Set<string>();
+  let cursor = "";
+
+  do {
+    const page = await fetchPurchases(cursor, 100);
+    purchases.push(...page.items);
+
+    const nextCursor = page.next_cursor;
+    if (!nextCursor) break;
+    if (seenCursors.has(nextCursor)) {
+      throw new Error("Não foi possível carregar todo o rastreamento. Tente novamente.");
+    }
+    seenCursors.add(nextCursor);
+    cursor = nextCursor;
+  } while (cursor);
+
+  return purchases.filter(
+    (purchase) => purchase.tracking_status !== "cancelled" && purchase.tracking_status !== "cancelado",
   );
 }
 
