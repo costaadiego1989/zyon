@@ -180,7 +180,7 @@ export function OverviewPage(props: OverviewPageProps) {
     return <ErrorState message={vm.error} onRetry={vm.refresh} />;
 
   // Derived metrics — all from real API data
-  const revenue = vm.storeOverview?.revenue ?? vm.checkoutOverview?.incremental_revenue ?? 0;
+  const revenue = vm.storeOverview?.revenue;
   const orders = vm.storeOverview?.orders_count ?? vm.checkoutOverview?.orders_completed ?? 0;
   const conversion = vm.checkoutOverview?.conversion_rate_with_agent ?? 0;
   const avgTicket = vm.storeOverview?.average_ticket ?? 0;
@@ -189,7 +189,7 @@ export function OverviewPage(props: OverviewPageProps) {
   const abandonmentRate = vm.storeOverview?.abandonment_rate ?? 0;
   const avgDiscount = vm.checkoutOverview?.average_discount ?? 0;
 
-  const prevRevenue = vm.previousStoreOverview?.revenue ?? vm.previousCheckoutOverview?.incremental_revenue;
+  const prevRevenue = vm.previousStoreOverview?.revenue;
   const prevOrders = vm.previousStoreOverview?.orders_count ?? vm.previousCheckoutOverview?.orders_completed;
   const prevConversion = vm.previousCheckoutOverview?.conversion_rate_with_agent;
   const prevAvgTicket = vm.previousStoreOverview?.average_ticket;
@@ -210,6 +210,7 @@ export function OverviewPage(props: OverviewPageProps) {
     { name: "cart_viewed", label: "Produto adicionado ao carrinho", color: "oklch(65% 0.16 200)" },
     { name: "auth_phone_submitted", label: "OTP enviado", color: "var(--color-info)" },
     { name: "auth_phone_verified", label: "OTP verificado", color: "oklch(68% 0.13 280)" },
+    { name: "auth_identity_confirmed", label: "Identidade confirmada", color: "oklch(66% 0.13 300)" },
     { name: "auth_registration_completed", label: "Cadastro completo", color: "var(--color-success)" },
     { name: "login_completed", label: "Login", color: "oklch(72% 0.15 320)" },
   ];
@@ -229,7 +230,7 @@ export function OverviewPage(props: OverviewPageProps) {
     { name: "order_completed", label: "Pagamento concluído", color: "var(--color-success)" },
   ];
 
-  const storefrontRaw = vm.storefrontFunnelData?.steps ?? vm.funnelData?.steps ?? [];
+  const storefrontRaw = vm.storefrontFunnelData?.steps ?? [];
   const checkoutRaw = vm.funnelData?.steps ?? [];
 
   const storefrontSteps = STORE_FUNNEL
@@ -300,12 +301,12 @@ export function OverviewPage(props: OverviewPageProps) {
       <div className="grid-4" style={{ gap: 14 }}>
         <StatCard
           label="Receita Total"
-          value={formatCurrency(revenue)}
+          value={revenue == null ? "—" : formatCurrency(revenue)}
           prefix="R$"
           icon={<DollarSign size={16} />}
           accent="var(--color-brand)"
-          trend={calcTrend(revenue, prevRevenue)}
-          sparkline={revSparkline}
+          trend={revenue == null ? undefined : calcTrend(revenue, prevRevenue)}
+          sparkline={revenue == null ? [] : revSparkline}
         />
         <StatCard
           label="Pedidos"

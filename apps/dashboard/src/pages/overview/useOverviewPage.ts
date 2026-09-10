@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import type { MerchantProfile } from "../../api-client.js";
 import type { Period, StoreOverview, TimeseriesResponse } from "./types.js";
@@ -44,6 +44,7 @@ export function useOverviewPage(props: OverviewPageProps): OverviewPageVM {
   const [previousCheckoutOverview, setPreviousCheckoutOverview] = useState<DashboardOverview | null>(null);
   const [previousStoreOverview, setPreviousStoreOverview] = useState<StoreOverview | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const requestVersion = useRef(0);
 
   const plan = (props.me as any).plan ?? "BOTH";
   const showCheckout = plan === "BOTH" || plan === "STORE_ONLY";
@@ -59,65 +60,34 @@ export function useOverviewPage(props: OverviewPageProps): OverviewPageVM {
     return () => clearInterval(interval);
   }, [period]);
 
-  function getPreviousPeriod(p: Period): Period {
-    const map: Record<Period, Period> = {
-      today: "today",
-      "7d": "7d",
-      "30d": "7d",
-      "90d": "30d",
-    };
-    return map[p] ?? "7d";
-  }
-
   async function fetchAll() {
+    const version = ++requestVersion.current;
     setLoading(true);
     setError(null);
     try {
-      const promises: Promise<unknown>[] = [];
-      if (showCheckout) {
-        promises.push(
-          api.getDashboardOverview(props.me.id).then(setCheckoutOverview),
-        );
-        promises.push(
-          api.getCheckoutFunnel(props.me.id, { period }).then(setFunnelData).catch(() => null),
-        );
-      }
-      if (showStore) {
-        promises.push(
-          api.getStoreOverview(props.me.id, period).then(setStoreOverview),
-        );
-        promises.push(
-          api.getStorefrontFunnel(props.me.id, { period }).then(setStorefrontFunnelData).catch(() => null),
-        );
-      }
-      promises.push(
-        api.getTimeseries(props.me.id, period).then(setTimeseries),
-      );
-
-      // TODO(DASH-OP-001): Implement period-based API param for trend comparison
-      // Currently, getDashboardOverview does not accept a period parameter.
-      // When it does, uncomment the previous period fetches below.
-      // For now, trends will be 0% (previous = current).
-      const prevPeriod = getPreviousPeriod(period);
-      if (showCheckout) {
-        // promises.push(
-        //   api.getDashboardOverview(props.me.id, { period: prevPeriod }).then(setPreviousCheckoutOverview),
-        // );
-        // Set to null to hide trends until API supports period param
-        setPreviousCheckoutOverview(null);
-      }
-      if (showStore) {
-        promises.push(
-          api.getStoreOverview(props.me.id, prevPeriod).then(setPreviousStoreOverview),
-        );
-      }
-
-      await Promise.allSettled(promises);
+      const [checkout, checkoutFunnel, store, storefrontFunnel, nextTimeseries] = await Promise.all([
+        showCheckout ? api.getDashboardOverview(props.me.id) : Promise.resolve(null),
+        showCheckout ? api.getCheckoutFunnel(props.me.id, { period }) : Promise.resolve(null),
+        showStore ? api.getStoreOverview(props.me.id, period) : Promise.resolve(null),
+        showStore ? api.getStorefrontFunnel(props.me.id, { period }) : Promise.resolve(null),
+        api.getTimeseries(props.me.id, period),
+      ]);
+      if (version !== requestVersion.current) return;
+      setCheckoutOverview(checkout);
+      setFunnelData(checkoutFunnel);
+      setStoreOverview(store);
+      setStorefrontFunnelData(storefrontFunnel);
+      setTimeseries(nextTimeseries);
+      // A prior period must be a disjoint, equally sized window. The current
+      // API only accepts a rolling period, so suppress trends until it does.
+      setPreviousCheckoutOverview(null);
+      setPreviousStoreOverview(null);
       setLastUpdated(new Date());
     } catch {
+      if (version !== requestVersion.current) return;
       setError("Erro ao carregar dados");
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   }
 
