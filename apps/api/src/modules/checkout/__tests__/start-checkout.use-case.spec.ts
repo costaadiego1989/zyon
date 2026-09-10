@@ -64,7 +64,7 @@ test("StartCheckoutUseCase creates session, records start event, and appends out
   assert.equal(repository.listOutbox("mrc_1")[0]?.event_type, "checkout.session.started");
 });
 
-test("StartCheckoutUseCase reuses global user only inside the same merchant", async () => {
+test("StartCheckoutUseCase does not resolve a buyer identity from unverified checkout hints", async () => {
   const repository = new InMemoryCheckoutRepository();
   const useCase = createStartCheckoutUseCase(repository, repository);
 
@@ -72,7 +72,7 @@ test("StartCheckoutUseCase reuses global user only inside the same merchant", as
   const second = await useCase.execute(startCheckoutRequest({ merchant_id: "mrc_1", session_id: "chk_2" }));
   const third = await useCase.execute(startCheckoutRequest({ merchant_id: "mrc_2", session_id: "chk_3" }));
 
-  assert.equal(first.global_user_id, second.global_user_id);
+  assert.notEqual(first.global_user_id, second.global_user_id);
   assert.notEqual(first.global_user_id, third.global_user_id);
 });
 

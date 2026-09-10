@@ -31,7 +31,7 @@ import { InterventionRuleTextBuilder } from "../../application/services/interven
 const liveAgentContextPort = { async get() { return liveAgentContext(); } };
 function makeLiveSendChat(repository: InMemoryCheckoutRepository, custService: CheckoutCustomerService, shipService: CheckoutShippingService, offerService: CheckoutOfferService) {
   const ruleBuilder = new InterventionRuleTextBuilder();
-  const contextService = new ChatContextService(repository, ruleBuilder, liveAgentContextPort);
+  const contextService = new ChatContextService(repository, ruleBuilder, liveAgentContextPort, repository);
   const responseBuilder = new ChatResponseBuilder(repository);
   return new SendChatMessageUseCase(repository, new LiveAiConversationPort(), custService, shipService, offerService, contextService, responseBuilder, { platformFeeBrl: 1.99 }, liveAgentContextPort);
 }
@@ -101,6 +101,7 @@ test(
       },
       shipping: { customerPrice: 39, realCost: 37, region: "SP" }
     });
+    await prepareVerifiedCheckout(repository, "mrc_live_ai", started.session_id, "buyer@example.com");
 
     await controller.track({
       merchant_id: "mrc_live_ai",
@@ -171,6 +172,7 @@ test(
       },
       shipping: { customerPrice: 29.9, realCost: 22, region: "SP", deliveryDays: 4 }
     });
+    await prepareVerifiedCheckout(repository, merchantId, started.session_id, "buyer-journey@example.com");
 
     await controller.track({
       merchant_id: merchantId,
@@ -225,7 +227,7 @@ test(
     assert.equal(completed.event_type, "order.completed");
 
     const snap = await controller.session(merchantId, started.session_id);
-    assert.equal(snap.chatHistory.length, 6, "session keeps full chat history (3 rounds = 6 turns)");
+    assert.equal(snap.chatHistory.length, 7, "session keeps 3 chat rounds plus its order confirmation");
     assert.equal(snap.chatHistory[0]?.role, "buyer");
     assert.equal(snap.chatHistory[1]?.role, "agent");
   }
@@ -296,6 +298,7 @@ test(
       },
       shipping: { customerPrice: 39, realCost: 37, region: "SP", deliveryDays: 4 }
     });
+    await prepareVerifiedCheckout(repository, merchantId, started.session_id, "buyer-matrix@example.com");
 
     const paymentRound = await controller.chat({
       merchant_id: merchantId,
@@ -329,6 +332,37 @@ test(
     assert.ok(["shipping_free", "shipping_discount_fixed", "none"].includes(shippingQuote.action));
   }
 );
+
+async function prepareVerifiedCheckout(
+  repository: InMemoryCheckoutRepository,
+  merchantId: string,
+  sessionId: string,
+  email: string,
+): Promise<void> {
+  const session = await repository.getSession(merchantId, sessionId);
+  if (!session) throw new Error("checkout_session_not_found");
+  await repository.saveSession({
+    ...session,
+    customer: {
+      ...session.customer,
+      fullName: "Compradora de teste",
+      email,
+      email_verified: true,
+      cpf: "39784089095",
+      phone: "11988887777",
+      phone_verified: true,
+      address_verified: true,
+      address: {
+        zip: "01310100",
+        street: "Avenida Paulista",
+        number: "1578",
+        city: "Sao Paulo",
+        state: "SP",
+      },
+    },
+    shipping: { customerPrice: 0, realCost: 0, method: "Frete gratis" },
+  });
+}
 
 function liveAgentContext(): AgentContext {
   return {

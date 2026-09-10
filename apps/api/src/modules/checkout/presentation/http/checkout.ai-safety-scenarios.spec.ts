@@ -178,6 +178,31 @@ for (const scenario of scenarios) {
       shipping: { customerPrice: 39, realCost: 37, region: "SP" }
     });
 
+    const session = await repository.getSession("mrc_ai_safety", started.session_id);
+    if (!session) throw new Error("checkout_session_not_found");
+    await repository.saveSession({
+      ...session,
+      customer: {
+        ...session.customer,
+        fullName: "Compradora Seguranca",
+        email: "buyer@example.com",
+        email_verified: true,
+        cpf: "39784089095",
+        phone: "11988887777",
+        phone_verified: true,
+        address_verified: true,
+        address: {
+          zip: "01310100",
+          street: "Avenida Paulista",
+          number: "1578",
+          complement: "",
+          city: "Sao Paulo",
+          state: "SP"
+        }
+      },
+      shipping: { customerPrice: 39, realCost: 37, region: "SP" }
+    });
+
     await controller.track({
       merchant_id: "mrc_ai_safety",
       session_id: started.session_id,

@@ -181,12 +181,12 @@ test("AGENTIC-001 start-checkout devolve sessao conversacao e identidade global"
   assert.match(started.global_user_id, /^usr_/);
 });
 
-test("AGENTIC-002 get session reflete carrinho e frete inicial", async () => {
+test("AGENTIC-002 get session keeps the trusted cart and waits for a server-side shipping quote", async () => {
   const repo = new InMemoryCheckoutRepository();
   const { controller, started } = await freshSession(repo, 300);
   const snap = await controller.session(MERCHANT, started.session_id);
   assert.equal(snap.cart.total, 300);
-  assert.ok(snap.shipping!.customerPrice > 0);
+  assert.equal(snap.shipping, undefined);
 });
 
 test("AGENTIC-003 track checkout_started aceito", async () => {

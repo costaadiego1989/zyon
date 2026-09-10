@@ -17,6 +17,15 @@ import type { HoldoutGroupService } from "../../../revenue-lift/domain/services/
 import type { ProductPromotionRepositoryPort } from "../../../catalog/domain/ports/product-promotion-repository.port.js";
 import type { CheckoutCartAuthorityService } from "../services/checkout-cart-authority.service.js";
 
+const passthroughCartAuthority = {
+  async resolve(_merchantId: string, cart: unknown) {
+    return structuredClone(cart);
+  },
+  async resolveStorefront() {
+    throw new Error("test_storefront_cart_not_configured");
+  },
+} as unknown as CheckoutCartAuthorityService;
+
 interface FixtureOverrides {
   checkoutSettings?: CheckoutSettingsPort;
   merchantRepository?: MerchantRepository;
@@ -70,6 +79,6 @@ export function createStartCheckoutUseCase(
     overrides?.merchantPlan,
     overrides?.crossSell,
     overrides?.experienceConfig,
-    overrides?.cartAuthority,
+    overrides?.cartAuthority ?? passthroughCartAuthority,
   );
 }

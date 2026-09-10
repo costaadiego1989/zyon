@@ -122,7 +122,8 @@ test("Checkout flow caps trigger_agent after intervention ledger reaches max int
     session_id: sessionId,
     event: "payment_failed"
   });
-  assert.equal(rPayment.trigger_agent, false);
+  assert.equal(rPayment.trigger_agent, true);
+  assert.equal(ledger.countForSession(merchantId, sessionId), 1);
 
   const rShip = await controller.track({
     merchant_id: merchantId,
@@ -131,14 +132,14 @@ test("Checkout flow caps trigger_agent after intervention ledger reaches max int
   });
   assert.equal(rShip.abandonment_score >= 0.55, true);
   assert.equal(rShip.trigger_agent, true);
-  assert.equal(ledger.countForSession(merchantId, sessionId), 1);
+  assert.equal(ledger.countForSession(merchantId, sessionId), 2);
 
   const rCoupon = await controller.track({
     merchant_id: merchantId,
     session_id: sessionId,
     event: "coupon_field_clicked"
   });
-  assert.equal(rCoupon.trigger_agent, true);
+  assert.equal(rCoupon.trigger_agent, false);
   assert.equal(ledger.countForSession(merchantId, sessionId), 2);
 
   const cap = await controller.track({
