@@ -115,7 +115,7 @@ export function ReturnExchangesPage({ me }: ReturnExchangesPageProps) {
             <tbody>
               {slice.map((r, i) => {
                 const st = STATUS_MAP[r.status] ?? STATUS_MAP.REQUESTED;
-                const actionButton = getAction(r.status, r.id, vm);
+                const actionButton = getAction(r, vm);
                 return (
                   <tr key={r.id} style={{ borderBottom: i < slice.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined }}>
                     <td style={{ padding: "12px 20px", font: "12px var(--font-mono)", color: "var(--color-text)" }}>{r.orderId.slice(0, 12)}</td>
@@ -141,7 +141,9 @@ export function ReturnExchangesPage({ me }: ReturnExchangesPageProps) {
   );
 }
 
-function getAction(status: ReturnStatus, returnId: string, vm: any) {
+function getAction(ret: { id: string; status: ReturnStatus; refund?: { status: string } }, vm: any) {
+  const status = ret.status;
+  const returnId = ret.id;
   const btnStyle: React.CSSProperties = { fontSize: 11, padding: "4px 12px", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", background: "var(--surface-2)", color: "var(--color-text-muted)", cursor: "pointer" };
   const disabled = vm.acting === returnId;
 
@@ -156,8 +158,17 @@ function getAction(status: ReturnStatus, returnId: string, vm: any) {
     case "SHIPPED":
       return <button type="button" style={btnStyle} onClick={() => vm.markReceived(returnId)} disabled={disabled}>Marcar recebido</button>;
     case "RECEIVED":
+      return <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>Inspeção necessária</span>;
     case "INSPECTED_PASS":
       return <button type="button" className="zyn-btn zyn-btn--primary" style={{ fontSize: 11, padding: "4px 12px" }} onClick={() => vm.processRefund(returnId)} disabled={disabled}>Reembolsar</button>;
+    case "REFUND_PROCESSING":
+      if (ret.refund?.status === "PENDING") {
+        return <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>Em processamento</span>;
+      }
+      if (ret.refund?.status === "FAILED") {
+        return <button type="button" style={btnStyle} onClick={() => vm.processRefund(returnId)} disabled={disabled}>Reconciliar novamente</button>;
+      }
+      return <button type="button" className="zyn-btn zyn-btn--primary" style={{ fontSize: 11, padding: "4px 12px" }} onClick={() => vm.processRefund(returnId)} disabled={disabled}>Emitir reembolso</button>;
     default:
       return <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>—</span>;
   }

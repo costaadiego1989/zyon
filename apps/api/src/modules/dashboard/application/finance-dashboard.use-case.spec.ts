@@ -62,6 +62,20 @@ describe("FinanceDashboardUseCase", () => {
     assert.equal(prisma.merchantIds.every((merchantId) => merchantId === "merchant_a"), true);
   });
 
+  it("exports negative refunds as numeric CSV cells while protecting untrusted references", async () => {
+    const prisma = new FinancePrismaStub();
+    const finance = new FinanceDashboardUseCase(prisma as unknown as PrismaClient);
+
+    const csv = await finance.exportCsv("merchant_a", {
+      from: "2026-09-01",
+      to: "2026-09-10",
+      type: "refund",
+    });
+
+    assert.match(csv, /;'=ORDER-100;PIX;-25,99;COMPLETED;/);
+    assert.doesNotMatch(csv, /;'-25,99;/);
+  });
+
   it("rejects invalid periods before querying financial data", async () => {
     const prisma = new FinancePrismaStub();
     const finance = new FinanceDashboardUseCase(prisma as unknown as PrismaClient);

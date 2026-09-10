@@ -45,4 +45,47 @@ describe("RefundPaymentService provider settlement", () => {
 
     assert.equal(providerInputs[0]?.idempotencyKey, "return:return_1");
   });
+
+  it("reconciles with the persisted payment id after a webhook has marked it refunded", async () => {
+    let resolvedIntentId: string | undefined;
+    let providerInput: any;
+    const payments = {
+      findApprovedBySessionId: async () => {
+        throw new Error("should_not_require_approved_intent");
+      },
+      getIntentById: async (_merchantId: string, intentId: string) => {
+        resolvedIntentId = intentId;
+        return { snapshot: () => ({ id: intentId, providerPaymentId: "pi_refunded", status: "refunded" }) };
+      },
+    };
+    const provider = {
+      fetchRefundStatus: async (input: unknown) => {
+        providerInput = input;
+        return { state: "succeeded" as const };
+      },
+    };
+    const orders = {
+      findCompletedOrderByExternalOrderId: async () => ({ sessionId: "session_1", lineItems: [], shippingCents: 0 }),
+    };
+    const service = new RefundPaymentService(payments as any, provider as any, orders as any);
+
+    const result = await service.reconcileRefundPayment({
+      merchantId: "merchant",
+      externalOrderId: "order",
+      paymentIntentId: "intent_refunded",
+      providerRefundId: "refund_1",
+      refundReference: "return:return_1",
+    });
+
+    assert.equal(result.state, "succeeded");
+    assert.equal(resolvedIntentId, "intent_refunded");
+    assert.deepEqual(providerInput, {
+      merchantId: "merchant",
+      providerPaymentId: "pi_refunded",
+      providerRefundId: "refund_1",
+      refundReference: "return:return_1",
+      provider: undefined,
+      providerAccountFingerprint: undefined,
+    });
+  });
 });

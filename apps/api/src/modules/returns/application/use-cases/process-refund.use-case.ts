@@ -21,20 +21,25 @@ export class ProcessRefundUseCase {
     // refund even if this process did not receive its response. Do not issue a
     // second financial POST; it must be reconciled from the provider outcome.
     if (ret.refund) {
-      if (ret.refund.status !== "PENDING") return ret;
-      if (!ret.refund.providerRefundId || !this.refundPayment) return ret;
+      if (ret.refund.status !== "PENDING" && ret.refund.status !== "FAILED") return ret;
+      if (!this.refundPayment) return ret;
 
       const reconciliation = await this.refundPayment.reconcileRefundPayment({
         merchantId,
         externalOrderId: ret.orderId,
-        providerRefundId: ret.refund.providerRefundId,
+        // A lost PSP response has no provider id, but Asaas can reconcile the
+        // original request using the persisted return reference. The synthetic
+        // value is never used to issue a new refund.
+        providerRefundId: ret.refund.providerRefundId ?? `pending:return:${returnId}`,
+        paymentIntentId: ret.refund.paymentIntentId,
+        refundReference: `return:${returnId}`,
       });
       if (reconciliation.state === "succeeded") {
         await this.returnRepo.updateRefundStatus(returnId, "COMPLETED", new Date());
         await this.returnRepo.updateStatus(returnId, "REFUND_COMPLETED");
       } else if (reconciliation.state === "failed") {
-        // A terminal PSP failure needs an explicit operator-led retry. Never
-        // turn reconciliation into another automatic financial POST.
+        // Operators may request another reconciliation from the dashboard, but
+        // a terminal result never turns into an automatic financial POST.
         await this.returnRepo.updateRefundStatus(returnId, "FAILED", new Date());
       }
       return (await this.returnRepo.findById(merchantId, returnId))!;

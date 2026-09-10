@@ -125,6 +125,11 @@ export type FetchRefundStatusInput = {
   merchantId: string;
   providerPaymentId: string;
   providerRefundId: string;
+  /**
+   * Stable merchant reference for providers whose refund list lacks a
+   * provider-generated refund id. It is never used to issue a new refund.
+   */
+  refundReference?: string;
 };
 
 export type FetchRefundStatusOutput = {

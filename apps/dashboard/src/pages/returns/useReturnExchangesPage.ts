@@ -51,8 +51,8 @@ export function useReturnExchangesPage(merchantId: string) {
   const processRefund = useCallback(async (returnId: string) => {
     setActing(returnId);
     try {
-      await api.processRefund(merchantId, returnId);
-      setReturns((prev) => prev.map((r) => r.id === returnId ? { ...r, status: "REFUND_PROCESSING" as ReturnStatus } : r));
+      const result = await api.processRefund(merchantId, returnId);
+      setReturns((prev) => prev.map((r) => r.id === returnId ? { ...r, status: result.status, refund: result.refund } : r));
       showToast("success", "Reembolso em processamento");
     } catch (e) {
       reportError({ source: "returns.processRefund", error: e });

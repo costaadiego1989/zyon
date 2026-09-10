@@ -7,7 +7,7 @@ import type { RefundOrderPaymentResult } from "../../../payment/application/serv
 function setup(
   status: ReturnStatus = "INSPECTED_PASS",
   refund: RefundOrderPaymentResult = { refunded: true, amountCents: 1_000, paymentIntentId: "pay_1", providerRefundId: "refund_1" },
-  persistedRefund?: { providerRefundId?: string; status: string; amountInCents: number },
+  persistedRefund?: { providerRefundId?: string; paymentIntentId?: string; status: string; amountInCents: number },
   reconciliation: { state: "succeeded" | "pending" | "failed" | "unknown" } = { state: "unknown" },
 ) {
   let currentStatus = status;
@@ -23,6 +23,7 @@ function setup(
     refundStatuses: [] as Array<[string, string]>,
     providerRequests: 0,
     reconciliationRequests: 0,
+    reconciliationInputs: [] as any[],
   };
   const repo = {
     findById: async (merchantId: string, id: string) => merchantId === "merchant-b" && id === "r" ? entity() : null,
@@ -46,7 +47,7 @@ function setup(
   };
   const refundPayment = {
     refundOrderPayment: async () => { calls.providerRequests += 1; return refund; },
-    reconcileRefundPayment: async () => { calls.reconciliationRequests += 1; return reconciliation; },
+    reconcileRefundPayment: async (input: unknown) => { calls.reconciliationRequests += 1; calls.reconciliationInputs.push(input); return reconciliation; },
   };
   return { useCase: new ProcessRefundUseCase(repo as any, refundPayment as any), calls };
 }
@@ -85,11 +86,41 @@ describe("Returns refund settlement", () => {
     assert.equal(calls.providerRequests, 0);
     assert.deepEqual(calls.saved, []);
   });
+  it("issues the first refund after marketplace acceptance leaves REFUND_PROCESSING without a durable attempt", async () => {
+    const { useCase, calls } = setup("REFUND_PROCESSING", {
+      refunded: false,
+      amountCents: 1_000,
+      paymentIntentId: "pay_pending",
+      providerRefundId: "refund_pending",
+      reason: "provider_refund_pending",
+    });
+
+    const result = await useCase.execute("merchant-b", "r");
+
+    assert.equal(result.status, "REFUND_PROCESSING");
+    assert.equal(calls.providerRequests, 1);
+    assert.deepEqual(calls.saved, [{ returnId: "r", paymentIntentId: "pay_pending", providerRefundId: "refund_pending", status: "PENDING", amountInCents: 1_000 }]);
+  });
+  it("does not reissue a pending refund after the explicit marketplace action is retried", async () => {
+    const { useCase, calls } = setup("REFUND_PROCESSING", {
+      refunded: false,
+      amountCents: 1_000,
+      paymentIntentId: "pay_pending",
+      providerRefundId: "refund_pending",
+      reason: "provider_refund_pending",
+    });
+
+    await useCase.execute("merchant-b", "r");
+    await useCase.execute("merchant-b", "r");
+
+    assert.equal(calls.providerRequests, 1);
+    assert.equal(calls.reconciliationRequests, 1);
+  });
   it("completes a known pending provider refund without another provider POST", async () => {
     const { useCase, calls } = setup(
       "REFUND_PROCESSING",
       undefined as any,
-      { providerRefundId: "re_1", status: "PENDING", amountInCents: 1_000 },
+      { providerRefundId: "re_1", paymentIntentId: "pay_1", status: "PENDING", amountInCents: 1_000 },
       { state: "succeeded" },
     );
 
@@ -98,8 +129,23 @@ describe("Returns refund settlement", () => {
     assert.equal(result.status, "REFUND_COMPLETED");
     assert.equal(calls.providerRequests, 0);
     assert.equal(calls.reconciliationRequests, 1);
+    assert.deepEqual(calls.reconciliationInputs, [{ merchantId: "merchant-b", externalOrderId: "o", providerRefundId: "re_1", paymentIntentId: "pay_1", refundReference: "return:r" }]);
     assert.deepEqual(calls.refundStatuses, [["r", "COMPLETED"]]);
     assert.deepEqual(calls.statuses, [["r", "REFUND_COMPLETED"]]);
+  });
+  it("reconciles an uncertain submission without a provider refund id and never posts again", async () => {
+    const { useCase, calls } = setup(
+      "REFUND_PROCESSING",
+      undefined as any,
+      { paymentIntentId: "pay_1", status: "PENDING", amountInCents: 1_000 },
+      { state: "succeeded" },
+    );
+
+    const result = await useCase.execute("merchant-b", "r");
+
+    assert.equal(result.status, "REFUND_COMPLETED");
+    assert.equal(calls.providerRequests, 0);
+    assert.deepEqual(calls.reconciliationInputs, [{ merchantId: "merchant-b", externalOrderId: "o", providerRefundId: "pending:return:r", paymentIntentId: "pay_1", refundReference: "return:r" }]);
   });
   it("records a terminal provider failure without issuing a replacement refund", async () => {
     const { useCase, calls } = setup(
@@ -115,6 +161,19 @@ describe("Returns refund settlement", () => {
     assert.equal(calls.providerRequests, 0);
     assert.equal(calls.reconciliationRequests, 1);
     assert.deepEqual(calls.refundStatuses, [["r", "FAILED"]]);
+  });
+  it("allows an operator to reconcile a failed attempt again without issuing another refund", async () => {
+    const { useCase, calls } = setup(
+      "REFUND_PROCESSING",
+      undefined as any,
+      { providerRefundId: "re_1", status: "FAILED", amountInCents: 1_000 },
+      { state: "unknown" },
+    );
+
+    await useCase.execute("merchant-b", "r");
+
+    assert.equal(calls.providerRequests, 0);
+    assert.equal(calls.reconciliationRequests, 1);
   });
   it("does not reveal another merchant's return", async () => {
     const { useCase } = setup();

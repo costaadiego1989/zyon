@@ -65,7 +65,7 @@ export interface ReturnRepositoryPort {
   findById(merchantId: string, returnId: string): Promise<ReturnEntity | null>;
   findByOrderId(merchantId: string, orderId: string): Promise<ReturnEntity[]>;
   findByBuyerId(buyerId: string): Promise<ReturnEntity[]>;
-  /** Pending attempts with a provider refund ID are safe to query, never reissue. */
+  /** Pending attempts are safe to reconcile, never reissue. */
   listPendingRefunds(query: PendingRefundQuery): Promise<ReturnEntity[]>;
   list(input: ListReturnsInput): Promise<ListReturnsResult>;
   updateStatus(returnId: string, status: ReturnStatus): Promise<void>;

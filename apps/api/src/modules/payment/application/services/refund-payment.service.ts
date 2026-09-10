@@ -218,13 +218,20 @@ export class RefundPaymentService {
     merchantId: string;
     externalOrderId: string;
     providerRefundId: string;
+    paymentIntentId?: string;
+    refundReference?: string;
   }): Promise<RefundReconciliationResult> {
     if (!this.orders || typeof this.provider.fetchRefundStatus !== "function") {
       return { state: "unknown", reason: "provider_refund_status_unsupported" };
     }
     const order = await this.orders.findCompletedOrderByExternalOrderId(input.merchantId, input.externalOrderId);
     if (!order) return { state: "unknown", reason: "completed_order_not_found" };
-    const intent = await this.payments.findApprovedBySessionId(input.merchantId, order.sessionId);
+    // A provider webhook may already have marked this intent as refunded while
+    // the local return is PENDING. Prefer its durable id in that situation;
+    // querying only `approved` would make reconciliation impossible.
+    const intent = input.paymentIntentId
+      ? await this.payments.getIntentById(input.merchantId, input.paymentIntentId)
+      : await this.payments.findApprovedBySessionId(input.merchantId, order.sessionId);
     if (!intent) return { state: "unknown", reason: "approved_payment_not_found" };
     const snap = intent.snapshot();
     if (!snap.providerPaymentId) {
@@ -236,6 +243,7 @@ export class RefundPaymentService {
         merchantId: input.merchantId,
         providerPaymentId: snap.providerPaymentId,
         providerRefundId: input.providerRefundId,
+        refundReference: input.refundReference,
         provider: snap.creation?.input.provider,
         providerAccountFingerprint: snap.creation?.input.providerAccountFingerprint,
       });

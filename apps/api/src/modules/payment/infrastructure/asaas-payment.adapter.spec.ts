@@ -209,3 +209,44 @@ test("Security: should use access_token header, not Bearer authorization", async
   assert.equal(headers.access_token, API_KEY);
   assert.equal(headers.Authorization, undefined);
 });
+
+test("Refund: keeps an accepted Asaas refund pending until its matching description is DONE", async () => {
+  const { fn, calls } = createMockFetch([
+    { ok: true, status: 200, body: { id: "pay_123", refunds: [{ description: "return:return_1", status: "PENDING" }] } },
+    { ok: true, status: 200, body: { data: [{ description: "return:return_1", status: "DONE" }] } },
+  ]);
+  const adapter = new AsaasPaymentAdapter(API_BASE, API_KEY, fn);
+
+  const issued = await adapter.refundPayment({
+    merchantId: "merchant_123",
+    providerPaymentId: "pay_123",
+    amountCents: 1_500,
+    reason: "return:return_1",
+  });
+  assert.equal(issued.status, "pending");
+  assert.equal(issued.refundId, "asaas:description:return:return_1");
+  assert.equal(JSON.parse(calls[0].init.body).description, "return:return_1");
+
+  const settled = await adapter.fetchRefundStatus({
+    merchantId: "merchant_123",
+    providerPaymentId: "pay_123",
+    providerRefundId: issued.refundId,
+    refundReference: "return:return_1",
+  });
+  assert.equal(settled.state, "succeeded");
+  assert.ok(calls[1].url.endsWith("/v3/payments/pay_123/refunds"));
+});
+
+test("Refund: recognizes DONE in the POST response but never treats an unrecognized response as success", async () => {
+  const { fn } = createMockFetch([
+    { ok: true, status: 200, body: { refunds: [{ description: "return:return_2", status: "DONE" }] } },
+    { ok: true, status: 200, body: {} },
+  ]);
+  const adapter = new AsaasPaymentAdapter(API_BASE, API_KEY, fn);
+
+  const done = await adapter.refundPayment({ merchantId: "merchant_123", providerPaymentId: "pay_123", amountCents: 1_500, reason: "return:return_2" });
+  const unresolved = await adapter.refundPayment({ merchantId: "merchant_123", providerPaymentId: "pay_123", amountCents: 1_500, reason: "return:return_3" });
+
+  assert.equal(done.status, "succeeded");
+  assert.equal(unresolved.status, "pending");
+});

@@ -81,7 +81,6 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
         refund: {
           is: {
             status: "PENDING",
-            providerRefundId: { not: null },
             createdAt: { lt: query.olderThan },
           },
         },

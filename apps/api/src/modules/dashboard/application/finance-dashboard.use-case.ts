@@ -193,7 +193,12 @@ export class FinanceDashboardUseCase {
         movement.payment_intent_id ?? "",
       ]),
     ];
-    return `\uFEFF${lines.map((line) => line.map(escapeCsvCell).join(";")).join("\r\n")}\r\n`;
+    // The amount remains numeric in spreadsheets, including a leading minus on
+    // refunds. All identifiers and textual values keep formula protection.
+    const csvLines = lines.map((line, rowIndex) =>
+      line.map((value, columnIndex) => escapeCsvCell(value, rowIndex < 5 || columnIndex !== 4)).join(";"),
+    );
+    return `\uFEFF${csvLines.join("\r\n")}\r\n`;
   }
 
   private async loadMovements(merchantId: string, period: PeriodBounds): Promise<Movement[]> {
@@ -483,8 +488,8 @@ function formatCsvBrl(value: number): string {
   return value.toFixed(2).replace(".", ",");
 }
 
-function escapeCsvCell(value: unknown): string {
+function escapeCsvCell(value: unknown, protectFormula = true): string {
   let text = String(value ?? "");
-  if (/^[=+\-@]/.test(text)) text = `'${text}`;
+  if (protectFormula && /^[=+\-@]/.test(text)) text = `'${text}`;
   return /[;"\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }

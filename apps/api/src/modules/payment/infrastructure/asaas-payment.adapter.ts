@@ -32,6 +32,43 @@ function asaasStateFromStatus(status: string | undefined): FetchPaymentStatusOut
 
 type AsaasBillingType = "BOLETO" | "PIX" | "CREDIT_CARD" | "UNDEFINED";
 
+type AsaasRefund = {
+  id?: string;
+  status?: string;
+  description?: string;
+};
+
+const ASAAS_DESCRIPTION_REFERENCE_PREFIX = "asaas:description:";
+
+function asaasRefundState(status: string | undefined): FetchRefundStatusOutput["state"] {
+  switch (status) {
+    case "DONE":
+      return "succeeded";
+    case "PENDING":
+    case "AWAITING_BANK_ACCOUNT":
+    case "IN_ANALYSIS":
+      return "pending";
+    case "CANCELLED":
+    case "FAILED":
+    case "REFUSED":
+      return "failed";
+    default:
+      return "unknown";
+  }
+}
+
+function asaasDescriptionReference(reference: string): string {
+  return `${ASAAS_DESCRIPTION_REFERENCE_PREFIX}${reference}`;
+}
+
+function referenceFromAsaasRefundInput(input: FetchRefundStatusInput): string | undefined {
+  if (input.refundReference) return input.refundReference;
+  if (input.providerRefundId.startsWith(ASAAS_DESCRIPTION_REFERENCE_PREFIX)) {
+    return input.providerRefundId.slice(ASAAS_DESCRIPTION_REFERENCE_PREFIX.length);
+  }
+  return undefined;
+}
+
 function billingFromMethod(method: string): AsaasBillingType {
   switch (method) {
     case "pix":
@@ -123,23 +160,16 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
       },
     );
     if (!res.ok) throw new Error(`asaas_refund_fetch_failed:${res.status}`);
-    const body = await res.json() as { data?: Array<{ id?: string; status?: string }> };
-    const refund = body.data?.find((item) => item.id === input.providerRefundId);
-    if (!refund?.status) return { state: "unknown" };
-    switch (refund.status) {
-      case "DONE":
-        return { state: "succeeded" };
-      case "PENDING":
-      case "AWAITING_BANK_ACCOUNT":
-      case "IN_ANALYSIS":
-        return { state: "pending" };
-      case "CANCELLED":
-      case "FAILED":
-      case "REFUSED":
-        return { state: "failed" };
-      default:
-        return { state: "unknown" };
-    }
+    const body = await res.json() as { data?: AsaasRefund[]; refunds?: AsaasRefund[] };
+    const refunds = body.data ?? body.refunds ?? [];
+    const reference = referenceFromAsaasRefundInput(input);
+    // Asaas documents its refund list with description and status, but no
+    // durable refund id. Each return has a stable return:<id> description, so
+    // it remains individually reconcilable when a payment has partial refunds.
+    const refund = reference
+      ? refunds.find((item) => item.description === reference)
+      : refunds.find((item) => item.id === input.providerRefundId);
+    return { state: asaasRefundState(refund?.status) };
   }
 
   async createCustomer(input: {
@@ -360,7 +390,15 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
       const err = await res.text().catch(() => "");
       throw new Error(`asaas_refund_failed: ${res.status} ${err}`);
     }
-    const data = await res.json();
-    return { refundId: data.id ?? input.providerPaymentId, status: "succeeded" as const };
+    const data = await res.json() as { id?: string; refunds?: AsaasRefund[] };
+    const reference = input.reason;
+    const refund = reference ? data.refunds?.find((item) => item.description === reference) : undefined;
+    const state = asaasRefundState(refund?.status);
+    // The POST merely accepts a request. A return is locally complete only for
+    // Asaas status DONE; all other outcomes use the durable PENDING workflow.
+    return {
+      refundId: reference ? asaasDescriptionReference(reference) : data.id ?? input.providerPaymentId,
+      status: state === "succeeded" ? "succeeded" as const : state === "failed" ? "failed" as const : "pending" as const,
+    };
   }
 }
