@@ -1,4 +1,4 @@
-import { Controller, Get, Header, Query, Req, UseGuards } from "@nestjs/common";
+import { Controller, Get, Header, Param, Query, Req, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import { RequireTenantRoles } from "../../../auth/presentation/tenant-role.decorator.js";
@@ -8,6 +8,7 @@ import {
   type FinancePeriodInput,
   type FinanceTransactionsInput,
 } from "../../application/finance-dashboard.use-case.js";
+import { GetPaymentAllocationHistoryUseCase } from "../../application/get-payment-allocation-history.use-case.js";
 
 @ApiTags("Dashboard")
 @ApiBearerAuth("JWT")
@@ -15,7 +16,10 @@ import {
 @UseGuards(AuthGuard, TenantRoleGuard)
 @RequireTenantRoles("owner", "admin")
 export class FinanceDashboardController {
-  constructor(private readonly finance: FinanceDashboardUseCase) {}
+  constructor(
+    private readonly finance: FinanceDashboardUseCase,
+    private readonly paymentAllocationHistory: GetPaymentAllocationHistoryUseCase,
+  ) {}
 
   @Get("summary")
   @ApiOperation({ summary: "Get merchant financial summary" })
@@ -37,5 +41,18 @@ export class FinanceDashboardController {
   @ApiOperation({ summary: "Export all filtered merchant financial movements as CSV" })
   async exportCsv(@Req() req: any, @Query() query: FinanceTransactionsInput): Promise<string> {
     return this.finance.exportCsv(currentUser(req).merchantId, query);
+  }
+
+  @Get("payment-intents/:paymentIntentId/allocation-history")
+  @ApiOperation({
+    summary: "Get planned payment allocations and provider observations",
+    description: "Administrative trace for one payment intent. It is not a cleared balance, a completed payout, or a complete provider reconciliation.",
+  })
+  @ApiOkResponse({ description: "Immutable allocation plan and any provider observations visible only to the authenticated merchant" })
+  async paymentAllocationHistory(@Req() req: any, @Param("paymentIntentId") paymentIntentId: string) {
+    return this.paymentAllocationHistory.execute({
+      merchantId: currentUser(req).merchantId,
+      paymentIntentId,
+    });
   }
 }
