@@ -176,7 +176,11 @@ export class CompleteOrderUseCase {
             ...(approval ? { payment_intent_id: approval.id, payment_amount_breakdown: approval.amountBreakdown } : {}),
             inventory_sale: {
               version: 1,
-              items: session.cart.items.map((item) => ({ sku: item.sku, quantity: item.quantity })),
+              items: session.cart.items.map((item) => ({
+                sku: item.sku,
+                quantity: item.quantity,
+                ...(item.variantId ? { variantId: item.variantId } : {}),
+              })),
               buyerEmail: session.customer?.email ?? "",
               buyerName: session.customer?.fullName ?? "",
               buyerPhone: session.customer?.phone ?? "",

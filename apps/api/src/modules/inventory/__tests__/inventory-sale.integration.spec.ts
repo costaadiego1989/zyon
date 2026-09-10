@@ -22,6 +22,8 @@ describe("inventory paid-sale conservation and durable receipt (PostgreSQL)", { 
     await prisma.outboxMessage.deleteMany({ where: { merchantId: { in: merchants } } });
     await prisma.inventorySaleReceipt.deleteMany({ where: { merchantId: { in: merchants } } });
     await prisma.inventoryItem.deleteMany({ where: { merchantId: { in: merchants } } });
+    await prisma.productStock.deleteMany({ where: { variant: { product: { merchantId: { in: merchants } } } } });
+    await prisma.product.deleteMany({ where: { merchantId: { in: merchants } } });
     await prisma.merchant.deleteMany({ where: { id: { in: merchants } } });
     await prisma.$disconnect(); await other.$disconnect();
   });
@@ -32,6 +34,21 @@ describe("inventory paid-sale conservation and durable receipt (PostgreSQL)", { 
     const item = await prisma.inventoryItem.create({ data: { merchantId, sku: "SKU", productName: "Fixture", locationId: location.id, quantity, reserved, lowStockThreshold: 4 } });
     const sale: SaleCompletedEvent = { merchantId, orderId: `order_${randomUUID()}`, items: [{ sku: "SKU", quantity: 3 }], totalCents: 900, timestamp: "2026-09-06T01:00:00.000Z" };
     return { merchantId, location, item, sale, repo: new PrismaInventorySaleRepository(prisma) };
+  }
+  async function catalogFixture(
+    merchantId: string,
+    sku = "SKU",
+    stockRows = 1,
+  ) {
+    const product = await prisma.product.create({ data: { merchantId, name: `Catalog ${sku}` } });
+    const variant = await prisma.productVariant.create({ data: { productId: product.id, sku } });
+    const stocks = [];
+    for (let index = 0; index < stockRows; index++) {
+      stocks.push(await prisma.productStock.create({
+        data: { variantId: variant.id, warehouseId: stockRows === 1 ? null : `catalog_warehouse_${index}`, quantity: 10 },
+      }));
+    }
+    return { product, variant, stocks };
   }
   it("twenty concurrent deliveries through two replicas debit once and commit one receipt plus three jobs", async () => {
     const f = await fixture(10);
@@ -73,6 +90,62 @@ describe("inventory paid-sale conservation and durable receipt (PostgreSQL)", { 
     assert.equal((await f.repo.apply({ ...f.sale, timestamp: "2026-09-07T01:00:00.000Z" })).idempotent, true);
     await assert.rejects(f.repo.apply({ ...f.sale, items: [{ sku: "SKU", quantity: 4 }] }), /idempotency_conflict/);
     assert.equal((await prisma.inventoryItem.findUnique({ where: { id: f.item.id } })).quantity, 7);
+  });
+  it("projects a uniquely resolved catalog SKU onto its one ProductStock and never decrements twice", async () => {
+    const f = await fixture();
+    const catalog = await catalogFixture(f.merchantId);
+    await f.repo.apply(f.sale);
+    assert.equal((await prisma.inventoryItem.findUnique({ where: { id: f.item.id } })).quantity, 7);
+    assert.equal((await prisma.productStock.findUnique({ where: { id: catalog.stocks[0].id } })).quantity, 7);
+    const replay = await f.repo.apply({ ...f.sale, timestamp: "2026-09-07T01:00:00.000Z" });
+    assert.equal(replay.idempotent, true);
+    assert.equal((await prisma.productStock.findUnique({ where: { id: catalog.stocks[0].id } })).quantity, 7);
+  });
+  it("keeps catalogless SKUs inventory-only", async () => {
+    const f = await fixture();
+    await f.repo.apply(f.sale);
+    assert.equal((await prisma.inventoryItem.findUnique({ where: { id: f.item.id } })).quantity, 7);
+    assert.equal(await prisma.productVariant.count({ where: { product: { merchantId: f.merchantId }, sku: "SKU" } }), 0);
+  });
+  it("does not project a single ProductStock from an arbitrary one of two active inventory locations", async () => {
+    const f = await fixture();
+    const catalog = await catalogFixture(f.merchantId);
+    await prisma.inventoryLocation.create({ data: { merchantId: f.merchantId, name: "Secondary", isDefault: false } });
+    await assert.rejects(
+      f.repo.apply({ ...f.sale, items: [{ sku: "SKU", quantity: 3, locationId: f.location.id }] }),
+      /inventory_catalog_location_ambiguous/,
+    );
+    assert.equal((await prisma.inventoryItem.findUnique({ where: { id: f.item.id } })).quantity, 10);
+    assert.equal((await prisma.productStock.findUnique({ where: { id: catalog.stocks[0].id } })).quantity, 10);
+    assert.equal(await prisma.inventorySaleReceipt.count({ where: { merchantId: f.merchantId } }), 0);
+    assert.equal(await prisma.inventoryMovement.count({ where: { merchantId: f.merchantId } }), 0);
+  });
+  it("rejects a SKU-mismatched or cross-tenant variant without mutating either balance", async () => {
+    const f = await fixture();
+    const catalog = await catalogFixture(f.merchantId);
+    const foreign = await fixture();
+    const foreignCatalog = await catalogFixture(foreign.merchantId);
+    const wrongSku = await catalogFixture(f.merchantId, "OTHER_SKU");
+    await assert.rejects(f.repo.apply({ ...f.sale, items: [{ sku: "SKU", quantity: 3, variantId: wrongSku.variant.id }] }), /inventory_catalog_variant_mismatch/);
+    await assert.rejects(f.repo.apply({ ...f.sale, items: [{ sku: "SKU", quantity: 3, variantId: foreignCatalog.variant.id }] }), /inventory_catalog_variant_mismatch/);
+    assert.equal((await prisma.inventoryItem.findUnique({ where: { id: f.item.id } })).quantity, 10);
+    assert.equal((await prisma.productStock.findUnique({ where: { id: catalog.stocks[0].id } })).quantity, 10);
+    assert.equal(await prisma.inventorySaleReceipt.count({ where: { merchantId: f.merchantId } }), 0);
+  });
+  it("rejects ambiguous catalog variants or ProductStock rows before changing inventory", async () => {
+    const variants = await fixture();
+    await catalogFixture(variants.merchantId);
+    await catalogFixture(variants.merchantId);
+    await assert.rejects(variants.repo.apply(variants.sale), /inventory_catalog_variant_ambiguous/);
+    assert.equal((await prisma.inventoryItem.findUnique({ where: { id: variants.item.id } })).quantity, 10);
+    assert.equal(await prisma.inventorySaleReceipt.count({ where: { merchantId: variants.merchantId } }), 0);
+
+    const stocks = await fixture();
+    const catalog = await catalogFixture(stocks.merchantId, "SKU", 2);
+    await assert.rejects(stocks.repo.apply({ ...stocks.sale, items: [{ sku: "SKU", quantity: 3, variantId: catalog.variant.id }] }), /inventory_catalog_stock_ambiguous/);
+    assert.equal((await prisma.inventoryItem.findUnique({ where: { id: stocks.item.id } })).quantity, 10);
+    assert.deepEqual((await prisma.productStock.findMany({ where: { variantId: catalog.variant.id }, orderBy: { id: "asc" } })).map((row: any) => row.quantity), [10, 10]);
+    assert.equal(await prisma.inventorySaleReceipt.count({ where: { merchantId: stocks.merchantId } }), 0);
   });
   it("two warehouses debit only the explicitly owned allocation", async () => {
     const f = await fixture();

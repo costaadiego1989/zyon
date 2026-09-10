@@ -56,6 +56,9 @@ test("CompleteOrderUseCase retains catalog variant identity for returns independ
   const order = repository.getCompletedOrder("mrc_1", "chk_1", "ord_1");
   assert.equal(order?.lineItems?.[0]?.variantId, "catalog-variant-50ml");
   assert.equal(order?.lineItems?.[0]?.sku, session.cart.items[0]!.sku);
+  const completed = repository.listOutbox("mrc_1").find((event) => event.event_type === "order.completed");
+  const snapshot = completed?.payload.inventory_sale as { items?: Array<{ sku: string; variantId?: string }> } | undefined;
+  assert.deepEqual(snapshot?.items, [{ sku: session.cart.items[0]!.sku, quantity: 1, variantId: "catalog-variant-50ml" }]);
 });
 
 test("CompleteOrderUseCase commits order and outbox through the transaction boundary", async () => {

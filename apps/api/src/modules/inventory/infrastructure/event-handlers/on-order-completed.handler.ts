@@ -33,7 +33,11 @@ export class InventoryOnOrderCompletedHandler implements OnModuleInit {
     if (!session || session.merchantId !== merchantId || session.sessionId !== payload.session_id) throw new Error("inventory_checkout_session_not_found");
     if (typeof payload.order_total !== "number" || !Number.isFinite(payload.order_total) || payload.order_total < 0) throw new Error("inventory_sale_total_invalid");
     await this.handleSaleCompleted.execute(validateInventorySale({ merchantId, orderId,
-      items: session.cart.items.map(item => ({ sku: item.sku, quantity: item.quantity })),
+      items: session.cart.items.map(item => ({
+        sku: item.sku,
+        quantity: item.quantity,
+        ...(item.variantId ? { variantId: item.variantId } : {}),
+      })),
       buyerEmail: session.customer?.email, buyerName: session.customer?.fullName, buyerPhone: session.customer?.phone,
       totalCents: Math.round(payload.order_total * 100), timestamp: new Date().toISOString() }));
   }
