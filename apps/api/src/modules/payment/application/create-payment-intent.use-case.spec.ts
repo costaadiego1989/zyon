@@ -125,6 +125,44 @@ test("CreatePaymentIntentUseCase is idempotent on (merchant, session, idempotenc
   assert.equal(checkout.listOutbox("mrc_1").some((event) => event.event_type === "payment.status.changed"), true);
 });
 
+test("CreatePaymentIntentUseCase records one planned settlement without confirming provider amounts", async () => {
+  const checkout = new InMemoryCheckoutRepository();
+  await checkout.saveSession(checkoutSession({
+    customer: { email: "buyer@example.com", asaasCustomerId: "cus_fixture_ledger" },
+  }));
+  const payments = new InMemoryPaymentRepository();
+  const useCase = new CreatePaymentIntentUseCase(checkout, checkout, payments, new FakePaymentProvider());
+
+  const created = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_1",
+    idempotency_key: "settlement-plan",
+    method: "pix",
+  });
+  await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_1",
+    idempotency_key: "settlement-plan",
+    method: "pix",
+  });
+
+  const settlements = await payments.settlementLedger.listForPaymentIntent("mrc_1", created.id);
+  assert.equal(settlements.length, 1);
+  assert.deepEqual(await payments.settlementLedger.listForPaymentIntent("another_merchant", created.id), []);
+  const settlement = settlements[0]!;
+  assert.equal(settlement.status, "planned");
+  assert.equal(settlement.provider, "asaas");
+  assert.equal(settlement.plannedGrossCents, created.amountCents);
+  assert.equal(settlement.plannedPlatformFeeCents, 99);
+  assert.equal(settlement.plannedMerchantNetCents, created.amountCents - 99);
+  assert.equal(settlement.confirmedGrossCents, undefined);
+  assert.equal(settlement.confirmedAt, undefined);
+  assert.deepEqual(settlement.entries.map(entry => [entry.entryKey, entry.plannedAmountCents]), [
+    ["platform_fee", 99],
+    ["merchant_payout", created.amountCents - 99],
+  ]);
+});
+
 test("CreatePaymentIntentUseCase accepts only applied offer for merchant session", async () => {
   const checkout = new InMemoryCheckoutRepository();
   await checkout.saveSession(

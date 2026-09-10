@@ -9,10 +9,12 @@ import type {
   PaymentRepository,
   ProviderEventKey,
   SavePaymentIntentInput,
+  SavePaymentIntentWithSettlementPlanInput,
   StalePendingQuery
 } from "../domain/ports/payment-repository.port.js";
 import type { PaymentIntentSnapshot, PaymentIntentStatus } from "../domain/payment-intent.entity.js";
 import type { PaymentMethod } from "../domain/payment-intent.entity.js";
+import { appendPlannedSettlementInTransaction } from "./prisma-payment-settlement-ledger.repository.js";
 
 type PrismaTx = Prisma.TransactionClient;
 
@@ -169,6 +171,15 @@ export class PrismaPaymentRepository implements PaymentRepository {
   async saveIntent(input: SavePaymentIntentInput): Promise<void> {
     const snapshot = input.intent.snapshot();
     await this.prisma.$transaction(tx => this.saveVersion(tx, snapshot));
+    input.intent.persisted((snapshot.version ?? 0) + 1);
+  }
+
+  async saveIntentWithSettlementPlan(input: SavePaymentIntentWithSettlementPlanInput): Promise<void> {
+    const snapshot = input.intent.snapshot();
+    await this.prisma.$transaction(async tx => {
+      await this.saveVersion(tx, snapshot);
+      await appendPlannedSettlementInTransaction(tx, input.settlementPlan);
+    });
     input.intent.persisted((snapshot.version ?? 0) + 1);
   }
 

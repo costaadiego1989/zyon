@@ -36,6 +36,7 @@ import {
 } from "../domain/ports/payment-platform-repository.port.js";
 import { BillingPlanMeteringService } from "../domain/billing-plan-guard.js";
 import { assertProviderFeeCap, merchantTransactionFeeCentsFor } from "../domain/billing-plans.js";
+import type { PlannedPaymentSettlement } from "../domain/ports/payment-settlement-ledger.port.js";
 
 export type CreatePaymentIntentRequest = {
   merchant_id: string;
@@ -119,6 +120,65 @@ function paymentDescription(merchantId: string, sessionId: string, commerceOrder
  */
 function deriveProviderIdempotencyKey(merchantId: string, sessionId: string, idempotencyKey: string): string {
   return createHash("sha256").update(`${merchantId}\0${sessionId}\0${idempotencyKey}`).digest("hex");
+}
+
+function plannedProviderName(input: { provider?: string }, method: PaymentMethod, options: {
+  isStripeCard: boolean;
+  usesMercadoPago: boolean;
+}): string {
+  if (input.provider?.trim()) return input.provider.trim();
+  if (method === "crypto") return "crypto";
+  if (options.isStripeCard) return "stripe";
+  if (options.usesMercadoPago) return "mercadopago";
+  return "asaas";
+}
+
+function settlementPlanForCreation(input: {
+  merchantId: string;
+  intent: PaymentIntentEntity;
+  providerInput: { provider?: string; providerIdempotencyKey?: string; platformFeeCents?: number };
+  method: PaymentMethod;
+  isStripeCard: boolean;
+  usesMercadoPago: boolean;
+}): PlannedPaymentSettlement {
+  const snapshot = input.intent.snapshot();
+  const plannedGrossCents = snapshot.amountCents;
+  const plannedPlatformFeeCents = input.providerInput.platformFeeCents ?? snapshot.amountBreakdown?.platformFeeCents ?? 0;
+  const plannedMerchantNetCents = plannedGrossCents - plannedPlatformFeeCents;
+  if (!Number.isSafeInteger(plannedPlatformFeeCents) || plannedPlatformFeeCents < 0 || plannedMerchantNetCents < 0) {
+    throw new BadRequestException("payment_settlement_plan_invalid");
+  }
+  return {
+    merchantId: input.merchantId,
+    paymentIntentId: snapshot.id,
+    provider: plannedProviderName(input.providerInput, input.method, input),
+    currency: snapshot.currency,
+    providerReference: input.providerInput.providerIdempotencyKey,
+    plannedGrossCents,
+    plannedPlatformFeeCents,
+    plannedMerchantNetCents,
+    // Provider fees are not known at payment creation. A webhook/reconciliation
+    // must append them later; this planned snapshot never asserts a settlement.
+    plannedProviderFeeCents: 0,
+    occurredAt: new Date(),
+    entries: [
+      ...(plannedPlatformFeeCents > 0 ? [{
+        entryKey: "platform_fee" as const,
+        entryType: "platform_fee" as const,
+        direction: "credit" as const,
+        recipientType: "platform" as const,
+        plannedAmountCents: plannedPlatformFeeCents,
+      }] : []),
+      ...(plannedMerchantNetCents > 0 ? [{
+        entryKey: "merchant_payout" as const,
+        entryType: "merchant_payout" as const,
+        direction: "credit" as const,
+        recipientType: "merchant" as const,
+        recipientReference: input.merchantId,
+        plannedAmountCents: plannedMerchantNetCents,
+      }] : []),
+    ],
+  };
 }
 
 function providerErrorCode(error: unknown): string {
@@ -354,7 +414,15 @@ export class CreatePaymentIntentUseCase {
     };
     if (this.provider.preparePayment) providerInput = await this.provider.preparePayment(providerInput) as typeof providerInput;
     intent.prepareCreation(providerInput);
-    try { await this.payments.saveIntent({ intent }); }
+    const settlementPlan = settlementPlanForCreation({
+      merchantId,
+      intent,
+      providerInput,
+      method,
+      isStripeCard,
+      usesMercadoPago,
+    });
+    try { await this.payments.saveIntentWithSettlementPlan({ intent, settlementPlan }); }
     catch (error) {
       if (!(error instanceof PaymentIntentConflictError)) throw error;
       const winner = await this.payments.getByIdempotency(merchantId, sessionId, idempotencyKey);

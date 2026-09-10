@@ -7,9 +7,11 @@ import type {
   PaymentRepository,
   ProviderEventKey,
   SavePaymentIntentInput,
+  SavePaymentIntentWithSettlementPlanInput,
   StalePendingQuery
 } from "../domain/ports/payment-repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../shared/messaging/ports/outbox.repository.port.js";
+import { InMemoryPaymentSettlementLedgerRepository } from "./in-memory-payment-settlement-ledger.repository.js";
 
 function trim(s: string): string {
   return s.trim();
@@ -40,7 +42,10 @@ export class InMemoryPaymentRepository implements PaymentRepository {
   private readonly cryptoTransfers = new Map<string, string>();
   readonly capturedEvents: DomainEventEnvelope[] = [];
 
-  constructor(@Optional() @Inject(OUTBOX_REPOSITORY) private readonly outbox?: OutboxRepository) {}
+  constructor(
+    @Optional() @Inject(OUTBOX_REPOSITORY) private readonly outbox?: OutboxRepository,
+    readonly settlementLedger = new InMemoryPaymentSettlementLedgerRepository(),
+  ) {}
 
   async saveIntentWithOutbox(input: SavePaymentIntentInput, event: DomainEventEnvelope): Promise<void> {
     await this.saveIntent(input);
@@ -87,6 +92,13 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       this.byProvider.set(pk, cloned);
     }
     this.byIntentId.set(snap.id, cloned);
+  }
+
+  async saveIntentWithSettlementPlan(input: SavePaymentIntentWithSettlementPlanInput): Promise<void> {
+    // Both in-memory writes are synchronous before their resolved promises are
+    // observed, matching the all-or-nothing production transaction for tests.
+    await this.saveIntent(input);
+    await this.settlementLedger.appendPlanned(input.settlementPlan);
   }
 
   async getIntentById(merchantId: string, intentBusinessId: string): Promise<PaymentIntentEntity | null> {

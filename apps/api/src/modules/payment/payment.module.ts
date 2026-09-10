@@ -18,9 +18,11 @@ import { HandleStripeWebhookUseCase } from "./application/handle-stripe-webhook.
 import { HandleMercadoPagoWebhookUseCase } from "./application/handle-mercadopago-webhook.use-case.js";
 import { ReconcilePaymentIntentsUseCase } from "./application/reconcile-payment-intents.use-case.js";
 import { PAYMENT_REPOSITORY } from "./domain/ports/payment-repository.port.js";
+import { PAYMENT_SETTLEMENT_LEDGER } from "./domain/ports/payment-settlement-ledger.port.js";
 import { PAYMENT_PROVIDER_PORT } from "./domain/ports/payment-provider.port.js";
 import { CHECKOUT_PAYMENT_PORT } from "./domain/ports/checkout-payment.port.js";
 import { PrismaPaymentRepository } from "./infrastructure/prisma-payment.repository.js";
+import { PrismaPaymentSettlementLedgerRepository } from "./infrastructure/prisma-payment-settlement-ledger.repository.js";
 import { AsaasPaymentAdapter } from "./infrastructure/asaas-payment.adapter.js";
 import { StripePaymentAdapter } from "./infrastructure/stripe-payment.adapter.js";
 import { MercadoPagoPaymentAdapter } from "./infrastructure/mercadopago-payment.adapter.js";
@@ -237,6 +239,11 @@ import {
       inject: [PRISMA_CLIENT]
     },
     {
+      provide: PAYMENT_SETTLEMENT_LEDGER,
+      useFactory: (prisma: PrismaClient) => new PrismaPaymentSettlementLedgerRepository(prisma),
+      inject: [PRISMA_CLIENT]
+    },
+    {
       provide: PAYMENT_PLATFORM_REPOSITORY,
       useFactory: (prisma: PrismaClient) =>
         new PrismaPaymentPlatformRepository(prisma),
@@ -295,6 +302,7 @@ import {
     ConfirmStripePaymentUseCase,
     GetPaymentIntentStatusUseCase,
     PAYMENT_REPOSITORY,
+    PAYMENT_SETTLEMENT_LEDGER,
     PAYMENT_PLATFORM_REPOSITORY,
     BillingPlanMeteringService,
     PaymentEventPublisher,

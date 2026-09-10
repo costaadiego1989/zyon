@@ -1,10 +1,15 @@
 import type { DomainEventEnvelope } from "@zyon/shared-types";
 import type { PaymentIntentEntity } from "../payment-intent.entity.js";
+import type { PlannedPaymentSettlement } from "./payment-settlement-ledger.port.js";
 
 export const PAYMENT_REPOSITORY = Symbol("PAYMENT_REPOSITORY");
 
 export type SavePaymentIntentInput = {
   intent: PaymentIntentEntity;
+};
+
+export type SavePaymentIntentWithSettlementPlanInput = SavePaymentIntentInput & {
+  settlementPlan: PlannedPaymentSettlement;
 };
 
 export type PaymentProviderName = "asaas" | "stripe" | "mercadopago";
@@ -33,6 +38,11 @@ export type CryptoTransferKey = {
 
 export interface PaymentRepository {
   saveIntent(input: SavePaymentIntentInput): Promise<void>;
+  /**
+   * Creates the payment intent and its first ledger snapshot in one atomic
+   * operation. The snapshot is planned only; approval never implies settlement.
+   */
+  saveIntentWithSettlementPlan(input: SavePaymentIntentWithSettlementPlanInput): Promise<void>;
   /**
    * Persists the intent and appends the domain event atomically. A partial
    * provider failure must never leave the intent saved without its event, nor
