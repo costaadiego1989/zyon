@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 import type {
   CreateProviderPaymentInput,
   CreateProviderPaymentOutput,
+  FetchRefundStatusInput,
+  FetchRefundStatusOutput,
   FetchPaymentStatusInput,
   FetchPaymentStatusOutput,
   PaymentProviderPort
@@ -108,6 +110,36 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
         ? Math.round(payment.value * 100)
         : undefined;
     return { state, approvedAmountCents };
+  }
+
+  async fetchRefundStatus(input: FetchRefundStatusInput): Promise<FetchRefundStatusOutput> {
+    const base = this.normalizedBaseUrl;
+    const res = await this.fetchImpl(
+      `${base}/v3/payments/${encodeURIComponent(input.providerPaymentId)}/refunds`,
+      {
+        headers: { accept: "application/json", access_token: this.apiKey },
+        redirect: "error",
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+    if (!res.ok) throw new Error(`asaas_refund_fetch_failed:${res.status}`);
+    const body = await res.json() as { data?: Array<{ id?: string; status?: string }> };
+    const refund = body.data?.find((item) => item.id === input.providerRefundId);
+    if (!refund?.status) return { state: "unknown" };
+    switch (refund.status) {
+      case "DONE":
+        return { state: "succeeded" };
+      case "PENDING":
+      case "AWAITING_BANK_ACCOUNT":
+      case "IN_ANALYSIS":
+        return { state: "pending" };
+      case "CANCELLED":
+      case "FAILED":
+      case "REFUSED":
+        return { state: "failed" };
+      default:
+        return { state: "unknown" };
+    }
   }
 
   async createCustomer(input: {

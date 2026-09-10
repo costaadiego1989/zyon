@@ -12,6 +12,7 @@ import { GenerateReturnLabelUseCase } from "./application/use-cases/generate-ret
 import { MarkReturnReceivedUseCase } from "./application/use-cases/mark-return-received.use-case.js";
 import { InspectReturnUseCase } from "./application/use-cases/inspect-return.use-case.js";
 import { ProcessRefundUseCase } from "./application/use-cases/process-refund.use-case.js";
+import { ReconcilePendingRefundsUseCase } from "./application/use-cases/reconcile-pending-refunds.use-case.js";
 import { RestockInventoryUseCase } from "./application/use-cases/restock-inventory.use-case.js";
 import { ListReturnsUseCase } from "./application/use-cases/list-returns.use-case.js";
 import { CancelReturnUseCase } from "./application/use-cases/cancel-return.use-case.js";
@@ -20,6 +21,7 @@ import { ReturnsController } from "./presentation/http/returns.controller.js";
 import { BuyerReturnsController } from "./presentation/http/buyer-returns.controller.js";
 import { MarketplaceModule } from "../marketplace/marketplace.module.js";
 import { PaymentModule } from "../payment/payment.module.js";
+import { ReconcilePendingRefundsScheduler, ReconcilePendingRefundsWorker } from "./infrastructure/return-refund-reconciliation.job.js";
 
 @Module({
   imports: [PersistenceModule, BuyerAccountModule, SupportModule, StorageModule, MarketplaceModule, PaymentModule],
@@ -36,6 +38,9 @@ import { PaymentModule } from "../payment/payment.module.js";
     MarkReturnReceivedUseCase,
     InspectReturnUseCase,
     ProcessRefundUseCase,
+    ReconcilePendingRefundsUseCase,
+    ReconcilePendingRefundsScheduler,
+    ReconcilePendingRefundsWorker,
     RestockInventoryUseCase,
     ListReturnsUseCase,
     CancelReturnUseCase,

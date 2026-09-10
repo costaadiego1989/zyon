@@ -313,13 +313,16 @@ export class InMemoryCheckoutRepository
     const sessionIds = new Set(sessions.map((session) => session.sessionId));
     const offers = [...this.offers.values()].filter((offer) => offer.merchantId === merchantId && sessionIds.has(offer.sessionId));
     const events = this.events.filter((event) => event.merchantId === merchantId && within(event.at));
-    const orders = events.filter((event) => event.event === "order_completed").length;
-    const accepted = events.filter((event) => event.event === "offer_accepted").length;
+    const uniqueSessionsFor = (eventName: CheckoutEventName) => new Set(
+      events.filter((event) => event.event === eventName).map((event) => event.sessionId)
+    ).size;
+    const orders = uniqueSessionsFor("order_completed");
+    const accepted = uniqueSessionsFor("offer_accepted");
 
     return {
       merchant_id: merchantId,
       conversations_started: sessions.length,
-      offers_viewed: events.filter((event) => event.event === "offer_viewed").length,
+      offers_viewed: uniqueSessionsFor("offer_viewed"),
       offers_accepted: accepted,
       orders_completed: orders,
       conversion_rate_with_agent: sessions.length ? orders / sessions.length : 0,

@@ -42,6 +42,7 @@ export interface SaveInspectionInput {
 export interface SaveRefundInput {
   returnId: string;
   paymentIntentId?: string;
+  providerRefundId?: string;
   amountInCents: number;
   status: string;
 }
@@ -52,6 +53,11 @@ export interface SaveRefundInput {
  */
 export interface BeginRefundInput extends SaveRefundInput {}
 
+export interface PendingRefundQuery {
+  olderThan: Date;
+  limit: number;
+}
+
 export const RETURN_REPOSITORY_PORT = "ReturnRepositoryPort";
 
 export interface ReturnRepositoryPort {
@@ -59,6 +65,8 @@ export interface ReturnRepositoryPort {
   findById(merchantId: string, returnId: string): Promise<ReturnEntity | null>;
   findByOrderId(merchantId: string, orderId: string): Promise<ReturnEntity[]>;
   findByBuyerId(buyerId: string): Promise<ReturnEntity[]>;
+  /** Pending attempts with a provider refund ID are safe to query, never reissue. */
+  listPendingRefunds(query: PendingRefundQuery): Promise<ReturnEntity[]>;
   list(input: ListReturnsInput): Promise<ListReturnsResult>;
   updateStatus(returnId: string, status: ReturnStatus): Promise<void>;
   saveLabel(input: SaveLabelInput): Promise<ReturnLabelProps>;

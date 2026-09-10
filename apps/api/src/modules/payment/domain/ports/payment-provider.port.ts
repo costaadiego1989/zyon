@@ -116,6 +116,21 @@ export type RefundPaymentOutput = {
   status: "succeeded" | "pending" | "failed" | "manual_required";
 };
 
+/** Authoritative state of an already-created provider refund. */
+export type RefundProviderState = "succeeded" | "pending" | "failed" | "unknown";
+
+export type FetchRefundStatusInput = {
+  provider?: CreateProviderPaymentInput["provider"];
+  providerAccountFingerprint?: string;
+  merchantId: string;
+  providerPaymentId: string;
+  providerRefundId: string;
+};
+
+export type FetchRefundStatusOutput = {
+  state: RefundProviderState;
+};
+
 export interface PaymentProviderPort {
   creationAccountFingerprint?(): string;
   /** Freeze the route/account before reserving a new financial operation. */
@@ -140,4 +155,10 @@ export interface PaymentProviderPort {
    * Crypto payments return status: "manual_required" (no automated refund).
    */
   refundPayment?(input: RefundPaymentInput): Promise<RefundPaymentOutput>;
+  /**
+   * Reads an already-created refund without issuing another financial POST.
+   * Unavailable or inconclusive adapters return `unknown` so callers retain
+   * their durable PENDING marker for manual reconciliation.
+   */
+  fetchRefundStatus?(input: FetchRefundStatusInput): Promise<FetchRefundStatusOutput>;
 }

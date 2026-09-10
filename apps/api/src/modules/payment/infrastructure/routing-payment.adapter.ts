@@ -4,6 +4,8 @@ import type {
   CreateProviderPaymentOutput,
   FetchPaymentStatusInput,
   FetchPaymentStatusOutput,
+  FetchRefundStatusInput,
+  FetchRefundStatusOutput,
   RefundPaymentInput,
   RefundPaymentOutput,
   PaymentProviderPort
@@ -124,6 +126,21 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     }
 
     throw new Error("payment_provider_not_configured");
+  }
+
+  async fetchRefundStatus(input: FetchRefundStatusInput): Promise<FetchRefundStatusOutput> {
+    if (input.provider) {
+      const { adapter } = await this.creationRoute({ merchantId: input.merchantId, provider: input.provider, method: "" });
+      this.assertAccount(adapter, input.providerAccountFingerprint);
+      return adapter.fetchRefundStatus ? adapter.fetchRefundStatus(input) : { state: "unknown" };
+    }
+
+    if (input.providerPaymentId.startsWith("pi_") && this.stripe?.fetchRefundStatus) {
+      return this.stripe.fetchRefundStatus(input);
+    }
+
+    const asaas = await this.resolveAsaas(input.merchantId).catch(() => null);
+    return asaas?.fetchRefundStatus ? asaas.fetchRefundStatus(input) : { state: "unknown" };
   }
 
   async createCustomer(input: {

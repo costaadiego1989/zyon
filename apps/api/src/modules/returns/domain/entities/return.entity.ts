@@ -52,6 +52,7 @@ export interface ReturnRefundProps {
   id: string;
   returnId: string;
   paymentIntentId?: string;
+  providerRefundId?: string;
   amountInCents: number;
   status: string;
   processedAt?: Date;

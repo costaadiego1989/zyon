@@ -20,7 +20,25 @@ export class ProcessRefundUseCase {
     // A persisted pending attempt means the PSP may already have accepted the
     // refund even if this process did not receive its response. Do not issue a
     // second financial POST; it must be reconciled from the provider outcome.
-    if (ret.refund?.status === "PENDING") return ret;
+    if (ret.refund) {
+      if (ret.refund.status !== "PENDING") return ret;
+      if (!ret.refund.providerRefundId || !this.refundPayment) return ret;
+
+      const reconciliation = await this.refundPayment.reconcileRefundPayment({
+        merchantId,
+        externalOrderId: ret.orderId,
+        providerRefundId: ret.refund.providerRefundId,
+      });
+      if (reconciliation.state === "succeeded") {
+        await this.returnRepo.updateRefundStatus(returnId, "COMPLETED", new Date());
+        await this.returnRepo.updateStatus(returnId, "REFUND_COMPLETED");
+      } else if (reconciliation.state === "failed") {
+        // A terminal PSP failure needs an explicit operator-led retry. Never
+        // turn reconciliation into another automatic financial POST.
+        await this.returnRepo.updateRefundStatus(returnId, "FAILED", new Date());
+      }
+      return (await this.returnRepo.findById(merchantId, returnId))!;
+    }
     if (!ret.canRefund) {
       throw new BadRequestException("invalid_status_for_refund");
     }
@@ -56,6 +74,7 @@ export class ProcessRefundUseCase {
       await this.returnRepo.saveRefund({
         returnId,
         paymentIntentId: result?.paymentIntentId,
+        providerRefundId: result?.providerRefundId,
         amountInCents,
         status,
       });

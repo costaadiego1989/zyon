@@ -461,7 +461,8 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   async overview(merchantId: string, period: StorePeriod): Promise<DashboardOverview> {
     const { from, to } = resolveOverviewDateRange(period);
     const dateRange = { gte: from, lte: to };
-    // P2 fix: replace full-table findMany scans with targeted count/aggregate queries.
+    // Funnel stages are session metrics. A client retry can insert the same stage
+    // more than once, so each stage must count a checkout session only once.
     const [
       sessions,
       offers,
@@ -476,9 +477,21 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       this.prisma.checkoutSession.findMany({ where: { merchantId, createdAt: dateRange }, orderBy: { createdAt: "desc" }, take: 10 }),
       this.prisma.authorizedOffer.findMany({ where: { merchantId, session: { createdAt: dateRange } }, orderBy: { expiresAt: "desc" }, take: 10 }),
       this.prisma.checkoutSession.count({ where: { merchantId, createdAt: dateRange } }),
-      this.prisma.checkoutEvent.count({ where: { merchantId, eventName: "offer_viewed", occurredAt: dateRange } }),
-      this.prisma.checkoutEvent.count({ where: { merchantId, eventName: "order_completed", occurredAt: dateRange } }),
-      this.prisma.checkoutEvent.count({ where: { merchantId, eventName: "offer_accepted", occurredAt: dateRange } }),
+      this.prisma.checkoutEvent.findMany({
+        where: { merchantId, eventName: "offer_viewed", occurredAt: dateRange },
+        distinct: ["sessionId"],
+        select: { sessionId: true }
+      }),
+      this.prisma.checkoutEvent.findMany({
+        where: { merchantId, eventName: "order_completed", occurredAt: dateRange },
+        distinct: ["sessionId"],
+        select: { sessionId: true }
+      }),
+      this.prisma.checkoutEvent.findMany({
+        where: { merchantId, eventName: "offer_accepted", occurredAt: dateRange },
+        distinct: ["sessionId"],
+        select: { sessionId: true }
+      }),
       this.prisma.acceptedOffer.aggregate({ where: { merchantId, acceptedAt: dateRange, type: "discount_percent" }, _avg: { value: true } }),
       this.prisma.acceptedOffer.aggregate({ where: { merchantId, acceptedAt: dateRange, type: { startsWith: "shipping" } }, _avg: { value: true } }),
       this.prisma.checkoutSession.aggregate({ where: { merchantId, createdAt: dateRange }, _avg: { abandonmentScore: true } })
@@ -494,13 +507,13 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     return {
       merchant_id: merchantId,
       conversations_started: conversationsStarted,
-      offers_viewed: offersViewed,
-      offers_accepted: offersAccepted,
-      orders_completed: ordersCompleted,
-      conversion_rate_with_agent: conversationsStarted ? ordersCompleted / conversationsStarted : 0,
+      offers_viewed: offersViewed.length,
+      offers_accepted: offersAccepted.length,
+      orders_completed: ordersCompleted.length,
+      conversion_rate_with_agent: conversationsStarted ? ordersCompleted.length / conversationsStarted : 0,
       average_discount: toNumber(avgDiscountResult._avg.value),
       average_shipping_subsidy: toNumber(avgShippingResult._avg.value),
-      incremental_revenue: ordersCompleted * avgCart,
+      incremental_revenue: ordersCompleted.length * avgCart,
       recent_sessions: sessions.map(toCheckoutSession),
       recent_offers: offers.map(toAuthorizedOffer)
     };

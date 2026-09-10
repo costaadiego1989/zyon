@@ -7,16 +7,22 @@ import type { RefundOrderPaymentResult } from "../../../payment/application/serv
 function setup(
   status: ReturnStatus = "INSPECTED_PASS",
   refund: RefundOrderPaymentResult = { refunded: true, amountCents: 1_000, paymentIntentId: "pay_1", providerRefundId: "refund_1" },
+  persistedRefund?: { providerRefundId?: string; status: string; amountInCents: number },
+  reconciliation: { state: "succeeded" | "pending" | "failed" | "unknown" } = { state: "unknown" },
 ) {
   let currentStatus = status;
+  let currentRefund: any = persistedRefund
+    ? { id: "refund", returnId: "r", createdAt: new Date(), ...persistedRefund }
+    : undefined;
   const entity = () => new ReturnEntity({ id: "r", merchantId: "merchant-b", orderId: "o", buyerId: "buyer", status: currentStatus,
-    reason: "DEFECTIVE", createdAt: new Date(), updatedAt: new Date(), items: [{ id: "i", returnId: "r", variantId: "v", quantity: 3 }] });
+    reason: "DEFECTIVE", createdAt: new Date(), updatedAt: new Date(), items: [{ id: "i", returnId: "r", variantId: "v", quantity: 3 }], refund: currentRefund });
   const calls = {
     statuses: [] as Array<[string, string]>,
-    started: [] as Array<{ returnId: string; paymentIntentId?: string; status: string; amountInCents: number }>,
-    saved: [] as Array<{ returnId: string; paymentIntentId?: string; status: string; amountInCents: number }>,
-    completed: [] as string[],
+    started: [] as Array<{ returnId: string; paymentIntentId?: string; providerRefundId?: string; status: string; amountInCents: number }>,
+    saved: [] as Array<{ returnId: string; paymentIntentId?: string; providerRefundId?: string; status: string; amountInCents: number }>,
+    refundStatuses: [] as Array<[string, string]>,
     providerRequests: 0,
+    reconciliationRequests: 0,
   };
   const repo = {
     findById: async (merchantId: string, id: string) => merchantId === "merchant-b" && id === "r" ? entity() : null,
@@ -30,11 +36,18 @@ function setup(
     },
     saveRefund: async (input: { returnId: string; paymentIntentId?: string; status: string; amountInCents: number }) => {
       calls.saved.push(input);
-      return { id: "refund", ...input, createdAt: new Date() };
+      currentRefund = { id: "refund", ...input, createdAt: new Date() };
+      return currentRefund;
     },
-    updateRefundStatus: async (returnId: string) => { calls.completed.push(returnId); },
+    updateRefundStatus: async (returnId: string, nextStatus: string) => {
+      calls.refundStatuses.push([returnId, nextStatus]);
+      currentRefund = currentRefund ? { ...currentRefund, status: nextStatus, processedAt: new Date() } : currentRefund;
+    },
   };
-  const refundPayment = { refundOrderPayment: async () => { calls.providerRequests += 1; return refund; } };
+  const refundPayment = {
+    refundOrderPayment: async () => { calls.providerRequests += 1; return refund; },
+    reconcileRefundPayment: async () => { calls.reconciliationRequests += 1; return reconciliation; },
+  };
   return { useCase: new ProcessRefundUseCase(repo as any, refundPayment as any), calls };
 }
 
@@ -47,8 +60,8 @@ describe("Returns refund settlement", () => {
     const result = await useCase.execute("merchant-b", "r");
 
     assert.equal(result.status, "REFUND_PROCESSING");
-    assert.deepEqual(calls.saved, [{ returnId: "r", paymentIntentId: "pay_pending", status: "PENDING", amountInCents: 1_000 }]);
-    assert.deepEqual(calls.completed, []);
+    assert.deepEqual(calls.saved, [{ returnId: "r", paymentIntentId: "pay_pending", providerRefundId: "refund_pending", status: "PENDING", amountInCents: 1_000 }]);
+    assert.deepEqual(calls.refundStatuses, []);
     assert.deepEqual(calls.statuses, [["r", "REFUND_PROCESSING"]]);
   });
 
@@ -58,8 +71,8 @@ describe("Returns refund settlement", () => {
     const result = await useCase.execute("merchant-b", "r");
 
     assert.equal(result.status, "REFUND_COMPLETED");
-    assert.deepEqual(calls.saved, [{ returnId: "r", paymentIntentId: "pay_1", status: "COMPLETED", amountInCents: 1_000 }]);
-    assert.deepEqual(calls.completed, ["r"]);
+    assert.deepEqual(calls.saved, [{ returnId: "r", paymentIntentId: "pay_1", providerRefundId: "refund_1", status: "COMPLETED", amountInCents: 1_000 }]);
+    assert.deepEqual(calls.refundStatuses, [["r", "COMPLETED"]]);
     assert.deepEqual(calls.statuses, [["r", "REFUND_PROCESSING"], ["r", "REFUND_COMPLETED"]]);
   });
   it("does not issue a second provider refund when another request holds the durable attempt", async () => {
@@ -71,6 +84,37 @@ describe("Returns refund settlement", () => {
     assert.equal(result.status, "REFUND_PROCESSING");
     assert.equal(calls.providerRequests, 0);
     assert.deepEqual(calls.saved, []);
+  });
+  it("completes a known pending provider refund without another provider POST", async () => {
+    const { useCase, calls } = setup(
+      "REFUND_PROCESSING",
+      undefined as any,
+      { providerRefundId: "re_1", status: "PENDING", amountInCents: 1_000 },
+      { state: "succeeded" },
+    );
+
+    const result = await useCase.execute("merchant-b", "r");
+
+    assert.equal(result.status, "REFUND_COMPLETED");
+    assert.equal(calls.providerRequests, 0);
+    assert.equal(calls.reconciliationRequests, 1);
+    assert.deepEqual(calls.refundStatuses, [["r", "COMPLETED"]]);
+    assert.deepEqual(calls.statuses, [["r", "REFUND_COMPLETED"]]);
+  });
+  it("records a terminal provider failure without issuing a replacement refund", async () => {
+    const { useCase, calls } = setup(
+      "REFUND_PROCESSING",
+      undefined as any,
+      { providerRefundId: "re_1", status: "PENDING", amountInCents: 1_000 },
+      { state: "failed" },
+    );
+
+    const result = await useCase.execute("merchant-b", "r");
+
+    assert.equal(result.status, "REFUND_PROCESSING");
+    assert.equal(calls.providerRequests, 0);
+    assert.equal(calls.reconciliationRequests, 1);
+    assert.deepEqual(calls.refundStatuses, [["r", "FAILED"]]);
   });
   it("does not reveal another merchant's return", async () => {
     const { useCase } = setup();

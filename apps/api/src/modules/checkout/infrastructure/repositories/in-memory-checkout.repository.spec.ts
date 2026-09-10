@@ -91,3 +91,23 @@ test("InMemoryCheckoutRepository records events, offers, accepted offers, comple
   assert.equal(repository.listOutbox("mrc_1").length, 1);
   assert.equal(repository.listOutbox("mrc_2").length, 0);
 });
+
+test("InMemoryCheckoutRepository dashboard counts each funnel stage once per session", () => {
+  const repository = new InMemoryCheckoutRepository();
+  const now = new Date().toISOString();
+  repository.saveSession(checkoutSession({ createdAt: now, updatedAt: now }));
+
+  repository.recordEvent("mrc_1", "chk_1", "offer_viewed");
+  repository.recordEvent("mrc_1", "chk_1", "offer_viewed");
+  repository.recordEvent("mrc_1", "chk_1", "offer_accepted");
+  repository.recordEvent("mrc_1", "chk_1", "offer_accepted");
+  repository.recordEvent("mrc_1", "chk_1", "order_completed");
+  repository.recordEvent("mrc_1", "chk_1", "order_completed");
+
+  const overview = repository.overview("mrc_1", "7d");
+
+  assert.equal(overview.offers_viewed, 1);
+  assert.equal(overview.offers_accepted, 1);
+  assert.equal(overview.orders_completed, 1);
+  assert.equal(overview.conversion_rate_with_agent, 1);
+});

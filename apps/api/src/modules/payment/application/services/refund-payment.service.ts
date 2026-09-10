@@ -36,6 +36,12 @@ export interface RefundOrderPaymentResult {
   reason?: string;
 }
 
+export interface RefundReconciliationResult {
+  state: "succeeded" | "pending" | "failed" | "unknown";
+  paymentIntentId?: string;
+  reason?: string;
+}
+
 /**
  * THE single money-back-to-buyer refund path, shared by BOTH return policies
  * (own-store returns via ProcessRefund, and marketplace returns via the return
@@ -201,6 +207,43 @@ export class RefundPaymentService {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`Refund failed for order ${input.externalOrderId}: ${msg}`);
       return { refunded: false, amountCents, paymentIntentId: snap.id, reason: `provider_error: ${msg}` };
+    }
+  }
+
+  /**
+   * Query an already-created provider refund. There is deliberately no fallback
+   * POST: unknown provider state must retain the durable PENDING marker.
+   */
+  async reconcileRefundPayment(input: {
+    merchantId: string;
+    externalOrderId: string;
+    providerRefundId: string;
+  }): Promise<RefundReconciliationResult> {
+    if (!this.orders || typeof this.provider.fetchRefundStatus !== "function") {
+      return { state: "unknown", reason: "provider_refund_status_unsupported" };
+    }
+    const order = await this.orders.findCompletedOrderByExternalOrderId(input.merchantId, input.externalOrderId);
+    if (!order) return { state: "unknown", reason: "completed_order_not_found" };
+    const intent = await this.payments.findApprovedBySessionId(input.merchantId, order.sessionId);
+    if (!intent) return { state: "unknown", reason: "approved_payment_not_found" };
+    const snap = intent.snapshot();
+    if (!snap.providerPaymentId) {
+      return { state: "unknown", paymentIntentId: snap.id, reason: "no_provider_payment_id" };
+    }
+
+    try {
+      const result = await this.provider.fetchRefundStatus({
+        merchantId: input.merchantId,
+        providerPaymentId: snap.providerPaymentId,
+        providerRefundId: input.providerRefundId,
+        provider: snap.creation?.input.provider,
+        providerAccountFingerprint: snap.creation?.input.providerAccountFingerprint,
+      });
+      return { state: result.state, paymentIntentId: snap.id };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Refund reconciliation failed for order ${input.externalOrderId}: ${message}`);
+      return { state: "unknown", paymentIntentId: snap.id, reason: `provider_error: ${message}` };
     }
   }
 }

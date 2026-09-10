@@ -4,6 +4,8 @@ import { createHash } from "node:crypto";
 import type {
   CreateProviderPaymentInput,
   CreateProviderPaymentOutput,
+  FetchRefundStatusInput,
+  FetchRefundStatusOutput,
   FetchPaymentStatusInput,
   FetchPaymentStatusOutput,
   PaymentProviderPort
@@ -96,6 +98,22 @@ export class StripePaymentAdapter implements PaymentProviderPort {
       state: stripeStateFromStatus(pi.status),
       approvedAmountCents: pi.amount_received || undefined
     };
+  }
+
+  async fetchRefundStatus(input: FetchRefundStatusInput): Promise<FetchRefundStatusOutput> {
+    const refund = await this.requireStripe().refunds.retrieve(input.providerRefundId);
+    switch (refund.status) {
+      case "succeeded":
+        return { state: "succeeded" };
+      case "failed":
+      case "canceled":
+        return { state: "failed" };
+      case "pending":
+      case "requires_action":
+        return { state: "pending" };
+      default:
+        return { state: "unknown" };
+    }
   }
 
   private requireStripe(): Stripe {

@@ -9,6 +9,7 @@ import {
   SaveInspectionInput,
   SaveRefundInput,
   BeginRefundInput,
+  PendingRefundQuery,
 } from "../../domain/ports/return-repository.port.js";
 import {
   ReturnEntity,
@@ -69,6 +70,25 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
       include: { items: true, label: true, inspection: true, refund: true },
       orderBy: { createdAt: "desc" },
       take: 50,
+    });
+    return rows.map((r) => this.toEntity(r));
+  }
+
+  async listPendingRefunds(query: PendingRefundQuery): Promise<ReturnEntity[]> {
+    const rows = await this.prisma.return.findMany({
+      where: {
+        status: "REFUND_PROCESSING",
+        refund: {
+          is: {
+            status: "PENDING",
+            providerRefundId: { not: null },
+            createdAt: { lt: query.olderThan },
+          },
+        },
+      },
+      include: { items: true, label: true, inspection: true, refund: true },
+      orderBy: { updatedAt: "asc" },
+      take: query.limit,
     });
     return rows.map((r) => this.toEntity(r));
   }
@@ -154,6 +174,7 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
         data: {
           returnId: input.returnId,
           paymentIntentId: input.paymentIntentId,
+          providerRefundId: input.providerRefundId,
           amountInCents: input.amountInCents,
           status: input.status,
         },
@@ -172,11 +193,13 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
       create: {
         returnId: input.returnId,
         paymentIntentId: input.paymentIntentId,
+        providerRefundId: input.providerRefundId,
         amountInCents: input.amountInCents,
         status: input.status,
       },
       update: {
         paymentIntentId: input.paymentIntentId,
+        providerRefundId: input.providerRefundId,
         amountInCents: input.amountInCents,
         status: input.status,
       },
@@ -185,6 +208,7 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
       id: row.id,
       returnId: row.returnId,
       paymentIntentId: row.paymentIntentId ?? undefined,
+      providerRefundId: row.providerRefundId ?? undefined,
       amountInCents: row.amountInCents,
       status: row.status,
       processedAt: row.processedAt ?? undefined,
@@ -245,6 +269,7 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
             id: row.refund.id,
             returnId: row.refund.returnId,
             paymentIntentId: row.refund.paymentIntentId ?? undefined,
+            providerRefundId: row.refund.providerRefundId ?? undefined,
             amountInCents: row.refund.amountInCents,
             status: row.refund.status,
             processedAt: row.refund.processedAt ?? undefined,
