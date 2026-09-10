@@ -9,14 +9,23 @@ type Props = {
   merchantName?: string;
   onComplete: (globalUserId: string) => void | Promise<void>;
   onCancel: () => void;
+  onAccountNotFound: (credentials: { email: string; otp: string }) => void;
 };
 
-export default function BuyerLoginForm({ onComplete, merchantId }: Props) {
+function isAccountNotFound(response: unknown): boolean {
+  return typeof response === "object"
+    && response !== null
+    && "code" in response
+    && response.code === "email_otp_account_not_found";
+}
+
+export default function BuyerLoginForm({ onComplete, merchantId, onAccountNotFound }: Props) {
   const [step, setStep] = useState<1 | 2>(1);
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [accountNotFound, setAccountNotFound] = useState<{ email: string; otp: string } | null>(null);
 
   const handleConfirm = async () => {
     setError("");
@@ -43,6 +52,10 @@ export default function BuyerLoginForm({ onComplete, merchantId }: Props) {
 
         if (!res.ok) {
           const errData = await res.json().catch(() => null);
+          if (isAccountNotFound(errData)) {
+            setAccountNotFound({ email, otp });
+            return;
+          }
           throw new Error(errData?.message ?? "Código inválido");
         }
 
@@ -130,7 +143,10 @@ export default function BuyerLoginForm({ onComplete, merchantId }: Props) {
         <div style={inputWrapStyle}>
           <input
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setAccountNotFound(null);
+            }}
             placeholder="voce@email.com"
             type="email"
             inputMode="email"
@@ -146,7 +162,10 @@ export default function BuyerLoginForm({ onComplete, merchantId }: Props) {
         <div style={inputWrapStyle}>
           <input
             value={otp}
-            onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            onChange={(e) => {
+              setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
+              setAccountNotFound(null);
+            }}
             placeholder="000000"
             type="text"
             inputMode="numeric"
@@ -166,7 +185,27 @@ export default function BuyerLoginForm({ onComplete, merchantId }: Props) {
       )}
 
       {/* Error */}
-      {error && (
+      {accountNotFound && (
+        <div
+          role="status"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "4px",
+            margin: 0,
+            padding: "10px 11px",
+            borderRadius: "11px",
+            background: "var(--aacp-surface-2, rgba(255,255,255,0.05))",
+            color: "var(--aacp-fg, #f5f5f7)",
+            fontSize: "11.5px",
+            lineHeight: 1.45,
+          }}
+        >
+          <strong style={{ fontSize: "12px" }}>Ainda não há uma conta para este e-mail.</strong>
+          <span>O código foi confirmado e continua válido para criar sua conta.</span>
+        </div>
+      )}
+      {error && !accountNotFound && (
         <p style={{ margin: 0, fontSize: "11.5px", color: "#f87171", padding: "0 2px" }}>{error}</p>
       )}
 
@@ -175,7 +214,11 @@ export default function BuyerLoginForm({ onComplete, merchantId }: Props) {
         {step === 2 && (
           <button
             type="button"
-            onClick={() => { setStep(1); setError(""); }}
+            onClick={() => {
+              setStep(1);
+              setError("");
+              setAccountNotFound(null);
+            }}
             style={{
               flex: "none",
               cursor: "pointer",
@@ -194,7 +237,13 @@ export default function BuyerLoginForm({ onComplete, merchantId }: Props) {
         )}
         <button
           type="button"
-          onClick={handleConfirm}
+          onClick={() => {
+            if (accountNotFound) {
+              onAccountNotFound(accountNotFound);
+              return;
+            }
+            void handleConfirm();
+          }}
           disabled={loading}
           style={{
             flex: 1,
@@ -210,7 +259,7 @@ export default function BuyerLoginForm({ onComplete, merchantId }: Props) {
             opacity: loading ? 0.6 : 1,
           }}
         >
-          {loading ? "..." : "Confirmar"}
+          {loading ? "..." : accountNotFound ? "Criar conta com este código" : "Confirmar"}
         </button>
       </div>
     </div>

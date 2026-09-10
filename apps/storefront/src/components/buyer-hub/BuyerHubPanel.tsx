@@ -1,6 +1,7 @@
 "use client";
 
 import { BuyerBiometricAccess } from "../BuyerBiometricAccess";
+import BuyerRegistrationForm from "../BuyerRegistrationForm";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useBuyerHub, type TabType } from "@/lib/viewmodels/useBuyerHub";
 import { getValidBuyer } from "@/lib/buyer-auth";
@@ -114,12 +115,24 @@ const TABS: TabDef[] = [
 ];
 
 
-function EmailLoginForm({ onAuthSuccess, merchantId }: { onAuthSuccess: () => void; merchantId?: string }) {
+function isAccountNotFound(response: unknown): boolean {
+  return typeof response === "object"
+    && response !== null
+    && "code" in response
+    && response.code === "email_otp_account_not_found";
+}
+
+function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
+  onAuthSuccess: () => void;
+  merchantId?: string;
+  onAccountNotFound: (credentials: { email: string; otp: string }) => void;
+}) {
   const [email, setEmail] = useState("");
   const [emailCode, setEmailCode] = useState("");
   const [codeSent, setCodeSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [accountNotFound, setAccountNotFound] = useState<{ email: string; otp: string } | null>(null);
 
   async function handleSendCode() {
     if (!email.includes("@")) return;
@@ -156,6 +169,10 @@ function EmailLoginForm({ onAuthSuccess, merchantId }: { onAuthSuccess: () => vo
       });
       const payload = await res.json().catch(() => null);
       if (!res.ok) {
+        if (isAccountNotFound(payload)) {
+          setAccountNotFound({ email, otp: emailCode });
+          return;
+        }
         setError(payload?.message ?? "Codigo invalido.");
         return;
       }
@@ -259,7 +276,10 @@ function EmailLoginForm({ onAuthSuccess, merchantId }: { onAuthSuccess: () => vo
               </svg>
               <input
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setAccountNotFound(null);
+                }}
                 type="email"
                 inputMode="email"
                 autoComplete="email"
@@ -295,7 +315,10 @@ function EmailLoginForm({ onAuthSuccess, merchantId }: { onAuthSuccess: () => vo
               </svg>
               <input
                 value={emailCode}
-                onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                onChange={(e) => {
+                  setEmailCode(e.target.value.replace(/\D/g, "").slice(0, 6));
+                  setAccountNotFound(null);
+                }}
                 type="text"
                 inputMode="numeric"
                 autoComplete="one-time-code"
@@ -324,14 +347,39 @@ function EmailLoginForm({ onAuthSuccess, merchantId }: { onAuthSuccess: () => vo
           </p>
         )}
 
-        {error && (
+        {accountNotFound && (
+          <div
+            role="status"
+            style={{
+              padding: "12px 14px",
+              borderRadius: "10px",
+              border: "1px solid var(--aacp-line)",
+              background: "var(--aacp-surface-2)",
+              color: "var(--aacp-fg)",
+              fontSize: "13px",
+              lineHeight: 1.45,
+              textAlign: "center",
+            }}
+          >
+            <strong style={{ display: "block", marginBottom: "3px" }}>Ainda não há uma conta para este e-mail.</strong>
+            O código foi confirmado e continua válido para criar sua conta.
+          </div>
+        )}
+
+        {error && !accountNotFound && (
           <p style={{ fontSize: "13px", color: "#ef4444", textAlign: "center", padding: "6px 0" }} role="alert">{error}</p>
         )}
 
         <button
           type="button"
           disabled={loading || (!codeSent && !canSendCode) || (codeSent && !canConfirmCode)}
-          onClick={() => { codeSent ? handleVerifyCode() : handleSendCode(); }}
+          onClick={() => {
+            if (accountNotFound) {
+              onAccountNotFound(accountNotFound);
+              return;
+            }
+            void (codeSent ? handleVerifyCode() : handleSendCode());
+          }}
           style={{
             width: "100%",
             padding: "14px",
@@ -355,13 +403,17 @@ function EmailLoginForm({ onAuthSuccess, merchantId }: { onAuthSuccess: () => vo
             (e.target as HTMLButtonElement).style.transform = "scale(1)";
           }}
         >
-          {loading ? "Processando..." : codeSent ? "Confirmar código" : "Enviar código por e-mail"}
+          {loading ? "Processando..." : accountNotFound ? "Criar conta com este código" : codeSent ? "Confirmar código" : "Enviar código por e-mail"}
         </button>
 
         {codeSent && (
           <button
             type="button"
-            onClick={() => { setCodeSent(false); setError(null); }}
+            onClick={() => {
+              setCodeSent(false);
+              setError(null);
+              setAccountNotFound(null);
+            }}
             style={{
               background: "transparent",
               border: "none",
@@ -387,6 +439,7 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
   const panelRef = useRef<HTMLDivElement>(null);
   const vm = useBuyerHub();
   const [authVersion, setAuthVersion] = useState(0);
+  const [registrationOtp, setRegistrationOtp] = useState<{ email: string; otp: string } | null>(null);
 
   useEffect(() => {
     if (isOpen && panelRef.current) {
@@ -572,7 +625,24 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
         {/* Content area */}
         {!isAuthenticated ? (
           <div style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column" }}>
-            <EmailLoginForm onAuthSuccess={handleAuthSuccess} merchantId={merchantId} />
+            {registrationOtp ? (
+              <BuyerRegistrationForm
+                merchantId={merchantId}
+                onComplete={async () => {
+                  setRegistrationOtp(null);
+                  handleAuthSuccess();
+                }}
+                onCancel={onClose}
+                initialEmail={registrationOtp.email}
+                initialEmailOtp={registrationOtp.otp}
+              />
+            ) : (
+              <EmailLoginForm
+                onAuthSuccess={handleAuthSuccess}
+                merchantId={merchantId}
+                onAccountNotFound={setRegistrationOtp}
+              />
+            )}
           </div>
         ) : (
           <>

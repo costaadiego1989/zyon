@@ -14,6 +14,7 @@ type Props = {
 };
 
 type Mode = "choose" | "register" | "login" | "biometric";
+type RegistrationOtp = { email: string; otp: string };
 
 function EmailIcon() {
   return (
@@ -46,6 +47,7 @@ function ArrowLeftIcon() {
 
 export default function BuyerAuthGate({ merchantId, merchantName, onComplete, onCancel }: Props) {
   const [mode, setMode] = useState<Mode>("choose");
+  const [registrationOtp, setRegistrationOtp] = useState<RegistrationOtp | null>(null);
 
   useEffect(() => {
     const buyer = getValidBuyer();
@@ -187,7 +189,10 @@ export default function BuyerAuthGate({ merchantId, merchantName, onComplete, on
             {}
             <button
               type="button"
-              onClick={() => setMode("register")}
+              onClick={() => {
+                setRegistrationOtp(null);
+                setMode("register");
+              }}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -248,10 +253,26 @@ export default function BuyerAuthGate({ merchantId, merchantName, onComplete, on
             </button>
 
             {mode === "register" && (
-              <BuyerRegistrationForm merchantId={merchantId} merchantName={merchantName} onComplete={onComplete} onCancel={onCancel} />
+              <BuyerRegistrationForm
+                merchantId={merchantId}
+                merchantName={merchantName}
+                onComplete={onComplete}
+                onCancel={onCancel}
+                initialEmail={registrationOtp?.email}
+                initialEmailOtp={registrationOtp?.otp}
+              />
             )}
             {mode === "login" && (
-              <BuyerLoginForm merchantId={merchantId} merchantName={merchantName} onComplete={onComplete} onCancel={onCancel} />
+              <BuyerLoginForm
+                merchantId={merchantId}
+                merchantName={merchantName}
+                onComplete={onComplete}
+                onCancel={onCancel}
+                onAccountNotFound={(credentials) => {
+                  setRegistrationOtp(credentials);
+                  setMode("register");
+                }}
+              />
             )}
           </div>
         )}

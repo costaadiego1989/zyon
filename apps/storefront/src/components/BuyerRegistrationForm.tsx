@@ -23,6 +23,8 @@ type Props = {
   merchantName?: string;
   onComplete: (globalUserId: string) => void | Promise<void>;
   onCancel: () => void;
+  initialEmail?: string;
+  initialEmailOtp?: string;
 };
 
 type StepConfig = {
@@ -82,14 +84,15 @@ function formatCEP(value: string): string {
   return `${digits.slice(0, 5)}-${digits.slice(5)}`;
 }
 
-export default function BuyerRegistrationForm({ merchantId, onComplete }: Props) {
-  const [currentStep, setCurrentStep] = useState(1);
+export default function BuyerRegistrationForm({ merchantId, onComplete, initialEmail, initialEmailOtp }: Props) {
+  const reusingConfirmedOtp = Boolean(initialEmail && initialEmailOtp);
+  const [currentStep, setCurrentStep] = useState(reusingConfirmedOtp ? 2 : 1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [emailOtp, setEmailOtp] = useState("");
+  const [email, setEmail] = useState(initialEmail ?? "");
+  const [emailOtp, setEmailOtp] = useState(initialEmailOtp ?? "");
   const [emailVerificationToken, setEmailVerificationToken] = useState("");
   const [name, setName] = useState("");
   const [cpf, setCpf] = useState("");
@@ -379,6 +382,7 @@ export default function BuyerRegistrationForm({ merchantId, onComplete }: Props)
       )}
 
       {currentStep === 2 && (
+        <>
         <OtpInput
           value={emailOtp}
           onChange={setEmailOtp}
@@ -386,6 +390,12 @@ export default function BuyerRegistrationForm({ merchantId, onComplete }: Props)
           autoFocus
           label="Código enviado para seu e-mail"
         />
+          {reusingConfirmedOtp && (
+            <p style={{ margin: "-2px 2px 0", fontSize: "11.5px", color: "var(--aacp-muted, #8b8b95)", lineHeight: 1.45 }} role="status">
+              Seu código já foi confirmado. Continue o cadastro sem pedir outro e-mail.
+            </p>
+          )}
+        </>
       )}
 
       {currentStep === 3 && (
