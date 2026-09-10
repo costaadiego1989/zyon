@@ -340,6 +340,14 @@ export function catalogEndpoints(base: string, f: typeof fetch) {
         f,
       );
     },
+    listProductPromotions(merchantId: string, productId: string): Promise<{ promotions: ProductPromotion[] }> {
+      return dashboardJson<{ promotions: ProductPromotion[] }>(
+        base,
+        `/merchants/${encodeURIComponent(merchantId)}/products/${encodeURIComponent(productId)}/promotion`,
+        { method: "GET" },
+        f,
+      );
+    },
     updatePromotion(merchantId: string, productId: string, promoId: string, payload: UpdatePromotionPayload): Promise<ProductPromotion> {
       return dashboardJson<ProductPromotion>(
         base,

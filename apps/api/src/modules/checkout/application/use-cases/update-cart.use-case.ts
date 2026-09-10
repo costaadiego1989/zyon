@@ -8,6 +8,7 @@ import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
+import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
 
 const MAX_ITEM_QUANTITY = 99;
 
@@ -32,7 +33,7 @@ export class UpdateCartUseCase {
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchants?: MerchantRepository,
     @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
-    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 }
+    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL }
   ) {}
 
   async execute(input: UpdateCartRequest): Promise<UpdateCartResponse> {

@@ -30,6 +30,7 @@ import { ChatToolExecutorService } from "../services/chat-tool-executor.service.
 import { ChatLlmGatewayService } from "../services/chat-llm-gateway.service.js";
 import { ChatContextService, type ChatContextLoaded } from "../services/chat-context.service.js";
 import { ChatResponseBuilder } from "../services/chat-response.builder.js";
+import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -48,7 +49,7 @@ export class SendChatMessageUseCase {
     private readonly offerService: CheckoutOfferService,
     private readonly chatContextService: ChatContextService,
     private readonly chatResponseBuilder: ChatResponseBuilder,
-    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 },
+    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL },
     @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
     @Optional() @Inject(PROMPT_EXPERIMENT_PORT) private readonly promptExperiment?: PromptExperimentPort,

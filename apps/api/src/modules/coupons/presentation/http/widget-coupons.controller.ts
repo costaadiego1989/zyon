@@ -10,6 +10,7 @@ import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/
 import { buildExperienceFromSession } from "../../../checkout/application/services/checkout-experience.service.js";
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../../checkout/domain/checkout-experience.config.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
 
 @UseGuards(EmbedAuthGuard)
 @Controller("embed/coupons")
@@ -21,7 +22,7 @@ export class WidgetCouponsController {
     private readonly embedGuards: EmbedCheckoutGuardHelper,
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository,
-    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 },
+    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL },
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
   ) {}
 

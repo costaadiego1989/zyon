@@ -57,7 +57,6 @@ export class UpsertProductAdvancedRulesUseCase {
     if (productSkus.length === 0 && rules.length > 0) {
       throw new ConflictException("product_advanced_rules_require_active_variant");
     }
-
     // 2. Read merchant's current advancedRules (default if absent), merchant-scoped.
     const current: CheckoutSettings =
       (await this.checkoutSettingsRepo.get(merchantId)) ??
@@ -76,9 +75,10 @@ export class UpsertProductAdvancedRulesUseCase {
     const validated = CheckoutSettingsEntity.rehydrate(current)
       .update({ advancedRules: merged as unknown as CheckoutSettings["advancedRules"] })
       .snapshot();
-    await this.checkoutSettingsRepo.save(validated, current.updatedAt);
+    const persisted = await this.checkoutSettingsRepo.save(validated, current.updatedAt);
 
-    // 5. Return merged rules for confirmation.
-    return merged;
+    // 5. Return the repository result, so callers receive the exact conditions
+    // and product scope that were persisted (rather than the pre-save merge).
+    return persisted.advancedRules as unknown as AdvancedRule[];
   }
 }

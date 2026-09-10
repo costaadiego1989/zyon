@@ -49,6 +49,39 @@ class CapturingPaymentProvider implements PaymentProviderPort {
   }
 }
 
+class RejectingAsaasPreflightProvider implements PaymentProviderPort {
+  customerCreateCalls = 0;
+
+  async preparePayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentInput> {
+    assert.equal(input.provider, "asaas");
+    throw new Error("asaas_platform_wallet_not_configured");
+  }
+
+  async createCustomer(): Promise<string> {
+    this.customerCreateCalls += 1;
+    return "cus_must_not_be_created";
+  }
+
+  async createPayment(): Promise<CreateProviderPaymentOutput> {
+    throw new Error("payment_must_not_be_created");
+  }
+}
+
+test("CreatePaymentIntentUseCase validates Asaas split configuration before creating a customer", async () => {
+  const checkout = new InMemoryCheckoutRepository();
+  await checkout.saveSession(checkoutSession({
+    customer: { fullName: "Buyer Test", email: "buyer@example.com", cpf: "12345678909" }
+  }));
+  const provider = new RejectingAsaasPreflightProvider();
+  const uc = new CreatePaymentIntentUseCase(checkout, checkout, new InMemoryPaymentRepository(checkout), provider);
+
+  await assert.rejects(
+    () => uc.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "asaas-preflight", method: "pix" }),
+    /asaas_platform_wallet_not_configured/
+  );
+  assert.equal(provider.customerCreateCalls, 0);
+});
+
 test("CreatePaymentIntentUseCase throws NotFound when checkout session is missing", async () => {
   const checkout = new InMemoryCheckoutRepository();
   const uc = new CreatePaymentIntentUseCase(checkout, checkout, new InMemoryPaymentRepository(checkout), new FakePaymentProvider());

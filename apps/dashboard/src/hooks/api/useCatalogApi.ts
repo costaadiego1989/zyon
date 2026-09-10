@@ -30,6 +30,7 @@ export function useCatalogApi() {
       createCategory: api.createCategory,
       updateCategory: api.updateCategory,
       deleteCategory: api.deleteCategory,
+      listProductPromotions: api.listProductPromotions,
       createPromotion: api.createPromotion,
       updatePromotion: api.updatePromotion,
       togglePromotion: api.togglePromotion,

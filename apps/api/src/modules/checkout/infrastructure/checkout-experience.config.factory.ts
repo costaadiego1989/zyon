@@ -4,17 +4,10 @@
  * application/service layer never sees them.
  */
 import type { CheckoutExperienceConfig } from "../domain/checkout-experience.config.js";
+import { readPlatformFeeBrl } from "../../../shared/config/platform-fee.config.js";
 
-const DEFAULT_PLATFORM_FEE_BRL = 1.99;
-
-function resolvePlatformFeeBrl(): number {
-  const raw = process.env.PLATFORM_FEE_BRL?.trim() || "1.99";
-  const major = Number(raw.replace(",", "."));
-  return Number.isFinite(major) && major >= 0 ? major : DEFAULT_PLATFORM_FEE_BRL;
-}
-
-export function createCheckoutExperienceConfig(): CheckoutExperienceConfig {
+export function createCheckoutExperienceConfig(env: NodeJS.ProcessEnv = process.env): CheckoutExperienceConfig {
   return {
-    platformFeeBrl: resolvePlatformFeeBrl()
+    platformFeeBrl: readPlatformFeeBrl(env)
   };
 }

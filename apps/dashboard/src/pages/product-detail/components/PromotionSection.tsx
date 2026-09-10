@@ -10,7 +10,7 @@ import { showToast } from "../../../components/Toast.js";
 import { useCatalogApi } from "../../../hooks/api/useCatalogApi.js";
 import { usePlanFeatures } from "../../../hooks/api/usePlanFeatures.js";
 import { reportError } from "../../../hooks/useErrorReporter.js";
-import { reaisToCents, applyCurrencyMask } from "../../../utils/currency.js";
+import { reaisToCents, applyCurrencyMask, centsToReais } from "../../../utils/currency.js";
 import type { AdvancedRule } from "../../checkout-settings/lib/draft.js";
 import type { CreatePromotionPayload, ProductPromotion } from "../../../api/endpoints/catalog.js";
 // RuleEditor + RulesList rely on the checkout-settings stylesheet (cfg-* classes,
@@ -77,6 +77,9 @@ export function PromotionSection({ merchantId, productId, variantSkus, onPending
   const [endsAt, setEndsAt] = useState(toLocalInput(defaultEnd));
   const [saving, setSaving] = useState(false);
   const [promo, setPromo] = useState<ProductPromotion | null>(null);
+  const [promoLoaded, setPromoLoaded] = useState(!productId);
+  const [promoLoadError, setPromoLoadError] = useState<string | null>(null);
+  const [promoReloadKey, setPromoReloadKey] = useState(0);
 
   // Advanced rules (plan-gated)
   const [rules, setRules] = useState<AdvancedRule[]>([]);
@@ -84,6 +87,70 @@ export function PromotionSection({ merchantId, productId, variantSkus, onPending
   const [editingRule, setEditingRule] = useState<AdvancedRule | null>(null);
   const [savingRules, setSavingRules] = useState(false);
   const [rulesLoaded, setRulesLoaded] = useState(!productId);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPromo(null);
+    setPromoLoadError(null);
+    setPromoLoaded(!productId);
+
+    if (!productId) {
+      setEnabled(false);
+      setMode("percent");
+      setPercent("");
+      setFixedReais("");
+      setPromoPriceReais("");
+      setCouponCode("");
+      setStartsAt(toLocalInput(now));
+      setEndsAt(toLocalInput(defaultEnd));
+      return () => { cancelled = true; };
+    }
+
+    void catalog.listProductPromotions(merchantId, productId).then(({ promotions }) => {
+      if (cancelled) return;
+      const saved = promotions[0] ?? null;
+      setPromo(saved);
+      setPromoLoaded(true);
+
+      if (!saved) {
+        setEnabled(false);
+        return;
+      }
+
+      setEnabled(saved.isActive);
+      setPercent("");
+      setFixedReais("");
+      setPromoPriceReais("");
+      setCouponCode("");
+
+      if (saved.couponId) {
+        setMode("coupon");
+        setCouponCode(saved.couponId);
+      } else if (saved.promoPriceInCents != null) {
+        setMode("promo_price");
+        setPromoPriceReais(centsToReais(saved.promoPriceInCents));
+      } else if (saved.discountType === "fixed") {
+        setMode("fixed");
+        setFixedReais(centsToReais(saved.discountValue ?? 0));
+      } else {
+        setMode("percent");
+        setPercent(saved.discountValue == null ? "" : String(saved.discountValue));
+      }
+
+      const savedStartsAt = new Date(saved.startsAt);
+      const savedEndsAt = new Date(saved.endsAt);
+      if (!Number.isNaN(savedStartsAt.getTime())) setStartsAt(toLocalInput(savedStartsAt));
+      if (!Number.isNaN(savedEndsAt.getTime())) setEndsAt(toLocalInput(savedEndsAt));
+    }).catch((error) => {
+      if (cancelled) return;
+      setPromoLoaded(true);
+      setPromoLoadError("Não foi possível carregar a promoção deste produto.");
+      showToast("error", "Não foi possível carregar a promoção deste produto");
+      reportError({ source: "PromotionSection.loadPromotion", error });
+    });
+
+    return () => { cancelled = true; };
+  }, [catalog, merchantId, productId, now, defaultEnd, promoReloadKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -156,6 +223,43 @@ export function PromotionSection({ merchantId, productId, variantSkus, onPending
     }
   }
 
+  async function handleTogglePromotion(nextActive: boolean) {
+    if (isCreateMode || !productId || !promo?.id) {
+      setEnabled(nextActive);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const saved = await catalog.togglePromotion(merchantId, productId, promo.id, nextActive);
+      setPromo(saved);
+      setEnabled(saved.isActive);
+      showToast("success", saved.isActive ? "Promoção ativada" : "Promoção desativada");
+    } catch (error) {
+      showToast("error", "Não foi possível alterar a promoção");
+      reportError({ source: "PromotionSection.togglePromotion", error });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeletePromotion() {
+    if (isCreateMode || !productId || !promo?.id) return;
+
+    setSaving(true);
+    try {
+      await catalog.deletePromotion(merchantId, productId, promo.id);
+      setPromo(null);
+      setEnabled(false);
+      showToast("success", "Promoção removida");
+    } catch (error) {
+      showToast("error", "Não foi possível remover a promoção");
+      reportError({ source: "PromotionSection.deletePromotion", error });
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function persistRules(next: AdvancedRule[]) {
     // Create mode: don't hit the API (no productId yet). The parent lifts the
     // rules via onPendingRulesChange and persists them after the product saves.
@@ -180,7 +284,11 @@ export function PromotionSection({ merchantId, productId, variantSkus, onPending
   return (
     <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: "20px 22px" }}>
       <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-        <ToggleSwitch checked={enabled} disabled={saving} onChange={setEnabled} />
+        <ToggleSwitch
+          checked={enabled}
+          disabled={saving || !promoLoaded}
+          onChange={(nextActive) => { void handleTogglePromotion(nextActive); }}
+        />
         <div style={{ flex: 1 }}>
           <div style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>
             Produto com promoção
@@ -190,6 +298,21 @@ export function PromotionSection({ merchantId, productId, variantSkus, onPending
           </div>
         </div>
       </label>
+
+      {promoLoadError && !isCreateMode && (
+        <div role="alert" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 14, padding: "10px 12px", borderRadius: 8, background: "var(--color-danger-subtle, rgba(220, 38, 38, 0.12))", color: "var(--color-danger, #dc2626)", font: "12px var(--font-sans)" }}>
+          <span>{promoLoadError}</span>
+          <Button variant="ghost" size="sm" onClick={() => setPromoReloadKey((current) => current + 1)}>Tentar novamente</Button>
+        </div>
+      )}
+
+      {promo?.id && !enabled && !isCreateMode && (
+        <div style={{ marginTop: 14 }}>
+          <Button variant="ghost" size="sm" disabled={saving} onClick={() => void handleDeletePromotion()}>
+            Remover promoção
+          </Button>
+        </div>
+      )}
 
       {enabled && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16, marginTop: 18 }}>
@@ -300,6 +423,11 @@ export function PromotionSection({ merchantId, productId, variantSkus, onPending
               <Button variant="primary" size="sm" arrow disabled={saving} onClick={() => void handleSavePromotion()}>
                 {saving ? "Salvando..." : promo?.id ? "Atualizar promoção" : "Salvar promoção"}
               </Button>
+              {promo?.id && (
+                <Button variant="ghost" size="sm" disabled={saving} onClick={() => void handleDeletePromotion()} style={{ marginLeft: 8 }}>
+                  Remover promoção
+                </Button>
+              )}
             </div>
           )}
 

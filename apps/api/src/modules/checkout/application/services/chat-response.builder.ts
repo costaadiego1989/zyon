@@ -18,6 +18,7 @@ import { resolveCrossSellProduct } from "../../../cross-sell/application/service
 import { SafeAuthorizedOffer } from "../../domain/types/safe-authorized-offer.js";
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
 import { randomUUID } from "node:crypto";
+import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
 
 export interface ChatReplyInput {
   reply: { message: string; objection: Objection; suggested_skus?: string[]; blocks?: Array<{ type: string; data?: Record<string, unknown> }> };
@@ -43,7 +44,7 @@ export class ChatResponseBuilder {
     @Optional() @Inject(CHECKOUT_CROSS_SELL_RECOMMENDER) private readonly crossSellRecommender?: CheckoutCrossSellRecommenderPort,
     @Optional() private readonly createPaymentIntent?: CreatePaymentIntentUseCase,
     @Optional() @Inject(BUYER_CONVERSATION_REPOSITORY) private readonly conversationRepo?: BuyerConversationRepository,
-    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 },
+    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL },
     @Optional() @Inject("ProductRepositoryPort") private readonly productRepo?: ProductRepositoryPort
   ) {}
 

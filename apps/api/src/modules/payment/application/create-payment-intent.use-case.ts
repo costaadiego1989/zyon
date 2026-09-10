@@ -264,6 +264,23 @@ export class CreatePaymentIntentUseCase {
     };
     let asaasCustomer = resolveAsaasCustomerIdFromSession(session);
 
+    // Validate the exact Asaas route and required split wallet before creating
+    // a provider customer. `preparePayment` is a local, no-network preflight;
+    // this avoids orphan customers when a seller integration is misconfigured.
+    if (usesAsaas && this.provider.preparePayment) {
+      await this.provider.preparePayment({
+        provider: "asaas",
+        merchantId,
+        sessionId,
+        intentId: `preflight_${sessionId}`,
+        providerIdempotencyKey: deriveProviderIdempotencyKey(merchantId, sessionId, idempotencyKey),
+        amountCents,
+        currency: session.cart.currency.toUpperCase(),
+        method,
+        platformFeeCents: assertProviderFeeCap(buyerServiceFeeCents + merchantFeeCents, amountCents),
+      });
+    }
+
     if (usesAsaas && !asaasCustomer) {
       let customer = session.customer;
 

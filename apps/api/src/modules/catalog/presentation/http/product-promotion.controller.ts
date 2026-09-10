@@ -8,6 +8,8 @@ import {
   Param,
   Body,
   UseGuards,
+  Inject,
+  NotFoundException,
 } from "@nestjs/common";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-ownership.guard.js";
@@ -17,6 +19,11 @@ import { UpdateProductPromotionUseCase } from "../../application/use-cases/updat
 import { ToggleProductPromotionUseCase } from "../../application/use-cases/toggle-product-promotion.use-case.js";
 import { DeleteProductPromotionUseCase } from "../../application/use-cases/delete-product-promotion.use-case.js";
 import { UpsertProductAdvancedRulesUseCase } from "../../application/use-cases/upsert-product-advanced-rules.use-case.js";
+import { GetProductUseCase } from "../../application/use-cases/get-product.use-case.js";
+import {
+  PRODUCT_PROMOTION_REPOSITORY,
+  type ProductPromotionRepositoryPort,
+} from "../../domain/ports/product-promotion-repository.port.js";
 import type { AdvancedRule } from "../../../checkout/domain/services/advanced-rule-evaluator.service.js";
 
 /**
@@ -39,7 +46,32 @@ export class ProductPromotionController {
     private readonly togglePromo: ToggleProductPromotionUseCase,
     private readonly deletePromo: DeleteProductPromotionUseCase,
     private readonly upsertAdvancedRules: UpsertProductAdvancedRulesUseCase,
+    private readonly getProduct: GetProductUseCase,
+    @Inject(PRODUCT_PROMOTION_REPOSITORY)
+    private readonly promotionRepo: ProductPromotionRepositoryPort,
   ) {}
+
+  private async assertPromotionBelongsToProduct(
+    merchantId: string,
+    productId: string,
+    promotionId: string,
+  ) {
+    await this.getProduct.execute(merchantId, productId);
+    const promotion = await this.promotionRepo.getById(promotionId, merchantId);
+    if (!promotion || promotion.productId !== productId) {
+      throw new NotFoundException("promotion_not_found");
+    }
+    return promotion;
+  }
+
+  @Get(":mid/products/:pid/promotion")
+  async list(
+    @Param("mid") merchantId: string,
+    @Param("pid") productId: string,
+  ) {
+    await this.getProduct.execute(merchantId, productId);
+    return { promotions: await this.promotionRepo.findByProduct(merchantId, productId) };
+  }
 
   @Post(":mid/products/:pid/promotion")
   async create(
@@ -57,6 +89,7 @@ export class ProductPromotionController {
       endsAt: string;
     },
   ) {
+    await this.getProduct.execute(merchantId, productId);
     return this.createPromo.execute({
       merchantId,
       productId,
@@ -75,6 +108,7 @@ export class ProductPromotionController {
   @Put(":mid/products/:pid/promotion/:promoId")
   async update(
     @Param("mid") merchantId: string,
+    @Param("pid") productId: string,
     @Param("promoId") promoId: string,
     @Body() body: {
       variantId?: string;
@@ -88,6 +122,7 @@ export class ProductPromotionController {
       endsAt?: string;
     },
   ) {
+    await this.assertPromotionBelongsToProduct(merchantId, productId, promoId);
     return this.updatePromo.execute({
       id: promoId,
       merchantId,
@@ -108,20 +143,23 @@ export class ProductPromotionController {
   @Patch(":mid/products/:pid/promotion/:promoId/toggle")
   async toggle(
     @Param("mid") merchantId: string,
+    @Param("pid") productId: string,
     @Param("promoId") promoId: string,
     @Body() body: { isActive: boolean },
   ) {
-    await this.togglePromo.execute({ id: promoId, merchantId, isActive: body.isActive });
-    return { ok: true };
+    await this.assertPromotionBelongsToProduct(merchantId, productId, promoId);
+    return this.togglePromo.execute({ id: promoId, merchantId, isActive: body.isActive });
   }
 
   @Delete(":mid/products/:pid/promotion/:promoId")
   async remove(
     @Param("mid") merchantId: string,
+    @Param("pid") productId: string,
     @Param("promoId") promoId: string,
   ) {
+    await this.assertPromotionBelongsToProduct(merchantId, productId, promoId);
     await this.deletePromo.execute({ id: promoId, merchantId });
-    return { ok: true };
+    return { deleted: true };
   }
 
   /**
@@ -129,8 +167,10 @@ export class ProductPromotionController {
    * via the billing `advancedRules` feature. Rules are auto-scoped to the product's
    * SKUs and merged into the merchant's checkout-settings advancedRules (consumed by
    * the existing CartRulesEngine at cart time).
-   */
+  */
   @Get(":mid/products/:pid/advanced-rules")
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanFeature("advancedRules")
   async getRules(@Param("mid") merchantId: string, @Param("pid") productId: string) {
     return { rules: await this.upsertAdvancedRules.get(merchantId, productId) };
   }

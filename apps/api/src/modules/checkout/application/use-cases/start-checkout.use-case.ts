@@ -15,6 +15,7 @@ import {
   type CheckoutCrossSellRecommenderPort
 } from "../../domain/ports/cross-sell-recommender.port.js";
 import { BUYER_SERVICE_FEE_CENTS } from "../../../payment/domain/billing-plans.js";
+import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
 import { BuyerResolutionService } from "../services/buyer-resolution.service.js";
 import { BuyerContextService } from "../services/buyer-context.service.js";
 import { CheckoutBootstrapService } from "../services/checkout-bootstrap.service.js";
@@ -37,7 +38,7 @@ export class StartCheckoutUseCase {
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepository?: MerchantRepository,
     @Optional() @Inject(MERCHANT_PLAN_PORT) private readonly merchantPlan?: MerchantPlanPort,
     @Optional() @Inject(CHECKOUT_CROSS_SELL_RECOMMENDER) private readonly crossSell?: CheckoutCrossSellRecommenderPort,
-    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 },
+    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL },
     @Optional() private readonly cartAuthority?: CheckoutCartAuthorityService
   ) { }
 

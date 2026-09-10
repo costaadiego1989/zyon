@@ -32,7 +32,7 @@ export interface ExperienceDeps {
   rules?: MerchantRules;
   /**
    * Platform service fee in BRL. Resolved from the injected
-   * `CheckoutExperienceConfig.platformFeeBrl` by the caller; defaults to 1.99
+   * `CheckoutExperienceConfig.platformFeeBrl` by the caller; defaults to 0.99
    * to preserve the prior `process.env.PLATFORM_FEE_BRL` fallback.
    */
   serviceFee?: number;

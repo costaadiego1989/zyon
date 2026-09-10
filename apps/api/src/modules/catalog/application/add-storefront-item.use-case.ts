@@ -15,6 +15,7 @@ import { CROSS_SELL_RESOLVER_PORT, type CrossSellResolverPort } from "../domain/
 import { addOrUpdateCartItem } from "../domain/cart-item-updater.js";
 import { crossSellCartItemToProduct } from "../domain/catalog.mappers.js";
 import { RecordFunnelEventUseCase } from "../../experiments/application/use-cases/record-funnel-event.use-case.js";
+import { DEFAULT_PLATFORM_FEE_BRL } from "../../../shared/config/platform-fee.config.js";
 
 @Injectable()
 export class AddStorefrontItemUseCase {
@@ -25,7 +26,7 @@ export class AddStorefrontItemUseCase {
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository,
     @Inject(CROSS_SELL_RESOLVER_PORT) private readonly crossSell: CrossSellResolverPort,
-    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 },
+    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL },
     @Optional() private readonly recordFunnelEvent?: RecordFunnelEventUseCase
   ) {}
 

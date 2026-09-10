@@ -189,6 +189,7 @@ export class StorefrontProductContentController {
       };
     });
     const noticeRules = await loadProductNoticeRules(this.prisma, merchant.id);
+    const ruleNotices = productRuleNotices(noticeRules, product.variants.map((variant) => variant.sku), product.id);
     const purchasableVariant = variants.find((variant) => variant.available);
 
     return {
@@ -196,7 +197,7 @@ export class StorefrontProductContentController {
       productId: product.id,
       purchase: {
             productName: product.name,
-            ruleNotices: productRuleNotices(noticeRules, product.variants.map((v) => v.sku), product.id),
+            ...(ruleNotices.length > 0 ? { ruleNotices } : {}),
             description: product.description,
             defaultVariantId: purchasableVariant?.id ?? null,
             priceReais: (purchasableVariant ?? variants[0])?.priceReais ?? null,

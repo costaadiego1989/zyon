@@ -37,28 +37,31 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
       });
 
       const noticeRules = await loadProductNoticeRules(deps.prisma, ctx.merchantId);
-      const localProducts = result.products.map((p) => ({
-        id: p.id,
-        name: p.name,
-        description: p.description,
-        price: p.defaultVariant?.basePriceInCents ?? 0,
-        ...productGallery(p),
-        inStock: p.hasStock,
-        rating: p.averageRating,
-        reviewCount: p.reviewCount,
-        // Full variant shape so the storefront can render a variant selector
-        // (attributes/price/stock), not just raw SKUs.
-        variants: p.variants.map((v) => ({
-          id: v.id,
-          sku: v.sku,
-          attributes: v.attributes ?? {},
-          basePriceInCents: v.basePriceInCents,
-          stockQuantity: v.stockQuantity,
-        })),
-        optionGroups: extractOptionGroups(p.metadata),
-        ruleNotices: productRuleNotices(noticeRules, p.variants.map((v) => v.sku), p.id),
-        source: "local" as const,
-      }));
+      const localProducts = result.products.map((p) => {
+        const ruleNotices = productRuleNotices(noticeRules, p.variants.map((v) => v.sku), p.id);
+        return {
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          price: p.defaultVariant?.basePriceInCents ?? 0,
+          ...productGallery(p),
+          inStock: p.hasStock,
+          rating: p.averageRating,
+          reviewCount: p.reviewCount,
+          // Full variant shape so the storefront can render a variant selector
+          // (attributes/price/stock), not just raw SKUs.
+          variants: p.variants.map((v) => ({
+            id: v.id,
+            sku: v.sku,
+            attributes: v.attributes ?? {},
+            basePriceInCents: v.basePriceInCents,
+            stockQuantity: v.stockQuantity,
+          })),
+          optionGroups: extractOptionGroups(p.metadata),
+          ...(ruleNotices.length > 0 ? { ruleNotices } : {}),
+          source: "local" as const,
+        };
+      });
 
       const federatedSearch = deps.searchFederatedProducts;
       const shouldSearchMarketplace = localProducts.length < 3 && federatedSearch && args.query && args.query !== "*";
@@ -116,6 +119,11 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
       const product = await deps.productRepo.findById(ctx.merchantId, args.productId);
       if (!product) return { error: "product_not_found" };
       const noticeRules = await loadProductNoticeRules(deps.prisma, ctx.merchantId);
+      const ruleNotices = productRuleNotices(
+        noticeRules,
+        product.variants.filter((variant) => variant.isActive).map((variant) => variant.sku),
+        product.id,
+      );
       const config = await deps.loadCrossSellConfig?.(ctx.merchantId);
       const crossSellSuggestions = config?.enabled && config.touchpoints.pre_cart && deps.cartRepo
         ? await buildCrossSellSuggestions(deps, ctx.merchantId, await deps.cartRepo.getOrCreate(ctx.merchantId, ctx.sessionId), config, product.name)
@@ -128,7 +136,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
           name: product.name,
           description: product.description,
           type: product.type,
-          ruleNotices: productRuleNotices(noticeRules, product.variants.filter((v) => v.isActive).map((v) => v.sku), product.id),
+          ...(ruleNotices.length > 0 ? { ruleNotices } : {}),
           variants: product.variants,
           optionGroups: extractOptionGroups(product.metadata),
           media: product.defaultVariant?.media ?? [],

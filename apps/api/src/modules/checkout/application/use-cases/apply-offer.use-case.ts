@@ -15,6 +15,7 @@ import { buildExperienceFromSession } from "../services/checkout-experience.serv
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
 import { TenantBoundaryGuard } from "../../domain/services/tenant-boundary.guard.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
+import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
 
 @Injectable()
 export class ApplyOfferUseCase {
@@ -26,7 +27,7 @@ export class ApplyOfferUseCase {
     @Inject(COMMERCE_OFFER_PORT) private readonly commerce: CommerceOfferPort,
     private readonly acceptCheckoutOffer: AcceptCheckoutOfferUseCase,
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
-    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 }
+    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL }
   ) {}
 
   async execute(input: ApplyOfferRequest): Promise<ApplyOfferResponse> {

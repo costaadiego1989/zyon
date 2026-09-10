@@ -95,6 +95,26 @@ describe("UpsertProductAdvancedRulesUseCase", () => {
     });
   });
 
+  it("returns the product scope as it was persisted", async () => {
+    const { settings, useCase } = buildUseCase();
+    settings.save = async (snapshot) => ({
+      ...snapshot,
+      advancedRules: snapshot.advancedRules.map((savedRule) => ({
+        ...savedRule,
+        name: `persisted: ${savedRule.name}`,
+      })),
+    });
+
+    const saved = await useCase.execute({ merchantId, productId: "product_1", rules: [rule()] });
+
+    assert.equal((saved[0] as unknown as { name: string }).name, "persisted: 10% no produto selecionado");
+    assert.deepEqual(saved[0].conditions.at(-1), {
+      field: "product_in_cart",
+      operator: "contains",
+      value: "SKU-1",
+    });
+  });
+
   it("rejects a BOGO-style action that the cart engine cannot execute", async () => {
     const { useCase } = buildUseCase();
     const unsupported = rule({

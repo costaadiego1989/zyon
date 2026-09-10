@@ -78,11 +78,11 @@ export class ListPublicStorefrontProductsUseCase {
     const inStock = product.type === "digital" || product.type === "service"
       ? sellableVariants.length > 0
       : sellableVariants.some((variant) => variant.stockQuantity > variant.stockReserved);
+    const ruleNotices = productRuleNotices(rules, sellableVariants.map((variant) => variant.sku), product.id);
 
-    const ruleNotices = productRuleNotices(rules, sellableVariants.map((v) => v.sku), product.id);
     return {
       id: product.id,
-      ...(ruleNotices.length ? { ruleNotices } : {}),
+      ...(ruleNotices.length > 0 ? { ruleNotices } : {}),
       name: product.name,
       description: product.description,
       type: product.type,

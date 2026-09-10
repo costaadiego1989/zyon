@@ -1,9 +1,10 @@
+import { readPlatformFeeBrl, readPlatformFeeCents } from "../../../shared/config/platform-fee.config.js";
+
 const isProd = process.env.NODE_ENV === "production";
 
 // Buyer service fee (taxa de serviço do comprador), em R$. Modelo iFood: fixo,
 // somado ao total do pedido em todos os planos e métodos. Default R$0,99;
 // PLATFORM_FEE_BRL é override de emergência.
-const DEFAULT_BUYER_SERVICE_FEE_BRL = 0.99;
 
 export function isStripeConfigured(): boolean {
   return Boolean(readStripeConnection().secretKey);
@@ -14,15 +15,12 @@ export function isStripeConfigured(): boolean {
  * senão o default R$0,99. Cobrada do comprador (somada ao amount), todos os
  * métodos de pagamento.
  */
-export function readBuyerServiceFeeCents(): number {
-  const raw = process.env.PLATFORM_FEE_BRL?.trim() || String(DEFAULT_BUYER_SERVICE_FEE_BRL);
-  const major = Number(raw.replace(",", "."));
-  if (!Number.isFinite(major) || major < 0) return Math.round(DEFAULT_BUYER_SERVICE_FEE_BRL * 100);
-  return Math.round(major * 100);
+export function readBuyerServiceFeeCents(env: NodeJS.ProcessEnv = process.env): number {
+  return readPlatformFeeCents(env);
 }
 
-export function readBuyerServiceFeeMajorUnits(): number {
-  return readBuyerServiceFeeCents() / 100;
+export function readBuyerServiceFeeMajorUnits(env: NodeJS.ProcessEnv = process.env): number {
+  return readPlatformFeeBrl(env);
 }
 
 export function readStripeConnection(): {

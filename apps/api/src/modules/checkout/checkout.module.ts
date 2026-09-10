@@ -64,6 +64,7 @@ import { PRODUCT_VARIANT_LOOKUP_PORT } from "./domain/ports/product-variant-look
 import { AgentRulesContextAdapter } from "./infrastructure/adapters/agent-rules-context.adapter.js";
 import { BuyerPurchaseHistoryAdapter } from "./infrastructure/adapters/buyer-purchase-history.adapter.js";
 import { CheckoutSettingsAdapter } from "./infrastructure/adapters/checkout-settings.adapter.js";
+import { createCheckoutExperienceConfig } from "./infrastructure/checkout-experience.config.factory.js";
 import { MerchantPlanAdapter } from "./infrastructure/adapters/merchant-plan.adapter.js";
 import { PromptExperimentAdapter } from "./infrastructure/adapters/prompt-experiment.adapter.js";
 import { ProductVariantLookupAdapter } from "./infrastructure/adapters/product-variant-lookup.adapter.js";
@@ -200,7 +201,7 @@ import { PrismaPaymentApprovalReader } from "./infrastructure/adapters/prisma-pa
       useClass: DeterministicConversationAdapter
     },
     { provide: COMMERCE_OFFER_PORT, useExisting: ShopifyCommerceOfferAdapter },
-    { provide: Symbol.for("CheckoutExperienceConfig"), useValue: { platformFeeBrl: 1.99 } },
+    { provide: Symbol.for("CheckoutExperienceConfig"), useFactory: createCheckoutExperienceConfig },
     PaymentApprovedHandler
   ],
   exports: [

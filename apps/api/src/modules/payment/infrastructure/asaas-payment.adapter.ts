@@ -299,6 +299,12 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
     }
   }
 
+  /** Validates the local route/configuration without making a PSP request. */
+  async preparePayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentInput> {
+    this.validatePlatformFee(input);
+    return input;
+  }
+
   async createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput> {
     this.validatePlatformFee(input);
     const base = this.normalizedBaseUrl;

@@ -184,6 +184,8 @@ import "./modules/catalog/application/use-cases/submit-customer-video.use-case.s
 import "./modules/catalog/presentation/http/moderation.controller.spec.js";
 import "./modules/catalog/presentation/http/product-content.controller.spec.js";
 import "./modules/catalog/presentation/http/catalog.controller.spec.js";
+import "./modules/catalog/presentation/http/product-promotion.controller.spec.js";
+import "./modules/catalog/presentation/http/product-promotion.advanced-rules.controller.spec.js";
 import "./modules/catalog/domain/services/product-content-validator.service.spec.js";
 import "./modules/catalog/domain/services/product-price-resolver.service.spec.js";
 import "./modules/catalog/domain/services/import-row-normalizer.service.spec.js";
@@ -298,6 +300,7 @@ import "./modules/catalog/application/use-cases/upsert-product-advanced-rules.us
 import "./modules/catalog/domain/services/product-rule-scoping.service.spec.js";
 
 import "./modules/payment/infrastructure/payment-fees.spec.js";
+import "./shared/config/platform-fee.config.spec.js";
 
 import "./modules/payment/infrastructure/routing-payment.adapter.spec.js";
 

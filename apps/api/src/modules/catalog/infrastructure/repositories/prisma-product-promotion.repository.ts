@@ -75,6 +75,7 @@ export class PrismaProductPromotionRepository
   ): Promise<ProductPromotionEntity[]> {
     const rows = await this.prisma.productPromotion.findMany({
       where: { merchantId, productId },
+      orderBy: [{ isActive: "desc" }, { updatedAt: "desc" }],
     });
     return rows.map((r) => this.mapToDomain(r));
   }

@@ -25,6 +25,7 @@ test("public rich content exposes display prices, variants and media without int
   }).getContent("demo", "product-1", "pt-BR");
 
   assert.equal(result.purchase.productName, "Produto");
+  assert.equal(Object.hasOwn(result.purchase, "ruleNotices"), false);
   assert.equal(result.purchase.description, "Descrição pública");
   assert.equal(result.purchase.defaultVariantId, "small");
   assert.equal(result.purchase.priceReais, 129.9);

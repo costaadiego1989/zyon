@@ -8,7 +8,7 @@
 export interface CheckoutExperienceConfig {
   /**
    * Platform service fee in BRL applied to checkout totals.
-   * Defaults to "1.99" when `PLATFORM_FEE_BRL` is unset/invalid.
+   * Defaults to "0.99" when `PLATFORM_FEE_BRL` is unset/invalid.
    */
   platformFeeBrl: number;
 }
