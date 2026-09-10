@@ -38,7 +38,7 @@ import {
   type LucideIcon
 } from "lucide-react";
 
-export type MerchantPlan = "STORE_ONLY" | "BOTH" | "API";
+export type MerchantPlan = "CHECKOUT_ONLY" | "STORE_ONLY" | "BOTH" | "API";
 
 export type TabKey =
   | "onboarding"
@@ -197,9 +197,13 @@ export const NAV_ITEMS: NavItem[] = [
  * has at least one item the plan can see).
  */
 export function visibleItemsForPlan(items: NavItem[], plan: MerchantPlan): NavItem[] {
+  // The API continues to accept CHECKOUT_ONLY for existing merchants, but
+  // authorizes it as BOTH. Keep the console's navigation consistent with that
+  // server-side compatibility rule until those records are migrated.
+  const effectivePlan: MerchantPlan = plan === "CHECKOUT_ONLY" ? "BOTH" : plan;
   return items.filter((item) => {
     if (!item.requiredPlan) return true;
     const allowed = Array.isArray(item.requiredPlan) ? item.requiredPlan : [item.requiredPlan];
-    return allowed.includes(plan);
+    return allowed.includes(effectivePlan);
   });
 }

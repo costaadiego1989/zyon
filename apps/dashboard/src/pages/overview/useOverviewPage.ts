@@ -30,6 +30,16 @@ export interface OverviewPageVM {
   me: MerchantProfile;
 }
 
+/** Mirrors RequirePlanGuard's legacy CHECKOUT_ONLY compatibility policy. */
+export function resolveOverviewCapabilities(plan: MerchantProfile["plan"] | undefined) {
+  const effectivePlan = plan === "CHECKOUT_ONLY" ? "BOTH" : (plan ?? "BOTH");
+  return {
+    plan: effectivePlan,
+    showCheckout: effectivePlan === "BOTH",
+    showStore: effectivePlan === "STORE_ONLY" || effectivePlan === "BOTH",
+  };
+}
+
 export function useOverviewPage(props: OverviewPageProps): OverviewPageVM {
   const api = useApi();
 
@@ -46,9 +56,7 @@ export function useOverviewPage(props: OverviewPageProps): OverviewPageVM {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const requestVersion = useRef(0);
 
-  const plan = (props.me as any).plan ?? "BOTH";
-  const showCheckout = plan === "BOTH" || plan === "STORE_ONLY";
-  const showStore = plan === "STORE_ONLY" || plan === "BOTH";
+  const { plan, showCheckout, showStore } = resolveOverviewCapabilities(props.me.plan);
   const hasData = !!(checkoutOverview || storeOverview);
 
   useEffect(() => {

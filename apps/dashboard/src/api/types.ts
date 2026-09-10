@@ -36,7 +36,7 @@ export type MerchantProfile = {
   id: string;
   name: string;
   slug?: string;
-  plan?: "STORE_ONLY" | "BOTH" | "API";
+  plan?: "CHECKOUT_ONLY" | "STORE_ONLY" | "BOTH" | "API";
   role?: MerchantRole;
   user_id: string;
 };
