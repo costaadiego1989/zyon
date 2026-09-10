@@ -867,6 +867,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
             crypto_rpc_url: intent.crypto_rpc_url,
             crypto_block_explorer_url: intent.crypto_block_explorer_url,
             crypto_native_currency: intent.crypto_native_currency,
+            crypto_transfers: intent.crypto_transfers,
             expires_at_unix: intent.expires_at_unix,
             amount_cents: intent.amount_cents,
           },

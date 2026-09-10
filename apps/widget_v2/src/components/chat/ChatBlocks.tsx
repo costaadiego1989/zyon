@@ -878,10 +878,17 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   const api = useCheckoutStore((s) => s.api);
 
   type CryptoStep = "idle" | "connected" | "sending" | "confirming" | "error";
+  type CryptoTransfer = {
+    destination: string;
+    amountAtomic: string;
+    amountDisplay: string;
+  };
   const [step, setStep] = useState<CryptoStep>("idle");
   const [wallet, setWallet] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [rpcHelp, setRpcHelp] = useState<boolean>(false);
+  const [submittedTxHashes, setSubmittedTxHashes] = useState<string[]>([]);
+  const [partialSubmission, setPartialSubmission] = useState(false);
 
   useEffect(() => { pollPayment(); }, [pollPayment]);
 
@@ -899,6 +906,25 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   const rpcUrl = String(data.crypto_rpc_url || "");
   const blockExplorerUrl = String(data.crypto_block_explorer_url || "");
   const cryptoNativeCurrency = data.crypto_native_currency as { name: string; symbol: string; decimals: number } | undefined;
+  const quotedTransfers = Array.isArray(data.crypto_transfers) ? data.crypto_transfers : [];
+  const transfers: CryptoTransfer[] = quotedTransfers.length
+    ? quotedTransfers.map((transfer) => {
+      const raw = transfer as Record<string, unknown>;
+      return {
+        destination: String(raw.destination_address || ""),
+        amountAtomic: String(raw.amount_atomic || ""),
+        amountDisplay: String(raw.amount_display || ""),
+      };
+    })
+    : [{ destination, amountAtomic, amountDisplay }];
+  const transfersValid = transfers.length > 0 && transfers.every((transfer) => (
+    /^0x[a-fA-F0-9]{40}$/.test(transfer.destination) &&
+    /^\d+$/.test(transfer.amountAtomic) &&
+    BigInt(transfer.amountAtomic) > 0n
+  ));
+  const requiredAtomic = transfersValid
+    ? transfers.reduce((total, transfer) => total + BigInt(transfer.amountAtomic), 0n)
+    : 0n;
 
   const chainIdHex = "0x" + chainId.toString(16);
 
@@ -933,7 +959,7 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
     if (tokenBalHex === null && nativeBalHex === null) return null;
     const tokenBal = BigInt(tokenBalHex || "0x0");
     const nativeBal = BigInt(nativeBalHex || "0x0");
-    const required = BigInt(amountAtomic);
+    const required = requiredAtomic;
     if (tokenBalHex !== null && tokenBal < required) {
       return `Saldo de ${tokenSymbol} insuficiente. Você precisa de ${amountDisplay}.`;
     }
@@ -959,6 +985,32 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
       }
     } catch {
       setError("Conexão rejeitada");
+    }
+  };
+
+  async function confirmSubmittedTransfers(txHashes: string[]) {
+    if (!api || !api.currentSessionId) throw new Error("checkout_session_not_started");
+    if (!intentId || txHashes.length !== transfers.length) throw new Error("crypto_transfers_incomplete");
+    const result = await confirmCryptoPayment(api, {
+      paymentIntentId: intentId,
+      sessionId: api.currentSessionId,
+      txHash: txHashes[0]!,
+      txHashes,
+      walletAddress: wallet,
+    });
+    if (!result.ok) throw new Error(`crypto_confirm_failed: ${result.status}`);
+    pollPayment();
+  }
+
+  const handleVerifySubmitted = async () => {
+    if (submittedTxHashes.length !== transfers.length) return;
+    setStep("confirming");
+    setError("");
+    try {
+      await confirmSubmittedTransfers(submittedTxHashes);
+    } catch {
+      setError("As transferências já foram enviadas. Aguarde a rede e use Verificar pagamento; não pague novamente.");
+      setStep("connected");
     }
   };
 
@@ -997,10 +1049,12 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
 
   const handlePay = async () => {
     const eth = (window as any).ethereum;
-    if (!eth || !wallet) return;
+    if (!eth || !wallet || !transfersValid || partialSubmission || submittedTxHashes.length) return;
     setStep("sending");
     setError("");
     setRpcHelp(false);
+    const txHashes: string[] = [];
+    let allTransfersSubmitted = false;
     try {
       const currentChainId: string = await eth.request({ method: "eth_chainId" });
       console.log("[CRYPTO-PAY] chainId current=%s target=%s rpcUrl=%s", currentChainId, chainIdHex, rpcUrl);
@@ -1017,45 +1071,48 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
         return;
       }
 
-      if (!amountAtomic || BigInt(amountAtomic) === 0n) {
+      if (!transfersValid) {
         setError("Valor do pagamento inválido. Recarregue e tente novamente.");
         setStep("connected");
         return;
       }
 
-      const calldata = encodeTransferData(destination, amountAtomic);
-      const [nonce, gasPrice] = await Promise.all([
-        alchemyRpc("eth_getTransactionCount", [wallet, "pending"]),
-        alchemyRpc("eth_gasPrice", []),
-      ]);
-      console.log("[CRYPTO-PAY] nonce=%s gasPrice=%s", nonce, gasPrice);
-      const txParams: Record<string, string> = {
-        from: wallet,
-        to: tokenAddress,
-        data: calldata,
-        gas: "0x186A0",
-      };
-      if (nonce) txParams.nonce = nonce;
-      if (gasPrice) txParams.gasPrice = gasPrice;
-      console.log("[CRYPTO-PAY] sending tx:", txParams);
-      const txHash: string = await eth.request({
-        method: "eth_sendTransaction",
-        params: [txParams],
-      });
-      console.log("[CRYPTO-PAY] tx sent:", txHash);
+      const gasPrice = await alchemyRpc("eth_gasPrice", []);
+      for (const transfer of transfers) {
+        const calldata = encodeTransferData(transfer.destination, transfer.amountAtomic);
+        const txParams: Record<string, string> = {
+          from: wallet,
+          to: tokenAddress,
+          data: calldata,
+          gas: "0x186A0",
+        };
+        if (gasPrice) txParams.gasPrice = gasPrice;
+        // Leave nonce assignment to the wallet. Reusing a pending nonce for
+        // the platform split would replace the merchant transfer.
+        const txHash: string = await eth.request({
+          method: "eth_sendTransaction",
+          params: [txParams],
+        });
+        txHashes.push(txHash);
+        setSubmittedTxHashes([...txHashes]);
+      }
+      allTransfersSubmitted = true;
 
       setStep("confirming");
-      if (api && api.currentSessionId) {
-        await confirmCryptoPayment(api, {
-          paymentIntentId: intentId,
-          sessionId: api.currentSessionId,
-          txHash: txHash,
-          walletAddress: wallet,
-        });
-      }
-      pollPayment();
+      await confirmSubmittedTransfers(txHashes);
     } catch (e: any) {
       console.error("[CRYPTO-PAY] ERROR:", e?.code, e?.message, e);
+      if (txHashes.length && !allTransfersSubmitted) {
+        setPartialSubmission(true);
+        setError("Uma transferência já foi enviada, mas o pagamento não foi concluído. Não pague novamente; contate o suporte com o hash da transação.");
+        setStep("error");
+        return;
+      }
+      if (allTransfersSubmitted) {
+        setError("As transferências já foram enviadas. Aguarde a rede e use Verificar pagamento; não pague novamente.");
+        setStep("connected");
+        return;
+      }
       if (e?.code === 4001) {
         setError("Transação cancelada");
         setStep("connected");
@@ -1101,8 +1158,18 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
       <p style={{ fontSize: "12px", color: "var(--mut)", margin: "0 0 10px", lineHeight: 1.4 }}>
         <strong>{amountDisplay}</strong>
       </p>
+      {transfers.length > 1 && (
+        <p style={{ fontSize: "11px", color: "var(--mut)", margin: "0 0 10px", lineHeight: 1.4 }}>
+          Sua carteira solicitará {transfers.length} confirmações para concluir este pagamento.
+        </p>
+      )}
+      {!transfersValid && (
+        <div style={{ padding: "6px 10px", borderRadius: "6px", background: "#fee", color: "#c92a2a", fontSize: "12px", marginBottom: "8px" }}>
+          A cotação cripto está incompleta. Gere um novo pagamento antes de transferir.
+        </div>
+      )}
 
-      {step === "idle" && (
+      {step === "idle" && transfersValid && (
         <button onClick={handleConnect} style={btnBase}>Conectar carteira</button>
       )}
 
@@ -1111,7 +1178,15 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
           <div style={{ fontSize: "11px", color: "var(--mut)", marginBottom: "8px", wordBreak: "break-all" }}>
             Carteira: {wallet.slice(0, 6)}...{wallet.slice(-4)}
           </div>
-          <button onClick={handlePay} style={btnBase}>Pagar {amountDisplay}</button>
+          {partialSubmission ? (
+            <div style={{ padding: "6px 10px", borderRadius: "6px", background: "#fff4e5", color: "#8a4b08", fontSize: "12px" }}>
+              Há uma transferência parcial. Não envie novos valores; contate o suporte com o hash da transação.
+            </div>
+          ) : submittedTxHashes.length ? (
+            <button onClick={handleVerifySubmitted} style={btnBase}>Verificar pagamento</button>
+          ) : (
+            <button onClick={handlePay} style={btnBase}>Pagar {amountDisplay}</button>
+          )}
         </>
       )}
 

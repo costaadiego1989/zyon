@@ -297,11 +297,17 @@ export class EmbedCheckoutController {
     body: {
       session_id: string;
       tx_hash: string;
+      tx_hashes?: string[];
       wallet_address: string;
     }
   ) {
     const embed = request.embedClaims!;
-    if (typeof body.session_id !== "string" || typeof body.tx_hash !== "string" || typeof body.wallet_address !== "string") {
+    if (
+      typeof body.session_id !== "string" ||
+      typeof body.tx_hash !== "string" ||
+      typeof body.wallet_address !== "string" ||
+      (body.tx_hashes !== undefined && (!Array.isArray(body.tx_hashes) || body.tx_hashes.some((hash) => typeof hash !== "string")))
+    ) {
       throw new BadRequestException("crypto_confirm_fields_required");
     }
     await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
@@ -310,6 +316,7 @@ export class EmbedCheckoutController {
       session_id: body.session_id.trim(),
       intent_id: intentId.trim(),
       tx_hash: body.tx_hash.trim(),
+      tx_hashes: body.tx_hashes?.map((hash) => hash.trim()),
       wallet_address: body.wallet_address.trim()
     });
   }

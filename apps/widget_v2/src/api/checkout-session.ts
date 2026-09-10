@@ -189,6 +189,12 @@ export interface PaymentIntent {
   crypto_rpc_url?: string;
   crypto_block_explorer_url?: string;
   crypto_native_currency?: { name: string; symbol: string; decimals: number };
+  crypto_transfers?: Array<{
+    kind?: "merchant" | "platform_fee";
+    destination_address: string;
+    amount_atomic: string;
+    amount_display: string;
+  }>;
   expires_at_unix?: number;
   amount_cents?: number;
 }
@@ -390,6 +396,12 @@ export class CheckoutSession {
         amountAtomic?: string;
         destinationAddress?: string;
         tokenAddress?: string;
+        transfers?: Array<{
+          kind?: "merchant" | "platform_fee";
+          destinationAddress?: string;
+          amountAtomic?: string;
+          amountDisplay?: string;
+        }>;
         chainId?: number;
         rpcUrl?: string;
         blockExplorerUrl?: string;
@@ -422,6 +434,14 @@ export class CheckoutSession {
       crypto_rpc_url: raw.buyerFacing?.rpcUrl,
       crypto_block_explorer_url: raw.buyerFacing?.blockExplorerUrl,
       crypto_native_currency: raw.buyerFacing?.nativeCurrency,
+      // Keep every quote entry, including malformed ones, so the payment UI
+      // can block before a partial transfer is sent instead of dropping it.
+      crypto_transfers: raw.buyerFacing?.transfers?.map((transfer) => ({
+        kind: transfer.kind === "merchant" || transfer.kind === "platform_fee" ? transfer.kind : undefined,
+        destination_address: typeof transfer.destinationAddress === "string" ? transfer.destinationAddress : "",
+        amount_atomic: typeof transfer.amountAtomic === "string" ? transfer.amountAtomic : "",
+        amount_display: typeof transfer.amountDisplay === "string" ? transfer.amountDisplay : "",
+      })),
       expires_at_unix: expiresAtUnix,
       amount_cents: raw.amountCents,
     };

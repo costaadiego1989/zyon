@@ -8,6 +8,8 @@ export interface CryptoConfirmRequest {
   paymentIntentId: string;
   sessionId: string;
   txHash: string;
+  /** Ordered by the quote's transfers: merchant first, then platform fee. */
+  txHashes?: string[];
   walletAddress: string;
 }
 
@@ -43,6 +45,7 @@ export async function confirmCryptoPayment(
       body: JSON.stringify({
         session_id: req.sessionId,
         tx_hash: req.txHash,
+        ...(req.txHashes?.length ? { tx_hashes: req.txHashes } : {}),
         wallet_address: req.walletAddress,
       }),
     }

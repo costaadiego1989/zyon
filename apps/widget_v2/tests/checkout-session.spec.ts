@@ -46,3 +46,45 @@ test("widget starts and updates the signed checkout session without reading or m
 test("missing API cart snapshot is an error instead of a fabricated empty checkout", () => {
   assert.throws(() => cartFromExperience(undefined), /checkout_cart_snapshot_missing/);
 });
+
+test("widget preserves every quoted crypto transfer in payment intent", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url).endsWith("/embed/start")) {
+      return Response.json({
+        session_id: "crypto-session",
+        experience: {
+          items: [{ sku: "sku", name: "Produto", quantity: 1, unit_price: 10 }],
+          totals: { subtotal: 10, total: 10, total_to_pay: 10 },
+        },
+      });
+    }
+    if (String(url).endsWith("/embed/payment/intents")) {
+      return Response.json({
+        id: "crypto-intent",
+        method: "crypto",
+        status: "requires_action",
+        amountCents: 1000,
+        buyerFacing: {
+          chain: "polygon",
+          transfers: [
+            { kind: "merchant", destinationAddress: "0x1111111111111111111111111111111111111111", amountAtomic: "990000", amountDisplay: "0.990000 USDC" },
+            { kind: "platform_fee", destinationAddress: "0x2222222222222222222222222222222222222222", amountAtomic: "10000", amountDisplay: "0.010000 USDC" },
+          ],
+        },
+      });
+    }
+    throw new Error(`unexpected_endpoint:${url}`);
+  };
+  try {
+    const api = new CheckoutSession({ embedToken: "signed-token", merchantId: "merchant", apiBaseUrl: "https://api.example" });
+    await api.start();
+    const intent = await api.createPaymentIntent("crypto");
+    assert.deepEqual(intent.crypto_transfers, [
+      { kind: "merchant", destination_address: "0x1111111111111111111111111111111111111111", amount_atomic: "990000", amount_display: "0.990000 USDC" },
+      { kind: "platform_fee", destination_address: "0x2222222222222222222222222222222222222222", amount_atomic: "10000", amount_display: "0.010000 USDC" },
+    ]);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
