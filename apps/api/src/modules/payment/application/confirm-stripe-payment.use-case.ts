@@ -7,7 +7,8 @@ import { PAYMENT_REPOSITORY, type PaymentRepository } from "../domain/ports/paym
 import { CHECKOUT_PAYMENT_PORT, type CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../shared/messaging/ports/outbox.repository.port.js";
 import { createCheckoutEventEnvelope } from "../../checkout/domain/events/checkout-domain-event.js";
-import { readBuyerServiceFeeCents, readStripeConnection } from "../infrastructure/stripe-env.js";
+import { readStripeConnection } from "../infrastructure/stripe-env.js";
+import { orderTotalCents } from "../domain/payment-amount.js";
 import { isE2ePaymentStubEnabled } from "../infrastructure/e2e-payment-provider.js";
 import { MarkCommerceOrderPaidUseCase } from "../../commerce/application/mark-commerce-order-paid.use-case.js";
 import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
@@ -84,13 +85,12 @@ export class ConfirmStripePaymentUseCase {
       });
 
       // amountCents inclui a taxa de serviço do buyer; subtrai p/ obter o total do pedido.
-      const orderAmountCents = Math.max(0, snap.amountCents - readBuyerServiceFeeCents());
       await this.checkoutPayment.completeAfterApproval({
         paymentIntentId: snap.id, amountBreakdown: snap.amountBreakdown,
         merchantId,
         sessionId,
         externalOrderId: pi.id,
-        orderTotalMajorUnits: Number((snap.amountCents / 100).toFixed(2)),
+        orderTotalMajorUnits: orderTotalCents(snap.amountBreakdown, snap.amountCents) / 100,
         currency: snap.currency as CurrencyCode,
         acceptedOfferId: snap.acceptedOfferId
       });

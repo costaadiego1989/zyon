@@ -213,6 +213,10 @@ export class CreatePaymentIntentUseCase {
       ? await this.platformConnections?.getConnection(merchantId, "mercadopago") : undefined;
     const usesMercadoPago = mercadoPagoConnection?.status === "active";
     const usesAsaas = method !== "crypto" && !isStripeCard && !usesMercadoPago;
+    const mercadoPagoPayerEmail = session.customer?.email?.trim();
+    if (usesMercadoPago && !mercadoPagoPayerEmail) {
+      throw new BadRequestException("mercadopago_payer_email_required");
+    }
     let stripeConnectAccountId: string | undefined;
 
     // Modelo iFood — DOIS fees:
@@ -228,6 +232,7 @@ export class CreatePaymentIntentUseCase {
     // application_fee (Stripe Connect): a Zyon retém buyer fee + merchant fee do
     // split; o merchant recebe orderAmount − merchantFee. Cap ao valor cobrado.
     let stripeApplicationFeeCents = 0;
+    let mercadoPagoPlatformFeeCents = 0;
 
     if (isStripeCard) {
       stripeConnectAccountId = await this.merchants.getStripeConnectAccountId(merchantId);
@@ -245,6 +250,9 @@ export class CreatePaymentIntentUseCase {
     // Guard: application_fee nunca pode exceder o total cobrado (Stripe recusa).
     if (isStripeCard) {
       stripeApplicationFeeCents = assertProviderFeeCap(stripeApplicationFeeCents, amountCents);
+    }
+    if (usesMercadoPago) {
+      mercadoPagoPlatformFeeCents = assertProviderFeeCap(buyerServiceFeeCents + merchantFeeCents, amountCents);
     }
     const amountBreakdown: PaymentAmountBreakdown = {
       version: 1, currency: session.cart.currency.toUpperCase(),
@@ -323,7 +331,8 @@ export class CreatePaymentIntentUseCase {
       amountCents, currency: intent.snapshot().currency, method,
       description: paymentDescription(merchantId, sessionId, commerceOrderId),
       ...(isStripeCard ? { stripeConnectAccountId, platformFeeCents: stripeApplicationFeeCents }
-        : usesAsaas ? { asaasCustomerId: resolveAsaasCustomerForProvider(asaasCustomer) } : {}),
+        : usesMercadoPago ? { platformFeeCents: mercadoPagoPlatformFeeCents, payerEmail: mercadoPagoPayerEmail }
+          : usesAsaas ? { asaasCustomerId: resolveAsaasCustomerForProvider(asaasCustomer) } : {}),
     };
     if (this.provider.preparePayment) providerInput = await this.provider.preparePayment(providerInput) as typeof providerInput;
     intent.prepareCreation(providerInput);

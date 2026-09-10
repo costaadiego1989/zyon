@@ -16,3 +16,13 @@ export function assertPaymentAmount(value: PaymentAmountBreakdown, amountCents: 
     value.totalCents !== value.itemsSubtotalCents - value.discountCents + value.shippingCents + value.platformFeeCents ||
     value.totalCents !== amountCents) throw new Error("payment_amount_breakdown_invalid");
 }
+
+/** Amount belonging to the merchant order, excluding the buyer service fee. */
+export function orderTotalCents(
+  input: Pick<PaymentAmountBreakdown, "itemsSubtotalCents" | "discountCents" | "shippingCents"> | undefined,
+  fallbackCents: number,
+): number {
+  if (!input) return fallbackCents;
+  const total = input.itemsSubtotalCents - input.discountCents + input.shippingCents;
+  return Number.isSafeInteger(total) && total >= 0 ? total : fallbackCents;
+}

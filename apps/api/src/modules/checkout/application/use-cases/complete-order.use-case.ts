@@ -24,7 +24,7 @@ import { MetricsService } from "../../../../shared/observability/metrics.service
 import { RecordExperimentResultUseCase } from "../../../experiments/application/use-cases/record-experiment-result.use-case.js";
 import { RecordFunnelEventUseCase } from "../../../experiments/application/use-cases/record-funnel-event.use-case.js";
 import { PAYMENT_APPROVAL_READER, type PaymentApprovalReader, type PersistedPaymentApproval } from "../../domain/ports/payment-approval.port.js";
-import { assertPaymentAmount } from "../../../payment/domain/payment-amount.js";
+import { assertPaymentAmount, orderTotalCents } from "../../../payment/domain/payment-amount.js";
 import { paymentCartFingerprint } from "../../domain/services/payment-cart-fingerprint.js";
 
 interface OrderCommitRepository {
@@ -73,7 +73,7 @@ export class CompleteOrderUseCase {
       approval.status !== "approved" || approval.providerPaymentId !== input.external_order_id ||
       approval.currency !== input.currency || approval.approvedAmountCents !== approval.amountCents ||
       !Number.isSafeInteger(approval.amountCents) || approval.amountCents <= 0 ||
-      toCents(input.order_total) !== approval.amountCents ||
+      toCents(input.order_total) !== orderTotalCents(approval.amountBreakdown ?? undefined, approval.amountCents) ||
       (approval.acceptedOfferId ?? undefined) !== input.accepted_offer_id) {
       throw new BadRequestException("payment_approval_mismatch");
     }
@@ -111,7 +111,9 @@ export class CompleteOrderUseCase {
     } catch { /* non-critical — templates fall back to "nossa loja" */ }
 
     if (this.offerRepository) {
-      const expectedTotal = approval ? approval.amountCents / 100 : computeExpectedTotal(session);
+      const expectedTotal = approval
+        ? orderTotalCents(approval.amountBreakdown ?? undefined, approval.amountCents) / 100
+        : computeExpectedTotal(session);
       const TOLERANCE = 0.02;
       const expectedWithBuyerFee = expectedTotal + BUYER_SERVICE_FEE_MAJOR_UNITS;
       const matchesTotal = Math.abs(input.order_total - expectedTotal) <= TOLERANCE;

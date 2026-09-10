@@ -2,6 +2,7 @@ import { savePaymentTransition } from "./services/save-payment-transition.js";
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Optional , Logger} from "@nestjs/common";
 import type { CurrencyCode } from "@zyon/shared-types";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
+import { orderTotalCents } from "../domain/payment-amount.js";
 import { PAYMENT_REPOSITORY, type PaymentRepository } from "../domain/ports/payment-repository.port.js";
 import { CHECKOUT_PAYMENT_PORT, type CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
 import { CRYPTO_VERIFIER, type CryptoVerifierPort } from "../domain/ports/crypto-verifier.port.js";
@@ -139,7 +140,7 @@ export class ConfirmCryptoPaymentUseCase {
         merchantId,
         sessionId,
         externalOrderId: txHashes.join(","),
-        orderTotalMajorUnits: Number((snap.amountCents / 100).toFixed(2)),
+        orderTotalMajorUnits: orderTotalCents(snap.amountBreakdown, snap.amountCents) / 100,
         currency: snap.currency as CurrencyCode,
         acceptedOfferId: snap.acceptedOfferId
       });

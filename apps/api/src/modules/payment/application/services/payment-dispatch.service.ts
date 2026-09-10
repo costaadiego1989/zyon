@@ -12,6 +12,7 @@ import { PAYMENT_REPOSITORY } from "../../domain/ports/payment-repository.port.j
 import { MetricsService } from "../../../../shared/observability/metrics.service.js";
 import { MarkCommerceOrderPaidUseCase } from "../../../commerce/application/mark-commerce-order-paid.use-case.js";
 import { PaymentEventPublisher } from "../../infrastructure/payment-event-publisher.js";
+import { orderTotalCents } from "../../domain/payment-amount.js";
 
 /**
  * Shared payment intent state-machine & checkout completion logic.
@@ -86,7 +87,7 @@ export class PaymentDispatchService implements OnModuleInit {
       merchantId: snap.merchantId,
       sessionId: snap.sessionId,
       externalOrderId: providerPaymentId,
-      orderTotalMajorUnits: snap.amountCents / 100,
+      orderTotalMajorUnits: orderTotalCents(snap.amountBreakdown, snap.amountCents) / 100,
       currency: snap.currency as CurrencyCode,
       acceptedOfferId: snap.acceptedOfferId
     });

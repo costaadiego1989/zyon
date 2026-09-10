@@ -19,20 +19,20 @@ function setup() {
   const useCase = new CompleteOrderUseCase(repository, repository, repository, repository,
     undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
     undefined, undefined, undefined, reader);
-  return { repository, approval, useCase, request: completeOrderRequest({ order_total: 350 }) };
+  return { repository, approval, useCase, request: completeOrderRequest({ order_total: 335 }) };
 }
 
-test("payment completion accepts the persisted card fee and emits an immutable sale snapshot once", async () => {
+test("payment completion validates the persisted buyer fee but records the merchant order total once", async () => {
   const { repository, approval, useCase, request } = setup();
   assert.equal((await useCase.executePaymentApproval(request, approval.id)).idempotent, false);
   assert.equal((await useCase.executePaymentApproval(request, approval.id)).idempotent, true);
-  assert.equal(repository.getCompletedOrder("mrc_1", "chk_1", "ord_1")?.orderTotal, 350);
+  assert.equal(repository.getCompletedOrder("mrc_1", "chk_1", "ord_1")?.orderTotal, 335);
   const events = repository.listOutbox("mrc_1").filter(e => e.event_type === "order.completed");
   assert.equal(events.length, 1);
   assert.deepEqual(events[0].payload.payment_amount_breakdown, approval.amountBreakdown);
   const sale = events[0].payload.inventory_sale as { items: unknown[]; totalCents: number };
   assert.deepEqual(sale.items, [{ sku: "kit", quantity: 1 }]);
-  assert.equal(sale.totalCents, 35000);
+  assert.equal(sale.totalCents, 33500);
   repository.saveSession(checkoutSession({ cart: { currency: "BRL", total: 1, items: [] } }));
   assert.equal((await useCase.executePaymentApproval(request, approval.id)).idempotent, true);
   assert.equal(repository.listOutbox("mrc_1").filter(event => event.event_type === "order.completed").length, 1);
@@ -41,7 +41,7 @@ test("payment completion accepts the persisted card fee and emits an immutable s
 
 test("HTTP completion cannot authorize a card fee by adding approval fields to its body", async () => {
   const { useCase, approval, request, repository } = setup();
-  await assert.rejects(useCase.execute({ ...request, paymentIntentId: approval.id,
+  await assert.rejects(useCase.execute({ ...request, order_total: 350, paymentIntentId: approval.id,
     amountBreakdown: approval.amountBreakdown } as typeof request), /order_total_mismatch/);
   assert.equal(repository.listOutbox("mrc_1").length, 0);
 });
@@ -74,7 +74,7 @@ test("payment completion rejects a modified cart and an inconsistent persisted b
 test("legacy persisted approvals without a breakdown must match the base cart exactly", async () => {
   const { repository, useCase, approval, request } = setup();
   approval.amountBreakdown = null;
-  await assert.rejects(useCase.executePaymentApproval(request, approval.id), /payment_cart_changed/);
+  await assert.rejects(useCase.executePaymentApproval({ ...request, order_total: 350 }, approval.id), /payment_cart_changed/);
   approval.amountCents = approval.approvedAmountCents = 33500;
   await useCase.executePaymentApproval({ ...request, order_total: 335 }, approval.id);
   assert.equal(repository.getCompletedOrder("mrc_1", "chk_1", "ord_1")?.orderTotal, 335);

@@ -18,6 +18,8 @@ export type CreateProviderPaymentInput = {
   currency: string;
   method: string;
   description?: string;
+  /** Provider-validated contact for PIX or boleto notifications. */
+  payerEmail?: string;
   // Asaas-only (pix / boleto / card via Asaas)
   asaasCustomerId?: string;
   creditCard?: {

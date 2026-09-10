@@ -26,7 +26,7 @@ test("Mercado Pago receives the Free fee after expiry without adding it to the b
     const intent = await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "fee-test", method: "pix" });
     assert.equal(provider.inputs[0]?.platformFeeCents, expired ? 398 : 99);
     assert.equal(provider.inputs[0]?.asaasCustomerId, undefined);
-    assert.equal(provider.inputs[0]?.creditCardHolderInfo?.email, "buyer@example.com");
+    assert.equal(provider.inputs[0]?.payerEmail, "buyer@example.com");
     assert.equal(intent.amountCents, 33599); // R$300 cart + R$35 shipping + R$0.99 buyer fee.
     await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "fee-test", method: "pix" });
     assert.equal(provider.inputs.length, 1);

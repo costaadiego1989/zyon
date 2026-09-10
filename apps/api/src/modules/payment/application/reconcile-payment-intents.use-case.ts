@@ -3,6 +3,7 @@ import { savePaymentTransition } from "./services/save-payment-transition.js";
 import { Inject, Injectable, Optional , Logger} from "@nestjs/common";
 import type { CurrencyCode } from "@zyon/shared-types";
 import { PaymentIntentEntity, type PaymentIntentSnapshot } from "../domain/payment-intent.entity.js";
+import { orderTotalCents } from "../domain/payment-amount.js";
 import {
   PAYMENT_REPOSITORY,
   type PaymentRepository
@@ -94,7 +95,7 @@ export class ReconcilePaymentIntentsUseCase {
             merchantId: snap.merchantId,
             sessionId: snap.sessionId,
             externalOrderId: snap.providerPaymentId!,
-            orderTotalMajorUnits: majorUnitsFromCents(snap.amountCents),
+            orderTotalMajorUnits: majorUnitsFromCents(orderTotalCents(snap.amountBreakdown, snap.amountCents)),
             currency: snap.currency as CurrencyCode,
             acceptedOfferId: snap.acceptedOfferId
           });
@@ -131,7 +132,7 @@ export class ReconcilePaymentIntentsUseCase {
         merchantId: snap.merchantId,
         sessionId: snap.sessionId,
         externalOrderId: snap.providerPaymentId!,
-        orderTotalMajorUnits: majorUnitsFromCents(snap.amountCents),
+        orderTotalMajorUnits: majorUnitsFromCents(orderTotalCents(snap.amountBreakdown, snap.amountCents)),
         currency: snap.currency as CurrencyCode,
         acceptedOfferId: snap.acceptedOfferId
       });

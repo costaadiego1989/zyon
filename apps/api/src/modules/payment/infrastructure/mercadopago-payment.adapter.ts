@@ -116,7 +116,7 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
       description: input.description ?? `Checkout ${input.sessionId}`,
       payment_method_id: paymentMethod,
       payer: {
-        email: input.creditCardHolderInfo?.email ?? "buyer@example.com"
+        email: input.payerEmail
       },
       ...(process.env.API_PUBLIC_URL ? { notification_url: `${process.env.API_PUBLIC_URL.replace(/\/+$/, "")}/webhooks/mercadopago` } : {}),
       ...(this.marketplaceSeller && (input.platformFeeCents ?? 0) > 0 ? { application_fee: majorUnitsFromCents(input.platformFeeCents!) } : {}),
