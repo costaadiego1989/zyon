@@ -9,6 +9,39 @@ export type PlannedSettlementEntry = {
   plannedAmountCents: number;
 };
 
+export type SettlementObservationStatus = "confirmed" | "blocked";
+
+/**
+ * A provider fact observed after the payment intent was created. The original
+ * plan is deliberately absent here: repositories copy it from sequence 1
+ * rather than accepting a webhook-supplied replacement for planned amounts.
+ */
+export type ObservedSettlementEntry = {
+  entryKey: PlannedSettlementEntry["entryKey"];
+  confirmedAmountCents?: number;
+  providerTransferId?: string;
+  providerReference?: string;
+};
+
+export type ObservedPaymentSettlement = {
+  merchantId: string;
+  paymentIntentId: string;
+  provider: string;
+  status: SettlementObservationStatus;
+  currency: string;
+  /** Stable provider-side observation id. Required for append idempotency. */
+  providerSettlementId: string;
+  providerPaymentId?: string;
+  providerReference?: string;
+  confirmedGrossCents?: number;
+  confirmedPlatformFeeCents?: number;
+  confirmedMerchantNetCents?: number;
+  confirmedProviderFeeCents?: number;
+  occurredAt: Date;
+  confirmedAt?: Date;
+  entries: ObservedSettlementEntry[];
+};
+
 /**
  * An intended allocation captured before the provider charge exists. It is an
  * auditable plan only: provider fees, payment capture, transfer and payout
@@ -30,28 +63,38 @@ export type PlannedPaymentSettlement = {
 
 export type PaymentSettlementEntrySnapshot = PlannedSettlementEntry & {
   sequence: number;
-  status: "planned";
+  status: "planned" | SettlementObservationStatus;
   currency: string;
   provider: string;
   occurredAt: Date;
-  confirmedAmountCents?: never;
-  confirmedAt?: never;
+  confirmedAmountCents?: number;
+  providerTransferId?: string;
+  providerReference?: string;
+  confirmedAt?: Date;
 };
 
 export type PaymentSettlementSnapshot = Omit<PlannedPaymentSettlement, "entries"> & {
   sequence: number;
-  status: "planned";
-  confirmedGrossCents?: never;
-  confirmedPlatformFeeCents?: never;
-  confirmedMerchantNetCents?: never;
-  confirmedProviderFeeCents?: never;
-  confirmedAt?: never;
+  status: "planned" | SettlementObservationStatus;
+  providerPaymentId?: string;
+  providerSettlementId?: string;
+  confirmedGrossCents?: number;
+  confirmedPlatformFeeCents?: number;
+  confirmedMerchantNetCents?: number;
+  confirmedProviderFeeCents?: number;
+  confirmedAt?: Date;
   entries: PaymentSettlementEntrySnapshot[];
 };
 
 export interface PaymentSettlementLedgerPort {
   /** Appends the first, planned snapshot. Repeating the exact plan is idempotent. */
   appendPlanned(plan: PlannedPaymentSettlement): Promise<void>;
+
+  /**
+   * Appends an immutable provider observation derived from the initial plan.
+   * It must never update sequence 1 or accept planned amounts from a webhook.
+   */
+  appendObservation(observation: ObservedPaymentSettlement): Promise<void>;
 
   /** Always tenant-scoped; callers cannot read another merchant's ledger. */
   listForPaymentIntent(merchantId: string, paymentIntentId: string): Promise<PaymentSettlementSnapshot[]>;
@@ -119,6 +162,71 @@ export function normalizePlannedSettlement(plan: PlannedPaymentSettlement): Plan
     plannedMerchantNetCents: plan.plannedMerchantNetCents,
     plannedProviderFeeCents: plan.plannedProviderFeeCents,
     occurredAt: new Date(plan.occurredAt),
+    entries,
+  };
+}
+
+function optionalCents(value: number | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  if (!nonNegativeCents(value)) throw new Error("payment_settlement_observation_invalid");
+  return value;
+}
+
+function optionalId(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const normalized = value.trim();
+  if (!normalized) throw new Error("payment_settlement_observation_invalid");
+  return normalized;
+}
+
+/** Shared validation before recording a signed provider observation. */
+export function normalizeSettlementObservation(raw: ObservedPaymentSettlement): ObservedPaymentSettlement {
+  const merchantId = raw.merchantId.trim();
+  const paymentIntentId = raw.paymentIntentId.trim();
+  const provider = raw.provider.trim();
+  const currency = raw.currency.trim().toUpperCase();
+  const providerSettlementId = raw.providerSettlementId.trim();
+  if (!merchantId || !paymentIntentId || !provider || !currency || !providerSettlementId ||
+    !(raw.occurredAt instanceof Date) || Number.isNaN(raw.occurredAt.getTime()) ||
+    (raw.confirmedAt !== undefined && (!(raw.confirmedAt instanceof Date) || Number.isNaN(raw.confirmedAt.getTime())))) {
+    throw new Error("payment_settlement_observation_invalid");
+  }
+  const confirmedGrossCents = optionalCents(raw.confirmedGrossCents);
+  const confirmedPlatformFeeCents = optionalCents(raw.confirmedPlatformFeeCents);
+  const confirmedMerchantNetCents = optionalCents(raw.confirmedMerchantNetCents);
+  const confirmedProviderFeeCents = optionalCents(raw.confirmedProviderFeeCents);
+  const seen = new Set<string>();
+  const entries = raw.entries.map(entry => {
+    if ((entry.entryKey !== "platform_fee" && entry.entryKey !== "merchant_payout") || seen.has(entry.entryKey)) {
+      throw new Error("payment_settlement_observation_invalid");
+    }
+    seen.add(entry.entryKey);
+    return {
+      entryKey: entry.entryKey,
+      confirmedAmountCents: optionalCents(entry.confirmedAmountCents),
+      providerTransferId: optionalId(entry.providerTransferId),
+      providerReference: optionalId(entry.providerReference),
+    };
+  });
+  if (raw.status === "blocked" && (
+    entries.length > 0 || confirmedGrossCents !== undefined || confirmedPlatformFeeCents !== undefined ||
+    confirmedMerchantNetCents !== undefined || confirmedProviderFeeCents !== undefined || raw.confirmedAt !== undefined
+  )) throw new Error("payment_settlement_observation_invalid");
+  return {
+    merchantId,
+    paymentIntentId,
+    provider,
+    status: raw.status,
+    currency,
+    providerSettlementId,
+    providerPaymentId: optionalId(raw.providerPaymentId),
+    providerReference: optionalId(raw.providerReference),
+    confirmedGrossCents,
+    confirmedPlatformFeeCents,
+    confirmedMerchantNetCents,
+    confirmedProviderFeeCents,
+    occurredAt: new Date(raw.occurredAt),
+    confirmedAt: raw.confirmedAt ? new Date(raw.confirmedAt) : undefined,
     entries,
   };
 }

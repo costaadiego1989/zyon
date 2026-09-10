@@ -254,6 +254,74 @@ test("PAYMENT_DELETED marks failed and records payment_failed event", async () =
   assert.ok(payments.capturedEvents.map(event => event.payload as { status: string; reason?: string }).some((entry) => entry.status === "failed" && entry.reason === "PAYMENT_DELETED"));
 });
 
+test("Asaas split events append only the confirmed split allocation and divergence fact", async () => {
+  const payments = new InMemoryPaymentRepository();
+  const checkoutPort = new RecordingCheckoutPayment();
+  const dispatch = new PaymentDispatchService(payments, checkoutPort);
+  const intent = PaymentIntentEntity.create({
+    merchantId: "mrc_split",
+    sessionId: "chk_split",
+    idempotencyKey: "idem_split",
+    amountCents: 30_000,
+    currency: "BRL",
+    method: "pix",
+  });
+  intent.markRequiresAction({ providerPaymentId: "pay_split" });
+  await payments.saveIntent({ intent });
+  const intentId = intent.snapshot().id;
+  await payments.settlementLedger.appendPlanned({
+    merchantId: "mrc_split",
+    paymentIntentId: intentId,
+    provider: "asaas",
+    currency: "BRL",
+    plannedGrossCents: 30_000,
+    plannedPlatformFeeCents: 99,
+    plannedMerchantNetCents: 29_901,
+    plannedProviderFeeCents: 0,
+    occurredAt: new Date("2026-09-10T12:00:00.000Z"),
+    entries: [
+      { entryKey: "platform_fee", entryType: "platform_fee", direction: "credit", recipientType: "platform", plannedAmountCents: 99 },
+      { entryKey: "merchant_payout", entryType: "merchant_payout", direction: "credit", recipientType: "merchant", plannedAmountCents: 29_901 },
+    ],
+  });
+  const uc = new HandleAsaasWebhookUseCase(payments, dispatch, undefined, undefined, payments.settlementLedger);
+
+  const splitDone = await uc.execute(WEBHOOK_HEADER, {
+    id: "evt_split_done",
+    event: "PAYMENT_SPLIT_DONE",
+    additionalInfo: { splitId: "split_platform" },
+    payment: {
+      id: "pay_split",
+      value: 300,
+      netValue: 294.51,
+      externalReference: intentId,
+      split: [{ id: "split_platform", fixedValue: 0.99 }],
+    },
+  }, TEST_ASAAS_TOKEN);
+  assert.deepEqual(splitDone, { outcome: "processed", effect: "split_settlement_recorded" });
+
+  const afterSplit = await payments.settlementLedger.listForPaymentIntent("mrc_split", intentId);
+  assert.equal(afterSplit.length, 2);
+  assert.equal(afterSplit[1]?.status, "confirmed");
+  assert.equal(afterSplit[1]?.confirmedPlatformFeeCents, 99);
+  assert.equal(afterSplit[1]?.confirmedGrossCents, undefined);
+  assert.equal(afterSplit[1]?.confirmedMerchantNetCents, undefined);
+  assert.equal(afterSplit[1]?.confirmedProviderFeeCents, undefined);
+  assert.deepEqual(afterSplit[1]?.entries.map(entry => [entry.entryKey, entry.confirmedAmountCents]), [["platform_fee", 99]]);
+
+  const blocked = await uc.execute(WEBHOOK_HEADER, {
+    id: "evt_split_blocked",
+    event: "PAYMENT_SPLIT_DIVERGENCE_BLOCK",
+    payment: { id: "pay_split", externalReference: intentId },
+  }, TEST_ASAAS_TOKEN);
+  assert.deepEqual(blocked, { outcome: "processed", effect: "split_divergence_block_recorded" });
+  const afterBlock = await payments.settlementLedger.listForPaymentIntent("mrc_split", intentId);
+  assert.equal(afterBlock.length, 3);
+  assert.equal(afterBlock[2]?.status, "blocked");
+  assert.equal(afterBlock[2]?.entries.length, 0);
+  assert.equal(afterBlock[2]?.confirmedPlatformFeeCents, undefined);
+});
+
 test("HandleAsaasWebhookUseCase rejects when ASAAS_WEBHOOK_TOKEN mismatches header", async (t) => {
   const prev = process.env.ASAAS_WEBHOOK_TOKEN;
   t.after(() => {

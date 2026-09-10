@@ -11,6 +11,11 @@ import { PaymentDispatchService } from "./services/payment-dispatch.service.js";
 import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
+import {
+  PAYMENT_SETTLEMENT_LEDGER,
+  type ObservedPaymentSettlement,
+  type PaymentSettlementLedgerPort,
+} from "../domain/ports/payment-settlement-ledger.port.js";
 
 export type AsaasWebhookInbound = {
   id: string;
@@ -20,7 +25,9 @@ export type AsaasWebhookInbound = {
     status?: string;
     value?: number;
     externalReference?: string;
+    split?: Array<{ id?: string; fixedValue?: number }>;
   };
+  additionalInfo?: { splitId?: string };
 };
 
 export type HandleAsaasWebhookResult =
@@ -38,6 +45,20 @@ function normalizeInbound(body: unknown): AsaasWebhookInbound {
   if (pay && typeof pay === "object" && !Array.isArray(pay)) {
     const p = pay as Record<string, unknown>;
     const rawVal = p.value;
+    const rawSplit = p.split;
+    const split = Array.isArray(rawSplit)
+      ? rawSplit.flatMap(item => {
+        if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+        const candidate = item as Record<string, unknown>;
+        const fixedValue = candidate.fixedValue;
+        return [{
+          id: typeof candidate.id === "string" ? candidate.id.trim() || undefined : undefined,
+          fixedValue: typeof fixedValue === "number"
+            ? fixedValue
+            : typeof fixedValue === "string" && fixedValue.trim() !== "" ? Number(fixedValue) : undefined,
+        }];
+      })
+      : undefined;
     payment = {
       id: typeof p.id === "string" ? p.id : undefined,
       status: typeof p.status === "string" ? p.status : undefined,
@@ -47,10 +68,17 @@ function normalizeInbound(body: unknown): AsaasWebhookInbound {
           : typeof rawVal === "string" && rawVal.trim() !== ""
             ? Number(rawVal)
             : undefined,
-      externalReference: typeof p.externalReference === "string" ? p.externalReference.trim() : undefined
+      externalReference: typeof p.externalReference === "string" ? p.externalReference.trim() : undefined,
+      split,
     };
   }
-  return { id, event, payment };
+  const additionalInfo = o.additionalInfo;
+  const additionalInfoRecord = additionalInfo && typeof additionalInfo === "object" && !Array.isArray(additionalInfo)
+    ? additionalInfo as Record<string, unknown>
+    : undefined;
+  const rawSplitId = additionalInfoRecord?.splitId;
+  const splitId = typeof rawSplitId === "string" ? rawSplitId.trim() || undefined : undefined;
+  return { id, event, payment, additionalInfo: splitId ? { splitId } : undefined };
 }
 
 export class UnauthorizedWebhookError extends Error {
@@ -78,7 +106,7 @@ function majorUnitsFromCents(amountCents: number): number {
 }
 
 function paymentValueAsCents(paymentSlice: NonNullable<AsaasWebhookInbound["payment"]> | undefined): number | undefined {
-  if (!paymentSlice || typeof paymentSlice.value !== "number" || Number.isNaN(paymentSlice.value)) return undefined;
+  if (!paymentSlice || typeof paymentSlice.value !== "number" || !Number.isFinite(paymentSlice.value)) return undefined;
   return Math.round(paymentSlice.value * 100);
 }
 
@@ -91,6 +119,7 @@ export class HandleAsaasWebhookUseCase {
     private readonly paymentDispatch: PaymentDispatchService,
     @Optional() private readonly metrics?: MetricsService,
     @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
+    @Optional() @Inject(PAYMENT_SETTLEMENT_LEDGER) private readonly settlementLedger?: PaymentSettlementLedgerPort,
   ) {}
 
   async execute(inboundAccessTokenHeader: string | undefined, rawBody: unknown, webhookToken?: string): Promise<HandleAsaasWebhookResult> {
@@ -98,7 +127,8 @@ export class HandleAsaasWebhookUseCase {
     assertWebhookToken(expectedToken, inboundAccessTokenHeader);
 
     const body = normalizeInbound(rawBody);
-    this.logger.log(`[WEBHOOK] received event=${body.event} paymentId=${body.payment?.id} extRef=${body.payment?.externalReference}`);
+    const correlationId = CorrelationIdStorage.get() ?? "none";
+    this.logger.log(`asaas.webhook.received event=${body.event} correlation=${correlationId}`);
 
     if (!body.id || !body.event) {
       throw new BadRequestException("asaas_webhook_invalid_shape");
@@ -110,7 +140,6 @@ export class HandleAsaasWebhookUseCase {
     // scoped read: the port returns only { id, merchantId }; the authoritative
     // entity is re-fetched scoped below (ADR 0001 #3).
     const ref = extRef ? await this.payments.getIntentByExternalReference(extRef) : null;
-    this.logger.log(`[WEBHOOK] extRef=${extRef} intentFound=${!!ref} intentId=${ref?.id}`);
     const merchantId = ref?.merchantId ?? null;
     const eventKey: ProviderEventKey = { provider: "asaas", merchantId, eventId: body.id };
 
@@ -127,19 +156,17 @@ export class HandleAsaasWebhookUseCase {
     }
 
     if (!ref) {
-      this.logger.warn(`[WEBHOOK] IGNORED intent_not_found extRef=${extRef}`);
+      this.logger.warn(`asaas.webhook.ignored reason=intent_not_found correlation=${correlationId}`);
       return { outcome: "ignored", reason: "intent_not_found" };
     }
 
     const intentEntity = await this.payments.getIntentById(ref.merchantId, ref.id);
     if (!intentEntity) {
-      this.logger.warn(`[WEBHOOK] IGNORED intent_entity_not_found id=${ref.id}`);
+      this.logger.warn(`asaas.webhook.ignored reason=intent_not_found correlation=${correlationId}`);
       return { outcome: "ignored", reason: "intent_not_found" };
     }
-    this.logger.log(`[WEBHOOK] dispatching event=${body.event} intentId=${ref.id}`);
-
     try {
-      const effect = await this.dispatch(body.event, intentEntity, body.payment);
+      const effect = await this.dispatch(body, intentEntity);
       return { outcome: "processed", effect };
     } catch (e) {
       const msg = e instanceof Error ? e.message : "unknown_error";
@@ -151,10 +178,8 @@ export class HandleAsaasWebhookUseCase {
         // anomaly is surfaced for dead-letter/alert review (ADR 0001 #4).
         this.metrics?.paymentWebhookAnomaly.inc({ provider: "asaas", kind: "illegal_transition" });
         this.logger.error("asaas.webhook.illegal_transition", {
-          intentId: ref.id,
-          merchantId: ref.merchantId,
-          eventId: body.id,
-          event: body.event
+          event: body.event,
+          correlationId,
         });
         return { outcome: "ignored", reason: "illegal_transition_alerted" };
       }
@@ -166,26 +191,32 @@ export class HandleAsaasWebhookUseCase {
   }
 
   private async dispatch(
-    eventName: string,
+    inbound: AsaasWebhookInbound,
     intentEntity: PaymentIntentEntity,
-    paymentSlice: NonNullable<AsaasWebhookInbound["payment"]> | undefined
   ): Promise<string> {
-    switch (eventName) {
+    switch (inbound.event) {
       case "PAYMENT_CREATED":
         return "noop_created";
 
       case "PAYMENT_RECEIVED":
       case "PAYMENT_CONFIRMED":
-        return await this.handlePaymentReceived(intentEntity, paymentSlice);
+        return await this.handlePaymentReceived(intentEntity, inbound.payment);
+
+      case "PAYMENT_SPLIT_DONE":
+        return await this.recordSplitObservation("confirmed", inbound, intentEntity);
+
+      case "PAYMENT_SPLIT_DIVERGENCE_BLOCK":
+      case "PAYMENT_SPLIT_DIVERGENCE_BLOCK_FINISHED":
+        return await this.recordSplitObservation("blocked", inbound, intentEntity);
 
       case "PAYMENT_REFUNDED": {
-        await this.paymentDispatch.markRefunded(intentEntity, eventName);
+        await this.paymentDispatch.markRefunded(intentEntity, inbound.event);
         return "payment_refunded";
       }
 
       case "PAYMENT_DELETED":
       case "PAYMENT_OVERDUE": {
-        await this.failOpenIntent(intentEntity, eventName);
+        await this.failOpenIntent(intentEntity, inbound.event);
         return "payment_failed_fact";
       }
 
@@ -201,7 +232,6 @@ export class HandleAsaasWebhookUseCase {
     const snap = intentEntity.snapshot();
     const payId = typeof paymentSlice?.id === "string" ? paymentSlice.id.trim() : "";
     const centsFromWebhook = paymentValueAsCents(paymentSlice);
-    this.logger.log(`[WEBHOOK] handlePaymentReceived intentId=${snap.id} status=${snap.status} payId=${payId} webhookCents=${centsFromWebhook} expectedCents=${snap.amountCents}`);
     if (!payId) throw new BadRequestException("payment_id_missing_on_webhook");
     if (typeof centsFromWebhook !== "number") throw new BadRequestException("payment_value_missing_on_webhook");
 
@@ -211,9 +241,7 @@ export class HandleAsaasWebhookUseCase {
       return "payment_value_mismatch";
     }
 
-    this.logger.log(`[WEBHOOK] markApprovedAndComplete intentId=${snap.id} payId=${payId} → APPROVING`);
     const result = await this.paymentDispatch.markApprovedAndComplete(intentEntity, payId);
-    this.logger.log(`[WEBHOOK] APPROVED intentId=${snap.id} effect=${result}`);
 
     // Create in-app notification for merchant (fire-and-forget)
     try {
@@ -234,6 +262,61 @@ export class HandleAsaasWebhookUseCase {
     }
 
     return result;
+  }
+
+  private async recordSplitObservation(
+    status: "confirmed" | "blocked",
+    inbound: AsaasWebhookInbound,
+    intentEntity: PaymentIntentEntity,
+  ): Promise<string> {
+    if (!this.settlementLedger) return "settlement_ledger_unavailable";
+    const snapshot = intentEntity.snapshot();
+    const providerPaymentId = inbound.payment?.id?.trim() ?? "";
+    if (!providerPaymentId || !snapshot.providerPaymentId || providerPaymentId !== snapshot.providerPaymentId) {
+      this.metrics?.paymentWebhookAnomaly.inc({ provider: "asaas", kind: "split_payment_reference_mismatch" });
+      this.logger.warn(`asaas.webhook.ignored reason=split_payment_reference_mismatch correlation=${CorrelationIdStorage.get() ?? "none"}`);
+      return "split_payment_reference_mismatch";
+    }
+    const settlements = await this.settlementLedger.listForPaymentIntent(snapshot.merchantId, snapshot.id);
+    const plan = settlements.find(item => item.sequence === 1 && item.status === "planned");
+    if (!plan) {
+      this.logger.warn(`asaas.webhook.ignored reason=settlement_plan_missing correlation=${CorrelationIdStorage.get() ?? "none"}`);
+      return "settlement_plan_missing";
+    }
+    const splitId = inbound.additionalInfo?.splitId;
+    const split = splitId ? inbound.payment?.split?.find(item => item.id === splitId) : undefined;
+    const fixedValueCents = split && typeof split.fixedValue === "number" && Number.isFinite(split.fixedValue)
+      ? Math.round(split.fixedValue * 100)
+      : undefined;
+    const plannedPlatformEntry = plan.entries.find(entry => entry.entryKey === "platform_fee");
+    const isExpectedPlatformSplit = fixedValueCents !== undefined && plannedPlatformEntry !== undefined &&
+      fixedValueCents === plannedPlatformEntry.plannedAmountCents;
+    const settledAt = new Date();
+    const observation: ObservedPaymentSettlement = {
+      merchantId: snapshot.merchantId,
+      paymentIntentId: snapshot.id,
+      provider: "asaas",
+      status,
+      currency: snapshot.currency,
+      providerPaymentId,
+      providerSettlementId: splitId ? `asaas:split:${splitId}` : `asaas:webhook:${inbound.id}`,
+      providerReference: inbound.event,
+      ...(status === "confirmed" ? {
+        confirmedPlatformFeeCents: isExpectedPlatformSplit ? fixedValueCents : undefined,
+        confirmedAt: settledAt,
+        entries: isExpectedPlatformSplit
+          ? [{ entryKey: "platform_fee", confirmedAmountCents: fixedValueCents, providerTransferId: splitId }]
+          : [],
+      } : { entries: [] }),
+      occurredAt: settledAt,
+    };
+    await this.settlementLedger.appendObservation(observation);
+    if (status === "blocked") return inbound.event === "PAYMENT_SPLIT_DIVERGENCE_BLOCK_FINISHED"
+      ? "split_divergence_block_finished_recorded"
+      : "split_divergence_block_recorded";
+    return isExpectedPlatformSplit
+      ? "split_settlement_recorded"
+      : "split_settlement_recorded_without_allocation";
   }
 
   private async failOpenIntent(intentEntity: PaymentIntentEntity, reason: string): Promise<void> {
