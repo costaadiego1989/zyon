@@ -55,6 +55,8 @@ export class AddProductUseCase {
       }
     }
 
+    await this.assertCategoryBelongsToMerchant(input.merchantId, input.categoryId);
+
     const product = await this.productRepo.create(input);
 
     // Emit domain event for marketplace sync
@@ -95,5 +97,14 @@ export class AddProductUseCase {
       ogDescription: seo.ogDescription,
       keywords: seo.keywords,
     });
+  }
+
+  private async assertCategoryBelongsToMerchant(merchantId: string, categoryId?: string): Promise<void> {
+    if (!categoryId) return;
+
+    const categories = await this.productRepo.listCategories(merchantId);
+    if (!categories.some((category) => category.id === categoryId)) {
+      throw new ConflictException("category_not_found");
+    }
   }
 }

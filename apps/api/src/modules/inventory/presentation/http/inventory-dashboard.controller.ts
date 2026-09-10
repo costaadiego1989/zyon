@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Post, Query, Req, UseGuards, Param } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Inject, Post, Query, Req, UseGuards, Param } from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -293,13 +293,17 @@ export class InventoryDashboardController {
   async connectCrmProvider(
     @Req() req: any,
     @Param("provider") provider: string,
-    @Body() body: { accessToken: string; refreshToken?: string; config?: Record<string, unknown> },
+    @Body() body: { accessToken?: string; token?: string; refreshToken?: string; config?: Record<string, unknown> },
   ) {
     const user = currentUser(req);
+    // `token` was sent by an earlier dashboard version. Keep it as a temporary
+    // compatibility alias while the canonical API contract is `accessToken`.
+    const accessToken = body.accessToken?.trim() || body.token?.trim();
+    if (!accessToken) throw new BadRequestException("crm_access_token_required");
     return this.connectCrm.execute({
       merchantId: user.merchantId,
       provider,
-      accessToken: body.accessToken,
+      accessToken,
       refreshToken: body.refreshToken,
       config: body.config,
     });

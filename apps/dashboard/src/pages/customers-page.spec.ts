@@ -3,6 +3,7 @@ import {
   getInitials,
   toCustomerRows,
   computeMetrics,
+  calculatePurchaseMetrics,
   filterRows,
   formatDate,
 } from "./customers-page.js";
@@ -140,6 +141,15 @@ describe("computeMetrics", () => {
     expect(metrics.total).toBe(0);
     expect(metrics.newLast7Days).toBe(0);
     expect(metrics.returningRate).toBe(0);
+  });
+});
+
+describe("calculatePurchaseMetrics", () => {
+  it("uses the API total_minor amounts without producing NaN", () => {
+    expect(calculatePurchaseMetrics([
+      { order_id: "order-1", total_minor: 12_345, completed_at: "2026-09-01T00:00:00Z" },
+      { order_id: "order-2", total_minor: 5_000, completed_at: "2026-09-02T00:00:00Z" },
+    ])).toEqual({ totalOrders: 2, totalRevenue: 173.45, avgTicket: 86.725 });
   });
 });
 

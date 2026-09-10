@@ -89,7 +89,7 @@ export function IntegrationsPage(props: IntegrationsPageProps) {
     if (!panelProvider || !token.trim()) return;
     setSaving(true);
     try {
-      await vm.connectCrm(panelProvider.provider, { token: token.trim() });
+      await vm.connectCrm(panelProvider.provider, { accessToken: token.trim() });
       closePanel();
     } finally {
       setSaving(false);

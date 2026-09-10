@@ -26,6 +26,29 @@ export interface CustomerMetrics {
   returningRate: number;
 }
 
+export interface CustomerPurchase {
+  order_id: string;
+  total_minor: number;
+  completed_at: string;
+}
+
+export function calculatePurchaseMetrics(purchaseHistory: CustomerPurchase[] | null | undefined): {
+  totalOrders: number;
+  totalRevenue: number;
+  avgTicket: number;
+} {
+  const totalOrders = purchaseHistory?.length ?? 0;
+  const totalRevenue = purchaseHistory?.reduce(
+    (sum, purchase) => sum + (Number.isFinite(purchase.total_minor) ? purchase.total_minor / 100 : 0),
+    0,
+  ) ?? 0;
+  return {
+    totalOrders,
+    totalRevenue,
+    avgTicket: totalOrders > 0 ? totalRevenue / totalOrders : 0,
+  };
+}
+
 export function getInitials(name: string): string {
   if (!name || name === "-") return "?";
   const parts = name.trim().split(/\s+/);
@@ -261,15 +284,8 @@ function CustomerDetailModal({
 }) {
   const detail = customer as Record<string, unknown> | null;
   const profile = detail?.profile as Record<string, unknown> | null;
-  const purchaseHistory = detail?.purchase_history as Array<{
-    order_id: string;
-    total: number;
-    completed_at: string;
-  }> | null;
-
-  const totalOrders = purchaseHistory?.length ?? 0;
-  const totalRevenue = purchaseHistory?.reduce((sum, p) => sum + (p.total / 100), 0) ?? 0;
-  const avgTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+  const purchaseHistory = detail?.purchase_history as CustomerPurchase[] | null;
+  const { totalOrders, totalRevenue, avgTicket } = calculatePurchaseMetrics(purchaseHistory);
 
   const displayName = (profile?.full_name as string) || (row?.name && row.name !== "-" ? row.name : "Cliente sem nome");
   const displayEmail = (row?.email && row.email !== "-") ? row.email : (profile?.email as string) || "email@exemplo.com";
@@ -342,7 +358,7 @@ function CustomerDetailModal({
                   {purchaseHistory.slice(0, 8).map((order, idx) => (
                     <div key={idx} style={{ padding: "10px 12px", background: "var(--surface-1)", borderRadius: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <span style={{ font: "12px var(--font-mono)", color: "var(--color-text)" }}>#{order.order_id.slice(-8)}</span>
-                      <span style={{ font: "600 12px var(--font-mono)", color: "var(--color-brand)" }}>R$ {(order.total / 100).toFixed(2)}</span>
+                      <span style={{ font: "600 12px var(--font-mono)", color: "var(--color-brand)" }}>R$ {(order.total_minor / 100).toFixed(2)}</span>
                       <span style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)" }}>{formatDate(order.completed_at)}</span>
                     </div>
                   ))}

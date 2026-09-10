@@ -1,4 +1,4 @@
-import { Injectable, Inject, Logger, Optional } from "@nestjs/common";
+import { ConflictException, Injectable, Inject, Logger, Optional } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { ProductRepositoryPort } from "../../domain/ports/product-repository.port.js";
 import { ProductEntity } from "../../domain/entities/product.entity.js";
@@ -38,7 +38,10 @@ export class UpdateProductUseCase {
     if (input.description !== undefined) data.description = input.description;
     if (input.type !== undefined) data.type = input.type;
     if (input.metadata !== undefined) data.metadata = input.metadata;
-    if (input.categoryId !== undefined) data.categoryId = input.categoryId;
+    if (input.categoryId !== undefined) {
+      await this.assertCategoryBelongsToMerchant(input.merchantId, input.categoryId);
+      data.categoryId = input.categoryId;
+    }
     if (input.isActive !== undefined) data.isActive = input.isActive;
     if (input.seoTitle !== undefined) data.seoTitle = input.seoTitle;
     if (input.metaDescription !== undefined) data.metaDescription = input.metaDescription;
@@ -71,5 +74,14 @@ export class UpdateProductUseCase {
     });
 
     return product;
+  }
+
+  private async assertCategoryBelongsToMerchant(merchantId: string, categoryId: string): Promise<void> {
+    if (!categoryId) return;
+
+    const categories = await this.productRepo.listCategories(merchantId);
+    if (!categories.some((category) => category.id === categoryId)) {
+      throw new ConflictException("category_not_found");
+    }
   }
 }

@@ -18,7 +18,7 @@ import { ListCategoriesUseCase } from "../../application/use-cases/list-categori
 import { CreateCategoryUseCase } from "../../application/use-cases/create-category.use-case.js";
 import { UpdateCategoryUseCase } from "../../application/use-cases/update-category.use-case.js";
 import { DeleteCategoryUseCase } from "../../application/use-cases/delete-category.use-case.js";
-import { ReorderCategoriesUseCase } from "../../application/use-cases/reorder-categories.use-case.js";
+import { ReorderCategoriesUseCase, type ReorderCategoriesPayload, type ReorderCategoryItem } from "../../application/use-cases/reorder-categories.use-case.js";
 import { GenerateProductSeoUseCase } from "../../application/use-cases/generate-product-seo.use-case.js";
 import { CatalogVariantService } from "../../application/services/catalog-variant.service.js";
 
@@ -277,7 +277,7 @@ export class StoreBuilderCatalogController {
   @RequirePlan("STORE_ONLY", "BOTH")
   async reorderCats(
     @Param("mid") merchantId: string,
-    @Body() body: Array<{ id: string; sort_order: number }>,
+    @Body() body: ReorderCategoryItem[] | ReorderCategoriesPayload,
   ) {
     await this.reorderCategories.execute(merchantId, body);
     return { reordered: true };

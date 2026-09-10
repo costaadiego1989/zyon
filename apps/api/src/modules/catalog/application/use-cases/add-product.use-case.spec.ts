@@ -55,7 +55,7 @@ function makeSeoDouble(): GenerateProductSeoUseCase {
 const validInput: CreateProductInput = {
   merchantId: "mrc_1",
   name: "Widget",
-  variants: [{ sku: "SKU-1", attributes: {}, basePriceInCents: 1000 }],
+  variants: [{ sku: "SKU-1", attributes: {}, basePriceInCents: 1000, weightGrams: 100 }],
 };
 
 describe("AddProductUseCase", () => {
@@ -115,5 +115,38 @@ describe("AddProductUseCase", () => {
         }),
       (err: unknown) => err instanceof ConflictException && err.message === "price_must_be_positive",
     );
+  });
+
+  it("rejects a category that does not belong to the product merchant", async () => {
+    let createCalled = false;
+    const useCase = new AddProductUseCase(
+      makePortDouble({
+        listCategories: async () => [{ id: "cat_merchant_a", name: "Owned", slug: "owned", productCount: 0 }],
+        create: async () => {
+          createCalled = true;
+          return makeProduct();
+        },
+      }),
+      makeSeoDouble(),
+    );
+
+    await assert.rejects(
+      () => useCase.execute({ ...validInput, categoryId: "cat_merchant_b" }),
+      (err: unknown) => err instanceof ConflictException && err.message === "category_not_found",
+    );
+    assert.equal(createCalled, false);
+  });
+
+  it("accepts a category owned by the product merchant", async () => {
+    const useCase = new AddProductUseCase(
+      makePortDouble({
+        listCategories: async () => [{ id: "cat_merchant_a", name: "Owned", slug: "owned", productCount: 0 }],
+      }),
+      makeSeoDouble(),
+    );
+
+    const result = await useCase.execute({ ...validInput, categoryId: "cat_merchant_a" });
+
+    assert.equal(result.id, "prd_1");
   });
 });

@@ -8,13 +8,18 @@ export interface ReorderCategoryItem {
   sort_order: number;
 }
 
+export interface ReorderCategoriesPayload {
+  items: ReorderCategoryItem[];
+}
+
 @Injectable()
 export class ReorderCategoriesUseCase {
   private readonly logger = new Logger(ReorderCategoriesUseCase.name);
 
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
-  async execute(merchantId: string, items: ReorderCategoryItem[]): Promise<void> {
+  async execute(merchantId: string, input: ReorderCategoryItem[] | ReorderCategoriesPayload): Promise<void> {
+    const items = Array.isArray(input) ? input : input?.items;
     if (!items?.length) return;
 
     const ids = items.map((i) => i.id);
