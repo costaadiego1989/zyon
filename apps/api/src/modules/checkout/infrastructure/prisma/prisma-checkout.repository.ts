@@ -14,7 +14,8 @@ import type {
   DomainEventEnvelope,
   MerchantRules,
   OfferType,
-  ShippingQuote
+  ShippingQuote,
+  StorePeriod
 } from "@zyon/shared-types";
 import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
 import type { CheckoutRepository } from "../../domain/ports/checkout-repository.port.js";
@@ -457,7 +458,9 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     throw new Error("outbox_claim_required");
   }
 
-  async overview(merchantId: string): Promise<DashboardOverview> {
+  async overview(merchantId: string, period: StorePeriod): Promise<DashboardOverview> {
+    const { from, to } = resolveOverviewDateRange(period);
+    const dateRange = { gte: from, lte: to };
     // P2 fix: replace full-table findMany scans with targeted count/aggregate queries.
     const [
       sessions,
@@ -470,15 +473,15 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       avgShippingResult,
       avgCartResult
     ] = await Promise.all([
-      this.prisma.checkoutSession.findMany({ where: { merchantId }, orderBy: { createdAt: "desc" }, take: 10 }),
-      this.prisma.authorizedOffer.findMany({ where: { merchantId }, orderBy: { expiresAt: "desc" }, take: 10 }),
-      this.prisma.checkoutSession.count({ where: { merchantId } }),
-      this.prisma.authorizedOffer.count({ where: { merchantId } }),
-      this.prisma.checkoutEvent.count({ where: { merchantId, eventName: "order_completed" } }),
-      this.prisma.checkoutEvent.count({ where: { merchantId, eventName: "offer_accepted" } }),
-      this.prisma.authorizedOffer.aggregate({ where: { merchantId, type: "discount_percent" }, _avg: { value: true } }),
-      this.prisma.authorizedOffer.aggregate({ where: { merchantId, type: { startsWith: "shipping" } }, _avg: { value: true } }),
-      this.prisma.checkoutSession.aggregate({ where: { merchantId }, _avg: { abandonmentScore: true } })
+      this.prisma.checkoutSession.findMany({ where: { merchantId, createdAt: dateRange }, orderBy: { createdAt: "desc" }, take: 10 }),
+      this.prisma.authorizedOffer.findMany({ where: { merchantId, session: { createdAt: dateRange } }, orderBy: { expiresAt: "desc" }, take: 10 }),
+      this.prisma.checkoutSession.count({ where: { merchantId, createdAt: dateRange } }),
+      this.prisma.checkoutEvent.count({ where: { merchantId, eventName: "offer_viewed", occurredAt: dateRange } }),
+      this.prisma.checkoutEvent.count({ where: { merchantId, eventName: "order_completed", occurredAt: dateRange } }),
+      this.prisma.checkoutEvent.count({ where: { merchantId, eventName: "offer_accepted", occurredAt: dateRange } }),
+      this.prisma.acceptedOffer.aggregate({ where: { merchantId, acceptedAt: dateRange, type: "discount_percent" }, _avg: { value: true } }),
+      this.prisma.acceptedOffer.aggregate({ where: { merchantId, acceptedAt: dateRange, type: { startsWith: "shipping" } }, _avg: { value: true } }),
+      this.prisma.checkoutSession.aggregate({ where: { merchantId, createdAt: dateRange }, _avg: { abandonmentScore: true } })
     ]);
     // incremental_revenue: completed orders × average authorized offer value (best approximation without order table join)
     const avgCartValue = (avgCartResult._avg as Record<string, number | null>).abandonmentScore ?? 0;
@@ -502,6 +505,16 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       recent_offers: offers.map(toAuthorizedOffer)
     };
   }
+}
+
+function resolveOverviewDateRange(period: StorePeriod): { from: Date; to: Date } {
+  const to = new Date();
+  const from = new Date(to);
+  if (period === "today") from.setHours(0, 0, 0, 0);
+  else if (period === "30d") from.setDate(from.getDate() - 30);
+  else if (period === "90d") from.setDate(from.getDate() - 90);
+  else from.setDate(from.getDate() - 7);
+  return { from, to };
 }
 
 function toCheckoutSessionCreate(session: CheckoutSession) {

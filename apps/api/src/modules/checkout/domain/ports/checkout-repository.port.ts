@@ -8,7 +8,8 @@ import type {
   CustomerHints,
   DashboardOverview,
   DomainEventEnvelope,
-  MerchantRules
+  MerchantRules,
+  StorePeriod
 } from "@zyon/shared-types";
 
 // Facade — delegates to split ports. Remove after Wave 2 migration.
@@ -70,5 +71,5 @@ export interface CheckoutRepository {
   /** @deprecated Use OutboxRepository.listOutbox */
   listOutbox(merchantId: string): MaybePromise<DomainEventEnvelope[]>;
   /** @deprecated Use DashboardReadModel.overview */
-  overview(merchantId: string): MaybePromise<DashboardOverview>;
+  overview(merchantId: string, period: StorePeriod): MaybePromise<DashboardOverview>;
 }

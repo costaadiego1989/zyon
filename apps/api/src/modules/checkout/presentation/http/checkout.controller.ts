@@ -122,8 +122,11 @@ export class CheckoutController {
   @Get("dashboard/overview/:merchantId")
   @ProductionRoute()
   @UseGuards(AuthGuard, MerchantOwnershipGuard)
-  overview(@Param("merchantId") merchantId: string) {
-    return this.getDashboardOverview.execute(merchantId);
+  overview(
+    @Param("merchantId") merchantId: string,
+    @Query("period") period?: StorePeriod,
+  ) {
+    return this.getDashboardOverview.execute(merchantId, period ?? "7d");
   }
 
   @Get("dashboard/store-overview/:merchantId")

@@ -51,10 +51,10 @@ export function paymentEndpoints(base: string, f: typeof fetch) {
         )
       ).data;
     },
-    getDashboardOverview(merchantId: string): Promise<DashboardOverview> {
+    getDashboardOverview(merchantId: string, period: string): Promise<DashboardOverview> {
       return dashboardJson<DashboardOverview>(
         base,
-        `/checkout/dashboard/overview/${encodeURIComponent(merchantId)}`,
+        `/checkout/dashboard/overview/${encodeURIComponent(merchantId)}?period=${encodeURIComponent(period)}`,
         { method: "GET" },
         f,
       );

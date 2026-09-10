@@ -67,6 +67,7 @@ import "./modules/checkout/domain/events/checkout-domain-event.spec.js";
 import "./modules/checkout/domain/domain-boundary.spec.js";
 import "./modules/checkout/infrastructure/repositories/in-memory-checkout.repository.spec.js";
 import "./modules/checkout/infrastructure/in-memory-intervention-ledger.spec.js";
+import "./modules/checkout/application/use-cases/dashboard.use-cases.spec.js";
 import "./modules/checkout/__tests__/start-checkout.use-case.spec.js";
 import "./modules/checkout/__tests__/track-checkout-event.use-case.spec.js";
 import "./modules/checkout/__tests__/get-checkout-session.use-case.spec.js";

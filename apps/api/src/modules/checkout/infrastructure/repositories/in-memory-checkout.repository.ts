@@ -306,22 +306,25 @@ export class InMemoryCheckoutRepository
 
   markHandlerProcessed(_eventId: string, _handlerId: string): void {}
 
-  overview(merchantId: string): DashboardOverview {
-    const sessions = [...this.sessions.values()].filter((session) => session.merchantId === merchantId);
-    const offers = [...this.offers.values()].filter((offer) => offer.merchantId === merchantId);
-    const events = this.events.filter((event) => event.merchantId === merchantId);
+  overview(merchantId: string, period: import("@zyon/shared-types").StorePeriod): DashboardOverview {
+    const { from, to } = resolveOverviewDateRange(period);
+    const within = (value: string) => new Date(value) >= from && new Date(value) <= to;
+    const sessions = [...this.sessions.values()].filter((session) => session.merchantId === merchantId && within(session.createdAt));
+    const sessionIds = new Set(sessions.map((session) => session.sessionId));
+    const offers = [...this.offers.values()].filter((offer) => offer.merchantId === merchantId && sessionIds.has(offer.sessionId));
+    const events = this.events.filter((event) => event.merchantId === merchantId && within(event.at));
     const orders = events.filter((event) => event.event === "order_completed").length;
     const accepted = events.filter((event) => event.event === "offer_accepted").length;
 
     return {
       merchant_id: merchantId,
       conversations_started: sessions.length,
-      offers_viewed: offers.length,
+      offers_viewed: events.filter((event) => event.event === "offer_viewed").length,
       offers_accepted: accepted,
       orders_completed: orders,
       conversion_rate_with_agent: sessions.length ? orders / sessions.length : 0,
-      average_discount: average(offers.filter((offer) => offer.type === "discount_percent").map((offer) => offer.value)),
-      average_shipping_subsidy: average(offers.filter((offer) => offer.type.startsWith("shipping")).map((offer) => offer.value)),
+      average_discount: average([...this.acceptedOffers.values()].filter((offer) => offer.merchantId === merchantId && within(offer.acceptedAt) && offer.type === "discount_percent").map((offer) => offer.value)),
+      average_shipping_subsidy: average([...this.acceptedOffers.values()].filter((offer) => offer.merchantId === merchantId && within(offer.acceptedAt) && offer.type.startsWith("shipping")).map((offer) => offer.value)),
       incremental_revenue: orders * average(sessions.map((session) => session.cart.total)),
       recent_sessions: sessions.slice(-10).reverse(),
       recent_offers: offers.slice(-10).reverse()
@@ -343,4 +346,14 @@ export class InMemoryCheckoutRepository
 
 function average(values: number[]): number {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+}
+
+function resolveOverviewDateRange(period: import("@zyon/shared-types").StorePeriod): { from: Date; to: Date } {
+  const to = new Date();
+  const from = new Date(to);
+  if (period === "today") from.setHours(0, 0, 0, 0);
+  else if (period === "30d") from.setDate(from.getDate() - 30);
+  else if (period === "90d") from.setDate(from.getDate() - 90);
+  else from.setDate(from.getDate() - 7);
+  return { from, to };
 }

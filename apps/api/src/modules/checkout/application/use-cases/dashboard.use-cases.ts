@@ -8,8 +8,8 @@ import { MERCHANT_RULES_REPOSITORY, type MerchantRulesRepository } from "../../.
 export class GetDashboardOverviewUseCase {
   constructor(@Inject(DASHBOARD_READ_MODEL) private readonly readModel: DashboardReadModel) {}
 
-  async execute(merchantId: string): Promise<DashboardOverview> {
-    return this.readModel.overview(merchantId);
+  async execute(merchantId: string, period: StorePeriod = "7d"): Promise<DashboardOverview> {
+    return this.readModel.overview(merchantId, period);
   }
 }
 

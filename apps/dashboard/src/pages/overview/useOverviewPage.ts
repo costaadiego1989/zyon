@@ -66,7 +66,7 @@ export function useOverviewPage(props: OverviewPageProps): OverviewPageVM {
     setError(null);
     try {
       const [checkout, checkoutFunnel, store, storefrontFunnel, nextTimeseries] = await Promise.all([
-        showCheckout ? api.getDashboardOverview(props.me.id) : Promise.resolve(null),
+        showCheckout ? api.getDashboardOverview(props.me.id, period) : Promise.resolve(null),
         showCheckout ? api.getCheckoutFunnel(props.me.id, { period }) : Promise.resolve(null),
         showStore ? api.getStoreOverview(props.me.id, period) : Promise.resolve(null),
         showStore ? api.getStorefrontFunnel(props.me.id, { period }) : Promise.resolve(null),
