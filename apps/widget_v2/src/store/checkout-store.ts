@@ -59,6 +59,10 @@ export interface BuyerData {
 export interface CartState {
   items: CartItem[];
   total: number;
+  /** Buyer service fee supplied by the signed checkout experience, in BRL. */
+  serviceFee: number;
+  /** Authoritative buyer charge from the checkout API before local cart changes. */
+  totalToPay?: number;
   shipping?: { key: string; label: string; cost: number };
   discount: number;
   status: CartStatus;
@@ -276,7 +280,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   agent: {},
   merchantPaymentConfig: {},
   buyer: {},
-  cart: { items: [], total: 0, discount: 0, status: "awaiting" },
+  cart: { items: [], total: 0, serviceFee: 0, discount: 0, status: "awaiting" },
   messages: [],
   isTyping: false,
   channel: "chat",
@@ -347,6 +351,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       const agent: AgentConfig = {
         name: exp?.agent?.name ?? theme.agentName ?? rawBrand.agentName,
         greeting: exp?.agent?.greeting ?? rawBrand.agentGreeting,
+        language: exp?.agent?.language,
       };
 
       set({
@@ -359,7 +364,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
           cryptoPaymentsEnabled: exp?.cryptoPaymentsEnabled ?? rawBrand.cryptoPaymentsEnabled ?? false,
           cryptoPayments: exp?.cryptoPayments ?? rawBrand.cryptoPayments,
         },
-        cart: { items, total, discount: cartData.discount, status: "awaiting" },
+        cart: { items, total, serviceFee: cartData.serviceFee, totalToPay: cartData.totalToPay, discount: cartData.discount, status: "awaiting" },
         status: "channel_gate",
         error: null,
         _pendingCrossSellBlock: crossSellBlockFromSuggestions(exp?.suggestedProducts),
@@ -592,7 +597,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         const items = (cartBlock.data.items as CartItem[]) || [];
         const total = (cartBlock.data.total as number) || 0;
         set((s) => ({
-          cart: { ...s.cart, items, total, discount: (cartBlock.data!.discount as number) || 0 },
+          cart: { ...s.cart, items, total, totalToPay: undefined, discount: (cartBlock.data!.discount as number) || 0 },
         }));
       }
 
@@ -601,6 +606,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         set((s) => ({
           cart: {
             ...s.cart,
+            totalToPay: undefined,
             status: "shipping_calculated",
             shipping: shippingConfirm.data as { key: string; label: string; cost: number },
           },
@@ -709,6 +715,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       set((s) => ({
         cart: {
           ...s.cart,
+          totalToPay: undefined,
           shipping: {
             key,
             label: result.shipping?.method ?? key,
@@ -932,13 +939,13 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     set((s) => ({
       activeDiscount: { stage, percent, couponCode, message },
       cart: percent > 0
-        ? { ...s.cart, discount: Math.round((s.cart.total * (percent / 100)) * 100) / 100 }
+        ? { ...s.cart, totalToPay: undefined, discount: Math.round((s.cart.total * (percent / 100)) * 100) / 100 }
         : s.cart,
     }));
   },
 
   dismissDiscount: () => {
-    set((s) => ({ activeDiscount: null, cart: { ...s.cart, discount: 0 } }));
+    set((s) => ({ activeDiscount: null, cart: { ...s.cart, totalToPay: undefined, discount: 0 } }));
   },
 
   applyCouponCode: async (code) => {
@@ -951,7 +958,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       });
       const discountValue = result.discount_applied ?? 0;
       set((s) => ({
-        cart: { ...s.cart, discount: discountValue },
+        cart: { ...s.cart, totalToPay: undefined, discount: discountValue },
         activeDiscount: discountValue > 0 ? { stage: "initial_coupon" as DiscountStage, percent: Math.round((discountValue / s.cart.total) * 100), couponCode: code.trim().toUpperCase() } : null,
       }));
       return { ok: true };
@@ -1034,7 +1041,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     set({
       status: "loading",
-      cart: { items: [], total: 0, discount: 0, status: "awaiting" },
+      cart: { items: [], total: 0, serviceFee: 0, discount: 0, status: "awaiting" },
       messages: [],
       paymentIntent: null,
       paymentPolling: false,

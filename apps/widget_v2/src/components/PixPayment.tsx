@@ -1,12 +1,15 @@
 import { useEffect, useState, useCallback } from "react";
 import { useCheckoutStore } from "@/store/checkout-store";
 import { PulseAgentOrb } from "./PulseAgentOrb";
+import { buyerServiceFeeCopy, checkoutLocale } from "@/lib/checkout-totals";
 
 export function PixPayment() {
   const paymentIntent = useCheckoutStore((s) => s.paymentIntent);
   const pollPayment = useCheckoutStore((s) => s.pollPayment);
   const stopPolling = useCheckoutStore((s) => s.stopPolling);
   const status = useCheckoutStore((s) => s.status);
+  const cart = useCheckoutStore((s) => s.cart);
+  const language = useCheckoutStore((s) => s.agent.language);
   const [copied, setCopied] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
 
@@ -55,7 +58,7 @@ export function PixPayment() {
   };
 
   const formatCurrency = (cents: number) =>
-    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+    new Intl.NumberFormat(checkoutLocale(language), { style: "currency", currency: "BRL" }).format(cents / 100);
 
   if (status === "completed") {
     return (
@@ -89,6 +92,12 @@ export function PixPayment() {
         Escaneie o QR Code no app do seu banco ou copie o código abaixo.
         Seu pedido é confirmado automaticamente assim que o pagamento é detectado.
       </p>
+      {cart.serviceFee > 0 && (
+        <p className="pix-payment__instruction" data-testid="buyer-service-fee-notice">
+          <strong>{buyerServiceFeeCopy(language).label}: {new Intl.NumberFormat(checkoutLocale(language), { style: "currency", currency: "BRL" }).format(cart.serviceFee)}.</strong>{" "}
+          {buyerServiceFeeCopy(language).notice}
+        </p>
+      )}
 
       {/* QR Code Image */}
       {paymentIntent.pix_qr_url && (

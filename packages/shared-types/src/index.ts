@@ -417,6 +417,8 @@ export interface CheckoutTotalsSnapshot {
   shipping: number;
   discount: number;
   service_fee?: number;
+  /** Amount charged to the buyer: order total plus the separately disclosed service fee. */
+  total_to_pay?: number;
   total: number;
 }
 

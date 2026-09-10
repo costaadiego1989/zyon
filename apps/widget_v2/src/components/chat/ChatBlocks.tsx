@@ -8,6 +8,20 @@ import { loadStripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { trackEvent } from "@/lib/tracking";
 import { translateShippingLabel } from "./helpers";
+import { buyerServiceFeeCopy, checkoutLocale } from "@/lib/checkout-totals";
+
+function BuyerServiceFeeNotice() {
+  const serviceFee = useCheckoutStore((s) => s.cart.serviceFee);
+  const language = useCheckoutStore((s) => s.agent.language);
+  if (serviceFee <= 0) return null;
+  const copy = buyerServiceFeeCopy(language);
+  const feeLabel = new Intl.NumberFormat(checkoutLocale(language), { style: "currency", currency: "BRL" }).format(serviceFee);
+  return (
+    <p data-testid="buyer-service-fee-notice" style={{ fontSize: "11px", color: "var(--mut)", margin: "8px 0 0", lineHeight: 1.4 }}>
+      <strong>{copy.label}: {feeLabel}.</strong> {copy.notice}
+    </p>
+  );
+}
 
 function CartSummaryBlock({ data }: { data?: Record<string, unknown> }) {
   if (!data) return null;
@@ -99,6 +113,7 @@ function PaymentMethodsBlock({ methods }: { methods?: unknown }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--tx)" }}>Forma de pagamento:</div>
+      <BuyerServiceFeeNotice />
       {meths.map((m) => (
         <button
           key={m.key}
@@ -126,6 +141,7 @@ function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   const pollPayment = useCheckoutStore((s) => s.pollPayment);
   const stopPolling = useCheckoutStore((s) => s.stopPolling);
   const status = useCheckoutStore((s) => s.status);
+  const language = useCheckoutStore((s) => s.agent.language);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -134,6 +150,10 @@ function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   }, [pollPayment, stopPolling]);
 
   if (!data) return null;
+  const amountCents = data.amount_cents;
+  const totalLabel = typeof amountCents === "number" && Number.isSafeInteger(amountCents) && amountCents > 0
+    ? new Intl.NumberFormat(checkoutLocale(language), { style: "currency", currency: "BRL" }).format(amountCents / 100)
+    : null;
 
   if (status === "completed") {
     return (
@@ -174,6 +194,12 @@ function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
       <p style={{ fontSize: "12px", color: "var(--mut)", margin: "0 0 8px", lineHeight: 1.4 }}>
         Escaneie o QR Code no app do seu banco. Pedido confirmado assim que o pagamento cai.
       </p>
+      {totalLabel && (
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", margin: "0 0 8px", color: "var(--tx)", fontSize: "12px" }}>
+          <span>Total a pagar</span><strong>{totalLabel}</strong>
+        </div>
+      )}
+      <BuyerServiceFeeNotice />
       {data.pix_qr_url ? (
         <div style={{ display: "flex", justifyContent: "center", marginBottom: "10px" }}>
           <img src={String(data.pix_qr_url)} alt="QR Code Pix" style={{ width: "160px", height: "160px", borderRadius: "8px" }} />
@@ -349,6 +375,7 @@ function getStripePromise(publishableKey: string) {
 }
 
 function StripeCardBlock({ data }: { data?: Record<string, unknown> }) {
+  const language = useCheckoutStore((s) => s.agent.language);
   const clientSecret = data?.stripe_client_secret as string | undefined;
   const publishableKey = data?.stripe_publishable_key as string | undefined;
   const intentId = data?.intent_id as string | undefined;
@@ -364,7 +391,7 @@ function StripeCardBlock({ data }: { data?: Record<string, unknown> }) {
   }
 
   const stripePromise = getStripePromise(publishableKey);
-  const totalLabel = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(amountCents / 100);
+  const totalLabel = new Intl.NumberFormat(checkoutLocale(language), { style: "currency", currency: "BRL" }).format(amountCents / 100);
 
   return (
     <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
@@ -375,6 +402,7 @@ function StripeCardBlock({ data }: { data?: Record<string, unknown> }) {
       <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", marginBottom: "12px", color: "var(--tx)" }}>
         <span>Total a pagar</span><strong>{totalLabel}</strong>
       </div>
+      <BuyerServiceFeeNotice />
       <Elements stripe={stripePromise} options={elementsOptions}>
         <StripeCardBlockForm clientSecret={clientSecret} intentId={intentId} totalLabel={totalLabel} />
       </Elements>

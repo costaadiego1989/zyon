@@ -1,4 +1,5 @@
 import { useCheckoutStore } from "@/store/checkout-store";
+import { buyerServiceFeeCopy, checkoutLocale, checkoutTotalWithServiceFee } from "@/lib/checkout-totals";
 
 function translateShippingLabel(label: string): string {
   const translations: Record<string, string> = {
@@ -27,6 +28,9 @@ export function SmartCart() {
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
 
   const agentName = agent.name || "Assistente";
+  const language = agent.language;
+  const locale = checkoutLocale(language);
+  const serviceFeeCopy = buyerServiceFeeCopy(language);
 
   const statusLabels: Record<string, string> = {
     awaiting: "Aguardando",
@@ -36,14 +40,19 @@ export function SmartCart() {
   };
 
   const formatPrice = (value: number) =>
-    new Intl.NumberFormat("pt-BR", {
+    new Intl.NumberFormat(locale, {
       style: "currency",
       currency: "BRL",
     }).format(value);
 
   const cartCount = cart.items.reduce((s, i) => s + i.quantity, 0);
-  const finalTotal =
-    cart.total + (cart.shipping?.cost ?? 0) - cart.discount;
+  const calculatedTotal = checkoutTotalWithServiceFee({
+    subtotal: cart.total,
+    shipping: cart.shipping?.cost,
+    discount: cart.discount,
+    serviceFee: cart.serviceFee,
+  });
+  const finalTotal = cart.totalToPay ?? calculatedTotal;
 
   return (
     <div
@@ -405,6 +414,28 @@ export function SmartCart() {
           </div>
         )}
 
+        {cart.serviceFee > 0 && (
+          <div
+            data-testid="buyer-service-fee"
+            style={{
+              padding: "9px 2px",
+              borderTop: "1px solid var(--bd)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "14px" }}>
+              <span style={{ fontSize: "12px", color: "var(--mut)", lineHeight: 1.35 }}>
+                {serviceFeeCopy.label}
+              </span>
+              <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--tx)" }}>
+                {formatPrice(cart.serviceFee)}
+              </span>
+            </div>
+            <p style={{ margin: "4px 0 0", fontSize: "11px", color: "var(--mut)", lineHeight: 1.4 }}>
+              {serviceFeeCopy.notice}
+            </p>
+          </div>
+        )}
+
         {/* Total line */}
         <div
           style={{
@@ -424,7 +455,7 @@ export function SmartCart() {
               color: "var(--tx)",
             }}
           >
-            Total final
+            Total a pagar
           </span>
           <span
             style={{

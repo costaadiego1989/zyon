@@ -14,6 +14,7 @@ import type {
 import { DEFAULT_MERCHANT_THEME } from "@zyon/shared-types";
 import { deriveChatStage, missingFieldsForStage } from "../../domain/services/customer-extraction.service.js";
 import type { MerchantRules } from "@zyon/shared-types";
+import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
 
 export interface ExperienceInputs {
   merchant_id: string;
@@ -184,7 +185,7 @@ function readPlatformServiceFee(deps: ExperienceDeps): number {
   if (typeof deps.serviceFee === "number" && Number.isFinite(deps.serviceFee) && deps.serviceFee >= 0) {
     return deps.serviceFee;
   }
-  return 1.99;
+  return DEFAULT_PLATFORM_FEE_BRL;
 }
 
 export function buildCheckoutExperience(input: ExperienceInputs, deps: ExperienceDeps): CheckoutExperienceSnapshot {
@@ -198,6 +199,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
   const subtotal = input.cart.total;
   const total = Math.max(0, roundMoney(subtotal + shipping - discount));
   const serviceFee = readPlatformServiceFee(deps);
+  const totalToPay = roundMoney(total + serviceFee);
   const agentIdentity = deps.agent?.agent;
   const agentName = deps.theme?.agentName || agentIdentity?.agentName || "Assistente AACP";
   const cartEmpty = input.cart.items.length === 0;
@@ -249,6 +251,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
       shipping: roundMoney(shipping),
       discount: roundMoney(discount),
       service_fee: serviceFee,
+      total_to_pay: totalToPay,
       total
     },
     shipping: input.shipping,
@@ -263,7 +266,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
     },
     copy: {
       headline: `${merchantName}: finalize sua compra com ajuda da IA`,
-      subheadline: `${items.length} item(ns) no pedido, total ${formatMoney(total, input.cart.currency)} com contexto real do carrinho.`,
+      subheadline: `${items.length} item(ns) no pedido, total a pagar ${formatMoney(totalToPay, input.cart.currency)} com contexto real do carrinho.`,
       trust_badges: [],
       quick_replies: quickRepliesForStage(chatStage, deps.missingFieldsPreview ?? [], deps.rules, cartSnapshot),
       focus_input: chatStage !== "completed",

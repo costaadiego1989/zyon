@@ -1,5 +1,6 @@
 import { useCheckoutStore } from "@/store/checkout-store";
 import { PulseAgentOrb } from "./PulseAgentOrb";
+import { buyerServiceFeeCopy, checkoutLocale, checkoutTotalWithServiceFee } from "@/lib/checkout-totals";
 
 function translateShippingLabel(label: string): string {
   const translations: Record<string, string> = {
@@ -19,11 +20,12 @@ function translateShippingLabel(label: string): string {
 export function OrderConfirmation() {
   const cart = useCheckoutStore((s) => s.cart);
   const brand = useCheckoutStore((s) => s.brand);
+  const agent = useCheckoutStore((s) => s.agent);
 
   const storeName = brand.name || "Loja";
 
   const formatPrice = (value: number) =>
-    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+    new Intl.NumberFormat(checkoutLocale(agent.language), { style: "currency", currency: "BRL" }).format(value);
 
   const handleBackToStore = () => {
     const storeUrl =
@@ -57,12 +59,18 @@ export function OrderConfirmation() {
         {cart.shipping && (
           <div className="order-confirmation__line">
             <span>Frete · {translateShippingLabel(cart.shipping.label)}</span>
-            <span>{cart.shipping.cost === 0 ? "Grátis" : formatPrice(cart.shipping.cost / 100)}</span>
+            <span>{cart.shipping.cost === 0 ? "Grátis" : formatPrice(cart.shipping.cost)}</span>
+          </div>
+        )}
+        {cart.serviceFee > 0 && (
+          <div className="order-confirmation__line">
+            <span>{buyerServiceFeeCopy(agent.language).label}</span>
+            <span>{formatPrice(cart.serviceFee)}</span>
           </div>
         )}
         <div className="order-confirmation__total">
           <span>Total pago</span>
-          <span>{formatPrice(cart.total + (cart.shipping?.cost ?? 0) / 100 - cart.discount)}</span>
+          <span>{formatPrice(checkoutTotalWithServiceFee({ subtotal: cart.total, shipping: cart.shipping?.cost, discount: cart.discount, serviceFee: cart.serviceFee }))}</span>
         </div>
       </div>
 

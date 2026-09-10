@@ -64,6 +64,25 @@ test("StartCheckoutUseCase creates session, records start event, and appends out
   assert.equal(repository.listOutbox("mrc_1")[0]?.event_type, "checkout.session.started");
 });
 
+test("StartCheckoutUseCase exposes the configured buyer service fee without adding it twice to the order total", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  const useCase = createStartCheckoutUseCase(repository, repository, {
+    experienceConfig: { platformFeeBrl: 1.37 },
+  });
+  const response = await useCase.execute(startCheckoutRequest({
+    session_id: "chk_service_fee",
+    cart: {
+      currency: "BRL",
+      total: 45,
+      items: [{ sku: "ZYON-SHIRT-001", name: "Camiseta Zyon", price: 45, quantity: 1 }],
+    },
+  }));
+
+  assert.equal(response.experience.totals.service_fee, 1.37);
+  assert.equal(response.experience.totals.total, 45);
+  assert.equal(response.experience.totals.total_to_pay, 46.37);
+});
+
 test("StartCheckoutUseCase does not resolve a buyer identity from unverified checkout hints", async () => {
   const repository = new InMemoryCheckoutRepository();
   const useCase = createStartCheckoutUseCase(repository, repository);

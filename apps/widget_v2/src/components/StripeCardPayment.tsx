@@ -3,6 +3,7 @@ import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 import { useCheckoutStore } from "@/store/checkout-store";
 import { usePaymentViewModel } from "@/viewModels/usePaymentViewModel";
+import { buyerServiceFeeCopy, checkoutLocale } from "@/lib/checkout-totals";
 
 const STRIPE_PK = (typeof window !== "undefined" && window.__STRIPE_PK__)
   || import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
@@ -20,6 +21,8 @@ function CardForm() {
   const paymentIntent = useCheckoutStore((s) => s.paymentIntent);
   const api = useCheckoutStore((s) => s.api);
   const brand = useCheckoutStore((s) => s.brand);
+  const cart = useCheckoutStore((s) => s.cart);
+  const language = useCheckoutStore((s) => s.agent.language);
   const [clientError, setClientError] = useState<string | null>(null);
 
   const vm = usePaymentViewModel({
@@ -90,6 +93,18 @@ function CardForm() {
   return (
     <form onSubmit={(e) => void handleSubmit(e)} className="stripe-payment">
       <h3 className="stripe-payment__title">Cartão de Crédito</h3>
+      {paymentIntent?.amount_cents && (
+        <p style={{ display: "flex", justifyContent: "space-between", gap: 12, margin: "0 0 10px", fontSize: 13 }}>
+          <span>Total a pagar</span>
+          <strong>{new Intl.NumberFormat(checkoutLocale(language), { style: "currency", currency: "BRL" }).format(paymentIntent.amount_cents / 100)}</strong>
+        </p>
+      )}
+      {cart.serviceFee > 0 && (
+        <p data-testid="buyer-service-fee-notice" style={{ margin: "0 0 12px", color: "var(--aacp-muted, #64748b)", fontSize: 12, lineHeight: 1.4 }}>
+          <strong>{buyerServiceFeeCopy(language).label}: {new Intl.NumberFormat(checkoutLocale(language), { style: "currency", currency: "BRL" }).format(cart.serviceFee)}.</strong>{" "}
+          {buyerServiceFeeCopy(language).notice}
+        </p>
+      )}
       <div className="stripe-payment__card-wrapper">
         <CardElement options={{ style: cardStyle, hidePostalCode: true }} />
       </div>

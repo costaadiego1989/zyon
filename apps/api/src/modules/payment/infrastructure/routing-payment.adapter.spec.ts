@@ -212,6 +212,36 @@ test("RoutingPaymentAdapter: uses tenant-specific Asaas key from platform connec
   assert.ok(fetchedUrl.includes("asaas-api.test"));
 });
 
+test("RoutingPaymentAdapter: rejects a tenant Asaas wallet that matches the platform wallet", async () => {
+  const previousPlatformWallet = process.env.ASAAS_PLATFORM_WALLET_ID;
+  process.env.ASAAS_PLATFORM_WALLET_ID = "wallet_platform";
+  try {
+    const platformRepo = new InMemoryPaymentPlatformRepository();
+    await platformRepo.saveConnection({
+      merchantId: "mrc_tenant",
+      provider: "asaas",
+      environment: "live",
+      status: "active",
+      walletId: "wallet_platform",
+      secret: "tenant_api_key"
+    });
+    const adapter = new RoutingPaymentAdapter(
+      null, null, null as unknown as MercadoPagoPaymentAdapter,
+      new FakeCrypto() as unknown as EvmCryptoPaymentAdapter,
+      platformRepo,
+      "https://asaas-api.test"
+    );
+
+    await assert.rejects(
+      () => adapter.preparePayment(baseInput({ merchantId: "mrc_tenant", method: "pix", platformFeeCents: 99 })),
+      /asaas_merchant_wallet_matches_platform_wallet/
+    );
+  } finally {
+    if (previousPlatformWallet === undefined) delete process.env.ASAAS_PLATFORM_WALLET_ID;
+    else process.env.ASAAS_PLATFORM_WALLET_ID = previousPlatformWallet;
+  }
+});
+
 test("RoutingPaymentAdapter: createCustomer delegates to Asaas", async () => {
   const asaas = new FakeAsaas();
   const crypto = new FakeCrypto();

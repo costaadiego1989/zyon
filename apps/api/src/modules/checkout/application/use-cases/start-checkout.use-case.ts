@@ -14,7 +14,6 @@ import {
   CHECKOUT_CROSS_SELL_RECOMMENDER,
   type CheckoutCrossSellRecommenderPort
 } from "../../domain/ports/cross-sell-recommender.port.js";
-import { BUYER_SERVICE_FEE_CENTS } from "../../../payment/domain/billing-plans.js";
 import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
 import { BuyerResolutionService } from "../services/buyer-resolution.service.js";
 import { BuyerContextService } from "../services/buyer-context.service.js";
@@ -110,7 +109,7 @@ export class StartCheckoutUseCase {
         rules: merchantRules,
         showBranding,
         voiceEnabled,
-        serviceFee: BUYER_SERVICE_FEE_CENTS / 100, // R$0,99 fixo, todos os planos
+        serviceFee: this.experienceConfig.platformFeeBrl,
         suggestedProducts,
         stripeConnectAccountId: merchant?.stripeConnectAccountId,
         cryptoPaymentsEnabled: !!(merchantRules as any)?.cryptoPayments?.enabled,

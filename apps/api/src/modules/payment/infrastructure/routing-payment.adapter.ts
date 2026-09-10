@@ -214,12 +214,18 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
         ? (process.env.ASAAS_BASE_URL_SANDBOX?.trim() || "https://api-sandbox.asaas.com")
         : this.asaasBaseUrl;
       const platformWallet = (isSandbox ? process.env.ASAAS_PLATFORM_WALLET_ID_TEST : process.env.ASAAS_PLATFORM_WALLET_ID)?.trim();
+      const merchantWallet = connection?.walletId?.trim();
+      // A merchant connection must never use the platform's wallet. Omitting
+      // the split in that case would retain the full charge in the platform.
+      if (platformWallet && merchantWallet === platformWallet) {
+        throw new Error("asaas_merchant_wallet_matches_platform_wallet");
+      }
       return new AsaasPaymentAdapter(
         baseUrl,
         tenantKey,
         this.fetchImpl,
-        connection?.walletId === platformWallet ? undefined : platformWallet,
-        !platformWallet || connection?.walletId !== platformWallet,
+        platformWallet,
+        !platformWallet,
       );
     }
     return this.asaas;

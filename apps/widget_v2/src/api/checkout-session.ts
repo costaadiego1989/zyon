@@ -74,6 +74,7 @@ export interface BrandTheme {
 export interface AgentConfig {
   name?: string;
   greeting?: string;
+  language?: string;
 }
 
 export interface BuyerConfig {
@@ -118,7 +119,7 @@ export interface SuggestedProduct {
 
 export interface Experience {
   items?: Array<{ sku: string; name: string; quantity: number; unit_price: number; image_url?: string; variant?: string }>;
-  totals?: { subtotal: number; discount: number; total: number };
+  totals?: { subtotal: number; shipping?: number; discount: number; service_fee?: number; total_to_pay?: number; total: number };
   brand?: BrandConfig;
   agent?: AgentConfig;
   buyer?: BuyerConfig;
@@ -137,12 +138,18 @@ export interface StartResponse {
   experience?: Experience;
 }
 
-export function cartFromExperience(experience: Experience | undefined): { items: CartItem[]; total: number; discount: number } {
+export function cartFromExperience(experience: Experience | undefined): { items: CartItem[]; total: number; discount: number; serviceFee: number; totalToPay?: number } {
   if (!experience?.items || !experience.totals) throw new Error("checkout_cart_snapshot_missing");
   return {
     items: experience.items.map(item => ({ sku: item.sku, name: item.name, quantity: item.quantity, price: item.unit_price, imageUrl: item.image_url, variant: item.variant })),
     total: experience.totals.subtotal,
     discount: experience.totals.discount,
+    serviceFee: typeof experience.totals.service_fee === "number" && Number.isFinite(experience.totals.service_fee) && experience.totals.service_fee >= 0
+      ? experience.totals.service_fee
+      : 0,
+    totalToPay: typeof experience.totals.total_to_pay === "number" && Number.isFinite(experience.totals.total_to_pay) && experience.totals.total_to_pay >= 0
+      ? experience.totals.total_to_pay
+      : undefined,
   };
 }
 
@@ -249,7 +256,7 @@ export class CheckoutSession {
     return data;
   }
 
-  async fetchCart(): Promise<{ items: CartItem[]; total: number; discount: number }> {
+  async fetchCart(): Promise<{ items: CartItem[]; total: number; discount: number; serviceFee: number; totalToPay?: number }> {
     return cartFromExperience(this.experience);
   }
 
