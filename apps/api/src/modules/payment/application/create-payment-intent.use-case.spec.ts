@@ -489,3 +489,18 @@ test("CreatePaymentIntentUseCase rejects when Asaas is configured but session bu
     }
   }
 });
+
+test("Asaas and crypto receive buyer fee plus merchant fee exactly once", async () => {
+  for (const method of ["pix", "crypto"] as const) {
+    const checkout = new InMemoryCheckoutRepository();
+    await checkout.saveSession(checkoutSession({ customer: { email: "buyer@example.com", asaasCustomerId: "cus_fixture_1" } }));
+    const provider = new CapturingPaymentProvider();
+    const billing = { getSubscription: async () => ({ status: "starter", planKey: "starter" }) } as unknown as BillingPlanMeteringService;
+    const uc = new CreatePaymentIntentUseCase(checkout, checkout, new InMemoryPaymentRepository(checkout), provider, undefined, undefined, undefined, undefined, undefined, undefined, billing);
+    const result = await uc.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "fee-" + method, method });
+    assert.equal(provider.inputs[0].platformFeeCents, 398);
+    assert.equal(result.amountCents, 33599);
+    await uc.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "fee-" + method, method });
+    assert.equal(provider.inputs.length, 1);
+  }
+});

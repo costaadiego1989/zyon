@@ -33,6 +33,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
         id: p.id,
         name: p.name,
         description: p.description,
+        ruleNotices: p.ruleNotices,
         price,
         priceFormatted: formatPrice(price),
         image: p.image,
@@ -68,6 +69,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
             id: p.id,
             name: p.name,
             description: p.description,
+            ruleNotices: p.ruleNotices,
             price: p.price,
             priceFormatted: formatPrice(p.price),
             image: p.image,
@@ -109,6 +111,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           id: p.id,
           name: p.name,
           description: p.description,
+          ruleNotices: p.ruleNotices,
           price,
           priceFormatted: formatPrice(price),
           image: Array.isArray(p.images) ? p.images[0] : p.image ?? p.media?.find((media: { type?: string }) => media.type === "IMAGE")?.url,
@@ -141,31 +144,6 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
     }
   }
   const skipCartBlock = !!toolResults["quote_shipping"];
-  if (toolResults["get_cart"] && !skipCartBlock) {
-    const cartData = toolResults["get_cart"] as any;
-    if (cartData?.items?.length > 0) {
-      blocks.push({
-        type: "cart_summary",
-        data: {
-          cartId: cartData.cartId,
-          items: cartData.items.map((i: any) => ({
-            variantId: i.variantId,
-            productName: i.name,
-            quantity: i.quantity,
-            price: i.unitPrice,
-            subtotal: i.lineTotal ?? i.unitPrice * i.quantity,
-          })),
-          itemCount: cartData.itemCount,
-          subtotal: cartData.total,
-          discount: cartData.discount,
-          freeShipping: cartData.freeShipping ?? false,
-          total: cartData.total - (cartData.discount ?? 0),
-          nextNudge: cartData.nextNudge ?? undefined,
-          activeRules: cartData.activeRules ?? undefined,
-        }
-      });
-    }
-  }
  
   const couponResult = (toolResults["apply_coupon"] ?? toolResults["remove_coupon"]) as any;
   if (couponResult?.applied && couponResult?.items?.length > 0 && !skipCartBlock) {
@@ -190,9 +168,10 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
     });
   }
 
-  if (toolResults["add_item_to_cart"] && !skipCartBlock) {
-    const cartData = toolResults["add_item_to_cart"] as any;
-    if (cartData?.items?.length > 0) {
+  const latestCart = toolResults["clear_cart"] ?? toolResults["update_cart_item"] ?? toolResults["remove_cart_item"] ?? toolResults["add_item_to_cart"] ?? toolResults["get_cart"];
+  if (latestCart) {
+    const cartData = latestCart as any;
+    if (Array.isArray(cartData?.items) && !couponResult?.applied) {
       blocks.push({
         type: "cart_summary",
         data: {
@@ -214,12 +193,16 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
         }
       });
     }
+  }
+  const suggestionData = (toolResults["add_item_to_cart"] ?? toolResults["get_product_details"]) as any;
+  if (suggestionData) {
+    const cartData = suggestionData;
     if (cartData?.crossSellSuggestions?.length > 0) {
       const formatPrice = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
       blocks.push({
         type: "cross_sell",
         data: {
-          trigger: "Complete seu pedido e economize — quem levou este produto também garantiu:",
+          trigger: "Produtos que podem complementar seu pedido",
           displayMode: cartData.crossSellDisplayMode ?? "interstitial",
           products: cartData.crossSellSuggestions.map((p: any) => ({
             id: p.sku,

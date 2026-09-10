@@ -7,6 +7,7 @@ function makeController(product: unknown) {
   const prisma = {
     merchant: { findFirst: async () => ({ id: "merchant-1", storeSlug: "demo" }) },
     product: { findFirst: async () => product },
+    checkoutSetting: { findUnique: async () => ({ advancedRules: [] }) },
   } as unknown as PrismaClient;
   const content = { execute: async () => ({ locale: "pt-BR", blocks: [], faqs: [], testimonials: [], videos: [] }) };
   const billing = { getEffectivePlan: async () => "starter" };

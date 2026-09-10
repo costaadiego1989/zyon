@@ -1,8 +1,13 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import type { ProductEntity } from "../../domain/entities/product.entity.js";
 import type { ProductRepositoryPort } from "../../domain/ports/product-repository.port.js";
 
+import { CHECKOUT_SETTINGS_REPOSITORY, type CheckoutSettingsRepository } from "../../../checkout-settings/domain/ports/checkout-settings-repository.port.js";
+import { productRuleNotices } from "../../../storefront/domain/services/advanced-rule-notices.js";
+import type { AdvancedRule } from "../../../checkout/domain/services/advanced-rule-evaluator.service.js";
+
 export interface PublicStorefrontProduct {
+  ruleNotices?: Array<{ ruleId?: string; message: string }>;
   id: string;
   name: string;
   description?: string;
@@ -28,6 +33,7 @@ export interface PublicStorefrontProduct {
 export class ListPublicStorefrontProductsUseCase {
   constructor(
     @Inject("ProductRepositoryPort") private readonly products: ProductRepositoryPort,
+    @Optional() @Inject(CHECKOUT_SETTINGS_REPOSITORY) private readonly settings?: CheckoutSettingsRepository,
   ) {}
 
   async execute(input: {
@@ -47,8 +53,9 @@ export class ListPublicStorefrontProductsUseCase {
       isActiveOnly: true,
     });
 
+    const rules = (await this.settings?.get(input.merchantId))?.advancedRules ?? [];
     return {
-      products: page.products.map((product) => this.toPublicProduct(product)),
+      products: page.products.map((product) => this.toPublicProduct(product, rules as AdvancedRule[])),
       nextCursor: page.nextCursor,
     };
   }
@@ -56,10 +63,11 @@ export class ListPublicStorefrontProductsUseCase {
   async get(merchantId: string, productId: string): Promise<PublicStorefrontProduct> {
     const product = await this.products.findById(merchantId, productId);
     if (!product || !product.isActive) throw new NotFoundException("storefront_product_not_found");
-    return this.toPublicProduct(product);
+    const rules = (await this.settings?.get(merchantId))?.advancedRules ?? [];
+    return this.toPublicProduct(product, rules as AdvancedRule[]);
   }
 
-  private toPublicProduct(product: ProductEntity): PublicStorefrontProduct {
+  private toPublicProduct(product: ProductEntity, rules: AdvancedRule[]): PublicStorefrontProduct {
     const sellableVariants = product.variants.filter((variant) => variant.isActive);
     const firstVariant = sellableVariants[0];
     const images = sellableVariants
@@ -71,8 +79,10 @@ export class ListPublicStorefrontProductsUseCase {
       ? sellableVariants.length > 0
       : sellableVariants.some((variant) => variant.stockQuantity > variant.stockReserved);
 
+    const ruleNotices = productRuleNotices(rules, sellableVariants.map((v) => v.sku), product.id);
     return {
       id: product.id,
+      ...(ruleNotices.length ? { ruleNotices } : {}),
       name: product.name,
       description: product.description,
       type: product.type,

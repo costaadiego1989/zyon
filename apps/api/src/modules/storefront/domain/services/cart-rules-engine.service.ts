@@ -49,12 +49,12 @@ export function buildCartRuleContext(
   const cartItemCount = cart.items.reduce((sum, i) => sum + i.quantity, 0);
   return {
     cartTotal: cartTotalReais,
-    shippingCost: 0,
+    shippingCost: Number.NaN, // Shipping is unknown before a real quote; zero would match free-shipping conditions.
     cartItemCount,
     skusInCart: cart.items.map((i) => i.sku ?? i.variantId),
     categoriesInCart: opts?.categoriesInCart ?? [],
     couponApplied: opts?.couponApplied ?? Boolean(cart.couponCode),
-    buyerType: opts?.buyerType ?? "returning",
+    buyerType: opts?.buyerType ?? "unknown",
     paymentMethod: opts?.paymentMethod,
   };
 }

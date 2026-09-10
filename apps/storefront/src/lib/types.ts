@@ -1,6 +1,7 @@
 export interface ProductCardBlock {
   type: "product_card";
   data: {
+    ruleNotices?: Array<{ ruleId?: string; message: string }>;
     id: string;
     name: string;
     price: number;

@@ -7,9 +7,10 @@ import {
   PAYMENT_PLATFORM_REPOSITORY,
   type PaymentPlatformRepository,
 } from "../../../domain/ports/payment-platform-repository.port.js";
-import { BILLING_PLANS, BUYER_SERVICE_FEE_CENTS, effectiveBillingPlan, freeTrialState, merchantTransactionFeeCentsFor } from "../../../domain/billing-plans.js";
+import { BILLING_PLANS, effectiveBillingPlan, freeTrialState, merchantTransactionFeeCentsFor } from "../../../domain/billing-plans.js";
 import { BillingPlanMeteringService } from "../../../domain/billing-plan-guard.js";
 import type { BillingSubscriptionWithPlanSnapshot } from "../../../domain/payment-platform.types.js";
+import { readBuyerServiceFeeCents } from "../../../infrastructure/stripe-env.js";
 import { scheduleTrialExpiration } from "../shared.js";
 
 @Injectable()
@@ -38,7 +39,7 @@ export class GetBillingSubscriptionUseCase {
       transactionFeeCents: merchantTransactionFeeCentsFor(subscription),
       trialExpired: trial.expired,
       trialDaysRemaining: trial.daysRemaining,
-      buyerServiceFeeCents: BUYER_SERVICE_FEE_CENTS,
+      buyerServiceFeeCents: readBuyerServiceFeeCents(),
       limits: config.limits,
       features: config.features,
       usage,

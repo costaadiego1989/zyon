@@ -222,13 +222,13 @@ export const DEFAULT_MERCHANT_RULES: MerchantRules = {
   autonomousEngineEnabled: true
 };
 
-export type CrossSellTouchpoint = "browsing" | "pre_cart" | "pre_payment" | "post_purchase";
+export type CrossSellTouchpoint = "browsing" | "pre_cart" | "post_cart" | "pre_payment" | "post_purchase";
 export type CrossSellStrategy = "same_category" | "bought_together" | "cart_value_upgrade" | "complementary" | "ai_personalized";
 export type CrossSellDisplayMode = "inline" | "modal" | "banner" | "interstitial";
 
 export interface CrossSellConfig {
   enabled: boolean;
-  touchpoints: Record<CrossSellTouchpoint, boolean>;
+  touchpoints: Record<Exclude<CrossSellTouchpoint, "post_cart">, boolean> & { post_cart?: boolean };
   strategies: CrossSellStrategy[];
   limits: {
     maxSuggestionsPerSession: number;
@@ -247,7 +247,7 @@ export interface CrossSellConfig {
 
 export const DEFAULT_CROSS_SELL_CONFIG: CrossSellConfig = {
   enabled: false,
-  touchpoints: { browsing: true, pre_cart: false, pre_payment: true, post_purchase: false },
+  touchpoints: { browsing: true, pre_cart: false, post_cart: false, pre_payment: true, post_purchase: false },
   strategies: ["same_category", "ai_personalized"],
   limits: { maxSuggestionsPerSession: 2, cooldownSeconds: 120 },
   discount: { enabled: false, percent: 10 },
@@ -1319,6 +1319,7 @@ export interface RuleAction {
 }
 
 export interface AdvancedRule {
+  productId?: string;
   id: string;
   name: string;
   conditions: RuleCondition[];

@@ -127,3 +127,25 @@ export function mergeProductRules(
 
   return result;
 }
+
+/** Legacy rules are recognized only by an exact, positive product SKU scope. */
+export function isRuleForProduct(rule: AdvancedRule, productId: string, skus: string[]): boolean {
+  if (rule.productId) return rule.productId === productId;
+  return rule.conditions.some((c) => {
+    const values = Array.isArray(c.value) ? c.value : [String(c.value)];
+    return c.field === "product_in_cart" && c.operator === "contains"
+      && values.length > 0 && values.every((sku) => skus.includes(sku));
+  });
+}
+
+export function replaceProductRules(existing: AdvancedRule[], incoming: AdvancedRule[], productId: string, skus: string[]): AdvancedRule[] {
+  const unrelated = existing.filter((rule) => !isRuleForProduct(rule, productId, skus));
+  if (incoming.some((rule) => rule.id && unrelated.some((other) => other.id === rule.id))) {
+    throw new Error("product_rule_id_conflict");
+  }
+  return [...unrelated, ...incoming.map((rule) => ({
+    ...rule,
+    productId,
+    conditions: [...rule.conditions, { field: "product_in_cart", operator: "contains", value: skus.length === 1 ? skus[0]! : [...skus] }],
+  }))];
+}

@@ -124,6 +124,7 @@ export class CheckoutCrossSellRecommender implements CheckoutCrossSellRecommende
     const map: Record<string, keyof CrossSellConfig["touchpoints"]> = {
       browsing: "browsing",
       pre_cart: "pre_cart",
+      post_cart: "post_cart",
       pre_payment: "pre_payment",
       post_purchase: "post_purchase",
     };

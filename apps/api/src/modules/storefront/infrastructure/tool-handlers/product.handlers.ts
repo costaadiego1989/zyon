@@ -5,9 +5,17 @@ import type { MerchantRepository } from "../../../merchant/domain/ports/merchant
 import type { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
 import type { PrismaClient } from "@prisma/client";
 import { extractOptionGroups } from "../../domain/food-options.js";
+import { loadProductNoticeRules, productRuleNotices } from "../product-rule-notices.js";
 import { productGallery } from "../product-gallery.js";
 
+import { buildCrossSellSuggestions, type CrossSellConfig } from "./cart-cross-sell.helper.js";
+import type { StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
+import type { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
+
 export interface ProductHandlerDeps {
+  cartRepo?: StorefrontCartPort;
+  loadCrossSellConfig?: (merchantId: string) => Promise<CrossSellConfig>;
+  listEligibleCrossSells?: ListEligibleCrossSellsUseCase;
   productRepo: ProductRepositoryPort;
   stockRepo: StockRepositoryPort;
   merchantRepo: MerchantRepository;
@@ -28,6 +36,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
         limit: Math.min(args.limit ?? 10, 20)
       });
 
+      const noticeRules = await loadProductNoticeRules(deps.prisma, ctx.merchantId);
       const localProducts = result.products.map((p) => ({
         id: p.id,
         name: p.name,
@@ -47,6 +56,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
           stockQuantity: v.stockQuantity,
         })),
         optionGroups: extractOptionGroups(p.metadata),
+        ruleNotices: productRuleNotices(noticeRules, p.variants.map((v) => v.sku), p.id),
         source: "local" as const,
       }));
 
@@ -105,12 +115,20 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
     getProductDetails: async (args) => {
       const product = await deps.productRepo.findById(ctx.merchantId, args.productId);
       if (!product) return { error: "product_not_found" };
+      const noticeRules = await loadProductNoticeRules(deps.prisma, ctx.merchantId);
+      const config = await deps.loadCrossSellConfig?.(ctx.merchantId);
+      const crossSellSuggestions = config?.enabled && config.touchpoints.pre_cart && deps.cartRepo
+        ? await buildCrossSellSuggestions(deps, ctx.merchantId, await deps.cartRepo.getOrCreate(ctx.merchantId, ctx.sessionId), config, product.name)
+        : [];
       return {
+        crossSellSuggestions,
+        crossSellDisplayMode: "inline",
         product: {
           id: product.id,
           name: product.name,
           description: product.description,
           type: product.type,
+          ruleNotices: productRuleNotices(noticeRules, product.variants.filter((v) => v.isActive).map((v) => v.sku), product.id),
           variants: product.variants,
           optionGroups: extractOptionGroups(product.metadata),
           media: product.defaultVariant?.media ?? [],

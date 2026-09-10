@@ -104,7 +104,7 @@ export class StoreSettingsController {
     const user = currentUser(req);
     const merchant = await this.prisma.merchant.findUnique({ where: { id: user.merchantId }, select: { storeSettings: true } });
     const settings = (merchant?.storeSettings as Record<string, any>) ?? {};
-    return { ...DEFAULT_CROSS_SELL_CONFIG, ...settings.crossSell };
+    return { ...DEFAULT_CROSS_SELL_CONFIG, ...settings.crossSell, touchpoints: { ...DEFAULT_CROSS_SELL_CONFIG.touchpoints, ...settings.crossSell?.touchpoints } };
   }
 
   @Put("me/cross-sell-config")
@@ -113,7 +113,7 @@ export class StoreSettingsController {
     const user = currentUser(req);
     const merchant = await this.prisma.merchant.findUnique({ where: { id: user.merchantId }, select: { storeSettings: true } });
     const settings = (merchant?.storeSettings as Record<string, any>) ?? {};
-    const current = { ...DEFAULT_CROSS_SELL_CONFIG, ...settings.crossSell };
+    const current = { ...DEFAULT_CROSS_SELL_CONFIG, ...settings.crossSell, touchpoints: { ...DEFAULT_CROSS_SELL_CONFIG.touchpoints, ...settings.crossSell?.touchpoints } };
     const updated: CrossSellConfig = {
       ...current,
       ...body,

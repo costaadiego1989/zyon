@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Get,
   Put,
   Patch,
   Delete,
@@ -129,6 +130,11 @@ export class ProductPromotionController {
    * SKUs and merged into the merchant's checkout-settings advancedRules (consumed by
    * the existing CartRulesEngine at cart time).
    */
+  @Get(":mid/products/:pid/advanced-rules")
+  async getRules(@Param("mid") merchantId: string, @Param("pid") productId: string) {
+    return { rules: await this.upsertAdvancedRules.get(merchantId, productId) };
+  }
+
   @Put(":mid/products/:pid/advanced-rules")
   @UseGuards(PlanLimitGuard)
   @RequirePlanFeature("advancedRules")

@@ -32,6 +32,7 @@ export interface RuleAction {
 
 export interface AdvancedRule {
   id?: string;
+  productId?: string;
   enabled: boolean;
   priority: number;
   conditions: RuleCondition[];

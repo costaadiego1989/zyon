@@ -151,14 +151,13 @@ test("proximity: matching-but-not-applied rules do NOT show as active", () => {
   assert.equal(res.active[0].ruleId, "r-disc");
 });
 
-test("proximity: smallest-gap rule wins when multiple unmet", () => {
+test("proximity: a rule shadowed by the current priority winner is not promised", () => {
   const prox = new RuleProximityEngine();
   // cart R$160: discount needs >100 (already met → active), free shipping needs >=200 (gap 40)
   const c = cart(16000);
   const res = prox.compute([DISCOUNT_RULE, FREE_SHIPPING_RULE], buildCartRuleContext(c), "r-disc");
   // discount rule satisfied (active), free shipping is the next nudge
-  assert.equal(res.nextNudge?.ruleId, "r-ship");
-  assert.equal(Math.round(res.nextNudge?.gap ?? 0), 40);
+  assert.equal(res.nextNudge, null);
 });
 
 test("proximity: cart_item_count gap nudge", () => {
@@ -174,4 +173,33 @@ test("proximity: cart_item_count gap nudge", () => {
   const res = prox.compute([itemRule], buildCartRuleContext(c));
   assert.equal(res.nextNudge?.kind, "cart_item_count");
   assert.equal(res.nextNudge?.gap, 2);
+});
+
+test("proximity: strict thresholds require another cent or item", () => {
+  const prox = new RuleProximityEngine();
+  assert.equal(prox.compute([DISCOUNT_RULE], buildCartRuleContext(cart(10000))).nextNudge?.gap, 0.01);
+  const quantity = { ...DISCOUNT_RULE, conditions: [{ field: "cart_item_count", operator: ">", value: 2 }] };
+  assert.equal(prox.compute([quantity], buildCartRuleContext(cart(10000, 2))).nextNudge?.gap, 1);
+});
+
+test("proximity: combined unmet conditions never promise a numeric gap alone", () => {
+  const rule = { ...DISCOUNT_RULE, conditions: [...DISCOUNT_RULE.conditions, { field: "payment_method", operator: "==", value: "pix" }] };
+  const nudge = new RuleProximityEngine().compute([rule], buildCartRuleContext(cart(5000))).nextNudge;
+  assert.equal(nudge?.reachable, false);
+  assert.match(nudge?.message ?? "", /Pix/);
+  assert.match(nudge?.message ?? "", /100,00/);
+});
+
+test("proximity: active badge reports the amount authorized after caps", () => {
+  const result = new RuleProximityEngine().compute([DISCOUNT_RULE], buildCartRuleContext(cart(20000)), "r-disc", { discountCents: 1000, freeShipping: false });
+  assert.match(result.active[0].message, /10,00/);
+  assert.doesNotMatch(result.active[0].message, /15%/);
+});
+
+test("unknown buyer and shipping do not satisfy returning/free quote rules", () => {
+  const c = cart(20000);
+  const engine = new CartRulesEngine();
+  for (const condition of [{ field: "buyer_type", operator: "==", value: "returning" }, { field: "shipping_cost", operator: "==", value: 0 }]) {
+    assert.equal(engine.evaluate(c, [{ ...DISCOUNT_RULE, conditions: [condition] }], MERCHANT_RULES, buildCartRuleContext(c)).discountCents, 0);
+  }
 });

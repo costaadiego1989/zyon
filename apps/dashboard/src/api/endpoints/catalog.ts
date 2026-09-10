@@ -154,6 +154,7 @@ export interface ProductPromotion {
 
 /** An advanced rule as consumed by the product advanced-rules endpoint. */
 export interface ProductAdvancedRule {
+  productId?: string;
   id: string;
   name: string;
   conditions: Array<{ field: string; operator: string; value: string | number | boolean }>;
@@ -362,6 +363,9 @@ export function catalogEndpoints(base: string, f: typeof fetch) {
         { method: "DELETE" },
         f,
       );
+    },
+    getProductAdvancedRules(merchantId: string, productId: string): Promise<{ rules: ProductAdvancedRule[] }> {
+      return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/products/${encodeURIComponent(productId)}/advanced-rules`, { method: "GET" }, f);
     },
     upsertProductAdvancedRules(merchantId: string, productId: string, payload: UpsertProductAdvancedRulesPayload): Promise<unknown> {
       return dashboardJson<unknown>(

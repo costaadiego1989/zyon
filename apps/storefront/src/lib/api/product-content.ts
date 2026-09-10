@@ -64,6 +64,7 @@ export interface ProductVideoResponse {
 
 /** Minimal server-authoritative input required for a rich-content purchase CTA. */
 export interface ProductContentPurchaseResponse {
+  ruleNotices?: Array<{ ruleId?: string; message: string }>;
   productName: string;
   description?: string | null;
   defaultVariantId: string | null;

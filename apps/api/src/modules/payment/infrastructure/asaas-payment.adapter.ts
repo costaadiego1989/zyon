@@ -100,6 +100,7 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
     private readonly apiKey: string,
     private readonly fetchImpl: typeof fetch,
     private readonly platformWalletId?: string,
+    private readonly requirePlatformSplit = false,
   ) {
     // Normalize: ASAAS_BASE_URL may already include the /v3 suffix (e.g.
     // https://www.asaas.com/api/v3). All methods build `${base}/v3/...`, so strip
@@ -292,7 +293,14 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
     return result.creditCardToken;
   }
 
+  validatePlatformFee(input: CreateProviderPaymentInput): void {
+    if (this.requirePlatformSplit && (input.platformFeeCents ?? 0) > 0 && !this.platformWalletId) {
+      throw new Error("asaas_platform_wallet_not_configured");
+    }
+  }
+
   async createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput> {
+    this.validatePlatformFee(input);
     const base = this.normalizedBaseUrl;
     if (input.currency !== "BRL") throw new Error("asaas_currency_unsupported");
     const billingType = billingFromMethod(input.method);

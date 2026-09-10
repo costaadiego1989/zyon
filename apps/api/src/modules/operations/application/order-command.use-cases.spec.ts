@@ -459,6 +459,8 @@ class StubOperationsRepository implements OperationsReadRepository {
     return [];
   }
 
+  async listCustomerPurchases() { return []; }
+
   async listCustomers() {
     return [];
   }
@@ -538,6 +540,8 @@ class PaymentBackedOperationsRepository
   async listOrders() {
     return [];
   }
+
+  async listCustomerPurchases() { return []; }
 
   async listCustomers() {
     return [];

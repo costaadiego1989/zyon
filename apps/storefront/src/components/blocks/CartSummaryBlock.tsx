@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import RuleNotices from "./RuleNotices";
 import type { CartSummaryBlock as CartSummaryBlockType } from "@/lib/types";
 import type { ActiveOffer } from "@/lib/cart-store";
 
@@ -32,6 +33,7 @@ export default function CartSummaryBlock({
   const lastItem = items[items.length - 1];
 
   return (
+    <>
     <div
       style={{
         background: "var(--aacp-surface-2)",
@@ -161,5 +163,7 @@ export default function CartSummaryBlock({
         </svg>
       </div>
     </div>
+    <RuleNotices live notices={[...(block.data.activeRules ?? []), ...(block.data.nextNudge ? [block.data.nextNudge] : [])]} />
+    </>
   );
 }

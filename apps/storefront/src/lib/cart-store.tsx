@@ -141,6 +141,9 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
           itemCount: data.itemCount,
           discount: data.discount ?? 0,
           total: baseTotal,
+          freeShipping: data.freeShipping,
+          nextNudge: data.nextNudge,
+          activeRules: data.activeRules,
           activeOffer,
           discountedTotal,
         });

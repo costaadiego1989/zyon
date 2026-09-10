@@ -52,7 +52,14 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
     private readonly publicKey: string | undefined,
     private readonly fetchImpl: typeof fetch,
     private readonly marketplaceSeller = false,
+    private readonly requirePlatformSplit = false,
   ) {}
+
+  validatePlatformFee(input: CreateProviderPaymentInput): void {
+    if (this.requirePlatformSplit && !this.marketplaceSeller && (input.platformFeeCents ?? 0) > 0) {
+      throw new Error("mercadopago_oauth_required_for_platform_fee");
+    }
+  }
 
   creationAccountFingerprint(): string { return createHash("sha256").update(`${this.apiBaseUrl}\0${this.accessToken}`).digest("hex"); }
 
@@ -107,6 +114,7 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
   }
 
   async createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput> {
+    this.validatePlatformFee(input);
     const base = this.apiBaseUrl.replace(/\/+$/, "");
     const paymentMethod = paymentMethodFromMethod(input.method);
 

@@ -140,6 +140,7 @@ export function RuleEditor({
   function handleSave() {
     if (!name.trim()) return;
     const newRule: AdvancedRule = {
+      productId: rule?.productId,
       id: rule?.id ?? crypto.randomUUID(),
       name: name.trim(),
       conditions,

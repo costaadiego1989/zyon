@@ -17,6 +17,7 @@ import {
   DEFAULT_PRODUCT_CONTENT_LOCALE,
   normalizeProductContentLocale,
 } from "../../../catalog/domain/entities/product-content-block.entity.js";
+import { loadProductNoticeRules, productRuleNotices } from "../../infrastructure/product-rule-notices.js";
 import { extractOptionGroups, toBlockOptionGroups } from "../../domain/food-options.js";
 
 export const SUPPORTED_PRODUCT_CONTENT_LOCALES = ["pt-BR", "en", "es"] as const;
@@ -136,6 +137,7 @@ export class StorefrontProductContentController {
           select: {
             id: true,
             attributes: true,
+            sku: true,
             price: { select: { basePriceInCents: true, currency: true } },
             media: {
               where: { type: "IMAGE" },
@@ -186,6 +188,7 @@ export class StorefrontProductContentController {
         lowStock: product.type === "physical" && availableQuantity > 0 && availableQuantity <= 5,
       };
     });
+    const noticeRules = await loadProductNoticeRules(this.prisma, merchant.id);
     const purchasableVariant = variants.find((variant) => variant.available);
 
     return {
@@ -193,6 +196,7 @@ export class StorefrontProductContentController {
       productId: product.id,
       purchase: {
             productName: product.name,
+            ruleNotices: productRuleNotices(noticeRules, product.variants.map((v) => v.sku), product.id),
             description: product.description,
             defaultVariantId: purchasableVariant?.id ?? null,
             priceReais: (purchasableVariant ?? variants[0])?.priceReais ?? null,

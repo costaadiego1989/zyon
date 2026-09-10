@@ -33,6 +33,7 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
 
   async preparePayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentInput> {
     const route = await this.creationRoute(input);
+    if (route.name === "asaas" || route.name === "mercadopago") (route.adapter as AsaasPaymentAdapter | MercadoPagoPaymentAdapter).validatePlatformFee?.(input);
     return { ...input, provider: route.name, providerAccountFingerprint: route.adapter.creationAccountFingerprint?.() };
   }
 
@@ -49,10 +50,12 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
   private async creationRoute(input: Pick<CreateProviderPaymentInput, "merchantId" | "method" | "provider">): Promise<{ name: NonNullable<CreateProviderPaymentInput["provider"]>; adapter: PaymentProviderPort }> {
     if (input.provider === "crypto" || (!input.provider && input.method === "crypto")) return { name: "crypto", adapter: this.evmCrypto };
     if (input.provider === "stripe" || (!input.provider && input.method === "card")) {
-      if (!this.stripe) throw new Error("payment_provider_not_configured");
-      return { name: "stripe", adapter: this.stripe };
+      // Existing intents remain pinned to their original account for reconciliation.
+      const stripe = input.provider === "stripe" ? this.stripe : await this.resolveStripe(input.merchantId);
+      if (stripe) return { name: "stripe", adapter: stripe };
+      if (input.provider === "stripe") throw new Error("payment_provider_not_configured");
     }
-    if (!input.provider || input.provider === "mercadopago") {
+    if ((!input.provider && input.method !== "card") || input.provider === "mercadopago") {
       const mp = await this.resolveMercadoPago(input.merchantId);
       if (mp) return { name: "mercadopago", adapter: mp };
       if (input.provider) throw new Error("payment_provider_not_configured");
@@ -210,12 +213,13 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
       const baseUrl = isSandbox
         ? (process.env.ASAAS_BASE_URL_SANDBOX?.trim() || "https://api-sandbox.asaas.com")
         : this.asaasBaseUrl;
-      const platformWallet = isSandbox ? process.env.ASAAS_PLATFORM_WALLET_ID_TEST : process.env.ASAAS_PLATFORM_WALLET_ID;
+      const platformWallet = (isSandbox ? process.env.ASAAS_PLATFORM_WALLET_ID_TEST : process.env.ASAAS_PLATFORM_WALLET_ID)?.trim();
       return new AsaasPaymentAdapter(
         baseUrl,
         tenantKey,
         this.fetchImpl,
         connection?.walletId === platformWallet ? undefined : platformWallet,
+        !platformWallet || connection?.walletId !== platformWallet,
       );
     }
     return this.asaas;
@@ -253,6 +257,7 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
         "",
         this.fetchImpl,
         oauthSeller,
+        true,
       );
     }
     return this.mercadopago;

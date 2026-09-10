@@ -292,3 +292,15 @@ import "./modules/dashboard/application/finance-dashboard.use-case.spec.js";
 if (process.env.E2E_SEED_ENABLED === "true") {
   await import("./modules/__test__/test-seed.controller.spec.js");
 }
+
+import "./modules/catalog/application/use-cases/upsert-product-advanced-rules.use-case.spec.js";
+
+import "./modules/catalog/domain/services/product-rule-scoping.service.spec.js";
+
+import "./modules/payment/infrastructure/payment-fees.spec.js";
+
+import "./modules/payment/infrastructure/routing-payment.adapter.spec.js";
+
+import "./modules/storefront/infrastructure/tool-handlers/commerce-rules-flow.spec.js";
+
+import "./modules/storefront/presentation/http/storefront-product-content.controller.spec.js";

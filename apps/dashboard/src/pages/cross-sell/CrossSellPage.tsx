@@ -7,7 +7,8 @@ import type { CrossSellTouchpoint, CrossSellStrategy, CrossSellDisplayMode } fro
 
 const TOUCHPOINT_LABELS: Record<CrossSellTouchpoint, { title: string; desc: string }> = {
   browsing: { title: "Durante navegação", desc: "IA sugere complementos enquanto buyer navega a loja" },
-  pre_cart: { title: "Antes do carrinho", desc: "Intercepta add-to-cart com sugestão de complemento" },
+  pre_cart: { title: "Antes de adicionar ao carrinho", desc: "Sugere complementos ao abrir os detalhes do produto no chat" },
+  post_cart: { title: "Após adicionar ao carrinho", desc: "Sugere complementos depois que a adição do produto for confirmada" },
   pre_payment: { title: "Antes do pagamento", desc: "Mostra sugestões no checkout, antes de pagar" },
   post_purchase: { title: "Pós-compra", desc: "Sugere na tela de confirmação do pedido" },
 };
@@ -70,10 +71,10 @@ export function CrossSellPage({ context }: { context: CrossSellContext }) {
                 {visibleTouchpoints.map((tp) => (
                   <label key={tp} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, border: config.touchpoints[tp] ? "1.5px solid var(--color-brand)" : "1px solid var(--color-border)", cursor: "pointer", background: config.touchpoints[tp] ? "rgba(15,118,110,0.06)" : "transparent", transition: "all 0.15s ease" }}>
                     <input
-                      type="radio"
+                      type="checkbox"
                       name={`cross-sell-touchpoint-${context}`}
-                      checked={config.touchpoints[tp]}
-                      onChange={() => selectTouchpoint(tp)}
+                      checked={Boolean(config.touchpoints[tp])}
+                      onChange={() => toggleTouchpoint(tp)}
                       style={{ width: 16, height: 16, accentColor: "var(--color-brand)", cursor: "pointer" }}
                     />
                     <div style={{ flex: 1 }}>
@@ -92,7 +93,7 @@ export function CrossSellPage({ context }: { context: CrossSellContext }) {
                 {(Object.keys(STRATEGY_LABELS) as CrossSellStrategy[]).map((s) => (
                   <label key={s} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, border: config.strategies[0] === s ? "1.5px solid var(--color-brand)" : "1px solid var(--color-border)", cursor: "pointer", background: config.strategies[0] === s ? "rgba(15,118,110,0.06)" : "transparent", transition: "all 0.15s ease" }}>
                     <input
-                      type="radio"
+                      type="checkbox"
                       name="cross-sell-strategy"
                       checked={config.strategies[0] === s}
                       onChange={() => patchConfig({ strategies: [s] })}

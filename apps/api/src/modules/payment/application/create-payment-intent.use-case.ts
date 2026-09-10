@@ -332,7 +332,8 @@ export class CreatePaymentIntentUseCase {
       description: paymentDescription(merchantId, sessionId, commerceOrderId),
       ...(isStripeCard ? { stripeConnectAccountId, platformFeeCents: stripeApplicationFeeCents }
         : usesMercadoPago ? { platformFeeCents: mercadoPagoPlatformFeeCents, payerEmail: mercadoPagoPayerEmail }
-          : usesAsaas ? { asaasCustomerId: resolveAsaasCustomerForProvider(asaasCustomer) } : {}),
+          : usesAsaas ? { asaasCustomerId: resolveAsaasCustomerForProvider(asaasCustomer), platformFeeCents: assertProviderFeeCap(buyerServiceFeeCents + merchantFeeCents, amountCents) }
+            : { platformFeeCents: assertProviderFeeCap(buyerServiceFeeCents + merchantFeeCents, amountCents) }),
     };
     if (this.provider.preparePayment) providerInput = await this.provider.preparePayment(providerInput) as typeof providerInput;
     intent.prepareCreation(providerInput);

@@ -42,3 +42,13 @@ test("Mercado Pago platform-owned credentials do not create a seller OAuth split
   await new MercadoPagoPaymentAdapter("https://mp.example.test", "platform-token", "", fetcher).createPayment(input);
   assert.equal(body.application_fee, undefined);
 });
+
+test("seller Asaas charge fails before network when the platform wallet is absent", async () => {
+  const adapter = new AsaasPaymentAdapter("https://asaas.example.test", "seller-key", (() => { throw new Error("network must not run"); }) as typeof fetch, undefined, true);
+  await assert.rejects(() => adapter.createPayment(input), /asaas_platform_wallet_not_configured/);
+});
+
+test("seller Mercado Pago charge cannot collect a platform fee without OAuth", async () => {
+  const adapter = new MercadoPagoPaymentAdapter("https://mp.example.test", "seller-key", "", (() => { throw new Error("network must not run"); }) as typeof fetch, false, true);
+  await assert.rejects(() => adapter.createPayment(input), /mercadopago_oauth_required_for_platform_fee/);
+});

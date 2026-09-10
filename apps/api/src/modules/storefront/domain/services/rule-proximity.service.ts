@@ -17,6 +17,8 @@ import {
   type RuleMatchContext,
 } from "../../../checkout/domain/services/advanced-rule-evaluator.service.js";
 
+import { ruleReward, conditionNotice, formatRuleMoney } from "./advanced-rule-notices.js";
+
 export type NudgeKind = "cart_total" | "cart_item_count" | "conditional" | "progressive";
 
 export interface RuleNudge {
@@ -44,108 +46,56 @@ export interface ProximityResult {
   all: RuleNudge[];
 }
 
-const ACTION_LABEL: Record<string, (params: Record<string, string | number | boolean>) => string> = {
-  offer_discount: (p) => `${p.percent ?? "?"}% de desconto`,
-  offer_free_shipping: () => "frete grátis",
-  offer_coupon: (p) => `o cupom ${p.code ?? ""}`.trim(),
-  offer_installments: (p) => `${p.maxInstallments ?? "?"}x sem juros`,
-};
-
-function actionReward(action: AdvancedRule["action"]): string {
-  const fn = ACTION_LABEL[action.type];
-  return fn ? fn(action.params) : "um benefício";
-}
-
-const BRL = (reais: number) =>
-  reais.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export class RuleProximityEngine {
   private readonly evaluator = new AdvancedRuleEvaluator();
 
-  compute(advancedRules: AdvancedRule[], ctx: RuleMatchContext, appliedRuleId?: string): ProximityResult {
+  compute(advancedRules: AdvancedRule[], ctx: RuleMatchContext, appliedRuleId?: string,
+    applied?: { discountCents: number; freeShipping: boolean }): ProximityResult {
     const details = this.evaluator.evaluateAll(advancedRules, ctx);
-
+    const winner = details.find(({ matched }) => matched)?.rule;
     const active: ActiveRuleBadge[] = [];
     const all: RuleNudge[] = [];
-
     for (const { rule, matched } of details) {
+      const reward = ruleReward(rule);
+      if (!reward) continue;
       if (matched) {
         if (appliedRuleId && rule.id === appliedRuleId) {
-          active.push({ ruleId: rule.id, message: `✅ ${capitalize(actionReward(rule.action))} aplicado` });
+          if (applied?.discountCents) active.push({ ruleId: rule.id, message: `${formatRuleMoney(applied.discountCents / 100)} de desconto aplicado` });
+          else if (applied?.freeShipping) active.push({ ruleId: rule.id, message: "Frete grátis aplicado" });
+          else if (!applied) active.push({ ruleId: rule.id, message: `${reward} aplicado` });
+        } else if (rule === winner && !["offer_discount", "offer_free_shipping"].includes(rule.action.type)) {
+          active.push({ ruleId: rule.id, message: reward });
         }
         continue;
       }
-      const nudge = this.nudgeForRule(rule, ctx);
-      if (nudge) all.push(nudge);
+      if (winner && winner.priority <= rule.priority) continue;
+      const unmet = rule.conditions.filter((c) => !this.evaluator.checkCondition(c, ctx));
+      const cond = unmet[0];
+      if (!cond) continue;
+      // An isolated gap is truthful only if every other condition already holds.
+      if (unmet.length === 1 && [">", ">=", "gt", "gte"].includes(cond.operator)) {
+        const strict = [">", "gt"].includes(cond.operator);
+        const target = Number(cond.value);
+        if (Number.isFinite(target) && cond.field === "cart_total") {
+          const targetCents = strict ? Math.floor(target * 100) + 1 : Math.ceil(target * 100);
+          const gap = Math.max(0, targetCents - Math.round(ctx.cartTotal * 100)) / 100;
+          if (gap > 0) all.push({ ruleId: rule.id, kind: "cart_total", gap, message: `Faltam ${formatRuleMoney(gap)} para ${reward}`, reachable: true });
+          continue;
+        }
+        if (Number.isFinite(target) && cond.field === "cart_item_count") {
+          const gap = Math.max(0, (strict ? Math.floor(target) + 1 : Math.ceil(target)) - ctx.cartItemCount);
+          if (gap > 0) all.push({ ruleId: rule.id, kind: "cart_item_count", gap, message: `Adicione mais ${gap} ${gap === 1 ? "item" : "itens"} para ${reward}`, reachable: true });
+          continue;
+        }
+      }
+      all.push({ ruleId: rule.id, kind: "conditional", message: `Condição para ${reward}: ${unmet.map(conditionNotice).join(" e ")}.`, reachable: false });
     }
-
+    // Compare monetary gaps only to other monetary gaps; honor rule priority across kinds.
     const ranked = [...all].sort((a, b) => {
       if (a.reachable !== b.reachable) return a.reachable ? -1 : 1;
-      return (a.gap ?? Infinity) - (b.gap ?? Infinity);
+      return a.kind === b.kind ? (a.gap ?? Infinity) - (b.gap ?? Infinity) : 0;
     });
-
     return { active, nextNudge: ranked[0] ?? null, all };
   }
-
-  private nudgeForRule(rule: AdvancedRule, ctx: RuleMatchContext): RuleNudge | null {
-    const reward = actionReward(rule.action);
-
-    for (const cond of rule.conditions) {
-      if (this.evaluator.checkCondition(cond, ctx)) continue;
-
-      const target = Number(cond.value);
-      if (cond.field === "cart_total" && Number.isFinite(target) && isLowerBound(cond.operator)) {
-        const gap = Math.max(0, target - ctx.cartTotal);
-        if (gap <= 0) continue;
-        return {
-          ruleId: rule.id,
-          kind: "cart_total",
-          gap,
-          message: `Faltam ${BRL(gap)} para ${reward}`,
-          reachable: true,
-        };
-      }
-
-      if (cond.field === "cart_item_count" && Number.isFinite(target) && isLowerBound(cond.operator)) {
-        const gap = Math.max(0, Math.ceil(target - ctx.cartItemCount));
-        if (gap <= 0) continue;
-        const unit = gap === 1 ? "item" : "itens";
-        return {
-          ruleId: rule.id,
-          kind: "cart_item_count",
-          gap,
-          message: `Adicione mais ${gap} ${unit} e ganhe ${reward}`,
-          reachable: true,
-        };
-      }
-
-      const hint = conditionalHint(cond.field, cond.value, reward);
-      if (hint) {
-        return { ruleId: rule.id, kind: "conditional", message: hint, reachable: false };
-      }
-    }
-    return null;
-  }
-}
-
-function isLowerBound(operator: string): boolean {
-  const op = operator.trim().toLowerCase();
-  return op === ">" || op === ">=" || op === "gt" || op === "gte";
-}
-
-function conditionalHint(field: string, value: unknown, reward: string): string | null {
-  switch (field) {
-    case "payment_method":
-      return `Pague com ${String(value).toUpperCase()} e ganhe ${reward}`;
-    case "buyer_type":
-      return `Clientes ${String(value)} ganham ${reward}`;
-    case "category_in_cart":
-      return `Adicione um produto de ${String(value)} e ganhe ${reward}`;
-    default:
-      return null;
-  }
-}
-
-function capitalize(s: string): string {
-  return s.length ? s[0].toUpperCase() + s.slice(1) : s;
 }

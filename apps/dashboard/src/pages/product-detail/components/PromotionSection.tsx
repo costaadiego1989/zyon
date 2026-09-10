@@ -83,6 +83,27 @@ export function PromotionSection({ merchantId, productId, variantSkus, onPending
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<AdvancedRule | null>(null);
   const [savingRules, setSavingRules] = useState(false);
+  const [rulesLoaded, setRulesLoaded] = useState(!productId);
+
+  useEffect(() => {
+    let cancelled = false;
+    setRules([]);
+    setRulesLoaded(!productId);
+    if (productId) {
+      catalog.getProductAdvancedRules(merchantId, productId).then(({ rules: saved }) => {
+        if (cancelled) return;
+        setRules(saved);
+        setRulesLoaded(true);
+        if (saved.length > 0) setEnabled(true);
+      }).catch((error) => {
+        if (!cancelled) {
+          showToast("error", "Não foi possível carregar as regras deste produto");
+          reportError({ source: "PromotionSection.loadRules", error });
+        }
+      });
+    }
+    return () => { cancelled = true; };
+  }, [catalog, merchantId, productId]);
 
   const buildPromotionPayload = useCallback((): CreatePromotionPayload => {
     const payload: CreatePromotionPayload = {
@@ -138,7 +159,7 @@ export function PromotionSection({ merchantId, productId, variantSkus, onPending
   async function persistRules(next: AdvancedRule[]) {
     // Create mode: don't hit the API (no productId yet). The parent lifts the
     // rules via onPendingRulesChange and persists them after the product saves.
-    if (isCreateMode || !productId) return;
+    if (isCreateMode || !productId || !rulesLoaded) return;
     setSavingRules(true);
     try {
       await catalog.upsertProductAdvancedRules(merchantId, productId, {
@@ -147,7 +168,8 @@ export function PromotionSection({ merchantId, productId, variantSkus, onPending
       });
       showToast("success", "Regras avançadas salvas");
     } catch (e) {
-      // Endpoint may not be wired yet — tolerate gracefully.
+      const saved = await catalog.getProductAdvancedRules(merchantId, productId).catch(() => null);
+      if (saved) setRules(saved.rules);
       showToast("error", "Regras avançadas indisponíveis no momento");
       reportError({ source: "PromotionSection.upsertAdvancedRules", error: e });
     } finally {
@@ -290,7 +312,7 @@ export function PromotionSection({ merchantId, productId, variantSkus, onPending
               <div className="cfg-page">
                 <RulesList
                   rules={rules}
-                  busy={savingRules}
+                  busy={savingRules || !rulesLoaded}
                   onAdd={() => {
                     setEditingRule(null);
                     setEditorOpen(true);
@@ -320,7 +342,7 @@ export function PromotionSection({ merchantId, productId, variantSkus, onPending
                 {editorOpen && (
                   <RuleEditor
                     rule={editingRule}
-                    busy={savingRules}
+                    busy={savingRules || !rulesLoaded}
                     onSave={(rule) => {
                       const exists = rules.some((r) => r.id === rule.id);
                       const next = exists ? rules.map((r) => (r.id === rule.id ? rule : r)) : [...rules, rule];

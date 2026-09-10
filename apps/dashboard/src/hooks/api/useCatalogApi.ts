@@ -34,6 +34,7 @@ export function useCatalogApi() {
       updatePromotion: api.updatePromotion,
       togglePromotion: api.togglePromotion,
       deletePromotion: api.deletePromotion,
+      getProductAdvancedRules: api.getProductAdvancedRules,
       upsertProductAdvancedRules: api.upsertProductAdvancedRules,
       uploadSpreadsheetImport: api.uploadSpreadsheetImport,
       getImportJob: api.getImportJob,

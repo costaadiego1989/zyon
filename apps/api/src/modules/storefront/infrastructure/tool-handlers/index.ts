@@ -39,6 +39,9 @@ export interface AllHandlerDeps {
 
 export function composeStoreToolHandlers(deps: AllHandlerDeps, ctx: ToolRequestContext): StoreToolHandlers {
   const productDeps: ProductHandlerDeps = {
+    cartRepo: deps.cartRepo,
+    loadCrossSellConfig: deps.loadCrossSellConfig,
+    listEligibleCrossSells: deps.listEligibleCrossSells,
     productRepo: deps.productRepo,
     stockRepo: deps.stockRepo,
     merchantRepo: deps.merchantRepo,

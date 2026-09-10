@@ -8,8 +8,8 @@ import {
 import { CheckoutSettingsEntity } from "../../../checkout-settings/domain/entities/checkout-settings.entity.js";
 import type { ProductRepositoryPort } from "../../domain/ports/product-repository.port.js";
 import {
-  scopeRulesToProduct,
-  mergeProductRules,
+  isRuleForProduct,
+  replaceProductRules,
 } from "../../domain/services/product-rule-scoping.service.js";
 
 export interface UpsertProductAdvancedRulesInput {
@@ -27,6 +27,25 @@ export class UpsertProductAdvancedRulesUseCase {
     private readonly productRepo: ProductRepositoryPort,
   ) {}
 
+  private editableRules(rules: AdvancedRule[], productId: string, skus: string[]): AdvancedRule[] {
+    return rules.filter((rule) => isRuleForProduct(rule, productId, skus)).map((rule) => {
+      // Strip only one matching automatic scope, even if the global editor reordered conditions.
+      const conditions = [...rule.conditions];
+      const scopeIndex = conditions.map((c) => c.field === "product_in_cart" && c.operator === "contains" &&
+        (Array.isArray(c.value) ? c.value : [String(c.value)]).length > 0 &&
+        (Array.isArray(c.value) ? c.value : [String(c.value)]).every((sku) => skus.includes(sku))).lastIndexOf(true);
+      if (scopeIndex >= 0) conditions.splice(scopeIndex, 1);
+      return { ...rule, conditions };
+    });
+  }
+
+  async get(merchantId: string, productId: string): Promise<AdvancedRule[]> {
+    const product = await this.productRepo.findById(merchantId, productId);
+    if (!product) throw new NotFoundException("product_not_found");
+    const settings = await this.checkoutSettingsRepo.get(merchantId);
+    return this.editableRules((settings?.advancedRules ?? []) as AdvancedRule[], productId, product.variants.map((v) => v.sku));
+  }
+
   async execute(input: UpsertProductAdvancedRulesInput): Promise<AdvancedRule[]> {
     const { merchantId, productId, rules } = input;
 
@@ -35,12 +54,9 @@ export class UpsertProductAdvancedRulesUseCase {
     const product = await this.productRepo.findById(merchantId, productId);
     if (!product) throw new NotFoundException("product_not_found");
     const productSkus = product.variants.filter((variant) => variant.isActive).map((variant) => variant.sku);
-    if (productSkus.length === 0) {
+    if (productSkus.length === 0 && rules.length > 0) {
       throw new ConflictException("product_advanced_rules_require_active_variant");
     }
-
-    // 1. Auto-scope incoming rules to this product's SKUs.
-    const scoped = scopeRulesToProduct(rules, productSkus);
 
     // 2. Read merchant's current advancedRules (default if absent), merchant-scoped.
     const current: CheckoutSettings =
@@ -49,7 +65,12 @@ export class UpsertProductAdvancedRulesUseCase {
     const existing = current.advancedRules as unknown as AdvancedRule[];
 
     // 3. Merge: replace by id, append new, preserve unrelated.
-    const merged = mergeProductRules(existing, scoped);
+    let merged: AdvancedRule[];
+    try {
+      merged = replaceProductRules(existing, rules, productId, productSkus);
+    } catch {
+      throw new ConflictException("product_rule_id_conflict");
+    }
 
     // 4. Persist merged rules back, scoped to merchant.
     const validated = CheckoutSettingsEntity.rehydrate(current)

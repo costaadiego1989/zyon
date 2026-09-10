@@ -230,3 +230,16 @@ test("RoutingPaymentAdapter: createCustomer delegates to Asaas", async () => {
   });
   assert.equal(customerId, "cus_asaas_fake");
 });
+
+test("preparePayment pins active Asaas when merchant Stripe is inactive", async () => {
+  const repo = new InMemoryPaymentPlatformRepository();
+  await repo.saveConnection({ merchantId: "mrc_1", provider: "asaas", status: "active", environment: "test" });
+  const stripe = new FakeStripe();
+  const asaas = new FakeAsaas();
+  const adapter = new RoutingPaymentAdapter(stripe as unknown as StripePaymentAdapter, asaas as unknown as AsaasPaymentAdapter, null, new FakeCrypto() as unknown as EvmCryptoPaymentAdapter, repo);
+  const prepared = await adapter.preparePayment(baseInput({ method: "card", platformFeeCents: 99 }));
+  assert.equal(prepared.provider, "asaas");
+  await adapter.createPayment(prepared);
+  assert.equal(stripe.calls.length, 0);
+  assert.equal(asaas.calls[0].platformFeeCents, 99);
+});

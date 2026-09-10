@@ -23,6 +23,12 @@ import { PRODUCT_PROMOTION_REPOSITORY, type ProductPromotionRepositoryPort } fro
 import { applyProductPromoPricing } from "../../infrastructure/pricing/storefront-cart-promo.pricing.js";
 import { ListPublicStorefrontProductsUseCase } from "../../../catalog/application/use-cases/list-public-storefront-products.use-case.js";
 
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import type { PrismaClient } from "@prisma/client";
+import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
+import { reevaluateCartRules } from "../../infrastructure/tool-handlers/cart.handlers.js";
+import type { StorefrontCart } from "../../domain/ports/storefront-cart.port.js";
+
 export interface StartConversationRequest {
   merchant_id: string;
   initial_message?: string;
@@ -55,7 +61,16 @@ export class StorefrontController {
     @Inject(STOREFRONT_CART_PORT) private readonly cartRepo: StorefrontCartPort,
     @Inject(RealtimeCapabilityService) private readonly capabilities: RealtimeCapabilityService,
     @Optional() @Inject(PRODUCT_PROMOTION_REPOSITORY) private readonly productPromotionRepo?: ProductPromotionRepositoryPort,
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
+    @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
   ) {}
+
+  private async priceCart(merchantId: string, cartId: string, cart: StorefrontCart) {
+    if (this.prisma && this.merchantRepo) {
+      return reevaluateCartRules({ prisma: this.prisma, merchantRepo: this.merchantRepo, cartRepo: this.cartRepo, productPromotionRepo: this.productPromotionRepo }, merchantId, cartId, cart);
+    }
+    return { cart, promoMeta: await applyProductPromoPricing(this.productPromotionRepo, merchantId, cart), nextNudge: null, activeRules: [] };
+  }
 
   @Get("index")
   async getStoreIndex() {
@@ -244,13 +259,12 @@ export class StorefrontController {
   ) {
     if (!merchantId) throw new NotFoundException("merchantId query param required");
     this.conversationAccess(request, cartId, merchantId);
-    const cart = await this.cartRepo.getOrCreate(merchantId, cartId);
-    // Apply product-promo pricing on read; base price is fresh from DB.
-    const promoMeta = await applyProductPromoPricing(this.productPromotionRepo, merchantId, cart);
+    const base = await this.cartRepo.getOrCreate(merchantId, cartId);
+    const { cart, promoMeta, nextNudge, activeRules } = await this.priceCart(merchantId, cartId, base);
     return {
       cartId: cart.sessionId,
       items: cart.items.map((i) => {
-        const badge = promoMeta.get(i.variantId);
+        const badge = promoMeta?.get(i.variantId);
         return {
           variantId: i.variantId,
           productName: i.name,
@@ -263,7 +277,11 @@ export class StorefrontController {
       }),
       itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0),
       discount: cart.discount ? cart.discount / 100 : 0,
-      total: cart.total / 100,
+      subtotal: cart.total / 100,
+      total: (cart.total - cart.discount) / 100,
+      freeShipping: cart.freeShipping,
+      nextNudge,
+      activeRules,
     };
   }
 
@@ -280,12 +298,12 @@ export class StorefrontController {
     if (body.quantity == null || !Number.isInteger(body.quantity) || body.quantity < 0 || body.quantity > 99) {
       throw new BadRequestException("quantity must be an integer between 0 and 99");
     }
-    const cart = await this.cartRepo.updateItemQuantity(merchantId, cartId, variantId, body.quantity);
-    const promoMeta = await applyProductPromoPricing(this.productPromotionRepo, merchantId, cart);
+    const base = await this.cartRepo.updateItemQuantity(merchantId, cartId, variantId, body.quantity);
+    const { cart, promoMeta, nextNudge, activeRules } = await this.priceCart(merchantId, cartId, base);
     return {
       cartId: cart.sessionId,
       items: cart.items.map((i) => {
-        const badge = promoMeta.get(i.variantId);
+        const badge = promoMeta?.get(i.variantId);
         return {
           variantId: i.variantId,
           productName: i.name,
@@ -298,7 +316,11 @@ export class StorefrontController {
       }),
       itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0),
       discount: cart.discount ? cart.discount / 100 : 0,
-      total: cart.total / 100,
+      subtotal: cart.total / 100,
+      total: (cart.total - cart.discount) / 100,
+      freeShipping: cart.freeShipping,
+      nextNudge,
+      activeRules,
     };
   }
 

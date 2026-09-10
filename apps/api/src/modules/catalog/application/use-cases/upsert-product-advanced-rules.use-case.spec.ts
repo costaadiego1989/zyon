@@ -107,3 +107,35 @@ describe("UpsertProductAdvancedRulesUseCase", () => {
     );
   });
 });
+
+it("reloads editable conditions and removes deleted rules while preserving global rules", async () => {
+  const { settings, useCase } = buildUseCase(2);
+  const global = rule({ id: "global" });
+  settings.settings.advancedRules = [global] as typeof settings.settings.advancedRules;
+  const authored = rule({ conditions: [
+    { field: "cart_item_count", operator: ">=", value: 3 },
+    { field: "product_in_cart", operator: "contains", value: "COMPLEMENT" },
+  ] });
+  await useCase.execute({ merchantId, productId: "product_1", rules: [authored] });
+  const editable = await useCase.get(merchantId, "product_1");
+  assert.deepEqual(editable[0].conditions, authored.conditions);
+  assert.equal(settings.settings.advancedRules[1].conditions.length, 3);
+  await useCase.execute({ merchantId, productId: "product_1", rules: [] });
+  assert.deepEqual(settings.settings.advancedRules, [global]);
+  assert.deepEqual(await useCase.get(merchantId, "product_1"), []);
+});
+
+it("rejects replacement of another product or global rule by reused id", async () => {
+  const { settings, useCase } = buildUseCase();
+  settings.settings.advancedRules = [rule({ id: "global" })] as typeof settings.settings.advancedRules;
+  await assert.rejects(() => useCase.execute({ merchantId, productId: "product_1", rules: [rule({ id: "global" })] }), /product_rule_id_conflict/);
+  assert.equal(settings.settings.advancedRules.length, 1);
+});
+
+it("preserves authored conditions when the global editor reorders the automatic scope", async () => {
+  const { settings, useCase } = buildUseCase();
+  const authored = rule();
+  await useCase.execute({ merchantId, productId: "product_1", rules: [authored] });
+  settings.settings.advancedRules[0].conditions.reverse();
+  assert.deepEqual((await useCase.get(merchantId, "product_1"))[0].conditions, authored.conditions);
+});

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { FiArrowRight, FiCheck, FiChevronLeft, FiChevronRight, FiPackage, FiShoppingBag, FiTruck } from "react-icons/fi";
+import RuleNotices from "./RuleNotices";
 import { ProductCardShare } from "./parts/ProductCardShare";
 import { useCart } from "@/lib/cart-store";
 import type { ProductContentPurchaseResponse } from "@/lib/api/product-content";
@@ -178,6 +179,7 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
             ) : null}
             {purchase.optionGroups.length ? <FoodOptions groups={purchase.optionGroups} selected={selectedOptionIds} error={optionError} disabled={inProgress} onToggle={toggleOption} /> : null}
             {selectedVariant?.available && selectedVariant.lowStock ? <p data-aacp-rich-product-nudge className={styles.nudge}><FiPackage aria-hidden="true" /><span>Últimas unidades desta versão disponíveis.</span></p> : null}
+            <RuleNotices notices={purchase.ruleNotices} />
             {!immersive ? purchaseActions : null}
             <div className={styles.delivery}><FiTruck aria-hidden="true" /><div><strong>Entrega calculada para você</strong><p>Consulte o frete e o prazo com seu CEP no checkout.</p></div></div>
           </div>

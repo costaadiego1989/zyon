@@ -4,7 +4,7 @@ import type { PrismaClient } from "@prisma/client";
 
 export interface CrossSellConfig {
   enabled: boolean;
-  touchpoints: { browsing: boolean; pre_cart: boolean; pre_payment: boolean; post_purchase: boolean };
+  touchpoints: { browsing: boolean; pre_cart: boolean; post_cart?: boolean; pre_payment: boolean; post_purchase: boolean };
   discount: { enabled: boolean; mode: string; percent: number; couponCode?: string };
   limits: { maxSuggestionsPerSession: number; cooldownSeconds: number };
   strategies: string[];
@@ -50,12 +50,13 @@ export async function buildCrossSellSuggestions(
 ): Promise<CrossSellSuggestion[]> {
   let crossSellSuggestions: CrossSellSuggestion[] = [];
   const maxSuggestions = crossSellConfig.limits.maxSuggestionsPerSession ?? 3;
-  const cartVariantIds = cart.items.map((i) => i.sku ?? i.variantId);
+  if (maxSuggestions <= 0 || !crossSellConfig.strategies.length) return [];
+  const cartVariantIds = cart.items.map((i) => i.variantId);
   const variantToSku = new Map<string, string>();
   const variantToCategory = new Map<string, string>();
   try {
     const variants = await deps.prisma.productVariant.findMany({
-      where: { id: { in: cartVariantIds } },
+      where: { id: { in: cartVariantIds }, product: { merchantId } },
       select: {
         id: true,
         sku: true,
@@ -73,9 +74,9 @@ export async function buildCrossSellSuggestions(
     currency: "BRL" as const,
     total: cart.total / 100,
     items: cart.items.map((i) => {
-      const variantId = i.sku ?? i.variantId;
+      const variantId = i.variantId;
       return {
-        sku: variantToSku.get(variantId) ?? variantId,
+        sku: i.sku ?? variantToSku.get(variantId) ?? variantId,
         name: i.name,
         price: i.unitPriceCents / 100,
         quantity: i.quantity,
@@ -107,10 +108,10 @@ export async function buildCrossSellSuggestions(
         for (const sku of suggestion.ranked_items) {
           if (crossSellSuggestions.length >= maxSuggestions) break;
           const p = skuToProduct.get(sku.toLowerCase());
-          if (p && p.name !== productName) {
+          if (p && p.name !== productName && p.hasStock && !p.variants.some((v) => cartVariantIds.includes(v.id)) && !crossSellSuggestions.some((s) => s.sku === p.variants[0]?.id)) {
             crossSellSuggestions.push({
               name: p.name,
-              sku: p.variants?.[0]?.sku ?? p.id,
+              sku: p.variants?.[0]?.id ?? p.id,
               price: (p.variants?.[0]?.basePriceInCents ?? 0) / 100,
               imageUrl: p.variants?.[0]?.media?.[0]?.url,
               discountPercent: suggestion.computed_discount > 0 ? suggestion.computed_discount : undefined,
@@ -126,14 +127,14 @@ export async function buildCrossSellSuggestions(
   if (crossSellSuggestions.length === 0) {
     const products = await deps.productRepo.search({ merchantId, limit: 10, isActiveOnly: true });
     crossSellSuggestions = products.products
-      .filter((p) => p.name !== productName && p.hasStock)
+      .filter((p) => p.name !== productName && p.hasStock && !p.variants.some((v) => cartVariantIds.includes(v.id)))
       .slice(0, maxSuggestions)
       .map((p) => ({
         name: p.name,
-        sku: p.variants[0]?.sku ?? p.id,
+        sku: p.variants[0]?.id ?? p.id,
         price: (p.variants[0]?.basePriceInCents ?? 0) / 100,
         imageUrl: p.variants[0]?.media?.[0]?.url,
-        discountPercent: crossSellConfig.discount.enabled && crossSellConfig.discount.mode !== "coupon" ? crossSellConfig.discount.percent : undefined,
+        // Fallback products have no authorized promotion; do not advertise a discount.
         couponCode: crossSellConfig.discount.enabled && crossSellConfig.discount.mode === "coupon" ? crossSellConfig.discount.couponCode : undefined,
       }));
   }

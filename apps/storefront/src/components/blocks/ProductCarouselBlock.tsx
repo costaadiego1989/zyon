@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FiChevronLeft, FiChevronRight, FiHeart, FiPackage, FiStar } from "react-icons/fi";
 import type { ProductCarouselBlock as ProductCarouselBlockType, ProductCardBlock } from "@/lib/types";
 import { productsApi } from "@/lib/api/api-client";
+import RuleNotices from "./RuleNotices";
 import ImageSlideshow from "../ImageSlideshow";
 import styles from "./ProductCarouselBlock.module.css";
 
@@ -76,6 +77,7 @@ export default function ProductCarouselBlock({ block, onQuickReply }: {
             {product.variants && product.variants.length > 1 ? <div className={styles.variants}>{product.variants.slice(0, 3).map((variant) => <span key={variant.id}>{variant.value}</span>)}{product.variants.length > 3 ? <span>+{product.variants.length - 3}</span> : null}</div> : null}
             <div className={styles.price}>{product.originalPriceFormatted ? <del>{product.originalPriceFormatted}</del> : null}<strong>{product.priceFormatted}</strong></div>
             {product.source === "marketplace" && product.sellerName ? <p className={styles.seller}>Vendido por {product.sellerName}</p> : null}
+            <RuleNotices notices={product.ruleNotices} />
             <div className={styles.ctas}>
               <button type="button" onClick={details}>Saber mais</button>
               <button type="button" className={styles.buy} disabled={!product.inStock} onClick={() => customizable ? details() : onQuickReply?.("Adicionar " + product.name + " ao carrinho")}>{customizable ? "Escolher opções" : "Adicionar ao carrinho"}</button>

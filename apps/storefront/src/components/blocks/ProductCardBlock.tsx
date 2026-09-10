@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import RuleNotices from "./RuleNotices";
 import type { ProductCardBlock as ProductCardBlockType } from "@/lib/types";
 import { isColorToken } from "@/lib/utils/color";
 import { StarRating } from "./parts/StarRating";
@@ -338,7 +339,7 @@ export default function ProductCardBlock({
                   <circle cx="7.5" cy="17.5" r="2.5" />
                   <circle cx="17.5" cy="17.5" r="2.5" />
                 </svg>
-                <span>Frete grátis Brasil</span>
+                <span>Frete calculado no checkout</span>
               </div>
             )}
           </div>
@@ -355,6 +356,7 @@ export default function ProductCardBlock({
           />
         )}
 
+        <RuleNotices notices={data.ruleNotices} />
         {optionGroups.length > 0 && (
           <ProductCardOptions
             groups={optionGroups}

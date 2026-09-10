@@ -8,6 +8,7 @@ import type {
 import { ALL_TRIGGERS, TRIGGER_FIXED_PRIORITIES } from "./constants.js";
 
 export interface AdvancedRule {
+  productId?: string;
   id: string;
   name: string;
   conditions: Array<{ field: string; operator: string; value: string | number | boolean }>;

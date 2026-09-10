@@ -45,8 +45,8 @@ async function loadAdvancedRules(prisma: PrismaClient, merchantId: string): Prom
   }
 }
 
-async function reevaluateCartRules(
-  deps: CartHandlerDeps,
+export async function reevaluateCartRules(
+  deps: Pick<CartHandlerDeps, "prisma" | "merchantRepo" | "cartRepo" | "productPromotionRepo">,
   merchantId: string,
   sessionId: string,
   cart: StorefrontCart,
@@ -55,15 +55,19 @@ async function reevaluateCartRules(
     // Product promotions adjust each LINE price first (from the original base
     // price, idempotently), so the cart-level rules engine evaluates on the
     // promo-adjusted subtotal.
-    await applyProductPromoPricing(deps.productPromotionRepo, merchantId, cart);
+    const initialPromoMeta = await applyProductPromoPricing(deps.productPromotionRepo, merchantId, cart);
 
     const advancedRules = await loadAdvancedRules(deps.prisma, merchantId);
     const merchantRules = advancedRules.length > 0 ? await deps.merchantRepo.getRules(merchantId) : null;
 
     // No cart-level rules → still return the promo-adjusted cart (+ badge meta).
     if (advancedRules.length === 0 || !merchantRules) {
-      const meta = await applyProductPromoPricing(deps.productPromotionRepo, merchantId, cart);
-      return { cart, promoMeta: meta };
+      if (!cart.couponCode && (cart.discount || cart.freeShipping)) {
+        const clean = await deps.cartRepo.applyRuleOutcome(merchantId, sessionId, { discountCents: 0, freeShipping: false });
+        const promoMeta = await applyProductPromoPricing(deps.productPromotionRepo, merchantId, clean);
+        return { cart: clean, promoMeta, nextNudge: null, activeRules: [] };
+      }
+      return { cart, promoMeta: initialPromoMeta, nextNudge: null, activeRules: [] };
     }
     const categoriesInCart = cart.items
       .map((i) => i.categoryId ?? "")
@@ -78,7 +82,7 @@ async function reevaluateCartRules(
       ruleId: outcome.appliedRuleId,
     });
     const persisted = await deps.cartRepo.applyRuleOutcome(merchantId, sessionId, {
-      discountCents: outcome.discountCents,
+      discountCents: cart.couponCode ? cart.discount : outcome.discountCents,
       freeShipping: outcome.freeShipping,
     });
 
@@ -86,9 +90,13 @@ async function reevaluateCartRules(
     // so re-apply product-promo pricing to the persisted cart before returning.
     const promoMeta = await applyProductPromoPricing(deps.productPromotionRepo, merchantId, persisted);
 
-    const hadEffect = outcome.discountCents > 0 || outcome.freeShipping === true;
+    const hadEffect = (!cart.couponCode && outcome.discountCents > 0) || outcome.freeShipping === true;
     const effectiveRuleId = hadEffect ? outcome.appliedRuleId : undefined;
-    const proximity = ruleProximityEngine.compute(advancedRules, buildCartRuleContext(persisted, { categoriesInCart }), effectiveRuleId);
+    const noticeRules = advancedRules.filter((rule) => rule.action.type !== "offer_free_shipping" || merchantRules.allowFreeShipping !== false)
+      .map((rule) => rule.action.type === "offer_discount" ? {
+        ...rule, action: { ...rule.action, params: { ...rule.action.params, percent: Math.min(Number(rule.action.params.percent), merchantRules.maxDiscountPercent) } },
+      } : rule);
+    const proximity = ruleProximityEngine.compute(noticeRules, buildCartRuleContext(persisted, { categoriesInCart }), effectiveRuleId, { discountCents: cart.couponCode ? 0 : outcome.discountCents, freeShipping: outcome.freeShipping });
     return { cart: persisted, nextNudge: proximity.nextNudge, activeRules: proximity.active, promoMeta };
   } catch (err) {
     logger.warn("cart.reevaluateRules.failed", {
@@ -321,7 +329,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
               logger.log("cart.addItem.crossSellPromo_inactive", { merchantId: ctx.merchantId, promoId: args.crossSellPromoId });
             } else {
               const snapRecommendedSkus = new Set(promo.snapshot().recommended_skus.map((s: string) => s.toLowerCase()));
-              if (!snapRecommendedSkus.has(resolvedVariantId.toLowerCase()) && !snapRecommendedSkus.has((args.variantId ?? "").toLowerCase())) {
+              if (!snapRecommendedSkus.has((resolvedSku ?? "").toLowerCase()) && !snapRecommendedSkus.has(resolvedVariantId.toLowerCase()) && !snapRecommendedSkus.has((args.variantId ?? "").toLowerCase())) {
                 logger.warn("cart.addItem.crossSellPromo_sku_mismatch", {
                   merchantId: ctx.merchantId,
                   promoId: args.crossSellPromoId,
@@ -398,7 +406,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       let crossSellDisplayMode: string | undefined;
       try {
         const crossSellConfig = await deps.loadCrossSellConfig(ctx.merchantId);
-        if (crossSellConfig.enabled && crossSellConfig.touchpoints.pre_cart) {
+        if (crossSellConfig.enabled && crossSellConfig.touchpoints.post_cart) {
           crossSellSuggestions = await buildCrossSellSuggestions(
             { productRepo: deps.productRepo, prisma: deps.prisma, listEligibleCrossSells: deps.listEligibleCrossSells },
             ctx.merchantId,
@@ -425,9 +433,8 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
     },
 
     getCart: async (args) => {
-      const cart = await deps.cartRepo.getOrCreate(ctx.merchantId, ctx.sessionId);
-      // Apply product-promo pricing on read (idempotent — base price comes fresh from DB).
-      const promoMeta = await applyProductPromoPricing(deps.productPromotionRepo, ctx.merchantId, cart);
+      const base = await deps.cartRepo.getOrCreate(ctx.merchantId, ctx.sessionId);
+      const { cart, promoMeta, nextNudge, activeRules } = await reevaluateCartRules(deps, ctx.merchantId, ctx.sessionId, base);
       return {
         cartId: cart.sessionId,
         items: cart.items.map((i) => toCartLineDto(i, promoMeta)),
@@ -435,6 +442,8 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
         discount: cart.discount / 100,
         freeShipping: cart.freeShipping,
         couponCode: cart.couponCode,
+        nextNudge,
+        activeRules,
         itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0)
       };
     },
