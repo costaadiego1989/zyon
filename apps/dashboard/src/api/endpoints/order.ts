@@ -1,6 +1,29 @@
 import { dashboardJson } from "../http/client.js";
 import type { TenantOrder, TenantOrderDetail, CursorPage } from "../types.js";
 
+export type PurchaseShippingLabelPayload = {
+  order_id: string;
+  service_id: number;
+  from_zip: string;
+  to_zip: string;
+  to_name: string;
+  to_document: string;
+  packages: Array<{
+    weightKg: number;
+    widthCm: number;
+    heightCm: number;
+    lengthCm: number;
+    quantity: number;
+  }>;
+  invoice_key?: string;
+};
+
+export type PurchasedShippingLabel = {
+  purchase_id: string;
+  tracking_code: string;
+  label_url: string | null;
+};
+
 export function orderEndpoints(base: string, f: typeof fetch) {
   return {
     async getOrders(limit?: number, cursor?: string): Promise<CursorPage<TenantOrder>> {
@@ -20,6 +43,21 @@ export function orderEndpoints(base: string, f: typeof fetch) {
         base,
         `/orders/${encodeURIComponent(orderId)}`,
         { method: "GET" },
+        f,
+      );
+    },
+    purchaseShippingLabel(
+      payload: PurchaseShippingLabelPayload,
+      idempotencyKey: string,
+    ): Promise<PurchasedShippingLabel> {
+      return dashboardJson<PurchasedShippingLabel>(
+        base,
+        "/shipping/labels",
+        {
+          method: "POST",
+          jsonBody: payload,
+          headers: { "Idempotency-Key": idempotencyKey },
+        },
         f,
       );
     },

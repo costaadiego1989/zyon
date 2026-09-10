@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckCircle,
   DollarSign,
@@ -18,6 +18,9 @@ import { useOrdersShipmentsPage } from "./orders-shipments/useOrdersShipmentsPag
 import { Button } from "../components/Button.js";
 import { STATUS_LABELS, computeOrderMetrics, filterOrdersByPeriod, formatMinor, formatDate, formatPhone } from "./orders-shipments/utils.js";
 import { OrderStatusBadge } from "./orders-shipments/components/OrderStatusBadge.js";
+import { useApi } from "../hooks/useApi.js";
+import { createIdempotencyKey, DashboardHttpError } from "../api/http/index.js";
+import type { PurchaseShippingLabelPayload, PurchasedShippingLabel } from "../api/endpoints/order.js";
 
 export { STATUS_LABELS, computeOrderMetrics, filterOrders, filterOrdersByPeriod } from "./orders-shipments/utils.js";
 
@@ -437,6 +440,11 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
           ) : (
             <p style={{ ...valueStyle, color: "var(--color-text-muted)", marginBottom: 12 }}>Sem código de rastreio</p>
           )}
+          <ShippingLabelPurchaseAction
+            order={order}
+            customer={customer}
+            vm={vm}
+          />
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <input
               placeholder="Inserir código de rastreio"
@@ -492,6 +500,202 @@ function CancelOrderAction({ order, vm }: { order: TenantOrder; vm: ReturnType<t
       <label style={{ display: "flex", gap: 8, alignItems: "center", font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 8 }}><input type="checkbox" checked={notifyCustomer} onChange={(event) => setNotifyCustomer(event.target.checked)} /> Solicitar notificação ao cliente</label>
       <label style={{ display: "flex", gap: 8, alignItems: "center", font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 12 }}><input type="checkbox" checked={restock} onChange={(event) => setRestock(event.target.checked)} /> Solicitar reposição de estoque</label>
       <Button variant="danger" size="md" loading={vm.cancelBusyOrderId === order.id} disabled={!reason.trim() || vm.busy} onClick={() => void vm.cancelOrder(order, { reason, notifyCustomer, restock })}>Cancelar pedido</Button>
+    </div>
+  );
+}
+
+type ShippingLabelForm = {
+  service_id: string;
+  from_zip: string;
+  to_zip: string;
+  to_name: string;
+  to_document: string;
+  invoice_key: string;
+  packages: Array<{
+    weightKg: string;
+    widthCm: string;
+    heightCm: string;
+    lengthCm: string;
+    quantity: string;
+  }>;
+};
+
+function ShippingLabelPurchaseAction({
+  order,
+  customer,
+  vm,
+}: {
+  order: TenantOrder;
+  customer: {
+    full_name?: string;
+    address?: { zip?: string };
+  } | null;
+  vm: ReturnType<typeof useOrdersShipmentsPage>;
+}) {
+  const api = useApi();
+  const [open, setOpen] = useState(false);
+  const [loadingConfig, setLoadingConfig] = useState(false);
+  const [configError, setConfigError] = useState<string | null>(null);
+  const [carrierReady, setCarrierReady] = useState(false);
+  const [confirmed, setConfirmed] = useState<PurchasedShippingLabel | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [uncertain, setUncertain] = useState(false);
+  const [acknowledged, setAcknowledged] = useState(false);
+  const idempotencyKey = useRef(createIdempotencyKey());
+  const [form, setForm] = useState<ShippingLabelForm>(() => ({
+    service_id: "",
+    from_zip: "",
+    to_zip: customer?.address?.zip ?? "",
+    to_name: customer?.full_name ?? "",
+    to_document: "",
+    invoice_key: "",
+    packages: [{ weightKg: "", widthCm: "", heightCm: "", lengthCm: "", quantity: "1" }],
+  }));
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    setLoadingConfig(true);
+    setConfigError(null);
+    void api.getDeliveryConfig()
+      .then((config) => {
+        if (!active) return;
+        setCarrierReady(config.melhorEnvioEnabled && config.melhorEnvioConnected);
+        setForm((current) => ({
+          ...current,
+          from_zip: current.from_zip || config.originZip,
+        }));
+      })
+      .catch(() => {
+        if (active) setConfigError("Não foi possível confirmar a conexão do Melhor Envio.");
+      })
+      .finally(() => {
+        if (active) setLoadingConfig(false);
+      });
+    return () => { active = false; };
+  }, [api, open]);
+
+  function updateField<K extends Exclude<keyof ShippingLabelForm, "packages">>(key: K, value: ShippingLabelForm[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function updatePackage(key: keyof ShippingLabelForm["packages"][number], value: string) {
+    setForm((current) => ({
+      ...current,
+      packages: current.packages.map((pkg, index) => index === 0 ? { ...pkg, [key]: value } : pkg),
+    }));
+  }
+
+  function preparedPayload(): Omit<PurchaseShippingLabelPayload, "order_id"> | null {
+    const serviceId = Number(form.service_id);
+    const fields = [form.from_zip, form.to_zip, form.to_name, form.to_document];
+    const pkg = form.packages[0];
+    const packageValues = pkg
+      ? [Number(pkg.weightKg), Number(pkg.widthCm), Number(pkg.heightCm), Number(pkg.lengthCm), Number(pkg.quantity)]
+      : [];
+
+    if (!Number.isInteger(serviceId) || serviceId <= 0 || fields.some((value) => !value.trim()) || packageValues.some((value) => !Number.isFinite(value) || value <= 0)) {
+      return null;
+    }
+
+    return {
+      service_id: serviceId,
+      from_zip: form.from_zip.trim(),
+      to_zip: form.to_zip.trim(),
+      to_name: form.to_name.trim(),
+      to_document: form.to_document.trim(),
+      packages: [{
+        weightKg: packageValues[0]!,
+        widthCm: packageValues[1]!,
+        heightCm: packageValues[2]!,
+        lengthCm: packageValues[3]!,
+        quantity: packageValues[4]!,
+      }],
+      ...(form.invoice_key.trim() ? { invoice_key: form.invoice_key.trim() } : {}),
+    };
+  }
+
+  async function purchase() {
+    const payload = preparedPayload();
+    if (!payload) {
+      setError("Informe o serviço da cotação, CEPs, destinatário, documento e dimensões reais do pacote.");
+      return;
+    }
+    if (!acknowledged) {
+      setError("Confirme que deseja solicitar a compra da etiqueta.");
+      return;
+    }
+    setError(null);
+    try {
+      const result = await vm.purchaseShippingLabel(order, payload, idempotencyKey.current);
+      setConfirmed(result);
+    } catch (cause) {
+      const isUnknown = !(cause instanceof DashboardHttpError) || cause.status === 0 || cause.status >= 500;
+      setUncertain(isUnknown);
+      setError(
+        isUnknown
+          ? "A compra não foi confirmada. Consulte o Melhor Envio antes de tentar novamente para evitar uma etiqueta duplicada."
+          : "A compra não foi confirmada. Revise os dados da cotação e tente novamente.",
+      );
+      // A rejected HTTP request can be corrected and submitted with a fresh
+      // key. Unknown outcomes keep the key and block another charge attempt.
+      if (!isUnknown) idempotencyKey.current = createIdempotencyKey();
+    }
+  }
+
+  if (confirmed) {
+    return (
+      <div style={{ padding: "12px 14px", borderRadius: 8, background: "var(--color-success-bg)", border: "1px solid var(--color-success)", marginBottom: 12 }}>
+        <div style={{ font: "600 12px var(--font-sans)", color: "var(--color-success)" }}>Etiqueta confirmada</div>
+        <div style={{ font: "12px var(--font-mono)", color: "var(--color-success)", marginTop: 4 }}>{confirmed.tracking_code}</div>
+        {confirmed.label_url && <a href={confirmed.label_url} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 8, font: "600 12px var(--font-sans)", color: "var(--color-success)" }}>Abrir etiqueta</a>}
+      </div>
+    );
+  }
+
+  if (order.tracking_code) return null;
+
+  if (!open) {
+    return <Button variant="outline" size="sm" disabled={vm.shippingLabelBusyOrderId === order.id} onClick={() => setOpen(true)} style={{ marginBottom: 12 }}>Comprar e gerar etiqueta</Button>;
+  }
+
+  const packageDraft = form.packages[0]!;
+  const disabled = loadingConfig || !carrierReady || uncertain || vm.shippingLabelBusyOrderId === order.id;
+  const fieldStyle: React.CSSProperties = { width: "100%", height: 36, padding: "0 10px", borderRadius: 7, border: "1px solid var(--color-border)", background: "var(--surface-3)", color: "var(--color-text)", font: "13px var(--font-sans)" };
+  const labelStyle: React.CSSProperties = { display: "grid", gap: 5, font: "600 11px var(--font-sans)", color: "var(--color-text-muted)" };
+
+  return (
+    <div style={{ marginBottom: 12, padding: 12, borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-1)" }}>
+      <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)", marginBottom: 6 }}>Comprar etiqueta via Melhor Envio</div>
+      <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", margin: "0 0 12px" }}>Use somente o serviço da cotação confirmada e as medidas reais do pacote. Esta ação pode gerar cobrança no Melhor Envio.</p>
+      {loadingConfig && <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>Verificando conexão do Melhor Envio…</p>}
+      {configError && <p className="panel-error" role="alert">{configError}</p>}
+      {!loadingConfig && !configError && !carrierReady && <p className="panel-error" role="alert">Conecte e ative o Melhor Envio em Entregas antes de comprar uma etiqueta.</p>}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <label style={labelStyle}>Serviço da cotação<input type="number" min="1" value={form.service_id} onChange={(event) => updateField("service_id", event.target.value)} placeholder="Ex.: 1" style={fieldStyle} /></label>
+        <label style={labelStyle}>CEP de origem<input value={form.from_zip} onChange={(event) => updateField("from_zip", event.target.value)} placeholder="00000-000" style={fieldStyle} /></label>
+        <label style={labelStyle}>CEP do destinatário<input value={form.to_zip} onChange={(event) => updateField("to_zip", event.target.value)} placeholder="00000-000" style={fieldStyle} /></label>
+        <label style={labelStyle}>CPF/CNPJ destinatário<input value={form.to_document} onChange={(event) => updateField("to_document", event.target.value)} placeholder="Somente números" style={fieldStyle} /></label>
+        <label style={{ ...labelStyle, gridColumn: "1 / -1" }}>Nome do destinatário<input value={form.to_name} onChange={(event) => updateField("to_name", event.target.value)} style={fieldStyle} /></label>
+        <label style={{ ...labelStyle, gridColumn: "1 / -1" }}>Chave NF-e (opcional)<input value={form.invoice_key ?? ""} onChange={(event) => updateField("invoice_key", event.target.value)} style={fieldStyle} /></label>
+      </div>
+      <div style={{ marginTop: 12, font: "600 11px var(--font-sans)", color: "var(--color-text-muted)" }}>Pacote (medidas reais)</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6, marginTop: 6 }}>
+        <label style={labelStyle}>kg<input type="number" min="0.001" step="0.001" value={packageDraft.weightKg} onChange={(event) => updatePackage("weightKg", event.target.value)} style={fieldStyle} /></label>
+        <label style={labelStyle}>Larg. cm<input type="number" min="0.1" step="0.1" value={packageDraft.widthCm} onChange={(event) => updatePackage("widthCm", event.target.value)} style={fieldStyle} /></label>
+        <label style={labelStyle}>Alt. cm<input type="number" min="0.1" step="0.1" value={packageDraft.heightCm} onChange={(event) => updatePackage("heightCm", event.target.value)} style={fieldStyle} /></label>
+        <label style={labelStyle}>Comp. cm<input type="number" min="0.1" step="0.1" value={packageDraft.lengthCm} onChange={(event) => updatePackage("lengthCm", event.target.value)} style={fieldStyle} /></label>
+        <label style={labelStyle}>Qtd.<input type="number" min="1" step="1" value={packageDraft.quantity} onChange={(event) => updatePackage("quantity", event.target.value)} style={fieldStyle} /></label>
+      </div>
+      <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 12, font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
+        <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} />
+        <span>Confirmo que os dados e a cotação foram revisados e quero solicitar a compra desta etiqueta.</span>
+      </label>
+      {error && <p className="panel-error" role="alert" style={{ marginTop: 10 }}>{error}</p>}
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <Button variant="primary" size="sm" disabled={disabled || !acknowledged} onClick={() => void purchase()}>{vm.shippingLabelBusyOrderId === order.id ? "Solicitando…" : "Comprar e gerar"}</Button>
+        <Button variant="outline" size="sm" disabled={vm.shippingLabelBusyOrderId === order.id} onClick={() => setOpen(false)}>Cancelar</Button>
+      </div>
     </div>
   );
 }

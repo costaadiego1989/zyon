@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import { DashboardHttpError } from "../../api/http/index.js";
+import type { PurchaseShippingLabelPayload, PurchasedShippingLabel } from "../../api/endpoints/order.js";
 import type { CursorPage, MerchantProfile, TenantOrder, TenantOrderDetail } from "../../api-client.js";
 import { computeOrderMetrics, filterOrders, STATUS_LABELS } from "./utils.js";
 import { showToast } from "../../components/Toast.js";
@@ -27,6 +28,7 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
   const [page, setPage] = useState(1);
   const [trackingDrafts, setTrackingDrafts] = useState<Record<string, string>>({});
   const [cancelBusyOrderId, setCancelBusyOrderId] = useState<string | null>(null);
+  const [shippingLabelBusyOrderId, setShippingLabelBusyOrderId] = useState<string | null>(null);
 
   const load = useCallback(async (cursor?: string) => {
     setBusy(true);
@@ -222,6 +224,34 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
     }
   }, [api, trackingDrafts]);
 
+  const purchaseShippingLabel = useCallback(async (
+    order: TenantOrder,
+    input: Omit<PurchaseShippingLabelPayload, "order_id">,
+    idempotencyKey: string,
+  ): Promise<PurchasedShippingLabel> => {
+    setShippingLabelBusyOrderId(order.id);
+    try {
+      const result = await api.purchaseShippingLabel({
+        ...input,
+        order_id: order.external_order_id,
+      }, idempotencyKey);
+
+      // Do not turn a successful HTTP response into a claimed purchase unless
+      // the provider-backed use case returned the two identifiers it promises.
+      if (!result.purchase_id?.trim() || !result.tracking_code?.trim()) {
+        throw new Error("shipping_label_confirmation_missing");
+      }
+
+      setOrders((prev) => prev.map((item) => item.id === order.id
+        ? { ...item, tracking_code: result.tracking_code }
+        : item));
+      setOrderDetailReloadToken((token) => token + 1);
+      return result;
+    } finally {
+      setShippingLabelBusyOrderId(null);
+    }
+  }, [api]);
+
   const changeOrderStatus = useCallback(async (order: TenantOrder, status: string) => {
     setBusy(true);
     setMessage(null);
@@ -330,6 +360,8 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
     load,
     exportCsv,
     saveManualTracking,
+    purchaseShippingLabel,
+    shippingLabelBusyOrderId,
     changeOrderStatus,
     cancelBusyOrderId,
     cancelOrder,

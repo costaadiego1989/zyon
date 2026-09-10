@@ -49,3 +49,55 @@ test("loads the authenticated order detail and timeline through the tenant order
     credentials: "include",
   }]);
 });
+
+test("submits a shipping label purchase with the supplied idempotency key", async () => {
+  const requests: Array<{ url: string; method?: string; body?: string | null; idempotencyKey?: string | null; credentials?: RequestCredentials }> = [];
+  const api = orderEndpoints(
+    "https://api.example.test/",
+    (async (input, init) => {
+      const headers = new Headers(init?.headers);
+      requests.push({
+        url: String(input),
+        method: init?.method,
+        body: init?.body as string | null | undefined,
+        idempotencyKey: headers.get("Idempotency-Key"),
+        credentials: init?.credentials,
+      });
+      return new Response(JSON.stringify({
+        purchase_id: "purchase_123",
+        tracking_code: "ME123456789BR",
+        label_url: "https://label.example.test/purchase_123.pdf",
+      }), { headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch,
+  );
+
+  await expect(api.purchaseShippingLabel({
+    order_id: "external-order-123",
+    service_id: 1,
+    from_zip: "01001-000",
+    to_zip: "01310-100",
+    to_name: "Maria Silva",
+    to_document: "12345678900",
+    packages: [{ weightKg: 1, widthCm: 20, heightCm: 10, lengthCm: 30, quantity: 1 }],
+  }, "dashboard_shipping_label_attempt_123")).resolves.toEqual({
+    purchase_id: "purchase_123",
+    tracking_code: "ME123456789BR",
+    label_url: "https://label.example.test/purchase_123.pdf",
+  });
+
+  expect(requests).toEqual([{
+    url: "https://api.example.test/v1/shipping/labels",
+    method: "POST",
+    body: JSON.stringify({
+      order_id: "external-order-123",
+      service_id: 1,
+      from_zip: "01001-000",
+      to_zip: "01310-100",
+      to_name: "Maria Silva",
+      to_document: "12345678900",
+      packages: [{ weightKg: 1, widthCm: 20, heightCm: 10, lengthCm: 30, quantity: 1 }],
+    }),
+    idempotencyKey: "dashboard_shipping_label_attempt_123",
+    credentials: "include",
+  }]);
+});
