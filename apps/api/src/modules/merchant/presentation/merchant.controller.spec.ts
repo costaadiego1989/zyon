@@ -4,6 +4,7 @@ import { BadRequestException, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "../../auth/domain/services/jwt.service.js";
 import { AuthCookieService } from "../../auth/domain/services/auth-cookie.service.js";
 import { AuthGuard } from "../../auth/presentation/auth.guard.js";
+import { InMemoryAuthRepository } from "../../auth/infrastructure/in-memory-auth.repository.js";
 import { DEFAULT_MERCHANT_THEME } from "@zyon/shared-types";
 import { GetMerchantProfileUseCase, GetMerchantRulesUseCase, UpdateMerchantRulesUseCase } from "../application/merchant.use-cases.js";
 import { GetMerchantThemeUseCase } from "../application/get-merchant-theme.use-case.js";
@@ -13,6 +14,7 @@ import { MerchantController } from "./merchant.controller.js";
 import { normalizeMerchantCryptoPayments } from "../domain/services/merchant-crypto.validation.js";
 
 const noopEventBus = { publish: async () => {}, subscribe: () => {}, handlersFor: () => [] } as any;
+const prismaMock = { agentRule: { findFirst: async () => null }, merchant: { update: async () => ({}) } } as any;
 
 function buildController(repository: InMemoryMerchantRepository) {
   const s3Mock = { isConfigured: () => false, upload: async () => ({ url: "", key: "", bucket: "" }), uploadBase64: async () => ({ url: "", key: "", bucket: "" }) } as any;
@@ -20,10 +22,10 @@ function buildController(repository: InMemoryMerchantRepository) {
     new GetMerchantProfileUseCase(repository),
     new GetMerchantRulesUseCase(repository),
     new UpdateMerchantRulesUseCase(repository, noopEventBus),
-    new GetMerchantThemeUseCase(repository, {} as any),
+    new GetMerchantThemeUseCase(repository, prismaMock),
     new UpdateMerchantThemeUseCase(repository),
     s3Mock,
-    { merchant: { update: async () => ({}) } } as any
+    prismaMock
   );
 }
 
@@ -68,12 +70,26 @@ test("MerchantController returns default theme and persists overrides per mercha
   assert.equal(reloaded.fontFamily, "Manrope, system-ui, sans-serif");
 });
 
-test("AuthGuard rejects missing bearer tokens and accepts signed tokens", () => {
-  const jwt = new JwtService("test-secret", 3600);
+test("AuthGuard rejects missing bearer tokens and accepts signed tokens", async () => {
+  const sessions = new InMemoryAuthRepository();
+  const { user } = await sessions.createMerchantWithOwner({
+    merchantId: "mrc_1",
+    merchantName: "Demo Store",
+    email: "owner@example.com",
+    passwordHash: "test-hash"
+  });
+  const jwt = new JwtService("test-secret", 3600, sessions);
   const cookies = new AuthCookieService("aacp_access_token", false);
   const guard = new AuthGuard(jwt, cookies);
   const context = contextFor({});
-  assert.throws(() => guard.canActivate(context), UnauthorizedException);
+  await assert.rejects(guard.canActivate(context), UnauthorizedException);
+
+  const token = await jwt.issue({
+    userId: user.id,
+    merchantId: "mrc_1",
+    email: "owner@example.com",
+    role: "owner"
+  });
 
   const request: {
     headers: { authorization: string };
@@ -81,17 +97,12 @@ test("AuthGuard rejects missing bearer tokens and accepts signed tokens", () => 
     tenantPrincipal?: unknown;
   } = {
     headers: {
-      authorization: `Bearer ${jwt.sign({
-        userId: "usr_1",
-        merchantId: "mrc_1",
-        email: "owner@example.com",
-        role: "owner"
-      })}`
+      authorization: `Bearer ${token}`
     }
   };
-  assert.equal(guard.canActivate(contextFor(request)), true);
+  assert.equal(await guard.canActivate(contextFor(request)), true);
   assert.deepEqual(request.user, {
-    userId: "usr_1",
+    userId: user.id,
     merchantId: "mrc_1",
     email: "owner@example.com",
     role: "owner"
@@ -99,7 +110,7 @@ test("AuthGuard rejects missing bearer tokens and accepts signed tokens", () => 
   assert.deepEqual(request.tenantPrincipal, {
     kind: "human",
     tenantId: "mrc_1",
-    userId: "usr_1",
+    userId: user.id,
     email: "owner@example.com",
     role: "owner",
   });
@@ -110,18 +121,13 @@ test("AuthGuard rejects missing bearer tokens and accepts signed tokens", () => 
         merchant_id: "mrc_1",
         user_id: "usr_1",
         email: "owner@example.com",
-        access_token: jwt.sign({
-          userId: "usr_1",
-          merchantId: "mrc_1",
-          email: "owner@example.com",
-          role: "owner"
-        }),
+        access_token: token,
         token_type: "Bearer",
         expires_in: 3600
       })
     }
   };
-  assert.equal(guard.canActivate(contextFor(cookieRequest)), true);
+  assert.equal(await guard.canActivate(contextFor(cookieRequest)), true);
   assert.equal((cookieRequest.user as { merchantId: string }).merchantId, "mrc_1");
 });
 

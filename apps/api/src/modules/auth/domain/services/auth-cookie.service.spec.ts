@@ -13,7 +13,7 @@ test("AuthCookieService creates HttpOnly SameSite=Lax cookies and reads them", (
     expires_in: 3600
   });
 
-  assert.equal(cookie, "aacp_access_token=jwt-token; HttpOnly; SameSite=Lax; Path=/; Max-Age=3600");
+  assert.equal(cookie, "aacp_access_token=jwt-token; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000");
   assert.equal(service.read(`other=1; ${cookie}`), "jwt-token");
   assert.equal(service.clear(), "aacp_access_token=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0");
 });
