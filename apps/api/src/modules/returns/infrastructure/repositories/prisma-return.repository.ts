@@ -8,6 +8,7 @@ import {
   SaveLabelInput,
   SaveInspectionInput,
   SaveRefundInput,
+  BeginRefundInput,
 } from "../../domain/ports/return-repository.port.js";
 import {
   ReturnEntity,
@@ -147,10 +148,34 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
     };
   }
 
+  async beginRefund(input: BeginRefundInput): Promise<boolean> {
+    try {
+      await this.prisma.returnRefund.create({
+        data: {
+          returnId: input.returnId,
+          paymentIntentId: input.paymentIntentId,
+          amountInCents: input.amountInCents,
+          status: input.status,
+        },
+      });
+      return true;
+    } catch (error) {
+      // `return_id` is unique. Another worker/request owns this provider call.
+      if ((error as { code?: string }).code === "P2002") return false;
+      throw error;
+    }
+  }
+
   async saveRefund(input: SaveRefundInput): Promise<ReturnRefundProps> {
-    const row = await this.prisma.returnRefund.create({
-      data: {
+    const row = await this.prisma.returnRefund.upsert({
+      where: { returnId: input.returnId },
+      create: {
         returnId: input.returnId,
+        paymentIntentId: input.paymentIntentId,
+        amountInCents: input.amountInCents,
+        status: input.status,
+      },
+      update: {
         paymentIntentId: input.paymentIntentId,
         amountInCents: input.amountInCents,
         status: input.status,

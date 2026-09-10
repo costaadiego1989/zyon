@@ -186,10 +186,14 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
     };
   }
 
-  async refundPayment(input: { merchantId: string; providerPaymentId: string; amountCents: number; reason?: string }) {
+  async refundPayment(input: { merchantId: string; providerPaymentId: string; amountCents: number; reason?: string; idempotencyKey?: string }) {
     const res = await this.fetchImpl(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(input.providerPaymentId)}/refunds`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.accessToken}` },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.accessToken}`,
+        ...(input.idempotencyKey ? { "X-Idempotency-Key": input.idempotencyKey } : {}),
+      },
       body: JSON.stringify({ amount: input.amountCents / 100 }),
       signal: AbortSignal.timeout(15_000)
     });

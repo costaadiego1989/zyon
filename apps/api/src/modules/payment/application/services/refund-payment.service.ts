@@ -24,6 +24,8 @@ export interface RefundOrderPaymentInput {
    */
   returnedItems?: Array<{ variantId: string; quantity: number }>;
   reason?: string;
+  /** Stable per-return key, propagated to PSPs that support request dedupe. */
+  idempotencyKey?: string;
 }
 
 export interface RefundOrderPaymentResult {
@@ -179,6 +181,7 @@ export class RefundPaymentService {
         providerPaymentId: snap.providerPaymentId,
         amountCents,
         reason: input.reason,
+        idempotencyKey: input.idempotencyKey,
       });
       this.logger.log(
         `Refund issued: order ${input.externalOrderId} session ${order.sessionId} amount ${amountCents} refundId ${result.refundId} status ${result.status}`,

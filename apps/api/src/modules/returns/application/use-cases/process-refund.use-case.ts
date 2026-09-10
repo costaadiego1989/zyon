@@ -17,11 +17,24 @@ export class ProcessRefundUseCase {
   async execute(merchantId: string, returnId: string): Promise<ReturnEntity> {
     const ret = await this.returnRepo.findById(merchantId, returnId);
     if (!ret) throw new NotFoundException("return_not_found");
+    // A persisted pending attempt means the PSP may already have accepted the
+    // refund even if this process did not receive its response. Do not issue a
+    // second financial POST; it must be reconciled from the provider outcome.
+    if (ret.refund?.status === "PENDING") return ret;
     if (!ret.canRefund) {
       throw new BadRequestException("invalid_status_for_refund");
     }
 
     await this.returnRepo.updateStatus(returnId, "REFUND_PROCESSING");
+    const started = await this.returnRepo.beginRefund({
+      returnId,
+      amountInCents: 0,
+      status: "PENDING",
+    });
+    if (!started) {
+      this.logger.warn(`Refund already in progress for return ${returnId}`);
+      return (await this.returnRepo.findById(merchantId, returnId))!;
+    }
 
     try {
       // Real reversal at the PSP via the shared service. The service resolves the
@@ -34,6 +47,7 @@ export class ProcessRefundUseCase {
         externalOrderId: ret.orderId,
         returnedItems: ret.items.map((it) => ({ variantId: it.variantId, quantity: it.quantity })),
         reason: `return:${returnId}`,
+        idempotencyKey: `return:${returnId}`,
       });
 
       const amountInCents = result?.amountCents ?? 0;

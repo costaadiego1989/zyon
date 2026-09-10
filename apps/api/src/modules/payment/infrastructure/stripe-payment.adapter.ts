@@ -109,13 +109,13 @@ export class StripePaymentAdapter implements PaymentProviderPort {
     return this.publishableKey;
   }
 
-  async refundPayment(input: { merchantId: string; providerPaymentId: string; amountCents: number; reason?: string }) {
+  async refundPayment(input: { merchantId: string; providerPaymentId: string; amountCents: number; reason?: string; idempotencyKey?: string }) {
     const stripe = this.requireStripe();
     const refund = await stripe.refunds.create({
       payment_intent: input.providerPaymentId,
       amount: input.amountCents,
       reason: "requested_by_customer",
-    });
+    }, input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : undefined);
     return { refundId: refund.id, status: refund.status === "succeeded" ? "succeeded" as const : "pending" as const };
   }
 }

@@ -107,6 +107,8 @@ export type RefundPaymentInput = {
   providerPaymentId: string;
   amountCents: number;
   reason?: string;
+  /** Stable key for retrying the same return without issuing it twice. */
+  idempotencyKey?: string;
 };
 
 export type RefundPaymentOutput = {

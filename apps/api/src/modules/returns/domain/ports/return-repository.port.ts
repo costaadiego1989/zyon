@@ -46,6 +46,12 @@ export interface SaveRefundInput {
   status: string;
 }
 
+/**
+ * Creates the durable refund-attempt marker. A return has one refund, so the
+ * boolean result is an atomic gate for the outbound provider request.
+ */
+export interface BeginRefundInput extends SaveRefundInput {}
+
 export const RETURN_REPOSITORY_PORT = "ReturnRepositoryPort";
 
 export interface ReturnRepositoryPort {
@@ -57,6 +63,7 @@ export interface ReturnRepositoryPort {
   updateStatus(returnId: string, status: ReturnStatus): Promise<void>;
   saveLabel(input: SaveLabelInput): Promise<ReturnLabelProps>;
   saveInspection(input: SaveInspectionInput): Promise<ReturnInspectionProps>;
+  beginRefund(input: BeginRefundInput): Promise<boolean>;
   saveRefund(input: SaveRefundInput): Promise<ReturnRefundProps>;
   updateRefundStatus(returnId: string, status: string, processedAt?: Date): Promise<void>;
 }
