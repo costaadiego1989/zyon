@@ -53,7 +53,10 @@ export class WidgetCouponsController {
       session_id: body.session_id.trim(),
       merchant_id: embed.merchantId, // derived from claims, never body
       code: body.code.trim(),
-      cart: body.cart,
+      // The session is the checkout authority. Never calculate a coupon from
+      // a cart supplied by the widget: it may differ from the cart that will
+      // be charged when the order is completed.
+      cart: session.cart,
       merchantRules: rules, // P0: pass rules so engine can cap/reject discount
       buyer_global_user_id:
         typeof body.buyer_global_user_id === "string" ? body.buyer_global_user_id.trim() : undefined,
