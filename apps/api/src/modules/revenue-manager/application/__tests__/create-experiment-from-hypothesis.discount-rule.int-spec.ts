@@ -108,7 +108,7 @@ function makeDiscountRuleHypothesis(merchantId: string): HypothesisEntity {
     reasoning: "Baixa conversão no cohort price_sensitive",
     expected_lift_percent: 8,
     risk_level: "low",
-    approval_strategy: "auto", // auto → status approved
+    approval_strategy: "manual", // commercial rule requires explicit merchant approval
     hypothesis_type: "discount_rule",
     discount_rule_json: candidateRule,
     template: {
@@ -117,7 +117,7 @@ function makeDiscountRuleHypothesis(merchantId: string): HypothesisEntity {
       variant_a: { name: "Control", system_prompt: "baseline", weight: 50, is_control: true },
       variant_b: { name: "Treatment", system_prompt: "baseline", weight: 50, is_control: false },
     },
-  });
+  }).approve("merchant_owner", "approved for controlled A/B test");
 }
 
 function buildUseCase(deps: {

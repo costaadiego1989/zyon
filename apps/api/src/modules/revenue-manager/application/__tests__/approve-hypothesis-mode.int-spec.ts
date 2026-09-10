@@ -66,7 +66,7 @@ describe("ApproveHypothesisUseCase with mode parameter", () => {
       discount_rule_json: {
         id: "rule_456",
         name: "Test Rule",
-        conditions: [],
+        conditions: [{ field: "cart_total", operator: "gte", value: 100 }],
         action: { type: "offer_discount", params: { percent: 10 } },
         enabled: true,
         priority: 1,
@@ -80,7 +80,7 @@ describe("ApproveHypothesisUseCase with mode parameter", () => {
         discount_rule_json: {
           id: "rule_456",
           name: "Test Rule",
-          conditions: [],
+          conditions: [{ field: "cart_total", operator: "gte", value: 100 }],
           action: { type: "offer_discount", params: { percent: 10 } },
           enabled: true,
           priority: 1,
@@ -117,7 +117,7 @@ describe("ApproveHypothesisUseCase with mode parameter", () => {
 
     assert.strictEqual(result2.mode, "test_ab", "mode should be test_ab");
     assert.strictEqual(result2.experiment_id, "exp_hyp_123", "experiment_id should be set");
-    assert.strictEqual(result2.rule_id, "rule_456", "rule_id should not be set in test_ab mode");
+    assert.strictEqual(result2.rule_id, undefined, "rule_id should not be set in test_ab mode");
   });
 
   it("should validate mode is required", async () => {
