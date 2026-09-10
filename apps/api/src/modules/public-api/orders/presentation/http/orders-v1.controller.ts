@@ -3,12 +3,15 @@ import {
   Get,
   Post,
   Patch,
+  Put,
   Param,
   Body,
+  BadRequestException,
   Query,
   Req,
   UseGuards,
   UseInterceptors,
+  Inject,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -37,6 +40,10 @@ import {
   CancelOrderUseCase,
   UpdateOrderStatusUseCase,
 } from '../../../../operations/application/order-command.use-cases.js';
+import {
+  ORDER_TRACKING_UPDATER,
+  type OrderTrackingUpdater,
+} from '../../../../operations/domain/ports/order-tracking.port.js';
 import { OrderEntityMapper } from '../../application/mappers/order-entity.mapper.js';
 import {
   CancelOrderDto,
@@ -70,6 +77,8 @@ export class OrdersV1Controller {
     private readonly getOrderUseCase: GetOrderUseCase,
     private readonly cancelOrderUseCase: CancelOrderUseCase,
     private readonly updateOrderStatusUseCase: UpdateOrderStatusUseCase,
+    @Inject(ORDER_TRACKING_UPDATER)
+    private readonly updateOrderTrackingUseCase: OrderTrackingUpdater,
   ) {}
 
   /**
@@ -180,12 +189,67 @@ export class OrdersV1Controller {
     @Body() body: UpdateOrderTrackingDto,
   ) {
     const merchantId = req.tenantPrincipal?.tenantId;
-    // UpdateOrderStatusUseCase.execute(input: { merchantId, orderId, status })
-    const result = await this.updateOrderStatusUseCase.execute({
+    const order = await this.getOrderUseCase.execute(merchantId, orderId);
+
+    // Kept for compatibility with the original v1 contract, whose required
+    // status field used this route as the public status command. New tracking
+    // payloads must include a tracking code and use the dedicated updater.
+    if (!body.tracking_code?.trim()) {
+      if (!body.status?.trim()) {
+        throw new BadRequestException("tracking_code_or_status_required");
+      }
+      if (body.carrier || body.tracking_url || body.events?.length) {
+        throw new BadRequestException("tracking_code_required");
+      }
+      const result = await this.updateOrderStatusUseCase.execute({
+        merchantId,
+        orderId,
+        status: body.status,
+      });
+      return OrderEntityMapper.toUpdateTrackingResponse({
+        id: result.id,
+        status: result.status,
+      });
+    }
+
+    const result = await this.updateOrderTrackingUseCase.execute({
       merchantId,
-      orderId,
-      status: body.status,
+      externalOrderId: order.externalOrderId,
+      body: {
+        session_id: order.sessionId,
+        tracking_code: body.tracking_code,
+        carrier: body.carrier,
+        tracking_url: body.tracking_url,
+        status: body.status,
+        events: body.events,
+      },
     });
-    return OrderEntityMapper.toUpdateTrackingResponse(result);
+    const shipment = result.shipment as { status?: string } | null;
+    return OrderEntityMapper.toUpdateTrackingResponse({
+      id: order.id,
+      status: shipment?.status ?? body.status ?? null,
+      tracking_code: result.order.trackingCode ?? body.tracking_code,
+    });
+  }
+
+  /**
+   * Compatibility endpoint for generated SDKs published before the route was
+   * corrected to PATCH. Both methods share the same guarded command.
+   */
+  @Put(':orderId/tracking')
+  @Idempotent()
+  @RequireTenantAccess({
+    serviceScopes: ['tracking:write'],
+    humanRoles: ['owner', 'admin', 'staff'],
+  })
+  @ApiOperation({ summary: 'Update order tracking (legacy PUT compatibility)' })
+  @ApiBody({ type: UpdateOrderTrackingDto })
+  @ApiOkResponse({ type: UpdateTrackingResponse, description: 'Tracking updated' })
+  async updateTrackingLegacy(
+    @Req() req: any,
+    @Param('orderId') orderId: string,
+    @Body() body: UpdateOrderTrackingDto,
+  ) {
+    return this.updateTracking(req, orderId, body);
   }
 }

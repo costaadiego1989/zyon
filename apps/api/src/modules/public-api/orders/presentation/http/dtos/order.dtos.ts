@@ -1,5 +1,18 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional, IsBoolean } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsISO8601,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUrl,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
 
 export class CancelOrderDto {
   @ApiProperty({ example: 'Customer requested cancellation', description: 'Reason for cancellation' })
@@ -18,21 +31,71 @@ export class CancelOrderDto {
   restock?: boolean;
 }
 
-export class UpdateOrderTrackingDto {
-  @ApiProperty({ example: 'shipped', description: 'New order status' })
-  @IsString()
-  @IsNotEmpty()
-  status!: string;
+const TRACKING_STATUSES = [
+  'label_generated',
+  'dispatched',
+  'in_transit',
+  'out_for_delivery',
+  'delivered',
+  'returned',
+  'cancelled',
+] as const;
 
+class OrderTrackingEventDto {
+  @IsOptional()
+  @IsIn(TRACKING_STATUSES)
+  status?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  location?: string;
+
+  @IsOptional()
+  @IsISO8601()
+  occurred_at?: string;
+
+  @IsOptional()
+  @IsObject()
+  carrier_raw?: Record<string, unknown>;
+}
+
+export class UpdateOrderTrackingDto {
   @ApiPropertyOptional({ example: 'BR123456789', description: 'Tracking code' })
   @IsOptional()
   @IsString()
+  @MaxLength(120)
   tracking_code?: string;
 
   @ApiPropertyOptional({ example: 'Correios', description: 'Carrier name' })
   @IsOptional()
   @IsString()
+  @MaxLength(120)
   carrier?: string;
+
+  @ApiPropertyOptional({ example: 'https://rastreamento.example/BR123456789' })
+  @IsOptional()
+  @IsUrl({ require_protocol: true, protocols: ['https'] })
+  @MaxLength(2_048)
+  tracking_url?: string;
+
+  @ApiPropertyOptional({ example: 'in_transit', enum: TRACKING_STATUSES })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  status?: string;
+
+  @ApiPropertyOptional({ type: [OrderTrackingEventDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => OrderTrackingEventDto)
+  events?: OrderTrackingEventDto[];
 }
 
 // Response DTOs

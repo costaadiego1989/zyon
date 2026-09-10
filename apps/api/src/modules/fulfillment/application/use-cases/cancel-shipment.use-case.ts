@@ -1,4 +1,5 @@
-import { Injectable, Inject, NotFoundException , Logger} from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, BadRequestException, Logger } from "@nestjs/common";
+import { ShipmentEntity } from "../../domain/entities/shipment.entity.js";
 import { SHIPMENT_REPOSITORY, type ShipmentRepository } from "../../domain/ports/shipment-repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { createFulfillmentEventEnvelope } from "../../domain/events/fulfillment-domain-event.js";
@@ -16,7 +17,20 @@ export class CancelShipmentUseCase {
   async execute(input: { shipment_id: string; merchant_id: string }) {
     const shipment = await this.repo.findById(input.shipment_id, input.merchant_id);
     if (!shipment) throw new NotFoundException("shipment_not_found");
-    const cancelled = shipment.transition("cancelled");
+
+    // Carrier and dashboard retries are expected. Preserve the terminal
+    // cancellation as an idempotent result and do not emit a second event.
+    if (shipment.status === "cancelled") return shipment.snapshot();
+
+    let cancelled: ShipmentEntity;
+    try {
+      cancelled = shipment.transition("cancelled");
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith("INVALID_TRANSITION")) {
+        throw new BadRequestException("shipment_cancellation_not_allowed");
+      }
+      throw error;
+    }
     await this.repo.save(cancelled);
 
     // M3 fix: publish shipment.cancelled event so downstream systems

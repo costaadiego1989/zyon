@@ -182,6 +182,18 @@ export class UpdateOrderStatusUseCase {
     const order = await this.readRepository.getOrder(merchantId, orderId);
     if (!order) throw new NotFoundException("order_not_found");
 
+    // Status updates are delivered at-least-once by dashboard retries and
+    // integrations. A repeated target must not emit another webhook or buyer
+    // notification after the first successful transition.
+    if (order.status === status) {
+      return {
+        id: order.id,
+        external_order_id: order.externalOrderId,
+        status,
+        changed: false,
+      };
+    }
+
     if (!canTransitionOrderStatus(order.status, status)) {
       throw new BadRequestException("order_status_transition_invalid");
     }

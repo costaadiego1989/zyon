@@ -233,6 +233,42 @@ describe("UpdateOrderStatusUseCase", () => {
     assert.equal(result.status, "paid");
   });
 
+  it("treats an already-applied status as a no-op without publishing another event", async () => {
+    const published: Array<Record<string, unknown>> = [];
+    const emitted: string[] = [];
+    const useCase = new UpdateOrderStatusUseCase(
+      new StaticStatusOperationsRepository("paid"),
+      completedOrderRepository(),
+      {
+        publish: async (event: Record<string, unknown>) => {
+          published.push(event);
+          return [];
+        },
+      } as unknown as TenantWebhookPublisher,
+      {
+        publish: async (event: { eventType: string }) => { emitted.push(event.eventType); },
+        subscribe: () => {},
+        handlersFor: () => [],
+      } as any,
+      { checkoutSession: { findUnique: async () => ({ globalUserId: "buyer_123" }) } } as any,
+    );
+
+    const result = await useCase.execute({
+      merchantId: "mrc_a",
+      orderId: "ord_1",
+      status: "paid",
+    });
+
+    assert.deepEqual(result, {
+      id: "ord_1",
+      external_order_id: "external_1",
+      status: "paid",
+      changed: false,
+    });
+    assert.deepEqual(published, []);
+    assert.deepEqual(emitted, []);
+  });
+
   it("does not allow the generic status endpoint to bypass cancellation effects", async () => {
     const mockPrisma = {
       checkoutSession: {

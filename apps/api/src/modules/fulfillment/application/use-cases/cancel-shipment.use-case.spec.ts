@@ -111,12 +111,12 @@ describe("CancelShipmentUseCase", () => {
     await assert.rejects(
       () => cancel.execute({ shipment_id: created.id, merchant_id: "mrc_1" }),
       (err: unknown) => {
-        return err instanceof Error && /INVALID_TRANSITION/.test(err.message);
+        return err instanceof Error && err.name === "BadRequestException" && err.message === "shipment_cancellation_not_allowed";
       }
     );
   });
 
-  it("does not emit duplicate cancellation event on second cancel attempt", async () => {
+  it("returns the existing cancellation without emitting a duplicate event", async () => {
     const { outbox, createShipment, cancel } = makeSetup();
     const created = await createShipment.execute(BASE);
 
@@ -127,13 +127,8 @@ describe("CancelShipmentUseCase", () => {
       .filter((e) => e.event_type === "shipment.cancelled");
     assert.equal(cancelAttempts.length, 1, "single cancel event from first call");
 
-    // Second cancel rejected, no additional events.
-    await assert.rejects(
-      () => cancel.execute({ shipment_id: created.id, merchant_id: "mrc_1" }),
-      (err: unknown) => {
-        return err instanceof Error && /INVALID_TRANSITION/.test(err.message);
-      }
-    );
+    const replay = await cancel.execute({ shipment_id: created.id, merchant_id: "mrc_1" });
+    assert.equal(replay.status, "cancelled");
 
     const cancelAttemptsAfter = outbox
       .listOutbox("mrc_1")

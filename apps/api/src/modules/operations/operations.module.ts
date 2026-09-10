@@ -65,6 +65,7 @@ import {
     GetCustomerUseCase,
     ListPaymentsUseCase,
     GetPaymentUseCase,
+    ORDER_TRACKING_UPDATER,
   ],
 })
 export class OperationsModule {}

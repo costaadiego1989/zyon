@@ -127,7 +127,7 @@ const ordersUpdateTracking = (
     updateOrderTrackingDto: UpdateOrderTrackingDto,
  ) => {
       return customInstance<OrdersUpdateTracking200>(
-      {url: `/v1/orders/${orderId}/tracking`, method: 'PUT',
+      {url: `/v1/orders/${orderId}/tracking`, method: 'PATCH',
       headers: {'Content-Type': 'application/json', },
       data: updateOrderTrackingDto
     },
