@@ -92,6 +92,70 @@ function defaultDueDate(): string {
   return d.toISOString().slice(0, 10);
 }
 
+type AsaasFixedSplitNetValueGuard = (input: CreateProviderPaymentInput) => number | undefined;
+
+type AsaasProviderFeeEnvelope = Readonly<{ fixedCents: number; basisPoints: number }>;
+
+/**
+ * Public standard receiving fees published by Asaas. These are a conservative
+ * fallback only for ordinary receipts: an account-specific contract or
+ * anticipation can deduct more and must be declared through the environment
+ * overrides below.
+ */
+const ASAAS_PUBLIC_STANDARD_MAXIMUM_FEE: Readonly<Record<Exclude<AsaasBillingType, "UNDEFINED">, AsaasProviderFeeEnvelope>> = {
+  PIX: { fixedCents: 199, basisPoints: 0 },
+  BOLETO: { fixedCents: 199, basisPoints: 0 },
+  CREDIT_CARD: { fixedCents: 49, basisPoints: 429 },
+};
+
+/**
+ * Returns a conservative maximum for the provider deduction from this charge.
+ *
+ * A fixed Asaas split is evaluated against `netValue`, not the amount shown to
+ * the buyer. The public Asaas schedule supplies a conservative baseline for
+ * ordinary receipts, while an account-specific contract or anticipation must
+ * override it with the worst applicable deduction through the environment.
+ */
+export function maximumAsaasProviderFeeCents(
+  input: Pick<CreateProviderPaymentInput, "amountCents" | "method">,
+  env: NodeJS.ProcessEnv = process.env,
+): number | undefined {
+  const method = billingFromMethod(input.method);
+  if (method === "UNDEFINED" || !Number.isSafeInteger(input.amountCents) || input.amountCents < 0) {
+    return undefined;
+  }
+  const configured = configuredAsaasProviderFeeEnvelope(method, env);
+  if (configured === undefined) return undefined;
+
+  // A fee expressed in basis points can round up to the next cent. Rounding
+  // upward here keeps the preflight conservative.
+  const percentageFee = Math.ceil((input.amountCents * configured.basisPoints) / 10_000);
+  const maximum = configured.fixedCents + percentageFee;
+  return Number.isSafeInteger(maximum) ? maximum : undefined;
+}
+
+function configuredAsaasProviderFeeEnvelope(
+  method: Exclude<AsaasBillingType, "UNDEFINED">,
+  env: NodeJS.ProcessEnv,
+): AsaasProviderFeeEnvelope | undefined {
+  const prefix = `ASAAS_PLATFORM_SPLIT_MAX_PROVIDER_FEE_${method}`;
+  const fixedRaw = env[`${prefix}_FIXED_CENTS`];
+  const basisPointsRaw = env[`${prefix}_BPS`];
+  if (fixedRaw === undefined && basisPointsRaw === undefined) return ASAAS_PUBLIC_STANDARD_MAXIMUM_FEE[method];
+
+  const fixedCents = parseNonNegativeInteger(fixedRaw);
+  const basisPoints = parseNonNegativeInteger(basisPointsRaw);
+  if (fixedCents === undefined || basisPoints === undefined || basisPoints > 10_000) return undefined;
+  return { fixedCents, basisPoints };
+}
+
+function parseNonNegativeInteger(value: string | undefined): number | undefined {
+  const normalized = value?.trim();
+  if (!normalized || !/^\d+$/.test(normalized)) return undefined;
+  const parsed = Number(normalized);
+  return Number.isSafeInteger(parsed) ? parsed : undefined;
+}
+
 @Injectable()
 export class AsaasPaymentAdapter implements PaymentProviderPort {
   private readonly normalizedBaseUrl: string;
@@ -101,6 +165,7 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
     private readonly fetchImpl: typeof fetch,
     private readonly platformWalletId?: string,
     private readonly requirePlatformSplit = false,
+    private readonly platformSplitMaximumProviderFeeCents: AsaasFixedSplitNetValueGuard = maximumAsaasProviderFeeCents,
   ) {
     // Normalize: ASAAS_BASE_URL may already include the /v3 suffix (e.g.
     // https://www.asaas.com/api/v3). All methods build `${base}/v3/...`, so strip
@@ -291,8 +356,18 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
   }
 
   validatePlatformFee(input: CreateProviderPaymentInput): void {
-    if (this.requirePlatformSplit && (input.platformFeeCents ?? 0) > 0 && !this.platformWalletId) {
+    const platformFeeCents = input.platformFeeCents ?? 0;
+    if (this.requirePlatformSplit && platformFeeCents > 0 && !this.platformWalletId) {
       throw new Error("asaas_platform_wallet_not_configured");
+    }
+    if (!this.platformWalletId || platformFeeCents <= 0) return;
+
+    const maximumProviderFeeCents = this.platformSplitMaximumProviderFeeCents(input);
+    if (maximumProviderFeeCents === undefined) {
+      throw new Error("asaas_platform_split_net_value_guard_not_configured");
+    }
+    if (platformFeeCents > input.amountCents - maximumProviderFeeCents) {
+      throw new Error("asaas_platform_split_may_exceed_net_value");
     }
   }
 
