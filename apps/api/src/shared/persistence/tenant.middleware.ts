@@ -77,6 +77,8 @@ export const TENANT_SCOPED_MODELS = [
   "PaymentHold",
   "PaymentIntent",
   "PaymentProviderEvent",
+  "PaymentSettlement",
+  "PaymentSettlementEntry",
   "PostSaleMessageTemplate",
   "PostSaleScheduledMessage",
   "PriceQuoteJob",

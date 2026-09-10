@@ -853,12 +853,85 @@ model PaymentIntent {
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 
+  settlements PaymentSettlement[]
+
   @@unique([merchantId, sessionId, idempotencyKey])
   @@unique([merchantId, providerPaymentId])
+  @@unique([id, merchantId])
   @@index([merchantId, sessionId])
   @@index([merchantId, commerceOrderId])
   @@index([status, updatedAt])
   @@map("payment_intents")
+}
+
+// Immutable settlement snapshots. A later provider observation is recorded as
+// the next sequence instead of mutating an existing financial fact.
+model PaymentSettlement {
+  id                        String    @id @default(cuid())
+  merchantId                String    @map("merchant_id")
+  paymentIntentId           String    @map("payment_intent_id")
+  sequence                  Int
+  provider                  String
+  status                    String
+  currency                  String
+  providerPaymentId         String?   @map("provider_payment_id")
+  providerSettlementId      String?   @map("provider_settlement_id")
+  providerReference         String?   @map("provider_reference")
+  plannedGrossCents         Int       @map("planned_gross_cents")
+  plannedPlatformFeeCents   Int       @map("planned_platform_fee_cents")
+  plannedMerchantNetCents   Int       @map("planned_merchant_net_cents")
+  plannedProviderFeeCents   Int       @map("planned_provider_fee_cents")
+  confirmedGrossCents       Int?      @map("confirmed_gross_cents")
+  confirmedPlatformFeeCents Int?      @map("confirmed_platform_fee_cents")
+  confirmedMerchantNetCents Int?      @map("confirmed_merchant_net_cents")
+  confirmedProviderFeeCents Int?      @map("confirmed_provider_fee_cents")
+  occurredAt                DateTime  @map("occurred_at")
+  confirmedAt               DateTime? @map("confirmed_at")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+
+  paymentIntent PaymentIntent            @relation(fields: [paymentIntentId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  entries       PaymentSettlementEntry[]
+
+  @@unique([id, merchantId])
+  @@unique([merchantId, paymentIntentId, sequence])
+  @@unique([merchantId, provider, providerSettlementId])
+  @@index([merchantId, paymentIntentId, occurredAt])
+  @@index([merchantId, status, occurredAt])
+  @@index([provider, status, occurredAt])
+  @@map("payment_settlements")
+}
+
+// Immutable allocation facts for a settlement snapshot. Amounts are always in
+// cents; confirmation, reversal, and reconciliation create new entries.
+model PaymentSettlementEntry {
+  id                   String    @id @default(cuid())
+  merchantId           String    @map("merchant_id")
+  settlementId         String    @map("settlement_id")
+  sequence             Int
+  entryKey             String    @map("entry_key")
+  entryType            String    @map("entry_type")
+  direction            String
+  recipientType        String    @map("recipient_type")
+  recipientReference   String?   @map("recipient_reference")
+  status               String
+  currency             String
+  plannedAmountCents   Int       @map("planned_amount_cents")
+  confirmedAmountCents Int?      @map("confirmed_amount_cents")
+  provider             String
+  providerTransferId   String?   @map("provider_transfer_id")
+  providerReference    String?   @map("provider_reference")
+  occurredAt           DateTime  @map("occurred_at")
+  confirmedAt          DateTime? @map("confirmed_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+
+  settlement PaymentSettlement @relation(fields: [settlementId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([merchantId, settlementId, sequence])
+  @@unique([merchantId, settlementId, entryKey])
+  @@unique([merchantId, provider, providerTransferId])
+  @@index([merchantId, status, occurredAt])
+  @@index([merchantId, entryType, occurredAt])
+  @@map("payment_settlement_entries")
 }
 
 model PaymentProviderEvent {
