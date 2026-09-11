@@ -9,6 +9,8 @@ export interface PlanDef {
   limits: { orders: number; sessions: number; ai: number; connections: number };
   features: string[];
   recommended?: boolean;
+  highlights?: string[];
+  trialDays?: number;
 }
 
 interface PlanCardProps {

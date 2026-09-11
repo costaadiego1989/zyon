@@ -1,9 +1,8 @@
 import React, { useState } from "react";
-import { KeyRound, UserPlus, Github, Code2, Eye, EyeOff } from "lucide-react";
+import { Github, Eye, EyeOff } from "lucide-react";
+import { AuthExperience } from "./SignupExperience.js";
 import { SignupWizard } from "./SignupWizard.js";
 import { Turnstile } from "./Turnstile.js";
-import { WavesBackground } from "./WavesBackground.js";
-import { PulseAgentOrb } from "../components/PulseAgentOrb.js";
 import { useApi } from "../hooks/useApi.js";
 import { readError } from "../utils/read-error.js";
 import { DashboardHttpError } from "../api-client.js";
@@ -61,106 +60,35 @@ function startOAuthFlow(provider: "github" | "google") {
 }
 
 export function AuthScreen(props: AuthScreenProps) {
-  const mode: AuthMode = props.mode;
-  const isSignup = mode === "signup";
-  return (
-    <>
-      {/* Layer 1: full-viewport background image (lazy) — sits behind the card */}
-      <img
-        src="/bg-signup.webp"
-        alt=""
-        loading="lazy"
-        decoding="async"
-        aria-hidden="true"
-        className="auth-bg-image"
-      />
-
-      {/* Layer 2: animated waves overlay — also full viewport */}
-      <div className="auth-bg" aria-hidden="true">
-        <WavesBackground strokeColor="rgba(180, 220, 200, 0.22)" backgroundColor="transparent" />
-      </div>
-
-      {/* Layer 3: the glass card with 2 columns */}
-      <main className="auth-shell">
-        {/* Left: Form */}
-        <section className="auth-form-panel">
-          <div className="auth-form-container">
-            <header className="auth-header">
-            <img src="/logo-zyon.png" alt="Zyon" className="auth-header__logo" />
-            <div className="auth-header__sep" />
-            <span className="auth-header__label">Loja autônoma com IA</span>
-          </header>
-
-          <div className="auth-tabs" role="tablist">
-            <button type="button" onClick={() => props.setMode("login")} className={`auth-tabs__btn ${mode === "login" ? "auth-tabs__btn--active" : ""}`} role="tab" aria-selected={mode === "login"}>
-              Entrar
-            </button>
-            <button type="button" onClick={() => props.setMode("signup")} className={`auth-tabs__btn ${mode === "signup" || mode === "forgot" ? "auth-tabs__btn--active" : ""}`} role="tab" aria-selected={isSignup}>
-              Criar conta
-            </button>
-          </div>
-
-          <div className="auth-form-area">
-            {mode === "reset" ? (
-              <ResetPasswordForm onBack={() => props.setMode("login")} />
-            ) : mode === "forgot" ? (
-              <ForgotPasswordForm onBack={() => props.setMode("login")} />
-            ) : isSignup ? (
-              <SignupWizard
-                busy={props.busy}
-                hint={props.hint}
-                onRegister={props.onRegister}
-                onSaveTheme={props.onSaveTheme}
-                onSaveCompanyData={props.onSaveCompanyData}
-                onSaveOwner={props.onSaveOwner}
-                onComplete={props.onComplete}
-                oauthProfile={props.oauthProfile}
-                onSwitchToLogin={() => props.setMode("login")}
-                onGithubClick={() => startOAuthFlow("github")}
-                onGoogleClick={() => startOAuthFlow("google")}
-                turnstileSiteKey={props.turnstileSiteKey}
-                captchaToken={props.captchaToken}
-                setCaptchaToken={props.setCaptchaToken}
-              />
-            ) : (
-              <LoginForm {...props} onGithubClick={() => startOAuthFlow("github")} onGoogleClick={() => startOAuthFlow("google")} />
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Right: Hero — orb, logo and tagline live directly in the glass panel */}
-      <section className="auth-hero" aria-label="Sobre a Zyon">
-        <div className="auth-hero__orb-glow" aria-hidden="true">
-          <PulseAgentOrb size={128} />
-        </div>
-        <img src="/logo-zyon.png" alt="Zyon" className="auth-hero__logo-img" />
-        <p className="auth-hero__tagline">
-          A primeira plataforma de checkout agêntico onde uma IA assume o papel
-          de Gerente de Vendas — conversa, negocia e fecha a compra sob as
-          regras do seu negócio.
-        </p>
-      </section>
-    </main>
-    </>
-  );
+  return <AuthExperience mode={props.mode} busy={props.busy} onSwitchMode={props.setMode}>
+    {props.mode === "signup" ? <SignupWizard
+      busy={props.busy} hint={props.hint} onRegister={props.onRegister}
+      onSaveTheme={props.onSaveTheme} onSaveCompanyData={props.onSaveCompanyData}
+      onSaveOwner={props.onSaveOwner} onComplete={props.onComplete} oauthProfile={props.oauthProfile}
+      onSwitchToLogin={() => props.setMode("login")}
+      onGithubClick={() => startOAuthFlow("github")} onGoogleClick={() => startOAuthFlow("google")}
+      turnstileSiteKey={props.turnstileSiteKey} captchaToken={props.captchaToken} setCaptchaToken={props.setCaptchaToken}
+    /> : props.mode === "reset" ? <ResetPasswordForm onBack={() => props.setMode("login")} />
+      : props.mode === "forgot" ? <ForgotPasswordForm onBack={() => props.setMode("login")} />
+      : <LoginForm {...props} onGithubClick={() => startOAuthFlow("github")} onGoogleClick={() => startOAuthFlow("google")} />}
+  </AuthExperience>;
 }
 
 function LoginForm(props: AuthScreenProps & { onGithubClick: () => void; onGoogleClick: () => void }) {
   const [showPass, setShowPass] = useState(false);
   return (
-    <form onSubmit={props.onSubmit} className="auth-form">
+    <form onSubmit={props.onSubmit} className="auth-form" aria-busy={props.busy}>
       <div className="auth-form__header">
         <h2 className="auth-form__title">Acesse seu painel</h2>
         <p className="auth-form__subtitle">Acompanhe sua loja, seus pedidos e o trabalho da IA.</p>
       </div>
 
       <div className="auth-social">
-        <button type="button" className="auth-social__btn" onClick={props.onGoogleClick}>
+        <button type="button" className="auth-social__btn" onClick={props.onGoogleClick} disabled={props.busy}>
           <GoogleIcon />
           <span>Google</span>
         </button>
-        <button type="button" className="auth-social__btn" onClick={props.onGithubClick}>
+        <button type="button" className="auth-social__btn" onClick={props.onGithubClick} disabled={props.busy}>
           <Github size={16} />
           <span>GitHub</span>
         </button>
@@ -171,18 +99,18 @@ function LoginForm(props: AuthScreenProps & { onGithubClick: () => void; onGoogl
       </div>
 
       <div className="auth-field">
-        <label className="auth-field__label">Email</label>
-        <input type="email" value={props.email} onChange={(e) => props.setEmail(e.target.value)} autoComplete="username" placeholder="owner@loja.com" required className="auth-field__input" />
+        <label className="auth-field__label" htmlFor="login-email">E-mail</label>
+        <input id="login-email" type="email" value={props.email} onChange={(e) => props.setEmail(e.target.value)} autoComplete="username" placeholder="voce@empresa.com.br" required className="auth-field__input" />
       </div>
 
       <div className="auth-field">
         <div className="auth-field__label-row">
-          <label className="auth-field__label">Senha</label>
-          <button type="button" onClick={() => props.setMode("forgot")} className="auth-field__link">Esqueceu?</button>
+          <label className="auth-field__label" htmlFor="login-password">Senha</label>
+          <button type="button" onClick={() => props.setMode("forgot")} disabled={props.busy} className="auth-field__link">Esqueceu a senha?</button>
         </div>
         <div className="auth-field__input-wrap">
-          <input type={showPass ? "text" : "password"} value={props.password} onChange={(e) => props.setPassword(e.target.value)} autoComplete="current-password" placeholder="••••••••" minLength={4} required className="auth-field__input" />
-          <button type="button" className="auth-field__eye" onClick={() => setShowPass(!showPass)} aria-label={showPass ? "Ocultar senha" : "Mostrar senha"}>
+          <input id="login-password" type={showPass ? "text" : "password"} value={props.password} onChange={(e) => props.setPassword(e.target.value)} autoComplete="current-password" placeholder="••••••••" minLength={4} required className="auth-field__input" />
+          <button type="button" className="auth-field__eye" onClick={() => setShowPass(!showPass)} aria-label={showPass ? "Ocultar senha" : "Mostrar senha"} aria-pressed={showPass} aria-controls="login-password">
             {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
         </div>
@@ -191,13 +119,14 @@ function LoginForm(props: AuthScreenProps & { onGithubClick: () => void; onGoogl
       {props.turnstileSiteKey ? (
         <div className="auth-field">
           <Turnstile
+            theme="light"
             siteKey={props.turnstileSiteKey}
             onChange={props.setCaptchaToken}
           />
         </div>
       ) : null}
 
-      {props.hint ? <div className="auth-hint">{props.hint}</div> : null}
+      {props.hint ? <div className="auth-hint" role="alert">{props.hint}</div> : null}
 
       <button
         type="submit"
@@ -210,7 +139,7 @@ function LoginForm(props: AuthScreenProps & { onGithubClick: () => void; onGoogl
         {props.busy ? "Aguarde..." : "Entrar"}
       </button>
 
-      <p className="auth-switch">Não tem conta? <button type="button" onClick={() => props.setMode("signup")} className="auth-switch__link">Criar conta</button></p>
+      <p className="auth-switch">Não tem conta? <button type="button" onClick={() => props.setMode("signup")} disabled={props.busy} className="auth-switch__link">Criar conta</button></p>
     </form>
   );
 }
@@ -234,10 +163,10 @@ function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
 
   if (sent) {
     return (
-      <div className="auth-form" style={{ textAlign: "center" }}>
-        <h2 className="auth-form__title">Email enviado!</h2>
+      <div className="auth-form auth-feedback" role="status">
+        <h2 className="auth-form__title">Confira seu e-mail</h2>
         <p className="auth-form__subtitle">Se o email estiver cadastrado, você receberá um link para redefinir sua senha.</p>
-        <button type="button" onClick={onBack} className="auth-switch__link" style={{ marginTop: 16 }}>← Voltar ao login</button>
+        <button type="button" onClick={onBack} className="auth-btn-secondary">← Voltar ao login</button>
       </div>
     );
   }
@@ -249,12 +178,12 @@ function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
         <p className="auth-form__subtitle">Informe o email cadastrado e enviaremos um link.</p>
       </div>
       <div className="auth-field">
-        <label className="auth-field__label">Email</label>
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="owner@loja.com" required className="auth-field__input" />
+        <label className="auth-field__label" htmlFor="recovery-email">E-mail</label>
+        <input id="recovery-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="voce@empresa.com.br" required className="auth-field__input" />
       </div>
-      {error ? <div className="auth-hint">{error}</div> : null}
+      {error ? <div className="auth-hint" role="alert">{error}</div> : null}
       <button type="submit" disabled={busy} className="auth-cta">{busy ? "Enviando..." : "Enviar link"}</button>
-      <button type="button" onClick={onBack} className="auth-switch__link" style={{ textAlign: "center", width: "100%", marginTop: 8 }}>← Voltar ao login</button>
+      <button type="button" onClick={onBack} disabled={busy} className="auth-btn-secondary">← Voltar ao login</button>
     </form>
   );
 }
@@ -300,22 +229,22 @@ export function ResetPasswordForm({ onBack }: { onBack: () => void }) {
     } finally { setBusy(false); }
   };
 
-  if (!token) {
+  if (!token && !done) {
     return (
-      <div className="auth-form" style={{ textAlign: "center" }}>
+      <div className="auth-form auth-feedback" role="alert">
         <h2 className="auth-form__title">Link inválido</h2>
         <p className="auth-form__subtitle">O link de redefinição está incompleto ou expirado.</p>
-        <button type="button" onClick={onBack} className="auth-switch__link" style={{ marginTop: 16 }}>← Voltar ao login</button>
+        <button type="button" onClick={onBack} className="auth-btn-secondary">← Voltar ao login</button>
       </div>
     );
   }
 
   if (done) {
     return (
-      <div className="auth-form" style={{ textAlign: "center" }}>
-        <h2 className="auth-form__title">Senha redefinida! ✓</h2>
+      <div className="auth-form auth-feedback" role="status">
+        <h2 className="auth-form__title">Senha redefinida</h2>
         <p className="auth-form__subtitle">Sua nova senha está ativa. Faça login para acessar.</p>
-        <button type="button" onClick={onBack} className="auth-cta" style={{ marginTop: 16 }}>Fazer Login</button>
+        <button type="button" onClick={onBack} className="auth-cta">Entrar no painel</button>
       </div>
     );
   }
@@ -327,19 +256,19 @@ export function ResetPasswordForm({ onBack }: { onBack: () => void }) {
         <p className="auth-form__subtitle">Defina sua nova senha de acesso.</p>
       </div>
       <div className="auth-field">
-        <label className="auth-field__label">Nova senha</label>
-        <div style={{ position: "relative" }}>
-          <input type={showPw ? "text" : "password"} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Mínimo 8 caracteres" required minLength={8} className="auth-field__input" />
-          <button type="button" onClick={() => setShowPw(!showPw)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--color-text-faint)" }}>
+        <label className="auth-field__label" htmlFor="reset-password">Nova senha</label>
+        <div className="auth-field__input-wrap">
+          <input id="reset-password" type={showPw ? "text" : "password"} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} autoComplete="new-password" placeholder="Mínimo 8 caracteres" required minLength={8} className="auth-field__input" />
+          <button type="button" onClick={() => setShowPw(!showPw)} className="auth-field__eye" aria-label={showPw ? "Ocultar senha" : "Mostrar senha"} aria-pressed={showPw} aria-controls="reset-password">
             {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
         </div>
       </div>
       <div className="auth-field">
-        <label className="auth-field__label">Confirmar senha</label>
-        <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Repita a nova senha" required className="auth-field__input" />
+        <label className="auth-field__label" htmlFor="reset-confirm-password">Confirmar senha</label>
+        <input id="reset-confirm-password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" placeholder="Repita a nova senha" required className="auth-field__input" />
       </div>
-      {error ? <div className="auth-hint">{error}</div> : null}
+      {error ? <div className="auth-hint" role="alert">{error}</div> : null}
       <button type="submit" disabled={busy} className="auth-cta">{busy ? "Salvando..." : "Redefinir senha"}</button>
     </form>
   );

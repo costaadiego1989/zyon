@@ -45,3 +45,10 @@
 @media (max-width: 850px) { .plan-selection__grid { grid-template-columns: minmax(0, 1fr); } .signup-plan__description, .signup-plan__fee { min-height: 0; } }
 @media (max-width: 540px) { .signup-plans { padding-inline: 16px; } .plan-selection__header h1 { font-size: 28px; } .plan-selection__header { padding-block: 24px; } .plan-selection__footer button { width: 100%; } .signup-plan { padding: 20px; } }
 @media (prefers-reduced-motion: reduce) { .signup-plan { transition: none; } }
+
+.plan-selection__grid--focused { max-width:620px; margin-inline:auto; grid-template-columns:minmax(0,1fr); }
+.plan-selection__grid--focused .signup-plan { padding:32px; }
+.plan-selection__grid--focused .signup-plan__limits { display:grid; grid-template-columns:1fr 1fr; gap:12px 28px; }
+.plan-selection__change { display:block; margin:20px auto; min-height:44px; padding:8px 16px; color:var(--color-primary, #0f766e); text-decoration:underline; text-underline-offset:4px; font:inherit; font-size:13px; border:0; background:none; cursor:pointer; }
+.plan-selection__change:disabled { opacity:.5; cursor:default; }
+@media(max-width:540px) { .plan-selection__grid--focused .signup-plan { padding:22px; } .plan-selection__grid--focused .signup-plan__limits { grid-template-columns:1fr; } }

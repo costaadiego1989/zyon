@@ -16,6 +16,7 @@ import { PlanSelection } from "./pages/onboarding-wizard/steps/PlanSelection.js"
 import type { TabKey } from "./shell/nav-config.js";
 import { ApiContext, useApiInstance } from "./hooks/useApi.js";
 import { reportError } from "./lib/observability/error-reporter.js";
+import { readSubscriptionIntent, clearSubscriptionIntent } from "./auth/subscription-intent.js";
 import "./styles.css";
 
 const API_BASE_URL = resolveDashboardApiBaseUrl(import.meta.env);
@@ -43,7 +44,8 @@ function App({ api }: AppProps) {
     const params = new URLSearchParams(window.location.search);
     if (params.get("token") && window.location.pathname.includes("reset-password")) return "reset";
     if (params.get("mode") === "signup") return "signup";
-    return "login";
+    if (params.get("mode") === "login") return "login";
+    return window.location.pathname === "/" ? "signup" : "login";
   });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -56,6 +58,7 @@ function App({ api }: AppProps) {
   const [initialTab, setInitialTab] = useState<TabKey | undefined>(undefined);
   const [onboardingCompleted, setOnboardingCompleted] = useState(true);
   const [planSelectionPending, setPlanSelectionPending] = useState(false);
+  const [subscriptionIntent, setSubscriptionIntent] = useState(readSubscriptionIntent);
   const onboardingRedirectedRef = useRef(false);
 
   async function refreshSession() {
@@ -176,8 +179,12 @@ function App({ api }: AppProps) {
   }
 
   async function handlePlanComplete() {
-    await api.completeOnboardingStep("account");
-    await api.putStoreSettings({ registration_pending: false, oauth_registration_pending: false, plan_selection_pending: false });
+    if (planSelectionPending) {
+      await api.completeOnboardingStep("account");
+      await api.putStoreSettings({ registration_pending: false, oauth_registration_pending: false, plan_selection_pending: false });
+    }
+    clearSubscriptionIntent();
+    setSubscriptionIntent(null);
     window.history.replaceState({}, "", "/");
     setPlanSelectionPending(false);
     setOauthProfile(null);
@@ -217,8 +224,8 @@ function App({ api }: AppProps) {
 
   if (checkingSession) return <LoadingSplash />;
 
-  if (me && planSelectionPending) {
-    return <main className="signup-plans"><PlanSelection merchantName={me.name} onDone={handlePlanComplete} /></main>;
+  if (me && (!me.role || me.role === "OWNER") && (planSelectionPending || subscriptionIntent)) {
+    return <main className="signup-plans"><PlanSelection merchantName={me.name} initialPlan={subscriptionIntent ?? undefined} onDone={handlePlanComplete} onExit={planSelectionPending && new URLSearchParams(window.location.search).get("billing") !== "success" ? undefined : handlePlanComplete} /></main>;
   }
 
   if (!me) {

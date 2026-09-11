@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2, User, Building2, KeyRound, Github } from "lucide-react";
 import { friendlyAuthError } from "./auth-error.js";
 import { Turnstile } from "./Turnstile.js";
@@ -50,6 +50,7 @@ const STEP_META = [
 ];
 
 export function SignupWizard(props: SignupWizardProps) {
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const isOAuth = Boolean(props.oauthProfile);
   const accountCreated = useRef(isOAuth);
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -61,6 +62,7 @@ export function SignupWizard(props: SignupWizardProps) {
 
   const busy = props.busy || localBusy;
   const hint = error ?? props.hint;
+  useEffect(() => { if (step > 1) titleRef.current?.focus({ preventScroll: true }); }, [step]);
 
   function goNext() {
     setError(null);
@@ -137,11 +139,11 @@ export function SignupWizard(props: SignupWizardProps) {
   }
 
   return (
-    <div className="auth-form">
+    <form className="auth-form" noValidate aria-busy={busy} onSubmit={(event) => { event.preventDefault(); if (!busy) { if (step < 3) goNext(); else void handleSubmit(); } }}>
       <ProgressBar step={step} />
 
       <div className="auth-form__header">
-        <h2 className="auth-form__title">{STEP_META[step - 1].label}</h2>
+        <h2 ref={titleRef} tabIndex={-1} className="auth-form__title">{STEP_META[step - 1].label}</h2>
         <p className="auth-form__subtitle">
           {step === 1 && "Vamos preparar sua loja autônoma. Comece por você."}
           {step === 2 && "Apresente a empresa que a Zyon vai ajudar a vender."}
@@ -153,13 +155,13 @@ export function SignupWizard(props: SignupWizardProps) {
         <>
           <div className="auth-social">
             {props.onGoogleClick && (
-              <button type="button" className="auth-social__btn" onClick={props.onGoogleClick}>
+              <button type="button" className="auth-social__btn" disabled={busy} onClick={props.onGoogleClick}>
                 <GoogleIcon />
                 <span>Google</span>
               </button>
             )}
             {props.onGithubClick && (
-              <button type="button" className="auth-social__btn" onClick={props.onGithubClick}>
+              <button type="button" className="auth-social__btn" disabled={busy} onClick={props.onGithubClick}>
                 <Github size={16} />
                 <span>GitHub</span>
               </button>
@@ -169,26 +171,27 @@ export function SignupWizard(props: SignupWizardProps) {
         </>
       )}
 
+      <div className="auth-form-fields" key={step}>
       {step === 1 && <PersonFields draft={person} onChange={setPerson} />}
       {step === 2 && <BusinessFields draft={business} onChange={setBusiness} />}
       {step === 3 && <AccountFields draft={account} onChange={setAccount} oauth={isOAuth} />}
+      </div>
 
       {step === 3 && !isOAuth && props.turnstileSiteKey ? (
         <div style={{ marginTop: 8 }}>
-          <Turnstile siteKey={props.turnstileSiteKey} onChange={props.setCaptchaToken} />
+          <Turnstile theme="light" siteKey={props.turnstileSiteKey} onChange={props.setCaptchaToken} />
         </div>
       ) : null}
 
-      {hint ? <div className="auth-hint">{hint}</div> : null}
+      {hint ? <div className="auth-hint" role="alert">{hint}</div> : null}
 
       {step < 3 ? (
-        <button type="button" onClick={goNext} disabled={busy} className="auth-cta">
+        <button type="submit" disabled={busy} className="auth-cta">
           Continuar <ArrowRight size={16} />
         </button>
       ) : (
         <button
-          type="button"
-          onClick={handleSubmit}
+          type="submit"
           disabled={
             busy ||
             (!isOAuth && import.meta.env.PROD && Boolean(props.turnstileSiteKey) && !props.captchaToken)
@@ -201,7 +204,7 @@ export function SignupWizard(props: SignupWizardProps) {
 
       {step === 3 && (
         <p className="auth-terms">
-          Ao criar a conta você concorda com os <a href="#">Termos de Uso</a> e a <a href="#">Política de Privacidade</a> do Zyon.
+          Ao criar a conta você concorda com os <a href="https://www.zyon-payments.com.br/termos" target="_blank" rel="noreferrer">Termos de Uso</a> e a <a href="https://www.zyon-payments.com.br/privacidade" target="_blank" rel="noreferrer">Política de Privacidade</a> do Zyon.
         </p>
       )}
 
@@ -215,13 +218,13 @@ export function SignupWizard(props: SignupWizardProps) {
           Já tem conta? <button type="button" onClick={props.onSwitchToLogin} className="auth-switch__link">Entrar</button>
         </p>
       </div>
-    </div>
+    </form>
   );
 }
 
 function ProgressBar({ step }: { step: 1 | 2 | 3 }) {
   return (
-    <div className="auth-progress">
+    <div className="auth-progress" role="list" aria-label="Etapas do cadastro">
       {STEP_META.map((meta, idx) => {
         const n = idx + 1;
         const isCompleted = step > n;
@@ -230,7 +233,7 @@ function ProgressBar({ step }: { step: 1 | 2 | 3 }) {
         const barCls = isCompleted ? "auth-progress__bar--filled" : isActive ? "auth-progress__bar--active" : "auth-progress__bar--empty";
         const labelCls = isCompleted ? "auth-progress__label--completed" : isActive ? "auth-progress__label--active" : "";
         return (
-          <div key={n} className="auth-progress__item">
+          <div key={n} className="auth-progress__item" role="listitem" aria-current={isActive ? "step" : undefined}>
             <div className={`auth-progress__bar ${barCls}`} />
             <span className={`auth-progress__label ${labelCls}`}>
               {isCompleted ? <CheckCircle2 size={13} /> : <Icon size={13} />}
@@ -247,12 +250,12 @@ function PersonFields({ draft, onChange }: { draft: PersonDraft; onChange: (d: P
   return (
     <>
       <div className="auth-field">
-        <label className="auth-field__label">Nome completo</label>
-        <input value={draft.name} onChange={(e) => onChange({ ...draft, name: e.target.value })} placeholder="Ana Souza" className="auth-field__input" />
+        <label className="auth-field__label" htmlFor="signup-name">Nome completo</label>
+        <input id="signup-name" autoComplete="name" value={draft.name} onChange={(e) => onChange({ ...draft, name: e.target.value })} placeholder="Ana Souza" className="auth-field__input" />
       </div>
       <div className="auth-field">
-        <label className="auth-field__label">Cargo / papel na empresa</label>
-        <select value={draft.role} onChange={(e) => onChange({ ...draft, role: e.target.value })} className="auth-field__select">
+        <label className="auth-field__label" htmlFor="signup-role">Cargo / papel na empresa</label>
+        <select id="signup-role" value={draft.role} onChange={(e) => onChange({ ...draft, role: e.target.value })} className="auth-field__select">
           <option value="">Selecione seu cargo</option>
           {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
         </select>
@@ -265,10 +268,10 @@ function BusinessFields({ draft, onChange }: { draft: BusinessDraft; onChange: (
   return (
     <>
       <div className="auth-field">
-        <label className="auth-field__label">Nome da loja</label>
-        <input value={draft.name} onChange={(e) => onChange({ ...draft, name: e.target.value })} placeholder="Loja Aurora" className="auth-field__input" />
+        <label className="auth-field__label" htmlFor="signup-store">Nome da loja</label>
+        <input id="signup-store" autoComplete="organization" value={draft.name} onChange={(e) => onChange({ ...draft, name: e.target.value })} placeholder="Loja Aurora" className="auth-field__input" />
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <div className="auth-business-row">
         <div className="auth-field">
           <label className="auth-field__label">Segmento</label>
           <SegmentSelect
@@ -279,17 +282,17 @@ function BusinessFields({ draft, onChange }: { draft: BusinessDraft; onChange: (
           />
         </div>
         <div className="auth-field">
-          <label className="auth-field__label">Volume mensal</label>
-          <select value={draft.volume} onChange={(e) => onChange({ ...draft, volume: e.target.value })} className="auth-field__select">
+          <label className="auth-field__label" htmlFor="signup-volume">Volume mensal</label>
+          <select id="signup-volume" value={draft.volume} onChange={(e) => onChange({ ...draft, volume: e.target.value })} className="auth-field__select">
             <option value="">Selecione</option>
             {VOLUMES.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
           </select>
         </div>
       </div>
       <div className="auth-field">
-        <label className="auth-field__label">CPF ou CNPJ</label>
+        <label className="auth-field__label" htmlFor="signup-tax">CPF ou CNPJ</label>
         <input
-          value={draft.taxId}
+          id="signup-tax" inputMode="numeric" value={draft.taxId}
           onChange={(e) => onChange({ ...draft, taxId: maskCpfCnpj(e.target.value) })}
           placeholder="CPF ou CNPJ"
           maxLength={18}
@@ -304,20 +307,20 @@ function AccountFields({ draft, onChange, oauth = false }: { draft: AccountDraft
   return (
     <>
       <div className="auth-field">
-        <label className="auth-field__label">E-mail corporativo</label>
-        <input type="email" value={draft.email} onChange={(e) => onChange({ ...draft, email: e.target.value })} autoComplete="username" placeholder="voce@sualoja.com.br" className="auth-field__input" readOnly={oauth} />
+        <label className="auth-field__label" htmlFor="signup-email">E-mail corporativo</label>
+        <input id="signup-email" type="email" value={draft.email} onChange={(e) => onChange({ ...draft, email: e.target.value })} autoComplete="username" placeholder="voce@sualoja.com.br" className="auth-field__input" readOnly={oauth} />
       </div>
       {!oauth && <><div className="auth-field">
-        <label className="auth-field__label">Senha</label>
-        <input type="password" value={draft.password} onChange={(e) => onChange({ ...draft, password: e.target.value })} autoComplete="new-password" placeholder="Mínimo 8 caracteres, com letra e número" minLength={8} className="auth-field__input" />
+        <label className="auth-field__label" htmlFor="signup-password">Senha</label>
+        <input id="signup-password" type="password" value={draft.password} onChange={(e) => onChange({ ...draft, password: e.target.value })} autoComplete="new-password" placeholder="Mínimo 8 caracteres, com letra e número" minLength={8} className="auth-field__input" />
       </div>
       <div className="auth-field">
-        <label className="auth-field__label">Confirmar senha</label>
-        <input type="password" value={draft.confirmPassword} onChange={(e) => onChange({ ...draft, confirmPassword: e.target.value })} autoComplete="new-password" placeholder="Repita a senha" minLength={8} className="auth-field__input" />
+        <label className="auth-field__label" htmlFor="signup-confirm-password">Confirmar senha</label>
+        <input id="signup-confirm-password" type="password" value={draft.confirmPassword} onChange={(e) => onChange({ ...draft, confirmPassword: e.target.value })} autoComplete="new-password" placeholder="Repita a senha" minLength={8} className="auth-field__input" />
       </div></>}
       <div className="auth-field">
-        <label className="auth-field__label">Celular</label>
-        <input type="tel" value={draft.phone} onChange={(e) => onChange({ ...draft, phone: maskPhone(e.target.value) })} placeholder="(11) 99999-9999" maxLength={15} className="auth-field__input" />
+        <label className="auth-field__label" htmlFor="signup-phone">Celular</label>
+        <input id="signup-phone" autoComplete="tel-national" type="tel" value={draft.phone} onChange={(e) => onChange({ ...draft, phone: maskPhone(e.target.value) })} placeholder="(11) 99999-9999" maxLength={15} className="auth-field__input" />
       </div>
     </>
   );

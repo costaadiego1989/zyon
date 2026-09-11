@@ -5,6 +5,7 @@ export interface TurnstileProps {
   onChange: (token: string | null) => void;
   onExpire?: () => void;
   className?: string;
+  theme?: "dark" | "light" | "auto";
 }
 
 declare global {
@@ -18,7 +19,7 @@ declare global {
         "timeout-callback": () => void;
         "unsupported-callback": () => void;
         appearance: "always";
-        theme: "dark";
+        theme: "dark" | "light" | "auto";
         size: "flexible";
         language: "pt-br";
       }) => string;
@@ -100,7 +101,7 @@ export function Turnstile(props: TurnstileProps) {
         "timeout-callback": () => fail("O tempo da verificação acabou. Tente novamente."),
         "unsupported-callback": () => fail("Este navegador não é compatível com a verificação. Abra o cadastro em outro navegador."),
         appearance: "always",
-        theme: "dark",
+        theme: props.theme ?? "dark",
         size: "flexible",
         language: "pt-br",
       });
@@ -114,7 +115,7 @@ export function Turnstile(props: TurnstileProps) {
       }
       callbacks.current.onChange(null);
     };
-  }, [props.siteKey, attempt]);
+  }, [props.siteKey, props.theme, attempt]);
 
   if (!props.siteKey) return null;
   return (

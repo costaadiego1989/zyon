@@ -32,6 +32,7 @@ export function SegmentSelect({
   const [highlight, setHighlight] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const listboxId = useId();
 
   const selected = useMemo(() => options.find((o) => o.value === value) ?? null, [options, value]);
@@ -62,6 +63,7 @@ export function SegmentSelect({
     onChange(option.value);
     setQuery("");
     setOpen(false);
+    triggerRef.current?.focus();
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -76,13 +78,16 @@ export function SegmentSelect({
       const opt = filtered[highlight];
       if (opt) commit(opt);
     } else if (e.key === "Escape") {
+      e.preventDefault();
       setOpen(false);
+      triggerRef.current?.focus();
     }
   }
 
   return (
     <div ref={rootRef} className={`segment-select ${open ? "is-open" : ""} ${hasError ? "has-error" : ""}`}>
       <button
+        ref={triggerRef}
         type="button"
         className="segment-select__trigger"
         aria-haspopup="listbox"
@@ -100,7 +105,7 @@ export function SegmentSelect({
         )}
       </button>
       {open ? (
-        <div className="segment-select__popover" role="dialog">
+        <div className="segment-select__popover" role="dialog" aria-label={ariaLabel}>
           <div className="segment-select__search">
             <Search size={14} aria-hidden />
             <input
@@ -112,6 +117,8 @@ export function SegmentSelect({
               onChange={(e) => { setQuery(e.target.value); setHighlight(0); }}
               onKeyDown={onKeyDown}
               role="combobox"
+              aria-label={`Buscar ${ariaLabel.toLowerCase()}`}
+              aria-activedescendant={filtered[highlight] ? `${listboxId}-${highlight}` : undefined}
               aria-expanded
               aria-controls={listboxId}
               aria-autocomplete="list"
@@ -122,13 +129,14 @@ export function SegmentSelect({
               </button>
             ) : null}
           </div>
-          <ul id={listboxId} role="listbox" className="segment-select__list">
+          <ul id={listboxId} role="listbox" aria-label={ariaLabel} className="segment-select__list">
             {filtered.length === 0 ? (
               <li className="segment-select__empty">Nenhum segmento encontrado</li>
             ) : (
               filtered.map((opt, idx) => (
                 <li
                   key={opt.value}
+                  id={`${listboxId}-${idx}`}
                   role="option"
                   aria-selected={opt.value === value}
                   className={`segment-select__option ${idx === highlight ? "is-highlight" : ""} ${opt.value === value ? "is-selected" : ""}`}
