@@ -10,6 +10,30 @@
     <priority>1.0</priority>
   </url>
   <url>
+    <loc>https://www.zyon-payments.com.br/recursos</loc>
+    <lastmod>2026-09-11</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.zyon-payments.com.br/ecommerce-agentico</loc>
+    <lastmod>2026-09-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.zyon-payments.com.br/governanca-de-ia-no-ecommerce</loc>
+    <lastmod>2026-09-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.zyon-payments.com.br/agentes-de-compra</loc>
+    <lastmod>2026-09-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.zyon-payments.com.br/termos</loc>
     <lastmod>2026-09-11</lastmod>
     <changefreq>monthly</changefreq>

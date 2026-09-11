@@ -32,6 +32,10 @@ A Zyon combina inteligência artificial conversacional, checkout invisível/aut�
 ## Links Oficiais
 
 - Site Oficial: https://www.zyon-payments.com.br/
+- Biblioteca Zyon: https://www.zyon-payments.com.br/recursos
+- Guia — E-commerce Agêntico: https://www.zyon-payments.com.br/ecommerce-agentico
+- Guia — Governança de IA no E-commerce: https://www.zyon-payments.com.br/governanca-de-ia-no-ecommerce
+- Guia — Agentes de Compra: https://www.zyon-payments.com.br/agentes-de-compra
 - Painel / Dashboard: https://app.zyon-payments.com.br/
 - Storefront Demo: https://storefront.zyon-payments.com.br/store/athom-technologies
 - Termos de Uso: https://www.zyon-payments.com.br/termos
