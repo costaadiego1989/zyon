@@ -63,6 +63,27 @@ export interface FinanceTransactionsPage {
   items: FinanceTransaction[];
 }
 
+export interface FinanceMerchantPayout {
+  id: string;
+  order_id: string | null;
+  payment_intent_id: string;
+  provider: string;
+  status: string;
+  amount_brl: number;
+  eligible_at: string;
+  submitted_at: string | null;
+  confirmed_at: string | null;
+  provider_transfer_id: string | null;
+  failure_code: string | null;
+}
+
+export interface FinanceMerchantPayouts {
+  generated_at: string;
+  currency: "BRL";
+  scope_note: string;
+  items: FinanceMerchantPayout[];
+}
+
 type PeriodBounds = FinancePeriod & { start: Date; endExclusive: Date };
 
 type Movement = FinanceTransaction & { sortId: string };
@@ -207,6 +228,64 @@ export class FinanceDashboardUseCase {
       line.map((value, columnIndex) => escapeCsvCell(value, rowIndex < 5 || columnIndex !== 4)).join(";"),
     );
     return `\uFEFF${csvLines.join("\r\n")}\r\n`;
+  }
+
+  /**
+   * Delayed-payout work is visible to its merchant as an operational timeline,
+   * distinct from the gross sales summary. The query is tenant-scoped before
+   * selecting any transfer identifier or provider failure detail.
+   */
+  async merchantPayouts(merchantId: string): Promise<FinanceMerchantPayouts> {
+    const normalizedMerchantId = merchantId.trim();
+    if (!normalizedMerchantId) throw new BadRequestException("finance_merchant_required");
+    const holds = await (this.prisma as any).paymentHold.findMany({
+      where: { merchantId: normalizedMerchantId },
+      orderBy: [{ holdUntil: "asc" }, { createdAt: "desc" }],
+      take: 50,
+      select: {
+        id: true,
+        orderId: true,
+        paymentIntentId: true,
+        provider: true,
+        status: true,
+        merchantNetCents: true,
+        holdUntil: true,
+        payoutAttemptedAt: true,
+        payoutConfirmedAt: true,
+        payoutProviderTransferId: true,
+        failureCode: true,
+      },
+    }) as Array<{
+      id: string;
+      orderId: string | null;
+      paymentIntentId: string;
+      provider: string;
+      status: string;
+      merchantNetCents: number;
+      holdUntil: Date;
+      payoutAttemptedAt: Date | null;
+      payoutConfirmedAt: Date | null;
+      payoutProviderTransferId: string | null;
+      failureCode: string | null;
+    }>;
+    return {
+      generated_at: new Date().toISOString(),
+      currency: "BRL",
+      scope_note: "Repasse com retenção: o valor fica protegido até a data elegível. Ele só é considerado confirmado após o webhook de transferência do provedor.",
+      items: holds.map(hold => ({
+        id: hold.id,
+        order_id: hold.orderId,
+        payment_intent_id: hold.paymentIntentId,
+        provider: hold.provider,
+        status: hold.status,
+        amount_brl: preciseBrl(hold.merchantNetCents / 100),
+        eligible_at: hold.holdUntil.toISOString(),
+        submitted_at: hold.payoutAttemptedAt?.toISOString() ?? null,
+        confirmed_at: hold.payoutConfirmedAt?.toISOString() ?? null,
+        provider_transfer_id: hold.payoutProviderTransferId,
+        failure_code: hold.failureCode,
+      })),
+    };
   }
 
   private async loadMovements(merchantId: string, period: PeriodBounds): Promise<Movement[]> {

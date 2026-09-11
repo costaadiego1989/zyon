@@ -13,8 +13,9 @@ export type GetPaymentAllocationHistoryInput = {
 export type PaymentAllocationHistoryResponse = {
   payment_intent_id: string;
   /**
-   * This text is part of the contract: consuming screens must not present the
-   * history as a balance, a completed bank payout, or a reconciliation result.
+   * This text is part of the contract: an allocation observation is not a
+   * balance or a reconciliation result. A merchant transfer is only confirmed
+   * when its allocation includes the provider transfer receipt.
    */
   scope_note: string;
   snapshots: PaymentAllocationSnapshotResponse[];
@@ -54,7 +55,7 @@ export type PaymentAllocationSnapshotResponse = {
   }>;
 };
 
-const SCOPE_NOTE = "Histórico imutável de alocações planejadas e observações recebidas do provedor. Uma observação confirmada registra o split informado pelo provedor; não representa saldo disponível, repasse bancário concluído ou conciliação completa.";
+const SCOPE_NOTE = "Histórico imutável de alocações planejadas e observações recebidas do provedor. Uma observação confirmada registra o split informado; o repasse ao merchant só está confirmado quando a alocação dele traz o identificador da transferência. Mesmo assim, não representa saldo disponível para saque bancário ou conciliação completa.";
 
 /**
  * Administrative trace for one payment intent. The ledger port requires the

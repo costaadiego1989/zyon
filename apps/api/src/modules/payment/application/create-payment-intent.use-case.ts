@@ -71,10 +71,12 @@ function delayedMerchantPayoutEnabled(env: NodeJS.ProcessEnv = process.env): boo
   const mode = env.PAYMENT_MERCHANT_SETTLEMENT_MODE?.trim();
   if (!mode || mode === "immediate_split") return false;
   if (mode === "delayed_merchant_payout") {
-    // The state machine is deployed ahead of the provider-transfer worker. A
-    // feature flag must never create a charge that can become payout-ready
-    // without a safe way to submit and confirm its transfer.
-    throw new BadRequestException("delayed_merchant_payout_release_worker_not_configured");
+    if (env.PAYMENT_MERCHANT_DELAYED_PAYOUT_ASAAS_ENABLED?.trim() !== "true") {
+      // An explicit second gate prevents a configuration typo from retaining
+      // merchant funds before the Asaas transfer integration is validated.
+      throw new BadRequestException("delayed_merchant_payout_asaas_not_enabled");
+    }
+    return true;
   }
   throw new BadRequestException("payment_merchant_settlement_mode_invalid");
 }
@@ -296,14 +298,11 @@ export class CreatePaymentIntentUseCase {
     const usesAsaas = method !== "crypto" && !isStripeCard && !usesMercadoPago;
     const delayedMerchantPayout = delayedMerchantPayoutEnabled();
     const merchantPayoutHoldDays = delayedMerchantPayout ? delayedMerchantPayoutHoldDays() : undefined;
-    if (delayedMerchantPayout && (method === "crypto" || usesMercadoPago)) {
-      // Mercado Pago's ordinary marketplace split is immediate. Do not silently
-      // fall back to it when the merchant has asked for a protected window.
-      throw new BadRequestException(
-        method === "crypto"
-          ? "crypto_delayed_payout_not_supported"
-          : "mercadopago_delayed_payout_not_supported",
-      );
+    if (delayedMerchantPayout && !usesAsaas) {
+      // This rollout implements and reconciles the linked-wallet Asaas path.
+      // Stripe, Mercado Pago and crypto remain fail-closed until each has its
+      // own transfer executor and provider-receipt contract.
+      throw new BadRequestException("delayed_merchant_payout_provider_not_supported");
     }
     const mercadoPagoPayerEmail = session.customer?.email?.trim();
     if (usesMercadoPago && !mercadoPagoPayerEmail) {

@@ -87,6 +87,29 @@ describe("FinanceDashboardUseCase", () => {
     );
     assert.equal(prisma.merchantIds.length, 0);
   });
+
+  it("lists delayed payouts only for the authenticated merchant", async () => {
+    const prisma = new FinancePrismaStub();
+    const finance = new FinanceDashboardUseCase(prisma as unknown as PrismaClient);
+
+    const result = await finance.merchantPayouts("merchant_a");
+
+    assert.equal(result.items.length, 1);
+    assert.deepEqual(result.items[0], {
+      id: "hold_a",
+      order_id: "order_a",
+      payment_intent_id: "payment_a",
+      provider: "asaas",
+      status: "payout_submitted",
+      amount_brl: 98.5,
+      eligible_at: "2026-09-15T12:00:00.000Z",
+      submitted_at: "2026-09-15T12:01:00.000Z",
+      confirmed_at: null,
+      provider_transfer_id: "transfer_a",
+      failure_code: null,
+    });
+    assert.match(result.scope_note, /só é considerado confirmado/i);
+  });
 });
 
 class FinancePrismaStub {
@@ -135,6 +158,13 @@ class FinancePrismaStub {
       );
     },
   };
+
+  readonly paymentHold = {
+    findMany: async ({ where }: { where: any }) => {
+      this.merchantIds.push(where.merchantId);
+      return paymentHolds.filter((hold) => hold.merchantId === where.merchantId);
+    },
+  };
 }
 
 const orders = [
@@ -157,4 +187,15 @@ const payments = [
   { id: "payment_card", merchantId: "merchant_a", sessionId: "session_card", method: "credit_card", status: "approved", updatedAt: new Date("2026-09-04T15:00:00.000Z") },
   { id: "payment_other", merchantId: "merchant_b", sessionId: "session_other", method: "pix", status: "approved", updatedAt: new Date("2026-09-05T15:00:00.000Z") },
   { id: "payment_provider_refund", merchantId: "merchant_a", sessionId: "session_provider_refund", method: "card", status: "refunded", updatedAt: new Date("2026-09-06T15:00:00.000Z") },
+];
+
+const paymentHolds = [
+  {
+    id: "hold_a", merchantId: "merchant_a", orderId: "order_a", paymentIntentId: "payment_a", provider: "asaas", status: "payout_submitted", merchantNetCents: 9850,
+    holdUntil: new Date("2026-09-15T12:00:00.000Z"), payoutAttemptedAt: new Date("2026-09-15T12:01:00.000Z"), payoutConfirmedAt: null, payoutProviderTransferId: "transfer_a", failureCode: null,
+  },
+  {
+    id: "hold_b", merchantId: "merchant_b", orderId: "order_b", paymentIntentId: "payment_b", provider: "asaas", status: "released", merchantNetCents: 100,
+    holdUntil: new Date("2026-09-15T12:00:00.000Z"), payoutAttemptedAt: null, payoutConfirmedAt: null, payoutProviderTransferId: null, failureCode: null,
+  },
 ];

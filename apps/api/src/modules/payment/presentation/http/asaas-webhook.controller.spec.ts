@@ -13,8 +13,23 @@ describe("AsaasWebhookController", () => {
       execute: async () => {
         throw new UnauthorizedWebhookError();
       }
-    } as unknown as HandleAsaasWebhookUseCase);
+    } as unknown as HandleAsaasWebhookUseCase, {
+      execute: async () => ({ outcome: "ignored", reason: "not_used" }),
+    } as any);
 
     await assert.rejects(() => ctrl.asaasWebhook("bad-token", {}), UnauthorizedException);
+  });
+
+  it("routes Asaas transfer events to the transfer reconciliation handler", async () => {
+    const ctrl = new AsaasWebhookController({
+      execute: async () => ({ outcome: "ignored", reason: "payment_handler_should_not_run" }),
+    } as unknown as HandleAsaasWebhookUseCase, {
+      execute: async (token: string | undefined, body: unknown) => ({ outcome: "processed", effect: `${token}:${(body as any).event}` }),
+    } as any);
+
+    await assert.doesNotReject(async () => {
+      const result = await ctrl.asaasWebhook("valid-token", { event: "TRANSFER_DONE" });
+      assert.deepEqual(result, { outcome: "processed", effect: "valid-token:TRANSFER_DONE" });
+    });
   });
 });

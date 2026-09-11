@@ -14,6 +14,7 @@ import { ConfirmCryptoPaymentUseCase } from "./application/confirm-crypto-paymen
 import { ConfirmStripePaymentUseCase } from "./application/confirm-stripe-payment.use-case.js";
 import { GetPaymentIntentStatusUseCase } from "./application/get-payment-intent-status.use-case.js";
 import { HandleAsaasWebhookUseCase } from "./application/handle-asaas-webhook.use-case.js";
+import { HandleAsaasTransferWebhookUseCase } from "./application/handle-asaas-transfer-webhook.use-case.js";
 import { HandleStripeWebhookUseCase } from "./application/handle-stripe-webhook.use-case.js";
 import { HandleMercadoPagoWebhookUseCase } from "./application/handle-mercadopago-webhook.use-case.js";
 import { ReconcilePaymentIntentsUseCase } from "./application/reconcile-payment-intents.use-case.js";
@@ -24,13 +25,16 @@ import {
   RefundPaymentHoldUseCase,
 } from "./application/payment-hold.use-cases.js";
 import { PaymentHoldLifecycleService } from "./application/payment-hold-lifecycle.service.js";
+import { SubmitReadyPaymentHoldsUseCase } from "./application/payment-hold-payout.use-case.js";
 import { PAYMENT_REPOSITORY } from "./domain/ports/payment-repository.port.js";
 import { PAYMENT_SETTLEMENT_LEDGER } from "./domain/ports/payment-settlement-ledger.port.js";
 import { PAYMENT_PROVIDER_PORT } from "./domain/ports/payment-provider.port.js";
+import { PAYMENT_PAYOUT_PROVIDER } from "./domain/ports/payment-payout-provider.port.js";
 import { CHECKOUT_PAYMENT_PORT } from "./domain/ports/checkout-payment.port.js";
 import { PrismaPaymentRepository } from "./infrastructure/prisma-payment.repository.js";
 import { PrismaPaymentSettlementLedgerRepository } from "./infrastructure/prisma-payment-settlement-ledger.repository.js";
 import { AsaasPaymentAdapter } from "./infrastructure/asaas-payment.adapter.js";
+import { AsaasPayoutAdapter } from "./infrastructure/asaas-payout.adapter.js";
 import { StripePaymentAdapter } from "./infrastructure/stripe-payment.adapter.js";
 import { MercadoPagoPaymentAdapter } from "./infrastructure/mercadopago-payment.adapter.js";
 import { resolvePaymentProvider } from "./infrastructure/e2e-payment-provider.js";
@@ -140,6 +144,7 @@ import {
     ConfirmStripePaymentUseCase,
     GetPaymentIntentStatusUseCase,
     HandleAsaasWebhookUseCase,
+    HandleAsaasTransferWebhookUseCase,
     HandleStripeWebhookUseCase,
     HandleMercadoPagoWebhookUseCase,
     ReconcilePaymentIntentsUseCase,
@@ -147,6 +152,7 @@ import {
     MakePaymentHoldsPayoutReadyUseCase,
     RefundPaymentHoldUseCase,
     ChargebackPaymentHoldUseCase,
+    SubmitReadyPaymentHoldsUseCase,
     PaymentHoldLifecycleService,
     PaymentHoldPayoutReadinessJob,
     PaymentDispatchService,
@@ -194,6 +200,14 @@ import {
         return new AsaasPaymentAdapter(baseUrl, apiKey ?? "__missing_api_key__", globalThis.fetch);
       },
       inject: [HttpClientService]
+    },
+    {
+      provide: PAYMENT_PAYOUT_PROVIDER,
+      useFactory: (http: HttpClientService) => {
+        const { apiKey, baseUrl } = readAsaasConnection();
+        return new AsaasPayoutAdapter(baseUrl, apiKey ?? "__missing_api_key__", http.toFetch());
+      },
+      inject: [HttpClientService],
     },
     {
       provide: StripePaymentAdapter,

@@ -44,6 +44,25 @@ export interface FinanceTransactionsPage {
   items: FinanceTransaction[];
 }
 
+export interface FinanceMerchantPayouts {
+  generated_at: string;
+  currency: "BRL";
+  scope_note: string;
+  items: Array<{
+    id: string;
+    order_id: string | null;
+    payment_intent_id: string;
+    provider: string;
+    status: string;
+    amount_brl: number;
+    eligible_at: string;
+    submitted_at: string | null;
+    confirmed_at: string | null;
+    provider_transfer_id: string | null;
+    failure_code: string | null;
+  }>;
+}
+
 export interface PaymentAllocationHistory {
   payment_intent_id: string;
   scope_note: string;
@@ -67,6 +86,15 @@ export interface PaymentAllocationHistory {
       merchant_net_cents?: number;
       provider_fee_cents?: number;
     };
+    allocations: Array<{
+      key: "platform_fee" | "merchant_payout";
+      type: "platform_fee" | "merchant_payout";
+      recipient_type: "platform" | "merchant";
+      planned_amount_cents: number;
+      provider_observed_amount_cents?: number;
+      provider_transfer_id?: string;
+      provider_reference?: string;
+    }>;
   }>;
 }
 
@@ -95,6 +123,9 @@ export function financeEndpoints(base: string, f: typeof fetch) {
     },
     getFinanceTransactions(filters: FinanceTransactionsFilters): Promise<FinanceTransactionsPage> {
       return dashboardJson<FinanceTransactionsPage>(base, `/dashboard/finance/transactions?${queryFor(filters)}`, { method: "GET" }, f);
+    },
+    getMerchantPayouts(): Promise<FinanceMerchantPayouts> {
+      return dashboardJson<FinanceMerchantPayouts>(base, "/dashboard/finance/payouts", { method: "GET" }, f);
     },
     getPaymentAllocationHistory(paymentIntentId: string): Promise<PaymentAllocationHistory> {
       return dashboardJson<PaymentAllocationHistory>(base, `/dashboard/finance/payment-intents/${encodeURIComponent(paymentIntentId)}/allocation-history`, { method: "GET" }, f);

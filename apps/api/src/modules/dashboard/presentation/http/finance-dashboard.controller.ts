@@ -35,6 +35,13 @@ export class FinanceDashboardController {
     return this.finance.transactions(currentUser(req).merchantId, query);
   }
 
+  @Get("payouts")
+  @ApiOperation({ summary: "List delayed merchant payout status" })
+  @ApiOkResponse({ description: "Delayed payout holds, submissions and provider-confirmed merchant transfers for the authenticated merchant" })
+  async payouts(@Req() req: any) {
+    return this.finance.merchantPayouts(currentUser(req).merchantId);
+  }
+
   @Get("export.csv")
   @Header("Content-Type", "text/csv; charset=utf-8")
   @Header("Content-Disposition", 'attachment; filename="financeiro.csv"')

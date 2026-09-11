@@ -25,3 +25,21 @@ test("loads payment allocation history through the tenant-scoped finance endpoin
     credentials: "include",
   }]);
 });
+
+test("loads delayed merchant payout status through the finance endpoint", async () => {
+  const requests: Array<{ url: string; method?: string; credentials?: RequestCredentials }> = [];
+  const api = financeEndpoints(
+    "https://api.example.test/",
+    (async (input, init) => {
+      requests.push({ url: String(input), method: init?.method, credentials: init?.credentials });
+      return new Response(JSON.stringify({ generated_at: "2026-09-11T00:00:00.000Z", currency: "BRL", scope_note: "Repasse protegido", items: [] }), { headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch,
+  );
+
+  await expect(api.getMerchantPayouts()).resolves.toMatchObject({ currency: "BRL", items: [] });
+  expect(requests).toEqual([{
+    url: "https://api.example.test/v1/dashboard/finance/payouts",
+    method: "GET",
+    credentials: "include",
+  }]);
+});
