@@ -1,142 +1,159 @@
-import { describe, it, beforeEach } from "node:test";
+import test from "node:test";
 import assert from "node:assert/strict";
+import {
+  ChargebackPaymentHoldUseCase,
+  CreatePaymentHoldUseCase,
+  MakePaymentHoldsPayoutReadyUseCase,
+  RefundPaymentHoldUseCase,
+} from "../application/payment-hold.use-cases.js";
+import { PaymentHoldLifecycleService } from "../application/payment-hold-lifecycle.service.js";
 
-// In-memory Prisma mock for PaymentHold
+type Hold = Record<string, any> & { id: string; paymentIntentId: string; status: string; holdUntil: Date };
+
 class InMemoryPaymentHoldStore {
-  private holds: any[] = [];
-  private idCounter = 0;
+  private readonly holds: Hold[] = [];
+  private sequence = 0;
+  readonly paymentHold: any;
 
-  get paymentHold() {
-    return {
+  constructor() {
+    this.paymentHold = {
+      findUnique: async ({ where }: any) =>
+        this.holds.find(hold => hold.paymentIntentId === where.paymentIntentId || hold.id === where.id) ?? null,
       create: async ({ data }: any) => {
-        const hold = { id: `hold_${++this.idCounter}`, ...data, createdAt: new Date() };
-        this.holds.push(hold);
-        return hold;
+      if (this.holds.some(hold => hold.paymentIntentId === data.paymentIntentId)) {
+        const error = new Error("unique_payment_intent");
+        (error as any).code = "P2002";
+        throw error;
+      }
+      const hold: Hold = { id: `hold_${++this.sequence}`, ...data, createdAt: new Date(), updatedAt: new Date() };
+      this.holds.push(hold);
+      return hold;
       },
-      findMany: async ({ where, take }: any) => {
-        return this.holds
-          .filter((h) => {
-            if (where.status && h.status !== where.status) return false;
-            if (where.holdUntil?.lte && h.holdUntil > where.holdUntil.lte) return false;
-            return true;
-          })
-          .slice(0, take ?? 100);
-      },
-      findUnique: async ({ where }: any) => {
-        if (where.paymentIntentId) return this.holds.find((h) => h.paymentIntentId === where.paymentIntentId) ?? null;
-        return this.holds.find((h) => h.id === where.id) ?? null;
+      updateMany: async ({ where, data }: any) => {
+      let count = 0;
+      for (const hold of this.holds) {
+        if (where.status && hold.status !== where.status) continue;
+        if (where.holdUntil?.lte && hold.holdUntil > where.holdUntil.lte) continue;
+        Object.assign(hold, data, { updatedAt: new Date() });
+        count += 1;
+      }
+      return { count };
       },
       update: async ({ where, data }: any) => {
-        const hold = this.holds.find((h) => h.id === where.id);
-        if (hold) Object.assign(hold, data);
-        return hold;
+      const hold = this.holds.find(candidate => candidate.id === where.id);
+      if (!hold) throw new Error("hold_not_found");
+      Object.assign(hold, data, { updatedAt: new Date() });
+      return hold;
       },
     };
   }
 
-  getAll() { return this.holds; }
-}
-
-// Inline use-case implementations (same logic as production)
-function createHold(prisma: any, input: { merchantId: string; paymentIntentId: string; totalAmountCents: number; feePercent: number }) {
-  const platformFeeCents = Math.round(input.totalAmountCents * input.feePercent / 100);
-  const merchantNetCents = input.totalAmountCents - platformFeeCents;
-  const holdUntil = new Date(Date.now() + 14 * 86_400_000);
-  return prisma.paymentHold.create({
-    data: {
-      merchantId: input.merchantId,
-      paymentIntentId: input.paymentIntentId,
-      totalAmountCents: input.totalAmountCents,
-      platformFeeCents,
-      merchantNetCents,
-      status: "held",
-      holdUntil,
-    },
-  });
-}
-
-async function releaseHolds(prisma: any) {
-  const now = new Date();
-  const due = await prisma.paymentHold.findMany({ where: { status: "held", holdUntil: { lte: now } }, take: 100 });
-  let released = 0;
-  for (const h of due) {
-    await prisma.paymentHold.update({ where: { id: h.id }, data: { status: "released", releasedAt: now } });
-    released++;
+  async seed(data: Record<string, any>): Promise<Hold> {
+    const { id: _ignored, ...createData } = data;
+    return this.paymentHold.create({ data: createData });
   }
-  return { released };
+
+  all(): Hold[] {
+    return this.holds;
+  }
 }
 
-async function refundHold(prisma: any, paymentIntentId: string) {
-  const hold = await prisma.paymentHold.findUnique({ where: { paymentIntentId } });
-  if (!hold || hold.status !== "held") return;
-  await prisma.paymentHold.update({ where: { id: hold.id }, data: { status: "refunded" } });
+function createHoldInput(overrides: Record<string, unknown> = {}) {
+  return {
+    merchantId: "mrc_1",
+    paymentIntentId: "pay_int_1",
+    provider: "stripe" as const,
+    providerPaymentId: "pi_1",
+    payoutDestination: "acct_merchant_1",
+    totalAmountCents: 10_099,
+    platformFeeCents: 249,
+    holdDays: 14,
+    ...overrides,
+  };
 }
 
-describe("PaymentHold Use Cases", () => {
-  let store: InMemoryPaymentHoldStore;
+test("creates one immutable hold and accepts an exact webhook retry", async () => {
+  const store = new InMemoryPaymentHoldStore();
+  const create = new CreatePaymentHoldUseCase(store as any);
 
-  beforeEach(() => { store = new InMemoryPaymentHoldStore(); });
+  const first = await create.execute(createHoldInput());
+  const retry = await create.execute(createHoldInput());
 
-  describe("CreatePaymentHold", () => {
-    it("calculates platform fee correctly (2.49%)", async () => {
-      const hold = await createHold(store, { merchantId: "m1", paymentIntentId: "pi_1", totalAmountCents: 10000, feePercent: 2.49 });
-      assert.equal(hold.platformFeeCents, 249);
-      assert.equal(hold.merchantNetCents, 9751);
-      assert.equal(hold.status, "held");
-    });
+  assert.equal(first.holdId, retry.holdId);
+  assert.equal(store.all().length, 1);
+  assert.equal(store.all()[0].merchantNetCents, 9_850);
+  assert.equal(store.all()[0].status, "held");
+});
 
-    it("sets holdUntil to 14 days from now", async () => {
-      const before = Date.now();
-      const hold = await createHold(store, { merchantId: "m1", paymentIntentId: "pi_2", totalAmountCents: 5000, feePercent: 3 });
-      const diff = hold.holdUntil.getTime() - before;
-      const fourteenDaysMs = 14 * 86_400_000;
-      assert.ok(diff >= fourteenDaysMs - 1000 && diff <= fourteenDaysMs + 1000);
-    });
+test("refuses a retry whose immutable money or destination differs", async () => {
+  const store = new InMemoryPaymentHoldStore();
+  const create = new CreatePaymentHoldUseCase(store as any);
+  await create.execute(createHoldInput());
 
-    it("rounds fee to nearest cent", async () => {
-      const hold = await createHold(store, { merchantId: "m1", paymentIntentId: "pi_3", totalAmountCents: 333, feePercent: 2.49 });
-      assert.equal(hold.platformFeeCents, 8); // 333 * 0.0249 = 8.29 → rounded to 8
-      assert.equal(hold.merchantNetCents, 325);
-    });
+  await assert.rejects(
+    () => create.execute(createHoldInput({ payoutDestination: "acct_other" })),
+    /payment_hold_identity_conflict/,
+  );
+});
+
+test("end of return window only makes the hold payout-ready", async () => {
+  const store = new InMemoryPaymentHoldStore();
+  const due = new Date("2026-09-01T00:00:00.000Z");
+  await store.seed({
+    ...createHoldInput({ paymentIntentId: "pay_due" }),
+    id: "ignored",
+    status: "held",
+    holdUntil: due,
+  });
+  await store.seed({
+    ...createHoldInput({ paymentIntentId: "pay_later" }),
+    id: "ignored",
+    status: "held",
+    holdUntil: new Date("2026-10-01T00:00:00.000Z"),
   });
 
-  describe("ReleasePaymentHolds", () => {
-    it("releases holds past holdUntil", async () => {
-      await store.paymentHold.create({ data: { merchantId: "m1", paymentIntentId: "pi_old", totalAmountCents: 1000, platformFeeCents: 25, merchantNetCents: 975, status: "held", holdUntil: new Date(Date.now() - 1000) } });
-      await store.paymentHold.create({ data: { merchantId: "m1", paymentIntentId: "pi_future", totalAmountCents: 2000, platformFeeCents: 50, merchantNetCents: 1950, status: "held", holdUntil: new Date(Date.now() + 86_400_000) } });
+  const result = await new MakePaymentHoldsPayoutReadyUseCase(store as any).execute(new Date("2026-09-02T00:00:00.000Z"));
 
-      const { released } = await releaseHolds(store);
-      assert.equal(released, 1);
+  assert.equal(result.payoutReady, 1);
+  assert.equal(store.all().find(hold => hold.paymentIntentId === "pay_due")?.status, "payout_ready");
+  assert.equal(store.all().find(hold => hold.paymentIntentId === "pay_later")?.status, "held");
+  assert.equal(store.all().some(hold => hold.status === "released"), false);
+});
 
-      const all = store.getAll();
-      assert.equal(all.find((h: any) => h.paymentIntentId === "pi_old").status, "released");
-      assert.equal(all.find((h: any) => h.paymentIntentId === "pi_future").status, "held");
-    });
+test("refund and chargeback block an unpaid hold, but create recovery work after payout", async () => {
+  const store = new InMemoryPaymentHoldStore();
+  await store.seed({ ...createHoldInput({ paymentIntentId: "pay_refund" }), id: "ignored", status: "payout_ready", holdUntil: new Date() });
+  await store.seed({ ...createHoldInput({ paymentIntentId: "pay_chargeback" }), id: "ignored", status: "released", holdUntil: new Date() });
 
-    it("does not release refunded holds", async () => {
-      await store.paymentHold.create({ data: { merchantId: "m1", paymentIntentId: "pi_ref", totalAmountCents: 1000, platformFeeCents: 25, merchantNetCents: 975, status: "refunded", holdUntil: new Date(Date.now() - 1000) } });
-      const { released } = await releaseHolds(store);
-      assert.equal(released, 0);
-    });
+  const refund = await new RefundPaymentHoldUseCase(store as any).execute("pay_refund");
+  const chargeback = await new ChargebackPaymentHoldUseCase(store as any).execute("pay_chargeback");
+
+  assert.equal(refund, "refunded");
+  assert.equal(chargeback, "chargeback_debt");
+});
+
+test("approved delayed payment creates a hold; legacy payment remains untouched", async () => {
+  const store = new InMemoryPaymentHoldStore();
+  const lifecycle = new PaymentHoldLifecycleService(new CreatePaymentHoldUseCase(store as any));
+  const base = {
+    id: "pay_delayed",
+    merchantId: "mrc_1",
+    sessionId: "chk_1",
+    idempotencyKey: "idem_1",
+    amountCents: 10_099,
+    currency: "BRL",
+    method: "card" as const,
+    status: "approved" as const,
+    providerPaymentId: "pi_1",
+    statusHistory: [],
+  };
+
+  await lifecycle.createForApprovedPayment({
+    ...base,
+    creation: { state: "complete", input: { ...createHoldInput(), merchantId: "mrc_1", sessionId: "chk_1", intentId: "pay_delayed", amountCents: 10_099, currency: "BRL", method: "card", settlementMode: "delayed_merchant_payout", merchantPayoutDestination: "acct_merchant_1", platformFeeCents: 249 } },
   });
+  await lifecycle.createForApprovedPayment({ ...base, id: "pay_legacy", creation: undefined });
 
-  describe("RefundPaymentHold", () => {
-    it("marks held payment as refunded", async () => {
-      await store.paymentHold.create({ data: { merchantId: "m1", paymentIntentId: "pi_to_refund", totalAmountCents: 5000, platformFeeCents: 125, merchantNetCents: 4875, status: "held", holdUntil: new Date(Date.now() + 86_400_000) } });
-      await refundHold(store, "pi_to_refund");
-      const hold = await store.paymentHold.findUnique({ where: { paymentIntentId: "pi_to_refund" } });
-      assert.equal(hold.status, "refunded");
-    });
-
-    it("does nothing if already released", async () => {
-      await store.paymentHold.create({ data: { merchantId: "m1", paymentIntentId: "pi_released", totalAmountCents: 5000, platformFeeCents: 125, merchantNetCents: 4875, status: "released", holdUntil: new Date(Date.now() - 1000) } });
-      await refundHold(store, "pi_released");
-      const hold = await store.paymentHold.findUnique({ where: { paymentIntentId: "pi_released" } });
-      assert.equal(hold.status, "released"); // unchanged
-    });
-
-    it("does nothing if payment not found", async () => {
-      await refundHold(store, "pi_nonexistent"); // should not throw
-    });
-  });
+  assert.equal(store.all().length, 1);
+  assert.equal(store.all()[0].paymentIntentId, "pay_delayed");
 });

@@ -47,7 +47,20 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     if (fingerprint && adapter.creationAccountFingerprint?.() !== fingerprint) throw new Error("payment_provider_account_changed");
   }
 
-  private async creationRoute(input: Pick<CreateProviderPaymentInput, "merchantId" | "method" | "provider">): Promise<{ name: NonNullable<CreateProviderPaymentInput["provider"]>; adapter: PaymentProviderPort }> {
+  private async creationRoute(input: Pick<CreateProviderPaymentInput, "merchantId" | "method" | "provider" | "settlementMode">): Promise<{ name: NonNullable<CreateProviderPaymentInput["provider"]>; adapter: PaymentProviderPort }> {
+    // A delayed merchant payout must be charged by the platform. Resolving a
+    // tenant credential here would put the money in the merchant account at
+    // capture time and make the configured return window fictional.
+    if (input.settlementMode === "delayed_merchant_payout") {
+      if (input.provider === "mercadopago") throw new Error("mercadopago_delayed_payout_not_supported");
+      if (input.provider === "crypto" || input.method === "crypto") throw new Error("crypto_delayed_payout_not_supported");
+      if (input.provider === "stripe" || input.method === "card") {
+        if (!this.stripe) throw new Error("stripe_platform_account_not_configured");
+        return { name: "stripe", adapter: this.stripe };
+      }
+      if (!this.asaas) throw new Error("asaas_platform_account_not_configured");
+      return { name: "asaas", adapter: this.asaas };
+    }
     if (input.provider === "crypto" || (!input.provider && input.method === "crypto")) return { name: "crypto", adapter: this.evmCrypto };
     if (input.provider === "stripe" || (!input.provider && input.method === "card")) {
       // Existing intents remain pinned to their original account for reconciliation.
@@ -152,7 +165,12 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     email: string;
     cpfCnpj: string;
     phone?: string;
+    settlementMode?: CreateProviderPaymentInput["settlementMode"];
   }): Promise<string> {
+    if (input.settlementMode === "delayed_merchant_payout") {
+      if (!this.asaas) throw new Error("asaas_platform_account_not_configured");
+      return this.asaas.createCustomer(input);
+    }
     const asaas = await this.resolveAsaas(input.merchantId);
     if (asaas) {
       return asaas.createCustomer(input);

@@ -16,6 +16,7 @@ import {
   type ObservedPaymentSettlement,
   type PaymentSettlementLedgerPort,
 } from "../domain/ports/payment-settlement-ledger.port.js";
+import { RefundPaymentHoldUseCase } from "./payment-hold.use-cases.js";
 
 export type AsaasWebhookInbound = {
   id: string;
@@ -133,6 +134,7 @@ export class HandleAsaasWebhookUseCase {
     @Optional() private readonly metrics?: MetricsService,
     @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
     @Optional() @Inject(PAYMENT_SETTLEMENT_LEDGER) private readonly settlementLedger?: PaymentSettlementLedgerPort,
+    @Optional() private readonly refundPaymentHold?: RefundPaymentHoldUseCase,
   ) {}
 
   async execute(inboundAccessTokenHeader: string | undefined, rawBody: unknown, webhookToken?: string): Promise<HandleAsaasWebhookResult> {
@@ -224,6 +226,7 @@ export class HandleAsaasWebhookUseCase {
 
       case "PAYMENT_REFUNDED": {
         await this.paymentDispatch.markRefunded(intentEntity, inbound.event);
+        await this.refundPaymentHold?.execute(intentEntity.id);
         return "payment_refunded";
       }
 

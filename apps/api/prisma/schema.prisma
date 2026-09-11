@@ -2559,20 +2559,32 @@ model PostSaleMessageTemplate {
 }
 
 model PaymentHold {
-  id               String    @id @default(cuid())
-  merchantId       String    @map("merchant_id")
-  paymentIntentId  String    @unique @map("payment_intent_id")
-  orderId          String?   @map("order_id")
-  totalAmountCents Int       @map("total_amount_cents")
-  platformFeeCents Int       @map("platform_fee_cents")
-  merchantNetCents Int       @map("merchant_net_cents")
-  status           String    @default("held") // held | released | refunded | chargebacked
-  holdUntil        DateTime  @map("hold_until")
-  releasedAt       DateTime? @map("released_at")
-  createdAt        DateTime  @default(now()) @map("created_at")
+  id                        String    @id @default(cuid())
+  merchantId                String    @map("merchant_id")
+  paymentIntentId           String    @unique @map("payment_intent_id")
+  orderId                   String?   @map("order_id")
+  provider                  String
+  providerPaymentId         String?   @map("provider_payment_id")
+  payoutDestination          String    @map("payout_destination")
+  totalAmountCents          Int       @map("total_amount_cents")
+  platformFeeCents          Int       @map("platform_fee_cents")
+  merchantNetCents          Int       @map("merchant_net_cents")
+  // held | payout_ready | payout_submitted | released | payout_failed |
+  // refunded | refund_reversal_required | chargebacked | chargeback_debt
+  status                    String    @default("held")
+  holdUntil                 DateTime  @map("hold_until")
+  payoutReference            String?   @map("payout_reference")
+  payoutProviderTransferId  String?   @map("payout_provider_transfer_id")
+  payoutAttemptedAt          DateTime? @map("payout_attempted_at")
+  payoutConfirmedAt          DateTime? @map("payout_confirmed_at")
+  failureCode                String?   @map("failure_code")
+  releasedAt                 DateTime? @map("released_at")
+  createdAt                  DateTime  @default(now()) @map("created_at")
+  updatedAt                  DateTime  @updatedAt @map("updated_at")
 
   @@index([merchantId, status])
   @@index([status, holdUntil])
+  @@index([provider, providerPaymentId])
   @@map("payment_holds")
 }
 

@@ -1,5 +1,8 @@
 export const PAYMENT_PROVIDER_PORT = Symbol("PAYMENT_PROVIDER_PORT");
 
+/** How the merchant share is settled for this immutable payment intent. */
+export type MerchantSettlementMode = "immediate_split" | "delayed_merchant_payout";
+
 export type CreateProviderPaymentInput = {
   provider?: "asaas" | "stripe" | "mercadopago" | "crypto";
   providerAccountFingerprint?: string;
@@ -40,6 +43,14 @@ export type CreateProviderPaymentInput = {
   remoteIp?: string;
   stripeConnectAccountId?: string;
   platformFeeCents?: number;
+  /**
+   * `delayed_merchant_payout` is opt-in. Its charge must be created on the
+   * platform account, and a merchant destination is snapshotted for the
+   * provider-transfer worker after the buyer return window closes.
+   */
+  settlementMode?: MerchantSettlementMode;
+  merchantPayoutDestination?: string;
+  merchantPayoutHoldDays?: number;
   /**
    * Crypto-only: buyer-selected chain override. When set (and valid for the
    * merchant's crypto config), the crypto quote is built on this chain instead
@@ -149,6 +160,7 @@ export interface PaymentProviderPort {
     email: string;
     cpfCnpj: string;
     phone?: string;
+    settlementMode?: MerchantSettlementMode;
   }): Promise<string>;
   /**
    * Authoritative provider state for reconciliation of stale intents. Never used

@@ -125,6 +125,37 @@ test("RoutingPaymentAdapter: routes pix/boleto to Asaas fallback when no platfor
   assert.equal(asaas.calls.length, 1);
 });
 
+test("RoutingPaymentAdapter: delayed Asaas payment uses the platform adapter, never tenant credentials", async () => {
+  const platformAsaas = new FakeAsaas();
+  const platformRepo = new InMemoryPaymentPlatformRepository();
+  await platformRepo.saveConnection({
+    merchantId: "mrc_tenant",
+    provider: "asaas",
+    environment: "live",
+    status: "active",
+    walletId: "wallet_merchant",
+    secret: "tenant_api_key",
+  });
+  const adapter = new RoutingPaymentAdapter(
+    null,
+    platformAsaas as unknown as AsaasPaymentAdapter,
+    null as unknown as MercadoPagoPaymentAdapter,
+    new FakeCrypto() as unknown as EvmCryptoPaymentAdapter,
+    platformRepo,
+    "https://asaas-api.test",
+  );
+
+  await adapter.createPayment(baseInput({
+    merchantId: "mrc_tenant",
+    provider: "asaas",
+    settlementMode: "delayed_merchant_payout",
+    merchantPayoutDestination: "wallet_merchant",
+  }));
+
+  assert.equal(platformAsaas.calls.length, 1);
+  assert.equal(platformAsaas.calls[0].settlementMode, "delayed_merchant_payout");
+});
+
 test("RoutingPaymentAdapter: throws when no provider is configured for pix", async () => {
   const crypto = new FakeCrypto();
   const platformRepo = new InMemoryPaymentPlatformRepository();

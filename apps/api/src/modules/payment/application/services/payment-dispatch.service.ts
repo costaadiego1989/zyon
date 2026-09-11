@@ -13,6 +13,7 @@ import { MetricsService } from "../../../../shared/observability/metrics.service
 import { MarkCommerceOrderPaidUseCase } from "../../../commerce/application/mark-commerce-order-paid.use-case.js";
 import { PaymentEventPublisher } from "../../infrastructure/payment-event-publisher.js";
 import { orderTotalCents } from "../../domain/payment-amount.js";
+import { PaymentHoldLifecycleService } from "../payment-hold-lifecycle.service.js";
 
 /**
  * Shared payment intent state-machine & checkout completion logic.
@@ -26,6 +27,7 @@ export class PaymentDispatchService implements OnModuleInit {
     @Optional() private readonly metrics?: MetricsService,
     @Optional() private readonly markCommerceOrderPaid?: MarkCommerceOrderPaidUseCase,
     @Optional() @Inject(DOMAIN_EVENT_BUS) private readonly eventBus?: DomainEventBus,
+    @Optional() private readonly paymentHoldLifecycle?: PaymentHoldLifecycleService,
   ) {}
 
   onModuleInit(): void {
@@ -57,6 +59,7 @@ export class PaymentDispatchService implements OnModuleInit {
     const snap = intentEntity.snapshot();
 
     if (snap.status === "approved") {
+      await this.paymentHoldLifecycle?.createForApprovedPayment(snap);
       // The committed outbox event owns retry of checkout completion.
       await this.markLinkedCommerceOrderPaid(snap, providerPaymentId);
       return "already_approved";
@@ -74,6 +77,8 @@ export class PaymentDispatchService implements OnModuleInit {
       if (current?.status === "approved" && current.snapshot().providerPaymentId === providerPaymentId) return "already_approved";
       throw error;
     }
+
+    await this.paymentHoldLifecycle?.createForApprovedPayment(intentEntity.snapshot());
 
     this.metrics?.paymentApproved.inc({ merchant_id: snap.merchantId, method: snap.method });
 

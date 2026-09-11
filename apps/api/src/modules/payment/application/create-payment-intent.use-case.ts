@@ -20,7 +20,7 @@ import {
   PAYMENT_REPOSITORY,
   type PaymentRepository
 } from "../domain/ports/payment-repository.port.js";
-import type { CreateProviderPaymentOutput, PaymentProviderPort } from "../domain/ports/payment-provider.port.js";
+import type { CreateProviderPaymentInput, CreateProviderPaymentOutput, PaymentProviderPort } from "../domain/ports/payment-provider.port.js";
 import { PAYMENT_PROVIDER_PORT } from "../domain/ports/payment-provider.port.js";
 import type { CheckoutSession, CurrencyCode } from "@zyon/shared-types";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../buyer-account/domain/ports/buyer-account-repository.port.js";
@@ -65,6 +65,27 @@ export type CreatePaymentIntentResponseBody = Omit<PaymentIntentSnapshot, "creat
 function publicPayment(snapshot: PaymentIntentSnapshot): CreatePaymentIntentResponseBody {
   const { creation: _creation, version: _version, ...publicFields } = snapshot;
   return publicFields;
+}
+
+function delayedMerchantPayoutEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const mode = env.PAYMENT_MERCHANT_SETTLEMENT_MODE?.trim();
+  if (!mode || mode === "immediate_split") return false;
+  if (mode === "delayed_merchant_payout") {
+    // The state machine is deployed ahead of the provider-transfer worker. A
+    // feature flag must never create a charge that can become payout-ready
+    // without a safe way to submit and confirm its transfer.
+    throw new BadRequestException("delayed_merchant_payout_release_worker_not_configured");
+  }
+  throw new BadRequestException("payment_merchant_settlement_mode_invalid");
+}
+
+function delayedMerchantPayoutHoldDays(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env.PAYMENT_MERCHANT_PAYOUT_HOLD_DAYS?.trim();
+  if (!raw) return 14;
+  if (!/^\d+$/.test(raw)) throw new BadRequestException("payment_hold_window_invalid");
+  const days = Number(raw);
+  if (!Number.isSafeInteger(days) || days < 1 || days > 90) throw new BadRequestException("payment_hold_window_invalid");
+  return days;
 }
 
 function assertSameRequest(snapshot: PaymentIntentSnapshot, body: CreatePaymentIntentRequest, session: CheckoutSession): void {
@@ -273,6 +294,17 @@ export class CreatePaymentIntentUseCase {
       ? await this.platformConnections?.getConnection(merchantId, "mercadopago") : undefined;
     const usesMercadoPago = mercadoPagoConnection?.status === "active";
     const usesAsaas = method !== "crypto" && !isStripeCard && !usesMercadoPago;
+    const delayedMerchantPayout = delayedMerchantPayoutEnabled();
+    const merchantPayoutHoldDays = delayedMerchantPayout ? delayedMerchantPayoutHoldDays() : undefined;
+    if (delayedMerchantPayout && (method === "crypto" || usesMercadoPago)) {
+      // Mercado Pago's ordinary marketplace split is immediate. Do not silently
+      // fall back to it when the merchant has asked for a protected window.
+      throw new BadRequestException(
+        method === "crypto"
+          ? "crypto_delayed_payout_not_supported"
+          : "mercadopago_delayed_payout_not_supported",
+      );
+    }
     const mercadoPagoPayerEmail = session.customer?.email?.trim();
     if (usesMercadoPago && !mercadoPagoPayerEmail) {
       throw new BadRequestException("mercadopago_payer_email_required");
@@ -302,6 +334,9 @@ export class CreatePaymentIntentUseCase {
       if (!stripeConnectAccountId) {
         throw new BadRequestException("stripe_connect_not_configured");
       }
+      if (delayedMerchantPayout && !stripeConnection?.payoutsEnabled) {
+        throw new BadRequestException("stripe_merchant_payout_destination_not_ready");
+      }
       stripeApplicationFeeCents = buyerServiceFeeCents + merchantFeeCents;
     }
 
@@ -323,6 +358,19 @@ export class CreatePaymentIntentUseCase {
       platformFeeCents: buyerServiceFeeCents, totalCents: amountCents,
     };
     let asaasCustomer = resolveAsaasCustomerIdFromSession(session);
+    let asaasPayoutDestination: string | undefined;
+
+    if (delayedMerchantPayout && usesAsaas) {
+      const asaasConnection = await this.platformConnections?.getConnection(merchantId, "asaas");
+      if (
+        asaasConnection?.status !== "active" ||
+        !asaasConnection.payoutsEnabled ||
+        !asaasConnection.walletId?.trim()
+      ) {
+        throw new BadRequestException("asaas_merchant_payout_destination_not_ready");
+      }
+      asaasPayoutDestination = asaasConnection.walletId.trim();
+    }
 
     // Validate the exact Asaas route and required split wallet before creating
     // a provider customer. `preparePayment` is a local, no-network preflight;
@@ -338,6 +386,13 @@ export class CreatePaymentIntentUseCase {
         currency: session.cart.currency.toUpperCase(),
         method,
         platformFeeCents: assertProviderFeeCap(buyerServiceFeeCents + merchantFeeCents, amountCents),
+        ...(delayedMerchantPayout
+          ? {
+              settlementMode: "delayed_merchant_payout" as const,
+              merchantPayoutDestination: asaasPayoutDestination,
+              merchantPayoutHoldDays,
+            }
+          : {}),
       });
     }
 
@@ -375,18 +430,24 @@ export class CreatePaymentIntentUseCase {
           name: customer.fullName,
           email: customer.email,
           cpfCnpj: customer.cpf,
-          phone: customer.phone ?? undefined
+          phone: customer.phone ?? undefined,
+          ...(delayedMerchantPayout ? { settlementMode: "delayed_merchant_payout" as const } : {}),
         });
       } catch (error) {
         this.logger.error(`payment.customer_create_failed: ${error instanceof Error ? error.message : String(error)}`);
         throw normalizeProviderException(error);
       }
-      const updatedSession: CheckoutSession = {
-        ...session,
-        customer: { ...session.customer!, asaasCustomerId: asaasCustomer },
-        updatedAt: new Date().toISOString()
-      };
-      await this.checkout.saveSession(updatedSession);
+      // A delayed Asaas charge uses the platform account. Its customer id must
+      // never be cached in the merchant-owned checkout profile, or a later
+      // immediate merchant charge could try to reuse a foreign customer id.
+      if (!delayedMerchantPayout) {
+        const updatedSession: CheckoutSession = {
+          ...session,
+          customer: { ...session.customer!, asaasCustomerId: asaasCustomer },
+          updatedAt: new Date().toISOString()
+        };
+        await this.checkout.saveSession(updatedSession);
+      }
     }
 
     const intent = PaymentIntentEntity.create({
@@ -402,17 +463,38 @@ export class CreatePaymentIntentUseCase {
     });
 
     if (body.credit_card) throw new BadRequestException("raw_card_forbidden");
-    let providerInput = {
+    let providerInput: CreateProviderPaymentInput = {
       merchantId, sessionId, intentId: intent.id,
       providerIdempotencyKey: deriveProviderIdempotencyKey(merchantId, sessionId, idempotencyKey),
       amountCents, currency: intent.snapshot().currency, method,
       description: paymentDescription(merchantId, sessionId, commerceOrderId),
-      ...(isStripeCard ? { stripeConnectAccountId, platformFeeCents: stripeApplicationFeeCents }
+      ...(isStripeCard ? {
+          ...(delayedMerchantPayout
+            ? {
+                provider: "stripe" as const,
+                settlementMode: "delayed_merchant_payout" as const,
+                merchantPayoutDestination: stripeConnectAccountId,
+                merchantPayoutHoldDays,
+              }
+            : { stripeConnectAccountId }),
+          platformFeeCents: stripeApplicationFeeCents,
+        }
         : usesMercadoPago ? { platformFeeCents: mercadoPagoPlatformFeeCents, payerEmail: mercadoPagoPayerEmail }
-          : usesAsaas ? { asaasCustomerId: resolveAsaasCustomerForProvider(asaasCustomer), platformFeeCents: assertProviderFeeCap(buyerServiceFeeCents + merchantFeeCents, amountCents) }
+          : usesAsaas ? {
+              ...(delayedMerchantPayout
+                ? {
+                    provider: "asaas" as const,
+                    settlementMode: "delayed_merchant_payout" as const,
+                    merchantPayoutDestination: asaasPayoutDestination,
+                    merchantPayoutHoldDays,
+                  }
+                : {}),
+              asaasCustomerId: resolveAsaasCustomerForProvider(asaasCustomer),
+              platformFeeCents: assertProviderFeeCap(buyerServiceFeeCents + merchantFeeCents, amountCents),
+            }
             : { platformFeeCents: assertProviderFeeCap(buyerServiceFeeCents + merchantFeeCents, amountCents) }),
     };
-    if (this.provider.preparePayment) providerInput = await this.provider.preparePayment(providerInput) as typeof providerInput;
+    if (this.provider.preparePayment) providerInput = await this.provider.preparePayment(providerInput);
     intent.prepareCreation(providerInput);
     const settlementPlan = settlementPlanForCreation({
       merchantId,

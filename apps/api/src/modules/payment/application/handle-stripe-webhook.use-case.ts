@@ -13,6 +13,7 @@ import { HandleStripePlatformEventUseCase } from "./payment-platform.use-cases.j
 import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 import { STRIPE_PLATFORM_PORT, type StripePlatformPort } from "../domain/ports/payment-platform-provider.port.js";
 import { HandleMarketplaceChargebackUseCase } from "../../marketplace/application/use-cases/handle-marketplace-chargeback.use-case.js";
+import { ChargebackPaymentHoldUseCase, RefundPaymentHoldUseCase } from "./payment-hold.use-cases.js";
 
 export type HandleStripeWebhookResult =
   | { outcome: "duplicate" }
@@ -41,6 +42,8 @@ export class HandleStripeWebhookUseCase {
     @Optional() @Inject("PRISMA_CLIENT") private readonly prisma?: any,
     @Optional() private readonly marketplaceChargeback?: HandleMarketplaceChargebackUseCase,
     @Optional() @Inject(STRIPE_PLATFORM_PORT) private readonly billingStripe?: StripePlatformPort,
+    @Optional() private readonly refundPaymentHold?: RefundPaymentHoldUseCase,
+    @Optional() private readonly chargebackPaymentHold?: ChargebackPaymentHoldUseCase,
   ) {
     const { secretKey } = readStripeConnection();
     if (!secretKey) {
@@ -283,6 +286,7 @@ export class HandleStripeWebhookUseCase {
     if (!intentEntity) return "intent_not_found";
 
     await this.paymentDispatch.markRefunded(intentEntity, "charge.refunded");
+    await this.refundPaymentHold?.execute(intentId);
     return "payment_refunded";
   }
 
@@ -308,15 +312,7 @@ export class HandleStripeWebhookUseCase {
     // showed).
     await this.paymentDispatch.markChargebacked(intentEntity, reason);
 
-    // Mark PaymentHold as chargebacked (if held)
-    try {
-      await (this.prisma as any).paymentHold?.updateMany({
-        where: { paymentIntentId: intentId, status: "held" },
-        data: { status: "chargebacked" },
-      });
-    } catch {
-      // PaymentHold table may not exist yet — graceful degradation
-    }
+    await this.chargebackPaymentHold?.execute(intentId);
 
     // Cross-store (marketplace) settlements of this order must be charged back
     // too: cancel the seller repasse if still scheduled, or open a seller debt

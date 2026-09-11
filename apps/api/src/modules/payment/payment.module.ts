@@ -17,6 +17,13 @@ import { HandleAsaasWebhookUseCase } from "./application/handle-asaas-webhook.us
 import { HandleStripeWebhookUseCase } from "./application/handle-stripe-webhook.use-case.js";
 import { HandleMercadoPagoWebhookUseCase } from "./application/handle-mercadopago-webhook.use-case.js";
 import { ReconcilePaymentIntentsUseCase } from "./application/reconcile-payment-intents.use-case.js";
+import {
+  ChargebackPaymentHoldUseCase,
+  CreatePaymentHoldUseCase,
+  MakePaymentHoldsPayoutReadyUseCase,
+  RefundPaymentHoldUseCase,
+} from "./application/payment-hold.use-cases.js";
+import { PaymentHoldLifecycleService } from "./application/payment-hold-lifecycle.service.js";
 import { PAYMENT_REPOSITORY } from "./domain/ports/payment-repository.port.js";
 import { PAYMENT_SETTLEMENT_LEDGER } from "./domain/ports/payment-settlement-ledger.port.js";
 import { PAYMENT_PROVIDER_PORT } from "./domain/ports/payment-provider.port.js";
@@ -45,6 +52,7 @@ import { HttpClientService } from "../../shared/http/http-client.service.js";
 import { readAsaasConnection, isAsaasConfigured } from "./infrastructure/asaas-env.js";
 import { readStripeConnection, isStripeConfigured } from "./infrastructure/stripe-env.js";
 import { ReconcilePaymentIntentsScheduler, ReconcilePaymentIntentsWorker } from "./infrastructure/reconciliation-payment-intents.job.js";
+import { PaymentHoldPayoutReadinessJob } from "./infrastructure/payment-hold-release.job.js";
 import { PaymentEventPublisher } from "./infrastructure/payment-event-publisher.js";
 import { PaymentWebSocketGateway } from "./infrastructure/payment-ws.gateway.js";
 import { readMercadoPagoConnection, isMercadoPagoConfigured } from "./infrastructure/mercadopago-env.js";
@@ -135,6 +143,12 @@ import {
     HandleStripeWebhookUseCase,
     HandleMercadoPagoWebhookUseCase,
     ReconcilePaymentIntentsUseCase,
+    CreatePaymentHoldUseCase,
+    MakePaymentHoldsPayoutReadyUseCase,
+    RefundPaymentHoldUseCase,
+    ChargebackPaymentHoldUseCase,
+    PaymentHoldLifecycleService,
+    PaymentHoldPayoutReadinessJob,
     PaymentDispatchService,
     BillingPlanMeteringService,
     GetPaymentConnectionsUseCase,
