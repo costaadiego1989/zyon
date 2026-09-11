@@ -7,6 +7,7 @@ if (!databaseUrl) throw new Error("DATABASE_URL is required for migrations");
 
 const client = new pg.Client({ connectionString: databaseUrl });
 const failedLegacyMigration = "20260501103000_checkout_module";
+const failedPaymentHoldMigration = "20260911130000_payment_hold_payout_lifecycle";
 const baselineMigration = "20260905000000_complete_schema";
 
 function prisma(args) {
@@ -25,6 +26,13 @@ try {
       to_regclass('public.checkout_sessions') IS NOT NULL AS has_checkout_sessions,
       to_regclass('public.merchant_rules') IS NOT NULL AS has_merchant_rules,
       to_regclass('public.storefront_carts') IS NOT NULL AS has_storefront_carts,
+      to_regclass('public.payment_holds') IS NOT NULL AS has_payment_holds,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'payment_holds'
+          AND column_name = 'provider'
+      ) AS has_payment_hold_provider,
       to_regclass('public._prisma_migrations') IS NOT NULL AS has_migrations,
       (SELECT count(*)::int FROM pg_tables WHERE schemaname = 'public' AND tablename <> '_prisma_migrations') AS table_count
   `);
@@ -43,6 +51,23 @@ try {
     }
     console.log("Reconciling the verified legacy checkout migration record");
     prisma(["migrate", "resolve", "--applied", failedLegacyMigration, "--config", "prisma.legacy.config.ts"]);
+  }
+
+  const failedPaymentHoldRows = schema.has_migrations ? (await client.query(
+    `SELECT finished_at, rolled_back_at FROM "_prisma_migrations"
+     WHERE migration_name = $1 ORDER BY started_at DESC LIMIT 1`, [failedPaymentHoldMigration],
+  )).rows : [];
+  const failedPaymentHold = failedPaymentHoldRows[0];
+  if (failedPaymentHold && !failedPaymentHold.finished_at && !failedPaymentHold.rolled_back_at) {
+    // The first version of this migration used CREATE TABLE IF NOT EXISTS even
+    // though the baseline already supplied payment_holds. The expected failed
+    // state has the legacy table but no provider column; only this state can be
+    // safely rolled back and replayed with the additive migration above.
+    if (!schema.has_payment_holds || schema.has_payment_hold_provider) {
+      throw new Error("Refusing to reconcile an unexpected failed payment-hold migration");
+    }
+    console.log("Rolling back the verified incomplete payment-hold migration record");
+    prisma(["migrate", "resolve", "--rolled-back", failedPaymentHoldMigration]);
   }
 
   const baselineRows = schema.has_migrations ? (await client.query(
