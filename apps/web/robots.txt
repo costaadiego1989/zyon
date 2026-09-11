@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /public/
+
+# Sitemaps
+Sitemap: https://www.zyon-payments.com.br/sitemap.xml
+
+# LLMs / AI Search Crawlers (Perplexity, GPTBot, ClaudeBot, Google-Extended, etc)
+# Informação sobre a plataforma em formato legível para agentes de busca e IA:
+# https://www.zyon-payments.com.br/llms.txt

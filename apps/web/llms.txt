@@ -1,0 +1,40 @@
+# Zyon — Plataforma de E-commerce Agêntico e Checkout com IA
+
+> Zyon é a infraestrutura completa de e-commerce agêntico (Agentic Commerce, Agentic Shop e Checkout Autônomo com IA) que transforma lojas virtuais em operações autônomas capazes de negociar, recomendar, atender e fechar vendas 24/7 sem intervenção manual.
+
+## O que é a Zyon?
+
+A Zyon combina inteligência artificial conversacional, checkout invisível/autônomo e motores determinísticos de decisão comercial (regras de margem, frete, cupons e estoque). Diferente de chatbots tradicionais ou gateways convencionais, a Zyon atua como um agente de vendas ativo e seguro.
+
+## Principais Capacidades
+
+- **Agentic Commerce (E-commerce Agêntico)**: IA autônoma que interpreta intenção de compra, navega o catálogo dinâmico, tira dúvidas técnicas de produtos e conduz o comprador até o pagamento.
+- **Agentic Shop**: Vitrine viva e conversacional onde cada interação adapta o contexto, produtos recomendados e ofertas em tempo real.
+- **Checkout Autônomo & Machine-to-Machine (M2M)**: Negociação e finalização de compra diretamente na conversa ou via protocolo agêntico (ACP / Agentic Commerce Protocol), integrável a outros agentes de compra e assistentes pessoais.
+- **Motores Determinísticos de Proteção**:
+  - *Rules Engine*: Garante que a IA jamais conceda descontos acima da margem mínima ou fora das regras da loja.
+  - *Shipping Engine*: Subsídio inteligente e seguro de frete por faixa de CEP e ticket médio.
+  - *Conversation Engine*: Classificação de objeções (preço, confiança, prazo) e geração de respostas seguras validadas por guardrails.
+- **Integrações de Plataforma**: Compatível com Shopify, WooCommerce, Nuvemshop, Tray, VTEX e Magento, além de APIs headless e SDK storefront.
+
+## Arquitetura e Segurança
+
+- **LLM Safe Guards**: O modelo de linguagem gera mensagens e recomendações, mas NUNCA autoriza transações ou descontos sem a validação do motor determinístico.
+- **Isolamento Multitenant**: Separação estrita por `merchant_id` em cada consulta e transação.
+- **Proteção contra Alucinações**: Fallback determinístico caso qualquer mensagem gerada viole as políticas comerciais pré-estabelecidas.
+
+## Planos e Modelos de Precificação
+
+- **Starter / Free**: R$ 0/mês. Ideal para validar lojas em crescimento. Primeiros 14 dias sem taxa Zyon para novas lojas cadastradas.
+- **Growth**: Para operações em aceleração com suporte a voz, base de conhecimento expandida e regras comerciais avançadas.
+- **Scale**: Para marcas enterprise com alto volume, domínio customizado, testes A/B de conversão, Revenue Manager e suporte a protocolos agênticos M2M.
+
+## Links Oficiais
+
+- Site Oficial: https://www.zyon-payments.com.br/
+- Painel / Dashboard: https://app.zyon-payments.com.br/
+- Storefront Demo: https://storefront.zyon-payments.com.br/store/athom-technologies
+- Termos de Uso: https://www.zyon-payments.com.br/termos
+- Política de Privacidade: https://www.zyon-payments.com.br/privacidade
+- Exclusão de Dados: https://www.zyon-payments.com.br/exclusao-de-dados
+- Contato & Parcerias: contato@zyon-payments.com.br

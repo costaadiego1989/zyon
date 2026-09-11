@@ -49,8 +49,8 @@ const config: NextConfig = {
 
     return [
       {
-        // Only the dedicated demo may be framed by Zyon's marketing surfaces.
-        source: "/store/demo",
+        // Somente as lojas autorizadas podem ser incorporadas no site da Zyon.
+        source: "/store/:slug(demo|athom-technologies)",
         headers: [
           {
             key: "Content-Security-Policy",
@@ -64,7 +64,7 @@ const config: NextConfig = {
       },
       {
         // Keep every merchant storefront protected from third-party framing.
-        source: "/:path((?!store/demo$).*)",
+        source: "/:path((?!store/(?:demo|athom-technologies)$).*)",
         headers: [
           {
             key: "Content-Security-Policy",

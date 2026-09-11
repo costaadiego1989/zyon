@@ -328,7 +328,7 @@ export default async function StorePage({
       {gtmId && <GoogleTagManager gtmId={gtmId} />}
       {fbPixelId && <FacebookPixel pixelId={fbPixelId} />}
       {tiktokPixelId && <TiktokPixel pixelId={tiktokPixelId} />}
-      {slug === "demo" && config?.merchantId ? <DemoEmbedBridge /> : null}
+      {["demo", "athom-technologies"].includes(slug) && config?.merchantId ? <DemoEmbedBridge /> : null}
       {/* suppressHydrationWarning: zoom/reader browser extensions inject
           data-original-width + inline max-width on this shell before React
           hydrates. That mutation is outside our control. */}
