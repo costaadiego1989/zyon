@@ -53,6 +53,11 @@ export interface BillingProviderPort {
   createSubscription(input: CreateSubscriptionInput): Promise<SubscriptionResult>;
   /** Change the recurring amount (plan change). */
   updateSubscription(input: { subscriptionId: string; valueBrl: number }): Promise<{ status: string }>;
+  /**
+   * Stops future recurring charges while preserving charges already generated.
+   * Returns false when the subscription was already removed from the provider.
+   */
+  ensureSubscriptionInactive(subscriptionId: string): Promise<boolean>;
   cancelSubscription(subscriptionId: string): Promise<void>;
   getSubscription(subscriptionId: string): Promise<{ status: string; nextDueDate?: string } | null>;
 }

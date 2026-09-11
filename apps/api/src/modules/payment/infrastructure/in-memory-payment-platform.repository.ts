@@ -124,10 +124,20 @@ export class InMemoryPaymentPlatformRepository
       input.pendingPlanEffectiveAt === undefined
         ? current.pendingPlanEffectiveAt
         : (input.pendingPlanEffectiveAt ?? undefined);
+    const pendingPlanKey =
+      input.pendingPlanKey === undefined
+        ? current.pendingPlanKey
+        : (input.pendingPlanKey ?? undefined);
+    const providerCancellationScheduledAt =
+      input.providerCancellationScheduledAt === undefined
+        ? current.providerCancellationScheduledAt
+        : (input.providerCancellationScheduledAt ?? undefined);
     this.billing.set(input.merchantId, {
       ...current,
       ...input,
+      pendingPlanKey,
       pendingPlanEffectiveAt: pendingEffective,
+      providerCancellationScheduledAt,
       updatedAt: new Date().toISOString(),
     });
   }
@@ -136,6 +146,40 @@ export class InMemoryPaymentPlatformRepository
     merchantId: string,
   ): Promise<BillingSubscriptionSnapshot | undefined> {
     return this.billing.get(merchantId);
+  }
+
+  async listBillingCancellationsNeedingProviderSuspend(
+    limit: number,
+  ): Promise<BillingSubscriptionSnapshot[]> {
+    return [...this.billing.values()]
+      .filter((billing) =>
+        billing.cancelAtPeriodEnd &&
+        !billing.providerCancellationScheduledAt &&
+        Boolean(billing.asaasSubscriptionId) &&
+        billing.status !== "cancelled",
+      )
+      .sort((left, right) =>
+        (left.currentPeriodEnd ?? "").localeCompare(right.currentPeriodEnd ?? ""),
+      )
+      .slice(0, Math.max(1, Math.trunc(limit)));
+  }
+
+  async listDueBillingCancellations(
+    now: Date,
+    limit: number,
+  ): Promise<BillingSubscriptionSnapshot[]> {
+    return [...this.billing.values()]
+      .filter((billing) =>
+        billing.cancelAtPeriodEnd &&
+        Boolean(billing.asaasSubscriptionId) &&
+        billing.status !== "cancelled" &&
+        Boolean(billing.currentPeriodEnd) &&
+        new Date(billing.currentPeriodEnd!).getTime() <= now.getTime(),
+      )
+      .sort((left, right) =>
+        (left.currentPeriodEnd ?? "").localeCompare(right.currentPeriodEnd ?? ""),
+      )
+      .slice(0, Math.max(1, Math.trunc(limit)));
   }
 
   async expireTrial(merchantId: string, now: Date): Promise<boolean> {

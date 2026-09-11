@@ -149,12 +149,34 @@ export class AsaasBillingProvider implements BillingProviderPort {
     return { status: json.status ?? "ACTIVE" };
   }
 
+  async ensureSubscriptionInactive(subscriptionId: string): Promise<boolean> {
+    const res = await this.fetchImpl(
+      `${this.base}/v3/subscriptions/${encodeURIComponent(subscriptionId)}`,
+      {
+        method: "PUT",
+        headers: this.headers(),
+        // Asaas keeps already-generated charges when a subscription becomes
+        // inactive. This prevents a renewal while the merchant keeps access
+        // through the paid period.
+        body: JSON.stringify({ status: "INACTIVE" }),
+        signal: AbortSignal.timeout(15_000),
+      },
+    );
+    if (res.status === 404) return false;
+    if (!res.ok) {
+      throw new Error(`asaas_billing_inactivate_failed:${res.status}`);
+    }
+    return true;
+  }
+
   async cancelSubscription(subscriptionId: string): Promise<void> {
     const res = await this.fetchImpl(
       `${this.base}/v3/subscriptions/${encodeURIComponent(subscriptionId)}`,
       { method: "DELETE", headers: this.headers(), signal: AbortSignal.timeout(15_000) }
     );
-    if (!res.ok) {
+    // A second worker (or a retry after a successful provider-side deletion)
+    // can legitimately observe a missing resource. Deletion is idempotent.
+    if (!res.ok && res.status !== 404) {
       throw new Error(`asaas_billing_cancel_failed:${res.status}`);
     }
   }

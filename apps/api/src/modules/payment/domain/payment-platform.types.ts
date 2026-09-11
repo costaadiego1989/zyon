@@ -50,6 +50,8 @@ export interface BillingSubscriptionSnapshot {
   asaasSubscriptionId?: string;
   pendingPlanKey?: BillingPlan;
   pendingPlanEffectiveAt?: string;
+  /** When the provider recurrence was suspended for a period-end cancellation. */
+  providerCancellationScheduledAt?: string;
 }
 
 export interface BillingUsageSnapshot {

@@ -39,8 +39,9 @@ export interface SaveBillingSubscriptionInput {
   planKey?: BillingSubscriptionSnapshot["planKey"];
   asaasCustomerId?: string;
   asaasSubscriptionId?: string;
-  pendingPlanKey?: BillingSubscriptionSnapshot["planKey"];
+  pendingPlanKey?: BillingSubscriptionSnapshot["planKey"] | null;
   pendingPlanEffectiveAt?: string | null;
+  providerCancellationScheduledAt?: string | null;
 }
 
 export interface PaymentPlatformRepository {
@@ -63,6 +64,13 @@ export interface PaymentPlatformRepository {
   getBilling(
     merchantId: string,
   ): Promise<BillingSubscriptionSnapshot | undefined>;
+  listBillingCancellationsNeedingProviderSuspend(
+    limit: number,
+  ): Promise<BillingSubscriptionSnapshot[]>;
+  listDueBillingCancellations(
+    now: Date,
+    limit: number,
+  ): Promise<BillingSubscriptionSnapshot[]>;
   expireTrial(merchantId: string, now: Date): Promise<boolean>;
   expireTrials(now: Date, limit: number): Promise<number>;
   findMerchantByStripeCustomerId(

@@ -92,10 +92,12 @@ import {
   SubscribeToPlanUseCase,
   ChangeSubscriptionPlanUseCase,
   CancelSubscriptionUseCase,
+  ReconcileScheduledSubscriptionCancellationsUseCase,
   HandleAsaasBillingWebhookUseCase,
 } from "./application/payment-platform.use-cases.js";
 import { BILLING_PROVIDER } from "./domain/ports/billing-provider.port.js";
 import { AsaasBillingProvider } from "./infrastructure/asaas-billing.provider.js";
+import { BillingScheduledCancellationJob } from "./application/services/billing-scheduled-cancellation.job.js";
 import {
   BillingController,
   PaymentPlatformController,
@@ -174,7 +176,9 @@ import {
     SubscribeToPlanUseCase,
     ChangeSubscriptionPlanUseCase,
     CancelSubscriptionUseCase,
+    ReconcileScheduledSubscriptionCancellationsUseCase,
     HandleAsaasBillingWebhookUseCase,
+    BillingScheduledCancellationJob,
     CreateMercadoPagoOAuthLinkUseCase,
     HandleMercadoPagoOAuthCallbackUseCase,
     SyncMercadoPagoConnectionUseCase,

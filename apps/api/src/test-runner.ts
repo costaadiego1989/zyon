@@ -44,6 +44,7 @@ import "./modules/payment/infrastructure/asaas-env.spec.js";
 import "./modules/payment/infrastructure/asaas-payment.adapter.spec.js";
 import "./modules/payment/infrastructure/payment-secret-cipher.spec.js";
 import "./modules/payment/application/payment-platform.use-cases.spec.js";
+import "./modules/payment/application/billing-scheduled-cancellation.spec.js";
 import "./modules/payment/application/asaas-existing-connection.spec.js";
 import "./modules/payment/application/services/refund-payment.service.spec.js";
 import "./modules/payment/infrastructure/evm-crypto-quote.service.spec.js";

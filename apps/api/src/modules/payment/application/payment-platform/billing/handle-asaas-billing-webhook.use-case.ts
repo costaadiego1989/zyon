@@ -40,6 +40,11 @@ export class HandleAsaasBillingWebhookUseCase {
     const now = new Date();
 
     if (event === "PAYMENT_CONFIRMED" || event === "PAYMENT_RECEIVED") {
+      // Payment webhooks are at-least-once and can arrive after a cancellation
+      // was finalized. Never resurrect a subscription from a late delivery.
+      if (billing.status === "cancelled") {
+        return { outcome: "processed", merchantId };
+      }
       if (billing.pendingPlanKey && billing.pendingPlanEffectiveAt) {
         const effectiveAt = new Date(billing.pendingPlanEffectiveAt);
         if (effectiveAt <= now) {
@@ -70,10 +75,20 @@ export class HandleAsaasBillingWebhookUseCase {
         merchantId,
         status: "past_due",
       });
-    } else if (event === "SUBSCRIPTION_DELETED" || event === "SUBSCRIPTION_INACTIVATED") {
+    } else if (
+      event === "SUBSCRIPTION_DELETED" ||
+      // The application itself inactivates a recurrence to preserve access
+      // through the already-paid period. An unsolicited inactivation must
+      // retain the historical safety behavior and revoke the paid plan.
+      (event === "SUBSCRIPTION_INACTIVATED" && !billing.cancelAtPeriodEnd)
+    ) {
       await this.repository.saveBilling({
         merchantId,
         status: "cancelled",
+        cancelAtPeriodEnd: false,
+        providerCancellationScheduledAt: null,
+        pendingPlanKey: null,
+        pendingPlanEffectiveAt: null,
       });
     }
 

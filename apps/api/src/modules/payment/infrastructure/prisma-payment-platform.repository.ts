@@ -189,6 +189,13 @@ export class PrismaPaymentPlatformRepository
               : null,
           }
         : {}),
+      ...(input.providerCancellationScheduledAt !== undefined
+        ? {
+            providerCancellationScheduledAt: input.providerCancellationScheduledAt
+              ? new Date(input.providerCancellationScheduledAt)
+              : null,
+          }
+        : {}),
     };
     await this.prisma.merchantBillingSubscription.upsert({
       where: { merchantId: input.merchantId.trim() },
@@ -209,6 +216,39 @@ export class PrismaPaymentPlatformRepository
       where: { merchantId: merchantId.trim() },
     });
     return row ? toBilling(row) : undefined;
+  }
+
+  async listBillingCancellationsNeedingProviderSuspend(
+    limit: number,
+  ): Promise<BillingSubscriptionSnapshot[]> {
+    const rows = await this.prisma.merchantBillingSubscription.findMany({
+      where: {
+        cancelAtPeriodEnd: true,
+        providerCancellationScheduledAt: null,
+        asaasSubscriptionId: { not: null },
+        status: { not: "cancelled" },
+      },
+      orderBy: { currentPeriodEnd: "asc" },
+      take: Math.max(1, Math.trunc(limit)),
+    });
+    return rows.map(toBilling);
+  }
+
+  async listDueBillingCancellations(
+    now: Date,
+    limit: number,
+  ): Promise<BillingSubscriptionSnapshot[]> {
+    const rows = await this.prisma.merchantBillingSubscription.findMany({
+      where: {
+        cancelAtPeriodEnd: true,
+        currentPeriodEnd: { not: null, lte: now },
+        asaasSubscriptionId: { not: null },
+        status: { not: "cancelled" },
+      },
+      orderBy: { currentPeriodEnd: "asc" },
+      take: Math.max(1, Math.trunc(limit)),
+    });
+    return rows.map(toBilling);
   }
 
   async expireTrial(merchantId: string, now: Date): Promise<boolean> {
@@ -360,6 +400,7 @@ function toBilling(row: {
   asaasSubscriptionId?: string | null;
   pendingPlanKey?: string | null;
   pendingPlanEffectiveAt?: Date | null;
+  providerCancellationScheduledAt?: Date | null;
 }): BillingSubscriptionSnapshot {
   return {
     merchantId: row.merchantId,
@@ -378,6 +419,7 @@ function toBilling(row: {
     asaasSubscriptionId: row.asaasSubscriptionId ?? undefined,
     pendingPlanKey: toPlanKey(row.pendingPlanKey),
     pendingPlanEffectiveAt: row.pendingPlanEffectiveAt?.toISOString(),
+    providerCancellationScheduledAt: row.providerCancellationScheduledAt?.toISOString(),
   };
 }
 

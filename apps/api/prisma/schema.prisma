@@ -182,6 +182,7 @@ model MerchantBillingSubscription {
   asaasSubscriptionId    String?   @map("asaas_subscription_id")
   pendingPlanKey         String?   @map("pending_plan_key")
   pendingPlanEffectiveAt DateTime? @map("pending_plan_effective_at")
+  providerCancellationScheduledAt DateTime? @map("provider_cancellation_scheduled_at")
 
   merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 

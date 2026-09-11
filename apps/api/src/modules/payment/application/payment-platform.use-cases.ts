@@ -17,6 +17,7 @@ export * from "./payment-platform/billing/start-trial.use-case.js";
 export * from "./payment-platform/billing/subscribe-to-plan.use-case.js";
 export * from "./payment-platform/billing/change-subscription-plan.use-case.js";
 export * from "./payment-platform/billing/cancel-subscription.use-case.js";
+export * from "./payment-platform/billing/reconcile-scheduled-subscription-cancellations.use-case.js";
 export * from "./payment-platform/billing/handle-asaas-billing-webhook.use-case.js";
 
 export * from "./payment-platform/platform-events/handle-stripe-platform-event.use-case.js";
