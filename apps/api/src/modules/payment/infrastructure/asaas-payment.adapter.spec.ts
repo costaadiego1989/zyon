@@ -61,6 +61,47 @@ function createMockFetch(responses: Array<{ ok: boolean; status: number; body: a
   return { fn: fn as unknown as typeof fetch, calls };
 }
 
+test("Customer: maps Brazilian mobile numbers to mobilePhone", async () => {
+  const { fn, calls } = createMockFetch([
+    { ok: true, status: 200, body: { data: [] } },
+    { ok: true, status: 200, body: { id: "cus_mobile_001" } },
+  ]);
+  const adapter = new AsaasPaymentAdapter(API_BASE, API_KEY, fn);
+
+  const customerId = await adapter.createCustomer({
+    merchantId: "merchant_123",
+    name: "Comprador Sandbox",
+    email: "buyer@example.test",
+    cpfCnpj: "529.982.247-25",
+    phone: "+55 (47) 99999-9999",
+  });
+
+  assert.equal(customerId, "cus_mobile_001");
+  const body = JSON.parse(calls[1].init.body);
+  assert.equal(body.mobilePhone, "47999999999");
+  assert.equal(body.phone, undefined);
+});
+
+test("Customer: preserves a Brazilian landline in phone", async () => {
+  const { fn, calls } = createMockFetch([
+    { ok: true, status: 200, body: { data: [] } },
+    { ok: true, status: 200, body: { id: "cus_landline_001" } },
+  ]);
+  const adapter = new AsaasPaymentAdapter(API_BASE, API_KEY, fn);
+
+  await adapter.createCustomer({
+    merchantId: "merchant_123",
+    name: "Comprador Sandbox",
+    email: "buyer@example.test",
+    cpfCnpj: "24971563792",
+    phone: "(47) 3801-0919",
+  });
+
+  const body = JSON.parse(calls[1].init.body);
+  assert.equal(body.phone, "4738010919");
+  assert.equal(body.mobilePhone, undefined);
+});
+
 // ── PIX tests ──
 
 test("PIX: should create payment and fetch QR code", async () => {

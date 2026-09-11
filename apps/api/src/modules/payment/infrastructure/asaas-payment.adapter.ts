@@ -86,6 +86,19 @@ function majorUnitsFromCents(amountCents: number): number {
   return Number((amountCents / 100).toFixed(2));
 }
 
+function asaasCustomerPhone(input: string | undefined): { field: "phone" | "mobilePhone"; value: string } | undefined {
+  if (!input) return undefined;
+  let digits = input.replace(/\D/g, "");
+  // Checkout callers commonly include the Brazilian country code. Asaas
+  // expects the national number and distinguishes landline from mobile.
+  if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) {
+    digits = digits.slice(2);
+  }
+  if (digits.length === 11) return { field: "mobilePhone", value: digits };
+  if (digits.length === 10) return { field: "phone", value: digits };
+  return undefined;
+}
+
 function defaultDueDate(): string {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() + 7);
@@ -253,7 +266,8 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
       email: input.email,
       cpfCnpj: input.cpfCnpj.replace(/\D/g, "")
     };
-    if (input.phone) body.phone = input.phone.replace(/\D/g, "");
+    const phone = asaasCustomerPhone(input.phone);
+    if (phone) body[phone.field] = phone.value;
 
     const cpfDigits = input.cpfCnpj.replace(/\D/g, "");
 
