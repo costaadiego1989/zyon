@@ -4,10 +4,11 @@ import {
   BILLING_PLANS,
   BUYER_SERVICE_FEE_CENTS,
   effectiveBillingPlan,
+  planFromPriceId,
   merchantTransactionFeeCentsFor,
 } from "./billing-plans.js";
 
-test("BILLING_PLANS matches Free R$2,99 after trial, Growth R$249 and Scale R$599", () => {
+test("BILLING_PLANS matches Free R$2,99 after trial, Growth R$349 and Scale R$599", () => {
   // Starter
   assert.equal(BILLING_PLANS.starter.monthlyPriceBrl, 0);
   assert.equal(BILLING_PLANS.starter.transactionFeeCents, 299);
@@ -20,7 +21,7 @@ test("BILLING_PLANS matches Free R$2,99 after trial, Growth R$249 and Scale R$59
   assert.equal(BILLING_PLANS.starter.features.abTests, false);
 
   // Growth
-  assert.equal(BILLING_PLANS.growth.monthlyPriceBrl, 249);
+  assert.equal(BILLING_PLANS.growth.monthlyPriceBrl, 349);
   assert.equal(BILLING_PLANS.growth.transactionFeeCents, 149);
   assert.equal(BILLING_PLANS.growth.limits.sessionsPerMonth, 1_000);
   assert.equal(BILLING_PLANS.growth.limits.commerceConnections, 2);
@@ -39,6 +40,18 @@ test("BILLING_PLANS matches Free R$2,99 after trial, Growth R$249 and Scale R$59
   assert.equal(BILLING_PLANS.scale.features.marketplace, true);
   assert.equal(BILLING_PLANS.scale.features.intentMemory, true);
   assert.equal(BILLING_PLANS.scale.features.revenueLift, true);
+});
+
+test("legacy Stripe prices keep the same entitlement during a price migration", () => {
+  const current = { growth: "price_growth_349", scale: "price_scale_599" };
+  const legacy = { growth: " price_growth_249, price_growth_199 " };
+  assert.equal(planFromPriceId("price_growth_249", current, legacy), "growth");
+  assert.equal(planFromPriceId("price_growth_199", current, legacy), "growth");
+  assert.equal(planFromPriceId("price_growth_349", current, legacy), "growth");
+  assert.equal(planFromPriceId("price_scale_599", current, legacy), "scale");
+  assert.equal(planFromPriceId("price_unknown", current, legacy), undefined);
+  assert.equal(planFromPriceId(undefined, current, legacy), undefined);
+  assert.equal(planFromPriceId("price_scale_599", current, { growth: "price_scale_599" }), "scale");
 });
 
 test("buyer service fee é fixo, independe do plano", () => {

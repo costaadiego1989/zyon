@@ -1,63 +1,43 @@
-/**
- * One-time script to create Stripe Products and Prices for AACP billing plans.
- *
- * Run: cd apps/api && npx tsx scripts/setup-stripe-billing.ts
- *
- * After running, copy the output env vars to your .env file.
- * Only needs to run ONCE per Stripe account (test or live).
+/** Idempotent price provisioning. Dry run by default; never changes subscriptions.
+ * node --experimental-strip-types scripts/setup-stripe-billing.ts --plan growth [--apply]
+ * Build @zyon/shared-types first. Railway runtime env takes precedence over .env.
  */
-
 import Stripe from "stripe";
 import { config } from "dotenv";
-import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { BILLING_PLANS } from "@zyon/shared-types";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-config({ path: resolve(__dirname, "../.env") });
-
-const secretKey = process.env.STRIPE_SECRET_KEY_TEST || process.env.STRIPE_SECRET_KEY;
-if (!secretKey) {
-  console.error("ERROR: Set STRIPE_SECRET_KEY_TEST or STRIPE_SECRET_KEY in .env");
-  process.exit(1);
+config({ path: fileURLToPath(new URL("../.env", import.meta.url)), quiet: true });
+const args = process.argv.slice(2);
+const key = args[args.indexOf("--plan") + 1];
+if (!args.includes("--plan") || (key !== "growth" && key !== "scale")) throw new Error("Use --plan growth|scale. Free does not need a Stripe price.");
+const apply = args.includes("--apply");
+const secret = process.env.NODE_ENV === "production" ? process.env.STRIPE_SECRET_KEY : process.env.STRIPE_SECRET_KEY_TEST;
+if (!secret) throw new Error("Configure the Stripe key for the selected NODE_ENV.");
+const stripe = new Stripe(secret);
+const plan = BILLING_PLANS[key];
+const envKey = `STRIPE_BILLING_PRICE_${key.toUpperCase()}`;
+const previousId = process.env[envKey]?.trim();
+const previous = previousId ? await stripe.prices.retrieve(previousId) : undefined;
+const known = (p: Stripe.Product) => (p.metadata.zyon_billing_plan ?? p.metadata.aacp_plan) === key;
+let product: Stripe.Product | undefined;
+if (previous) {
+  const p = await stripe.products.retrieve(typeof previous.product === "string" ? previous.product : previous.product.id);
+  if (p.deleted || !known(p)) throw new Error("Configured price product does not match the requested Zyon plan.");
+  product = p;
+} else {
+  const matches: Stripe.Product[] = [];
+  for await (const p of stripe.products.list({ limit: 100 })) if (known(p) && p.active) matches.push(p);
+  if (matches.length > 1) throw new Error("Multiple products match; set the current price env explicitly.");
+  product = matches[0];
 }
-
-const stripe = new Stripe(secretKey);
-
-const PLANS = [
-  { key: "starter", name: "AACP Starter", priceInCents: 0, description: "Grátis — 100 pedidos/mês, 2.49% taxa" },
-  { key: "growth", name: "AACP Growth", priceInCents: 24900, description: "R$249/mês — 500 pedidos, 1.99% taxa" },
-  { key: "scale", name: "AACP Scale", priceInCents: 59900, description: "R$599/mês — ilimitado, 1.49% taxa" },
-] as const;
-
-async function main() {
-  console.log("Creating Stripe Products and Prices...\n");
-  console.log("# Add these to apps/api/.env:");
-  console.log("# ─────────────────────────────────────────");
-
-  for (const plan of PLANS) {
-    const product = await stripe.products.create({
-      name: plan.name,
-      description: plan.description,
-      metadata: { aacp_plan: plan.key },
-    });
-
-    const price = await stripe.prices.create({
-      product: product.id,
-      unit_amount: plan.priceInCents,
-      currency: "brl",
-      recurring: { interval: "month" },
-      metadata: { aacp_plan: plan.key },
-    });
-
-    const envKey = `STRIPE_BILLING_PRICE_${plan.key.toUpperCase()}`;
-    console.log(`${envKey}=${price.id}`);
-  }
-
-  console.log("\n# Done! Paste the lines above into apps/api/.env");
-  console.log("# Then restart the API server.");
+const amount = Math.round(plan.monthlyPriceBrl * 100);
+if (!product && apply) product = await stripe.products.create({ name: `Zyon ${plan.name}`, metadata: { zyon_billing_plan: key } }, { idempotencyKey: `zyon-billing-product-${key}` });
+let price: Stripe.Price | undefined;
+if (product) for await (const p of stripe.prices.list({ product: product.id, active: true, limit: 100 })) {
+  if (p.unit_amount === amount && p.currency === "brl" && p.recurring?.interval === "month" && p.recurring.interval_count === 1 && p.recurring.usage_type === "licensed") { price = p; break; }
 }
-
-main().catch((err) => {
-  console.error("Failed:", err.message);
-  process.exit(1);
-});
+if (!price && apply && product) price = await stripe.prices.create({ product: product.id, unit_amount: amount, currency: "brl", recurring: { interval: "month" }, metadata: { zyon_billing_plan: key } }, { idempotencyKey: `zyon-billing-${product.id}-brl-month-${amount}` });
+const legacy = new Set((process.env[`${envKey}_LEGACY`] ?? "").split(",").map(v => v.trim()).filter(Boolean));
+if (previousId && previousId !== price?.id) legacy.add(previousId);
+console.log(JSON.stringify({ mode: apply ? "apply-prices-only" : "dry-run", plan: key, monthlyPriceBrl: plan.monthlyPriceBrl, product: product?.id, previousPrice: previousId, price: price?.id, createPrice: !price, live: price?.livemode ?? previous?.livemode, subscriptionsChanged: 0, envPatch: price ? { [envKey]: price.id, [`${envKey}_LEGACY`]: [...legacy].join(",") } : undefined }, null, 2));
