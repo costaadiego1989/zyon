@@ -88,3 +88,35 @@ try {
 }
 
 prisma(["migrate", "deploy"]);
+
+// A prior deploy can record a migration as applied even when a deployment is
+// interrupted between its history update and an additive schema change. Verify
+// this exact scheduled-cancellation column after Prisma finishes, so the
+// generated client never starts against that known divergent state.
+const verificationClient = new pg.Client({ connectionString: databaseUrl });
+await verificationClient.connect();
+try {
+  const { rows } = await verificationClient.query(`
+    SELECT
+      to_regclass('public.merchant_billing_subscriptions') IS NOT NULL AS has_billing_subscriptions,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'merchant_billing_subscriptions'
+          AND column_name = 'provider_cancellation_scheduled_at'
+      ) AS has_provider_cancellation_scheduled_at
+  `);
+  const postDeploySchema = rows[0];
+  if (!postDeploySchema.has_billing_subscriptions) {
+    throw new Error("Expected merchant_billing_subscriptions after Prisma migrations");
+  }
+  if (!postDeploySchema.has_provider_cancellation_scheduled_at) {
+    console.log("Repairing the scheduled billing-cancellation schema drift");
+    await verificationClient.query(`
+      ALTER TABLE "merchant_billing_subscriptions"
+        ADD COLUMN IF NOT EXISTS "provider_cancellation_scheduled_at" TIMESTAMP(3)
+    `);
+  }
+} finally {
+  await verificationClient.end();
+}

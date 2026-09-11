@@ -20,7 +20,9 @@ pnpm --filter @zyon/api prisma:deploy
 Railway runs `node scripts/predeploy-migrations.mjs` before deployment and checks
 `/ready` before making the API available. The script reconciles the known failed
 legacy checkout migration when its recorded error and existing table match, then
-runs `prisma migrate deploy`. Docker Compose runs migrations before starting the API.
+runs `prisma migrate deploy` and verifies the additive scheduled-cancellation
+column. If only that known column is absent, it replays its idempotent DDL before
+the generated Prisma client starts. Docker Compose runs migrations before starting the API.
 
 For an existing database, back it up and compare its schema with this baseline
 before adopting the new history. After applying any reviewed reconciliation SQL,
