@@ -74,6 +74,7 @@ import { EnvironmentBillingConfig } from "./infrastructure/billing-env.js";
 import { PaymentDispatchService } from "./application/services/payment-dispatch.service.js";
 import { BillingPlanMeteringService } from "./domain/billing-plan-guard.js";
 import { BILLING_TRIAL_JOB_QUEUE } from "./domain/ports/billing-trial-job-queue.port.js";
+import { BullMqBillingTrialQueue, BullMqBillingTrialWorker } from "./infrastructure/bullmq-billing-trial.queue.js";
 import {
   ApproveAsaasSandboxUseCase,
   CreateAsaasSubaccountUseCase,
@@ -83,6 +84,8 @@ import {
   DeletePaymentConnectionUseCase,
   GetAsaasOnboardingLinkUseCase,
   GetBillingSubscriptionUseCase,
+  ExpireBillingTrialUseCase,
+  ExpireBillingTrialsUseCase,
   GetPaymentConnectionsUseCase,
   HandleStripePlatformEventUseCase,
   SaveAsaasConnectionConfigUseCase,
@@ -98,6 +101,7 @@ import {
 import { BILLING_PROVIDER } from "./domain/ports/billing-provider.port.js";
 import { AsaasBillingProvider } from "./infrastructure/asaas-billing.provider.js";
 import { BillingScheduledCancellationJob } from "./application/services/billing-scheduled-cancellation.job.js";
+import { BillingTrialExpirationJob } from "./application/services/billing-trial-expiration.job.js";
 import {
   BillingController,
   PaymentPlatformController,
@@ -169,6 +173,8 @@ import {
     GetAsaasOnboardingLinkUseCase,
     SyncAsaasSubaccountUseCase,
     GetBillingSubscriptionUseCase,
+    ExpireBillingTrialUseCase,
+    ExpireBillingTrialsUseCase,
     CreateBillingCheckoutUseCase,
     CreateBillingPortalUseCase,
     HandleStripePlatformEventUseCase,
@@ -179,6 +185,7 @@ import {
     ReconcileScheduledSubscriptionCancellationsUseCase,
     HandleAsaasBillingWebhookUseCase,
     BillingScheduledCancellationJob,
+    BillingTrialExpirationJob,
     CreateMercadoPagoOAuthLinkUseCase,
     HandleMercadoPagoOAuthCallbackUseCase,
     SyncMercadoPagoConnectionUseCase,
@@ -197,6 +204,9 @@ import {
     { provide: CRYPTO_VERIFIER, useClass: EvmCryptoVerifier },
     BullMqCryptoVerifyQueue,
     BullMqCryptoVerifyWorker,
+    BullMqBillingTrialQueue,
+    BullMqBillingTrialWorker,
+    { provide: BILLING_TRIAL_JOB_QUEUE, useExisting: BullMqBillingTrialQueue },
     {
       provide: AsaasPaymentAdapter,
       useFactory: (http: HttpClientService) => {
