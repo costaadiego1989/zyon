@@ -1,4 +1,4 @@
-import { BadRequestException } from "@nestjs/common";
+import { ServiceUnavailableException } from "@nestjs/common";
 import type {
   BillingConfigPort,
 } from "../domain/ports/payment-platform-provider.port.js";
@@ -16,11 +16,10 @@ export function billingPriceId(
 ): string {
   const priceId = env[PRICE_ENV[plan]]?.trim();
   if (!priceId) {
-    // In dev, fall back to plan name — Stripe adapter will use it for sandbox testing
-    if (env.NODE_ENV !== "production") {
-      return plan;
-    }
-    throw new BadRequestException("billing_plan_not_configured");
+    throw new ServiceUnavailableException({
+      code: "billing_plan_not_configured",
+      detail: "A assinatura deste plano ainda não está configurada. Tente novamente em alguns minutos.",
+    });
   }
   return priceId;
 }
@@ -30,19 +29,32 @@ export function merchantConsoleUrl(
 ): string {
   const configured = env.MERCHANT_CONSOLE_URL?.trim() || env.DASHBOARD_URL?.trim();
 
-  // Dev/test: fall back to the local dashboard so onboarding return URLs work
-  // out of the box. Production: the console URL MUST come from env — no
-  // hardcoded fallback that could silently send buyers to the wrong origin.
   if (env.NODE_ENV !== "production") {
     return new URL(configured || "http://localhost:5175").origin;
   }
 
   if (!configured) {
-    throw new Error("merchant_console_url_not_configured");
+    throw new ServiceUnavailableException({
+      code: "merchant_console_url_not_configured",
+      detail: "O retorno da assinatura ainda não está configurado. Tente novamente em alguns minutos.",
+    });
   }
-  const url = new URL(configured);
+
+  let url: URL;
+  try {
+    url = new URL(configured);
+  } catch {
+    throw new ServiceUnavailableException({
+      code: "merchant_console_url_invalid",
+      detail: "O retorno da assinatura ainda não está configurado. Tente novamente em alguns minutos.",
+    });
+  }
+
   if (url.protocol !== "https:") {
-    throw new Error("merchant_console_https_required");
+    throw new ServiceUnavailableException({
+      code: "merchant_console_https_required",
+      detail: "O retorno da assinatura ainda não está configurado. Tente novamente em alguns minutos.",
+    });
   }
   return url.origin;
 }

@@ -9,6 +9,7 @@ import {
   PAYMENT_PLATFORM_REPOSITORY,
   type PaymentPlatformRepository,
 } from "../../../domain/ports/payment-platform-repository.port.js";
+import { stripeBillingError } from "./stripe-billing-error.js";
 
 @Injectable()
 export class CreateBillingPortalUseCase {
@@ -29,10 +30,14 @@ export class CreateBillingPortalUseCase {
     if (!billing.stripeCustomerId) {
       throw new ConflictException("billing_customer_missing_choose_plan");
     }
-    return this.stripe.createBillingPortal({
-      customerId: billing.stripeCustomerId!,
-      returnUrl: `${this.billingConfig.consoleUrl()}/#billing-plans`,
-    });
+    try {
+      return await this.stripe.createBillingPortal({
+        customerId: billing.stripeCustomerId!,
+        returnUrl: `${this.billingConfig.consoleUrl()}/#billing-plans`,
+      });
+    } catch (error) {
+      throw stripeBillingError(error);
+    }
   }
 }
 

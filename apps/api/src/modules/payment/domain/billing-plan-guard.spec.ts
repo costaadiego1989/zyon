@@ -24,33 +24,52 @@ function metering(plan: BillingPlan, usage: Partial<Awaited<ReturnType<BillingPl
   return svc;
 }
 
+async function withoutBillingBypass(run: () => Promise<void>): Promise<void> {
+  const previous = process.env.BILLING_BYPASS;
+  delete process.env.BILLING_BYPASS;
+  try {
+    await run();
+  } finally {
+    if (previous === undefined) delete process.env.BILLING_BYPASS;
+    else process.env.BILLING_BYPASS = previous;
+  }
+}
+
 test("PlanLimitGuard blocks when next monthly usage exceeds plan limit", async () => {
-  const svc = metering("starter", { sessionsPerMonth: 100 });
-  await assert.rejects(
-    () => svc.assertAllowed("mrc_1", { kind: "limit", key: "sessionsPerMonth" }),
-    (err: unknown) => err instanceof ForbiddenException && JSON.stringify(err.getResponse()).includes("plan_limit_exceeded"),
-  );
+  await withoutBillingBypass(async () => {
+    const svc = metering("starter", { sessionsPerMonth: 100 });
+    await assert.rejects(
+      () => svc.assertAllowed("mrc_1", { kind: "limit", key: "sessionsPerMonth" }),
+      (err: unknown) => err instanceof ForbiddenException && JSON.stringify(err.getResponse()).includes("plan_limit_exceeded"),
+    );
+  });
 });
 
 test("PlanLimitGuard allows unlimited Scale limits", async () => {
-  const svc = metering("scale", { ordersPerMonth: 999_999 });
-  await svc.assertAllowed("mrc_1", { kind: "limit", key: "ordersPerMonth" });
+  await withoutBillingBypass(async () => {
+    const svc = metering("scale", { ordersPerMonth: 999_999 });
+    await svc.assertAllowed("mrc_1", { kind: "limit", key: "ordersPerMonth" });
+  });
 });
 
 test("PlanLimitGuard blocks unavailable features", async () => {
-  const svc = metering("starter", {});
-  await assert.rejects(
-    () => svc.assertAllowed("mrc_1", { kind: "feature", key: "cryptoPayments" }),
-    (err: unknown) => err instanceof ForbiddenException && JSON.stringify(err.getResponse()).includes("plan_feature_unavailable"),
-  );
+  await withoutBillingBypass(async () => {
+    const svc = metering("starter", {});
+    await assert.rejects(
+      () => svc.assertAllowed("mrc_1", { kind: "feature", key: "cryptoPayments" }),
+      (err: unknown) => err instanceof ForbiddenException && JSON.stringify(err.getResponse()).includes("plan_feature_unavailable"),
+    );
+  });
 });
 
 test("custom domains require Scale, including during the Free trial", async () => {
-  for (const plan of ["starter", "growth"] as const) {
-    await assert.rejects(
-      () => metering(plan, {}).assertAllowed("mrc_test", { kind: "feature", key: "customDomain" }),
-      (error: unknown) => error instanceof ForbiddenException && (error.getResponse() as { required_plan: string }).required_plan === "scale",
-    );
-  }
-  await metering("scale", {}).assertAllowed("mrc_test", { kind: "feature", key: "customDomain" });
+  await withoutBillingBypass(async () => {
+    for (const plan of ["starter", "growth"] as const) {
+      await assert.rejects(
+        () => metering(plan, {}).assertAllowed("mrc_test", { kind: "feature", key: "customDomain" }),
+        (error: unknown) => error instanceof ForbiddenException && (error.getResponse() as { required_plan: string }).required_plan === "scale",
+      );
+    }
+    await metering("scale", {}).assertAllowed("mrc_test", { kind: "feature", key: "customDomain" });
+  });
 });

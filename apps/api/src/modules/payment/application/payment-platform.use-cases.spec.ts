@@ -184,6 +184,31 @@ test("billing creates a local trial and server-configured Stripe checkout", asyn
   );
 });
 
+test("billing turns an unavailable Stripe price into an actionable service error", async () => {
+  const repository = new InMemoryPaymentPlatformRepository();
+  const merchants = new InMemoryMerchantRepository();
+  merchants.seedProfile({ id: "mrc_billing_price", name: "Billing Store" });
+  const stripe = new StubStripePlatform();
+  stripe.checkoutFailure = { code: "resource_missing", message: "No such price: price_private" };
+  const checkout = new CreateBillingCheckoutUseCase(
+    repository,
+    stripe,
+    merchants,
+    new StubBillingConfig(),
+  );
+
+  await assert.rejects(
+    () => checkout.execute({ merchantId: "mrc_billing_price", email: "billing@example.com", plan: "growth" }),
+    (error: unknown) => {
+      const problem = toProblemDetails(error, "test");
+      assert.equal(problem.status, 503);
+      assert.equal(problem.code, "stripe_billing_price_unavailable");
+      assert.doesNotMatch(JSON.stringify(problem), /price_private/);
+      return true;
+    },
+  );
+});
+
 test("billing trial fails fast when queue is required", async () => {
   const previous = process.env.BILLING_TRIAL_QUEUE_REQUIRED;
   process.env.BILLING_TRIAL_QUEUE_REQUIRED = "true";
@@ -206,6 +231,7 @@ class StubStripePlatform implements StripePlatformPort {
   accountCreations = 0;
   requirements: string[] = [];
   lastPriceId?: string;
+  checkoutFailure?: unknown;
 
   async createConnectAccount(input: { merchantId: string }) {
     this.accountCreations += 1;
@@ -231,6 +257,7 @@ class StubStripePlatform implements StripePlatformPort {
   }
 
   async createSubscriptionCheckout(input: { priceId: string }) {
+    if (this.checkoutFailure) throw this.checkoutFailure;
     this.lastPriceId = input.priceId;
     return {
       url: "https://billing.stripe.test/session",

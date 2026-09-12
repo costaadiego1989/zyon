@@ -19,6 +19,7 @@ import {
 } from "../../../../merchant/domain/ports/merchant-repository.port.js";
 import type { BillingPlan } from "../../../domain/payment-platform.types.js";
 import { scheduleTrialExpiration } from "../shared.js";
+import { stripeBillingError } from "./stripe-billing-error.js";
 
 @Injectable()
 export class CreateBillingCheckoutUseCase {
@@ -55,26 +56,34 @@ export class CreateBillingCheckoutUseCase {
     }
     let customerId = billing.stripeCustomerId;
     if (!customerId) {
-      customerId = (
-        await this.stripe.createBillingCustomer({
-          merchantId: input.merchantId,
-          merchantName: profile.name,
-          email: input.email,
-        })
-      ).customerId;
+      try {
+        customerId = (
+          await this.stripe.createBillingCustomer({
+            merchantId: input.merchantId,
+            merchantName: profile.name,
+            email: input.email,
+          })
+        ).customerId;
+      } catch (error) {
+        throw stripeBillingError(error);
+      }
       await this.repository.saveBilling({
         merchantId: input.merchantId,
         stripeCustomerId: customerId,
       });
     }
     const consoleUrl = this.billingConfig.consoleUrl();
-    return this.stripe.createSubscriptionCheckout({
-      merchantId: input.merchantId,
-      customerId,
-      priceId,
-      successUrl: `${consoleUrl}/?billing=success#billing-plans`,
-      cancelUrl: `${consoleUrl}/?billing=cancelled#billing-plans`,
-    });
+    try {
+      return await this.stripe.createSubscriptionCheckout({
+        merchantId: input.merchantId,
+        customerId,
+        priceId,
+        successUrl: `${consoleUrl}/?billing=success#billing-plans`,
+        cancelUrl: `${consoleUrl}/?billing=cancelled#billing-plans`,
+      });
+    } catch (error) {
+      throw stripeBillingError(error);
+    }
   }
 }
 
