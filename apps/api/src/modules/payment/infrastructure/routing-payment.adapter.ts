@@ -116,7 +116,12 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     input: FetchPaymentStatusInput,
   ): Promise<FetchPaymentStatusOutput> {
     if (input.provider) {
-      const { adapter } = await this.creationRoute({ merchantId: input.merchantId, provider: input.provider, method: "" });
+      const { adapter } = await this.creationRoute({
+        merchantId: input.merchantId,
+        provider: input.provider,
+        method: "",
+        settlementMode: input.settlementMode,
+      });
       this.assertAccount(adapter, input.providerAccountFingerprint);
       if (!adapter.fetchPaymentStatus) return { state: "unknown" };
       return adapter.fetchPaymentStatus(input);
@@ -146,7 +151,12 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
 
   async fetchRefundStatus(input: FetchRefundStatusInput): Promise<FetchRefundStatusOutput> {
     if (input.provider) {
-      const { adapter } = await this.creationRoute({ merchantId: input.merchantId, provider: input.provider, method: "" });
+      const { adapter } = await this.creationRoute({
+        merchantId: input.merchantId,
+        provider: input.provider,
+        method: "",
+        settlementMode: input.settlementMode,
+      });
       this.assertAccount(adapter, input.providerAccountFingerprint);
       return adapter.fetchRefundStatus ? adapter.fetchRefundStatus(input) : { state: "unknown" };
     }

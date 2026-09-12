@@ -281,6 +281,7 @@ export class RefundPaymentService {
         refundReference: input.refundReference,
         provider: snap.creation?.input.provider,
         providerAccountFingerprint: snap.creation?.input.providerAccountFingerprint,
+        settlementMode: snap.creation?.input.settlementMode,
       });
       return { state: result.state, paymentIntentId: snap.id };
     } catch (error) {

@@ -134,6 +134,7 @@ describe("RefundPaymentService provider settlement", () => {
       refundReference: "return:return_1",
       provider: undefined,
       providerAccountFingerprint: undefined,
+      settlementMode: undefined,
     });
   });
 });

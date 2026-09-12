@@ -73,6 +73,7 @@ export class ReconcilePaymentIntentsUseCase {
       const authoritative = await this.provider.fetchPaymentStatus({
         provider: snap.creation?.input.provider,
         providerAccountFingerprint: snap.creation?.input.providerAccountFingerprint,
+        settlementMode: snap.creation?.input.settlementMode,
         merchantId: snap.merchantId,
         providerPaymentId: snap.providerPaymentId
       });

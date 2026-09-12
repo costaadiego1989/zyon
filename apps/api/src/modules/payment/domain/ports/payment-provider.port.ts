@@ -104,6 +104,7 @@ export type AuthoritativePaymentState = "approved" | "failed" | "pending" | "unk
 export type FetchPaymentStatusInput = {
   provider?: CreateProviderPaymentInput["provider"];
   providerAccountFingerprint?: string;
+  settlementMode?: MerchantSettlementMode;
   merchantId: string;
   providerPaymentId: string;
 };
@@ -140,6 +141,7 @@ export type RefundProviderState = "succeeded" | "pending" | "failed" | "unknown"
 export type FetchRefundStatusInput = {
   provider?: CreateProviderPaymentInput["provider"];
   providerAccountFingerprint?: string;
+  settlementMode?: MerchantSettlementMode;
   merchantId: string;
   providerPaymentId: string;
   providerRefundId: string;

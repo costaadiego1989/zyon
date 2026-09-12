@@ -115,6 +115,46 @@ test("Reconcile: approves intent when provider says approved", async () => {
   assert.ok(payments.capturedEvents.map(event => event.payload as { status: string; reason?: string }).some(s => s.status === "approved" && s.reason === "reconciliation"));
 });
 
+test("Reconcile: preserves delayed settlement routing from the captured payment", async () => {
+  const payments = new InMemoryPaymentRepository();
+  const checkoutPort = new RecordingCheckoutPayment();
+  let providerInput: any;
+  const provider: PaymentProviderPort = {
+    async createPayment() { throw new Error("not_expected"); },
+    async fetchPaymentStatus(input) {
+      providerInput = input;
+      return { state: "pending" };
+    },
+  };
+  const uc = new ReconcilePaymentIntentsUseCase(payments, provider, checkoutPort);
+  const intent = PaymentIntentEntity.create({
+    merchantId: "mrc_1",
+    sessionId: "chk_delayed",
+    idempotencyKey: "ik_delayed",
+    amountCents: 2_500,
+    currency: "BRL",
+    method: "pix",
+  });
+  intent.prepareCreation({
+    merchantId: "mrc_1",
+    sessionId: "chk_delayed",
+    intentId: intent.id,
+    amountCents: 2_500,
+    currency: "BRL",
+    method: "pix",
+    provider: "asaas",
+    providerAccountFingerprint: "platform-account",
+    settlementMode: "delayed_merchant_payout",
+  });
+  intent.markRequiresAction({ providerPaymentId: "asaas_delayed_1" });
+  await payments.saveIntent({ intent });
+
+  await uc.execute({ staleAfterMs: 0 });
+
+  assert.equal(providerInput.settlementMode, "delayed_merchant_payout");
+  assert.equal(providerInput.providerAccountFingerprint, "platform-account");
+});
+
 test("Reconcile: marks failed when provider says failed", async () => {
   const payments = new InMemoryPaymentRepository();
   const checkoutPort = new RecordingCheckoutPayment();

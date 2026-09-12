@@ -1,6 +1,7 @@
 export const REDACTED_LOG_PATHS = [
   "req.headers.authorization",
   "req.headers.cookie",
+  "res.headers['set-cookie']",
   "req.headers['x-webhook-secret']",
   "req.headers['x-twilio-signature']",
   "req.headers['x-internal-service-token']",

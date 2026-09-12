@@ -29,9 +29,10 @@ class FakeStripe implements Pick<PaymentProviderPort, "createPayment" | "fetchPa
   }
 }
 
-class FakeAsaas implements Pick<PaymentProviderPort, "createPayment" | "fetchPaymentStatus" | "createCustomer" | "refundPayment"> {
+class FakeAsaas implements Pick<PaymentProviderPort, "createPayment" | "fetchPaymentStatus" | "fetchRefundStatus" | "createCustomer" | "refundPayment"> {
   calls: CreateProviderPaymentInput[] = [];
   fetchCalls: FetchPaymentStatusInput[] = [];
+  refundFetchCalls: Array<{ merchantId: string; providerPaymentId: string }> = [];
   refundCalls: Array<{ merchantId: string; providerPaymentId: string; amountCents: number }> = [];
 
   async createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput> {
@@ -42,6 +43,11 @@ class FakeAsaas implements Pick<PaymentProviderPort, "createPayment" | "fetchPay
   async fetchPaymentStatus(input: FetchPaymentStatusInput): Promise<FetchPaymentStatusOutput> {
     this.fetchCalls.push(input);
     return { state: "pending" };
+  }
+
+  async fetchRefundStatus(input: { merchantId: string; providerPaymentId: string }) {
+    this.refundFetchCalls.push(input);
+    return { state: "pending" as const };
   }
 
   async createCustomer(): Promise<string> {
@@ -196,6 +202,43 @@ test("RoutingPaymentAdapter: delayed Asaas refund uses the platform account that
     settlementMode: "delayed_merchant_payout",
     providerPaymentId: "pay_platform_charge",
     amountCents: 3_089,
+  }]);
+});
+
+test("RoutingPaymentAdapter: delayed Asaas refund reconciliation uses the platform account", async () => {
+  const platformAsaas = new FakeAsaas();
+  const platformRepo = new InMemoryPaymentPlatformRepository();
+  await platformRepo.saveConnection({
+    merchantId: "mrc_tenant",
+    provider: "asaas",
+    environment: "live",
+    status: "active",
+    walletId: "wallet_merchant",
+    secret: "tenant_api_key",
+  });
+  const adapter = new RoutingPaymentAdapter(
+    null,
+    platformAsaas as unknown as AsaasPaymentAdapter,
+    null as unknown as MercadoPagoPaymentAdapter,
+    new FakeCrypto() as unknown as EvmCryptoPaymentAdapter,
+    platformRepo,
+    "https://asaas-api.test",
+  );
+
+  await adapter.fetchRefundStatus({
+    merchantId: "mrc_tenant",
+    provider: "asaas",
+    settlementMode: "delayed_merchant_payout",
+    providerPaymentId: "pay_platform_charge",
+    providerRefundId: "return:return_1",
+  });
+
+  assert.deepEqual(platformAsaas.refundFetchCalls, [{
+    merchantId: "mrc_tenant",
+    provider: "asaas",
+    settlementMode: "delayed_merchant_payout",
+    providerPaymentId: "pay_platform_charge",
+    providerRefundId: "return:return_1",
   }]);
 });
 
