@@ -127,6 +127,32 @@ export class RefundPaymentService {
     return itemsCents + shippingPortion;
   }
 
+  /**
+   * A return that covers every line of the completed order is a full reversal
+   * of the buyer's charge. The captured amount includes the buyer service fee,
+   * so it must be returned as well. Partial returns keep the item-and-shipping
+   * calculation below, because the order remains partially fulfilled.
+   */
+  private isFullOrderReturn(
+    order: CompletedOrder,
+    returnedItems: Array<{ variantId: string; quantity: number }>,
+  ): boolean {
+    const ordered = new Map<string, number>();
+    for (const lineItem of order.lineItems ?? []) {
+      if (!lineItem.variantId || lineItem.quantity <= 0) continue;
+      ordered.set(lineItem.variantId, (ordered.get(lineItem.variantId) ?? 0) + lineItem.quantity);
+    }
+    if (ordered.size === 0) return false;
+
+    const returned = new Map<string, number>();
+    for (const item of returnedItems) {
+      if (!item.variantId || item.quantity <= 0) continue;
+      returned.set(item.variantId, (returned.get(item.variantId) ?? 0) + item.quantity);
+    }
+    if (returned.size !== ordered.size) return false;
+    return [...ordered].every(([variantId, quantity]) => returned.get(variantId) === quantity);
+  }
+
   async refundOrderPayment(
     input: RefundOrderPaymentInput,
   ): Promise<RefundOrderPaymentResult> {
@@ -155,19 +181,25 @@ export class RefundPaymentService {
       return { refunded: false, amountCents: 0, reason: "no_provider_payment_id" };
     }
 
-    // Resolve the amount: explicit > per-item partial > full captured.
+    // Resolve the amount: explicit > per-item partial > full captured. A return
+    // that covers every order line is a full buyer refund, including the
+    // service fee present in the captured amount.
     const captured = snap.approvedAmountCents ?? snap.amountCents;
     let requested: number;
     if (input.amountCents && input.amountCents > 0) {
       requested = input.amountCents;
     } else if (input.returnedItems && input.returnedItems.length > 0) {
-      const partial = await this.computeReturnedItemsAmount(
-        order,
-        input.externalOrderId,
-        input.merchantId,
-        input.returnedItems,
-      );
-      requested = partial ?? captured; // fall back to full when items can't be priced
+      if (this.isFullOrderReturn(order, input.returnedItems)) {
+        requested = captured;
+      } else {
+        const partial = await this.computeReturnedItemsAmount(
+          order,
+          input.externalOrderId,
+          input.merchantId,
+          input.returnedItems,
+        );
+        requested = partial ?? captured; // fall back to full when items can't be priced
+      }
     } else {
       requested = captured;
     }
@@ -183,6 +215,9 @@ export class RefundPaymentService {
 
     try {
       const result = await this.provider.refundPayment({
+        provider: snap.creation?.input.provider,
+        providerAccountFingerprint: snap.creation?.input.providerAccountFingerprint,
+        settlementMode: snap.creation?.input.settlementMode,
         merchantId: input.merchantId,
         providerPaymentId: snap.providerPaymentId,
         amountCents,

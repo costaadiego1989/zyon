@@ -186,6 +186,21 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
    * "default" one. Falls back across the merchant's configured providers.
    */
   async refundPayment(input: RefundPaymentInput): Promise<RefundPaymentOutput> {
+    // Prefer the immutable route captured when the payment was created. In
+    // delayed-payout mode this selects the platform account, which is the
+    // account that actually owns the charge until the return window closes.
+    if (input.provider) {
+      const { adapter } = await this.creationRoute({
+        merchantId: input.merchantId,
+        provider: input.provider,
+        method: "",
+        settlementMode: input.settlementMode,
+      });
+      this.assertAccount(adapter, input.providerAccountFingerprint);
+      if (!adapter.refundPayment) throw new Error("payment_provider_refund_unsupported");
+      return adapter.refundPayment(input);
+    }
+
     const isStripeId = input.providerPaymentId.startsWith("pi_");
     if (isStripeId) {
       if (this.stripe?.refundPayment) return this.stripe.refundPayment(input);

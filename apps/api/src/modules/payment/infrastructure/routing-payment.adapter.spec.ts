@@ -29,9 +29,10 @@ class FakeStripe implements Pick<PaymentProviderPort, "createPayment" | "fetchPa
   }
 }
 
-class FakeAsaas implements Pick<PaymentProviderPort, "createPayment" | "fetchPaymentStatus" | "createCustomer"> {
+class FakeAsaas implements Pick<PaymentProviderPort, "createPayment" | "fetchPaymentStatus" | "createCustomer" | "refundPayment"> {
   calls: CreateProviderPaymentInput[] = [];
   fetchCalls: FetchPaymentStatusInput[] = [];
+  refundCalls: Array<{ merchantId: string; providerPaymentId: string; amountCents: number }> = [];
 
   async createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput> {
     this.calls.push(input);
@@ -45,6 +46,11 @@ class FakeAsaas implements Pick<PaymentProviderPort, "createPayment" | "fetchPay
 
   async createCustomer(): Promise<string> {
     return "cus_asaas_fake";
+  }
+
+  async refundPayment(input: { merchantId: string; providerPaymentId: string; amountCents: number }) {
+    this.refundCalls.push(input);
+    return { refundId: "refund_asaas_fake", status: "pending" as const };
   }
 }
 
@@ -154,6 +160,43 @@ test("RoutingPaymentAdapter: delayed Asaas payment uses the platform adapter, ne
 
   assert.equal(platformAsaas.calls.length, 1);
   assert.equal(platformAsaas.calls[0].settlementMode, "delayed_merchant_payout");
+});
+
+test("RoutingPaymentAdapter: delayed Asaas refund uses the platform account that captured the charge", async () => {
+  const platformAsaas = new FakeAsaas();
+  const platformRepo = new InMemoryPaymentPlatformRepository();
+  await platformRepo.saveConnection({
+    merchantId: "mrc_tenant",
+    provider: "asaas",
+    environment: "live",
+    status: "active",
+    walletId: "wallet_merchant",
+    secret: "tenant_api_key",
+  });
+  const adapter = new RoutingPaymentAdapter(
+    null,
+    platformAsaas as unknown as AsaasPaymentAdapter,
+    null as unknown as MercadoPagoPaymentAdapter,
+    new FakeCrypto() as unknown as EvmCryptoPaymentAdapter,
+    platformRepo,
+    "https://asaas-api.test",
+  );
+
+  await adapter.refundPayment({
+    merchantId: "mrc_tenant",
+    provider: "asaas",
+    settlementMode: "delayed_merchant_payout",
+    providerPaymentId: "pay_platform_charge",
+    amountCents: 3_089,
+  });
+
+  assert.deepEqual(platformAsaas.refundCalls, [{
+    merchantId: "mrc_tenant",
+    provider: "asaas",
+    settlementMode: "delayed_merchant_payout",
+    providerPaymentId: "pay_platform_charge",
+    amountCents: 3_089,
+  }]);
 });
 
 test("RoutingPaymentAdapter: throws when no provider is configured for pix", async () => {

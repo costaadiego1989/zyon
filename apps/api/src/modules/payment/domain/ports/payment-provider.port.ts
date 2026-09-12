@@ -114,6 +114,13 @@ export type FetchPaymentStatusOutput = {
 };
 
 export type RefundPaymentInput = {
+  /**
+   * Frozen routing identity from the payment creation. A refund is a financial
+   * mutation and must use the account that captured the original charge.
+   */
+  provider?: CreateProviderPaymentInput["provider"];
+  providerAccountFingerprint?: string;
+  settlementMode?: MerchantSettlementMode;
   merchantId: string;
   providerPaymentId: string;
   amountCents: number;

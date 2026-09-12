@@ -2,11 +2,24 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { RefundPaymentService } from "./refund-payment.service.js";
 
-function serviceFor(status: "succeeded" | "pending" | "failed" | "manual_required") {
-  const providerInputs: Array<{ idempotencyKey?: string }> = [];
+function serviceFor(
+  status: "succeeded" | "pending" | "failed" | "manual_required",
+  overrides: {
+    capturedCents?: number;
+    order?: { lineItems?: Array<{ variantId?: string; unitPriceCents: number; quantity: number }>; shippingCents?: number };
+    route?: { provider: "asaas" | "stripe" | "mercadopago" | "crypto"; providerAccountFingerprint?: string; settlementMode?: "immediate_split" | "delayed_merchant_payout" };
+  } = {},
+) {
+  const capturedCents = overrides.capturedCents ?? 1_250;
+  const providerInputs: Array<{ idempotencyKey?: string; amountCents?: number }> = [];
   const payments = {
     findApprovedBySessionId: async () => ({
-      snapshot: () => ({ providerPaymentId: "pi_approved", amountCents: 1_250, approvedAmountCents: 1_250 }),
+      snapshot: () => ({
+        providerPaymentId: "pi_approved",
+        amountCents: capturedCents,
+        approvedAmountCents: capturedCents,
+        ...(overrides.route ? { creation: { input: overrides.route } } : {}),
+      }),
     }),
   };
   const provider = { refundPayment: async (input: { idempotencyKey?: string }) => {
@@ -14,7 +27,7 @@ function serviceFor(status: "succeeded" | "pending" | "failed" | "manual_require
     return { refundId: "refund_1", status };
   } };
   const orders = {
-    findCompletedOrderByExternalOrderId: async () => ({ sessionId: "session_1", lineItems: [], shippingCents: 0 }),
+    findCompletedOrderByExternalOrderId: async () => ({ sessionId: "session_1", lineItems: [], shippingCents: 0, ...overrides.order }),
   };
   return { service: new RefundPaymentService(payments as any, provider as any, orders as any), providerInputs };
 }
@@ -44,6 +57,41 @@ describe("RefundPaymentService provider settlement", () => {
     });
 
     assert.equal(providerInputs[0]?.idempotencyKey, "return:return_1");
+  });
+
+  it("forwards the account frozen at payment creation to the refund provider", async () => {
+    const { service, providerInputs } = serviceFor("succeeded", {
+      route: { provider: "asaas", providerAccountFingerprint: "frozen-account", settlementMode: "delayed_merchant_payout" },
+    });
+
+    await service.refundOrderPayment({ merchantId: "merchant", externalOrderId: "order" });
+
+    assert.deepEqual(providerInputs[0], {
+      merchantId: "merchant",
+      providerPaymentId: "pi_approved",
+      amountCents: 1_250,
+      provider: "asaas",
+      providerAccountFingerprint: "frozen-account",
+      settlementMode: "delayed_merchant_payout",
+      reason: undefined,
+      idempotencyKey: undefined,
+    });
+  });
+
+  it("refunds the entire captured charge when every order line is returned", async () => {
+    const { service, providerInputs } = serviceFor("succeeded", {
+      capturedCents: 3_089,
+      order: { lineItems: [{ variantId: "variant_1", unitPriceCents: 1_000, quantity: 1 }], shippingCents: 1_990 },
+    });
+
+    const result = await service.refundOrderPayment({
+      merchantId: "merchant",
+      externalOrderId: "order",
+      returnedItems: [{ variantId: "variant_1", quantity: 1 }],
+    });
+
+    assert.equal(result.amountCents, 3_089);
+    assert.equal(providerInputs[0]?.amountCents, 3_089);
   });
 
   it("reconciles with the persisted payment id after a webhook has marked it refunded", async () => {
