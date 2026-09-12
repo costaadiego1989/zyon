@@ -491,7 +491,23 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
     const data = await res.json() as { id?: string; refunds?: AsaasRefund[] };
     const reference = input.reason;
     const refund = reference ? data.refunds?.find((item) => item.description === reference) : undefined;
-    const state = asaasRefundState(refund?.status);
+    let state = asaasRefundState(refund?.status);
+    // The refund POST can return a payment representation without its `refunds`
+    // array. Read the authoritative list once in that case so a terminal
+    // cancellation is visible to the operator immediately; a failed read stays
+    // PENDING and is reconciled later without issuing another financial POST.
+    if (state === "unknown" && reference) {
+      try {
+        state = (await this.fetchRefundStatus({
+          merchantId: input.merchantId,
+          providerPaymentId: input.providerPaymentId,
+          providerRefundId: asaasDescriptionReference(reference),
+          refundReference: reference,
+        })).state;
+      } catch {
+        state = "pending";
+      }
+    }
     // The POST merely accepts a request. A return is locally complete only for
     // Asaas status DONE; all other outcomes use the durable PENDING workflow.
     return {

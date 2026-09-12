@@ -74,7 +74,11 @@ export class ProcessRefundUseCase {
       });
 
       const amountInCents = result?.amountCents ?? 0;
-      const status = result?.refunded ? "COMPLETED" : "PENDING";
+      const status = result?.refunded
+        ? "COMPLETED"
+        : result?.reason === "provider_refund_failed"
+          ? "FAILED"
+          : "PENDING";
 
       await this.returnRepo.saveRefund({
         returnId,
@@ -86,6 +90,8 @@ export class ProcessRefundUseCase {
       if (result?.refunded) {
         await this.returnRepo.updateRefundStatus(returnId, "COMPLETED", new Date());
         await this.returnRepo.updateStatus(returnId, "REFUND_COMPLETED");
+      } else if (status === "FAILED") {
+        await this.returnRepo.updateRefundStatus(returnId, "FAILED", new Date());
       } else {
         // Provider refund not completed (no capability, not found, or async):
         // keep REFUND_PROCESSING so it can be retried / handled out-of-band.

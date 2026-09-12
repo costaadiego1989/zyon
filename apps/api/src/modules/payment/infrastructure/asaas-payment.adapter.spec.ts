@@ -291,3 +291,21 @@ test("Refund: recognizes DONE in the POST response but never treats an unrecogni
   assert.equal(done.status, "succeeded");
   assert.equal(unresolved.status, "pending");
 });
+
+test("Refund: reads the authoritative list when the POST response omits refunds", async () => {
+  const { fn, calls } = createMockFetch([
+    { ok: true, status: 200, body: { id: "pay_123", status: "REFUNDED" } },
+    { ok: true, status: 200, body: { data: [{ description: "return:return_cancelled", status: "CANCELLED" }] } },
+  ]);
+  const adapter = new AsaasPaymentAdapter(API_BASE, API_KEY, fn);
+
+  const result = await adapter.refundPayment({
+    merchantId: "merchant_123",
+    providerPaymentId: "pay_123",
+    amountCents: 1_500,
+    reason: "return:return_cancelled",
+  });
+
+  assert.equal(result.status, "failed");
+  assert.ok(calls[1].url.endsWith("/v3/payments/pay_123/refunds"));
+});

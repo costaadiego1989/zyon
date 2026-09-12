@@ -76,6 +76,18 @@ describe("Returns refund settlement", () => {
     assert.deepEqual(calls.refundStatuses, [["r", "COMPLETED"]]);
     assert.deepEqual(calls.statuses, [["r", "REFUND_PROCESSING"], ["r", "REFUND_COMPLETED"]]);
   });
+  it("records an immediate provider cancellation as failed without claiming a buyer refund", async () => {
+    const { useCase, calls } = setup("INSPECTED_PASS", {
+      refunded: false, amountCents: 1_000, paymentIntentId: "pay_failed", providerRefundId: "refund_failed", reason: "provider_refund_failed",
+    });
+
+    const result = await useCase.execute("merchant-b", "r");
+
+    assert.equal(result.status, "REFUND_PROCESSING");
+    assert.deepEqual(calls.saved, [{ returnId: "r", paymentIntentId: "pay_failed", providerRefundId: "refund_failed", status: "FAILED", amountInCents: 1_000 }]);
+    assert.deepEqual(calls.refundStatuses, [["r", "FAILED"]]);
+    assert.deepEqual(calls.statuses, [["r", "REFUND_PROCESSING"]]);
+  });
   it("does not issue a second provider refund when another request holds the durable attempt", async () => {
     const { useCase, calls } = setup("REFUND_PROCESSING");
     (useCase as any).returnRepo.beginRefund = async () => false;
