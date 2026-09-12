@@ -52,3 +52,10 @@ export function readStripeConnection(): {
     webhookSecret: testWebhook || (liveWebhook?.startsWith("whsec_") ? liveWebhook : undefined),
   };
 }
+
+export function readStripeBillingPortalConfiguration(): string | undefined {
+  if (isProd) {
+    return process.env.STRIPE_BILLING_PORTAL_CONFIGURATION?.trim() || undefined;
+  }
+  return process.env.STRIPE_BILLING_PORTAL_CONFIGURATION_TEST?.trim() || undefined;
+}

@@ -1,6 +1,8 @@
 import { BadGatewayException, ServiceUnavailableException } from "@nestjs/common";
 
-export function stripeBillingError(error: unknown) {
+type StripeBillingOperation = "checkout" | "portal";
+
+export function stripeBillingError(error: unknown, operation: StripeBillingOperation = "checkout") {
   const failure = error as { type?: string; code?: string } | null;
   if (failure?.type === "StripeAuthenticationError" || failure?.type === "StripePermissionError") {
     return new ServiceUnavailableException({
@@ -10,8 +12,10 @@ export function stripeBillingError(error: unknown) {
   }
   if (failure?.code === "resource_missing") {
     return new ServiceUnavailableException({
-      code: "stripe_billing_price_unavailable",
-      detail: "O plano escolhido ainda não está disponível para assinatura. Tente novamente em alguns minutos.",
+      code: operation === "portal" ? "stripe_billing_portal_unavailable" : "stripe_billing_price_unavailable",
+      detail: operation === "portal"
+        ? "O gerenciamento da assinatura ainda não está disponível. Tente novamente em alguns minutos."
+        : "O plano escolhido ainda não está disponível para assinatura. Tente novamente em alguns minutos.",
     });
   }
   return new BadGatewayException({

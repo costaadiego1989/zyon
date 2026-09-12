@@ -25,3 +25,13 @@ test("Stripe billing authentication errors expose a safe remediation code", () =
     detail: "A configuração de assinatura da plataforma precisa ser revisada. Tente novamente em alguns minutos.",
   });
 });
+
+test("Stripe billing portal errors retain their own safe remediation code", () => {
+  const exception = stripeBillingError({ code: "resource_missing" }, "portal");
+
+  assert.equal(exception.getStatus(), 503);
+  assert.deepEqual(exception.getResponse(), {
+    code: "stripe_billing_portal_unavailable",
+    detail: "O gerenciamento da assinatura ainda não está disponível. Tente novamente em alguns minutos.",
+  });
+});

@@ -36,7 +36,7 @@ export class CreateBillingPortalUseCase {
         returnUrl: `${this.billingConfig.consoleUrl()}/#billing-plans`,
       });
     } catch (error) {
-      throw stripeBillingError(error);
+      throw stripeBillingError(error, "portal");
     }
   }
 }

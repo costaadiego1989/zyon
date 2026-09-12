@@ -1,5 +1,6 @@
 import Stripe from "stripe";
 import { randomUUID } from "node:crypto";
+import { readStripeBillingPortalConfiguration } from "./stripe-env.js";
 import type {
   StripeConnectAccountStatus,
   StripePlatformPort,
@@ -154,7 +155,7 @@ export class StripePlatformAdapter implements StripePlatformPort {
     const session = await this.requireStripe().billingPortal.sessions.create({
       customer: input.customerId,
       return_url: input.returnUrl,
-      configuration: process.env.STRIPE_BILLING_PORTAL_CONFIGURATION || undefined,
+      configuration: readStripeBillingPortalConfiguration(),
     });
     return { url: session.url };
   }
