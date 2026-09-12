@@ -18,31 +18,35 @@ function isProductionOrigin(origin: string): boolean {
   }
 }
 
-export function parseMercadoPagoSandboxEnv(): boolean {
-  const v = process.env.MERCADOPAGO_SANDBOX?.trim().toLowerCase();
+export function parseMercadoPagoSandboxEnv(env: NodeJS.ProcessEnv = process.env): boolean {
+  // A non-production API must never fall back to an unprefixed (live) token.
+  // Test credentials can use Mercado Pago's normal API origin, but are selected
+  // exclusively through the *_SANDBOX variables.
+  if (env.NODE_ENV !== "production") return true;
+  const v = env.MERCADOPAGO_SANDBOX?.trim().toLowerCase();
   return v === "true" || v === "1" || v === "yes";
 }
 
 /** Origin — the adapter handles `/v1` paths internally. */
-export function readMercadoPagoConnection(): {
+export function readMercadoPagoConnection(env: NodeJS.ProcessEnv = process.env): {
   sandbox: boolean;
   accessToken: string | undefined;
   publicKey: string | undefined;
   baseUrl: string;
 } {
-  const sandbox = parseMercadoPagoSandboxEnv();
+  const sandbox = parseMercadoPagoSandboxEnv(env);
 
   const accessToken = sandbox
-    ? process.env.MERCADOPAGO_ACCESS_TOKEN_SANDBOX?.trim()
-    : process.env.MERCADOPAGO_ACCESS_TOKEN?.trim();
+    ? env.MERCADOPAGO_ACCESS_TOKEN_SANDBOX?.trim()
+    : env.MERCADOPAGO_ACCESS_TOKEN?.trim();
 
   const publicKey = sandbox
-    ? process.env.MERCADOPAGO_PUBLIC_KEY_SANDBOX?.trim()
-    : process.env.MERCADOPAGO_PUBLIC_KEY?.trim();
+    ? env.MERCADOPAGO_PUBLIC_KEY_SANDBOX?.trim()
+    : env.MERCADOPAGO_PUBLIC_KEY?.trim();
 
   const rawOverride =
-    process.env.MERCADOPAGO_API_BASE_URL?.trim() ||
-    process.env.MERCADOPAGO_BASE_URL?.trim();
+    env.MERCADOPAGO_API_BASE_URL?.trim() ||
+    env.MERCADOPAGO_BASE_URL?.trim();
 
   const baseUrl = rawOverride
     ? normalizeBaseOrigin(rawOverride)
