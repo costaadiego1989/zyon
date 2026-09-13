@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BadRequestException, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "../../auth/domain/services/jwt.service.js";
 import { AuthCookieService } from "../../auth/domain/services/auth-cookie.service.js";
 import { AuthGuard } from "../../auth/presentation/auth.guard.js";
@@ -128,6 +128,25 @@ test("MerchantController rejects feedback made only of whitespace", async () => 
       },
     } as never, { category: "bug", message: "          " }),
     BadRequestException,
+  );
+});
+
+test("MerchantController rejects feedback without an authenticated merchant user", async () => {
+  const repository = new InMemoryMerchantRepository();
+  repository.seedProfile({ id: "mrc_1", name: "Demo Store" });
+  const controller = buildController(repository);
+
+  await assert.rejects(
+    () => controller.submitPlatformFeedback("mrc_1", {
+      tenantPrincipal: {
+        kind: "service",
+        tenantId: "mrc_1",
+        credentialId: "credential_1",
+        environment: "live",
+        scopes: ["configuration:write"],
+      },
+    } as never, { category: "bug", message: "A imagem do catálogo não aparece." }),
+    ForbiddenException,
   );
 });
 

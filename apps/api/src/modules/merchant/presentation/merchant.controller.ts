@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Put, Inject, UseGuards, ValidationPipe, BadRequestException } from "@nestjs/common";
+import { Body, Controller, Get, Post, Put, Inject, UseGuards, ValidationPipe, BadRequestException, ForbiddenException } from "@nestjs/common";
 import type { MerchantTheme } from "@zyon/shared-types";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
@@ -298,6 +298,9 @@ Regras:
     const principal = currentTenantPrincipal(
       req as Parameters<typeof currentTenantPrincipal>[0],
     );
+    if (principal.kind !== "human") {
+      throw new ForbiddenException("feedback_requires_human_principal");
+    }
     const feedback = await this.prisma.merchantPlatformFeedback.create({
       data: {
         merchantId,
