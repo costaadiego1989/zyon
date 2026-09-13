@@ -11,7 +11,8 @@
     "test:payment-onboarding": "node scripts/verify-payment-onboarding.cjs",
     "e2e": "playwright test",
     "e2e:store-builder": "playwright test e2e/store-builder --grep @store-builder",
-    "e2e:erp-live": "playwright test e2e/erp-live-production.spec.ts --project dashboard-erp-live"
+    "e2e:erp-live": "playwright test e2e/erp-live-production.spec.ts --project dashboard-erp-live",
+    "e2e:erp-live:auth": "node scripts/capture-erp-live-auth.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
