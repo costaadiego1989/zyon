@@ -16,6 +16,10 @@ function env(key: string, fallback = ""): string {
 function dashboardRedirect(params: Record<string, string>): string {
   const url = new URL(env("DASHBOARD_URL", "http://localhost:5175"));
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+  // ERP authorization is started from Inventory. Keep the callback on that
+  // explicit deep link so an unfinished general onboarding cannot take over
+  // the OAuth result page.
+  url.hash = "inventory";
   return url.toString();
 }
 

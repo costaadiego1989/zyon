@@ -62,11 +62,16 @@ export function useInventoryPage(options: {
     // Detect OAuth callback from ERP providers
     const params = new URLSearchParams(window.location.search);
     const erpConnected = params.get("erp_connected");
-    if (erpConnected) {
-      showToast("success", `${erpConnected} conectado com sucesso`);
-      loadData(); // Reload to fetch updated connections
-      // Clean URL
-      window.history.replaceState({}, document.title, window.location.pathname);
+    const erpError = params.get("error");
+    if (erpConnected || erpError) {
+      if (erpConnected) {
+        showToast("success", `${erpConnected} conectado com sucesso`);
+        void loadData(); // Reload to fetch updated connections
+      } else {
+        showToast("error", "Não foi possível concluir a conexão com o ERP. Tente novamente.");
+      }
+      // Keep the explicit #inventory deep link after consuming callback params.
+      window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.hash}`);
     }
   }, [loadData]);
 
@@ -116,7 +121,10 @@ export function useInventoryPage(options: {
         // Bling OAuth flow.
         const data = await (api as any).getErpOAuthUrl(options.me.id, provider);
         if (data?.url) {
-          window.open(data.url, "_blank", "width=600,height=700");
+          // OAuth needs a full-page authorization step. Returning to the same
+          // tab preserves the Inventory deep link and avoids a dashboard popup
+          // that can be redirected to general onboarding.
+          window.location.assign(data.url);
         } else {
           showToast("error", "Não foi possível gerar URL de autorização");
         }

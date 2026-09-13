@@ -10,7 +10,7 @@ function responseCapture() {
   };
 }
 
-test("ERP OAuth callback redirects dashboard errors to DASHBOARD_URL", async (t) => {
+test("ERP OAuth callback redirects errors to the Inventory deep link", async (t) => {
   const previousDashboardUrl = process.env.DASHBOARD_URL;
   process.env.DASHBOARD_URL = "https://app.example.com/settings?tab=integrations";
   t.after(() => {
@@ -22,9 +22,9 @@ test("ERP OAuth callback redirects dashboard errors to DASHBOARD_URL", async (t)
 
   const denied = responseCapture();
   await controller.callback("", "", denied.response);
-  assert.deepEqual(denied.redirects, [[302, "https://app.example.com/settings?tab=integrations&error=erp_denied"]]);
+  assert.deepEqual(denied.redirects, [[302, "https://app.example.com/settings?tab=integrations&error=erp_denied#inventory"]]);
 
   const csrf = responseCapture();
   await controller.callback("code", "invalid-state", csrf.response);
-  assert.deepEqual(csrf.redirects, [[302, "https://app.example.com/settings?tab=integrations&error=erp_csrf"]]);
+  assert.deepEqual(csrf.redirects, [[302, "https://app.example.com/settings?tab=integrations&error=erp_csrf#inventory"]]);
 });
