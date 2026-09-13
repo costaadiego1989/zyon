@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ErpSyncService } from "./erp-sync.service.js";
+import { encryptErpSecret } from "../../infrastructure/adapters/erp-secret-cipher.js";
 
 const applied = {
   receiptId: "receipt_a",
@@ -89,4 +90,25 @@ test("a repeated ERP webhook shares one persisted snapshot job", async () => {
 
   assert.equal(jobs.length, 1);
   assert.equal(jobs[0].dedupeKey, "webhook:full:connection_a:event_a");
+});
+
+test("an existing Bling connection registers its exact webhook route before a snapshot", async () => {
+  const token = `header.${Buffer.from(JSON.stringify({ companyId: 42 })).toString("base64url")}.signature`;
+  const routes: any[] = [];
+  const service = new ErpSyncService({
+    erpWebhookRoute: {
+      findUnique: async () => null,
+      upsert: async ({ create }: any) => { routes.push(create); return create; },
+    },
+  } as never);
+
+  await (service as any).ensureBlingWebhookRoute({
+    id: "connection_a",
+    merchantId: "merchant_a",
+    provider: "bling",
+    accessTokenCipher: encryptErpSecret(token),
+    tokenExpiresAt: new Date(Date.now() + 5 * 60_000),
+  });
+
+  assert.deepEqual(routes, [{ provider: "bling", externalAccountId: "42", merchantId: "merchant_a", connectionId: "connection_a" }]);
 });

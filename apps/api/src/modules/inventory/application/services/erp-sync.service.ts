@@ -69,6 +69,27 @@ function externalId(value: unknown, code: string): string {
   return result;
 }
 
+function readBlingCompanyId(accessToken: string): string | null {
+  const payload = accessToken.split(".")[1];
+  if (!payload) return null;
+
+  try {
+    const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Record<string, unknown>;
+    const nestedCompany = claims.company ?? claims.empresa;
+    const candidates = [
+      claims.companyId,
+      claims.company_id,
+      claims.empresaId,
+      claims.empresa_id,
+      typeof nestedCompany === "object" && nestedCompany !== null ? (nestedCompany as Record<string, unknown>).id : undefined,
+    ];
+    const companyId = candidates.find((candidate) => typeof candidate === "string" || typeof candidate === "number");
+    return companyId === undefined ? null : String(companyId);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The database is the queue authority. Redis is intentionally not required:
  * claiming uses an expiring lease, so a restart can resume work without two
@@ -218,6 +239,8 @@ export class ErpSyncService {
         where: { id: job.connectionId, merchantId: job.merchantId, status: "connected" },
       });
       if (!connection || !isSupported(connection.provider)) throw new Error("erp_connection_not_available");
+
+      if (connection.provider === "bling") await this.ensureBlingWebhookRoute(connection);
 
       if (job.kind === "full") {
         if (connection.directionMode !== "zyon_source_of_truth") {
@@ -457,6 +480,25 @@ export class ErpSyncService {
     if (!body.access_token) throw new Error("erp_bling_token_refresh_failed");
     await this.prisma.erpConnection.update({ where: { id: connection.id }, data: { accessTokenCipher: encryptErpSecret(body.access_token), refreshTokenCipher: body.refresh_token ? encryptErpSecret(body.refresh_token) : connection.refreshTokenCipher, tokenExpiresAt: new Date(Date.now() + Number(body.expires_in ?? 3600) * 1000) } });
     return body.access_token;
+  }
+
+  /** Existing OAuth connections gain the same exact webhook route on their first snapshot. */
+  private async ensureBlingWebhookRoute(connection: ErpConnection): Promise<void> {
+    const companyId = readBlingCompanyId(await this.blingToken(connection));
+    if (!companyId) throw new Error("bling_company_identity_missing");
+
+    const existingRoute = await this.prisma.erpWebhookRoute.findUnique({
+      where: { provider_externalAccountId: { provider: "bling", externalAccountId: companyId } },
+    });
+    if (existingRoute && existingRoute.merchantId !== connection.merchantId) {
+      throw new Error("bling_company_already_connected");
+    }
+
+    await this.prisma.erpWebhookRoute.upsert({
+      where: { provider_externalAccountId: { provider: "bling", externalAccountId: companyId } },
+      update: { merchantId: connection.merchantId, connectionId: connection.id },
+      create: { provider: "bling", externalAccountId: companyId, merchantId: connection.merchantId, connectionId: connection.id },
+    });
   }
 
   private async blingFetch(token: string, path: string, init?: RequestInit): Promise<any> {
