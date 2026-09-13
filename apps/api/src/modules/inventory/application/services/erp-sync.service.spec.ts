@@ -65,3 +65,28 @@ test("expired ERP leases return to the durable queue after a worker crash", asyn
   assert.equal(calls[0].data.lockedUntil, null);
   assert.equal(calls[0].data.lastErrorCode, "erp_worker_lease_expired");
 });
+
+test("a repeated ERP webhook shares one persisted snapshot job", async () => {
+  const jobs: any[] = [];
+  const prisma = {
+    erpConnection: { findFirst: async () => ({ id: "connection_a", merchantId: "merchant_a", provider: "bling", status: "connected" }) },
+    erpSyncJob: {
+      create: async ({ data }: any) => {
+        if (jobs.length) {
+          const error: any = new Error("duplicate"); error.code = "P2002"; throw error;
+        }
+        jobs.push({ id: "job_a", ...data }); return jobs[0];
+      },
+      findUnique: async () => jobs[0],
+      findMany: async () => [],
+      updateMany: async () => ({ count: 0 }),
+    },
+  };
+  const service = new ErpSyncService(prisma as never);
+
+  await service.enqueueWebhookFull("merchant_a", "connection_a", "event_a");
+  await service.enqueueWebhookFull("merchant_a", "connection_a", "event_a");
+
+  assert.equal(jobs.length, 1);
+  assert.equal(jobs[0].dedupeKey, "webhook:full:connection_a:event_a");
+});

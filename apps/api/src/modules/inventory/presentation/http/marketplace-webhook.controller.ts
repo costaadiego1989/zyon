@@ -1,5 +1,24 @@
-import { Controller, Post, Body, Param, Logger, HttpCode } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Headers, HttpCode, Inject, Logger, Param, Post, RawBodyRequest, Req, ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import { ApiTags, ApiOperation } from "@nestjs/swagger";
+import type { PrismaClient } from "@prisma/client";
+import type { Request } from "express";
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { ErpSyncService } from "../../application/services/erp-sync.service.js";
+
+type BlingWebhookPayload = {
+  eventId?: unknown;
+  event?: unknown;
+  companyId?: unknown;
+};
+
+function validBlingSignature(rawBody: Buffer | undefined, signature: string | undefined, secret: string): boolean {
+  if (!rawBody || !signature?.startsWith("sha256=")) return false;
+  const actual = signature.slice("sha256=".length).toLowerCase();
+  const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
+  if (!/^[a-f0-9]+$/.test(actual) || actual.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(actual, "hex"), Buffer.from(expected, "hex"));
+}
 
 /**
  * Receives webhook notifications from marketplace providers (ML, Shopee, TikTok Shop).
@@ -9,6 +28,10 @@ import { ApiTags, ApiOperation } from "@nestjs/swagger";
 @Controller("inventory/erp/webhook")
 export class MarketplaceWebhookController {
   private readonly logger = new Logger(MarketplaceWebhookController.name);
+  constructor(
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    private readonly erpSync: ErpSyncService,
+  ) {}
 
   /**
    * POST /inventory/erp/webhook/:provider
@@ -20,8 +43,13 @@ export class MarketplaceWebhookController {
   async handleWebhook(
     @Param("provider") provider: string,
     @Body() body: any,
+    @Req() request: RawBodyRequest<Request>,
+    @Headers("x-bling-signature-256") blingSignature?: string,
   ) {
     const providerLower = provider.toLowerCase();
+    if (providerLower === "bling") {
+      return this.handleBlingWebhook(request.rawBody, blingSignature, body as BlingWebhookPayload);
+    }
     this.logger.log("marketplace.webhook.received", { provider: providerLower, topic: body.topic, resource: body.resource });
 
     try {
@@ -46,6 +74,30 @@ export class MarketplaceWebhookController {
     }
 
     // Always return 200 to acknowledge (avoid retries)
+    return { received: true };
+  }
+
+  private async handleBlingWebhook(rawBody: Buffer | undefined, signature: string | undefined, body: BlingWebhookPayload) {
+    const secret = process.env.BLING_CLIENT_SECRET?.trim();
+    if (!secret) throw new ServiceUnavailableException("bling_webhook_not_configured");
+    if (!validBlingSignature(rawBody, signature, secret)) throw new UnauthorizedException("bling_webhook_invalid_signature");
+
+    const eventId = typeof body.eventId === "string" ? body.eventId.trim() : "";
+    const companyId = typeof body.companyId === "string" ? body.companyId.trim() : "";
+    const resource = typeof body.event === "string" ? body.event.split(".", 1)[0] : "";
+    if (!eventId || !companyId || !resource) throw new BadRequestException("bling_webhook_invalid_payload");
+    if (!new Set(["product", "stock", "virtual_stock"]).has(resource)) {
+      return { received: true, ignored: true };
+    }
+
+    const route = await this.prisma.erpWebhookRoute.findUnique({
+      where: { provider_externalAccountId: { provider: "bling", externalAccountId: companyId } },
+      select: { merchantId: true, connectionId: true },
+    });
+    if (!route) throw new BadRequestException("bling_webhook_connection_not_found");
+
+    const job = await this.erpSync.enqueueWebhookFull(route.merchantId, route.connectionId, eventId);
+    this.logger.log("bling.webhook.queued", { connectionId: route.connectionId, eventId, resource, jobId: job.id });
     return { received: true };
   }
 

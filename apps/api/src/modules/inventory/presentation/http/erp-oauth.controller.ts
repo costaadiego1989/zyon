@@ -13,6 +13,28 @@ function env(key: string, fallback = ""): string {
   return process.env[key] ?? fallback;
 }
 
+function readBlingCompanyId(accessToken: unknown): string | null {
+  if (typeof accessToken !== "string") return null;
+  const payload = accessToken.split(".")[1];
+  if (!payload) return null;
+
+  try {
+    const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Record<string, unknown>;
+    const nestedCompany = claims.company ?? claims.empresa;
+    const candidates = [
+      claims.companyId,
+      claims.company_id,
+      claims.empresaId,
+      claims.empresa_id,
+      typeof nestedCompany === "object" && nestedCompany !== null ? (nestedCompany as Record<string, unknown>).id : undefined,
+    ];
+    const companyId = candidates.find((candidate) => typeof candidate === "string" || typeof candidate === "number");
+    return companyId === undefined ? null : String(companyId);
+  } catch {
+    return null;
+  }
+}
+
 @ApiTags("Inventory - ERP OAuth")
 @Controller("inventory/erp/oauth")
 export class ErpOAuthController {
@@ -244,6 +266,16 @@ export class ErpOAuthController {
       const refreshTokenCipher = tokenData.refresh_token ? encryptErpSecret(tokenData.refresh_token) : null;
       const expiresAt = new Date(Date.now() + (tokenData.expires_in ?? 3600) * 1000);
 
+      const blingCompanyId = provider === "bling" ? readBlingCompanyId(tokenData.access_token) : null;
+      if (provider === "bling" && !blingCompanyId) throw new Error("bling_company_identity_missing");
+      if (provider === "bling") {
+        const existingRoute = await this.prisma.erpWebhookRoute.findUnique({
+          where: { provider_externalAccountId: { provider: "bling", externalAccountId: blingCompanyId! } },
+        });
+        if (existingRoute && existingRoute.merchantId !== merchantId) {
+          throw new Error("bling_company_already_connected");
+        }
+      }
       const connection = await this.prisma.erpConnection.upsert({
         where: { merchantId_provider: { merchantId, provider } },
         update: {
@@ -253,6 +285,7 @@ export class ErpOAuthController {
           refreshTokenCipher,
           tokenExpiresAt: expiresAt,
           lastErrorCode: null,
+          ...(blingCompanyId ? { config: { blingCompanyId } } : {}),
         },
         create: {
           merchantId,
@@ -262,10 +295,19 @@ export class ErpOAuthController {
           accessTokenCipher,
           refreshTokenCipher,
           tokenExpiresAt: expiresAt,
+          ...(blingCompanyId ? { config: { blingCompanyId } } : {}),
         },
       });
 
       this.logger.log("erp.connected", { merchantId, provider, expiresAt: expiresAt.toISOString() });
+
+      if (provider === "bling") {
+        await this.prisma.erpWebhookRoute.upsert({
+          where: { provider_externalAccountId: { provider: "bling", externalAccountId: blingCompanyId! } },
+          update: { merchantId, connectionId: connection.id },
+          create: { provider: "bling", externalAccountId: blingCompanyId!, merchantId, connectionId: connection.id },
+        });
+      }
 
       // Fire-and-forget: import products into inventory (marketplaces only)
       if (isMarketplaceProvider(provider)) {

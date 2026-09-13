@@ -98,6 +98,23 @@ export class ErpSyncService {
     return job;
   }
 
+  /** A provider webhook identifies one immutable event, so retries share one job. */
+  async enqueueWebhookFull(merchantId: string, connectionId: string, eventId: string) {
+    const connection = await this.prisma.erpConnection.findFirst({ where: { id: connectionId, merchantId } });
+    if (!connection) throw new Error("erp_connection_not_found");
+    if (!isSupported(connection.provider)) throw new Error("erp_provider_not_supported");
+    if (connection.status !== "connected") throw new Error("erp_connection_not_connected");
+
+    const job = await this.createJob({
+      merchantId,
+      connectionId,
+      kind: "full",
+      dedupeKey: `webhook:full:${connectionId}:${eventId}`,
+    });
+    this.kick();
+    return job;
+  }
+
   async enqueueSale(sale: AppliedInventorySale): Promise<void> {
     const connections = await this.prisma.erpConnection.findMany({
       where: {

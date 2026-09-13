@@ -40,6 +40,7 @@ export const TENANT_SCOPED_MODELS = [
   "CrossSellSuggestion",
   "CustomerIntentRecord",
   "ErpConnection",
+  "ErpWebhookRoute",
   "HoldoutGroupAssignment",
   "HttpIdempotencyRecord",
   "ImportJob",

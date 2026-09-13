@@ -2716,10 +2716,30 @@ model ErpConnection {
   merchant        Merchant            @relation("ErpConnections", fields: [merchantId], references: [id], onDelete: Cascade)
   syncJobs         ErpSyncJob[]
   productMappings  ErpProductMapping[]
+  webhookRoute     ErpWebhookRoute?
 
   @@unique([merchantId, provider])
   @@index([merchantId, status])
   @@map("erp_connections")
+}
+
+/// Public provider webhooks have no Zyon session. A route created during the
+/// authenticated OAuth callback maps the provider company identity to exactly
+/// one tenant connection before an event reaches the durable sync queue.
+model ErpWebhookRoute {
+  id                String        @id @default(cuid())
+  provider          String
+  externalAccountId String        @map("external_account_id")
+  merchantId        String        @map("merchant_id")
+  connectionId      String        @unique @map("connection_id")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  connection ErpConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, externalAccountId])
+  @@index([merchantId])
+  @@map("erp_webhook_routes")
 }
 
 /// Durable ERP work. A worker claims queued records atomically, so restarts and
