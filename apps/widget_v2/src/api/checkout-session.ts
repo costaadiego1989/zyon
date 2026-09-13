@@ -131,6 +131,11 @@ export interface Experience {
     pix: boolean;
     boleto: boolean;
     card: boolean;
+    providers?: {
+      pix?: "asaas" | "mercadopago" | "stripe";
+      boleto?: "asaas" | "mercadopago" | "stripe";
+      card?: "asaas" | "mercadopago" | "stripe";
+    };
   };
   cryptoPaymentsEnabled?: boolean;
   cryptoPayments?: CryptoPaymentsConfig;

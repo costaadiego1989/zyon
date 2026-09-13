@@ -44,6 +44,15 @@ function majorUnitsFromCents(amountCents: number): number {
   return Number((amountCents / 100).toFixed(2));
 }
 
+function notificationUrlFor(input: CreateProviderPaymentInput): string | undefined {
+  const base = process.env.API_PUBLIC_URL?.trim().replace(/\/+$/, "");
+  if (!base) return undefined;
+  // Mercado Pago signs every delivery. The reference is only a lookup key after
+  // that signature check and lets Checkout Pro map its later payment id back to
+  // the intent created before the buyer reaches the hosted page.
+  return `${base}/webhooks/mercadopago?intent_ref=${encodeURIComponent(input.intentId)}`;
+}
+
 @Injectable()
 export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
   constructor(
@@ -64,6 +73,9 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
   creationAccountFingerprint(): string { return createHash("sha256").update(`${this.apiBaseUrl}\0${this.accessToken}`).digest("hex"); }
 
   async recoverPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput | null> {
+    if (paymentMethodFromMethod(input.method) === "card") {
+      return this.recoverHostedCardPreference(input);
+    }
     const query = new URLSearchParams({ external_reference: input.intentId, limit: "100", sort: "date_created", criteria: "desc" });
     const response = await this.fetchImpl(`${this.apiBaseUrl.replace(/\/+$/, "")}/v1/payments/search?${query}`, {
       headers: { Authorization: `Bearer ${this.accessToken}`, accept: "application/json" }, redirect: "error", signal: AbortSignal.timeout(15_000),
@@ -100,7 +112,7 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
       throw new Error(`mercadopago_payment_fetch_failed:${res.status}:${errorText}`);
     }
 
-    const payment = (await res.json()) as { status?: string; transaction_amount?: number };
+    const payment = (await res.json()) as { status?: string; transaction_amount?: number; external_reference?: string };
     const state = mercadoPagoStateFromStatus(
       typeof payment.status === "string" ? payment.status : undefined
     );
@@ -110,13 +122,20 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
         ? Math.round(payment.transaction_amount * 100)
         : undefined;
 
-    return { state, approvedAmountCents };
+    return {
+      state,
+      approvedAmountCents,
+      externalReference: typeof payment.external_reference === "string" ? payment.external_reference : undefined,
+    };
   }
 
   async createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput> {
     this.validatePlatformFee(input);
     const base = this.apiBaseUrl.replace(/\/+$/, "");
     const paymentMethod = paymentMethodFromMethod(input.method);
+    if (paymentMethod === "card") {
+      return this.createHostedCardCheckout(input, base);
+    }
 
     const body: Record<string, unknown> = {
       external_reference: input.intentId,
@@ -126,7 +145,7 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
       payer: {
         email: input.payerEmail
       },
-      ...(process.env.API_PUBLIC_URL ? { notification_url: `${process.env.API_PUBLIC_URL.replace(/\/+$/, "")}/webhooks/mercadopago` } : {}),
+      ...(notificationUrlFor(input) ? { notification_url: notificationUrlFor(input) } : {}),
       ...(this.marketplaceSeller && (input.platformFeeCents ?? 0) > 0 ? { application_fee: majorUnitsFromCents(input.platformFeeCents!) } : {}),
       metadata: {
         intent_id: input.intentId,
@@ -134,15 +153,6 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
         session_id: input.sessionId
       }
     };
-
-    // PIX-specific: no additional fields required on creation
-    // Boleto: same as PIX at creation time
-    // Card: tokenization would happen client-side in real implementation
-    if (paymentMethod === "card" && input.creditCard) {
-      // In production, MP requires client-side tokenization for PCI compliance.
-      // For now, we throw to enforce this constraint.
-      throw new Error("mercadopago_card_requires_client_tokenization");
-    }
 
     const res = await this.fetchImpl(`${base}/v1/payments`, {
       method: "POST",
@@ -184,14 +194,112 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
       buyerFacingPayload.quoteExpiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
     }
 
-    const status: CreateProviderPaymentOutput["status"] =
-      paymentMethod === "card" ? "pending" : "requires_action";
-
     return {
       providerPaymentId,
-      status,
+      status: "requires_action",
       buyerFacingPayload
     };
+  }
+
+  /**
+   * Card data is collected by Mercado Pago Checkout Pro. This deliberately
+   * avoids a transparent-card fallback: neither PAN nor CVV reaches Zyon.
+   */
+  private async createHostedCardCheckout(
+    input: CreateProviderPaymentInput,
+    base: string,
+  ): Promise<CreateProviderPaymentOutput> {
+    const body: Record<string, unknown> = {
+      external_reference: input.intentId,
+      items: [{
+        id: input.intentId,
+        title: input.description ?? `Checkout ${input.sessionId}`,
+        quantity: 1,
+        currency_id: input.currency,
+        unit_price: majorUnitsFromCents(input.amountCents),
+      }],
+      payer: input.payerEmail ? { email: input.payerEmail } : undefined,
+      payment_methods: {
+        // Keep the hosted experience on the card rail chosen in Zyon. Mercado
+        // Pago account balance cannot be excluded by their platform, but Pix
+        // and boleto are excluded from this card-specific preference.
+        excluded_payment_types: [{ id: "ticket" }, { id: "bank_transfer" }],
+      },
+      ...(notificationUrlFor(input) ? { notification_url: notificationUrlFor(input) } : {}),
+      ...(this.marketplaceSeller && (input.platformFeeCents ?? 0) > 0
+        ? { marketplace_fee: majorUnitsFromCents(input.platformFeeCents!) }
+        : {}),
+      metadata: {
+        intent_id: input.intentId,
+        merchant_id: input.merchantId,
+        session_id: input.sessionId,
+      },
+    };
+    if (!body.payer) delete body.payer;
+
+    const res = await this.fetchImpl(`${base}/checkout/preferences`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.accessToken}`,
+        "content-type": "application/json",
+        "X-Idempotency-Key": input.providerIdempotencyKey ?? input.intentId,
+        accept: "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) throw new Error(`mercadopago_checkout_preference_create_failed:${res.status}`);
+    const preference = await res.json() as { id?: string; init_point?: string; sandbox_init_point?: string };
+    const providerPaymentId = typeof preference.id === "string" ? preference.id : "";
+    const invoiceUrl = this.hostedCheckoutUrl(preference);
+    if (!providerPaymentId || !invoiceUrl) throw new Error("mercadopago_checkout_preference_missing_redirect");
+    return {
+      providerPaymentId,
+      status: "requires_action",
+      buyerFacingPayload: { invoiceUrl },
+    };
+  }
+
+  private async recoverHostedCardPreference(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput | null> {
+    const query = new URLSearchParams({ external_reference: input.intentId, limit: "100" });
+    const response = await this.fetchImpl(`${this.apiBaseUrl.replace(/\/+$/, "")}/checkout/preferences/search?${query}`, {
+      headers: { Authorization: `Bearer ${this.accessToken}`, accept: "application/json" },
+      redirect: "error",
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) throw new Error("mercadopago_preference_recovery_failed");
+    const result = await response.json() as {
+      results?: Array<{
+        id?: string;
+        external_reference?: string;
+        init_point?: string;
+        sandbox_init_point?: string;
+      }>;
+      paging?: { total?: number };
+    };
+    if (!Array.isArray(result.results) || result.results.length > 1 || (result.paging?.total ?? 0) > 1) {
+      throw new Error("mercadopago_preference_recovery_ambiguous");
+    }
+    const preference = result.results[0];
+    if (!preference) return null;
+    if (preference.external_reference !== input.intentId) {
+      throw new Error("mercadopago_preference_recovery_mismatch");
+    }
+    const providerPaymentId = typeof preference.id === "string" ? preference.id : "";
+    const invoiceUrl = this.hostedCheckoutUrl(preference);
+    if (!providerPaymentId || !invoiceUrl) throw new Error("mercadopago_preference_recovery_mismatch");
+    return { providerPaymentId, status: "requires_action", buyerFacingPayload: { invoiceUrl } };
+  }
+
+  private hostedCheckoutUrl(preference: { init_point?: string; sandbox_init_point?: string }): string {
+    const usesTestCredential = /^TEST-/i.test(this.accessToken);
+    const primary = usesTestCredential ? preference.sandbox_init_point : preference.init_point;
+    const fallback = usesTestCredential ? preference.init_point : preference.sandbox_init_point;
+    return typeof primary === "string"
+      ? primary
+      : typeof fallback === "string"
+        ? fallback
+        : "";
   }
 
   async refundPayment(input: { merchantId: string; providerPaymentId: string; amountCents: number; reason?: string; idempotencyKey?: string }) {

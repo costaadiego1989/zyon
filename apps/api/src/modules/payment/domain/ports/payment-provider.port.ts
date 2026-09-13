@@ -112,6 +112,8 @@ export type FetchPaymentStatusInput = {
 export type FetchPaymentStatusOutput = {
   state: AuthoritativePaymentState;
   approvedAmountCents?: number;
+  /** Provider external reference, used to bind a signed hosted-checkout event. */
+  externalReference?: string;
 };
 
 export type RefundPaymentInput = {

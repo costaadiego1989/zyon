@@ -34,6 +34,12 @@ export interface CryptoWalletState {
   saved: boolean;
 }
 
+export interface PaymentRoutingSettings {
+  pix?: "asaas" | "mercadopago";
+  boleto?: "asaas";
+  card?: "asaas" | "stripe" | "mercadopago";
+}
+
 export function usePaymentConnectionsPage(me: MerchantProfile | null) {
   const api = useApi();
   const [connections, setConnections] = useState<PaymentConnection[]>([]);
@@ -51,6 +57,8 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
   });
 
   const [companyPrefill, setCompanyPrefill] = useState<Record<string, any> | null>(null);
+  const [paymentRouting, setPaymentRouting] = useState<PaymentRoutingSettings>({});
+  const [paymentRoutingSaving, setPaymentRoutingSaving] = useState(false);
 
   useEffect(() => {
     if (!me) {
@@ -62,6 +70,12 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
       try {
         const settings = await api.getStoreSettings();
         setCompanyPrefill((settings?.company as Record<string, any>) ?? null);
+        const routing = settings?.paymentRouting;
+        if (routing && typeof routing === "object" && !Array.isArray(routing)) {
+          setPaymentRouting(routing as PaymentRoutingSettings);
+        } else {
+          setPaymentRouting({});
+        }
       } catch { setCompanyPrefill(null); }
     })();
   }, [me]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -287,6 +301,23 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     }
   }
 
+  async function savePaymentRouting(next: PaymentRoutingSettings) {
+    setPaymentRoutingSaving(true);
+    setAlert(null);
+    try {
+      const settings = await api.putStoreSettings({ paymentRouting: next });
+      const saved = settings?.paymentRouting;
+      setPaymentRouting(saved && typeof saved === "object" && !Array.isArray(saved)
+        ? saved as PaymentRoutingSettings
+        : next);
+      showToast("success", "Formas de pagamento atualizadas");
+    } catch (e) {
+      setAlert({ message: sanitizeError(e), kind: "error" });
+    } finally {
+      setPaymentRoutingSaving(false);
+    }
+  }
+
   async function disconnect(provider: "stripe" | "asaas" | "mercadopago") {
     setOperation("loading");
     setAlert(null);
@@ -309,6 +340,8 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     alert,
     crypto,
     companyPrefill,
+    paymentRouting,
+    paymentRoutingSaving,
     setAlert,
     setCrypto,
     load,
@@ -320,6 +353,7 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     onboardMercadoPago,
     syncMercadoPago,
     saveCryptoWallet,
+    savePaymentRouting,
     disconnect,
     approveAsaasSandbox,
   };

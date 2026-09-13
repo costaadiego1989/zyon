@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, HttpCode, Post, RawBodyRequest, Req, UnauthorizedException } from "@nestjs/common";
+import { Body, Controller, Headers, HttpCode, Post, Query, RawBodyRequest, Req, UnauthorizedException } from "@nestjs/common";
 import type { Request } from "express";
 import {
   HandleMercadoPagoWebhookUseCase,
@@ -14,7 +14,8 @@ export class MercadoPagoWebhookController {
   async mercadoPagoWebhook(
     @Req() req: RawBodyRequest<Request>,
     @Headers("x-signature") signature: string | undefined,
-    @Headers("x-request-id") xRequestId: string | undefined
+    @Headers("x-request-id") xRequestId: string | undefined,
+    @Query("intent_ref") intentReference: string | undefined,
   ) {
     const rawBody = req.rawBody;
     if (!rawBody) {
@@ -23,7 +24,7 @@ export class MercadoPagoWebhookController {
 
     try {
       const bodyString = typeof rawBody === "string" ? rawBody : rawBody.toString("utf-8");
-      return await this.handleWebhook.execute(bodyString, signature, xRequestId);
+      return await this.handleWebhook.execute(bodyString, signature, xRequestId, undefined, intentReference);
     } catch (e) {
       if (e instanceof UnauthorizedWebhookError) {
         throw new UnauthorizedException(e.message);

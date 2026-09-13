@@ -5,7 +5,7 @@ import { StatusBadge } from "./components/StatusBadge.js";
 import { GatewayCard } from "./components/GatewayCard.js";
 import { WalletSection } from "./components/WalletSection.js";
 import { StripeLogo, AsaasLogo, MercadoPagoLogo } from "./components/ProviderLogos.js";
-import { usePaymentConnectionsPage, formatDate, type CryptoWalletState } from "./usePaymentConnectionsPage.js";
+import { usePaymentConnectionsPage, formatDate, type CryptoWalletState, type PaymentRoutingSettings } from "./usePaymentConnectionsPage.js";
 import type { MerchantProfile } from "../../api-client.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
 import { ConfirmDialog } from "../../components/ConfirmDialog.js";
@@ -47,6 +47,74 @@ function ConnectionSkeleton() {
   );
 }
 
+function PaymentRoutingPanel({
+  routing,
+  saving,
+  asaasActive,
+  stripeActive,
+  mercadoPagoActive,
+  onChange,
+}: {
+  routing: PaymentRoutingSettings;
+  saving: boolean;
+  asaasActive: boolean;
+  stripeActive: boolean;
+  mercadoPagoActive: boolean;
+  onChange: (next: PaymentRoutingSettings) => void;
+}) {
+  const selectedPix = routing.pix ?? (mercadoPagoActive ? "mercadopago" : asaasActive ? "asaas" : "");
+  const selectedCard = routing.card ?? (stripeActive ? "stripe" : asaasActive ? "asaas" : mercadoPagoActive ? "mercadopago" : "");
+  const update = (method: keyof PaymentRoutingSettings, value: string) => {
+    onChange({ ...routing, [method]: value as PaymentRoutingSettings[typeof method] });
+  };
+  const noPix = !asaasActive && !mercadoPagoActive;
+  const noCard = !asaasActive && !stripeActive && !mercadoPagoActive;
+
+  return (
+    <section className="payment-routing" aria-labelledby="payment-routing-title">
+      <div>
+        <span className="eyebrow">Checkout</span>
+        <h2 id="payment-routing-title">Provedor por forma de pagamento</h2>
+        <p>Escolha onde cada pagamento será processado. Uma escolha indisponível deixa o método oculto no checkout, sem redirecionar a cobrança para outro gateway.</p>
+      </div>
+      <div className="payment-routing__fields">
+        <label>
+          <span>Pix</span>
+          <select
+            value={selectedPix}
+            disabled={saving || noPix}
+            onChange={(event) => update("pix", event.target.value)}
+          >
+            {asaasActive && <option value="asaas">Asaas</option>}
+            {mercadoPagoActive && <option value="mercadopago">Mercado Pago</option>}
+          </select>
+        </label>
+        <label>
+          <span>Boleto</span>
+          <select value="asaas" disabled aria-label="Boleto processado pelo Asaas">
+            <option value="asaas">Asaas</option>
+          </select>
+        </label>
+        <label>
+          <span>Cartão</span>
+          <select
+            value={selectedCard}
+            disabled={saving || noCard}
+            onChange={(event) => update("card", event.target.value)}
+          >
+            {stripeActive && <option value="stripe">Stripe</option>}
+            {asaasActive && <option value="asaas">Asaas (ambiente hospedado)</option>}
+            {mercadoPagoActive && <option value="mercadopago">Mercado Pago (Checkout Pro)</option>}
+          </select>
+        </label>
+      </div>
+      <p className="payment-routing__note">
+        O cartão Mercado Pago abre o Checkout Pro hospedado pelo próprio Mercado Pago. Pix e cartão só aparecem ao comprador quando a conexão OAuth está ativa e a assinatura de webhook da plataforma está configurada.
+      </p>
+    </section>
+  );
+}
+
 export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
   const {
     connections,
@@ -54,6 +122,8 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
     alert,
     crypto,
     companyPrefill,
+    paymentRouting,
+    paymentRoutingSaving,
     setCrypto,
     load,
     onboardStripe,
@@ -66,6 +136,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
     syncMercadoPago,
     disconnect,
     saveCryptoWallet,
+    savePaymentRouting,
   } = usePaymentConnectionsPage(me);
 
   const [pendingDisconnect, setPendingDisconnect] = useState<DisconnectProvider | null>(null);
@@ -101,6 +172,8 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
   const tokenAddress = USDC_TOKEN_BY_CHAIN_NETWORK[`${crypto.config.chain}:${crypto.config.network}`];
   const connectedGatewayCount = gatewayConnectionCount(connections);
   const activeCount = connections.filter((c) => c.status === "active").length;
+  const supportsCheckoutMethod = (connection: PaymentConnection | undefined, method: "pix" | "boleto" | "card") =>
+    Boolean(connection?.checkout_methods?.includes(method));
 
   return (
     <div className="page-container payment-connections-page">
@@ -160,7 +233,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
           <GatewayCard
             provider="asaas"
             name="Asaas"
-            description="PIX e boleto no checkout"
+            description="Pix, boleto e cartão hospedado"
             iconBg="#fff"
             icon={<AsaasLogo size={52} />}
             connection={asaasConn}
@@ -181,7 +254,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
           <GatewayCard
             provider="mercadopago"
             name="Mercado Pago"
-            description="PIX no checkout via OAuth"
+            description="Pix e cartão via OAuth"
             iconBg="#fff"
             icon={<MercadoPagoLogo size={52} />}
             connection={mercadopagoConn}
@@ -201,6 +274,17 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
           />
         </div>
         </SectionErrorBoundary>
+      ) : null}
+
+      {!isLoading ? (
+        <PaymentRoutingPanel
+          routing={paymentRouting}
+          saving={paymentRoutingSaving}
+          asaasActive={supportsCheckoutMethod(asaasConn, "pix")}
+          stripeActive={supportsCheckoutMethod(stripeConn, "card")}
+          mercadoPagoActive={supportsCheckoutMethod(mercadopagoConn, "pix")}
+          onChange={(next) => void savePaymentRouting(next)}
+        />
       ) : null}
 
       {/* Other Providers Table */}

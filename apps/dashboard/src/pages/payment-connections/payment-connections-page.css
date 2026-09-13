@@ -74,6 +74,24 @@
   margin: 0;
 }
 
+.payment-routing {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: minmax(220px, 1fr) minmax(360px, 1.4fr);
+  padding: var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.payment-routing h2 { margin: 3px 0 6px; font: 700 15px var(--font-sans); color: var(--ink); }
+.payment-routing p { margin: 0; color: var(--muted); font: 400 12px/1.5 var(--font-sans); }
+.payment-routing__fields { display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); align-content: start; }
+.payment-routing__fields label { display: grid; gap: 5px; color: var(--muted); font: 600 11px var(--font-sans); }
+.payment-routing__fields select { min-height: 36px; width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0 9px; background: var(--color-surface-alt); color: var(--ink); font: 500 12px var(--font-sans); }
+.payment-routing__fields select:disabled { opacity: .6; cursor: not-allowed; }
+.payment-routing__note { grid-column: 1 / -1; padding-top: 2px; }
+@media (max-width: 760px) { .payment-routing { grid-template-columns: 1fr; } .payment-routing__fields { grid-template-columns: 1fr; } }
+
 /* ── Gateway Card ────────────────────────────────────────────────────────── */
 
 .gateway-card {

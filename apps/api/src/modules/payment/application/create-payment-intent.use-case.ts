@@ -37,6 +37,7 @@ import {
 import { BillingPlanMeteringService } from "../domain/billing-plan-guard.js";
 import { assertProviderFeeCap, merchantTransactionFeeCentsFor } from "../domain/billing-plans.js";
 import type { PlannedPaymentSettlement } from "../domain/ports/payment-settlement-ledger.port.js";
+import { resolveCheckoutPaymentCapabilities } from "../domain/checkout-payment-routing.js";
 
 export type CreatePaymentIntentRequest = {
   merchant_id: string;
@@ -279,40 +280,49 @@ export class CreatePaymentIntentUseCase {
     const orderAmountCents = itemsSubtotalCents + shippingCents - discountCents;
     if (orderAmountCents <= 0) throw new BadRequestException("payment_intent_amount_invalid");
 
-    // Card details are collected only by Stripe Elements in the active browser
-    // checkout. Do not fall back to Asaas here: the API intentionally rejects
-    // raw card data and therefore cannot safely complete that fallback.
-    let stripeCardActive = false;
-    let stripeConnection: Awaited<ReturnType<PaymentPlatformRepository["getConnection"]>> | undefined;
-    if (method === "card") {
-      stripeConnection = await this.platformConnections?.getConnection(merchantId, "stripe");
-      stripeCardActive =
-        isStripeConfigured() &&
-        (!this.platformConnections || stripeConnection?.status === "active");
-      if (!stripeCardActive) {
-        throw new BadRequestException("stripe_card_not_available");
-      }
-    }
-
-    const isStripeCard = method === "card" && stripeCardActive;
-    const asaasConnection = (method === "pix" || method === "boleto")
-      ? await this.platformConnections?.getConnection(merchantId, "asaas") : undefined;
-    const mercadoPagoConnection = (method === "pix" || method === "boleto")
-      ? await this.platformConnections?.getConnection(merchantId, "mercadopago") : undefined;
+    // The route is selected by the merchant, then resolved again here. This
+    // endpoint is the authority: a client cannot switch an order to a gateway
+    // merely by changing a browser request.
+    const merchant = await this.merchants.getProfile(merchantId);
+    const [asaasConnection, mercadoPagoConnection, stripeConnection] = await Promise.all([
+      this.platformConnections?.getConnection(merchantId, "asaas"),
+      this.platformConnections?.getConnection(merchantId, "mercadopago"),
+      this.platformConnections?.getConnection(merchantId, "stripe"),
+    ]);
     const asaasActive = !this.platformConnections || asaasConnection?.status === "active";
     const mercadoPagoActive = mercadoPagoConnection?.status === "active";
+    const stripeCardActive =
+      isStripeConfigured() &&
+      (!this.platformConnections || stripeConnection?.status === "active");
     const mercadoPagoWebhookConfigured = Boolean(process.env.MERCADOPAGO_WEBHOOK_SECRET?.trim());
-    // The current Mercado Pago browser integration is PIX-only. Card token
-    // collection and boleto both need Mercado Pago Bricks, which cannot be
-    // substituted by sending payment data through this API.
-    const usesMercadoPago = method === "pix" && mercadoPagoActive && mercadoPagoWebhookConfigured;
-    const usesAsaas = (method === "pix" || method === "boleto") && !usesMercadoPago;
-    if (usesAsaas && !asaasActive) {
-      if (method === "pix" && mercadoPagoActive && !mercadoPagoWebhookConfigured) {
+    const routes = resolveCheckoutPaymentCapabilities(
+      merchant?.storeSettings?.paymentRouting,
+      {
+        asaas: asaasActive,
+        mercadoPagoPix: mercadoPagoActive && mercadoPagoWebhookConfigured,
+        mercadoPagoHostedCard: mercadoPagoActive && mercadoPagoWebhookConfigured,
+        stripeCard: stripeCardActive,
+        // Asaas returns its HTTPS invoice page for card collection. Raw card
+        // data remains prohibited in this API.
+        // Card via Asaas needs a verified merchant connection. The legacy
+        // no-repository fallback remains limited to its existing Pix/boleto
+        // behavior and must not claim an unverified hosted-card rail.
+        asaasHostedCard: asaasConnection?.status === "active",
+      },
+    );
+    const selectedProvider = method === "crypto" ? "crypto" : routes.providers?.[method];
+    if (!selectedProvider) {
+      if (method === "pix" && merchant?.storeSettings?.paymentRouting?.pix === "mercadopago" && mercadoPagoActive && !mercadoPagoWebhookConfigured) {
         throw new BadRequestException("mercadopago_webhook_not_configured");
       }
-      throw new BadRequestException("payment_provider_not_configured");
+      // Preserve the stable Stripe error for legacy clients that have not set
+      // a merchant card preference. Explicit Asaas and Mercado Pago choices
+      // are handled above and never fall back to this message.
+      throw new BadRequestException(method === "card" ? "stripe_card_not_available" : "payment_provider_not_configured");
     }
+    const isStripeCard = method === "card" && selectedProvider === "stripe";
+    const usesMercadoPago = selectedProvider === "mercadopago";
+    const usesAsaas = selectedProvider === "asaas";
     const delayedMerchantPayout = delayedMerchantPayoutEnabled();
     const merchantPayoutHoldDays = delayedMerchantPayout ? delayedMerchantPayoutHoldDays() : undefined;
     if (delayedMerchantPayout && !usesAsaas) {

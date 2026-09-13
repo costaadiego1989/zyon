@@ -51,6 +51,55 @@ test("Mercado Pago seller OAuth payment carries application fee and stable idemp
   assert.equal(headers!.get("X-Idempotency-Key"), "stable-key");
 });
 
+test("Mercado Pago card uses a hosted Checkout Pro preference with marketplace fee", async () => {
+  let url = "";
+  let body: any;
+  const fetcher = (async (requestUrl: string, init?: RequestInit) => {
+    url = requestUrl;
+    body = JSON.parse(String(init?.body));
+    return new Response(JSON.stringify({
+      id: "pref_checkout_1",
+      init_point: "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=pref_checkout_1",
+      sandbox_init_point: "https://sandbox.mercadopago.com.br/checkout/v1/redirect?pref_id=pref_checkout_1",
+    }));
+  }) as typeof fetch;
+
+  const result = await new MercadoPagoPaymentAdapter(
+    "https://mp.example.test",
+    "TEST-seller-token",
+    "",
+    fetcher,
+    true,
+  ).createPayment({ ...input, method: "card" });
+
+  assert.equal(url, "https://mp.example.test/checkout/preferences");
+  assert.equal(body.marketplace_fee, 3.98);
+  assert.deepEqual(body.payment_methods.excluded_payment_types, [
+    { id: "ticket" },
+    { id: "bank_transfer" },
+  ]);
+  assert.equal(result.providerPaymentId, "pref_checkout_1");
+  assert.equal(result.status, "requires_action");
+  assert.equal(result.buyerFacingPayload.invoiceUrl, "https://sandbox.mercadopago.com.br/checkout/v1/redirect?pref_id=pref_checkout_1");
+});
+
+test("Mercado Pago hosted card recovery rejects a preference for another checkout", async () => {
+  const fetcher = (async () => new Response(JSON.stringify({
+    results: [{
+      id: "pref_other",
+      external_reference: "pay_int_other",
+      init_point: "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=pref_other",
+    }],
+    paging: { total: 1 },
+  }))) as typeof fetch;
+  const adapter = new MercadoPagoPaymentAdapter("https://mp.example.test", "seller-token", "", fetcher, true);
+
+  await assert.rejects(
+    () => adapter.recoverPayment({ ...input, method: "card" }),
+    /mercadopago_preference_recovery_mismatch/,
+  );
+});
+
 test("Mercado Pago platform-owned credentials do not create a seller OAuth split", async () => {
   let body: any;
   const fetcher = (async (_url: string, init?: RequestInit) => { body = JSON.parse(String(init?.body)); return new Response(JSON.stringify({ id: 123 })); }) as typeof fetch;

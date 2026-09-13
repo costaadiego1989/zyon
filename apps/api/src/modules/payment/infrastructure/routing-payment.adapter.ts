@@ -57,7 +57,7 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
       // Stripe destination charges settle the connected account at payment
       // time. Do not pretend they honour the return-window hold until the
       // separate-charge-and-transfer executor and receipt reconciliation ship.
-      if (input.provider === "stripe" || input.method === "card") {
+      if (input.provider === "stripe" || (!input.provider && input.method === "card")) {
         throw new Error("stripe_delayed_payout_not_supported");
       }
       if (!this.asaas) throw new Error("asaas_platform_account_not_configured");

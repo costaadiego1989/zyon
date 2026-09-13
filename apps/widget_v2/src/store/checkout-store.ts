@@ -42,7 +42,16 @@ type CheckoutPaymentMethod = "pix" | "boleto" | "credito" | "debito" | "crypto";
 
 interface MerchantPaymentConfig {
   stripeEnabled?: boolean;
-  paymentMethods?: { pix: boolean; boleto: boolean; card: boolean };
+  paymentMethods?: {
+    pix: boolean;
+    boleto: boolean;
+    card: boolean;
+    providers?: {
+      pix?: "asaas" | "mercadopago" | "stripe";
+      boleto?: "asaas" | "mercadopago" | "stripe";
+      card?: "asaas" | "mercadopago" | "stripe";
+    };
+  };
   cryptoPaymentsEnabled?: boolean;
   cryptoPayments?: CryptoPaymentsConfig;
 }
@@ -818,8 +827,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       });
 
       const isCard = method === "credito" || method === "debito";
-      if (isCard && (!intent.stripe_client_secret || !intent.stripe_publishable_key)) {
-        throw new Error("stripe_card_checkout_unavailable");
+      if (isCard && (!intent.stripe_client_secret || !intent.stripe_publishable_key) && !intent.invoice_url) {
+        throw new Error("card_checkout_unavailable");
       }
       if (method === "boleto" && !intent.invoice_url) {
         throw new Error("boleto_invoice_unavailable");
@@ -828,12 +837,16 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         ? "pix_payment"
         : method === "boleto"
           ? "boleto_payment"
-          : "stripe_card";
+          : intent.invoice_url
+            ? "hosted_card_payment"
+            : "stripe_card";
       const blockText = method === "pix"
         ? "Pix gerado! Pague e confirmo seu pedido automaticamente."
         : method === "boleto"
           ? "Boleto gerado! Abra o link seguro para pagar."
-          : "Preencha os dados do cartão para finalizar.";
+          : intent.invoice_url
+            ? "Abra o ambiente seguro para informar o cartão e concluir o pagamento."
+            : "Preencha os dados do cartão para finalizar.";
       const paymentMsg: Message = {
         id: `agent_pay_${Date.now()}`,
         role: "agent",
@@ -845,6 +858,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
             pix_code: intent.pix_code,
             pix_qr_url: intent.pix_qr_url,
             invoice_url: intent.invoice_url,
+            hosted_card: Boolean(isCard && intent.invoice_url),
             stripe_client_secret: intent.stripe_client_secret,
             stripe_publishable_key: intent.stripe_publishable_key,
             expires_at_unix: intent.expires_at_unix,

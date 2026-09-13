@@ -72,3 +72,47 @@ test("Mercado Pago processes pending then approved once for the same payment", a
   assert.equal(checkout.approved.length, 1);
   assert.equal((await payments.getIntentById("merchant_1", intent.id))?.status, "approved");
 });
+
+test("Mercado Pago Checkout Pro webhook binds the later payment id to its signed intent reference", async () => {
+  const payments = new InMemoryPaymentRepository();
+  const checkout = new RecordingCheckoutPayment();
+  const dispatch = new PaymentDispatchService(payments, checkout);
+  const provider = {
+    async fetchPaymentStatus() {
+      return { state: "approved", externalReference: intent.id };
+    },
+  } as unknown as MercadoPagoPaymentAdapter;
+  const useCase = new HandleMercadoPagoWebhookUseCase(payments, dispatch, undefined, provider);
+
+  const intent = PaymentIntentEntity.create({
+    merchantId: "merchant_1",
+    sessionId: "checkout_hosted_card",
+    idempotencyKey: "idem_hosted_card",
+    amountCents: 10_000,
+    currency: "BRL",
+    method: "card",
+  });
+  intent.prepareCreation({
+    merchantId: "merchant_1",
+    sessionId: "checkout_hosted_card",
+    intentId: intent.id,
+    amountCents: 10_000,
+    currency: "BRL",
+    method: "card",
+    provider: "mercadopago",
+  });
+  // Checkout Pro returns a preference id first; the notification later carries
+  // the actual Mercado Pago payment id that must be used for a future refund.
+  intent.markRequiresAction({ providerPaymentId: "pref_checkout_1" });
+  await payments.saveIntent({ intent });
+
+  const { rawBody, signature } = signedPaymentUpdatedWebhook();
+  const result = await useCase.execute(rawBody, signature, REQUEST_ID, WEBHOOK_SECRET, intent.id);
+
+  assert.deepEqual(result, { outcome: "processed", effect: "checkout_completed_after_payment" });
+  assert.equal(checkout.approved.length, 1);
+  assert.equal(
+    (await payments.getIntentById("merchant_1", intent.id))?.snapshot().providerPaymentId,
+    PAYMENT_ID,
+  );
+});

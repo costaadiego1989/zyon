@@ -8,7 +8,10 @@ import {
 import { MetricsService } from "../../../shared/observability/metrics.service.js";
 import { PaymentDispatchService } from "./services/payment-dispatch.service.js";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
-import { MercadoPagoPaymentAdapter } from "../infrastructure/mercadopago-payment.adapter.js";
+import {
+  PAYMENT_PROVIDER_PORT,
+  type PaymentProviderPort,
+} from "../domain/ports/payment-provider.port.js";
 
 export type MercadoPagoWebhookInbound = {
   action?: string;
@@ -113,14 +116,15 @@ export class HandleMercadoPagoWebhookUseCase {
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
     private readonly paymentDispatch: PaymentDispatchService,
     @Optional() private readonly metrics?: MetricsService,
-    @Optional() private readonly provider?: MercadoPagoPaymentAdapter
+    @Optional() @Inject(PAYMENT_PROVIDER_PORT) private readonly provider?: PaymentProviderPort,
   ) {}
 
   async execute(
     rawBody: string,
     signature: string | undefined,
     xRequestId: string | undefined,
-    webhookSecret?: string
+    webhookSecret?: string,
+    intentReference?: string,
   ): Promise<HandleMercadoPagoWebhookResult> {
     const expectedSecret = webhookSecret ?? process.env.MERCADOPAGO_WEBHOOK_SECRET;
     assertWebhookSignature(rawBody, signature, xRequestId, expectedSecret);
@@ -140,7 +144,12 @@ export class HandleMercadoPagoWebhookUseCase {
 
     // Resolve merchant BEFORE idempotency gate to ensure tenant scoping
     // (ADR 0001 #3: do not gate on external ID alone).
-    const ref = await this.payments.getIntentReferenceByProviderPaymentId?.(paymentId) ?? null;
+    const referenceFromRoute = normalizeIntentReference(intentReference);
+    const referenceByProvider =
+      await this.payments.getIntentReferenceByProviderPaymentId?.(paymentId);
+    const ref = referenceByProvider ?? (referenceFromRoute
+      ? await this.payments.getIntentByExternalReference(referenceFromRoute)
+      : null);
     const merchantId = ref?.merchantId ?? null;
     const state = await this.resolveAuthoritativeState(body, paymentId, ref);
 
@@ -219,14 +228,29 @@ export class HandleMercadoPagoWebhookUseCase {
     ref: { id: string; merchantId: string } | null
   ): Promise<"approved" | "failed" | "pending" | "unknown" | null> {
     if (body.action !== "payment.updated" || !ref) return null;
-    if (!this.provider) {
+    const provider = this.provider;
+    if (!provider?.fetchPaymentStatus) {
       throw new BadRequestException("mercadopago_provider_not_configured");
     }
 
-    const statusOutput = await this.provider.fetchPaymentStatus({
+    const statusOutput = await provider.fetchPaymentStatus({
       merchantId: ref.merchantId,
+      provider: "mercadopago",
       providerPaymentId: paymentId
     });
+    if (statusOutput.externalReference && statusOutput.externalReference !== ref.id) {
+      throw new BadRequestException("mercadopago_webhook_intent_mismatch");
+    }
     return statusOutput.state;
   }
+}
+
+function normalizeIntentReference(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  // Payment intent ids are opaque UUID-backed references. Reject arbitrary
+  // query values before querying persistence, even though the Mercado Pago
+  // signature remains the primary authenticity control.
+  return normalized && /^pay_int_[a-zA-Z0-9_-]{16,}$/.test(normalized)
+    ? normalized
+    : undefined;
 }

@@ -52,6 +52,7 @@ import { ChangeSubscriptionPlanUseCase } from "../../application/payment-platfor
 import { CancelSubscriptionUseCase } from "../../application/payment-platform/billing/cancel-subscription.use-case.js";
 import { BILLING_PLANS } from "../../domain/billing-plans.js";
 import type { BillingPlan } from "../../domain/payment-platform.types.js";
+import { isStripeConfigured } from "../../infrastructure/stripe-env.js";
 
 import { IsString, IsOptional, IsBoolean, ValidateNested, IsIn } from "class-validator";
 import { Type } from "class-transformer";
@@ -607,6 +608,7 @@ function humanPrincipal(
 }
 
 export function toConnectionResponse(connection: PaymentConnectionSnapshot) {
+  const checkoutMethods = checkoutMethodsFor(connection);
   return {
     id: `${connection.merchantId}:${connection.provider}`,
     provider: connection.provider,
@@ -617,12 +619,32 @@ export function toConnectionResponse(connection: PaymentConnectionSnapshot) {
     wallet_id: connection.walletId ?? null,
     charges_enabled: connection.chargesEnabled,
     payouts_enabled: connection.payoutsEnabled,
+    checkout_methods: checkoutMethods,
     requirements: connection.requirements,
     last_synced_at: connection.lastSyncedAt ?? null,
     last_error_code: connection.lastErrorCode ?? null,
     created_at: connection.createdAt,
     updated_at: connection.updatedAt,
   };
+}
+
+function checkoutMethodsFor(connection: PaymentConnectionSnapshot): Array<"pix" | "boleto" | "card"> {
+  if (connection.status !== "active") return [];
+  switch (connection.provider) {
+    case "asaas":
+      return ["pix", "boleto", "card"];
+    case "stripe":
+      return isStripeConfigured() ? ["card"] : [];
+    case "mercadopago":
+      // The buyer-facing method stays hidden until signature verification is
+      // enabled. This keeps an OAuth connection from creating an untracked
+      // charge if the platform webhook is not ready yet.
+      return process.env.MERCADOPAGO_WEBHOOK_SECRET?.trim()
+        ? ["pix", "card"]
+        : [];
+    default:
+      return [];
+  }
 }
 
 function toBillingResponse(subscription: BillingSubscriptionWithPlanSnapshot) {

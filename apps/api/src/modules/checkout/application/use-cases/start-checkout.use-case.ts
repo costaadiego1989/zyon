@@ -27,6 +27,11 @@ import {
   type PaymentPlatformRepository,
 } from "../../../payment/domain/ports/payment-platform-repository.port.js";
 import { isStripeConfigured } from "../../../payment/infrastructure/stripe-env.js";
+import {
+  resolveCheckoutPaymentCapabilities,
+  type CheckoutPaymentCapabilities,
+} from "../../../payment/domain/checkout-payment-routing.js";
+import type { MerchantStoreSettings } from "../../../merchant/domain/merchant.types.js";
 
 @Injectable()
 export class StartCheckoutUseCase {
@@ -64,7 +69,11 @@ export class StartCheckoutUseCase {
     };
     const settings = await this.checkoutSettings?.getContext(input.merchant_id);
     const merchant = await this.merchantRepository?.getProfile(input.merchant_id);
-    const paymentMethods = await this.resolvePaymentMethods(input.merchant_id, merchant?.stripeConnectAccountId);
+    const paymentMethods = await this.resolvePaymentMethods(
+      input.merchant_id,
+      merchant?.stripeConnectAccountId,
+      merchant?.storeSettings,
+    );
 
     // Plano efetivo do merchant → gates de features no checkout:
     // - whiteLabel: badge "Powered by Zyon" só quando plano NÃO tem a feature.
@@ -151,15 +160,18 @@ export class StartCheckoutUseCase {
   private async resolvePaymentMethods(
     merchantId: string,
     stripeConnectAccountId: string | null | undefined,
-  ): Promise<{ pix: boolean; boleto: boolean; card: boolean }> {
+    storeSettings?: MerchantStoreSettings,
+  ): Promise<CheckoutPaymentCapabilities> {
     // A database outage must not make the checkout claim that a payment rail is
     // usable. The payment-intent endpoint remains the final authority.
     if (!this.paymentConnections) {
-      return {
-        pix: false,
-        boleto: false,
-        card: Boolean(isStripeConfigured() && stripeConnectAccountId),
-      };
+      return resolveCheckoutPaymentCapabilities(storeSettings?.paymentRouting, {
+        asaas: false,
+        mercadoPagoPix: false,
+        mercadoPagoHostedCard: false,
+        stripeCard: Boolean(isStripeConfigured() && stripeConnectAccountId),
+        asaasHostedCard: false,
+      });
     }
 
     try {
@@ -180,16 +192,23 @@ export class StartCheckoutUseCase {
         stripe?.status === "active" &&
         Boolean(stripe.externalAccountId || stripeConnectAccountId);
 
-      return {
-        pix: asaasActive || mercadoPagoPixActive,
-        // The current browser flow opens a provider invoice. Mercado Pago
-        // boleto requires its separate secure Brick implementation, so do not
-        // expose it through the generic method selector yet.
-        boleto: asaasActive,
-        card: stripeCardActive,
-      };
+      return resolveCheckoutPaymentCapabilities(storeSettings?.paymentRouting, {
+        asaas: asaasActive,
+        mercadoPagoPix: mercadoPagoPixActive,
+        mercadoPagoHostedCard: mercadoPagoPixActive,
+        stripeCard: stripeCardActive,
+        // The Asaas invoice page collects card data on Asaas, so Zyon never
+        // receives a card number or CVV for this option.
+        asaasHostedCard: asaasActive,
+      });
     } catch {
-      return { pix: false, boleto: false, card: false };
+      return resolveCheckoutPaymentCapabilities(storeSettings?.paymentRouting, {
+        asaas: false,
+        mercadoPagoPix: false,
+        mercadoPagoHostedCard: false,
+        stripeCard: false,
+        asaasHostedCard: false,
+      });
     }
   }
 

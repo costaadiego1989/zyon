@@ -247,6 +247,7 @@ function BoletoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   const status = useCheckoutStore((s) => s.status);
   const language = useCheckoutStore((s) => s.agent.language);
   const invoiceUrl = safeInvoiceUrl(data?.invoice_url);
+  const hostedCard = data?.hosted_card === true;
   const amountCents = data?.amount_cents;
   const totalLabel = typeof amountCents === "number" && Number.isSafeInteger(amountCents) && amountCents > 0
     ? new Intl.NumberFormat(checkoutLocale(language), { style: "currency", currency: "BRL" }).format(amountCents / 100)
@@ -261,7 +262,7 @@ function BoletoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   if (!invoiceUrl) {
     return (
       <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)", color: "var(--mut)", fontSize: "13px" }}>
-        Não foi possível disponibilizar o boleto com segurança. Escolha outra forma de pagamento.
+        Não foi possível disponibilizar o pagamento com segurança. Escolha outra forma de pagamento.
       </div>
     );
   }
@@ -277,9 +278,11 @@ function BoletoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
 
   return (
     <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
-      <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>Pague com boleto</div>
+      <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>{hostedCard ? "Pague com cartão" : "Pague com boleto"}</div>
       <p style={{ fontSize: "12px", color: "var(--mut)", margin: "0 0 8px", lineHeight: 1.4 }}>
-        Abra o boleto em uma nova aba. Confirmaremos seu pedido quando o pagamento for compensado.
+        {hostedCard
+          ? "Abra o ambiente seguro do provedor em uma nova aba para informar o cartão. Confirmaremos seu pedido automaticamente."
+          : "Abra o boleto em uma nova aba. Confirmaremos seu pedido quando o pagamento for compensado."}
       </p>
       {totalLabel && (
         <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", margin: "0 0 8px", color: "var(--tx)", fontSize: "12px" }}>
@@ -293,11 +296,11 @@ function BoletoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
         rel="noopener noreferrer"
         style={{ display: "block", marginTop: "12px", padding: "10px 14px", borderRadius: "8px", background: "var(--aacp-accent, #0f766e)", color: "#fff", fontSize: "13px", fontWeight: 600, textAlign: "center", textDecoration: "none" }}
       >
-        Abrir boleto seguro
+        {hostedCard ? "Abrir pagamento seguro" : "Abrir boleto seguro"}
       </a>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", padding: "14px 0 2px" }}>
         <PulseAgentOrb placement="chatLoading" active />
-        <p style={{ fontSize: "12px", color: "var(--mut)", margin: 0, textAlign: "center" }}>Aguardando a compensação...</p>
+        <p style={{ fontSize: "12px", color: "var(--mut)", margin: 0, textAlign: "center" }}>{hostedCard ? "Aguardando a confirmação..." : "Aguardando a compensação..."}</p>
       </div>
     </div>
   );
@@ -1389,6 +1392,8 @@ export function BlockRenderer({ block }: { block: ChatBlock }) {
       return <PixPaymentBlock data={block.data} />;
     case "boleto_payment":
       return <BoletoPaymentBlock data={block.data} />;
+    case "hosted_card_payment":
+      return <BoletoPaymentBlock data={{ ...block.data, hosted_card: true }} />;
     case "crypto_chain_select":
       return <CryptoChainSelectBlock data={block.data} />;
     case "crypto_payment":

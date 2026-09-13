@@ -483,6 +483,12 @@ export interface CheckoutExperienceSnapshot {
     pix: boolean;
     boleto: boolean;
     card: boolean;
+    /** Provider selected by the merchant after server-side capability checks. */
+    providers?: {
+      pix?: "asaas" | "mercadopago" | "stripe";
+      boleto?: "asaas" | "mercadopago" | "stripe";
+      card?: "asaas" | "mercadopago" | "stripe";
+    };
   };
   cryptoPaymentsEnabled?: boolean;
   cryptoPayments?: MerchantCryptoPayments | Record<string, unknown> | null;

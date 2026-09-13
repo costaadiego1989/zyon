@@ -210,6 +210,8 @@ export type PaymentConnection = {
   account_id: string | null;
   created_at: string;
   updated_at: string;
+  /** Buyer-facing methods ready for this connected provider. */
+  checkout_methods?: Array<"pix" | "boleto" | "card">;
 };
 
 export type PaymentOnboardingLinkResponse = {

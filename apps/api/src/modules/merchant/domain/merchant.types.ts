@@ -1,6 +1,16 @@
 import type { MerchantRules, MerchantTheme, SeoSettings, GtmSettings } from "@zyon/shared-types";
 
 export interface MerchantStoreSettings {
+  /**
+   * Gateway selected by the merchant for each buyer-facing checkout method.
+   * The checkout still verifies the connection, runtime configuration and the
+   * provider's secure collection flow before exposing a method to the buyer.
+   */
+  paymentRouting?: {
+    pix?: "asaas" | "mercadopago";
+    boleto?: "asaas";
+    card?: "asaas" | "stripe" | "mercadopago";
+  };
   social?: {
     instagram?: string;
     facebook?: string;
