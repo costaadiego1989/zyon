@@ -6,6 +6,7 @@ export interface ModalProps {
   title: string;
   subtitle?: string;
   eyebrow?: string;
+  presentation?: "drawer" | "floating-panel";
   onClose: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
@@ -15,12 +16,22 @@ export interface ModalProps {
  * Side Panel Modal — slides in from the right.
  * Standard creation/edit modal for the dashboard.
  */
-export function Modal({ isOpen, title, subtitle, eyebrow, onClose, children, footer }: ModalProps) {
+export function Modal({
+  isOpen,
+  title,
+  subtitle,
+  eyebrow,
+  presentation = "drawer",
+  onClose,
+  children,
+  footer,
+}: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const lastFocusedElement = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
   const titleId = useId();
+  const isFloatingPanel = presentation === "floating-panel";
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -79,6 +90,7 @@ export function Modal({ isOpen, title, subtitle, eyebrow, onClose, children, foo
         background: "rgba(0, 0, 0, 0.6)",
         backdropFilter: "blur(4px)",
         display: "flex",
+        alignItems: isFloatingPanel ? "center" : "stretch",
         justifyContent: "flex-end",
         zIndex: 1000,
       }}
@@ -91,11 +103,14 @@ export function Modal({ isOpen, title, subtitle, eyebrow, onClose, children, foo
         aria-labelledby={titleId}
         tabIndex={-1}
         style={{
-          width: "100%",
+          width: isFloatingPanel ? "min(440px, calc(100% - 32px))" : "100%",
           maxWidth: 440,
-          height: "100%",
+          height: isFloatingPanel ? "min(680px, calc(100dvh - 32px))" : "100%",
+          margin: isFloatingPanel ? 16 : 0,
           background: "var(--surface-2)",
-          borderLeft: "1px solid var(--color-border)",
+          border: isFloatingPanel ? "1px solid var(--color-border)" : undefined,
+          borderLeft: isFloatingPanel ? undefined : "1px solid var(--color-border)",
+          borderRadius: isFloatingPanel ? 16 : 0,
           display: "flex",
           flexDirection: "column",
           animation: "slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
