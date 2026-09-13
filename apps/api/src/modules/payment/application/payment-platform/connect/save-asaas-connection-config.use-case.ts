@@ -9,6 +9,7 @@ import {
 } from "../../../domain/ports/payment-platform-repository.port.js";
 import type { PaymentConnectionSnapshot } from "../../../domain/payment-platform.types.js";
 import { requiredConnection, providerGatewayError } from "../shared.js";
+import { assertPaymentProviderConnectionCapacity } from "./payment-provider-connection-limit.js";
 
 @Injectable()
 export class SaveAsaasConnectionConfigUseCase {
@@ -29,6 +30,7 @@ export class SaveAsaasConnectionConfigUseCase {
     const keyLive = apiKey.startsWith("$aact_prod_");
     if (/\s/.test(apiKey)) throw new BadRequestException("asaas_api_key_invalid");
     if ((keySandbox || keyLive) && keySandbox !== input.sandbox) throw new BadRequestException("asaas_environment_mismatch");
+    await assertPaymentProviderConnectionCapacity(this.repository, merchantId, "asaas");
     let status: Awaited<ReturnType<AsaasPlatformPort["retrieveAccountStatus"]>>;
     let walletId: string | null;
     try {

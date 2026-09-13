@@ -11,6 +11,11 @@ import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
 import { ConfirmDialog } from "../../components/ConfirmDialog.js";
 import { SidePanel } from "../../components/SidePanel.js";
 import { AsaasConnectionForm } from "./components/AsaasConnectionForm.js";
+import {
+  gatewayConnectionCount,
+  MAX_PAYMENT_GATEWAY_CONNECTIONS,
+  providerConnectionLimitReached,
+} from "./payment-provider-limit.js";
 import "./payment-connections-page.css";
 
 type DisconnectProvider = "stripe" | "asaas" | "mercadopago";
@@ -94,7 +99,8 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
     (c) => c.provider !== "stripe" && c.provider !== "asaas" && c.provider !== "crypto" && c.provider !== "mercadopago",
   );
   const tokenAddress = USDC_TOKEN_BY_CHAIN_NETWORK[`${crypto.config.chain}:${crypto.config.network}`];
-  const activeCount = connections.filter((c) => c.status === "active").length + (crypto.config.enabled ? 1 : 0);
+  const connectedGatewayCount = gatewayConnectionCount(connections);
+  const activeCount = connections.filter((c) => c.status === "active").length;
 
   return (
     <div className="page-container payment-connections-page">
@@ -102,7 +108,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
         <div>
           <span className="eyebrow">Loja</span>
           <h1>Conexões de pagamento</h1>
-          <p className="page-lead">Configure gateways e carteiras para receber pagamentos</p>
+          <p className="page-lead">Configure gateways e carteiras para receber pagamentos. Cada loja pode manter até {MAX_PAYMENT_GATEWAY_CONNECTIONS} gateways conectados.</p>
         </div>
         <button
           type="button"
@@ -149,6 +155,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
             onSync={() => void syncStripe()}
             onDisconnect={() => setPendingDisconnect("stripe")}
             onOnboard={stripeConn && stripeConn.status !== "active" ? () => void onboardStripe() : undefined}
+            connectionLimitReached={providerConnectionLimitReached(connections, "stripe")}
           />
           <GatewayCard
             provider="asaas"
@@ -164,6 +171,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
             onSync={() => void syncAsaas()}
             onDisconnect={() => setPendingDisconnect("asaas")}
             onOnboard={asaasConn && asaasConn.status !== "active" ? () => void openAsaasOnboarding() : undefined}
+            connectionLimitReached={providerConnectionLimitReached(connections, "asaas")}
             devAction={
               import.meta.env.DEV && asaasConn && asaasConn.status !== "active"
                 ? { label: "Aprovar (sandbox)", onClick: () => void approveAsaasSandbox() }
@@ -183,6 +191,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
             onConnect={() => void onboardMercadoPago()}
             onSync={() => void syncMercadoPago()}
             onDisconnect={() => setPendingDisconnect("mercadopago")}
+            connectionLimitReached={providerConnectionLimitReached(connections, "mercadopago")}
           />
           <WalletSection
             crypto={crypto}
@@ -239,26 +248,26 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
       ) : null}
 
       {/* Stats */}
-      {!isLoading && connections.length > 0 ? (
+      {!isLoading && connectedGatewayCount > 0 ? (
         <div
           role="status"
           aria-live="polite"
           className={`payment-connections-page__stats ${
-            activeCount === connections.length
+            activeCount === connectedGatewayCount
               ? "payment-connections-page__stats--success"
               : "payment-connections-page__stats--warning"
           }`}
         >
-          {activeCount === connections.length ? (
+          {activeCount === connectedGatewayCount ? (
             <CheckCircle2 size={16} aria-hidden="true" />
           ) : (
             <AlertCircle size={16} aria-hidden="true" />
           )}
           <span>
-            {activeCount} de {connections.length}{" "}
-            {connections.length === 1 ? "conexão" : "conexões"}{" "}
-            {activeCount === 1 ? "ativa" : "ativas"}
-            {activeCount === connections.length
+            {activeCount} de {connectedGatewayCount}{" "}
+            {connectedGatewayCount === 1 ? "gateway" : "gateways"}{" "}
+            {activeCount === 1 ? "ativo" : "ativos"}
+            {activeCount === connectedGatewayCount
               ? ` e pronta${activeCount === 1 ? "" : "s"} para transações.`
               : ". Verifique as conexões pendentes."}
           </span>

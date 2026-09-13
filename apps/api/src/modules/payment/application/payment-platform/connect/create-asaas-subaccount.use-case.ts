@@ -12,6 +12,7 @@ import {
 import type { AsaasSubaccountInput, PaymentConnectionSnapshot } from "../../../domain/payment-platform.types.js";
 import { requiredConnection, providerGatewayError } from "../shared.js";
 import { SyncAsaasSubaccountUseCase } from "./sync-asaas-subaccount.use-case.js";
+import { assertPaymentProviderConnectionCapacity } from "./payment-provider-connection-limit.js";
 
 @Injectable()
 export class CreateAsaasSubaccountUseCase {
@@ -33,6 +34,7 @@ export class CreateAsaasSubaccountUseCase {
     if (existing && await this.repository.getConnectionSecret(merchantId, "asaas")) {
       return new SyncAsaasSubaccountUseCase(this.repository, this.asaas).execute(merchantId);
     }
+    await assertPaymentProviderConnectionCapacity(this.repository, merchantId, "asaas");
 
     const cpfCnpjDigits = rawInput.cpfCnpj.replace(/\D+/g, "");
     if (![11, 14].includes(cpfCnpjDigits.length)) throw new BadRequestException("asaas_tax_id_invalid");

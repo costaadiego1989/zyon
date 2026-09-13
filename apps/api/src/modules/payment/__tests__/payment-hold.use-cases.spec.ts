@@ -150,8 +150,13 @@ test("approved delayed payment creates a hold; legacy payment remains untouched"
 
   await lifecycle.createForApprovedPayment({
     ...base,
-    creation: { state: "complete", input: { ...createHoldInput(), merchantId: "mrc_1", sessionId: "chk_1", intentId: "pay_delayed", amountCents: 10_099, currency: "BRL", method: "card", settlementMode: "delayed_merchant_payout", merchantPayoutDestination: "acct_merchant_1", platformFeeCents: 249 } },
+    creation: { state: "complete", input: { ...createHoldInput({ provider: "asaas", providerPaymentId: "pay_1", payoutDestination: "wallet_merchant_1" }), merchantId: "mrc_1", sessionId: "chk_1", intentId: "pay_delayed", amountCents: 10_099, currency: "BRL", method: "pix", settlementMode: "delayed_merchant_payout", merchantPayoutDestination: "wallet_merchant_1", platformFeeCents: 249 } },
   });
+  await assert.rejects(() => lifecycle.createForApprovedPayment({
+    ...base,
+    id: "pay_stale_stripe",
+    creation: { state: "complete", input: { ...createHoldInput(), merchantId: "mrc_1", sessionId: "chk_1", intentId: "pay_stale_stripe", amountCents: 10_099, currency: "BRL", method: "card", settlementMode: "delayed_merchant_payout", merchantPayoutDestination: "acct_merchant_1", platformFeeCents: 249 } },
+  }), /delayed_merchant_payout_snapshot_invalid/);
   await lifecycle.createForApprovedPayment({ ...base, id: "pay_legacy", creation: undefined });
 
   assert.equal(store.all().length, 1);

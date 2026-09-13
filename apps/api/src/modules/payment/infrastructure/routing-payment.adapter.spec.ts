@@ -168,6 +168,26 @@ test("RoutingPaymentAdapter: delayed Asaas payment uses the platform adapter, ne
   assert.equal(platformAsaas.calls[0].settlementMode, "delayed_merchant_payout");
 });
 
+test("RoutingPaymentAdapter: rejects delayed Stripe before it can settle a connected account", async () => {
+  const stripe = new FakeStripe();
+  const adapter = new RoutingPaymentAdapter(
+    stripe as unknown as StripePaymentAdapter,
+    new FakeAsaas() as unknown as AsaasPaymentAdapter,
+    null as unknown as MercadoPagoPaymentAdapter,
+    new FakeCrypto() as unknown as EvmCryptoPaymentAdapter,
+  );
+
+  await assert.rejects(
+    () => adapter.createPayment(baseInput({
+      method: "card",
+      provider: "stripe",
+      settlementMode: "delayed_merchant_payout",
+    })),
+    /stripe_delayed_payout_not_supported/,
+  );
+  assert.equal(stripe.calls.length, 0);
+});
+
 test("RoutingPaymentAdapter: delayed Asaas refund uses the platform account that captured the charge", async () => {
   const platformAsaas = new FakeAsaas();
   const platformRepo = new InMemoryPaymentPlatformRepository();

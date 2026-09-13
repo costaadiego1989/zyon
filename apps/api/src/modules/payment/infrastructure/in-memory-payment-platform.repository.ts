@@ -1,3 +1,4 @@
+import { ConflictException } from "@nestjs/common";
 import type {
   PaymentPlatformRepository,
   SaveBillingSubscriptionInput,
@@ -31,14 +32,14 @@ export class InMemoryPaymentPlatformRepository
 
   async getConnection(
     merchantId: string,
-    provider: "stripe" | "asaas",
+    provider: "stripe" | "asaas" | "mercadopago",
   ): Promise<PaymentConnectionSnapshot | undefined> {
     return this.connections.get(key(merchantId, provider));
   }
 
   async getConnectionSecret(
     merchantId: string,
-    provider: "stripe" | "asaas",
+    provider: "stripe" | "asaas" | "mercadopago",
   ): Promise<string | undefined> {
     return this.secrets.get(key(merchantId, provider));
   }
@@ -46,6 +47,9 @@ export class InMemoryPaymentPlatformRepository
   async saveConnection(input: SavePaymentConnectionInput): Promise<void> {
     const recordKey = key(input.merchantId, input.provider);
     const current = this.connections.get(recordKey);
+    if (!current && (await this.listConnections(input.merchantId)).length >= 2) {
+      throw new ConflictException("payment_provider_connection_limit_reached");
+    }
     const now = new Date().toISOString();
     this.connections.set(recordKey, {
       merchantId: input.merchantId,
@@ -67,7 +71,7 @@ export class InMemoryPaymentPlatformRepository
 
   async deleteConnection(
     merchantId: string,
-    provider: "stripe" | "asaas",
+    provider: "stripe" | "asaas" | "mercadopago",
   ): Promise<void> {
     this.connections.delete(key(merchantId, provider));
     this.secrets.delete(key(merchantId, provider));

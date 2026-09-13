@@ -19,7 +19,10 @@ export class PaymentHoldLifecycleService {
     const provider = input.provider;
     const payoutDestination = input.merchantPayoutDestination?.trim();
     const providerPaymentId = snapshot.providerPaymentId?.trim();
-    if ((provider !== "asaas" && provider !== "stripe") || !payoutDestination || !providerPaymentId) {
+    // Only Asaas has a transfer executor plus a provider confirmation webhook
+    // for this hold lifecycle. Reject stale/manual Stripe snapshots instead of
+    // letting a later job strand the merchant balance in payout_failed.
+    if (provider !== "asaas" || !payoutDestination || !providerPaymentId) {
       throw new Error("delayed_merchant_payout_snapshot_invalid");
     }
 

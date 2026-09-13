@@ -1,3 +1,4 @@
+import { ConflictException } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import type {
   PaymentPlatformRepository,
@@ -30,7 +31,7 @@ export class PrismaPaymentPlatformRepository
 
   async getConnection(
     merchantId: string,
-    provider: "stripe" | "asaas",
+    provider: "stripe" | "asaas" | "mercadopago",
   ): Promise<PaymentConnectionSnapshot | undefined> {
     const row = await this.prisma.merchantPaymentConnection.findUnique({
       where: {
@@ -45,7 +46,7 @@ export class PrismaPaymentPlatformRepository
 
   async getConnectionSecret(
     merchantId: string,
-    provider: "stripe" | "asaas",
+    provider: "stripe" | "asaas" | "mercadopago",
   ): Promise<string | undefined> {
     const row = await this.prisma.merchantPaymentConnection.findUnique({
       where: {
@@ -77,25 +78,32 @@ export class PrismaPaymentPlatformRepository
         ? { secretCipher: encryptPaymentSecret(input.secret) }
         : {}),
     };
-    await this.prisma.merchantPaymentConnection.upsert({
-      where: {
-        merchantId_provider: {
-          merchantId,
-          provider: input.provider,
-        },
-      },
-      create: {
-        merchantId,
-        provider: input.provider,
-        ...data,
-      },
-      update: data,
+    await this.prisma.$transaction(async (tx) => {
+      // Serialize distinct provider callbacks for one merchant. Without this
+      // lock two OAuth callbacks could both see one free slot and create a
+      // third gateway.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${merchantId}))`;
+      const current = await tx.merchantPaymentConnection.findUnique({
+        where: { merchantId_provider: { merchantId, provider: input.provider } },
+        select: { provider: true },
+      });
+      if (!current) {
+        const count = await tx.merchantPaymentConnection.count({ where: { merchantId } });
+        if (count >= 2) {
+          throw new ConflictException("payment_provider_connection_limit_reached");
+        }
+      }
+      await tx.merchantPaymentConnection.upsert({
+        where: { merchantId_provider: { merchantId, provider: input.provider } },
+        create: { merchantId, provider: input.provider, ...data },
+        update: data,
+      });
     });
   }
 
   async deleteConnection(
     merchantId: string,
-    provider: "stripe" | "asaas",
+    provider: "stripe" | "asaas" | "mercadopago",
   ): Promise<void> {
     await this.prisma.merchantPaymentConnection.deleteMany({
       where: { merchantId: merchantId.trim(), provider },

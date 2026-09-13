@@ -333,9 +333,6 @@ export class CreatePaymentIntentUseCase {
       if (!stripeConnectAccountId) {
         throw new BadRequestException("stripe_connect_not_configured");
       }
-      if (delayedMerchantPayout && !stripeConnection?.payoutsEnabled) {
-        throw new BadRequestException("stripe_merchant_payout_destination_not_ready");
-      }
       stripeApplicationFeeCents = buyerServiceFeeCents + merchantFeeCents;
     }
 
@@ -468,14 +465,7 @@ export class CreatePaymentIntentUseCase {
       amountCents, currency: intent.snapshot().currency, method,
       description: paymentDescription(merchantId, sessionId, commerceOrderId),
       ...(isStripeCard ? {
-          ...(delayedMerchantPayout
-            ? {
-                provider: "stripe" as const,
-                settlementMode: "delayed_merchant_payout" as const,
-                merchantPayoutDestination: stripeConnectAccountId,
-                merchantPayoutHoldDays,
-              }
-            : { stripeConnectAccountId }),
+          stripeConnectAccountId,
           platformFeeCents: stripeApplicationFeeCents,
         }
         : usesMercadoPago ? { platformFeeCents: mercadoPagoPlatformFeeCents, payerEmail: mercadoPagoPayerEmail }

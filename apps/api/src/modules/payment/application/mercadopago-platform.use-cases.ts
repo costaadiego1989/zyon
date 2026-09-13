@@ -21,6 +21,7 @@ import {
   readMercadoPagoOAuthConfig,
   isMercadoPagoOAuthConfigured,
 } from "../infrastructure/mercadopago-oauth-env.js";
+import { assertPaymentProviderConnectionCapacity } from "./payment-platform/connect/payment-provider-connection-limit.js";
 
 const MP_AUTH_URL = "https://auth.mercadopago.com/authorization";
 const MP_TOKEN_URL = "https://api.mercadopago.com/oauth/token";
@@ -74,6 +75,7 @@ export class CreateMercadoPagoOAuthLinkUseCase {
 
   async execute(merchantId: string, returnTo?: PaymentConnectReturn): Promise<{ url: string }> {
     const config = requiredOAuthConfig();
+    await assertPaymentProviderConnectionCapacity(this.repository, merchantId, "mercadopago");
 
     const state = encryptState(merchantId, paymentConnectReturn(returnTo));
     const params = new URLSearchParams({
@@ -106,6 +108,7 @@ export class HandleMercadoPagoOAuthCallbackUseCase {
     const config = requiredOAuthConfig();
 
     const { merchantId, returnTo } = readMercadoPagoOAuthState(input.state);
+    await assertPaymentProviderConnectionCapacity(this.repository, merchantId, "mercadopago");
 
     // Exchange code for access_token
     const tokenResponse = await fetch(MP_TOKEN_URL, {

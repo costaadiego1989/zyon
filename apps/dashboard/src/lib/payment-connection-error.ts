@@ -12,6 +12,7 @@ const messages: Record<string, string> = {
   asaas_tax_id_invalid: "Confira o CPF ou CNPJ do titular da conta Asaas.",
   asaas_connection_not_found: "Nenhuma conexão Asaas foi salva. Confira os dados e crie a subconta.",
   asaas_platform_failed: "O Asaas não concluiu a solicitação. Confira os dados do cadastro e tente novamente. Se o erro continuar, entre em contato com o suporte da Zyon.",
+  payment_provider_connection_limit_reached: "Sua loja já possui 2 gateways conectados. Desconecte um para conectar outro.",
   stripe_connect_not_enabled: "A conexão Stripe ainda não foi habilitada pela plataforma. Entre em contato com o suporte da Zyon.",
   stripe_connect_credentials_invalid: "A configuração Stripe da plataforma precisa ser revisada pelo suporte da Zyon.",
   stripe_connect_account_unavailable: "A conta Stripe vinculada não está disponível. Entre em contato com o suporte da Zyon.",

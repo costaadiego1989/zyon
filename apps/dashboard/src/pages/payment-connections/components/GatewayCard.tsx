@@ -24,6 +24,7 @@ interface GatewayCardProps {
   /** Dev/sandbox-only action (e.g. instantly approve). Rendered subtly. */
   devAction?: { label: string; onClick: () => void };
   comingSoon?: boolean;
+  connectionLimitReached?: boolean;
   configureUrl?: string;
 }
 
@@ -43,13 +44,14 @@ export function GatewayCard({
   onOnboard,
   devAction,
   comingSoon,
+  connectionLimitReached = false,
   configureUrl,
 }: GatewayCardProps) {
   const isConnected = !!connection;
   const status = connection?.status ?? "disconnected";
   const isMyConnecting = operation === connectingOperation;
   const isMySyncing = operation === syncingOperation;
-  const disabled = operation !== "idle" || comingSoon;
+  const disabled = operation !== "idle" || comingSoon || (!isConnected && connectionLimitReached);
 
   return (
     <section className="gateway-card" aria-labelledby={`gateway-${provider}`}>
@@ -101,7 +103,10 @@ export function GatewayCard({
       ) : !comingSoon ? (
         <div className="gateway-card__empty">
           <PlugZap size={18} aria-hidden="true" />
-          <p className="gateway-card__empty-text">Não conectado</p>
+          {connectionLimitReached ? (
+            <p className="gateway-card__empty-text">Limite de 2 gateways atingido. Desconecte um para conectar este.</p>
+          ) : null}
+          {!connectionLimitReached ? <p className="gateway-card__empty-text">Não conectado</p> : null}
         </div>
       ) : (
         <div className="gateway-card__empty">
@@ -189,6 +194,7 @@ export function GatewayCard({
             onClick={onConnect}
             aria-busy={isMyConnecting}
             aria-label={`Conectar ${name}`}
+            title={connectionLimitReached ? "Desconecte um gateway para liberar esta conexão" : undefined}
             loading={isMyConnecting}
             fullWidth
           >

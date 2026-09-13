@@ -14,4 +14,7 @@ describe("Asaas connection errors", () => {
   it("explains environment mismatch", () => {
     expect(paymentConnectionError(new DashboardHttpError(400, JSON.stringify({ code: "asaas_environment_mismatch" })))).toContain("ambiente selecionado");
   });
+  it("explains the two-gateway limit", () => {
+    expect(paymentConnectionError(new DashboardHttpError(409, JSON.stringify({ code: "payment_provider_connection_limit_reached" })))).toContain("2 gateways");
+  });
 });

@@ -19,6 +19,7 @@ import type { PaymentConnectionSnapshot } from "../../../domain/payment-platform
 import { requiredConnection } from "../shared.js";
 import { stripeConnectError } from "./stripe-connect-error.js";
 import { paymentConnectReturn, type PaymentConnectReturn } from "./payment-connect-return.js";
+import { assertPaymentProviderConnectionCapacity } from "./payment-provider-connection-limit.js";
 
 @Injectable()
 export class CreateStripeConnectOnboardingLinkUseCase {
@@ -45,6 +46,11 @@ export class CreateStripeConnectOnboardingLinkUseCase {
     connection: PaymentConnectionSnapshot;
   }> {
     const returnTo = paymentConnectReturn(input.returnTo);
+    await assertPaymentProviderConnectionCapacity(
+      this.repository,
+      input.merchantId,
+      "stripe",
+    );
     const profile = await this.merchants.getProfile(input.merchantId);
     if (!profile) throw new NotFoundException("merchant_not_found");
 
