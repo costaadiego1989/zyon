@@ -38,6 +38,34 @@ export interface PaymentMethod {
   sub: string;
 }
 
+type CheckoutPaymentMethod = "pix" | "boleto" | "credito" | "debito" | "crypto";
+
+interface MerchantPaymentConfig {
+  stripeEnabled?: boolean;
+  paymentMethods?: { pix: boolean; boleto: boolean; card: boolean };
+  cryptoPaymentsEnabled?: boolean;
+  cryptoPayments?: CryptoPaymentsConfig;
+}
+
+export function paymentMethodsForConfig(config: MerchantPaymentConfig): PaymentMethod[] {
+  const methods: PaymentMethod[] = [];
+  const available = config.paymentMethods;
+  if (available?.pix) methods.push({ key: "pix", label: "Pix", sub: "Pagamento instantâneo" });
+  if (available?.boleto) methods.push({ key: "boleto", label: "Boleto", sub: "Pague pelo link seguro" });
+  // Older API responses may have only stripeEnabled; current responses carry
+  // paymentMethods and are always preferred over a theme/client fallback.
+  if (available?.card ?? config.stripeEnabled) {
+    methods.push({ key: "credito", label: "Cartão de crédito", sub: "Pagamento seguro com cartão" });
+    methods.push({ key: "debito", label: "Cartão de débito", sub: "Débito à vista" });
+  }
+  if (config.cryptoPaymentsEnabled) {
+    const token = config.cryptoPayments?.token || "USDC";
+    const chain = config.cryptoPayments?.chain || "polygon";
+    methods.push({ key: "crypto", label: `Crypto · ${token}`, sub: `Liquida na ${chain} + cashback` });
+  }
+  return methods;
+}
+
 export interface BuyerData {
   name?: string;
   email?: string;
@@ -86,7 +114,7 @@ interface CheckoutState {
 
   brand: BrandConfig;
   agent: AgentConfig;
-  merchantPaymentConfig: { stripeEnabled?: boolean; cryptoPaymentsEnabled?: boolean; cryptoPayments?: CryptoPaymentsConfig };
+  merchantPaymentConfig: MerchantPaymentConfig;
 
   buyer: BuyerData;
 
@@ -122,7 +150,7 @@ interface CheckoutState {
   updateQty: (sku: string, quantity: number, variant?: string) => Promise<void>;
   removeCartItem: (sku: string, variant?: string) => Promise<void>;
   selectShipping: (key: string) => Promise<void>;
-  pay: (method: "pix" | "credito" | "debito" | "crypto", installments?: number) => Promise<void>;
+  pay: (method: CheckoutPaymentMethod, installments?: number) => Promise<void>;
   selectCryptoChain: (chain: "polygon" | "base") => Promise<void>;
   pollPayment: () => void;
   stopPolling: () => void;
@@ -160,6 +188,8 @@ function narrateBlock(block: ChatBlock): string | null {
       return "Como você prefere pagar?";
     case "pix_payment":
       return "Gerei seu código Pix. Escaneie o QR Code ou copie o código abaixo:";
+    case "boleto_payment":
+      return "Gerei seu boleto. Abra o link seguro para pagar:";
     case "crypto_chain_select":
       return "Escolha a rede para pagar com cripto:";
     case "crypto_payment":
@@ -203,7 +233,7 @@ function resolveAgentText(message: string | undefined, blocks: ChatBlock[]): str
  */
 function deriveBlocksFromStage(
   stage: string | undefined,
-  state: { buyer: BuyerData; cart: CartState; merchantPaymentConfig: { stripeEnabled?: boolean; cryptoPaymentsEnabled?: boolean; cryptoPayments?: CryptoPaymentsConfig } },
+  state: { buyer: BuyerData; cart: CartState; merchantPaymentConfig: MerchantPaymentConfig },
 ): ChatBlock[] | undefined {
   if (!stage) return undefined;
 
@@ -221,15 +251,7 @@ function deriveBlocksFromStage(
   }
 
   if (stage === "payment") {
-    const methods: Array<{ key: string; label: string; sub: string }> = [];
-    methods.push({ key: "pix", label: "Pix", sub: "Pagamento instantâneo" });
-    methods.push({ key: "credito", label: "Cartão de crédito", sub: "Pagamento seguro com cartão" });
-    methods.push({ key: "debito", label: "Cartão de débito", sub: "Débito à vista" });
-    if (state.merchantPaymentConfig.cryptoPaymentsEnabled) {
-      const token = state.merchantPaymentConfig.cryptoPayments?.token || "USDC";
-      const chain = state.merchantPaymentConfig.cryptoPayments?.chain || "polygon";
-      methods.push({ key: "crypto", label: `Crypto · ${token}`, sub: `Liquida na ${chain} + cashback` });
-    }
+    const methods = paymentMethodsForConfig(state.merchantPaymentConfig);
     return [{ type: "coupon_input", data: { methods } }];
   }
 
@@ -360,7 +382,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         agent,
         buyer,
         merchantPaymentConfig: {
-          stripeEnabled: exp?.stripeEnabled ?? rawBrand.stripeEnabled ?? true,
+          stripeEnabled: exp?.paymentMethods?.card ?? exp?.stripeEnabled ?? rawBrand.stripeEnabled ?? false,
+          paymentMethods: exp?.paymentMethods,
           cryptoPaymentsEnabled: exp?.cryptoPaymentsEnabled ?? rawBrand.cryptoPaymentsEnabled ?? false,
           cryptoPayments: exp?.cryptoPayments ?? rawBrand.cryptoPayments,
         },
@@ -497,15 +520,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
     if (text.startsWith("Entrega ·")) {
       const { merchantPaymentConfig } = get();
-      const methods: Array<{ key: string; label: string; sub: string }> = [];
-      methods.push({ key: "pix", label: "Pix", sub: "Pagamento instantâneo" });
-      methods.push({ key: "credito", label: "Cartão de crédito", sub: "Pagamento seguro com cartão" });
-      methods.push({ key: "debito", label: "Cartão de débito", sub: "Débito à vista" });
-      if (merchantPaymentConfig.cryptoPaymentsEnabled) {
-        const token = merchantPaymentConfig.cryptoPayments?.token || "USDC";
-        const chain = merchantPaymentConfig.cryptoPayments?.chain || "polygon";
-        methods.push({ key: "crypto", label: `Crypto · ${token}`, sub: `Liquida na ${chain} + cashback` });
-      }
+      const methods = paymentMethodsForConfig(merchantPaymentConfig);
       set((s) => ({
         messages: [...s.messages, {
           id: `agent_${Date.now()}`, role: "agent",
@@ -689,7 +704,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         paymentIntent: null,
         activeDiscount: null,
         messages: [
-          ...state.messages.map(message => ({ ...message, blocks: message.blocks?.filter(block => !["pix_payment", "stripe_card", "crypto_payment", "crypto_chain_select", "shipping_options", "payment_methods", "coupon_input"].includes(block.type)) })),
+          ...state.messages.map(message => ({ ...message, blocks: message.blocks?.filter(block => !["pix_payment", "boleto_payment", "stripe_card", "crypto_payment", "crypto_chain_select", "shipping_options", "payment_methods", "coupon_input"].includes(block.type)) })),
           { id: `cart_${Date.now()}`, role: "agent" as const, text: cart.items.length ? "Carrinho atualizado. Vamos confirmar o frete antes do pagamento." : "Produto removido. Seu carrinho está vazio.", timestamp: Date.now() },
         ],
       }));
@@ -745,6 +760,18 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     const { api, buyer, cart } = get();
     if (!api || get().cartUpdating) return;
 
+    const availableMethods = paymentMethodsForConfig(get().merchantPaymentConfig);
+    if (!availableMethods.some((available) => available.key === method)) {
+      const errorMsg: Message = {
+        id: `error_${Date.now()}`,
+        role: "agent",
+        text: "Essa forma de pagamento não está disponível para esta loja.",
+        timestamp: Date.now(),
+      };
+      set((s) => ({ messages: [...s.messages, errorMsg] }));
+      return;
+    }
+
     const shippingChosen = Boolean(cart.shipping) ||
       cart.status === "shipping_calculated" || cart.status === "ready_to_pay";
     if (!shippingChosen) {
@@ -790,10 +817,23 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         cart: { ...get().cart, status: "ready_to_pay" },
       });
 
-      const blockType = method === "pix" ? "pix_payment" : "stripe_card";
+      const isCard = method === "credito" || method === "debito";
+      if (isCard && (!intent.stripe_client_secret || !intent.stripe_publishable_key)) {
+        throw new Error("stripe_card_checkout_unavailable");
+      }
+      if (method === "boleto" && !intent.invoice_url) {
+        throw new Error("boleto_invoice_unavailable");
+      }
+      const blockType = method === "pix"
+        ? "pix_payment"
+        : method === "boleto"
+          ? "boleto_payment"
+          : "stripe_card";
       const blockText = method === "pix"
         ? "Pix gerado! Pague e confirmo seu pedido automaticamente."
-        : "Preencha os dados do cartão para finalizar.";
+        : method === "boleto"
+          ? "Boleto gerado! Abra o link seguro para pagar."
+          : "Preencha os dados do cartão para finalizar.";
       const paymentMsg: Message = {
         id: `agent_pay_${Date.now()}`,
         role: "agent",
@@ -804,6 +844,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
             intent_id: intent.intent_id,
             pix_code: intent.pix_code,
             pix_qr_url: intent.pix_qr_url,
+            invoice_url: intent.invoice_url,
             stripe_client_secret: intent.stripe_client_secret,
             stripe_publishable_key: intent.stripe_publishable_key,
             expires_at_unix: intent.expires_at_unix,
@@ -970,20 +1011,10 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   proceedToPayment: (methods) => {
     const s = get();
-    let list = methods;
-    if (!list?.length) {
-      const cfg = s.merchantPaymentConfig;
-      list = [
-        { key: "pix", label: "Pix", sub: "Pagamento instantâneo" },
-        { key: "credito", label: "Cartão de crédito", sub: "Pagamento seguro com cartão" },
-        { key: "debito", label: "Cartão de débito", sub: "Débito à vista" },
-      ];
-      if (cfg?.cryptoPaymentsEnabled) {
-        const token = cfg.cryptoPayments?.token || "USDC";
-        const chain = cfg.cryptoPayments?.chain || "polygon";
-        list.push({ key: "crypto", label: `Crypto · ${token}`, sub: `Liquida na ${chain} + cashback` });
-      }
-    }
+    const permitted = paymentMethodsForConfig(s.merchantPaymentConfig);
+    const permittedKeys = new Set(permitted.map((method) => method.key));
+    const requested = methods?.filter((method) => permittedKeys.has(method.key)) ?? [];
+    const list = requested.length > 0 ? requested : permitted;
     set((st) => ({
       messages: [...st.messages, {
         id: `agent_pay_${Date.now()}`,

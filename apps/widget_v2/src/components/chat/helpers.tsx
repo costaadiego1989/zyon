@@ -51,6 +51,8 @@ function blockToNarration(block: ChatBlock): string | null {
     }
     case "stripe_card":
       return "Preencha os dados do cartão de crédito para finalizar.";
+    case "boleto_payment":
+      return "Abra o boleto seguro para concluir o pagamento.";
     case "order_confirmation":
       return "Pedido confirmado! Obrigada pela compra.";
     default:

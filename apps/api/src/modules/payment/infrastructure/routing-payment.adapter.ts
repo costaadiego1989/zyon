@@ -84,6 +84,9 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     input: CreateProviderPaymentInput,
   ): Promise<CreateProviderPaymentOutput> {
     if (input.provider) {
+      if (input.provider === "mercadopago" && !mercadoPagoWebhookConfigured()) {
+        throw new Error("mercadopago_webhook_not_configured");
+      }
       const { adapter } = await this.creationRoute(input);
       this.assertAccount(adapter, input.providerAccountFingerprint);
       return adapter.createPayment(input);
@@ -100,9 +103,10 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
       }
     }
 
-    // Priority: mercadopago > asaas for PIX/boleto (if configured)
+    // Mercado Pago may create a charge only when its signed webhook is ready to
+    // reconcile the result. When it is not, prefer the active Asaas rail.
     const mercadopago = await this.resolveMercadoPago(input.merchantId);
-    if (mercadopago && (input.method === "pix" || input.method === "boleto")) {
+    if (mercadopago && mercadoPagoWebhookConfigured() && input.method === "pix") {
       return mercadopago.createPayment(input);
     }
 
@@ -327,6 +331,10 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     }
     return this.stripe;
   }
+}
+
+function mercadoPagoWebhookConfigured(): boolean {
+  return Boolean(process.env.MERCADOPAGO_WEBHOOK_SECRET?.trim());
 }
 
 /**

@@ -22,6 +22,11 @@ import { InterventionRuleTextBuilder } from "../services/intervention-rule-text.
 import { CheckoutCartAuthorityService } from "../services/checkout-cart-authority.service.js";
 import { unverifiedCustomerHints } from "../services/checkout-input-policy.js";
 import type { TrustedCheckoutBuyer } from "../services/trusted-checkout-buyer.js";
+import {
+  PAYMENT_PLATFORM_REPOSITORY,
+  type PaymentPlatformRepository,
+} from "../../../payment/domain/ports/payment-platform-repository.port.js";
+import { isStripeConfigured } from "../../../payment/infrastructure/stripe-env.js";
 
 @Injectable()
 export class StartCheckoutUseCase {
@@ -38,7 +43,8 @@ export class StartCheckoutUseCase {
     @Optional() @Inject(MERCHANT_PLAN_PORT) private readonly merchantPlan?: MerchantPlanPort,
     @Optional() @Inject(CHECKOUT_CROSS_SELL_RECOMMENDER) private readonly crossSell?: CheckoutCrossSellRecommenderPort,
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL },
-    @Optional() private readonly cartAuthority?: CheckoutCartAuthorityService
+    @Optional() private readonly cartAuthority?: CheckoutCartAuthorityService,
+    @Optional() @Inject(PAYMENT_PLATFORM_REPOSITORY) private readonly paymentConnections?: PaymentPlatformRepository,
   ) { }
 
   async execute(input: StartCheckoutRequest, trustedContext?: { storefrontCartRef?: string; trustedBuyer?: TrustedCheckoutBuyer; requireBuyerProof?: boolean }): Promise<StartCheckoutResponse> {
@@ -58,6 +64,7 @@ export class StartCheckoutUseCase {
     };
     const settings = await this.checkoutSettings?.getContext(input.merchant_id);
     const merchant = await this.merchantRepository?.getProfile(input.merchant_id);
+    const paymentMethods = await this.resolvePaymentMethods(input.merchant_id, merchant?.stripeConnectAccountId);
 
     // Plano efetivo do merchant → gates de features no checkout:
     // - whiteLabel: badge "Powered by Zyon" só quando plano NÃO tem a feature.
@@ -112,6 +119,7 @@ export class StartCheckoutUseCase {
         serviceFee: this.experienceConfig.platformFeeBrl,
         suggestedProducts,
         stripeConnectAccountId: merchant?.stripeConnectAccountId,
+        paymentMethods,
         cryptoPaymentsEnabled: !!(merchantRules as any)?.cryptoPayments?.enabled,
         cryptoPayments: (merchantRules as any)?.cryptoPayments ?? null,
         merchantRulesForWidget: merchantRules ? {
@@ -138,6 +146,51 @@ export class StartCheckoutUseCase {
       }),
       turns: session.chatHistory
     };
+  }
+
+  private async resolvePaymentMethods(
+    merchantId: string,
+    stripeConnectAccountId: string | null | undefined,
+  ): Promise<{ pix: boolean; boleto: boolean; card: boolean }> {
+    // A database outage must not make the checkout claim that a payment rail is
+    // usable. The payment-intent endpoint remains the final authority.
+    if (!this.paymentConnections) {
+      return {
+        pix: false,
+        boleto: false,
+        card: Boolean(isStripeConfigured() && stripeConnectAccountId),
+      };
+    }
+
+    try {
+      const [asaas, mercadopago, stripe] = await Promise.all([
+        this.paymentConnections.getConnection(merchantId, "asaas"),
+        this.paymentConnections.getConnection(merchantId, "mercadopago"),
+        this.paymentConnections.getConnection(merchantId, "stripe"),
+      ]);
+      const asaasActive = asaas?.status === "active";
+      // Mercado Pago is operational only when the signed webhook can reconcile
+      // payment and refund events. It may still be connected in the dashboard
+      // while the platform secret is missing.
+      const mercadoPagoPixActive =
+        mercadopago?.status === "active" &&
+        Boolean(process.env.MERCADOPAGO_WEBHOOK_SECRET?.trim());
+      const stripeCardActive =
+        isStripeConfigured() &&
+        stripe?.status === "active" &&
+        Boolean(stripe.externalAccountId || stripeConnectAccountId);
+
+      return {
+        pix: asaasActive || mercadoPagoPixActive,
+        // The current browser flow opens a provider invoice. Mercado Pago
+        // boleto requires its separate secure Brick implementation, so do not
+        // expose it through the generic method selector yet.
+        boleto: asaasActive,
+        card: stripeCardActive,
+      };
+    } catch {
+      return { pix: false, boleto: false, card: false };
+    }
   }
 
 

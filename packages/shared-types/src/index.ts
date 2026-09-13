@@ -475,6 +475,15 @@ export interface CheckoutExperienceSnapshot {
     fontDisplay?: string;
   };
   stripeEnabled?: boolean;
+  /**
+   * Server-authoritative methods that can be completed by this checkout. The
+   * client must not infer availability from a connected-provider label.
+   */
+  paymentMethods?: {
+    pix: boolean;
+    boleto: boolean;
+    card: boolean;
+  };
   cryptoPaymentsEnabled?: boolean;
   cryptoPayments?: MerchantCryptoPayments | Record<string, unknown> | null;
   payment_intent?: {

@@ -104,7 +104,7 @@ export function StepPayment({
             <span style={{ fontSize: "11px", marginLeft: 8, padding: "2px 6px", borderRadius: "3px", background: paymentDraft.mercadopagoStatus === "active" ? "var(--color-success-bg)" : "var(--color-border)", color: paymentDraft.mercadopagoStatus === "active" ? "var(--color-success)" : "var(--color-text-muted)" }}>
               {paymentDraft.mercadopagoStatus === "active" ? "Ativo" : paymentDraft.mercadopagoStatus === "pending" ? "Pendente" : "Não configurado"}
             </span>
-            <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "4px 0 0" }}>Cartão, PIX e boleto via sua conta Mercado Pago.</p>
+            <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "4px 0 0" }}>PIX no checkout via sua conta Mercado Pago.</p>
           </div>
           <Button variant="outline" size="sm" disabled={busy || paymentDraft.mercadopagoStatus === "active"} onClick={() => void initiateMercadoPagoOnboarding()}>
             {paymentDraft.mercadopagoStatus === "connecting" ? "Conectando..." : paymentDraft.mercadopagoStatus === "active" ? "Ativo" : "Conectar"}

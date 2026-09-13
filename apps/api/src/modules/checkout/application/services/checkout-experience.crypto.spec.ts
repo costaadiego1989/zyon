@@ -51,3 +51,15 @@ test("quickRepliesForStage includes crypto chip when merchant enabled", () => {
   });
   assert.equal(replies.includes("Pagar com crypto"), true);
 });
+
+test("quickRepliesForStage only exposes checkout payment capabilities", () => {
+  const replies = quickRepliesForStage(
+    "payment",
+    [],
+    undefined,
+    undefined,
+    { pix: true, boleto: false, card: false },
+  );
+
+  assert.deepEqual(replies, ["PIX"]);
+});

@@ -8,7 +8,7 @@ import type { FaqItem, SupportMessage, SupportViewModelInterface } from "./types
 const DEFAULT_FAQ_ITEMS: FaqItem[] = [
   { icon: "🚚", question: "Prazo de entrega", answer: "De 2 a 10 dias úteis, dependendo da região e modalidade de envio escolhida." },
   { icon: "🔄", question: "Política de trocas", answer: "Aceitamos trocas dentro de 7 dias após o recebimento. Produto em perfeitas condições." },
-  { icon: "💳", question: "Formas de pagamento", answer: "Cartão de crédito, PIX, boleto bancário e crypto USDC." },
+  { icon: "💳", question: "Formas de pagamento", answer: "As formas de pagamento disponíveis aparecem antes da finalização do pedido." },
   { icon: "👤", question: "Falar com atendente", answer: "Um atendente humano será acionado em breve." },
 ];
 

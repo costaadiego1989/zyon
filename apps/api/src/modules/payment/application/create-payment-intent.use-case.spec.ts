@@ -15,21 +15,29 @@ import { InMemoryPaymentPlatformRepository } from "../infrastructure/in-memory-p
 import type { BillingPlanMeteringService } from "../domain/billing-plan-guard.js";
 
 test("Mercado Pago receives the Free fee after expiry without adding it to the buyer total or requiring Asaas", async () => {
-  for (const expired of [false, true]) {
-    const checkout = new InMemoryCheckoutRepository();
-    await checkout.saveSession(checkoutSession({ customer: { email: "buyer@example.com" } }));
-    const connections = new InMemoryPaymentPlatformRepository();
-    await connections.saveConnection({ merchantId: "mrc_1", provider: "mercadopago", environment: "live", status: "active" });
-    const provider = new CapturingPaymentProvider();
-    const billing = { getSubscription: async () => ({ status: "trialing", planKey: "starter", trialEndsAt: new Date(Date.now() + (expired ? -86400000 : 86400000)).toISOString() }) } as unknown as BillingPlanMeteringService;
-    const useCase = new CreatePaymentIntentUseCase(checkout, checkout, new InMemoryPaymentRepository(checkout), provider, undefined, undefined, undefined, connections, undefined, undefined, billing);
-    const intent = await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "fee-test", method: "pix" });
-    assert.equal(provider.inputs[0]?.platformFeeCents, expired ? 398 : 99);
-    assert.equal(provider.inputs[0]?.asaasCustomerId, undefined);
-    assert.equal(provider.inputs[0]?.payerEmail, "buyer@example.com");
-    assert.equal(intent.amountCents, 33599); // R$300 cart + R$35 shipping + R$0.99 buyer fee.
-    await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "fee-test", method: "pix" });
-    assert.equal(provider.inputs.length, 1);
+  const previousWebhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+  process.env.MERCADOPAGO_WEBHOOK_SECRET = "test-webhook-secret";
+  try {
+    for (const expired of [false, true]) {
+      const checkout = new InMemoryCheckoutRepository();
+      await checkout.saveSession(checkoutSession({ customer: { email: "buyer@example.com" } }));
+      const connections = new InMemoryPaymentPlatformRepository();
+      await connections.saveConnection({ merchantId: "mrc_1", provider: "mercadopago", environment: "live", status: "active" });
+      const provider = new CapturingPaymentProvider();
+      const billing = { getSubscription: async () => ({ status: "trialing", planKey: "starter", trialEndsAt: new Date(Date.now() + (expired ? -86400000 : 86400000)).toISOString() }) } as unknown as BillingPlanMeteringService;
+      const useCase = new CreatePaymentIntentUseCase(checkout, checkout, new InMemoryPaymentRepository(checkout), provider, undefined, undefined, undefined, connections, undefined, undefined, billing);
+      const intent = await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "fee-test", method: "pix" });
+      assert.equal(provider.inputs[0]?.provider, "mercadopago");
+      assert.equal(provider.inputs[0]?.platformFeeCents, expired ? 398 : 99);
+      assert.equal(provider.inputs[0]?.asaasCustomerId, undefined);
+      assert.equal(provider.inputs[0]?.payerEmail, "buyer@example.com");
+      assert.equal(intent.amountCents, 33599); // R$300 cart + R$35 shipping + R$0.99 buyer fee.
+      await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "fee-test", method: "pix" });
+      assert.equal(provider.inputs.length, 1);
+    }
+  } finally {
+    if (previousWebhookSecret === undefined) delete process.env.MERCADOPAGO_WEBHOOK_SECRET;
+    else process.env.MERCADOPAGO_WEBHOOK_SECRET = previousWebhookSecret;
   }
 });
 
@@ -290,7 +298,7 @@ test("CreatePaymentIntentUseCase rejects payment before selected shipping exists
   );
 });
 
-test("CreatePaymentIntentUseCase routes card to the fallback provider when Stripe is not configured", async () => {
+test("CreatePaymentIntentUseCase rejects card when Stripe Elements is not configured", async () => {
   const keys = [
     "STRIPE_SECRET_KEY_TEST",
     "STRIPE_PUBLISHABLE_KEY_TEST",
@@ -317,15 +325,16 @@ test("CreatePaymentIntentUseCase routes card to the fallback provider when Strip
       provider
     );
 
-    await uc.execute({
-          merchant_id: "mrc_1",
-          session_id: "chk_1",
-          idempotency_key: "idem_card_no_stripe",
-          method: "card"
-        });
-    assert.equal(provider.inputs.length, 1);
-    assert.equal(provider.inputs[0]?.stripeConnectAccountId, undefined);
-    assert.equal(provider.inputs[0]?.asaasCustomerId, "cus_fixture_1");
+    await assert.rejects(
+      () => uc.execute({
+        merchant_id: "mrc_1",
+        session_id: "chk_1",
+        idempotency_key: "idem_card_no_stripe",
+        method: "card"
+      }),
+      /stripe_card_not_available/
+    );
+    assert.equal(provider.inputs.length, 0);
   } finally {
     for (const k of keys) {
       const v = backup[k];

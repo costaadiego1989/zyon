@@ -137,6 +137,52 @@ test("RoutingPaymentAdapter: routes pix/boleto to Asaas fallback when no platfor
   assert.equal(asaas.calls.length, 1);
 });
 
+test("RoutingPaymentAdapter: falls back to Asaas when Mercado Pago lacks its webhook secret", async () => {
+  const previousWebhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+  delete process.env.MERCADOPAGO_WEBHOOK_SECRET;
+  try {
+    const asaas = new FakeAsaas();
+    const mercadoPago = new FakeAsaas();
+    const repository = new InMemoryPaymentPlatformRepository();
+    await repository.saveConnection({ merchantId: "mrc_1", provider: "asaas", environment: "live", status: "active" });
+    await repository.saveConnection({ merchantId: "mrc_1", provider: "mercadopago", environment: "live", status: "active" });
+    const adapter = new RoutingPaymentAdapter(
+      null,
+      asaas as unknown as AsaasPaymentAdapter,
+      mercadoPago as unknown as MercadoPagoPaymentAdapter,
+      new FakeCrypto() as unknown as EvmCryptoPaymentAdapter,
+      repository,
+    );
+
+    await adapter.createPayment(baseInput({ method: "pix" }));
+    assert.equal(asaas.calls.length, 1);
+    assert.equal(mercadoPago.calls.length, 0);
+  } finally {
+    if (previousWebhookSecret === undefined) delete process.env.MERCADOPAGO_WEBHOOK_SECRET;
+    else process.env.MERCADOPAGO_WEBHOOK_SECRET = previousWebhookSecret;
+  }
+});
+
+test("RoutingPaymentAdapter: rejects a new Mercado Pago charge without webhook reconciliation", async () => {
+  const previousWebhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+  delete process.env.MERCADOPAGO_WEBHOOK_SECRET;
+  try {
+    const adapter = new RoutingPaymentAdapter(
+      null,
+      null,
+      new FakeAsaas() as unknown as MercadoPagoPaymentAdapter,
+      new FakeCrypto() as unknown as EvmCryptoPaymentAdapter,
+    );
+    await assert.rejects(
+      () => adapter.createPayment(baseInput({ method: "pix", provider: "mercadopago" })),
+      /mercadopago_webhook_not_configured/,
+    );
+  } finally {
+    if (previousWebhookSecret === undefined) delete process.env.MERCADOPAGO_WEBHOOK_SECRET;
+    else process.env.MERCADOPAGO_WEBHOOK_SECRET = previousWebhookSecret;
+  }
+});
+
 test("RoutingPaymentAdapter: delayed Asaas payment uses the platform adapter, never tenant credentials", async () => {
   const platformAsaas = new FakeAsaas();
   const platformRepo = new InMemoryPaymentPlatformRepository();

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { useCheckoutStore } from "@/store/checkout-store";
+import { paymentMethodsForConfig, useCheckoutStore } from "@/store/checkout-store";
 import { confirmCryptoPayment } from "@/api/payment";
 import { PulseAgentOrb } from "../PulseAgentOrb";
 import type { ChatBlock } from "@/api/checkout-session";
@@ -104,10 +104,13 @@ function ShippingOptionsBlock({ options }: { options?: unknown }) {
 
 function PaymentMethodsBlock({ methods }: { methods?: unknown }) {
   const pay = useCheckoutStore((s) => s.pay);
-  const meths = (methods as Array<{ key: string; label: string; sub?: string }>) ?? [];
+  const merchantPaymentConfig = useCheckoutStore((s) => s.merchantPaymentConfig);
+  const permittedKeys = new Set(paymentMethodsForConfig(merchantPaymentConfig).map((method) => method.key));
+  const meths = ((methods as Array<{ key: string; label: string; sub?: string }>) ?? [])
+    .filter((method) => permittedKeys.has(method.key));
 
   const handleSelect = (method: (typeof meths)[0]) => {
-    void pay(method.key as "pix" | "credito" | "debito" | "crypto");
+    void pay(method.key as "pix" | "boleto" | "credito" | "debito" | "crypto");
   };
 
   return (
@@ -223,6 +226,78 @@ function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
         <p style={{ fontSize: "13px", color: "var(--mut)", margin: 0, textAlign: "center" }}>
           Aguardando pagamento...
         </p>
+      </div>
+    </div>
+  );
+}
+
+function safeInvoiceUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function BoletoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
+  const pollPayment = useCheckoutStore((s) => s.pollPayment);
+  const stopPolling = useCheckoutStore((s) => s.stopPolling);
+  const status = useCheckoutStore((s) => s.status);
+  const language = useCheckoutStore((s) => s.agent.language);
+  const invoiceUrl = safeInvoiceUrl(data?.invoice_url);
+  const amountCents = data?.amount_cents;
+  const totalLabel = typeof amountCents === "number" && Number.isSafeInteger(amountCents) && amountCents > 0
+    ? new Intl.NumberFormat(checkoutLocale(language), { style: "currency", currency: "BRL" }).format(amountCents / 100)
+    : null;
+
+  useEffect(() => {
+    if (!invoiceUrl) return;
+    pollPayment();
+    return () => stopPolling();
+  }, [invoiceUrl, pollPayment, stopPolling]);
+
+  if (!invoiceUrl) {
+    return (
+      <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)", color: "var(--mut)", fontSize: "13px" }}>
+        Não foi possível disponibilizar o boleto com segurança. Escolha outra forma de pagamento.
+      </div>
+    );
+  }
+
+  if (status === "completed") {
+    return (
+      <div style={{ padding: "16px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)", textAlign: "center" }}>
+        <div style={{ fontSize: "15px", fontWeight: 700, color: "var(--tx)" }}>Pagamento confirmado!</div>
+        <p style={{ fontSize: "13px", color: "var(--mut)", margin: "8px 0 0" }}>Seu pedido está sendo processado.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
+      <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>Pague com boleto</div>
+      <p style={{ fontSize: "12px", color: "var(--mut)", margin: "0 0 8px", lineHeight: 1.4 }}>
+        Abra o boleto em uma nova aba. Confirmaremos seu pedido quando o pagamento for compensado.
+      </p>
+      {totalLabel && (
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", margin: "0 0 8px", color: "var(--tx)", fontSize: "12px" }}>
+          <span>Total a pagar</span><strong>{totalLabel}</strong>
+        </div>
+      )}
+      <BuyerServiceFeeNotice />
+      <a
+        href={invoiceUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ display: "block", marginTop: "12px", padding: "10px 14px", borderRadius: "8px", background: "var(--aacp-accent, #0f766e)", color: "#fff", fontSize: "13px", fontWeight: 600, textAlign: "center", textDecoration: "none" }}
+      >
+        Abrir boleto seguro
+      </a>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", padding: "14px 0 2px" }}>
+        <PulseAgentOrb placement="chatLoading" active />
+        <p style={{ fontSize: "12px", color: "var(--mut)", margin: 0, textAlign: "center" }}>Aguardando a compensação...</p>
       </div>
     </div>
   );
@@ -1312,6 +1387,8 @@ export function BlockRenderer({ block }: { block: ChatBlock }) {
       return <PaymentMethodsBlock methods={block.data?.methods} />;
     case "pix_payment":
       return <PixPaymentBlock data={block.data} />;
+    case "boleto_payment":
+      return <BoletoPaymentBlock data={block.data} />;
     case "crypto_chain_select":
       return <CryptoChainSelectBlock data={block.data} />;
     case "crypto_payment":

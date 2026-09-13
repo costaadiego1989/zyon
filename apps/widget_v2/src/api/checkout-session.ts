@@ -127,6 +127,11 @@ export interface Experience {
   cart?: { items: CartItem[] };
   stage?: string;
   stripeEnabled?: boolean;
+  paymentMethods?: {
+    pix: boolean;
+    boleto: boolean;
+    card: boolean;
+  };
   cryptoPaymentsEnabled?: boolean;
   cryptoPayments?: CryptoPaymentsConfig;
   suggestedProducts?: SuggestedProduct[];
@@ -177,6 +182,7 @@ export interface PaymentIntent {
   pix_qr_url?: string;
   stripe_client_secret?: string;
   stripe_publishable_key?: string;
+  invoice_url?: string;
   crypto_chain?: string;
   crypto_chain_label?: string;
   crypto_network?: string;
@@ -353,7 +359,7 @@ export class CheckoutSession {
   }
 
   async createPaymentIntent(
-    method: "pix" | "credito" | "debito" | "crypto",
+    method: "pix" | "boleto" | "credito" | "debito" | "crypto",
     installments?: number,
     options?: { chain?: "polygon" | "base" }
   ): Promise<PaymentIntent> {
@@ -422,6 +428,7 @@ export class CheckoutSession {
       pix_qr_url: pixQrUrl,
       stripe_client_secret: raw.buyerFacing?.clientSecret,
       stripe_publishable_key: raw.buyerFacing?.stripePublishableKey,
+      invoice_url: raw.buyerFacing?.invoiceUrl,
       crypto_chain: raw.buyerFacing?.chain,
       crypto_chain_label: raw.buyerFacing?.chainLabel,
       crypto_network: raw.buyerFacing?.evmNetwork,

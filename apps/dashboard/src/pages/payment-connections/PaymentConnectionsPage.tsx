@@ -160,7 +160,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
           <GatewayCard
             provider="asaas"
             name="Asaas"
-            description="PIX, boleto e cartão Brasil"
+            description="PIX e boleto no checkout"
             iconBg="#fff"
             icon={<AsaasLogo size={52} />}
             connection={asaasConn}
@@ -181,7 +181,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
           <GatewayCard
             provider="mercadopago"
             name="Mercado Pago"
-            description="PIX, cartão e boleto — América Latina"
+            description="PIX no checkout via OAuth"
             iconBg="#fff"
             icon={<MercadoPagoLogo size={52} />}
             connection={mercadopagoConn}

@@ -279,23 +279,40 @@ export class CreatePaymentIntentUseCase {
     const orderAmountCents = itemsSubtotalCents + shippingCents - discountCents;
     if (orderAmountCents <= 0) throw new BadRequestException("payment_intent_amount_invalid");
 
-    // Card routing: prefer Stripe when the merchant has an ACTIVE Stripe
-    // connection; otherwise fall back to Asaas (which processes credit cards in
-    // Brazil). This mirrors RoutingPaymentAdapter and prevents a hard failure
-    // when Stripe is restricted/inactive but Asaas is active.
+    // Card details are collected only by Stripe Elements in the active browser
+    // checkout. Do not fall back to Asaas here: the API intentionally rejects
+    // raw card data and therefore cannot safely complete that fallback.
     let stripeCardActive = false;
+    let stripeConnection: Awaited<ReturnType<PaymentPlatformRepository["getConnection"]>> | undefined;
     if (method === "card") {
-      const stripeConnection = await this.platformConnections?.getConnection(merchantId, "stripe");
+      stripeConnection = await this.platformConnections?.getConnection(merchantId, "stripe");
       stripeCardActive =
         isStripeConfigured() &&
         (!this.platformConnections || stripeConnection?.status === "active");
+      if (!stripeCardActive) {
+        throw new BadRequestException("stripe_card_not_available");
+      }
     }
 
     const isStripeCard = method === "card" && stripeCardActive;
+    const asaasConnection = (method === "pix" || method === "boleto")
+      ? await this.platformConnections?.getConnection(merchantId, "asaas") : undefined;
     const mercadoPagoConnection = (method === "pix" || method === "boleto")
       ? await this.platformConnections?.getConnection(merchantId, "mercadopago") : undefined;
-    const usesMercadoPago = mercadoPagoConnection?.status === "active";
-    const usesAsaas = method !== "crypto" && !isStripeCard && !usesMercadoPago;
+    const asaasActive = !this.platformConnections || asaasConnection?.status === "active";
+    const mercadoPagoActive = mercadoPagoConnection?.status === "active";
+    const mercadoPagoWebhookConfigured = Boolean(process.env.MERCADOPAGO_WEBHOOK_SECRET?.trim());
+    // The current Mercado Pago browser integration is PIX-only. Card token
+    // collection and boleto both need Mercado Pago Bricks, which cannot be
+    // substituted by sending payment data through this API.
+    const usesMercadoPago = method === "pix" && mercadoPagoActive && mercadoPagoWebhookConfigured;
+    const usesAsaas = (method === "pix" || method === "boleto") && !usesMercadoPago;
+    if (usesAsaas && !asaasActive) {
+      if (method === "pix" && mercadoPagoActive && !mercadoPagoWebhookConfigured) {
+        throw new BadRequestException("mercadopago_webhook_not_configured");
+      }
+      throw new BadRequestException("payment_provider_not_configured");
+    }
     const delayedMerchantPayout = delayedMerchantPayoutEnabled();
     const merchantPayoutHoldDays = delayedMerchantPayout ? delayedMerchantPayoutHoldDays() : undefined;
     if (delayedMerchantPayout && !usesAsaas) {
@@ -327,7 +344,6 @@ export class CreatePaymentIntentUseCase {
 
     if (isStripeCard) {
       stripeConnectAccountId = await this.merchants.getStripeConnectAccountId(merchantId);
-      const stripeConnection = await this.platformConnections?.getConnection(merchantId, "stripe");
       stripeConnectAccountId =
         stripeConnection?.externalAccountId ?? stripeConnectAccountId;
       if (!stripeConnectAccountId) {
@@ -464,15 +480,20 @@ export class CreatePaymentIntentUseCase {
       providerIdempotencyKey: deriveProviderIdempotencyKey(merchantId, sessionId, idempotencyKey),
       amountCents, currency: intent.snapshot().currency, method,
       description: paymentDescription(merchantId, sessionId, commerceOrderId),
-      ...(isStripeCard ? {
+        ...(isStripeCard ? {
+          provider: "stripe" as const,
           stripeConnectAccountId,
           platformFeeCents: stripeApplicationFeeCents,
         }
-        : usesMercadoPago ? { platformFeeCents: mercadoPagoPlatformFeeCents, payerEmail: mercadoPagoPayerEmail }
+        : usesMercadoPago ? {
+            provider: "mercadopago" as const,
+            platformFeeCents: mercadoPagoPlatformFeeCents,
+            payerEmail: mercadoPagoPayerEmail,
+          }
           : usesAsaas ? {
+              provider: "asaas" as const,
               ...(delayedMerchantPayout
                 ? {
-                    provider: "asaas" as const,
                     settlementMode: "delayed_merchant_payout" as const,
                     merchantPayoutDestination: asaasPayoutDestination,
                     merchantPayoutHoldDays,

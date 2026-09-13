@@ -43,6 +43,11 @@ export interface ExperienceDeps {
   voiceEnabled?: boolean;
   /** Payment configuration — which methods the merchant accepts */
   stripeConnectAccountId?: string | null;
+  paymentMethods?: {
+    pix: boolean;
+    boleto: boolean;
+    card: boolean;
+  };
   cryptoPaymentsEnabled?: boolean;
   cryptoPayments?: Record<string, unknown> | null;
   merchantRulesForWidget?: {
@@ -78,7 +83,8 @@ export function quickRepliesForStage(
   stage: ChatStage,
   missingFields: string[] = [],
   rules?: MerchantRules,
-  cart?: CartSnapshot
+  cart?: CartSnapshot,
+  paymentMethods?: ExperienceDeps["paymentMethods"],
 ): string[] {
   const next = missingFields[0];
   if (next === "confirmar endereço") {
@@ -154,7 +160,14 @@ export function quickRepliesForStage(
         return ["Tem frete grátis?", "O prazo está muito longo", "Tem transportadora mais rápida?"];
       return ["Qual o prazo médio?", "Tem opção de retirada?", "Como acompanho o pedido?"];
     case "payment": {
-      const base = ["Cartão de crédito", "Cartão de débito", "PIX", "Boleto"];
+      // Keep a legacy fallback for older callers, but when the checkout start
+      // response has capability data, never advertise a method the active
+      // browser flow cannot finish.
+      const available = paymentMethods ?? { pix: true, boleto: true, card: true };
+      const base: string[] = [];
+      if (available.card) base.push("Cartão de crédito", "Cartão de débito");
+      if (available.pix) base.push("PIX");
+      if (available.boleto) base.push("Boleto");
       if (rules?.cryptoPayments?.enabled) {
         base.push("Pagar com crypto");
       }
@@ -268,7 +281,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
       headline: `${merchantName}: finalize sua compra com ajuda da IA`,
       subheadline: `${items.length} item(ns) no pedido, total a pagar ${formatMoney(totalToPay, input.cart.currency)} com contexto real do carrinho.`,
       trust_badges: [],
-      quick_replies: quickRepliesForStage(chatStage, deps.missingFieldsPreview ?? [], deps.rules, cartSnapshot),
+      quick_replies: quickRepliesForStage(chatStage, deps.missingFieldsPreview ?? [], deps.rules, cartSnapshot, deps.paymentMethods),
       focus_input: chatStage !== "completed",
       expected_input_type
     }
@@ -302,7 +315,8 @@ export function buildExperienceFromSession(session: CheckoutSession, deps: Exper
     advanced_rules: deps.advancedRules,
     visual: deps.visual,
     // Payment methods flags — ONLY booleans, never credentials/IDs
-    stripeEnabled: !!deps.stripeConnectAccountId,
+    stripeEnabled: deps.paymentMethods?.card ?? !!deps.stripeConnectAccountId,
+    paymentMethods: deps.paymentMethods,
     cryptoPaymentsEnabled: deps.cryptoPaymentsEnabled ?? false,
     cryptoPayments: deps.cryptoPayments ? { chain: (deps.cryptoPayments as any).chain, token: (deps.cryptoPayments as any).token, enabled: (deps.cryptoPayments as any).enabled } : null,
   };
