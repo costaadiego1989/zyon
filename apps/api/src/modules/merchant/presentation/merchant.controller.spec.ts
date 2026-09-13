@@ -14,7 +14,17 @@ import { MerchantController } from "./merchant.controller.js";
 import { normalizeMerchantCryptoPayments } from "../domain/services/merchant-crypto.validation.js";
 
 const noopEventBus = { publish: async () => {}, subscribe: () => {}, handlersFor: () => [] } as any;
-const prismaMock = { agentRule: { findFirst: async () => null }, merchant: { update: async () => ({}) } } as any;
+const platformFeedbackCalls: Array<Record<string, unknown>> = [];
+const prismaMock = {
+  agentRule: { findFirst: async () => null },
+  merchant: { update: async () => ({}) },
+  merchantPlatformFeedback: {
+    create: async ({ data }: { data: Record<string, unknown> }) => {
+      platformFeedbackCalls.push(data);
+      return { id: "feedback_1", category: data.category, createdAt: new Date("2026-09-13T12:00:00.000Z") };
+    },
+  },
+} as any;
 
 function buildController(repository: InMemoryMerchantRepository) {
   const s3Mock = { isConfigured: () => false, upload: async () => ({ url: "", key: "", bucket: "" }), uploadBase64: async () => ({ url: "", key: "", bucket: "" }) } as any;
@@ -68,6 +78,57 @@ test("MerchantController returns default theme and persists overrides per mercha
 
   const reloaded = await controller.theme(merchantId);
   assert.equal(reloaded.fontFamily, "Manrope, system-ui, sans-serif");
+});
+
+test("MerchantController records platform feedback for the authenticated merchant", async () => {
+  const repository = new InMemoryMerchantRepository();
+  repository.seedProfile({ id: "mrc_1", name: "Demo Store" });
+  const controller = buildController(repository);
+  platformFeedbackCalls.length = 0;
+
+  const result = await controller.submitPlatformFeedback("mrc_1", {
+    tenantPrincipal: {
+      kind: "human",
+      tenantId: "mrc_1",
+      userId: "usr_1",
+      email: "owner@example.com",
+      role: "owner",
+    },
+  } as never, {
+    category: "bug",
+    message: "  A imagem do produto não aparece no catálogo.  ",
+  });
+
+  assert.deepEqual(platformFeedbackCalls, [{
+    merchantId: "mrc_1",
+    userId: "usr_1",
+    category: "bug",
+    message: "A imagem do produto não aparece no catálogo.",
+  }]);
+  assert.deepEqual(result, {
+    id: "feedback_1",
+    category: "bug",
+    createdAt: "2026-09-13T12:00:00.000Z",
+  });
+});
+
+test("MerchantController rejects feedback made only of whitespace", async () => {
+  const repository = new InMemoryMerchantRepository();
+  repository.seedProfile({ id: "mrc_1", name: "Demo Store" });
+  const controller = buildController(repository);
+
+  await assert.rejects(
+    () => controller.submitPlatformFeedback("mrc_1", {
+      tenantPrincipal: {
+        kind: "human",
+        tenantId: "mrc_1",
+        userId: "usr_1",
+        email: "owner@example.com",
+        role: "owner",
+      },
+    } as never, { category: "bug", message: "          " }),
+    BadRequestException,
+  );
 });
 
 test("AuthGuard rejects missing bearer tokens and accepts signed tokens", async () => {

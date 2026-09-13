@@ -20,6 +20,8 @@ import {
 import { GetMerchantThemeUseCase } from "../application/get-merchant-theme.use-case.js";
 import { UpdateMerchantThemeUseCase } from "../application/update-merchant-theme.use-case.js";
 import { UpdateMerchantRulesDto } from "./dto/update-merchant-rules.dto.js";
+import { SubmitPlatformFeedbackDto } from "./dto/submit-platform-feedback.dto.js";
+import { Idempotent } from "../../../shared/http/idempotency/idempotent.decorator.js";
 
 /**
  * MERC-H2: Uses @CurrentTenant() decorator instead of unsafe request casting.
@@ -278,5 +280,41 @@ Regras:
     }
 
     throw new BadRequestException("ai_generation_failed: all providers unavailable");
+  }
+
+  @Post("platform-feedback")
+  @Idempotent()
+  @ApiOperation({ summary: "Submit feedback about the Zyon platform" })
+  @ApiResponse({ status: 201, description: "Feedback recorded" })
+  async submitPlatformFeedback(
+    @CurrentTenant() merchantId: string,
+    @Req() req: unknown,
+    @Body(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+    body: SubmitPlatformFeedbackDto,
+  ) {
+    const message = body.message.trim();
+    if (message.length < 10) throw new BadRequestException("feedback_message_too_short");
+
+    const principal = currentTenantPrincipal(
+      req as Parameters<typeof currentTenantPrincipal>[0],
+    );
+    const feedback = await this.prisma.merchantPlatformFeedback.create({
+      data: {
+        merchantId,
+        userId: principal.userId,
+        category: body.category,
+        message,
+      },
+      select: {
+        id: true,
+        category: true,
+        createdAt: true,
+      },
+    });
+
+    return {
+      ...feedback,
+      createdAt: feedback.createdAt.toISOString(),
+    };
   }
 }

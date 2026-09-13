@@ -2884,6 +2884,19 @@ model MerchantNotification {
   @@map("merchant_notifications")
 }
 
+model MerchantPlatformFeedback {
+  id         String   @id @default(cuid())
+  merchantId String   @map("merchant_id")
+  userId     String   @map("user_id")
+  category   String
+  message    String   @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([merchantId, createdAt])
+  @@index([category, createdAt])
+  @@map("merchant_platform_feedback")
+}
+
 model BuyerEarnedBenefit {
   id           String    @id @default(cuid())
   merchantId   String    @map("merchant_id")

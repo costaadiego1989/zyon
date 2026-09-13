@@ -41,6 +41,19 @@ export interface VerifyDomainOutput {
   verified_at?: string;
 }
 
+export type PlatformFeedbackCategory = "bug" | "improvement" | "suggestion" | "other";
+
+export interface SubmitPlatformFeedbackInput {
+  category: PlatformFeedbackCategory;
+  message: string;
+}
+
+export interface SubmitPlatformFeedbackOutput {
+  id: string;
+  category: PlatformFeedbackCategory;
+  createdAt: string;
+}
+
 export function merchantEndpoints(base: string, f: typeof fetch) {
   return {
     merchantProfile(): Promise<MerchantProfile> {
@@ -100,6 +113,10 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
 
     generatePolicy(type: string, company?: Record<string, unknown>): Promise<{ policy: string }> {
       return dashboardJson(base, "/merchants/me/generate-policy", { method: "POST", jsonBody: { type, company } }, f);
+    },
+
+    submitPlatformFeedback(input: SubmitPlatformFeedbackInput): Promise<SubmitPlatformFeedbackOutput> {
+      return dashboardJson(base, "/merchants/me/platform-feedback", { method: "POST", jsonBody: input }, f);
     },
 
     getSeoSettings(): Promise<SeoGtmConfig> {
