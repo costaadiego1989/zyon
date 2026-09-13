@@ -31,7 +31,7 @@ function isSupported(provider: string): provider is SupportedErp {
 
 function errorCode(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
-  return message.startsWith("erp_") ? message.slice(0, 160) : "erp_sync_failed";
+  return /^(erp|bling)_/.test(message) ? message.slice(0, 160) : "erp_sync_failed";
 }
 
 function positiveInteger(value: unknown, code: string): number {
@@ -240,7 +240,19 @@ export class ErpSyncService {
       });
       if (!connection || !isSupported(connection.provider)) throw new Error("erp_connection_not_available");
 
-      if (connection.provider === "bling") await this.ensureBlingWebhookRoute(connection);
+      if (connection.provider === "bling") {
+        // Legacy connections predate the per-company webhook route. Backfilling
+        // that route is useful, but it must never prevent the first durable
+        // product and inventory snapshot from reaching Zyon.
+        try {
+          await this.ensureBlingWebhookRoute(connection);
+        } catch (error) {
+          this.logger.warn("bling.webhook_route.backfill_failed", {
+            connectionId: connection.id,
+            code: errorCode(error),
+          });
+        }
+      }
 
       if (job.kind === "full") {
         if (connection.directionMode !== "zyon_source_of_truth") {

@@ -68,6 +68,23 @@ async function repairDurableErpSyncSchema(client) {
       ON "erp_product_mappings"("connection_id", "sku", "external_location_id");
     CREATE INDEX IF NOT EXISTS "erp_product_mappings_merchant_id_sku_idx" ON "erp_product_mappings"("merchant_id", "sku");
 
+    CREATE TABLE IF NOT EXISTS "erp_webhook_routes" (
+      "id" TEXT NOT NULL,
+      "provider" TEXT NOT NULL,
+      "external_account_id" TEXT NOT NULL,
+      "merchant_id" TEXT NOT NULL,
+      "connection_id" TEXT NOT NULL,
+      "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updated_at" TIMESTAMP(3) NOT NULL,
+      CONSTRAINT "erp_webhook_routes_pkey" PRIMARY KEY ("id")
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS "erp_webhook_routes_provider_external_account_id_key"
+      ON "erp_webhook_routes"("provider", "external_account_id");
+    CREATE UNIQUE INDEX IF NOT EXISTS "erp_webhook_routes_connection_id_key"
+      ON "erp_webhook_routes"("connection_id");
+    CREATE INDEX IF NOT EXISTS "erp_webhook_routes_merchant_id_idx"
+      ON "erp_webhook_routes"("merchant_id");
+
     DO $$
     BEGIN
       IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'erp_sync_jobs_connection_id_fkey') THEN
@@ -76,6 +93,10 @@ async function repairDurableErpSyncSchema(client) {
       END IF;
       IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'erp_product_mappings_connection_id_fkey') THEN
         ALTER TABLE "erp_product_mappings" ADD CONSTRAINT "erp_product_mappings_connection_id_fkey"
+          FOREIGN KEY ("connection_id") REFERENCES "erp_connections"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'erp_webhook_routes_connection_id_fkey') THEN
+        ALTER TABLE "erp_webhook_routes" ADD CONSTRAINT "erp_webhook_routes_connection_id_fkey"
           FOREIGN KEY ("connection_id") REFERENCES "erp_connections"("id") ON DELETE CASCADE ON UPDATE CASCADE;
       END IF;
     END $$;
@@ -170,7 +191,8 @@ try {
           AND column_name = 'provider_cancellation_scheduled_at'
       ) AS has_provider_cancellation_scheduled_at,
       to_regclass('public.erp_sync_jobs') IS NOT NULL AS has_erp_sync_jobs,
-      to_regclass('public.erp_product_mappings') IS NOT NULL AS has_erp_product_mappings
+      to_regclass('public.erp_product_mappings') IS NOT NULL AS has_erp_product_mappings,
+      to_regclass('public.erp_webhook_routes') IS NOT NULL AS has_erp_webhook_routes
   `);
   const postDeploySchema = rows[0];
   if (!postDeploySchema.has_billing_subscriptions) {
@@ -183,7 +205,7 @@ try {
         ADD COLUMN IF NOT EXISTS "provider_cancellation_scheduled_at" TIMESTAMP(3)
     `);
   }
-  if (!postDeploySchema.has_erp_sync_jobs || !postDeploySchema.has_erp_product_mappings) {
+  if (!postDeploySchema.has_erp_sync_jobs || !postDeploySchema.has_erp_product_mappings || !postDeploySchema.has_erp_webhook_routes) {
     const { rows: dependencyRows } = await verificationClient.query(`
       SELECT
         to_regclass('public.erp_connections') IS NOT NULL AS has_erp_connections,
@@ -202,9 +224,10 @@ try {
     const { rows: repairedRows } = await verificationClient.query(`
       SELECT
         to_regclass('public.erp_sync_jobs') IS NOT NULL AS has_erp_sync_jobs,
-        to_regclass('public.erp_product_mappings') IS NOT NULL AS has_erp_product_mappings
+        to_regclass('public.erp_product_mappings') IS NOT NULL AS has_erp_product_mappings,
+        to_regclass('public.erp_webhook_routes') IS NOT NULL AS has_erp_webhook_routes
     `);
-    if (!repairedRows[0].has_erp_sync_jobs || !repairedRows[0].has_erp_product_mappings) {
+    if (!repairedRows[0].has_erp_sync_jobs || !repairedRows[0].has_erp_product_mappings || !repairedRows[0].has_erp_webhook_routes) {
       throw new Error("Durable ERP schema repair did not create required tables");
     }
   }
