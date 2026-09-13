@@ -24,6 +24,7 @@ const SUPPORTED = new Set<SupportedErp>(["omie", "bling", "tiny"]);
 const RETRY_LIMIT = 6;
 const JOB_LEASE_MS = 15 * 60_000;
 const JOB_LEASE_HEARTBEAT_MS = 2 * 60_000;
+const BLING_STOCK_BATCH_SIZE = 100;
 
 function isSupported(provider: string): provider is SupportedErp {
   return SUPPORTED.has(provider as SupportedErp);
@@ -453,16 +454,38 @@ export class ErpSyncService {
     for (let page = 1; page <= 10_000; page++) {
       const listing = await this.blingFetch(token, `/produtos?pagina=${page}&limite=100`);
       const rows = Array.isArray(listing.data) ? listing.data : [];
+      const products: Array<{ id: string; product: any; row: any }> = [];
       for (const row of rows) {
         const id = externalId(row.id, "erp_bling_product_id_missing");
         const detail = await this.blingFetch(token, `/produtos/${encodeURIComponent(id)}`);
         const product = detail.data ?? detail;
-        const stock = product.estoque ?? product.stock ?? product;
-        const quantity = stock.saldoFisicoTotal ?? stock.saldoFisico ?? product.saldoFisicoTotal;
+        // Services do not carry physical inventory in Bling and cannot be
+        // represented by Zyon's stock-backed product model.
+        if (product.tipo === "S") continue;
+        products.push({ id, product, row });
+      }
+
+      const stockByProductId = new Map<string, any>();
+      for (let start = 0; start < products.length; start += BLING_STOCK_BATCH_SIZE) {
+        const batch = products.slice(start, start + BLING_STOCK_BATCH_SIZE);
+        const query = new URLSearchParams();
+        for (const product of batch) query.append("idsProdutos[]", String(positiveInteger(product.id, "erp_bling_product_id_invalid")));
+        const balances = await this.blingFetch(token, `/estoques/saldos?${query.toString()}`);
+        const rows = Array.isArray(balances.data) ? balances.data : [];
+        for (const balance of rows) {
+          const id = externalId(balance?.produto?.id, "erp_bling_stock_product_id_missing");
+          if (stockByProductId.has(id)) throw new Error("erp_bling_stock_duplicate_product");
+          stockByProductId.set(id, balance);
+        }
+      }
+
+      for (const { id, product, row } of products) {
+        const balance = stockByProductId.get(id);
+        if (!balance) throw new Error("erp_bling_stock_response_missing_product");
         snapshots.push({
           externalProductId: id, externalLocationId: "0", sku: externalId(product.codigo ?? row.codigo ?? id, "erp_bling_product_code_missing"),
           productName: externalId(product.nome ?? row.nome, "erp_bling_product_name_missing"),
-          quantity: positiveInteger(quantity, "erp_bling_stock_shape_invalid"), costCents: cents(product.precoCusto), salePriceCents: cents(product.preco),
+          quantity: positiveInteger(balance.saldoFisicoTotal, "erp_bling_stock_shape_invalid"), costCents: cents(product.precoCusto), salePriceCents: cents(product.preco),
         });
       }
       if (rows.length < 100) break;

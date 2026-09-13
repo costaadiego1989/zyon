@@ -112,3 +112,37 @@ test("an existing Bling connection registers its exact webhook route before a sn
 
   assert.deepEqual(routes, [{ provider: "bling", externalAccountId: "42", merchantId: "merchant_a", connectionId: "connection_a" }]);
 });
+
+test("Bling imports the authoritative physical balance endpoint for each product snapshot", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const urls: URL[] = [];
+  globalThis.fetch = (async (input: string | URL) => {
+    const url = new URL(String(input));
+    urls.push(url);
+    if (url.pathname.endsWith("/produtos")) {
+      return { ok: true, json: async () => ({ data: [{ id: 123, codigo: "BLING-123", nome: "Produto de teste" }] }) } as Response;
+    }
+    if (url.pathname.endsWith("/produtos/123")) {
+      return { ok: true, json: async () => ({ data: { id: 123, codigo: "BLING-123", nome: "Produto de teste", tipo: "P", preco: 19.9 } }) } as Response;
+    }
+    if (url.pathname.endsWith("/estoques/saldos")) {
+      return { ok: true, json: async () => ({ data: [{ produto: { id: 123 }, saldoFisicoTotal: 7, saldoVirtualTotal: 5 }] }) } as Response;
+    }
+    throw new Error(`Unexpected fetch ${url}`);
+  }) as typeof fetch;
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const service = new ErpSyncService({} as never);
+  const snapshots = await (service as any).pullBling({
+    accessTokenCipher: encryptErpSecret("access-token"),
+    tokenExpiresAt: new Date(Date.now() + 5 * 60_000),
+  });
+
+  assert.deepEqual(snapshots, [{
+    externalProductId: "123", externalLocationId: "0", sku: "BLING-123", productName: "Produto de teste",
+    quantity: 7, costCents: undefined, salePriceCents: 1990,
+  }]);
+  const balanceRequest = urls.find((url) => url.pathname.endsWith("/estoques/saldos"));
+  assert.ok(balanceRequest);
+  assert.deepEqual(balanceRequest.searchParams.getAll("idsProdutos[]"), ["123"]);
+});
