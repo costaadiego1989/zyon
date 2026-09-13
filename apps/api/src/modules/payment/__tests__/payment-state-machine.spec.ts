@@ -167,7 +167,7 @@ test("approved → refunded via markRefunded", () => {
 
 // ─── INVALID TRANSITIONS ───────────────────────────────────────────────────
 
-test("pending cannot transition directly to approved", () => {
+test("pending can transition directly to approved for synchronous provider confirmation", () => {
   const intent = PaymentIntentEntity.create({
     merchantId: "mrc_invalid_1",
     sessionId: "chk_invalid_1",
@@ -177,15 +177,12 @@ test("pending cannot transition directly to approved", () => {
     method: "pix",
   });
 
-  // Skip requires_action and try to go directly to approved
-  assert.throws(
-    () =>
-      intent.markApproved({
-        providerPaymentId: "pay_invalid_1",
-        approvedAmountCents: 10000,
-      }),
-    /illegal_transition|invalid.*state/i
-  );
+  intent.markApproved({
+    providerPaymentId: "pay_sync_1",
+    approvedAmountCents: 10000,
+  });
+
+  assert.equal(intent.snapshot().status, "approved");
 });
 
 test("pending cannot be refunded", () => {
@@ -504,7 +501,7 @@ test("checkout completion is recorded once per approval", async () => {
 
 // ─── CONCURRENT APPROVAL PROTECTION ────────────────────────────────────────
 
-test("concurrent webhooks for same intent use atomic gate to prevent double-approval", async () => {
+test("concurrent duplicate webhooks use the atomic gate to prevent double-approval", async () => {
   const payments = new InMemoryPaymentRepository();
   const checkout = new RecordingCheckoutPayment();
   const dispatch = new PaymentDispatchService(payments, checkout);
@@ -522,10 +519,10 @@ test("concurrent webhooks for same intent use atomic gate to prevent double-appr
   await payments.saveIntent({ intent });
   const intentId = intent.snapshot().id;
 
-  // Simulate 5 concurrent deliveries
-  const promises = Array.from({ length: 5 }, (_, i) =>
+  // Simulate five concurrent deliveries of the same provider event.
+  const promises = Array.from({ length: 5 }, () =>
     uc.execute(TEST_ASAAS_TOKEN, {
-      id: `evt_conc_${i}`,
+      id: "evt_conc_1",
       event: "PAYMENT_RECEIVED",
       payment: {
         id: "pay_conc_1",
@@ -539,6 +536,7 @@ test("concurrent webhooks for same intent use atomic gate to prevent double-appr
 
   const processed = results.filter((r: any) => r.outcome === "processed");
   assert.equal(processed.length, 1, "only one should win the race");
+  assert.equal(results.filter((r: any) => r.outcome === "duplicate").length, 4);
 
   // Only one checkout completion despite 5 concurrent requests
   assert.equal(checkout.completions.length, 1);

@@ -200,7 +200,7 @@ test("PAYMENT_RECEIVED: pending → approved", async () => {
   });
 
   assert.equal(result.outcome, "processed");
-  assert.equal(result.effect, "payment_approved_and_checkout_completed");
+  assert.equal(result.effect, "checkout_completed_after_payment");
 
   const updated = await payments.getIntentById("mrc_state_1", intentId);
   assert.equal(updated?.snapshot().status, "approved");
@@ -435,17 +435,14 @@ test("illegal state transition triggers alert but does not retry", async () => {
     method: "pix",
   });
   intent.markRequiresAction({ providerPaymentId: "pay_illegal" });
-  intent.markApproved({
-    providerPaymentId: "pay_illegal",
-    approvedAmountCents: 10000,
-  });
+  intent.markFailed("declined_before_webhook");
   await payments.saveIntent({ intent });
   const intentId = intent.snapshot().id;
 
-  // Attempt to transition from "approved" to "failed" (illegal)
+  // A late approval after a terminal failure is an out-of-order transition.
   const result = await uc.execute(TEST_ASAAS_TOKEN, {
     id: "evt_illegal",
-    event: "PAYMENT_DELETED",
+    event: "PAYMENT_RECEIVED",
     payment: {
       id: "pay_illegal",
       value: 100,
