@@ -104,7 +104,9 @@ try {
         WHERE table_schema = 'public'
           AND table_name = 'merchant_billing_subscriptions'
           AND column_name = 'provider_cancellation_scheduled_at'
-      ) AS has_provider_cancellation_scheduled_at
+      ) AS has_provider_cancellation_scheduled_at,
+      to_regclass('public.erp_sync_jobs') IS NOT NULL AS has_erp_sync_jobs,
+      to_regclass('public.erp_product_mappings') IS NOT NULL AS has_erp_product_mappings
   `);
   const postDeploySchema = rows[0];
   if (!postDeploySchema.has_billing_subscriptions) {
@@ -116,6 +118,9 @@ try {
       ALTER TABLE "merchant_billing_subscriptions"
         ADD COLUMN IF NOT EXISTS "provider_cancellation_scheduled_at" TIMESTAMP(3)
     `);
+  }
+  if (!postDeploySchema.has_erp_sync_jobs || !postDeploySchema.has_erp_product_mappings) {
+    throw new Error("Expected durable ERP sync tables after Prisma migrations");
   }
 } finally {
   await verificationClient.end();

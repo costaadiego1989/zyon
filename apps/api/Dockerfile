@@ -117,4 +117,7 @@ ENV NODE_ENV=production \
 
 EXPOSE 3009
 
-CMD ["node", "dist/main.js"]
+# The generated Prisma client alone does not create schema objects. Run the
+# guarded migration entrypoint inside Railway's private network before the API
+# can accept traffic, then replace the shell so signals reach Node directly.
+CMD ["sh", "-c", "node scripts/predeploy-migrations.mjs && exec node dist/main.js"]
