@@ -22,7 +22,9 @@ import { ConnectCrmUseCase } from "../../application/use-cases/connect-crm.use-c
 import { DisconnectCrmUseCase } from "../../application/use-cases/disconnect-crm.use-case.js";
 import { ListErpConnectionsUseCase } from "../../application/use-cases/list-erp-connections.use-case.js";
 import { ConnectOmieUseCase } from "../../application/use-cases/connect-omie.use-case.js";
+import { ConnectTinyUseCase } from "../../application/use-cases/connect-tiny.use-case.js";
 import { DisconnectErpUseCase } from "../../application/use-cases/disconnect-erp.use-case.js";
+import { TriggerErpSyncUseCase } from "../../application/use-cases/trigger-erp-sync.use-case.js";
 import { GetProductDetailBySkuUseCase } from "../../application/use-cases/get-product-detail-by-sku.use-case.js";
 
 @ApiTags("Dashboard / Inventory")
@@ -47,7 +49,9 @@ export class InventoryDashboardController {
     private readonly disconnectCrm: DisconnectCrmUseCase,
     private readonly listErpConnections: ListErpConnectionsUseCase,
     private readonly connectOmie: ConnectOmieUseCase,
+    private readonly connectTiny: ConnectTinyUseCase,
     private readonly disconnectErp: DisconnectErpUseCase,
+    private readonly triggerErpSyncUseCase: TriggerErpSyncUseCase,
     private readonly getProductDetail: GetProductDetailBySkuUseCase,
   ) {}
 
@@ -231,17 +235,24 @@ export class InventoryDashboardController {
   async connectErpProvider(
     @Req() req: any,
     @Param("provider") provider: string,
-    @Body() body: { appKey?: string; appSecret?: string; app_key?: string; app_secret?: string },
+    @Body() body: { appKey?: string; appSecret?: string; app_key?: string; app_secret?: string; apiToken?: string; token?: string },
   ) {
     const user = currentUser(req);
     if (provider === "omie") {
       const appKey = body.appKey ?? body.app_key ?? "";
       const appSecret = body.appSecret ?? body.app_secret ?? "";
-      return this.connectOmie.execute({
+      const connection = await this.connectOmie.execute({
         merchantId: user.merchantId,
         appKey,
         appSecret,
       });
+      const job = await this.triggerErpSyncUseCase.execute(user.merchantId, connection.id);
+      return this.toSafeErpConnection(connection, job.jobId);
+    }
+    if (provider === "tiny") {
+      const connection = await this.connectTiny.execute({ merchantId: user.merchantId, apiToken: body.apiToken ?? body.token ?? "" });
+      const job = await this.triggerErpSyncUseCase.execute(user.merchantId, connection.id);
+      return this.toSafeErpConnection(connection, job.jobId);
     }
     // Bling/Tiny use the OAuth flow via /inventory/erp/oauth/:provider/authorize
     return { requiresOAuth: true, provider, message: "Use o fluxo OAuth para conectar este provedor" };
@@ -265,7 +276,21 @@ export class InventoryDashboardController {
     @Req() req: any,
     @Param("id") id: string,
   ) {
-    return { triggered: true, connectionId: id, message: "Sync iniciado" };
+    const user = currentUser(req);
+    return this.triggerErpSyncUseCase.execute(user.merchantId, id);
+  }
+
+  private toSafeErpConnection(connection: { id: string; merchantId: string; provider: string; status: string; directionMode: string; lastSyncAt: Date | null; createdAt: Date }, jobId: string) {
+    return {
+      id: connection.id,
+      merchantId: connection.merchantId,
+      provider: connection.provider,
+      status: connection.status,
+      directionMode: connection.directionMode,
+      lastSyncAt: connection.lastSyncAt?.toISOString() ?? null,
+      createdAt: connection.createdAt.toISOString(),
+      syncJobId: jobId,
+    };
   }
 
   // CRM Connection Endpoints

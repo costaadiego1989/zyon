@@ -69,7 +69,18 @@ export class OnCatalogProductSavedHandler implements OnModuleInit {
         const variantName = (variant.attributes as Record<string, string>)?.size || (variant.attributes as Record<string, string>)?.color || undefined;
 
         const existing = await this.inventoryRepo.findBySku(merchantId, variant.sku, defaultLoc.id);
-        const previousQty = existing?.quantity ?? 0;
+        if (existing) {
+          await this.inventoryRepo.upsert(merchantId, {
+            sku: variant.sku,
+            productName: product.name,
+            variantName,
+            locationId: defaultLoc.id,
+            quantity: existing.quantity,
+            avgCostCents: costInCents,
+            salePriceCents,
+          });
+          continue;
+        }
 
         await this.inventoryRepo.upsert(merchantId, {
           sku: variant.sku,
@@ -82,20 +93,7 @@ export class OnCatalogProductSavedHandler implements OnModuleInit {
         });
 
         // Record movement if qty changed
-        const delta = newQty - previousQty;
-        if (delta !== 0 && existing) {
-          const item = await this.inventoryRepo.findBySku(merchantId, variant.sku, defaultLoc.id);
-          if (item) {
-            await this.movementRepo.record({
-              merchantId,
-              itemId: item.id,
-              kind: delta > 0 ? "ENTRY" : "ADJUSTMENT",
-              quantity: delta,
-              reason: "Atualização do catálogo",
-              source: "catalog",
-            });
-          }
-        } else if (!existing && newQty > 0) {
+        if (newQty > 0) {
           const item = await this.inventoryRepo.findBySku(merchantId, variant.sku, defaultLoc.id);
           if (item) {
             await this.movementRepo.record({

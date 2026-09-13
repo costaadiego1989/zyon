@@ -43,6 +43,7 @@ export class ConnectOmieUseCase {
     // Persist as ERP connection
     return this.repo.upsert(input.merchantId, "omie", {
       status: "connected",
+      directionMode: "bidirectional",
       accessTokenCipher: appKeyCipher,
       refreshTokenCipher: appSecretCipher,
       config: {},

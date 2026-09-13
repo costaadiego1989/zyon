@@ -5,6 +5,7 @@ export interface ErpConnectionRow {
   merchantId: string;
   provider: string;
   status: string;
+  directionMode: string;
   accessTokenCipher: string | null;
   refreshTokenCipher: string | null;
   tokenExpiresAt: Date | null;
@@ -23,6 +24,7 @@ export interface ErpRepositoryPort {
     provider: string,
     data: {
       status: string;
+      directionMode?: string;
       accessTokenCipher?: string;
       refreshTokenCipher?: string;
       tokenExpiresAt?: Date;

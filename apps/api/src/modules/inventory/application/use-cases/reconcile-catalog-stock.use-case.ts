@@ -39,6 +39,9 @@ export class ReconcileCatalogStockUseCase {
       this.logger.warn(`Snapshot backfill failed: ${err instanceof Error ? err.message : String(err)}`);
     });
 
+    return this.reconcileInventorySnapshots();
+
+    /* Legacy non-transactional reconciliation retained only for history.
     if (!this.catalogStock) return 0;
 
     // Enumerate merchants that have inventory, then reconcile each.
@@ -88,6 +91,7 @@ export class ReconcileCatalogStockUseCase {
 
     if (corrected > 0) this.logger.log(`Reconciliation corrected ${corrected} catalog stock row(s)`);
     return corrected;
+    */
   }
 
   /**
@@ -96,6 +100,44 @@ export class ReconcileCatalogStockUseCase {
    * movement bookkeeping stay identical to the event-driven path. Idempotent:
    * the handler upserts, so already-synced products are a no-op.
    */
+  private async reconcileInventorySnapshots(): Promise<number> {
+    let corrected = 0;
+    let cursor: string | undefined;
+    while (true) {
+      const items = await this.prisma.inventoryItem.findMany({
+        take: 200,
+        ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+        orderBy: { id: "asc" },
+        select: { id: true, merchantId: true, sku: true },
+      });
+      if (items.length === 0) return corrected;
+      for (const item of items) {
+        try {
+          const updated = await this.prisma.$transaction(async (tx) => {
+            await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${item.merchantId} FOR UPDATE`;
+            const locations = await tx.inventoryLocation.findMany({ where: { merchantId: item.merchantId, isActive: true }, take: 2 });
+            if (locations.length !== 1) return false;
+            const current = await tx.inventoryItem.findUnique({ where: { id: item.id } });
+            if (!current) return false;
+            const variants = await tx.productVariant.findMany({ where: { sku: item.sku, product: { merchantId: item.merchantId } }, take: 2 });
+            if (variants.length !== 1) return false;
+            const stocks = await tx.productStock.findMany({ where: { variantId: variants[0].id }, take: 2 });
+            if (stocks.length !== 1 || stocks[0].quantity === current.quantity || stocks[0].reserved > current.quantity) return false;
+            const result = await tx.productStock.updateMany({
+              where: { id: stocks[0].id, quantity: stocks[0].quantity, reserved: { lte: current.quantity } },
+              data: { quantity: current.quantity },
+            });
+            return result.count === 1;
+          });
+          if (updated) corrected++;
+        } catch (err) {
+          this.logger.warn(`Reconcile failed for sku=${item.sku}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      cursor = items[items.length - 1].id;
+    }
+  }
+
   private async backfillMissingSnapshots(): Promise<void> {
     if (!this.catalogSync) return;
 

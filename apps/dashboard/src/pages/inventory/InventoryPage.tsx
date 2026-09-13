@@ -712,22 +712,25 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
     error: { bg: "var(--color-error-bg)", color: "var(--color-error)", label: "Erro" },
   };
   const statusInfo = statusConfig[status] ?? statusConfig.disconnected;
-  const [showOmieModal, setShowOmieModal] = React.useState(false);
+  const [showCredentialModal, setShowCredentialModal] = React.useState(false);
   const [omieAppKey, setOmieAppKey] = React.useState("");
   const [omieAppSecret, setOmieAppSecret] = React.useState("");
+  const [tinyApiToken, setTinyApiToken] = React.useState("");
   const [omieLoading, setOmieLoading] = React.useState(false);
 
-  const handleOmieConnect = async () => {
-    if (!omieAppKey || !omieAppSecret) {
-      alert("Por favor preencha App Key e App Secret");
+  const isCredentialProvider = provider === "omie" || provider === "tiny";
+  const handleCredentialConnect = async () => {
+    if ((provider === "omie" && (!omieAppKey || !omieAppSecret)) || (provider === "tiny" && !tinyApiToken)) {
+      alert(provider === "omie" ? "Por favor preencha App Key e App Secret" : "Por favor preencha o token da API Tiny/Olist");
       return;
     }
     setOmieLoading(true);
     try {
-      await onConnect({ appKey: omieAppKey, appSecret: omieAppSecret });
-      setShowOmieModal(false);
+      await onConnect(provider === "omie" ? { appKey: omieAppKey, appSecret: omieAppSecret } : { apiToken: tinyApiToken });
+      setShowCredentialModal(false);
       setOmieAppKey("");
       setOmieAppSecret("");
+      setTinyApiToken("");
     } finally {
       setOmieLoading(false);
     }
@@ -782,8 +785,8 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
       <div style={{ display: "flex", gap: 8, marginTop: "auto" }}>
         {status === "disconnected" || status === "error" ? (
           <>
-            {provider === "omie" ? (
-              <Button variant="primary" size="sm" onClick={() => setShowOmieModal(true)}>
+            {isCredentialProvider ? (
+              <Button variant="primary" size="sm" onClick={() => setShowCredentialModal(true)}>
                 <Plug size={12} style={{ marginRight: 4 }} /> Conectar
               </Button>
             ) : (
@@ -804,8 +807,7 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
         )}
       </div>
 
-      {/* Omie Modal */}
-      {provider === "omie" && showOmieModal && (
+      {isCredentialProvider && showCredentialModal && (
         <div style={{
           position: "fixed",
           inset: 0,
@@ -825,22 +827,23 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
             boxShadow: "0 20px 40px rgba(0,0,0,0.1)",
           }}>
             <h2 style={{ font: "600 16px var(--font-sans)", marginBottom: 6, color: "var(--color-text)" }}>
-              Conectar Omie
+              Conectar {provider === "omie" ? "Omie" : "Tiny/Olist"}
             </h2>
             <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.5, marginBottom: 12 }}>
-              Cole as chaves do seu aplicativo Omie. Não tem?{" "}
-              <a
+              {provider === "omie" ? "Cole as chaves do seu aplicativo Omie." : "Cole o token de API gerado na sua conta Tiny/Olist."}
+              {provider === "omie" && <a
                 href="https://developer.omie.com.br/my-apps/"
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ color: "var(--color-brand)", textDecoration: "underline" }}
               >
                 Gerar chaves no portal Omie →
-              </a>
+              </a>}
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 16 }}>
-              <label style={{ font: "600 11px var(--font-sans)", color: "var(--color-text-muted)" }}>App Key</label>
+              <label hidden={provider !== "omie"} style={{ font: "600 11px var(--font-sans)", color: "var(--color-text-muted)" }}>App Key</label>
               <input
+                hidden={provider !== "omie"}
                 type="text"
                 placeholder="Ex: 8070492596166"
                 value={omieAppKey}
@@ -854,8 +857,9 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
                   color: "var(--color-text)",
                 }}
               />
-              <label style={{ font: "600 11px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 8 }}>App Secret</label>
+              <label hidden={provider !== "omie"} style={{ font: "600 11px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 8 }}>App Secret</label>
               <input
+                hidden={provider !== "omie"}
                 type="password"
                 placeholder="Ex: 1d460e07841d8af88a9b5e43aee13c5f"
                 value={omieAppSecret}
@@ -869,12 +873,21 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
                   color: "var(--color-text)",
                 }}
               />
+              {provider === "tiny" && <>
+                <label style={{ font: "600 11px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 8 }}>Token da API Tiny/Olist</label>
+                <input
+                  type="password"
+                  value={tinyApiToken}
+                  onChange={(e) => setTinyApiToken(e.target.value)}
+                  style={{ padding: "8px 12px", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", font: "13px var(--font-mono)", background: "var(--surface-0)", color: "var(--color-text)" }}
+                />
+              </>}
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <Button variant="ghost" size="sm" onClick={() => setShowOmieModal(false)} style={{ flex: 1 }}>
+              <Button variant="ghost" size="sm" onClick={() => setShowCredentialModal(false)} style={{ flex: 1 }}>
                 Cancelar
               </Button>
-              <Button variant="primary" size="sm" onClick={handleOmieConnect} disabled={omieLoading} style={{ flex: 1 }}>
+              <Button variant="primary" size="sm" onClick={handleCredentialConnect} disabled={omieLoading} style={{ flex: 1 }}>
                 {omieLoading ? "Validando..." : "Conectar"}
               </Button>
             </div>

@@ -67,7 +67,7 @@ export interface ErpConnectionDTO {
   provider: "bling" | "tiny" | "omie" | "mercadolivre" | "shopee" | "tiktokshop";
   status: "connected" | "disconnected" | "error";
   lastSyncAt: string | null;
-  directionMode: "push" | "pull" | "bidirectional";
+  directionMode: "push" | "pull" | "bidirectional" | "erp_source_of_truth" | "zyon_source_of_truth";
   createdAt: string;
 }
 
@@ -242,8 +242,8 @@ export function inventoryEndpoints(base: string, f: typeof fetch) {
       );
     },
 
-    syncErp(merchantId: string, connectionId: string): Promise<void> {
-      return dashboardJson<void>(
+    syncErp(merchantId: string, connectionId: string): Promise<{ jobId: string; connectionId: string; status: string; message: string }> {
+      return dashboardJson<{ jobId: string; connectionId: string; status: string; message: string }>(
         base,
         `/dashboard/inventory/erp-connections/${encodeURIComponent(connectionId)}/sync`,
         { method: "POST" },

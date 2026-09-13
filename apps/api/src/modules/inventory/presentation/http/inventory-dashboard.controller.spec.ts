@@ -15,7 +15,7 @@ function setup() {
   const controller = new InventoryDashboardController(
     unavailable, unavailable, unavailable, unavailable, unavailable, unavailable,
     unavailable, unavailable, unavailable, unavailable, unavailable, unavailable,
-    connectCrm as never, unavailable, unavailable, unavailable, unavailable, unavailable,
+    connectCrm as never, unavailable, unavailable, unavailable, unavailable, unavailable, unavailable, unavailable,
   );
   return { calls, controller };
 }

@@ -14,6 +14,7 @@ export class PrismaErpRepository implements ErpRepositoryPort {
       merchantId: r.merchantId,
       provider: r.provider,
       status: r.status,
+      directionMode: r.directionMode,
       accessTokenCipher: r.accessTokenCipher,
       refreshTokenCipher: r.refreshTokenCipher,
       tokenExpiresAt: r.tokenExpiresAt,
@@ -35,6 +36,7 @@ export class PrismaErpRepository implements ErpRepositoryPort {
       merchantId: row.merchantId,
       provider: row.provider,
       status: row.status,
+      directionMode: row.directionMode,
       accessTokenCipher: row.accessTokenCipher,
       refreshTokenCipher: row.refreshTokenCipher,
       tokenExpiresAt: row.tokenExpiresAt,
@@ -51,6 +53,7 @@ export class PrismaErpRepository implements ErpRepositoryPort {
     provider: string,
     data: {
       status: string;
+      directionMode?: string;
       accessTokenCipher?: string;
       refreshTokenCipher?: string;
       tokenExpiresAt?: Date;
@@ -61,6 +64,7 @@ export class PrismaErpRepository implements ErpRepositoryPort {
       where: { merchantId_provider: { merchantId, provider } },
       update: {
         status: data.status,
+        directionMode: data.directionMode,
         accessTokenCipher: data.accessTokenCipher,
         refreshTokenCipher: data.refreshTokenCipher,
         tokenExpiresAt: data.tokenExpiresAt,
@@ -71,6 +75,7 @@ export class PrismaErpRepository implements ErpRepositoryPort {
         merchantId,
         provider,
         status: data.status,
+        directionMode: data.directionMode ?? "bidirectional",
         accessTokenCipher: data.accessTokenCipher,
         refreshTokenCipher: data.refreshTokenCipher,
         tokenExpiresAt: data.tokenExpiresAt,
@@ -82,6 +87,7 @@ export class PrismaErpRepository implements ErpRepositoryPort {
       merchantId: row.merchantId,
       provider: row.provider,
       status: row.status,
+      directionMode: row.directionMode,
       accessTokenCipher: row.accessTokenCipher,
       refreshTokenCipher: row.refreshTokenCipher,
       tokenExpiresAt: row.tokenExpiresAt,
@@ -94,22 +100,17 @@ export class PrismaErpRepository implements ErpRepositoryPort {
   }
 
   async delete(merchantId: string, id: string): Promise<void> {
-    await this.prisma.erpConnection.delete({
-      where: { id, merchantId },
-    });
+    const result = await this.prisma.erpConnection.deleteMany({ where: { id, merchantId } });
+    if (result.count !== 1) throw new Error("erp_connection_not_found");
   }
 
   async markSynced(merchantId: string, id: string): Promise<void> {
-    await this.prisma.erpConnection.update({
-      where: { id, merchantId },
-      data: { lastSyncAt: new Date(), lastErrorCode: null },
-    });
+    const result = await this.prisma.erpConnection.updateMany({ where: { id, merchantId }, data: { lastSyncAt: new Date(), lastErrorCode: null } });
+    if (result.count !== 1) throw new Error("erp_connection_not_found");
   }
 
   async markError(merchantId: string, id: string, errorCode: string): Promise<void> {
-    await this.prisma.erpConnection.update({
-      where: { id, merchantId },
-      data: { lastErrorCode: errorCode },
-    });
+    const result = await this.prisma.erpConnection.updateMany({ where: { id, merchantId }, data: { lastErrorCode: errorCode } });
+    if (result.count !== 1) throw new Error("erp_connection_not_found");
   }
 }

@@ -108,13 +108,12 @@ export function useInventoryPage(options: {
   const connectErp = useCallback(async (provider: string, credentials?: Record<string, string>) => {
     if (!options.me) return;
     try {
-      if (provider === "omie") {
-        // Omie: direct API key connect via POST
-        const conn = await api.connectErp(options.me.id, "omie", credentials);
-        setErpConnections((prev) => [...prev.filter((c) => c.provider !== "omie"), conn]);
-        showToast("success", "Omie conectado com sucesso");
+      if (provider === "omie" || provider === "tiny") {
+        const conn = await api.connectErp(options.me.id, provider, credentials);
+        setErpConnections((prev) => [...prev.filter((c) => c.provider !== provider), conn]);
+        showToast("success", `${provider === "omie" ? "Omie" : "Tiny"} conectado; sincronização inicial agendada`);
       } else {
-        // Bling/Tiny: OAuth flow — use proper API client
+        // Bling OAuth flow.
         const data = await (api as any).getErpOAuthUrl(options.me.id, provider);
         if (data?.url) {
           window.open(data.url, "_blank", "width=600,height=700");
@@ -125,7 +124,7 @@ export function useInventoryPage(options: {
     } catch (err) {
       showToast("error", err instanceof Error ? err.message : `Erro ao conectar ${provider}`);
     }
-  }, [api, options.me]);
+  }, [api, options.me, loadData]);
 
   const disconnectErp = useCallback(async (connectionId: string) => {
     if (!options.me) return;
@@ -141,11 +140,9 @@ export function useInventoryPage(options: {
   const syncErp = useCallback(async (connectionId: string) => {
     if (!options.me) return;
     try {
-      await api.syncErp(options.me.id, connectionId);
-      setErpConnections((prev) =>
-        prev.map((c) => c.id === connectionId ? { ...c, lastSyncAt: new Date().toISOString() } : c),
-      );
-      showToast("success", "Sincronização iniciada");
+      const job = await api.syncErp(options.me.id, connectionId);
+      await loadData();
+      showToast("success", job.message);
     } catch (err) {
       showToast("error", err instanceof Error ? err.message : "Erro ao sincronizar");
     }

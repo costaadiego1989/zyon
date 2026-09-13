@@ -15,7 +15,7 @@ export class ListErpConnectionsUseCase {
       provider: c.provider,
       status: c.status,
       lastSyncAt: c.lastSyncAt?.toISOString() || null,
-      directionMode: "push", // default push mode
+      directionMode: c.directionMode,
       createdAt: c.createdAt?.toISOString() || new Date().toISOString(),
     }));
   }

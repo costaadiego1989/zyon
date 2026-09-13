@@ -53,18 +53,17 @@ test("invalid snapshots, unavailable sessions, mismatched session ownership and 
   await assert.rejects(handler.handle({ ...event, payload: { ...event.payload, inventory_sale: { ...snapshot, items: [] } } }), /inventory_sale_invalid/);
   await assert.rejects(handler.handle({ ...event, payload: { ...event.payload, inventory_sale: snapshot } }), /stock_failed/);
 });
-test("ERP failure retries independently, uses stable keys and absolute stock, and cannot repeat stock handler", async () => {
-  const handlers = new Map<string, (event: any) => Promise<void>>(); let attempts = 0; const commands: any[] = [];
-  const erp = new ErpStockPushService({ pushStockLevel: async (...args: any[]) => { commands.push(args); if (++attempts === 1) throw new Error("erp_unavailable"); } });
+test("ERP integration persists work through the queue and cannot reapply the stock handler", async () => {
+  const handlers = new Map<string, (event: any) => Promise<void>>(); const queued: any[] = [];
+  const erp = new ErpStockPushService({ enqueueSale: async (sale: any) => { queued.push(sale); } } as never);
   const consumer = new InventorySaleIntegrationHandler({ subscribe: (type: string, handler: any) => handlers.set(type, handler) } as never,
     { findReceipt: async () => applied, apply: () => assert.fail("integration must not apply stock") } as never,
     erp, { syncSale: async () => {} } as never, { emitWebhooks: async () => {} } as never);
   consumer.onModuleInit();
   const job = { merchantId: "merchant_a", payload: { version: 1, receiptId: "receipt_a", kind: "erp" } };
-  await assert.rejects(handlers.get(INVENTORY_SALE_JOBS.erp)!(job), /erp_unavailable/);
   await handlers.get(INVENTORY_SALE_JOBS.erp)!(job);
-  assert.deepEqual(commands[0], commands[1]); assert.equal(commands[0][2], 7); assert.equal(commands[0][4].idempotencyKey, "receipt_a:item_a");
-  await assert.rejects(new ErpStockPushService().pushStock(applied), /adapter_unavailable/);
+  await handlers.get(INVENTORY_SALE_JOBS.erp)!(job);
+  assert.deepEqual(queued, [applied, applied]);
 });
 test("inventory webhooks persist stable identities and only enabled subscriptions owned by tenant", async () => {
   const saved: any[] = [];

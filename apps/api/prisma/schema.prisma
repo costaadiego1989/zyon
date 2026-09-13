@@ -2703,7 +2703,7 @@ model ErpConnection {
   merchantId         String    @map("merchant_id")
   provider           String
   status             String    @default("pending")
-  directionMode      String    @default("erp_source_of_truth") @map("direction_mode")
+  directionMode      String    @default("bidirectional") @map("direction_mode")
   accessTokenCipher  String?   @map("access_token_cipher")
   refreshTokenCipher String?   @map("refresh_token_cipher")
   tokenExpiresAt     DateTime? @map("token_expires_at")
@@ -2713,11 +2713,61 @@ model ErpConnection {
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
-  merchant Merchant @relation("ErpConnections", fields: [merchantId], references: [id], onDelete: Cascade)
+  merchant        Merchant            @relation("ErpConnections", fields: [merchantId], references: [id], onDelete: Cascade)
+  syncJobs         ErpSyncJob[]
+  productMappings  ErpProductMapping[]
 
   @@unique([merchantId, provider])
   @@index([merchantId, status])
   @@map("erp_connections")
+}
+
+/// Durable ERP work. A worker claims queued records atomically, so restarts and
+/// multiple API replicas cannot lose or run the same sync concurrently.
+model ErpSyncJob {
+  id            String    @id @default(cuid())
+  merchantId    String    @map("merchant_id")
+  connectionId  String    @map("connection_id")
+  kind          String
+  status        String    @default("queued")
+  dedupeKey     String    @unique @map("dedupe_key")
+  payload       Json?
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime? @map("next_attempt_at")
+  lockedUntil   DateTime? @map("locked_until")
+  lastErrorCode String?   @map("last_error_code")
+  startedAt     DateTime? @map("started_at")
+  completedAt   DateTime? @map("completed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  connection ErpConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt, createdAt])
+  @@index([status, lockedUntil])
+  @@index([merchantId, connectionId, createdAt])
+  @@map("erp_sync_jobs")
+}
+
+/// Stable external identifiers prevent a SKU rename from creating a second
+/// product and let outgoing stock movements target the ERP product exactly.
+model ErpProductMapping {
+  id                 String    @id @default(cuid())
+  merchantId         String    @map("merchant_id")
+  connectionId       String    @map("connection_id")
+  variantId          String?   @map("variant_id")
+  sku                String
+  externalProductId  String    @map("external_product_id")
+  externalLocationId String    @default("0") @map("external_location_id")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  connection ErpConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, externalProductId, externalLocationId])
+  @@unique([connectionId, sku, externalLocationId])
+  @@index([merchantId, sku])
+  @@map("erp_product_mappings")
 }
 
 model CrmConnection {

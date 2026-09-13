@@ -7,6 +7,7 @@ import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module
 import { encryptErpSecret } from "../../infrastructure/adapters/erp-secret-cipher.js";
 import { isMarketplaceProvider } from "../../infrastructure/adapters/marketplace-adapter.factory.js";
 import { TriggerMarketplaceSyncUseCase } from "../../application/use-cases/trigger-marketplace-sync.use-case.js";
+import { TriggerErpSyncUseCase } from "../../application/use-cases/trigger-erp-sync.use-case.js";
 
 function env(key: string, fallback = ""): string {
   return process.env[key] ?? fallback;
@@ -19,6 +20,7 @@ export class ErpOAuthController {
   constructor(
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     private readonly marketplaceSync: TriggerMarketplaceSyncUseCase,
+    private readonly erpSync: TriggerErpSyncUseCase,
   ) {}
 
   private async triggerInitialSync(merchantId: string, provider: string, accessToken: string, connectionId: string) {
@@ -54,18 +56,7 @@ export class ErpOAuthController {
       };
     }
 
-    if (provider_lower === "tiny") {
-      const params = new URLSearchParams({
-        client_id: env("TINY_CLIENT_ID"),
-        redirect_uri: env("TINY_REDIRECT_URI"),
-        response_type: "code",
-        scope: "openid",
-        state,
-      });
-      return {
-        url: `https://accounts.tiny.com.br/realms/tiny/protocol/openid-connect/auth?${params.toString()}`,
-      };
-    }
+    if (provider_lower === "tiny") throw new Error("tiny_api_token_required");
 
     if (provider_lower === "mercadolivre") {
       const params = new URLSearchParams({
@@ -143,7 +134,7 @@ export class ErpOAuthController {
       let redirectUri = "";
 
       if (provider === "bling") {
-        tokenEndpoint = "https://www.bling.com.br/Api/v3/oauth/token";
+        tokenEndpoint = "https://api.bling.com.br/Api/v3/oauth/token";
         clientId = env("BLING_CLIENT_ID");
         clientSecret = env("BLING_CLIENT_SECRET");
         redirectUri = env("BLING_REDIRECT_URI");
@@ -155,6 +146,7 @@ export class ErpOAuthController {
           headers: {
             Authorization: `Basic ${auth}`,
             "Content-Type": "application/x-www-form-urlencoded",
+            "enable-jwt": "1",
           },
           body: new URLSearchParams({
             grant_type: "authorization_code",
@@ -166,34 +158,6 @@ export class ErpOAuthController {
         if (!tokenRes.ok) {
           const err = await tokenRes.text();
           this.logger.error("bling.token_exchange_failed", { status: tokenRes.status, error: err });
-          res.redirect(302, "/dashboard?error=erp_token_failed");
-          return;
-        }
-        tokenData = await tokenRes.json();
-      } else if (provider === "tiny") {
-        tokenEndpoint = "https://accounts.tiny.com.br/realms/tiny/protocol/openid-connect/token";
-        clientId = env("TINY_CLIENT_ID");
-        clientSecret = env("TINY_CLIENT_SECRET");
-        redirectUri = env("TINY_REDIRECT_URI");
-
-        // Tiny: Standard OAuth2 token exchange (no Basic auth)
-        const tokenRes = await fetch(tokenEndpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            grant_type: "authorization_code",
-            client_id: clientId,
-            client_secret: clientSecret,
-            code,
-            redirect_uri: redirectUri,
-          }).toString(),
-        });
-
-        if (!tokenRes.ok) {
-          const err = await tokenRes.text();
-          this.logger.error("tiny.token_exchange_failed", { status: tokenRes.status, error: err });
           res.redirect(302, "/dashboard?error=erp_token_failed");
           return;
         }
@@ -284,6 +248,7 @@ export class ErpOAuthController {
         where: { merchantId_provider: { merchantId, provider } },
         update: {
           status: "connected",
+          directionMode: "bidirectional",
           accessTokenCipher,
           refreshTokenCipher,
           tokenExpiresAt: expiresAt,
@@ -293,6 +258,7 @@ export class ErpOAuthController {
           merchantId,
           provider,
           status: "connected",
+          directionMode: "bidirectional",
           accessTokenCipher,
           refreshTokenCipher,
           tokenExpiresAt: expiresAt,
@@ -304,6 +270,8 @@ export class ErpOAuthController {
       // Fire-and-forget: import products into inventory (marketplaces only)
       if (isMarketplaceProvider(provider)) {
         void this.triggerInitialSync(merchantId, provider, tokenData.access_token, connection.id);
+      } else if (provider === "bling") {
+        await this.erpSync.execute(merchantId, connection.id);
       }
 
       const dashboardUrl = process.env.DASHBOARD_URL ?? "http://localhost:5175";

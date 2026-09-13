@@ -24,6 +24,7 @@ import { ConnectCrmUseCase } from "./application/use-cases/connect-crm.use-case.
 import { DisconnectCrmUseCase } from "./application/use-cases/disconnect-crm.use-case.js";
 import { ListErpConnectionsUseCase } from "./application/use-cases/list-erp-connections.use-case.js";
 import { ConnectOmieUseCase } from "./application/use-cases/connect-omie.use-case.js";
+import { ConnectTinyUseCase } from "./application/use-cases/connect-tiny.use-case.js";
 import { DisconnectErpUseCase } from "./application/use-cases/disconnect-erp.use-case.js";
 import { TriggerMarketplaceSyncUseCase } from "./application/use-cases/trigger-marketplace-sync.use-case.js";
 import { MarketplaceStockPushService } from "./application/services/marketplace-stock-push.service.js";
@@ -58,6 +59,9 @@ import { TenantAccessModule } from "../integrations/tenant-access.module.js";
 import { INVENTORY_SALE_REPOSITORY } from "./domain/ports/inventory-sale.repository.port.js";
 import { PrismaInventorySaleRepository } from "./infrastructure/repositories/prisma-inventory-sale.repository.js";
 import { InventorySaleIntegrationHandler } from "./infrastructure/event-handlers/on-inventory-sale-integration.handler.js";
+import { ErpSyncService } from "./application/services/erp-sync.service.js";
+import { ErpSyncWorker } from "./infrastructure/jobs/erp-sync.worker.js";
+import { TriggerErpSyncUseCase } from "./application/use-cases/trigger-erp-sync.use-case.js";
 
 @Module({
   imports: [CatalogModule, CheckoutPersistenceModule, TenantAccessModule],
@@ -122,6 +126,7 @@ import { InventorySaleIntegrationHandler } from "./infrastructure/event-handlers
     DisconnectCrmUseCase,
     ListErpConnectionsUseCase,
     ConnectOmieUseCase,
+    ConnectTinyUseCase,
     DisconnectErpUseCase,
     TriggerMarketplaceSyncUseCase,
     MarketplaceStockPushService,
@@ -131,6 +136,9 @@ import { InventorySaleIntegrationHandler } from "./infrastructure/event-handlers
     ReconcileCatalogStockUseCase,
     InventoryReconciliationScheduler,
     InventoryReconciliationWorker,
+    ErpSyncService,
+    ErpSyncWorker,
+    TriggerErpSyncUseCase,
     ErpStockPushService,
     InventoryWebhookEmitterService,
     CrmSyncService,
