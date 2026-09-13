@@ -13,6 +13,17 @@ function env(key: string, fallback = ""): string {
   return process.env[key] ?? fallback;
 }
 
+function dashboardRedirect(params: Record<string, string>): string {
+  const url = new URL(env("DASHBOARD_URL", "http://localhost:5175"));
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+  return url.toString();
+}
+
+function callbackErrorCode(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return /^[a-z0-9_:-]{1,160}$/i.test(message) ? message : "erp_callback_error";
+}
+
 function readBlingCompanyId(accessToken: unknown): string | null {
   if (typeof accessToken !== "string") return null;
   const payload = accessToken.split(".")[1];
@@ -137,14 +148,14 @@ export class ErpOAuthController {
     @Query("shop_id") shopId?: string
   ) {
     if (!code || !state) {
-      res.redirect(302, "/dashboard?error=erp_denied");
+      res.redirect(302, dashboardRedirect({ error: "erp_denied" }));
       return;
     }
 
     const { provider, merchantId } = this.verifyState(state);
     if (!provider || !merchantId) {
       this.logger.warn("erp.callback.invalid_state", { state });
-      res.redirect(302, "/dashboard?error=erp_csrf");
+      res.redirect(302, dashboardRedirect({ error: "erp_csrf" }));
       return;
     }
 
@@ -180,7 +191,7 @@ export class ErpOAuthController {
         if (!tokenRes.ok) {
           const err = await tokenRes.text();
           this.logger.error("bling.token_exchange_failed", { status: tokenRes.status, error: err });
-          res.redirect(302, "/dashboard?error=erp_token_failed");
+          res.redirect(302, dashboardRedirect({ error: "erp_token_failed" }));
           return;
         }
         tokenData = await tokenRes.json();
@@ -200,7 +211,7 @@ export class ErpOAuthController {
         if (!tokenRes.ok) {
           const err = await tokenRes.text();
           this.logger.error("mercadolivre.token_exchange_failed", { status: tokenRes.status, error: err });
-          res.redirect(302, "/dashboard?error=erp_token_failed");
+          res.redirect(302, dashboardRedirect({ error: "erp_token_failed" }));
           return;
         }
         tokenData = await tokenRes.json();
@@ -225,7 +236,7 @@ export class ErpOAuthController {
         if (!tokenRes.ok) {
           const err = await tokenRes.text();
           this.logger.error("shopee.token_exchange_failed", { status: tokenRes.status, error: err });
-          res.redirect(302, "/dashboard?error=erp_token_failed");
+          res.redirect(302, dashboardRedirect({ error: "erp_token_failed" }));
           return;
         }
         const raw: any = await tokenRes.json();
@@ -250,7 +261,7 @@ export class ErpOAuthController {
         if (!tokenRes.ok) {
           const err = await tokenRes.text();
           this.logger.error("tiktokshop.token_exchange_failed", { status: tokenRes.status, error: err });
-          res.redirect(302, "/dashboard?error=erp_token_failed");
+          res.redirect(302, dashboardRedirect({ error: "erp_token_failed" }));
           return;
         }
         const raw: any = await tokenRes.json();
@@ -316,11 +327,11 @@ export class ErpOAuthController {
         await this.erpSync.execute(merchantId, connection.id);
       }
 
-      const dashboardUrl = process.env.DASHBOARD_URL ?? "http://localhost:5175";
-      res.redirect(302, `${dashboardUrl}?erp_connected=${provider}`);
+      res.redirect(302, dashboardRedirect({ erp_connected: provider }));
     } catch (err) {
-      this.logger.error("erp.callback.error", err);
-      res.redirect(302, "/dashboard?error=erp_callback_error");
+      const code = callbackErrorCode(err);
+      this.logger.error("erp.callback.error", { provider, merchantId, code });
+      res.redirect(302, dashboardRedirect({ error: "erp_callback_error" }));
     }
   }
 
