@@ -45,7 +45,7 @@ const SAMPLES: Record<string, string> = {
  * Named tokens are replaced by {{1}}, {{2}} … in first-appearance order.
  * `storeName` is inlined (not a variable) since Meta discourages a var for it.
  */
-function toPositional(named: string, storeName = "sua loja"): {
+export function toPositional(named: string, storeName = "sua loja"): {
   metaBody: string;
   variableMap: Record<string, string>;
   sampleVariables: Record<string, string>;
@@ -99,7 +99,7 @@ De 1 a 5 estrelas, o quanto você recomendaria a gente? ⭐
 
 É só responder com o número (1 a 5) aqui mesmo! 🙏`,
 
-  cross_sell: `{{buyerName}}, tudo bem? 🎁
+  cross_sell: `Olá, {{buyerName}}, tudo bem? 🎁
 
 Como você comprou o {{productName}}, separamos algumas opções que combinam perfeitamente!
 
@@ -125,13 +125,13 @@ Como agradecimento pela sua fidelidade, preparamos um benefício exclusivo:
 
 Obrigado por fazer parte! 💛`,
 
-  reorder: `{{buyerName}}, tudo bem? 🔔
+  reorder: `Olá, {{buyerName}}, tudo bem? 🔔
 
 Lembra do {{productName}} que você comprou? Pelo tempo de uso, pode ser que esteja na hora de repor!
 
 {{couponBlock}}
 
-Cuidamos do frete pra você! 📦`,
+Confira as opções e condições de entrega na loja.`,
 
   cart_recovery: `Oi {{buyerName}}! 🛒
 
@@ -153,7 +153,7 @@ Seu pedido {{orderId}} foi enviado. Código de rastreio: {{trackingCode}}.
 
 Acompanhe a entrega e qualquer coisa é só falar com a gente. 🚚`,
 
-  order_delivered: `{{buyerName}}, seu pedido {{orderId}} foi entregue! 🎉
+  order_delivered: `Olá, {{buyerName}}, seu pedido {{orderId}} foi entregue! 🎉
 
 Esperamos que esteja tudo perfeito. Se precisar de qualquer coisa com o {{productName}}, é só responder aqui. 💬`,
 };
@@ -186,9 +186,9 @@ const LABELS: Record<WhatsAppTemplateType, string> = {
   order_delivered: "Pedido Entregue",
 };
 
-// Only cross_sell + win_back + cart_recovery are promotional → MARKETING.
+// Incentives, reactivation and replenishment campaigns are promotional.
 // Template category does not replace recipient consent or current Meta approval.
-const MARKETING = new Set<WhatsAppTemplateType>(["cross_sell", "win_back", "cart_recovery"]);
+const MARKETING = new Set<WhatsAppTemplateType>(["cross_sell", "win_back", "loyalty", "reorder", "cart_recovery"]);
 
 export function categoryFor(type: WhatsAppTemplateType): WhatsAppTemplateCategory {
   return MARKETING.has(type) ? "MARKETING" : "UTILITY";

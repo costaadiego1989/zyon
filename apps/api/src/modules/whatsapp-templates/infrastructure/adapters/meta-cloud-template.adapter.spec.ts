@@ -49,4 +49,17 @@ describe("Meta Cloud template submission", () => {
     assert.equal(result.status, "submission_unknown");
     assert.match(result.contentSid, /^zyon_/);
   });
+
+  test("approval must match both language and body, even when the name is approved", async () => {
+    const expected = { language: "pt_BR", body: input.metaBody };
+    for (const item of [
+      { language: "en_US", components: [{ type: "BODY", text: input.metaBody }] },
+      { language: "pt_BR", components: [{ type: "BODY", text: "Conteúdo alterado" }] },
+    ]) {
+      globalThis.fetch = (async () => Response.json({ data: [{ name: "zyon_test", status: "APPROVED", ...item }] })) as typeof fetch;
+      assert.notEqual((await new MetaCloudTemplateAdapter(configs).syncStatus(input.merchantId, "zyon_test", expected)).status, "approved");
+    }
+    globalThis.fetch = (async () => Response.json({ data: [{ name: "zyon_test", status: "APPROVED", language: "pt_BR", components: [{ type: "BODY", text: input.metaBody }] }] })) as typeof fetch;
+    assert.equal((await new MetaCloudTemplateAdapter(configs).syncStatus(input.merchantId, "zyon_test", expected)).status, "approved");
+  });
 });

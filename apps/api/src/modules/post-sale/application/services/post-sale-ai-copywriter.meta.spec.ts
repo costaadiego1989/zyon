@@ -6,7 +6,7 @@ function svc() {
   return new PostSaleAiCopywriterService();
 }
 
-test("buildMetaTemplate: loyalty → positional vars + coupon var + UTILITY", () => {
+test("buildMetaTemplate: loyalty → positional vars + coupon var + MARKETING", () => {
   const r = svc().buildMetaTemplate({ type: "loyalty", storeName: "Loja X" });
   // Positional placeholders only (Meta requirement).
   assert.match(r.metaBody, /\{\{1\}\}/);
@@ -19,7 +19,7 @@ test("buildMetaTemplate: loyalty → positional vars + coupon var + UTILITY", ()
   }
   // Loyalty carries a coupon slot.
   assert.ok(Object.values(r.variableMap).includes("couponBlock"));
-  assert.equal(r.category, "UTILITY");
+  assert.equal(r.category, "MARKETING");
   assert.equal(r.language, "pt_BR");
 });
 
@@ -35,10 +35,10 @@ test("buildMetaTemplate: follow_up → no coupon slot, storeName inlined", () =>
   assert.match(r.metaBody, /Loja X/);
 });
 
-test("metaCategoryFor: only cross_sell is MARKETING", () => {
+test("metaCategoryFor: promotional sales scenarios are MARKETING", () => {
   const s = svc();
   assert.equal(s.metaCategoryFor("cross_sell"), "MARKETING");
-  for (const t of ["follow_up", "review_request", "nps", "win_back", "loyalty", "reorder"] as const) {
+  for (const t of ["follow_up", "review_request", "nps"] as const) {
     assert.equal(s.metaCategoryFor(t), "UTILITY");
   }
 });

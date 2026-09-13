@@ -28,5 +28,5 @@ export interface TemplateSubmissionStatus {
 
 export interface TemplateSubmissionPort {
   createAndSubmit(input: SubmitTemplateInput): Promise<TemplateSubmissionStatus>;
-  syncStatus(merchantId: string, contentSid: string): Promise<TemplateSubmissionStatus>;
+  syncStatus(merchantId: string, contentSid: string, expected?: { language: string; body: string }): Promise<TemplateSubmissionStatus>;
 }

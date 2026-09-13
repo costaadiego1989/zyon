@@ -8,7 +8,7 @@ export interface ScheduledMessage {
   type: "follow_up" | "review_request" | "nps" | "cross_sell" | "win_back" | "loyalty" | "reorder";
   channel: "whatsapp" | "email";
   sendAt: Date;
-  status: "pending" | "sent" | "failed" | "cancelled";
+  status: "pending" | "processing" | "sent" | "failed" | "cancelled" | "skipped" | "unknown";
   sentAt: Date | null;
   messageContent: string | null;
   buyerPhone: string | null;
@@ -42,6 +42,9 @@ export interface ScheduledMessageRepositoryPort {
       status?: ScheduledMessage["status"];
       sentAt?: Date;
       messageContent?: string;
+      channel?: "whatsapp" | "email";
+      providerMessageId?: string;
+      failureReason?: string;
     }
   ): Promise<ScheduledMessage>;
   findByOrderId(merchantId: string, orderId: string): Promise<ScheduledMessage[]>;

@@ -45,13 +45,17 @@ export function postSaleEndpoints(base: string, f: typeof fetch) {
       );
     },
 
-    saveTemplate(type: string, channel: string, data: { name: string; body: string; subject?: string; metaCategory?: string; metaLanguage?: string; metaTemplateBody?: string; metaVariableMap?: Record<string, string> }): Promise<{ template: PostSaleTemplate }> {
+    saveTemplate(type: string, channel: string, data: { revision?: number; name: string; body: string; subject?: string; metaCategory?: string; metaLanguage?: string; metaTemplateBody?: string; metaVariableMap?: Record<string, string> }): Promise<{ template: PostSaleTemplate }> {
       return dashboardJson<{ template: PostSaleTemplate }>(
         base,
         `/dashboard/post-sale/templates/${type}/${channel}`,
         { method: "PUT", jsonBody: data },
         f
       );
+    },
+
+    restorePostSaleTemplate(type: string, revision: number, expectedRevision: number): Promise<{ template: PostSaleTemplate }> {
+      return dashboardJson(base, "/dashboard/post-sale/templates/" + encodeURIComponent(type) + "/restore", { method: "POST", jsonBody: { revision, expectedRevision } }, f);
     },
 
     generateTemplate(data: { type: string; channel: string; tone?: string; storeName?: string }): Promise<GeneratePostSaleTemplateResult> {

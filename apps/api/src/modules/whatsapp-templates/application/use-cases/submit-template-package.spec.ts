@@ -2,76 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { SubmitTemplatePackageUseCase } from "./submit-template-package.use-case.js";
 import { WHATSAPP_TEMPLATE_TYPES } from "../../domain/catalog/template-types.js";
-const LEGACY_TEMPLATE_COUNT = WHATSAPP_TEMPLATE_TYPES.filter(type => type !== "cart_recovery").length;
-
-function harness(opts: { existing?: Record<string, any>; submitStatus?: string; throwOn?: string }) {
-  const upserts: any[] = [];
-  const metaUpdates: any[] = [];
-  const submitted: any[] = [];
-  const store: Record<string, any> = { ...(opts.existing ?? {}) };
-
-  const templates = {
-    async findByMerchantAndType(_m: string, type: string) {
-      return store[type] ?? null;
-    },
-    async upsert(i: any) {
-      upserts.push(i);
-      store[i.type] = { ...store[i.type], ...i, twilioContentSid: store[i.type]?.twilioContentSid };
-      return store[i.type];
-    },
-    async updateMeta(i: any) {
-      metaUpdates.push(i);
-      store[i.type] = { ...store[i.type], ...i };
-      return store[i.type];
-    },
-  } as any;
-
-  const submission = {
-    async createAndSubmit(i: any) {
-      if (opts.throwOn && i.friendlyName.includes(opts.throwOn)) throw new Error("boom");
-      submitted.push(i);
-      return { contentSid: "HX_" + i.friendlyName, status: opts.submitStatus ?? "submitted" };
-    },
-    async syncStatus() {
-      return { contentSid: "", status: "unknown" as const };
-    },
-  } as any;
-
-  return { uc: new SubmitTemplatePackageUseCase(templates, submission), upserts, metaUpdates, submitted };
-}
-
-test("submits legacy catalog without racing recovery lifecycle", async () => {
-  const h = harness({});
-  const r = await h.uc.execute("m1", "Loja X");
-  assert.equal(r.submitted, LEGACY_TEMPLATE_COUNT);
-  assert.equal(r.failed, 0);
-  assert.equal(h.submitted.length, LEGACY_TEMPLATE_COUNT);
-  assert.ok(h.upserts.every(u => u.type !== "cart_recovery"));
-  // each type got a meta update with a contentSid + submitted status
-  assert.ok(h.metaUpdates.every((u) => u.metaStatus === "submitted" && u.twilioContentSid));
+test("connection durably queues every scenario including recovery without overwriting merchant content", async () => {
+  const ensured: string[] = [];
+  const lifecycle = { async ensure(_m: string, type: string) { ensured.push(type); }, async record(_m: string, type: string) { return { metaStatus: type === "loyalty" ? "approved" : "draft" }; } } as any;
+  const result = await new SubmitTemplatePackageUseCase(lifecycle).execute("m1");
+  assert.deepEqual(ensured, [...WHATSAPP_TEMPLATE_TYPES]); assert.equal(result.skipped, 1);
+  assert.equal(result.queued, WHATSAPP_TEMPLATE_TYPES.length - 1); assert.equal(result.submitted, 0);
 });
-
-test("idempotent: skips types already submitted with a contentSid", async () => {
-  const existing = {
-    follow_up: { twilioContentSid: "HXexisting", metaStatus: "approved" },
-  };
-  const h = harness({ existing });
-  const r = await h.uc.execute("m1");
-  assert.equal(r.skipped, 1);
-  assert.equal(r.submitted, LEGACY_TEMPLATE_COUNT - 1);
-  assert.ok(!h.submitted.some((s) => s.friendlyName.includes("follow_up")));
-});
-
-test("never throws on submission failure; counts it as failed", async () => {
-  const h = harness({ throwOn: "nps" });
-  const r = await h.uc.execute("m1");
-  assert.equal(r.failed >= 1, true);
-  assert.equal(r.submitted, LEGACY_TEMPLATE_COUNT - 1);
-});
-
-test("draft submission status counts as failed (not submitted)", async () => {
-  const h = harness({ submitStatus: "draft" });
-  const r = await h.uc.execute("m1");
-  assert.equal(r.submitted, 0);
-  assert.equal(r.failed, LEGACY_TEMPLATE_COUNT);
+test("one failed seed does not stop the other scenarios", async () => {
+  const lifecycle = { async ensure(_m: string, type: string) { if(type === "nps")throw new Error("db"); }, async record() { return { metaStatus: "draft" }; } } as any;
+  const result = await new SubmitTemplatePackageUseCase(lifecycle).execute("m1");assert.equal(result.failed, 1);assert.equal(result.queued, WHATSAPP_TEMPLATE_TYPES.length - 1);
 });

@@ -114,9 +114,9 @@ export class CheckLoyaltyMilestoneUseCase {
       await this.messages.create({
         merchantId: input.merchantId,
         buyerId: input.buyerId,
-        orderId: `loyalty-${input.purchaseCount}-${Date.now()}`,
+        orderId: `loyalty-${input.purchaseCount}`,
         type: "loyalty",
-        channel: input.buyerPhone ? "whatsapp" : "email",
+        channel: input.buyerPhone || !input.buyerEmail ? "whatsapp" : "email",
         sendAt: new Date(),
         buyerPhone: input.buyerPhone,
         buyerEmail: input.buyerEmail,

@@ -13,14 +13,15 @@ import type { RecoveryStrategy } from "../../domain/values/recovery-strategy.js"
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../../buyer-account/domain/ports/buyer-account-repository.port.js";
 
 const SCAN_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+const QUIET_PERIOD_MS = 30 * 60 * 1000;
 
 /**
  * RecoveryScannerJob
  *
  * Runs every 15 min: loads candidate sessions and delegates attempts to the
  * module's shared recovery use case, including connection/template routing.
- * The legacy trigger/score query still needs authoritative journey eligibility
- * and recipient consent before it can satisfy the complete ADR 0034 pilot gate.
+ * Delivery is revalidated against the current checkout, order and payment
+ * state immediately before delegating to the channel router.
  */
 @Injectable()
 export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
@@ -221,6 +222,11 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
       merchantName = m?.name || undefined;
     } catch { /* name optional */ }
 
+    // Re-read authoritative state immediately before any channel routing. A
+    // score created earlier must never override a resumed session, a completed
+    // order, an approved payment, or an empty cart.
+    if (!await this.isStillEligible(session)) return;
+
     // Reuse the module's composition, including connection/template checks.
     const result = await this.attemptRecovery.execute({
       merchantId: session.merchantId,
@@ -254,6 +260,48 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
         events: eventNames,
       }
     );
+  }
+
+  private async isStillEligible(scanned: CheckoutSession): Promise<boolean> {
+    const current = await this.sessions.getSession(scanned.merchantId, scanned.sessionId);
+    if (!current) return false;
+    const items = (current.cart as { items?: unknown[] } | null | undefined)?.items;
+    if (!Array.isArray(items) || items.length === 0) {
+      this.logger.debug("recovery-scanner: cart is empty at dispatch", { merchantId: current.merchantId, sessionId: current.sessionId });
+      return false;
+    }
+    const updatedAt = new Date(current.updatedAt).getTime();
+    if (!Number.isFinite(updatedAt) || Date.now() - updatedAt < QUIET_PERIOD_MS) {
+      this.logger.debug("recovery-scanner: checkout is still active", { merchantId: current.merchantId, sessionId: current.sessionId });
+      return false;
+    }
+    try {
+      const completed = await (this.prisma as any).completedOrder?.findFirst?.({
+        where: { merchantId: current.merchantId, sessionId: current.sessionId },
+        select: { id: true },
+      });
+      if (completed) {
+        this.logger.debug("recovery-scanner: order already completed", { merchantId: current.merchantId, sessionId: current.sessionId });
+        return false;
+      }
+      const approvedPayment = await (this.prisma as any).paymentIntent?.findFirst?.({
+        where: { merchantId: current.merchantId, sessionId: current.sessionId, status: "approved" },
+        select: { id: true },
+      });
+      if (approvedPayment) {
+        this.logger.debug("recovery-scanner: payment already approved", { merchantId: current.merchantId, sessionId: current.sessionId });
+        return false;
+      }
+    } catch (error) {
+      // A failed authority lookup cannot be treated as permission to contact.
+      this.logger.warn("recovery-scanner: dispatch eligibility unavailable", {
+        merchantId: current.merchantId,
+        sessionId: current.sessionId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    }
+    return true;
   }
 
   /**

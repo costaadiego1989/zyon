@@ -1,306 +1,127 @@
 import { Injectable, Logger, Inject, Optional } from "@nestjs/common";
-import {
-  SCHEDULED_MESSAGE_REPOSITORY,
-  type ScheduledMessageRepositoryPort,
-} from "../../domain/ports/scheduled-message-repository.port.js";
-import { WHATSAPP_SENDER_PORT, type WhatsAppSenderPort } from "../../../notifications/domain/ports/whatsapp-sender.port.js";
-import { EMAIL_SENDER_PORT, type EmailSenderPort } from "../../../notifications/domain/ports/email-sender.port.js";
+import type { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { SCHEDULED_MESSAGE_REPOSITORY, type ScheduledMessageRepositoryPort } from "../../domain/ports/scheduled-message-repository.port.js";
 import { PostSaleAiCopywriterService } from "../services/post-sale-ai-copywriter.service.js";
-import {
-  WHATSAPP_POST_SALE_CONTEXT_PORT,
-  type WhatsAppPostSaleContextPort,
-} from "../../../whatsapp-channel/domain/ports/whatsapp-post-sale-context.port.js";
-import {
-  POST_SALE_WHATSAPP_SENDER,
-  type PostSaleWhatsAppSenderPort,
-} from "../../domain/ports/post-sale-whatsapp-sender.port.js";
-import {
-  POST_SALE_TEMPLATE_REPOSITORY,
-  type PostSaleTemplateRepositoryPort,
-  type PostSaleTemplate,
-} from "../../domain/ports/post-sale-template-repository.port.js";
+import { WHATSAPP_POST_SALE_CONTEXT_PORT, type WhatsAppPostSaleContextPort } from "../../../whatsapp-channel/domain/ports/whatsapp-post-sale-context.port.js";
+import { SendWhatsAppMessageUseCase } from "../../../whatsapp-templates/application/use-cases/send-whatsapp-message.use-case.js";
+import { PostSaleConfigService, type PostSaleCampaignConfig } from "../services/post-sale-config.service.js";
+import { CampaignContactConsentService } from "../../../campaign-consent/campaign-contact-consent.service.js";
 
-/**
- * Transport for business-initiated WhatsApp. Default `email` is the safe choice
- * (no Meta ban risk). `twilio` uses Meta-approved templates; `bubblewhats` is
- * the legacy informal path (risky, kept only for explicit opt-in).
- */
-type PostSaleWhatsAppProvider = "email" | "bubblewhats" | "meta";
-
-function resolveProvider(): PostSaleWhatsAppProvider {
-  const raw = (process.env.POST_SALE_WHATSAPP_PROVIDER || "email").trim().toLowerCase();
-  return raw === "meta" || raw === "meta_cloud" ? "meta" : raw === "bubblewhats" ? "bubblewhats" : "email";
-}
+const enabledKey: Record<string, keyof PostSaleCampaignConfig> = { follow_up: "followUpEnabled", review_request: "reviewEnabled", nps: "npsEnabled", cross_sell: "crossSellEnabled", win_back: "winBackEnabled", loyalty: "loyaltyEnabled", reorder: "reorderEnabled" };
 
 @Injectable()
 export class ProcessScheduledMessagesUseCase {
   private readonly logger = new Logger(ProcessScheduledMessagesUseCase.name);
-
   constructor(
-    @Inject(SCHEDULED_MESSAGE_REPOSITORY)
-    private readonly messages: ScheduledMessageRepositoryPort,
-    @Inject(WHATSAPP_SENDER_PORT)
-    private readonly whatsapp: WhatsAppSenderPort,
-    @Inject(EMAIL_SENDER_PORT)
-    private readonly email: EmailSenderPort,
+    @Inject(SCHEDULED_MESSAGE_REPOSITORY) private readonly messages: ScheduledMessageRepositoryPort,
+    private readonly sender: SendWhatsAppMessageUseCase,
     private readonly copywriter: PostSaleAiCopywriterService,
-    @Optional() @Inject(WHATSAPP_POST_SALE_CONTEXT_PORT)
-    private readonly contextPort?: WhatsAppPostSaleContextPort,
-    @Optional() @Inject(POST_SALE_WHATSAPP_SENDER)
-    private readonly templateSender?: PostSaleWhatsAppSenderPort,
-    @Optional() @Inject(POST_SALE_TEMPLATE_REPOSITORY)
-    private readonly templates?: PostSaleTemplateRepositoryPort,
+    private readonly config: PostSaleConfigService,
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    @Optional() @Inject(WHATSAPP_POST_SALE_CONTEXT_PORT) private readonly contextPort?: WhatsAppPostSaleContextPort,
+    @Optional() private readonly campaignConsent?: CampaignContactConsentService,
   ) {}
 
   async execute(): Promise<{ processed: number; sent: number; failed: number }> {
     const stats = { processed: 0, sent: 0, failed: 0 };
-
-    try {
-      // Fetch up to 20 pending messages due for sending
-      const pending = await this.messages.findPendingDue(20);
-      stats.processed = pending.length;
-
-      for (const msg of pending) {
-        try {
-          // Surface coupon/link data carried in metadata so loyalty, win-back,
-          // cross-sell and reorder messages actually contain the coupon the
-          // system already created (was dropped before — dead "#" link).
-          const meta = (msg.metadata ?? {}) as Record<string, unknown>;
-          const couponCode = typeof meta["couponCode"] === "string" ? (meta["couponCode"] as string) : undefined;
-          const discountPercent =
-            typeof meta["discountPercent"] === "number" ? (meta["discountPercent"] as number) : undefined;
-          const freeShipping = meta["freeShipping"] === true;
-          const expiresAt = typeof meta["expiresAt"] === "string" ? (meta["expiresAt"] as string) : undefined;
-          const metaLink =
-            typeof meta["reorderLink"] === "string"
-              ? (meta["reorderLink"] as string)
-              : typeof meta["link"] === "string"
-                ? (meta["link"] as string)
-                : undefined;
-
-          // Generate personalized message content
-          const content = await this.copywriter.generate({
-            type: msg.type,
-            buyerName: msg.buyerName || "Comprador",
-            productName: msg.productName || "seu pedido",
-            merchantId: msg.merchantId,
-            buyerId: msg.buyerId,
-            couponCode,
-            discountPercent,
-            freeShipping,
-            expiresAt,
-            link: metaLink,
-          });
-
-          // Route the send. WhatsApp business-initiated must use a Meta-approved
-          // template (Twilio) — never informal freeform (ban risk). When no
-          // approved template exists, fall back to email so the buyer is still
-          // reached and nothing risks the number.
-          const outcome = await this.route({
-            msg,
-            content,
-            couponCode,
-            discountPercent,
-          });
-
-          if (outcome === "skipped") {
-            this.logger.warn(`No valid channel/contact for message`, {
-              messageId: msg.id,
-              channel: msg.channel,
-              merchantId: msg.merchantId,
-            });
+    const pending = await this.messages.findPendingDue(20);
+    stats.processed = pending.length;
+    for (const msg of pending) {
+      let dispatchStarted = false;
+      try {
+        const cfg = await this.config.getConfig(msg.merchantId);
+        if (cfg[enabledKey[msg.type]] !== true) {
+          await this.messages.update(msg.id, { status: "cancelled", failureReason: "campaign_disabled" });
+          continue;
+        }
+        const merchant = await this.prisma.merchant.findUnique({ where: { id: msg.merchantId }, select: { name: true } });
+        if (!merchant) {
+          await this.messages.update(msg.id, { status: "cancelled", failureReason: "merchant_unavailable" });
+          continue;
+        }
+        if (["follow_up", "review_request", "nps", "cross_sell", "reorder"].includes(msg.type)) {
+          const order = await this.prisma.completedOrder.findFirst({ where: { merchantId: msg.merchantId,
+            OR: [{ id: msg.orderId }, { externalOrderId: msg.orderId }] }, select: { status: true } });
+          const eligible = msg.type === "reorder" ? ["approved", "paid", "shipped", "delivered"] : ["delivered"];
+          if (!order || !eligible.includes(order.status)) {
+            await this.messages.update(msg.id, { status: "cancelled", failureReason: "order_no_longer_eligible" });
             continue;
           }
-
-          // Mark as sent
-          await this.messages.update(msg.id, {
-            status: "sent",
-            sentAt: new Date(),
-            messageContent: content,
-          });
-          stats.sent++;
-
-          // Set WhatsApp post-sale context so the reply handler can capture responses
-          if (msg.channel === "whatsapp" && msg.buyerPhone && this.contextPort) {
-            const stage = msg.type === "nps" ? "awaiting_nps" : msg.type === "review_request" ? "awaiting_review" : null;
-            if (stage) {
-              try {
-                const productId = (msg.metadata as Record<string, unknown> | null)?.["productId"] as string | undefined;
-                await this.contextPort.setPostSaleContext(msg.merchantId, msg.buyerPhone, {
-                  stage,
-                  orderId: msg.orderId,
-                  productId,
-                  buyerId: msg.buyerId,
-                  askedAt: new Date().toISOString(),
-                });
-              } catch (err) {
-                this.logger.warn("Failed to set post-sale context on WA session", {
-                  messageId: msg.id,
-                  error: err instanceof Error ? err.message : String(err),
-                });
-              }
-            }
+        }
+        // Scanner-created messages may carry only the platform buyer ID or a legacy session ID.
+        if (!msg.buyerPhone || !msg.buyerEmail) {
+          let account = await this.prisma.buyerAccount.findUnique({ where: { globalUserId: msg.buyerId }, select: { phone: true, email: true, displayName: true } });
+          if (!account) {
+            const identity = await this.prisma.buyerIdentity.findFirst({ where: { id: msg.buyerId, merchantId: msg.merchantId }, select: { globalUserId: true } });
+            if (identity?.globalUserId) account = await this.prisma.buyerAccount.findUnique({ where: { globalUserId: identity.globalUserId }, select: { phone: true, email: true, displayName: true } });
           }
-
-          this.logger.log(
-            `Message sent`,
-            {
-              messageId: msg.id,
-              type: msg.type,
-              channel: msg.channel,
-              merchantId: msg.merchantId,
-            }
-          );
-        } catch (err) {
-          stats.failed++;
-          const errMsg = err instanceof Error ? err.message : String(err);
-
-          // Transport/temporary failures → requeue as pending for retry on next tick.
-          // Permanent failures (e.g. invalid phone format) → mark failed.
-          const isTransient = errMsg.includes("transport_failed") ||
-            errMsg.includes("ECONNREFUSED") ||
-            errMsg.includes("ETIMEDOUT") ||
-            errMsg.includes("429") ||
-            errMsg.includes("503");
-
-          await this.messages.update(msg.id, {
-            status: isTransient ? "pending" : "failed",
-          });
-
-          this.logger.error(
-            `Failed to process message (${isTransient ? "will retry" : "permanent"})`,
-            {
-              messageId: msg.id,
-              type: msg.type,
-              error: errMsg,
-              merchantId: msg.merchantId,
-            }
-          );
+          if (!account) {
+            const session = await this.prisma.checkoutSession.findFirst({ where: { sessionId: msg.buyerId, merchantId: msg.merchantId }, select: { globalUserId: true } });
+            if (session?.globalUserId) account = await this.prisma.buyerAccount.findUnique({ where: { globalUserId: session.globalUserId }, select: { phone: true, email: true, displayName: true } });
+          }
+          msg.buyerPhone ||= account?.phone ?? null;
+          msg.buyerEmail ||= account?.email ?? null;
+          msg.buyerName ||= account?.displayName ?? null;
         }
-      }
-    } catch (err) {
-      this.logger.error(
-        `Error in scheduled message processor`,
-        { error: err instanceof Error ? err.message : String(err) }
-      );
-    }
-
-    return stats;
-  }
-
-  /**
-   * Deliver one message on the safest available channel.
-   * Returns "sent" or "skipped" (no reachable channel). Throws on transient
-   * transport errors so the outer catch requeues for retry.
-   */
-  private async route(args: {
-    msg: {
-      id: string;
-      merchantId: string;
-      type: string;
-      channel: string;
-      buyerPhone: string | null;
-      buyerEmail: string | null;
-      buyerName: string | null;
-      productName: string | null;
-    };
-    content: string;
-    couponCode?: string;
-    discountPercent?: number;
-  }): Promise<"sent" | "skipped"> {
-    const { msg, content } = args;
-    const provider = resolveProvider();
-    const wantsWhatsApp = msg.channel === "whatsapp" && !!msg.buyerPhone;
-
-    if (wantsWhatsApp && provider === "meta" && this.templateSender && this.templates) {
-      const tpl = await this.templates
-        .findByMerchantAndType(msg.merchantId, msg.type, "whatsapp")
-        .catch(() => null);
-      if (tpl && tpl.metaStatus === "approved" && tpl.twilioContentSid) {
-        const result = await this.templateSender.sendTemplate({
-          merchantId: msg.merchantId,
-          toNumber: msg.buyerPhone!,
-          contentSid: tpl.twilioContentSid,
-          language: tpl.metaLanguage ?? "pt_BR",
-          contentVariables: this.resolveContentVariables(tpl, args),
+        let consentBuyerId = msg.buyerId;
+        if (this.campaignConsent) {
+          const direct = await this.prisma.buyerAccount.findUnique({ where: { globalUserId: consentBuyerId }, select: { globalUserId: true } });
+          if (!direct) {
+            const identity = await (this.prisma as any).buyerIdentity?.findFirst?.({ where: { id: msg.buyerId, merchantId: msg.merchantId }, select: { globalUserId: true } });
+            const session = identity ? undefined : await (this.prisma as any).checkoutSession?.findFirst?.({ where: { sessionId: msg.buyerId, merchantId: msg.merchantId }, select: { globalUserId: true } });
+            consentBuyerId = identity?.globalUserId ?? session?.globalUserId ?? consentBuyerId;
+          }
+        }
+        const canUseWhatsApp = msg.channel === "whatsapp" && Boolean(msg.buyerPhone)
+          && (!this.campaignConsent || await this.campaignConsent.canContact({ merchantId: msg.merchantId, globalUserId: consentBuyerId, channel: "whatsapp" }));
+        const canUseEmail = Boolean(msg.buyerEmail)
+          && (!this.campaignConsent || await this.campaignConsent.canContact({ merchantId: msg.merchantId, globalUserId: consentBuyerId, channel: "email" }));
+        if (!canUseWhatsApp && !canUseEmail) {
+          await this.messages.update(msg.id, { status: "cancelled", failureReason: "contact_consent_not_granted" });
+          continue;
+        }
+        const meta = msg.metadata ?? {};
+        const coupon = typeof meta.couponCode === "string" ? meta.couponCode : undefined;
+        const discount = typeof meta.discountPercent === "number" ? meta.discountPercent : undefined;
+        const link = typeof meta.reorderLink === "string" ? meta.reorderLink : typeof meta.link === "string" ? meta.link : undefined;
+        const content = await this.copywriter.generate({ type: msg.type, channel: "email", buyerName: msg.buyerName || "Cliente",
+          productName: msg.productName || "seu pedido", merchantId: msg.merchantId, buyerId: msg.buyerId,
+          storeName: merchant.name, couponCode: coupon, discountPercent: discount, freeShipping: meta.freeShipping === true,
+          expiresAt: typeof meta.expiresAt === "string" ? meta.expiresAt : undefined, link });
+        dispatchStarted = true;
+        const result = await this.sender.execute({ merchantId: msg.merchantId, type: msg.type,
+          toPhone: canUseWhatsApp ? msg.buyerPhone ?? undefined : undefined,
+          fallbackEmail: canUseEmail ? msg.buyerEmail ?? undefined : undefined, freeformText: content,
+          variables: { buyerName: msg.buyerName ?? "Cliente", productName: msg.productName ?? "seu pedido", storeName: merchant.name,
+            orderId: msg.orderId, link, coupon, discount: discount == null ? undefined : `${discount}%`,
+            couponBlock: coupon ? `${coupon}${discount == null ? "" : ` (${discount}% de desconto)`}` : "Consulte as condições disponíveis na loja." },
         });
-        if (result.status === "sent" || result.status === "queued") {
-          return "sent";
+        const actualChannel = result.channel === "whatsapp_template" ? "whatsapp" : result.channel === "email" ? "email" : undefined;
+        if (result.status !== "sent" || !result.messageId?.trim() || !actualChannel) {
+          const unknown = result.status === "uncertain" || result.status === "sent";
+          await this.messages.update(msg.id, { status: unknown ? "unknown" : result.status === "failed" ? "failed" : "skipped",
+            channel: actualChannel, failureReason: result.reason ?? (unknown ? "provider_acceptance_unknown" : "no_reachable_channel") });
+          if (unknown || result.status === "failed") stats.failed++;
+          continue;
         }
-        // Template send skipped (missing creds) or permanently failed → fall
-        // through to email so the buyer is still reached.
-        this.logger.warn(
-          `WhatsApp template send ${result.status} (${result.reason ?? "n/a"}) — falling back to email`,
-          { messageId: msg.id, merchantId: msg.merchantId }
-        );
-      } else {
-        this.logger.debug(
-          `No approved WhatsApp template for ${msg.type} — falling back to email`,
-          { messageId: msg.id, merchantId: msg.merchantId }
-        );
+        await this.messages.update(msg.id, { status: "sent", channel: actualChannel, sentAt: new Date(),
+          providerMessageId: result.messageId, messageContent: content });
+        stats.sent++;
+        // Only a WhatsApp delivery may put the WhatsApp conversation into a reply stage.
+        if (actualChannel === "whatsapp" && msg.buyerPhone && this.contextPort) {
+          const stage = msg.type === "nps" ? "awaiting_nps" : msg.type === "review_request" ? "awaiting_review" : null;
+          if (stage) await this.contextPort.setPostSaleContext(msg.merchantId, msg.buyerPhone, { stage,
+            orderId: msg.orderId, buyerId: msg.buyerId, productId: typeof meta.productId === "string" ? meta.productId : undefined,
+            askedAt: new Date().toISOString() }).catch(() => this.logger.warn("Failed to set post-sale reply context"));
+        }
+      } catch {
+        stats.failed++;
+        // A timeout or a failed database write after acceptance cannot authorize a resend.
+        await this.messages.update(msg.id, { status: dispatchStarted ? "unknown" : "failed",
+          failureReason: dispatchStarted ? "provider_acceptance_unknown" : "message_preparation_failed" }).catch(() => undefined);
       }
-    } else if (wantsWhatsApp && provider === "bubblewhats") {
-      // Explicit legacy opt-in only. Ban risk acknowledged by config.
-      await this.whatsapp.send({ phone: msg.buyerPhone!, message: content });
-      return "sent";
     }
-
-    // Email fallback (also the default channel when no phone).
-    if (msg.buyerEmail) {
-      await this.email.send({
-        to: msg.buyerEmail,
-        subject: this.subjectForType(msg.type),
-        html: `<p>${content.replace(/\n/g, "<br>")}</p>`,
-        // Omit `from` so ResendEmailAdapter uses its verified RESEND_FROM_EMAIL.
-      });
-      return "sent";
-    }
-
-    return "skipped";
-  }
-
-  /**
-   * Map the template's positional variable slots to runtime values.
-   * variableMap is {"1":"buyerName","2":"couponCode",...}; we look each name up
-   * against the message + coupon data.
-   */
-  private resolveContentVariables(
-    tpl: PostSaleTemplate,
-    args: {
-      msg: { buyerName: string | null; productName: string | null };
-      content: string;
-      couponCode?: string;
-      discountPercent?: number;
-    }
-  ): Record<string, string> {
-    const map = tpl.metaVariableMap ?? {};
-    const values: Record<string, string> = {
-      buyerName: args.msg.buyerName || "Cliente",
-      productName: args.msg.productName || "seu pedido",
-      coupon: args.couponCode || "",
-      couponBlock: args.couponCode
-        ? `${args.couponCode}${args.discountPercent ? ` (${args.discountPercent}% OFF)` : ""}`
-        : "",
-      discount: args.discountPercent ? `${args.discountPercent}%` : "",
-      link: "",
-    };
-    const out: Record<string, string> = {};
-    for (const [pos, name] of Object.entries(map)) {
-      out[pos] = values[name] ?? "";
-    }
-    return out;
-  }
-
-  private subjectForType(type: string): string {
-    const subjects: Record<string, string> = {
-      follow_up: "Como você está?",
-      review_request: "Deixe sua avaliação",
-      cross_sell: "Confira nossos produtos",
-      nps: "Sua opinião importa",
-      win_back: "Que saudade!",
-      loyalty: "Parabéns!",
-      reorder: "Hora de repor",
-    };
-    return subjects[type] || "Novidade para você";
+    return stats;
   }
 }

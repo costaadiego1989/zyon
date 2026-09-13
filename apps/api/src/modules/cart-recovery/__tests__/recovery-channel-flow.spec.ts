@@ -27,9 +27,10 @@ const scenarios = [
 for (const scenario of scenarios) {
   test(`scanner -> attempt -> shared router: ${scenario.name}`, async (context) => {
     const now = new Date("2026-09-05T12:00:00Z");
+    const inactiveAt = new Date(now.getTime() - 31 * 60 * 1000);
     context.mock.method(Math, "random", () => 0);
     context.mock.timers.enable({ apis: ["setTimeout", "Date"], now });
-    const session = checkoutSession({ triggerAgent: true, abandonmentScore: 0.9, createdAt: now.toISOString(), updatedAt: now.toISOString() });
+    const session = checkoutSession({ triggerAgent: true, abandonmentScore: 0.9, createdAt: now.toISOString(), updatedAt: inactiveAt.toISOString() });
     const sessions = new InMemoryCheckoutRepository();
     await sessions.saveSession(session);
     const attempts = new InMemoryRecoveryAttemptRepository();
@@ -52,6 +53,7 @@ for (const scenario of scenarios) {
       isActive: true, metaCategory: "MARKETING", metaLanguage: "pt_BR", metaTemplateBody: "Olá {{1}}",
       metaVariableMap: { "1": "buyerName" }, twilioContentSid: "HX-test",
       metaStatus: scenario.approved ? "approved" : "rejected", metaRejectionReason: null,
+      metaWabaId: "123456789", metaLastCheckedAt: now,
       createdAt: now, updatedAt: now,
     }),
       findAllByMerchant: async () => [],

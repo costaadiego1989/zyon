@@ -54,7 +54,7 @@ export class ScanConsumableReordersUseCase {
 
     // Fetch recent completed orders with their session cart
     const orders = await prisma.completedOrder.findMany({
-      where: { status: "approved" },
+      where: { status: { in: ["approved", "paid", "shipped", "delivered"] } },
       orderBy: { completedAt: "desc" },
       take: 500,
       include: { session: true },
@@ -73,7 +73,7 @@ export class ScanConsumableReordersUseCase {
         if (scheduled >= MAX_PER_RUN) break;
         const sku = item.sku;
         if (!sku) continue;
-        const consumable = consumableMap.get(sku);
+        const consumable = consumableMap.get(JSON.stringify([order.merchantId, sku]));
         if (!consumable) continue;
 
         processed++;
@@ -141,7 +141,7 @@ export class ScanConsumableReordersUseCase {
 
       for (const variant of product.variants ?? []) {
         if (variant.sku) {
-          map.set(variant.sku, { productName: product.name, reorderCycleDays: cycle });
+          map.set(JSON.stringify([product.merchantId, variant.sku]), { productName: product.name, reorderCycleDays: cycle });
         }
       }
     }

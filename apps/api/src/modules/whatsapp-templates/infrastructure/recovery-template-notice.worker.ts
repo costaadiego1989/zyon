@@ -11,7 +11,7 @@ interface Notice {
   metadata: Record<string, unknown>;
 }
 
-const TYPE = "cart_recovery_template_status";
+const TYPES = ["cart_recovery_template_status", "post_sale_template_status"];
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, char => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 })[char]!);
@@ -42,7 +42,7 @@ export class RecoveryTemplateNoticeWorker implements OnModuleInit, OnModuleDestr
     this.running = true;
     try {
       const notices = await (this.prisma as any).merchantNotification.findMany({
-        where: { type: TYPE, metadata: { path: ["emailStatus"], equals: "pending" } },
+        where: { type: { in: TYPES }, metadata: { path: ["emailStatus"], equals: "pending" } },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }], take: 50,
       }) as Notice[];
       for (const notice of notices) {
@@ -55,7 +55,7 @@ export class RecoveryTemplateNoticeWorker implements OnModuleInit, OnModuleDestr
   private async deliver(notice: Notice): Promise<void> {
     const notifications = (this.prisma as any).merchantNotification;
     const claim = await notifications.updateMany({
-      where: { id: notice.id, merchantId: notice.merchantId, type: TYPE, metadata: { path: ["emailStatus"], equals: "pending" } },
+      where: { id: notice.id, merchantId: notice.merchantId, type: { in: TYPES }, metadata: { path: ["emailStatus"], equals: "pending" } },
       data: { metadata: { ...notice.metadata, emailStatus: "sending" } },
     });
     if (claim.count !== 1) return;
@@ -72,7 +72,7 @@ export class RecoveryTemplateNoticeWorker implements OnModuleInit, OnModuleDestr
       } else {
         const result = await this.sender.send({
           to: owner.email, subject: notice.title.replace(/[\r\n]/g, " "), requireDelivery: true,
-          html: `<h1>${escapeHtml(notice.title)}</h1><p>${escapeHtml(notice.body ?? "O estado do template de recuperação foi atualizado.")}</p><p>Confira o estado na tela de recuperação de carrinho da sua conta.</p>`,
+          html: `<h1>${escapeHtml(notice.title)}</h1><p>${escapeHtml(notice.body ?? "O estado do template foi atualizado.")}</p><p>Confira o estado no painel de templates da sua conta.</p>`,
         });
         if ((result.status === "sent" || result.status === "queued") && typeof result.messageId === "string" && result.messageId.trim()) {
           emailStatus = "sent";
@@ -81,7 +81,7 @@ export class RecoveryTemplateNoticeWorker implements OnModuleInit, OnModuleDestr
       }
     } catch { /* Acceptance may have happened. Never retry an ambiguous delivery. */ }
     await notifications.updateMany({
-      where: { id: notice.id, merchantId: notice.merchantId, type: TYPE, metadata: { path: ["emailStatus"], equals: "sending" } },
+      where: { id: notice.id, merchantId: notice.merchantId, type: { in: TYPES }, metadata: { path: ["emailStatus"], equals: "sending" } },
       data: { metadata: { ...notice.metadata, emailStatus, ...(emailMessageId ? { emailMessageId } : {}) } },
     });
   }

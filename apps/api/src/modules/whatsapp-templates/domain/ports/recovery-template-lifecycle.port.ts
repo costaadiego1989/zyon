@@ -11,13 +11,14 @@ export interface RecoveryLifecycleRecord extends WhatsAppTemplateRecord {
   metaClaimToken?: string | null;
 }
 export interface RecoveryLifecycleRepository {
-  ensure(merchantId: string): Promise<void>;
-  read(merchantId: string): Promise<{ email: RecoveryLifecycleRecord; whatsapp: RecoveryLifecycleRecord }>;
-  save(merchantId: string, input: RecoveryTemplateEdit): Promise<void>;
+  ensure(merchantId: string, type?: string): Promise<void>;
+  read(merchantId: string, type?: string): Promise<{ email: RecoveryLifecycleRecord; whatsapp: RecoveryLifecycleRecord }>;
+  save(merchantId: string, input: RecoveryTemplateEdit, type?: string): Promise<void>;
+  restore?(record: RecoveryLifecycleRecord, version: import("./whatsapp-template-repository.port.js").ApprovedTemplateVersion, checkedAt: Date): Promise<void>;
   due(now: Date): Promise<RecoveryLifecycleRecord[]>;
   claim(record: RecoveryLifecycleRecord, now: Date, submitting: boolean): Promise<boolean>;
   complete(record: RecoveryLifecycleRecord, patch: {
-    status: string; contentSid?: string | null; reason?: string | null; checkedAt?: Date; nextCheckAt: Date | null;
+    status: string; wabaId?: string; contentSid?: string | null; reason?: string | null; checkedAt?: Date; nextCheckAt: Date | null;
   }, submitting: boolean): Promise<void>;
   seedMerchantPage(afterId?: string): Promise<string | undefined>;
 }

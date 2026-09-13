@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
+import { DashboardHttpError } from "../../api/http/error.js";
 import { showToast } from "../../components/Toast.js";
 import { reportError } from "../../hooks/useErrorReporter.js";
 import type { MerchantProfile } from "../../api-client.js";
@@ -49,7 +50,7 @@ export function usePostSaleTemplates(props: { me: MerchantProfile | null }) {
       setTemplates(map);
     } catch (e) {
       reportError({ source: "post-sale-templates.load", error: e });
-      showToast("error", e instanceof Error ? e.message : "Erro ao carregar templates");
+      showToast("error", "Não foi possível carregar as mensagens. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -67,6 +68,7 @@ export function usePostSaleTemplates(props: { me: MerchantProfile | null }) {
     type: string,
     channel: string,
     data: {
+      revision?: number;
       name: string;
       body: string;
       subject?: string;
@@ -81,11 +83,13 @@ export function usePostSaleTemplates(props: { me: MerchantProfile | null }) {
     try {
       const res = await api.saveTemplate(type, channel, data);
       setTemplates((prev) => ({ ...prev, [k]: res.template }));
+      await load();
       showToast("success", "Template salvo");
       return true;
     } catch (e) {
       reportError({ source: "post-sale-templates.save", error: e });
-      showToast("error", e instanceof Error ? e.message : "Erro ao salvar template");
+      if (e instanceof DashboardHttpError && e.status === 409) await load();
+      showToast("error", "Não foi possível salvar. Seu rascunho foi preservado. Confira a versão atual antes de tentar novamente.");
       return false;
     } finally {
       setSavingKey(null);
@@ -105,7 +109,7 @@ export function usePostSaleTemplates(props: { me: MerchantProfile | null }) {
       return res;
     } catch (e) {
       reportError({ source: "post-sale-templates.generate", error: e });
-      showToast("error", e instanceof Error ? e.message : "Erro ao gerar template");
+      showToast("error", "Não foi possível gerar a sugestão. Tente novamente.");
       return null;
     } finally {
       setGeneratingKey(null);
@@ -138,6 +142,7 @@ export function usePostSaleTemplates(props: { me: MerchantProfile | null }) {
         if (!existing) return prev;
         return { ...prev, [k]: { ...existing, metaStatus: res.status, metaRejectionReason: res.rejectionReason ?? null } };
       });
+      await load();
       return res.status;
     } catch (e) {
       reportError({ source: "post-sale-templates.refreshMetaStatus", error: e });
@@ -145,7 +150,23 @@ export function usePostSaleTemplates(props: { me: MerchantProfile | null }) {
     }
   }
 
+  async function restore(type: string, revision: number, expectedRevision: number): Promise<boolean> {
+    const key = keyOf(type, "whatsapp");
+    setSavingKey(key);
+    try {
+      const result = await api.restorePostSaleTemplate(type, revision, expectedRevision);
+      setTemplates(prev => ({ ...prev, [key]: result.template }));
+      await load();
+      showToast("success", "Versão restaurada após confirmação da Meta.");
+      return true;
+    } catch {
+      showToast("error", "Não foi possível restaurar. A versão precisa continuar aprovada na conta conectada. Atualize o status e tente novamente.");
+      return false;
+    } finally { setSavingKey(null); }
+  }
+
   return {
+    restore,
     templates,
     loading,
     savingKey,

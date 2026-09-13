@@ -8,6 +8,7 @@ import { PulseAgentOrb } from "@/components/PulseAgentOrb";
 import SupportFAB from "@/components/SupportFAB";
 import SupportPanel from "@/components/SupportPanel";
 import { ShimmerBorder } from "@/components/ShimmerBorder";
+import { CampaignContactPreferences } from "@/components/CampaignContactPreferences";
 
 export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light" } = {}) {
   const [supportOpen, setSupportOpen] = useState(false);
@@ -32,6 +33,8 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
   const dismissDiscount = useCheckoutStore((s) => s.dismissDiscount);
   const resetSession = useCheckoutStore((s) => s.resetSession);
   const showBranding = useCheckoutStore((s) => s.showBranding);
+  const api = useCheckoutStore((s) => s.api);
+  const sessionId = useCheckoutStore((s) => s.sessionId);
 
   const storeName = brand.name || "Loja";
   const agentName = agent.name || "Assistente";
@@ -335,6 +338,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
 
                 {/* ChatPanel is the MAIN UI */}
                 <ChatPanel />
+                <CampaignContactPreferences api={api} sessionId={sessionId} />
               </div>
 
               {/* SmartCart sidebar - desktop only */}

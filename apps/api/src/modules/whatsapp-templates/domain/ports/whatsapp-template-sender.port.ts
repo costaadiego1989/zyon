@@ -9,8 +9,8 @@ export const WHATSAPP_TEMPLATE_SENDER = Symbol("WhatsAppTemplateSender");
 
 export interface TemplateSendInput {
   merchantId: string;
-  /** Recovery always revalidates the active merchant connection and approved template. */
-  type?: "cart_recovery";
+  /** Business-initiated notifications always revalidate the active merchant connection and approved template. */
+  type?: import("../catalog/template-types.js").WhatsAppTemplateType | "order_quota";
   /** Recovery preserves explicit +E.164; only valid Brazilian national numbers infer +55. */
   toNumber: string;
   /** Opaque approved provider template identifier. */

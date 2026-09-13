@@ -11,6 +11,7 @@ import { MerchantModule } from "../merchant/merchant.module.js";
 import { PaymentModule } from "../payment/payment.module.js";
 import { MessagingModule } from "../../shared/messaging/messaging.module.js";
 import { IntentMemoryModule } from "../intent-memory/intent-memory.module.js";
+import { CampaignConsentModule } from "../campaign-consent/campaign-consent.module.js";
 import { EmbedTokenService } from "./domain/embed-token.service.js";
 import { AgentSessionTokenService } from "./domain/agent-session-token.service.js";
 import { AgentCheckoutStateService } from "./domain/agent-checkout-state.service.js";
@@ -43,6 +44,7 @@ import { ProtocolSessionExpiryReaper } from "./infrastructure/protocol-session-e
     InstallationsModule,
     MessagingModule,
     IntentMemoryModule,
+    CampaignConsentModule,
     BuyerAccountRepositoryModule,
   ],
   controllers: [

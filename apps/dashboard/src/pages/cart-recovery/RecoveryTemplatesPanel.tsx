@@ -44,7 +44,7 @@ export function RecoveryTemplatesPanel({ apiBaseUrl }: { apiBaseUrl: string }) {
             </strong>
             <p>{vm.saved.effectiveChannel === "whatsapp_template"
               ? "A recuperação pode usar o WhatsApp com a mensagem aprovada."
-              : "A recuperação usa e-mail enquanto o WhatsApp não estiver conectado e aprovado."}</p>
+              : "O e-mail é a alternativa quando houver contato autorizado e serviço de envio configurado."}</p>
             {vm.saved.whatsapp.rejectionReason && <p className="recovery-rejection">Motivo informado: {vm.saved.whatsapp.rejectionReason}</p>}
           </div>
           <Button variant="ghost" size="sm" disabled={busy} onClick={() => { void vm.refresh(); }}>
@@ -56,7 +56,7 @@ export function RecoveryTemplatesPanel({ apiBaseUrl }: { apiBaseUrl: string }) {
           <div className="recovery-message-editors">
             <fieldset disabled={busy}>
               <legend><Mail size={18} aria-hidden="true" /> E-mail</legend>
-              <p className="recovery-channel-description">Disponível após salvar. Não depende de aprovação da Meta.</p>
+              <p className="recovery-channel-description">Não depende de aprovação da Meta. Exige contato autorizado e serviço de e-mail configurado.</p>
               <label htmlFor={id + "-subject"} className="field-label">Assunto</label>
               <input id={id + "-subject"} className="field-input" required maxLength={150} value={vm.draft.email.subject}
                 onChange={(e) => vm.edit({ ...vm.draft!, email: { ...vm.draft!.email, subject: e.target.value } })} />
@@ -79,11 +79,20 @@ export function RecoveryTemplatesPanel({ apiBaseUrl }: { apiBaseUrl: string }) {
             </fieldset>
           </div>
 
+          {!!vm.saved.whatsapp.approvedVersions?.length && <details className="recovery-variables">
+            <summary>Restaurar uma versão aprovada</summary>
+            <p>A Meta será consultada antes da restauração. Uma versão rejeitada, pausada ou de outra conta não pode ser reativada.</p>
+            {vm.saved.whatsapp.approvedVersions.map(version => <div key={version.revision}>
+              <p><strong>Versão {version.revision}</strong></p>
+              <p className="recovery-saved-copy">{version.body}</p>
+              <Button type="button" variant="outline" disabled={busy || vm.dirty || vm.conflict} onClick={() => { void vm.restore(version.revision); }}>Restaurar versão {version.revision}</Button>
+            </div>)}
+          </details>}
           <details className="recovery-variables" id={id + "-variables"}>
             <summary>Como personalizar nomes e link do carrinho</summary>
             <p>Use <code>{"{{buyerName}}"}</code> para o comprador, <code>{"{{storeName}}"}</code> para a loja e <code>{"{{link}}"}</code> para o carrinho. Os dados são preenchidos automaticamente ao enviar. Mantenha o link nas duas mensagens.</p>
           </details>
-          <p className="recovery-help">O envio respeita os dados e a autorização de contato do comprador. O estado da análise é atualizado automaticamente.</p>
+          <p className="recovery-help">Use estas mensagens apenas com compradores que autorizaram esse contato. O estado da análise é atualizado automaticamente.</p>
 
           {vm.conflict && <div role="alert" className="recovery-feedback">
             <p>Há uma versão mais recente salva. Seu rascunho foi preservado. Copie o texto que deseja manter antes de carregar a versão salva.</p>

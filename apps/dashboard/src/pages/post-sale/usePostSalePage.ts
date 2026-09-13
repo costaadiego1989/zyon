@@ -41,6 +41,8 @@ export interface PostSaleTemplate {
   name: string;
   body: string;
   subject?: string;
+  metaRevision?: number;
+  metaApprovedVersions?: Array<{ revision: number; body: string }>;
   metaCategory?: string | null;
   metaLanguage?: string | null;
   metaTemplateBody?: string | null;

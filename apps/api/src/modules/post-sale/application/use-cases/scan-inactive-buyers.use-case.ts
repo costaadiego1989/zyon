@@ -81,6 +81,7 @@ export class ScanInactiveBuyersUseCase {
         const inactiveBefore = new Date(now.getTime() - thresholdDays * 24 * 60 * 60 * 1000);
 
         const inactive = await this.trackers.findInactive({
+          merchantId,
           inactiveBefore,
           winBackBefore: inactiveBefore,
           limit: MAX_PER_RUN,
@@ -143,7 +144,7 @@ export class ScanInactiveBuyersUseCase {
     await this.messages.create({
       merchantId: tracker.merchantId,
       buyerId: tracker.buyerId,
-      orderId: `winback-${Date.now()}`,
+      orderId: `winback-${tracker.lastPurchaseAt.toISOString()}-${tracker.lastWinBackAt?.toISOString() ?? "first"}`,
       type: "win_back",
       channel: "whatsapp",
       sendAt: new Date(),

@@ -22,6 +22,7 @@ export interface UpsertLoyaltyTrackerInput {
 }
 
 export interface FindInactiveBuyersInput {
+  merchantId: string;
   inactiveBefore: Date;
   winBackBefore: Date;
   limit: number;

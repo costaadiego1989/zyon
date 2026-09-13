@@ -21,6 +21,8 @@ export interface WhatsAppTemplateRecord {
   twilioContentSid: string | null;
   metaStatus: string | null;
   metaRejectionReason: string | null;
+  metaWabaId?: string | null;
+  metaApprovedVersions?: ApprovedTemplateVersion[];
   metaRevision?: number;
   metaLastCheckedAt?: Date | null;
   createdAt: Date;
@@ -54,4 +56,9 @@ export interface WhatsAppTemplateRepositoryPort {
   findAllByMerchant(merchantId: string): Promise<WhatsAppTemplateRecord[]>;
   upsert(input: UpsertWhatsAppTemplateInput): Promise<WhatsAppTemplateRecord>;
   updateMeta(input: UpdateWhatsAppTemplateMetaInput): Promise<WhatsAppTemplateRecord>;
+}
+
+export interface ApprovedTemplateVersion {
+  revision: number; body: string; metaTemplateBody: string; metaVariableMap: Record<string, string>;
+  metaCategory: string; metaLanguage: string; contentSid: string; wabaId: string;
 }

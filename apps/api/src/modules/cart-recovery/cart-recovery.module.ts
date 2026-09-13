@@ -32,6 +32,8 @@ import { GenerateRecoveryTemplatesUseCase } from "./application/use-cases/genera
 import { CHAT_COMPLETION_PORT } from "../support/domain/ports/chat-completion.port.js";
 import { OpenAIChatAdapter } from "../support/infrastructure/openai-chat.adapter.js";
 import { HttpClientService } from "../../shared/http/http-client.service.js";
+import { CampaignConsentModule } from "../campaign-consent/campaign-consent.module.js";
+import { CampaignContactConsentService } from "../campaign-consent/campaign-contact-consent.service.js";
 
 // Imported from tokens file (single source) to avoid the module↔handler cycle;
 // re-exported so existing importers of this module keep working.
@@ -54,6 +56,7 @@ export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_US
     BuyerAccountRepositoryModule,
     RevenueLiftModule,
     WhatsAppTemplatesModule,
+    CampaignConsentModule,
   ],
   controllers: [CartRecoveryController, CartRecoveryDashboardController, RecoveryTemplatesController],
   providers: [
@@ -81,9 +84,9 @@ export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_US
     CartRecoveryOnOrderCompletedHandler,
     {
       provide: ATTEMPT_CART_RECOVERY_USE_CASE,
-      useFactory: (repo: RecoveryAttemptRepositoryPort, sender: SendWhatsAppMessageUseCase) =>
-        new AttemptCartRecoveryUseCase(repo, undefined, sender),
-      inject: [RECOVERY_ATTEMPT_REPOSITORY, SendWhatsAppMessageUseCase],
+      useFactory: (repo: RecoveryAttemptRepositoryPort, sender: SendWhatsAppMessageUseCase, consent: CampaignContactConsentService) =>
+        new AttemptCartRecoveryUseCase(repo, undefined, sender, undefined, consent),
+      inject: [RECOVERY_ATTEMPT_REPOSITORY, SendWhatsAppMessageUseCase, CampaignContactConsentService],
     },
     {
       provide: TRACK_RECOVERY_OUTCOME_USE_CASE,

@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject, Optional } from "@nestjs/common";
+import { Injectable, Inject, Optional } from "@nestjs/common";
 import {
   WHATSAPP_TEMPLATE_REPOSITORY,
   type WhatsAppTemplateRepositoryPort,
@@ -12,8 +12,7 @@ import { WHATSAPP_SENDER_PORT, type WhatsAppSenderPort } from "../../../notifica
 import { EMAIL_SENDER_PORT, type EmailSenderPort } from "../../../notifications/domain/ports/email-sender.port.js";
 import type { WhatsAppTemplateType } from "../../domain/catalog/template-types.js";
 import { WHATSAPP_CONFIG_REPOSITORY, type WhatsAppConfigRepository } from "../../../whatsapp-channel/domain/ports/whatsapp-config-repository.port.js";
-import { connectedMetaCloudRecoveryCredentials, isApprovedRecoveryTemplate } from "../../domain/services/recovery-whatsapp-policy.js";
-import { renderRecoveryText } from "../../domain/recovery-template-content.js";
+import { connectedMetaCloudRecoveryCredentials, isApprovedSalesTemplate } from "../../domain/services/recovery-whatsapp-policy.js";
 import { renderRecoveryEmail } from "../../domain/recovery-email.js";
 
 export type WhatsAppProvider = "email" | "bubblewhats" | "meta";
@@ -39,7 +38,7 @@ export interface SendWhatsAppMessageInput {
   fallbackEmail?: string;
   /** Subject for the email fallback. */
   emailSubject?: string;
-  /** Pre-rendered freeform text (used for email fallback body + legacy bubblewhats). */
+  /** Pre-rendered text for the email fallback body. */
   freeformText?: string;
 }
 
@@ -50,21 +49,9 @@ export interface SendWhatsAppMessageResult {
   reason?: string;
 }
 
-/**
- * Single entry point for business-initiated WhatsApp across the platform.
- *
- * Routing:
- *  - cart_recovery: active merchant connection + approved active template only;
- *    otherwise email before dispatch. Unknown acceptance never switches channels.
- *  - other types: provider=twilio + approved template → send via ContentSid
- *  - no approved template / creds missing → email fallback
- *  - provider=bubblewhats                 → legacy freeform (opt-in, ban risk)
- *  - provider=email (default)             → email fallback
- *  - no reachable channel                 → none/skipped
- */
+/** Official Meta templates for sales automation; uncertain acceptance never switches channels. */
 @Injectable()
 export class SendWhatsAppMessageUseCase {
-  private readonly logger = new Logger(SendWhatsAppMessageUseCase.name);
 
   constructor(
     @Inject(WHATSAPP_TEMPLATE_REPOSITORY)
@@ -84,62 +71,22 @@ export class SendWhatsAppMessageUseCase {
   ) {}
 
   async execute(input: SendWhatsAppMessageInput): Promise<SendWhatsAppMessageResult> {
-    if (input.type === "cart_recovery") return this.sendRecovery(input);
-    const provider = resolveWhatsAppProvider();
-    const wantsWhatsApp = !!input.toPhone;
-
-    if (wantsWhatsApp && provider === "meta" && this.templateSender) {
-      const tpl = await this.templates
-        .findByMerchantAndType(input.merchantId, input.type, "whatsapp")
-        .catch(() => null);
-      if (tpl && tpl.metaStatus === "approved" && tpl.twilioContentSid) {
-        try {
-          const result = await this.templateSender.sendTemplate({
-            merchantId: input.merchantId,
-            toNumber: input.toPhone!,
-            contentSid: tpl.twilioContentSid,
-            language: tpl.metaLanguage ?? "pt_BR",
-            contentVariables: this.resolveVariables(tpl, input.variables ?? {}),
-          });
-          if (result.status === "sent" || result.status === "queued") {
-            return { channel: "whatsapp_template", status: "sent" };
-          }
-          if (result.status === "uncertain") {
-            return { channel: "whatsapp_template", status: "uncertain", reason: result.reason };
-          }
-          this.logger.warn(
-            `Template send ${result.status} (${result.reason ?? "n/a"}) — falling back to email`,
-            { merchantId: input.merchantId, type: input.type }
-          );
-        } catch (err) {
-          // transient transport error → rethrow so the caller/queue can retry
-          throw err;
-        }
-      } else {
-        this.logger.debug(`No approved template for ${input.type} — falling back to email`, {
-          merchantId: input.merchantId,
-        });
-      }
-    } else if (wantsWhatsApp && provider === "bubblewhats" && this.bubbleSender && input.freeformText) {
-      const result = await this.bubbleSender.send({ phone: input.toPhone!, message: input.freeformText });
-      if (result?.status === "accepted") return { channel: "bubblewhats", status: "sent" };
-    }
-
-    return this.sendEmail(input);
+    return this.sendSalesMessage(input);
   }
 
-  private async sendRecovery(input: SendWhatsAppMessageInput): Promise<SendWhatsAppMessageResult> {
+  private async sendSalesMessage(input: SendWhatsAppMessageInput): Promise<SendWhatsAppMessageResult> {
     if (input.toPhone?.trim() && this.templateSender && this.configRepo) {
       const config = await this.configRepo.findByMerchantId(input.merchantId).catch(() => null);
-      if (connectedMetaCloudRecoveryCredentials(config, input.merchantId)) {
+      const connection = connectedMetaCloudRecoveryCredentials(config, input.merchantId);
+      if (connection) {
         const template = await this.templates
-          .findByMerchantAndType(input.merchantId, "cart_recovery", "whatsapp")
+          .findByMerchantAndType(input.merchantId, input.type, "whatsapp")
           .catch(() => null);
-        if (isApprovedRecoveryTemplate(template, input.merchantId)) {
+        if (isApprovedSalesTemplate(template, input.merchantId, input.type, connection.wabaId)) {
           try {
             const result = await this.templateSender.sendTemplate({
               merchantId: input.merchantId,
-              type: "cart_recovery",
+              type: input.type,
               toNumber: input.toPhone,
               contentSid: template.twilioContentSid,
               language: template.metaLanguage ?? "pt_BR",
@@ -169,14 +116,14 @@ export class SendWhatsAppMessageUseCase {
   }
 
   private async sendEmail(input: SendWhatsAppMessageInput): Promise<SendWhatsAppMessageResult> {
-    if (input.type === "cart_recovery" && input.fallbackEmail && this.email) {
+    if (input.fallbackEmail && this.email) {
       let template;
-      try { template = await this.templates.findByMerchantAndType(input.merchantId, "cart_recovery", "email"); }
+      try { template = await this.templates.findByMerchantAndType(input.merchantId, input.type, "email"); }
       catch { return { channel: "none", status: "skipped", reason: "email_template_unavailable" }; }
-      if (template?.merchantId === input.merchantId && template.type === "cart_recovery" && template.channel === "email") {
+      if (template?.merchantId === input.merchantId && template.type === input.type && template.channel === "email") {
         if (!template.isActive) return { channel: "none", status: "skipped", reason: "email_template_disabled" };
-        input = { ...input, freeformText: renderRecoveryText(template.body, input.variables ?? {}),
-          emailSubject: renderRecoveryText(template.subject ?? "Seu carrinho", input.variables ?? {}).replace(/[\r\n]/g, " ") };
+        input = { ...input, freeformText: this.renderText(template.body, input.variables ?? {}),
+          emailSubject: this.renderText(template.subject ?? "Mensagem da loja", input.variables ?? {}).replace(/[\r\n]/g, " ") };
       }
     }
     if (input.fallbackEmail && this.email && input.freeformText) {
@@ -190,24 +137,25 @@ export class SendWhatsAppMessageUseCase {
           html: input.type === "cart_recovery"
             ? renderRecoveryEmail(input.freeformText, String(input.variables?.storeName ?? "Sua loja"), input.variables?.link == null ? undefined : String(input.variables.link))
             : `<p>${html}</p>`,
-          ...(input.type === "cart_recovery" ? { requireDelivery: true } : {}),
+          requireDelivery: true,
         });
       } catch (error) {
-        if (input.type !== "cart_recovery") throw error;
         return { channel: "email", status: "uncertain", reason: "provider_acceptance_unknown" };
       }
       if (result.messageId?.trim() && (result.status === "sent" || result.status === "queued")) {
-        return input.type === "cart_recovery"
-          ? { channel: "email", status: "sent", messageId: result.messageId }
-          : { channel: "email", status: "sent" };
+        return { channel: "email", status: "sent", messageId: result.messageId };
       }
-      if (input.type === "cart_recovery") {
+      {
         if (result.status === "skipped" && !result.messageId) return { channel: "none", status: "skipped", reason: "email_not_configured" };
         return { channel: "email", status: "uncertain", reason: "provider_acceptance_unknown" };
       }
     }
 
     return { channel: "none", status: "skipped", reason: "no_reachable_channel" };
+  }
+
+  private renderText(body: string, vars: Record<string, string | number | undefined>) {
+    return body.replace(/\{\{(\w+)\}\}/g, (_, key: string) => String(vars[key] ?? (key === "buyerName" ? "Cliente" : key === "storeName" ? "nossa loja" : "")));
   }
 
   /** Map the template's positional slots to runtime values from `variables`. */
@@ -225,7 +173,7 @@ export class SendWhatsAppMessageUseCase {
       orderId: vars["orderId"] != null ? String(vars["orderId"]) : "",
       trackingCode: vars["trackingCode"] != null ? String(vars["trackingCode"]) : "",
       coupon,
-      couponBlock: coupon ? `${coupon}${discount ? ` (${discount} OFF)` : ""}` : "",
+      couponBlock: vars["couponBlock"] != null ? String(vars["couponBlock"]) : coupon ? `${coupon}${discount ? ` (${discount} OFF)` : ""}` : "Consulte as condições disponíveis na loja.",
       discount,
       link: vars["link"] != null ? String(vars["link"]) : "",
     };

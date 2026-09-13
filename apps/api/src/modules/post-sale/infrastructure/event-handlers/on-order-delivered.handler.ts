@@ -41,36 +41,28 @@ export class OnOrderDeliveredHandler implements OnModuleInit {
     try {
       const payload = event.payload as OrderDeliveredEvent;
 
-      // Find buyer by globalUserId if available
-      let buyerId: string | undefined;
-      if (payload.globalUserId) {
-        const buyer = await this.prisma.buyerIdentity.findFirst({
-          where: {
-            merchantId: payload.merchantId,
-            globalUserId: payload.globalUserId,
-          },
-        });
-        buyerId = buyer?.id;
-      }
-
-      const productName = "seu pedido";
-
+      if (!payload.orderId) return;
+      const order = await this.prisma.completedOrder.findFirst({ where: { merchantId: event.merchantId,
+        OR: [{ id: payload.orderId }, { externalOrderId: payload.orderId }] }, include: { session: true } });
+      if (!order || order.status !== "delivered") return;
+      const buyerId = order.session?.globalUserId || order.sessionId;
+      const account = await this.prisma.buyerAccount.findUnique({ where: { globalUserId: buyerId }, select: { phone: true, email: true, displayName: true } });
       await this.scheduleFlow.execute({
-        merchantId: payload.merchantId,
-        orderId: payload.orderId,
-        buyerId: buyerId || "unknown",
-        buyerEmail: payload.buyerEmail,
-        buyerName: payload.buyerName,
-        buyerPhone: payload.buyerPhone,
-        productName,
+        merchantId: event.merchantId,
+        orderId: order.externalOrderId,
+        buyerId,
+        buyerEmail: account?.email || payload.buyerEmail,
+        buyerName: account?.displayName || payload.buyerName,
+        buyerPhone: account?.phone || payload.buyerPhone,
+        productName: "seu pedido",
       });
 
       this.logger.log(
         "Scheduled post-delivery flow",
         {
-          merchantId: payload.merchantId,
+          merchantId: event.merchantId,
           orderId: payload.orderId,
-          buyerId: buyerId || "unknown",
+          buyerId,
         }
       );
     } catch (err) {

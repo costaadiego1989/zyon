@@ -63,6 +63,7 @@ model Merchant {
   erpConnections           ErpConnection[]              @relation("ErpConnections")
   crmConnections           CrmConnection[]              @relation("CrmConnections")
   ownDeliveryConfig        OwnDeliveryConfig?           @relation("OwnDeliveryConfig")
+  campaignContactConsents  CampaignContactConsent[]
 
   @@map("merchants")
 }
@@ -980,6 +981,7 @@ model BuyerAccount {
   addresses           BuyerAddress[]
   conversations       BuyerConversation[]
   buyerPreferences    BuyerPreference[]
+  campaignContactConsents CampaignContactConsent[]
   webauthnCredentials WebAuthnCredential[]
 
   @@map("buyer_accounts")
@@ -1044,6 +1046,30 @@ model BuyerPreference {
   account BuyerAccount @relation(fields: [globalUserId], references: [globalUserId], onDelete: Cascade)
 
   @@map("buyer_preferences")
+}
+
+/// Explicit, tenant-scoped authorization for commercial contact. A contact
+/// detail by itself never authorizes recovery or post-sale campaigns.
+model CampaignContactConsent {
+  merchantId    String    @map("merchant_id")
+  globalUserId  String    @map("global_user_id")
+  channel       String    // email | whatsapp
+  purpose       String    // marketing
+  status        String    @default("granted") // granted | revoked
+  policyVersion String    @map("policy_version")
+  source        String
+  evidence      Json      @default("{}")
+  grantedAt     DateTime? @map("granted_at")
+  revokedAt     DateTime? @map("revoked_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  merchant Merchant     @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  buyer    BuyerAccount @relation(fields: [globalUserId], references: [globalUserId], onDelete: Cascade)
+
+  @@id([merchantId, globalUserId, channel, purpose])
+  @@index([merchantId, globalUserId, status])
+  @@map("campaign_contact_consents")
 }
 
 model BuyerAgentProfile {
@@ -2549,6 +2575,8 @@ model PostSaleMessageTemplate {
   metaNextCheckAt     DateTime? @default(now()) @map("meta_next_check_at")
   metaLastCheckedAt   DateTime? @map("meta_last_checked_at")
   metaClaimToken      String?   @map("meta_claim_token")
+  metaWabaId          String?   @map("meta_waba_id")
+  metaApprovedVersions Json     @default("[]") @map("meta_approved_versions")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -2851,6 +2879,9 @@ model OwnDeliveryConfig {
 
 // Post-Sale Module
 model PostSaleScheduledMessage {
+  processingAt DateTime? @map("processing_at")
+  providerMessageId String? @map("provider_message_id")
+  failureReason String? @map("failure_reason")
   id             String    @id @default(cuid())
   merchantId     String    @map("merchant_id")
   buyerId        String    @map("buyer_id")

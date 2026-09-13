@@ -7,6 +7,7 @@ import { NotificationsModule } from "../notifications/notifications.module.js";
 import { WhatsAppChannelModule } from "../whatsapp-channel/whatsapp-channel.module.js";
 import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-templates.module.js";
 import { WhatsAppConfigModule } from "../whatsapp-channel/whatsapp-config.module.js";
+import { CampaignConsentModule } from "../campaign-consent/campaign-consent.module.js";
 
 // Ports
 import {
@@ -53,10 +54,6 @@ import { GeneratePostSaleTemplateUseCase } from "./application/use-cases/generat
 import { PostSaleAiCopywriterService } from "./application/services/post-sale-ai-copywriter.service.js";
 import { PostSaleConfigService } from "./application/services/post-sale-config.service.js";
 
-// WhatsApp official template sender (direct Meta Cloud API)
-import { POST_SALE_WHATSAPP_SENDER } from "./domain/ports/post-sale-whatsapp-sender.port.js";
-import { WhatsAppTemplateSenderAdapter } from "./infrastructure/adapters/whatsapp-template-sender.adapter.js";
-
 // Jobs (BullMQ queues + workers; setInterval fallback when REDIS_URL absent)
 import { PostSaleMessageScheduler, PostSaleMessageWorker } from "./infrastructure/jobs/post-sale-message.queue.js";
 import {
@@ -80,6 +77,7 @@ import { PostSaleDashboardController } from "./presentation/http/post-sale-dashb
     forwardRef(() => WhatsAppChannelModule),
     WhatsAppTemplatesModule,
     WhatsAppConfigModule,
+    CampaignConsentModule,
   ],
   controllers: [BuyerPostSaleController, PostSaleDashboardController],
   providers: [
@@ -118,12 +116,6 @@ import { PostSaleDashboardController } from "./presentation/http/post-sale-dashb
     },
     PostSaleAiCopywriterService,
     PostSaleConfigService,
-    {
-      // The adapter revalidates the merchant's active Meta connection before
-      // each dispatch and never falls back to platform credentials.
-      provide: POST_SALE_WHATSAPP_SENDER,
-      useClass: WhatsAppTemplateSenderAdapter,
-    },
     SchedulePostDeliveryFlowUseCase,
     ProcessScheduledMessagesUseCase,
     SubmitReviewUseCase,

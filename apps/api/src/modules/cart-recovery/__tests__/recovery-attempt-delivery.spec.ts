@@ -116,3 +116,27 @@ test("an invalid legacy channel cannot be recorded as an approved template send"
   assert.equal(repo.getAll()[0]?.status, "unknown");
   assert.equal(repo.getAll()[0]?.sentAt, null);
 });
+
+test("recovery does not create or route a campaign without a permitted channel", async () => {
+  const repo = new InMemoryRecoveryAttemptRepository();
+  let sends = 0;
+  const useCase = new AttemptCartRecoveryUseCase(repo, clock, {
+    async execute() { sends++; return { status: "sent", channel: "email", messageId: "unexpected" } as const; },
+  }, undefined, { async canContact() { return false; } });
+  assert.deepEqual(await useCase.execute(input), { created: false });
+  assert.equal(sends, 0);
+  assert.equal(repo.count(), 0);
+});
+
+test("recovery exposes only the explicitly permitted fallback channel to the router", async () => {
+  const repo = new InMemoryRecoveryAttemptRepository();
+  const useCase = new AttemptCartRecoveryUseCase(repo, clock, {
+    async execute(request) {
+      assert.equal(request.toPhone, undefined);
+      assert.equal(request.fallbackEmail, input.buyerEmail);
+      return { status: "sent", channel: "email", messageId: "email-only" } as const;
+    },
+  }, undefined, { async canContact({ channel }: { channel: string }) { return channel === "email"; } });
+  await useCase.execute(input);
+  assert.equal(repo.getAll()[0]?.channel, "email");
+});

@@ -28,6 +28,21 @@ export class UpdateBuyerPreferencesUseCase {
       update: data,
     });
 
+    // This is a global buyer preference, so an opt-out applies to every
+    // merchant queue that still holds a pending message for this buyer. The
+    // per-merchant record is still checked immediately before any dispatch.
+    const revokedChannels = [
+      ...(data.emailOptIn === false ? ["email"] : []),
+      ...(data.whatsappOptIn === false ? ["whatsapp"] : []),
+    ];
+    const scheduled = (this.prisma as any).postSaleScheduledMessage;
+    if (revokedChannels.length > 0 && scheduled?.updateMany) {
+      await scheduled.updateMany({
+        where: { buyerId: globalUserId, channel: { in: revokedChannels }, status: "pending" },
+        data: { status: "cancelled", failureReason: "buyer_global_opt_out" },
+      });
+    }
+
     return {
       email_opt_in: row.emailOptIn,
       sms_opt_in: row.smsOptIn,

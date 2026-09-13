@@ -2,159 +2,69 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ProcessScheduledMessagesUseCase } from "./process-scheduled-messages.use-case.js";
 import { PostSaleAiCopywriterService } from "../services/post-sale-ai-copywriter.service.js";
-import type { ScheduledMessage } from "../../domain/ports/scheduled-message-repository.port.js";
 
-function baseMsg(over: Partial<ScheduledMessage>): ScheduledMessage {
-  return {
-    id: "m1",
-    merchantId: "mrc1",
-    buyerId: "b1",
-    orderId: "o1",
-    type: "loyalty",
-    channel: "whatsapp",
-    sendAt: new Date(),
-    status: "pending",
-    sentAt: null,
-    messageContent: null,
-    buyerPhone: "+5511999998888",
-    buyerEmail: "b@test.local",
-    buyerName: "Ana",
-    productName: "seu pedido",
-    metadata: { couponCode: "LY10", discountPercent: 10 },
-    createdAt: new Date(),
-    ...over,
-  };
+function harness(result: any, overrides: any = {}, campaignConsent?: any) {
+  const updates: any[] = []; const sent: any[] = []; const contexts: any[] = [];
+  const msg = { id: "msg1", merchantId: "m1", type: "nps", channel: "whatsapp", buyerId: "b1", orderId: "o1",
+    buyerPhone: "+5511999991111", buyerEmail: "buyer@example.test", buyerName: "Ana", metadata: { link: "https://store.example/order/1" }, ...overrides };
+  const repo = { async findPendingDue() { return [msg]; }, async update(id: string, data: any) { updates.push({ id, ...data }); } } as any;
+  const sender = { async execute(input: any) { sent.push(input); if (result instanceof Error) throw result; return result; } } as any;
+  const config = { async getConfig() { return { npsEnabled: overrides.enabled !== false }; } } as any;
+  const prisma = { completedOrder: { async findFirst() { return { status: overrides.orderStatus ?? "delivered" }; } }, merchant: { async findUnique() { return { name: "Loja Exemplo" }; } }, buyerAccount: { async findUnique({ where }: any) { assert.equal(where.globalUserId, "b1"); return { phone: "+5511999992222", email: "resolved@example.invalid", displayName: "Comprador" }; } } } as any;
+  const context = { async setPostSaleContext(...args: any[]) { contexts.push(args); } } as any;
+  return { updates, sent, contexts, uc: new ProcessScheduledMessagesUseCase(repo, sender, new PostSaleAiCopywriterService(), config, prisma, context, campaignConsent) };
 }
-
-function harness(opts: {
-  msgs: ScheduledMessage[];
-  provider: string;
-  template?: any;
-  templateSendResult?: { status: string; reason?: string };
-}) {
-  const updates: Array<{ id: string; data: any }> = [];
-  const emailsSent: any[] = [];
-  const bubbleSent: any[] = [];
-  const templateSent: any[] = [];
-
-  process.env.POST_SALE_WHATSAPP_PROVIDER = opts.provider;
-
-  const messages = {
-    async findPendingDue() {
-      return opts.msgs;
-    },
-    async update(id: string, data: any) {
-      updates.push({ id, data });
-      return {} as any;
-    },
-  } as any;
-
-  const whatsapp = {
-    async send(m: any) {
-      bubbleSent.push(m);
-    },
-  } as any;
-
-  const email = {
-    async send(m: any) {
-      emailsSent.push(m);
-    },
-  } as any;
-
-  const copywriter = new PostSaleAiCopywriterService(); // offline → deterministic templates
-
-  const templateSender = {
-    async sendTemplate(input: any) {
-      templateSent.push(input);
-      return { messageId: "SM1", status: opts.templateSendResult?.status ?? "sent", reason: opts.templateSendResult?.reason };
-    },
-  } as any;
-
-  const templates = {
-    async findByMerchantAndType() {
-      return opts.template ?? null;
-    },
-  } as any;
-
-  const uc = new ProcessScheduledMessagesUseCase(
-    messages,
-    whatsapp,
-    email,
-    copywriter,
-    undefined,
-    templateSender,
-    templates
-  );
-
-  return { uc, updates, emailsSent, bubbleSent, templateSent };
-}
-
-const approvedTemplate = {
-  metaStatus: "approved",
-  twilioContentSid: "HX123",
-  metaLanguage: "pt_BR",
-  metaVariableMap: { "1": "buyerName", "2": "couponBlock" },
-};
-
-test("meta provider + approved template → sends via template sender", async () => {
-  const h = harness({ msgs: [baseMsg({})], provider: "meta", template: approvedTemplate });
-  const stats = await h.uc.execute();
-  assert.equal(stats.sent, 1);
-  assert.equal(h.templateSent.length, 1);
-  assert.equal(h.emailsSent.length, 0);
-  // Variables resolved from map: buyerName + couponBlock.
-  assert.equal(h.templateSent[0].contentVariables["1"], "Ana");
-  assert.match(h.templateSent[0].contentVariables["2"], /LY10/);
-  assert.equal(h.templateSent[0].contentSid, "HX123");
-  assert.equal(h.templateSent[0].language, "pt_BR");
+test("email fallback records actual channel and provider ID without WhatsApp reply context", async () => {
+  const h = harness({ status: "sent", channel: "email", messageId: "email1" });
+  assert.equal((await h.uc.execute()).sent, 1);
+  assert.equal(h.updates[0].channel, "email"); assert.equal(h.updates[0].providerMessageId, "email1");
+  assert.equal(h.contexts.length, 0);
+  assert.equal(h.sent[0].variables.link, "https://store.example/order/1");
+  assert.equal(h.sent[0].variables.storeName, "Loja Exemplo");
+});
+test("official WhatsApp creates the response context", async () => {
+  const h = harness({ status: "sent", channel: "whatsapp_template", messageId: "wamid.1" });
+  assert.equal((await h.uc.execute()).sent, 1);assert.equal(h.contexts.length, 1);
+});
+for (const result of [{ status: "uncertain", channel: "whatsapp_template" }, { status: "sent", channel: "whatsapp_template", messageId: "" }, new Error("transport_failed ETIMEDOUT")]) test("uncertain acceptance is held without retry", async () => {
+  const h = harness(result); assert.equal((await h.uc.execute()).sent, 0);assert.equal(h.updates[0].status, "unknown");
+});
+test("no channel ends the processing claim as skipped", async () => {
+  const h = harness({ status: "skipped", channel: "none", reason: "email_not_configured" });
+  assert.equal((await h.uc.execute()).sent, 0);assert.equal(h.updates[0].status, "skipped");
+});
+test("disabling a campaign after scheduling cancels its pending message", async () => {
+  const h = harness({}, { enabled: false });await h.uc.execute();assert.equal(h.sent.length, 0);assert.equal(h.updates[0].status, "cancelled");
 });
 
-test("meta provider + NO approved template → falls back to email", async () => {
-  const h = harness({ msgs: [baseMsg({})], provider: "meta", template: null });
-  const stats = await h.uc.execute();
-  assert.equal(stats.sent, 1);
-  assert.equal(h.templateSent.length, 0);
-  assert.equal(h.emailsSent.length, 1);
+test("scanner messages resolve missing contacts before routing", async () => {
+  const h = harness({ status: "sent", channel: "whatsapp_template", messageId: "wamid.contact" }, { buyerPhone: null, buyerEmail: null, buyerName: null });
+  assert.equal((await h.uc.execute()).sent, 1);
+  assert.equal(h.sent[0].toPhone, "+5511999992222");
+  assert.equal(h.sent[0].fallbackEmail, "resolved@example.invalid");
+  assert.equal(h.sent[0].variables.buyerName, "Comprador");
 });
 
-test("meta template skipped (no connection) → falls back to email", async () => {
-  const h = harness({
-    msgs: [baseMsg({})],
-    provider: "meta",
-    template: approvedTemplate,
-    templateSendResult: { status: "skipped", reason: "meta_connection_unavailable" },
+test("refund after scheduling cancels post-delivery dispatch", async () => {
+  const h = harness({}, { orderStatus: "refunded" });
+  await h.uc.execute();
+  assert.equal(h.sent.length, 0);
+  assert.equal(h.updates[0].failureReason, "order_no_longer_eligible");
+});
+
+test("dispatch cancels a scheduled campaign when the buyer did not authorize either reachable channel", async () => {
+  const h = harness({ status: "sent", channel: "email", messageId: "unexpected" }, {}, { async canContact() { return false; } });
+  await h.uc.execute();
+  assert.equal(h.sent.length, 0);
+  assert.equal(h.updates[0].status, "cancelled");
+  assert.equal(h.updates[0].failureReason, "contact_consent_not_granted");
+});
+
+test("dispatch does not expose WhatsApp when only email remains authorized", async () => {
+  const h = harness({ status: "sent", channel: "email", messageId: "email-authorized" }, {}, {
+    async canContact(input: { channel: string }) { return input.channel === "email"; },
   });
-  const stats = await h.uc.execute();
-  assert.equal(stats.sent, 1);
-  assert.equal(h.templateSent.length, 1, "attempted template");
-  assert.equal(h.emailsSent.length, 1, "fell back to email");
-});
-
-test("email provider default → always email, never template/bubble", async () => {
-  const h = harness({ msgs: [baseMsg({})], provider: "email", template: approvedTemplate });
-  const stats = await h.uc.execute();
-  assert.equal(stats.sent, 1);
-  assert.equal(h.emailsSent.length, 1);
-  assert.equal(h.templateSent.length, 0);
-  assert.equal(h.bubbleSent.length, 0);
-});
-
-test("bubblewhats provider → legacy send (opt-in)", async () => {
-  const h = harness({ msgs: [baseMsg({})], provider: "bubblewhats" });
-  const stats = await h.uc.execute();
-  assert.equal(stats.sent, 1);
-  assert.equal(h.bubbleSent.length, 1);
-  assert.match(h.bubbleSent[0].message, /LY10/, "coupon in body");
-});
-
-test("no phone + no email → skipped, not sent", async () => {
-  const h = harness({
-    msgs: [baseMsg({ buyerPhone: null, buyerEmail: null })],
-    provider: "meta",
-    template: approvedTemplate,
-  });
-  const stats = await h.uc.execute();
-  assert.equal(stats.sent, 0);
-  assert.equal(h.templateSent.length, 0);
-  assert.equal(h.emailsSent.length, 0);
+  await h.uc.execute();
+  assert.equal(h.sent[0].toPhone, undefined);
+  assert.equal(h.sent[0].fallbackEmail, "buyer@example.test");
 });

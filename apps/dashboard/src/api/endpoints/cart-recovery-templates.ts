@@ -7,7 +7,7 @@ export type RecoveryTemplateStatus =
 export interface RecoveryTemplates {
   suggested?: { email: { subject: string; body: string }; whatsapp: { body: string } };
   email: { subject: string; body: string };
-  whatsapp: { body: string; revision: number; status: RecoveryTemplateStatus; rejectionReason: string | null };
+  whatsapp: { body: string; revision: number; status: RecoveryTemplateStatus; approvedVersions?: Array<{ revision: number; body: string }>; rejectionReason: string | null };
   whatsappConnected: boolean;
   effectiveChannel: "whatsapp_template" | "email";
 }
@@ -40,4 +40,8 @@ export function saveRecoveryTemplates(
     jsonBody: { email: { subject: draft.email.subject, body: draft.email.body },
       whatsapp: { body: draft.whatsapp.body, revision: draft.whatsapp.revision } },
   }, fetchImpl);
+}
+
+export function restoreRecoveryTemplate(apiBaseUrl: string, revision: number, expectedRevision: number): Promise<RecoveryTemplates> {
+  return dashboardJson(apiBaseUrl, "/cart-recovery/templates/restore", { method: "POST", jsonBody: { revision, expectedRevision } });
 }

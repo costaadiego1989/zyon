@@ -15,6 +15,10 @@ export interface PostSaleTemplate {
   metaTemplateBody: string | null;
   metaVariableMap: Record<string, string> | null;
   twilioContentSid: string | null;
+  metaWabaId?: string | null;
+  metaApprovedVersions?: import("../../../whatsapp-templates/domain/ports/whatsapp-template-repository.port.js").ApprovedTemplateVersion[];
+  metaRevision?: number;
+  metaLastCheckedAt?: Date | null;
   metaStatus: string | null;
   metaRejectionReason: string | null;
   createdAt: Date;

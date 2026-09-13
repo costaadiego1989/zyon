@@ -22,7 +22,7 @@ describe("recovery chooses a connected merchant template or email", () => {
     id: "template-1", merchantId: "m1", type: "cart_recovery", channel: "whatsapp", name: "recovery",
     body: "Hello", subject: null, isActive: true, metaCategory: "MARKETING", metaLanguage: "pt_BR",
     metaTemplateBody: "Hello {{1}} {{2}}", metaVariableMap: { "1": "buyerName", "2": "link" },
-    twilioContentSid: "HX-merchant", metaStatus: "approved", metaRejectionReason: null,
+    twilioContentSid: "HX-merchant", metaStatus: "approved", metaWabaId: "123456789", metaLastCheckedAt: new Date(), metaRejectionReason: null,
     createdAt: new Date(0), updatedAt: new Date(0),
   };
   const input = {

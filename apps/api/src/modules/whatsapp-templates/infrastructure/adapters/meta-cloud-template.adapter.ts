@@ -69,7 +69,7 @@ export class MetaCloudTemplateAdapter implements TemplateSubmissionPort {
     }
     if (!response.ok) {
       if (response.status >= 400 && response.status < 500 && response.status !== 408) {
-        const existing = await this.findByName(credentials.accessToken, credentials.wabaId, name);
+        const existing = await this.findByName(credentials.accessToken, credentials.wabaId, name, { language: input.language, body: input.metaBody });
         if (existing) return existing;
         return { contentSid: "", status: "draft", rejectionReason: `create_failed_${response.status}` };
       }
@@ -84,25 +84,26 @@ export class MetaCloudTemplateAdapter implements TemplateSubmissionPort {
     };
   }
 
-  async syncStatus(merchantId: string, contentSid: string): Promise<TemplateSubmissionStatus> {
+  async syncStatus(merchantId: string, contentSid: string, expected?: { language: string; body: string }): Promise<TemplateSubmissionStatus> {
     if (!contentSid.trim()) return { contentSid, status: "unknown", rejectionReason: "template_identifier_missing" };
     const credentials = await this.credentials(merchantId);
     if (!credentials) return { contentSid, status: "unknown", rejectionReason: "connection_unavailable" };
-    return (await this.findByName(credentials.accessToken, credentials.wabaId, contentSid))
+    return (await this.findByName(credentials.accessToken, credentials.wabaId, contentSid, expected))
       ?? { contentSid, status: "unknown", rejectionReason: "template_not_found" };
   }
 
-  private async findByName(accessToken: string, wabaId: string, name: string): Promise<TemplateSubmissionStatus | null> {
+  private async findByName(accessToken: string, wabaId: string, name: string, expected?: { language: string; body: string }): Promise<TemplateSubmissionStatus | null> {
     try {
       const url = new URL(`${GRAPH}/${wabaId}/message_templates`);
       url.searchParams.set("name", name);
-      url.searchParams.set("fields", "name,status,rejected_reason");
+      url.searchParams.set("fields", "name,status,rejected_reason,language,components");
       url.searchParams.set("limit", "100");
       const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` }, redirect: "error", signal: AbortSignal.timeout(TIMEOUT_MS) });
       if (!response.ok) return null;
-      const payload = await response.json().catch(() => null) as { data?: Array<{ name?: unknown; status?: unknown; rejected_reason?: unknown }> } | null;
-      const item = payload?.data?.find(template => template.name === name);
+      const payload = await response.json().catch(() => null) as { data?: Array<{ name?: unknown; status?: unknown; rejected_reason?: unknown; language?: string; components?: Array<{ type: string; text?: string }> }> } | null;
+      const item = payload?.data?.find(template => template.name === name && (!expected || template.language === expected.language));
       if (!item) return null;
+      if (expected && item.components?.find(c => c.type === "BODY")?.text !== expected.body) return { contentSid: name, status: "disabled", rejectionReason: "template_content_mismatch" };
       return {
         contentSid: name,
         status: status(item.status),

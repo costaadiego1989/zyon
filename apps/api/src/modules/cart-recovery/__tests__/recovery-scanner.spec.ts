@@ -16,6 +16,7 @@ for (const eventLookup of ["empty", "failed"] as const) {
     // Math.random controls jitter; the clock advances without a real sleep.
     context.mock.method(Math, "random", () => 0.5);
     const now = new Date("2026-09-05T12:00:00Z");
+    const inactiveAt = new Date(now.getTime() - 31 * 60 * 1000);
     context.mock.timers.enable({ apis: ["setTimeout", "Date"], now });
 
     const session = checkoutSession({
@@ -23,7 +24,7 @@ for (const eventLookup of ["empty", "failed"] as const) {
       abandonmentScore: 0.95,
       customer: { email: "buyer@example.invalid" },
       createdAt: now.toISOString(),
-      updatedAt: now.toISOString(),
+      updatedAt: inactiveAt.toISOString(),
     });
     const sessions = new InMemoryCheckoutRepository();
     await sessions.saveSession(session);
@@ -83,5 +84,34 @@ for (const eventLookup of ["empty", "failed"] as const) {
     assert.deepEqual(await sessions.getSession(session.merchantId, session.sessionId), session);
     // The legacy attempted counter measures processed candidates, including
     // skipped sessions, so durable attempts and sender effects are checked above.
+  });
+}
+
+for (const authority of ["completed_order", "approved_payment"] as const) {
+  test(`RecoveryScannerJob suppresses recovery when ${authority.replace("_", " ")} is authoritative`, async (context) => {
+    context.mock.method(Math, "random", () => 0.5);
+    const now = new Date("2026-09-05T12:00:00Z");
+    context.mock.timers.enable({ apis: ["setTimeout", "Date"], now });
+    const session = checkoutSession({ triggerAgent: true, abandonmentScore: 0.95,
+      updatedAt: new Date(now.getTime() - 31 * 60 * 1000).toISOString() });
+    const sessions = new InMemoryCheckoutRepository();
+    await sessions.saveSession(session);
+    let recoveryCalls = 0;
+    const prisma = {
+      checkoutEvent: { async findMany() { return [{ eventName: "shipping_objection_detected" }]; } },
+      merchant: { async findUnique() { return { name: "Sandbox Store" }; } },
+      completedOrder: { async findFirst() { return authority === "completed_order" ? { id: "order" } : null; } },
+      paymentIntent: { async findFirst() { return authority === "approved_payment" ? { id: "payment" } : null; } },
+    } as unknown as PrismaClient;
+    const scanner = new RecoveryScannerJob(
+      sessions, new InMemoryRecoveryAttemptRepository(),
+      { getRules: async () => merchantRules(), updateRules: async () => merchantRules() },
+      new InMemoryStrategyPreferencesRepository(), new InMemoryBuyerPurchaseHistoryRepository(), prisma,
+      { async execute() { recoveryCalls++; return { created: true, attemptId: "unexpected" }; } },
+    );
+    const scan = scanner.scan();
+    context.mock.timers.tick(15_000);
+    await scan;
+    assert.equal(recoveryCalls, 0);
   });
 }

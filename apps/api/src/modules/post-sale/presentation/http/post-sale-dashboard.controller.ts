@@ -1,3 +1,5 @@
+import { RecoveryTemplateLifecycleUseCase } from "../../../whatsapp-templates/application/use-cases/recovery-template-lifecycle.use-case.js";
+import { WHATSAPP_TEMPLATE_TYPES } from "../../../whatsapp-templates/domain/catalog/template-types.js";
 import {
   Controller,
   Get,
@@ -32,6 +34,7 @@ export class PostSaleDashboardController {
   private readonly logger = new Logger(PostSaleDashboardController.name);
 
   constructor(
+    private readonly lifecycle: RecoveryTemplateLifecycleUseCase,
     private readonly dashboard: GetPostSaleDashboardUseCase,
     private readonly generateTemplateUseCase: GeneratePostSaleTemplateUseCase,
     @Inject(REVIEW_REPOSITORY)
@@ -136,130 +139,36 @@ export class PostSaleDashboardController {
       throw new BadRequestException("Templates feature not available");
     }
 
+    for (const type of WHATSAPP_TEMPLATE_TYPES) await this.lifecycle.ensure(tenant.tenantId, type);
     const templates = await this.templates.findAllByMerchant(tenant.tenantId);
-    return { templates };
+    return { templates: templates.map(t => ({ ...t, metaRevision: templates.find(w => w.type === t.type && w.channel === "whatsapp")?.metaRevision })) };
   }
 
   @Put("templates/:type/:channel")
-  async upsertTemplate(
-    @Req() req: TenantPrincipalRequest,
-    @Param("type") type: string,
-    @Param("channel") channel: string,
-    @Body() body: {
-      name: string;
-      body: string;
-      subject?: string;
-      metaCategory?: string;
-      metaLanguage?: string;
-      metaTemplateBody?: string;
-      metaVariableMap?: Record<string, string>;
-    }
-  ) {
-    const tenant = currentTenantPrincipal(req);
-
-    if (!this.templates) {
-      throw new BadRequestException("Templates feature not available");
-    }
-
-    const template = await this.templates.upsert({
-      merchantId: tenant.tenantId,
-      type,
-      channel,
-      name: body.name,
-      body: body.body,
-      subject: body.subject,
-      metaCategory: body.metaCategory,
-      metaLanguage: body.metaLanguage,
-      metaTemplateBody: body.metaTemplateBody,
-      metaVariableMap: body.metaVariableMap,
-    });
-
-    this.logger.log(`Template upserted`, {
-      type,
-      channel,
-      merchantId: tenant.tenantId,
-    });
-
-    return { template };
+  async upsertTemplate(@Req() req: TenantPrincipalRequest, @Param("type") type: string, @Param("channel") channel: string,
+    @Body() body: { body: string; subject?: string; revision?: number }) {
+    return { template: await this.lifecycle.saveChannel(currentTenantPrincipal(req).tenantId, type, channel, body) };
   }
 
   @Post("templates/:type/:channel/submit-meta")
-  async submitMetaTemplate(
-    @Req() req: TenantPrincipalRequest,
-    @Param("type") type: string,
-    @Param("channel") channel: string
-  ) {
-    const tenant = currentTenantPrincipal(req);
-    if (!this.templates) throw new BadRequestException("Templates feature not available");
+  async submitMetaTemplate(@Req() req: TenantPrincipalRequest, @Param("type") type: string, @Param("channel") channel: string) {
+    if (channel !== "whatsapp") throw new BadRequestException("invalid_template_channel");
+    const template = await this.lifecycle.submit(currentTenantPrincipal(req).tenantId, type);
+    return { template, submission: { status: template.metaStatus, contentSid: template.twilioContentSid } };
+  }
 
-    const tpl = await this.templates.findByMerchantAndType(tenant.tenantId, type, channel);
-    if (!tpl) throw new BadRequestException("template_not_found");
-    if (!tpl.metaTemplateBody || !tpl.metaVariableMap) {
-      throw new BadRequestException("meta_template_not_prepared");
-    }
-    if (!this.templateSubmission) {
-      return { status: "draft", reason: "meta_cloud_not_available" };
-    }
-
-    const sample: Record<string, string> = {};
-    for (const [pos, name] of Object.entries(tpl.metaVariableMap)) {
-      sample[pos] =
-        name === "buyerName" ? "Ana"
-        : name === "productName" ? "seu pedido"
-        : name === "coupon" ? "LOJA10"
-        : name === "couponBlock" ? "cupom LOJA10 (10% OFF)"
-        : name === "discount" ? "10%"
-        : "https://loja.exemplo";
-    }
-
-    const result = await this.templateSubmission.createAndSubmit({
-      merchantId: tenant.tenantId,
-      friendlyName: `${tenant.tenantId}_${type}_${channel}`.slice(0, 64),
-      language: tpl.metaLanguage || "pt_BR",
-      metaBody: tpl.metaTemplateBody,
-      sampleVariables: sample,
-      category: tpl.metaCategory || "UTILITY",
-    });
-
-    const updated = await this.templates.updateMeta({
-      merchantId: tenant.tenantId,
-      type,
-      channel,
-      twilioContentSid: result.contentSid || undefined,
-      metaStatus: result.status,
-      metaRejectionReason: result.rejectionReason ?? null,
-    });
-
-    this.logger.log(`Meta template submitted`, { type, channel, merchantId: tenant.tenantId, status: result.status });
-    return { template: updated, submission: result };
+  @Post("templates/:type/restore")
+  async restoreTemplate(@Req() req: TenantPrincipalRequest, @Param("type") type: string, @Body() body: { revision: number; expectedRevision: number }) {
+    const merchantId = currentTenantPrincipal(req).tenantId;
+    await this.lifecycle.restore(merchantId, type, body.revision, body.expectedRevision);
+    return { template: await this.lifecycle.record(merchantId, type, "whatsapp") };
   }
 
   @Get("templates/:type/:channel/meta-status")
-  async metaTemplateStatus(
-    @Req() req: TenantPrincipalRequest,
-    @Param("type") type: string,
-    @Param("channel") channel: string
-  ) {
-    const tenant = currentTenantPrincipal(req);
-    if (!this.templates) throw new BadRequestException("Templates feature not available");
-
-    const tpl = await this.templates.findByMerchantAndType(tenant.tenantId, type, channel);
-    if (!tpl) throw new BadRequestException("template_not_found");
-    if (!tpl.twilioContentSid || !this.templateSubmission) {
-      return { status: tpl.metaStatus ?? "draft", contentSid: tpl.twilioContentSid ?? null };
-    }
-
-    const synced = await this.templateSubmission.syncStatus(tenant.tenantId, tpl.twilioContentSid);
-    if (synced.status !== "unknown" && synced.status !== tpl.metaStatus) {
-      await this.templates.updateMeta({
-        merchantId: tenant.tenantId,
-        type,
-        channel,
-        metaStatus: synced.status,
-        metaRejectionReason: synced.rejectionReason ?? null,
-      });
-    }
-    return { status: synced.status, contentSid: tpl.twilioContentSid, rejectionReason: synced.rejectionReason };
+  async metaTemplateStatus(@Req() req: TenantPrincipalRequest, @Param("type") type: string, @Param("channel") channel: string) {
+    if (channel !== "whatsapp") throw new BadRequestException("invalid_template_channel");
+    const tpl = await this.lifecycle.submit(currentTenantPrincipal(req).tenantId, type);
+    return { status: tpl.metaStatus, contentSid: tpl.twilioContentSid, rejectionReason: tpl.metaRejectionReason };
   }
 
   @Post("templates/generate")

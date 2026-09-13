@@ -9,12 +9,12 @@ import { RECOVERY_TEMPLATE_DEFAULTS } from "../../domain/recovery-template-conte
 import { RecoveryTemplateLifecycleUseCase } from "../../application/use-cases/recovery-template-lifecycle.use-case.js";
 import type { WhatsAppConfigRepository } from "../../../whatsapp-channel/domain/ports/whatsapp-config-repository.port.js";
 
-// Explicit-only integration suite; prepare-lifecycle-db.mjs generates this isolated client.
-// The URL is intentionally fixed to a disposable local database, never DATABASE_URL.
+// Explicit-only integration suite. SALES_TEST_CLIENT points to an isolated generated Prisma client.
+// The URL is fixed to a disposable local database; DATABASE_URL is never read.
 test("recovery template lifecycle on disposable PostgreSQL", async (t) => {
   const require = createRequire(path.join(process.cwd(), "package.json"));
-  const { PrismaClient: TestClient } = require(path.join(process.cwd(), ".audit/recovery-lifecycle-prisma/client/index.js"));
-  const db = new TestClient({ datasources: { db: { url: "postgresql://recovery_test:recovery_test_local@127.0.0.1:55439/recovery_lifecycle" } } });
+  const { PrismaClient: TestClient } = require(process.env.SALES_TEST_CLIENT || "SALES_TEST_CLIENT_must_point_to_an_isolated_generated_client");
+  const db = new TestClient({ datasources: { db: { url: "postgresql://sales_test:sales_local_test@127.0.0.1:55443/sales_templates" } } });
   const repo = new PrismaRecoveryTemplateLifecycleRepository(db as PrismaClient);
   const merchants: string[] = [];
   const merchant = async () => { const id = `lifecycle-test-${randomUUID()}`; merchants.push(id); await repo.ensure(id); return id; };

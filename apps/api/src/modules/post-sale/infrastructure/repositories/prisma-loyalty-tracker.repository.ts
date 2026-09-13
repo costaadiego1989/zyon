@@ -109,6 +109,7 @@ export class PrismaLoyaltyTrackerRepository implements LoyaltyTrackerRepositoryP
   async findInactive(input: FindInactiveBuyersInput): Promise<BuyerLoyaltyTracker[]> {
     const trackers = await this.prisma.buyerLoyaltyTracker.findMany({
       where: {
+        merchantId: input.merchantId,
         lastPurchaseAt: { lt: input.inactiveBefore },
         OR: [
           { lastWinBackAt: null },

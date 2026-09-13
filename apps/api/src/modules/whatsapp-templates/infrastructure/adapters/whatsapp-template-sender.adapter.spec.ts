@@ -16,7 +16,7 @@ describe("Meta Cloud template sender", () => {
   };
   const template = {
     id: "template-1", merchantId: "m1", type: "cart_recovery", channel: "whatsapp", isActive: true,
-    metaStatus: "approved", twilioContentSid: "zyon_recovery_123", metaLanguage: "pt_BR", metaVariableMap: {},
+    metaStatus: "approved", metaWabaId: "123456789", metaLastCheckedAt: new Date(), twilioContentSid: "zyon_recovery_123", metaLanguage: "pt_BR", metaTemplateBody: "Hello", metaVariableMap: {},
   } as WhatsAppTemplateRecord;
   const input = {
     merchantId: "m1", type: "cart_recovery" as const, toNumber: "11999991111", contentSid: "zyon_recovery_123",
@@ -32,7 +32,7 @@ describe("Meta Cloud template sender", () => {
     }) as typeof fetch;
     const configs = { async findByMerchantId() { return options.config === null ? null : { ...config, ...options.config }; } } as unknown as WhatsAppConfigRepository;
     const templates = { async findByMerchantAndType() { return options.template === null ? null : { ...template, ...options.template }; } } as unknown as WhatsAppTemplateRepositoryPort;
-    return { adapter: new WhatsAppTemplateSenderAdapter(configs, templates), configs, templates, requests };
+    return { adapter: new WhatsAppTemplateSenderAdapter(configs, templates, { async createAndSubmit() { throw new Error("unused"); }, async syncStatus(_m, sid) { return { status: "approved", contentSid: sid }; } }), configs, templates, requests };
   }
 
   test("sends an approved merchant template through its exact Cloud API phone ID", async () => {

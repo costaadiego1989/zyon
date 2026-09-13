@@ -174,6 +174,12 @@ export type BillingSubscription = {
   billing_provider?: string;
   usage?: {
     period_start?: string;
+    commercial_status?: "active" | "warning" | "grace" | "suspended";
+    grace_expires_at?: string | null;
+    usage_period_end?: string | null;
+    orders_overage?: number;
+    required_plan?: "starter" | "growth" | "scale" | null;
+    can_accept_orders?: boolean;
     orders_current?: number | null;
     orders_limit?: number | null;
     sessions_current: number | null;
@@ -210,8 +216,6 @@ export type PaymentConnection = {
   account_id: string | null;
   created_at: string;
   updated_at: string;
-  /** Buyer-facing methods ready for this connected provider. */
-  checkout_methods?: Array<"pix" | "boleto" | "card">;
 };
 
 export type PaymentOnboardingLinkResponse = {

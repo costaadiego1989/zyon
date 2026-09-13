@@ -15,14 +15,14 @@ function harness(options: { result?: SendEmailOutput; error?: boolean; ownerEmai
   const prisma = {
     merchantNotification: {
       async findMany({ where }: any) {
-        assert.equal(where.type, row.type);
+        assert.ok(where.type.in.includes(row.type));
         assert.deepEqual(where.metadata.path, ["emailStatus"]);
         return row.metadata.emailStatus === where.metadata.equals ? [structuredClone(row)] : [];
       },
       async updateMany({ where, data }: any) {
         assert.equal(where.id, row.id);
         assert.equal(where.merchantId, row.merchantId);
-        assert.equal(where.type, row.type);
+        assert.ok(where.type.in.includes(row.type));
         if (options.completionError && where.metadata.equals === "sending") throw new Error("database down after send");
         if (row.metadata.emailStatus !== where.metadata.equals) return { count: 0 };
         row.metadata = data.metadata;

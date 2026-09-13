@@ -8,15 +8,15 @@ import type { WhatsAppConfigRepository, WhatsAppChannelConfigEntity } from "../.
 const now = new Date("2026-09-05T10:00:00Z");
 const sid = `HX${"a".repeat(32)}`;
 const config: WhatsAppChannelConfigEntity = {
-  id: "connection", merchantId: "merchant-a", provider: "TWILIO", enabled: true, status: "ACTIVE",
-  whatsappNumber: "5511999990000", credentials: { accountSid: "AC-tenant", authToken: "fake-secret", senderId: "whatsapp:+5511999990000" },
+  id: "connection", merchantId: "merchant-a", provider: "META_CLOUD", enabled: true, status: "ACTIVE",
+  whatsappNumber: "5511999990000", credentials: { accessToken: "merchant-token", wabaId: "123456789", phoneNumberId: "987654321" },
   createdAt: now, updatedAt: now,
 };
 function record(patch: Partial<RecoveryLifecycleRecord> = {}): RecoveryLifecycleRecord {
   return { id: "template-a", merchantId: "merchant-a", type: "cart_recovery", channel: "whatsapp", name: "Recovery",
     subject: null, body: "Olá {{buyerName}}, retome em {{link}}", isActive: true,
     metaCategory: "MARKETING", metaLanguage: "pt_BR", metaTemplateBody: null, metaVariableMap: null,
-    twilioContentSid: null, metaStatus: "draft", metaRejectionReason: null, metaRevision: 3,
+    twilioContentSid: null, metaStatus: "draft", metaWabaId: "123456789", metaRejectionReason: null, metaRevision: 3,
     metaLastCheckedAt: null, metaNextCheckAt: now, createdAt: now, updatedAt: now, ...patch };
 }
 function setup(options: {
@@ -59,7 +59,7 @@ function setup(options: {
       return options.create ?? { contentSid: sid, status: "submitted" };
     },
     async syncStatus(...args) {
-      syncs.push(args);
+      syncs.push([args[0], args[1]]);
       if (options.sync instanceof Error) throw options.sync;
       return options.sync ?? { contentSid: sid, status: "approved" };
     },
@@ -109,7 +109,7 @@ test("concurrent scans submit once only after acquiring the claim", async () => 
   const input = h.creates[0]!;
   assert.equal(input.merchantId, "merchant-a");
   assert.equal(input.category, "MARKETING");
-  assert.match(input.friendlyName, /^recovery_[a-f0-9]{20}_v3$/);
+  assert.match(input.friendlyName, /^cart_recovery_[a-f0-9]{20}_v3$/);
   assert.equal(input.metaBody, "Olá {{1}}, retome em {{2}}");
   assert.equal(h.completions[0]?.patch.contentSid, sid);
 });
@@ -179,5 +179,5 @@ test("invalid edit is rejected before initializing or changing tenant records", 
 test("valid edit forwards revision and normalized content to the authenticated tenant", async () => {
   const h = setup();
   await h.service.save("merchant-a", { merchantId: "merchant-b", email: { subject: " Retome ", body: " {{link}} " }, whatsapp: { body: " Retome {{link}} ", revision: 3 } });
-  assert.deepEqual(h.saves, [["merchant-a", { email: { subject: "Retome", body: "{{link}}" }, whatsapp: { body: "Retome {{link}}", revision: 3 } }]]);
+  assert.deepEqual(h.saves, [["merchant-a", { email: { subject: "Retome", body: "{{link}}" }, whatsapp: { body: "Retome {{link}}", revision: 3 } }, "cart_recovery"]]);
 });

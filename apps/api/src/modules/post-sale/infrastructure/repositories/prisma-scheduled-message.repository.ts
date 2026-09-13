@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import {
@@ -12,8 +13,13 @@ export class PrismaScheduledMessageRepository implements ScheduledMessageReposit
   constructor(private prisma: PrismaClient) {}
 
   async create(input: CreateScheduledMessageInput): Promise<ScheduledMessage> {
-    const msg = await this.prisma.postSaleScheduledMessage.create({
-      data: {
+    const identity = { merchantId: input.merchantId, buyerId: input.buyerId, orderId: input.orderId, type: input.type };
+    const sku = input.type === "reorder" && typeof input.metadata?.sku === "string" ? input.metadata.sku : undefined;
+    const existing = await this.prisma.postSaleScheduledMessage.findFirst({ where: { ...identity, ...(sku ? { metadata: { path: ["sku"], equals: sku } } : {}) } });
+    if (existing) return this.mapToDomain(existing);
+    const id = "ps_" + createHash("sha256").update(JSON.stringify({ ...identity, ...(sku ? { sku } : {}) })).digest("hex");
+    const msg = await this.prisma.postSaleScheduledMessage.upsert({
+      where: { id }, update: { id }, create: { id,
         merchantId: input.merchantId,
         buyerId: input.buyerId,
         orderId: input.orderId,
@@ -35,9 +41,14 @@ export class PrismaScheduledMessageRepository implements ScheduledMessageReposit
   async findPendingDue(limit: number): Promise<ScheduledMessage[]> {
     // Atomic claim: SELECT FOR UPDATE SKIP LOCKED + status transition to 'processing'.
     // Prevents double-send when multiple API instances run concurrently.
+    // Expired claims are held for reconciliation because a worker may have sent before crashing.
+    await (this.prisma as any).postSaleScheduledMessage.updateMany({
+      where: { status: "processing", processingAt: { lt: new Date(Date.now() - 15 * 60_000) } },
+      data: { status: "unknown", failureReason: "processing_lease_expired" },
+    });
     const claimed: any[] = await this.prisma.$queryRawUnsafe(
       `UPDATE post_sale_scheduled_messages
-       SET status = 'processing'
+       SET status = 'processing', processing_at = NOW()
        WHERE id IN (
          SELECT id FROM post_sale_scheduled_messages
          WHERE status = 'pending' AND send_at <= NOW()
@@ -58,11 +69,15 @@ export class PrismaScheduledMessageRepository implements ScheduledMessageReposit
       status?: ScheduledMessage["status"];
       sentAt?: Date;
       messageContent?: string;
+      channel?: "whatsapp" | "email";
+      providerMessageId?: string;
+      failureReason?: string;
     }
   ): Promise<ScheduledMessage> {
     const updated = await this.prisma.postSaleScheduledMessage.update({
       where: { id },
       data: {
+        channel: data.channel, providerMessageId: data.providerMessageId, failureReason: data.failureReason,
         status: data.status,
         sentAt: data.sentAt,
         messageContent: data.messageContent,

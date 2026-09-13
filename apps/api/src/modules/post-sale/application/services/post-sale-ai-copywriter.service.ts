@@ -1,3 +1,4 @@
+import { categoryFor } from "../../../whatsapp-templates/domain/catalog/template-catalog.js";
 import { Injectable, Logger, Inject, Optional } from "@nestjs/common";
 import { BadRequestException } from "@nestjs/common";
 import { isSafeGeneratedMessage } from "../../../checkout/domain/types/safe-generated-message.js";
@@ -5,6 +6,7 @@ import { POST_SALE_TEMPLATE_REPOSITORY, type PostSaleTemplateRepositoryPort } fr
 
 export interface GenerateMessageInput {
   type: "follow_up" | "review_request" | "nps" | "cross_sell" | "win_back" | "loyalty" | "reorder";
+  channel?: "email" | "whatsapp";
   buyerName: string;
   productName: string;
   merchantId: string;
@@ -34,13 +36,13 @@ export class PostSaleAiCopywriterService {
   ) {}
 
   async generate(input: GenerateMessageInput): Promise<string> {
-    const channel = "whatsapp";
+    const channel = input.channel ?? "whatsapp";
 
     // Try merchant custom template first
     if (this.templateRepo) {
       try {
         const customTemplate = await this.templateRepo.findByMerchantAndType(input.merchantId, input.type, channel);
-        if (customTemplate) {
+        if (customTemplate?.isActive) {
           return this.interpolateTemplate(customTemplate.body, input);
         }
       } catch (err) {
@@ -156,7 +158,7 @@ Lembra do {{productName}} que você comprou? Pelo tempo de uso, pode ser que est
 
 {{couponBlock}}
 
-Cuidamos do frete pra você! 📦`,
+Confira as opções e condições de entrega na loja.`,
     };
 
     return templates[type] || `Oi {{buyerName}}! Tudo bem?`;
@@ -168,7 +170,7 @@ Cuidamos do frete pra você! 📦`,
    * cross-sell is MARKETING. Getting this right speeds Meta approval.
    */
   metaCategoryFor(type: GenerateMessageInput["type"]): "UTILITY" | "MARKETING" {
-    return type === "cross_sell" ? "MARKETING" : "UTILITY";
+    return categoryFor(type);
   }
 
   /**

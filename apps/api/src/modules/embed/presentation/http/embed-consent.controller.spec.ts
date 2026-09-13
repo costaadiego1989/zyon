@@ -40,3 +40,63 @@ test("withdrawing consent requests erasure for the token-bound buyer", async () 
   );
   assert.deepEqual(deleted, [[claims.merchantId, "buyer-1"]]);
 });
+
+test("campaign consent is merchant-bound, records evidence, and revocation uses the same buyer", async () => {
+  const claims = { typ: "aacp_embed_v1" as const, merchantId: "merchant-1", nonce: "buyer-1", issuedAtUnix: 1, expiresAtUnix: 9999999999 };
+  const sessionId = embedCheckoutSessionId(claims);
+  const checkoutRepo = new InMemoryCheckoutRepository();
+  checkoutRepo.saveSession(checkoutSession({ merchantId: claims.merchantId, sessionId, globalUserId: "buyer-1" }));
+  const granted: any[] = []; const revoked: any[] = [];
+  const controller = new EmbedConsentController({ async saveConsent() {}, async deleteConsent() {} } as never,
+    new EmbedCheckoutGuardHelper(checkoutRepo), {
+      async grant(input: any) { granted.push(input); },
+      async revoke(input: any) { revoked.push(input); },
+    } as never);
+  const body = { session_id: sessionId, opted_in: true, channels: ["email", "whatsapp", "email"], policy_version: "campaign-v1" };
+  await controller.recordCampaignConsent({ embedClaims: claims }, body);
+  assert.deepEqual(granted[0].channels, ["email", "whatsapp"]);
+  assert.equal(granted[0].merchantId, claims.merchantId);
+  assert.equal(granted[0].globalUserId, "buyer-1");
+  assert.equal(granted[0].evidence.checkoutSessionId, sessionId);
+  await controller.recordCampaignConsent({ embedClaims: claims }, { ...body, opted_in: false });
+  assert.equal(revoked[0].globalUserId, "buyer-1");
+  await assert.rejects(controller.recordCampaignConsent({ embedClaims: claims }, { ...body, channels: ["sms"] } as never), /campaign_consent_fields_invalid/);
+});
+
+test("campaign consent readback is bound to the authenticated checkout session", async () => {
+  const claims = { typ: "aacp_embed_v1" as const, merchantId: "merchant-1", nonce: "buyer-1", issuedAtUnix: 1, expiresAtUnix: 9999999999 };
+  const sessionId = embedCheckoutSessionId(claims);
+  const checkoutRepo = new InMemoryCheckoutRepository();
+  checkoutRepo.saveSession(checkoutSession({ merchantId: claims.merchantId, sessionId, globalUserId: "buyer-1" }));
+  const controller = new EmbedConsentController({ async saveConsent() {}, async deleteConsent() {} } as never,
+    new EmbedCheckoutGuardHelper(checkoutRepo), {
+      async grant() {}, async revoke() {},
+      async getGrantedChannels(input: any) {
+        assert.deepEqual(input, { merchantId: "merchant-1", globalUserId: "buyer-1" });
+        return ["email"];
+      },
+    } as never);
+  const response = await controller.getCampaignConsent({ embedClaims: claims }, sessionId);
+  assert.deepEqual(response.channels, ["email"]);
+  await assert.rejects(controller.getCampaignConsent({ embedClaims: claims }, "checkout-other"), /embed_checkout_session_binding_mismatch/);
+});
+
+test("campaign consent replacement accepts an empty selection and keeps the checkout identity", async () => {
+  const claims = { typ: "aacp_embed_v1" as const, merchantId: "merchant-1", nonce: "buyer-1", issuedAtUnix: 1, expiresAtUnix: 9999999999 };
+  const sessionId = embedCheckoutSessionId(claims);
+  const checkoutRepo = new InMemoryCheckoutRepository();
+  checkoutRepo.saveSession(checkoutSession({ merchantId: claims.merchantId, sessionId, globalUserId: "buyer-1" }));
+  const replacements: any[] = [];
+  const controller = new EmbedConsentController({ async saveConsent() {}, async deleteConsent() {} } as never,
+    new EmbedCheckoutGuardHelper(checkoutRepo), {
+      async grant() {}, async revoke() {}, async getGrantedChannels() { return []; },
+      async replace(input: any) { replacements.push(input); },
+    } as never);
+  await controller.replaceCampaignConsent(
+    { embedClaims: claims },
+    { session_id: sessionId, channels: [], policy_version: "campaign-v1" },
+  );
+  assert.equal(replacements[0].merchantId, "merchant-1");
+  assert.equal(replacements[0].globalUserId, "buyer-1");
+  assert.deepEqual(replacements[0].channels, []);
+});

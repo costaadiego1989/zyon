@@ -15,6 +15,10 @@ export class RecoveryTemplatesController {
   get(@Req() req: { user?: unknown }) { return this.lifecycle.get(currentUser(req).merchantId); }
   @Put()
   save(@Req() req: { user?: unknown }, @Body() body: unknown) { return this.lifecycle.save(currentUser(req).merchantId, body); }
+  @Post("restore")
+  async restore(@Req() req: { user?: unknown }, @Body() body: { revision: number; expectedRevision: number }) {
+    return this.lifecycle.restore(currentUser(req).merchantId, "cart_recovery", body.revision, body.expectedRevision);
+  }
   @Post("generate")
   @RateLimit(3, 60_000)
   generate(@Req() req: { user?: unknown }) { return this.generator.execute(currentUser(req).merchantId); }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { generateRecoveryTemplates, getRecoveryTemplates, saveRecoveryTemplates, type RecoveryTemplatesUpdate } from "../../api/endpoints/cart-recovery-templates.js";
+import { restoreRecoveryTemplate, generateRecoveryTemplates, getRecoveryTemplates, saveRecoveryTemplates, type RecoveryTemplatesUpdate } from "../../api/endpoints/cart-recovery-templates.js";
 import { DashboardHttpError } from "../../api/http/error.js";
 import { EMPTY_TEMPLATES_EDITOR, hasTemplateChanges, receiveTemplates, templateDraft, validateTemplates } from "./recovery-templates-model.js";
 
@@ -114,6 +114,25 @@ export function useRecoveryTemplates(apiBaseUrl: string) {
     }
   };
 
+  const restore = async (revision: number) => {
+    if (!editor.saved || busy.current !== null || hasTemplateChanges(editor) || editor.conflict) return;
+    const current = ++generation.current;
+    busy.current = current;
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = await restoreRecoveryTemplate(apiBaseUrl, revision, editor.saved.whatsapp.revision);
+      if (current !== generation.current) return;
+      setEditor({ saved, draft: templateDraft(saved), conflict: false });
+      setNotice("Versão restaurada após confirmação da Meta.");
+    } catch {
+      if (current === generation.current) setError("Não foi possível restaurar. A versão precisa continuar aprovada na conta conectada. Seu texto foi preservado.");
+    } finally {
+      if (busy.current === current) busy.current = null;
+      if (current === generation.current) setSaving(false);
+    }
+  };
+
   const discard = () => {
     if (busy.current !== null) return;
     setEditor((state) => state.saved ? { saved: state.saved, draft: templateDraft(state.saved), conflict: false } : state);
@@ -121,5 +140,5 @@ export function useRecoveryTemplates(apiBaseUrl: string) {
     setNotice(null);
   };
 
-  return { ...editor, loading, saving, generating, error, notice, edit, save, generate, refresh, discard, dirty: hasTemplateChanges(editor) };
+  return { restore, ...editor, loading, saving, generating, error, notice, edit, save, generate, refresh, discard, dirty: hasTemplateChanges(editor) };
 }
