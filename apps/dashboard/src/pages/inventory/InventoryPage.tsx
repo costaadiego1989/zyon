@@ -741,7 +741,7 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
   };
 
   return (
-    <div style={{
+    <div data-testid={`erp-card-${provider}`} style={{
       border: "1px solid var(--color-border)",
       borderRadius: "var(--radius-md)",
       padding: 20,
@@ -786,18 +786,18 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
         {status === "disconnected" || status === "error" ? (
           <>
             {isCredentialProvider ? (
-              <Button variant="primary" size="sm" onClick={() => setShowCredentialModal(true)}>
+              <Button data-testid={`erp-connect-${provider}`} variant="primary" size="sm" onClick={() => setShowCredentialModal(true)}>
                 <Plug size={12} style={{ marginRight: 4 }} /> Conectar
               </Button>
             ) : (
-              <Button variant="primary" size="sm" onClick={handleOAuthConnect}>
+              <Button data-testid={`erp-connect-${provider}`} variant="primary" size="sm" onClick={handleOAuthConnect}>
                 <Plug size={12} style={{ marginRight: 4 }} /> Conectar
               </Button>
             )}
           </>
         ) : (
           <>
-            <Button variant="outline" size="sm" onClick={() => onSync(connection!.id)}>
+            <Button data-testid={`erp-sync-${provider}`} variant="outline" size="sm" onClick={() => onSync(connection!.id)}>
               <RefreshCw size={12} style={{ marginRight: 4 }} /> Sincronizar agora
             </Button>
             <Button variant="ghost" size="sm" onClick={() => onDisconnect(connection!.id)}>
@@ -843,6 +843,7 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
             <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 16 }}>
               <label hidden={provider !== "omie"} style={{ font: "600 11px var(--font-sans)", color: "var(--color-text-muted)" }}>App Key</label>
               <input
+                data-testid="erp-omie-app-key"
                 hidden={provider !== "omie"}
                 type="text"
                 placeholder="Ex: 8070492596166"
@@ -859,6 +860,7 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
               />
               <label hidden={provider !== "omie"} style={{ font: "600 11px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 8 }}>App Secret</label>
               <input
+                data-testid="erp-omie-app-secret"
                 hidden={provider !== "omie"}
                 type="password"
                 placeholder="Ex: 1d460e07841d8af88a9b5e43aee13c5f"
@@ -876,6 +878,7 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
               {provider === "tiny" && <>
                 <label style={{ font: "600 11px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 8 }}>Token da API Tiny/Olist</label>
                 <input
+                  data-testid="erp-tiny-api-token"
                   type="password"
                   value={tinyApiToken}
                   onChange={(e) => setTinyApiToken(e.target.value)}
@@ -887,7 +890,7 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
               <Button variant="ghost" size="sm" onClick={() => setShowCredentialModal(false)} style={{ flex: 1 }}>
                 Cancelar
               </Button>
-              <Button variant="primary" size="sm" onClick={handleCredentialConnect} disabled={omieLoading} style={{ flex: 1 }}>
+              <Button data-testid={`erp-credential-submit-${provider}`} variant="primary" size="sm" onClick={handleCredentialConnect} disabled={omieLoading} style={{ flex: 1 }}>
                 {omieLoading ? "Validando..." : "Conectar"}
               </Button>
             </div>

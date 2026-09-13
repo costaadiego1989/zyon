@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 
 const CI = !!process.env.CI;
 const DASHBOARD_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5175";
+const RUN_LIVE_ERP_TESTS = process.env.RUN_LIVE_ERP_TESTS === "1";
+const LIVE_ERP_STORAGE_STATE = process.env.ERP_LIVE_STORAGE_STATE;
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
@@ -49,6 +51,7 @@ export default defineConfig({
         storageState: "e2e/.auth/storage-state.json",
       },
       dependencies: ["auth-setup"],
+      testIgnore: /erp-live-production\.spec\.ts/,
     },
 
     /* --- Firefox (CI only) --- */
@@ -56,11 +59,12 @@ export default defineConfig({
       ? [
           {
             name: "dashboard-firefox",
-            use: {
-              ...devices["Desktop Firefox"],
-              storageState: "e2e/.auth/storage-state.json",
-            },
-            dependencies: ["auth-setup"],
+              use: {
+                ...devices["Desktop Firefox"],
+                storageState: "e2e/.auth/storage-state.json",
+              },
+              dependencies: ["auth-setup"],
+              testIgnore: /erp-live-production\.spec\.ts/,
           },
         ]
       : []),
@@ -85,10 +89,18 @@ export default defineConfig({
       },
       testMatch: /auth-.*\.spec\.ts/,
     },
+    {
+      name: "dashboard-erp-live",
+      testMatch: /erp-live-production\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: LIVE_ERP_STORAGE_STATE,
+      },
+    },
   ],
 
   /* ── Web Server ───────────────────────────────────────────────── */
-  webServer: {
+  webServer: RUN_LIVE_ERP_TESTS ? undefined : {
     command: "node node_modules/vite/bin/vite.js --host localhost --port 5175 --strictPort",
     cwd: __dirname,
     url: "http://localhost:5175",
