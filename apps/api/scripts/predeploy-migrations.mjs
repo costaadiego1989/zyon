@@ -9,7 +9,6 @@ const client = new pg.Client({ connectionString: databaseUrl });
 const failedLegacyMigration = "20260501103000_checkout_module";
 const failedPaymentHoldMigration = "20260911130000_payment_hold_payout_lifecycle";
 const baselineMigration = "20260905000000_complete_schema";
-const durableErpSyncMigration = "20260913150000_erp_durable_sync";
 
 function prisma(args) {
   const cli = fileURLToPath(new URL("../node_modules/prisma/build/index.js", import.meta.url));
@@ -185,12 +184,18 @@ try {
     `);
   }
   if (!postDeploySchema.has_erp_sync_jobs || !postDeploySchema.has_erp_product_mappings) {
-    const { rows: migrationRows } = await verificationClient.query(
-      `SELECT 1 FROM "_prisma_migrations" WHERE migration_name = $1 AND finished_at IS NOT NULL LIMIT 1`,
-      [durableErpSyncMigration],
-    );
-    if (migrationRows.length === 0) {
-      throw new Error("Expected durable ERP migration to be applied before schema repair");
+    const { rows: dependencyRows } = await verificationClient.query(`
+      SELECT
+        to_regclass('public.erp_connections') IS NOT NULL AS has_erp_connections,
+        EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'erp_connections'
+            AND column_name = 'direction_mode'
+        ) AS has_direction_mode
+    `);
+    if (!dependencyRows[0].has_erp_connections || !dependencyRows[0].has_direction_mode) {
+      throw new Error("Expected ERP connection schema before durable ERP repair");
     }
     console.log("Repairing durable ERP sync schema drift");
     await repairDurableErpSyncSchema(verificationClient);
