@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CreateMercadoPagoOAuthLinkUseCase, HandleMercadoPagoOAuthCallbackUseCase, readMercadoPagoOAuthState } from "./mercadopago-platform.use-cases.js";
+import { CreateMercadoPagoOAuthLinkUseCase, HandleMercadoPagoOAuthCallbackUseCase, RefreshMercadoPagoTokenUseCase, readMercadoPagoOAuthState } from "./mercadopago-platform.use-cases.js";
 import { InMemoryPaymentPlatformRepository } from "../infrastructure/in-memory-payment-platform.repository.js";
 import { encryptPaymentSecret } from "../infrastructure/payment-secret-cipher.js";
 import { MercadoPagoOAuthController } from "../presentation/http/mercadopago-oauth.controller.js";
@@ -28,7 +28,13 @@ test("Mercado Pago validates the return context and only saves verified token re
     let exchanges = 0;
     globalThis.fetch = async (_url, init) => {
       exchanges++;
-      assert.equal(JSON.parse(String(init?.body)).redirect_uri, process.env.MERCADOPAGO_OAUTH_REDIRECT_URI);
+      assert.equal((init?.headers as Record<string, string>)["Content-Type"], "application/x-www-form-urlencoded");
+      const body = new URLSearchParams(String(init?.body));
+      assert.equal(body.get("client_id"), "app_test");
+      assert.equal(body.get("client_secret"), "test_secret");
+      assert.equal(body.get("code"), "test_code");
+      assert.equal(body.get("grant_type"), "authorization_code");
+      assert.equal(body.get("redirect_uri"), process.env.MERCADOPAGO_OAUTH_REDIRECT_URI);
       return new Response(JSON.stringify({ access_token: "test_access", refresh_token: "test_refresh", expires_in: 3600, user_id: 123 }), { status: 200 });
     };
     const result = await controller.handleOAuthCallback("test_code", state);
@@ -36,6 +42,16 @@ test("Mercado Pago validates the return context and only saves verified token re
     assert.equal(exchanges, 1);
     assert.equal((await repository.listConnections("mrc_test_mp"))[0]?.status, "active");
     assert.doesNotMatch(JSON.stringify(await repository.listConnections("mrc_test_mp")), /test_access|test_refresh/);
+    globalThis.fetch = async (_url, init) => {
+      assert.equal((init?.headers as Record<string, string>)["Content-Type"], "application/x-www-form-urlencoded");
+      const body = new URLSearchParams(String(init?.body));
+      assert.equal(body.get("client_id"), "app_test");
+      assert.equal(body.get("client_secret"), "test_secret");
+      assert.equal(body.get("grant_type"), "refresh_token");
+      assert.equal(body.get("refresh_token"), "test_refresh");
+      return new Response(JSON.stringify({ access_token: "refreshed_access", refresh_token: "refreshed_token", expires_in: 3600, user_id: 123 }), { status: 200 });
+    };
+    assert.equal((await new RefreshMercadoPagoTokenUseCase(repository).execute("mrc_test_mp")).status, "active");
     globalThis.fetch = async () => new Response(JSON.stringify({}), { status: 200 });
     const freshState = new URL((await link.execute("mrc_invalid_mp")).url).searchParams.get("state")!;
     await assert.rejects(() => new HandleMercadoPagoOAuthCallbackUseCase(repository).execute({ code: "test", state: freshState }), /mercadopago_token_response_invalid/);

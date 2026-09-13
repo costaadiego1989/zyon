@@ -114,14 +114,17 @@ export class HandleMercadoPagoOAuthCallbackUseCase {
     const tokenResponse = await fetch(MP_TOKEN_URL, {
       method: "POST",
       signal: AbortSignal.timeout(15_000),
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
         client_id: config.appId,
         client_secret: config.clientSecret,
         code: input.code,
         grant_type: "authorization_code",
         redirect_uri: config.redirectUri,
-      }),
+      }).toString(),
     });
 
     if (!tokenResponse.ok) {
@@ -288,13 +291,16 @@ export class RefreshMercadoPagoTokenUseCase {
 
     const tokenResponse = await fetch(MP_TOKEN_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
         client_id: config.appId,
         client_secret: config.clientSecret,
         grant_type: "refresh_token",
         refresh_token: credentials.refreshToken,
-      }),
+      }).toString(),
     });
 
     if (!tokenResponse.ok) {
