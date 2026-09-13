@@ -314,6 +314,7 @@ export class ErpSyncService {
     if (!receipt) throw new Error("erp_sale_receipt_not_found");
     const result = receipt.result as unknown as AppliedInventorySale;
     if (!Array.isArray(result?.items)) throw new Error("erp_sale_receipt_invalid");
+    let blingStockWriter: { token: string; depositId: number } | null = null;
 
     for (const item of result.items) {
       const mapping = await this.prisma.erpProductMapping.findFirst({
@@ -324,7 +325,11 @@ export class ErpSyncService {
       if (connection.provider === "omie") {
         await this.pushOmieSale(connection, mapping.externalProductId, item.quantity, receipt.orderId, idempotencyKey);
       } else if (connection.provider === "bling") {
-        await this.pushBlingSnapshot(connection, mapping.externalProductId, item.remainingQuantity, idempotencyKey);
+        if (!blingStockWriter) {
+          const token = await this.blingToken(connection);
+          blingStockWriter = { token, depositId: await this.blingDefaultDepositId(token) };
+        }
+        await this.pushBlingSnapshot(blingStockWriter.token, mapping.externalProductId, item.remainingQuantity, idempotencyKey, blingStockWriter.depositId);
       } else {
         await this.pushTinySnapshot(connection, mapping.externalProductId, item.remainingQuantity, idempotencyKey);
       }
@@ -493,12 +498,20 @@ export class ErpSyncService {
     return snapshots;
   }
 
-  private async pushBlingSnapshot(connection: ErpConnection, productId: string, quantity: number, idempotencyKey: string): Promise<void> {
-    const token = await this.blingToken(connection);
+  private async pushBlingSnapshot(token: string, productId: string, quantity: number, idempotencyKey: string, depositId: number): Promise<void> {
     await this.blingFetch(token, "/estoques", {
       method: "POST",
-      body: JSON.stringify({ produto: { id: positiveInteger(productId, "erp_bling_product_id_invalid") }, operacao: "B", quantidade: quantity, observacoes: `Zyon ${idempotencyKey}` }),
+      body: JSON.stringify({ produto: { id: positiveInteger(productId, "erp_bling_product_id_invalid") }, deposito: { id: depositId }, operacao: "B", quantidade: quantity, observacoes: `Zyon ${idempotencyKey}` }),
     });
+  }
+
+  private async blingDefaultDepositId(token: string): Promise<number> {
+    const response = await this.blingFetch(token, "/depositos?pagina=1&limite=100&situacao=1");
+    const deposits = Array.isArray(response.data) ? response.data : [];
+    const available = deposits.filter((deposit: any) => deposit?.desconsiderarSaldo !== true);
+    const deposit = available.find((entry: any) => entry?.padrao === true) ?? (available.length === 1 ? available[0] : null);
+    if (!deposit) throw new Error("erp_bling_default_deposit_missing");
+    return positiveInteger(deposit.id, "erp_bling_default_deposit_invalid");
   }
 
   private async blingToken(connection: ErpConnection): Promise<string> {

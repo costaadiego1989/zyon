@@ -146,3 +146,29 @@ test("Bling imports the authoritative physical balance endpoint for each product
   assert.ok(balanceRequest);
   assert.deepEqual(balanceRequest.searchParams.getAll("idsProdutos[]"), ["123"]);
 });
+
+test("Bling balances outbound stock in its active default deposit", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const requests: Array<{ url: URL; init: RequestInit | undefined }> = [];
+  globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
+    const url = new URL(String(input));
+    requests.push({ url, init });
+    if (url.pathname.endsWith("/depositos")) {
+      return { ok: true, json: async () => ({ data: [{ id: 456, padrao: true, desconsiderarSaldo: false }] }) } as Response;
+    }
+    if (url.pathname.endsWith("/estoques")) return { ok: true, json: async () => ({ data: { id: 1 } }) } as Response;
+    throw new Error(`Unexpected fetch ${url}`);
+  }) as typeof fetch;
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const service = new ErpSyncService({} as never);
+  const depositId = await (service as any).blingDefaultDepositId("access-token");
+  await (service as any).pushBlingSnapshot("access-token", "123", 7, "receipt-key", depositId);
+
+  assert.equal(depositId, 456);
+  const stockRequest = requests.find((request) => request.url.pathname.endsWith("/estoques"));
+  assert.ok(stockRequest);
+  assert.deepEqual(JSON.parse(String(stockRequest.init?.body)), {
+    produto: { id: 123 }, deposito: { id: 456 }, operacao: "B", quantidade: 7, observacoes: "Zyon receipt-key",
+  });
+});
