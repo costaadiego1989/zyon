@@ -96,3 +96,29 @@ test("Omie does not persist a connected state for an HTTP 200 API fault", async 
   await assert.rejects(() => useCase.execute({ merchantId: "merchant_a", appKey: "test", appSecret: "test" }), /omie_validation_failed/);
   assert.equal(stored, false);
 });
+
+test("mixed-provider cart pushes only the items mapped to this ERP account", async (t) => {
+  const original = globalThis.fetch;
+  const writes: any[] = [];
+  globalThis.fetch = (async (_: any, options: RequestInit) => {
+    writes.push(JSON.parse(new URLSearchParams(String(options.body)).get("estoque")!));
+    return reply({ status: "OK" });
+  }) as typeof fetch;
+  t.after(() => { globalThis.fetch = original; });
+  const service = new ErpSyncService({
+    inventorySaleReceipt: { findFirst: async () => ({ orderId: "order_a", result: { items: [
+      { sku: "BLING-ONLY", itemId: "item_bling", quantity: 1, remainingQuantity: 7 },
+      { sku: "TINY-ONLY", itemId: "item_tiny", quantity: 1, remainingQuantity: 10 },
+      { sku: "LOCAL-ONLY", itemId: "item_local", quantity: 1, remainingQuantity: 3 },
+    ] } }) },
+    erpProductMapping: { findFirst: async ({ where }: any) => {
+      assert.equal(where.merchantId, "merchant_a");
+      assert.equal(where.connectionId, "tiny_connection");
+      return where.sku === "TINY-ONLY" ? { externalProductId: "123" } : null;
+    } },
+  } as never);
+  await (service as any).pushSale({ ...tinyConnection, id: "tiny_connection", provider: "tiny" }, "merchant_a", "receipt_a");
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].estoque.idProduto, 123);
+  assert.equal(writes[0].estoque.quantidade, "10");
+});

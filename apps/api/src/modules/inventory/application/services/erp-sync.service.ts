@@ -133,6 +133,7 @@ export class ErpSyncService {
         status: "connected",
         provider: { in: [...SUPPORTED] },
         directionMode: { in: ["bidirectional", "zyon_source_of_truth"] },
+        productMappings: { some: { merchantId: sale.event.merchantId, sku: { in: sale.items.map((item) => item.sku) } } },
       },
       select: { id: true },
     });
@@ -307,9 +308,11 @@ export class ErpSyncService {
 
     for (const item of result.items) {
       const mapping = await this.prisma.erpProductMapping.findFirst({
-        where: { connectionId: connection.id, sku: item.sku, externalLocationId: "0" },
+        where: { merchantId, connectionId: connection.id, sku: item.sku, externalLocationId: "0" },
       });
-      if (!mapping) throw new Error("erp_product_mapping_missing");
+      // A mixed cart can contain products from different ERPs or local-only
+      // products. Each provider receives only the items mapped to its account.
+      if (!mapping) continue;
       const idempotencyKey = createHash("sha256").update(`${connection.id}:${receiptId}:${item.itemId}`).digest("hex").slice(0, 48);
       if (connection.provider === "omie") {
         await this.pushOmieSale(connection, mapping.externalProductId, item.quantity, receipt.orderId, idempotencyKey);
