@@ -97,7 +97,7 @@ function PaymentRoutingPanel({
     ({ asaas: "Asaas", stripe: "Stripe", mercadopago: "Mercado Pago" }[
       provider
     ] ?? "Nenhum provedor");
-  const update = (method: keyof PaymentRoutingSettings, value: string) =>
+  const update = (method: "pix" | "card", value: string) =>
     onChange({
       ...routing,
       [method]: value as PaymentRoutingSettings[typeof method],
@@ -263,12 +263,32 @@ function PaymentRoutingPanel({
       </div>
 
       <footer className="payment-routing__policy">
-        <span>Política de roteamento</span>
-        <p>
-          A seleção é determinística. Se uma conexão ficar indisponível, a forma
-          deixa de aparecer ao comprador. O checkout não muda a cobrança para
-          outro gateway automaticamente.
-        </p>
+        <span>Continuidade de pagamento</span>
+        <div className="payment-routing__fallback">
+          <div>
+            <strong>Usar provedor alternativo</strong>
+            <p>
+              {routing.fallbackWhenUnavailable
+                ? "Se o provedor prioritário não estiver apto antes da cobrança, o checkout usa a primeira alternativa ativa compatível. Uma cobrança já iniciada nunca é reenviada a outro gateway."
+                : "Se o provedor prioritário não estiver apto antes da cobrança, a forma fica oculta no checkout até a conexão voltar."}
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            className="payment-routing__fallback-switch"
+            aria-checked={routing.fallbackWhenUnavailable === true}
+            aria-label="Usar provedor alternativo quando o prioritário estiver indisponível"
+            disabled={saving}
+            onClick={() => onChange({
+              ...routing,
+              fallbackWhenUnavailable: !routing.fallbackWhenUnavailable,
+            })}
+          >
+            <span>{routing.fallbackWhenUnavailable ? "Ativo" : "Desativado"}</span>
+            <i aria-hidden="true" />
+          </button>
+        </div>
       </footer>
     </section>
   );

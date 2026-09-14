@@ -38,6 +38,7 @@ export interface PaymentRoutingSettings {
   pix?: "asaas" | "mercadopago";
   boleto?: "asaas";
   card?: "asaas" | "stripe" | "mercadopago";
+  fallbackWhenUnavailable?: boolean;
 }
 
 export function usePaymentConnectionsPage(me: MerchantProfile | null) {

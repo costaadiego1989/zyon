@@ -10,6 +10,8 @@ export interface MerchantStoreSettings {
     pix?: "asaas" | "mercadopago";
     boleto?: "asaas";
     card?: "asaas" | "stripe" | "mercadopago";
+    /** Use an active compatible provider when the preferred one is unavailable before payment creation. */
+    fallbackWhenUnavailable?: boolean;
   };
   social?: {
     instagram?: string;

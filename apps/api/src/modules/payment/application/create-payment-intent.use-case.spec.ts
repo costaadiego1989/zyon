@@ -57,6 +57,36 @@ class CapturingPaymentProvider implements PaymentProviderPort {
   }
 }
 
+test("CreatePaymentIntentUseCase applies enabled Pix fallback before sending a provider request", async () => {
+  const checkout = new InMemoryCheckoutRepository();
+  await checkout.saveSession(checkoutSession({ customer: { email: "buyer@example.com", asaasCustomerId: "cus_fallback_1" } }));
+  const connections = new InMemoryPaymentPlatformRepository();
+  await connections.saveConnection({ merchantId: "mrc_1", provider: "asaas", environment: "live", status: "active" });
+  const provider = new CapturingPaymentProvider();
+  const merchant = {
+    getProfile: async () => ({
+      id: "mrc_1",
+      name: "Merchant",
+      storeSettings: { paymentRouting: { pix: "mercadopago" as const, fallbackWhenUnavailable: true } },
+    }),
+  };
+  const useCase = new CreatePaymentIntentUseCase(
+    checkout,
+    merchant as any,
+    new InMemoryPaymentRepository(checkout),
+    provider,
+    undefined,
+    undefined,
+    undefined,
+    connections,
+  );
+
+  await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "pix-fallback", method: "pix" });
+
+  assert.equal(provider.inputs.length, 1);
+  assert.equal(provider.inputs[0]?.provider, "asaas");
+});
+
 class RejectingAsaasPreflightProvider implements PaymentProviderPort {
   customerCreateCalls = 0;
 

@@ -265,6 +265,75 @@
 .payment-routing__policy > span {
   padding-top: 3px;
 }
+.payment-routing__fallback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.payment-routing__fallback strong {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--ink);
+  font: 600 12px var(--font-sans);
+}
+.payment-routing__fallback-switch {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 5px 8px 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--muted);
+  font: 600 11px var(--font-sans);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
+}
+.payment-routing__fallback-switch i {
+  display: block;
+  width: 26px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--faint);
+  position: relative;
+  transition: background var(--duration-fast) var(--ease);
+}
+.payment-routing__fallback-switch i::after {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 18%);
+  content: "";
+  transition: transform var(--duration-fast) var(--ease);
+}
+.payment-routing__fallback-switch[aria-checked="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.payment-routing__fallback-switch[aria-checked="true"] i {
+  background: var(--accent);
+}
+.payment-routing__fallback-switch[aria-checked="true"] i::after {
+  transform: translateX(10px);
+}
+.payment-routing__fallback-switch:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.payment-routing__fallback-switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.payment-routing__fallback-switch:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
 @keyframes payment-routing-pulse {
   50% {
     opacity: 0.45;
@@ -671,4 +740,7 @@
 }
 @media (max-width: 640px) {
   .payment-connections-page__header { flex-direction: column; align-items: stretch; }
+  .payment-routing__policy { grid-template-columns: 1fr; }
+  .payment-routing__policy > span { padding-top: 0; }
+  .payment-routing__fallback { align-items: flex-start; flex-direction: column; }
 }

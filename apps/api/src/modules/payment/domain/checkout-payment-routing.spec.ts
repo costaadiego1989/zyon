@@ -46,7 +46,7 @@ test("merchant can select Mercado Pago hosted card checkout", () => {
   );
 });
 
-test("unready explicit provider never falls back to another gateway", () => {
+test("unready explicit provider stays unavailable when fallback is disabled", () => {
   assert.deepEqual(
     resolveCheckoutPaymentCapabilities({ pix: "mercadopago", card: "mercadopago" }, {
       asaas: true,
@@ -60,6 +60,28 @@ test("unready explicit provider never falls back to another gateway", () => {
       boleto: true,
       card: false,
       providers: { boleto: "asaas" },
+    },
+  );
+});
+
+test("enabled fallback uses an active compatible provider before payment creation", () => {
+  assert.deepEqual(
+    resolveCheckoutPaymentCapabilities({
+      pix: "mercadopago",
+      card: "mercadopago",
+      fallbackWhenUnavailable: true,
+    }, {
+      asaas: true,
+      mercadoPagoPix: false,
+      mercadoPagoHostedCard: false,
+      stripeCard: true,
+      asaasHostedCard: true,
+    }),
+    {
+      pix: true,
+      boleto: true,
+      card: true,
+      providers: { pix: "asaas", boleto: "asaas", card: "stripe" },
     },
   );
 });

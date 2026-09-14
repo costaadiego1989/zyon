@@ -22,9 +22,10 @@ export type CheckoutRouteAvailability = {
 };
 
 /**
- * Resolves one provider per method. An explicit merchant choice is authoritative:
- * if that provider is not ready, hide the method rather than silently charging
- * through another provider. The no-preference order preserves the existing flow.
+ * Resolves one provider per method. The merchant's explicit selection remains
+ * the first choice. With fallback enabled, an unavailable first choice is
+ * replaced before an intent is created; failures after a provider request must
+ * be reconciled instead of retried through another gateway.
  */
 export function resolveCheckoutPaymentCapabilities(
   routing: MerchantStoreSettings["paymentRouting"] | undefined,
@@ -35,7 +36,8 @@ export function resolveCheckoutPaymentCapabilities(
     candidates: Array<CheckoutPaymentProvider>,
   ): CheckoutPaymentProvider | undefined => {
     const configured = routing?.[method] as CheckoutPaymentProvider | undefined;
-    if (configured) return candidates.includes(configured) ? configured : undefined;
+    if (configured && candidates.includes(configured)) return configured;
+    if (configured) return routing?.fallbackWhenUnavailable === true ? candidates[0] : undefined;
     return candidates[0];
   };
 
