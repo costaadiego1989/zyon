@@ -81,6 +81,7 @@
   border-color: var(--color-error-border);
 }
 .cfg-banner svg { flex-shrink: 0; }
+.cfg-banner .zyn-btn { margin-left: auto; flex-shrink: 0; }
 
 /* ── Layout Container ────────────────────────────────────────────────────── */
 

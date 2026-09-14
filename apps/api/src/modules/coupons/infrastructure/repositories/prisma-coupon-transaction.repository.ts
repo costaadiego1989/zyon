@@ -36,9 +36,9 @@ export class PrismaCouponTransactionRepository implements CouponTransactionRepos
             couponId: input.redemption.coupon_id
           }
         },
-        select: { id: true }
+        select: { id: true, status: true }
       });
-      if (existing) return { status: "already_applied" };
+      if (existing && existing.status !== "cancelled") return { status: "already_applied" };
 
       const globalCount = await tx.couponRedemption.count({
         where: { couponId: input.coupon.id, status: { not: "cancelled" } }
@@ -56,9 +56,23 @@ export class PrismaCouponTransactionRepository implements CouponTransactionRepos
       );
       if (!limitCheck.allowed) return { status: "limit_reached", reason: limitCheck.reason ?? "COUPON_EXHAUSTED" };
 
-      await tx.couponRedemption.create({ data: toRedemptionCreateInput(input.redemption) });
+      if (existing) {
+        const snap = input.redemption.snapshot();
+        await tx.couponRedemption.update({
+          where: { id: existing.id },
+          data: {
+            buyerGlobalUserId: snap.buyer_global_user_id,
+            discountApplied: snap.discount_applied,
+            source: snap.source,
+            status: "applied",
+            orderId: null,
+          }
+        });
+      } else {
+        await tx.couponRedemption.create({ data: toRedemptionCreateInput(input.redemption) });
+      }
       await appendOutboxInTransaction(tx, input.event);
-      return { status: "reserved" };
+      return { status: "reserved", redemption_id: existing?.id ?? input.redemption.id };
     });
   }
 

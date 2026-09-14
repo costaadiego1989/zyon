@@ -70,6 +70,9 @@ export class WidgetCouponsController {
           ? session.globalUserId.trim()
           : undefined,
       buyer_region: typeof body.buyer_region === "string" ? body.buyer_region.trim() : undefined,
+      shipping: session.shipping,
+      has_existing_commercial_benefit:
+        Boolean(session.cart.commercialNudge) || (session.cart.currentDiscount ?? 0) > 0,
       source: "manual"
     });
 
@@ -87,12 +90,23 @@ export class WidgetCouponsController {
       this.logger.warn(`Failed to record coupon_applied funnel event: ${err instanceof Error ? err.message : String(err)}`);
     }
 
+    const shippingDiscount = Math.max(0, result.shipping_discount_applied ?? 0);
+    const nextShipping = session.shipping && shippingDiscount > 0
+      ? { ...session.shipping, customerPrice: Math.max(0, session.shipping.customerPrice - shippingDiscount) }
+      : session.shipping;
     const next = {
       ...session,
       cart: {
         ...session.cart,
-        currentDiscount: Math.max(session.cart.currentDiscount ?? 0, result.discount_applied)
+        currentDiscount: Math.max(session.cart.currentDiscount ?? 0, result.discount_applied),
+        commercialNudge: couponNudge(
+          result.coupon,
+          result.discount_applied,
+          shippingDiscount,
+          session.cart.total,
+        ),
       },
+      shipping: nextShipping,
       updatedAt: new Date().toISOString()
     };
     await this.sessions.saveSession(next);
@@ -107,4 +121,42 @@ export class WidgetCouponsController {
       })
     };
   }
+}
+
+function couponNudge(
+  coupon: { code?: unknown; discount_type?: unknown; discount_value?: unknown },
+  cartDiscount: number,
+  shippingDiscount: number,
+  cartTotal: number,
+) {
+  const code = typeof coupon.code === "string" ? coupon.code : "CUPOM";
+  const discountType = typeof coupon.discount_type === "string" ? coupon.discount_type : "percent";
+  if (shippingDiscount > 0 || discountType.startsWith("shipping_")) {
+    const freeShipping = discountType === "shipping_free";
+    return {
+      kind: "coupon" as const,
+      title: freeShipping ? "Frete grátis aplicado" : "Desconto no frete aplicado",
+      message: freeShipping
+        ? `O cupom ${code} liberou frete grátis para este pedido.`
+        : `O cupom ${code} reduziu o frete em ${formatBrl(shippingDiscount)}.`,
+      badge: freeShipping ? "Frete grátis" : `−${formatBrl(shippingDiscount)}`,
+      couponCode: code,
+    };
+  }
+  const percent =
+    discountType === "percent" && cartTotal > 0
+      ? Math.round((cartDiscount / cartTotal) * 10_000) / 100
+      : undefined;
+  return {
+    kind: "coupon" as const,
+    title: "Cupom aplicado",
+    message: `O cupom ${code} foi aplicado e economiza ${formatBrl(cartDiscount)} neste pedido.`,
+    badge: percent ? `−${percent}%` : `−${formatBrl(cartDiscount)}`,
+    couponCode: code,
+    ...(percent ? { discountPercent: percent } : {}),
+  };
+}
+
+function formatBrl(value: number): string {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 }

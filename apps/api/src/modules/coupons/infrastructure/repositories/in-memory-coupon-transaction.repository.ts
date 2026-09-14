@@ -15,8 +15,9 @@ export class InMemoryCouponTransactionRepository implements CouponTransactionRep
 
   async reserve(input: Parameters<CouponTransactionRepository["reserve"]>[0]): Promise<CouponReservationResult> {
     return this.exclusive(async () => {
-      const existing = await this.redemptions.findBySession(input.redemption.session_id, input.redemption.merchant_id);
-      if (existing.some((redemption) => redemption.coupon_id === input.redemption.coupon_id)) {
+      const existing = (await this.redemptions.findBySession(input.redemption.session_id, input.redemption.merchant_id))
+        .find((redemption) => redemption.coupon_id === input.redemption.coupon_id);
+      if (existing && existing.status !== "cancelled") {
         return { status: "already_applied" };
       }
       const globalCount = await this.redemptions.countByCoupon(input.coupon.id);
@@ -25,9 +26,20 @@ export class InMemoryCouponTransactionRepository implements CouponTransactionRep
       const limitCheck = checkCouponLimits(input.coupon, globalCount, buyerCount);
       if (!limitCheck.allowed) return { status: "limit_reached", reason: limitCheck.reason ?? "COUPON_EXHAUSTED" };
 
+      if (existing) {
+        const next = existing.reapply({
+          buyer_global_user_id: input.redemption.snapshot().buyer_global_user_id,
+          discount_applied: input.redemption.snapshot().discount_applied,
+          source: input.redemption.snapshot().source,
+        });
+        await this.redemptions.save(next);
+        await this.outbox.appendOutbox(input.event);
+        return { status: "reserved", redemption_id: next.id };
+      }
+
       await this.redemptions.save(input.redemption);
       await this.outbox.appendOutbox(input.event);
-      return { status: "reserved" };
+      return { status: "reserved", redemption_id: input.redemption.id };
     });
   }
 

@@ -43,21 +43,24 @@ export function DiscountBanner({
     <div data-neu="surface"
       className="discount-banner"
       data-testid="discount-banner"
+      role="status"
+      aria-live="polite"
       style={{
         display: "flex",
         alignItems: "center",
-        gap: "8px",
-        padding: "10px 14px",
+        gap: "10px",
+        padding: "11px 12px",
         margin: "8px 0",
-        borderRadius: "10px",
+        borderRadius: "12px",
         border: `1px solid ${accent}`,
-        background: "color-mix(in srgb, " + (brand.accentColor || "#0f766e") + " 8%, var(--aacp-surface, #fff))",
+        background: "linear-gradient(135deg, color-mix(in srgb, " + (brand.accentColor || "#0f766e") + " 14%, var(--aacp-surface, #fff)), var(--aacp-surface, #fff))",
         color: "var(--aacp-fg, #111827)",
         fontSize: "13px",
         fontWeight: 500,
       }}
     >
-      <span className="discount-banner__text" data-testid="discount-banner-text" style={{ flex: 1 }}>{text}</span>
+      <span aria-hidden="true" style={{ width: 28, height: 28, borderRadius: 9, background: accent, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "none", fontSize: 15 }}>✦</span>
+      <span className="discount-banner__text" data-testid="discount-banner-text" style={{ flex: 1, minWidth: 0, lineHeight: 1.35 }}>{text}</span>
       {couponCode && (
         <span
           className="discount-banner__coupon"
@@ -78,7 +81,7 @@ export function DiscountBanner({
         className="discount-banner__dismiss"
         onClick={onDismiss}
         aria-label="Fechar"
-        style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--aacp-muted, #64748B)", fontSize: "14px", lineHeight: 1, padding: 0 }}
+        style={{ width: 32, height: 32, flex: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", cursor: "pointer", color: "var(--aacp-muted, #64748B)", fontSize: "16px", lineHeight: 1, padding: 0, borderRadius: 8 }}
       >
         ✕
       </button>

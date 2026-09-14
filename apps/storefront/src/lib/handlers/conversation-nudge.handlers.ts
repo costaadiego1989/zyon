@@ -20,13 +20,13 @@ function buildConversionNudge(stage: "cart" | "browsing" | undefined, widgetConf
   if (stage !== "cart") return null;
   const couponCode: string | undefined = widgetConfig?.triggerMessages?.[triggerEvent]?.couponCode;
   if (couponCode) {
-    return `Seu pedido está quase fechando! 🎁 Use o cupom **${couponCode}** e finalize agora com desconto.`;
+    return `Seu pedido está quase fechado! 🎁 Use o cupom **${couponCode}** para verificar a condição especial do seu carrinho.`;
   }
   const progressive = widgetConfig?.progressiveDiscount;
   if (progressive?.enabled && progressive.stages) {
-    const percent = Math.max(0, ...Object.values(progressive.stages as Record<string, number>).map((n) => Number(n) || 0));
-    if (percent > 0) {
-      return `Garanta **${percent}% de desconto** finalizando seu pedido agora. É rápido!`;
+    const hasDiscount = Object.values(progressive.stages as Record<string, number>).some((n) => Number(n) > 0);
+    if (hasDiscount) {
+      return "Seu carrinho pode se qualificar para uma condição progressiva. Vou confirmar o benefício no próximo passo.";
     }
   }
   return "Seu pedido está quase lá — finalize agora e aproveite as condições especiais. 🛒";
@@ -36,7 +36,7 @@ function resolveFallback(stage: "cart" | "browsing" | undefined, widgetConfig: a
   const conversionText = buildConversionNudge(stage, widgetConfig, triggerEvent);
   if (conversionText) return conversionText;
   const customTrigger = widgetConfig?.triggerMessages?.[triggerEvent];
-  const couponSuffix = customTrigger?.couponCode ? ` 🎁 Use o cupom **${customTrigger.couponCode}** para um desconto especial!` : "";
+  const couponSuffix = customTrigger?.couponCode ? ` 🎁 Use o cupom **${customTrigger.couponCode}** para conferir as condições do seu carrinho.` : "";
   const base = customTrigger?.message || getTriggerMessage(triggerEvent) || TRIGGER_MESSAGES[triggerEvent];
   return base ? base + couponSuffix : undefined;
 }

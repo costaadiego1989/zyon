@@ -51,7 +51,11 @@ export default function CartFAB({ onClick }: CartFABProps) {
   // Deterministic rule state (computed server-side; never by the LLM).
   const hasDiscount = (cart.discount ?? 0) > 0;
   const netTotal = hasDiscount ? Math.max(0, cart.total - cart.discount) : cart.total;
-  const nudgeMessage = cart.nextNudge?.message;
+  const commercialNudge = cart.couponCode
+    ? { label: "CUPOM APLICADO", message: `Cupom ${cart.couponCode} aplicado ao carrinho.`, icon: "%" }
+    : cart.nextNudge
+      ? { label: cart.nextNudge.reachable ? "QUASE LÁ" : "CONDIÇÃO ESPECIAL", message: cart.nextNudge.message, icon: "✦" }
+      : undefined;
 
   return (
     <>
@@ -63,7 +67,7 @@ export default function CartFAB({ onClick }: CartFABProps) {
       `}</style>
 
       {/* Proximity nudge bubble — "Faltam R$40 para frete grátis". Conversion lever. */}
-      {nudgeMessage && (
+      {commercialNudge && (
         <div
           role="status"
           style={{
@@ -72,7 +76,7 @@ export default function CartFAB({ onClick }: CartFABProps) {
             ...(posStyle.right ? { right: "16px" } : { left: "16px" }),
             zIndex: 9998,
             maxWidth: "240px",
-            padding: "8px 12px",
+            padding: "10px 12px",
             borderRadius: "12px",
             background: "var(--aacp-bg-elevated, #16161d)",
             color: "var(--aacp-text, #f4f4f5)",
@@ -85,7 +89,13 @@ export default function CartFAB({ onClick }: CartFABProps) {
             animation: "nudgeIn 0.3s ease",
           }}
         >
-          🎯 {nudgeMessage}
+          <span aria-hidden="true" style={{ display: "inline-flex", width: 24, height: 24, marginRight: 8, alignItems: "center", justifyContent: "center", borderRadius: 7, background: "color-mix(in srgb, var(--aacp-accent) 18%, transparent)", color: "var(--aacp-accent)", fontWeight: 800 }}>
+            {commercialNudge.icon}
+          </span>
+          <span style={{ display: "inline-grid", gap: 2, verticalAlign: "middle", maxWidth: 184 }}>
+            <span style={{ color: fabColor, fontSize: 10, fontWeight: 800, letterSpacing: ".06em" }}>{commercialNudge.label}</span>
+            <span>{commercialNudge.message}</span>
+          </span>
         </div>
       )}
 

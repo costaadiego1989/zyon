@@ -272,6 +272,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
       total_to_pay: totalToPay,
       total
     },
+    commercial_nudge: publicCommercialNudge(input.cart.commercialNudge),
     shipping: input.shipping,
     shippingOptions: undefined,
     suggestedProducts: deps.suggestedProducts?.length ? deps.suggestedProducts : undefined,
@@ -290,6 +291,29 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
       focus_input: chatStage !== "completed",
       expected_input_type
     }
+  };
+}
+
+function publicCommercialNudge(value: unknown): import("@zyon/shared-types").CheckoutCommercialNudge | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const nudge = value as Record<string, unknown>;
+  if (
+    (nudge.kind !== "coupon" && nudge.kind !== "progressive_discount" && nudge.kind !== "advanced_rule") ||
+    typeof nudge.title !== "string" ||
+    typeof nudge.message !== "string"
+  ) {
+    return undefined;
+  }
+  return {
+    kind: nudge.kind,
+    title: nudge.title,
+    message: nudge.message,
+    ...(typeof nudge.badge === "string" ? { badge: nudge.badge } : {}),
+    ...(typeof nudge.couponCode === "string" ? { couponCode: nudge.couponCode } : {}),
+    ...(typeof nudge.ruleId === "string" ? { ruleId: nudge.ruleId } : {}),
+    ...(typeof nudge.discountPercent === "number" && Number.isFinite(nudge.discountPercent)
+      ? { discountPercent: nudge.discountPercent }
+      : {}),
   };
 }
 

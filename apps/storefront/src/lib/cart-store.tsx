@@ -33,6 +33,7 @@ export interface CartState {
   items: CartItem[];
   itemCount: number;
   discount: number;
+  couponCode?: string;
   total: number;
   freeShipping?: boolean;
   nextNudge?: RuleNudge;
@@ -140,6 +141,7 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
           })),
           itemCount: data.itemCount,
           discount: data.discount ?? 0,
+          couponCode: data.couponCode ?? undefined,
           total: baseTotal,
           freeShipping: data.freeShipping,
           nextNudge: data.nextNudge,
@@ -158,7 +160,7 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
     if (!cartBlock) return;
     setError(null);
 
-    const { items, itemCount, total, discount, cartId, authorizedOffer, shippingTotal, freeShipping, nextNudge, activeRules } = cartBlock.data;
+    const { items, itemCount, total, discount, cartId, couponCode, authorizedOffer, shippingTotal, freeShipping, nextNudge, activeRules } = cartBlock.data;
 
     setCart((prev) => {
       const resolvedCartId = cartId ?? prev.cartId;
@@ -203,6 +205,7 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
         }),
         itemCount: itemCount ?? items.reduce((sum: number, i: any) => sum + (i.quantity ?? 1), 0),
         discount: discount ?? 0,
+        couponCode: couponCode ?? undefined,
         total: total ?? items.reduce((sum: number, i: any) => {
           const p = i.price ?? (i.unit_price_cents != null ? i.unit_price_cents / 100 : i.unitPrice ?? 0);
           return sum + p * (i.quantity ?? 1);

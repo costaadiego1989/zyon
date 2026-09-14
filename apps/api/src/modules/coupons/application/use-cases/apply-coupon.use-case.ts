@@ -1,10 +1,10 @@
 import { Injectable, Inject, NotFoundException, BadRequestException, ConflictException, UnprocessableEntityException } from "@nestjs/common";
-import type { Cart, MerchantRules } from "@zyon/shared-types";
+import type { Cart, MerchantRules, ShippingQuote } from "@zyon/shared-types";
 import { COUPON_REPOSITORY, type CouponRepository } from "../../domain/ports/coupon-repository.port.js";
 import { COUPON_TRANSACTION_REPOSITORY, type CouponTransactionRepository } from "../../domain/ports/coupon-transaction-repository.port.js";
 import { CouponRedemptionEntity, type RedemptionSource } from "../../domain/entities/coupon-redemption.entity.js";
 import { validateCoupon } from "../../domain/policies/coupon-validity.policy.js";
-import { calculateCouponDiscount } from "../../domain/policies/coupon-discount-calculator.js";
+import { calculateCouponDiscount, calculateShippingDiscount } from "../../domain/policies/coupon-discount-calculator.js";
 import { createCouponEventEnvelope } from "../../domain/events/coupon-domain-event.js";
 import { DISCOUNT_RULES_ENGINE, type DiscountRulesEnginePort } from "../../domain/ports/discount-rules-engine.port.js";
 
@@ -16,6 +16,10 @@ export type ApplyCouponInput = {
   merchantRules: MerchantRules;
   buyer_global_user_id?: string;
   buyer_region?: string;
+  /** Server-side quote; required when applying a shipping coupon. */
+  shipping?: ShippingQuote;
+  /** Server-derived state used to prevent stacking commercial benefits. */
+  has_existing_commercial_benefit?: boolean;
   source?: RedemptionSource;
 };
 
@@ -35,6 +39,10 @@ export class ApplyCouponUseCase {
     const validity = validateCoupon(snap, input.cart, input.buyer_region);
     if (!validity.valid) throw new BadRequestException(validity.reason);
 
+    if (input.has_existing_commercial_benefit) {
+      throw new ConflictException("CHECKOUT_COMMERCIAL_BENEFIT_ALREADY_APPLIED");
+    }
+
     if (input.cart?.items?.length === 0 && (input.cart as any).crossStoreItems?.length > 0) {
       throw new BadRequestException("marketplace_items_no_coupons");
     }
@@ -42,8 +50,20 @@ export class ApplyCouponUseCase {
     const isShippingCoupon = snap.discount_type.startsWith("shipping_");
     const rawDiscount = calculateCouponDiscount(snap, input.cart.total);
     let discountApplied: number;
+    let shippingDiscountApplied = 0;
     if (isShippingCoupon) {
+      const shippingPrice = input.shipping?.customerPrice;
+      if (typeof shippingPrice !== "number" || !Number.isFinite(shippingPrice) || shippingPrice < 0) {
+        throw new BadRequestException("COUPON_SHIPPING_NOT_CALCULATED");
+      }
+      if (snap.discount_type === "shipping_free" && !input.merchantRules.allowFreeShipping) {
+        throw new UnprocessableEntityException("COUPON_FREE_SHIPPING_NOT_ALLOWED");
+      }
+      if (snap.discount_type !== "shipping_free" && !input.merchantRules.allowShippingDiscount) {
+        throw new UnprocessableEntityException("COUPON_SHIPPING_DISCOUNT_NOT_ALLOWED");
+      }
       discountApplied = 0;
+      shippingDiscountApplied = calculateShippingDiscount(snap, shippingPrice);
     } else {
       const authorization = this.discountEngine.authorizeDiscount(
         input.cart,
@@ -87,6 +107,11 @@ export class ApplyCouponUseCase {
     if (reservation.status === "already_applied") throw new ConflictException("COUPON_ALREADY_APPLIED");
     if (reservation.status === "limit_reached") throw new BadRequestException(reservation.reason);
 
-    return { redemption_id: redemption.id, discount_applied: discountApplied, coupon: snap };
+    return {
+      redemption_id: reservation.redemption_id ?? redemption.id,
+      discount_applied: discountApplied,
+      shipping_discount_applied: shippingDiscountApplied,
+      coupon: snap,
+    };
   }
 }

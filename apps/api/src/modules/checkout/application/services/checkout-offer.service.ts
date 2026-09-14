@@ -50,6 +50,12 @@ function clipToNegotiationPolicy(
   return { effective, clipped: effective !== percent, direction };
 }
 
+function normalizeCouponCode(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const code = value.trim().toUpperCase();
+  return /^[A-Z0-9_-]{1,64}$/.test(code) ? code : undefined;
+}
+
 @Injectable()
 export class CheckoutOfferService {
   private readonly logger = new Logger(CheckoutOfferService.name);
@@ -361,7 +367,7 @@ export class CheckoutOfferService {
       const ruleContext = {
         cartTotal: sessionObj.cart.total ?? 0,
         shippingCost: sessionObj.shipping?.customerPrice ?? 0,
-        cartItemCount: sessionObj.cart.items.length,
+        cartItemCount: sessionObj.cart.items.reduce((count, item) => count + item.quantity, 0),
         skusInCart: sessionObj.cart.items.map(i => i.sku),
         categoriesInCart: sessionObj.cart.items.map(i => (i as any).category || ""),
         couponApplied: hasCouponApplied,
@@ -471,8 +477,29 @@ export class CheckoutOfferService {
           const saved = await this.repository.saveOffer(offer);
           return SafeAuthorizedOffer.fromShippingEngine(saved);
         }
-        // For offer_coupon or other value-actions, fall through to standard flow
-        // (coupon logic handled elsewhere)
+        if (isValueAction && actionType === "offer_coupon") {
+          // A configured coupon is not a price authorization by itself. Surface
+          // the server-matched code and let the coupon endpoint validate its
+          // status, limits, cart and shipping against the persisted session.
+          const couponCode = normalizeCouponCode(ruleMatch.action.params.code);
+          const offer = {
+            ...createAuthorizedOffer({
+              merchantId: sessionObj.merchantId,
+              sessionId: sessionObj.sessionId,
+              rules,
+              evaluation: {
+                approved: false,
+                type: "none",
+                value: 0,
+                reason: couponCode ? "advanced_coupon_available" : "advanced_coupon_code_invalid",
+                marginAfterOffer: 0,
+              }
+            }),
+            ...(couponCode ? { discountCode: couponCode } : {})
+          };
+          const saved = await this.repository.saveOffer(offer);
+          return SafeAuthorizedOffer.fromRulesEngine(saved);
+        }
       }
     }
 

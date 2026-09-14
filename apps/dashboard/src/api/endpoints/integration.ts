@@ -69,7 +69,13 @@ export function integrationEndpoints(base: string, f: typeof fetch) {
       };
       if (payload.min_cart_value !== undefined) body.min_cart_total = payload.min_cart_value;
       if (payload.max_uses !== undefined) body.max_usages = payload.max_uses;
-      if (payload.expires_at !== undefined) body.ends_at = payload.expires_at;
+      // The dashboard uses date-only fields. A validity end date must include
+      // the whole selected day rather than expiring at 00:00:00.
+      if (payload.expires_at !== undefined) {
+        body.ends_at = /^\d{4}-\d{2}-\d{2}$/.test(payload.expires_at)
+          ? `${payload.expires_at}T23:59:59.999Z`
+          : payload.expires_at;
+      }
       // NOTE: product_id / category_id restrictions are NOT yet supported by the
       // coupon API (it exposes allowed_skus/allowed_regions only, and a product id
       // is not a sku). Dropping them here rather than mapping to the wrong field.

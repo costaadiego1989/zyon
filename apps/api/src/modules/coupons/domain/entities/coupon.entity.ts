@@ -6,7 +6,7 @@ import {
 } from "../errors.js";
 
 export type CouponDiscountType = "percent" | "fixed" | "shipping_free" | "shipping_percent" | "shipping_fixed";
-export type CouponStatus = "active" | "expired" | "archived";
+export type CouponStatus = "active" | "paused" | "expired" | "archived";
 
 export type CouponSnapshot = {
   id: string;
@@ -35,8 +35,7 @@ export class CouponEntity {
   static create(input: Omit<CouponSnapshot, "id" | "usages_count" | "status" | "created_at" | "updated_at">): CouponEntity {
     if (!input.merchant_id.trim()) throw new CouponMerchantRequiredError();
     if (!input.code.trim()) throw new CouponCodeRequiredError();
-    if (input.discount_value < 0) throw new CouponDiscountValueInvalidError(input.discount_value);
-    if (input.discount_type !== "shipping_free" && input.discount_value <= 0) throw new CouponDiscountValueInvalidError(input.discount_value);
+    CouponEntity.assertValidDiscount(input.discount_type, input.discount_value);
     const now = new Date().toISOString();
     return new CouponEntity({
       ...input,
@@ -61,8 +60,26 @@ export class CouponEntity {
     return new CouponEntity({ ...this.s, status: "archived", updated_at: new Date().toISOString() });
   }
 
+  setActive(isActive: boolean): CouponEntity {
+    return new CouponEntity({
+      ...this.s,
+      status: isActive ? "active" : "paused",
+      updated_at: new Date().toISOString(),
+    });
+  }
+
   update(patch: Partial<Pick<CouponSnapshot, "discount_type" | "discount_value" | "min_cart_total" | "max_usages" | "max_per_buyer" | "allowed_skus" | "blocked_skus" | "allowed_regions" | "blocked_regions" | "starts_at" | "ends_at">>): CouponEntity {
-    return new CouponEntity({ ...this.s, ...patch, updated_at: new Date().toISOString() });
+    const next = { ...this.s, ...patch };
+    CouponEntity.assertValidDiscount(next.discount_type, next.discount_value);
+    return new CouponEntity({ ...next, updated_at: new Date().toISOString() });
+  }
+
+  private static assertValidDiscount(type: CouponDiscountType, value: number): void {
+    if (!Number.isFinite(value) || value < 0) throw new CouponDiscountValueInvalidError(value);
+    if (type !== "shipping_free" && value <= 0) throw new CouponDiscountValueInvalidError(value);
+    if ((type === "percent" || type === "shipping_percent") && value > 100) {
+      throw new CouponDiscountValueInvalidError(value);
+    }
   }
 
   snapshot(): CouponSnapshot { return { ...this.s }; }

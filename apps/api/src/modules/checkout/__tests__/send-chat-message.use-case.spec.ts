@@ -119,6 +119,57 @@ test("SendChatMessageUseCase remains compatible when agent context is not config
   assert.equal(conversation.calls[0]?.authorizedOffer instanceof Object, true);
 });
 
+test("SendChatMessageUseCase persists an advanced coupon nudge without claiming a discount", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  await repository.saveSession(checkoutSession({
+    sessionId: "chk_advanced_coupon",
+    customer: {
+      fullName: "Maria Silva",
+      email: "maria@example.com",
+      email_verified: true,
+      cpf: "52998224725",
+      phone: "11987654321",
+      address_verified: true,
+      address: {
+        zip: "01310100",
+        street: "Avenida Paulista",
+        number: "1000",
+        complement: "",
+        city: "São Paulo",
+        state: "SP",
+      },
+    },
+  }));
+  const rules = merchantRules({
+    advancedRules: [{
+      id: "rule_coupon",
+      name: "Cupom elegível",
+      enabled: true,
+      priority: 1,
+      conditions: [{ field: "cart_total", operator: "gte", value: 250 }],
+      action: { type: "offer_coupon", params: { code: "SAVE10" } },
+    }],
+  });
+  repository.setRules("mrc_1", rules);
+  const merchantRepo = {
+    async getProfile(id: string) { return { id, name: "Loja de teste" }; },
+    async getRules() { return rules; },
+  } as MerchantRepository;
+  const useCase = createTestUseCase(repository, new RecordingConversationPort(), undefined, merchantRepo);
+
+  const response = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_advanced_coupon",
+    conversation_id: "conv_advanced_coupon",
+    user_message: "tem algum cupom?",
+  });
+
+  assert.match(response.message, /SAVE10/);
+  assert.equal(response.authorized_offer?.approved, false);
+  assert.equal(response.experience?.commercial_nudge?.couponCode, "SAVE10");
+  assert.equal(response.experience?.totals.discount, 0);
+});
+
 test("SendChatMessageUseCase extracts email/CPF/phone/CEP and patches session.customer", async () => {
   const repository = new InMemoryCheckoutRepository();
   await createStartCheckoutUseCase(repository, repository).execute(

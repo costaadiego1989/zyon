@@ -71,12 +71,15 @@ test("ApplyOfferUseCase returns refreshed experience and appends agent turn afte
   assert.ok(response.experience, "experience returned");
   assert.equal(response.experience?.totals.discount, 30);
   assert.equal(response.experience?.totals.total, 305);
+  assert.equal(response.experience?.commercial_nudge?.kind, "advanced_rule");
+  assert.equal(response.experience?.commercial_nudge?.ruleId, "off_1");
   assert.ok(response.agent_turn);
   assert.equal(response.agent_turn?.role, "agent");
   assert.match(response.agent_turn?.text ?? "", /pagamento/i);
 
   const session = await repository.getSession("mrc_1", "chk_1");
   assert.equal(session?.cart.currentDiscount, 30);
+  assert.equal(session?.cart.commercialNudge?.kind, "advanced_rule");
   assert.equal(session?.chatHistory.at(-1)?.role, "agent");
   assert.equal(session?.chatHistory.at(-1)?.authorizedOfferId, "off_1");
 });

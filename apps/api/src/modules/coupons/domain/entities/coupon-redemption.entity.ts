@@ -58,6 +58,17 @@ export class CouponRedemptionEntity {
     return new CouponRedemptionEntity({ ...this.s, status: "cancelled", updated_at: new Date().toISOString() });
   }
 
+  reapply(input: Pick<CouponRedemptionSnapshot, "buyer_global_user_id" | "discount_applied" | "source">): CouponRedemptionEntity {
+    if (this.s.status !== "cancelled") throw new Error("illegal_transition");
+    return new CouponRedemptionEntity({
+      ...this.s,
+      ...input,
+      status: "applied",
+      order_id: null,
+      updated_at: new Date().toISOString()
+    });
+  }
+
   snapshot(): CouponRedemptionSnapshot { return { ...this.s }; }
   get id(): string { return this.s.id; }
   get coupon_id(): string { return this.s.coupon_id; }

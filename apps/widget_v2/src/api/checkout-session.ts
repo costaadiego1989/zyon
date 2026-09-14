@@ -118,6 +118,16 @@ export interface SuggestedProduct {
   display_mode?: string;
 }
 
+export interface CommercialNudge {
+  kind: "coupon" | "progressive_discount" | "advanced_rule";
+  title: string;
+  message: string;
+  badge?: string;
+  couponCode?: string;
+  ruleId?: string;
+  discountPercent?: number;
+}
+
 export interface Experience {
   items?: Array<{ sku: string; name: string; quantity: number; unit_price: number; image_url?: string; variant?: string }>;
   totals?: { subtotal: number; shipping?: number; discount: number; service_fee?: number; total_to_pay?: number; total: number };
@@ -141,6 +151,7 @@ export interface Experience {
   cryptoPaymentsEnabled?: boolean;
   cryptoPayments?: CryptoPaymentsConfig;
   suggestedProducts?: SuggestedProduct[];
+  commercial_nudge?: CommercialNudge;
   rules?: { showBranding?: boolean; [key: string]: unknown };
 }
 
@@ -519,7 +530,12 @@ export class CheckoutSession {
     return res.json();
   }
 
-  async applyCoupon(code: string, cart: { items: Array<{ sku: string; name: string; price: number; quantity: number }>; total: number }): Promise<{ discount_applied: number; coupon: Record<string, unknown> }> {
+  async applyCoupon(code: string, cart: { items: Array<{ sku: string; name: string; price: number; quantity: number }>; total: number }): Promise<{
+    discount_applied: number;
+    shipping_discount_applied?: number;
+    coupon: Record<string, unknown>;
+    experience?: Experience;
+  }> {
     this.assertSession();
     const res = await fetch(`${this.baseUrl}/embed/coupons/apply`, {
       method: "POST",
@@ -530,7 +546,18 @@ export class CheckoutSession {
       const err = await res.json().catch(() => ({}));
       throw new Error((err as { detail?: string }).detail || `coupon_apply_failed: ${res.status}`);
     }
-    return res.json() as Promise<{ discount_applied: number; coupon: Record<string, unknown> }>;
+    const response = await res.json() as {
+      discount_applied: number;
+      shipping_discount_applied?: number;
+      coupon: Record<string, unknown>;
+      experience?: Experience;
+    };
+    if (response.experience) {
+      cartFromExperience(response.experience);
+      this.experience = response.experience;
+      this.paymentRevision += 1;
+    }
+    return response;
   }
 
   async updateCustomer(data: Record<string, unknown>): Promise<unknown> {

@@ -52,6 +52,13 @@ describe("CouponEntity", () => {
       assert.equal(coupon.snapshot().discount_type, "fixed");
       assert.equal(coupon.snapshot().discount_value, 25);
     });
+
+    it("accepts a zero-value shipping-free coupon but rejects a percentage above 100", () => {
+      const shipping = CouponEntity.create({ ...baseInput(), discount_type: "shipping_free", discount_value: 0 });
+      assert.equal(shipping.snapshot().discount_type, "shipping_free");
+      assert.throws(() => CouponEntity.create({ ...baseInput(), discount_value: 101 }), /coupon_discount_value_invalid/);
+      assert.throws(() => CouponEntity.create({ ...baseInput(), discount_type: "shipping_percent", discount_value: 101 }), /coupon_discount_value_invalid/);
+    });
   });
 
   describe("rehydrate", () => {
@@ -106,6 +113,15 @@ describe("CouponEntity", () => {
     });
   });
 
+  describe("setActive", () => {
+    it("pauses and resumes a coupon using its persisted status", () => {
+      const coupon = CouponEntity.create(baseInput());
+      const paused = coupon.setActive(false);
+      assert.equal(paused.snapshot().status, "paused");
+      assert.equal(paused.setActive(true).snapshot().status, "active");
+    });
+  });
+
   describe("update", () => {
     it("patches only the listed fields and refreshes updated_at", () => {
       const coupon = CouponEntity.create({ ...baseInput(), discount_value: 10 });
@@ -132,6 +148,7 @@ describe("CouponEntity", () => {
       assert.equal(snap.max_per_buyer, 3);
       assert.deepEqual(snap.allowed_skus, ["SKU-A"]);
       assert.deepEqual(snap.allowed_regions, ["SP"]);
+      assert.throws(() => coupon.update({ discount_value: 101 }), /coupon_discount_value_invalid/);
     });
   });
 

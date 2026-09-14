@@ -19,7 +19,7 @@ function formatDiscount(type: string, value: number): string {
   if (type === "free_shipping") return "Frete grátis";
   if (type === "percent") return `${value || 0}%`;
   if (!value || isNaN(value)) return "R$ 0,00";
-  return `R$ ${(value / 100).toFixed(2)}`;
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 }
 
 function formatDate(iso?: string): string {
@@ -363,8 +363,8 @@ export function CouponsPage(_props: CouponsPageProps) {
       <ConfirmDialog
         open={!!deleteTarget}
         title={`Excluir cupom "${deleteTarget?.code ?? ""}"?`}
-        description="Esta ação não pode ser desfeita. O cupom será removido permanentemente."
-        confirmLabel="Excluir cupom"
+        description="O cupom será arquivado e deixará de ser aceito. O histórico de usos será preservado."
+        confirmLabel="Arquivar cupom"
         cancelLabel="Cancelar"
         variant="danger"
         onConfirm={() => { if (deleteTarget) { void vm.handleDelete(deleteTarget.id); setDeleteTarget(null); } }}

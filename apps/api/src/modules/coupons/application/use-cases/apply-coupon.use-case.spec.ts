@@ -64,13 +64,13 @@ function makeCouponInput(overrides: Partial<{
   max_usages: number | null;
   max_per_buyer: number | null;
   discount_value: number;
-  discount_type: "percent" | "fixed";
-  status: "active" | "archived" | "expired";
+  discount_type: "percent" | "fixed" | "shipping_free" | "shipping_percent" | "shipping_fixed";
+  status: "active" | "paused" | "archived" | "expired";
 }> = {}) {
   return {
     merchant_id: "mrc_1",
     code: "SAVE10",
-    discount_type: (overrides.discount_type ?? "percent") as "percent" | "fixed",
+    discount_type: overrides.discount_type ?? "percent",
     discount_value: overrides.discount_value ?? 10,
     min_cart_total: null,
     max_usages: overrides.max_usages ?? null,
@@ -175,6 +175,60 @@ describe("ApplyCouponUseCase", () => {
     assert.equal(result.discount_applied, 5);
     const events = outbox.listOutbox("mrc_1");
     assert.equal((events[0].payload as Record<string, unknown>).discount_applied, 5);
+  });
+
+  it("requires a server-calculated shipping quote before applying a shipping coupon", async () => {
+    const { couponRepo, useCase } = makeSetup();
+    await couponRepo.save(CouponEntity.create(makeCouponInput({ discount_type: "shipping_free", discount_value: 0 })));
+
+    await assert.rejects(
+      () => useCase.execute(BASE_INPUT),
+      { message: "COUPON_SHIPPING_NOT_CALCULATED" },
+    );
+  });
+
+  it("reuses a cancelled reservation when the cart is changed and the buyer reapplies the coupon", async () => {
+    const { couponRepo, redemptionRepo, outbox, useCase } = makeSetup();
+    await couponRepo.save(CouponEntity.create(makeCouponInput({ max_usages: 1 })));
+
+    const first = await useCase.execute(BASE_INPUT);
+    const reserved = (await redemptionRepo.findBySession("sess_1", "mrc_1"))[0];
+    assert.ok(reserved);
+    await redemptionRepo.save(reserved.cancel());
+
+    const reapplied = await useCase.execute({
+      ...BASE_INPUT,
+      cart: { ...BASE_CART, total: 120 },
+    });
+
+    assert.equal(reapplied.redemption_id, first.redemption_id);
+    assert.equal((await redemptionRepo.findBySession("sess_1", "mrc_1")).length, 1);
+    assert.equal((await redemptionRepo.findById(first.redemption_id, "mrc_1"))?.status, "applied");
+    assert.equal(outbox.listOutbox("mrc_1").length, 2);
+  });
+
+  it("applies a shipping-free coupon to the authoritative shipping quote", async () => {
+    const { couponRepo, useCase } = makeSetup();
+    await couponRepo.save(CouponEntity.create(makeCouponInput({ discount_type: "shipping_free", discount_value: 0 })));
+
+    const result = await useCase.execute({
+      ...BASE_INPUT,
+      merchantRules: { ...PERMISSIVE_RULES, allowFreeShipping: true },
+      shipping: { customerPrice: 25 },
+    });
+
+    assert.equal(result.discount_applied, 0);
+    assert.equal(result.shipping_discount_applied, 25);
+  });
+
+  it("does not stack a coupon after another commercial benefit is already authorized", async () => {
+    const { couponRepo, useCase } = makeSetup();
+    await couponRepo.save(CouponEntity.create(makeCouponInput()));
+
+    await assert.rejects(
+      () => useCase.execute({ ...BASE_INPUT, has_existing_commercial_benefit: true }),
+      { message: "CHECKOUT_COMMERCIAL_BENEFIT_ALREADY_APPLIED" },
+    );
   });
 
   // ── P1 regression: countByCoupon counts applied + redeemed ───────────────

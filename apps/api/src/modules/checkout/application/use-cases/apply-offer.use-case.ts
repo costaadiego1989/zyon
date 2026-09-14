@@ -87,18 +87,49 @@ export class ApplyOfferUseCase {
 function applyOfferToSession(session: CheckoutSession, offer: AuthorizedOffer): CheckoutSession {
   const cart = { ...session.cart };
   const shipping = session.shipping ? { ...session.shipping } : undefined;
+  let commercialNudge: import("@zyon/shared-types").CheckoutCommercialNudge | undefined;
   if (offer.type === "discount_percent") {
     const previous = cart.currentDiscount ?? 0;
     const newDiscount = roundMoney(cart.total * (offer.value / 100));
     cart.currentDiscount = Math.max(previous, newDiscount);
+    commercialNudge = {
+      kind: "advanced_rule",
+      title: "Oferta aplicada",
+      message: `${offer.value}% de desconto foi aplicado ao seu carrinho.`,
+      badge: `-${offer.value}%`,
+      ruleId: offer.id,
+      discountPercent: offer.value,
+    };
   } else if (offer.type === "shipping_free" && shipping) {
     shipping.customerPrice = 0;
+    commercialNudge = {
+      kind: "advanced_rule",
+      title: "Frete grátis aplicado",
+      message: "A regra comercial liberou frete grátis para este pedido.",
+      badge: "Frete grátis",
+      ruleId: offer.id,
+    };
   } else if (offer.type === "shipping_discount_fixed" && shipping) {
     shipping.customerPrice = Math.max(0, roundMoney((shipping.customerPrice ?? 0) - offer.value));
+    commercialNudge = {
+      kind: "advanced_rule",
+      title: "Oferta de frete aplicada",
+      message: `A regra comercial reduziu o frete em R$ ${offer.value.toFixed(2)}.`,
+      badge: "Frete especial",
+      ruleId: offer.id,
+    };
   } else if (offer.type === "discount_fixed") {
     const previous = cart.currentDiscount ?? 0;
     cart.currentDiscount = Math.max(previous, roundMoney(offer.value));
+    commercialNudge = {
+      kind: "advanced_rule",
+      title: "Oferta aplicada",
+      message: `R$ ${offer.value.toFixed(2)} de desconto foi aplicado ao seu carrinho.`,
+      badge: "Oferta aprovada",
+      ruleId: offer.id,
+    };
   }
+  if (commercialNudge) cart.commercialNudge = commercialNudge;
   return {
     ...session,
     cart,

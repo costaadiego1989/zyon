@@ -75,8 +75,26 @@ export interface Cart {
   total: number;
   items: CartItem[];
   currentDiscount?: number;
+  /** Server-authored context for a promotion already applied to this session. */
+  commercialNudge?: CheckoutCommercialNudge;
   source?: "storefront" | "checkout" | "platform_api" | "manual";
   commerceCartRef?: string;
+}
+
+export type CheckoutCommercialNudgeKind = "coupon" | "progressive_discount" | "advanced_rule";
+
+/**
+ * Presentation metadata for a commercial benefit that the server already
+ * authorized. It never authorizes or calculates a benefit on the client.
+ */
+export interface CheckoutCommercialNudge {
+  kind: CheckoutCommercialNudgeKind;
+  title: string;
+  message: string;
+  badge?: string;
+  couponCode?: string;
+  ruleId?: string;
+  discountPercent?: number;
 }
 
 export interface CustomerAddress {
@@ -435,6 +453,8 @@ export interface CheckoutExperienceSnapshot {
   policies?: MerchantPolicies;
   items: CheckoutItemSnapshot[];
   totals: CheckoutTotalsSnapshot;
+  /** A benefit already authorized for this checkout session, if any. */
+  commercial_nudge?: CheckoutCommercialNudge;
   shipping?: ShippingQuote;
   shippingOptions?: ShippingQuote[];
   suggestedProducts?: SuggestedProduct[];

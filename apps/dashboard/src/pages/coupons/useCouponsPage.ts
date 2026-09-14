@@ -86,10 +86,26 @@ export function useCouponsPage() {
     }
     if (form.discountType !== "free_shipping") {
       const discountValue = Number(form.discountValue);
-      if (discountValue <= 0) {
+      if (!Number.isFinite(discountValue) || discountValue <= 0) {
         showToast("error", "Valor do desconto deve ser positivo");
         return;
       }
+      if (form.discountType === "percent" && discountValue > 100) {
+        showToast("error", "O desconto percentual não pode ultrapassar 100%");
+        return;
+      }
+    }
+    if (form.minCartValue && (!Number.isFinite(Number(form.minCartValue)) || Number(form.minCartValue) < 0)) {
+      showToast("error", "Informe um valor mínimo válido para o carrinho");
+      return;
+    }
+    if (form.maxUses && (!Number.isInteger(Number(form.maxUses)) || Number(form.maxUses) < 1)) {
+      showToast("error", "O máximo de usos deve ser um número inteiro maior que zero");
+      return;
+    }
+    if (form.expiresAt && form.startsAt && form.expiresAt < form.startsAt) {
+      showToast("error", "A validade final deve ser posterior à data de início");
+      return;
     }
 
     setCreating(true);

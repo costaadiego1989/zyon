@@ -20,7 +20,7 @@ List all active coupons for the merchant.
       "merchant_id": "merch_xyz",
       "discount_type": "percentage",
       "discount_value": 15,
-      "min_cart_total": 10000,
+      "min_cart_total": 100,
       "max_usages": 100,
       "max_per_buyer": 1,
       "usages_count": 25,
@@ -55,7 +55,7 @@ Create a new coupon.
 | code | string | Yes | Unique coupon code |
 | discount_type | string | Yes | `percentage` or `fixed` |
 | discount_value | number | Yes | Discount amount or % |
-| min_cart_total | number | No | Minimum cart value (cents) |
+| min_cart_total | number | No | Minimum cart value in BRL |
 | max_usages | number | No | Total usage limit |
 | max_per_buyer | number | No | Usage limit per buyer |
 | allowed_skus | string[] | No | Restrict to SKUs |
@@ -94,7 +94,7 @@ curl -X POST https://api.aacp.dev/v1/coupons \
     "code": "SUMMER25",
     "discount_type": "percentage",
     "discount_value": 15,
-    "min_cart_total": 5000,
+    "min_cart_total": 50,
     "starts_at": "2025-06-01T00:00:00Z",
     "ends_at": "2025-08-31T23:59:59Z"
   }'

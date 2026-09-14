@@ -170,3 +170,26 @@ test("authorizeOffer cap equals rules.maxDiscountPercent when requested percent 
   assert.equal(authorized.value, 15);
   assert.ok(authorized.approved);
 });
+
+test("authorizeOffer exposes a matched advanced coupon without falling through to a generic discount", async () => {
+  const repository = fakeRepo();
+  const service = new CheckoutOfferService(repository);
+  const session = checkoutSession();
+  const rules = merchantRules({
+    advancedRules: [{
+      id: "rule_coupon",
+      name: "Cupom para carrinho elegível",
+      enabled: true,
+      priority: 1,
+      conditions: [{ field: "cart_total", operator: "gte", value: 250 }],
+      action: { type: "offer_coupon", params: { code: "save10" } },
+    }],
+  });
+
+  const offer = await service.authorizeOffer("tem algum cupom?", session, rules, "payment", []);
+
+  assert.equal(offer.approved, false);
+  assert.equal(offer.type, "none");
+  assert.equal(offer.reason, "advanced_coupon_available");
+  assert.equal(offer.discountCode, "SAVE10");
+});

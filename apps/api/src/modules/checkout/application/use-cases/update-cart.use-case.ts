@@ -9,6 +9,8 @@ import { buildExperienceFromSession } from "../services/checkout-experience.serv
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import type { PrismaClient } from "@prisma/client";
 
 const MAX_ITEM_QUANTITY = 99;
 
@@ -33,7 +35,8 @@ export class UpdateCartUseCase {
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchants?: MerchantRepository,
     @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
-    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL }
+    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL },
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: Pick<PrismaClient, "couponRedemption">
   ) {}
 
   async execute(input: UpdateCartRequest): Promise<UpdateCartResponse> {
@@ -79,7 +82,10 @@ export class UpdateCartUseCase {
     };
 
     const cartChanged = JSON.stringify(nextCart.items) !== JSON.stringify(session.cart.items);
-    if (cartChanged) nextCart.currentDiscount = 0;
+    if (cartChanged) {
+      nextCart.currentDiscount = 0;
+      delete nextCart.commercialNudge;
+    }
     // Cart mutation invalidates any prior freight quote; buyer must re-select shipping
     // so the payment amount stays consistent with the current cart.
     const nextSession: CheckoutSession = {
@@ -90,7 +96,15 @@ export class UpdateCartUseCase {
       updatedAt: new Date().toISOString()
     };
 
-    await this.sessions.saveSession(nextSession);
+    const cancelledCouponReservationIds = cartChanged
+      ? await this.cancelCouponReservations(merchantId, sessionId)
+      : [];
+    try {
+      await this.sessions.saveSession(nextSession);
+    } catch (error) {
+      await this.restoreCouponReservations(cancelledCouponReservationIds);
+      throw error;
+    }
 
     if (cartChanged) {
       await this.outbox.appendOutbox(
@@ -123,5 +137,35 @@ export class UpdateCartUseCase {
         serviceFee: this.experienceConfig.platformFeeBrl
       })
     };
+  }
+
+  private async cancelCouponReservations(merchantId: string, sessionId: string): Promise<string[]> {
+    if (!this.prisma) return [];
+    const applied = await this.prisma.couponRedemption.findMany({
+      where: { merchantId, sessionId, status: "applied" },
+      select: { id: true }
+    });
+    const cancelled: string[] = [];
+    for (const redemption of applied) {
+      const result = await this.prisma.couponRedemption.updateMany({
+        where: { id: redemption.id, status: "applied" },
+        data: { status: "cancelled" }
+      });
+      if (result.count === 1) cancelled.push(redemption.id);
+    }
+    if (cancelled.length > 0) {
+      this.logger.log("checkout.coupon_reservations.cancelled", { merchantId, sessionId, count: cancelled.length });
+    }
+    return cancelled;
+  }
+
+  private async restoreCouponReservations(redemptionIds: string[]): Promise<void> {
+    if (!this.prisma || redemptionIds.length === 0) return;
+    await Promise.all(redemptionIds.map((id) =>
+      this.prisma!.couponRedemption.updateMany({
+        where: { id, status: "cancelled" },
+        data: { status: "applied" }
+      })
+    ));
   }
 }

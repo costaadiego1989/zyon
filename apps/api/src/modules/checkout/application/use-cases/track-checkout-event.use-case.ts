@@ -73,6 +73,7 @@ export class TrackCheckoutEventUseCase {
     const finalSession = await this.applyInterventionLedgerGate(
       input.merchant_id,
       input.session_id,
+      input.event,
       updated,
       settingsCtx ?? undefined
     );
@@ -189,7 +190,17 @@ export class TrackCheckoutEventUseCase {
     try {
       await this.sessions.saveSession({
         ...session,
-        cart: { ...session.cart, currentDiscount: discountValue },
+        cart: {
+          ...session.cart,
+          currentDiscount: discountValue,
+          commercialNudge: {
+            kind: "progressive_discount",
+            title: "Desconto progressivo aplicado",
+            message: `${evaluation.value}% de desconto foi autorizado para este checkout.`,
+            badge: `-${evaluation.value}%`,
+            discountPercent: evaluation.value,
+          },
+        },
       });
     } catch {
       // Non-blocking: banner still shows; payment falls back to prior discount.
@@ -220,10 +231,16 @@ export class TrackCheckoutEventUseCase {
   private async applyInterventionLedgerGate(
     merchantId: string,
     sessionId: string,
+    eventName: TrackEventRequest["event"],
     session: CheckoutSession,
     settingsCtx: CheckoutSettingsContext | undefined
   ): Promise<CheckoutSession> {
     if (!this.interventionLedger || !settingsCtx || !session.triggerAgent) {
+      return session;
+    }
+    // Critical checkout failures already bypass the abandonment-score gate.
+    // They must not spend the merchant's limited proactive-intervention budget.
+    if (eventName === "payment_failed" || eventName === "checkout_abandoned") {
       return session;
     }
     const nowUnix = Math.floor(Date.now() / 1000);

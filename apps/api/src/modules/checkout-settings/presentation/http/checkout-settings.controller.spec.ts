@@ -38,6 +38,7 @@ test("CheckoutSettingsController manages authenticated merchant settings", async
   } as unknown as Response;
 
   await controller.get(request, response);
+  assert.equal(headers["Cache-Control"], "no-store");
   const updated = await controller.update(
     request,
     response,

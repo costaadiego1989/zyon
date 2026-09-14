@@ -9,6 +9,7 @@ import {
   type ChatBlock,
   type PaymentIntent,
   type CryptoPaymentsConfig,
+  type CommercialNudge,
 } from "@/api/checkout-session";
 import {
   initTracking,
@@ -39,6 +40,16 @@ export interface PaymentMethod {
 }
 
 type CheckoutPaymentMethod = "pix" | "boleto" | "credito" | "debito" | "crypto";
+
+function activeDiscountFromNudge(nudge: CommercialNudge | undefined | null): CheckoutState["activeDiscount"] {
+  if (!nudge) return null;
+  return {
+    stage: nudge.kind === "progressive_discount" ? "payment_nudge" : "initial_coupon",
+    percent: nudge.discountPercent ?? 0,
+    couponCode: nudge.couponCode,
+    message: nudge.message,
+  };
+}
 
 interface MerchantPaymentConfig {
   stripeEnabled?: boolean;
@@ -398,6 +409,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
           cryptoPayments: exp?.cryptoPayments ?? rawBrand.cryptoPayments,
         },
         cart: { items, total, serviceFee: cartData.serviceFee, totalToPay: cartData.totalToPay, discount: cartData.discount, status: "awaiting" },
+        activeDiscount: activeDiscountFromNudge(exp?.commercial_nudge),
         status: "channel_gate",
         error: null,
         _pendingCrossSellBlock: crossSellBlockFromSuggestions(exp?.suggestedProducts),
@@ -713,8 +725,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       get().stopPolling();
       set((state) => ({
         cart: { ...cart, status: "awaiting" },
+        activeDiscount: activeDiscountFromNudge(response.experience?.commercial_nudge),
         paymentIntent: null,
-        activeDiscount: null,
         messages: response.agent_turn?.text
           ? [...state.messages, {
               id: `cross_sell_${Date.now()}`,
@@ -745,8 +757,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       get().stopPolling();
       set((state) => ({
         cart: { ...cart, status: "awaiting" },
+        activeDiscount: activeDiscountFromNudge(response.experience?.commercial_nudge),
         paymentIntent: null,
-        activeDiscount: null,
         messages: [
           ...state.messages.map(message => ({ ...message, blocks: message.blocks?.filter(block => !["pix_payment", "boleto_payment", "stripe_card", "crypto_payment", "crypto_chain_select", "shipping_options", "payment_methods", "coupon_input"].includes(block.type)) })),
           { id: `cart_${Date.now()}`, role: "agent" as const, text: cart.items.length ? "Carrinho atualizado. Vamos confirmar o frete antes do pagamento." : "Produto removido. Seu carrinho está vazio.", timestamp: Date.now() },
@@ -1036,7 +1048,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   },
 
   dismissDiscount: () => {
-    set((s) => ({ activeDiscount: null, cart: { ...s.cart, totalToPay: undefined, discount: 0 } }));
+    // Closing the presentation must never discard a benefit already authorized
+    // and persisted by the API; it only hides the local notice.
+    set({ activeDiscount: null });
   },
 
   applyCouponCode: async (code) => {
@@ -1047,11 +1061,14 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         items: cart.items.map((it) => ({ sku: it.sku, name: it.name, price: it.price, quantity: it.quantity })),
         total: cart.total,
       });
-      const discountValue = result.discount_applied ?? 0;
-      set((s) => ({
-        cart: { ...s.cart, totalToPay: undefined, discount: discountValue },
-        activeDiscount: discountValue > 0 ? { stage: "initial_coupon" as DiscountStage, percent: Math.round((discountValue / s.cart.total) * 100), couponCode: code.trim().toUpperCase() } : null,
-      }));
+      const nextCart = result.experience
+        ? cartFromExperience(result.experience)
+        : { ...cart, totalToPay: undefined, discount: result.discount_applied ?? 0 };
+      const nudge = result.experience?.commercial_nudge;
+      set({
+        cart: { ...nextCart, status: get().cart.status },
+        activeDiscount: activeDiscountFromNudge(nudge),
+      });
       return { ok: true };
     } catch (err: any) {
       return { ok: false, error: err?.message || "Cupom inválido ou expirado" };
@@ -1102,7 +1119,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     const result = await trackEvent(event as never);
     const approved = result?.progressive_offer?.approved_percent ?? 0;
     if (approved <= 0) return;
-    get().setActiveDiscount(stage, approved);
+    const message = `Desconto progressivo aprovado: ${approved}% foi aplicado a este checkout.`;
+    get().setActiveDiscount(stage, approved, undefined, message);
   },
 
   evaluateAdvancedRules: () => {

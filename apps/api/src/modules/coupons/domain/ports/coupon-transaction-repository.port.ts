@@ -5,7 +5,7 @@ import type { CouponRedemptionEntity, CouponRedemptionSnapshot } from "../entiti
 export const COUPON_TRANSACTION_REPOSITORY = Symbol("COUPON_TRANSACTION_REPOSITORY");
 
 export type CouponReservationResult =
-  | { status: "reserved" }
+  | { status: "reserved"; redemption_id?: string }
   | { status: "already_applied" }
   | { status: "limit_reached"; reason: string }
   | { status: "coupon_missing" };

@@ -169,6 +169,10 @@ export class CheckoutSettingsController {
     );
     // CSS-C2: Set ETag header on GET so clients can use it for conditional PUT
     this.entityTags.set(response, settings);
+    // Authenticated mutable settings are never cacheable. The dashboard reads
+    // this representation immediately before a conditional PUT, so a cached
+    // ETag would turn an otherwise valid save into a false 412 conflict.
+    response.setHeader("Cache-Control", "no-store");
     return settings;
   }
 

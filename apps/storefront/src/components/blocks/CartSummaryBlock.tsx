@@ -163,7 +163,14 @@ export default function CartSummaryBlock({
         </svg>
       </div>
     </div>
-    <RuleNotices live notices={[...(block.data.activeRules ?? []), ...(block.data.nextNudge ? [block.data.nextNudge] : [])]} />
+    <RuleNotices
+      live
+      notices={[
+        ...(block.data.couponCode ? [{ kind: "coupon", reachable: true, message: `Cupom ${block.data.couponCode} aplicado ao carrinho.` }] : []),
+        ...(block.data.activeRules ?? []),
+        ...(block.data.nextNudge ? [block.data.nextNudge] : []),
+      ]}
+    />
     </>
   );
 }

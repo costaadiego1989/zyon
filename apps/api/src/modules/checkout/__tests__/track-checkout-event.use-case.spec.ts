@@ -143,6 +143,7 @@ test("TrackCheckoutEventUseCase emits progressive abandoned-cart discount when e
   assert.equal(response.progressive_offer?.requested_percent, 10);
   assert.equal(response.progressive_offer?.approved_percent, 10);
   assert.equal(whatsapp?.payload.discount_percent, 10);
+  assert.equal((await repository.getSession("mrc_1", "chk_1"))?.cart.commercialNudge?.kind, "progressive_discount");
 });
 
 test("TrackCheckoutEventUseCase caps progressive discount by merchant max", async () => {
@@ -253,7 +254,7 @@ class LedgerCapCheckoutSettings implements CheckoutSettingsPort {
   }
 }
 
-test("TrackCheckoutEventUseCase applies intervention ledger cap after repeated operational triggers", async () => {
+test("TrackCheckoutEventUseCase reserves the intervention ledger cap for proactive triggers", async () => {
   const repository = new InMemoryCheckoutRepository();
   repository.saveSession(checkoutSession());
   const ledger = new InMemoryInterventionLedger();
@@ -266,7 +267,7 @@ test("TrackCheckoutEventUseCase applies intervention ledger cap after repeated o
     event: "payment_failed"
   });
   assert.equal(payment.trigger_agent, true);
-  assert.equal(ledger.countForSession("mrc_1", "chk_1"), 1);
+  assert.equal(ledger.countForSession("mrc_1", "chk_1"), 0);
 
   const ship = await useCase.execute({
     merchant_id: "mrc_1",
@@ -274,14 +275,14 @@ test("TrackCheckoutEventUseCase applies intervention ledger cap after repeated o
     event: "shipping_objection_detected"
   });
   assert.equal(ship.trigger_agent, true);
-  assert.equal(ledger.countForSession("mrc_1", "chk_1"), 2);
+  assert.equal(ledger.countForSession("mrc_1", "chk_1"), 1);
 
   const coupon = await useCase.execute({
     merchant_id: "mrc_1",
     session_id: "chk_1",
     event: "coupon_field_clicked"
   });
-  assert.equal(coupon.trigger_agent, false);
+  assert.equal(coupon.trigger_agent, true);
   assert.equal(ledger.countForSession("mrc_1", "chk_1"), 2);
 
   const capped = await useCase.execute({
@@ -295,9 +296,9 @@ test("TrackCheckoutEventUseCase applies intervention ledger cap after repeated o
   const repeatedPayment = await useCase.execute({
     merchant_id: "mrc_1", session_id: "chk_1", event: "payment_failed",
   });
-  assert.equal(repeatedPayment.trigger_agent, false, "priority bypasses score, never the session cap");
+  assert.equal(repeatedPayment.trigger_agent, true, "reactive payment failures do not consume the proactive session cap");
   assert.equal(ledger.countForSession("mrc_1", "chk_1"), 2);
 
   const persisted = await repository.getSession("mrc_1", "chk_1");
-  assert.equal(persisted?.triggerAgent, false);
+  assert.equal(persisted?.triggerAgent, true);
 });

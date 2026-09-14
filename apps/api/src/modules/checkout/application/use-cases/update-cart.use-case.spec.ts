@@ -106,6 +106,78 @@ describe("UpdateCartUseCase", () => {
     assert.equal(events.length, 1);
   });
 
+  it("clears an applied commercial nudge when a cart change invalidates its price", async () => {
+    const { repo, useCase } = setup();
+    repo.saveSession(checkoutSession({
+      merchantId: "mrc_1",
+      sessionId: "chk_1",
+      cart: testCart({
+        currency: "BRL",
+        total: 350,
+        currentDiscount: 35,
+        commercialNudge: {
+          kind: "coupon",
+          title: "Cupom aplicado",
+          message: "O cupom SAVE10 foi aplicado.",
+          couponCode: "SAVE10",
+        },
+        items: [
+          { sku: "a", name: "A", price: 100, cost: 40, quantity: 1 },
+          { sku: "b", name: "B", price: 125, cost: 50, quantity: 2 },
+        ],
+      }),
+    }));
+
+    await useCase.execute({
+      merchant_id: "mrc_1",
+      session_id: "chk_1",
+      items: [{ sku: "b", quantity: 1 }],
+    });
+
+    const session = repo.getSession("mrc_1", "chk_1");
+    assert.equal(session?.cart.currentDiscount, 0);
+    assert.equal(session?.cart.commercialNudge, undefined);
+  });
+
+  it("cancels the coupon reservation when a cart change invalidates its price", async () => {
+    const repo = new InMemoryCheckoutRepository();
+    repo.saveSession(checkoutSession({
+      merchantId: "mrc_1",
+      sessionId: "chk_1",
+      cart: testCart({
+        currency: "BRL",
+        total: 350,
+        currentDiscount: 35,
+        items: [
+          { sku: "a", name: "A", price: 100, cost: 40, quantity: 1 },
+          { sku: "b", name: "B", price: 125, cost: 50, quantity: 2 },
+        ],
+      }),
+    }));
+    const updates: Array<{ where: unknown; data: unknown }> = [];
+    const prisma = {
+      couponRedemption: {
+        async findMany() { return [{ id: "red_1" }]; },
+        async updateMany(input: { where: unknown; data: unknown }) {
+          updates.push(input);
+          return { count: 1 };
+        },
+      },
+    };
+    const useCase = new UpdateCartUseCase(repo, repo, undefined, undefined, undefined, prisma as never);
+
+    await useCase.execute({
+      merchant_id: "mrc_1",
+      session_id: "chk_1",
+      items: [{ sku: "b", quantity: 1 }],
+    });
+
+    assert.deepEqual(updates, [{
+      where: { id: "red_1", status: "applied" },
+      data: { status: "cancelled" },
+    }]);
+  });
+
   it("does not emit outbox or clear shipping when cart unchanged", async () => {
     const { repo, useCase } = setup();
 

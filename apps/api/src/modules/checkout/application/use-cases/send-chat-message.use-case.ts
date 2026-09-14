@@ -101,11 +101,32 @@ export class SendChatMessageUseCase {
     const stage = deriveChatStage(working);
     const missingFields = missingFieldsForStage(working, stage);
     const cohortForOffer = (working as any).cohort;
+    const isHoldout = cohortForOffer === "holdout";
     const offer = cohortForOffer === "holdout"
       ? SafeAuthorizedOffer.noOffer(working.merchantId, working.sessionId)
       : await this.offerService.authorizeOffer(input.user_message, working, context.rules, stage, missingFields);
 
-    const isHoldout = cohortForOffer === "holdout";
+    const advancedCouponCode =
+      !isHoldout && offer.reason === "advanced_coupon_available"
+        ? offer.discountCode
+        : undefined;
+    if (advancedCouponCode) {
+      working = {
+        ...working,
+        cart: {
+          ...working.cart,
+          commercialNudge: {
+            kind: "advanced_rule",
+            title: "Cupom disponível",
+            message: `A regra comercial identificou o cupom ${advancedCouponCode}. Insira-o no campo de cupom para validar o benefício.`,
+            badge: "Cupom disponível",
+            couponCode: advancedCouponCode,
+            ruleId: offer.id,
+          },
+        },
+      };
+    }
+
     this.logger.debug("chat.routing", { stage, missingFields, rulesCount: context.merchantRules?.length ?? 0, isHoldout });
 
     let reply: { message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[]; blocks?: Array<{ type: string; data?: Record<string, unknown> }> };
@@ -150,7 +171,12 @@ export class SendChatMessageUseCase {
       }
     }
 
-    if (llmReply && llmReply.message && llmReply.message !== "Como posso ajudar com o seu pedido?") {
+    if (advancedCouponCode) {
+      reply = {
+        message: `Encontrei o cupom ${advancedCouponCode} para este carrinho. Insira-o no campo de cupom para validar a condição.`,
+        objection: "price",
+      };
+    } else if (llmReply && llmReply.message && llmReply.message !== "Como posso ajudar com o seu pedido?") {
       reply = llmReply;
     } else {
       reply = await this.conversation.reply({

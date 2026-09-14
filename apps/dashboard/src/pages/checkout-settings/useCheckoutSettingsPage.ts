@@ -12,7 +12,12 @@ import { settingsToDraft, draftToPatch, draftsEqual, DEFAULT_DRAFT } from "./lib
 import { validate, type ValidationErrors } from "./lib/validation.js";
 
 function errText(e: unknown): string {
-  if (e instanceof DashboardHttpError) return e.responseBody.slice(0, 160);
+  if (e instanceof DashboardHttpError) {
+    if (e.status === 412) {
+      return "As configurações foram alteradas desde a última leitura. Recarregue-as, revise e tente salvar novamente.";
+    }
+    return e.responseBody.slice(0, 160);
+  }
   return e instanceof Error ? e.message : String(e);
 }
 
@@ -23,6 +28,7 @@ export interface CheckoutSettingsViewModel {
   message: { text: string; kind: "info" | "error" } | null;
   activeTab: "behavior" | "triggers" | "discounts" | "rules";
   dirty: boolean;
+  reloadRequired: boolean;
   errors: ValidationErrors;
   editingRule: AdvancedRule | null;
   editorOpen: boolean;
@@ -53,6 +59,7 @@ export function useCheckoutSettingsPage(props: {
   const [savedDraft, setSavedDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; kind: "info" | "error" } | null>(null);
+  const [reloadRequired, setReloadRequired] = useState(false);
   const [activeTab, setActiveTab] = useState<"behavior" | "triggers" | "discounts" | "rules">("behavior");
   const [editingRule, setEditingRule] = useState<AdvancedRule | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -78,6 +85,7 @@ export function useCheckoutSettingsPage(props: {
       setDraft(d);
       setSavedDraft(d);
       setMessage(null);
+      setReloadRequired(false);
     } catch (e) {
       setSettings(null);
       setMessage({ text: `Erro ao carregar: ${errText(e)}`, kind: "error" });
@@ -104,8 +112,10 @@ export function useCheckoutSettingsPage(props: {
       setMessage(null);
       showToast("success", "Configurações salvas com sucesso");
     } catch (e) {
+      const conflict = e instanceof DashboardHttpError && e.status === 412;
       setMessage({ text: `Erro ao salvar: ${errText(e)}`, kind: "error" });
-      showToast("error", `Erro ao salvar: ${errText(e)}`);
+      setReloadRequired(conflict);
+      showToast("error", conflict ? "A configuração mudou. Recarregue antes de salvar." : `Erro ao salvar: ${errText(e)}`);
       reportError({ source: "checkout-settings.save", error: e, severity: "warning" });
     } finally {
       setBusy(false);
@@ -240,6 +250,7 @@ export function useCheckoutSettingsPage(props: {
     message,
     activeTab,
     dirty,
+    reloadRequired,
     errors,
     editingRule,
     editorOpen,

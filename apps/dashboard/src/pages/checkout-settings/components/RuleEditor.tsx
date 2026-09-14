@@ -49,7 +49,7 @@ export function CouponDropdown({ value, onChange, disabled }: { value: string; o
                   onMouseLeave={(e) => { if (value !== c.code) e.currentTarget.style.background = "transparent"; }}
                 >
                   <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>{c.code}</span>
-                  <span style={{ color: "var(--color-text-muted)", fontSize: 11 }}>{c.discountType === "free_shipping" ? "Frete grátis" : c.discountType === "percent" ? `${c.discountValue}%` : `R$${(c.discountValue/100).toFixed(0)}`}</span>
+                  <span style={{ color: "var(--color-text-muted)", fontSize: 11 }}>{c.discountType === "free_shipping" ? "Frete grátis" : c.discountType === "percent" ? `${c.discountValue}%` : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(c.discountValue)}</span>
                 </button>
               ))
             )}
@@ -124,6 +124,19 @@ export function RuleEditor({
   }, [rule]);
 
   const previewText = buildPreview(conditions, actionType, actionParams);
+  const hasValidAction = actionType === "offer_discount"
+    ? Number(actionParams.percent) > 0 && Number(actionParams.percent) <= 100
+    : actionType === "offer_coupon"
+      ? Boolean(String(actionParams.code ?? "").trim())
+      : actionType === "show_message"
+        ? Boolean(String(actionParams.message ?? "").trim())
+        : actionType === "suggest_product"
+          ? Boolean(String(actionParams.productName ?? "").trim())
+          : actionType === "offer_installments"
+            ? Number(actionParams.maxInstallments) >= 2 && Number(actionParams.maxInstallments) <= 12
+            : true;
+  const hasValidConditions = conditions.length > 0 && conditions.every((condition) => String(condition.value).trim().length > 0);
+  const canSave = Boolean(name.trim()) && hasValidConditions && hasValidAction;
 
   function addCondition() {
     setConditions([...conditions, { field: "cart_total", operator: ">", value: "" }]);
@@ -224,7 +237,7 @@ export function RuleEditor({
               <>
                 <div className="cfg-rule-param">
                   <label>Desconto (%)</label>
-                  <input type="number" min="0" max="50" value={actionParams.percent ?? ""} disabled={busy} onChange={(e) => setActionParams({ ...actionParams, percent: e.target.value ? Number(e.target.value) : "" })} placeholder="10" />
+            <input type="number" min="1" max="100" value={actionParams.percent ?? ""} disabled={busy} onChange={(e) => setActionParams({ ...actionParams, percent: e.target.value ? Number(e.target.value) : "" })} placeholder="10" />
                 </div>
                 <div className="cfg-rule-param">
                   <label>Teto do desconto (R$) — opcional</label>
@@ -284,7 +297,7 @@ export function RuleEditor({
         {/* Footer */}
         <div className="cfg-side-panel-footer">
           <Button variant="ghost" onClick={onCancel} disabled={busy}>Cancelar</Button>
-          <Button variant="primary" arrow disabled={busy || !name.trim()} onClick={handleSave}>
+          <Button variant="primary" arrow disabled={busy || !canSave} onClick={handleSave}>
             {rule ? "Atualizar" : "Criar regra"}
           </Button>
         </div>

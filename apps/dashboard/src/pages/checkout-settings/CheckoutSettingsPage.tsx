@@ -123,6 +123,16 @@ export function CheckoutSettingsPage(props: {
             <CheckCircle2 size={16} strokeWidth={1.75} />
           )}
           <span>{vm.message.text}</span>
+          {vm.reloadRequired ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={vm.busy}
+              onClick={() => vm.load()}
+            >
+              Recarregar configurações
+            </Button>
+          ) : null}
         </div>
       ) : null}
 

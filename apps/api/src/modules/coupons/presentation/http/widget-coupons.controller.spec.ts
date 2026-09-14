@@ -87,7 +87,59 @@ test("WidgetCouponsController uses merchant from embed token and ignores body me
   assert.equal(seen?.source, "manual");
   assert.deepEqual(seen?.cart, persisted.cart);
   assert.equal(response.experience.totals.discount, 10);
-  assert.equal((await checkout.getSession("m_token", sessionId))?.cart.currentDiscount, 10);
+  assert.equal(response.experience.commercial_nudge?.kind, "coupon");
+  assert.equal(response.experience.commercial_nudge?.couponCode, "PROMO10");
+  const saved = await checkout.getSession("m_token", sessionId);
+  assert.equal(saved?.cart.currentDiscount, 10);
+  assert.equal(saved?.cart.commercialNudge?.kind, "coupon");
+});
+
+test("WidgetCouponsController reflects an authorized shipping coupon in the persisted checkout", async () => {
+  const checkout = new InMemoryCheckoutRepository();
+  const now = Math.floor(Date.now() / 1000);
+  const tokens = new EmbedTokenService({ value: Buffer.from("embed-coupon-spec-secret-32chars!!") });
+  const embedClaims = tokens.verify(tokens.sign({
+    typ: "aacp_embed_v1",
+    merchantId: "m_token",
+    issuedAtUnix: now,
+    expiresAtUnix: now + 900,
+    nonce: "coupon-shipping",
+  }));
+  const sessionId = embedCheckoutSessionId(embedClaims);
+  checkout.saveSession(checkoutSession({
+    merchantId: "m_token",
+    sessionId,
+    cart: { currency: "BRL", total: 250, items: [{ sku: "sku-a", name: "Produto", price: 250, quantity: 1 }] },
+    shipping: { customerPrice: 25 },
+  }));
+
+  let seen: Record<string, unknown> | undefined;
+  const controller = new WidgetCouponsController(
+    { async execute(input: Record<string, unknown>) {
+      seen = input;
+      return {
+        redemption_id: "red_shipping",
+        discount_applied: 0,
+        shipping_discount_applied: 25,
+        coupon: { code: "FRETEGRATIS", discount_type: "shipping_free", discount_value: 0 },
+      };
+    } } as never,
+    new EmbedCheckoutGuardHelper(checkout),
+    checkout,
+    merchantRepo as never,
+    { platformFeeBrl: 1.99 },
+    { checkoutEvent: { findFirst: async () => null, create: async () => ({}) } } as never,
+  );
+
+  const response = await controller.apply(
+    { embedClaims },
+    { session_id: sessionId, merchant_id: "m_body", code: "FRETEGRATIS", cart: { currency: "BRL", total: 1, items: [] } },
+  );
+
+  assert.deepEqual(seen?.shipping, { customerPrice: 25 });
+  assert.equal(response.experience.totals.shipping, 0);
+  assert.equal(response.experience.commercial_nudge?.title, "Frete grátis aplicado");
+  assert.equal((await checkout.getSession("m_token", sessionId))?.shipping?.customerPrice, 0);
 });
 
 test("WidgetCouponsController derives the coupon buyer from the persisted session", async () => {
