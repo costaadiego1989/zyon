@@ -20,6 +20,12 @@ import { evaluateRules } from "@/lib/advanced-rules";
 import type { DiscountStage } from "@/components/DiscountBanner";
 import { connectPaymentWs } from "@/lib/payment-ws";
 import { paymentPollingOutcome } from "@/lib/payment-status";
+import {
+  checkoutChatErrorMessage,
+  checkoutStartErrorMessage,
+  isMerchantSalesSuspendedError,
+  MERCHANT_SALES_SUSPENDED_MESSAGE,
+} from "@/lib/checkout-error-message";
 
 export type CheckoutStatus = "loading" | "channel_gate" | "active" | "error" | "completed";
 export type CartStatus = "awaiting" | "shipping_calculated" | "ready_to_pay" | "paid";
@@ -42,16 +48,7 @@ type CheckoutPaymentMethod = "pix" | "boleto" | "credito" | "debito" | "crypto";
 
 interface MerchantPaymentConfig {
   stripeEnabled?: boolean;
-  paymentMethods?: {
-    pix: boolean;
-    boleto: boolean;
-    card: boolean;
-    providers?: {
-      pix?: "asaas" | "mercadopago" | "stripe";
-      boleto?: "asaas" | "mercadopago" | "stripe";
-      card?: "asaas" | "mercadopago" | "stripe";
-    };
-  };
+  paymentMethods?: { pix: boolean; boleto: boolean; card: boolean };
   cryptoPaymentsEnabled?: boolean;
   cryptoPayments?: CryptoPaymentsConfig;
 }
@@ -429,9 +426,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       } catch {
         /* silent — triggers are non-critical */
       }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "unknown_error";
-      set({ status: "error", error: msg });
+    } catch (error) {
+      set({ status: "error", error: checkoutStartErrorMessage(error) });
     }
   },
 
@@ -657,6 +653,23 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       }
     } catch (err) {
       console.error("[WIDGET-CHAT] embed/chat failed:", err);
+      if (isMerchantSalesSuspendedError(err)) {
+        set({ status: "error", error: MERCHANT_SALES_SUSPENDED_MESSAGE, isTyping: false });
+        return;
+      }
+      const chatError = checkoutChatErrorMessage(err);
+      if (chatError) {
+        set((state) => ({
+          messages: [...state.messages, {
+            id: `error_${Date.now()}`,
+            role: "agent",
+            text: chatError,
+            timestamp: Date.now(),
+          }],
+          isTyping: false,
+        }));
+        return;
+      }
       const { cart, buyer, merchantPaymentConfig } = get();
       if (text === "Vamos prosseguir" && cart.items.length > 0) {
         try {
@@ -827,8 +840,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       });
 
       const isCard = method === "credito" || method === "debito";
-      if (isCard && (!intent.stripe_client_secret || !intent.stripe_publishable_key) && !intent.invoice_url) {
-        throw new Error("card_checkout_unavailable");
+      if (isCard && (!intent.stripe_client_secret || !intent.stripe_publishable_key)) {
+        throw new Error("stripe_card_checkout_unavailable");
       }
       if (method === "boleto" && !intent.invoice_url) {
         throw new Error("boleto_invoice_unavailable");
@@ -837,16 +850,12 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         ? "pix_payment"
         : method === "boleto"
           ? "boleto_payment"
-          : intent.invoice_url
-            ? "hosted_card_payment"
-            : "stripe_card";
+          : "stripe_card";
       const blockText = method === "pix"
         ? "Pix gerado! Pague e confirmo seu pedido automaticamente."
         : method === "boleto"
           ? "Boleto gerado! Abra o link seguro para pagar."
-          : intent.invoice_url
-            ? "Abra o ambiente seguro para informar o cartão e concluir o pagamento."
-            : "Preencha os dados do cartão para finalizar.";
+          : "Preencha os dados do cartão para finalizar.";
       const paymentMsg: Message = {
         id: `agent_pay_${Date.now()}`,
         role: "agent",
@@ -858,7 +867,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
             pix_code: intent.pix_code,
             pix_qr_url: intent.pix_qr_url,
             invoice_url: intent.invoice_url,
-            hosted_card: Boolean(isCard && intent.invoice_url),
             stripe_client_secret: intent.stripe_client_secret,
             stripe_publishable_key: intent.stripe_publishable_key,
             expires_at_unix: intent.expires_at_unix,
@@ -868,7 +876,11 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         timestamp: Date.now(),
       };
       set((s) => ({ messages: [...s.messages, paymentMsg] }));
-    } catch {
+    } catch (error) {
+      if (isMerchantSalesSuspendedError(error)) {
+        set({ status: "error", error: MERCHANT_SALES_SUSPENDED_MESSAGE });
+        return;
+      }
       const errorMsg: Message = {
         id: `error_${Date.now()}`,
         role: "agent",
@@ -930,7 +942,11 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         timestamp: Date.now(),
       };
       set((s) => ({ messages: [...s.messages, paymentMsg] }));
-    } catch {
+    } catch (error) {
+      if (isMerchantSalesSuspendedError(error)) {
+        set({ status: "error", error: MERCHANT_SALES_SUSPENDED_MESSAGE });
+        return;
+      }
       const errorMsg: Message = {
         id: `error_${Date.now()}`,
         role: "agent",

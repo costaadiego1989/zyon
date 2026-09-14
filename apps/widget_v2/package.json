@@ -11,6 +11,8 @@
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
+    "./styles/neumorphism.css": "./src/styles/neumorphism.css",
+    "./design-system/neumorphism": "./src/design-system/neumorphism.ts",
     "./styles/base.css": "./src/styles/base.css",
     "./styles/checkout.css": "./src/styles/checkout.css",
     "./styles/animations.css": "./src/styles/animations.css",

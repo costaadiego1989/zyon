@@ -4,7 +4,7 @@ export function VoiceComposer({ voice }: { voice: ReturnType<typeof useVoiceChec
   const { listening, speaking, unsupported, hint, pendingTurn, handleMicPress, confirmPendingTurn, discardPendingTurn, retryPendingTurn } = voice;
 
   return (
-    <div
+    <div data-aacp-checkout-composer
       style={{
         display: "flex",
         flexDirection: "column",
@@ -16,7 +16,7 @@ export function VoiceComposer({ voice }: { voice: ReturnType<typeof useVoiceChec
       }}
     >
       {pendingTurn && (
-        <div
+        <div data-neu="surface"
           style={{
             width: "100%",
             padding: "12px 14px",
@@ -32,7 +32,7 @@ export function VoiceComposer({ voice }: { voice: ReturnType<typeof useVoiceChec
             "{pendingTurn.displayTranscript}"
           </div>
           <div style={{ display: "flex", gap: "8px" }}>
-            <button
+            <button data-neu="primary"
               type="button"
               onClick={() => void confirmPendingTurn()}
               style={{
@@ -43,7 +43,7 @@ export function VoiceComposer({ voice }: { voice: ReturnType<typeof useVoiceChec
             >
               Confirmar
             </button>
-            <button
+            <button data-neu="control"
               type="button"
               onClick={retryPendingTurn}
               style={{
@@ -54,7 +54,7 @@ export function VoiceComposer({ voice }: { voice: ReturnType<typeof useVoiceChec
             >
               Repetir
             </button>
-            <button
+            <button data-neu="control"
               type="button"
               onClick={discardPendingTurn}
               aria-label="Descartar"
@@ -71,7 +71,7 @@ export function VoiceComposer({ voice }: { voice: ReturnType<typeof useVoiceChec
       )}
 
       {!pendingTurn && (
-        <button
+        <button data-neu="control"
           type="button"
           onClick={handleMicPress}
           disabled={unsupported || speaking}

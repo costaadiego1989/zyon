@@ -218,7 +218,7 @@ export function App() {
       <div className="checkout-error">
         <h2>Erro</h2>
         <p>{error || "Não foi possível iniciar a sessão de checkout."}</p>
-        <button onClick={() => window.location.reload()}>Tentar novamente</button>
+        <button data-neu="control" onClick={() => window.location.reload()}>Tentar novamente</button>
       </div>
     );
   }

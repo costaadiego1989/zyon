@@ -34,7 +34,7 @@ export function ChannelGate() {
           fontWeight: 600,
           letterSpacing: "1.5px",
           textTransform: "uppercase",
-          color: "var(--aacp-accent, #0f766e)",
+          color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))",
         }}
       >
         Gerente de vendas da {storeName}
@@ -74,7 +74,7 @@ export function ChannelGate() {
           { icon: "📦", text: "Calculo o frete e organizo a entrega" },
           { icon: "💳", text: "Pago com Pix, cartão ou crypto" },
         ].map((item) => (
-          <div
+          <div data-neu="surface"
             key={item.text}
             style={{
               display: "flex",
@@ -109,7 +109,7 @@ export function ChannelGate() {
 
       {/* Channel buttons */}
       <div style={{ display: "flex", gap: "12px", width: "100%", maxWidth: "340px" }}>
-        <button
+        <button data-neu="choice"
           type="button"
           onClick={() => selectChannel("chat")}
           style={{
@@ -133,7 +133,7 @@ export function ChannelGate() {
           <span style={{ fontSize: "11px", color: "var(--mut)" }}>Converse digitando</span>
         </button>
 
-        <button
+        <button data-neu="choice"
           type="button"
           onClick={() => selectChannel("voice")}
           style={{

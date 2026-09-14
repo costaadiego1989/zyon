@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { NEUMORPHIC_THEME } from "../design-system/neumorphism";
+
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useCheckoutStore } from "@/store/checkout-store";
 import { ChannelGate } from "@/components/ChannelGate";
 import { ChatPanel } from "@/components/ChatPanel";
@@ -11,6 +13,9 @@ import { ShimmerBorder } from "@/components/ShimmerBorder";
 import { CampaignContactPreferences } from "@/components/CampaignContactPreferences";
 
 export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light" } = {}) {
+  const chatColumnRef = useRef<HTMLDivElement>(null);
+  const [composerOffset, setComposerOffset] = useState<number | null>(null);
+  const channel = useCheckoutStore((s) => s.channel);
   const [supportOpen, setSupportOpen] = useState(false);
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [cartDrawerClosing, setCartDrawerClosing] = useState(false);
@@ -35,6 +40,27 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
   const showBranding = useCheckoutStore((s) => s.showBranding);
   const api = useCheckoutStore((s) => s.api);
   const sessionId = useCheckoutStore((s) => s.sessionId);
+
+  // Follow the actual composer when consent details, voice controls or the
+  // viewport change height. Fixed estimates let the FAB cover the send action.
+  useEffect(() => {
+    const column = chatColumnRef.current;
+    const composer = column?.querySelector<HTMLElement>("[data-aacp-checkout-composer]");
+    if (!isMobile || status !== "active" || !column || !composer) {
+      setComposerOffset(null);
+      return;
+    }
+    const measure = () => setComposerOffset(Math.max(0, Math.ceil(window.innerHeight - composer.getBoundingClientRect().top - 4)));
+    const observer = new ResizeObserver(measure);
+    observer.observe(column);
+    observer.observe(composer);
+    if (composer.parentElement) observer.observe(composer.parentElement);
+    measure();
+    window.addEventListener("resize", measure);
+    window.visualViewport?.addEventListener("resize", measure);
+    return () => { observer.disconnect(); window.removeEventListener("resize", measure); window.visualViewport?.removeEventListener("resize", measure); };
+  }, [isMobile, status, channel, showBranding]);
+  const mobileActionOffset = composerOffset ?? 72 + (showBranding ? 40 : 0);
 
   const storeName = brand.name || "Loja";
   const agentName = agent.name || "Assistente";
@@ -98,25 +124,14 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
     overflow: "hidden",
   };
 
-  const themePalette: Record<string, string> = theme === "light"
-    ? {
-        "--aacp-bg": "#F4F6F8", "--aacp-surface": "#FCFCFD", "--aacp-surface-2": "#F7F9FB",
-        "--aacp-surface-3": "#EEF2F6", "--aacp-fg": "#0F172A", "--aacp-muted": "#64748B",
-        "--aacp-faint": "#94A3B8", "--aacp-line": "rgba(15,23,42,0.08)", "--aacp-line-strong": "#D9E2EC",
-        "--aacp-panel-bg": "#FCFCFD", "--aacp-surface-elevated": "#FFFFFF",
-      }
-    : {
-        "--aacp-bg": "#0B1220", "--aacp-surface": "#111827", "--aacp-surface-2": "#0F172A",
-        "--aacp-surface-3": "#1E293B", "--aacp-fg": "#F1F5F9", "--aacp-muted": "#94A3B8",
-        "--aacp-faint": "#64748B", "--aacp-line": "rgba(241,245,249,0.08)", "--aacp-line-strong": "rgba(241,245,249,0.14)",
-        "--aacp-panel-bg": "#0F172A", "--aacp-surface-elevated": "#1A1A24",
-      };
+  const themePalette: Record<string, string> = NEUMORPHIC_THEME[theme];
 
   return (
     <div
       className="pulse-widget-shell"
       data-skin="pulse"
       data-theme={themeAttr}
+      data-neu-theme={themeAttr}
       style={{
         ...widgetStyle,
         ...themePalette,
@@ -144,7 +159,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
           flex: "none",
         }}
       >
-        <button
+        <button data-neu="control"
           type="button"
           onClick={() => window.history.back()}
           title="Voltar para o site"
@@ -203,7 +218,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
           </div>
         </div>
 
-        <button
+        <button data-neu="control"
           type="button"
           onClick={toggleTheme}
           title="Alternar tema"
@@ -265,7 +280,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
                 Seu pedido foi confirmado com sucesso. Acompanhe os detalhes no seu histórico de compras.
               </p>
             </div>
-            <button
+            <button data-neu="primary"
               type="button"
               onClick={() => {
                 resetSession();
@@ -317,7 +332,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
               }}
             >
               {/* Main content area - left side (Chat) */}
-              <div
+              <div ref={chatColumnRef}
                 style={{
                   flex: 1,
                   minWidth: 0,
@@ -363,18 +378,16 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
         </ShimmerBorder>
       )}
 
-      {/* Mobile Cart FAB + Drawer.
-          FABs must clear the chat input bar (~72px) and the whitelabel badge
-          (~40px when shown) so they never sit on top of "Enviar" or the badge. */}
+      {/* Mobile actions clear the measured composer and footer. */}
       {isMobile && status === "active" && cart.items.length > 0 && (
-        <button
+        <button data-neu="floating"
           type="button"
           className="cart-fab-mobile"
           aria-label="Abrir carrinho"
           onClick={() => setCartDrawerOpen(true)}
           style={{
             position: "fixed",
-            bottom: `${16 + 72 + (showBranding ? 40 : 0) + 56}px`,
+            bottom: `${16 + mobileActionOffset + 56}px`,
             right: "16px",
             width: "48px",
             height: "48px",
@@ -386,12 +399,12 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
+            boxShadow: "var(--aacp-neu-floating)",
             zIndex: 999,
           }}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6L5 3H2"/><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/></svg>
-          <span style={{ position: "absolute", top: "-4px", right: "-4px", width: "18px", height: "18px", borderRadius: "50%", background: "#ef4444", fontSize: "10px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <span data-neu="counter" style={{ position: "absolute", top: "-4px", right: "-4px", width: "18px", height: "18px", borderRadius: "50%", background: "#ef4444", fontSize: "10px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
             {cart.items.reduce((s, i) => s + i.quantity, 0)}
           </span>
         </button>
@@ -421,7 +434,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
           />
 
           {/* Bottom sheet — slides up from bottom, slides down to close */}
-          <div
+          <div data-neu="overlay"
             className="smart-cart-drawer"
             role="dialog"
             aria-label="Carrinho"
@@ -449,7 +462,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
               <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--aacp-fg, #f5f5f7)" }}>Carrinho</span>
-              <button
+              <button data-neu="icon"
                 onClick={closeCartDrawer}
                 aria-label="Fechar"
                 style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line, rgba(255,255,255,0.1))", background: "transparent", color: "var(--aacp-muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
@@ -463,12 +476,11 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
       )}
 
       {/* Support FAB and Panel — lift above chat input + whitelabel badge on mobile */}
-      <SupportFAB
+      {!cartDrawerOpen && <SupportFAB
         open={supportOpen}
         onToggle={() => setSupportOpen(!supportOpen)}
-        cartItemCount={cart.items.length}
-        bottomOffset={isMobile && status === "active" ? 72 + (showBranding ? 40 : 0) : (showBranding ? 40 : 0)}
-      />
+        bottomOffset={isMobile && status === "active" && !supportOpen ? mobileActionOffset : (showBranding ? 40 : 0)}
+      />}
       <SupportPanel open={supportOpen} onClose={() => setSupportOpen(false)} />
 
       {/* Whitelabel badge — free-plan merchants only. Accent background per brand. */}

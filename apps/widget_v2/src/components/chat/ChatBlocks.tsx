@@ -33,7 +33,7 @@ function CartSummaryBlock({ data }: { data?: Record<string, unknown> }) {
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
   return (
-    <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
+    <div data-neu="surface" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
       <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px" }}>Resumo do carrinho</div>
       {items.map((item, i) => (
         <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--mut)", padding: "4px 0" }}>
@@ -42,7 +42,7 @@ function CartSummaryBlock({ data }: { data?: Record<string, unknown> }) {
         </div>
       ))}
       {discount != null && discount > 0 && (
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--aacp-accent, #0f766e)", padding: "4px 0" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))", padding: "4px 0" }}>
           <span>Desconto</span>
           <span>-{formatPrice(discount)}</span>
         </div>
@@ -75,7 +75,7 @@ function ShippingOptionsBlock({ options }: { options?: unknown }) {
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--tx)" }}>Escolha o frete:</div>
       {opts.map((opt) => (
-        <button
+        <button data-neu="choice"
           key={opt.key}
           onClick={() => void handleSelect(opt)}
           style={{
@@ -91,7 +91,7 @@ function ShippingOptionsBlock({ options }: { options?: unknown }) {
         >
           <div style={{ fontWeight: 600, display: "flex", justifyContent: "space-between" }}>
             <span>{translateShippingLabel(opt.label)}</span>
-            <span style={{ fontSize: "12px", color: "var(--aacp-accent, #0f766e)" }}>
+            <span style={{ fontSize: "12px", color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))" }}>
               {opt.cost === 0 ? "Grátis" : opt.cost != null ? formatPrice(opt.cost / 100) : ""}
             </span>
           </div>
@@ -118,7 +118,7 @@ function PaymentMethodsBlock({ methods }: { methods?: unknown }) {
       <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--tx)" }}>Forma de pagamento:</div>
       <BuyerServiceFeeNotice />
       {meths.map((m) => (
-        <button
+        <button data-neu="choice"
           key={m.key}
           onClick={() => handleSelect(m)}
           style={{
@@ -160,7 +160,7 @@ function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
 
   if (status === "completed") {
     return (
-      <div style={{ padding: "16px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)", textAlign: "center" }}>
+      <div data-neu="surface" style={{ padding: "16px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)", textAlign: "center" }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
           <div style={{ fontSize: "32px" }}>✓</div>
           <div style={{ fontSize: "15px", fontWeight: 700, color: "var(--tx)" }}>Pagamento confirmado! 🎉</div>
@@ -192,7 +192,7 @@ function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   };
 
   return (
-    <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
+    <div data-neu="surface" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
       <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>Pague com Pix</div>
       <p style={{ fontSize: "12px", color: "var(--mut)", margin: "0 0 8px", lineHeight: 1.4 }}>
         Escaneie o QR Code no app do seu banco. Pedido confirmado assim que o pagamento cai.
@@ -213,7 +213,7 @@ function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
           <code style={{ flex: 1, minWidth: 0, background: "var(--chip, var(--card))", padding: "8px 10px", borderRadius: "8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "11px", fontFamily: "var(--aacp-font, inherit)" }}>
             {String(data.pix_code).slice(0, 50)}...
           </code>
-          <button
+          <button data-neu="primary"
             onClick={handleCopy}
             style={{ padding: "8px 14px", borderRadius: "8px", background: "var(--aacp-accent, #0f766e)", color: "#fff", border: "none", fontSize: "13px", fontWeight: 600, fontFamily: "var(--aacp-font, inherit)", cursor: "pointer", flex: "none", transition: "opacity 0.2s" }}
           >
@@ -247,7 +247,6 @@ function BoletoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   const status = useCheckoutStore((s) => s.status);
   const language = useCheckoutStore((s) => s.agent.language);
   const invoiceUrl = safeInvoiceUrl(data?.invoice_url);
-  const hostedCard = data?.hosted_card === true;
   const amountCents = data?.amount_cents;
   const totalLabel = typeof amountCents === "number" && Number.isSafeInteger(amountCents) && amountCents > 0
     ? new Intl.NumberFormat(checkoutLocale(language), { style: "currency", currency: "BRL" }).format(amountCents / 100)
@@ -261,15 +260,15 @@ function BoletoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
 
   if (!invoiceUrl) {
     return (
-      <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)", color: "var(--mut)", fontSize: "13px" }}>
-        Não foi possível disponibilizar o pagamento com segurança. Escolha outra forma de pagamento.
+      <div data-neu="surface" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)", color: "var(--mut)", fontSize: "13px" }}>
+        Não foi possível disponibilizar o boleto com segurança. Escolha outra forma de pagamento.
       </div>
     );
   }
 
   if (status === "completed") {
     return (
-      <div style={{ padding: "16px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)", textAlign: "center" }}>
+      <div data-neu="surface" style={{ padding: "16px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)", textAlign: "center" }}>
         <div style={{ fontSize: "15px", fontWeight: 700, color: "var(--tx)" }}>Pagamento confirmado!</div>
         <p style={{ fontSize: "13px", color: "var(--mut)", margin: "8px 0 0" }}>Seu pedido está sendo processado.</p>
       </div>
@@ -277,12 +276,10 @@ function BoletoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   }
 
   return (
-    <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
-      <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>{hostedCard ? "Pague com cartão" : "Pague com boleto"}</div>
+    <div data-neu="surface" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
+      <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>Pague com boleto</div>
       <p style={{ fontSize: "12px", color: "var(--mut)", margin: "0 0 8px", lineHeight: 1.4 }}>
-        {hostedCard
-          ? "Abra o ambiente seguro do provedor em uma nova aba para informar o cartão. Confirmaremos seu pedido automaticamente."
-          : "Abra o boleto em uma nova aba. Confirmaremos seu pedido quando o pagamento for compensado."}
+        Abra o boleto em uma nova aba. Confirmaremos seu pedido quando o pagamento for compensado.
       </p>
       {totalLabel && (
         <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", margin: "0 0 8px", color: "var(--tx)", fontSize: "12px" }}>
@@ -290,17 +287,17 @@ function BoletoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
         </div>
       )}
       <BuyerServiceFeeNotice />
-      <a
+      <a data-neu="primary"
         href={invoiceUrl}
         target="_blank"
         rel="noopener noreferrer"
         style={{ display: "block", marginTop: "12px", padding: "10px 14px", borderRadius: "8px", background: "var(--aacp-accent, #0f766e)", color: "#fff", fontSize: "13px", fontWeight: 600, textAlign: "center", textDecoration: "none" }}
       >
-        {hostedCard ? "Abrir pagamento seguro" : "Abrir boleto seguro"}
+        Abrir boleto seguro
       </a>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", padding: "14px 0 2px" }}>
         <PulseAgentOrb placement="chatLoading" active />
-        <p style={{ fontSize: "12px", color: "var(--mut)", margin: 0, textAlign: "center" }}>{hostedCard ? "Aguardando a confirmação..." : "Aguardando a compensação..."}</p>
+        <p style={{ fontSize: "12px", color: "var(--mut)", margin: 0, textAlign: "center" }}>Aguardando a compensação...</p>
       </div>
     </div>
   );
@@ -420,7 +417,7 @@ function StripeCardBlockForm({
           {error}
         </div>
       )}
-      <button
+      <button data-neu="control"
         type="submit"
         disabled={!stripe || loading}
         style={{
@@ -462,7 +459,7 @@ function StripeCardBlock({ data }: { data?: Record<string, unknown> }) {
 
   if (!clientSecret || !publishableKey || !intentId || typeof amountCents !== "number" || !Number.isSafeInteger(amountCents) || amountCents <= 0) {
     return (
-      <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
+      <div data-neu="surface" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
         <p style={{ fontSize: "12px", color: "var(--mut)", margin: 0 }}>Erro: dados de pagamento incompletos</p>
       </div>
     );
@@ -472,7 +469,7 @@ function StripeCardBlock({ data }: { data?: Record<string, unknown> }) {
   const totalLabel = new Intl.NumberFormat(checkoutLocale(language), { style: "currency", currency: "BRL" }).format(amountCents / 100);
 
   return (
-    <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
+    <div data-neu="surface" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
       <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px" }}>Pague com Cartão de Crédito</div>
       <p style={{ fontSize: "12px", color: "var(--mut)", margin: "0 0 12px", lineHeight: 1.4 }}>
         Pagamento processado pela Stripe. Confira o total antes de confirmar.
@@ -491,7 +488,7 @@ function StripeCardBlock({ data }: { data?: Record<string, unknown> }) {
 function OrderConfirmationBlock({ data }: { data?: Record<string, unknown> }) {
   if (!data) return null;
   return (
-    <div style={{ padding: "16px", borderRadius: "12px", background: "var(--card)", border: "1px solid var(--aacp-accent, #0f766e)", textAlign: "center" }}>
+    <div data-neu="surface" style={{ padding: "16px", borderRadius: "12px", background: "var(--card)", border: "1px solid var(--aacp-accent, #0f766e)", textAlign: "center" }}>
       <div style={{ display: "flex", justifyContent: "center", marginBottom: "12px" }}>
         <div style={{ animation: "bounce 0.6s ease infinite alternate" }}>
           <PulseAgentOrb placement="chatBubble" active />
@@ -539,7 +536,7 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
   if (!data || products.length === 0 || dismissed) return null;
 
   const addButton = (p: CrossSellProduct, i: number, compact = false) => (
-    <button
+    <button data-neu="choice"
       key={i}
       data-testid="cross-sell-product"
       onClick={() => void sendMessage(`Adicionar ${p.name}`)}
@@ -563,7 +560,7 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
     >
       <span>{p.name}</span>
       {p.price != null && (
-        <span style={{ color: "var(--aacp-accent, #0f766e)", fontWeight: 600 }}>
+        <span style={{ color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))", fontWeight: 600 }}>
           {formatCrossSellPrice(p.price)}
         </span>
       )}
@@ -589,7 +586,7 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
           padding: "20px",
         }}
       >
-        <div
+        <div data-neu="surface"
           style={{
             background: "var(--card)",
             border: "1px solid var(--bd)",
@@ -605,7 +602,7 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
               <div style={{ fontSize: "11px", color: "var(--mut)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Antes de pagar</div>
               <div style={{ fontSize: "15px", fontWeight: 700 }}>Você também pode gostar</div>
             </div>
-            <button
+            <button data-neu="icon"
               type="button"
               aria-label="Fechar sugestões"
               data-testid="cross-sell-dismiss"
@@ -618,7 +615,7 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
             {products.map((p, i) => addButton(p, i))}
           </div>
-          <button
+          <button data-neu="control"
             type="button"
             data-testid="cross-sell-skip"
             onClick={() => setDismissed(true)}
@@ -634,7 +631,7 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
 
   if (mode === "banner") {
     return (
-      <div
+      <div data-neu="surface"
         data-testid="cross-sell-banner"
         style={{
           position: "sticky",
@@ -650,7 +647,7 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
           <span style={{ fontSize: "12px", fontWeight: 600 }}>Você também pode gostar:</span>
-          <button
+          <button data-neu="icon"
             type="button"
             aria-label="Fechar sugestões"
             data-testid="cross-sell-dismiss"
@@ -673,7 +670,7 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
       void sendMessage("Continuar");
     };
     return (
-      <div
+      <div data-neu="surface"
         data-testid="cross-sell-interstitial"
         style={{
           width: "100%",
@@ -697,18 +694,18 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
         </div>
         <div className="cs-scroll" style={{ display: "flex", gap: "10px", padding: "0 14px 14px", overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch", scrollSnapType: "x mandatory", scrollbarWidth: "none" }}>
           {products.map((p, i) => (
-            <div key={i} style={{ minWidth: "140px", maxWidth: "140px", flexShrink: 0, scrollSnapAlign: "start", background: "var(--tile2, var(--chip, rgba(255,255,255,0.04)))", border: "1px solid var(--bd)", borderRadius: "10px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            <div data-neu="surface" key={i} style={{ minWidth: "140px", maxWidth: "140px", flexShrink: 0, scrollSnapAlign: "start", background: "var(--tile2, var(--chip, rgba(255,255,255,0.04)))", border: "1px solid var(--bd)", borderRadius: "10px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
               <div style={{ width: "100%", height: "80px", background: "var(--tile1, var(--card))", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                 {p.image ? (
                   <img src={p.image} alt={p.name} loading="lazy" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
                 ) : (
-                  <span style={{ fontSize: "30px", fontWeight: 800, color: "var(--aacp-accent, #0f766e)", opacity: 0.22 }}>{p.name.charAt(0).toUpperCase()}</span>
+                  <span style={{ fontSize: "30px", fontWeight: 800, color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))", opacity: 0.22 }}>{p.name.charAt(0).toUpperCase()}</span>
                 )}
               </div>
               <div style={{ padding: "10px", display: "flex", flexDirection: "column", gap: "6px", flex: 1 }}>
                 <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--tx)", lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.name}</span>
-                {p.price != null && <span style={{ fontSize: "14px", fontWeight: 800, color: "var(--aacp-accent, #0f766e)" }}>{formatCrossSellPrice(p.price)}</span>}
-                <button
+                {p.price != null && <span style={{ fontSize: "14px", fontWeight: 800, color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))" }}>{formatCrossSellPrice(p.price)}</span>}
+                <button data-neu="control"
                   type="button"
                   data-testid="cross-sell-product"
                   disabled={p.inStock === false}
@@ -727,7 +724,7 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
           ))}
         </div>
         <div style={{ padding: "12px 14px", borderTop: "1px solid var(--bd)" }}>
-          <button type="button" data-testid="cross-sell-continue" onClick={advanceToPayment} style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid var(--bd)", background: "transparent", color: "var(--tx)", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
+          <button data-neu="control" type="button" data-testid="cross-sell-continue" onClick={advanceToPayment} style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid var(--bd)", background: "transparent", color: "var(--tx)", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
             Continuar
           </button>
         </div>
@@ -736,7 +733,7 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
   }
 
   return (
-    <div data-testid="cross-sell-inline" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
+    <div data-neu="surface" data-testid="cross-sell-inline" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
       <div style={{ fontSize: "12px", fontWeight: 600, marginBottom: "8px" }}>Você também pode gostar:</div>
       {products.map((p, i) => addButton(p, i))}
     </div>
@@ -787,10 +784,10 @@ function CouponInputBlock({ data }: { data?: Record<string, unknown> }) {
   };
 
   return (
-    <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
+    <div data-neu="surface" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
       <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--tx)", marginBottom: "8px" }}>Tem cupom de desconto?</div>
       <div style={{ display: "flex", gap: "6px" }}>
-        <input
+        <input data-neu="field"
           type="text"
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
@@ -804,7 +801,7 @@ function CouponInputBlock({ data }: { data?: Record<string, unknown> }) {
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void handleApply(); } }}
           disabled={loading}
         />
-        <button
+        <button data-neu="control"
           onClick={() => void handleApply()}
           disabled={!code.trim() || loading}
           style={{
@@ -819,7 +816,7 @@ function CouponInputBlock({ data }: { data?: Record<string, unknown> }) {
         </button>
       </div>
       {error && <div style={{ fontSize: "11px", color: "#c92a2a", marginTop: "6px" }}>{error}</div>}
-      <button
+      <button data-neu="control"
         onClick={advance}
         disabled={loading}
         style={{
@@ -842,10 +839,10 @@ function OfferCouponBlock({ data }: { data?: Record<string, unknown> }) {
   const description = (data.description as string) || "";
 
   return (
-    <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--aacp-accent, #0f766e)" }}>
-      <div style={{ fontSize: "12px", fontWeight: 600, marginBottom: "4px", color: "var(--aacp-accent, #0f766e)" }}>Cupom disponivel</div>
+    <div data-neu="surface" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--aacp-accent, #0f766e)" }}>
+      <div style={{ fontSize: "12px", fontWeight: 600, marginBottom: "4px", color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))" }}>Cupom disponivel</div>
       {description && <div style={{ fontSize: "12px", color: "var(--mut)", marginBottom: "6px" }}>{description}</div>}
-      <button
+      <button data-neu="primary"
         onClick={() => void sendMessage(`Aplicar cupom ${code}`)}
         style={{ padding: "8px 14px", borderRadius: "8px", background: "var(--aacp-accent, #0f766e)", color: "#fff", border: "none", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
       >
@@ -871,12 +868,12 @@ function AddressConfirmationBlock({ data }: { data?: Record<string, unknown> }) 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       {formatted && (
-        <div style={{ padding: "10px 12px", borderRadius: "8px", background: "var(--chip)", fontSize: "13px", color: "var(--tx)" }}>
+        <div data-neu="surface" style={{ padding: "10px 12px", borderRadius: "8px", background: "var(--chip)", fontSize: "13px", color: "var(--tx)" }}>
           {formatted}
         </div>
       )}
       <div style={{ display: "flex", gap: "8px" }}>
-        <button
+        <button data-neu="primary"
           onClick={handleYes}
           style={{
             flex: 1,
@@ -892,7 +889,7 @@ function AddressConfirmationBlock({ data }: { data?: Record<string, unknown> }) 
         >
           Sim
         </button>
-        <button
+        <button data-neu="control"
           onClick={handleNo}
           style={{
             flex: 1,
@@ -932,14 +929,14 @@ function FormFieldBlock({ data }: { data?: Record<string, unknown> }) {
     <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
       {label && <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--tx)" }}>{label}</label>}
       <div style={{ display: "flex", gap: "6px" }}>
-        <input
+        <input data-neu="field"
           type="text"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder={placeholder}
           style={{ flex: 1, padding: "8px 12px", borderRadius: "8px", border: "1px solid var(--bd)", background: "var(--chip)", color: "var(--tx)", fontSize: "13px", fontFamily: "inherit" }}
         />
-        <button
+        <button data-neu="control"
           type="submit"
           disabled={!value.trim()}
           style={{ padding: "8px 12px", borderRadius: "8px", background: value.trim() ? "var(--aacp-accent, #0f766e)" : "var(--bd)", color: "#fff", border: "none", fontSize: "12px", fontWeight: 600, cursor: value.trim() ? "pointer" : "not-allowed" }}
@@ -1218,10 +1215,10 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
 
   if (error === "no_metamask") {
     return (
-      <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
+      <div data-neu="surface" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
         <p style={{ fontSize: "12px", color: "var(--mut)", margin: "0 0 8px" }}>Instale MetaMask para pagar com crypto</p>
         <a href="https://metamask.io/download/" target="_blank" rel="noopener noreferrer"
-          style={{ fontSize: "12px", color: "var(--aacp-accent, #0f766e)", textDecoration: "underline" }}>
+          style={{ fontSize: "12px", color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))", textDecoration: "underline" }}>
           Baixar MetaMask
         </a>
       </div>
@@ -1229,7 +1226,7 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   }
 
   return (
-    <div style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
+    <div data-neu="surface" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
       <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>
         Pague com {tokenSymbol} ({chainLabel} {network !== "mainnet" ? network : ""})
       </div>
@@ -1248,7 +1245,7 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
       )}
 
       {step === "idle" && transfersValid && (
-        <button onClick={handleConnect} style={btnBase}>Conectar carteira</button>
+        <button data-neu="primary" onClick={handleConnect} style={btnBase}>Conectar carteira</button>
       )}
 
       {step === "connected" && (
@@ -1261,9 +1258,9 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
               Há uma transferência parcial. Não envie novos valores; contate o suporte com o hash da transação.
             </div>
           ) : submittedTxHashes.length ? (
-            <button onClick={handleVerifySubmitted} style={btnBase}>Verificar pagamento</button>
+            <button data-neu="primary" onClick={handleVerifySubmitted} style={btnBase}>Verificar pagamento</button>
           ) : (
-            <button onClick={handlePay} style={btnBase}>Pagar {amountDisplay}</button>
+            <button data-neu="primary" onClick={handlePay} style={btnBase}>Pagar {amountDisplay}</button>
           )}
         </>
       )}
@@ -1288,7 +1285,7 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
         </div>
       )}
       {rpcHelp && rpcUrl && (
-        <div style={{ padding: "10px 12px", borderRadius: "8px", background: "var(--chip)", border: "1px solid var(--bd)", fontSize: "12px", color: "var(--tx)", marginTop: "8px", lineHeight: 1.5 }}>
+        <div data-neu="surface" style={{ padding: "10px 12px", borderRadius: "8px", background: "var(--chip)", border: "1px solid var(--bd)", fontSize: "12px", color: "var(--tx)", marginTop: "8px", lineHeight: 1.5 }}>
           <div style={{ fontWeight: 600, marginBottom: "6px" }}>Como corrigir (1 min):</div>
           <ol style={{ margin: "0 0 8px", paddingLeft: "18px" }}>
             <li>Abra o MetaMask → Configurações → Redes → {chainLabel} {network}</li>
@@ -1299,7 +1296,7 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
             <code style={{ flex: 1, minWidth: 0, background: "var(--card)", padding: "6px 8px", borderRadius: "6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "11px" }}>
               {rpcUrl}
             </code>
-            <button
+            <button data-neu="primary"
               onClick={() => { void navigator.clipboard?.writeText(rpcUrl); }}
               style={{ padding: "6px 10px", borderRadius: "6px", border: "none", background: "var(--aacp-accent, #0f766e)", color: "#fff", fontSize: "11px", fontWeight: 600, cursor: "pointer", flex: "none" }}
             >
@@ -1329,7 +1326,7 @@ function CryptoChainSelectBlock({ data }: { data?: Record<string, unknown> }) {
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--tx)" }}>Rede:</div>
       {chains.map((chain) => (
-        <button
+        <button data-neu="control"
           key={chain}
           onClick={() => handleSelect(chain)}
           disabled={!!pending}
@@ -1392,8 +1389,6 @@ export function BlockRenderer({ block }: { block: ChatBlock }) {
       return <PixPaymentBlock data={block.data} />;
     case "boleto_payment":
       return <BoletoPaymentBlock data={block.data} />;
-    case "hosted_card_payment":
-      return <BoletoPaymentBlock data={{ ...block.data, hosted_card: true }} />;
     case "crypto_chain_select":
       return <CryptoChainSelectBlock data={block.data} />;
     case "crypto_payment":

@@ -1,3 +1,4 @@
+import { PerimeterBorder } from "./PerimeterBorder";
 import { useEffect, useRef } from "react";
 import { useCheckoutStore } from "@/store/checkout-store";
 import { useSupportViewModel } from "@/viewModels/useSupportViewModel";
@@ -52,7 +53,7 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
         @keyframes panelSlideUp { from { transform: translateY(100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes backdropFade { from { opacity: 0; } to { opacity: 1; } }
         @media (max-width: 480px) {
-          #support-panel { width: calc(100vw - 32px) !important; bottom: var(--bottom-offset, -480px) !important; }
+          #support-panel { width: calc(100vw - 32px) !important; }
         }
       `}</style>
 
@@ -69,7 +70,7 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
         />
       )}
 
-      <div
+      <div data-neu="overlay"
         id="support-panel"
         style={{
           position: "fixed",
@@ -79,8 +80,9 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
           width: "340px",
           maxWidth: "calc(100vw - 32px)",
           height: "480px",
+          maxHeight: "calc(100dvh - 96px)",
           borderRadius: "16px",
-          background: "var(--aacp-surface, #0f0f16)",
+          background: "var(--aacp-panel-bg, var(--aacp-bg, #edf0ee))",
           border: "1px solid var(--aacp-line, rgba(255,255,255,0.1))",
           boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
           display: "flex",
@@ -129,7 +131,7 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
             </div>
           </div>
 
-          <button
+          <button data-neu="icon"
             type="button"
             onClick={onClose}
             aria-label="Fechar suporte"
@@ -190,7 +192,7 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
 
               <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
                 {vm.faqItems.map((item) => (
-                  <button
+                  <button data-neu="control"
                     key={item.question}
                     onClick={() => handleFaqClick(item.question)}
                     disabled={isLoading}
@@ -270,10 +272,10 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
                     {msg.role === "merchant" && (
                       <span style={{ fontSize: "9px", fontWeight: 600, color: "#60a5fa", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>{msg.agentName || "Atendente"}</span>
                     )}
-                    <div
+                    <div data-neu="message" data-speaker={msg.role === "user" ? "buyer" : "agent"}
                       style={{
                         padding: "8px 12px",
-                        borderRadius: msg.role === "user" ? "10px 10px 4px 10px" : "10px 10px 10px 4px",
+                        borderRadius: "18px",
                         background: msg.role === "user"
                           ? "var(--aacp-accent, #0f766e)"
                           : msg.role === "merchant"
@@ -309,10 +311,10 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
                   >
                     💬
                   </div>
-                  <div
+                  <div data-neu="message"
                     style={{
                       padding: "8px 12px",
-                      borderRadius: "10px 10px 10px 4px",
+                      borderRadius: "18px",
                       background: "var(--aacp-card, rgba(255,255,255,0.05))",
                       border: "1px solid var(--aacp-line, rgba(255,255,255,0.1))",
                       display: "flex",
@@ -338,7 +340,9 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
           }}
         >
           <form onSubmit={handleSubmit} style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-            <input
+            <div className="aacp-composer-field" data-aacp-composer-frame style={{ borderRadius: "8px" }}>
+            <PerimeterBorder radius="8px" variant="input" />
+            <input data-neu="field"
               ref={inputRef}
               type="text"
               value={vm.input}
@@ -360,7 +364,8 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
               onFocus={(e) => e.currentTarget.style.borderColor = "var(--aacp-accent)"}
               onBlur={(e) => e.currentTarget.style.borderColor = "var(--aacp-line)"}
             />
-            <button
+            </div>
+            <button data-neu="send"
               type="submit"
               disabled={!vm.input.trim() || isLoading}
               style={{
@@ -375,7 +380,6 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
                 alignItems: "center",
                 justifyContent: "center",
                 flex: "none",
-                opacity: !vm.input.trim() || isLoading ? 0.5 : 1,
                 transition: "opacity 0.15s ease",
               }}
               aria-label="Enviar mensagem"

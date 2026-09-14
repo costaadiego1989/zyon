@@ -1,0 +1,176 @@
+/* Shared storefront / widget_v2 material. Geometry belongs to each component.
+   Explicit data-neu roles also work for dialogs rendered through portals.
+   !important is limited to material/state paint: legacy inline styles and
+   pointer handlers otherwise replace the shadow on focus, blur and hover. */
+:root,
+[data-neu-theme] {
+  --aacp-neu-light: color-mix(in oklab, var(--aacp-bg, #eef1ef) 18%, oklch(99.5% 0.003 145));
+  --aacp-neu-shade: color-mix(in oklab, var(--aacp-bg, #eef1ef) 76%, oklch(39% 0.018 155));
+  --aacp-neu-edge: color-mix(in oklab, var(--aacp-bg, #eef1ef) 48%, oklch(99.5% 0.003 145));
+  --aacp-neu-raised-sm: 2px 3px 6px color-mix(in oklab, var(--aacp-neu-shade) 65%, transparent), -1px -1px 3px color-mix(in oklab, var(--aacp-neu-light) 60%, transparent), inset 0 1px 0 color-mix(in oklab, var(--aacp-neu-edge) 60%, transparent);
+  --aacp-neu-raised-md: 4px 6px 14px color-mix(in oklab, var(--aacp-neu-shade) 65%, transparent), -2px -2px 6px color-mix(in oklab, var(--aacp-neu-light) 45%, transparent), inset 0 1px 0 var(--aacp-neu-edge);
+  --aacp-neu-bubble: 2px 3px 7px color-mix(in oklab, var(--aacp-neu-shade) 60%, transparent), -2px -2px 5px color-mix(in oklab, var(--aacp-neu-light) 45%, transparent), inset 0 1px 0 color-mix(in oklab, var(--aacp-neu-edge) 65%, transparent);
+  --aacp-neu-floating: 4px 6px 12px color-mix(in oklab, var(--aacp-neu-shade) 70%, transparent), -3px -3px 7px color-mix(in oklab, var(--aacp-neu-light) 55%, transparent), inset 0 1px 0 var(--aacp-neu-edge);
+  --aacp-neu-message: 2px 3px 7px color-mix(in oklab, var(--aacp-neu-shade) 65%, transparent), inset 0 1px 0 var(--aacp-neu-edge);
+  --aacp-neu-inset: inset 0 1px 2px color-mix(in oklab, var(--aacp-neu-shade) 40%, transparent), inset 0 -1px 0 color-mix(in oklab, var(--aacp-neu-light) 35%, transparent);
+  --aacp-neu-pressed: inset 1px 2px 3px color-mix(in oklab, var(--aacp-neu-shade) 50%, transparent), inset -1px -1px 2px color-mix(in oklab, var(--aacp-neu-light) 30%, transparent);
+  --aacp-neu-selection: 0 1px 3px color-mix(in oklab, var(--aacp-neu-shade) 55%, transparent), inset 0 1px 0 color-mix(in oklab, var(--aacp-neu-edge) 45%, transparent);
+  --aacp-neu-primary: var(--aacp-neu-raised-md);
+  --aacp-neu-primary-pressed: var(--aacp-neu-pressed);
+  --aacp-neu-overlay: 10px 16px 42px oklch(26% 0.012 155 / 0.2), -2px -2px 5px color-mix(in oklab, var(--aacp-neu-light) 22%, transparent), inset 0 1px 0 var(--aacp-neu-edge);
+}
+
+:root[data-neu-theme="dark"],
+[data-neu-theme="dark"],
+body.theme-dark {
+  --aacp-neu-light: color-mix(in oklab, var(--aacp-bg, #191f1d) 89%, oklch(70% 0.015 155));
+  --aacp-neu-shade: color-mix(in oklab, var(--aacp-bg, #191f1d) 45%, oklch(8% 0.008 155));
+  --aacp-neu-edge: color-mix(in oklab, var(--aacp-bg, #191f1d) 82%, oklch(65% 0.012 155));
+  --aacp-neu-inset: inset 0 1px 2px color-mix(in oklab, var(--aacp-neu-shade) 30%, transparent), inset 0 -1px 0 color-mix(in oklab, var(--aacp-neu-light) 25%, transparent);
+  --aacp-neu-overlay: 10px 16px 42px oklch(8% 0.008 155 / 0.6), -4px -4px 14px var(--aacp-neu-light), inset 0 1px 0 var(--aacp-neu-edge);
+}
+
+[data-neu="control"],
+[data-neu="icon"] { box-shadow: var(--aacp-neu-raised-sm) !important; }
+/* Main actions share the header's neutral material, with stronger elevation.
+   Their semantic role keeps brand-colored text and a single set of states. */
+:is([data-neu="primary"], [data-neu="animated-primary"]) {
+  background: var(--aacp-card) !important;
+  color: var(--aacp-accent-text, var(--aacp-accent)) !important;
+  border-color: var(--aacp-line) !important;
+  outline: 1px solid var(--aacp-line);
+  outline-offset: -1px;
+  box-shadow: var(--aacp-neu-raised-md) !important;
+  font-weight: 600 !important;
+  letter-spacing: normal !important;
+  opacity: 1 !important;
+  filter: none !important;
+  transition: background-color 180ms ease-out, color 180ms ease-out, box-shadow 180ms ease-out;
+}
+:is([data-neu="primary"], [data-neu="animated-primary"]) svg { stroke: currentColor; }
+:is([data-neu="primary"], [data-neu="animated-primary"]):is(:disabled, [aria-disabled="true"]) {
+  color: var(--aacp-faint) !important;
+  box-shadow: var(--aacp-neu-raised-sm) !important;
+  cursor: not-allowed;
+}
+[data-neu="surface"] { box-shadow: var(--aacp-neu-message) !important; }
+[data-neu="message"] { border-radius: 18px !important; box-shadow: var(--aacp-neu-bubble) !important; }
+[data-neu="message"][data-speaker="buyer"] { background: color-mix(in oklab, var(--aacp-accent) 10%, var(--aacp-card)) !important; color: var(--aacp-fg) !important; outline: 1px solid color-mix(in oklab, var(--aacp-accent) 28%, var(--aacp-line)); outline-offset: -1px; }
+[data-neu="card"] { box-shadow: var(--aacp-neu-raised-md) !important; }
+[data-neu="overlay"] { box-shadow: var(--aacp-neu-overlay) !important; }
+[data-neu="inset"],
+[data-neu="field"] { box-shadow: var(--aacp-neu-inset) !important; }
+
+/* Conversation actions use the same neutral face as header controls.
+   Disabled send retains its material; its muted glyph communicates state. */
+:is([data-neu="send"], [data-neu="floating"]) { background: var(--aacp-card) !important; color: var(--aacp-accent-text, var(--aacp-accent)) !important; border-radius: 999px !important; outline: 1px solid var(--aacp-line); outline-offset: -1px; }
+[data-neu="send"] { box-shadow: var(--aacp-neu-raised-sm) !important; }
+[data-neu="send"]:disabled { color: var(--aacp-faint) !important; }
+[data-neu="send"]:not(:disabled):active, [data-neu="floating"]:active { box-shadow: var(--aacp-neu-pressed) !important; }
+/* No !important on the floating shadow: its add-to-cart pulse keeps this
+   material in every animation keyframe. */
+[data-neu="floating"] { box-shadow: var(--aacp-neu-floating); }
+[data-neu="counter"] { background: var(--aacp-accent) !important; color: var(--aacp-on-accent, #f8faf9) !important; border-color: var(--aacp-card) !important; }
+
+/* Shape follows function: standalone actions are pills. Composite controls,
+   media, text links and navigation retain their own geometry. */
+:is(button, a):is([data-neu="control"], [data-neu="icon"], [data-neu="primary"], [data-neu="animated-primary"]) { border-radius: 999px !important; }
+
+/* Multiline choices need room for titles, descriptions and prices. */
+[data-neu="choice"] { border-radius: 14px; box-shadow: var(--aacp-neu-selection) !important; }
+[data-neu="choice"]:not(:disabled):active { box-shadow: var(--aacp-neu-pressed) !important; }
+[data-neu="choice"]:is(:disabled, [aria-disabled="true"]) { box-shadow: none !important; }
+[data-neu="switch"] { box-shadow: var(--aacp-neu-inset) !important; }
+
+/* One track, one selected face. Neither mode is a standalone raised pill. */
+[data-neu="segmented"] { padding: 3px; gap: 3px; border: 1px solid var(--aacp-line); border-radius: 13px; background: var(--aacp-inset-bg); box-shadow: var(--aacp-neu-inset); }
+[data-neu="segment"] { min-width: 0; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--aacp-muted); box-shadow: none !important; }
+[data-neu="segment"][aria-pressed="true"] { background: var(--aacp-card); color: var(--aacp-fg); border-color: var(--aacp-line); box-shadow: var(--aacp-neu-selection) !important; }
+[data-neu="segment"]:focus-visible { outline-offset: -3px; }
+
+/* Navigation tabs use the existing baseline indicator, without raised capsules. */
+[data-neu="tab"] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+[data-neu="tab"]:focus-visible { outline-offset: -3px; }
+
+/* Dismiss icons share the header's neutral material, edge and icon color. */
+[data-neu="icon"] {
+  background: var(--aacp-card, var(--card)) !important;
+  color: var(--aacp-muted, var(--mut)) !important;
+  border-color: var(--aacp-line, var(--bd)) !important;
+  outline: 1px solid var(--aacp-line, var(--bd));
+  outline-offset: -1px;
+}
+[data-neu="icon"] svg { stroke: currentColor; }
+
+/* Keep the existing nested content quiet; only its outer card has elevation. */
+:is([data-neu="card"], [data-neu="surface"]) [data-neu="surface"] {
+  box-shadow: inset 0 1px 0 var(--aacp-neu-edge) !important;
+}
+
+@media (hover: hover) {
+  :is([data-neu="primary"], [data-neu="animated-primary"]):not(:disabled):not([aria-disabled="true"]):hover { background: color-mix(in oklab, var(--aacp-accent) 5%, var(--aacp-card)) !important; }
+  :is([data-neu="control"], [data-neu="icon"]):not(:disabled):not([aria-disabled="true"]):hover {
+    box-shadow: var(--aacp-neu-raised-sm) !important;
+  }
+}
+
+:is([data-neu="control"], [data-neu="icon"]):not(:disabled):active,
+[data-neu="control"][aria-pressed="true"],
+[data-neu="control"][aria-selected="true"],
+[data-neu="control"][data-selected="true"] {
+  box-shadow: var(--aacp-neu-pressed) !important;
+}
+:is([data-neu="primary"], [data-neu="animated-primary"]):not(:disabled):active { box-shadow: var(--aacp-neu-pressed) !important; }
+:is([data-neu="control"], [data-neu="icon"]):is(:disabled, [aria-disabled="true"]) {
+  box-shadow: inset 0 1px 0 var(--aacp-neu-edge) !important;
+}
+
+/* A focus outline survives inline outline:none and never changes dimensions. */
+:is(.storefront-shell, [data-neu-theme]) :where(button, a, input, textarea, select, summary, [tabindex]):focus-visible,
+[data-neu]:focus-visible {
+  outline: 2px solid var(--aacp-accent, #268235) !important;
+  outline-offset: 2px;
+}
+[data-neu="inset"]:focus-within {
+  outline: 2px solid var(--aacp-accent, #268235);
+  outline-offset: -1px;
+}
+[data-neu="inset"] :is(input, textarea, select):focus-visible { outline: none !important; }
+[data-neu="inset"] [data-neu="field"] { box-shadow: none !important; }
+/* The message input is part of one inset container, with no inner frame. */
+.storefront-shell form[data-neu="inset"] input[aria-label="Mensagem"] {
+  border-color: transparent !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+[data-neu="text"] { box-shadow: none !important; }
+[data-neu="segment"]:focus-visible { outline-offset: -3px; }
+/* Status is informational; the neutral surface matches the header. */
+[data-neu="status"] { background: var(--aacp-card); border-radius: 999px; box-shadow: var(--aacp-neu-raised-sm); }
+[data-neu="field"]::placeholder,
+[data-neu="inset"] :is(input, textarea)::placeholder { color: var(--aacp-faint, var(--aacp-muted)); opacity: 1; }
+[data-neu="surface"][aria-selected="true"] { box-shadow: var(--aacp-neu-pressed) !important; }
+[data-neu="field"] { border-color: var(--aacp-neu-control-line, var(--aacp-line-strong)); }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-neu], [data-neu]::before, [data-neu]::after { transition: none !important; }
+  [data-neu="floating"], [data-neu="counter"] { animation: none !important; }
+}
+
+@media (forced-colors: active) {
+  [data-neu] { box-shadow: none !important; }
+  :is([data-neu="control"], [data-neu="icon"], [data-neu="primary"], [data-neu="animated-primary"], [data-neu="send"], [data-neu="floating"], [data-neu="field"], [data-neu="inset"]) {
+    outline: 1px solid ButtonText;
+    outline-offset: -1px;
+  }
+  :is([data-neu="control"], [data-neu="segment"], [data-neu="choice"]):is([aria-pressed="true"], [aria-selected="true"], [data-selected="true"]) { outline: 2px solid Highlight; outline-offset: -3px; }
+  [data-neu="segmented"] { border-color: ButtonText; }
+  [data-neu="switch"] { outline: 1px solid ButtonText; outline-offset: -1px; }
+  :is(.storefront-shell, [data-neu-theme]) :where(button, a, input, textarea, select, summary, [tabindex]):focus-visible,
+  [data-neu]:focus-visible,
+  [data-neu="inset"]:focus-within { outline: 2px solid Highlight !important; }
+}

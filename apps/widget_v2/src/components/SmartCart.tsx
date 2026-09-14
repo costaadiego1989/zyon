@@ -184,7 +184,7 @@ export function SmartCart() {
               }}
               style={{ marginTop: "14px" }}
             >
-              <input
+              <input data-neu="field"
                 type="text"
                 placeholder="Buscar produto..."
                 style={{
@@ -207,7 +207,7 @@ export function SmartCart() {
             item.price_cents != null ? item.price_cents / 100 : item.price;
           return (
             <div key={JSON.stringify([item.sku, item.variant])}>
-              <div
+              <div data-neu="surface"
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -245,7 +245,7 @@ export function SmartCart() {
                   >
                     {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(unitPrice)} un.
                   </div>
-                  <button
+                  <button data-neu="text"
                     type="button"
                     disabled={controlsDisabled}
                     aria-label={`Remover ${item.name}`}
@@ -257,7 +257,7 @@ export function SmartCart() {
                       background: "none",
                       fontSize: "10.5px",
                       fontWeight: 600,
-                      color: "var(--aacp-accent, #0f766e)",
+                      color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))",
                       cursor: "pointer",
                       textDecoration: "underline",
                     }}
@@ -272,7 +272,7 @@ export function SmartCart() {
                     gap: "9px",
                   }}
                 >
-                  <button
+                  <button data-neu="control"
                     type="button"
                     disabled={controlsDisabled}
                     aria-label={`Diminuir quantidade de ${item.name}`}
@@ -315,7 +315,7 @@ export function SmartCart() {
                   >
                     {item.quantity}
                   </span>
-                  <button
+                  <button data-neu="control"
                     type="button"
                     disabled={controlsDisabled || item.quantity >= 99}
                     aria-label={`Aumentar quantidade de ${item.name}`}
@@ -406,7 +406,7 @@ export function SmartCart() {
               style={{
                 fontSize: "12px",
                 fontWeight: 600,
-                color: "var(--aacp-accent, #0f766e)",
+                color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))",
               }}
             >
               −{formatPrice(cart.discount)}

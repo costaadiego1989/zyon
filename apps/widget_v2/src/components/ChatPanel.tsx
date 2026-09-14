@@ -1,3 +1,4 @@
+import { PerimeterBorder } from "./PerimeterBorder";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useCheckoutStore } from "@/store/checkout-store";
 import { AgentAvatar } from "./AgentAvatar";
@@ -74,10 +75,10 @@ export function ChatPanel() {
 
             <div style={{ maxWidth: "80%", display: "flex", flexDirection: "column", gap: "6px", minWidth: 0 }}>
               {msg.text && (
-                <div
+                <div data-neu="message" data-speaker={msg.role === "user" ? "buyer" : "agent"}
                   style={{
                     padding: "10px 14px",
-                    borderRadius: msg.role === "user" ? "12px 12px 4px 12px" : "12px 12px 12px 4px",
+                    borderRadius: "18px",
                     background: msg.role === "user" ? "var(--aacp-accent, #0f766e)" : "var(--card)",
                     color: msg.role === "user" ? "#fff" : "var(--tx)",
                     fontSize: "13px",
@@ -91,7 +92,7 @@ export function ChatPanel() {
                 </div>
               )}
               {msg.blocks?.map((block, j) => (
-                <div key={j} style={{ padding: "10px 12px", borderRadius: "12px", background: "var(--card)", border: "1px solid var(--bd)" }}>
+                <div data-neu="surface" key={j} style={{ padding: "10px 12px", borderRadius: "12px", background: "var(--card)", border: "1px solid var(--bd)" }}>
                   <BlockRenderer block={block} />
                 </div>
               ))}
@@ -102,7 +103,7 @@ export function ChatPanel() {
         {activeQuickReplies.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", paddingLeft: "36px" }}>
             {activeQuickReplies.map((qr) => (
-              <button
+              <button data-neu="control"
                 key={qr}
                 onClick={() => handleQuickReply(qr)}
                 style={{
@@ -135,7 +136,7 @@ export function ChatPanel() {
         {isTyping && (
           <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
             <AgentAvatar active />
-            <div style={{ padding: "10px 12px", borderRadius: "12px", background: "var(--card)", color: "var(--mut)", border: "1px solid var(--bd)" }}>
+            <div data-neu="message" style={{ padding: "10px 12px", borderRadius: "18px", background: "var(--card)", color: "var(--mut)", border: "1px solid var(--bd)" }}>
               <span style={{ animation: "dot-pulse 1.2s infinite" }}>●</span>
               <span style={{ animation: "dot-pulse 1.2s infinite", animationDelay: "0.2s" }}>●</span>
               <span style={{ animation: "dot-pulse 1.2s infinite", animationDelay: "0.4s" }}>●</span>
@@ -148,7 +149,7 @@ export function ChatPanel() {
       {channel === "voice" ? (
         <VoiceComposer voice={voice} />
       ) : (
-        <form
+        <form data-aacp-checkout-composer
           onSubmit={handleSubmit}
           style={{
             display: "flex",
@@ -158,7 +159,9 @@ export function ChatPanel() {
             borderTop: "1px solid var(--bd)",
           }}
         >
-          <input
+          <div className="aacp-composer-field" data-aacp-composer-frame>
+          <PerimeterBorder radius="10px" variant="input" />
+          <input data-neu="field"
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -170,14 +173,15 @@ export function ChatPanel() {
               padding: "10px 14px",
               borderRadius: "10px",
               border: "1px solid var(--bd)",
-              background: "var(--chip)",
+              background: "var(--aacp-inset-bg, var(--chip))",
               color: "var(--tx)",
               fontSize: "13px",
               fontFamily: "inherit",
               outline: "none",
             }}
           />
-          <button
+          </div>
+          <button data-neu="send"
             type="submit"
             disabled={!input.trim()}
             aria-label="Enviar mensagem"
