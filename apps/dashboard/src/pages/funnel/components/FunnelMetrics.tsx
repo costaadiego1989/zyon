@@ -25,7 +25,7 @@ export function FunnelMetrics({ data }: FunnelMetricsProps): React.ReactElement 
     ? `${Math.floor(totalTimeSeconds / 60)}m ${Math.round(totalTimeSeconds % 60)}s`
     : "—";
 
-  const convTrend = previous && previous.overallConversion > 0
+  const convTrend = previous
     ? overallConversion - previous.overallConversion
     : undefined;
   const sessionsTrend = previous && previous.totalSessions > 0
@@ -38,14 +38,14 @@ export function FunnelMetrics({ data }: FunnelMetricsProps): React.ReactElement 
         label="Conversão"
         value={`${overallConversion.toFixed(1)}`}
         suffix="%"
-        trend={convTrend ?? 0}
+        note={convTrend === undefined ? undefined : (convTrend >= 0 ? "+" : "") + convTrend.toFixed(1) + " p.p. vs. período anterior"}
         icon={<TrendingUp size={16} />}
         accent="var(--color-brand)"
       />
       <StatCard
         label="Sessões"
         value={totalSessions}
-        trend={sessionsTrend ?? 0}
+        trend={sessionsTrend}
         icon={<Users size={16} />}
       />
       <StatCard
@@ -55,7 +55,8 @@ export function FunnelMetrics({ data }: FunnelMetricsProps): React.ReactElement 
         accent={biggestDropOff > 50 ? "var(--color-error)" : undefined}
       />
       <StatCard
-        label="Tempo Médio"
+        label="Tempo entre etapas"
+        note="Soma dos tempos médios medidos"
         value={avgTimeStr}
         icon={<Clock size={16} />}
       />

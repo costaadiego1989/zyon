@@ -192,6 +192,24 @@ export class CompleteOrderUseCase {
         })
       );
 
+      // Persist delivery intent in the same transaction as the completed order.
+      // The outbox worker owns retries; payment callbacks never call the gateway.
+      if (whatsappMessage && session.customer?.phone) {
+        await repo.appendOutbox(createCheckoutEventEnvelope({
+          eventType: "whatsapp.message.requested",
+          merchantId: input.merchant_id,
+          payload: {
+            session_id: input.session_id,
+            external_order_id: input.external_order_id,
+            phone: session.customer.phone,
+            template: "order_tracking",
+            tracking_code: order.trackingCode,
+            message: whatsappMessage,
+          },
+          causationId: input.external_order_id,
+        }));
+      }
+
       const buyerEmail = session.customer?.email;
       const buyerPhone = session.customer?.phone;
       // The merchant must always receive the operational order notification.
@@ -242,8 +260,6 @@ export class CompleteOrderUseCase {
       this.metrics?.orderCompleted.inc({ merchant_id: input.merchant_id });
 
       await this.recordConversionAnalytics(session, input);
-
-      await this.sendWhatsAppConfirmation(session, whatsappMessage, input);
 
       const globalUserId = await this.resolveBuyerGlobalUserId(session);
       await this.tagAttributionForOrder(session, input, globalUserId);
@@ -346,34 +362,6 @@ export class CompleteOrderUseCase {
         stage: 'checkout_completed',
         metadata: { timeFromStart: elapsedSeconds },
       });
-    }
-  }
-
-  private async sendWhatsAppConfirmation(
-    session: CheckoutSession,
-    whatsappMessage: string | undefined,
-    input: CompleteOrderRequest
-  ): Promise<void> {
-    if (!whatsappMessage || !session.customer?.phone) return;
-    const bubbleUrl = process.env.BUBBLEWHATS_API_URL;
-    const bubbleToken = process.env.BUBBLEWHATS_TOKEN;
-    if (!bubbleUrl || !bubbleToken) return;
-    try {
-      const cleanDigits = session.customer.phone.replace(/\D/g, "");
-      const jid = cleanDigits.startsWith("55") ? cleanDigits : `55${cleanDigits}`;
-      const response = await fetch(`${bubbleUrl}/send-message`, {
-        method: "POST",
-        headers: { "Authorization": bubbleToken, "Content-Type": "application/json" },
-        body: JSON.stringify({ jid, message: whatsappMessage })
-      });
-      if (response.ok) {
-        this.logger.log(`BubbleWhats message sent`, { jid, merchant_id: input.merchant_id, session_id: input.session_id });
-        return;
-      }
-      const errText = await response.text();
-      this.logger.error(`BubbleWhats failed to send message`, { status: response.status, body: errText, merchant_id: input.merchant_id, session_id: input.session_id });
-    } catch (err) {
-      this.logger.error(`BubbleWhats error sending WhatsApp message`, { error: err, merchant_id: input.merchant_id, session_id: input.session_id });
     }
   }
 

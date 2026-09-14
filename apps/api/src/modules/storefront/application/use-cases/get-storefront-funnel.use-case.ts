@@ -1,3 +1,4 @@
+import { resolveFunnelRange } from "../../../../shared/analytics/funnel-range.js";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
@@ -75,7 +76,7 @@ export class GetStorefrontFunnelUseCase {
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   async execute(merchantId: string, period: FunnelPeriod = "7d", options?: { breakdown?: FunnelBreakdown; compare?: boolean; range?: { from?: string; to?: string } }): Promise<StorefrontFunnelResult> {
-    const { from, to } = resolveEffectiveRange(period, options?.range);
+    const { from, to } = resolveFunnelRange(period, options?.range);
 
     const currentResult = await this.computeFunnel(merchantId, from, to);
     const result: StorefrontFunnelResult = { ...currentResult, period: { from: from.toISOString(), to: to.toISOString() } };
@@ -126,7 +127,7 @@ export class GetStorefrontFunnelUseCase {
     // decrease down the cascade (rate ≤ 100%, valid drop-off).
     const linearReachedCount = new Array(STOREFRONT_LINEAR_STEPS.length).fill(0);
     for (const [, eventMap] of sessionEvents) {
-      let furthest = -1;
+      let furthest = 0; // Every active session reached the journey entry.
       for (let i = 0; i < STOREFRONT_LINEAR_STEPS.length; i++) {
         if (STOREFRONT_LINEAR_STEPS[i].events.some((e) => eventMap.has(e))) furthest = i;
       }
@@ -228,14 +229,13 @@ export class GetStorefrontFunnelUseCase {
     from: Date,
     to: Date,
   ): Promise<Record<string, StorefrontFunnelSegment>> {
+    const cohort = await this.prisma.checkoutEvent.findMany({
+      where: { merchantId, occurredAt: { gte: from, lte: to }, NOT: { sessionId: { startsWith: "chk_" } } },
+      select: { sessionId: true },
+      distinct: ["sessionId"],
+    });
     const sessions = await this.prisma.checkoutSession.findMany({
-      where: {
-        merchantId,
-        createdAt: { gte: from, lte: to },
-        NOT: { sessionId: { startsWith: "chk_" } },
-      },
-      // Use the business sessionId (not the cuid PK): checkout_events.sessionId
-      // stores the business sessionId, so segment step-counting must match on it.
+      where: { merchantId, sessionId: { in: cohort.map(event => event.sessionId) } },
       select: { sessionId: true, globalUserId: true },
     });
 
@@ -289,19 +289,25 @@ export class GetStorefrontFunnelUseCase {
         occurredAt: { gte: from, lte: to },
       },
       select: { sessionId: true, metadata: true },
+      orderBy: { occurredAt: "asc" },
     });
 
-    const sessionsByDevice = new Map<string, string[]>();
+    const valueBySession = new Map<string, string>();
     for (const ev of events) {
-      const device = (ev.metadata as any)?.device ?? null;
-      if (!device) continue;
-      const list = sessionsByDevice.get(device) ?? [];
-      if (!list.includes(ev.sessionId)) list.push(ev.sessionId);
-      sessionsByDevice.set(device, list);
+      if (!valueBySession.has(ev.sessionId)) valueBySession.set(ev.sessionId, "unknown");
+      const raw = (ev.metadata as Record<string, unknown> | null)?.device;
+      const value = raw;
+      if (typeof value === "string" && ["mobile", "tablet", "desktop"].includes(value)) valueBySession.set(ev.sessionId, value);
+    }
+    const sessionsByDevice = new Map<string, string[]>();
+    for (const [sessionId, value] of valueBySession) {
+      const list = sessionsByDevice.get(value) ?? [];
+      list.push(sessionId);
+      sessionsByDevice.set(value, list);
     }
 
     const breakdowns: Record<string, StorefrontFunnelSegment> = {};
-    for (const device of ["mobile", "tablet", "desktop"]) {
+    for (const device of ["mobile", "tablet", "desktop", "unknown"]) {
       const sessionIds = sessionsByDevice.get(device) ?? [];
       breakdowns[device] = await this.computeSegmentSteps(merchantId, from, to, sessionIds);
     }
@@ -320,20 +326,26 @@ export class GetStorefrontFunnelUseCase {
         occurredAt: { gte: from, lte: to },
       },
       select: { sessionId: true, metadata: true },
+      orderBy: { occurredAt: "asc" },
     });
 
-    const sessionsByMethod = new Map<string, string[]>();
+    const valueBySession = new Map<string, string>();
     for (const ev of events) {
-      const method = (ev.metadata as any)?.payment_method ?? null;
-      if (!method) continue;
-      const list = sessionsByMethod.get(method) ?? [];
-      if (!list.includes(ev.sessionId)) list.push(ev.sessionId);
-      sessionsByMethod.set(method, list);
+      if (!valueBySession.has(ev.sessionId)) valueBySession.set(ev.sessionId, "unknown");
+      const raw = (ev.metadata as Record<string, unknown> | null)?.payment_method;
+      const value = raw === "card" ? "credit_card" : raw;
+      if (typeof value === "string" && ["pix", "credit_card", "boleto", "crypto"].includes(value)) valueBySession.set(ev.sessionId, value);
+    }
+    const sessionsByMethod = new Map<string, string[]>();
+    for (const [sessionId, value] of valueBySession) {
+      const list = sessionsByMethod.get(value) ?? [];
+      list.push(sessionId);
+      sessionsByMethod.set(value, list);
     }
 
     const breakdowns: Record<string, StorefrontFunnelSegment> = {};
     // Canonical PaymentMethod values as stored on the event metadata.
-    for (const method of ["pix", "credit_card", "boleto", "crypto"]) {
+    for (const method of ["pix", "credit_card", "boleto", "crypto", "unknown"]) {
       const sessionIds = sessionsByMethod.get(method) ?? [];
       breakdowns[method] = await this.computeSegmentSteps(merchantId, from, to, sessionIds);
     }
@@ -375,7 +387,7 @@ export class GetStorefrontFunnelUseCase {
     // Monotonic linear counts (same "furthest reached" rule as the main funnel).
     const linearReached = new Array(STOREFRONT_LINEAR_STEPS.length).fill(0);
     for (const s of allSets) {
-      let furthest = -1;
+      let furthest = 0; // Every active session reached the journey entry.
       for (let i = 0; i < STOREFRONT_LINEAR_STEPS.length; i++) {
         if (STOREFRONT_LINEAR_STEPS[i].events.some((e) => s.has(e))) furthest = i;
       }
@@ -405,51 +417,4 @@ export class GetStorefrontFunnelUseCase {
       overallConversion: total > 0 ? Math.round((completedCount / total) * 10000) / 100 : 0,
     };
   }
-}
-
-function resolveDateRange(period: FunnelPeriod): { from: Date; to: Date } {
-  const now = new Date();
-  const to = now;
-  const from = new Date(now);
-
-  switch (period) {
-    case "today":
-      from.setHours(0, 0, 0, 0);
-      break;
-    case "7d":
-      from.setDate(from.getDate() - 7);
-      break;
-    case "30d":
-      from.setDate(from.getDate() - 30);
-      break;
-    case "90d":
-      from.setDate(from.getDate() - 90);
-      break;
-    default:
-      from.setDate(from.getDate() - 7);
-  }
-
-  return { from, to };
-}
-
-/**
- * When an explicit from/to range is supplied (YYYY-MM-DD or ISO), it overrides
- * the preset period. Invalid or partial ranges fall back to the preset period.
- * `from` clamps to start-of-day, `to` clamps to end-of-day, so a single-day
- * range (from === to) covers the whole day.
- */
-function resolveEffectiveRange(
-  period: FunnelPeriod,
-  range?: { from?: string; to?: string },
-): { from: Date; to: Date } {
-  if (range?.from && range?.to) {
-    const from = new Date(range.from);
-    const to = new Date(range.to);
-    if (!Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime()) && from <= to) {
-      from.setHours(0, 0, 0, 0);
-      to.setHours(23, 59, 59, 999);
-      return { from, to };
-    }
-  }
-  return resolveDateRange(period);
 }

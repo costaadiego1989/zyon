@@ -1,3 +1,4 @@
+import { resolveFunnelRange } from "../../../../shared/analytics/funnel-range.js";
 import { Inject, Injectable , Logger} from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
@@ -63,7 +64,7 @@ export interface FunnelResult {
 const STEP_DEFINITIONS = [
   { name: "checkout_started", label: "Checkout iniciado", events: [] as string[], linear: true },
   { name: "shipping_calculated", label: "Frete selecionado", events: ["shipping_calculated", "shipping_option_selected"], linear: true },
-  { name: "coupon_applied", label: "Cupom aplicado", events: ["coupon_applied", "coupon_field_clicked"], linear: false },
+  { name: "coupon_applied", label: "Cupom aplicado", events: ["coupon_applied"], linear: false },
   { name: "payment_method_selected", label: "Pagamento selecionado", events: ["payment_method_selected"], linear: true },
   { name: "order_completed", label: "Pagamento concluído", events: ["order_completed"], linear: true },
   { name: "payment_failed", label: "Pagamento falhado", events: ["payment_failed"], linear: false },
@@ -83,7 +84,7 @@ export class GetFunnelUseCase {
     period: FunnelPeriod = "7d",
     options?: { breakdown?: FunnelBreakdown; compare?: boolean; range?: { from?: string; to?: string } },
   ): Promise<FunnelResult> {
-    const { from, to } = resolveEffectiveRange(period, options?.range);
+    const { from, to } = resolveFunnelRange(period, options?.range);
 
     const currentResult = await this.computeFunnel(merchantId, from, to);
 
@@ -249,12 +250,13 @@ export class GetFunnelUseCase {
     to: Date,
   ): Promise<Record<string, FunnelSegment>> {
     // Get all sessions in the period
+    const cohort = await this.prisma.checkoutEvent.findMany({
+      where: { merchantId, occurredAt: { gte: from, lte: to }, sessionId: { startsWith: "chk_" } },
+      select: { sessionId: true },
+      distinct: ["sessionId"],
+    });
     const sessions = await this.prisma.checkoutSession.findMany({
-      where: {
-        merchantId,
-        createdAt: { gte: from, lte: to },
-      },
-      // Business sessionId (not the cuid PK): checkout_events.sessionId matches on it.
+      where: { merchantId, sessionId: { in: cohort.map(event => event.sessionId) } },
       select: { sessionId: true, globalUserId: true },
     });
 
@@ -310,19 +312,25 @@ export class GetFunnelUseCase {
         occurredAt: { gte: from, lte: to },
       },
       select: { sessionId: true, metadata: true },
+      orderBy: { occurredAt: "asc" },
     });
 
-    const sessionsByDevice = new Map<string, string[]>();
+    const valueBySession = new Map<string, string>();
     for (const ev of events) {
-      const device = (ev.metadata as any)?.device ?? null;
-      if (!device) continue;
-      const list = sessionsByDevice.get(device) ?? [];
-      if (!list.includes(ev.sessionId)) list.push(ev.sessionId);
-      sessionsByDevice.set(device, list);
+      if (!valueBySession.has(ev.sessionId)) valueBySession.set(ev.sessionId, "unknown");
+      const raw = (ev.metadata as Record<string, unknown> | null)?.device;
+      const value = raw;
+      if (typeof value === "string" && ["mobile", "tablet", "desktop"].includes(value)) valueBySession.set(ev.sessionId, value);
+    }
+    const sessionsByDevice = new Map<string, string[]>();
+    for (const [sessionId, value] of valueBySession) {
+      const list = sessionsByDevice.get(value) ?? [];
+      list.push(sessionId);
+      sessionsByDevice.set(value, list);
     }
 
     const breakdowns: Record<string, FunnelSegment> = {};
-    for (const device of ["mobile", "tablet", "desktop"]) {
+    for (const device of ["mobile", "tablet", "desktop", "unknown"]) {
       const sessionIds = sessionsByDevice.get(device) ?? [];
       breakdowns[device] = await this.computeSegmentSteps(merchantId, from, to, sessionIds);
     }
@@ -341,20 +349,26 @@ export class GetFunnelUseCase {
         occurredAt: { gte: from, lte: to },
       },
       select: { sessionId: true, metadata: true },
+      orderBy: { occurredAt: "asc" },
     });
 
-    const sessionsByMethod = new Map<string, string[]>();
+    const valueBySession = new Map<string, string>();
     for (const ev of events) {
-      const method = (ev.metadata as any)?.payment_method ?? null;
-      if (!method) continue;
-      const list = sessionsByMethod.get(method) ?? [];
-      if (!list.includes(ev.sessionId)) list.push(ev.sessionId);
-      sessionsByMethod.set(method, list);
+      if (!valueBySession.has(ev.sessionId)) valueBySession.set(ev.sessionId, "unknown");
+      const raw = (ev.metadata as Record<string, unknown> | null)?.payment_method;
+      const value = raw === "card" ? "credit_card" : raw;
+      if (typeof value === "string" && ["pix", "credit_card", "boleto", "crypto"].includes(value)) valueBySession.set(ev.sessionId, value);
+    }
+    const sessionsByMethod = new Map<string, string[]>();
+    for (const [sessionId, value] of valueBySession) {
+      const list = sessionsByMethod.get(value) ?? [];
+      list.push(sessionId);
+      sessionsByMethod.set(value, list);
     }
 
     const breakdowns: Record<string, FunnelSegment> = {};
     // Canonical PaymentMethod values as stored on the event metadata.
-    for (const method of ["pix", "credit_card", "boleto", "crypto"]) {
+    for (const method of ["pix", "credit_card", "boleto", "crypto", "unknown"]) {
       const sessionIds = sessionsByMethod.get(method) ?? [];
       breakdowns[method] = await this.computeSegmentSteps(merchantId, from, to, sessionIds);
     }
@@ -427,52 +441,6 @@ export class GetFunnelUseCase {
   }
 }
 
-function resolveDateRange(period: FunnelPeriod): { from: Date; to: Date } {
-  const now = new Date();
-  const to = now;
-  const from = new Date(now);
-
-  switch (period) {
-    case "today":
-      from.setHours(0, 0, 0, 0);
-      break;
-    case "7d":
-      from.setDate(from.getDate() - 7);
-      break;
-    case "30d":
-      from.setDate(from.getDate() - 30);
-      break;
-    case "90d":
-      from.setDate(from.getDate() - 90);
-      break;
-    default:
-      from.setDate(from.getDate() - 7);
-  }
-
-  return { from, to };
-}
-
-/**
- * When an explicit from/to range is supplied (YYYY-MM-DD or ISO), it overrides
- * the preset period. Invalid or partial ranges fall back to the preset period.
- * `from` clamps to start-of-day, `to` clamps to end-of-day.
- */
-function resolveEffectiveRange(
-  period: FunnelPeriod,
-  range?: { from?: string; to?: string },
-): { from: Date; to: Date } {
-  if (range?.from && range?.to) {
-    const from = new Date(range.from);
-    const to = new Date(range.to);
-    if (!Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime()) && from <= to) {
-      from.setHours(0, 0, 0, 0);
-      to.setHours(23, 59, 59, 999);
-      return { from, to };
-    }
-  }
-  return resolveDateRange(period);
-}
-
 function computeAvgTimeBetweenLinearSteps(
   sessionEvents: Map<string, Array<{ eventName: string; occurredAt: Date }>>,
   stepIndex: number,
@@ -513,14 +481,7 @@ function computeAvgTimeBetweenLinearSteps(
 
   if (timeDiffs.length === 0) return 0;
 
-  // Median
-  timeDiffs.sort((a, b) => a - b);
-  const mid = Math.floor(timeDiffs.length / 2);
-  const median = timeDiffs.length % 2 === 0
-    ? (timeDiffs[mid - 1] + timeDiffs[mid]) / 2
-    : timeDiffs[mid];
-
-  return Math.round(median);
+  return Math.round(timeDiffs.reduce((sum, time) => sum + time, 0) / timeDiffs.length);
 }
 
 function buildSuggestion(step: string, dropOff: number): string {

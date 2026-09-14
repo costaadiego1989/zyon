@@ -36,7 +36,8 @@ export async function trackEvent(
   event: CheckoutEventName,
   data?: Record<string, unknown>
 ): Promise<TrackEventResult | undefined> {
-  if (!api || !sessionId) return undefined;
+  // The approved-payment flow records completion on the server.
+  if (event === "order_completed" || !api || !sessionId) return undefined;
   try {
     const res = await fetch(`${api.apiBaseUrl}/embed/track`, {
       method: "POST",

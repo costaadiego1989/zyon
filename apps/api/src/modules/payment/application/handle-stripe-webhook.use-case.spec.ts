@@ -119,6 +119,8 @@ test("dispatchEvent: payment_intent.succeeded approves intent and completes chec
     data: {
       object: {
         id: "pi_stripe_1",
+        currency: "brl",
+
         amount_received: 5000,
         metadata: { intent_id: intentId, merchant_id: "mrc_stripe" }
       }
@@ -158,6 +160,8 @@ test("dispatchEvent: payment_intent.succeeded with value mismatch marks failed",
     data: {
       object: {
         id: "pi_stripe_2",
+        currency: "brl",
+
         amount_received: 9999,
         metadata: { intent_id: intentId, merchant_id: "mrc_stripe" }
       }
@@ -387,6 +391,8 @@ test("dispatchEvent: transient error releases idempotency marker for retry", asy
     data: {
       object: {
         id: "pi_stripe_7",
+        currency: "brl",
+
         amount_received: 2000,
         metadata: { intent_id: intentId, merchant_id: "mrc_stripe" }
       }
@@ -428,6 +434,8 @@ test("dispatchEvent: illegal_transition is absorbed and marker kept consumed", a
     data: {
       object: {
         id: "pi_stripe_8",
+        currency: "brl",
+
         amount_received: 4000,
         metadata: { intent_id: intentId, merchant_id: "mrc_stripe" }
       }
@@ -471,6 +479,8 @@ test("dispatchEvent: merchant boundary enforced on intent lookup", async () => {
     data: {
       object: {
         id: "pi_cross",
+        currency: "brl",
+
         amount_received: 1000,
         metadata: { intent_id: intentId, merchant_id: "mrc_attacker" }
       }
@@ -481,5 +491,26 @@ test("dispatchEvent: merchant boundary enforced on intent lookup", async () => {
   assert.equal(result.outcome, "processed");
   if (result.outcome === "processed") {
     assert.equal(result.effect, "intent_not_found");
+  }
+});
+
+test("Stripe currency mismatch cannot approve or consume a corrected webhook retry", async () => {
+  for (const currency of [undefined, "", "usd"]) {
+    const { payments, checkoutPort, uc } = createTestContext();
+    const intent = PaymentIntentEntity.create({ merchantId: "mrc_stripe", sessionId: "chk_currency",
+      idempotencyKey: "currency", amountCents: 5000, currency: "BRL", method: "card" });
+    intent.markRequiresAction({ providerPaymentId: "pi_currency" });
+    await payments.saveIntent({ intent });
+    const event = makeStripeEvent({ id: "evt_currency", type: "payment_intent.succeeded", data: { object: {
+      id: "pi_currency", amount_received: 5000, currency,
+      metadata: { merchant_id: "mrc_stripe", intent_id: intent.snapshot().id },
+    } } });
+    await assert.rejects(uc.dispatchEvent(event), /stripe_currency_mismatch/);
+    assert.equal((await payments.getIntentById("mrc_stripe", intent.snapshot().id))?.status, "requires_action");
+    assert.equal(checkoutPort.approved.length, 0);
+    event.data.object.currency = "brl";
+    const retry = await uc.dispatchEvent(event);
+    assert.equal(retry.outcome, "processed");
+    assert.equal(checkoutPort.approved.length, 1);
   }
 });

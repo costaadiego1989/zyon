@@ -34,26 +34,15 @@ export class PrismaStorefrontTelemetryRepository implements StorefrontTelemetryP
   async recordEvent(input: StorefrontTelemetryEvent): Promise<void> {
     const { merchantId, conversationId, event, metadata } = input;
     if (FUNNEL_EVENTS.has(event)) {
-      const session = await this.prisma.checkoutSession.findUnique({
+      await this.prisma.checkoutSession.upsert({
         where: { merchantId_sessionId: { merchantId, sessionId: conversationId } },
-        select: { id: true },
+        create: {
+          merchantId, sessionId: conversationId, globalUserId: conversationId,
+          conversationId, cart: {}, abandonmentScore: 0, triggerAgent: false,
+          chatHistory: [], createdAt: new Date(), updatedAt: new Date(),
+        },
+        update: { updatedAt: new Date() },
       });
-      if (!session) {
-        await this.prisma.checkoutSession.create({
-          data: {
-            merchantId,
-            sessionId: conversationId,
-            globalUserId: conversationId,
-            conversationId,
-            cart: {},
-            abandonmentScore: 0,
-            triggerAgent: false,
-            chatHistory: [],
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-        });
-      }
       const existing = await this.prisma.checkoutEvent.findFirst({
         where: { merchantId, sessionId: conversationId, eventName: event },
       });

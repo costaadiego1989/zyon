@@ -261,7 +261,7 @@ export class StorefrontController {
     return this.getStorefrontFunnel.execute(merchantId, resolvedPeriod, {
       breakdown: resolvedBreakdown,
       compare: resolvedCompare,
-      range: from && to ? { from, to } : undefined
+      range: from || to ? { from, to } : undefined
     });
   }
 

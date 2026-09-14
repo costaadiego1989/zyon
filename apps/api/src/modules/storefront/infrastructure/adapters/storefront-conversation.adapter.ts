@@ -275,31 +275,15 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     return "Aqui está o que encontrei:";
   }
   private async ensureCheckoutSession(merchantId: string, sessionId: string): Promise<void> {
-    const existing = await this.prisma.checkoutSession.findUnique({
+    await this.prisma.checkoutSession.upsert({
       where: { merchantId_sessionId: { merchantId, sessionId } },
-      select: { id: true }
+      create: {
+        merchantId, sessionId, globalUserId: sessionId, conversationId: sessionId,
+        cart: {}, abandonmentScore: 0, triggerAgent: false, chatHistory: [],
+        createdAt: new Date(), updatedAt: new Date(),
+      },
+      update: { updatedAt: new Date() },
     });
-    if (!existing) {
-      await this.prisma.checkoutSession.create({
-        data: {
-          merchantId,
-          sessionId,
-          globalUserId: sessionId,
-          conversationId: sessionId,
-          cart: {},
-          abandonmentScore: 0,
-          triggerAgent: false,
-          chatHistory: [],
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }
-      });
-    } else {
-      await this.prisma.checkoutSession.update({
-        where: { merchantId_sessionId: { merchantId, sessionId } },
-        data: { updatedAt: new Date() }
-      });
-    }
   }
   private async emitFunnelEvent(merchantId: string, sessionId: string, eventName: string, metadata?: Record<string, unknown>): Promise<void> {
     try {

@@ -525,3 +525,39 @@
   .fnl-controls { flex-direction: column; align-items: stretch; }
   .fnl-export-btn { margin-left: 0; }
 }
+
+/* Keep labels readable as the bars narrow and the filter toolbar wraps. */
+.fnl-compare {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  min-height: 36px;
+  margin: 0;
+  color: var(--ink);
+  font: 500 12px var(--font-sans);
+  cursor: pointer;
+}
+.funnel-page .fnl-compare input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  flex: 0 0 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
+}
+.fnl-bar {
+  height: auto;
+  min-height: 40px;
+  gap: 8px;
+  padding-block: 8px;
+}
+.fnl-bar-label {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
+}
+.fnl-bar-count { flex-shrink: 0; }

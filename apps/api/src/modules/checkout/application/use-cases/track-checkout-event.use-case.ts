@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, Optional , Logger} from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException, Optional , Logger} from "@nestjs/common";
 import type { CheckoutSettingsContext, ProgressiveOfferResponse, TrackEventRequest, TrackEventResponse } from "@zyon/shared-types";
 import { evaluateDiscountOffer } from "@zyon/rules-engine";
 import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";
@@ -37,6 +37,11 @@ export class TrackCheckoutEventUseCase {
     const session = await this.sessions.getSession(input.merchant_id, input.session_id);
     if (!session) {
       throw new NotFoundException("checkout_session_not_found");
+    }
+    // Completion is recorded by CompleteOrderUseCase after approved-payment validation.
+    // Browser telemetry must never authorize conversion or reset abandonment state.
+    if (input.event === "order_completed") {
+      throw new BadRequestException("checkout_event_server_only");
     }
     await this.sessions.recordEvent(input.merchant_id, input.session_id, input.event, input.metadata);
 
