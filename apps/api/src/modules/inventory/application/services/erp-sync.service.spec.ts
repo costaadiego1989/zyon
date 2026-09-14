@@ -94,7 +94,7 @@ test("a repeated ERP webhook shares one persisted snapshot job", async () => {
 
 test("an existing Bling connection registers its canonical webhook route before a snapshot", async (t) => {
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async () => ({ ok: true, json: async () => ({ data: { id: "company_42" } }) })) as typeof fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ data: { id: "company_42" } }), { status: 200 });
   t.after(() => { globalThis.fetch = originalFetch; });
   const routes: any[] = [];
   const service = new ErpSyncService({
