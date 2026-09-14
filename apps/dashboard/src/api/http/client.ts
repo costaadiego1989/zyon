@@ -105,12 +105,25 @@ export async function dashboardJson<T>(
     if (res.status === 401 && !path.includes("/embed/")) {
       emitSessionExpired();
     }
-    throw new DashboardHttpError(res.status, text);
+    throw new DashboardHttpError(res.status, text, readRetryAfterSeconds(res, text));
   }
   if (text === "") return {} as T;
   try {
     return JSON.parse(text) as T;
   } catch {
     throw new DashboardJsonParseError(text);
+  }
+}
+
+function readRetryAfterSeconds(response: Response, responseBody: string): number | undefined {
+  const headerValue = Number(response.headers.get("Retry-After"));
+  if (Number.isFinite(headerValue) && headerValue > 0) return Math.ceil(headerValue);
+
+  try {
+    const parsed = JSON.parse(responseBody) as { retryAfterSeconds?: unknown; retry_after_seconds?: unknown };
+    const bodyValue = Number(parsed.retryAfterSeconds ?? parsed.retry_after_seconds);
+    return Number.isFinite(bodyValue) && bodyValue > 0 ? Math.ceil(bodyValue) : undefined;
+  } catch {
+    return undefined;
   }
 }

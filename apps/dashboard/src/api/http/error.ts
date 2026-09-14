@@ -7,7 +7,9 @@ export class DashboardHttpError extends Error {
 
   constructor(
     readonly status: number,
-    readonly responseBody: string
+    readonly responseBody: string,
+    /** Server-advised retry interval, when the response is rate limited. */
+    readonly retryAfterSeconds?: number,
   ) {
     super(`dashboard_http_${status}`);
   }

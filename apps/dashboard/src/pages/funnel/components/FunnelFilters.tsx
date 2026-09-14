@@ -1,4 +1,5 @@
 import React from "react";
+import { TabBar } from "../../../components/TabBar.js";
 import type { FunnelPeriod, FunnelBreakdownDimension } from "../useFunnelPage.js";
 
 const PERIODS: { value: FunnelPeriod; label: string }[] = [
@@ -34,19 +35,13 @@ export function FunnelFilters({
 }: FunnelFiltersProps): React.ReactElement {
   return (
     <div className="funnel-filters" role="group" aria-label="Filtros do funil">
-      <div className="funnel-period-group" role="group" aria-label="Período do funil">
-        {PERIODS.map((p) => (
-          <button
-            key={p.value}
-            type="button"
-            className={`funnel-period-btn${period === p.value ? " active" : ""}`}
-            onClick={() => onPeriodChange(p.value)}
-            aria-pressed={period === p.value}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
+      <TabBar
+        role="group"
+        label="Período do funil"
+        tabs={PERIODS.map(({ value, label }) => ({ key: value, label }))}
+        activeTab={period}
+        onTabChange={(next) => onPeriodChange(next as FunnelPeriod)}
+      />
 
       <select
         className="funnel-breakdown-select"

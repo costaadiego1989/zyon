@@ -4,6 +4,7 @@ import type { MerchantProfile } from "../../api-client.js";
 import { Button } from "../../components/Button.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { SearchInput } from "../../components/SearchInput.js";
+import { TabBar } from "../../components/TabBar.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { useExperimentsPage } from "./hooks/useExperimentsPage.js";
 import { ExperimentCard } from "./components/ExperimentCard.js";
@@ -18,25 +19,6 @@ export interface ExperimentsPageProps {
 
 const STATUS_COUNTS_STYLE: React.CSSProperties = {
   display: "flex", gap: 6, font: "600 11px var(--font-mono)",
-};
-
-const FILTER_CHIP: React.CSSProperties = {
-  padding: "4px 10px",
-  borderRadius: 20,
-  border: "1px solid var(--color-border)",
-  background: "transparent",
-  color: "var(--color-text-muted)",
-  font: "500 10px var(--font-sans)",
-  cursor: "pointer",
-  transition: "all 0.15s",
-  whiteSpace: "nowrap",
-};
-
-const FILTER_CHIP_ACTIVE: React.CSSProperties = {
-  ...FILTER_CHIP,
-  background: "var(--color-brand)",
-  borderColor: "var(--color-brand)",
-  color: "#fff",
 };
 
 export function ExperimentsPage(props: ExperimentsPageProps) {
@@ -63,9 +45,9 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <div className="page-container experiments-page">
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <header className="page-head">
         <div>
           <span className="eyebrow">AGENTE IA</span>
           <h1>Testes A/B</h1>
@@ -74,7 +56,7 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
         <Button variant="primary" size="sm" arrow onClick={vm.openCreateForm}>
           <Plus size={14} /> Novo Teste
         </Button>
-      </div>
+      </header>
 
       {/* Auto-Test Toggle */}
       <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -122,19 +104,16 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
               </div>
 
               {/* Filter Chips — single row */}
-              <div style={{ display: "flex", gap: 4, flexWrap: "nowrap", overflow: "hidden" }}>
-                {(["all", "draft", "running", "completed"] as const).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => vm.setFilterStatus(s)}
-                    style={vm.filterStatus === s ? FILTER_CHIP_ACTIVE : FILTER_CHIP}
-                  >
-                    {s === "all" ? "Todos" : s === "draft" ? "Rascunho" : s === "running" ? "Ativo" : "Concluído"}
-                    <span style={{ marginLeft: 3, opacity: 0.7 }}>{statusCounts[s]}</span>
-                  </button>
-                ))}
-              </div>
+              <TabBar
+                role="group"
+                label="Filtrar testes por status"
+                tabs={(["all", "draft", "running", "completed"] as const).map((status) => ({
+                  key: status,
+                  label: `${status === "all" ? "Todos" : status === "draft" ? "Rascunho" : status === "running" ? "Ativo" : "Concluído"} (${statusCounts[status]})`,
+                }))}
+                activeTab={vm.filterStatus}
+                onTabChange={(status) => vm.setFilterStatus(status as typeof vm.filterStatus)}
+              />
 
               {/* Experiment List */}
               <div style={{

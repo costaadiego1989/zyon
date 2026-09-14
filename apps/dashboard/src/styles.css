@@ -1035,6 +1035,10 @@ label {
 .dashboard-content {
   flex: 1;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--page-section-gap, 24px);
+  min-width: 0;
 }
 
 /* ── Page Head ────────────────────────────────────────────────── */
@@ -4441,12 +4445,25 @@ textarea:disabled {
 .page-container {
   display: flex;
   flex-direction: column;
-  gap: var(--page-head-mb, 24px);
+  gap: var(--page-section-gap, 24px);
   min-width: 0;
 }
 
-/* A flex page already owns the space after its header. */
-.page-container > .page-head { margin-bottom: 0; }
+/*
+ * A page owns one vertical rhythm: 24px from the divider to each next
+ * top-level section. This also normalizes legacy page roots that have a
+ * page-head but predate .page-container.
+ */
+.console-content > :has(> .page-head) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--page-section-gap, 24px);
+  min-width: 0;
+}
+
+.dashboard-content > .page-head,
+.page-container > .page-head,
+.console-content > :has(> .page-head) > .page-head { margin-bottom: 0; }
 .page-head .page-lead { margin-bottom: 0; }
 
 .tab-bar {

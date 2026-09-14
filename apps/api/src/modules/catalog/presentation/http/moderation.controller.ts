@@ -17,6 +17,7 @@ import type { PrismaClient } from "@prisma/client";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-ownership.guard.js";
 import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/infrastructure/billing/billing-plan-guard.js";
+import { RateLimit } from "../../../../shared/rate-limit/rate-limit.decorators.js";
 import {
   PRODUCT_TESTIMONIAL_REPOSITORY,
   type ProductTestimonialRepositoryPort,
@@ -63,6 +64,9 @@ export class ModerationController {
 
   @UseGuards(AuthGuard, MerchantOwnershipGuard, PlanLimitGuard)
   @RequirePlanFeature("advancedProductLayout")
+  // This inbox loads a small batch of summary queries, so isolate its
+  // interactive read budget from the global IP bucket.
+  @RateLimit(60, 60_000)
   @Get(":mid/reviews")
   async listMerchantReviewsRoute(
     @Param("mid") merchantId: string,

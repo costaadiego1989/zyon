@@ -16,10 +16,18 @@ function getPlanIndex(plan: string | null): number {
 
 export function BillingPlansPage() {
   const vm = useBillingPlansPage();
+  const header = <header className="page-head billing-plans__header">
+    <div>
+      <span className="eyebrow">CONTA</span>
+      <h1 className="billing-plans__title">Planos e Assinatura</h1>
+      <p className="page-lead billing-plans__subtitle">Gerencie seu plano e acompanhe o uso dos recursos.</p>
+    </div>
+  </header>;
 
   if (vm.loading && !vm.subscription) {
     return (
-      <div className="billing-plans">
+      <div className="billing-plans page-container">
+        {header}
         <div className="billing-plans__skeleton">
           <div className="billing-plans__skeleton-card" style={{ height: 180 }} />
           <div className="billing-plans__skeleton-card" style={{ height: 140 }} />
@@ -35,7 +43,8 @@ export function BillingPlansPage() {
 
   if (vm.error && !vm.subscription) {
     return (
-      <div className="billing-plans">
+      <div className="billing-plans page-container">
+        {header}
         <div className="billing-plans__error">
           <span className="billing-plans__error-text">{vm.error}</span>
           <button type="button" className="billing-plans__error-btn" onClick={vm.refresh}>
@@ -80,24 +89,8 @@ export function BillingPlansPage() {
   ];
 
   return (
-    <div className="billing-plans">
-      {/* Header */}
-      <header className="billing-plans__header">
-        <div
-          style={{
-            font: "600 10px var(--font-mono)",
-            letterSpacing: "0.06em",
-            color: "var(--color-text-faint)",
-            marginBottom: 4,
-          }}
-        >
-          CONTA
-        </div>
-        <h2 className="billing-plans__title">Planos e Assinatura</h2>
-        <p className="billing-plans__subtitle">
-          Gerencie seu plano e acompanhe o uso dos recursos.
-        </p>
-      </header>
+    <div className="billing-plans page-container">
+      {header}
 
       {/* Overage warning: Starter/Growth excedeu limite de pedidos */}
       {vm.usagePercentages.orders >= 100 && (

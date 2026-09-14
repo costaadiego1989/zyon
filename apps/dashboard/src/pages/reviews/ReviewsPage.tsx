@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Clock3, FileVideo, MessageSquare, Star, XCircle } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CheckCircle2, CircleAlert, Clock3, FileVideo, MessageSquare, Star, XCircle } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import type { Product } from "../../api/endpoints/catalog.js";
 import { dashboardJson } from "../../api/http/client.js";
+import { DashboardHttpError } from "../../api/http/error.js";
 import { Button } from "../../components/Button.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { FilterSelect } from "../../components/FilterToolbar.js";
@@ -11,6 +12,7 @@ import { Pagination } from "../../components/Pagination.js";
 import { PeriodFilter } from "../../components/PeriodFilter.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
 import { SidePanel } from "../../components/SidePanel.js";
+import { TabBar } from "../../components/TabBar.js";
 import { showToast } from "../../components/Toast.js";
 import { useCatalogApi } from "../../hooks/api/useCatalogApi.js";
 import { StatCard, StatCardGroup } from "../overview/components/StatCard.js";
@@ -55,6 +57,12 @@ interface ReviewStats {
   rejected: number;
 }
 
+export interface ReviewsLoadError {
+  title: string;
+  description: string;
+  retryAfterSeconds?: number;
+}
+
 export interface ReviewsPageProps {
   apiBaseUrl: string;
   me: MerchantProfile | null;
@@ -69,6 +77,42 @@ const PERIOD_PRESETS = [
   { key: "15d", label: "Últimos 15 dias" },
   { key: "30d", label: "Últimos 30 dias" },
 ] as const;
+
+export function reviewLoadError(error: unknown): ReviewsLoadError {
+  if (error instanceof DashboardHttpError) {
+    if (error.status === 429) {
+      const retryAfterSeconds = error.retryAfterSeconds;
+      const wait = retryAfterSeconds ? ` Aguarde ${formatRetryDelay(retryAfterSeconds)} antes de tentar novamente.` : " Aguarde um instante antes de tentar novamente.";
+      return {
+        title: "Muitas atualizações em sequência",
+        description: `As avaliações continuam seguras; o servidor só precisa de uma pausa.${wait}`,
+        retryAfterSeconds,
+      };
+    }
+    if (error.status === 0) {
+      return {
+        title: "Não foi possível conectar ao servidor",
+        description: "Confira sua conexão e tente atualizar as avaliações novamente.",
+      };
+    }
+    if (error.status === 403) {
+      return {
+        title: "Sem permissão para acessar avaliações",
+        description: "Use uma conta com acesso à moderação de produtos ou fale com o administrador da loja.",
+      };
+    }
+  }
+  return {
+    title: "Não foi possível carregar as avaliações",
+    description: "Tente atualizar novamente. Se o problema continuar, volte em alguns minutos.",
+  };
+}
+
+function formatRetryDelay(seconds: number): string {
+  if (seconds < 60) return `${seconds} ${seconds === 1 ? "segundo" : "segundos"}`;
+  const minutes = Math.ceil(seconds / 60);
+  return `${minutes} ${minutes === 1 ? "minuto" : "minutos"}`;
+}
 
 /** Merchant moderation inbox for buyer-written and buyer-video reviews. */
 export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
@@ -86,14 +130,18 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [productsLoading, setProductsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ReviewsLoadError | null>(null);
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState<number | null>(null);
   const [selected, setSelected] = useState<ProductReview | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const loadRequestId = useRef(0);
 
   const load = useCallback(async () => {
     if (!merchantId) return;
+    const requestId = ++loadRequestId.current;
     setLoading(true);
     setError(null);
+    setRetryAfterSeconds(null);
     const requestReviews = (moderationStatus?: ReviewStatus, requestedPage = 1, requestedPageSize = 1) => {
       const params = new URLSearchParams({ kind, page: String(requestedPage), pageSize: String(requestedPageSize) });
       if (moderationStatus) params.set("moderationStatus", moderationStatus);
@@ -107,30 +155,49 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
       );
     };
     try {
-      const [next, total, pending, approved, rejected] = await Promise.all([
-        requestReviews(status === "all" ? undefined : status, page, PAGE_SIZE),
-        requestReviews(),
-        requestReviews("pending"),
-        requestReviews("approved"),
-        requestReviews("rejected"),
+      const requestedStatus = status === "all" ? undefined : status;
+      const requestedStatuses: ReviewStatus[] = ["pending", "approved", "rejected"];
+      const missingStatuses = requestedStatuses.filter((candidate) => candidate !== requestedStatus);
+      const [next, ...remaining] = await Promise.all([
+        requestReviews(requestedStatus, page, PAGE_SIZE),
+        ...(status === "all" ? [] : [requestReviews()]),
+        ...missingStatuses.map((candidate) => requestReviews(candidate)),
       ]);
+      if (requestId !== loadRequestId.current) return;
+      const total = status === "all" ? next : remaining.shift()!;
+      const counts = Object.fromEntries(
+        remaining.map((response, index) => [missingStatuses[index], response.total]),
+      ) as Partial<Record<ReviewStatus, number>>;
+      if (requestedStatus) counts[requestedStatus] = next.total;
       setReviews(next);
       setStats({
         total: total.total,
-        pending: pending.total,
-        approved: approved.total,
-        rejected: rejected.total,
+        pending: counts.pending ?? 0,
+        approved: counts.approved ?? 0,
+        rejected: counts.rejected ?? 0,
       });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Não foi possível carregar as avaliações.");
+      if (requestId !== loadRequestId.current) return;
+      const nextError = reviewLoadError(caught);
+      setError(nextError);
+      setRetryAfterSeconds(nextError.retryAfterSeconds ?? null);
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestId.current) setLoading(false);
     }
   }, [apiBaseUrl, dateFrom, dateTo, kind, merchantId, page, productId, status]);
 
   useEffect(() => {
-    void load();
+    const timeout = window.setTimeout(() => void load(), 180);
+    return () => window.clearTimeout(timeout);
   }, [load]);
+
+  useEffect(() => {
+    if (!retryAfterSeconds) return;
+    const interval = window.setInterval(() => {
+      setRetryAfterSeconds((current) => current && current > 1 ? current - 1 : null);
+    }, 1_000);
+    return () => window.clearInterval(interval);
+  }, [retryAfterSeconds]);
 
   useEffect(() => {
     if (!merchantId) return;
@@ -200,20 +267,28 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
   if (!me) return null;
 
   return (
-    <div className="reviews-page">
+    <div className="reviews-page page-container">
       <header className="page-head">
         <div>
           <span className="eyebrow">LOJA</span>
           <h1>Avaliações</h1>
           <p className="page-lead">Revise contribuições dos compradores antes que apareçam na página do produto.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>Atualizar</Button>
+        <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading || retryAfterSeconds !== null}>Atualizar</Button>
       </header>
 
       {error ? (
-        <div role="alert" style={errorStyle}>
-          <span>{error}</span>
-          <Button variant="outline" onClick={() => void load()}>Tentar novamente</Button>
+        <div role="alert" className="reviews-error">
+          <div>
+            <CircleAlert size={18} aria-hidden="true" />
+            <div>
+              <strong>{error.title}</strong>
+              <p>{error.description}</p>
+            </div>
+          </div>
+          <Button variant="outline" onClick={() => void load()} disabled={loading || retryAfterSeconds !== null}>
+            {retryAfterSeconds ? `Tente novamente em ${formatRetryDelay(retryAfterSeconds)}` : "Tentar novamente"}
+          </Button>
         </div>
       ) : null}
 
@@ -226,22 +301,15 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
 
       <section className="panel reviews-filter-panel" aria-label="Filtros de avaliações">
         <div className="reviews-filter-panel__toolbar">
-          <div className="period-filter__presets reviews-filter-panel__kind" aria-label="Tipo de avaliação">
-            <button
-              type="button"
-              aria-pressed={kind === "testimonial"}
-              onClick={() => resetPage(() => setKind("testimonial"))}
-            >
-              Avaliações escritas
-            </button>
-            <button
-              type="button"
-              aria-pressed={kind === "video"}
-              onClick={() => resetPage(() => setKind("video"))}
-            >
-              Vídeos
-            </button>
-          </div>
+          <TabBar
+            tabs={[
+              { key: "testimonial", label: "Avaliações escritas", panelId: "reviews-testimonial-list" },
+              { key: "video", label: "Vídeos", panelId: "reviews-video-list" },
+            ]}
+            activeTab={kind}
+            onTabChange={(next) => resetPage(() => setKind(next as ReviewKind))}
+            label="Tipo de avaliação"
+          />
           <div className="reviews-filter-panel__controls">
             <FilterSelect
               ariaLabel="Status da moderação"
@@ -277,7 +345,7 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
         />
       </section>
 
-      <section className="panel reviews-list" aria-busy={loading}>
+      <section id={`reviews-${kind}-list`} className="panel reviews-list" aria-busy={loading} role="tabpanel" aria-labelledby={`reviews-${kind}-list-tab`}>
         <div className="reviews-list__header">
           <SectionHeader
             variant="secondary"
@@ -435,6 +503,5 @@ function formatDate(value: string, withTime = false): string {
 
 const headerCellStyle: React.CSSProperties = { textAlign: "left", padding: "10px 20px", borderBottom: "1px solid var(--color-border)", color: "var(--color-text-faint)", font: "600 10.5px var(--font-mono)", letterSpacing: "0.05em" };
 const bodyCellStyle: React.CSSProperties = { padding: "13px 20px", borderBottom: "1px solid var(--color-border)", color: "var(--color-text-muted)", font: "13px var(--font-sans)", verticalAlign: "middle" };
-const errorStyle: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 16, padding: "12px 16px", border: "1px solid var(--color-error)", borderRadius: 10, background: "var(--color-error-bg)", color: "var(--color-error)", font: "13px var(--font-sans)" };
 const detailCardStyle: React.CSSProperties = { display: "grid", gap: 14, padding: 14, border: "1px solid var(--color-border)", borderRadius: 10, background: "var(--surface-2)" };
 const detailLabelStyle: React.CSSProperties = { color: "var(--color-text-faint)", font: "600 10px var(--font-mono)", letterSpacing: "0.06em" };

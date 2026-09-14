@@ -1,7 +1,29 @@
 .reviews-page > .stat-card-group,
 .reviews-filter-panel {
-  margin-bottom: 24px;
+  margin-bottom: 0;
 }
+
+.reviews-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-error);
+  border-radius: 10px;
+  background: var(--color-error-bg);
+  color: var(--color-error);
+  font: 13px var(--font-sans);
+}
+
+.reviews-error > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.reviews-error strong { display: block; font: 600 13px var(--font-sans); }
+.reviews-error p { margin: 3px 0 0; color: var(--color-text-muted); line-height: 1.5; }
 
 .reviews-filter-panel {
   display: flex;
@@ -80,8 +102,10 @@
 @media (max-width: 560px) {
   .reviews-page > .stat-card-group,
   .reviews-filter-panel {
-    margin-bottom: 20px;
+    margin-bottom: 0;
   }
+
+  .reviews-error { align-items: flex-start; flex-direction: column; }
 
   .reviews-filter-panel {
     padding: 16px;

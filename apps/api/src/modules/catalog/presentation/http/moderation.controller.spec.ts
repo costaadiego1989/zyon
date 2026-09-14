@@ -7,6 +7,7 @@ import { ProductTestimonialEntity } from "../../domain/entities/product-testimon
 import { ProductVideoEntity } from "../../domain/entities/product-video.entity.js";
 import type { PrismaClient } from "@prisma/client";
 import { NotFoundException } from "@nestjs/common";
+import { RATE_LIMIT_OPTIONS_KEY } from "../../../../shared/rate-limit/rate-limit.decorators.js";
 
 const tEntity = (id: string, overrides: Partial<{ moderationStatus: "pending" | "approved" | "rejected" }> = {}) =>
   ProductTestimonialEntity.rehydrate({
@@ -132,6 +133,13 @@ describe("ModerationController", () => {
     assert.equal(args.pageSize, 10);
     assert.equal(args.createdFrom.toISOString(), "2026-09-01T00:00:00.000Z");
     assert.equal(args.createdTo.toISOString(), "2026-09-08T23:59:59.999Z");
+  });
+
+  it("gives the moderation inbox its own interactive rate-limit budget", () => {
+    assert.deepEqual(
+      Reflect.getMetadata(RATE_LIMIT_OPTIONS_KEY, ModerationController.prototype.listMerchantReviewsRoute),
+      { limit: 60, windowMs: 60_000 },
+    );
   });
 
   it("returns 404 when the product does not belong to the merchant", async () => {

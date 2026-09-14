@@ -145,7 +145,7 @@ export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutList
   };
 
   return (
-    <div>
+    <div className="page-container">
       <header className="page-head">
         <div>
           <span className="eyebrow">LOJA</span>
@@ -154,7 +154,7 @@ export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutList
         </div>
       </header>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
         <SummaryCard icon={<LayoutGrid size={16} />} label="Produtos ativos" value={totals.products} />
         <SummaryCard
           icon={<Layers size={16} />}
@@ -175,7 +175,6 @@ export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutList
             border: "1px solid var(--color-error)",
             font: "13px var(--font-sans)",
             color: "var(--color-error)",
-            marginBottom: 16,
           }}
         >
           {error}

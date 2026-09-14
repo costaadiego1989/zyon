@@ -11,16 +11,10 @@
 }
 
 .billing-plans__title {
-  font: 700 22px var(--serif);
-  color: var(--ink);
-  letter-spacing: -0.02em;
-  margin: 0 0 6px;
+  margin: 0;
 }
 
 .billing-plans__subtitle {
-  font: 17px var(--serif);
-  font-style: italic;
-  color: var(--muted);
   margin: 0;
 }
 
