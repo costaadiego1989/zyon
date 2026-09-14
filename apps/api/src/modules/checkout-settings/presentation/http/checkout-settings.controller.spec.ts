@@ -42,7 +42,7 @@ test("CheckoutSettingsController manages authenticated merchant settings", async
   const updated = await controller.update(
     request,
     response,
-    headers.ETag,
+    `W/${headers.ETag}`,
     {
       mode: "manual_only",
       widgetBehavior: { openWidgetOnTrigger: false },

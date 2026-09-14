@@ -208,7 +208,7 @@ export class CheckoutSettingsController {
   ) {
     const merchantId = tenantId(request);
     const current = await this.getSettings.execute(merchantId);
-    this.entityTags.assertIfMatch(ifMatch, current);
+    this.entityTags.assertIfMatch(normalizeCheckoutSettingsIfMatch(ifMatch), current);
     const updated = await this.updateSettings.execute(
       merchantId,
       body as unknown as CheckoutSettingsPatch,
@@ -245,7 +245,7 @@ export class CheckoutSettingsController {
   ) {
     const merchantId = tenantId(request);
     const current = await this.getSettings.execute(merchantId);
-    this.entityTags.assertIfMatch(ifMatch, current);
+    this.entityTags.assertIfMatch(normalizeCheckoutSettingsIfMatch(ifMatch), current);
     const reset = await this.resetSettings.execute(
       merchantId,
       current.updatedAt,
@@ -278,4 +278,12 @@ function tenantId(request: unknown): string {
   return currentTenantPrincipal(
     request as Parameters<typeof currentTenantPrincipal>[0],
   ).tenantId;
+}
+
+function normalizeCheckoutSettingsIfMatch(ifMatch: string | undefined): string | undefined {
+  if (!ifMatch) return ifMatch;
+  return ifMatch
+    .split(",")
+    .map((tag) => tag.trim().replace(/^W\//i, ""))
+    .join(", ");
 }

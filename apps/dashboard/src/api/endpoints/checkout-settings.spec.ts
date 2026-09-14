@@ -31,4 +31,19 @@ describe("checkoutSettingsEndpoints", () => {
     expect(putInit).toMatchObject({ method: "PUT" });
     expect(new Headers(putInit.headers).get("If-Match")).toBe('"current-settings"');
   });
+
+  it("normalizes a weak ETag before sending If-Match", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("{}", {
+        status: 200,
+        headers: { ETag: 'W/"current-settings"' },
+      }))
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }));
+
+    const api = checkoutSettingsEndpoints("https://api.example", fetchMock as typeof fetch);
+    await api.patchCheckoutSettings({});
+
+    const [, putInit] = fetchMock.mock.calls[1]!;
+    expect(new Headers(putInit.headers).get("If-Match")).toBe('"current-settings"');
+  });
 });

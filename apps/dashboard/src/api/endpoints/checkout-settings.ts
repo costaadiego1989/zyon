@@ -21,7 +21,10 @@ export function checkoutSettingsEndpoints(base: string, f: typeof fetch) {
           f,
         );
         const etag = getRes.headers.get("etag");
-        if (etag) ifMatchValue = etag;
+        // Some intermediaries surface an otherwise identical validator with a
+        // weak prefix. This endpoint issues strong ETags, so normalize it
+        // before using it with If-Match.
+        if (etag) ifMatchValue = etag.replace(/^W\//i, "");
       } catch (err) {
         // Best-effort ETag lookup; PUT will still run with "If-Match: *".
         reportError({ source: "checkout-settings.patch.etag", error: err, severity: "warning" });
