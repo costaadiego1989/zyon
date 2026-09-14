@@ -52,8 +52,11 @@ export function useCartRecoveryPage() {
 
   const saveConfig = useCallback(async (patch: Partial<CartRecoveryStrategyConfig>): Promise<boolean> => {
     if (saving.current || loading || error) return false;
+    const previousConfig = config;
+    const nextConfig = { ...config, ...patch };
     saving.current = true;
     setSavingKey(patch.active_strategy ?? config.active_strategy);
+    setConfig(nextConfig);
     try {
       // The API saves config and the single selected strategy in one transaction.
       const saved = await api.patchCartRecoveryConfig(patch);
@@ -61,6 +64,7 @@ export function useCartRecoveryPage() {
       showToast("success", "Configuração salva");
       return true;
     } catch (cause) {
+      setConfig(previousConfig);
       reportError({ source: "cart-recovery.config", error: cause });
       showToast("error", cause instanceof Error ? cause.message : "Erro ao salvar configuração");
       return false;

@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { Bot, ShieldOff, ShieldCheck, Plus, Cpu, Activity, CheckCircle2, Users } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { Button } from "../../components/Button.js";
 import { EmptyState } from "../../components/EmptyState.js";
@@ -8,6 +7,7 @@ import { Modal } from "../../components/Modal.js";
 import { ModalButton } from "../../components/ModalButton.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
+import { StatCard, StatCardGroup } from "../overview/components/StatCard.js";
 import { useM2MAgentsPage, type M2MAgent } from "./useM2MAgentsPage.js";
 
 export interface M2MAgentsPageProps {
@@ -44,29 +44,6 @@ const TD_STYLE: React.CSSProperties = {
   borderBottom: "1px solid var(--color-border)",
   color: "var(--color-text)",
 };
-
-const STAT_CARD: React.CSSProperties = {
-  background: "var(--surface-2)",
-  border: "1px solid var(--color-border)",
-  borderRadius: "var(--radius-md)",
-  padding: "20px 22px",
-  display: "flex",
-  flexDirection: "column",
-  gap: 8,
-  transition: "var(--card-transition)",
-};
-
-function StatCard({ label, value, icon: Icon, color }: { label: string; value: string; icon: LucideIcon; color: string }) {
-  return (
-    <div style={STAT_CARD} className="stat-card">
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-muted)", textTransform: "uppercase" }}>{label}</div>
-        <Icon size={16} color={color} />
-      </div>
-      <div style={{ font: "600 26px var(--font-serif)", color: "var(--color-text)", letterSpacing: "-0.01em" }}>{value}</div>
-    </div>
-  );
-}
 
 export function M2MAgentsPage(props: M2MAgentsPageProps) {
   const vm = useM2MAgentsPage({ me: props.me });
@@ -131,12 +108,12 @@ export function M2MAgentsPage(props: M2MAgentsPageProps) {
       </header>
 
       {/* Stats */}
-      <div className="grid-4" style={{ gap: 14 }}>
-        <StatCard label="Agentes Registrados" value={String(vm.stats.total)} icon={Users} color="var(--color-brand)" />
-        <StatCard label="Agentes Ativos" value={String(vm.stats.active)} icon={Cpu} color="var(--color-success)" />
-        <StatCard label="Negociações" value={String(vm.stats.requests)} icon={Activity} color="var(--color-brand)" />
-        <StatCard label="Taxa de Sucesso" value={`${vm.stats.successRate.toFixed(1)}%`} icon={CheckCircle2} color="var(--color-success)" />
-      </div>
+      <StatCardGroup columns={4}>
+        <StatCard label="Agentes Registrados" value={vm.stats.total} icon={<Users size={16} />} accent="var(--color-brand)" />
+        <StatCard label="Agentes Ativos" value={vm.stats.active} icon={<Cpu size={16} />} accent="var(--color-success)" />
+        <StatCard label="Negociações" value={vm.stats.requests} icon={<Activity size={16} />} accent="var(--color-brand)" />
+        <StatCard label="Taxa de Sucesso" value={`${vm.stats.successRate.toFixed(1)}%`} icon={<CheckCircle2 size={16} />} accent="var(--color-success)" />
+      </StatCardGroup>
 
       {/* What is M2M */}
       <div style={CARD}>

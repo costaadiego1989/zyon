@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { ShoppingCart, Activity, CheckCircle, DollarSign, Clock, XCircle, RefreshCw, Edit, Ticket, SlidersHorizontal, AlertTriangle } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
-import { StatCard } from "../overview/components/StatCard.js";
+import { StatCard, StatCardGroup } from "../overview/components/StatCard.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { Button } from "../../components/Button.js";
 import { PageLoader } from "../../components/PageLoader.js";
@@ -54,6 +54,8 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
   const [page, setPage] = useState(1);
   const [tab, setTab] = useState("overview");
   const [panelOpen, setPanelOpen] = useState<"coupon" | "rule" | null>(null);
+  const [couponCode, setCouponCode] = useState("");
+  const [ruleId, setRuleId] = useState("");
 
   if (!props.me) {
     return (
@@ -116,6 +118,18 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
   const startIdx = (page - 1) * PAGE_SIZE;
   const paginatedAttempts = attempts.slice(startIdx, startIdx + PAGE_SIZE);
   const activeKey = config.active_strategy;
+  const openLinkPanel = (kind: "coupon" | "rule") => {
+    if (kind === "coupon") setCouponCode(config.coupon_code ?? "");
+    else setRuleId(config.rule_id ?? "");
+    setPanelOpen(kind);
+  };
+
+  const selectStrategyAndConfigure = async (opt: StrategyOption, linked?: string) => {
+    const selected = await selectStrategy(opt.key);
+    if (selected && opt.needsConfig && !linked) {
+      openLinkPanel(opt.key === "offer_coupon" ? "coupon" : "rule");
+    }
+  };
 
   return (
     <div className="page-container">
@@ -144,7 +158,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
 
       {/* KPI cards */}
       {metrics && (
-        <div className="grid-4" style={{ gap: 14 }}>
+        <StatCardGroup columns={4}>
           <StatCard
             icon={<ShoppingCart size={16} />}
             label="Carrinhos abandonados"
@@ -167,7 +181,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
             value={metrics.revenue_recovered_brl === null ? "Indisponível" : `R$ ${metrics.revenue_recovered_brl.toLocaleString("pt-BR")}`}
             accent="var(--color-brand)"
           />
-        </div>
+        </StatCardGroup>
       )}
 
       {/* Strategy selection — radio (only 1 active) */}
@@ -182,7 +196,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
               <div key={opt.key} className="recovery-strategy" data-active={active}>
                 <label className="recovery-strategy__choice">
                   <input type="radio" name="recovery-strategy" value={opt.key} checked={active}
-                    onChange={() => { void selectStrategy(opt.key); }} />
+                    onChange={() => { void selectStrategyAndConfigure(opt, linked); }} />
                   <span className="recovery-strategy__copy">
                     <span className="recovery-strategy__title">{opt.label}</span>
                     <span className="recovery-strategy__description">{opt.description}</span>
@@ -191,7 +205,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
                 </label>
                 {active && opt.needsConfig ? (
                   <Button variant="outline" size="sm" disabled={savingKey !== null}
-                    onClick={() => setPanelOpen(opt.key === "offer_coupon" ? "coupon" : "rule")}>
+                    onClick={() => openLinkPanel(opt.key === "offer_coupon" ? "coupon" : "rule")}>
                     <Edit size={14} /> {linked ? "Alterar vínculo" : "Vincular"}
                   </Button>
                 ) : active ? <span className="recovery-strategy__link">Selecionada</span> : null}
@@ -277,61 +291,28 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
           {coupons.length === 0 ? (
             <EmptyState icon={Ticket} title="Nenhum cupom disponível" description="Crie um cupom ativo e dentro da validade na página Cupons." />
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {coupons.map((c) => {
-                const isSelected = config.coupon_code === c.code;
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    disabled={savingKey !== null}
-                    onClick={async () => {
-                      if (await saveConfig({ active_strategy: "offer_coupon", coupon_code: c.code })) setPanelOpen(null);
-                    }}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      padding: "12px 14px",
-                      borderRadius: "var(--radius-sm)",
-                      border: `1.5px solid ${isSelected ? "var(--color-brand)" : "var(--color-border)"}`,
-                      background: isSelected ? "var(--accent-soft)" : "var(--surface-1)",
-                      cursor: "pointer",
-                      textAlign: "left",
-                      width: "100%",
-                      font: "inherit",
-                      transition: "border-color 0.15s",
-                    }}
-                  >
-                    <span style={{
-                      width: 14,
-                      height: 14,
-                      borderRadius: "50%",
-                      border: `2px solid ${isSelected ? "var(--color-brand)" : "var(--color-border)"}`,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}>
-                      {isSelected && <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-brand)" }} />}
-                    </span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ font: "600 13px var(--font-mono)", color: "var(--color-text)" }}>
-                        {c.code}
-                      </div>
-                      <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 2 }}>
-                        {c.discountType === "free_shipping" ? "Frete grátis" : c.discountType === "percent" ? `${c.discountValue}% de desconto` : `R$ ${c.discountValue.toLocaleString("pt-BR")} de desconto`}
-                      </div>
-                    </div>
-                    {isSelected && (
-                      <span style={{ padding: "2px 6px", borderRadius: "var(--radius-full)", font: "600 9px var(--font-mono)", background: "var(--color-success-bg)", color: "var(--color-success)" }}>
-                        Vinculado
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+            <>
+              <label>
+                <span className="field-label">Cupom ativo</span>
+                <select className="field-input" value={couponCode} disabled={savingKey !== null} onChange={(event) => setCouponCode(event.target.value)}>
+                  <option value="">Selecione um cupom</option>
+                  {coupons.map((coupon) => (
+                    <option key={coupon.id} value={coupon.code}>
+                      {coupon.code} — {coupon.discountType === "free_shipping" ? "Frete grátis" : coupon.discountType === "percent" ? `${coupon.discountValue}% de desconto` : `R$ ${coupon.discountValue.toLocaleString("pt-BR")} de desconto`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Button
+                disabled={!couponCode || savingKey !== null}
+                loading={savingKey === "offer_coupon"}
+                onClick={async () => {
+                  if (await saveConfig({ active_strategy: "offer_coupon", coupon_code: couponCode })) setPanelOpen(null);
+                }}
+              >
+                Vincular cupom
+              </Button>
+            </>
           )}
         </div>
       </SidePanel>
@@ -350,61 +331,24 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
           {rules.length === 0 ? (
             <EmptyState icon={SlidersHorizontal} title="Nenhuma regra ativa" description="Crie e ative uma regra em Configurações do Checkout, na aba Regras." />
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {rules.map((r) => {
-                const isSelected = config.rule_id === r.id;
-                return (
-                  <button
-                    key={r.id}
-                    type="button"
-                    disabled={savingKey !== null}
-                    onClick={async () => {
-                      if (await saveConfig({ active_strategy: "advanced_rule", rule_id: r.id })) setPanelOpen(null);
-                    }}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      padding: "12px 14px",
-                      borderRadius: "var(--radius-sm)",
-                      border: `1.5px solid ${isSelected ? "var(--color-brand)" : "var(--color-border)"}`,
-                      background: isSelected ? "var(--accent-soft)" : "var(--surface-1)",
-                      cursor: "pointer",
-                      textAlign: "left",
-                      width: "100%",
-                      font: "inherit",
-                      transition: "border-color 0.15s",
-                    }}
-                  >
-                    <span style={{
-                      width: 14,
-                      height: 14,
-                      borderRadius: "50%",
-                      border: `2px solid ${isSelected ? "var(--color-brand)" : "var(--color-border)"}`,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}>
-                      {isSelected && <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-brand)" }} />}
-                    </span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ font: "500 13px var(--font-sans)", color: "var(--color-text)" }}>
-                        {r.name}
-                      </div>
-                      <div style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)", marginTop: 2 }}>
-                        {r.id}
-                      </div>
-                    </div>
-                    {isSelected && (
-                      <span style={{ padding: "2px 6px", borderRadius: "var(--radius-full)", font: "600 9px var(--font-mono)", background: "var(--color-success-bg)", color: "var(--color-success)" }}>
-                        Vinculada
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+            <>
+              <label>
+                <span className="field-label">Regra ativa</span>
+                <select className="field-input" value={ruleId} disabled={savingKey !== null} onChange={(event) => setRuleId(event.target.value)}>
+                  <option value="">Selecione uma regra</option>
+                  {rules.map((rule) => <option key={rule.id} value={rule.id}>{rule.name}</option>)}
+                </select>
+              </label>
+              <Button
+                disabled={!ruleId || savingKey !== null}
+                loading={savingKey === "advanced_rule"}
+                onClick={async () => {
+                  if (await saveConfig({ active_strategy: "advanced_rule", rule_id: ruleId })) setPanelOpen(null);
+                }}
+              >
+                Vincular regra
+              </Button>
+            </>
           )}
         </div>
       </SidePanel>

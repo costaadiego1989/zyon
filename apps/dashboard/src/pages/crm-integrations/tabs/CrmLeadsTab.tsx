@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Users, UserPlus, ShoppingBag } from "lucide-react";
 import type { CrmSyncLogDTO } from "../useIntegrationsPage.js";
+import { StatCard, StatCardGroup } from "../../overview/components/StatCard.js";
 
 interface CrmLeadsTabProps {
   syncLog: CrmSyncLogDTO[];
@@ -10,18 +11,6 @@ type StageFilter = "all" | "lead" | "customer";
 type StatusFilter = "all" | "success" | "failed";
 
 const PAGE_SIZE = 20;
-
-function StatCard({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) {
-  return (
-    <div className="panel" style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
-      <span style={{ color: "var(--color-brand)", display: "flex" }}>{icon}</span>
-      <div>
-        <div style={{ font: "700 20px var(--font-sans)", color: "var(--color-text)" }}>{value}</div>
-        <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>{label}</div>
-      </div>
-    </div>
-  );
-}
 
 export function CrmLeadsTab({ syncLog }: CrmLeadsTabProps) {
   const [stage, setStage] = useState<StageFilter>("all");
@@ -64,11 +53,11 @@ export function CrmLeadsTab({ syncLog }: CrmLeadsTabProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Stats */}
-      <div className="grid-3" style={{ gap: 12 }}>
+      <StatCardGroup columns={3}>
         <StatCard label="Total sincronizado" value={totals.total} icon={<Users size={18} />} />
         <StatCard label="Leads (só cadastro)" value={totals.leads} icon={<UserPlus size={18} />} />
         <StatCard label="Clientes (compraram)" value={totals.customers} icon={<ShoppingBag size={18} />} />
-      </div>
+      </StatCardGroup>
 
       {/* Filters */}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>

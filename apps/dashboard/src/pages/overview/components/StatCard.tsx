@@ -14,8 +14,23 @@ export type StatCardProps = {
   primary?: boolean;
 };
 
-export function StatCardGroup({ children, primary = false }: { children: ReactNode; primary?: boolean }) {
-  return <section className={`stat-card-group${primary ? " stat-card-group--primary" : ""}`} aria-label="Indicadores">{children}</section>;
+export function StatCardGroup({
+  children,
+  primary = false,
+  columns,
+}: {
+  children: ReactNode;
+  primary?: boolean;
+  columns?: 2 | 3 | 4 | 5 | 6;
+}) {
+  return (
+    <section
+      className={`stat-card-group${primary ? " stat-card-group--primary" : ""}${columns ? ` stat-card-group--columns-${columns}` : ""}`}
+      aria-label="Indicadores"
+    >
+      {children}
+    </section>
+  );
 }
 
 function MiniSparkline({ data }: { data: number[] }) {

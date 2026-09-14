@@ -1,6 +1,6 @@
 import React from "react";
 import { TrendingUp, Users, AlertTriangle, Clock } from "lucide-react";
-import { StatCard } from "../../overview/components/StatCard.js";
+import { StatCard, StatCardGroup } from "../../overview/components/StatCard.js";
 import type { FunnelData } from "../useFunnelPage.js";
 
 interface FunnelMetricsProps {
@@ -33,7 +33,7 @@ export function FunnelMetrics({ data }: FunnelMetricsProps): React.ReactElement 
     : undefined;
 
   return (
-    <div className="fnl-metrics">
+    <StatCardGroup columns={4}>
       <StatCard
         label="Conversão"
         value={`${overallConversion.toFixed(1)}`}
@@ -59,6 +59,6 @@ export function FunnelMetrics({ data }: FunnelMetricsProps): React.ReactElement 
         value={avgTimeStr}
         icon={<Clock size={16} />}
       />
-    </div>
+    </StatCardGroup>
   );
 }

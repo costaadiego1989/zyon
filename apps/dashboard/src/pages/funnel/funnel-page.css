@@ -187,11 +187,6 @@
   color: #fff;
 }
 
-.fnl-metrics {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-4);
-}
 .fnl-metric {
   background: var(--card);
   border: 1px solid var(--border);
@@ -521,11 +516,9 @@
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 
 @media (max-width: 1100px) {
-  .fnl-metrics { grid-template-columns: repeat(2, 1fr); }
   .fnl-body { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
-  .fnl-metrics { grid-template-columns: 1fr; }
   .fnl-head { flex-direction: column; }
   .fnl-head-right { width: 100%; justify-content: flex-end; }
   .fnl-filters-row { flex-wrap: wrap; justify-content: flex-end; }

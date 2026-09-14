@@ -11,6 +11,7 @@ import { useNativeAuth } from "./hooks/useNativeAuth.js";
 import { ProviderCard, PROVIDER_LABELS } from "./components/ProviderCard.js";
 import { ApiKeyPanel } from "./components/ApiKeyPanel.js";
 import { OAuthFlowPanel } from "./components/OAuthFlowPanel.js";
+import { StatCard, StatCardGroup } from "../overview/components/StatCard.js";
 
 type Provider = "woocommerce" | "magento" | "native";
 
@@ -108,32 +109,31 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
 
       {/* Connection KPIs */}
       {!connections.isLoading && connections.hasConnection && connections.connections[0] ? (
-        <div className="metrics">
-          <div className="metric">
-            <span><Link2 size={14} /> Plataforma</span>
-            <strong>{PROVIDER_LABELS[connections.connections[0].provider] ?? connections.connections[0].provider}</strong>
-          </div>
-          <div className="metric">
-            <span><ShoppingBag size={14} /> Produtos</span>
-            <strong>{"product_count" in connections.connections[0] && typeof (connections.connections[0] as { product_count?: unknown }).product_count === "number" ? (connections.connections[0] as { product_count: number }).product_count : "—"}</strong>
-          </div>
-          <div className="metric">
-            <span><Clock size={14} /> Último sync</span>
-            <strong>
-              {connections.connections[0].last_synced_at
-                ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(connections.connections[0].last_synced_at))
-                : "Nunca"}
-            </strong>
-          </div>
-          <div className="metric">
-            <span><Zap size={14} /> Status</span>
-            <strong>
-              <span className={connections.connections[0].status === "active" ? "badge ok" : "badge warn"}>
-                {connections.connections[0].status === "active" ? "Ativa" : connections.connections[0].status}
-              </span>
-            </strong>
-          </div>
-        </div>
+        <StatCardGroup columns={4}>
+          <StatCard
+            icon={<Link2 size={16} />}
+            label="Plataforma"
+            value={PROVIDER_LABELS[connections.connections[0].provider] ?? connections.connections[0].provider}
+          />
+          <StatCard
+            icon={<ShoppingBag size={16} />}
+            label="Produtos"
+            value={"product_count" in connections.connections[0] && typeof (connections.connections[0] as { product_count?: unknown }).product_count === "number" ? (connections.connections[0] as { product_count: number }).product_count : "—"}
+          />
+          <StatCard
+            icon={<Clock size={16} />}
+            label="Último sync"
+            value={connections.connections[0].last_synced_at
+              ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(connections.connections[0].last_synced_at))
+              : "Nunca"}
+          />
+          <StatCard
+            icon={<Zap size={16} />}
+            label="Status"
+            value={connections.connections[0].status === "active" ? "Ativa" : connections.connections[0].status}
+            accent={connections.connections[0].status === "active" ? "var(--color-success)" : "var(--color-warning)"}
+          />
+        </StatCardGroup>
       ) : null}
 
       {/* Alert banner */}

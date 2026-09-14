@@ -6,6 +6,7 @@ import { DataPanel } from "../../components/DataPanel.js";
 import { FilterToolbar, FilterSelect } from "../../components/FilterToolbar.js";
 import { PageLoader } from "../../components/PageLoader.js";
 import { useCatalogApi } from "../../hooks/api/useCatalogApi.js";
+import { StatCard, StatCardGroup } from "../overview/components/StatCard.js";
 
 export interface AdvancedLayoutListPageProps {
   me: MerchantProfile;
@@ -154,16 +155,16 @@ export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutList
         </div>
       </header>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-        <SummaryCard icon={<LayoutGrid size={16} />} label="Produtos ativos" value={totals.products} />
-        <SummaryCard
+      <StatCardGroup columns={3}>
+        <StatCard icon={<LayoutGrid size={16} />} label="Produtos ativos" value={totals.products} />
+        <StatCard
           icon={<Layers size={16} />}
           label="Com conteúdo"
           value={totals.configured}
           accent="var(--color-success)"
         />
-        <SummaryCard icon={<Layers size={16} />} label="Blocos publicados" value={totals.totalBlocks} />
-      </div>
+        <StatCard icon={<Layers size={16} />} label="Blocos publicados" value={totals.totalBlocks} />
+      </StatCardGroup>
 
       {error ? (
         <div
@@ -455,46 +456,6 @@ function SortSelect({
       ]}
       placeholder="Ordenar"
     />
-  );
-}
-
-function SummaryCard({
-  icon,
-  label,
-  value,
-  accent,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-  accent?: string;
-}) {
-  return (
-    <div
-      style={{
-        background: "var(--surface-2)",
-        border: "1px solid var(--color-border)",
-        borderRadius: 14,
-        padding: 16,
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--color-text-faint)" }}>
-        {icon}
-        <span style={{ font: "600 10.5px var(--font-mono)", letterSpacing: "0.05em" }}>{label.toUpperCase()}</span>
-      </div>
-      <div
-        style={{
-          font: "700 24px var(--font-sans)",
-          color: accent ?? "var(--color-text)",
-          lineHeight: 1,
-        }}
-      >
-        {value}
-      </div>
-    </div>
   );
 }
 
