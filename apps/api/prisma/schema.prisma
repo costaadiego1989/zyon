@@ -48,6 +48,11 @@ model Merchant {
   httpIdempotencyRecords   HttpIdempotencyRecord[]
   paymentConnections       MerchantPaymentConnection[]
   billingSubscription      MerchantBillingSubscription?
+  orderQuotaPeriods       MerchantOrderQuotaPeriod[]
+  orderQuotaEntries       MerchantOrderQuotaEntry[]
+  orderQuotaEpisodes      MerchantOrderQuotaEpisode[]
+  orderQuotaNotices       MerchantOrderQuotaNotice[]
+  billingWebhookEvents    BillingWebhookEvent[]
   onboardingState          MerchantOnboardingState?
   installations            MerchantInstallation[]
   auditEvents              MerchantAuditEvent[]
@@ -64,6 +69,7 @@ model Merchant {
   crmConnections           CrmConnection[]              @relation("CrmConnections")
   ownDeliveryConfig        OwnDeliveryConfig?           @relation("OwnDeliveryConfig")
   campaignContactConsents  CampaignContactConsent[]
+  oneBuyClickSessions      OneBuyClickSession[]
 
   @@map("merchants")
 }
@@ -182,6 +188,18 @@ model MerchantBillingSubscription {
   asaasCustomerId        String?   @map("asaas_customer_id")
   asaasSubscriptionId    String?   @map("asaas_subscription_id")
   pendingPlanKey         String?   @map("pending_plan_key")
+  pendingUpgradePlanKey  String?   @map("pending_upgrade_plan_key")
+  pendingUpgradeAmountCents Int?   @map("pending_upgrade_amount_cents")
+  pendingUpgradeRequestedAt DateTime? @map("pending_upgrade_requested_at")
+  billingAmountCents     Int?      @map("billing_amount_cents")
+  billingCycle String @default("monthly") @map("billing_cycle")
+  billingDiscountPercent Int @default(0) @map("billing_discount_percent")
+  pendingBillingCycle String?  @map("pending_billing_cycle")
+  pendingBillingAmountCents Int?  @map("pending_billing_amount_cents")
+  pendingBillingDiscountPercent Int?  @map("pending_billing_discount_percent")
+  lastBillingEventAt     DateTime? @map("last_billing_event_at")
+  lastBillingPaymentId   String?   @map("last_billing_payment_id")
+  lastBillingPaymentDueAt DateTime? @map("last_billing_payment_due_at")
   pendingPlanEffectiveAt DateTime? @map("pending_plan_effective_at")
   providerCancellationScheduledAt DateTime? @map("provider_cancellation_scheduled_at")
 
@@ -190,6 +208,24 @@ model MerchantBillingSubscription {
   @@index([status, trialEndsAt])
   @@index([asaasSubscriptionId])
   @@map("merchant_billing_subscriptions")
+}
+
+model BillingWebhookEvent {
+  id             String   @id @default(cuid())
+  provider       String
+  eventId        String   @map("event_id")
+  merchantId     String   @map("merchant_id")
+  subscriptionId String   @map("subscription_id")
+  paymentId      String?  @map("payment_id")
+  occurredAt     DateTime @map("occurred_at")
+  outcome        String
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, eventId])
+  @@index([merchantId, occurredAt])
+  @@map("billing_webhook_events")
 }
 
 model CommercePendingOrder {
@@ -1041,6 +1077,9 @@ model BuyerPreference {
   m2mNegotiationEnabled    Boolean  @default(false) @map("m2m_negotiation_enabled")
   language                 String   @default("pt-BR")
   pushNotificationsEnabled Boolean  @default(true) @map("push_notifications_enabled")
+  oneBuyClickEnabled       Boolean  @default(false) @map("one_buy_click_enabled")
+  shippingPreference       String   @default("fastest") @map("shipping_preference")
+  paymentPreference        String   @default("pix") @map("payment_preference")
   createdAt                DateTime @default(now()) @map("created_at")
   updatedAt                DateTime @updatedAt @map("updated_at")
 
@@ -1921,6 +1960,32 @@ model StorefrontCart {
   @@map("storefront_carts")
 }
 
+/// Durable, conversation-scoped state for the assisted fast-purchase flow.
+/// It deliberately stores no free-form chat text, address, or payment data.
+model OneBuyClickSession {
+  id                       String   @id @default(cuid())
+  merchantId               String   @map("merchant_id")
+  conversationId           String   @map("conversation_id")
+  globalUserId             String?  @map("global_user_id")
+  enabled                  Boolean  @default(false)
+  status                   String   @default("idle")
+  shippingPreference       String   @default("fastest") @map("shipping_preference")
+  paymentPreference        String   @default("pix") @map("payment_preference")
+  cartFingerprint          String?  @map("cart_fingerprint")
+  preparedActionId         String?  @map("prepared_action_id")
+  preparedAt               DateTime? @map("prepared_at")
+  expiresAt                DateTime @map("expires_at")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, conversationId])
+  @@index([merchantId, status, expiresAt])
+  @@index([globalUserId, updatedAt])
+  @@map("one_buy_click_sessions")
+}
+
 // ─── Product Promotions (scheduled discounts per variant or category) ─────────
 
 model ImportJob {
@@ -2711,6 +2776,7 @@ model InventoryMovement {
 }
 
 model InventoryAlert {
+  resolvedAt DateTime? @map("resolved_at")
   id             String    @id @default(cuid())
   merchantId     String    @map("merchant_id")
   itemId         String    @map("item_id")
@@ -2724,6 +2790,7 @@ model InventoryAlert {
   item     InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   @@index([merchantId, acknowledged, createdAt])
+  @@index([merchantId, itemId, resolvedAt], map: "inventory_alerts_resolution")
   @@map("inventory_alerts")
 }
 
@@ -2999,6 +3066,106 @@ model MerchantPlatformFeedback {
   @@map("merchant_platform_feedback")
 }
 
+// Auditável por mês UTC. O contador é materializado no momento da conclusão
+// idempotente do pedido e nunca substitui os pedidos históricos como fonte de
+// verdade para a reconciliação.
+model MerchantOrderQuotaPeriod {
+  merchantId  String   @map("merchant_id")
+  periodStart DateTime @map("period_start")
+  periodEnd   DateTime @map("period_end")
+  usedOrders  Int      @default(0) @map("used_orders")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  merchant Merchant                @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  entries  MerchantOrderQuotaEntry[]
+
+  @@id([merchantId, periodStart])
+  @@index([periodStart, periodEnd])
+  @@map("merchant_order_quota_periods")
+}
+
+// Impede que uma repetição de webhook/invocação idempotente infle o contador.
+model MerchantOrderQuotaEntry {
+  id              String   @id @default(cuid())
+  merchantId      String   @map("merchant_id")
+  externalOrderId String   @map("external_order_id")
+  periodStart     DateTime @map("period_start")
+  countedAt       DateTime @default(now()) @map("counted_at")
+
+  merchant Merchant                @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  period   MerchantOrderQuotaPeriod @relation(fields: [merchantId, periodStart], references: [merchantId, periodStart], onDelete: Cascade)
+
+  @@unique([merchantId, externalOrderId])
+  @@index([merchantId, periodStart])
+  @@map("merchant_order_quota_entries")
+}
+
+// Uma ultrapassagem tem prazo próprio: mudar de plano pode encerrá-la sem
+// apagar o histórico, e uma nova ultrapassagem no mesmo mês fica rastreável.
+model MerchantOrderQuotaEpisode {
+  id              String    @id @default(cuid())
+  merchantId      String    @map("merchant_id")
+  periodStart     DateTime  @map("period_start")
+  planKey         String    @map("plan_key")
+  limitAtStart    Int       @map("limit_at_start")
+  reachedAt       DateTime  @default(now()) @map("reached_at")
+  graceExpiresAt  DateTime  @map("grace_expires_at")
+  blockedAt       DateTime? @map("blocked_at")
+  resolvedAt      DateTime? @map("resolved_at")
+  resolutionReason String?  @map("resolution_reason")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  merchant Merchant                  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  notices  MerchantOrderQuotaNotice[]
+
+  @@unique([merchantId, periodStart, planKey, limitAtStart])
+  @@index([merchantId, periodStart, resolvedAt])
+  @@index([graceExpiresAt, resolvedAt])
+  @@map("merchant_order_quota_episodes")
+}
+
+model MerchantOrderQuotaNotice {
+  id         String   @id @default(cuid())
+  merchantId String   @map("merchant_id")
+  periodStart DateTime @map("period_start")
+  episodeKey String   @map("episode_key")
+  milestone  String
+  title      String
+  body       String?  @db.Text
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  merchant   Merchant                  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  episode    MerchantOrderQuotaEpisode @relation(fields: [episodeKey], references: [id], onDelete: Cascade)
+  deliveries MerchantOrderQuotaDelivery[]
+
+  @@unique([merchantId, periodStart, episodeKey, milestone])
+  @@index([merchantId, createdAt])
+  @@map("merchant_order_quota_notices")
+}
+
+model MerchantOrderQuotaDelivery {
+  id                String   @id @default(cuid())
+  noticeId          String   @map("notice_id")
+  channel           String
+  status            String   @default("pending")
+  attempts          Int      @default(0)
+  nextAttemptAt     DateTime @default(now()) @map("next_attempt_at")
+  leaseUntil        DateTime? @map("lease_until")
+  providerMessageId String?  @map("provider_message_id")
+  lastError         String?  @map("last_error") @db.Text
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  notice MerchantOrderQuotaNotice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+
+  @@unique([noticeId, channel])
+  @@index([status, nextAttemptAt])
+  @@map("merchant_order_quota_deliveries")
+}
+
 model BuyerEarnedBenefit {
   id           String    @id @default(cuid())
   merchantId   String    @map("merchant_id")
@@ -3039,4 +3206,35 @@ model WhatsAppWebhookInbox {
   @@index([status, availableAt, leaseExpiresAt])
   @@index([streamKey, status, createdAt])
   @@map("whatsapp_webhook_inbox")
+}
+
+model MerchantPlanNotice {
+  id String @id
+  merchantId String @map("merchant_id")
+  subscriptionKey String @map("subscription_key")
+  planKey String @map("plan_key")
+  endsAt DateTime @map("ends_at")
+  milestone String
+  createdAt DateTime @default(now()) @map("created_at")
+  deliveries MerchantPlanNoticeDelivery[]
+  @@unique([merchantId, subscriptionKey, endsAt, milestone], map: "merchant_plan_notices_milestone")
+  @@map("merchant_plan_notices")
+}
+
+model MerchantPlanNoticeDelivery {
+  id String @id
+  noticeId String @map("notice_id")
+  channel String
+  status String @default("pending")
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at")
+  leaseUntil DateTime? @map("lease_until")
+  providerMessageId String? @map("provider_message_id")
+  lastError String? @map("last_error")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  notice MerchantPlanNotice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  @@unique([noticeId, channel], map: "merchant_plan_notice_deliveries_channel")
+  @@index([status, nextAttemptAt, leaseUntil], map: "merchant_plan_notice_deliveries_queue")
+  @@map("merchant_plan_notice_deliveries")
 }
