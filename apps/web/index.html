@@ -464,6 +464,11 @@
             <p>Da primeira loja à operação em escala. Escolha a capacidade e a inteligência que seu momento pede, com limites e taxas visíveis desde o início.</p>
           </div>
           <ol class="signup-path" aria-label="Como começar"><li><span>01</span> Escolha seu plano</li><li><span>02</span> Crie seu acesso ou entre</li><li><span>03</span> Confirme e continue no painel</li></ol>
+          <div class="pricing-cycle" role="group" aria-label="Período de cobrança" data-catalog-url="https://api.zyon-payments.com.br/billing/catalog">
+            <button type="button" data-cycle="monthly" aria-pressed="true">Mensal</button>
+            <button type="button" data-cycle="annual" aria-pressed="false" disabled>Anual</button>
+          </div>
+          <p class="pricing-availability" role="status">Consulte a disponibilidade do plano anual.</p>
           <div class="pricing-grid">
             <article class="plan" data-plan="starter">
               <div class="plan-label">Seu primeiro passo <span>Sem mensalidade</span></div>
@@ -471,19 +476,18 @@
               <p class="plan-description">Para tirar sua loja autônoma do papel e conhecer a Zyon atendendo seus primeiros clientes. O essencial para começar, com a identidade da sua marca.</p>
               <div class="plan-price">R$ 0 <small>/mês</small></div>
               <p class="plan-fee">Após os 14 dias iniciais: R$ 2,99 por transação.</p>
+              <p class="plan-annual" hidden></p>
               <span class="plan-includes">Sua operação começa com</span>
               <ul class="plan-list">
-                <li>100 pedidos por mês</li>
-                <li>100 sessões por mês</li>
-                <li>100 conversas com IA por mês</li>
+                <li>100 compras confirmadas por mês</li>
                 <li>1 conexão de comércio</li>
+                <li>1 membro na equipe</li>
+                <li>1 cupom ativo</li>
                 <li>Nome do assistente personalizado</li>
                 <li>Tema da loja personalizado</li>
                 <li>Páginas de produto com conteúdo avançado</li>
               </ul>
               <details class="plan-details"><summary>Todos os recursos e limites <span aria-hidden="true">+</span></summary><ul class="plan-list">
-                <li>1 membro na equipe</li>
-                <li>1 cupom ativo</li>
                 <li>1 promoção de venda complementar</li>
               </ul></details>
               <a class="button plan--plain-button" href="https://app.zyon-payments.com.br/?mode=signup&amp;plan=starter">Começar no Free</a>
@@ -491,22 +495,21 @@
             <article class="plan plan--featured" data-plan="growth">
               <div class="plan-label">Para vender com consistência <span>Recomendado</span></div>
               <h3>Growth</h3>
-              <p class="plan-description">Para quem já tem uma rotina de vendas e quer automatizar mais. Amplie o atendimento, dê conhecimento à IA e trabalhe com regras comerciais avançadas.</p>
+              <p class="plan-description">Para quem já tem uma rotina de vendas e quer automatizar mais. Atenda por texto e voz, use sua base de conhecimento, configure entregas e conecte seu domínio próprio.</p>
               <div class="plan-price">R$ 349 <small>/mês</small></div>
               <p class="plan-fee">R$ 1,49 por transação. Assinatura mensal.</p>
+              <p class="plan-annual" hidden></p>
               <span class="plan-includes">Mais inteligência para sua rotina</span>
               <ul class="plan-list">
-                <li>500 pedidos por mês</li>
-                <li>1.000 sessões por mês</li>
-                <li>5.000 conversas com IA por mês</li>
+                <li>500 compras confirmadas por mês</li>
                 <li>2 conexões de comércio</li>
+                <li>3 membros na equipe</li>
+                <li>10 cupons ativos</li>
                 <li>Nome do assistente personalizado</li>
                 <li>Tema da loja personalizado</li>
                 <li>Checkout por voz</li>
               </ul>
               <details class="plan-details"><summary>Todos os recursos e limites <span aria-hidden="true">+</span></summary><ul class="plan-list">
-                <li>3 membros na equipe</li>
-                <li>10 cupons ativos</li>
                 <li>10 promoções de venda complementar</li>
                 <li>Biometria facial</li>
                 <li>Pagamentos em cripto</li>
@@ -515,6 +518,7 @@
                 <li>Regras comerciais avançadas</li>
                 <li>Base de conhecimento</li>
                 <li>Pós-venda</li>
+                <li>Domínio próprio</li>
                 <li>Integrações com CRM</li>
                 <li>Importação de planilhas com IA</li>
                 <li>Páginas de produto com conteúdo avançado</li>
@@ -524,22 +528,21 @@
             <article class="plan" data-plan="scale">
               <div class="plan-label">Para operações em expansão <span>Escala</span></div>
               <h3>Scale</h3>
-              <p class="plan-description">Para empresas que precisam de capacidade, marca própria e inteligência comercial avançada. Expanda a operação com análise, experimentação e agentes.</p>
+              <p class="plan-description">Para empresas que precisam de capacidade, marca própria e inteligência comercial avançada. Inclui compras sem limite mensal, análise, experimentação e agentes. Alto consumo e integrações especiais têm condições sob consulta.</p>
               <div class="plan-price">R$ 599 <small>/mês</small></div>
               <p class="plan-fee">R$ 0,99 por transação. Assinatura mensal.</p>
+              <p class="plan-annual" hidden></p>
               <span class="plan-includes">Capacidade para o próximo nível</span>
               <ul class="plan-list">
-                <li>Pedidos sem limite</li>
-                <li>Sessões sem limite</li>
-                <li>Conversas com IA sem limite</li>
+                <li>Compras sem limite mensal</li>
                 <li>Conexões de comércio sem limite</li>
+                <li>10 membros na equipe</li>
+                <li>Cupons sem limite</li>
                 <li>Nome do assistente personalizado</li>
                 <li>Tema da loja personalizado</li>
                 <li>Checkout por voz</li>
               </ul>
               <details class="plan-details"><summary>Todos os recursos e limites <span aria-hidden="true">+</span></summary><ul class="plan-list">
-                <li>10 membros na equipe</li>
-                <li>Cupons sem limite</li>
                 <li>Promoções de venda complementar sem limite</li>
                 <li>Biometria facial</li>
                 <li>Pagamentos em cripto</li>
@@ -562,7 +565,22 @@
               <a class="button plan--plain-button" href="https://app.zyon-payments.com.br/?mode=signup&amp;plan=scale">Assinar Scale</a>
             </article>
           </div>
-          <p class="pricing-note">Há uma taxa de serviço de R$ 0,99 por compra para o comprador. Taxas dos provedores de pagamento são cobradas separadamente. Confira valores e condições no fluxo de assinatura.</p>
+          <p class="pricing-note">O limite mensal considera compras com pagamento confirmado. No anual, o pagamento é único e o desconto se aplica somente à assinatura. Há uma taxa de serviço de R$ 0,99 por compra para o comprador. Taxas dos provedores de pagamento são cobradas separadamente. Confira valores e condições no fluxo de assinatura.</p>
+          <section class="pricing-simulator" aria-labelledby="simulation-title" hidden>
+            <h3 id="simulation-title">Simule o custo da Zyon</h3>
+            <p>Compare a assinatura e a tarifa fixa com o volume mensal da sua loja.</p>
+            <div class="pricing-simulator__inputs">
+              <label>Compras confirmadas por mês<input id="billing-volume" type="number" min="0" max="10000000" step="1" value="100" inputmode="numeric" /></label>
+              <label>Ticket médio (R$)<input id="billing-ticket" type="number" min="0" max="10000000" step="0.01" value="100" inputmode="decimal" /></label>
+            </div>
+            <div class="pricing-simulator__table" tabindex="0" role="region" aria-label="Comparação de planos; deslize para ver todas as colunas"><table><caption class="sr-only">Estimativa mensal por plano</caption><thead><tr><th>Plano</th><th>Assinatura + tarifas/mês</th><th>% das vendas</th><th>Capacidade</th></tr></thead><tbody id="billing-estimates"></tbody></table></div>
+            <p id="billing-simulation-note" role="status">Estimativa após o período gratuito, sem taxas do provedor, serviço do comprador ou implantação. No anual, a assinatura aparece como equivalente mensal, mas é paga de uma vez.</p>
+          </section>
+          <div class="pricing-services">
+            <article><h3>Implantação assistida · R$ 749</h3><p>Serviço opcional: uma loja, um domínio, até 50 produtos em planilha padrão, uma integração nativa, orientação de até 60 minutos e uma rodada de ajustes. O escopo é confirmado antes da contratação.</p><a href="mailto:contato@zyon-payments.com.br?subject=Implanta%C3%A7%C3%A3o%20assistida">Solicitar implantação</a></article>
+            <article><h3>Grandes operações</h3><p>Alto consumo de IA, integrações especiais e atendimento diferenciado: condições sob consulta, de acordo com a operação.</p><a href="mailto:contato@zyon-payments.com.br?subject=Grandes%20opera%C3%A7%C3%B5es">Conversar sobre minha operação</a></article>
+          </div>
+
         </div>
       </section>
 
@@ -575,9 +593,9 @@
             <details open><summary>O que torna a loja autônoma?</summary><p>A Zyon reúne catálogo, atendimento por IA, recomendações e a jornada de compra. O cliente pode avançar sem esperar uma resposta manual a cada etapa. Sua empresa continua definindo produtos, políticas e condições comerciais.</p></details>
             <details><summary>A IA pode oferecer qualquer desconto?</summary><p>As ofertas seguem as regras configuradas pela loja. Limites de desconto e margem são validados pelos motores comerciais. Uma sugestão da IA precisa respeitar esses limites antes de ser apresentada como condição de compra.</p></details>
             <details><summary>Preciso ter uma equipe de tecnologia?</summary><p>Você gerencia catálogo, identidade, atendimento e regras pelo dashboard. Recursos de API e protocolos ficam disponíveis para operações que precisam de uma implementação técnica mais personalizada.</p></details>
-            <details><summary>Como escolho entre Free, Growth e Scale?</summary><p>O Free permite começar com até 100 pedidos e 100 conversas com IA por mês. O Growth amplia a capacidade e libera voz, conhecimento e regras avançadas. O Scale adiciona domínio próprio, experimentação, Revenue Manager e mais capacidade de operação.</p></details>
+            <details><summary>Como escolho entre Free, Growth e Scale?</summary><p>O Free inclui até 100 compras confirmadas por mês. O Growth inclui até 500, voz, base de conhecimento, regras avançadas e domínio próprio. O Scale inclui compras sem limite mensal, experimentação e Revenue Manager. Para alto consumo de IA e integrações especiais, consulte condições.</p></details>
             <details><summary>O que é cobrado além da mensalidade?</summary><p>A taxa Zyon da loja é de R$ 2,99 por transação no Free, R$ 1,49 no Growth e R$ 0,99 no Scale. O comprador paga R$ 0,99 de serviço por compra. As taxas do provedor de pagamento são separadas. No Free, os primeiros 14 dias não têm a taxa de transação Zyon da loja.</p></details>
-            <details><summary>Minha loja continua com a minha marca?</summary><p>Sim. Nome, tema e identidade do atendimento podem ser personalizados. Growth e Scale permitem remover o selo Zyon. O Scale também inclui domínio próprio.</p></details>
+            <details><summary>Minha loja continua com a minha marca?</summary><p>Sim. Nome, tema e identidade do atendimento podem ser personalizados. Growth e Scale permitem remover o selo Zyon. Growth e Scale incluem domínio próprio.</p></details>
           </div>
         </div>
       </section>
@@ -624,6 +642,8 @@
     </footer>
 
 
+    <script src="assets/billing-pricing.js?v=annual-1" defer></script>
+    <link rel="stylesheet" href="assets/billing-pricing.css?v=annual-1" />
     <script src="assets/landing.js?v=modern-1" defer></script>
     <script src="assets/premium.js?v=modern-1" defer></script>
     <script src="assets/vendor/gsap.min.js?v=3.15.0" defer></script>

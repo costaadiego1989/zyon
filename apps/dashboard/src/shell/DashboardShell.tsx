@@ -10,6 +10,8 @@ import { PlatformFeedbackFab } from "../components/PlatformFeedbackFab.js";
 import { FreeTrialNotice } from "../pages/billing-plans/FreeTrialNotice.js";
 import { PlanProvider } from "../components/FeatureGate.js";
 import { PremiumFeatureGate } from "../components/PremiumFeatureGate.js";
+import { StrategyReviewModal } from "../pages/revenue-manager/StrategyReviewModal.js";
+import { STRATEGY_REVIEW_EVENT, STRATEGY_CHANGED_EVENT } from "../pages/revenue-manager/strategy-review.js";
 import { NotificationBell, type NotificationItem } from "../components/NotificationBell.js";
 import { useSupportSocket } from "../hooks/useSupportSocket.js";
 import { useNavCounts } from "./useNavCounts.js";
@@ -127,6 +129,16 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   const [hideOnboarding, setHideOnboarding] = useState(initialOnboardingCompleted !== false);
   const appliedOnboardingTabRef = React.useRef(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [reviewStrategyId, setReviewStrategyId] = useState<string | null>(null);
+  useEffect(() => {
+    setReviewStrategyId(null);
+    const review = (event: Event) => {
+      const id = (event as CustomEvent<{ hypothesisId?: string }>).detail?.hypothesisId;
+      if (typeof id === "string" && id.trim()) setReviewStrategyId(id);
+    };
+    window.addEventListener(STRATEGY_REVIEW_EVENT, review);
+    return () => window.removeEventListener(STRATEGY_REVIEW_EVENT, review);
+  }, [me.id]);
   const [customDomain, setCustomDomain] = useState<string>();
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
     const saved = localStorage.getItem("aacp_nav_collapsed");
@@ -244,33 +256,35 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   }, [socket.newTickets]); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => {
-    let lastCheck = new Date().toISOString();
     let stopped = false;
+    let polling = false;
+    setNotifications([]);
     const poll = async () => {
+      if (polling) return;
+      polling = true;
       try {
-        const res = await dashboardFetch(
-          API_BASE_URL,
-          `/merchants/${me.id}/notifications?since=${encodeURIComponent(lastCheck)}`,
-        );
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data.items) && data.items.length > 0) {
-            const newNotifs: NotificationItem[] = data.items.map((item: any) => ({
-              id: item.id,
-              type: item.type,
-              title: item.title,
-              createdAt: item.createdAt,
-            }));
-            setNotifications((prev) => [...newNotifs, ...prev]);
-          }
-        }
-        lastCheck = new Date().toISOString();
-      } catch { /* non-blocking */ }
+        const res = await dashboardFetch(API_BASE_URL, `/merchants/${me.id}/notifications`);
+        if (!res.ok || stopped) return;
+        const data = await res.json();
+        if (!Array.isArray(data.items) || stopped) return;
+        const incoming: NotificationItem[] = data.items.map((item: any) => ({
+          id: item.id, type: item.type, title: item.title, createdAt: item.createdAt,
+          hypothesisId: typeof item.metadata?.hypothesisId === "string" ? item.metadata.hypothesisId : undefined,
+        }));
+        setNotifications(prev => {
+          const merged = new Map(prev.filter(n => n.ticketId).map(n => [n.id, n]));
+          incoming.forEach(n => merged.set(n.id, n));
+          return [...merged.values()].sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+        });
+      } catch { /* Keep the last successful snapshot; the next poll retries. */ }
+      finally { polling = false; }
     };
-    void poll(); // immediate first check, then every 30s
+    void poll();
     const timer = setInterval(() => { if (!stopped) void poll(); }, 30_000);
-    return () => { stopped = true; clearInterval(timer); };
-  }, [me.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    const reload = () => { void poll(); };
+    window.addEventListener(STRATEGY_CHANGED_EVENT, reload);
+    return () => { stopped = true; clearInterval(timer); window.removeEventListener(STRATEGY_CHANGED_EVENT, reload); };
+  }, [me.id]);
 
   const visibleNavItems = useMemo(
     () => {
@@ -561,6 +575,10 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 ).finally(() => setNotifications([]));
               }}
               onClickNotification={(n) => {
+                if (n.hypothesisId) setReviewStrategyId(n.hypothesisId);
+                if (n.type === "inventory_alert") changeTab("inventory" as TabKey);
+                if (n.type === "plan_expiry") changeTab("billing-plans");
+                void dashboardFetch(API_BASE_URL, `/merchants/${me.id}/notifications/${encodeURIComponent(n.id)}/read`, { method: "POST" });
                 if (n.ticketId) {
                   changeTab("support" as TabKey);
                 }
@@ -574,6 +592,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
           </div>
         </div>
         <section className="console-content" style={{ flex: 1, overflowY: "auto", padding: "48px 32px 60px", scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.06) transparent" }}>
+          {reviewStrategyId && <StrategyReviewModal key={me.id + reviewStrategyId} hypothesisId={reviewStrategyId} merchantId={me.id} onClose={() => setReviewStrategyId(null)} />}
           <FreeTrialNotice onViewPlans={() => changeTab("billing-plans")} />
           <PageErrorBoundary key={tab}>
             <Suspense fallback={<LoadingFallback />}>
@@ -656,7 +675,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "store-settings" ? <RouteGuard me={me} require="store-settings"><StoreSettingsPage /></RouteGuard> : null}
             {tab === "custom-domain" ? (
               <RouteGuard me={me} require="custom-domain">
-                <PremiumFeatureGate feature="customDomain" requiredPlan="Scale" featureLabel="Domínio próprio" description="Use seu próprio domínio na loja com o plano Scale.">
+                <PremiumFeatureGate feature="customDomain" requiredPlan="Growth" featureLabel="Domínio próprio" description="Use seu próprio domínio na loja a partir do plano Growth.">
                   <CustomDomainPage />
                 </PremiumFeatureGate>
               </RouteGuard>

@@ -144,13 +144,14 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
       try {
         const rules = await api.getMerchantRules();
         const ar = await api.getAgentRules();
+        const behavior = await api.getCheckoutSettings();
         if (cancelled) return;
 
         const arUnknown = ar as unknown as Record<string, unknown>;
         const rulesUnknown = rules as unknown as Record<string, unknown>;
         const identity = (arUnknown.identity ?? {}) as Record<string, unknown>;
         const checkoutSettings = (arUnknown.checkoutSettings ?? {}) as Record<string, unknown>;
-        const rawMode = checkoutSettings.agentMode;
+        const rawMode = behavior.mode;
         const agentMode: AgentMode =
           rawMode === "proactive" || rawMode === "manual_only" || rawMode === "silent_until_trigger"
             ? rawMode
@@ -204,13 +205,6 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
     setSaving(true);
     try {
       await api.putMerchantRules({
-        maxDiscountPercent: Number(form.maxDiscountPercent),
-        minimumMarginPercent: Number(form.minimumMarginPercent),
-        allowFreeShipping: form.allowFreeShipping,
-        allowShippingDiscount: form.allowShippingDiscount,
-        freeShippingMinCartValue: Number(form.freeShippingMinCartValue),
-        maxPartialShippingDiscount: Number(form.maxPartialShippingDiscount),
-        offerExpirationMinutes: Number(form.offerExpirationMinutes),
         quickReplies: stageConfigToMap(stageQrConfig),
       } as never);
 
@@ -228,11 +222,7 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
         },
       } as never);
 
-      // Sync agentName to merchant theme for backward compat (storefront reads theme too)
-      try {
-        const currentTheme = await api.getMerchantTheme();
-        await api.putMerchantTheme({ ...currentTheme, agentName: form.agentName, agentGreeting: form.greeting } as never);
-      } catch { /* non-critical sync */ }
+      await api.patchCheckoutSettings({ mode: form.agentMode });
 
       showToast("success", "Configurações do agente salvas com sucesso");
     } catch (e) {

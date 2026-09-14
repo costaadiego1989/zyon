@@ -74,6 +74,7 @@ export function PlatformFeedbackFab() {
       <Modal
         isOpen={isOpen}
         onClose={close}
+        presentation="floating-panel"
         eyebrow="Feedback de produto"
         title="Como podemos melhorar?"
         subtitle="Conte o que aconteceu ou compartilhe uma ideia para a Zyon."

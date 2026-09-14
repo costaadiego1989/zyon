@@ -7,7 +7,8 @@ const NOTIFICATION_SOUND = "data:audio/wav;base64,UklGRlQBAABXQVZFZm10IBAAAAABAA
 
 export interface NotificationItem {
   id: string;
-  type: "handoff" | "message" | "return_requested" | "chargeback_opened" | "hold_released" | "refund_processed" | "order_paid";
+  hypothesisId?: string;
+  type: "ai_strategy_suggestion" | "ai_rule_suggestion" | "inventory_alert" | "plan_expiry" | "handoff" | "message" | "return_requested" | "chargeback_opened" | "hold_released" | "refund_processed" | "order_paid";
   title: string;
   ticketId?: string;
   createdAt: string;

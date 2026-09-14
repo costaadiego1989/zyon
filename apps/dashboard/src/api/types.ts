@@ -1,3 +1,4 @@
+import type { BillingCycle, BillingOffer } from "@zyon/shared-types";
 export type {
   CheckoutSettings,
   CheckoutSettingsPatch,
@@ -145,6 +146,8 @@ export type BillingPlanCard = {
   key: "starter" | "growth" | "scale" | string;
   name: string;
   priceBrl: number;
+  billingOptions?: BillingOffer[];
+  annualCheckoutAvailable?: boolean;
   transactionFeeCents?: number;
   limits?: Record<string, number | null>;
   trialDays: number;
@@ -172,6 +175,13 @@ export type BillingSubscription = {
   has_billing_customer?: boolean;
   has_subscription?: boolean;
   billing_provider?: string;
+  billing_cycle?: BillingCycle;
+  billing_amount_cents?: number | null;
+  billing_discount_percent?: number;
+  pending_plan?: string | null;
+  pending_billing_cycle?: BillingCycle | null;
+  pending_billing_amount_cents?: number | null;
+  pending_effective_at?: string | null;
   usage?: {
     period_start?: string;
     commercial_status?: "active" | "warning" | "grace" | "suspended";
@@ -182,10 +192,6 @@ export type BillingSubscription = {
     can_accept_orders?: boolean;
     orders_current?: number | null;
     orders_limit?: number | null;
-    sessions_current: number | null;
-    sessions_limit: number | null;
-    ai_conversations_current?: number | null;
-    ai_conversations_limit?: number | null;
     commerce_connections_current?: number | null;
     commerce_connections_limit?: number | null;
     webhook_endpoints_current?: number | null;
