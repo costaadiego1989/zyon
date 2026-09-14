@@ -105,7 +105,7 @@ function TimelineDot() {
       xmlns="http://www.w3.org/2000/svg"
       style={{
         flexShrink: 0,
-        color: "var(--aacp-accent)",
+        color: "var(--aacp-accent-text, var(--aacp-accent))",
       }}
       aria-hidden="true"
     >
@@ -294,7 +294,7 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
 
   if (isDelivered) {
     return (
-      <div
+      <div data-neu="surface"
         style={{
           padding: "14px",
           borderRadius: "10px",
@@ -344,7 +344,7 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
 
   if (isFlatRate && !hasRealCode) {
     return (
-      <div
+      <div data-neu="surface"
         style={{
           padding: "14px",
           borderRadius: "10px",
@@ -402,7 +402,7 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
 
   if (!hasRealCode) {
     return (
-      <div
+      <div data-neu="surface"
         style={{
           padding: "14px",
           borderRadius: "10px",
@@ -462,7 +462,7 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
   }
 
   return (
-    <div
+    <div data-neu="surface"
       style={{
         padding: "14px",
         borderRadius: "10px",
@@ -531,7 +531,7 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
             padding: "3px 8px",
             borderRadius: "4px",
             background: "color-mix(in srgb, var(--aacp-accent) 12%, transparent)",
-            color: "var(--aacp-accent)",
+            color: "var(--aacp-accent-text, var(--aacp-accent))",
             fontSize: "10px",
             fontWeight: 600,
           }}
@@ -582,7 +582,7 @@ function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
             alignItems: "center",
             gap: "4px",
             fontSize: "11px",
-            color: "var(--aacp-accent)",
+            color: "var(--aacp-accent-text, var(--aacp-accent))",
             textDecoration: "none",
             fontWeight: 600,
             transition: "opacity 0.15s ease",

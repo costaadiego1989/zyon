@@ -12,7 +12,7 @@ export function BuyerHubTrigger({
   const [hovered, setHovered] = useState(false);
 
   return (
-    <button
+    <button data-neu="control"
       type="button"
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}

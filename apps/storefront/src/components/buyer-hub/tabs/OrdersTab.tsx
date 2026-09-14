@@ -101,7 +101,7 @@ function PurchaseCard({ purchase, expanded, onToggle }: PurchaseCardProps) {
   const itemsId = `${cardId}-items`;
 
   return (
-    <article
+    <article data-neu="card"
       style={{
         background: "var(--aacp-card)",
         border: "1px solid var(--aacp-line)",
@@ -110,7 +110,7 @@ function PurchaseCard({ purchase, expanded, onToggle }: PurchaseCardProps) {
         color: "var(--aacp-fg)",
       }}
     >
-      <button
+      <button data-neu="control"
         type="button"
         onClick={onToggle}
         aria-expanded={expanded}
@@ -418,7 +418,7 @@ export function OrdersTab({ purchases, hasMore, loadingMore, onLoadMore }: Order
 
       {hasMore && (
         <div style={{ display: "flex", justifyContent: "center", marginTop: "6px" }}>
-          <button
+          <button data-neu="control"
             type="button"
             onClick={onLoadMore}
             disabled={loadingMore}

@@ -61,7 +61,7 @@ export function OtpInput({ value, onChange, length = 6, disabled, autoFocus, lab
   return (
     <div role="group" aria-label={label ?? "Código de verificação"} style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
       {Array.from({ length }).map((_, i) => (
-        <input
+        <input data-neu="field"
           key={i}
           ref={(el) => { inputsRef.current[i] = el; }}
           type="text"

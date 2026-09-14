@@ -71,7 +71,7 @@ export function SettingsTab({
         >
           Aparência
         </div>
-        <button
+        <button data-neu="control"
           onClick={onToggleTheme}
           aria-label={`Alternar para modo ${theme === "dark" ? "claro" : "escuro"}`}
           style={{
@@ -126,7 +126,7 @@ export function SettingsTab({
         >
           Privacidade (LGPD)
         </div>
-        <button
+        <button data-neu="control"
           onClick={handleExport}
           disabled={exportLoading}
           aria-label="Exportar meus dados (LGPD)"
@@ -202,7 +202,7 @@ export function SettingsTab({
           Zona de perigo
         </div>
         {!showDeleteConfirm ? (
-          <button
+          <button data-neu="control"
             onClick={() => setShowDeleteConfirm(true)}
             aria-label="Excluir minha conta"
             style={{
@@ -268,7 +268,7 @@ export function SettingsTab({
               </div>
             )}
             <div style={{ display: "flex", gap: "8px" }}>
-              <button
+              <button data-neu="control"
                 onClick={() => {
                   setShowDeleteConfirm(false);
                   setDeleteError(null);
@@ -290,7 +290,7 @@ export function SettingsTab({
               >
                 Cancelar
               </button>
-              <button
+              <button data-neu="control"
                 onClick={handleDelete}
                 disabled={deleteLoading}
                 aria-label="Confirmar exclusão de conta"
@@ -328,7 +328,7 @@ export function SettingsTab({
 
       {/* Logout */}
       <div style={{ paddingTop: "8px", borderTop: "1px solid var(--aacp-line)" }}>
-        <button
+        <button data-neu="control"
           onClick={onLogout}
           aria-label="Sair da conta"
           style={{

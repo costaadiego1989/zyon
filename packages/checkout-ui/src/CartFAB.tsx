@@ -5,7 +5,7 @@ function formatPrice(value: number): string {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 }
 
-export function CartFAB({ itemCount, total, onClick, anchor }: CartFABProps) {
+export function CartFAB({ itemCount, total, onClick }: CartFABProps) {
   const [pulse, setPulse] = useState(false);
   const [prevCount, setPrevCount] = useState(itemCount);
 
@@ -18,21 +18,20 @@ export function CartFAB({ itemCount, total, onClick, anchor }: CartFABProps) {
     setPrevCount(itemCount);
   }, [itemCount, prevCount]);
 
-  const placement = anchor ?? { bottom: "130px", right: "16px" };
-
   return (
     <>
       <style>{`
-        @keyframes ckui-pulse { 0%{box-shadow:0 0 0 0 var(--aacp-accent,#0f766e)} 70%{box-shadow:0 0 0 10px transparent} 100%{box-shadow:0 0 0 0 transparent} }
+        @keyframes ckui-pulse { 0%{box-shadow:var(--aacp-neu-floating),0 0 0 0 var(--aacp-accent,#0f766e)} 70%{box-shadow:var(--aacp-neu-floating),0 0 0 10px transparent} 100%{box-shadow:var(--aacp-neu-floating),0 0 0 0 transparent} }
         @keyframes ckui-badge-pop { 0%{transform:scale(0.5)} 60%{transform:scale(1.2)} 100%{transform:scale(1)} }
       `}</style>
-      <button
+      <button data-neu="floating"
         type="button"
         onClick={onClick}
         aria-label={itemCount > 0 ? `Carrinho: ${itemCount} itens, ${formatPrice(total)}` : "Carrinho"}
         style={{
           position: "absolute",
-          ...placement,
+          bottom: "130px",
+          right: "16px",
           zIndex: 9998,
           width: "48px",
           height: "48px",
@@ -44,7 +43,7 @@ export function CartFAB({ itemCount, total, onClick, anchor }: CartFABProps) {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
+          boxShadow: "var(--aacp-neu-floating, 0 4px 16px rgba(0,0,0,0.25))",
           transition: "transform 0.2s ease",
           animation: pulse ? "ckui-pulse 0.6s ease" : undefined,
         }}
@@ -58,7 +57,7 @@ export function CartFAB({ itemCount, total, onClick, anchor }: CartFABProps) {
         </svg>
 
         {itemCount > 0 && (
-          <span
+          <span data-neu="counter"
             style={{
               position: "absolute",
               top: "-3px",

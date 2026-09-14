@@ -1,5 +1,6 @@
 import { NEUMORPHIC_THEME } from "../design-system/neumorphism";
-import { useCallback, useEffect, useState } from "react";
+
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useCheckoutStore } from "@/store/checkout-store";
 import { ChannelGate } from "@/components/ChannelGate";
 import { ChatPanel } from "@/components/ChatPanel";
@@ -12,6 +13,9 @@ import { ShimmerBorder } from "@/components/ShimmerBorder";
 import { CampaignContactPreferences } from "@/components/CampaignContactPreferences";
 
 export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light" } = {}) {
+  const chatColumnRef = useRef<HTMLDivElement>(null);
+  const [composerOffset, setComposerOffset] = useState<number | null>(null);
+  const channel = useCheckoutStore((s) => s.channel);
   const [supportOpen, setSupportOpen] = useState(false);
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [cartDrawerClosing, setCartDrawerClosing] = useState(false);
@@ -36,6 +40,27 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
   const showBranding = useCheckoutStore((s) => s.showBranding);
   const api = useCheckoutStore((s) => s.api);
   const sessionId = useCheckoutStore((s) => s.sessionId);
+
+  // Follow the actual composer when consent details, voice controls or the
+  // viewport change height. Fixed estimates let the FAB cover the send action.
+  useEffect(() => {
+    const column = chatColumnRef.current;
+    const composer = column?.querySelector<HTMLElement>("[data-aacp-checkout-composer]");
+    if (!isMobile || status !== "active" || !column || !composer) {
+      setComposerOffset(null);
+      return;
+    }
+    const measure = () => setComposerOffset(Math.max(0, Math.ceil(window.innerHeight - composer.getBoundingClientRect().top - 4)));
+    const observer = new ResizeObserver(measure);
+    observer.observe(column);
+    observer.observe(composer);
+    if (composer.parentElement) observer.observe(composer.parentElement);
+    measure();
+    window.addEventListener("resize", measure);
+    window.visualViewport?.addEventListener("resize", measure);
+    return () => { observer.disconnect(); window.removeEventListener("resize", measure); window.visualViewport?.removeEventListener("resize", measure); };
+  }, [isMobile, status, channel, showBranding]);
+  const mobileActionOffset = composerOffset ?? 72 + (showBranding ? 40 : 0);
 
   const storeName = brand.name || "Loja";
   const agentName = agent.name || "Assistente";
@@ -82,7 +107,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
   const themeAttr = theme;
 
   useEffect(() => {
-    const bodyBg = theme === "dark" ? "#191f1d" : "#edf0ee";
+    const bodyBg = theme === "dark" ? "#0d1117" : "#e7e5df";
     document.body.style.background = bodyBg;
   }, [theme]);
 
@@ -99,7 +124,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
     overflow: "hidden",
   };
 
-  const themePalette: Record<string, string> = { ...NEUMORPHIC_THEME[theme] };
+  const themePalette: Record<string, string> = NEUMORPHIC_THEME[theme];
 
   return (
     <div
@@ -307,7 +332,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
               }}
             >
               {/* Main content area - left side (Chat) */}
-              <div
+              <div ref={chatColumnRef}
                 style={{
                   flex: 1,
                   minWidth: 0,
@@ -327,9 +352,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
                 )}
 
                 {/* ChatPanel is the MAIN UI */}
-                <ChatPanel
-                  onOpenCart={isMobile && cart.items.length > 0 ? () => setCartDrawerOpen(true) : undefined}
-                />
+                <ChatPanel />
                 <CampaignContactPreferences api={api} sessionId={sessionId} />
               </div>
 
@@ -355,7 +378,37 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
         </ShimmerBorder>
       )}
 
-      {/* Mobile cart drawer */}
+      {/* Mobile actions clear the measured composer and footer. */}
+      {isMobile && status === "active" && cart.items.length > 0 && (
+        <button data-neu="floating"
+          type="button"
+          className="cart-fab-mobile"
+          aria-label="Abrir carrinho"
+          onClick={() => setCartDrawerOpen(true)}
+          style={{
+            position: "fixed",
+            bottom: `${16 + mobileActionOffset + 56}px`,
+            right: "16px",
+            width: "48px",
+            height: "48px",
+            borderRadius: "50%",
+            border: "none",
+            background: "var(--aacp-accent, #0f766e)",
+            color: "#fff",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "var(--aacp-neu-floating)",
+            zIndex: 999,
+          }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6L5 3H2"/><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/></svg>
+          <span data-neu="counter" style={{ position: "absolute", top: "-4px", right: "-4px", width: "18px", height: "18px", borderRadius: "50%", background: "#ef4444", fontSize: "10px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {cart.items.reduce((s, i) => s + i.quantity, 0)}
+          </span>
+        </button>
+      )}
       {cartDrawerOpen && (
         <>
           {/* Keyframes for the bottom-sheet (same as storefront CartSheet) */}
@@ -423,12 +476,11 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
       )}
 
       {/* Support FAB and Panel — lift above chat input + whitelabel badge on mobile */}
-      <SupportFAB
+      {!cartDrawerOpen && <SupportFAB
         open={supportOpen}
         onToggle={() => setSupportOpen(!supportOpen)}
-        cartItemCount={cart.items.length}
-        bottomOffset={isMobile && status === "active" ? 72 + (showBranding ? 40 : 0) : (showBranding ? 40 : 0)}
-      />
+        bottomOffset={isMobile && status === "active" && !supportOpen ? mobileActionOffset : (showBranding ? 40 : 0)}
+      />}
       <SupportPanel open={supportOpen} onClose={() => setSupportOpen(false)} />
 
       {/* Whitelabel badge — free-plan merchants only. Accent background per brand. */}

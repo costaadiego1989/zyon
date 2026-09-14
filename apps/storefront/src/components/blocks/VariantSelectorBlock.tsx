@@ -42,7 +42,7 @@ export default function VariantSelectorBlock({
   }
 
   return (
-    <div
+    <div data-neu="surface"
       style={{
         borderRadius: "var(--aacp-radius-md)",
         background: "var(--aacp-surface)",
@@ -99,7 +99,7 @@ export default function VariantSelectorBlock({
               const colorHex = lookupColor(opt.value);
               const isSelected = selected[group.name] === opt.value;
               return (
-                <button
+                <button data-neu="control"
                   key={opt.id}
                   type="button"
                   onClick={() => opt.available && handleSelect(group.name, opt.value)}

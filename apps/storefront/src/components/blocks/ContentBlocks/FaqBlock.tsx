@@ -29,7 +29,7 @@ export default function FaqBlock({ block }: { block: FaqBlockData }) {
             overflow: "hidden",
           }}
         >
-          <summary
+          <summary data-neu="text"
             style={{
               listStyle: "none",
               cursor: "pointer",

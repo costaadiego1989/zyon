@@ -46,8 +46,8 @@ export default function ProductNarration({ summary, enabled, voice = browserProd
   const playing = state !== "idle";
   return <aside className={`${styles.narration} ${placement === "header" ? styles.narrationInHeader : ""}`} aria-label="Resumo do produto">
     <div className={styles.narrationHeader}>
-      <details><summary>Resumo do produto</summary><p>{summary}</p></details>
-      {available ? <button type="button" onClick={playing ? stop : start} aria-label={playing ? "Parar narração" : "Ouvir resumo"} disabled={!enabled}>
+      <details><summary data-neu="text">{placement === "header" ? "Resumo" : "Resumo do produto"}</summary><p>{summary}</p></details>
+      {available ? <button data-neu="control" type="button" onClick={playing ? stop : start} aria-label={playing ? "Parar narração" : "Ouvir resumo"} disabled={!enabled}>
         {playing ? <FiVolumeX aria-hidden="true" /> : <FiVolume2 aria-hidden="true" />}
         <span>{state === "speaking" ? "Parar áudio" : state === "starting" ? "Cancelar áudio" : "Ouvir resumo"}</span>
       </button> : null}

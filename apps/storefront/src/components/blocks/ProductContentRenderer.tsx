@@ -169,7 +169,7 @@ function ProductContentSupplementalSections({
             {approvedTestimonials.map((item) => (
               <figure key={item.id} style={{ margin: 0, padding: "6px 0 18px", background: "var(--aacp-surface)" }}>
                 {typeof item.rating === "number" && item.rating >= 1 && item.rating <= 5 ? (
-                  <div aria-label={`${item.rating} de 5 estrelas`} style={{ color: "var(--aacp-accent)", letterSpacing: "0.08em", fontSize: "13px" }}>{"★".repeat(item.rating)}{"☆".repeat(5 - item.rating)}</div>
+                  <div aria-label={`${item.rating} de 5 estrelas`} style={{ color: "var(--aacp-accent-text, var(--aacp-accent))", letterSpacing: "0.08em", fontSize: "13px" }}>{"★".repeat(item.rating)}{"☆".repeat(5 - item.rating)}</div>
                 ) : null}
                 <blockquote style={{ margin: "8px 0", color: "var(--aacp-fg)", fontSize: "14px", lineHeight: 1.55 }}>&ldquo;{item.body}&rdquo;</blockquote>
                 <figcaption style={{ color: "var(--aacp-muted)", fontSize: "12.5px", fontWeight: 600 }}>{item.authorName}</figcaption>

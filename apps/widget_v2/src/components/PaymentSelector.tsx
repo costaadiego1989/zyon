@@ -26,7 +26,7 @@ export function PaymentSelector() {
       <p style={{ fontSize: "13px" }}>
         As formas de pagamento aparecem no chat. Envie uma mensagem para continuar.
       </p>
-      <button
+      <button data-neu="primary"
         type="button"
         onClick={() => void sendMessage("Mostrar formas de pagamento")}
         style={{

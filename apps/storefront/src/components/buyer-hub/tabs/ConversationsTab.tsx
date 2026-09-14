@@ -212,7 +212,7 @@ function MessageBubble({
       <p style={contentStyle}>{msg.content}</p>
       {isAsst ? (
         <div style={actionsStyle} role="group" aria-label="Avaliar mensagem">
-          <button
+          <button data-neu="control"
             type="button"
             onClick={() => handle("up")}
             disabled={!!busy}
@@ -236,7 +236,7 @@ function MessageBubble({
               aria-hidden="true"
             />
           </button>
-          <button
+          <button data-neu="control"
             type="button"
             onClick={() => handle("down")}
             disabled={!!busy}
@@ -345,7 +345,7 @@ function ConversationCard({
 
   return (
     <li style={cardStyle} aria-label={`Conversa com ${conv.merchant_id}`}>
-      <button
+      <button data-neu="control"
         id={buttonId}
         type="button"
         aria-expanded={expanded}
@@ -451,7 +451,7 @@ function SupportTicketCard({ support }: { support: SupportState }) {
           height: 36,
           borderRadius: "50%",
           background: closed ? "var(--aacp-surface-2)" : "color-mix(in srgb, var(--aacp-accent) 14%, transparent)",
-          color: closed ? "var(--aacp-muted)" : "var(--aacp-accent)",
+          color: closed ? "var(--aacp-muted)" : "var(--aacp-accent-text, var(--aacp-accent))",
           flexShrink: 0,
         }}
       >
@@ -466,7 +466,7 @@ function SupportTicketCard({ support }: { support: SupportState }) {
         </div>
       </div>
       {!closed && (
-        <button
+        <button data-neu="primary"
           type="button"
           onClick={reopen}
           aria-label="Reabrir suporte"

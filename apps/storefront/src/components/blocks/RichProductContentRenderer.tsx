@@ -132,14 +132,14 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
   };
   const inProgress = status === "pending";
   const purchaseActions = <>
-    <button type="button" data-aacp-rich-product-add-to-cart className={styles.buyButton} onClick={addToCart} disabled={!selectedVariant?.available || inProgress} aria-busy={inProgress}>
+    <button data-neu="primary" type="button" data-aacp-rich-product-add-to-cart className={styles.buyButton} onClick={addToCart} disabled={!selectedVariant?.available || inProgress} aria-busy={inProgress}>
       {status === "added" ? <FiCheck aria-hidden="true" /> : <FiShoppingBag aria-hidden="true" />}
       {status === "pending" ? "Adicionando…" : status === "review" ? "Tentar novamente" : status === "added" ? "Adicionar mais um" : selectedVariant?.available ? "Adicionar ao carrinho" : "Produto indisponível"}
       <FiArrowRight aria-hidden="true" />
     </button>
     <div className={styles.feedback} aria-live="polite" aria-atomic="true">
-      {status === "added" ? <><FiCheck aria-hidden="true" /><span>Produto adicionado.</span><button type="button" onClick={openCart}>Ver carrinho <FiArrowRight aria-hidden="true" /></button></> : null}
-      {status === "review" ? <span>A confirmação está demorando. <button type="button" onClick={openCart}>Confira o carrinho</button> antes de tentar novamente.</span> : null}
+      {status === "added" ? <><FiCheck aria-hidden="true" /><span>Produto adicionado.</span><button data-neu="text" type="button" onClick={openCart}>Ver carrinho <FiArrowRight aria-hidden="true" /></button></> : null}
+      {status === "review" ? <span>A confirmação está demorando. <button data-neu="text" type="button" onClick={openCart}>Confira o carrinho</button> antes de tentar novamente.</span> : null}
     </div>
   </>;
 
@@ -207,9 +207,9 @@ function ProductGallery({ images, productName }: { images: GalleryImage[]; produ
   return <div className={styles.gallery} role="group" aria-label={"Imagens de " + productName}>
     <div className={styles.mainImage} {...swipe} style={{ touchAction: images.length > 1 ? "pan-y pinch-zoom" : "auto" }}>
       {current && !failed.has(current.src) ? <img key={current.src} src={current.src} alt={current.alt || productName} fetchPriority="high" draggable={false} onError={() => setFailed((previous) => new Set(previous).add(current.src))} /> : <div className={styles.imageFallback}><FiPackage aria-hidden="true" /><span>Imagem indisponível</span></div>}
-      {images.length > 1 ? <div className={styles.galleryControls}><span aria-live="polite">{String(index + 1).padStart(2, "0")} / {String(images.length).padStart(2, "0")}</span><button type="button" onClick={() => move(-1)} aria-label="Foto anterior"><FiChevronLeft /></button><button type="button" onClick={() => move(1)} aria-label="Próxima foto"><FiChevronRight /></button></div> : null}
+      {images.length > 1 ? <div className={styles.galleryControls}><span aria-live="polite">{String(index + 1).padStart(2, "0")} / {String(images.length).padStart(2, "0")}</span><button data-neu="text" type="button" onClick={() => move(-1)} aria-label="Foto anterior"><FiChevronLeft /></button><button data-neu="text" type="button" onClick={() => move(1)} aria-label="Próxima foto"><FiChevronRight /></button></div> : null}
     </div>
-    {images.length > 1 ? <div className={styles.thumbnails} aria-label="Escolher foto">{images.map((image, i) => <button key={image.src} type="button" aria-label={"Ver foto " + (i + 1) + ": " + image.alt} aria-pressed={i === index} onClick={() => setIndex(i)}><img src={image.src} alt="" loading="lazy" /></button>)}</div> : null}
+    {images.length > 1 ? <div className={styles.thumbnails} aria-label="Escolher foto">{images.map((image, i) => <button data-neu="media" key={image.src} type="button" aria-label={"Ver foto " + (i + 1) + ": " + image.alt} aria-pressed={i === index} onClick={() => setIndex(i)}><img src={image.src} alt="" loading="lazy" /></button>)}</div> : null}
   </div>;
 }
 

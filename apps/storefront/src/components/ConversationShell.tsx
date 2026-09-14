@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { PerimeterBorder } from "../../../widget_v2/src/components/PerimeterBorder";
 import { SafeStoreHtml } from "./SafeStoreHtml";
 import { useCart } from "@/lib/cart-store";
 import { useConversationViewModel, type Message } from "@/lib/viewmodels/useConversationViewModel";
@@ -102,8 +103,6 @@ export default function ConversationShell({
   } = vm;
   const inputRef = useRef<HTMLInputElement | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
-  const shellRef = useRef<HTMLDivElement | null>(null);
-  const composerRef = useRef<HTMLFormElement | null>(null);
   const agent = agentName || "Assistente";
   const { cart } = useCart();
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -112,7 +111,6 @@ export default function ConversationShell({
   const [logoError, setLogoError] = useState(false);
   const [checkoutUserId, setCheckoutUserId] = useState("");
   const [mounted, setMounted] = useState(false);
-  const [cartFabAnchor, setCartFabAnchor] = useState<{ top: string; right: string } | undefined>();
   const [richProduct, setRichProduct] = useState<{ productId: string } | null>(() =>
     typeof initialRichProductId === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(initialRichProductId)
       ? { productId: initialRichProductId }
@@ -220,32 +218,6 @@ export default function ConversationShell({
     }
   }, []);
   useEffect(() => {
-    const shell = shellRef.current;
-    const composer = composerRef.current;
-    if (effectiveMode !== "chat" || channel !== "chat" || !shell || !composer) {
-      setCartFabAnchor(undefined);
-      return;
-    }
-    const measure = () => {
-      const shellBox = shell.getBoundingClientRect();
-      const composerBox = composer.getBoundingClientRect();
-      const top = Math.max(0, composerBox.top - shellBox.top + (composerBox.height - 48) / 2);
-      setCartFabAnchor({ top: `${Math.round(top)}px`, right: "16px" });
-    };
-    const observer = new ResizeObserver(measure);
-    observer.observe(shell);
-    observer.observe(composer);
-    measure();
-    window.addEventListener("resize", measure);
-    window.visualViewport?.addEventListener("resize", measure);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", measure);
-      window.visualViewport?.removeEventListener("resize", measure);
-    };
-  }, [channel, effectiveMode]);
-
-  useEffect(() => {
     if (mode === "chat" && !isLoading) {
       const t = setTimeout(() => inputRef.current?.focus(), 150);
       return () => clearTimeout(t);
@@ -318,16 +290,10 @@ export default function ConversationShell({
     handleQuickReply(option);
   };
   return (
-    <div ref={shellRef} id="storefront-chat" className="pulse-widget-shell" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", position: "relative", borderRadius: "19px", padding: "1.5px" }}>
-      {/* Shimmer border — rotating conic gradient around entire chat container */}
-      <div style={{ position: "absolute", inset: 0, borderRadius: "19px", overflow: "hidden", pointerEvents: "none", zIndex: 0 }}>
-        <div style={{ position: "absolute", inset: "-50%", background: "conic-gradient(from 0deg, transparent 0%, transparent 70%, var(--aacp-accent, #0f766e) 80%, transparent 90%, transparent 100%)", animation: "shimmerRotate 4s linear infinite", opacity: 0.7 }} />
-        <div style={{ position: "absolute", inset: "1.5px", borderRadius: "17.5px", background: "var(--aacp-bg, #08080c)" }} />
-      </div>
-      {/* Static border */}
-      <div style={{ position: "absolute", inset: 0, borderRadius: "19px", border: "1px solid var(--aacp-line, rgba(255,255,255,0.1))", pointerEvents: "none", zIndex: 1 }} />
+    <div id="storefront-chat" className="pulse-widget-shell" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", position: "relative", borderRadius: "19px", padding: "1px" }}>
+      <PerimeterBorder radius="19px" />
       {/* Content */}
-      <div data-aacp-chat-content style={{ position: "relative", display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", borderRadius: "17.5px", overflow: "hidden", background: "var(--aacp-bg, #08080c)", zIndex: 2 }}>
+      <div data-aacp-chat-content style={{ position: "relative", display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", borderRadius: "18px", overflow: "hidden", background: "var(--aacp-bg, #08080c)", zIndex: 2 }}>
       <h1 style={{ position: "absolute", width: "1px", height: "1px", padding: 0, margin: "-1px", overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0 }}>
         {storeName} - Loja Online
       </h1>
@@ -341,7 +307,6 @@ export default function ConversationShell({
         @keyframes dot-pulse { 0%,80%,100%{opacity:.3;transform:scale(.65)} 40%{opacity:1;transform:scale(1)} }
         @keyframes pulseDot { 0%,100%{opacity:1} 50%{opacity:.4} }
         @keyframes micPulse { 0%{box-shadow:0 0 0 0 rgba(255,76,108,0.5)} 100%{box-shadow:0 0 0 9px rgba(255,76,108,0)} }
-        @keyframes shimmerRotate { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
       `}</style>
       {effectiveMode === "chat" && (
         <>
@@ -362,58 +327,58 @@ export default function ConversationShell({
             </div>
           )}
           <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "5px", padding: "4px 10px", borderRadius: "999px", background: "color-mix(in srgb, var(--aacp-success) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--aacp-success) 25%, transparent)" }}>
+            <div data-neu="status" style={{ display: "flex", alignItems: "center", gap: "6px", minHeight: "30px", padding: "4px 10px", borderRadius: "999px", background: "var(--aacp-card)", border: "1px solid var(--aacp-line)" }}>
               <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "var(--aacp-success)", animation: "pulseDot 2.2s ease-in-out infinite", flex: "none" }} />
-              <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--aacp-success)", letterSpacing: "0.03em" }}>Online</span>
+              <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--aacp-muted)" }}>Online</span>
             </div>
           </div>
-          <button type="button" onClick={toggleChannel} title={channel === "voice" ? "Mudar para chat" : "Mudar para voz"} style={{ width: "30px", height: "30px", borderRadius: "50%", border: `1px solid ${channel === "voice" ? "var(--aacp-accent)" : "var(--aacp-line)"}`, background: channel === "voice" ? "color-mix(in srgb, var(--aacp-accent) 15%, transparent)" : "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
+          <button data-neu="control" type="button" onClick={toggleChannel} title={channel === "voice" ? "Mudar para chat" : "Mudar para voz"} style={{ width: "30px", height: "30px", borderRadius: "50%", border: `1px solid ${channel === "voice" ? "var(--aacp-accent)" : "var(--aacp-line)"}`, background: channel === "voice" ? "color-mix(in srgb, var(--aacp-accent) 15%, transparent)" : "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
             {channel === "voice" ? (
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.9-.9L3 21l1.9-5.6A8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" /></svg>
             ) : (
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
             )}
           </button>
-          <button type="button" onClick={toggleTheme} title={theme === "dark" ? "Modo claro" : "Modo escuro"} style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
+          <button data-neu="control" type="button" onClick={toggleTheme} title={theme === "dark" ? "Modo claro" : "Modo escuro"} style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
             <svg width="15" height="15" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--aacp-muted)" strokeWidth="1.8" /><path d="M12 3a9 9 0 0 0 0 18z" fill="var(--aacp-muted)" /></svg>
           </button>
 
           <BuyerHubTrigger onClick={() => setBuyerHubOpen(!buyerHubOpen)} hasNotifications={false} />
-          <button type="button" onClick={() => setSupportOpen((v) => !v)} title="Suporte" style={{ width: "30px", height: "30px", borderRadius: "50%", border: `1px solid ${supportOpen ? "var(--aacp-accent)" : "var(--aacp-line)"}`, background: supportOpen ? "color-mix(in srgb, var(--aacp-accent) 12%, transparent)" : "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
+          <button data-neu="control" type="button" onClick={() => setSupportOpen((v) => !v)} title="Suporte" style={{ width: "30px", height: "30px", borderRadius: "50%", border: `1px solid ${supportOpen ? "var(--aacp-accent)" : "var(--aacp-line)"}`, background: supportOpen ? "color-mix(in srgb, var(--aacp-accent) 12%, transparent)" : "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={supportOpen ? "var(--aacp-accent)" : "var(--aacp-muted)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
           </button>
 
           <nav aria-label="Ações rápidas" style={{ display: "flex", gap: "6px" }}>
             {storeSettings?.social?.instagram && (
-              <a href={storeSettings.social.instagram} target="_blank" rel="noopener noreferrer" style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "all 0.15s", cursor: "pointer" }} title="Instagram"
+              <a data-neu="control" href={storeSettings.social.instagram} target="_blank" rel="noopener noreferrer" style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "all 0.15s", cursor: "pointer" }} title="Instagram"
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.background = "color-mix(in srgb, var(--aacp-accent) 12%, transparent)"; e.currentTarget.style.color = "var(--aacp-fg)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.background = "var(--aacp-card)"; e.currentTarget.style.color = "var(--aacp-muted)"; }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" y1="6.5" x2="17.51" y2="6.5" /></svg>
               </a>
             )}
             {storeSettings?.social?.facebook && (
-              <a href={storeSettings.social.facebook} target="_blank" rel="noopener noreferrer" style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "all 0.15s", cursor: "pointer" }} title="Facebook"
+              <a data-neu="control" href={storeSettings.social.facebook} target="_blank" rel="noopener noreferrer" style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "all 0.15s", cursor: "pointer" }} title="Facebook"
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.background = "color-mix(in srgb, var(--aacp-accent) 12%, transparent)"; e.currentTarget.style.color = "var(--aacp-fg)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.background = "var(--aacp-card)"; e.currentTarget.style.color = "var(--aacp-muted)"; }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" /></svg>
               </a>
             )}
             {storeSettings?.social?.linkedin && (
-              <a href={storeSettings.social.linkedin} target="_blank" rel="noopener noreferrer" style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "all 0.15s", cursor: "pointer" }} title="LinkedIn"
+              <a data-neu="control" href={storeSettings.social.linkedin} target="_blank" rel="noopener noreferrer" style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "all 0.15s", cursor: "pointer" }} title="LinkedIn"
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.background = "color-mix(in srgb, var(--aacp-accent) 12%, transparent)"; e.currentTarget.style.color = "var(--aacp-fg)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.background = "var(--aacp-card)"; e.currentTarget.style.color = "var(--aacp-muted)"; }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z" /><rect x="2" y="9" width="4" height="12" /><circle cx="4" cy="4" r="2" /></svg>
               </a>
             )}
             {storeSettings?.social?.youtube && (
-              <a href={storeSettings.social.youtube} target="_blank" rel="noopener noreferrer" style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "all 0.15s", cursor: "pointer" }} title="YouTube"
+              <a data-neu="control" href={storeSettings.social.youtube} target="_blank" rel="noopener noreferrer" style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "all 0.15s", cursor: "pointer" }} title="YouTube"
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.background = "color-mix(in srgb, var(--aacp-accent) 12%, transparent)"; e.currentTarget.style.color = "var(--aacp-fg)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.background = "var(--aacp-card)"; e.currentTarget.style.color = "var(--aacp-muted)"; }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19.13C5.12 19.56 12 19.56 12 19.56s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.43z" /><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" /></svg>
               </a>
             )}
             {storeSettings?.social?.googleMaps && (
-              <a href={storeSettings.social.googleMaps} target="_blank" rel="noopener noreferrer" style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "all 0.15s", cursor: "pointer" }} title="Google Maps"
+              <a data-neu="control" href={storeSettings.social.googleMaps} target="_blank" rel="noopener noreferrer" style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "all 0.15s", cursor: "pointer" }} title="Google Maps"
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.background = "color-mix(in srgb, var(--aacp-accent) 12%, transparent)"; e.currentTarget.style.color = "var(--aacp-fg)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.background = "var(--aacp-card)"; e.currentTarget.style.color = "var(--aacp-muted)"; }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
@@ -446,15 +411,15 @@ export default function ConversationShell({
               Como você prefere comprar?
             </div>
             <div style={{ display: "flex", gap: "10px", width: "100%" }}>
-              <button type="button" onClick={() => selectChannel("chat")} style={{ flex: 1, cursor: "pointer", fontFamily: "inherit", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", borderRadius: "16px", padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "9px", color: "var(--aacp-fg)" }}>
+              <button data-neu="choice" type="button" onClick={() => selectChannel("chat")} style={{ flex: 1, cursor: "pointer", fontFamily: "inherit", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", borderRadius: "16px", padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "9px", color: "var(--aacp-fg)" }}>
                 <span style={{ width: "38px", height: "38px", borderRadius: "11px", background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
                   <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.9-.9L3 21l1.9-5.6A8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" /></svg>
                 </span>
                 <span style={{ fontSize: "13.5px", fontWeight: 600 }}>Por chat</span>
                 <span style={{ fontSize: "10.5px", color: "var(--aacp-muted)", lineHeight: 1.3 }}>Converse digitando</span>
               </button>
-              <button type="button" onClick={() => selectChannel("voice")} style={{ flex: 1, cursor: "pointer", fontFamily: "inherit", border: "1px solid var(--aacp-accent)", background: "color-mix(in srgb, var(--aacp-accent) 8%, transparent)", borderRadius: "16px", padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "9px", position: "relative", overflow: "hidden", color: "var(--aacp-fg)" }}>
-                <span style={{ position: "absolute", top: "9px", right: "9px", fontFamily: "'Space Mono', monospace", fontSize: "7.5px", letterSpacing: ".5px", color: "var(--aacp-accent)", border: "1px solid var(--aacp-accent)", borderRadius: "5px", padding: "1px 4px" }}>IA</span>
+              <button data-neu="choice" type="button" onClick={() => selectChannel("voice")} style={{ flex: 1, cursor: "pointer", fontFamily: "inherit", border: "1px solid var(--aacp-accent)", background: "color-mix(in srgb, var(--aacp-accent) 8%, transparent)", borderRadius: "16px", padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "9px", position: "relative", overflow: "hidden", color: "var(--aacp-fg)" }}>
+                <span style={{ position: "absolute", top: "9px", right: "9px", fontFamily: "'Space Mono', monospace", fontSize: "7.5px", letterSpacing: ".5px", color: "var(--aacp-accent-text, var(--aacp-accent))", border: "1px solid var(--aacp-accent)", borderRadius: "5px", padding: "1px 4px" }}>IA</span>
                 <span style={{ width: "38px", height: "38px", borderRadius: "11px", background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
                   <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
                 </span>
@@ -466,7 +431,7 @@ export default function ConversationShell({
         </div>
       ) : (
         <>
-          <main ref={threadRef} role="main" style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "12px 18px", display: "flex", flexDirection: "column", gap: "14px", minHeight: 0, scrollBehavior: "smooth", msOverflowStyle: "none", scrollbarWidth: "none" }}>
+          <main ref={threadRef} role="main" style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "14px", minHeight: 0, scrollBehavior: "smooth", msOverflowStyle: "none", scrollbarWidth: "none" }}>
             {/* Welcome state — no messages yet */}
             {messages.length === 0 && !isLoading && (
               <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "10px", padding: "16px 20px", textAlign: "center" }}>
@@ -476,13 +441,13 @@ export default function ConversationShell({
                   <div style={{ fontSize: "13px", color: "var(--aacp-muted)", marginTop: "8px", lineHeight: 1.5, maxWidth: "380px", marginLeft: "auto", marginRight: "auto", fontFamily: "var(--aacp-font)", whiteSpace: "pre-line" }}>
                     {agentGreeting || "A partir de agora serei sua assistente de vendas e irei te ajudar a encontrar produtos, aplicar cupons, calcular frete e finalizar sua compra. Vamos começar!"}
                   </div>
-                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "9px", letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--aacp-accent, #0f766e)", marginTop: "14px" }}>
+                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "9px", letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))", marginTop: "14px" }}>
                     Selecione uma opção abaixo ou digite algo
                   </div>
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "7px", justifyContent: "center", marginTop: "10px", paddingBottom: "8px", width: "100%" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "center", marginTop: "10px", paddingBottom: "8px", width: "100%" }}>
                   {(quickReplies ?? chatQuickReplies).map((label) => (
-                    <button key={label} type="button" onClick={() => handleQuickReply(label)} style={{ padding: "7px 14px", borderRadius: "999px", border: "1px solid var(--aacp-line)", background: "transparent", color: "var(--aacp-muted)", fontSize: "11.5px", fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s", fontFamily: "var(--aacp-font)" }}
+                    <button data-neu="control" key={label} type="button" onClick={() => handleQuickReply(label)} style={{ padding: "7px 14px", borderRadius: "999px", border: "1px solid var(--aacp-line)", background: "transparent", color: "var(--aacp-muted)", fontSize: "11.5px", fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s", fontFamily: "var(--aacp-font)" }}
                       onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.color = "var(--aacp-fg)"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.color = "var(--aacp-muted)"; }}
                     >{label}</button>
@@ -511,8 +476,8 @@ export default function ConversationShell({
                     <div key={m.id} style={{ width: "100%", display: "flex", flexDirection: "column", gap: "8px", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
                       {/* Agent narration above the card — keeps the conversation immersive (A/B tone) */}
                       {m.text && (
-                        <SafeStoreHtml
-                          style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", fontSize: "13.5px", lineHeight: 1.55, whiteSpace: "pre-wrap", background: "var(--aacp-card)", color: "var(--aacp-fg)", wordWrap: "break-word", border: "1px solid var(--aacp-line)", alignSelf: "flex-start", maxWidth: "min(82%, 520px)" }}
+                        <SafeStoreHtml material="message"
+                          style={{ padding: "12px 16px", borderRadius: "18px", fontSize: "13.5px", lineHeight: 1.55, whiteSpace: "pre-wrap", background: "var(--aacp-card)", color: "var(--aacp-fg)", wordWrap: "break-word", border: "1px solid var(--aacp-line)", alignSelf: "flex-start", maxWidth: "min(82%, 520px)" }}
                           html={renderMarkdownText(m.text)}
                           config={{ ALLOWED_TAGS: ["strong", "em", "br"] }}
                         />
@@ -527,15 +492,15 @@ export default function ConversationShell({
                   );
                 }
                 return (
-                  <div key={m.id} style={{ display: "flex", gap: "9px", alignItems: "center", maxWidth: isFullWidth ? "100%" : "min(82%, 520px)", alignSelf: "flex-start", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both", width: isFullWidth ? "100%" : undefined }}>
+                  <div key={m.id} style={{ display: "flex", gap: "9px", alignItems: "flex-start", maxWidth: isFullWidth ? "100%" : "min(82%, 520px)", alignSelf: "flex-start", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both", width: isFullWidth ? "100%" : undefined }}>
                     {/* Per-message agent orb — use the animated PulseAgentOrb (float +
                         ring + blinking eyes) so it moves like the widget, instead of a
                         static gradient dot. */}
-                    <div style={{ flex: "none" }}>
+                    <div style={{ flex: "none", marginTop: "4px" }}>
                       <PulseAgentOrb size={26} avatarUrl={agentAvatarUrl} />
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1, minWidth: 0 }}>
-                      {m.text && <SafeStoreHtml style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", fontSize: "13.5px", lineHeight: 1.55, whiteSpace: "pre-wrap", background: "var(--aacp-card)", color: "var(--aacp-fg)", wordWrap: "break-word", border: "1px solid var(--aacp-line)" }} html={renderMarkdownText(m.text)} config={{ ALLOWED_TAGS: ["strong", "em", "br"] }} />}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px", flex: 1, minWidth: 0 }}>
+                      {m.text && <SafeStoreHtml material="message" style={{ boxShadow: "var(--aacp-neu-message)", padding: "12px 16px", borderRadius: "18px", fontSize: "13.5px", lineHeight: 1.55, whiteSpace: "pre-wrap", background: "var(--aacp-card)", color: "var(--aacp-fg)", wordWrap: "break-word", border: "1px solid var(--aacp-line)" }} html={renderMarkdownText(m.text)} config={{ ALLOWED_TAGS: ["strong", "em", "br"] }} />}
                       {m.blocks?.map((block, idx) => (
                         <div key={idx} style={{ maxWidth: "100%" }}>
                           <BlockRenderer block={block} merchantSlug={merchantSlug} onQuickReply={handleProductQuickReply} />
@@ -547,13 +512,13 @@ export default function ConversationShell({
               } else {
                 return (
                   <div key={m.id} style={{ display: "flex", flexDirection: "column", gap: "6px", maxWidth: "min(76%, 480px)", alignSelf: "flex-end", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
-                    {m.text && <div style={{ padding: "11px 14px", borderRadius: "16px 16px 4px 16px", fontSize: "13.5px", lineHeight: 1.5, fontWeight: 500, whiteSpace: "pre-wrap", background: "var(--aacp-accent)", color: "#fff", wordWrap: "break-word" }}>{renderBuyerMessage(m.text)}</div>}
+                    {m.text && <div data-neu="message" data-speaker="buyer" style={{ padding: "11px 14px", borderRadius: "18px", fontSize: "13.5px", lineHeight: 1.5, fontWeight: 500, whiteSpace: "pre-wrap", background: "var(--aacp-accent)", color: "#fff", boxShadow: "var(--aacp-neu-message)", wordWrap: "break-word" }}>{renderBuyerMessage(m.text)}</div>}
                   </div>
                 );
               }
             })}
             {isLoading && (
-              <div style={{ display: "flex", gap: "9px", alignItems: "center", alignSelf: "flex-start", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
+              <div style={{ display: "flex", gap: "9px", alignItems: "flex-end", alignSelf: "flex-start", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
                 {/* Thinking orb — branded avatar when set, else CSS orb with eyes looking up */}
                 {agentAvatarUrl ? (
                   <img src={agentAvatarUrl} alt="" style={{ width: "28px", height: "28px", borderRadius: "50%", objectFit: "cover", flex: "none" }} />
@@ -566,7 +531,7 @@ export default function ConversationShell({
                   </div>
                 )}
                 {/* 3-dot bubble */}
-                <div style={{ padding: "10px 14px", borderRadius: "16px 16px 16px 4px", background: "var(--aacp-card)", border: "1px solid var(--aacp-line)", display: "flex", gap: "3px", alignItems: "center" }}>
+                <div data-neu="message" style={{ padding: "10px 14px", borderRadius: "18px", background: "var(--aacp-card)", border: "1px solid var(--aacp-line)", display: "flex", gap: "3px", alignItems: "center" }}>
                   <span style={{ width: "3px", height: "3px", borderRadius: "50%", background: "var(--aacp-muted)", animation: "dot-pulse 1.2s infinite", animationDelay: "0s" }} />
                   <span style={{ width: "3px", height: "3px", borderRadius: "50%", background: "var(--aacp-muted)", animation: "dot-pulse 1.2s infinite", animationDelay: "0.2s" }} />
                   <span style={{ width: "3px", height: "3px", borderRadius: "50%", background: "var(--aacp-muted)", animation: "dot-pulse 1.2s infinite", animationDelay: "0.4s" }} />
@@ -578,23 +543,24 @@ export default function ConversationShell({
           <div style={{ padding: "9px 14px 14px", flex: "none" }}>
             {channel === "voice" && listening ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", padding: "18px" }}>
-                <button type="button" onClick={stopListening} style={{ width: "56px", height: "56px", borderRadius: "50%", background: "#ff4c6c", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", animation: "micPulse 1.2s infinite" }}>
+                <button data-neu="control" type="button" onClick={stopListening} style={{ width: "56px", height: "56px", borderRadius: "50%", background: "#ff4c6c", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", animation: "micPulse 1.2s infinite" }}>
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
                 </button>
                 <span style={{ fontSize: "12px", color: "var(--aacp-muted)" }}>Escutando… toque para parar</span>
               </div>
             ) : channel === "voice" && !listening ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", padding: "18px" }}>
-                <button type="button" onClick={startListening} disabled={isLoading} style={{ width: "56px", height: "56px", borderRadius: "50%", background: "var(--aacp-accent)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: isLoading ? 0.4 : 1 }}>
+                <button data-neu="primary" type="button" onClick={startListening} disabled={isLoading} style={{ width: "56px", height: "56px", borderRadius: "50%", background: "var(--aacp-accent)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: isLoading ? 0.4 : 1 }}>
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
                 </button>
                 <span style={{ fontSize: "12px", color: "var(--aacp-muted)" }}>Toque para falar</span>
               </div>
             ) : (
-              <form ref={composerRef} onSubmit={handleSubmit} style={{ display: "flex", alignItems: "center", gap: "9px", padding: "9px 9px 9px 15px", background: "var(--aacp-card)", border: "1px solid var(--aacp-line)", borderRadius: "14px", transition: "border-color 0.2s ease, box-shadow 0.2s ease" }} onFocus={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.boxShadow = "0 0 0 2px color-mix(in srgb, var(--aacp-accent) 20%, transparent)"; }} onBlur={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.boxShadow = "none"; }}>
+              <form data-neu="inset" data-aacp-composer-frame onSubmit={handleSubmit} style={{ display: "flex", alignItems: "center", gap: "9px", padding: "9px 9px 9px 15px", background: "var(--aacp-inset-bg)", border: "1px solid var(--aacp-line)", borderRadius: "14px", transition: "border-color 0.2s ease, box-shadow 0.2s ease" }}>
+                <PerimeterBorder radius="14px" variant="input" />
                 <input ref={inputRef} type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder={isLoading ? "Aguarde..." : "Escreva sua mensagem…"} aria-label="Mensagem" disabled={isLoading} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: "var(--aacp-fg)", fontSize: "13px", padding: 0, fontFamily: "inherit" }} />
-                <button type="submit" disabled={!input.trim() || isLoading} aria-label="Enviar mensagem" style={{ width: "36px", height: "36px", borderRadius: "10px", border: "none", cursor: !input.trim() || isLoading ? "not-allowed" : "pointer", background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0, opacity: !input.trim() || isLoading ? 0.4 : 1 }}>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                <button data-neu="send" type="submit" disabled={!input.trim() || isLoading} aria-label="Enviar mensagem" style={{ width: "36px", height: "36px", borderRadius: "10px", border: "none", cursor: !input.trim() || isLoading ? "not-allowed" : "pointer", background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                 </button>
               </form>
             )}
@@ -608,16 +574,16 @@ export default function ConversationShell({
             {storeSettings.company.razaoSocial && `${storeSettings.company.razaoSocial} · `}CNPJ {storeSettings.company.cnpj}
           </span>
           {storeSettings?.policies?.privacy && (
-            <button type="button" onClick={() => setPolicyModal({ title: "Política de Privacidade", content: storeSettings.policies!.privacy || "" })} style={{ fontSize: "9px", color: "var(--aacp-muted)", background: "transparent", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>Privacidade</button>
+            <button data-neu="text" type="button" onClick={() => setPolicyModal({ title: "Política de Privacidade", content: storeSettings.policies!.privacy || "" })} style={{ fontSize: "9px", color: "var(--aacp-muted)", background: "transparent", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>Privacidade</button>
           )}
           {storeSettings?.policies?.returns && (
-            <button type="button" onClick={() => setPolicyModal({ title: "Trocas e Devoluções", content: storeSettings.policies!.returns || "" })} style={{ fontSize: "9px", color: "var(--aacp-muted)", background: "transparent", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>Devoluções</button>
+            <button data-neu="text" type="button" onClick={() => setPolicyModal({ title: "Trocas e Devoluções", content: storeSettings.policies!.returns || "" })} style={{ fontSize: "9px", color: "var(--aacp-muted)", background: "transparent", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>Devoluções</button>
           )}
           {storeSettings?.policies?.terms && (
-            <button type="button" onClick={() => setPolicyModal({ title: "Termos de Uso", content: storeSettings.policies!.terms || "" })} style={{ fontSize: "9px", color: "var(--aacp-muted)", background: "transparent", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>Termos</button>
+            <button data-neu="text" type="button" onClick={() => setPolicyModal({ title: "Termos de Uso", content: storeSettings.policies!.terms || "" })} style={{ fontSize: "9px", color: "var(--aacp-muted)", background: "transparent", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>Termos</button>
           )}
           {storeSettings?.policies?.shipping && (
-            <button type="button" onClick={() => setPolicyModal({ title: "Política de Envio", content: storeSettings.policies!.shipping || "" })} style={{ fontSize: "9px", color: "var(--aacp-muted)", background: "transparent", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>Envio</button>
+            <button data-neu="text" type="button" onClick={() => setPolicyModal({ title: "Política de Envio", content: storeSettings.policies!.shipping || "" })} style={{ fontSize: "9px", color: "var(--aacp-muted)", background: "transparent", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>Envio</button>
           )}
         </div>
       )}
@@ -626,11 +592,11 @@ export default function ConversationShell({
       {/* Policy Modal */}
       {policyModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0, 0, 0, 0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "20px" }} onClick={() => setPolicyModal(null)}>
-          <div style={{ background: "var(--aacp-panel-bg)", borderRadius: "16px", border: "1px solid var(--aacp-line)", maxWidth: "520px", width: "100%", maxHeight: "80vh", display: "flex", flexDirection: "column", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }} onClick={(e) => e.stopPropagation()}>
+          <div data-neu="surface" style={{ background: "var(--aacp-panel-bg)", borderRadius: "16px", border: "1px solid var(--aacp-line)", maxWidth: "520px", width: "100%", maxHeight: "80vh", display: "flex", flexDirection: "column", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }} onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--aacp-line)", flex: "none" }}>
               <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0, color: "var(--aacp-fg)" }}>{policyModal.title}</h2>
-              <button type="button" onClick={() => setPolicyModal(null)} style={{ width: "32px", height: "32px", borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)" }}>
+              <button data-neu="icon" type="button" aria-label="Fechar política" onClick={() => setPolicyModal(null)} style={{ width: "32px", height: "32px", borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)" }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             </div>
@@ -670,7 +636,6 @@ export default function ConversationShell({
           onRemoveItem={(variantId) => handleUpdateQuantity(variantId, 0)}
           forceOpen={cartDrawerForceOpen}
           suppressAutoOpen={Boolean(crossSellPending) || Boolean(richProduct)}
-          cartFabAnchor={cartFabAnchor}
         />
       )}
       {/* Cross-sell interstitial — shows before the cart drawer after add-to-cart */}

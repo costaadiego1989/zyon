@@ -40,7 +40,7 @@ export function DiscountBanner({
   const accent = brand.accentColor || "var(--aacp-accent, #0f766e)";
 
   return (
-    <div
+    <div data-neu="surface"
       className="discount-banner"
       data-testid="discount-banner"
       style={{
@@ -74,7 +74,7 @@ export function DiscountBanner({
           {couponCode}
         </span>
       )}
-      <button
+      <button data-neu="icon"
         className="discount-banner__dismiss"
         onClick={onDismiss}
         aria-label="Fechar"

@@ -430,3 +430,6 @@ input, textarea {
     padding: 10px 12px;
   }
 }
+
+/* Storefront-specific paint; checkout shares the material tokens. */
+#storefront-chat header { box-shadow: inset 0 -1px 0 var(--aacp-neu-edge); }

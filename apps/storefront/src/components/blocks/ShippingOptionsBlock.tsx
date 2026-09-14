@@ -10,13 +10,13 @@ export default function ShippingOptionsBlock({
   const { options } = block.data;
 
   return (
-    <div style={{ background: "var(--aacp-surface-2, rgba(255,255,255,0.04))", borderRadius: "14px", border: "1px solid var(--aacp-line)", padding: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
+    <div data-neu="surface" style={{ background: "var(--aacp-surface-2, rgba(255,255,255,0.04))", borderRadius: "14px", border: "1px solid var(--aacp-line)", padding: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
       <h4 style={{ fontSize: "13px", fontWeight: 700, margin: 0, color: "var(--aacp-fg)", fontFamily: "var(--aacp-font-display, var(--aacp-font))" }}>
         Opções de frete
       </h4>
       <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
         {options.map((option) => (
-          <div
+          <div data-neu="surface"
             key={`${option.carrier}-${option.name}`}
             style={{
               display: "flex",
@@ -41,7 +41,7 @@ export default function ShippingOptionsBlock({
                 {option.days} {option.days === 1 ? "dia útil" : "dias úteis"}
               </div>
             </div>
-            <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--aacp-accent)" }}>
+            <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--aacp-accent-text, var(--aacp-accent))" }}>
               {option.priceFormatted}
             </span>
           </div>

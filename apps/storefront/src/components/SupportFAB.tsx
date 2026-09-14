@@ -82,7 +82,7 @@ export default function SupportFAB({ open, onToggle, cartItemCount = 0 }: Suppor
 
       {}
       {showTooltip && !open && (
-        <div
+        <div data-neu="overlay"
           style={{
             position: "fixed",
             ...tooltipPos,
@@ -104,7 +104,7 @@ export default function SupportFAB({ open, onToggle, cartItemCount = 0 }: Suppor
           <span style={{ fontSize: "12px", color: "var(--aacp-fg, #f5f5f7)", fontWeight: 500 }}>
             {inviteText}
           </span>
-          <button
+          <button data-neu="icon"
             type="button"
             onClick={(e) => { e.stopPropagation(); setShowTooltip(false); }}
             style={{
@@ -127,7 +127,7 @@ export default function SupportFAB({ open, onToggle, cartItemCount = 0 }: Suppor
       )}
 
       {}
-      <button
+      <button data-neu="icon"
         type="button"
         onClick={onToggle}
         aria-label={open ? "Fechar suporte" : "Abrir suporte"}

@@ -95,7 +95,7 @@ export default function CheckoutPanel({
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "var(--aacp-bg, #f7f8fa)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
         <p style={{ color: "var(--aacp-fg, #111827)", marginBottom: 16 }}>{error}</p>
-        <button onClick={onClose} style={{ padding: "10px 20px", background: "var(--aacp-surface, #ffffff)", border: "1px solid var(--aacp-border-color, #e5e7eb)", color: "var(--aacp-fg, #111827)", borderRadius: 8, cursor: "pointer" }}>
+        <button data-neu="control" onClick={onClose} style={{ padding: "10px 20px", background: "var(--aacp-surface, #ffffff)", border: "1px solid var(--aacp-border-color, #e5e7eb)", color: "var(--aacp-fg, #111827)", borderRadius: 8, cursor: "pointer" }}>
           Voltar
         </button>
       </div>
@@ -114,7 +114,7 @@ export default function CheckoutPanel({
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "var(--aacp-bg, #f7f8fa)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-      <button
+      <button data-neu="control"
         onClick={onClose}
         style={{ position: "absolute", top: 12, right: 12, zIndex: 10001, background: "var(--aacp-surface, #ffffff)", border: "1px solid var(--aacp-border-color, #e5e7eb)", color: "var(--aacp-fg, #111827)", borderRadius: 6, padding: "8px 12px", cursor: "pointer", fontSize: 13, fontWeight: 500 }}
       >

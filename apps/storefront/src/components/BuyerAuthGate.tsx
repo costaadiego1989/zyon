@@ -72,7 +72,7 @@ export default function BuyerAuthGate({ merchantId, merchantName, onComplete, on
       }}
       onClick={onCancel}
     >
-      <div
+      <div data-neu="overlay"
         onClick={(e) => e.stopPropagation()}
         style={{
           background: "var(--aacp-panel-bg, #0f0f16)",
@@ -100,7 +100,7 @@ export default function BuyerAuthGate({ merchantId, merchantName, onComplete, on
               >
                 Identidade
               </span>
-              <button
+              <button data-neu="icon"
                 type="button"
                 onClick={onCancel}
                 aria-label="Fechar"
@@ -148,7 +148,7 @@ export default function BuyerAuthGate({ merchantId, merchantName, onComplete, on
             <BuyerBiometricAccess onComplete={onComplete} />
 
             {}
-            <button
+            <button data-neu="control"
               type="button"
               onClick={() => setMode("login")}
               style={{
@@ -187,7 +187,7 @@ export default function BuyerAuthGate({ merchantId, merchantName, onComplete, on
             </button>
 
             {}
-            <button
+            <button data-neu="control"
               type="button"
               onClick={() => {
                 setRegistrationOtp(null);
@@ -231,8 +231,8 @@ export default function BuyerAuthGate({ merchantId, merchantName, onComplete, on
         )}
 
         {(mode === "register" || mode === "login") && (
-          <div style={{ padding: "10px 14px 14px" }}>
-            <button
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", padding: "14px" }}>
+            <button data-neu="control"
               type="button"
               onClick={() => setMode("choose")}
               style={{
@@ -245,7 +245,10 @@ export default function BuyerAuthGate({ merchantId, merchantName, onComplete, on
                 fontFamily: "inherit",
                 fontSize: "11px",
                 color: "var(--aacp-muted, #8b8b95)",
-                padding: "6px 4px",
+                alignSelf: "flex-start",
+                minHeight: "36px",
+                padding: "8px 12px",
+                backgroundColor: "var(--aacp-card)",
               }}
             >
               <ArrowLeftIcon />

@@ -88,14 +88,14 @@ export default function ProductExperienceOverlay({ productId, merchantSlug, susp
     }}
   >
     <header className={styles.header}>
-      <button type="button" onClick={close} aria-label="Voltar ao chat"><FiArrowLeft aria-hidden="true" /><span>Voltar</span></button>
+      <button data-neu="control" type="button" onClick={close} aria-label="Voltar ao chat"><FiArrowLeft aria-hidden="true" /><span>Voltar</span></button>
       <h2 id="product-experience-heading" className={styles.visuallyHidden}>Detalhes do produto</h2>
       <div className={styles.headerNarration}>
         {narration ? <ProductNarration summary={narration.summary} enabled={narration.enabled && !closing && !suspended} placement="header" /> : <span>Detalhes do produto</span>}
       </div>
       <div className={styles.actions}>
-        <button type="button" onClick={copyShareLink} aria-label="Copiar link do produto" disabled={!shareUrl}><FiLink aria-hidden="true" /></button>
-        <button type="button" onClick={close} aria-label="Fechar produto e voltar ao chat"><FiX aria-hidden="true" /></button>
+        <button data-neu="control" type="button" onClick={copyShareLink} aria-label="Copiar link do produto" disabled={!shareUrl}><FiLink aria-hidden="true" /></button>
+        <button data-neu="icon" type="button" onClick={close} aria-label="Fechar produto e voltar ao chat"><FiX aria-hidden="true" /></button>
       </div>
     </header>
     <ProductContentBlock

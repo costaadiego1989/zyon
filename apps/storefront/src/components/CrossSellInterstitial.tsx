@@ -114,7 +114,7 @@ export default function CrossSellInterstitial({
               {data.trigger}
             </p>
           </div>
-          <button
+          <button data-neu="icon"
             type="button"
             onClick={onClose}
             aria-label="Fechar"
@@ -150,7 +150,7 @@ export default function CrossSellInterstitial({
           }}
         >
           {data.products.map((product) => (
-            <div
+            <div data-neu="surface"
               key={product.id}
               style={{
                 minWidth: "180px",
@@ -194,12 +194,12 @@ export default function CrossSellInterstitial({
                 {product.image ? (
                   <img src={product.image} alt={product.name} loading="lazy" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
                 ) : (
-                  <div style={{ fontSize: "48px", fontWeight: 800, color: "var(--aacp-accent)", opacity: 0.25, fontFamily: "var(--aacp-font-display, var(--aacp-font))", letterSpacing: "-2px" }}>
+                  <div style={{ fontSize: "48px", fontWeight: 800, color: "var(--aacp-accent-text, var(--aacp-accent))", opacity: 0.25, fontFamily: "var(--aacp-font-display, var(--aacp-font))", letterSpacing: "-2px" }}>
                     {product.name.charAt(0).toUpperCase()}
                   </div>
                 )}
                 {}
-                <div style={{
+                <div data-neu="surface" style={{
                   position: "absolute",
                   top: "8px",
                   left: "8px",
@@ -253,13 +253,13 @@ export default function CrossSellInterstitial({
 
                 {}
                 <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
-                  <span style={{ fontSize: "20px", fontWeight: 800, color: "var(--aacp-accent)", letterSpacing: "-0.02em" }}>
+                  <span style={{ fontSize: "20px", fontWeight: 800, color: "var(--aacp-accent-text, var(--aacp-accent))", letterSpacing: "-0.02em" }}>
                     {product.priceFormatted}
                   </span>
                 </div>
 
                 {}
-                <button
+                <button data-neu="control"
                   type="button"
                   onClick={() => onAddItem(product.id, product.name, product.promoId, (product as any).couponCode)}
                   disabled={!product.inStock}
@@ -297,7 +297,7 @@ export default function CrossSellInterstitial({
             background: "var(--aacp-panel-bg, var(--aacp-bg))",
           }}
         >
-          <button
+          <button data-neu="control"
             type="button"
             onClick={onClose}
             style={{
@@ -315,7 +315,7 @@ export default function CrossSellInterstitial({
           >
             Continuar comprando
           </button>
-          <button
+          <button data-neu="primary"
             type="button"
             onClick={onViewCart}
             style={{

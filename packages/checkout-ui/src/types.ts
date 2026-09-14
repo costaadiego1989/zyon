@@ -33,5 +33,4 @@ export interface CartFABProps {
   itemCount: number;
   total: number;
   onClick: () => void;
-  anchor?: { top?: string; right?: string; bottom?: string; left?: string };
 }

@@ -236,7 +236,7 @@ function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
       <BuyerBiometricAccess onComplete={() => onAuthSuccess()} />
 
       {/* Assurance strip */}
-      <div style={{
+      <div data-neu="surface" style={{
         display: "flex",
         alignItems: "center",
         gap: "10px",
@@ -260,14 +260,14 @@ function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
         {!codeSent ? (
           <label style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
             <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--aacp-muted)" }}>E-mail</span>
-            <div style={{
+            <div data-neu="inset" style={{
               display: "flex",
               alignItems: "center",
               gap: "12px",
               padding: "12px 16px",
               borderRadius: "12px",
               border: "1px solid var(--aacp-line)",
-              background: "var(--aacp-surface-3)",
+              background: "var(--aacp-inset-bg)",
               transition: "border-color 0.15s ease, background 0.15s ease",
             }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
@@ -287,6 +287,7 @@ function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
                 aria-label="E-mail"
                 style={{
                   flex: 1,
+                  minWidth: 0,
                   background: "transparent",
                   border: "none",
                   outline: "none",
@@ -300,14 +301,14 @@ function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
         ) : (
           <label style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
             <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--aacp-muted)" }}>Codigo de verificacao</span>
-            <div style={{
+            <div data-neu="inset" style={{
               display: "flex",
               alignItems: "center",
               gap: "12px",
               padding: "12px 16px",
               borderRadius: "12px",
               border: "1px solid var(--aacp-line)",
-              background: "var(--aacp-surface-3)",
+              background: "var(--aacp-inset-bg)",
               transition: "border-color 0.15s ease, background 0.15s ease",
             }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
@@ -327,6 +328,7 @@ function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
                 aria-label="Codigo de verificacao"
                 style={{
                   flex: 1,
+                  minWidth: 0,
                   background: "transparent",
                   border: "none",
                   outline: "none",
@@ -348,7 +350,7 @@ function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
         )}
 
         {accountNotFound && (
-          <div
+          <div data-neu="surface"
             role="status"
             style={{
               padding: "12px 14px",
@@ -370,7 +372,7 @@ function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
           <p style={{ fontSize: "13px", color: "#ef4444", textAlign: "center", padding: "6px 0" }} role="alert">{error}</p>
         )}
 
-        <button
+        <button data-neu="primary"
           type="button"
           disabled={loading || (!codeSent && !canSendCode) || (codeSent && !canConfirmCode)}
           onClick={() => {
@@ -407,7 +409,7 @@ function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
         </button>
 
         {codeSent && (
-          <button
+          <button data-neu="text"
             type="button"
             onClick={() => {
               setCodeSent(false);
@@ -485,7 +487,7 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
           position: "fixed",
           inset: 0,
           background: "rgba(0, 0, 0, 0.5)",
-          zIndex: 999,
+          zIndex: 10000,
           animation: "buyerHubFadeIn 0.2s ease",
           backdropFilter: "blur(2px)",
         }}
@@ -504,12 +506,12 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
           right: 0,
           width: "min(480px, 100vw)",
           height: "100dvh",
-          background: "var(--aacp-panel-bg)",
+          background: "var(--aacp-panel-bg, var(--aacp-bg, #edf0ee))",
           borderLeft: "1px solid var(--aacp-line)",
           boxShadow: "-12px 0 48px rgba(0, 0, 0, 0.24)",
           display: "flex",
           flexDirection: "column",
-          zIndex: 1000,
+          zIndex: 10001,
           animation: "buyerHubSlideIn 0.3s cubic-bezier(0.22, 1, 0.36, 1)",
           outline: "none",
         }}
@@ -590,7 +592,7 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
           </div>
 
           {/* Close button — ghost style */}
-          <button
+          <button data-neu="icon"
             onClick={onClose}
             aria-label="Fechar painel"
             style={{
@@ -664,7 +666,7 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
               {TABS.map((tab) => {
                 const isActive = vm.activeTab === tab.key;
                 return (
-                  <button
+                  <button data-neu="tab"
                     key={tab.key}
                     role="tab"
                     aria-selected={isActive}
@@ -672,13 +674,13 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
                     onClick={() => vm.setActiveTab(tab.key)}
                     title={tab.label}
                     style={{
-                      flex: "1 1 0",
+                      flex: "1 0 auto",
                       minWidth: "58px",
                       padding: "14px 4px",
                       background: "transparent",
                       border: "none",
                       borderBottom: isActive ? "2px solid var(--aacp-accent)" : "2px solid transparent",
-                      color: isActive ? "var(--aacp-accent)" : "var(--aacp-muted)",
+                      color: isActive ? "var(--aacp-accent-text, var(--aacp-accent))" : "var(--aacp-muted)",
                       cursor: "pointer",
                       display: "flex",
                       flexDirection: "column",

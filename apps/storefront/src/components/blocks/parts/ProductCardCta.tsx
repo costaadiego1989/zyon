@@ -32,7 +32,7 @@ export function ProductCardCta({
         marginTop: "6px",
       }}
     >
-      <button
+      <button data-neu="primary"
         type="button"
         onClick={() => { if (!blocked) onQuickReply?.(buildCtaText("Adicionar")); }}
         disabled={blocked}
@@ -83,7 +83,7 @@ export function ProductCardCta({
             : "Adicionar ao carrinho"}
       </button>
 
-      <button
+      <button data-neu="control"
         type="button"
         onClick={() => { if (!blocked) onQuickReply?.(buildCtaText("Comprar")); }}
         disabled={blocked}
@@ -94,7 +94,7 @@ export function ProductCardCta({
           borderRadius: "10px",
           border: "1.5px solid var(--aacp-accent)",
           background: "transparent",
-          color: !blocked ? "var(--aacp-accent)" : "var(--aacp-muted)",
+          color: !blocked ? "var(--aacp-accent-text, var(--aacp-accent))" : "var(--aacp-muted)",
           fontSize: "14px",
           fontWeight: 700,
           fontFamily: "inherit",

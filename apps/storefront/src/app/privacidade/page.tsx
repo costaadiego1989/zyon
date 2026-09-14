@@ -243,7 +243,7 @@ export default function PrivacidadePage() {
               </div>
             )}
 
-            <button
+            <button data-neu="control"
               onClick={handleDelete}
               disabled={deleting}
               style={{

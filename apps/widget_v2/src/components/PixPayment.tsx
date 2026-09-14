@@ -118,7 +118,7 @@ export function PixPayment() {
               ? paymentIntent.pix_code.slice(0, 30) + "..." + paymentIntent.pix_code.slice(-20)
               : paymentIntent.pix_code}
           </code>
-          <button
+          <button data-neu="primary"
             className={`pix-payment__copy-btn ${copied ? "pix-payment__copy-btn--copied" : ""}`}
             onClick={() => void handleCopy()}
           >
@@ -139,7 +139,7 @@ export function PixPayment() {
         ) : timeLeft === 0 ? (
           <>
             <span className="pix-payment__expired">⚠️ Código expirado.</span>
-            <button
+            <button data-neu="control"
               className="pix-payment__regenerate-btn"
               onClick={() => useCheckoutStore.getState().pay('pix')}
             >

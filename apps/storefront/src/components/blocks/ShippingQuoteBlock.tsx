@@ -31,7 +31,7 @@ export default function ShippingQuoteBlock({
   }
 
   return (
-    <form
+    <form data-neu="inset"
       onSubmit={handleSubmit}
       style={{
         borderRadius: "var(--aacp-radius-md)",
@@ -71,7 +71,7 @@ export default function ShippingQuoteBlock({
           alignItems: "stretch",
         }}
       >
-        <input
+        <input data-neu="field"
           type="text"
           inputMode="numeric"
           autoComplete="postal-code"
@@ -97,7 +97,7 @@ export default function ShippingQuoteBlock({
           onFocus={(e) => (e.currentTarget.style.borderColor = "var(--aacp-accent)")}
           onBlur={(e) => (e.currentTarget.style.borderColor = "var(--aacp-line)")}
         />
-        <button
+        <button data-neu="control"
           type="submit"
           disabled={!valid || submitting}
           style={{

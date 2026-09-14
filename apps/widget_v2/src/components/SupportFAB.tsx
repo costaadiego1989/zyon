@@ -42,8 +42,8 @@ export default function SupportFAB({
     string,
     { bottom?: string; top?: string; left?: string; right?: string }
   > = {
-    bottom_right: { bottom: `${72 + bottomOffset}px`, right: "16px" },
-    bottom_left: { bottom: `${72 + bottomOffset}px`, left: "16px" },
+    bottom_right: { bottom: `${22 + bottomOffset}px`, right: "76px" },
+    bottom_left: { bottom: `${22 + bottomOffset}px`, left: "76px" },
     top_right: { top: "72px", right: "16px" },
     top_left: { top: "72px", left: "16px" },
   };
@@ -95,7 +95,7 @@ export default function SupportFAB({
 
       {/* Tooltip */}
       {showTooltip && !open && (
-        <div
+        <div data-neu="surface"
           style={{
             position: "fixed",
             ...tooltipPos,
@@ -132,7 +132,7 @@ export default function SupportFAB({
           >
             {inviteText}
           </span>
-          <button
+          <button data-neu="icon"
             type="button"
             onClick={(e) => {
               e.stopPropagation();
@@ -168,7 +168,7 @@ export default function SupportFAB({
       )}
 
       {/* FAB Button */}
-      <button
+      <button data-neu="icon"
         type="button"
         onClick={onToggle}
         aria-label={open ? "Fechar suporte" : "Abrir suporte"}

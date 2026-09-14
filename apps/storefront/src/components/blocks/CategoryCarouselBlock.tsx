@@ -21,7 +21,7 @@ export default function CategoryCarouselBlock({ block, onQuickReply }: {
   onQuickReply?: (text: string) => void;
 }) {
   return <nav className={styles.track} aria-label="Categorias da loja">
-    {block.data.categories.map((category) => <button key={category.id} type="button" className={styles.category} onClick={() => onQuickReply?.("Ver produtos de " + category.name)}>
+    {block.data.categories.map((category) => <button data-neu="control" key={category.id} type="button" className={styles.category} onClick={() => onQuickReply?.("Ver produtos de " + category.name)}>
       <span className={styles.top}><FiGrid aria-hidden="true" /><FiArrowUpRight aria-hidden="true" /></span>
       <strong>{category.name}</strong>
       <span className={styles.description}>{category.description || "Explore a seleção de " + category.name}</span>

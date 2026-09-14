@@ -357,7 +357,7 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, initialE
   const stepConfig = STEPS[currentStep - 1];
 
   return (
-    <div style={cardStyle}>
+    <div data-neu="surface" style={cardStyle}>
       {/* Header */}
       <div style={headerStyle}>
         <span style={labelStyle}>Seus dados · {stepConfig.label}</span>
@@ -366,8 +366,8 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, initialE
 
       {/* Content per step */}
       {currentStep === 1 && (
-        <div style={inputWrapStyle}>
-          <input
+        <div data-neu="inset" style={inputWrapStyle}>
+          <input data-neu="field"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder={stepConfig.placeholder}
@@ -399,8 +399,8 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, initialE
       )}
 
       {currentStep === 3 && (
-        <div style={inputWrapStyle}>
-          <input
+        <div data-neu="inset" style={inputWrapStyle}>
+          <input data-neu="field"
             value={phone}
             onChange={(e) => setPhone(formatPhone(e.target.value))}
             placeholder={stepConfig.placeholder}
@@ -422,8 +422,8 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, initialE
 
       {currentStep === 4 && (
         <>
-          <div style={inputWrapStyle}>
-            <input
+          <div data-neu="inset" style={inputWrapStyle}>
+            <input data-neu="field"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Nome completo"
@@ -433,8 +433,8 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, initialE
               style={inputStyle}
             />
           </div>
-          <div style={inputWrapStyle}>
-            <input
+          <div data-neu="inset" style={inputWrapStyle}>
+            <input data-neu="field"
               value={cpf}
               onChange={(e) => setCpf(formatCPF(e.target.value))}
               placeholder="000.000.000-00"
@@ -444,8 +444,8 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, initialE
               style={inputStyle}
             />
           </div>
-          <div style={inputWrapStyle}>
-            <input
+          <div data-neu="inset" style={inputWrapStyle}>
+            <input data-neu="field"
               value={dateOfBirth}
               onChange={(e) => setDateOfBirth(e.target.value)}
               type="date"
@@ -453,8 +453,8 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, initialE
               style={inputStyle}
             />
           </div>
-          <div style={inputWrapStyle}>
-            <select
+          <div data-neu="inset" style={inputWrapStyle}>
+            <select data-neu="field"
               value={gender}
               onChange={(e) => setGender(e.target.value)}
               aria-label="Gênero (opcional)"
@@ -473,8 +473,8 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, initialE
 
       {currentStep === 5 && (
         <>
-          <div style={inputWrapStyle}>
-            <input
+          <div data-neu="inset" style={inputWrapStyle}>
+            <input data-neu="field"
               value={cep}
               onChange={(e) => {
                 const formatted = formatCEP(e.target.value);
@@ -501,15 +501,15 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, initialE
           </div>
 
           {address && (
-            <div style={{ ...readonlyFieldStyle, padding: "6px 8px", background: "var(--aacp-surface-2, rgba(255,255,255,0.05))", borderRadius: "10px" }}>
+            <div data-neu="surface" style={{ ...readonlyFieldStyle, padding: "6px 8px", background: "var(--aacp-surface-2, rgba(255,255,255,0.05))", borderRadius: "10px" }}>
               <div>Rua: {address.street} ✓</div>
               <div>Bairro: {address.neighborhood} ✓</div>
               <div>Cidade: {address.city} - {address.state} ✓</div>
             </div>
           )}
 
-          <div style={inputWrapStyle}>
-            <input
+          <div data-neu="inset" style={inputWrapStyle}>
+            <input data-neu="field"
               value={numero}
               onChange={(e) => setNumero(e.target.value)}
               placeholder="Número"
@@ -519,8 +519,8 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, initialE
               style={inputStyle}
             />
           </div>
-          <div style={inputWrapStyle}>
-            <input
+          <div data-neu="inset" style={inputWrapStyle}>
+            <input data-neu="field"
               value={complemento}
               onChange={(e) => setComplemento(e.target.value)}
               placeholder="Complemento (opcional)"
@@ -540,11 +540,11 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, initialE
       {/* Buttons */}
       <div style={{ display: "flex", gap: "8px" }}>
         {currentStep > 1 && (
-          <button type="button" onClick={handleBack} style={backBtnStyle}>
+          <button data-neu="control" type="button" onClick={handleBack} style={backBtnStyle}>
             Voltar
           </button>
         )}
-        <button type="button" onClick={handleConfirm} disabled={loading} style={confirmBtnStyle}>
+        <button data-neu="primary" type="button" onClick={handleConfirm} disabled={loading} style={confirmBtnStyle}>
           {loading ? "..." : "Confirmar"}
         </button>
       </div>

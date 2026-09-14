@@ -48,7 +48,7 @@ export function ProductCardMedia({
             fontSize: "72px",
             fontWeight: 800,
             lineHeight: 1,
-            color: "color-mix(in srgb, var(--aacp-accent) 30%, transparent)",
+            color: "color-mix(in srgb, var(--aacp-accent-text, var(--aacp-accent)) 30%, transparent)",
             letterSpacing: "-0.04em",
             userSelect: "none",
           }}
@@ -88,7 +88,7 @@ export function ProductCardMedia({
         <ProductCardShare productName={data.name} />
       </div>
 
-      <button
+      <button data-neu="control"
         type="button"
         aria-label="Adicionar à lista de desejos"
         onClick={() => onQuickReply?.(`Adicionar ${data.name} à lista de desejos`)}

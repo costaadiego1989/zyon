@@ -52,7 +52,7 @@ export default function CouponListBlock({
   return (
     <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10 }}>
       {coupons.map((c) => (
-        <div
+        <div data-neu="surface"
           key={c.code}
           style={{
             display: "flex",
@@ -72,7 +72,7 @@ export default function CouponListBlock({
               {formatExpiry(c.expiresAt) ? ` · válido até ${formatExpiry(c.expiresAt)}` : ""}
             </span>
           </div>
-          <button
+          <button data-neu="control"
             type="button"
             onClick={() => copy(c.code)}
             style={{
@@ -95,7 +95,7 @@ export default function CouponListBlock({
       ))}
 
       {progressive && (
-        <div style={{ padding: "12px 14px", borderRadius: "var(--aacp-radius)", border: "1px solid var(--aacp-line-strong)", background: "var(--aacp-surface)" }}>
+        <div data-neu="surface" style={{ padding: "12px 14px", borderRadius: "var(--aacp-radius)", border: "1px solid var(--aacp-line-strong)", background: "var(--aacp-surface)" }}>
           <span style={{ fontSize: 14, fontWeight: 600, color: "var(--aacp-fg)" }}>{progressive.description}</span>
         </div>
       )}
@@ -103,7 +103,7 @@ export default function CouponListBlock({
       {advancedRules && advancedRules.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {advancedRules.map((r, i) => (
-            <div key={i} style={{ padding: "10px 14px", borderRadius: "var(--aacp-radius)", border: "1px solid var(--aacp-line-strong)", background: "var(--aacp-surface)", fontSize: 13, color: "var(--aacp-fg)" }}>
+            <div data-neu="surface" key={i} style={{ padding: "10px 14px", borderRadius: "var(--aacp-radius)", border: "1px solid var(--aacp-line-strong)", background: "var(--aacp-surface)", fontSize: 13, color: "var(--aacp-fg)" }}>
               {r.label}
             </div>
           ))}

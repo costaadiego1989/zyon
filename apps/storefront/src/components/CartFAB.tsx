@@ -89,7 +89,7 @@ export default function CartFAB({ onClick }: CartFABProps) {
         </div>
       )}
 
-      <button
+      <button data-neu="floating"
         type="button"
         onClick={onClick}
         aria-label={`Carrinho: ${cart.itemCount} ${cart.itemCount === 1 ? "item" : "itens"}, total ${formatPrice(cart.total)}`}
@@ -107,7 +107,7 @@ export default function CartFAB({ onClick }: CartFABProps) {
           background: fabColor,
           color: "#fff",
           cursor: "pointer",
-          boxShadow: `0 4px 20px rgba(0,0,0,0.25), 0 0 0 3px color-mix(in srgb, ${fabColor} 18%, transparent)`,
+          boxShadow: "var(--aacp-neu-floating)",
           fontFamily: "inherit",
           fontSize: "13px",
           fontWeight: 600,
@@ -116,11 +116,11 @@ export default function CartFAB({ onClick }: CartFABProps) {
           transition: "transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease, box-shadow 0.2s ease",
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.boxShadow = `0 8px 28px rgba(0,0,0,0.35), 0 0 0 4px color-mix(in srgb, ${fabColor} 25%, transparent)`;
+          e.currentTarget.style.boxShadow = "var(--aacp-neu-floating)";
           e.currentTarget.style.transform = "scale(1.03) translateY(-1px)";
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.boxShadow = `0 4px 20px rgba(0,0,0,0.25), 0 0 0 3px color-mix(in srgb, ${fabColor} 18%, transparent)`;
+          e.currentTarget.style.boxShadow = "var(--aacp-neu-floating)";
           e.currentTarget.style.transform = "scale(1) translateY(0)";
         }}
       >
@@ -159,7 +159,7 @@ export default function CartFAB({ onClick }: CartFABProps) {
         </span>
 
         {/* Item count badge */}
-        <span
+        <span data-neu="counter"
           style={{
             position: "absolute",
             top: "-4px",

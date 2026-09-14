@@ -235,7 +235,7 @@ interface KpiCardProps {
 
 function KpiCard({ icon, label, value }: KpiCardProps) {
   return (
-    <div
+    <div data-neu="surface"
       style={{
         flex: "1 1 0%",
         minWidth: "100px",
@@ -294,7 +294,7 @@ function Chip({ label }: { label: string }) {
         padding: "6px 10px",
         borderRadius: "6px",
         background: "color-mix(in srgb, var(--aacp-accent) 12%, transparent)",
-        color: "var(--aacp-accent)",
+        color: "var(--aacp-accent-text, var(--aacp-accent))",
         fontSize: "12px",
         fontWeight: 600,
         whiteSpace: "nowrap",
@@ -320,7 +320,7 @@ function LoadingSkeleton() {
     >
       <div style={{ display: "flex", gap: "10px" }}>
         {[1, 2, 3].map((i) => (
-          <div
+          <div data-neu="surface"
             key={i}
             style={{
               flex: "1 1 0%",
@@ -332,8 +332,8 @@ function LoadingSkeleton() {
           />
         ))}
       </div>
-      <div style={{ height: "60px", borderRadius: "8px", background: "var(--aacp-surface-2)" }} />
-      <div style={{ height: "60px", borderRadius: "8px", background: "var(--aacp-surface-2)" }} />
+      <div data-neu="surface" style={{ height: "60px", borderRadius: "8px", background: "var(--aacp-surface-2)" }} />
+      <div data-neu="surface" style={{ height: "60px", borderRadius: "8px", background: "var(--aacp-surface-2)" }} />
       <style>{`@keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 0.3; } }`}</style>
     </div>
   );
@@ -554,7 +554,7 @@ export default function LoyaltyTab({ loyalty, summary, discountRules, benefits, 
             aria-label="Cupons de desconto disponíveis"
           >
             {discountRules.map((rule) => (
-              <div
+              <div data-neu="surface"
                 key={rule.id}
                 role="listitem"
                 style={{
@@ -567,7 +567,7 @@ export default function LoyaltyTab({ loyalty, summary, discountRules, benefits, 
                   alignItems: "flex-start",
                 }}
               >
-                <div style={{ marginTop: "2px", color: "var(--aacp-accent)", flexShrink: 0 }}>
+                <div style={{ marginTop: "2px", color: "var(--aacp-accent-text, var(--aacp-accent))", flexShrink: 0 }}>
                   <IconTag />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -612,7 +612,7 @@ export default function LoyaltyTab({ loyalty, summary, discountRules, benefits, 
             ))}
           </div>
         ) : (
-          <div
+          <div data-neu="surface"
             style={{
               padding: "16px 14px",
               borderRadius: "10px",
@@ -674,7 +674,7 @@ export default function LoyaltyTab({ loyalty, summary, discountRules, benefits, 
             aria-label="Descontos disponíveis para você"
           >
             {benefits.available.map((benefit) => (
-              <div
+              <div data-neu="surface"
                 key={benefit.id}
                 role="listitem"
                 style={{
@@ -687,7 +687,7 @@ export default function LoyaltyTab({ loyalty, summary, discountRules, benefits, 
                   alignItems: "flex-start",
                 }}
               >
-                <div style={{ marginTop: "2px", color: "var(--aacp-accent)", flexShrink: 0 }}>
+                <div style={{ marginTop: "2px", color: "var(--aacp-accent-text, var(--aacp-accent))", flexShrink: 0 }}>
                   <IconGift />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -762,7 +762,7 @@ export default function LoyaltyTab({ loyalty, summary, discountRules, benefits, 
             aria-label="Benefícios conquistados"
           >
             {benefits.earned.map((benefit) => (
-              <div
+              <div data-neu="surface"
                 key={benefit.id}
                 role="listitem"
                 style={{
@@ -775,7 +775,7 @@ export default function LoyaltyTab({ loyalty, summary, discountRules, benefits, 
                   alignItems: "flex-start",
                 }}
               >
-                <div style={{ marginTop: "2px", color: "var(--aacp-accent)", flexShrink: 0 }}>
+                <div style={{ marginTop: "2px", color: "var(--aacp-accent-text, var(--aacp-accent))", flexShrink: 0 }}>
                   <IconAward />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -853,7 +853,7 @@ export default function LoyaltyTab({ loyalty, summary, discountRules, benefits, 
               const remaining = Math.max(0, progress.target_value - progress.current_value);
               const percentage = progress.target_value > 0 ? (progress.current_value / progress.target_value) * 100 : 0;
               return (
-                <div
+                <div data-neu="surface"
                   key={progress.id}
                   role="listitem"
                   style={{
@@ -867,7 +867,7 @@ export default function LoyaltyTab({ loyalty, summary, discountRules, benefits, 
                   }}
                 >
                   <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-                    <div style={{ marginTop: "2px", color: "var(--aacp-accent)", flexShrink: 0 }}>
+                    <div style={{ marginTop: "2px", color: "var(--aacp-accent-text, var(--aacp-accent))", flexShrink: 0 }}>
                       <IconTarget />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>

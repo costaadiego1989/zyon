@@ -13,15 +13,17 @@ export function SafeStoreHtml({
   html,
   style,
   config,
+  material,
 }: {
   html: string;
   style?: CSSProperties;
   config?: Config;
+  material?: "message";
 }) {
   const hasDOM = useSyncExternalStore(subscribe, clientSnapshot, serverSnapshot);
   const sanitized = useMemo(
     () => hasDOM ? String(DOMPurify.sanitize(html, config)) : "",
     [hasDOM, html, config],
   );
-  return <div style={style} dangerouslySetInnerHTML={{ __html: sanitized }} />;
+  return <div data-neu={material} style={style} dangerouslySetInnerHTML={{ __html: sanitized }} />;
 }

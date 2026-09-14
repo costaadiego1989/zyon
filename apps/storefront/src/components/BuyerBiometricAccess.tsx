@@ -28,7 +28,7 @@ export function BuyerBiometricAccess({ enroll = false, onComplete }: {
     finally { setBusy(false); }
   }
   return <div style={{ display: "grid", gap: 8 }}>
-    <button type="button" disabled={!available || busy || enrolled} onClick={activate} aria-busy={busy}
+    <button data-neu="control" type="button" disabled={!available || busy || enrolled} onClick={activate} aria-busy={busy}
       style={{ width: "100%", minHeight: 46, padding: "12px 16px", borderRadius: 12,
         border: "1px solid var(--aacp-line)", background: "var(--aacp-surface-2)",
         color: "var(--aacp-fg)", font: "inherit", fontSize: 14, fontWeight: 600,

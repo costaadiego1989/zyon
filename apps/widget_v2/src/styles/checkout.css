@@ -1125,30 +1125,8 @@
 }
 .discount-banner__dismiss:hover { color: #fff; }
 
-/* ShimmerBorder — rotating conic gradient animation */
-@property --shimmer-angle {
-  syntax: "<angle>";
-  initial-value: 0deg;
-  inherits: false;
-}
-@keyframes shimmerRotate {
-  to { --shimmer-angle: 360deg; }
-}
-
-/* ShimmerBorder — horizontal slide animation (same as storefront) */
-@keyframes shimmerSlideH {
-  0% { left: -100%; }
-  50% { left: 100%; }
-  100% { left: 100%; }
-}
-@keyframes shimmerSlideHReverse {
-  0% { right: -100%; }
-  50% { right: 100%; }
-  100% { right: 100%; }
-}
-
-/* Smart Cart: desktop sidebar, mobile drawer */
-@media (max-width: 768px) {
+/* Match CheckoutLayout: desktop sidebar from 640px, mobile bottom sheet. */
+@media (max-width: 639px) {
   .smart-cart-sidebar {
     display: none !important;
   }
@@ -1160,27 +1138,12 @@
     backdrop-filter: blur(2px);
     animation: fadeIn 0.2s ease;
   }
-  .smart-cart-drawer {
-    position: fixed;
-    top: 0;
-    right: 0;
-    width: 85vw;
-    max-width: 360px;
-    height: 100dvh;
-    background: var(--bg);
-    border-left: 1px solid var(--bd);
-    z-index: 10000;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    animation: slideInRight 0.25s ease;
-    padding: 16px;
-  }
+  /* CheckoutLayout owns sheet geometry and opening/closing animation. */
   .cart-fab-mobile {
     display: flex !important;
   }
 }
-@media (min-width: 769px) {
+@media (min-width: 640px) {
   .smart-cart-drawer-overlay,
   .smart-cart-drawer,
   .cart-fab-mobile {

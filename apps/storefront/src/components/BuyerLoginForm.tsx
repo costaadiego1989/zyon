@@ -113,7 +113,7 @@ export default function BuyerLoginForm({ onComplete, merchantId, onAccountNotFou
   };
 
   return (
-    <div style={cardStyle}>
+    <div data-neu="surface" style={cardStyle}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span
@@ -140,8 +140,8 @@ export default function BuyerLoginForm({ onComplete, merchantId, onAccountNotFou
 
       {/* Input */}
       {step === 1 && (
-        <div style={inputWrapStyle}>
-          <input
+        <div data-neu="inset" style={inputWrapStyle}>
+          <input data-neu="field"
             value={email}
             onChange={(e) => {
               setEmail(e.target.value);
@@ -159,8 +159,8 @@ export default function BuyerLoginForm({ onComplete, merchantId, onAccountNotFou
       )}
 
       {step === 2 && (
-        <div style={inputWrapStyle}>
-          <input
+        <div data-neu="inset" style={inputWrapStyle}>
+          <input data-neu="field"
             value={otp}
             onChange={(e) => {
               setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
@@ -186,7 +186,7 @@ export default function BuyerLoginForm({ onComplete, merchantId, onAccountNotFou
 
       {/* Error */}
       {accountNotFound && (
-        <div
+        <div data-neu="surface"
           role="status"
           style={{
             display: "flex",
@@ -212,7 +212,7 @@ export default function BuyerLoginForm({ onComplete, merchantId, onAccountNotFou
       {/* Buttons */}
       <div style={{ display: "flex", gap: "8px" }}>
         {step === 2 && (
-          <button
+          <button data-neu="control"
             type="button"
             onClick={() => {
               setStep(1);
@@ -235,7 +235,7 @@ export default function BuyerLoginForm({ onComplete, merchantId, onAccountNotFou
             Voltar
           </button>
         )}
-        <button
+        <button data-neu="primary"
           type="button"
           onClick={() => {
             if (accountNotFound) {

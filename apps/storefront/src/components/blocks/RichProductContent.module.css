@@ -18,9 +18,9 @@
 .gallery { min-width: 0; }
 .mainImage { position: relative; aspect-ratio: 1 / 1.04; overflow: hidden; border-radius: 12px; background: color-mix(in srgb, var(--aacp-fg) 5%, var(--aacp-surface)); }
 .mainImage > img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.galleryControls { position: absolute; right: 16px; bottom: 16px; display: flex; align-items: center; gap: 6px; padding: 4px 5px 4px 14px; border: 1px solid var(--product-line); border-radius: 6px; color: var(--aacp-fg); background: var(--aacp-surface); }
+.galleryControls { position: absolute; right: 16px; bottom: 16px; display: flex; align-items: center; gap: 6px; padding: 4px 5px 4px 14px; border: 1px solid var(--product-line); border-radius: 999px; color: var(--aacp-fg); background: var(--aacp-surface); }
 .galleryControls > span { padding-right: 12px; font-size: 12px; font-variant-numeric: tabular-nums; }
-.galleryControls button { border: 0; background: transparent; color: inherit; width: 38px; height: 38px; cursor: pointer; display: grid; place-items: center; font-size: 18px; }
+.galleryControls button { border-radius: 50%; border: 0; background: transparent; color: inherit; width: 38px; height: 38px; cursor: pointer; display: grid; place-items: center; font-size: 18px; }
 .galleryControls button:hover { background: color-mix(in srgb, var(--product-accent) 14%, transparent); }
 .thumbnails { display: flex; gap: 10px; padding: 14px 2px 4px; overflow-x: auto; }
 .thumbnails button { flex: 0 0 68px; height: 68px; padding: 3px; border: 1px solid transparent; border-radius: 6px; background: transparent; cursor: pointer; }
@@ -146,7 +146,7 @@
 .immersive :is(h1, h2, h3, [id]) { scroll-margin-top: 24px; }
 .immersive .editorial :global(.aacp-img-text-split) { grid-template-columns: minmax(0, 1fr) !important; }
 .immersive .editorial :global(.aacp-img-text-split) img { max-height: none; }
-.purchaseDock { flex: none; display: flex; align-items: center; gap: 16px; padding: 16px 24px max(16px, env(safe-area-inset-bottom)); background: var(--aacp-bg); border-top: 1px solid var(--product-line); box-shadow: 0 -10px 24px -20px var(--aacp-fg); }
+.purchaseDock { flex: none; display: flex; align-items: center; gap: 16px; padding: 16px 24px max(16px, env(safe-area-inset-bottom)); background: var(--aacp-bg); border-top: 1px solid var(--product-line); box-shadow: 0 -4px 12px color-mix(in oklab, var(--aacp-neu-shade) 12%, transparent); }
 .dockPrice { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
 .dockPrice span { font-size: 12px; color: var(--product-muted); }
 .dockPrice strong { font-size: 22px; font-weight: 650; letter-spacing: -.025em; white-space: nowrap; }
@@ -156,7 +156,7 @@
 .narrationHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .narrationHeader > span { font-weight: 600; }
 .narrationHeader button { display: inline-flex; flex-shrink: 0; align-items: center; gap: 7px; min-height: 44px; border: 0; padding: 4px 8px; background: transparent; color: var(--aacp-fg); font: inherit; cursor: pointer; }
-.narrationHeader svg { width: 16px; height: 16px; color: var(--aacp-accent); }
+.narrationHeader svg { width: 16px; height: 16px; color: var(--aacp-accent-text, var(--aacp-accent)); }
 .narration details { min-width: 0; }
 .narration summary { cursor: pointer; color: var(--aacp-fg); width: fit-content; min-height: 44px; padding: 12px 0; font-weight: 600; }
 .narration p { max-height: 16vh; overflow-y: auto; margin: 8px 0; font-size: 13px; line-height: 1.65; }
@@ -190,3 +190,15 @@
   .narrationInHeader .narrationHeader > button span { display: none; }
   .narrationInHeader summary { font-size: 12px; }
 }
+
+/* Neumorphic material: preserve all existing geometry and media. */
+.galleryControls { box-shadow: var(--aacp-neu-selection); }
+.variant > span { box-shadow: var(--aacp-neu-raised-sm); }
+.variant input:checked + span { box-shadow: var(--aacp-neu-inset); }
+.variant input:disabled + span { box-shadow: none; }
+.buyButton { box-shadow: var(--aacp-neu-primary); }
+.buyButton:active { box-shadow: var(--aacp-neu-primary-pressed); }
+.buyButton:disabled { box-shadow: none; }
+
+/* Variant choices are action chips; media thumbnails retain their crop. */
+.variant > span { border-radius: 999px; }

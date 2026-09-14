@@ -219,7 +219,7 @@ function EditField(props: {
   return (
     <label htmlFor={props.id} style={styles.inputWrap}>
       <span style={styles.inputLabel}>{props.label}</span>
-      <input
+      <input data-neu="field"
         id={props.id}
         type={props.type ?? "text"}
         inputMode={props.inputMode}
@@ -247,7 +247,7 @@ function Skeleton() {
       <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
         Carregando perfil…
       </span>
-      <div style={styles.card}>
+      <div data-neu="card" style={styles.card}>
         <div style={bar("40%", 16)} />
         {[0, 1, 2, 3].map((i) => (
           <div key={i} style={styles.fieldRow}>
@@ -259,7 +259,7 @@ function Skeleton() {
           </div>
         ))}
       </div>
-      <div style={styles.card}>
+      <div data-neu="card" style={styles.card}>
         <div style={bar("35%", 16)} />
         <div style={bar("100%", 60)} />
       </div>
@@ -349,7 +349,7 @@ function AddressForm(props: {
         <label htmlFor="addr-zip" style={styles.inputWrap}>
           <span style={styles.inputLabel}>CEP</span>
           <div style={{ position: "relative" }}>
-            <input
+            <input data-neu="field"
               id="addr-zip"
               inputMode="numeric"
               value={values.zip}
@@ -389,10 +389,10 @@ function AddressForm(props: {
       {error && <p style={styles.errorText} role="alert">{error}</p>}
 
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-        <button type="button" onClick={props.onCancel} style={styles.ghostBtn} disabled={saving}>
+        <button data-neu="control" type="button" onClick={props.onCancel} style={styles.ghostBtn} disabled={saving}>
           Cancelar
         </button>
-        <button
+        <button data-neu="primary"
           type="submit"
           style={{ ...styles.accentBtn, opacity: canSubmit && !saving ? 1 : 0.55, cursor: canSubmit && !saving ? "pointer" : "not-allowed" }}
           disabled={!canSubmit || saving}
@@ -438,7 +438,7 @@ function AddressCard(props: {
     >
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
         <div style={{ display: "flex", gap: 10, minWidth: 0 }}>
-          <span style={{ color: "var(--aacp-accent)", marginTop: 2 }}>
+          <span style={{ color: "var(--aacp-accent-text, var(--aacp-accent))", marginTop: 2 }}>
             <IconPin />
           </span>
           <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
@@ -467,10 +467,10 @@ function AddressCard(props: {
       </div>
 
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-        <button type="button" onClick={props.onEdit} style={{ ...styles.ghostBtn, padding: "5px 10px", fontSize: 12 }} aria-label="Editar endereço">
+        <button data-neu="control" type="button" onClick={props.onEdit} style={{ ...styles.ghostBtn, padding: "5px 10px", fontSize: 12 }} aria-label="Editar endereço">
           <IconEdit /> Editar
         </button>
-        <button
+        <button data-neu="control"
           type="button"
           onClick={handleDelete}
           disabled={deleting}
@@ -605,11 +605,11 @@ export default function ProfileTab({
       <StyleTag />
 
       {/* ── Profile card ── */}
-      <div style={styles.card}>
+      <div data-neu="card" style={styles.card}>
         <div style={styles.cardHeader}>
           <h3 style={styles.cardTitle}>Meu perfil</h3>
           {!editing && (
-            <button type="button" onClick={startEdit} style={styles.ghostBtn} aria-label="Editar perfil">
+            <button data-neu="control" type="button" onClick={startEdit} style={styles.ghostBtn} aria-label="Editar perfil">
               <IconEdit /> Editar
             </button>
           )}
@@ -630,10 +630,10 @@ export default function ProfileTab({
             {formError && <p style={styles.errorText} role="alert">{formError}</p>}
 
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button type="button" onClick={cancelEdit} style={styles.ghostBtn} disabled={saving}>
+              <button data-neu="control" type="button" onClick={cancelEdit} style={styles.ghostBtn} disabled={saving}>
                 Cancelar
               </button>
-              <button
+              <button data-neu="primary"
                 type="submit"
                 style={{ ...styles.accentBtn, opacity: saving ? 0.6 : 1, cursor: saving ? "not-allowed" : "pointer" }}
                 disabled={saving}
@@ -655,11 +655,11 @@ export default function ProfileTab({
       </div>
 
       {/* ── Addresses ── */}
-      <div style={styles.card}>
+      <div data-neu="card" style={styles.card}>
         <div style={styles.cardHeader}>
           <h3 style={styles.cardTitle}>Endereços</h3>
           {!addingAddress && (
-            <button
+            <button data-neu="control"
               type="button"
               onClick={() => {
                 setEditingAddressId(null);

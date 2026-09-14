@@ -130,7 +130,7 @@ export default function ProductContentBlock({
   if (!productId && fallbackBlocks.length === 0) return null;
 
   if (!immersive && productId && merchantSlug) {
-    return <button type="button" onClick={() => window.dispatchEvent(new CustomEvent("aacp:open-product-content", { detail: { productId } }))}
+    return <button data-neu="control" type="button" onClick={() => window.dispatchEvent(new CustomEvent("aacp:open-product-content", { detail: { productId } }))}
       style={{ minHeight: 46, padding: "12px 18px", border: "1px solid var(--aacp-line)", borderRadius: "var(--aacp-radius-sm)", background: "var(--aacp-surface)", color: "var(--aacp-fg)", font: "inherit", cursor: "pointer" }}>
       Explorar detalhes do produto
     </button>;
@@ -180,7 +180,7 @@ export default function ProductContentBlock({
       style={{ width: "100%", padding: "24px", color: "var(--aacp-muted)", fontSize: "14px" }}
     >
       {status === "unavailable" ? "Os detalhes completos deste produto não estão disponíveis agora." : "Preparando os detalhes do produto…"}
-      {status === "unavailable" ? <button type="button" onClick={() => setAttempt((value) => value + 1)} style={{ display: "block", minHeight: 44, marginTop: 16, padding: "10px 16px", border: "1px solid var(--aacp-line)", borderRadius: "var(--aacp-radius-sm)", background: "var(--aacp-surface)", color: "var(--aacp-fg)", font: "inherit", cursor: "pointer" }}>Tentar novamente</button> : null}
+      {status === "unavailable" ? <button data-neu="control" type="button" onClick={() => setAttempt((value) => value + 1)} style={{ display: "block", minHeight: 44, marginTop: 16, padding: "10px 16px", border: "1px solid var(--aacp-line)", borderRadius: "var(--aacp-radius-sm)", background: "var(--aacp-surface)", color: "var(--aacp-fg)", font: "inherit", cursor: "pointer" }}>Tentar novamente</button> : null}
     </section>
   );
 }

@@ -93,7 +93,7 @@ export default function CarouselBlock({ block }: { block: CarouselBlockData }) {
 
         {count > 1 && (
           <>
-            <button
+            <button data-neu="control"
               type="button"
               aria-label="Imagem anterior"
               onClick={() => goTo(current - 1)}
@@ -103,7 +103,7 @@ export default function CarouselBlock({ block }: { block: CarouselBlockData }) {
                 <path d="M15 18l-6-6 6-6" />
               </svg>
             </button>
-            <button
+            <button data-neu="control"
               type="button"
               aria-label="Proxima imagem"
               onClick={() => goTo(current + 1)}
@@ -127,7 +127,7 @@ export default function CarouselBlock({ block }: { block: CarouselBlockData }) {
               }}
             >
               {block.images.map((_, i) => (
-                <button
+                <button data-neu="text"
                   key={i}
                   type="button"
                   aria-pressed={i === current}

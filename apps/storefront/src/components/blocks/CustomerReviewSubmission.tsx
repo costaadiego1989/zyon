@@ -192,7 +192,7 @@ export function CustomerReviewSubmission({
             <strong>Seu review merece uma conta segura.</strong>
             <span>Entre no Hub do usuário ou crie sua conta para enviar e acompanhar a aprovação.</span>
           </div>
-          <button
+          <button data-neu="primary"
             type="button"
             onClick={() => {
               setShowAuthToast(false);
@@ -201,7 +201,7 @@ export function CustomerReviewSubmission({
           >
             Entrar ou criar conta
           </button>
-          <button type="button" className={styles.dismissToast} onClick={() => setShowAuthToast(false)} aria-label="Fechar aviso">×</button>
+          <button data-neu="icon" type="button" className={styles.dismissToast} onClick={() => setShowAuthToast(false)} aria-label="Fechar aviso">×</button>
         </div>
       ) : null}
 
@@ -209,17 +209,17 @@ export function CustomerReviewSubmission({
         <p className={styles.success} role="status">
           <FiCheckCircle aria-hidden="true" />
           <span>{message}</span>
-          <button type="button" onClick={() => { setState("idle"); setMessage(""); }}>
+          <button data-neu="text" type="button" onClick={() => { setState("idle"); setMessage(""); }}>
             Enviar outra
           </button>
         </p>
       ) : (
         <form className={styles.form} onSubmit={(event) => void submit(event)}>
-          <div className={styles.kindSwitch} role="group" aria-label="Tipo de avaliação">
-            <button type="button" disabled={state === "sending"} aria-pressed={kind === "testimonial"} onClick={() => { setKind("testimonial"); setState("idle"); setMessage(""); }}>
+          <div data-neu="segmented" className={styles.kindSwitch} role="group" aria-label="Tipo de avaliação">
+            <button data-neu="segment" type="button" disabled={state === "sending"} aria-pressed={kind === "testimonial"} onClick={() => { setKind("testimonial"); setState("idle"); setMessage(""); }}>
               <FiMessageSquare aria-hidden="true" /> Avaliação escrita
             </button>
-            <button type="button" disabled={state === "sending"} aria-pressed={kind === "video"} onClick={() => { setKind("video"); setState("idle"); setMessage(""); }}>
+            <button data-neu="segment" type="button" disabled={state === "sending"} aria-pressed={kind === "video"} onClick={() => { setKind("video"); setState("idle"); setMessage(""); }}>
               <FiFilm aria-hidden="true" /> Vídeo
             </button>
           </div>
@@ -290,14 +290,14 @@ export function CustomerReviewSubmission({
                           <strong>{videoFile.name}</strong>
                           <span>MP4 · {(videoFile.size / (1024 * 1024)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB</span>
                         </div>
-                        <button type="button" className={styles.removeVideo} disabled={state === "sending"} onClick={removeVideo} aria-label="Remover vídeo">
+                        <button data-neu="icon" type="button" className={styles.removeVideo} disabled={state === "sending"} onClick={removeVideo} aria-label="Remover vídeo">
                           <FiX aria-hidden="true" />
                         </button>
                       </div>
-                      <button type="button" className={styles.replaceVideo} disabled={state === "sending"} onClick={() => videoInputRef.current?.click()}>Substituir vídeo</button>
+                      <button data-neu="text" type="button" className={styles.replaceVideo} disabled={state === "sending"} onClick={() => videoInputRef.current?.click()}>Substituir vídeo</button>
                     </>
                   ) : (
-                    <button
+                    <button data-neu="text"
                       type="button"
                       className={styles.chooseVideo}
                       disabled={state === "sending"}
@@ -317,7 +317,7 @@ export function CustomerReviewSubmission({
           )}
 
           {state === "error" ? <p className={styles.error} role="alert">{message}</p> : null}
-          <button className={styles.submit} type="submit" disabled={state === "sending"} aria-busy={state === "sending"}>
+          <button data-neu="primary" className={styles.submit} type="submit" disabled={state === "sending"} aria-busy={state === "sending"}>
             <FiSend aria-hidden="true" />
             {state === "sending" ? "Enviando..." : "Enviar para aprovação"}
           </button>

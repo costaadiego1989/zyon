@@ -78,7 +78,7 @@ export default function ProductCard({ product }: { product: Product }) {
           >
             {formatPrice(product.price)}
           </span>
-          <button
+          <button data-neu="control"
             type="button"
             disabled
             style={{

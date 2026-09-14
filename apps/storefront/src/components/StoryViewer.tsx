@@ -348,7 +348,7 @@ export default function StoryViewer({
       </div>
 
       {/* Close button */}
-      <button
+      <button data-neu="icon"
         type="button"
         onClick={(e) => { e.stopPropagation(); onClose(); }}
         aria-label="Fechar stories"
@@ -416,11 +416,11 @@ export default function StoryViewer({
 
         {/* Navigation arrows */}
         {(storyIndex > 0 || catIndex > 0) && (
-          <button type="button" onClick={(e) => { e.stopPropagation(); goPrev(); }} aria-label="Anterior" style={{ position: "absolute", left: "8px", top: "50%", transform: "translateY(-50%)", width: "36px", height: "36px", borderRadius: "50%", border: "none", background: "rgba(0,0,0,0.4)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 5, opacity: 0.7, transition: "opacity 0.15s" }}>
+          <button data-neu="control" type="button" onClick={(e) => { e.stopPropagation(); goPrev(); }} aria-label="Anterior" style={{ position: "absolute", left: "8px", top: "50%", transform: "translateY(-50%)", width: "36px", height: "36px", borderRadius: "50%", border: "none", background: "rgba(0,0,0,0.4)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 5, opacity: 0.7, transition: "opacity 0.15s" }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
           </button>
         )}
-        <button type="button" onClick={(e) => { e.stopPropagation(); goNext(); }} aria-label="Próximo" style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", width: "36px", height: "36px", borderRadius: "50%", border: "none", background: "rgba(0,0,0,0.4)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 5, opacity: 0.7, transition: "opacity 0.15s" }}>
+        <button data-neu="control" type="button" onClick={(e) => { e.stopPropagation(); goNext(); }} aria-label="Próximo" style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", width: "36px", height: "36px", borderRadius: "50%", border: "none", background: "rgba(0,0,0,0.4)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 5, opacity: 0.7, transition: "opacity 0.15s" }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
         </button>
 

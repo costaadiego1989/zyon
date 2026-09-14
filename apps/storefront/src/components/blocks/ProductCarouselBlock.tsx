@@ -54,7 +54,7 @@ export default function ProductCarouselBlock({ block, onQuickReply }: {
   return <section className={styles.carousel} aria-label="Produtos da loja">
     {products.length > 1 ? <div className={styles.navigation}>
       <span>Explore os produtos</span>
-      <div><button type="button" aria-label="Produtos anteriores" onClick={() => scroll(-1)}><FiChevronLeft /></button><button type="button" aria-label="Próximos produtos" onClick={() => scroll(1)}><FiChevronRight /></button></div>
+      <div><button data-neu="control" type="button" aria-label="Produtos anteriores" onClick={() => scroll(-1)}><FiChevronLeft /></button><button data-neu="control" type="button" aria-label="Próximos produtos" onClick={() => scroll(1)}><FiChevronRight /></button></div>
     </div> : null}
     <div ref={scrollRef} className={styles.track} tabIndex={0} aria-label="Lista de produtos; deslize para explorar">
       {products.map((product) => {
@@ -66,10 +66,10 @@ export default function ProductCarouselBlock({ block, onQuickReply }: {
             {images.length ? <ImageSlideshow images={images} alt={product.name} objectFit="cover" /> : <div className={styles.noImage}><FiPackage aria-hidden="true" /><span>Imagem indisponível</span></div>}
             <span className={styles.stock} data-available={product.inStock}>{product.inStock ? "Pronta entrega" : "Indisponível"}</span>
             {(product.discountPercent ?? 0) > 0 ? <span className={styles.discount}>−{product.discountPercent}%</span> : null}
-            <button type="button" className={styles.wishlist} aria-label={"Adicionar " + product.name + " à lista de desejos"} onClick={(event) => { event.stopPropagation(); onQuickReply?.("Adicionar " + product.name + " à lista de desejos"); }}><FiHeart aria-hidden="true" /></button>
+            <button data-neu="control" type="button" className={styles.wishlist} aria-label={"Adicionar " + product.name + " à lista de desejos"} onClick={(event) => { event.stopPropagation(); onQuickReply?.("Adicionar " + product.name + " à lista de desejos"); }}><FiHeart aria-hidden="true" /></button>
           </div>
           <div className={styles.body}>
-            <h4><button type="button" onClick={details}>{product.name}</button></h4>
+            <h4><button data-neu="text" type="button" onClick={details}>{product.name}</button></h4>
             {product.description ? <p className={styles.description}>{product.description}</p> : null}
             <div className={styles.rating}>
               {product.rating != null && (product.reviewCount ?? 0) > 0 ? <><FiStar aria-hidden="true" /><strong>{product.rating.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</strong><span>({product.reviewCount} avaliações)</span></> : <span>Ainda sem avaliações</span>}
@@ -79,13 +79,13 @@ export default function ProductCarouselBlock({ block, onQuickReply }: {
             {product.source === "marketplace" && product.sellerName ? <p className={styles.seller}>Vendido por {product.sellerName}</p> : null}
             <RuleNotices notices={product.ruleNotices} />
             <div className={styles.ctas}>
-              <button type="button" onClick={details}>Saber mais</button>
-              <button type="button" className={styles.buy} disabled={!product.inStock} onClick={() => customizable ? details() : onQuickReply?.("Adicionar " + product.name + " ao carrinho")}>{customizable ? "Escolher opções" : "Adicionar ao carrinho"}</button>
+              <button data-neu="control" type="button" onClick={details}>Saber mais</button>
+              <button data-neu="primary" type="button" className={styles.buy} disabled={!product.inStock} onClick={() => customizable ? details() : onQuickReply?.("Adicionar " + product.name + " ao carrinho")}>{customizable ? "Escolher opções" : "Adicionar ao carrinho"}</button>
             </div>
           </div>
         </article>;
       })}
-      {cursor ? <div ref={observerRef} className={styles.more} role="status">{loadError ? <><span>Não foi possível carregar mais produtos.</span><button type="button" onClick={() => void loadMore()}>Tentar novamente</button></> : loadingMore ? "Carregando…" : "Mais produtos"}</div> : null}
+      {cursor ? <div ref={observerRef} className={styles.more} role="status">{loadError ? <><span>Não foi possível carregar mais produtos.</span><button data-neu="control" type="button" onClick={() => void loadMore()}>Tentar novamente</button></> : loadingMore ? "Carregando…" : "Mais produtos"}</div> : null}
     </div>
   </section>;
 }

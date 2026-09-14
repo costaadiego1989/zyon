@@ -43,7 +43,7 @@ export default function ProductComparisonBlock({
   );
 
   return (
-    <div
+    <div data-neu="surface"
       style={{
         borderRadius: "var(--aacp-radius-md)",
         background: "var(--aacp-surface)",
@@ -159,7 +159,7 @@ export default function ProductComparisonBlock({
                     borderBottom: "1px solid var(--aacp-line)",
                     borderLeft: "1px solid var(--aacp-line)",
                     fontWeight: 700,
-                    color: "var(--aacp-accent)",
+                    color: "var(--aacp-accent-text, var(--aacp-accent))",
                     fontSize: 15,
                   }}
                 >
@@ -312,7 +312,7 @@ export default function ProductComparisonBlock({
         }}
       >
         {products.map((p) => (
-          <button
+          <button data-neu="control"
             key={p.id}
             type="button"
             onClick={() => onQuickReply?.(`Adicionar ${p.name}`)}

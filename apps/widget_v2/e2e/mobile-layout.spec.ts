@@ -26,6 +26,7 @@ async function setupMocks(page: Page) {
   }));
   await page.route("**/embed/chat", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ message: "Ok!", blocks: [] }) }));
   await page.route("**/checkout-settings/widget-config**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ enabledTriggers: [], cooldownSeconds: 120, maxInterventionsPerSession: 3 }) }));
+  await page.route("**/embed/checkout/consent/campaigns**", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ channels: [] }) }));
   await page.route("**/embed/track", (route) => route.fulfill({ status: 200, body: "{}" }));
 }
 
@@ -37,7 +38,7 @@ async function enterChat(page: Page) {
   await page.locator("text=/carrinho|Olá|produto ideal/i").first().waitFor({ state: "visible", timeout: 10000 });
 }
 
-test("mobile: cart sidebar hidden, FAB aligns with the chat composer", async ({ page }) => {
+test("mobile: cart sidebar hidden, FAB shown, FABs clear the chat input", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 }); // iPhone-ish
   await setupMocks(page);
   await enterChat(page);
@@ -51,18 +52,30 @@ test("mobile: cart sidebar hidden, FAB aligns with the chat composer", async ({ 
   // Chat panel should have full width (not squeezed)
   const chatWidth = await page.locator(".pulse-widget-shell").first().evaluate((el) => el.clientWidth);
   expect(chatWidth).toBeGreaterThan(340);
-  // The composer reserves a slot for the FAB: both share a visual baseline
-  // without the FAB covering the send action.
+
+  // FAB must sit ABOVE the chat input bar (not overlapping "Enviar").
   const input = page.getByPlaceholder(/mensagem/i).first();
-  const composer = input.locator("xpath=ancestor::form[1]");
-  const send = composer.getByRole("button", { name: "Enviar mensagem" });
-  const [inputBox, sendBox, fabBox] = await Promise.all([
-    input.boundingBox(),
-    send.boundingBox(),
-    fab.boundingBox(),
-  ]);
-  expect(Math.abs((fabBox!.y + fabBox!.height / 2) - (inputBox!.y + inputBox!.height / 2))).toBeLessThanOrEqual(12);
-  expect(fabBox!.x).toBeGreaterThanOrEqual(sendBox!.x + sendBox!.width + 8);
+  const inputBox = await input.boundingBox();
+  const fabBox = await fab.boundingBox();
+  // FAB bottom edge should be above the input's top edge
+  expect(fabBox!.y + fabBox!.height).toBeLessThan(inputBox!.y);
+  const support = page.getByRole("button", { name: "Abrir suporte", exact: true });
+  const assertClear = async () => {
+    const field = (await input.boundingBox())!;
+    const supportBox = (await support.boundingBox())!;
+    const cartBox = (await fab.boundingBox())!;
+    expect(supportBox.y + supportBox.height).toBeLessThan(field.y);
+    expect(cartBox.y + cartBox.height).toBeLessThan(supportBox.y);
+  };
+  await assertClear();
+  await page.getByText("Preferências de contato desta loja", { exact: true }).click();
+  await expect(page.getByRole("checkbox", { name: "WhatsApp", exact: true })).toBeVisible();
+  await expect.poll(async () => {
+    const field = (await input.boundingBox())!;
+    const supportBox = (await support.boundingBox())!;
+    return supportBox.y + supportBox.height < field.y;
+  }).toBe(true);
+  await assertClear();
 });
 
 test("mobile: tapping FAB opens cart drawer (slides up from bottom)", async ({ page }) => {
@@ -83,6 +96,14 @@ test("mobile: tapping FAB opens cart drawer (slides up from bottom)", async ({ p
   expect(style.bottom).toBe("0px");
   expect(style.borderTopLeftRadius).toBe("20px");
   expect(style.animationName).toContain("ckui-sheet-up");
+  await expect.poll(async () => {
+    const rect = (await drawer.boundingBox())!;
+    return Math.abs(rect.y + rect.height - 844);
+  }).toBeLessThan(2);
+  const rect = (await drawer.boundingBox())!;
+  expect(rect.x).toBe(0);
+  expect(rect.width).toBe(390);
+  await expect(page.getByRole("button", { name: "Abrir suporte", exact: true })).toHaveCount(0);
 });
 
 test("mobile: closing drawer plays slide-down animation then unmounts", async ({ page }) => {
@@ -111,4 +132,28 @@ test("desktop: cart sidebar shown, FAB hidden", async ({ page }) => {
 
   await expect(page.locator("aside.smart-cart-sidebar")).toBeVisible({ timeout: 3000 });
   await expect(page.locator(".cart-fab-mobile")).toHaveCount(0);
+});
+
+for (const width of [640, 768]) {
+  test(`tablet ${width}px: cart sidebar remains available at the layout breakpoint`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await setupMocks(page);
+    await enterChat(page);
+    await expect(page.locator("aside.smart-cart-sidebar")).toBeVisible();
+    await expect(page.locator(".cart-fab-mobile")).toHaveCount(0);
+  });
+}
+
+test("mobile: support panel opens inside the viewport and closes", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await setupMocks(page);
+  await enterChat(page);
+  await page.getByRole("button", { name: "Abrir suporte", exact: true }).click();
+  const supportPanel = page.locator("#support-panel");
+  await expect.poll(async () => {
+    const rect = (await supportPanel.boundingBox())!;
+    return rect.y >= 0 && rect.y + rect.height <= 844;
+  }).toBe(true);
+  await supportPanel.getByRole("button", { name: "Fechar suporte", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Abrir suporte", exact: true })).toBeVisible();
 });

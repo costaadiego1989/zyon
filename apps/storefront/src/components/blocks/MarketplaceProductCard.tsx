@@ -42,7 +42,7 @@ export default function MarketplaceProductCard({
   };
 
   return (
-    <article
+    <article data-neu="card"
       style={{
         background: "var(--aacp-surface)",
         border: "1px solid var(--aacp-line)",
@@ -102,7 +102,7 @@ export default function MarketplaceProductCard({
               fontSize: "72px",
               fontWeight: 800,
               lineHeight: 1,
-              color: "color-mix(in srgb, var(--aacp-accent) 30%, transparent)",
+              color: "color-mix(in srgb, var(--aacp-accent-text, var(--aacp-accent)) 30%, transparent)",
               letterSpacing: "-0.04em",
               userSelect: "none",
             }}
@@ -172,7 +172,7 @@ export default function MarketplaceProductCard({
               style={{
                 fontSize: "24px",
                 fontWeight: 800,
-                color: "var(--aacp-accent)",
+                color: "var(--aacp-accent-text, var(--aacp-accent))",
                 fontFamily: "var(--aacp-font-display)",
                 letterSpacing: "-0.02em",
                 lineHeight: 1.1,
@@ -221,7 +221,7 @@ export default function MarketplaceProductCard({
             marginTop: "6px",
           }}
         >
-          <button
+          <button data-neu="control"
             type="button"
             onClick={() => onAddToCart(props)}
             disabled={!inStock}

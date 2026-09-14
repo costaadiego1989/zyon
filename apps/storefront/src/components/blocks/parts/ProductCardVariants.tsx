@@ -54,7 +54,7 @@ export function ProductCardVariants({
             style={{
               fontSize: "12px",
               fontWeight: 700,
-              color: "var(--aacp-accent)",
+              color: "var(--aacp-accent-text, var(--aacp-accent))",
             }}
           >
             {selectedVariant.priceFormatted ?? (selectedVariant.price ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(selectedVariant.price / 100) : null)}
@@ -76,7 +76,7 @@ export function ProductCardVariants({
             const color = colorFromToken(v.value);
             const light = isLightHex(color);
             return (
-              <button
+              <button data-neu="control"
                 key={v.id}
                 type="button"
                 aria-pressed={isSelected}
@@ -132,7 +132,7 @@ export function ProductCardVariants({
               ? outOfStock ? " · esgotado" : ` · ${v.stock}`
               : "";
             return (
-              <button
+              <button data-neu="control"
                 key={v.id}
                 type="button"
                 aria-pressed={isSelected}
@@ -181,7 +181,7 @@ export function ProductCardVariants({
       )}
 
       {selectedVariant && (
-        <div
+        <div data-neu="surface"
           style={{
             padding: "8px 12px",
             borderRadius: "8px",
@@ -194,10 +194,10 @@ export function ProductCardVariants({
           }}
         >
           <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--aacp-fg)" }}>
-            {selectedVariant.name}: <span style={{ color: "var(--aacp-accent)" }}>{selectedVariant.value}</span>
+            {selectedVariant.name}: <span style={{ color: "var(--aacp-accent-text, var(--aacp-accent))" }}>{selectedVariant.value}</span>
           </span>
           {selectedVariant.price !== undefined && selectedVariant.price > 0 && (
-            <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--aacp-accent)", fontFamily: "var(--aacp-font-display)" }}>
+            <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--aacp-accent-text, var(--aacp-accent))", fontFamily: "var(--aacp-font-display)" }}>
               {selectedVariant.priceFormatted ?? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(selectedVariant.price / 100)}
             </span>
           )}

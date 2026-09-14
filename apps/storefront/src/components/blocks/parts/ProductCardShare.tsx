@@ -27,7 +27,7 @@ export function ProductCardShare({ productName, shareUrl }: { productName: strin
         gap: "6px",
       }}
     >
-      <a
+      <a data-neu="control"
         href={`https://wa.me/?text=${encodeURIComponent(`${productName} ${url}`.trim())}`}
         target="_blank"
         rel="noopener noreferrer"
@@ -36,7 +36,7 @@ export function ProductCardShare({ productName, shareUrl }: { productName: strin
       >
         <FaWhatsapp size={15} />
       </a>
-      <a
+      <a data-neu="control"
         href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`}
         target="_blank"
         rel="noopener noreferrer"
@@ -45,7 +45,7 @@ export function ProductCardShare({ productName, shareUrl }: { productName: strin
       >
         <FaFacebook size={15} />
       </a>
-      <button
+      <button data-neu="control"
         type="button"
         aria-label="Copiar link para Instagram"
         onClick={() => {

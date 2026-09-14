@@ -1,5 +1,8 @@
 "use client";
 
+import { PerimeterBorder } from "../../../widget_v2/src/components/PerimeterBorder";
+
+
 import { ReturnRequestForm } from "./ReturnRequestForm";
 import { useSupportPanel } from "@/lib/viewmodels/useSupportPanel";
 
@@ -37,7 +40,7 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
         @keyframes panelSlideUp { from { transform: translateY(100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes backdropFade { from { opacity: 0; } to { opacity: 1; } }
         @media (max-width: 480px) {
-          #support-panel { width: calc(100vw - 32px) !important; bottom: var(--bottom-offset, -480px) !important; }
+          #support-panel { width: calc(100vw - 32px) !important; }
         }
       `}</style>
 
@@ -56,7 +59,7 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
       )}
 
       {/* Panel Container */}
-      <div
+      <div data-neu="overlay"
         id="support-panel"
         style={{
           position: "fixed",
@@ -67,7 +70,7 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
           maxWidth: "calc(100vw - 32px)",
           height: "480px",
           borderRadius: "16px",
-          background: "var(--aacp-surface, #0f0f16)",
+          background: "var(--aacp-panel-bg, var(--aacp-bg, #edf0ee))",
           border: "1px solid var(--aacp-line, rgba(255,255,255,0.1))",
           boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
           display: "flex",
@@ -119,7 +122,7 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
 
           {/* Back to menu — only when in a chat/return view so the buyer isn't stuck */}
           {showBack && (
-            <button
+            <button data-neu="control"
               type="button"
               onClick={resetToWelcome}
               aria-label="Voltar ao menu"
@@ -148,7 +151,7 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
           )}
 
           {/* Close button */}
-          <button
+          <button data-neu="icon"
             type="button"
             onClick={onClose}
             aria-label="Fechar suporte"
@@ -194,7 +197,7 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
                 <div style={{ fontSize: 12, color: "var(--aacp-muted, #8b8b95)", lineHeight: 1.5 }}>
                   Recebemos sua solicitação de troca/devolução. A loja vai analisar e te retornar.
                 </div>
-                <button
+                <button data-neu="control"
                   type="button"
                   onClick={() => { setReturnDone(false); setView("welcome"); }}
                   style={{ marginTop: 4, padding: "8px 16px", borderRadius: 10, border: "1px solid var(--aacp-line, rgba(255,255,255,0.1))", background: "transparent", color: "var(--aacp-fg, #f5f5f7)", font: "500 13px inherit", cursor: "pointer" }}
@@ -232,7 +235,7 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
               </div>
 
               {/* Fixed action: Troca e Devolução */}
-              <button
+              <button data-neu="primary"
                 type="button"
                 onClick={() => { setReturnDone(false); setView("return"); }}
                 style={{
@@ -261,7 +264,7 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
               {/* FAQ buttons */}
               <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
                 {faqItems.map((item) => (
-                  <button
+                  <button data-neu="control"
                     key={item.question}
                     onClick={() => handleFaqClick(item.question)}
                     disabled={isLoading}
@@ -341,10 +344,10 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
                     {msg.role === "merchant" && (
                       <span style={{ fontSize: "9px", fontWeight: 600, color: "#60a5fa", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>{msg.agentName || "Atendente"}</span>
                     )}
-                    <div
+                    <div data-neu="message" data-speaker={msg.role === "user" ? "buyer" : "agent"}
                       style={{
                         padding: "8px 12px",
-                        borderRadius: msg.role === "user" ? "10px 10px 4px 10px" : "10px 10px 10px 4px",
+                        borderRadius: "18px",
                         background: msg.role === "user"
                           ? "var(--aacp-accent, #0f766e)"
                           : msg.role === "merchant"
@@ -380,10 +383,10 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
                   >
                     💬
                   </div>
-                  <div
+                  <div data-neu="message"
                     style={{
                       padding: "8px 12px",
-                      borderRadius: "10px 10px 10px 4px",
+                      borderRadius: "18px",
                       background: "var(--aacp-card, rgba(255,255,255,0.05))",
                       border: "1px solid var(--aacp-line, rgba(255,255,255,0.1))",
                       display: "flex",
@@ -437,7 +440,9 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
           }}
         >
           <form onSubmit={handleSubmit} style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-            <input
+            <div className="aacp-composer-field" data-aacp-composer-frame style={{ borderRadius: "8px" }}>
+            <PerimeterBorder radius="8px" variant="input" />
+            <input data-neu="field"
               ref={inputRef}
               type="text"
               value={input}
@@ -459,7 +464,8 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
               onFocus={(e) => e.currentTarget.style.borderColor = "var(--aacp-accent)"}
               onBlur={(e) => e.currentTarget.style.borderColor = "var(--aacp-line)"}
             />
-            <button
+            </div>
+            <button data-neu="send"
               type="submit"
               disabled={!input.trim() || isLoading}
               style={{
@@ -474,7 +480,6 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
                 alignItems: "center",
                 justifyContent: "center",
                 flex: "none",
-                opacity: !input.trim() || isLoading ? 0.5 : 1,
                 transition: "opacity 0.15s ease",
               }}
               aria-label="Enviar mensagem"

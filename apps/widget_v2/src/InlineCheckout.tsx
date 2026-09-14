@@ -100,7 +100,7 @@ export function InlineCheckout(props: InlineCheckoutProps) {
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12, color: "var(--aacp-fg, #f5f5f7)" }}>
         <h2 style={{ margin: 0 }}>Erro</h2>
         <p style={{ margin: 0, opacity: 0.7, fontSize: 13 }}>{error || "Não foi possível iniciar o checkout."}</p>
-        {props.onClose && <button onClick={props.onClose} style={{ marginTop: 12, padding: "8px 16px", borderRadius: 8, border: "1px solid var(--aacp-border-color, #333)", background: "transparent", color: "inherit", cursor: "pointer" }}>Voltar</button>}
+        {props.onClose && <button data-neu="control" onClick={props.onClose} style={{ marginTop: 12, padding: "8px 16px", borderRadius: 8, border: "1px solid var(--aacp-border-color, #333)", background: "transparent", color: "inherit", cursor: "pointer" }}>Voltar</button>}
       </div>
     );
   }

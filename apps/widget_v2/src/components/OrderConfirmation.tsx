@@ -74,7 +74,7 @@ export function OrderConfirmation() {
         </div>
       </div>
 
-      <button className="order-confirmation__back-btn" onClick={handleBackToStore}>
+      <button data-neu="control" className="order-confirmation__back-btn" onClick={handleBackToStore}>
         Voltar para a loja
       </button>
       <style>{`@keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-8px); } }`}</style>

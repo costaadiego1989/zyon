@@ -86,7 +86,7 @@ export function CampaignContactPreferences({ api, sessionId }: CampaignContactPr
   };
 
   return (
-    <details
+    <details data-neu="surface"
       style={{
         flex: "none",
         marginTop: "8px",
@@ -97,7 +97,7 @@ export function CampaignContactPreferences({ api, sessionId }: CampaignContactPr
         color: "var(--tx)",
       }}
     >
-      <summary style={{ cursor: "pointer", fontSize: "12px", fontWeight: 700 }}>
+      <summary data-neu="text" style={{ cursor: "pointer", fontSize: "12px", fontWeight: 700 }}>
         Preferências de contato desta loja
       </summary>
       <p style={{ margin: "8px 0", color: "var(--mut)", fontSize: "12px", lineHeight: 1.45 }}>
@@ -113,7 +113,7 @@ export function CampaignContactPreferences({ api, sessionId }: CampaignContactPr
           WhatsApp
         </label>
       </fieldset>
-      <button
+      <button data-neu="primary"
         type="button"
         onClick={() => void persist()}
         disabled={loading || saving || !hasChanges}

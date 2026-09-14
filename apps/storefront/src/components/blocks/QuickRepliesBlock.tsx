@@ -14,11 +14,11 @@ export default function QuickRepliesBlock({
       style={{
         display: "flex",
         flexWrap: "wrap",
-        gap: "16px",
+        gap: "8px",
       }}
     >
       {block.data.options.map((option, idx) => (
-        <button
+        <button data-neu="control"
           key={idx}
           type="button"
           onClick={() => onSelect?.(option)}

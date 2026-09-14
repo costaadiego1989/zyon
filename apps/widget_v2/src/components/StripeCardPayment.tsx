@@ -105,11 +105,11 @@ function CardForm() {
           {buyerServiceFeeCopy(language).notice}
         </p>
       )}
-      <div className="stripe-payment__card-wrapper">
+      <div data-neu="inset" className="stripe-payment__card-wrapper">
         <CardElement options={{ style: cardStyle, hidePostalCode: true }} />
       </div>
       {error && <p className="stripe-payment__error">{error}</p>}
-      <button
+      <button data-neu="primary"
         type="submit"
         disabled={!stripe || processing}
         className="stripe-payment__submit"

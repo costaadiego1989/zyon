@@ -68,7 +68,7 @@ export function ProductCardOptions({
               {group.items.map((item) => {
                 const isSelected = selectedItemIds.has(item.id);
                 return (
-                  <button
+                  <button data-neu="control"
                     key={item.id}
                     type="button"
                     role={group.selectionType === "single" ? "radio" : "checkbox"}
@@ -110,7 +110,7 @@ export function ProductCardOptions({
                     />
                     <span style={{ flex: 1 }}>{item.name}</span>
                     {item.priceModifierInCents > 0 && (
-                      <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--aacp-accent)" }}>
+                      <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--aacp-accent-text, var(--aacp-accent))" }}>
                         + {formatCents(item.priceModifierInCents)}
                       </span>
                     )}

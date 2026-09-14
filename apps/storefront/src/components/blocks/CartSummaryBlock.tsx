@@ -34,7 +34,7 @@ export default function CartSummaryBlock({
 
   return (
     <>
-    <div
+    <div data-neu="card"
       style={{
         background: "var(--aacp-surface-2)",
         borderRadius: "var(--aacp-radius-md, 12px)",

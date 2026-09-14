@@ -58,7 +58,7 @@ function ToggleSwitch({ value, onChange, label, description, disabled = false }:
       }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
-        <button
+        <button data-neu="text"
           type="button"
           onClick={handle}
           disabled={busy || disabled}
@@ -103,7 +103,7 @@ function ToggleSwitch({ value, onChange, label, description, disabled = false }:
           </div>
         </button>
       </div>
-      <button
+      <button data-neu="switch"
         type="button"
         role="switch"
         onClick={handle}
@@ -181,7 +181,7 @@ function LanguageSelect({ value, onChange, disabled = false }: LanguageSelectPro
       >
         Idioma
       </label>
-      <select
+      <select data-neu="field"
         id="language-select"
         value={value}
         onChange={handle}
@@ -229,7 +229,7 @@ function IntentProfileSection({ intentProfile, loading }: IntentProfileSectionPr
 
   if (!intentProfile?.has_consent) {
     return (
-      <div
+      <div data-neu="surface"
         style={{
           padding: "16px 14px",
           borderRadius: "8px",
@@ -271,7 +271,7 @@ function IntentProfileSection({ intentProfile, loading }: IntentProfileSectionPr
           >
             Intenção principal
           </div>
-          <div
+          <div data-neu="surface"
             style={{
               display: "flex",
               alignItems: "center",
@@ -320,7 +320,7 @@ function IntentProfileSection({ intentProfile, loading }: IntentProfileSectionPr
                   padding: "6px 10px",
                   borderRadius: "6px",
                   background: "color-mix(in srgb, var(--aacp-accent) 12%, transparent)",
-                  color: "var(--aacp-accent)",
+                  color: "var(--aacp-accent-text, var(--aacp-accent))",
                   fontSize: "12px",
                   fontWeight: 600,
                 }}
@@ -345,7 +345,7 @@ function IntentProfileSection({ intentProfile, loading }: IntentProfileSectionPr
           >
             Faixa de orçamento
           </div>
-          <div
+          <div data-neu="surface"
             style={{
               display: "flex",
               alignItems: "center",
@@ -384,7 +384,7 @@ function IntentProfileSection({ intentProfile, loading }: IntentProfileSectionPr
           >
             Taxa de conversão estimada
           </div>
-          <div
+          <div data-neu="surface"
             style={{
               display: "flex",
               alignItems: "center",
@@ -482,7 +482,7 @@ export default function PreferencesTab({
         >
           Notificações
         </div>
-        <div
+        <div data-neu="surface"
           style={{
             display: "flex",
             flexDirection: "column",
@@ -566,7 +566,7 @@ export default function PreferencesTab({
         >
           Experiência
         </div>
-        <div
+        <div data-neu="surface"
           style={{
             display: "flex",
             flexDirection: "column",
@@ -676,7 +676,7 @@ export default function PreferencesTab({
         <a
           href="/privacidade"
           style={{
-            color: "var(--aacp-accent)",
+            color: "var(--aacp-accent-text, var(--aacp-accent))",
             textDecoration: "none",
             fontWeight: 600,
           }}

@@ -32,7 +32,7 @@ function StarSelector({
       {[1, 2, 3, 4, 5].map((star) => {
         const active = star <= (hovered || value);
         return (
-          <button
+          <button data-neu="text"
             key={star}
             type="button"
             role="radio"
@@ -115,7 +115,7 @@ export default function AddReviewBlock({
   };
 
   return (
-    <article
+    <article data-neu="card"
       style={{
         background: "var(--aacp-surface)",
         border: "1px solid var(--aacp-line)",
@@ -185,7 +185,7 @@ export default function AddReviewBlock({
               >
                 Seu nome
               </span>
-              <input
+              <input data-neu="field"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -225,7 +225,7 @@ export default function AddReviewBlock({
               >
                 Telefone (com DDD)
               </span>
-              <input
+              <input data-neu="field"
                 type="tel"
                 value={phone}
                 onChange={(e) => {
@@ -261,7 +261,7 @@ export default function AddReviewBlock({
             </div>
 
             {/* Continue button */}
-            <button
+            <button data-neu="control"
               type="button"
               onClick={handleIdentifySubmit}
               disabled={!name.trim() || !phone}
@@ -349,7 +349,7 @@ export default function AddReviewBlock({
               >
                 Comentário
               </span>
-              <textarea
+              <textarea data-neu="field"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="Conte sua experiência..."
@@ -379,7 +379,7 @@ export default function AddReviewBlock({
             </div>
 
             {/* Submit */}
-            <button
+            <button data-neu="control"
               type="button"
               onClick={handleSubmit}
               disabled={!canSubmit}

@@ -86,7 +86,7 @@ function DistributionBar({
       <span style={{ width: "18px", textAlign: "right", fontWeight: 600 }}>
         {star}★
       </span>
-      <div
+      <div data-neu="surface"
         style={{
           flex: 1,
           height: "6px",
@@ -135,7 +135,7 @@ export default function ReviewsBlock({ block, onQuickReply }: ReviewsBlockProps)
   });
 
   return (
-    <article
+    <article data-neu="card"
       style={{
         background: "var(--aacp-surface)",
         border: "1px solid var(--aacp-line)",
@@ -251,7 +251,7 @@ export default function ReviewsBlock({ block, onQuickReply }: ReviewsBlockProps)
                 justifyContent: "center",
                 fontSize: "13px",
                 fontWeight: 700,
-                color: "var(--aacp-accent)",
+                color: "var(--aacp-accent-text, var(--aacp-accent))",
                 flexShrink: 0,
               }}
             >
@@ -313,7 +313,7 @@ export default function ReviewsBlock({ block, onQuickReply }: ReviewsBlockProps)
             textAlign: "center",
           }}
         >
-          <button
+          <button data-neu="control"
             type="button"
             onClick={() => setVisibleCount((c) => c + 5)}
             style={{
@@ -321,7 +321,7 @@ export default function ReviewsBlock({ block, onQuickReply }: ReviewsBlockProps)
               borderRadius: "999px",
               border: "1px solid var(--aacp-line)",
               background: "var(--aacp-surface-2)",
-              color: "var(--aacp-accent)",
+              color: "var(--aacp-accent-text, var(--aacp-accent))",
               fontSize: "12px",
               fontWeight: 600,
               fontFamily: "inherit",
@@ -351,7 +351,7 @@ export default function ReviewsBlock({ block, onQuickReply }: ReviewsBlockProps)
           background: "var(--aacp-surface-2)",
         }}
       >
-        <button
+        <button data-neu="control"
           type="button"
           onClick={() =>
             onQuickReply?.(`Adicionar avaliação para ${data.productName}`)
@@ -362,7 +362,7 @@ export default function ReviewsBlock({ block, onQuickReply }: ReviewsBlockProps)
             borderRadius: "10px",
             border: "1.5px solid var(--aacp-accent)",
             background: "transparent",
-            color: "var(--aacp-accent)",
+            color: "var(--aacp-accent-text, var(--aacp-accent))",
             fontSize: "13px",
             fontWeight: 700,
             fontFamily: "inherit",

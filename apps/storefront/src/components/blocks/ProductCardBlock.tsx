@@ -123,7 +123,7 @@ export default function ProductCardBlock({
   };
 
   return (
-    <article
+    <article data-neu="card"
       style={{
         background: "var(--aacp-surface)",
         border: "1px solid var(--aacp-line)",
@@ -272,7 +272,7 @@ export default function ProductCardBlock({
               style={{
                 fontSize: "24px",
                 fontWeight: 800,
-                color: "var(--aacp-accent)",
+                color: "var(--aacp-accent-text, var(--aacp-accent))",
                 fontFamily: "var(--aacp-font-display)",
                 letterSpacing: "-0.02em",
                 lineHeight: 1.1,
@@ -366,7 +366,7 @@ export default function ProductCardBlock({
         )}
 
         {data.source === "marketplace" && data.sellerName && (
-          <div
+          <div data-neu="surface"
             style={{
               display: "flex",
               alignItems: "center",
@@ -401,7 +401,7 @@ export default function ProductCardBlock({
               }}
             >
               Vendido e entregue por{" "}
-              <span style={{ color: "var(--aacp-accent)" }}>{data.sellerName}</span>
+              <span style={{ color: "var(--aacp-accent-text, var(--aacp-accent))" }}>{data.sellerName}</span>
             </span>
           </div>
         )}
@@ -444,7 +444,7 @@ export default function ProductCardBlock({
           Respostas rápidas
         </span>
         {quickReplies.map((reply) => (
-          <button
+          <button data-neu="control"
             key={reply}
             type="button"
             onClick={() => onQuickReply?.(reply)}
@@ -478,7 +478,7 @@ export default function ProductCardBlock({
       </div>
       {/* Wave 2 (advanced-product-layout): this emits the chat intent and the
           shell appends its rich response in the active conversation. */}
-      <button
+      <button data-neu="primary"
         type="button"
         aria-label={`Ver detalhes ricos de ${data.name}`}
         data-aacp-product-detail-cta

@@ -122,7 +122,7 @@ export default function CrossSellBlock({
         }}
       >
         {data.products.map((product) => (
-          <div
+          <div data-neu="surface"
             key={product.id}
             style={{
               minWidth: "140px",
@@ -199,7 +199,7 @@ export default function CrossSellBlock({
                     fontSize: "28px",
                     fontWeight: 800,
                     color:
-                      "color-mix(in srgb, var(--aacp-accent) 30%, transparent)",
+                      "color-mix(in srgb, var(--aacp-accent-text, var(--aacp-accent)) 30%, transparent)",
                     fontFamily: "var(--aacp-font-display)",
                     userSelect: "none",
                   }}
@@ -241,7 +241,7 @@ export default function CrossSellBlock({
                 style={{
                   fontSize: "14px",
                   fontWeight: 800,
-                  color: "var(--aacp-accent)",
+                  color: "var(--aacp-accent-text, var(--aacp-accent))",
                   fontFamily: "var(--aacp-font-display)",
                   letterSpacing: "-0.02em",
                 }}
@@ -250,7 +250,7 @@ export default function CrossSellBlock({
               </span>
 
               {/* Adicionar button */}
-              <button
+              <button data-neu="control"
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();

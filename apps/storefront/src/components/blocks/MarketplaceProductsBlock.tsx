@@ -60,7 +60,7 @@ export default function MarketplaceProductsBlock({
             background: "color-mix(in srgb, var(--aacp-accent) 12%, transparent)",
             fontSize: "11px",
             fontWeight: 700,
-            color: "var(--aacp-accent)",
+            color: "var(--aacp-accent-text, var(--aacp-accent))",
             letterSpacing: "0.01em",
           }}
         >

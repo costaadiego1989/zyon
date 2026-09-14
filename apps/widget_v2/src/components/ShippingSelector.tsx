@@ -22,7 +22,7 @@ export function ShippingSelector() {
       <p style={{ fontSize: "13px" }}>
         As opcoes de frete aparecem no chat. Envie uma mensagem para continuar.
       </p>
-      <button
+      <button data-neu="primary"
         type="button"
         onClick={() => void sendMessage("Mostrar opcoes de frete")}
         style={{

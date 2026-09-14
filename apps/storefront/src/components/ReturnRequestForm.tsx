@@ -122,14 +122,14 @@ export function ReturnRequestForm({ orderId: initialOrderId, merchantId, onSucce
         ) : (
           <>
             {orders.length > 5 && (
-              <input
+              <input data-neu="field"
                 value={orderSearch}
                 onChange={(e) => setOrderSearch(e.target.value)}
                 placeholder="Buscar por número do pedido..."
                 style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--aacp-line, rgba(255,255,255,0.08))", background: "var(--aacp-surface, #1a1a1a)", color: "var(--aacp-fg, #f5f5f7)", font: "13px var(--aacp-font, system-ui)", marginBottom: 6 }}
               />
             )}
-            <select
+            <select data-neu="field"
               value={selectedOrderId}
               onChange={(e) => setSelectedOrderId(e.target.value)}
               style={{ padding: "9px 12px", borderRadius: 8, border: "1px solid var(--aacp-line, rgba(255,255,255,0.08))", background: "var(--aacp-surface, #1a1a1a)", color: "var(--aacp-fg, #f5f5f7)", font: "13px var(--aacp-font, system-ui)" }}
@@ -150,7 +150,7 @@ export function ReturnRequestForm({ orderId: initialOrderId, merchantId, onSucce
         <label style={{ font: "500 11px var(--aacp-font, system-ui)", color: "var(--aacp-muted, #8b8b95)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
           Motivo *
         </label>
-        <select
+        <select data-neu="field"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           style={{ padding: "9px 12px", borderRadius: 8, border: "1px solid var(--aacp-line, rgba(255,255,255,0.08))", background: "var(--aacp-surface, #1a1a1a)", color: "var(--aacp-fg, #f5f5f7)", font: "13px var(--aacp-font, system-ui)" }}
@@ -165,7 +165,7 @@ export function ReturnRequestForm({ orderId: initialOrderId, merchantId, onSucce
         <label style={{ font: "500 11px var(--aacp-font, system-ui)", color: "var(--aacp-muted, #8b8b95)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
           Título *
         </label>
-        <input
+        <input data-neu="field"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Ex: Produto chegou com defeito na tela"
@@ -178,7 +178,7 @@ export function ReturnRequestForm({ orderId: initialOrderId, merchantId, onSucce
         <label style={{ font: "500 11px var(--aacp-font, system-ui)", color: "var(--aacp-muted, #8b8b95)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
           Descrição
         </label>
-        <textarea
+        <textarea data-neu="field"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
@@ -205,7 +205,7 @@ export function ReturnRequestForm({ orderId: initialOrderId, merchantId, onSucce
             {images.map((img, i) => (
               <div key={i} style={{ position: "relative" }}>
                 <img src={img} alt="" style={{ width: 56, height: 56, borderRadius: 8, objectFit: "cover", border: "1px solid var(--aacp-line, rgba(255,255,255,0.08))" }} />
-                <button
+                <button data-neu="control"
                   type="button"
                   onClick={() => setImages((prev) => prev.filter((_, idx) => idx !== i))}
                   style={{ position: "absolute", top: -4, right: -4, width: 18, height: 18, borderRadius: "50%", background: "#e11d48", color: "#fff", border: "none", font: "10px sans-serif", cursor: "pointer", display: "grid", placeItems: "center" }}
@@ -222,7 +222,7 @@ export function ReturnRequestForm({ orderId: initialOrderId, merchantId, onSucce
 
       {/* Actions */}
       <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-        <button
+        <button data-neu="primary"
           type="button"
           onClick={handleSubmit}
           disabled={loading}
@@ -240,7 +240,7 @@ export function ReturnRequestForm({ orderId: initialOrderId, merchantId, onSucce
         >
           {loading ? "Enviando..." : "Solicitar devolução"}
         </button>
-        <button
+        <button data-neu="control"
           type="button"
           onClick={onCancel}
           style={{
