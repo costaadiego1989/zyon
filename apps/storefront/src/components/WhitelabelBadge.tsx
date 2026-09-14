@@ -14,7 +14,7 @@ export default function WhitelabelBadge({ show }: { show?: boolean }) {
         flex: "none",
       }}
     >
-      <span
+      <a href="https://www.zyon-payments.com.br" target="_blank" rel="noreferrer" aria-label="Conheça a Zyon"
         style={{
           fontSize: "10px",
           fontWeight: 600,
@@ -23,7 +23,7 @@ export default function WhitelabelBadge({ show }: { show?: boolean }) {
         }}
       >
         Powered by Zyon
-      </span>
+      </a>
     </div>
   );
 }

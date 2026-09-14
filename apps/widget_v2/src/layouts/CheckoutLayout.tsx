@@ -337,7 +337,9 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
                 )}
 
                 {/* ChatPanel is the MAIN UI */}
-                <ChatPanel />
+                <ChatPanel
+                  onOpenCart={isMobile && cart.items.length > 0 ? () => setCartDrawerOpen(true) : undefined}
+                />
                 <CampaignContactPreferences api={api} sessionId={sessionId} />
               </div>
 
@@ -363,39 +365,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
         </ShimmerBorder>
       )}
 
-      {/* Mobile Cart FAB + Drawer.
-          FABs must clear the chat input bar (~72px) and the whitelabel badge
-          (~40px when shown) so they never sit on top of "Enviar" or the badge. */}
-      {isMobile && status === "active" && cart.items.length > 0 && (
-        <button
-          type="button"
-          className="cart-fab-mobile"
-          aria-label="Abrir carrinho"
-          onClick={() => setCartDrawerOpen(true)}
-          style={{
-            position: "fixed",
-            bottom: `${16 + 72 + (showBranding ? 40 : 0) + 56}px`,
-            right: "16px",
-            width: "48px",
-            height: "48px",
-            borderRadius: "50%",
-            border: "none",
-            background: "var(--aacp-accent, #0f766e)",
-            color: "#fff",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
-            zIndex: 999,
-          }}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6L5 3H2"/><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/></svg>
-          <span style={{ position: "absolute", top: "-4px", right: "-4px", width: "18px", height: "18px", borderRadius: "50%", background: "#ef4444", fontSize: "10px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {cart.items.reduce((s, i) => s + i.quantity, 0)}
-          </span>
-        </button>
-      )}
+      {/* Mobile cart drawer */}
       {cartDrawerOpen && (
         <>
           {/* Keyframes for the bottom-sheet (same as storefront CartSheet) */}
@@ -482,7 +452,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
             background: "var(--aacp-accent, #0f766e)",
           }}
         >
-          <span
+          <a href="https://www.zyon-payments.com.br" target="_blank" rel="noreferrer" aria-label="Conheça a Zyon"
             style={{
               fontSize: "10px",
               fontWeight: 600,
@@ -491,7 +461,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
             }}
           >
             Powered by Zyon
-          </span>
+          </a>
         </div>
       )}
 

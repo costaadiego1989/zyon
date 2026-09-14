@@ -11,7 +11,6 @@ export function AgentAvatar({ active = true }: AgentAvatarProps) {
     <PulseAgentOrb
       placement="chatBubble"
       active={active}
-      style={{ marginTop: "2px" }}
     />
   );
 }

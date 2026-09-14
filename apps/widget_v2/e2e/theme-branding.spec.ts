@@ -85,7 +85,9 @@ test("branding: 'Powered by Zyon' shown when showBranding=true", async ({ page }
   await navigateToCheckout(page);
   await selectChatChannel(page);
 
-  await expect(page.locator("text=Powered by Zyon")).toBeVisible({ timeout: 5000 });
+  const branding = page.getByRole("link", { name: "Conheça a Zyon" });
+  await expect(branding).toBeVisible({ timeout: 5000 });
+  await expect(branding).toHaveAttribute("href", "https://www.zyon-payments.com.br");
 });
 
 test("branding: badge hidden when showBranding=false (paid plan)", async ({ page }) => {

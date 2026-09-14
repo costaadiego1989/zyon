@@ -37,7 +37,7 @@ async function enterChat(page: Page) {
   await page.locator("text=/carrinho|Olá|produto ideal/i").first().waitFor({ state: "visible", timeout: 10000 });
 }
 
-test("mobile: cart sidebar hidden, FAB shown, FABs clear the chat input", async ({ page }) => {
+test("mobile: cart sidebar hidden, FAB aligns with the chat composer", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 }); // iPhone-ish
   await setupMocks(page);
   await enterChat(page);
@@ -51,13 +51,18 @@ test("mobile: cart sidebar hidden, FAB shown, FABs clear the chat input", async 
   // Chat panel should have full width (not squeezed)
   const chatWidth = await page.locator(".pulse-widget-shell").first().evaluate((el) => el.clientWidth);
   expect(chatWidth).toBeGreaterThan(340);
-
-  // FAB must sit ABOVE the chat input bar (not overlapping "Enviar").
+  // The composer reserves a slot for the FAB: both share a visual baseline
+  // without the FAB covering the send action.
   const input = page.getByPlaceholder(/mensagem/i).first();
-  const inputBox = await input.boundingBox();
-  const fabBox = await fab.boundingBox();
-  // FAB bottom edge should be above the input's top edge
-  expect(fabBox!.y + fabBox!.height).toBeLessThan(inputBox!.y);
+  const composer = input.locator("xpath=ancestor::form[1]");
+  const send = composer.getByRole("button", { name: "Enviar mensagem" });
+  const [inputBox, sendBox, fabBox] = await Promise.all([
+    input.boundingBox(),
+    send.boundingBox(),
+    fab.boundingBox(),
+  ]);
+  expect(Math.abs((fabBox!.y + fabBox!.height / 2) - (inputBox!.y + inputBox!.height / 2))).toBeLessThanOrEqual(12);
+  expect(fabBox!.x).toBeGreaterThanOrEqual(sendBox!.x + sendBox!.width + 8);
 });
 
 test("mobile: tapping FAB opens cart drawer (slides up from bottom)", async ({ page }) => {

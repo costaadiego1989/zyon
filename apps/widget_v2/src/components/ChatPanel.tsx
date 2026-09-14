@@ -6,11 +6,16 @@ import { renderInlineMarkdown, messageToSpeech } from "./chat/helpers";
 import { BlockRenderer } from "./chat/ChatBlocks";
 import { VoiceComposer } from "./chat/VoiceComposer";
 
-export function ChatPanel() {
+type ChatPanelProps = {
+  onOpenCart?: () => void;
+};
+
+export function ChatPanel({ onOpenCart }: ChatPanelProps) {
   const messages = useCheckoutStore((s) => s.messages);
   const isTyping = useCheckoutStore((s) => s.isTyping);
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
   const channel = useCheckoutStore((s) => s.channel);
+  const cartItemCount = useCheckoutStore((s) => s.cart.items.reduce((total, item) => total + item.quantity, 0));
   const [input, setInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -61,7 +66,7 @@ export function ChatPanel() {
             key={msg.id}
             style={{
               display: "flex",
-              alignItems: "flex-start",
+              alignItems: msg.role === "agent" ? "center" : "flex-start",
               gap: "8px",
               width: "100%",
               justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
@@ -133,7 +138,7 @@ export function ChatPanel() {
         )}
 
         {isTyping && (
-          <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <AgentAvatar active />
             <div style={{ padding: "10px 12px", borderRadius: "12px", background: "var(--card)", color: "var(--mut)", border: "1px solid var(--bd)" }}>
               <span style={{ animation: "dot-pulse 1.2s infinite" }}>●</span>
@@ -149,8 +154,11 @@ export function ChatPanel() {
         <VoiceComposer voice={voice} />
       ) : (
         <form
+          className="chat-panel-composer"
+          data-cart-present={Boolean(onOpenCart)}
           onSubmit={handleSubmit}
           style={{
+            position: "relative",
             display: "flex",
             gap: "8px",
             flexShrink: 0,
@@ -195,6 +203,36 @@ export function ChatPanel() {
           >
             Enviar
           </button>
+          {onOpenCart ? (
+            <button
+              type="button"
+              className="cart-fab-mobile"
+              aria-label="Abrir carrinho"
+              onClick={onOpenCart}
+              style={{
+                position: "absolute",
+                top: "calc(50% + 5px)",
+                right: 0,
+                transform: "translateY(-50%)",
+                width: "48px",
+                height: "48px",
+                borderRadius: "50%",
+                border: "none",
+                background: "var(--aacp-accent, #0f766e)",
+                color: "#fff",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6L5 3H2"/><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/></svg>
+              <span style={{ position: "absolute", top: "-4px", right: "-4px", width: "18px", height: "18px", borderRadius: "50%", background: "#ef4444", fontSize: "10px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {cartItemCount}
+              </span>
+            </button>
+          ) : null}
         </form>
       )}
 
@@ -202,6 +240,9 @@ export function ChatPanel() {
         @keyframes bubble-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
         @keyframes dot-pulse { 0%,80%,100% { opacity: .3; } 40% { opacity: 1; } }
         @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-8px); } }
+        @media (max-width: 639px) {
+          .chat-panel-composer[data-cart-present="true"] { padding-right: 64px !important; }
+        }
       `}</style>
     </div>
   );
