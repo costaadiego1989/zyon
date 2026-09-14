@@ -30,6 +30,7 @@ scripts/*
 
 # Exclude generated/WIP docs, but keep architecture decisions versioned.
 /docs/*
+!/docs/annual-billing.md
 !/docs/specs/
 /docs/specs/*
 !/docs/specs/adutoria/

@@ -3,7 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import type { Redis } from "ioredis";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { REDIS_CLIENT_TOKEN } from "../../shared/cache/redis.module.js";
-import { NotificationsModule } from "../notifications/notifications.module.js";
+import { MessagingChannelsModule } from "../notifications/messaging-channels.module.js";
 import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-templates.module.js";
 import { LoginUseCase } from "./application/login.use-case.js";
 import { LoginWithRateLimitUseCase } from "./application/login-with-rate-limit.use-case.js";
@@ -45,7 +45,7 @@ import { TenantRoleGuard } from "./presentation/tenant-role.guard.js";
  */
 @Global()
 @Module({
-  imports: [NotificationsModule, WhatsAppTemplatesModule],
+  imports: [MessagingChannelsModule, WhatsAppTemplatesModule],
   controllers: [AuthController],
   providers: [
     // Use-cases

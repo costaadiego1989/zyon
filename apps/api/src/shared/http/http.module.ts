@@ -48,7 +48,7 @@ import { MetricsController } from "./metrics.controller.js";
     { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
     { provide: APP_FILTER, useClass: ProblemDetailsFilter },
   ],
-  exports: [HttpClientService, EntityTagService],
+  exports: [HttpClientService, EntityTagService, DistributedRateLimitStore],
 })
 export class HttpModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {

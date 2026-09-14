@@ -89,9 +89,10 @@ O estado “Loja ao vivo” depende de uma mensagem do iframe com origem verific
 
 Os planos configurados são Free, Growth e Scale. Valores, limites, recursos e taxas de transação vêm do catálogo de planos da API; a landing reflete a configuração atual:
 
-- **Free**: R$ 0/mês; 100 pedidos e 100 conversas com IA por mês.
-- **Growth**: R$ 249/mês; 500 pedidos, 5.000 conversas com IA e recursos avançados.
-- **Scale**: R$ 599/mês; pedidos e conversas sem limite, domínio próprio, Revenue Manager e testes A/B.
+- **Free**: R$ 0/mês; 100 compras confirmadas por mês.
+- **Growth**: R$ 349/mês; 500 compras confirmadas por mês, domínio próprio, voz e recursos avançados.
+- **Scale**: R$ 599/mês; compras sem limite mensal, Revenue Manager e testes A/B. Alto consumo e integrações especiais sob consulta.
+- **Anual**: desconto configurável na API (15% por padrão), pago de uma vez; cotas de compras continuam mensais. Consulte [operação do faturamento anual](docs/annual-billing.md).
 
 Taxas de transação da loja: R$ 2,99 no Free (após os primeiros 14 dias), R$ 1,49 no Growth e R$ 0,99 no Scale. O comprador paga R$ 0,99 de serviço por compra. Taxas dos provedores de pagamento são cobradas separadamente.
 

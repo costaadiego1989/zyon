@@ -5,6 +5,13 @@
 > Escopo: checkout publico, hub do comprador, suporte e sistema de temas
 > Registro: produto
 
+> Atualização de escopo em 2026-09-13: a mesma decisão vale integralmente para
+> `apps/storefront` e `apps/widget_v2`, responsável pelo checkout.
+> Seguir a [diretriz compartilhada](apps/storefront/design.md) e sua
+> [referência no widget_v2](apps/widget_v2/design.md).
+> A decisão específica aplica neumorphism aos elementos existentes e preserva o layout.
+> As propostas de reorganização abaixo não se aplicam a essa atualização visual.
+
 ## 1. Visao executiva
 
 A AACP nao deve parecer um chatbot colocado ao lado de um carrinho. Ela deve
