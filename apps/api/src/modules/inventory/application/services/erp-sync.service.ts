@@ -236,8 +236,10 @@ export class ErpSyncService {
 
       if (job.kind === "full") {
         if (connection.directionMode !== "zyon_source_of_truth") {
+          const snapshotStartedAt = new Date();
+          await this.assertSnapshotCurrent(this.prisma, connection, snapshotStartedAt);
           const snapshots = await this.pullSnapshots(connection);
-          for (const snapshot of snapshots) await this.applySnapshot(connection, snapshot);
+          for (const snapshot of snapshots) await this.applySnapshot(connection, snapshot, snapshotStartedAt);
         }
       } else if (job.kind === "sale") {
         if (connection.directionMode !== "erp_source_of_truth") {
@@ -255,9 +257,10 @@ export class ErpSyncService {
       ]);
     } catch (error) {
       const code = errorCode(error);
-      const attempts = job.attempts + 1;
-      const terminal = attempts >= RETRY_LIMIT || code === "erp_multi_location_requires_mapping" || code === "erp_bling_rate_limit_day";
-      const nextAttemptAt = terminal ? null : new Date(Date.now() + Math.min(30 * 60_000, 2 ** attempts * 30_000));
+      const waitingForSales = code === "erp_snapshot_waiting_for_sales";
+      const attempts = job.attempts + (waitingForSales ? 0 : 1);
+      const terminal = !waitingForSales && ( attempts >= RETRY_LIMIT || code === "erp_multi_location_requires_mapping" || code === "erp_bling_rate_limit_day");
+      const nextAttemptAt = terminal ? null : new Date(Date.now() + (waitingForSales ? 60_000 : Math.min(30 * 60_000, 2 ** attempts * 30_000)));
       await this.prisma.$transaction([
         this.prisma.erpSyncJob.update({
           where: { id: job.id },
@@ -317,11 +320,29 @@ export class ErpSyncService {
     }
   }
 
-  private async applySnapshot(connection: ErpConnection, snapshot: RemoteSnapshot): Promise<void> {
+  private async assertSnapshotCurrent(client: Pick<PrismaClient, "erpSyncJob">, connection: ErpConnection, snapshotStartedAt: Date): Promise<void> {
+    if (connection.directionMode === "erp_source_of_truth") return;
+    const unsettledSale = await client.erpSyncJob.findFirst({
+      where: {
+        merchantId: connection.merchantId, connectionId: connection.id, kind: "sale",
+        OR: [
+          { status: { not: "completed" } },
+          // Provider balance reads can lag an acknowledged stock write. Also
+          // discard a snapshot if a sale completed while it was being fetched.
+          { completedAt: { gte: new Date(snapshotStartedAt.getTime() - 30_000) } },
+        ],
+      },
+      select: { id: true },
+    });
+    if (unsettledSale) throw new Error("erp_snapshot_waiting_for_sales");
+  }
+
+  private async applySnapshot(connection: ErpConnection, snapshot: RemoteSnapshot, snapshotStartedAt: Date): Promise<void> {
     if (!Number.isSafeInteger(snapshot.quantity)) throw new Error("erp_fractional_stock_not_supported");
     await this.prisma.$transaction(async (tx) => {
       // Every stock writer in this module takes this merchant lock first.
       await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${connection.merchantId} FOR UPDATE`;
+      await this.assertSnapshotCurrent(tx, connection, snapshotStartedAt);
       const activeLocations = await tx.inventoryLocation.findMany({ where: { merchantId: connection.merchantId, isActive: true }, take: 2 });
       if (activeLocations.length > 1) throw new Error("erp_multi_location_requires_mapping");
       const location = activeLocations[0] ?? await tx.inventoryLocation.create({

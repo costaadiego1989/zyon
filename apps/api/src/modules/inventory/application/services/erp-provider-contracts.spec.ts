@@ -158,3 +158,40 @@ test("Tiny accepts a single object stock acknowledgment", async (t) => {
   t.after(() => { globalThis.fetch = original; });
   await (new ErpSyncService({} as never) as any).pushTinySnapshot(tinyConnection, "123", 7, "receipt-key");
 });
+
+for (const reason of ["queued sale", "failed sale", "sale completed during snapshot"]) {
+  test(`a stale snapshot cannot restore sold stock while there is a ${reason}`, async () => {
+    let merchantLocked = false;
+    let stockTouched = false;
+    const tx = {
+      $queryRaw: async () => { merchantLocked = true; },
+      erpSyncJob: { findFirst: async () => { assert.equal(merchantLocked, true); return { id: "sale_job" }; } },
+      inventoryLocation: { findMany: async () => { stockTouched = true; return []; } },
+    };
+    const service = new ErpSyncService({ $transaction: async (fn: any) => fn(tx) } as never);
+    await assert.rejects(() => (service as any).applySnapshot(
+      { id: "connection_a", merchantId: "merchant_a", directionMode: "bidirectional" },
+      { sku: "TEST", quantity: 13 }, new Date(),
+    ), /erp_snapshot_waiting_for_sales/);
+    assert.equal(stockTouched, false);
+  });
+}
+
+test("snapshot waits for a pending sale without exhausting its own retry limit", async () => {
+  const jobWrites: any[] = [];
+  const connection = { id: "connection_a", merchantId: "merchant_a", provider: "omie", directionMode: "bidirectional" };
+  const prisma = {
+    erpConnection: { findFirst: async () => connection, update: async () => ({}) },
+    erpSyncJob: {
+      updateMany: async () => ({ count: 1 }),
+      findUnique: async () => ({ id: "full_a", connectionId: connection.id, merchantId: connection.merchantId, kind: "full", attempts: 5 }),
+      findFirst: async () => ({ id: "sale_a" }),
+      update: async (input: any) => { jobWrites.push(input.data); },
+    },
+    $transaction: async (ops: any[]) => Promise.all(ops),
+  };
+  await (new ErpSyncService(prisma as never) as any).process("full_a");
+  assert.equal(jobWrites[0].status, "queued");
+  assert.equal(jobWrites[0].attempts, 5);
+  assert.equal(jobWrites[0].lastErrorCode, "erp_snapshot_waiting_for_sales");
+});
