@@ -30,6 +30,9 @@ import type {
   UpdateCartRequest,
 } from '@zyon/shared-types';
 
+import { TenantCredentialGuard } from '../../../../integrations/presentation/http/tenant-credential.guard.js';
+import { TenantAccessGuard } from '../../../../integrations/presentation/http/tenant-access.guard.js';
+import { RequireTenantAccess } from '../../../../integrations/presentation/http/tenant-access.decorator.js';
 import { ResponseEnvelopeInterceptor } from '../../../../../shared/http/response-envelope.interceptor.js';
 import { Idempotent } from '../../../../../shared/http/idempotency/idempotent.decorator.js';
 import { StartCheckoutUseCase } from '../../../../checkout/application/use-cases/start-checkout.use-case.js';
@@ -73,6 +76,8 @@ import {
 @ApiCookieAuth('console_session')
 @Controller('checkouts')
 @UseInterceptors(ResponseEnvelopeInterceptor)
+@UseGuards(TenantCredentialGuard, TenantAccessGuard)
+@RequireTenantAccess({ serviceScopes: ['checkout:write'] })
 export class CheckoutsV1Controller {
   constructor(
     private readonly startCheckoutUseCase: StartCheckoutUseCase,
@@ -131,6 +136,7 @@ export class CheckoutsV1Controller {
    * Retrieve checkout session details.
    */
   @Get(':checkoutId')
+  @RequireTenantAccess({ serviceScopes: ['checkout:read'] })
   @ApiOperation({ summary: 'Get checkout session details' })
   @ApiOkResponse({ type: CheckoutSessionResponse, description: 'Checkout session details' })
   async get(@Req() req: any, @Param('checkoutId') checkoutId: string) {
@@ -255,6 +261,7 @@ export class CheckoutsV1Controller {
    * Complete the checkout and create an order.
    */
   @Post(':checkoutId/complete')
+  @RequireTenantAccess({ serviceScopes: ['checkout:write', 'orders:write'] })
   @Idempotent()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Complete checkout and create order' })
