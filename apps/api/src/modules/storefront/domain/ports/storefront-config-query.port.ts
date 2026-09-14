@@ -11,6 +11,7 @@ export interface StorefrontConfigMerchant {
 export interface StorefrontConfigSnapshot {
   merchant: StorefrontConfigMerchant;
   subscriptionStatus?: string;
+  checkoutMode?: string;
   agentRule?: { identity: unknown; checkoutSettings: unknown };
   quickReplies?: unknown;
   stories: unknown[];

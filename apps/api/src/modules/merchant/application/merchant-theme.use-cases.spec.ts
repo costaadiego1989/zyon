@@ -106,3 +106,19 @@ test("UpdateMerchantThemeUseCase persists valid theme and GetMerchantThemeUseCas
   assert.equal(stored.fontDisplay, "Sora, Manrope, sans-serif");
   assert.equal(stored.trustBadges?.[0], "Pagamento seguro");
 });
+
+test("partial theme updates preserve saved branding and isolate merchants", async () => {
+  const repo = repoWithMerchant();
+  repo.seedProfile({ id: "m2", name: "Other" });
+  const update = new UpdateMerchantThemeUseCase(repo);
+  await update.execute("m1", { accentColor: "#FF0066", fontFamily: "Sora", agentName: "Aurora" });
+  const result = await update.execute("m1", { logoUrl: "https://cdn.example/new.png", accentColor: undefined });
+  assert.equal(result.accentColor, "#FF0066");
+  assert.equal(result.fontFamily, "Sora");
+  assert.equal(result.agentName, "Aurora");
+  assert.equal(result.logoUrl, "https://cdn.example/new.png");
+  assert.equal((await repo.getProfile("m2"))?.theme?.logoUrl, undefined);
+  await assert.rejects(update.execute("m1", { accentColor: "invalid" }), /invalid_color/);
+  assert.equal((await repo.getProfile("m1"))?.theme?.accentColor, "#FF0066");
+  await assert.rejects(update.execute("missing", {}), /merchant_not_found/);
+});

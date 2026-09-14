@@ -15,6 +15,7 @@ export interface DomainsPageState {
 
 export function useDomainsPage() {
   const api = useApi();
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [state, setState] = useState<DomainsPageState>({
     domains: [],
     loading: true,
@@ -26,17 +27,18 @@ export function useDomainsPage() {
 
   useEffect(() => {
     let cancelled = false;
+    setState(p => ({ ...p, loading: true, error: null }));
     (async () => {
       try {
         const domains = await api.listDomains();
         if (cancelled) return;
         setState((p) => ({ ...p, domains, loading: false }));
       } catch {
-        if (!cancelled) setState((p) => ({ ...p, domains: [], loading: false }));
+        if (!cancelled) setState((p) => ({ ...p, loading: false, error: "Não foi possível carregar os domínios. Tente novamente." }));
       }
     })();
     return () => { cancelled = true; };
-  }, [api]);
+  }, [api, loadAttempt]);
 
   async function addDomain() {
     const domain = state.newDomain.trim().toLowerCase();
@@ -66,7 +68,7 @@ export function useDomainsPage() {
         : raw.includes("domain_already_registered") ? "Domínio já registrado por outra loja."
         : raw.includes("invalid_domain") ? "Formato de domínio inválido. Ex: meusite.com.br"
         : "Erro ao adicionar domínio. Tente novamente.";
-      setState((p) => ({ ...p, adding: false, error: null }));
+      setState((p) => ({ ...p, adding: false, error: msg }));
       showToast("error", msg);
     }
   }
@@ -118,6 +120,7 @@ export function useDomainsPage() {
 
   return {
     state,
+    reload: () => setLoadAttempt(value => value + 1),
     setNewDomain: (domain: string) => setState((p) => ({ ...p, newDomain: domain })),
     addDomain,
     verifyDomain,

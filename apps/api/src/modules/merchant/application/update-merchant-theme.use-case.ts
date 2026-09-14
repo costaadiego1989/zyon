@@ -1,4 +1,4 @@
-import { Inject, Injectable , Logger} from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException} from "@nestjs/common";
 import { DEFAULT_MERCHANT_THEME, type MerchantTheme } from "@zyon/shared-types";
 import {
   MERCHANT_REPOSITORY,
@@ -30,10 +30,17 @@ export class UpdateMerchantThemeUseCase {
 
   constructor(@Inject(MERCHANT_REPOSITORY) private readonly repo: MerchantRepository) {}
 
-  async execute(merchantId: string, theme: MerchantTheme): Promise<MerchantTheme> {
+  async execute(merchantId: string, theme: Partial<MerchantTheme>): Promise<MerchantTheme> {
+    if (!theme || typeof theme !== "object" || Array.isArray(theme)) {
+      throw new BadRequestException("invalid_theme");
+    }
+    const profile = await this.repo.getProfile(merchantId);
+    if (!profile) throw new NotFoundException("merchant_not_found");
+    const patch = Object.fromEntries(Object.entries(theme).filter(([, value]) => value !== undefined));
     const next: MerchantTheme = {
       ...DEFAULT_MERCHANT_THEME,
-      ...(theme ?? {})
+      ...(profile.theme ?? {}),
+      ...patch
     };
 
     validateMerchantTheme(next);

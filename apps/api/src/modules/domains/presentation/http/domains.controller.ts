@@ -19,6 +19,7 @@ import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module
 import { CurrentTenant } from "../../../../shared/tenant/current-tenant.decorator.js";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/domain/billing-plan-guard.js";
+import { isBillingFeatureEnabled } from "../../../payment/domain/billing-plans.js";
 import { RegisterDomainUseCase } from "../../application/use-cases/register-domain.use-case.js";
 import { VerifyDomainUseCase } from "../../application/use-cases/verify-domain.use-case.js";
 import { ListDomainsUseCase } from "../../application/use-cases/list-domains.use-case.js";
@@ -95,6 +96,13 @@ export class DomainCheckController {
 
     if (!record || !record.verified) {
       throw new NotFoundException("domain_not_verified");
+    }
+    const subscription = await this.prisma.merchantBillingSubscription.findUnique({
+      where: { merchantId: record.merchantId },
+      select: { status: true, trialEndsAt: true, stripePriceId: true, planKey: true },
+    });
+    if (!isBillingFeatureEnabled(subscription, "customDomain")) {
+      throw new NotFoundException("domain_plan_unavailable");
     }
 
     return { ok: true, domain: record.domain, merchantId: record.merchantId };

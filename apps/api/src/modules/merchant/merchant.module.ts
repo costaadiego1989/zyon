@@ -36,6 +36,6 @@ import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/bi
     },
     { provide: MERCHANT_RULES_REPOSITORY, useExisting: MERCHANT_REPOSITORY }
   ],
-  exports: [MERCHANT_REPOSITORY, MERCHANT_RULES_REPOSITORY]
+  exports: [MERCHANT_REPOSITORY, MERCHANT_RULES_REPOSITORY, GetMerchantThemeUseCase]
 })
 export class MerchantModule {}

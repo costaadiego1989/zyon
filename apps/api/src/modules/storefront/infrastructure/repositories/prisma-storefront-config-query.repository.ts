@@ -35,7 +35,7 @@ export class PrismaStorefrontConfigQueryRepository implements StorefrontConfigQu
     if (!merchant) merchant = await this.prisma.merchant.findUnique({ where: { storeSlug: identifier } });
     if (!merchant) return null;
 
-    const [subscription, agentRule, merchantRules, stories] = await Promise.allSettled([
+    const [subscription, agentRule, merchantRules, stories, checkoutSettings] = await Promise.allSettled([
       resolvedSubscription === undefined
         ? this.prisma.merchantBillingSubscription.findUnique({
           where: { merchantId: merchant.id },
@@ -49,11 +49,13 @@ export class PrismaStorefrontConfigQueryRepository implements StorefrontConfigQu
         include: { stories: { where: { isArchived: false }, orderBy: { sortOrder: "asc" } } },
         orderBy: { sortOrder: "asc" },
       }),
+      this.prisma.checkoutSetting.findUnique({ where: { merchantId: merchant.id }, select: { mode: true } }),
     ]);
 
     return {
       merchant: { id: merchant.id, name: merchant.name, theme: merchant.theme, storeCategory: merchant.storeCategory, storeSettings: merchant.storeSettings },
       subscriptionStatus: settledValue(subscription)?.status,
+      checkoutMode: settledValue(checkoutSettings)?.mode,
       agentRule: settledValue(agentRule) ?? undefined,
       quickReplies: settledValue(merchantRules)?.quickReplies,
       stories: settledValue(stories) ?? [],

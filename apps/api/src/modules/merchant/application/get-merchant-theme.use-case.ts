@@ -1,3 +1,4 @@
+import { findMerchantAgentRule } from "../../agent-rules/infrastructure/find-merchant-agent-rule.js";
 import { Inject, Injectable , Logger} from "@nestjs/common";
 import { DEFAULT_MERCHANT_THEME, type MerchantTheme } from "@zyon/shared-types";
 import {
@@ -19,7 +20,7 @@ export class GetMerchantThemeUseCase {
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
   ) {}
 
-  async execute(merchantId: string): Promise<MerchantTheme> {
+  async execute(merchantId: string): Promise<MerchantTheme & { agentGreeting?: string }> {
     const profile = await this.repo.getProfile(merchantId);
     const theme = (profile?.theme ?? {}) as Record<string, unknown>;
 
@@ -31,18 +32,12 @@ export class GetMerchantThemeUseCase {
       merged = { ...DEFAULT_MERCHANT_THEME, ...theme } as MerchantTheme;
     }
 
-    // Fill agentName from agent_rules if not in theme
-    if (!merged.agentName) {
-      const rule = await this.prisma.agentRule.findFirst({
-        where: { merchantId },
-        select: { identity: true },
-      });
-      const identity = rule?.identity as { agentName?: string } | null;
-      if (identity?.agentName) {
-        merged.agentName = identity.agentName;
-      }
-    }
-
-    return merged;
+    const rule = await findMerchantAgentRule(this.prisma, merchantId);
+    const identity = rule?.identity as { agentName?: string; greeting?: string } | null;
+    return {
+      ...merged,
+      ...(identity?.agentName ? { agentName: identity.agentName } : {}),
+      ...(identity?.greeting !== undefined ? { agentGreeting: identity.greeting } : {}),
+    };
   }
 }

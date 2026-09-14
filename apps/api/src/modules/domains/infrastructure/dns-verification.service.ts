@@ -3,7 +3,7 @@
  * Uses Node.js dns.promises to verify CNAME records.
  */
 
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
 import { promises as dns } from "dns";
 
 @Injectable()
@@ -32,7 +32,9 @@ export class DnsVerificationService {
       this.logger.debug(
         `DNS lookup failed for ${domain}: ${(error as Error).message}`,
       );
-      return false;
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "ENODATA" || code === "ENOTFOUND") return false;
+      throw new ServiceUnavailableException("dns_verification_unavailable");
     }
   }
 }

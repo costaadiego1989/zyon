@@ -15,6 +15,7 @@ test("resolves a verified custom domain before a store slug", async () => {
     merchantBillingSubscription: {
       findUnique: async () => ({ status: "active", trialEndsAt: null, stripePriceId: null, planKey: "growth" }),
     },
+    checkoutSetting: { findUnique: async () => ({ mode: "manual_only" }) },
     agentRule: { findFirst: async () => ({ identity: {}, checkoutSettings: {} }) },
     merchantRule: { findUnique: async () => ({ quickReplies: { welcome: ["Olá"] } }) },
     storyCategory: { findMany: async () => [{ id: "story_a" }] },

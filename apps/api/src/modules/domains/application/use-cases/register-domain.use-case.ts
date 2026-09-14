@@ -32,8 +32,10 @@ export class RegisterDomainUseCase {
     if (!merchant) throw new NotFoundException("merchant_not_found");
 
     // Normalize domain
-    const domain = input.domain.trim().toLowerCase();
-    if (!domain || !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) {
+    const domain = typeof input.domain === "string" ? input.domain.trim().toLowerCase().replace(/\.$/, "") : "";
+    const labels = domain.split(".");
+    if (domain.length > 253 || labels.length < 2 || !/^[a-z]{2,63}$/.test(labels.at(-1) ?? "") ||
+        labels.some(label => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))) {
       throw new BadRequestException("invalid_domain");
     }
 

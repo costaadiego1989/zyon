@@ -42,3 +42,12 @@ test("returns not found only when the query port cannot resolve a public identif
   const useCase = new GetStoreConfigUseCase({ findPublicConfig: async () => null });
   await assert.rejects(() => useCase.execute("missing"), NotFoundException);
 });
+
+test("storefront honors the same checkout behavior mode as widget even when legacy agent settings differ", async () => {
+  const useCase = new GetStoreConfigUseCase({ findPublicConfig: async () => ({
+    merchant: { id: "m1", name: "Store", theme: {}, storeCategory: null, storeSettings: {} },
+    agentRule: { identity: {}, checkoutSettings: { agentMode: "proactive" } },
+    checkoutMode: "manual_only", stories: [],
+  }) });
+  assert.equal((await useCase.execute("store")).agentMode, "manual_only");
+});

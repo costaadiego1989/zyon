@@ -6,6 +6,7 @@ import type { MerchantRulesRepository } from "../domain/ports/merchant-rules.rep
 import { DEFAULT_RULES } from "../domain/merchant-rules.defaults.js";
 import { decodePersistedTheme } from "../domain/services/merchant-theme.validators.js";
 import { toNumber } from "../../../shared/persistence/decimal.util.js";
+import { isBillingFeatureEnabled } from "../../payment/domain/billing-plans.js";
 
 export class PrismaMerchantRepository implements MerchantRepository, MerchantRulesRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -153,6 +154,11 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
       where: { domain: normalized }
     });
     if (!link || link.verified !== true) return undefined;
+    const subscription = await this.prisma.merchantBillingSubscription.findUnique({
+      where: { merchantId: link.merchantId },
+      select: { status: true, trialEndsAt: true, stripePriceId: true, planKey: true },
+    });
+    if (!isBillingFeatureEnabled(subscription, "customDomain")) return undefined;
 
     const row = await this.prisma.merchant.findUnique({
       where: { id: link.merchantId }

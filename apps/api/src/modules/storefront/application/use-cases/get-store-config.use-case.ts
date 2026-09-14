@@ -52,7 +52,7 @@ export class GetStoreConfigUseCase {
     const checkoutSettings = config.agentRule?.checkoutSettings as
       | { agentMode?: StoreConfigOutput["agentMode"]; initialDelaySeconds?: number }
       | null;
-    const mode = checkoutSettings?.agentMode;
+    const mode = config.checkoutMode ?? checkoutSettings?.agentMode;
     const agentMode = mode === "silent_until_trigger" || mode === "proactive" || mode === "manual_only"
       ? mode
       : "silent_until_trigger";

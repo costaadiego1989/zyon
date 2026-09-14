@@ -166,14 +166,15 @@ export class MerchantController {
   @ApiResponse({ status: 201, description: "Logo uploaded and URL saved to theme" })
   async uploadLogo(
     @CurrentTenant() merchantId: string,
-    @Body() body: { logo: string }
+    @Body() body: { logo: string; persistTheme?: boolean }
   ) {
     if (!body.logo) throw new BadRequestException("logo_required");
+    if (body.persistTheme !== undefined && typeof body.persistTheme !== "boolean") throw new BadRequestException("invalid_persist_theme");
     if (!this.s3.isConfigured()) throw new BadRequestException("s3_not_configured");
 
     const result = await this.s3.uploadBase64(body.logo, `merchants/${merchantId}/logos`);
     // Save URL in theme.logoUrl
-    await this.updateTheme.execute(merchantId, { logoUrl: result.url } as any);
+    if (body.persistTheme !== false) await this.updateTheme.execute(merchantId, { logoUrl: result.url });
     return { logoUrl: result.url };
   }
 

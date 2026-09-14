@@ -31,7 +31,7 @@ export class SearchFederatedProductsUseCase {
     input: SearchFederatedProductsInput,
   ): Promise<SearchFederatedProductsOutput> {
     const config = await this.configRepository.get(input.hostMerchantId);
-    if (config && !config.enabled) {
+    if (!config?.enabled) {
       return { products: [] };
     }
 

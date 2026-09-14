@@ -13,11 +13,15 @@ export function CustomDomainPage() {
 
   if (state.loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--color-text-faint)" }}>Carregando domínios...</div>;
 
-  const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-    showToast("success", "Copiado!");
+  const copyToClipboard = async (text: string, id: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+      showToast("success", "Copiado!");
+    } catch {
+      showToast("error", "Não foi possível copiar. Selecione e copie o endereço manualmente.");
+    }
   };
 
   const pendingCount = state.domains.filter((d) => !d.verified).length;
@@ -36,6 +40,12 @@ export function CustomDomainPage() {
           </div>
         ) : null}
       </header>
+      {state.error && (
+        <div className="panel" role="alert" style={{ marginBottom: 16 }}>
+          <p>{state.error}</p>
+          <Button variant="outline" size="sm" onClick={vm.reload}>Tentar novamente</Button>
+        </div>
+      )}
 
       <div className="panel" style={{ marginBottom: 24 }}>
         <div>
@@ -65,7 +75,7 @@ export function CustomDomainPage() {
             </p>
           </div>
 
-          {state.domains.length === 0 ? (
+          {state.domains.length === 0 && !state.error ? (
             <EmptyState
               icon={Globe}
               title="Nenhum domínio configurado"
@@ -87,8 +97,7 @@ export function CustomDomainPage() {
                             <strong style={{ fontSize: 13, color: "var(--color-text)", fontFamily: "monospace" }}>{domain.domain}</strong>
                             {verified && (
                               <>
-                                <span style={{ fontSize: 10, background: "#dcfce7", color: "#166534", padding: "2px 6px", borderRadius: 3, fontWeight: 600 }}>✓ Verificado</span>
-                                <span style={{ fontSize: 10, background: "#cffafe", color: "#0c4a6e", padding: "2px 6px", borderRadius: 3, fontWeight: 600 }}>⚡ SSL Ativo</span>
+                                <span style={{ fontSize: 10, background: "#dcfce7", color: "#166534", padding: "2px 6px", borderRadius: 3, fontWeight: 600 }}>✓ DNS verificado</span>
                               </>
                             )}
                           </div>
@@ -125,7 +134,7 @@ export function CustomDomainPage() {
                           <p style={{ color: "var(--color-text-muted)", margin: "0 0 12px", fontWeight: 500 }}>Configure no painel DNS do seu provedor de domínio:</p>
                           <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 6, padding: 10, margin: "0 0 12px", fontSize: 11, fontFamily: "monospace" }}>
                             <div><strong>Tipo:</strong> CNAME</div>
-                            <div><strong>Nome (Host):</strong> {domain.domain.split(".").length > 2 ? domain.domain.split(".")[0] : "@"}</div>
+                            <div><strong>Nome (Host):</strong> {domain.domain}</div>
                             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
                               <strong>Valor (Aponta para):</strong>
                               <code style={{ flex: 1, color: "var(--color-brand)" }}>{domain.cname_target}</code>
@@ -150,10 +159,10 @@ export function CustomDomainPage() {
                           </div>
                           <ol style={{ margin: 0, paddingLeft: 18, color: "var(--color-text-muted)", lineHeight: 1.8 }}>
                             <li>Acesse o painel DNS do seu provedor (Cloudflare, GoDaddy, Registro.br, etc)</li>
-                            <li>Adicione um registro CNAME apontando para <code style={{ color: "var(--color-brand)" }}>{domain.cname_target}</code></li>
+                            <li>Use o nome completo acima ou o nome relativo à sua zona DNS e aponte o CNAME para <code style={{ color: "var(--color-brand)" }}>{domain.cname_target}</code></li>
                             <li>Aguarde a propagação DNS (pode levar até 24h, geralmente minutos)</li>
                             <li>Volte aqui e clique "Verificar"</li>
-                            <li>O certificado SSL é gerado automaticamente após verificação</li>
+                            <li>Confirme que o domínio abre sua loja por HTTPS antes de divulgá-lo</li>
                           </ol>
                           {domain.domain.split(".").length <= 2 && (
                             <p style={{ margin: "10px 0 0", fontSize: 11, color: "var(--color-warning)", lineHeight: 1.5 }}>
@@ -176,7 +185,7 @@ export function CustomDomainPage() {
       <div className="panel" style={{ marginBottom: 24 }}>
         <SectionHeader
           title="Como funciona"
-          subtitle="Em poucos minutos sua loja fica no seu domínio"
+          subtitle="Configure o endereço e confirme o acesso à loja"
           variant="secondary"
         />
         <ol style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 16 }}>
@@ -209,7 +218,7 @@ export function CustomDomainPage() {
             <div>
               <strong style={{ fontSize: 13, color: "var(--color-text)", display: "block", marginBottom: 2 }}>3. Certificado de segurança (SSL)</strong>
               <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: 0, lineHeight: 1.5 }}>
-                Depois da verificação, ativamos o SSL automaticamente. Sua loja passa a usar o cadeado de segurança (https).
+                A verificação confirma o apontamento DNS. A conexão segura também depende do certificado configurado na hospedagem. Confira o acesso por HTTPS.
               </p>
             </div>
           </li>
@@ -220,7 +229,7 @@ export function CustomDomainPage() {
             <div>
               <strong style={{ fontSize: 13, color: "var(--color-text)", display: "block", marginBottom: 2 }}>4. Sua loja no ar!</strong>
               <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: 0, lineHeight: 1.5 }}>
-                Pronto. Seu domínio já leva os clientes até sua loja, com segurança e sem perder posicionamento no Google.
+                Abra o domínio por HTTPS e confira se a loja correta é exibida antes de compartilhar o endereço com seus clientes.
               </p>
             </div>
           </li>
@@ -231,7 +240,7 @@ export function CustomDomainPage() {
         <SectionHeader title="Dúvidas frequentes" variant="secondary" />
         <p style={{ margin: "0 0 6px", color: "var(--color-text)", fontWeight: 500, fontSize: 13 }}>Posso usar um subdomínio?</p>
         <p style={{ margin: 0, color: "var(--color-text-muted)", fontSize: 12, lineHeight: 1.6 }}>
-          Sim! Você pode adicionar quantos subdomínios quiser, por exemplo <code style={{ background: "var(--surface-2)", padding: "1px 5px", borderRadius: 3, color: "var(--color-brand)", fontFamily: "monospace", fontSize: 11 }}>loja.seusite.com.br</code> ou <code style={{ background: "var(--surface-2)", padding: "1px 5px", borderRadius: 3, color: "var(--color-brand)", fontFamily: "monospace", fontSize: 11 }}>www.seusite.com.br</code>. Cada um segue o mesmo passo a passo.
+          Sim! Você pode adicionar subdomínios conforme os limites do seu plano, por exemplo <code style={{ background: "var(--surface-2)", padding: "1px 5px", borderRadius: 3, color: "var(--color-brand)", fontFamily: "monospace", fontSize: 11 }}>loja.seusite.com.br</code> ou <code style={{ background: "var(--surface-2)", padding: "1px 5px", borderRadius: 3, color: "var(--color-brand)", fontFamily: "monospace", fontSize: 11 }}>www.seusite.com.br</code>. Cada um segue o mesmo passo a passo.
         </p>
       </div>
     </div>

@@ -48,24 +48,42 @@ export class AddCrossStoreItemUseCase {
       throw new Error("Cannot add own products to cross-store cart");
     }
 
-    if (config.blockedMerchants.includes(input.sellerMerchantId)) {
+    if (product.sourceMerchantId !== input.sellerMerchantId) {
+      throw new Error("Seller does not match product");
+    }
+
+    if (config.blockedMerchants.includes(product.sourceMerchantId)) {
       throw new Error("Seller is blocked");
     }
 
+    const sellerConfig = await this.configRepository.get(product.sourceMerchantId);
+    if (!sellerConfig?.enabled || sellerConfig.blockedMerchants.includes(input.hostMerchantId)) {
+      throw new Error("Seller is unavailable");
+    }
+    if (!product.stockAvailable) throw new Error("Product is out of stock");
+    if (product.currency !== "BRL") throw new Error("Unsupported product currency");
+    if (!Number.isSafeInteger(input.quantity) || input.quantity <= 0) {
+      throw new Error("quantity must be a positive safe integer");
+    }
+    if (!Number.isSafeInteger(product.priceCents) || product.priceCents <= 0 ||
+        !Number.isSafeInteger(product.priceCents * input.quantity)) {
+      throw new Error("Invalid product price or total");
+    }
+
     const commissionResult = this.commissionCalculator.calculate({
-      itemPriceCents: input.unitPriceCents,
+      itemPriceCents: product.priceCents,
       quantity: input.quantity,
-      commissionRateBps: config.commissionRateBps,
+      commissionRateBps: sellerConfig.commissionRateBps,
     });
 
     const lineItem = await this.orderRepository.create({
       checkoutSessionId: input.checkoutSessionId,
       hostMerchantId: input.hostMerchantId,
-      sellerMerchantId: input.sellerMerchantId,
+      sellerMerchantId: product.sourceMerchantId,
       federatedProductId: input.federatedProductId,
       quantity: input.quantity,
-      unitPriceCents: input.unitPriceCents,
-      commissionRateBps: config.commissionRateBps,
+      unitPriceCents: product.priceCents,
+      commissionRateBps: sellerConfig.commissionRateBps,
       commissionCents: commissionResult.commissionCents,
       sellerNetCents: commissionResult.sellerNetCents,
     });

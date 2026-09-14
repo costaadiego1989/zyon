@@ -51,6 +51,12 @@ export class VerifyDomainUseCase {
       };
     }
 
+    // A confirmed mismatch must revoke routing as well as the dashboard badge.
+    // Transient resolver failures throw before this point and preserve the last known state.
+    await this.prisma.merchantDomain.update({
+      where: { id: record.id },
+      data: { verified: false, verifiedAt: null },
+    });
     return { domain: record.domain, verified: false };
   }
 }

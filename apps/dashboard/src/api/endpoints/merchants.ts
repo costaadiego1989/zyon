@@ -92,7 +92,7 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
     },
 
     uploadLogo(logoBase64: string): Promise<{ logoUrl: string }> {
-      return dashboardJson(base, "/merchants/me/logo", { method: "POST", jsonBody: { logo: logoBase64 } }, f);
+      return dashboardJson(base, "/merchants/me/logo", { method: "POST", jsonBody: { logo: logoBase64, persistTheme: false } }, f);
     },
 
     putStoreCategory(storeCategory: string): Promise<{ storeCategory: string }> {
