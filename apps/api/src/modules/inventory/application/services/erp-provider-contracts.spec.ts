@@ -51,6 +51,7 @@ test("Tiny sends the documented nested stock payload for absolute balance", asyn
   assert.equal(payload.estoque.tipo, "B");
   assert.equal(payload.estoque.quantidade, "7");
   assert.equal(payload.estoque.observacoes, "Zyon receipt-key");
+  assert.equal(payload.estoque.data, undefined, "Tiny should supply its local current timestamp");
 });
 
 for (const failure of [
@@ -121,4 +122,19 @@ test("mixed-provider cart pushes only the items mapped to this ERP account", asy
   assert.equal(writes.length, 1);
   assert.equal(writes[0].estoque.idProduto, 123);
   assert.equal(writes[0].estoque.quantidade, "10");
+});
+
+
+test("Omie stock adjustments use the Brazil date when the server has passed UTC midnight", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-09-14T02:30:00.000Z") });
+  const original = globalThis.fetch;
+  let request: any;
+  globalThis.fetch = (async (_: any, options: RequestInit) => {
+    request = JSON.parse(String(options.body));
+    return new Response(JSON.stringify({ codigo_status: "0", id_ajuste: 123 }));
+  }) as typeof fetch;
+  t.after(() => { globalThis.fetch = original; });
+  await (new ErpSyncService({} as never) as any).pushOmieSale(omieConnection, "123", 1, "order_a", "receipt-key");
+  assert.equal(request.param[0].data, "13/09/2026");
+  assert.equal(request.param[0].tipo, "SAI");
 });

@@ -57,19 +57,8 @@ function cents(value: unknown): number | undefined {
 }
 
 function dateBr(date = new Date()): string {
-  const dd = String(date.getDate()).padStart(2, "0");
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  return `${dd}/${mm}/${date.getFullYear()}`;
-}
-
-function dateTiny(date = new Date()): string {
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
-  const hh = String(date.getHours()).padStart(2, "0");
-  const min = String(date.getMinutes()).padStart(2, "0");
-  const ss = String(date.getSeconds()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
+  // The production server runs in UTC; Omie expects the business date in Brazil.
+  return new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(date);
 }
 
 function externalId(value: unknown, code: string): string {
@@ -598,7 +587,7 @@ export class ErpSyncService {
 
   private async pushTinySnapshot(connection: ErpConnection, productId: string, quantity: number, idempotencyKey: string): Promise<void> {
     await this.tinyCall("produto.atualizar.estoque.php", this.tinyToken(connection), {
-      estoque: JSON.stringify({ estoque: { idProduto: positiveInteger(productId, "erp_tiny_product_id_invalid"), tipo: "B", quantidade: String(quantity), data: dateTiny(), observacoes: `Zyon ${idempotencyKey}`.slice(0, 100) } }),
+      estoque: JSON.stringify({ estoque: { idProduto: positiveInteger(productId, "erp_tiny_product_id_invalid"), tipo: "B", quantidade: String(quantity), observacoes: `Zyon ${idempotencyKey}`.slice(0, 100) } }),
     });
   }
 
