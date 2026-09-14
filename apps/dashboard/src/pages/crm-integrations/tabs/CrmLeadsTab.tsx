@@ -51,7 +51,7 @@ export function CrmLeadsTab({ syncLog }: CrmLeadsTabProps) {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--page-section-gap, 24px)" }}>
       {/* Stats */}
       <StatCardGroup columns={3}>
         <StatCard label="Total sincronizado" value={totals.total} icon={<Users size={18} />} />

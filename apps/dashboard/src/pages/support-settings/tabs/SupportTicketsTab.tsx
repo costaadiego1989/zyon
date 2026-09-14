@@ -143,7 +143,7 @@ export function SupportTicketsTab(props: Props) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--page-section-gap, 24px)" }}>
       {/* KPIs */}
       <div className="grid-4" style={{ gap: 14 }}>
         <StatCard label="Total" value={filteredTickets.length} icon={<Ticket size={16} />} />

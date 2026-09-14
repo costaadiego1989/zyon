@@ -230,7 +230,7 @@ export function FinancePage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Mercha
 
 function Overview({ summary, payouts, payoutsLoading, payoutsError, onTransactions, onRetryPayouts, periodFilter }: { summary: FinanceSummary; payouts: FinanceMerchantPayouts | null; payoutsLoading: boolean; payoutsError: string | null; onTransactions: () => void; onRetryPayouts: () => Promise<void>; periodFilter: React.ReactNode }) {
   const { metrics } = summary;
-  return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+  return <div style={{ display: "flex", flexDirection: "column", gap: "var(--page-section-gap, 24px)" }}>
     <StatCardGroup primary>
       <StatCard primary icon={<WalletCards size={18} />} label="Pedidos concluídos (bruto)" value={formatBrl(metrics.completed_orders_gross_brl)} note="Não representa saldo liquidado ou repasse" />
       <StatCard icon={<ReceiptText size={16} />} label="Pedidos concluídos" value={formatInteger(metrics.completed_orders)} note="No período selecionado" />

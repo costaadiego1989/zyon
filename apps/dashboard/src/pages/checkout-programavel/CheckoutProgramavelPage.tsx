@@ -2,7 +2,7 @@ import React from "react";
 import { Bot, Shield, Activity, Zap, Globe, Clock, Plus } from "lucide-react";
 import { TabBar } from "../../components/TabBar.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
-import { StatCard } from "../overview/components/StatCard.js";
+import { StatCard, StatCardGroup } from "../overview/components/StatCard.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { useCheckoutProgramavel } from "./useCheckoutProgramavel.js";
@@ -37,7 +37,7 @@ export function CheckoutProgramavelPage({ me }: { apiBaseUrl: string; me: Mercha
       </header>
 
       {/* KPIs */}
-      <div className="grid-4" style={{ gap: 14 }}>
+      <StatCardGroup columns={4}>
         <StatCard
           label="Agentes"
           value={vm.agents.length}
@@ -61,7 +61,7 @@ export function CheckoutProgramavelPage({ me }: { apiBaseUrl: string; me: Mercha
           icon={<Zap size={16} />}
           accent={successRate >= 80 ? "var(--color-brand)" : "var(--color-warning)"}
         />
-      </div>
+      </StatCardGroup>
 
       {/* Tabs */}
       <TabBar

@@ -4454,6 +4454,7 @@ textarea:disabled {
  * top-level section. This also normalizes legacy page roots that have a
  * page-head but predate .page-container.
  */
+.dashboard-content:has(> .page-head),
 .console-content > :has(> .page-head) {
   display: flex;
   flex-direction: column;
@@ -4465,6 +4466,12 @@ textarea:disabled {
 .page-container > .page-head,
 .console-content > :has(> .page-head) > .page-head { margin-bottom: 0; }
 .page-head .page-lead { margin-bottom: 0; }
+
+/* KPI strips inherit the page rhythm. Legacy inline margins cannot add a
+   second gap before the next section. */
+:where(.page-container, .dashboard-content:has(> .page-head), .console-content > :has(> .page-head)) > :is(.stat-card-group, div:has(> article.stat-card)) {
+  margin-block: 0 !important;
+}
 
 .tab-bar {
   display: inline-flex;
