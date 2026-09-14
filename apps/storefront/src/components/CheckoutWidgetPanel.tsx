@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useCart } from "@/lib/cart-store";
-import { CartFAB, CartSheet } from "@zyon/checkout-ui";
+import { CartFAB, CartSheet, type CartFABProps } from "@zyon/checkout-ui";
 import { useWidgetConfig } from "@/lib/widget-config";
 import { checkoutApi } from "@/lib/api/api-client";
 
@@ -12,6 +12,7 @@ interface NativeCartPanelProps {
   onRemoveItem: (variantId: string) => void;
   forceOpen?: boolean;
   suppressAutoOpen?: boolean;
+  cartFabAnchor?: CartFABProps["anchor"];
 }
 export default function NativeCartPanel({
   merchantId,
@@ -21,6 +22,7 @@ export default function NativeCartPanel({
   onRemoveItem,
   forceOpen,
   suppressAutoOpen,
+  cartFabAnchor,
 }: NativeCartPanelProps) {
   const { cart, clearCart, updating, error } = useCart();
   const { config: widgetConfig } = useWidgetConfig();
@@ -88,6 +90,7 @@ export default function NativeCartPanel({
       {!sheetOpen && <CartFAB
         itemCount={cart.itemCount}
         total={cart.total}
+        anchor={cartFabAnchor}
         onClick={handleManualOpen}
       />}
       <CartSheet

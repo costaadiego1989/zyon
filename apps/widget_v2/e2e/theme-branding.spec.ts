@@ -80,6 +80,21 @@ test("theme: inline palette works without base.css (embedded scenario)", async (
 
 // ─── Whitelabel badge: shown only when rules.showBranding is true ─────────────
 
+test("theme: neumorphic material applies to checkout controls", async ({ page }) => {
+  await setupCrossSellMocks(page, {});
+  await page.addInitScript(() => {
+    try { localStorage.setItem("zyon-theme", "dark"); } catch {}
+  });
+  await navigateToCheckout(page);
+  await selectChatChannel(page);
+
+  const shell = page.locator(".pulse-widget-shell").first();
+  await expect(shell).toHaveAttribute("data-neu-theme", "dark");
+  const send = page.getByRole("button", { name: "Enviar mensagem" }).first();
+  await expect(send).toHaveCSS("border-radius", "999px");
+  const raisedMaterial = await shell.evaluate((el) => getComputedStyle(el).getPropertyValue("--aacp-neu-raised-md").trim());
+  expect(raisedMaterial).not.toBe("");
+});
 test("branding: 'Powered by Zyon' shown when showBranding=true", async ({ page }) => {
   await setupCrossSellMocks(page, { showBranding: true });
   await navigateToCheckout(page);

@@ -5,7 +5,7 @@ function formatPrice(value: number): string {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 }
 
-export function CartFAB({ itemCount, total, onClick }: CartFABProps) {
+export function CartFAB({ itemCount, total, onClick, anchor }: CartFABProps) {
   const [pulse, setPulse] = useState(false);
   const [prevCount, setPrevCount] = useState(itemCount);
 
@@ -17,6 +17,8 @@ export function CartFAB({ itemCount, total, onClick }: CartFABProps) {
     }
     setPrevCount(itemCount);
   }, [itemCount, prevCount]);
+
+  const placement = anchor ?? { bottom: "130px", right: "16px" };
 
   return (
     <>
@@ -30,8 +32,7 @@ export function CartFAB({ itemCount, total, onClick }: CartFABProps) {
         aria-label={itemCount > 0 ? `Carrinho: ${itemCount} itens, ${formatPrice(total)}` : "Carrinho"}
         style={{
           position: "absolute",
-          bottom: "130px",
-          right: "16px",
+          ...placement,
           zIndex: 9998,
           width: "48px",
           height: "48px",

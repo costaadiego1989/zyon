@@ -1,0 +1,78 @@
+/* Animate the gradient angle, keeping the mask fixed on every side and corner.
+   The property does not inherit: the composer has its own independent orbit. */
+@property --aacp-perimeter-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.aacp-perimeter {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: var(--aacp-perimeter-radius);
+  pointer-events: none;
+  /* Below the content context: its dialogs must cover this decoration. */
+  z-index: 0;
+  --aacp-perimeter-duration: 4s;
+  --aacp-perimeter-delay: 0s;
+}
+.aacp-perimeter[data-perimeter="input"] {
+  --aacp-perimeter-duration: 5s;
+  --aacp-perimeter-delay: -1.25s;
+}
+.aacp-perimeter::before,
+.aacp-perimeter::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-sizing: border-box;
+}
+.aacp-perimeter::before { border: 1px solid var(--aacp-line, var(--bd)); }
+.aacp-perimeter::after {
+  padding: 1px;
+  background: conic-gradient(from var(--aacp-perimeter-angle),
+    transparent 0deg 250deg,
+    color-mix(in oklab, var(--aacp-accent-text, var(--aacp-accent)) 20%, transparent) 280deg,
+    var(--aacp-accent-text, var(--aacp-accent)) 315deg,
+    color-mix(in oklab, var(--aacp-accent) 55%, var(--aacp-neu-light)) 330deg,
+    var(--aacp-accent-text, var(--aacp-accent)) 335deg,
+    transparent 350deg 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: aacp-perimeter-shimmer var(--aacp-perimeter-duration) linear var(--aacp-perimeter-delay) infinite;
+}
+@keyframes aacp-perimeter-shimmer {
+  from { --aacp-perimeter-angle: 0deg; }
+  to { --aacp-perimeter-angle: 360deg; }
+}
+
+/* One frame including focus; never paint another border around the input. */
+[data-aacp-composer-frame] { position: relative; border-color: transparent !important; box-shadow: none !important; }
+[data-aacp-composer-frame]:focus-within { outline: none !important; }
+[data-aacp-composer-frame]:focus-within > .aacp-perimeter::before { border-color: color-mix(in oklab, var(--aacp-accent-text, var(--aacp-accent)) 65%, var(--aacp-line)); }
+[data-aacp-composer-frame] > input {
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+[data-aacp-composer-frame] > input:focus-visible { outline: none !important; }
+.aacp-composer-field { display: flex; flex: 1; min-width: 0; border-radius: var(--aacp-composer-radius, 10px); background: var(--aacp-inset-bg); }
+/* The requested ambient shimmer remains visible when Windows disables UI
+   animations. Reduce its speed, not its presence; all other motion keeps the
+   existing preference. Specificity beats legacy blanket checkout resets. */
+@media (prefers-reduced-motion: reduce) {
+  .aacp-perimeter { --aacp-perimeter-duration: 8s; }
+  .aacp-perimeter[data-perimeter="input"] { --aacp-perimeter-duration: 10s; }
+  .aacp-perimeter[data-perimeter][aria-hidden="true"]::after {
+    animation: aacp-perimeter-shimmer var(--aacp-perimeter-duration) linear var(--aacp-perimeter-delay) infinite !important;
+  }
+}
+@media (forced-colors: active) {
+  .aacp-perimeter::after { display: none; }
+  .aacp-perimeter::before { border-color: CanvasText; }
+  [data-aacp-composer-frame]:focus-within > .aacp-perimeter::before { border: 2px solid Highlight; }
+}

@@ -1,3 +1,4 @@
+import { NEUMORPHIC_THEME } from "../design-system/neumorphism";
 import { useCallback, useEffect, useState } from "react";
 import { useCheckoutStore } from "@/store/checkout-store";
 import { ChannelGate } from "@/components/ChannelGate";
@@ -81,7 +82,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
   const themeAttr = theme;
 
   useEffect(() => {
-    const bodyBg = theme === "dark" ? "#0d1117" : "#e7e5df";
+    const bodyBg = theme === "dark" ? "#191f1d" : "#edf0ee";
     document.body.style.background = bodyBg;
   }, [theme]);
 
@@ -98,25 +99,14 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
     overflow: "hidden",
   };
 
-  const themePalette: Record<string, string> = theme === "light"
-    ? {
-        "--aacp-bg": "#F4F6F8", "--aacp-surface": "#FCFCFD", "--aacp-surface-2": "#F7F9FB",
-        "--aacp-surface-3": "#EEF2F6", "--aacp-fg": "#0F172A", "--aacp-muted": "#64748B",
-        "--aacp-faint": "#94A3B8", "--aacp-line": "rgba(15,23,42,0.08)", "--aacp-line-strong": "#D9E2EC",
-        "--aacp-panel-bg": "#FCFCFD", "--aacp-surface-elevated": "#FFFFFF",
-      }
-    : {
-        "--aacp-bg": "#0B1220", "--aacp-surface": "#111827", "--aacp-surface-2": "#0F172A",
-        "--aacp-surface-3": "#1E293B", "--aacp-fg": "#F1F5F9", "--aacp-muted": "#94A3B8",
-        "--aacp-faint": "#64748B", "--aacp-line": "rgba(241,245,249,0.08)", "--aacp-line-strong": "rgba(241,245,249,0.14)",
-        "--aacp-panel-bg": "#0F172A", "--aacp-surface-elevated": "#1A1A24",
-      };
+  const themePalette: Record<string, string> = { ...NEUMORPHIC_THEME[theme] };
 
   return (
     <div
       className="pulse-widget-shell"
       data-skin="pulse"
       data-theme={themeAttr}
+      data-neu-theme={themeAttr}
       style={{
         ...widgetStyle,
         ...themePalette,
@@ -144,7 +134,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
           flex: "none",
         }}
       >
-        <button
+        <button data-neu="control"
           type="button"
           onClick={() => window.history.back()}
           title="Voltar para o site"
@@ -203,7 +193,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
           </div>
         </div>
 
-        <button
+        <button data-neu="control"
           type="button"
           onClick={toggleTheme}
           title="Alternar tema"
@@ -265,7 +255,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
                 Seu pedido foi confirmado com sucesso. Acompanhe os detalhes no seu histórico de compras.
               </p>
             </div>
-            <button
+            <button data-neu="primary"
               type="button"
               onClick={() => {
                 resetSession();
@@ -391,7 +381,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
           />
 
           {/* Bottom sheet — slides up from bottom, slides down to close */}
-          <div
+          <div data-neu="overlay"
             className="smart-cart-drawer"
             role="dialog"
             aria-label="Carrinho"
@@ -419,7 +409,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
               <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--aacp-fg, #f5f5f7)" }}>Carrinho</span>
-              <button
+              <button data-neu="icon"
                 onClick={closeCartDrawer}
                 aria-label="Fechar"
                 style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line, rgba(255,255,255,0.1))", background: "transparent", color: "var(--aacp-muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}

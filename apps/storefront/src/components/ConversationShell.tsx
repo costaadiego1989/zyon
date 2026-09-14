@@ -102,6 +102,8 @@ export default function ConversationShell({
   } = vm;
   const inputRef = useRef<HTMLInputElement | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const composerRef = useRef<HTMLFormElement | null>(null);
   const agent = agentName || "Assistente";
   const { cart } = useCart();
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -110,6 +112,7 @@ export default function ConversationShell({
   const [logoError, setLogoError] = useState(false);
   const [checkoutUserId, setCheckoutUserId] = useState("");
   const [mounted, setMounted] = useState(false);
+  const [cartFabAnchor, setCartFabAnchor] = useState<{ top: string; right: string } | undefined>();
   const [richProduct, setRichProduct] = useState<{ productId: string } | null>(() =>
     typeof initialRichProductId === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(initialRichProductId)
       ? { productId: initialRichProductId }
@@ -217,6 +220,32 @@ export default function ConversationShell({
     }
   }, []);
   useEffect(() => {
+    const shell = shellRef.current;
+    const composer = composerRef.current;
+    if (effectiveMode !== "chat" || channel !== "chat" || !shell || !composer) {
+      setCartFabAnchor(undefined);
+      return;
+    }
+    const measure = () => {
+      const shellBox = shell.getBoundingClientRect();
+      const composerBox = composer.getBoundingClientRect();
+      const top = Math.max(0, composerBox.top - shellBox.top + (composerBox.height - 48) / 2);
+      setCartFabAnchor({ top: `${Math.round(top)}px`, right: "16px" });
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(shell);
+    observer.observe(composer);
+    measure();
+    window.addEventListener("resize", measure);
+    window.visualViewport?.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+      window.visualViewport?.removeEventListener("resize", measure);
+    };
+  }, [channel, effectiveMode]);
+
+  useEffect(() => {
     if (mode === "chat" && !isLoading) {
       const t = setTimeout(() => inputRef.current?.focus(), 150);
       return () => clearTimeout(t);
@@ -289,7 +318,7 @@ export default function ConversationShell({
     handleQuickReply(option);
   };
   return (
-    <div id="storefront-chat" className="pulse-widget-shell" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", position: "relative", borderRadius: "19px", padding: "1.5px" }}>
+    <div ref={shellRef} id="storefront-chat" className="pulse-widget-shell" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", position: "relative", borderRadius: "19px", padding: "1.5px" }}>
       {/* Shimmer border — rotating conic gradient around entire chat container */}
       <div style={{ position: "absolute", inset: 0, borderRadius: "19px", overflow: "hidden", pointerEvents: "none", zIndex: 0 }}>
         <div style={{ position: "absolute", inset: "-50%", background: "conic-gradient(from 0deg, transparent 0%, transparent 70%, var(--aacp-accent, #0f766e) 80%, transparent 90%, transparent 100%)", animation: "shimmerRotate 4s linear infinite", opacity: 0.7 }} />
@@ -498,11 +527,11 @@ export default function ConversationShell({
                   );
                 }
                 return (
-                  <div key={m.id} style={{ display: "flex", gap: "9px", alignItems: "flex-start", maxWidth: isFullWidth ? "100%" : "min(82%, 520px)", alignSelf: "flex-start", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both", width: isFullWidth ? "100%" : undefined }}>
+                  <div key={m.id} style={{ display: "flex", gap: "9px", alignItems: "center", maxWidth: isFullWidth ? "100%" : "min(82%, 520px)", alignSelf: "flex-start", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both", width: isFullWidth ? "100%" : undefined }}>
                     {/* Per-message agent orb — use the animated PulseAgentOrb (float +
                         ring + blinking eyes) so it moves like the widget, instead of a
                         static gradient dot. */}
-                    <div style={{ flex: "none", marginTop: "4px" }}>
+                    <div style={{ flex: "none" }}>
                       <PulseAgentOrb size={26} avatarUrl={agentAvatarUrl} />
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1, minWidth: 0 }}>
@@ -524,7 +553,7 @@ export default function ConversationShell({
               }
             })}
             {isLoading && (
-              <div style={{ display: "flex", gap: "9px", alignItems: "flex-end", alignSelf: "flex-start", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
+              <div style={{ display: "flex", gap: "9px", alignItems: "center", alignSelf: "flex-start", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
                 {/* Thinking orb — branded avatar when set, else CSS orb with eyes looking up */}
                 {agentAvatarUrl ? (
                   <img src={agentAvatarUrl} alt="" style={{ width: "28px", height: "28px", borderRadius: "50%", objectFit: "cover", flex: "none" }} />
@@ -562,7 +591,7 @@ export default function ConversationShell({
                 <span style={{ fontSize: "12px", color: "var(--aacp-muted)" }}>Toque para falar</span>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} style={{ display: "flex", alignItems: "center", gap: "9px", padding: "9px 9px 9px 15px", background: "var(--aacp-card)", border: "1px solid var(--aacp-line)", borderRadius: "14px", transition: "border-color 0.2s ease, box-shadow 0.2s ease" }} onFocus={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.boxShadow = "0 0 0 2px color-mix(in srgb, var(--aacp-accent) 20%, transparent)"; }} onBlur={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.boxShadow = "none"; }}>
+              <form ref={composerRef} onSubmit={handleSubmit} style={{ display: "flex", alignItems: "center", gap: "9px", padding: "9px 9px 9px 15px", background: "var(--aacp-card)", border: "1px solid var(--aacp-line)", borderRadius: "14px", transition: "border-color 0.2s ease, box-shadow 0.2s ease" }} onFocus={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.boxShadow = "0 0 0 2px color-mix(in srgb, var(--aacp-accent) 20%, transparent)"; }} onBlur={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.boxShadow = "none"; }}>
                 <input ref={inputRef} type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder={isLoading ? "Aguarde..." : "Escreva sua mensagem…"} aria-label="Mensagem" disabled={isLoading} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: "var(--aacp-fg)", fontSize: "13px", padding: 0, fontFamily: "inherit" }} />
                 <button type="submit" disabled={!input.trim() || isLoading} aria-label="Enviar mensagem" style={{ width: "36px", height: "36px", borderRadius: "10px", border: "none", cursor: !input.trim() || isLoading ? "not-allowed" : "pointer", background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0, opacity: !input.trim() || isLoading ? 0.4 : 1 }}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
@@ -641,6 +670,7 @@ export default function ConversationShell({
           onRemoveItem={(variantId) => handleUpdateQuantity(variantId, 0)}
           forceOpen={cartDrawerForceOpen}
           suppressAutoOpen={Boolean(crossSellPending) || Boolean(richProduct)}
+          cartFabAnchor={cartFabAnchor}
         />
       )}
       {/* Cross-sell interstitial — shows before the cart drawer after add-to-cart */}
