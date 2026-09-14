@@ -1,4 +1,5 @@
 import React from "react";
+import { TabBar } from "./TabBar.js";
 import { SearchInput } from "./SearchInput.js";
 
 export interface FilterTab {
@@ -18,29 +19,6 @@ export interface FilterToolbarProps {
   extra?: React.ReactNode;
 }
 
-const TAB_STYLE_BASE: React.CSSProperties = {
-  height: 32,
-  display: "inline-flex",
-  alignItems: "center",
-  padding: "0 14px",
-  borderRadius: 7,
-  font: "600 12px var(--font-sans)",
-  cursor: "pointer",
-  boxSizing: "border-box",
-  lineHeight: 1,
-  border: "1px solid var(--color-border)",
-  background: "transparent",
-  color: "var(--color-text)",
-  transition: "background 0.12s, border-color 0.12s",
-};
-
-const TAB_STYLE_ACTIVE: React.CSSProperties = {
-  ...TAB_STYLE_BASE,
-  background: "var(--color-brand-hover)",
-  borderColor: "var(--color-brand-hover)",
-  color: "#fff",
-};
-
 export function FilterToolbar({
   tabs,
   activeTab,
@@ -54,18 +32,7 @@ export function FilterToolbar({
   return (
     <div className="filter-toolbar">
       <div className="filter-toolbar__controls">
-        <div className="filter-toolbar__tabs">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => onTabChange(tab.key)}
-              style={activeTab === tab.key ? TAB_STYLE_ACTIVE : TAB_STYLE_BASE}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <TabBar tabs={tabs} activeTab={activeTab} onTabChange={onTabChange} role="group" label="Filtrar resultados" />
         {extra ? <div className="filter-toolbar__extra">{extra}</div> : null}
       </div>
       {onSearchChange !== undefined && search !== undefined && (

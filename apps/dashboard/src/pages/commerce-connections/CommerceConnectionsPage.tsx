@@ -86,11 +86,7 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
           </div>
         </header>
         <div className="panel stacked">
-          <div className="empty-state">
-            <div className="empty-state-icon"><ShoppingBag size={22} /></div>
-            <h3>Login necessário</h3>
-            <p>Faça login para gerenciar integrações de loja.</p>
-          </div>
+          <EmptyState icon={ShoppingBag} title="Login necessário" description="Faça login para gerenciar integrações de loja." />
         </div>
       </div>
     );

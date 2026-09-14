@@ -26,11 +26,8 @@ export class PrismaStrategyPreferencesRepository implements StrategyPreferencesR
 
   async save(merchantId: string, strategies: StrategyPreferences): Promise<StrategyPreferences> {
     const normalized = normalizeStrategyPreferences(strategies as unknown as Record<string, unknown>);
-    await this.prisma.cartRecoveryStrategyPref.upsert({
-      where: { merchantId },
-      create: { merchantId, strategies: normalized },
-      update: { strategies: normalized },
-    });
+    const active = Object.keys(normalized).find(key => normalized[key as keyof StrategyPreferences]) as StrategyConfig["active_strategy"];
+    await this.saveConfig(merchantId, { active_strategy: active });
     return normalized;
   }
 
@@ -53,13 +50,30 @@ export class PrismaStrategyPreferencesRepository implements StrategyPreferencesR
     };
   }
 
-  async saveConfig(merchantId: string, cfg: StrategyConfig): Promise<StrategyConfig> {
-    const jsonCfg = cfg as unknown as Prisma.InputJsonValue;
-    await this.prisma.cartRecoveryStrategyPref.upsert({
-      where: { merchantId },
-      create: { merchantId, config: jsonCfg, strategies: defaultStrategyPreferences() as unknown as Prisma.InputJsonValue },
-      update: { config: jsonCfg },
-    });
-    return cfg;
+  async saveConfig(merchantId: string, patch: Partial<StrategyConfig>): Promise<StrategyConfig> {
+    const defined = Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined));
+    for (let retry = 0; ; retry++) {
+      try {
+        return await this.prisma.$transaction(async tx => {
+          const row = await tx.cartRecoveryStrategyPref.findUnique({ where: { merchantId } });
+          const cfg = {
+            active_strategy: "offer_coupon",
+            ...((row?.config as Record<string, unknown> | null) ?? {}),
+            ...defined,
+          } as StrategyConfig;
+          const strategies = normalizeStrategyPreferences({ [cfg.active_strategy]: true });
+          const config = cfg as unknown as Prisma.InputJsonValue;
+          await tx.cartRecoveryStrategyPref.upsert({
+            where: { merchantId },
+            create: { merchantId, config, strategies },
+            update: { config, strategies },
+          });
+          return cfg;
+        }, { isolationLevel: "Serializable" });
+      } catch (error) {
+        const code = (error as { code?: string }).code;
+        if (retry >= 2 || (code !== "P2034" && code !== "P2002")) throw error;
+      }
+    }
   }
 }

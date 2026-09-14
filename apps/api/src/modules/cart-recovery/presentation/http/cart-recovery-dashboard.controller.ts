@@ -13,6 +13,7 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
+import type { StrategyConfig } from "../../domain/values/recovery-strategy.js";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import { GetRecoveryMetricsUseCase } from "../../application/use-cases/get-recovery-metrics.use-case.js";
 import { GetStrategyPreferencesUseCase } from "../../application/use-cases/get-strategy-preferences.use-case.js";
@@ -130,7 +131,7 @@ export class CartRecoveryDashboardController {
     const user = currentUser(req);
     const config = await this.updateStrategyConfig.execute({
       merchantId: user.merchantId,
-      active_strategy: body?.active_strategy as any ?? "offer_coupon",
+      active_strategy: body?.active_strategy as StrategyConfig["active_strategy"] | undefined,
       coupon_code: body?.coupon_code,
       rule_id: body?.rule_id,
     });

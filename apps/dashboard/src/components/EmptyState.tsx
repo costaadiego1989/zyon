@@ -32,6 +32,7 @@ export function EmptyState({ icon, title, message, description, action }: EmptyS
 
   return (
     <div
+      data-ui="empty-state"
       style={{
         border: "1px dashed var(--color-border)",
         borderRadius: 10,

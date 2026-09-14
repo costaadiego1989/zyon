@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import type { CategoryTreeNode } from "../useCategoriesPage.js";
 import type { ProductCategoryDTO } from "../../../api/endpoints/catalog.js";
+import { EmptyState } from "../../../components/EmptyState.js";
 import { CategoryRow } from "./CategoryRow.js";
 
 interface CategoryTreeProps {
@@ -72,10 +73,7 @@ export function CategoryTree({ tree, onEdit, onDelete, onToggleActive, onAddChil
       onDragEnd={() => setDragOverId(null)}
     >
       {tree.length === 0 ? (
-        <div style={{ padding: "48px 22px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: "var(--color-text-faint)" }}>
-          <strong style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>Nenhuma categoria cadastrada.</strong>
-          <p style={{ font: "12.5px var(--font-sans)", color: "var(--color-text-faint)" }}>Clique em "Nova categoria" para começar.</p>
-        </div>
+        <EmptyState title="Nenhuma categoria cadastrada" description={'Clique em "Nova categoria" para começar.'} />
       ) : (
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>

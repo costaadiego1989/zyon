@@ -1,6 +1,7 @@
 import React from "react";
 import { CheckCircle2, Code2, Copy, KeyRound, Shield, Zap } from "lucide-react";
 import { type MerchantProfile } from "../api-client.js";
+import { EmptyState } from "../components/EmptyState.js";
 import { SectionHeader } from "../components/SectionHeader.js";
 import { useEmbedPage } from "./useEmbedPage.js";
 
@@ -12,11 +13,7 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
   if (!props.me) {
     return (
       <div className="dashboard-content">
-        <div className="empty-state">
-          <div className="empty-state-icon"><KeyRound size={22} /></div>
-          <h3>Autenticação necessária</h3>
-          <p>Faça login para instalar o widget no seu site.</p>
-        </div>
+        <EmptyState icon={KeyRound} title="Autenticação necessária" description="Faça login para instalar o widget no seu site." />
       </div>
     );
   }
@@ -33,7 +30,7 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
         </div>
       </header>
 
-      <div style={{ marginTop: "var(--space-5)" }}>
+      <div>
         <InstallTab
           snippet={vm.snippet}
           hasToken={vm.hasToken}

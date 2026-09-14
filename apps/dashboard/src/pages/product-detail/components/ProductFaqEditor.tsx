@@ -2,6 +2,7 @@
 
 import React, { useCallback, useState } from "react";
 import { GripVertical, Pencil, Trash2, Plus, Save, X } from "lucide-react";
+import { EmptyState } from "../../../components/EmptyState.js";
 import { Button } from "../../../components/Button.js";
 import { ToggleSwitch } from "../../../components/ToggleSwitch.js";
 import { showToast } from "../../../components/Toast.js";
@@ -182,9 +183,7 @@ export function ProductFaqEditor({ faqs, busy = false, onSave, onDelete, onReord
       ) : null}
 
       {faqs.length === 0 && !isEditing ? (
-        <div style={{ border: "1px dashed var(--color-border)", borderRadius: 10, padding: "32px 16px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>
-          Nenhum FAQ ainda. Clique em "Adicionar FAQ".
-        </div>
+        <EmptyState title="Nenhuma pergunta cadastrada" description={'Clique em "Adicionar FAQ" para incluir dúvidas sobre o produto.'} />
       ) : null}
 
       {faqs.map((faq) => (

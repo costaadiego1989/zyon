@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { type MerchantProfile, type MerchantTheme } from "../api-client.js";
 import { LivePreviewPanel, type LivePreviewPanelRef } from "../components/LivePreviewPanel.js";
+import { TabBar } from "../components/TabBar.js";
 import { useApi } from "../hooks/useApi.js";
 import { reportError } from "../hooks/useErrorReporter.js";
 
@@ -218,45 +219,21 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
   return (
     <div>
       {/* ── Title ── */}
-      <div style={{ marginBottom: 20 }}>
-        <span className="eyebrow">PREVIEW AO VIVO</span>
-        <h1 >{title}</h1>
-        <p className="page-lead">{subtitle}</p>
-      </div>
+      <header className="page-head">
+        <div>
+          <span className="eyebrow">Preview ao vivo</span>
+          <h1>{title}</h1>
+          <p className="page-lead">{subtitle}</p>
+        </div>
+      </header>
 
       {/* ── Product tab toggle (only when BOTH) ── */}
       {showTabs && (
-        <div style={{ display: "flex", gap: 4, background: "var(--surface-1)", borderRadius: 10, padding: 4, marginBottom: 12, width: "fit-content" }}>
-          {(
-            [
-              { id: "storefront" as const, label: "Loja (Storefront)", Icon: Store },
-              { id: "checkout" as const, label: "Widget Checkout", Icon: ShoppingCart },
-            ]
-          ).map(({ id, label, Icon }) => {
-            const active = previewMode === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setPreviewMode(id)}
-                style={{
-                  padding: "8px 14px",
-                  borderRadius: 7,
-                  border: "none",
-                  font: "600 12px var(--font-sans)",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  background: active ? "var(--surface-2)" : "transparent",
-                  color: active ? "var(--color-text)" : "var(--color-text-faint)",
-                  boxShadow: active ? "0 1px 3px rgba(0,0,0,0.2)" : "none",
-                }}
-              >
-                <Icon size={13} /> {label}
-              </button>
-            );
-          })}
+        <div style={{ marginBottom: 24 }}>
+          <TabBar label="Prévia do produto" tabs={[
+            { key: "storefront", label: "Loja (Storefront)", icon: <Store size={14} /> },
+            { key: "checkout", label: "Widget Checkout", icon: <ShoppingCart size={14} /> },
+          ]} activeTab={previewMode} onTabChange={key => setPreviewMode(key as PreviewMode)} />
         </div>
       )}
 

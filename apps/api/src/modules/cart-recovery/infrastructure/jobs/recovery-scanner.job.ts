@@ -197,7 +197,12 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
     try {
       const cfg = await this.strategyPrefs.getConfig(session.merchantId);
       forcedStrategy = this.buildForcedStrategy(cfg, buyerHistoryContext.recent_skus);
-    } catch { /* fall back to algorithm */ }
+    } catch (error) {
+      this.logger.warn("recovery-scanner: strategy configuration unavailable", { merchantId: session.merchantId });
+      return;
+    }
+    if (forcedStrategy?.type === "no_action") return;
+    if (forcedStrategy?.type === "offer_free_shipping" && !merchantPolicy.allowFreeShipping) return;
 
     // The shared router selects WhatsApp or email from the available contacts.
     let buyerPhone: string | undefined;
@@ -306,29 +311,30 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Map the merchant's dashboard strategy config to a concrete RecoveryStrategy.
-   * Returns undefined for advanced_rule with no rule_id or unknown config
-   * (so the algorithm decides instead).
+   * Incomplete configuration pauses this candidate. Never replace the
+   * merchant's selection with an unrelated automatic strategy.
    */
   private buildForcedStrategy(
     cfg: { active_strategy?: string; coupon_code?: string; rule_id?: string } | null,
     recentSkus: string[],
   ): RecoveryStrategy | undefined {
-    if (!cfg?.active_strategy) return undefined;
+    const unavailable: RecoveryStrategy = { type: "no_action", reason: "strategy_not_configured" };
+    if (!cfg?.active_strategy) return unavailable;
     switch (cfg.active_strategy) {
       case "offer_free_shipping":
         return { type: "offer_free_shipping", condition: "merchant_allows_free_shipping" };
       case "offer_coupon":
         return cfg.coupon_code
           ? { type: "offer_coupon", coupon_code: cfg.coupon_code }
-          : undefined;
+          : unavailable;
       case "personalized_cross_sell":
         return { type: "personalized_cross_sell", suggested_skus: recentSkus };
       case "advanced_rule":
         return cfg.rule_id
           ? { type: "advanced_rule", rule_id: cfg.rule_id }
-          : undefined;
+          : unavailable;
       default:
-        return undefined;
+        return unavailable;
     }
   }
 }

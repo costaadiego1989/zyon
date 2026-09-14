@@ -103,15 +103,47 @@ for (const authority of ["completed_order", "approved_payment"] as const) {
       completedOrder: { async findFirst() { return authority === "completed_order" ? { id: "order" } : null; } },
       paymentIntent: { async findFirst() { return authority === "approved_payment" ? { id: "payment" } : null; } },
     } as unknown as PrismaClient;
+    const preferences = new InMemoryStrategyPreferencesRepository();
+    await preferences.saveConfig(session.merchantId, { active_strategy: "offer_coupon", coupon_code: "SAVE" });
     const scanner = new RecoveryScannerJob(
       sessions, new InMemoryRecoveryAttemptRepository(),
       { getRules: async () => merchantRules(), updateRules: async () => merchantRules() },
-      new InMemoryStrategyPreferencesRepository(), new InMemoryBuyerPurchaseHistoryRepository(), prisma,
+      preferences, new InMemoryBuyerPurchaseHistoryRepository(), prisma,
       { async execute() { recoveryCalls++; return { created: true, attemptId: "unexpected" }; } },
     );
     const scan = scanner.scan();
     context.mock.timers.tick(15_000);
     await scan;
     assert.equal(recoveryCalls, 0);
+  });
+}
+for (const scenario of ["missing_coupon", "missing_rule", "configuration_unavailable", "shipping_disabled", "recent_activity", "empty_cart"] as const) {
+  test("scanner suppresses recovery for " + scenario, async context => {
+    const now = new Date("2026-09-14T12:00:00Z");
+    context.mock.method(Math, "random", () => 0);
+    context.mock.timers.enable({ apis: ["setTimeout", "Date"], now });
+    const session = checkoutSession({ triggerAgent: true, abandonmentScore: 0.95,
+      updatedAt: new Date(now.getTime() - (scenario === "recent_activity" ? 5 : 31) * 60_000).toISOString(),
+      ...(scenario === "empty_cart" ? { cart: { ...checkoutSession().cart, items: [] } } : {}),
+    });
+    const sessions = new InMemoryCheckoutRepository();
+    await sessions.saveSession(session);
+    const prefs = new InMemoryStrategyPreferencesRepository();
+    await prefs.saveConfig(session.merchantId, scenario === "missing_coupon" ? { active_strategy: "offer_coupon" }
+      : scenario === "missing_rule" ? { active_strategy: "advanced_rule" }
+      : scenario === "shipping_disabled" ? { active_strategy: "offer_free_shipping" }
+      : { active_strategy: "offer_coupon", coupon_code: "SAVE" });
+    if (scenario === "configuration_unavailable") context.mock.method(prefs, "getConfig", async () => { throw new Error("unavailable"); });
+    let calls = 0;
+    const scanner = new RecoveryScannerJob(sessions, new InMemoryRecoveryAttemptRepository(),
+      { getRules: async () => merchantRules({ allowFreeShipping: false }), updateRules: async () => merchantRules() },
+      prefs, new InMemoryBuyerPurchaseHistoryRepository(), {
+        checkoutEvent: { findMany: async () => [{ eventName: "shipping_objection_detected" }] },
+        merchant: { findUnique: async () => ({ name: "Test shop" }) },
+        completedOrder: { findFirst: async () => null }, paymentIntent: { findFirst: async () => null },
+      } as unknown as PrismaClient,
+      { execute: async () => { calls++; return { created: true }; } });
+    const pending = scanner.scan(); context.mock.timers.tick(0); await pending;
+    assert.equal(calls, 0);
   });
 }

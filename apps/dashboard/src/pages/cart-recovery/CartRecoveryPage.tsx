@@ -1,7 +1,10 @@
 import React, { useState } from "react";
-import { ShoppingCart, Activity, CheckCircle, DollarSign, Clock, XCircle, RefreshCw, Edit } from "lucide-react";
+import { ShoppingCart, Activity, CheckCircle, DollarSign, Clock, XCircle, RefreshCw, Edit, Ticket, SlidersHorizontal, AlertTriangle } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { StatCard } from "../overview/components/StatCard.js";
+import { EmptyState } from "../../components/EmptyState.js";
+import { Button } from "../../components/Button.js";
+import { PageLoader } from "../../components/PageLoader.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
 import { DataPanel } from "../../components/DataPanel.js";
 import { SidePanel } from "../../components/SidePanel.js";
@@ -37,10 +40,11 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
   const {
     metrics,
     attempts,
-    strategies,
     config,
     savingKey,
     loading,
+    error,
+    retry,
     selectStrategy,
     saveConfig,
     coupons,
@@ -64,11 +68,12 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
   }
 
   if (loading) {
-    return (
-      <div className="panel" style={{ padding: "60px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>
-        Carregando...
-      </div>
-    );
+    return <PageLoader />;
+  }
+
+  if (error) {
+    return <EmptyState icon={AlertTriangle} title="Recuperação indisponível" description={error}
+      action={<Button onClick={retry}>Tentar novamente</Button>} />;
   }
 
   const statusIcon = (status: string) => {
@@ -84,6 +89,8 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
     switch (status) {
       case "recovered": return "Recuperado";
       case "failed": return "Falhou";
+      case "unknown": return "Aguardando confirmação";
+      case "expired": return "Expirado";
       case "sent": return "Enviado";
       default: return "Pendente";
     }
@@ -108,7 +115,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
   const totalAttempts = attempts.length;
   const startIdx = (page - 1) * PAGE_SIZE;
   const paginatedAttempts = attempts.slice(startIdx, startIdx + PAGE_SIZE);
-  const activeKey = (Object.entries(strategies).find(([, v]) => v)?.[0] ?? "offer_coupon") as CartRecoveryStrategyKey;
+  const activeKey = config.active_strategy;
 
   return (
     <div className="page-container">
@@ -122,17 +129,18 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
 
       <div className="recovery-page-tabs">
         <TabBar
-          tabs={[{ key: "overview", label: "Visão geral" }, { key: "messages", label: "Mensagens" }]}
+          label="Recuperação de carrinho"
+          tabs={[{ key: "overview", label: "Visão geral", panelId: "recovery-overview" }, { key: "messages", label: "Mensagens", panelId: "recovery-messages" }]}
           activeTab={tab}
           onTabChange={setTab}
         />
       </div>
 
-      <div hidden={tab !== "messages"} role="tabpanel" aria-label="Mensagens">
+      <div hidden={tab !== "messages"} role="tabpanel" id="recovery-messages" aria-labelledby="recovery-messages-tab">
         <RecoveryTemplatesPanel key={props.me.id} apiBaseUrl={props.apiBaseUrl} />
       </div>
 
-      <div hidden={tab !== "overview"} role="tabpanel" aria-label="Visão geral" className="recovery-overview">
+      <div hidden={tab !== "overview"} role="tabpanel" id="recovery-overview" aria-labelledby="recovery-overview-tab" className="recovery-overview">
 
       {/* KPI cards */}
       {metrics && (
@@ -165,119 +173,32 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
       {/* Strategy selection — radio (only 1 active) */}
       <div className="panel" style={{ padding: "20px 24px" }}>
         <SectionHeader title="Estratégia de recuperação" subtitle="Escolha a estratégia para recuperar carrinhos. Apenas uma opção pode estar ativa." />
-        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {STRATEGY_OPTIONS.map((opt) => {
-            const isActive = activeKey === opt.key;
-            const isSaving = savingKey === opt.key;
+        <fieldset className="recovery-strategies" disabled={savingKey !== null} aria-label="Estratégia de recuperação" aria-busy={savingKey !== null}>
+          {STRATEGY_OPTIONS.map(opt => {
+            const active = activeKey === opt.key;
+            const linked = opt.key === "offer_coupon" ? config.coupon_code
+              : opt.key === "advanced_rule" ? rules.find(rule => rule.id === config.rule_id)?.name : undefined;
             return (
-              <label
-                key={opt.key}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 14,
-                  padding: "14px 16px",
-                  borderRadius: "var(--radius-sm)",
-                  border: `1.5px solid ${isActive ? "var(--color-brand)" : "var(--color-border)"}`,
-                  background: isActive ? "var(--accent-soft)" : "transparent",
-                  cursor: isSaving ? "wait" : "pointer",
-                  transition: "border-color 0.15s, background 0.15s",
-                  opacity: isSaving ? 0.6 : 1,
-                }}
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (!isSaving && !isActive) selectStrategy(opt.key);
-                }}
-              >
-                {/* Radio dot */}
-                <span style={{
-                  width: 18,
-                  height: 18,
-                  borderRadius: "50%",
-                  border: `2px solid ${isActive ? "var(--color-brand)" : "var(--color-border)"}`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}>
-                  {isActive && (
-                    <span style={{
-                      width: 10,
-                      height: 10,
-                      borderRadius: "50%",
-                      background: "var(--color-brand)",
-                    }} />
-                  )}
-                </span>
-
-                {/* Label + description */}
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ font: "500 13px var(--font-sans)", color: isActive ? "var(--color-brand)" : "var(--color-text)" }}>
-                      {opt.label}
-                    </span>
-                    {isActive && opt.key === "offer_coupon" && config.coupon_code && (
-                      <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: "var(--color-success-bg)", color: "var(--color-success)" }}>
-                        {config.coupon_code}
-                      </span>
-                    )}
-                    {isActive && opt.key === "advanced_rule" && config.rule_id && (
-                      <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: "var(--color-brand-subtle)", color: "var(--color-brand)" }}>
-                        {rules.find(r => r.id === config.rule_id)?.name ?? config.rule_id}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 2 }}>
-                    {opt.description}
-                  </div>
-                </div>
-
-                {/* Edit button for coupon/rule when active */}
-                {isActive && opt.needsConfig && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setPanelOpen(opt.key === "offer_coupon" ? "coupon" : "rule");
-                    }}
-                    style={{
-                      border: "1px solid var(--color-border)",
-                      background: "var(--surface-1)",
-                      cursor: "pointer",
-                      padding: "6px 10px",
-                      borderRadius: "var(--radius-sm)",
-                      color: "var(--color-brand)",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 5,
-                      font: "12px var(--font-sans)",
-                      flexShrink: 0,
-                    }}
-                    title="Vincular cupom ou regra"
-                  >
-                    <Edit size={14} />
-                    Vincular
-                  </button>
-                )}
-
-                {isActive && !opt.needsConfig && (
-                  <span style={{
-                    padding: "2px 8px",
-                    borderRadius: "var(--radius-full)",
-                    font: "600 10px var(--font-mono)",
-                    background: "var(--color-success-bg)",
-                    color: "var(--color-success)",
-                    flexShrink: 0,
-                  }}>
-                    Ativa
+              <div key={opt.key} className="recovery-strategy" data-active={active}>
+                <label className="recovery-strategy__choice">
+                  <input type="radio" name="recovery-strategy" value={opt.key} checked={active}
+                    onChange={() => { void selectStrategy(opt.key); }} />
+                  <span className="recovery-strategy__copy">
+                    <span className="recovery-strategy__title">{opt.label}</span>
+                    <span className="recovery-strategy__description">{opt.description}</span>
+                    {active && opt.needsConfig ? <span className="recovery-strategy__link">{linked || "Vínculo necessário"}</span> : null}
                   </span>
-                )}
-              </label>
+                </label>
+                {active && opt.needsConfig ? (
+                  <Button variant="outline" size="sm" disabled={savingKey !== null}
+                    onClick={() => setPanelOpen(opt.key === "offer_coupon" ? "coupon" : "rule")}>
+                    <Edit size={14} /> {linked ? "Alterar vínculo" : "Vincular"}
+                  </Button>
+                ) : active ? <span className="recovery-strategy__link">Selecionada</span> : null}
+              </div>
             );
           })}
-        </div>
-
+        </fieldset>
         {/* Coupon-strategy conflict warning: coupon discount must not stack with
             advanced rules or progressive discount configured in checkout settings. */}
         {activeKey === "offer_coupon" && (
@@ -294,10 +215,8 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
               lineHeight: 1.5,
             }}
           >
-            <strong>Atenção:</strong> para o cupom de recuperação funcionar sem conflito,
-            desative <strong>Regras Avançadas</strong> e <strong>Desconto Progressivo</strong> em
-            Configurações de Checkout. Descontos não acumulam — se uma regra avançada ou o
-            desconto progressivo já ofereceu desconto, o cupom pode não ser aplicado.
+            O cupom depende da validade e das condições do carrinho. Ele não acumula com
+            descontos já concedidos por regras avançadas ou desconto progressivo.
           </div>
         )}
       </div>
@@ -356,9 +275,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
           </div>
 
           {coupons.length === 0 ? (
-            <div style={{ padding: "24px 16px", textAlign: "center", font: "13px var(--font-sans)", color: "var(--color-text-faint)" }}>
-              Nenhum cupom ativo. Crie um cupom na aba Cupons primeiro.
-            </div>
+            <EmptyState icon={Ticket} title="Nenhum cupom disponível" description="Crie um cupom ativo e dentro da validade na página Cupons." />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {coupons.map((c) => {
@@ -367,9 +284,9 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
                   <button
                     key={c.id}
                     type="button"
-                    onClick={() => {
-                      saveConfig({ coupon_code: c.code });
-                      setPanelOpen(null);
+                    disabled={savingKey !== null}
+                    onClick={async () => {
+                      if (await saveConfig({ active_strategy: "offer_coupon", coupon_code: c.code })) setPanelOpen(null);
                     }}
                     style={{
                       display: "flex",
@@ -403,7 +320,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
                         {c.code}
                       </div>
                       <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 2 }}>
-                        {c.type === "percent" ? `${c.value}% off` : `R$ ${c.value} off`}
+                        {c.discountType === "free_shipping" ? "Frete grátis" : c.discountType === "percent" ? `${c.discountValue}% de desconto` : `R$ ${c.discountValue.toLocaleString("pt-BR")} de desconto`}
                       </div>
                     </div>
                     {isSelected && (
@@ -431,9 +348,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
           </div>
 
           {rules.length === 0 ? (
-            <div style={{ padding: "24px 16px", textAlign: "center", font: "13px var(--font-sans)", color: "var(--color-text-faint)" }}>
-              Nenhuma regra configurada. Crie regras em Configurações de IA → Regras.
-            </div>
+            <EmptyState icon={SlidersHorizontal} title="Nenhuma regra ativa" description="Crie e ative uma regra em Configurações do Checkout, na aba Regras." />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {rules.map((r) => {
@@ -442,9 +357,9 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
                   <button
                     key={r.id}
                     type="button"
-                    onClick={() => {
-                      saveConfig({ rule_id: r.id });
-                      setPanelOpen(null);
+                    disabled={savingKey !== null}
+                    onClick={async () => {
+                      if (await saveConfig({ active_strategy: "advanced_rule", rule_id: r.id })) setPanelOpen(null);
                     }}
                     style={{
                       display: "flex",

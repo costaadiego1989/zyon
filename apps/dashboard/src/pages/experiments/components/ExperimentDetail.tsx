@@ -1,6 +1,7 @@
 import React from "react";
 import { Play, Pause, Trash2 } from "lucide-react";
 import type { Experiment, ExperimentResults } from "../types.js";
+import { EmptyState } from "../../../components/EmptyState.js";
 import { Button } from "../../../components/Button.js";
 import { ExperimentMetrics } from "./ExperimentMetrics.js";
 
@@ -92,49 +93,13 @@ export function ExperimentDetail({
         </div>
       ) : results && results.metrics && results.metrics.length > 0 ? (
         <ExperimentMetrics results={results} experiment={experiment} saving={saving} onPromote={onPromote} />
-      ) : experiment.status === "running" ? (
-        <div
-          style={{
-            background: "var(--surface-2)",
-            border: "1px solid var(--color-border)",
-            borderRadius: 10,
-            padding: "32px 20px",
-            textAlign: "center",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 12,
-          }}
-        >
-          <div style={{
-            width: 10, height: 10, borderRadius: "50%",
-            background: "var(--color-brand)",
-            animation: "pulse 2s infinite",
-            boxShadow: "0 0 8px var(--color-brand)",
-          }} />
-          <p style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", margin: 0 }}>
-            Teste ativo — aguardando sessões de compradores
-          </p>
-          <p style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)", margin: 0 }}>
-            Os resultados aparecerão aqui conforme clientes interagem com o agente
-          </p>
-        </div>
       ) : (
-        <div
-          style={{
-            background: "var(--surface-2)",
-            border: "1px dashed var(--color-border)",
-            borderRadius: 10,
-            padding: 20,
-            textAlign: "center",
-            color: "var(--color-text-muted)",
-            font: "13px var(--font-sans)",
-          }}
-        >
-          {experiment.status === "draft"
-            ? "Inicie o teste para começar a coletar dados"
-            : "Sem resultados registrados"}
-        </div>
+        <EmptyState
+          title={experiment.status === "running" ? "Aguardando sessões de compradores" : "Sem resultados registrados"}
+          description={experiment.status === "draft"
+            ? "Inicie o teste para começar a coletar dados."
+            : "Os resultados aparecerão conforme clientes interagirem com o agente."}
+        />
       )}
     </div>
   );

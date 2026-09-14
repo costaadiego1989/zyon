@@ -6,6 +6,6 @@ export interface StrategyPreferencesRepositoryPort {
   get(merchantId: string): Promise<StrategyPreferences>;
   save(merchantId: string, strategies: StrategyPreferences): Promise<StrategyPreferences>;
   getConfig(merchantId: string): Promise<StrategyConfig>;
-  saveConfig(merchantId: string, config: StrategyConfig): Promise<StrategyConfig>;
+  saveConfig(merchantId: string, config: Partial<StrategyConfig>): Promise<StrategyConfig>;
 }
 

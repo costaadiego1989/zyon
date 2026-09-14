@@ -29,6 +29,7 @@ import { DataPanel } from "../../components/DataPanel.js";
 import { FilterSelect, FilterToolbar } from "../../components/FilterToolbar.js";
 import { PageLoader } from "../../components/PageLoader.js";
 import { SidePanel } from "../../components/SidePanel.js";
+import { EmptyState } from "../../components/EmptyState.js";
 import { TabBar } from "../../components/TabBar.js";
 import { showToast } from "../../components/Toast.js";
 
@@ -293,7 +294,7 @@ function Detail({ label, value, mono }: { label: string; value: React.ReactNode;
 function ReportDetail({ label, value }: { label: string; value: string }) { return <div style={{ display: "grid", gap: 4, paddingBottom: 11, borderBottom: "1px solid var(--color-border)" }}><span style={kickerStyle}>{label}</span><span style={{ color: "var(--color-text)", font: "13px var(--font-sans)" }}>{value}</span></div>; }
 function Explainer({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) { return <div style={{ padding: 14, border: "1px solid var(--color-border)", borderRadius: 10, background: "var(--surface-2)" }}><span style={{ color: "var(--color-brand)", display: "inline-flex" }}>{icon}</span><h3 style={{ margin: "9px 0 5px", color: "var(--color-text)", font: "600 13px var(--font-sans)" }}>{title}</h3><p style={{ margin: 0, color: "var(--color-text-faint)", font: "12px/1.5 var(--font-sans)" }}>{text}</p></div>; }
 function Legend({ color, label }: { color: string; label: string }) { return <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><i aria-hidden style={{ width: 8, height: 8, borderRadius: 99, background: color }} />{label}</span>; }
-function EmptyChart({ message = "Ainda não há movimentações neste período." }: { message?: string }) { return <div style={{ minHeight: 210, display: "grid", placeItems: "center", padding: 20, color: "var(--color-text-faint)", font: "13px var(--font-sans)", textAlign: "center" }}>{message}</div>; }
+function EmptyChart({ message = "Ainda não há movimentações neste período." }: { message?: string }) { return <div style={{ padding: 20 }}><EmptyState title="Sem movimentações" description={message} /></div>; }
 function rangeFor(preset: Exclude<RangePreset, "custom">): { from: string; to: string } { const to = toSaoPauloDate(new Date()); if (preset === "today") return { from: to, to }; const days = preset === "7d" ? 6 : preset === "15d" ? 14 : 29; return { from: addDays(to, -days), to }; }
 function toSaoPauloDate(date: Date): string { const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date); const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? ""; return `${value("year")}-${value("month")}-${value("day")}`; }
 function addDays(value: string, days: number): string { const [year, month, day] = value.split("-").map(Number); return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10); }

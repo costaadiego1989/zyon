@@ -1,5 +1,6 @@
 import React from "react";
 import { Plus, BookOpen } from "lucide-react";
+import { EmptyState } from "../../../components/EmptyState.js";
 import { Button } from "../../../components/Button.js";
 import type { AdvancedRule } from "../lib/draft.js";
 import { RuleCard } from "./RuleCard.js";
@@ -23,21 +24,9 @@ export function RulesList({
 }) {
   if (rules.length === 0) {
     return (
-      <div className="cfg-rules-empty">
-        <div className="cfg-rules-empty-icon">
-          <BookOpen size={40} strokeWidth={1.25} />
-        </div>
-        <p className="cfg-rules-empty-text">Crie regras para o agente seguir</p>
-        <Button
-          variant="primary"
-          arrow
-          disabled={busy}
-          onClick={onAdd}
-        >
-          <Plus size={14} strokeWidth={1.75} />
-          Adicionar regra
-        </Button>
-      </div>
+      <EmptyState icon={BookOpen} title="Nenhuma regra configurada"
+        description="Defina as condições e ações que o agente pode usar durante a compra."
+        action={<Button variant="primary" arrow disabled={busy} onClick={onAdd}><Plus size={14} /> Adicionar regra</Button>} />
     );
   }
 

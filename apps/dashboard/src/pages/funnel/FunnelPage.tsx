@@ -23,7 +23,7 @@ export function FunnelPage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Merchan
   const vm = useFunnelPage({ apiBaseUrl, merchantId: me.id, merchantName: me.name, plan: me.plan });
 
   return (
-    <div className="dashboard-content funnel-page">
+    <div className="dashboard-content page-container funnel-page">
       {/* ── Error State ── */}
       {vm.error && (
         <div style={{ padding: "48px 32px" }}>
@@ -37,7 +37,7 @@ export function FunnelPage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Merchan
       )}
 
       {/* ── Header ── */}
-      <header className="fnl-head">
+      <header className="page-head">
         <div className="fnl-head-left">
           <span className="eyebrow">Checkout</span>
           <h1>Funil de Conversão</h1>

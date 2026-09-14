@@ -2,7 +2,7 @@ import type {
   StrategyPreferencesRepositoryPort,
 } from "../../domain/ports/strategy-preferences-repository.port.js";
 import type { StrategyPreferences, StrategyConfig } from "../../domain/values/recovery-strategy.js";
-import { defaultStrategyPreferences } from "../../domain/values/recovery-strategy.js";
+import { defaultStrategyPreferences, normalizeStrategyPreferences } from "../../domain/values/recovery-strategy.js";
 
 /**
  * In-memory strategy preferences + config repo. Used as test double only.
@@ -17,8 +17,10 @@ export class InMemoryStrategyPreferencesRepository implements StrategyPreference
   }
 
   async save(merchantId: string, strategies: StrategyPreferences): Promise<StrategyPreferences> {
-    this.prefs.set(merchantId, { ...strategies });
-    return { ...strategies };
+    const normalized = normalizeStrategyPreferences(strategies);
+    const active = Object.keys(normalized).find(key => normalized[key as keyof StrategyPreferences]) as StrategyConfig["active_strategy"];
+    await this.saveConfig(merchantId, { active_strategy: active });
+    return { ...normalized };
   }
 
   async getConfig(merchantId: string): Promise<StrategyConfig> {
@@ -29,8 +31,11 @@ export class InMemoryStrategyPreferencesRepository implements StrategyPreference
     };
   }
 
-  async saveConfig(merchantId: string, cfg: StrategyConfig): Promise<StrategyConfig> {
+  async saveConfig(merchantId: string, patch: Partial<StrategyConfig>): Promise<StrategyConfig> {
+    const defined = Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined));
+    const cfg = { ...await this.getConfig(merchantId), ...defined };
     this.config.set(merchantId, { ...cfg });
+    this.prefs.set(merchantId, normalizeStrategyPreferences({ [cfg.active_strategy]: true }));
     return { ...cfg };
   }
 }

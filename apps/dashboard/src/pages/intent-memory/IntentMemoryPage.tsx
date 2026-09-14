@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Brain, Target, Sparkles, Activity, TrendingUp } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { Button } from "../../components/Button.js";
+import { EmptyState } from "../../components/EmptyState.js";
 import { TabBar } from "../../components/TabBar.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
@@ -314,9 +315,7 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
               Ative para ver os perfis dos clientes mais recentes.
             </div>
           ) : vm.signals.length === 0 ? (
-            <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
-              Nenhum cliente com perfil ainda. Os perfis aparecem depois das primeiras conversas (com autorização do cliente).
-            </div>
+            <EmptyState icon={Brain} title="Nenhum cliente com perfil ainda" description="Os perfis aparecem depois das primeiras conversas, com autorização do cliente." />
           ) : (
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10 }}>
               {vm.signals.slice(0, 5).map((s, i) => (

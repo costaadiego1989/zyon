@@ -25,8 +25,8 @@ export function StoreSettingsPage() {
   if (state.loading || seoState.loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--color-text-faint)" }}>Carregando...</div>;
 
   return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+    <div className="page-container">
+      <header className="page-head">
         <div>
           <span className="eyebrow">LOJA</span>
           <h1 >Configurações</h1>
@@ -35,7 +35,7 @@ export function StoreSettingsPage() {
         <Button variant="primary" size="sm" arrow onClick={state.activeTab === "seo-gtm" ? handleSeoSave : handleSave} disabled={state.saving || seoState.saving} loading={state.saving || seoState.saving}>
           <Save size={14} /> Salvar configurações
         </Button>
-      </div>
+      </header>
 
       {/* Card container */}
       <TabBar
@@ -50,7 +50,7 @@ export function StoreSettingsPage() {
         onTabChange={(k) => setActiveTab(k as any)}
       />
 
-      <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, overflow: "hidden", marginTop: 16 }}>
+      <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, overflow: "hidden" }}>
 
         {/* Content */}
         <div style={{ padding: "24px 22px", minHeight: 400 }}>

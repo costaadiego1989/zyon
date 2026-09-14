@@ -243,9 +243,7 @@ export function ProtocolPage(props: ProtocolPageProps) {
         </div>
 
         {vm.webhookLogs.length === 0 ? (
-          <div style={{ padding: "24px 0", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>
-            Nenhuma entrega registrada
-          </div>
+          <EmptyState icon={Webhook} title="Nenhuma entrega registrada" description="As tentativas de entrega aparecerão aqui após o primeiro evento." />
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={TABLE_STYLE}>

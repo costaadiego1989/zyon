@@ -6,6 +6,7 @@ import {
   Save,
   Trash2,
 } from "lucide-react";
+import { EmptyState } from "../../../components/EmptyState.js";
 import { Button } from "../../../components/Button.js";
 import { SectionHeader } from "../../../components/SectionHeader.js";
 import { FormField, FormTextarea } from "../../../components/FormField.js";
@@ -73,25 +74,9 @@ export function SupportFaqTab(props: Props) {
           />
 
           {items.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-state-icon">
-                <Plus size={20} />
-              </div>
-              <h3>Nenhuma pergunta cadastrada</h3>
-              <p>
-                Adicione perguntas frequentes para que o agente responda automaticamente
-                no checkout sem acionar o handoff humano.
-              </p>
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={saving}
-                onClick={addItem}
-              >
-                <Plus size={14} />
-                Adicionar primeira pergunta
-              </button>
-            </div>
+            <EmptyState icon={Plus} title="Nenhuma pergunta cadastrada"
+              description="Adicione perguntas frequentes para que o agente responda automaticamente no checkout."
+              action={<Button variant="outline" disabled={saving} onClick={addItem}><Plus size={14} /> Adicionar primeira pergunta</Button>} />
           ) : (
             <>
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>

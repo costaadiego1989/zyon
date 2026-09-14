@@ -32,6 +32,8 @@ export function SidePanel({ isOpen, title, onClose, children }: SidePanelProps) 
           top: 0,
           bottom: 0,
           width: "420px",
+          maxWidth: "100vw",
+          boxSizing: "border-box",
           background: "var(--surface-1)",
           borderLeft: "1px solid var(--color-border)",
           zIndex: 1000,

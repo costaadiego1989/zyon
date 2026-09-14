@@ -1,164 +1,80 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import { reportError } from "../../hooks/useErrorReporter.js";
 import { showToast } from "../../components/Toast.js";
 import { normalizeCartRecoveryMetrics } from "../../api/endpoints/cart-recovery-metrics.js";
-import type {
-  CartRecoveryMetrics,
-  CartRecoveryAttempt,
-  CartRecoveryStrategyPreferences,
-  CartRecoveryStrategyKey,
-  CartRecoveryStrategyConfig,
-} from "../../api/endpoints/cart-recovery.js";
-
-const DEFAULT_STRATEGIES: CartRecoveryStrategyPreferences = {
-  offer_free_shipping: false,
-  personalized_cross_sell: false,
-  offer_coupon: true,
-  advanced_rule: false,
-};
-
-const EMPTY_METRICS = normalizeCartRecoveryMetrics(null);
-
-const DEFAULT_CONFIG: CartRecoveryStrategyConfig = {
-  active_strategy: "offer_coupon",
-  coupon_code: undefined,
-  rule_id: undefined,
-};
+import type { CartRecoveryMetrics, CartRecoveryAttempt, CartRecoveryStrategyKey, CartRecoveryStrategyConfig } from "../../api/endpoints/cart-recovery.js";
 
 export interface CouponOption {
-  id: string;
-  code: string;
-  type: string;
-  value: number;
-  isActive: boolean;
+  id: string; code: string; discountType: string; discountValue: number;
+  isActive: boolean; startsAt?: string; expiresAt?: string; maxUses?: number; usedCount?: number;
 }
-
-export interface RuleOption {
-  id: string;
-  name: string;
-}
+export interface RuleOption { id: string; name: string; }
 
 export function useCartRecoveryPage() {
   const api = useApi();
   const [metrics, setMetrics] = useState<CartRecoveryMetrics | null>(null);
   const [attempts, setAttempts] = useState<CartRecoveryAttempt[]>([]);
-  const [strategies, setStrategies] = useState<CartRecoveryStrategyPreferences>(DEFAULT_STRATEGIES);
-  const [config, setConfig] = useState<CartRecoveryStrategyConfig>(DEFAULT_CONFIG);
+  const [config, setConfig] = useState<CartRecoveryStrategyConfig>({ active_strategy: "offer_coupon" });
   const [savingKey, setSavingKey] = useState<CartRecoveryStrategyKey | null>(null);
+  const saving = useRef(false);
   const [loading, setLoading] = useState(true);
-
-  // Available coupons and rules for selection
+  const [error, setError] = useState<string | null>(null);
+  const [loadVersion, setLoadVersion] = useState(0);
   const [coupons, setCoupons] = useState<CouponOption[]>([]);
   const [rules, setRules] = useState<RuleOption[]>([]);
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const [metRaw, attData, stratData, cfgData, couponData, settingsData] = await Promise.all([
-          api.getCartRecoveryMetrics?.().catch(() => null),
-          api.getCartRecoveryAttempts?.().catch(() => null),
-          api.getCartRecoveryStrategies?.().catch(() => null),
-          api.getCartRecoveryConfig?.().catch(() => null),
-          api.listCoupons?.().catch(() => null),
-          api.getCheckoutSettings?.().catch(() => null),
-        ]);
-        if (cancelled) return;
-
-        // Normalize metrics
-        const normalizedMetrics = normalizeCartRecoveryMetrics(metRaw);
-
-        setMetrics(normalizedMetrics);
-        setAttempts(attData ?? []);
-        if (stratData) setStrategies({ ...DEFAULT_STRATEGIES, ...stratData });
-        if (cfgData) setConfig(cfgData);
-
-        // Load available coupons (only active)
-        if (couponData) {
-          setCoupons((couponData as unknown as CouponOption[]).filter((c) => c.isActive));
-        }
-
-        // Load available rules from checkout settings
-        if (settingsData && (settingsData as any).advancedRules) {
-          setRules(((settingsData as any).advancedRules as any[]).map((r: any) => ({
-            id: r.id,
-            name: r.name ?? r.label ?? r.id,
-          })));
-        }
-      } catch (e) {
-        reportError({ source: "cart-recovery.load", error: e });
-        if (!cancelled) {
-          setMetrics(EMPTY_METRICS);
-          setAttempts([]);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
+    setLoading(true);
+    setError(null);
+    Promise.all([
+      api.getCartRecoveryMetrics(), api.getCartRecoveryAttempts(),
+      api.getCartRecoveryConfig(), api.listCoupons(), api.getCheckoutSettings(),
+    ]).then(([rawMetrics, attemptData, savedConfig, couponData, settings]) => {
+      if (cancelled) return;
+      setMetrics(normalizeCartRecoveryMetrics(rawMetrics));
+      setAttempts(attemptData);
+      setConfig(savedConfig);
+      const now = Date.now();
+      setCoupons((couponData as unknown as CouponOption[]).filter(c => c.isActive
+        && (!c.startsAt || new Date(c.startsAt).getTime() <= now)
+        && (!c.expiresAt || new Date(c.expiresAt).getTime() > now)
+        && (!c.maxUses || (c.usedCount ?? 0) < c.maxUses)));
+      setRules((settings.advancedRules ?? []).filter(rule => rule.enabled).map(rule => ({ id: rule.id, name: rule.name })));
+    }).catch(cause => {
+      if (cancelled) return;
+      reportError({ source: "cart-recovery.load", error: cause });
+      setError("Não foi possível carregar a recuperação de carrinho. Tente novamente.");
+    }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [api, loadVersion]);
 
-  const selectStrategy = useCallback(async (key: CartRecoveryStrategyKey) => {
-    if (strategies[key]) return;
-
-    const previous = { ...strategies };
-    const prevConfig = { ...config };
-    const next: CartRecoveryStrategyPreferences = {
-      offer_free_shipping: false,
-      personalized_cross_sell: false,
-      offer_coupon: false,
-      advanced_rule: false,
-      [key]: true,
-    };
-
-    setStrategies(next);
-    setConfig((c) => ({ ...c, active_strategy: key }));
-    setSavingKey(key);
+  const saveConfig = useCallback(async (patch: Partial<CartRecoveryStrategyConfig>): Promise<boolean> => {
+    if (saving.current || loading || error) return false;
+    saving.current = true;
+    setSavingKey(patch.active_strategy ?? config.active_strategy);
     try {
-      const [savedStrat, savedCfg] = await Promise.all([
-        api.patchCartRecoveryStrategies(next),
-        api.patchCartRecoveryConfig({ active_strategy: key }),
-      ]);
-      setStrategies({ ...DEFAULT_STRATEGIES, ...savedStrat });
-      setConfig(savedCfg);
-      showToast("success", "Estratégia ativada");
-    } catch (e) {
-      setStrategies(previous);
-      setConfig(prevConfig);
-      reportError({ source: "cart-recovery.select", error: e });
-      showToast("error", e instanceof Error ? e.message : "Erro ao salvar estratégia");
-    } finally {
-      setSavingKey(null);
-    }
-  }, [api, strategies, config]);
-
-  const saveConfig = useCallback(async (patch: Partial<CartRecoveryStrategyConfig>) => {
-    const prevConfig = { ...config };
-    const merged = { ...config, ...patch };
-    setConfig(merged);
-    try {
+      // The API saves config and the single selected strategy in one transaction.
       const saved = await api.patchCartRecoveryConfig(patch);
       setConfig(saved);
       showToast("success", "Configuração salva");
-    } catch (e) {
-      setConfig(prevConfig);
-      reportError({ source: "cart-recovery.config", error: e });
-      showToast("error", e instanceof Error ? e.message : "Erro ao salvar configuração");
+      return true;
+    } catch (cause) {
+      reportError({ source: "cart-recovery.config", error: cause });
+      showToast("error", cause instanceof Error ? cause.message : "Erro ao salvar configuração");
+      return false;
+    } finally {
+      saving.current = false;
+      setSavingKey(null);
     }
-  }, [api, config]);
+  }, [api, config.active_strategy, loading, error]);
 
-  return {
-    metrics,
-    attempts,
-    strategies,
-    config,
-    savingKey,
-    loading,
-    selectStrategy,
-    saveConfig,
-    coupons,
-    rules,
-  };
+  const selectStrategy = useCallback((key: CartRecoveryStrategyKey) => {
+    if (key === config.active_strategy) return Promise.resolve(true);
+    return saveConfig({ active_strategy: key });
+  }, [config.active_strategy, saveConfig]);
+
+  return { metrics, attempts, config, savingKey, loading, error,
+    retry: () => setLoadVersion(value => value + 1), selectStrategy, saveConfig, coupons, rules };
 }

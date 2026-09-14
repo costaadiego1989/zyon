@@ -186,10 +186,8 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
                   </div>
                 ))}
                 {vm.stories.length === 0 && (
-                  <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px", color: "var(--color-text-faint)", fontSize: "14px" }}>
-                    <Image size={32} style={{ marginBottom: "8px", opacity: 0.4 }} />
-                    <div>Nenhum story nesta categoria</div>
-                    <div style={{ fontSize: "12px", marginTop: "4px" }}>Clique em "Adicionar Story" para começar</div>
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <EmptyState icon={Image} title="Nenhum story nesta categoria" description={'Clique em "Adicionar Story" para começar.'} />
                   </div>
                 )}
               </div>
