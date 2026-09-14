@@ -1,3 +1,4 @@
+import { StockAlertMonitorJob } from "./infrastructure/jobs/stock-alert-monitor.job.js";
 import { Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
@@ -136,6 +137,7 @@ import { TriggerErpSyncUseCase } from "./application/use-cases/trigger-erp-sync.
     ReconcileCatalogStockUseCase,
     InventoryReconciliationScheduler,
     InventoryReconciliationWorker,
+    StockAlertMonitorJob,
     ErpSyncService,
     ErpSyncWorker,
     TriggerErpSyncUseCase,

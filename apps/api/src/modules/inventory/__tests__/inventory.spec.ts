@@ -155,6 +155,7 @@ class InMemoryMovementRepository implements InventoryMovementRepositoryPort {
 }
 
 class InMemoryAlertRepository implements InventoryAlertRepositoryPort {
+  async reconcileStock(): Promise<void> { throw new Error("Use the real stock alert reconciler fixture for stock monitoring tests"); }
   private alerts: AlertRow[] = [];
 
   async create(data: { merchantId: string; itemId: string; severity: string; message: string }) {

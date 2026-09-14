@@ -1,3 +1,4 @@
+import { reconcileStockAlert } from "./reconcile-stock-alert.js";
 import type { PrismaClient, Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import type { InventorySaleRepositoryPort } from "../../domain/ports/inventory-sale.repository.port.js";
@@ -78,11 +79,7 @@ export class PrismaInventorySaleRepository implements InventorySaleRepositoryPor
         await tx.inventoryMovement.create({ data: { merchantId: event.merchantId, itemId: row.id, kind: "EXIT", quantity: line.quantity,
           reason: "sale_completed", externalRef: event.orderId, source: "commerce" } });
         const remainingQuantity = row.quantity - line.quantity;
-        if (row.low_stock_threshold !== null && remainingQuantity - row.reserved <= row.low_stock_threshold) {
-          const existingAlert = await tx.inventoryAlert.findFirst({ where: { merchantId: event.merchantId, itemId: row.id, acknowledged: false } });
-          if (!existingAlert) await tx.inventoryAlert.create({ data: { merchantId: event.merchantId, itemId: row.id,
-            severity: remainingQuantity === row.reserved ? "critical" : "warning", message: `Low inventory after sale: ${remainingQuantity - row.reserved} units (${line.sku})` } });
-        }
+        await reconcileStockAlert(tx, event.merchantId, row.id);
         const catalogStock = catalogStocks[index];
         if (catalogStock) {
           // Keep the catalog read model at the exact ledger balance. The variant

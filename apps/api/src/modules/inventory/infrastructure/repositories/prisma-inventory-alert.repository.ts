@@ -1,3 +1,4 @@
+import { reconcileStockAlert } from "./reconcile-stock-alert.js";
 import { Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { INVENTORY_ALERT_REPOSITORY, type InventoryAlertRepositoryPort, type AlertRow } from "../../domain/ports/inventory-alert-repository.port.js";
@@ -5,6 +6,10 @@ import { INVENTORY_ALERT_REPOSITORY, type InventoryAlertRepositoryPort, type Ale
 @Injectable()
 export class PrismaInventoryAlertRepository implements InventoryAlertRepositoryPort {
   constructor(private prisma: PrismaClient) {}
+
+  async reconcileStock(merchantId: string, itemId: string): Promise<void> {
+    await this.prisma.$transaction(tx => reconcileStockAlert(tx, merchantId, itemId));
+  }
 
   async create(data: {
     merchantId: string;
@@ -61,9 +66,13 @@ export class PrismaInventoryAlertRepository implements InventoryAlertRepositoryP
   }
 
   async acknowledge(merchantId: string, alertId: string): Promise<void> {
-    await this.prisma.inventoryAlert.update({
-      where: { id: alertId },
-      data: { acknowledged: true, acknowledgedAt: new Date() },
+    await this.prisma.$transaction(async tx => {
+      await tx.inventoryAlert.updateMany({
+        where: { id: alertId, merchantId },
+        data: { acknowledged: true, acknowledgedAt: new Date() },
+      });
+      await tx.merchantNotification.updateMany({ where: { merchantId, type: "inventory_alert",
+        metadata: { path: ["inventoryAlertId"], equals: alertId } }, data: { read: true } });
     });
   }
 

@@ -14,6 +14,7 @@ export interface AlertRow {
 }
 
 export interface InventoryAlertRepositoryPort {
+  reconcileStock(merchantId: string, itemId: string): Promise<void>;
   create(data: {
     merchantId: string;
     itemId: string;
