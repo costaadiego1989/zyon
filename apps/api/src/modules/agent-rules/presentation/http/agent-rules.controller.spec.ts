@@ -29,3 +29,15 @@ test("AgentRulesController manages authenticated user's agent rules", async () =
   assert.equal(context.agent.agentName, "Clara Prime");
   assert.equal(context.capabilities.machineToMachineNegotiation, true);
 });
+
+test("merchant channel settings are shared by admins and isolated from other merchants and named agents", async () => {
+  const repo = new InMemoryAgentRulesRepository();
+  const controller = new AgentRulesController(new GetAgentRulesUseCase(repo), new UpdateAgentRulesUseCase(repo), new GetAgentContextUseCase(repo, { getContext: async () => undefined }));
+  const request = (merchantId: string, userId: string) => ({ user: { merchantId, userId, email: "admin@example.com", role: "admin" as const } });
+  await controller.updateDefault(request("m1", "u1"), { identity: { agentName: "Shared" } } as never);
+  await controller.updateAgent(request("m1", "u1"), "private-agent", { identity: { agentName: "Named" } } as never);
+  assert.equal((await controller.defaultRules(request("m1", "u2"))).identity.agentName, "Shared");
+  assert.equal((await controller.defaultRules(request("m1", "u2"))).scope, "merchant_default");
+  assert.notEqual((await controller.defaultRules(request("m2", "u1"))).identity.agentName, "Shared");
+  assert.equal((await controller.byAgent(request("m1", "u2"), "private-agent")).identity.agentName, "Named");
+});

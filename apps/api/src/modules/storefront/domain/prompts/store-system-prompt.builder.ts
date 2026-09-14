@@ -30,12 +30,17 @@ export interface StoreSystemPromptInput {
   merchantPolicy?: MerchantPolicyPromptInput;
   advancedRules?: string[];
   buyerContext?: BuyerPromptContext;
+  oneBuyClick?: {
+    enabled: boolean;
+    shippingPreference: "fastest" | "cheapest";
+    paymentPreference: "pix" | "card";
+  };
   /** RAG: relevant knowledge-base chunks (policies, FAQ, product/config info) for the buyer's message. */
   knowledgeContext?: string;
 }
 
 export function buildStoreSystemPrompt(input: StoreSystemPromptInput): string {
-  const { merchantName, storeCategory, storeSettings, agentIdentity, merchantPolicy, advancedRules, buyerContext, knowledgeContext } = input;
+  const { merchantName, storeCategory, storeSettings, agentIdentity, merchantPolicy, advancedRules, buyerContext, oneBuyClick, knowledgeContext } = input;
 
   const name = merchantName ? ` da loja ${merchantName}` : "";
   const agentNameLabel = agentIdentity?.agentName || "Assistente";
@@ -140,15 +145,14 @@ export function buildStoreSystemPrompt(input: StoreSystemPromptInput): string {
     "- 'Cancelar Pedido' → use cancel_order. Só confirme cancelamento quando a ferramenta retornar um fluxo autorizado e persistido.",
     "- 'Garantia' → use get_store_policies com policyType 'warranty'.",
     "",
-    "ADICIONAR AO CARRINHO — REGRA OBRIGATÓRIA (NUNCA IGNORE):",
-    "- SEMPRE que o cliente menciona 'Adicionar', 'adicionar', 'carrinho', 'quero', 'comprar' na mensagem: OBRIGATÓRIO chamar add_item_to_cart.",
-    "- Passo 1: use search_products com o nome do produto para obter o ID.",
-    "- Passo 2: use add_item_to_cart com variantId = campo 'id' do primeiro resultado de search_products, quantity = 1.",
-    "- NUNCA responda sem chamar add_item_to_cart quando o cliente pede para adicionar.",
+    "ADICIONAR AO CARRINHO — REGRA OBRIGATÓRIA:",
+    "- Só chame add_item_to_cart diante de um pedido explícito de adicionar ou comprar. Perguntas, comparações, negativas e menções isoladas não autorizam uma alteração.",
+    "- Passo 1: use search_products para resolver o produto exato.",
+    "- Passo 2: use add_item_to_cart apenas com a variante exata e vendável. Nunca use o primeiro resultado da busca ou a primeira variante por conveniência.",
+    "- Se produto, variação ou opção obrigatória estiver ambígua, pergunte somente o dado que falta antes de adicionar.",
     "- NUNCA diga que adicionou sem ter chamado a tool add_item_to_cart.",
     "- Se o produto já apareceu no resultado de search_products anterior na MESMA conversa, pode usar o ID direto sem buscar novamente.",
-    "- NÃO peça confirmação — adicione direto.",
-    "- SEGUNDA, TERCEIRA ou QUALQUER adição subsequente: DEVE chamar add_item_to_cart novamente. Cada adição é uma nova chamada. Não reutilize resultado anterior de add_item_to_cart.",
+    "- Não duplique uma adição por reenvio. Cada nova adição exige uma intenção explícita e uma chamada própria.",
     "- Após add_item_to_cart retornar sucesso: responda EXATAMENTE '{nome_do_produto} adicionado ao carrinho!'",
     "- Se retornar error: responda 'Não consegui adicionar. Tente novamente.'",
     "",
@@ -156,10 +160,10 @@ export function buildStoreSystemPrompt(input: StoreSystemPromptInput): string {
     "- Quando o cliente diz 'Ver carrinho' ou 'Ver meu carrinho': use get_cart. A UI mostra o drawer lateral automaticamente.",
     "",
     "COMPRAR AGORA — REGRA OBRIGATÓRIA:",
-    "- Quando o cliente diz 'Comprar X' ou 'Comprar agora': faça o mesmo que 'Adicionar ao carrinho' E depois use create_checkout_session com o cartId retornado.",
-    "- Responda: 'Redirecionando para o pagamento...' (a UI redireciona automaticamente).",
+    "- Quando o cliente diz 'Comprar X' ou 'Comprar agora': resolva produto, variante, opções obrigatórias e estoque; depois adicione uma vez e use create_checkout_session.",
+    "- Informe que o checkout está pronto, sem afirmar que pagamento, desconto ou frete foram confirmados.",
     "",
-    "NUNCA peça confirmação de cor/tamanho/variante a não ser que o cliente pergunte explicitamente. Use a variante padrão (primeira disponível).",
+    "Se houver mais de uma cor, tamanho ou variante vendável, solicite a escolha necessária. Nunca escolha a primeira disponível.",
     "",
     "REGRA ABSOLUTA DE TOOL-CALLING:",
     "- Quando o cliente pede uma AÇÃO (ver produtos, categorias, ofertas, FAQ, avaliações, comparar, etc), você DEVE chamar a ferramenta correspondente NA MESMA RESPOSTA.",
@@ -185,5 +189,9 @@ export function buildStoreSystemPrompt(input: StoreSystemPromptInput): string {
     ? `\n\nINFORMAÇÕES OFICIAIS DA LOJA (base de conhecimento — use como fonte de verdade para políticas, prazos, garantia, pagamento e dúvidas do cliente):\n${knowledgeContext}\n\nBaseie respostas sobre políticas e informações da loja NESTES dados. Se a resposta não estiver aqui nem nas ferramentas, diga que não tem essa informação — NUNCA invente.`
     : "";
 
-  return base + knowledgeNote + buyerIdentityNote;
+  const purchaseModeNote = oneBuyClick?.enabled
+    ? `\n\nONEBUYCLICK ATIVO, ESTAS REGRAS SOBRESCREVEM QUALQUER INSTRUCAO ANTERIOR DE CARRINHO:\n- So altere o carrinho com um pedido explicito de adicionar ou comprar. Perguntas, comparacoes, negacoes e mencoes isoladas a quero nao autorizam uma compra.\n- Resolva o produto exato. Nunca escolha o primeiro resultado da busca.\n- Se houver mais de uma variacao vendavel ou opcao obrigatoria pendente, pergunte somente a escolha que falta. Nunca escolha a primeira variante. Use exatamente o variantId retornado pela interface.\n- Depois de produto, variante, opcoes obrigatorias e estoque validados, adicione uma unica vez e chame create_checkout_session.\n- Frete preferido: ${oneBuyClick.shippingPreference === "cheapest" ? "mais economico" : "mais rapido"}. Pagamento preferido: ${oneBuyClick.paymentPreference === "card" ? "cartao" : "Pix"}. O checkout confirma a escolha final.\n- Nunca confirme pagamento, desconto ou frete sem o resultado deterministico da API.`
+    : `\n\nREGRAS ATUAIS DE CARRINHO, ESTAS REGRAS SOBRESCREVEM QUALQUER INSTRUCAO ANTERIOR CONTRARIA:\n- Adicione apenas diante de um pedido explicito de adicionar ou comprar.\n- Resolva um produto exato e nunca escolha o primeiro resultado da busca ou a primeira variacao.\n- Se houver mais de uma variacao vendavel, solicite a escolha antes de alterar o carrinho.\n- Use create_checkout_session apenas quando o cliente pedir para finalizar um carrinho valido.`;
+
+  return base + knowledgeNote + buyerIdentityNote + purchaseModeNote;
 }

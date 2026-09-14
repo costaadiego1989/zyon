@@ -27,7 +27,7 @@ export class AgentRulesController {
   @Get()
   defaultRules(@Req() request: AuthenticatedRequest) {
     const user = currentUser(request);
-    return this.getRules.execute({ merchantId: user.merchantId, userId: user.userId });
+    return this.getRules.execute({ merchantId: user.merchantId });
   }
 
   @Put()
@@ -37,13 +37,13 @@ export class AgentRulesController {
     body: AgentRulesPatchDto
   ) {
     const user = currentUser(request);
-    return this.updateRules.execute({ merchantId: user.merchantId, userId: user.userId }, body);
+    return this.updateRules.execute({ merchantId: user.merchantId }, body);
   }
 
   @Get("context")
   defaultContext(@Req() request: AuthenticatedRequest) {
     const user = currentUser(request);
-    return this.getContext.execute({ merchantId: user.merchantId, userId: user.userId });
+    return this.getContext.execute({ merchantId: user.merchantId });
   }
 
   @Get(":agentId")

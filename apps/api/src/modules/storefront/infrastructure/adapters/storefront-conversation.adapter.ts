@@ -24,6 +24,7 @@ import { SupportHandoffService } from "../../../support/application/support-hand
 import { AgentCopyService } from "../copy/agent-copy.service.js";
 import { resolveDeterministicShortcut } from "../shortcuts/deterministic-shortcuts.service.js";
 import { QueryKnowledgeUseCase } from "../../../knowledge-base/application/use-cases/query-knowledge.use-case.js";
+import { OneBuyClickSessionService } from "../../application/services/one-buy-click-session.service.js";
 
 export const STOREFRONT_CONVERSATION_ADAPTER = Symbol("StorefrontConversationAdapter");
 
@@ -50,6 +51,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     @Optional() @Inject(COUPON_REPOSITORY) private readonly couponRepo?: CouponRepository,
     @Optional() @Inject(PRODUCT_PROMOTION_REPOSITORY) private readonly productPromotionRepo?: ProductPromotionRepositoryPort,
     @Optional() private readonly queryKnowledge?: QueryKnowledgeUseCase,
+    @Optional() private readonly oneBuyClick?: OneBuyClickSessionService,
   ) {
     const localApiKey = process.env.LOCAL_LLM_API_KEY || process.env.OPENROUTER_API_KEY || "";
     const localBaseUrl = process.env.LOCAL_LLM_BASE_URL || process.env.OPENROUTER_BASE_URL || undefined;
@@ -85,6 +87,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       applyCouponUseCase: this.applyCouponUseCase,
       couponRepo: this.couponRepo,
       productPromotionRepo: this.productPromotionRepo,
+      oneBuyClick: this.oneBuyClick,
     };
 
     const placeholderHandlers: StoreToolHandlers = {} as any;
@@ -107,6 +110,11 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       merchantId: input.merchantId,
       sessionId: input.cartId || input.sessionId,
       buyer: input.buyerContext,
+      oneBuyClick: input.oneBuyClick ? {
+        enabled: input.oneBuyClick.enabled,
+        shippingPreference: input.oneBuyClick.shippingPreference,
+        paymentPreference: input.oneBuyClick.paymentPreference,
+      } : undefined,
     };
     const deviceMeta = input.deviceType ? { device: input.deviceType } : undefined;
     this.emitFunnelEvent(input.merchantId, input.sessionId, "checkout_started", deviceMeta).catch(() => {});
@@ -187,6 +195,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       merchantPolicy: input.merchantPolicy,
       advancedRules: input.advancedRules,
       buyerContext: input.buyerContext,
+      oneBuyClick: input.oneBuyClick,
       knowledgeContext,
       systemPrompt: input.experimentSystemPrompt,
       toolHandlers: composeStoreToolHandlers(this.handlerDeps, ctx),

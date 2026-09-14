@@ -11,6 +11,9 @@ export interface UpdateBuyerPreferencesRequest {
   pushNotificationsEnabled?: boolean;
   m2mNegotiationEnabled?: boolean;
   language?: string;
+  oneBuyClickEnabled?: boolean;
+  shippingPreference?: "fastest" | "cheapest";
+  paymentPreference?: "pix" | "card";
 }
 
 @Injectable()
@@ -50,6 +53,9 @@ export class UpdateBuyerPreferencesUseCase {
       push_notifications_enabled: row.pushNotificationsEnabled,
       m2m_negotiation_enabled: row.m2mNegotiationEnabled,
       language: row.language,
+      one_buy_click_enabled: row.oneBuyClickEnabled === true,
+      shipping_preference: row.shippingPreference === "cheapest" ? "cheapest" : "fastest",
+      payment_preference: row.paymentPreference === "card" ? "card" : "pix",
     };
   }
 }

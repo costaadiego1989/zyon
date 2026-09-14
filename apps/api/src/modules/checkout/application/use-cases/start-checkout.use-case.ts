@@ -22,6 +22,7 @@ import { InterventionRuleTextBuilder } from "../services/intervention-rule-text.
 import { CheckoutCartAuthorityService } from "../services/checkout-cart-authority.service.js";
 import { unverifiedCustomerHints } from "../services/checkout-input-policy.js";
 import type { TrustedCheckoutBuyer } from "../services/trusted-checkout-buyer.js";
+import { OrderQuotaService } from "../../../payment/application/services/order-quota.service.js";
 import {
   PAYMENT_PLATFORM_REPOSITORY,
   type PaymentPlatformRepository,
@@ -51,6 +52,7 @@ export class StartCheckoutUseCase {
     @Optional() @Inject(CHECKOUT_CROSS_SELL_RECOMMENDER) private readonly crossSell?: CheckoutCrossSellRecommenderPort,
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL },
     @Optional() private readonly cartAuthority?: CheckoutCartAuthorityService,
+    private readonly orderQuota?: OrderQuotaService,
     @Optional() @Inject(PAYMENT_PLATFORM_REPOSITORY) private readonly paymentConnections?: PaymentPlatformRepository,
     @Optional() @Inject(PROMPT_EXPERIMENT_PORT) private readonly promptExperiment?: PromptExperimentPort,
   ) { }
@@ -59,6 +61,7 @@ export class StartCheckoutUseCase {
     if (typeof input.merchant_id !== "string" || !input.merchant_id.trim()) {
       throw new BadRequestException("checkout_merchant_required");
     }
+    await this.orderQuota?.assertCanAcceptNewSales(input.merchant_id);
     if (!this.cartAuthority) throw new ServiceUnavailableException("checkout_cart_authority_unavailable");
     const { global_user_id: _untrustedBuyerId, ...untrustedInput } = input as StartCheckoutRequest & { global_user_id?: unknown };
     input = {

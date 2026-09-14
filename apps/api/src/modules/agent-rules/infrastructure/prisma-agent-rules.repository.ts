@@ -1,3 +1,4 @@
+import { findMerchantAgentRule } from "./find-merchant-agent-rule.js";
 import type { PrismaClient } from "@prisma/client";
 import type { AgentRules } from "../domain/agent-rules.types.js";
 import type { AgentRulesRepository } from "../domain/ports/agent-rules-repository.port.js";
@@ -7,6 +8,10 @@ export class PrismaAgentRulesRepository implements AgentRulesRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
   async getDefault(merchantId: string, userId?: string): Promise<AgentRules | undefined> {
+    if (!userId) {
+      const row = await findMerchantAgentRule(this.prisma, merchantId);
+      return row ? { ...toAgentRules(row), agentId: "default", userId: undefined, scope: "merchant_default" } : undefined;
+    }
     const row = await this.prisma.agentRule.findFirst({
       where: {
         merchantId,

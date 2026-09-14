@@ -32,7 +32,6 @@ import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-che
 import { UpdateOrderTrackingUseCase } from "../../application/use-cases/update-order-tracking.use-case.js";
 import { UpdateCartUseCase } from "../../application/use-cases/update-cart.use-case.js";
 import { NonProductionRoute, ProductionRoute } from "../../../../shared/http/non-production-route.js";
-import { PlanLimitGuard, RequirePlanLimit } from "../../../payment/domain/billing-plan-guard.js";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-ownership.guard.js";
 import { StaffReadable } from "../../../auth/presentation/staff-readable.decorator.js";
@@ -62,8 +61,6 @@ export class CheckoutController {
   ) {}
 
   @Post("start-checkout")
-  @UseGuards(PlanLimitGuard)
-  @RequirePlanLimit("sessionsPerMonth")
   start(@Body() body: StartCheckoutRequest) {
     return this.startCheckout.execute(body);
   }
@@ -84,8 +81,6 @@ export class CheckoutController {
   }
 
   @Post("chat/message")
-  @UseGuards(PlanLimitGuard)
-  @RequirePlanLimit("aiConversationsPerMonth")
   chat(@Body() body: ChatMessageRequest) {
     return this.sendChatMessage.execute(body);
   }
@@ -101,8 +96,6 @@ export class CheckoutController {
   }
 
   @Post("orders/complete")
-  @UseGuards(PlanLimitGuard)
-  @RequirePlanLimit("ordersPerMonth", 1, { soft: true })
   complete(@Body() body: CompleteOrderRequest) {
     return this.completeOrder.execute(body);
   }

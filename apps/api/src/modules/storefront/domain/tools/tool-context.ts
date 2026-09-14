@@ -7,4 +7,9 @@ export interface ToolRequestContext {
     phone?: string;
     email?: string;
   };
+  oneBuyClick?: {
+    enabled: boolean;
+    shippingPreference: "fastest" | "cheapest";
+    paymentPreference: "pix" | "card";
+  };
 }

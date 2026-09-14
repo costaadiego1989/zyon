@@ -31,6 +31,8 @@ import { ChatLlmGatewayService, type BuyerIntentPromptContext } from "../service
 import { ChatContextService, type ChatContextLoaded } from "../services/chat-context.service.js";
 import { ChatResponseBuilder } from "../services/chat-response.builder.js";
 import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
+import { OrderQuotaService } from "../../../payment/application/services/order-quota.service.js";
+import { ConversationRateLimitService } from "../services/conversation-rate-limit.service.js";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -56,9 +58,16 @@ export class SendChatMessageUseCase {
     @Optional() @Inject(PRODUCT_VARIANT_LOOKUP_PORT) private readonly productVariantLookup?: ProductVariantLookupPort,
     @Optional() private readonly chatToolExecutor?: ChatToolExecutorService,
     @Optional() private readonly chatLlmGateway?: ChatLlmGatewayService,
+    private readonly orderQuota?: OrderQuotaService,
+    private readonly conversationRateLimit?: ConversationRateLimitService,
   ) {}
 
   async execute(input: ChatMessageRequest): Promise<ChatMessageResponse> {
+    await this.orderQuota?.assertCanAcceptNewSales(input.merchant_id);
+    await this.conversationRateLimit?.assertAllowed({
+      merchantId: input.merchant_id,
+      sessionId: input.session_id,
+    });
     const context = await this.chatContextService.loadContext(
       input.merchant_id,
       input.session_id,

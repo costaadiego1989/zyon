@@ -16,6 +16,13 @@ export interface BuyerContext {
   email?: string;
 }
 
+export interface OneBuyClickConversationContext {
+  enabled: boolean;
+  status: "idle" | "resolving" | "awaiting_choice" | "ready_for_payment" | "handed_off" | "paused" | "failed" | "completed";
+  shippingPreference: "fastest" | "cheapest";
+  paymentPreference: "pix" | "card";
+}
+
 export interface StorefrontConversationInput {
   userMessage: string;
   cartId?: string;
@@ -30,6 +37,7 @@ export interface StorefrontConversationInput {
   advancedRules?: string[];
   experimentSystemPrompt?: string;
   buyerContext?: BuyerContext;
+  oneBuyClick?: OneBuyClickConversationContext;
   deviceType?: "mobile" | "tablet" | "desktop";
 }
 

@@ -34,11 +34,13 @@ export class SearchMarketplaceProductsStorefrontUseCase {
   ) {}
 
   async execute(input: SearchMarketplaceProductsInput): Promise<SearchMarketplaceProductsOutput> {
+    const requestedLimit = input.limit ?? 10;
+    const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(20, Math.trunc(requestedLimit))) : 10;
     const result = await this.searchFederated.execute({
       hostMerchantId: input.merchantId,
       query: input.query,
       category: input.category,
-      limit: (input.limit ?? 10) * 2,
+      limit: Math.min(20, limit * 2),
     });
 
     const merchantIds = [...new Set(result.products.map((p) => p.sourceMerchantId))];
@@ -51,7 +53,7 @@ export class SearchMarketplaceProductsStorefrontUseCase {
     const ranked = this.rankProducts(result.products, input.query, merchantMap);
 
     return {
-      products: ranked.slice(0, input.limit ?? 10).map((p) => ({
+      products: ranked.slice(0, limit).map((p) => ({
         id: p.id,
         name: p.name,
         price: p.priceCents / 100,

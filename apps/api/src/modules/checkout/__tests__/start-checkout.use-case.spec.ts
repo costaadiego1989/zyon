@@ -90,6 +90,19 @@ test("StartCheckoutUseCase persists the selected prompt experiment variant", asy
     repository.getSession("mrc_1", "chk_prompt_assignment")?.promptVariantId,
     "variant_treatment",
   );
+test("StartCheckoutUseCase rejects new journeys when the commercial quota is suspended", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  const useCase = createStartCheckoutUseCase(repository, repository, {
+    orderQuota: {
+      async assertCanAcceptNewSales() { throw new Error("merchant_sales_suspended"); },
+    },
+  });
+
+  await assert.rejects(
+    () => useCase.execute(startCheckoutRequest({ session_id: "chk_quota_blocked" })),
+    /merchant_sales_suspended/,
+  );
+  assert.equal(repository.getSession("mrc_1", "chk_quota_blocked"), undefined);
 });
 
 test("StartCheckoutUseCase exposes the configured buyer service fee without adding it twice to the order total", async () => {

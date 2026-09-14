@@ -22,16 +22,21 @@ import type { CheckoutRepository } from "../../domain/ports/checkout-repository.
 import { CheckoutAbandonmentService } from "../../domain/services/checkout-abandonment.service.js";
 import { CheckoutIdentityService } from "../../domain/services/checkout-identity.service.js";
 import { toNumber, toNumberOrNull, type DecimalLike } from "../../../../shared/persistence/decimal.util.js";
+import { OrderQuotaService } from "../../../payment/application/services/order-quota.service.js";
 
 // P2 fix: single canonical default — no inline copy here.
 const DEFAULT_RULES: MerchantRules = DEFAULT_MERCHANT_RULES;
 
 export class PrismaCheckoutRepository implements CheckoutRepository {
-  constructor(private readonly prisma: PrismaClient, private readonly inTransaction = false) {}
+  constructor(
+    private readonly prisma: PrismaClient | Prisma.TransactionClient,
+    private readonly inTransaction = false,
+    private readonly orderQuota?: OrderQuotaService,
+  ) {}
 
   async transaction<T>(work: (repository: CheckoutRepository) => Promise<T>): Promise<T> {
     if (this.inTransaction) return work(this);
-    return this.prisma.$transaction((tx) => work(new PrismaCheckoutRepository(tx as unknown as PrismaClient, true)));
+    return (this.prisma as PrismaClient).$transaction((tx) => work(new PrismaCheckoutRepository(tx, true, this.orderQuota)));
   }
 
   async getRules(merchantId: string): Promise<MerchantRules> {
@@ -162,7 +167,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       });
     };
     if (this.inTransaction) await write(this.prisma);
-    else await this.prisma.$transaction(write);
+    else await (this.prisma as PrismaClient).$transaction(write);
   }
 
   async getSessionEvents(merchantId: string, sessionId: string): Promise<CheckoutEventName[]> {
@@ -253,6 +258,14 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       throw new Error("completed_order_idempotency_conflict");
     }
     return { order: saved, idempotent: inserted.count === 0 };
+  }
+
+  async recordCompletedOrderQuota(order: CompletedOrder): Promise<void> {
+    await this.orderQuota?.recordCompletedOrder({
+      merchantId: order.merchantId,
+      externalOrderId: order.externalOrderId,
+      completedAt: new Date(order.completedAt),
+    }, this.prisma as Prisma.TransactionClient);
   }
 
   async getCompletedOrder(merchantId: string, sessionId: string, externalOrderId: string): Promise<CompletedOrder | undefined> {

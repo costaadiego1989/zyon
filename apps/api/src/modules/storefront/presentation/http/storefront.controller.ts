@@ -1,4 +1,4 @@
-﻿import { BadRequestException, Body, Controller, ForbiddenException, Get, Inject, NotFoundException, Optional, Param, Patch, Post, Query, Req, Res, UnauthorizedException, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Inject, NotFoundException, Optional, Param, Patch, Post, Query, Req, Res, UnauthorizedException, UseGuards } from "@nestjs/common";
 import { HttpException, HttpStatus } from "@nestjs/common";
 import { RealtimeCapabilityService } from "../../../../shared/auth/realtime-capability.js";
 import { NonProductionRoute, ProductionDisabledRoute, ProductionRoute } from "../../../../shared/http/non-production-route.js";
@@ -23,6 +23,8 @@ import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/port
 import { PRODUCT_PROMOTION_REPOSITORY, type ProductPromotionRepositoryPort } from "../../../catalog/domain/ports/product-promotion-repository.port.js";
 import { applyProductPromoPricing } from "../../infrastructure/pricing/storefront-cart-promo.pricing.js";
 import { ListPublicStorefrontProductsUseCase } from "../../../catalog/application/use-cases/list-public-storefront-products.use-case.js";
+import { BuyerJwtService } from "../../../buyer-account/domain/services/buyer-jwt.service.js";
+import { OneBuyClickSessionService } from "../../application/services/one-buy-click-session.service.js";
 
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
@@ -66,6 +68,8 @@ export class StorefrontController {
     @Optional() @Inject(PRODUCT_PROMOTION_REPOSITORY) private readonly productPromotionRepo?: ProductPromotionRepositoryPort,
     @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
+    @Optional() private readonly buyerJwt?: BuyerJwtService,
+    @Optional() private readonly oneBuyClick?: OneBuyClickSessionService,
   ) {}
 
   private async priceCart(merchantId: string, cartId: string, cart: StorefrontCart) {
@@ -149,7 +153,7 @@ export class StorefrontController {
   async sendMessage(
     @Param("conversationId") conversationId: string,
     @Body() body: SendMessageRequest & { merchant_id?: string },
-    @Req() request: { headers?: { authorization?: string; origin?: string } },
+    @Req() request: { headers?: { authorization?: string; origin?: string; "x-buyer-authorization"?: string | string[] } },
     @Res({ passthrough: true }) response?: { setHeader(name: string, value: string): void },
   ) {
     const claims = this.conversationAccess(request, conversationId, body.merchant_id);
@@ -171,12 +175,50 @@ export class StorefrontController {
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
-    return this.sendStoreMessage.execute({
+    const globalUserId = this.buyerId(request, claims.merchantId);
+    const oneBuyClick = this.oneBuyClick
+      ? await this.oneBuyClick.get({
+          merchantId: claims.merchantId,
+          conversationId: claims.resourceId,
+          globalUserId,
+        })
+      : undefined;    return this.sendStoreMessage.execute({
       merchant_id: claims.merchantId,
       conversation_id: claims.resourceId,
       user_message: body.user_message,
       cart_id: claims.resourceId,
       history: body.history,
+      global_user_id: globalUserId,
+      one_buy_click: oneBuyClick,
+    });
+  }
+
+  @Get("conversations/:conversationId/one-buy-click")
+  async getOneBuyClick(
+    @Param("conversationId") conversationId: string,
+    @Req() request: { headers?: { authorization?: string; origin?: string; "x-buyer-authorization"?: string | string[] } },
+  ) {
+    const claims = this.conversationAccess(request, conversationId);
+    return this.requireOneBuyClick().get({
+      merchantId: claims.merchantId,
+      conversationId: claims.resourceId,
+      globalUserId: this.buyerId(request, claims.merchantId),
+    });
+  }
+
+  @Patch("conversations/:conversationId/one-buy-click")
+  async configureOneBuyClick(
+    @Param("conversationId") conversationId: string,
+    @Body() body: { enabled?: unknown },
+    @Req() request: { headers?: { authorization?: string; origin?: string; "x-buyer-authorization"?: string | string[] } },
+  ) {
+    if (typeof body.enabled !== "boolean") throw new BadRequestException("one_buy_click_enabled_must_be_boolean");
+    const claims = this.conversationAccess(request, conversationId);
+    return this.requireOneBuyClick().configure({
+      merchantId: claims.merchantId,
+      conversationId: claims.resourceId,
+      enabled: body.enabled,
+      globalUserId: this.buyerId(request, claims.merchantId),
     });
   }
 
@@ -465,5 +507,27 @@ export class StorefrontController {
       throw new ForbiddenException("conversation_access_denied");
     }
     return claims;
+  }
+
+  private buyerId(
+    request: { headers?: { "x-buyer-authorization"?: string | string[] } },
+    merchantId: string,
+  ): string | undefined {
+    if (!this.buyerJwt) return undefined;
+    const header = request.headers?.["x-buyer-authorization"];
+    const value = Array.isArray(header) ? header[0] : header;
+    const token = value?.match(/^Bearer (\S+)$/i)?.[1];
+    if (!token) return undefined;
+    try {
+      const buyer = this.buyerJwt.verify(token);
+      return buyer.merchantId && buyer.merchantId !== merchantId ? undefined : buyer.globalUserId;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private requireOneBuyClick(): OneBuyClickSessionService {
+    if (!this.oneBuyClick) throw new NotFoundException("one_buy_click_unavailable");
+    return this.oneBuyClick;
   }
 }

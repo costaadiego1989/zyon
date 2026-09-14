@@ -26,11 +26,13 @@ import { RecordFunnelEventUseCase } from "../../../experiments/application/use-c
 import { PAYMENT_APPROVAL_READER, type PaymentApprovalReader, type PersistedPaymentApproval } from "../../domain/ports/payment-approval.port.js";
 import { assertPaymentAmount, orderTotalCents } from "../../../payment/domain/payment-amount.js";
 import { paymentCartFingerprint } from "../../domain/services/payment-cart-fingerprint.js";
+import { OrderQuotaService } from "../../../payment/application/services/order-quota.service.js";
 
 interface OrderCommitRepository {
   saveCompletedOrder(order: CompletedOrder): Promise<{ order: CompletedOrder; idempotent: boolean }> | { order: CompletedOrder; idempotent: boolean };
   recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName): Promise<void> | void;
   appendOutbox(event: DomainEventEnvelope): Promise<DomainEventEnvelope> | DomainEventEnvelope;
+  recordCompletedOrderQuota?(order: CompletedOrder): Promise<void> | void;
 }
 
 interface TransactionRunner {
@@ -56,12 +58,14 @@ export class CompleteOrderUseCase {
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
     @Optional() private readonly holdoutGroup?: HoldoutGroupService,
     @Optional() private readonly revenueLiftRepo?: RevenueLiftRepository,
-    @Optional() @Inject(PAYMENT_APPROVAL_READER) private readonly paymentApprovals?: PaymentApprovalReader
+    @Optional() @Inject(PAYMENT_APPROVAL_READER) private readonly paymentApprovals?: PaymentApprovalReader,
+    private readonly orderQuota?: OrderQuotaService,
   ) { }
 
   private readonly logger = new Logger(CompleteOrderUseCase.name);
 
   async execute(input: CompleteOrderRequest): Promise<CompleteOrderResponse> {
+    await this.orderQuota?.assertCanAcceptNewSales(input.merchant_id);
     return this.complete(input);
   }
 
@@ -159,6 +163,7 @@ export class CompleteOrderUseCase {
     const commit = async (repo: OrderCommitRepository): Promise<boolean> => {
       const saved = await repo.saveCompletedOrder(order);
       if (saved.idempotent) return true;
+      await repo.recordCompletedOrderQuota?.(order);
       await repo.recordEvent(input.merchant_id, input.session_id, "order_completed");
       const confirmation_touchpoints = planOmnichannelConfirmation(input.order_total);
       await repo.appendOutbox(
@@ -250,7 +255,14 @@ export class CompleteOrderUseCase {
     const fallbackRepo: OrderCommitRepository = {
       saveCompletedOrder: (o) => this.orders.saveCompletedOrder(o),
       recordEvent: (m, s, e) => this.sessions.recordEvent(m, s, e),
-      appendOutbox: (e) => this.outbox.appendOutbox(e)
+      appendOutbox: (e) => this.outbox.appendOutbox(e),
+      recordCompletedOrderQuota: async (o) => {
+        await this.orderQuota?.recordCompletedOrder({
+          merchantId: o.merchantId,
+          externalOrderId: o.externalOrderId,
+          completedAt: new Date(o.completedAt),
+        });
+      }
     };
     const idempotent = this.txRunner?.transaction
       ? await this.txRunner.transaction(commit)

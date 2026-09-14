@@ -52,7 +52,7 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
 import { RateLimitStore } from "../../shared/rate-limit/rate-limit.store.js";
 import { RedisRateLimitStore } from "../../shared/rate-limit/redis-rate-limit.store.js";
 import { StorefrontConversationRateLimitService } from "./application/services/storefront-conversation-rate-limit.service.js";
-
+import { OneBuyClickSessionService } from "./application/services/one-buy-click-session.service.js";
 @Module({
   imports: [
     PersistenceModule,
@@ -115,6 +115,7 @@ import { StorefrontConversationRateLimitService } from "./application/services/s
     },
     BudgetTrackerService,
     AIGatewayService,
+    OneBuyClickSessionService,
     StartStoreConversationUseCase,
     SendStoreMessageUseCase,
     GenerateNudgeUseCase,

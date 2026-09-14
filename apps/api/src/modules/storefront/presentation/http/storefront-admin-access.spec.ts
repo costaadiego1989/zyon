@@ -77,7 +77,7 @@ test("HTTP conversation aliases reject missing/foreign capability before reading
   await controller.getHistory("conv_a", request);
   await controller.trackEvent("conv_a", { event: "hello", merchant_id: "merchant_a" }, request);
   assert.deepEqual(calls, [
-    [{ merchant_id: "merchant_a", conversation_id: "conv_a", user_message: "hello", cart_id: "conv_a", history: undefined }],
+    [{ merchant_id: "merchant_a", conversation_id: "conv_a", user_message: "hello", cart_id: "conv_a", history: undefined, global_user_id: undefined, one_buy_click: undefined }],
     [{ merchant_id: "merchant_a", conversation_id: "conv_a" }], "tracking",
   ]);
 });

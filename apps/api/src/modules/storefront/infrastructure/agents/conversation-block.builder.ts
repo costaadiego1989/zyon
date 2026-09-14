@@ -169,6 +169,27 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
     });
   }
 
+  const addItemResult = toolResults["add_item_to_cart"] as any;
+  if (addItemResult?.error === "variant_selection_required" && addItemResult.variantSelection?.variants?.length > 0) {
+    const selection = addItemResult.variantSelection;
+    blocks.push({
+      type: "variant_selector",
+      data: {
+        productId: selection.productId,
+        productName: selection.productName,
+        groups: [{
+          name: "Variação",
+          options: selection.variants.map((variant: { id: string; label: string }) => ({
+            id: variant.id,
+            value: variant.label,
+            available: true,
+          })),
+        }],
+      },
+    });
+    finalContent = "Qual variação você prefere?";
+  }
+
   const latestCart = toolResults["clear_cart"] ?? toolResults["update_cart_item"] ?? toolResults["remove_cart_item"] ?? toolResults["add_item_to_cart"] ?? toolResults["get_cart"];
   if (latestCart) {
     const cartData = latestCart as any;
@@ -344,7 +365,17 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   }
   if (toolResults["create_checkout_session"]) {
     const checkoutData = toolResults["create_checkout_session"] as any;
-    if (checkoutData?.checkoutUrl) {
+    if (checkoutData?.checkoutPrepared) {
+      blocks.push({
+        type: "checkout_prepared",
+        data: {
+          actionId: checkoutData.actionId,
+          cartId: checkoutData.cartId,
+          shippingPreference: checkoutData.shippingPreference,
+          paymentPreference: checkoutData.paymentPreference,
+        },
+      } as any);
+    } else if (checkoutData?.checkoutUrl) {
       blocks.push({
         type: "checkout_redirect",
         data: {

@@ -106,6 +106,16 @@ export interface CheckoutRedirectBlock {
   };
 }
 
+export interface CheckoutPreparedBlock {
+  type: "checkout_prepared";
+  data: {
+    actionId: string;
+    cartId: string;
+    shippingPreference: "fastest" | "cheapest";
+    paymentPreference: "pix" | "card";
+  };
+}
+
 export interface OrderConfirmationBlock {
   type: "order_confirmation";
   data: {
@@ -210,6 +220,7 @@ export type ConversationBlock =
   | ShippingOptionsBlock
   | QuickRepliesBlock
   | CheckoutRedirectBlock
+  | CheckoutPreparedBlock
   | OrderConfirmationBlock
   | ShippingQuoteInputBlock
   | VariantSelectorBlock

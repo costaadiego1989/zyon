@@ -64,6 +64,7 @@ export interface StorefrontAgentInput {
   merchantPolicy?: { maxDiscountPercent?: number; allowFreeShipping?: boolean; allowShippingDiscount?: boolean; freeShippingMinCartValue?: number; maxPartialShippingDiscount?: number; offerExpirationMinutes?: number };
   advancedRules?: string[];
   buyerContext?: { globalUserId: string; name?: string; phone?: string; email?: string };
+  oneBuyClick?: import("../../domain/ports/conversation.port.js").OneBuyClickConversationContext;
   /** RAG knowledge context to inject into system prompt — see StorefrontConversationAdapter. */
   knowledgeContext?: string;
   callbacks?: StorefrontAgentCallbacks;
@@ -177,6 +178,7 @@ export class StorefrontLangGraphAgent {
       merchantPolicy: input.merchantPolicy,
       advancedRules: input.advancedRules,
       buyerContext: input.buyerContext,
+      oneBuyClick: input.oneBuyClick,
       knowledgeContext: input.knowledgeContext,
     });
     const systemContent = input.systemPrompt

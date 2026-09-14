@@ -12,7 +12,9 @@ test("resolves a verified custom domain before a store slug", async () => {
         return { id: "merchant_a", name: "Loja", theme: {}, storeCategory: null, storeSettings: {} };
       },
     },
-    merchantBillingSubscription: { findUnique: async () => ({ status: "active" }) },
+    merchantBillingSubscription: {
+      findUnique: async () => ({ status: "active", trialEndsAt: null, stripePriceId: null, planKey: "growth" }),
+    },
     agentRule: { findFirst: async () => ({ identity: {}, checkoutSettings: {} }) },
     merchantRule: { findUnique: async () => ({ quickReplies: { welcome: ["Olá"] } }) },
     storyCategory: { findMany: async () => [{ id: "story_a" }] },
@@ -30,5 +32,17 @@ test("does not resolve an unverified domain as a store", async () => {
     merchantDomain: { findUnique: async () => ({ merchantId: "merchant_a", verified: false }) },
     merchant: { findUnique: async () => null },
   } as never);
+  assert.equal(await repository.findPublicConfig("loja.exemplo.com"), null);
+});
+
+test("does not resolve a verified custom domain after its Growth entitlement ends", async () => {
+  const repository = new PrismaStorefrontConfigQueryRepository({
+    merchantDomain: { findUnique: async () => ({ merchantId: "merchant_a", verified: true }) },
+    merchantBillingSubscription: {
+      findUnique: async () => ({ status: "active", trialEndsAt: null, stripePriceId: null, planKey: "starter" }),
+    },
+    merchant: { findUnique: async () => null },
+  } as never);
+
   assert.equal(await repository.findPublicConfig("loja.exemplo.com"), null);
 });

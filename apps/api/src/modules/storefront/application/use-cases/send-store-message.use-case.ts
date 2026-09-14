@@ -1,3 +1,4 @@
+import { findMerchantAgentRule } from "../../../agent-rules/infrastructure/find-merchant-agent-rule.js";
 /**
  * Send store message use-case.
  *
@@ -14,6 +15,7 @@ import type { ConversationBlock } from "../../domain/types/conversation-block.js
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
+import type { OneBuyClickConversationContext } from "../../domain/ports/conversation.port.js";
 
 export interface SendStoreMessageInput {
   merchant_id: string;
@@ -23,6 +25,7 @@ export interface SendStoreMessageInput {
   global_user_id?: string;
   history?: Array<{ role: "user" | "assistant"; content: string }>;
   device_type?: "mobile" | "tablet" | "desktop";
+  one_buy_click?: OneBuyClickConversationContext;
 }
 
 export interface SendStoreMessageOutput {
@@ -55,10 +58,7 @@ export class SendStoreMessageUseCase {
     // Load agent identity from agent_rules (source of truth for agent name/persona/tone/language)
     let agentIdentity: { agentName?: string; persona?: string; tone?: string; greeting?: string; language?: string } | undefined;
     try {
-      const agentRule = await this.prisma.agentRule.findFirst({
-        where: { merchantId: input.merchant_id },
-        select: { identity: true },
-      });
+      const agentRule = await findMerchantAgentRule(this.prisma, input.merchant_id);
       const identity = agentRule?.identity as { agentName?: string; persona?: string; tone?: string; greeting?: string; language?: string } | null;
       if (identity) agentIdentity = identity;
     } catch { /* optional — fallback to no identity */ }
@@ -193,6 +193,7 @@ export class SendStoreMessageUseCase {
       advancedRules,
       experimentSystemPrompt,
       buyerContext,
+      oneBuyClick: input.one_buy_click,
       deviceType: input.device_type,
     });
 

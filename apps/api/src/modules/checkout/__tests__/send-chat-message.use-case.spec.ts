@@ -102,6 +102,24 @@ test("SendChatMessageUseCase passes merchant agent context to conversation witho
   assert.equal((response.authorized_offer?.value ?? 0) <= 10, true);
 });
 
+test("SendChatMessageUseCase blocks abusive AI traffic before loading conversation state", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  await createStartCheckoutUseCase(repository, repository).execute(startCheckoutRequest({ session_id: "chk_rate_limited" }));
+  const useCase = createSendChatUseCase(repository, {
+    conversationRateLimit: {
+      async assertAllowed() { throw new Error("ai_interaction_rate_limited"); },
+    },
+  });
+
+  await assert.rejects(
+    () => useCase.execute({
+      merchant_id: "mrc_1", session_id: "chk_rate_limited", conversation_id: "conv_rate_limited",
+      user_message: "oi",
+    }),
+    /ai_interaction_rate_limited/,
+  );
+});
+
 test("SendChatMessageUseCase remains compatible when agent context is not configured", async () => {
   const repository = new InMemoryCheckoutRepository();
   await createStartCheckoutUseCase(repository, repository).execute(startCheckoutRequest({ session_id: "chk_1" }));

@@ -14,6 +14,8 @@ import type { CheckoutCrossSellRecommenderPort } from "../../domain/ports/cross-
 import type { ProductSearchPort } from "../../domain/ports/product-search.port.js";
 import type { BuyerConversationRepository } from "../../../buyer-account/domain/ports/buyer-conversation.port.js";
 import type { CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
+import type { OrderQuotaService } from "../../../payment/application/services/order-quota.service.js";
+import type { ConversationRateLimitService } from "../services/conversation-rate-limit.service.js";
 
 interface SendChatFixtureOverrides {
   conversation?: ConversationPort;
@@ -27,6 +29,8 @@ interface SendChatFixtureOverrides {
   conversationRepo?: BuyerConversationRepository;
   experienceConfig?: CheckoutExperienceConfig;
   createPaymentIntent?: CreatePaymentIntentUseCase;
+  orderQuota?: Pick<OrderQuotaService, "assertCanAcceptNewSales">;
+  conversationRateLimit?: Pick<ConversationRateLimitService, "assertAllowed">;
 }
 
 /**
@@ -65,6 +69,12 @@ export function createSendChatUseCase(
     chatResponseBuilder,
     overrides.experienceConfig ?? { platformFeeBrl: 1.99 },
     overrides.agentContext,
-    overrides.merchantRepository
+    overrides.merchantRepository,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    overrides.orderQuota as OrderQuotaService | undefined,
+    overrides.conversationRateLimit as ConversationRateLimitService | undefined,
   );
 }

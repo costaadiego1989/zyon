@@ -90,6 +90,8 @@ import { CommerceModule } from "../commerce/commerce.module.js";
 import { CheckoutCartAuthorityService } from "./application/services/checkout-cart-authority.service.js";
 import { PAYMENT_APPROVAL_READER } from "./domain/ports/payment-approval.port.js";
 import { PrismaPaymentApprovalReader } from "./infrastructure/adapters/prisma-payment-approval.reader.js";
+import { OrderQuotaService } from "../payment/application/services/order-quota.service.js";
+import { ConversationRateLimitService } from "./application/services/conversation-rate-limit.service.js";
 
 @Module({
   imports: [
@@ -122,6 +124,7 @@ import { PrismaPaymentApprovalReader } from "./infrastructure/adapters/prisma-pa
     ChatToolExecutorService,
     ChatLlmGatewayService,
     SendChatMessageUseCase,
+    ConversationRateLimitService,
     CheckoutCustomerService,
     CheckoutShippingService,
     CheckoutOfferService,
@@ -168,8 +171,8 @@ import { PrismaPaymentApprovalReader } from "./infrastructure/adapters/prisma-pa
     ShopifyCommerceOfferAdapter,
     {
       provide: CHECKOUT_REPOSITORY,
-      useFactory: (prisma: PrismaClient) => new PrismaCheckoutRepository(prisma),
-      inject: [PRISMA_CLIENT]
+      useFactory: (prisma: PrismaClient, orderQuota: OrderQuotaService) => new PrismaCheckoutRepository(prisma, false, orderQuota),
+      inject: [PRISMA_CLIENT, OrderQuotaService]
     },
     { provide: CHECKOUT_SESSION_REPOSITORY, useExisting: CHECKOUT_REPOSITORY },
     { provide: OFFER_REPOSITORY, useExisting: CHECKOUT_REPOSITORY },

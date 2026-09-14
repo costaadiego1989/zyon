@@ -13,6 +13,7 @@ import type { SearchFederatedProductsUseCase } from "../../../marketplace/applic
 import type { AddMarketplaceItemToCartStorefrontUseCase } from "../../application/use-cases/add-marketplace-item-to-cart.use-case.js";
 import type { PrismaClient } from "@prisma/client";
 import type { MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
+import type { OneBuyClickSessionService } from "../../application/services/one-buy-click-session.service.js";
 import { Logger } from "@nestjs/common";
 import { buildCrossSellSuggestions, type CrossSellConfig, type CrossSellSuggestion } from "./cart-cross-sell.helper.js";
 import { CartRulesEngine, buildCartRuleContext } from "../../domain/services/cart-rules-engine.service.js";
@@ -172,6 +173,27 @@ export interface CartHandlerDeps {
    * before cart-rules evaluation. Optional: when absent, no product promos apply.
    */
   productPromotionRepo?: ProductPromotionRepositoryPort;
+  oneBuyClick?: OneBuyClickSessionService;
+}
+
+function selectableVariants(product: NonNullable<Awaited<ReturnType<ProductRepositoryPort["findById"]>>>): Array<{ id: string; sku: string; attributes: Record<string, string>; basePriceInCents: number; media: Array<{ url: string }> }> {
+  return product.variants.filter((variant) => variant.isActive);
+}
+
+function variationSelection(product: NonNullable<Awaited<ReturnType<ProductRepositoryPort["findById"]>>>) {
+  return {
+    productId: product.id,
+    productName: product.name,
+    variants: selectableVariants(product).map((variant) => ({
+      id: variant.id,
+      label: variantLabel(variant.attributes, variant.sku),
+    })),
+  };
+}
+
+function variantLabel(attributes: Record<string, string>, fallback: string): string {
+  const values = Object.values(attributes).filter(Boolean);
+  return values.length > 0 ? values.join(" · ") : fallback;
 }
 
 export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContext): Pick<StoreToolHandlers, "addItemToCart" | "getCart" | "removeCartItem" | "updateCartItem" | "clearCart" | "quoteShipping" | "applyCoupon" | "removeCoupon" | "listPromotions" | "createCheckoutSession"> {
@@ -195,16 +217,32 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       let crossStoreFederatedProductId: string | undefined;
 
       try {
-        let product = await deps.productRepo.findById(ctx.merchantId, "dummy").catch(() => null);
-        let foundVariant = null;
+        let exactVariant: { productId: string } | null = null;
+        try {
+          exactVariant = await deps.prisma.productVariant.findFirst({
+            where: {
+              isActive: true,
+              OR: [{ id: args.variantId }, { sku: args.variantId }],
+              product: { merchantId: ctx.merchantId, isActive: true, deletedAt: null },
+            },
+            select: { productId: true },
+          });
+        } catch {
+          // Catalog search below remains the compatibility fallback when the
+          // exact-variant index is unavailable during a rolling deployment.
+        }
+        let product = exactVariant
+          ? await deps.productRepo.findById(ctx.merchantId, exactVariant.productId)
+          : null;
+        let foundVariant = product?.variants.find((variant) => variant.id === args.variantId || variant.sku === args.variantId) ?? null;
 
-        const searchResult = await deps.productRepo.search({ merchantId: ctx.merchantId, limit: 100 });
-        product = searchResult.products.find(p =>
+        const searchResult = await deps.productRepo.search({ merchantId: ctx.merchantId, limit: 20, isActiveOnly: true });
+        product = product ?? searchResult.products.find(p =>
           p.variants.some(v => v.id === args.variantId || v.sku === args.variantId)
         ) ?? null;
 
         if (product) {
-          foundVariant = product.variants.find(v => v.id === args.variantId || v.sku === args.variantId);
+          foundVariant = foundVariant ?? product.variants.find(v => v.id === args.variantId || v.sku === args.variantId) ?? null;
           if (foundVariant) {
             resolvedProduct = product;
             productName = product.name;
@@ -221,13 +259,19 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
           if (product) {
             resolvedProduct = product;
             productName = product.name;
-            const variant = product.variants[0];
-            if (variant) {
+            const variants = selectableVariants(product);
+            if (variants.length === 1) {
+              const [variant] = variants;
               resolvedVariantId = variant.id;
               resolvedSku = variant.sku;
               resolvedProductId = product.id;
               unitPriceCents = variant.basePriceInCents;
               imageUrl = variant.media?.[0]?.url;
+            } else {
+              return {
+                error: "variant_selection_required",
+                variantSelection: variationSelection(product),
+              };
             }
           }
         }
@@ -236,15 +280,16 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
         // LLM sometimes passes the product id (not a variant id) or even the
         // product NAME as `variantId` (e.g. "RTP-PRODUCT-001") — a known
         // model-reliability gap. Rather than reject a real, in-catalog product,
-        // match it deterministically and use its default (first) variant. Price
-        // is still taken server-side from the resolved variant (never the client).
+        // match it deterministically only when there is exactly one sellable
+        // variant. Price is still taken server-side from the resolved variant.
         if (!foundVariant && unitPriceCents === 0) {
           const needle = (args.variantId ?? "").trim().toLowerCase();
           const byIdOrName = searchResult.products.find(p =>
             p.id === args.variantId || p.name.trim().toLowerCase() === needle,
           );
-          const variant = byIdOrName?.variants[0];
-          if (byIdOrName && variant) {
+          const variants = byIdOrName ? selectableVariants(byIdOrName) : [];
+          if (byIdOrName && variants.length === 1) {
+            const [variant] = variants;
             resolvedProduct = byIdOrName;
             productName = byIdOrName.name;
             resolvedVariantId = variant.id;
@@ -252,6 +297,11 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
             resolvedProductId = byIdOrName.id;
             unitPriceCents = variant.basePriceInCents;
             imageUrl = variant.media?.[0]?.url;
+          } else if (byIdOrName) {
+            return {
+              error: "variant_selection_required",
+              variantSelection: variationSelection(byIdOrName),
+            };
           }
         }
 
@@ -273,12 +323,16 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       } catch {
       }
 
-      try {
-        const stock = await deps.stockRepo.getAvailableStock(resolvedVariantId);
-        if (stock.quantity <= 0) {
-          logger.warn("cart.stock.zero_qty", { variantId: resolvedVariantId });
+      if (resolvedProduct?.type !== "digital" && resolvedProduct?.type !== "service") {
+        try {
+          const stock = await deps.stockRepo.getAvailableStock(resolvedVariantId);
+          if (stock.quantity < Math.max(1, args.quantity)) {
+            logger.warn("cart.stock.insufficient", { variantId: resolvedVariantId, requestedQuantity: args.quantity, availableQuantity: stock.quantity });
+            return { error: "variant_out_of_stock", detail: "A variacao escolhida nao possui estoque suficiente." };
+          }
+        } catch {
+          return { error: "stock_validation_unavailable", detail: "Nao foi possivel validar o estoque agora." };
         }
-      } catch {
       }
 
       // Food option groups: validate the buyer's selection against the product's
@@ -660,6 +714,34 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
     },
 
     createCheckoutSession: async (args) => {
+      if (ctx.oneBuyClick?.enabled && deps.oneBuyClick) {
+        const cart = await deps.cartRepo.getOrCreate(ctx.merchantId, ctx.sessionId);
+        if (cart.items.length === 0) return { error: "checkout_cart_empty" };
+
+        const cartFingerprint = JSON.stringify({
+          discount: cart.discount,
+          freeShipping: cart.freeShipping,
+          items: cart.items
+            .map((item) => ({ variantId: item.variantId, quantity: item.quantity, unitPriceCents: item.unitPriceCents }))
+            .sort((left, right) => left.variantId.localeCompare(right.variantId)),
+        });
+        const prepared = await deps.oneBuyClick.prepareCheckout({
+          merchantId: ctx.merchantId,
+          conversationId: ctx.sessionId,
+          globalUserId: ctx.buyer?.globalUserId,
+          cartFingerprint,
+        });
+        if (!prepared.preparedActionId) return { error: "checkout_preparation_failed" };
+
+        return {
+          checkoutPrepared: true,
+          actionId: prepared.preparedActionId,
+          cartId: cart.sessionId,
+          shippingPreference: prepared.shippingPreference,
+          paymentPreference: prepared.paymentPreference,
+        };
+      }
+
       const sessionId = `chk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const widgetBaseUrl = process.env.WIDGET_BASE_URL ?? "http://localhost:5173";
       const checkoutUrl = `${widgetBaseUrl}/embed/checkout/${sessionId}?cartId=${ctx.sessionId}`;
