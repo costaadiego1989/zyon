@@ -1,10 +1,11 @@
 import "reflect-metadata";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Global, Module } from "@nestjs/common";
+import { Module } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { CHECKOUT_SESSION_REPOSITORY } from "../../checkout/domain/ports/checkout-session.repository.port.js";
-import { CheckoutPersistenceModule } from "../../checkout/checkout-persistence.module.js";
+import { CHECKOUT_REPOSITORY } from "../../checkout/domain/ports/checkout-repository.port.js";
+import { PrismaCheckoutRepository } from "../../checkout/infrastructure/prisma/prisma-checkout.repository.js";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
 import { DOMAIN_EVENT_BUS } from "../../../shared/events/domain-event-bus.port.js";
 import { InventoryOnOrderCompletedHandler } from "../infrastructure/event-handlers/on-order-completed.handler.js";
@@ -25,11 +26,18 @@ const applied = { receiptId: "receipt_a", event: { ...snapshot, merchantId: "mer
 test("Nest resolves the exported checkout Symbol into the inventory order handler", async () => {
   let lookup = 0;
   const bus = { subscribe: () => {} };
-  @Global()
-  @Module({ providers: [{ provide: PRISMA_CLIENT, useValue: { checkoutSession: { findUnique: async () => { lookup++; return null; } } } }], exports: [PRISMA_CLIENT] })
-  class DatabaseFixtureModule {}
-  @Module({ imports: [DatabaseFixtureModule, CheckoutPersistenceModule], providers: [InventoryOnOrderCompletedHandler,
-    { provide: DOMAIN_EVENT_BUS, useValue: bus }, { provide: HandleSaleCompletedUseCase, useValue: { execute: () => assert.fail("missing session must fail") } }] })
+  const prisma = { checkoutSession: { findUnique: async () => { lookup++; return null; } } };
+  @Module({
+    providers: [
+      { provide: PRISMA_CLIENT, useValue: prisma },
+      { provide: CHECKOUT_REPOSITORY, useFactory: (client: never) => new PrismaCheckoutRepository(client), inject: [PRISMA_CLIENT] },
+      { provide: CHECKOUT_SESSION_REPOSITORY, useExisting: CHECKOUT_REPOSITORY },
+      InventoryOnOrderCompletedHandler,
+      { provide: DOMAIN_EVENT_BUS, useValue: bus },
+      { provide: HandleSaleCompletedUseCase, useValue: { execute: () => assert.fail("missing session must fail") } },
+    ],
+    exports: [CHECKOUT_SESSION_REPOSITORY],
+  })
   class FixtureModule {}
   const app = await NestFactory.createApplicationContext(FixtureModule, { logger: false, abortOnError: false });
   try {
