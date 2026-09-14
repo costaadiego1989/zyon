@@ -140,7 +140,8 @@ test("SendChatMessageUseCase persists an advanced coupon nudge without claiming 
       },
     },
   }));
-  const rules = merchantRules({
+  const rules = {
+    ...merchantRules(),
     advancedRules: [{
       id: "rule_coupon",
       name: "Cupom elegível",
@@ -149,12 +150,12 @@ test("SendChatMessageUseCase persists an advanced coupon nudge without claiming 
       conditions: [{ field: "cart_total", operator: "gte", value: 250 }],
       action: { type: "offer_coupon", params: { code: "SAVE10" } },
     }],
-  });
+  };
   repository.setRules("mrc_1", rules);
   const merchantRepo = {
     async getProfile(id: string) { return { id, name: "Loja de teste" }; },
     async getRules() { return rules; },
-  } as MerchantRepository;
+  } as unknown as MerchantRepository;
   const useCase = createTestUseCase(repository, new RecordingConversationPort(), undefined, merchantRepo);
 
   const response = await useCase.execute({
