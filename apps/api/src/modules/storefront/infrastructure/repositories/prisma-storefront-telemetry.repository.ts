@@ -94,7 +94,7 @@ function chooseVariant(variants: Array<{ id: string; weight: number }>, conversa
   }
   const totalWeight = variants.reduce((sum, variant) => sum + variant.weight, 0);
   if (totalWeight <= 0) return null;
-  let target = Math.abs(hash) % totalWeight;
+  let target = (Math.abs(hash) % totalWeight) + 1;
   for (const variant of variants) {
     target -= variant.weight;
     if (target <= 0) return variant.id;

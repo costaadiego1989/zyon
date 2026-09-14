@@ -17,9 +17,19 @@ type LedgerCreateCall = LedgerCreateInput & { kind: "create" | "txCreate" };
 class FakePrisma {
   calls: LedgerCreateCall[] = [];
   private txCalls: LedgerCreateCall[] = [];
+  private appliedOffers = new Map<string, unknown>();
 
   negotiationSession = {
-    create: async ({ data }: any) => ({ id: `ns_${this.calls.length + 1}`, ...data })
+    create: async ({ data }: any) => ({ id: `ns_${this.calls.length + 1}`, ...data }),
+    findFirst: async ({ where }: any) => ({
+      id: where.id,
+      merchantId: where.merchantId,
+      appliedOfferJson: this.appliedOffers.get(where.id) ?? null,
+    }),
+    update: async ({ where, data }: any) => {
+      this.appliedOffers.set(where.id, data.appliedOfferJson);
+      return { id: where.id, ...data };
+    },
   };
 
   merchantNegotiationPolicy = {
@@ -67,6 +77,20 @@ function newStore(): { prisma: FakePrisma; store: PrismaNegotiationStore } {
   return { prisma, store };
 }
 
+function testOffer(id: string, sessionId: string) {
+  return {
+    id,
+    merchantId: "mrc_1",
+    sessionId,
+    type: "discount_percent" as const,
+    value: 10,
+    approved: true,
+    reason: "negotiation",
+    marginAfterOffer: 10,
+    expiresAt: "2026-09-15T00:00:00.000Z",
+  };
+}
+
 test("createNegotiationSessionWithLedger routes cost to aiCostCents (not discountBasisPoints)", async () => {
   const { prisma, store } = newStore();
   const result: any = {
@@ -102,7 +126,7 @@ test("applyOfferWithLedger stores basis points in discountBasisPoints (semantic)
     negotiationSessionId: "ns_42",
     checkoutSessionId: "sess_1",
     discountPercent: 15,
-    offerData: { id: "off_1" }
+    offer: testOffer("off_1", "sess_1")
   });
 
   assert.equal(prisma.calls.length, 1);
@@ -120,7 +144,7 @@ test("applyOfferWithLedger rounds fractional discountPercent correctly", async (
     negotiationSessionId: "ns_43",
     checkoutSessionId: "sess_2",
     discountPercent: 7.345,
-    offerData: { id: "off_2" }
+    offer: testOffer("off_2", "sess_2")
   });
   const entry = prisma.calls[0]!;
   assert.equal(entry.discountBasisPoints, Math.round(7.345 * 100));
@@ -167,13 +191,13 @@ test("applyOfferWithLedger is idempotent — second call does not write a second
     negotiationSessionId: "ns_idem",
     checkoutSessionId: "sess_x",
     discountPercent: 10,
-    offerData: { id: "off_idem" }
+    offer: testOffer("off_idem", "sess_x")
   };
   const first = await store.applyOfferWithLedger(input);
   const second = await store.applyOfferWithLedger(input);
 
   assert.equal(first.alreadyApplied, false);
   assert.equal(second.alreadyApplied, true);
-  assert.equal(second.offerId, "off_idem");
+  assert.equal(second.offer.id, "off_idem");
   assert.equal(prisma.calls.length, 1, "only one ledger row written across both calls");
 });

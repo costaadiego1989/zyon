@@ -25,10 +25,11 @@ import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/bi
 import { CheckoutPersistenceModule } from "../checkout/checkout-persistence.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
+import { CatalogModule } from "../catalog/catalog.module.js";
 
 @Global()
 @Module({
-  imports: [CheckoutPersistenceModule, MerchantModule, BuyerPurchaseHistoryModule],
+  imports: [CheckoutPersistenceModule, MerchantModule, BuyerPurchaseHistoryModule, CatalogModule],
   controllers: [MerchantCrossSellController],
   providers: [
     // Repository ports

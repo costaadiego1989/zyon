@@ -2,7 +2,6 @@ import { Module } from "@nestjs/common";
 import { AppModule } from "./app.module.js";
 import { CouponsModule } from "./modules/coupons/coupons.module.js";
 import { CrossSellModule } from "./modules/cross-sell/cross-sell.module.js";
-import { WidgetCrossSellE2eModule } from "./modules/cross-sell/widget-cross-sell-e2e.module.js";
 import { TestSeedModule } from "./modules/__test__/test-seed.module.js";
 
 /**
@@ -15,6 +14,6 @@ import { TestSeedModule } from "./modules/__test__/test-seed.module.js";
  * boot only when E2E_SEED_ENABLED=true and NODE_ENV !== "production".
  */
 @Module({
-  imports: [AppModule, CouponsModule, CrossSellModule, WidgetCrossSellE2eModule, TestSeedModule],
+  imports: [AppModule, CouponsModule, CrossSellModule, TestSeedModule],
 })
 export class E2eAppModule {}

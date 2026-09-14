@@ -16,6 +16,7 @@ import type { IntentMemoryRepositoryPort, BuyerIntentConsentRepositoryPort } fro
 import type { HoldoutGroupService } from "../../../revenue-lift/domain/services/holdout-group.service.js";
 import type { ProductPromotionRepositoryPort } from "../../../catalog/domain/ports/product-promotion-repository.port.js";
 import type { CheckoutCartAuthorityService } from "../services/checkout-cart-authority.service.js";
+import type { PromptExperimentPort } from "../../domain/ports/prompt-experiment.port.js";
 
 const passthroughCartAuthority = {
   async resolve(_merchantId: string, cart: unknown) {
@@ -39,6 +40,7 @@ interface FixtureOverrides {
   holdoutGroupService?: HoldoutGroupService;
   promoRepository?: ProductPromotionRepositoryPort;
   cartAuthority?: CheckoutCartAuthorityService;
+  promptExperiment?: PromptExperimentPort;
 }
 
 /**
@@ -80,5 +82,7 @@ export function createStartCheckoutUseCase(
     overrides?.crossSell,
     overrides?.experienceConfig,
     overrides?.cartAuthority ?? passthroughCartAuthority,
+    undefined,
+    overrides?.promptExperiment,
   );
 }

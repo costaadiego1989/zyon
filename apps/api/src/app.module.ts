@@ -53,6 +53,7 @@ import { PostSaleModule } from "./modules/post-sale/post-sale.module.js";
 import { WhatsAppTemplatesModule } from "./modules/whatsapp-templates/whatsapp-templates.module.js";
 import { KnowledgeBaseModule } from "./modules/knowledge-base/knowledge-base.module.js";
 import { CrossSellModule } from "./modules/cross-sell/cross-sell.module.js";
+import { WidgetCrossSellModule } from "./modules/cross-sell/widget-cross-sell.module.js";
 import { UcpDiscoveryModule } from "./modules/public-api/ucp-discovery/ucp-discovery.module.js";
 import { AgenticProtocolModule } from "./modules/public-api/agentic-protocol/agentic-protocol.module.js";
 import { PublicApiModule } from "./modules/public-api/public-api.module.js";
@@ -128,6 +129,7 @@ import { PublicApiModule } from "./modules/public-api/public-api.module.js";
     WhatsAppTemplatesModule,
     KnowledgeBaseModule,
     CrossSellModule,
+    WidgetCrossSellModule,
     UcpDiscoveryModule,
     AgenticProtocolModule,
     PublicApiModule,

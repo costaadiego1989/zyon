@@ -5,6 +5,7 @@
 import type { Page } from "@playwright/test";
 
 export interface MockProduct {
+  suggestion_id?: string;
   sku: string;
   name: string;
   unit_price: number;

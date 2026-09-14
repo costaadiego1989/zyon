@@ -116,7 +116,11 @@ export class SendChatMessageUseCase {
       || (stage === "shipping" && missingFields && missingFields.length > 0 && !addressVerified);
 
     if (!isHoldout && !forceDeterministic) {
-      const experimentPromptOverride = await this.resolveExperimentPrompt(input.merchant_id, input.session_id);
+      const experimentPromptOverride = await this.resolveExperimentPrompt(
+        input.merchant_id,
+        input.session_id,
+        working.promptVariantId,
+      );
       llmReply = await this.callLocalLlm(
         input.user_message, context.merchantRules ?? [], context.merchant?.name, working.cart, input.merchant_id, context.buyerIntent, experimentPromptOverride, offer,
         this.buildLlmUiContext(working, context.rules, stage),
@@ -239,13 +243,20 @@ export class SendChatMessageUseCase {
     };
   }
 
-  private async resolveExperimentPrompt(merchantId: string, sessionId: string): Promise<string | undefined> {
+  private async resolveExperimentPrompt(
+    merchantId: string,
+    sessionId: string,
+    promptVariantId?: string | null,
+  ): Promise<string | undefined> {
     try {
       const running = await this.promptExperiment?.findRunningExperiment(merchantId);
       if (running && running.variants.length > 0) {
+        if (promptVariantId) {
+          return running.variants.find((variant) => variant.id === promptVariantId)?.systemPrompt;
+        }
         const hash = this.hashSessionId(sessionId);
         const totalWeight = running.variants.reduce((sum: number, v: any) => sum + v.weight, 0);
-        let target = Math.abs(hash) % totalWeight;
+        let target = (Math.abs(hash) % totalWeight) + 1;
         for (const variant of running.variants) {
           target -= variant.weight;
           if (target <= 0) {

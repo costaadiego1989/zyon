@@ -32,6 +32,8 @@ import {
   type CheckoutPaymentCapabilities,
 } from "../../../payment/domain/checkout-payment-routing.js";
 import type { MerchantStoreSettings } from "../../../merchant/domain/merchant.types.js";
+import { PROMPT_EXPERIMENT_PORT, type PromptExperimentPort } from "../../domain/ports/prompt-experiment.port.js";
+import { selectWeightedVariant } from "../../../../shared/experiments/weighted-variant-assignment.js";
 
 @Injectable()
 export class StartCheckoutUseCase {
@@ -50,6 +52,7 @@ export class StartCheckoutUseCase {
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL },
     @Optional() private readonly cartAuthority?: CheckoutCartAuthorityService,
     @Optional() @Inject(PAYMENT_PLATFORM_REPOSITORY) private readonly paymentConnections?: PaymentPlatformRepository,
+    @Optional() @Inject(PROMPT_EXPERIMENT_PORT) private readonly promptExperiment?: PromptExperimentPort,
   ) { }
 
   async execute(input: StartCheckoutRequest, trustedContext?: { storefrontCartRef?: string; trustedBuyer?: TrustedCheckoutBuyer; requireBuyerProof?: boolean }): Promise<StartCheckoutResponse> {
@@ -93,10 +96,11 @@ export class StartCheckoutUseCase {
     const { agent, buyerIntent } = await this.buyerContext.load(input.merchant_id, globalUserId);
 
     // Phase 3: Checkout Bootstrap
-    const { session } = await this.bootstrap.bootstrap(enrichedInput, globalUserId, true, {
+    let { session } = await this.bootstrap.bootstrap(enrichedInput, globalUserId, true, {
       trustedBuyer: trustedContext?.trustedBuyer,
       requireBuyerProof: trustedContext?.requireBuyerProof,
     });
+    session = await this.assignExperimentVariant(input.merchant_id, session);
 
     // Phase 4: Suggested Products
     const suggestedProducts = await this.resolveSuggestedProducts(input.merchant_id, session);
@@ -209,6 +213,27 @@ export class StartCheckoutUseCase {
         stripeCard: false,
         asaasHostedCard: false,
       });
+    }
+  }
+
+  private async assignExperimentVariant(merchantId: string, session: any) {
+    if (!this.promptExperiment || session.promptVariantId || session.cohort === "holdout") return session;
+    try {
+      const running = await this.promptExperiment.findRunningExperiment(merchantId);
+      const variant = running && selectWeightedVariant(session.sessionId, running.variants);
+      if (!variant) return session;
+
+      const assigned = { ...session, promptVariantId: variant.id };
+      await this.sessions.saveSession(assigned);
+      return assigned;
+    } catch (error) {
+      this.logger.warn({
+        event: "checkout.experiment.assignment_failed",
+        merchantId,
+        sessionId: session.sessionId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return session;
     }
   }
 

@@ -3,6 +3,7 @@ import type {
   MerchantNegotiationPolicy,
   NegotiationResult
 } from "@zyon/negotiation-engine";
+import type { AuthorizedOffer } from "@zyon/shared-types";
 
 export const NEGOTIATION_STORE = Symbol("NEGOTIATION_STORE");
 
@@ -41,6 +42,8 @@ export interface NegotiationStore {
   ): Promise<{
     cartFingerprint: string;
     result: NegotiationResult;
+    /** The immutable checkout offer stored when this negotiation was applied. */
+    appliedOffer?: AuthorizedOffer | null;
     /** ISO timestamp set when an offer was applied; null/undefined if not yet applied. */
     appliedAt?: string | null;
   } | null>;
@@ -55,8 +58,8 @@ export interface NegotiationStore {
     negotiationSessionId: string;
     checkoutSessionId: string;
     discountPercent: number;
-    offerData: Record<string, unknown>;
-  }): Promise<{ alreadyApplied: boolean; offerId: string }>;
+    offer: AuthorizedOffer;
+  }): Promise<{ alreadyApplied: boolean; offer: AuthorizedOffer }>;
 
   appendNegotiationLedgerEntry(input: {
     merchantId: string;

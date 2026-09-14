@@ -108,6 +108,7 @@ export interface CartItem {
 }
 
 export interface SuggestedProduct {
+  suggestion_id?: string;
   sku: string;
   variant_id?: string;
   name: string;
@@ -146,6 +147,11 @@ export interface Experience {
 export interface StartResponse {
   session_id: string;
   experience?: Experience;
+}
+
+export interface CrossSellAcceptResponse {
+  experience?: Experience;
+  agent_turn?: { role: "agent" | "buyer"; text: string; occurredAt?: string };
 }
 
 export function cartFromExperience(experience: Experience | undefined): { items: CartItem[]; total: number; discount: number; serviceFee: number; totalToPay?: number } {
@@ -308,6 +314,23 @@ export class CheckoutSession {
     cartFromExperience(response.experience);
     this.experience = response.experience;
     this.paymentRevision += 1;
+    return response;
+  }
+
+  async acceptCrossSell(suggestionId: string, sku: string): Promise<CrossSellAcceptResponse> {
+    this.assertSession();
+    const res = await fetch(`${this.baseUrl}/embed/cross-sell/accept`, {
+      method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify({ session_id: this.sessionId, suggestion_id: suggestionId, accepted_skus: [sku] }),
+    });
+    if (!res.ok) throw new Error(`cross_sell_accept_failed: ${res.status}`);
+    const response = await res.json() as CrossSellAcceptResponse;
+    if (response.experience) {
+      cartFromExperience(response.experience);
+      this.experience = response.experience;
+      this.paymentRevision += 1;
+    }
     return response;
   }
 
@@ -542,6 +565,7 @@ export function crossSellBlockFromSuggestions(
       displayMode,
       products: suggestions.map((p) => ({
         id: p.sku,
+        suggestionId: p.suggestion_id,
         sku: p.sku,
         variantId: p.variant_id,
         name: p.name,

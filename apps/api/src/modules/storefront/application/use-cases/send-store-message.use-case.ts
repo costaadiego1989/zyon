@@ -141,7 +141,7 @@ export class SendStoreMessageUseCase {
         // Use deterministic assignment based on conversation_id hash for consistency
         const hash = this.hashCode(input.conversation_id);
         const totalWeight = running.variants.reduce((sum, v) => sum + v.weight, 0);
-        let target = Math.abs(hash) % totalWeight;
+        let target = (Math.abs(hash) % totalWeight) + 1;
         for (const variant of running.variants) {
           target -= variant.weight;
           if (target <= 0) {

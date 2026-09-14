@@ -58,7 +58,11 @@ export class CheckoutCrossSellRecommender implements CheckoutCrossSellRecommende
     const base: (SuggestedProduct & { suggestion_id?: string; display_mode: CrossSellConfig["display"]["mode"] })[] =
       suggestions.flatMap((suggestion) =>
         suggestion.ranked_items.map((sku) => ({
-          suggestion_id: suggestion.id,
+          // Strategy fallbacks have no persisted promotion/suggestion to
+          // authorize against. The widget uses its conversational fallback for
+          // those cards instead of calling the secure accept endpoint with a
+          // synthetic id.
+          suggestion_id: suggestion.id.startsWith("strat_") ? undefined : suggestion.id,
           sku,
           name: sku,
           unit_price: undefined as unknown as number,

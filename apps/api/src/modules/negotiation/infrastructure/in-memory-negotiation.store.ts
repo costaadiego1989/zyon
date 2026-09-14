@@ -3,6 +3,7 @@ import type {
   MerchantNegotiationPolicy,
   NegotiationResult
 } from "@zyon/negotiation-engine";
+import type { AuthorizedOffer } from "@zyon/shared-types";
 import type { NegotiationStore } from "../domain/ports/negotiation-store.port.js";
 
 export class InMemoryNegotiationStore implements NegotiationStore {
@@ -16,6 +17,7 @@ export class InMemoryNegotiationStore implements NegotiationStore {
       globalUserId?: string;
       result: NegotiationResult;
       appliedAt?: string | null;
+      appliedOffer?: AuthorizedOffer | null;
     }
   >();
   private ledger: Array<{
@@ -25,7 +27,6 @@ export class InMemoryNegotiationStore implements NegotiationStore {
     amountCents: number;
     metadata?: Record<string, unknown>;
   }> = [];
-  private offers = new Map<string, { offerId: string; checkoutSessionId: string }>();
 
   async getMerchantPolicy(merchantId: string): Promise<MerchantNegotiationPolicy | null> {
     return this.merchantPolicies.get(merchantId) ?? null;
@@ -66,7 +67,8 @@ export class InMemoryNegotiationStore implements NegotiationStore {
       globalUserId: input.globalUserId,
       cartFingerprint: input.cartFingerprint,
       result: input.result,
-      appliedAt: null
+      appliedAt: null,
+      appliedOffer: null,
     });
     return { id };
   }
@@ -93,10 +95,15 @@ export class InMemoryNegotiationStore implements NegotiationStore {
   async getNegotiationSession(
     merchantId: string,
     negotiationSessionId: string
-  ): Promise<{ cartFingerprint: string; result: NegotiationResult; appliedAt?: string | null } | null> {
+  ): Promise<{ cartFingerprint: string; result: NegotiationResult; appliedAt?: string | null; appliedOffer?: AuthorizedOffer | null } | null> {
     const row = this.sessions.get(negotiationSessionId);
     if (!row || row.merchantId !== merchantId) return null;
-    return { cartFingerprint: row.cartFingerprint, result: row.result, appliedAt: row.appliedAt };
+    return {
+      cartFingerprint: row.cartFingerprint,
+      result: row.result,
+      appliedAt: row.appliedAt,
+      appliedOffer: row.appliedOffer ?? null,
+    };
   }
 
   /**
@@ -108,21 +115,16 @@ export class InMemoryNegotiationStore implements NegotiationStore {
     negotiationSessionId: string;
     checkoutSessionId: string;
     discountPercent: number;
-    offerData: Record<string, unknown>;
-  }): Promise<{ alreadyApplied: boolean; offerId: string }> {
-    const existing = this.offers.get(input.negotiationSessionId);
-    if (existing) {
-      return { alreadyApplied: true, offerId: existing.offerId };
-    }
-
-    const offerId = (input.offerData["id"] as string | undefined) ?? `off_${crypto.randomUUID()}`;
-    this.offers.set(input.negotiationSessionId, { offerId, checkoutSessionId: input.checkoutSessionId });
-
-    // Mark session as applied
+    offer: AuthorizedOffer;
+  }): Promise<{ alreadyApplied: boolean; offer: AuthorizedOffer }> {
     const session = this.sessions.get(input.negotiationSessionId);
-    if (session) {
-      session.appliedAt = new Date().toISOString();
+    if (!session || session.merchantId !== input.merchantId) {
+      throw new Error("negotiation_session_not_found");
     }
+    if (session.appliedOffer) return { alreadyApplied: true, offer: session.appliedOffer };
+
+    session.appliedOffer = structuredClone(input.offer);
+    session.appliedAt = new Date().toISOString();
 
     this.ledger.push({
       merchantId: input.merchantId,
@@ -133,7 +135,7 @@ export class InMemoryNegotiationStore implements NegotiationStore {
       metadata: { discountPercent: input.discountPercent, checkoutSessionId: input.checkoutSessionId }
     });
 
-    return { alreadyApplied: false, offerId };
+    return { alreadyApplied: false, offer: session.appliedOffer };
   }
 
   async appendNegotiationLedgerEntry(input: {

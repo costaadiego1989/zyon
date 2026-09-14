@@ -698,6 +698,7 @@ model NegotiationSession {
   globalUserId         String?  @map("global_user_id")
   cartFingerprint      String   @map("cart_fingerprint")
   resultJson           Json     @map("result_json")
+  appliedOfferJson     Json?    @map("applied_offer_json")
   estimatedAiCalls     Int      @map("estimated_ai_calls")
   estimatedAiCostCents Int      @map("estimated_ai_cost_cents")
   createdAt            DateTime @default(now()) @map("created_at")

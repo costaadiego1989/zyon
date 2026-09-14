@@ -63,25 +63,14 @@ export class ApplyNegotiationAgreementToCheckoutUseCase {
       throw new BadRequestException("human_confirmation_required");
     }
 
-    // Bug 3 fix: idempotency check — if already applied, return the offer
-    // re-derived from current rules without creating duplicates.
-    if (negRow.appliedAt) {
-      const rules = await this.merchantRules.getRules(input.merchantId);
-      const evaluation = evaluateDiscountOffer(
-        checkoutSession.cart,
-        rules,
-        negRow.result.selectedDiscountPercent
-      );
-      if (!evaluation.approved) {
-        throw new BadRequestException("merchant_rules_reject_on_replay");
+    if (negRow.appliedOffer) {
+      if (negRow.appliedOffer.sessionId !== input.checkoutSessionId) {
+        throw new BadRequestException("negotiation_checkout_session_mismatch");
       }
-      const offer = createAuthorizedOffer({
-        merchantId: input.merchantId,
-        sessionId: input.checkoutSessionId,
-        rules,
-        evaluation
-      });
-      return { offer };
+      return { offer: await this.offers.saveOffer(negRow.appliedOffer) };
+    }
+    if (negRow.appliedAt) {
+      throw new BadRequestException("negotiation_replay_offer_unavailable");
     }
 
     const rules = await this.merchantRules.getRules(input.merchantId);
@@ -107,18 +96,19 @@ export class ApplyNegotiationAgreementToCheckoutUseCase {
       rules,
       evaluation
     });
-    await this.offers.saveOffer(offer);
-
     // Bug 6+10 fix: atomic apply — use applyOfferWithLedger which writes the ledger
     // entry recording the actual discountPercent (not 0) and marks session applied.
-    await this.store.applyOfferWithLedger({
+    const applied = await this.store.applyOfferWithLedger({
       merchantId: input.merchantId,
       negotiationSessionId: input.negotiationSessionId,
       checkoutSessionId: input.checkoutSessionId,
       discountPercent: input.requestedDiscountPercent,
-      offerData: { id: offer.id }
+      offer
     });
 
-    return { offer };
+    if (applied.offer.sessionId !== input.checkoutSessionId) {
+      throw new BadRequestException("negotiation_checkout_session_mismatch");
+    }
+    return { offer: await this.offers.saveOffer(applied.offer) };
   }
 }

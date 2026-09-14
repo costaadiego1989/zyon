@@ -4,6 +4,7 @@ import type {
   MerchantNegotiationPolicy,
   NegotiationResult
 } from "@zyon/negotiation-engine";
+import type { AuthorizedOffer } from "@zyon/shared-types";
 import type { NegotiationStore } from "../domain/ports/negotiation-store.port.js";
 
 export class PrismaNegotiationStore implements NegotiationStore {
@@ -113,7 +114,7 @@ export class PrismaNegotiationStore implements NegotiationStore {
   async getNegotiationSession(
     merchantId: string,
     negotiationSessionId: string
-  ): Promise<{ cartFingerprint: string; result: NegotiationResult; appliedAt?: string | null } | null> {
+  ): Promise<{ cartFingerprint: string; result: NegotiationResult; appliedAt?: string | null; appliedOffer?: AuthorizedOffer | null } | null> {
     const row = await this.prisma.negotiationSession.findFirst({
       where: { id: negotiationSessionId, merchantId }
     });
@@ -131,6 +132,7 @@ export class PrismaNegotiationStore implements NegotiationStore {
     return {
       cartFingerprint: row.cartFingerprint,
       result: row.resultJson as unknown as NegotiationResult,
+      appliedOffer: row.appliedOfferJson as AuthorizedOffer | null,
       appliedAt: appliedEntry ? appliedEntry.createdAt.toISOString() : null
     };
   }
@@ -144,9 +146,16 @@ export class PrismaNegotiationStore implements NegotiationStore {
     negotiationSessionId: string;
     checkoutSessionId: string;
     discountPercent: number;
-    offerData: Record<string, unknown>;
-  }): Promise<{ alreadyApplied: boolean; offerId: string }> {
+    offer: AuthorizedOffer;
+  }): Promise<{ alreadyApplied: boolean; offer: AuthorizedOffer }> {
     return this.prisma.$transaction(async (tx) => {
+      const session = await tx.negotiationSession.findFirst({
+        where: { id: input.negotiationSessionId, merchantId: input.merchantId }
+      });
+      if (!session) throw new Error("negotiation_session_not_found");
+      if (session.appliedOfferJson) {
+        return { alreadyApplied: true, offer: session.appliedOfferJson as unknown as AuthorizedOffer };
+      }
       // H2 fix: idempotency check — findFirst protected by $transaction serialization.
       // After migration applies the composite unique constraint, Prisma will enforce
       // uniqueness at DB level even in concurrent scenarios.
@@ -157,12 +166,12 @@ export class PrismaNegotiationStore implements NegotiationStore {
         }
       });
 
-      if (existing) {
-        const offerId = (input.offerData["id"] as string | undefined) ?? `off_replay`;
-        return { alreadyApplied: true, offerId };
-      }
+      if (existing) throw new Error("negotiation_replay_offer_unavailable");
 
-      const offerId = (input.offerData["id"] as string | undefined) ?? `off_${crypto.randomUUID()}`;
+      await tx.negotiationSession.update({
+        where: { id: session.id },
+        data: { appliedOfferJson: JSON.parse(JSON.stringify(input.offer)) as object }
+      });
 
       const basisPoints = Math.round(input.discountPercent * 100);
       // C3 fix: write ledger entry with discount basis points. Populate the
@@ -182,7 +191,7 @@ export class PrismaNegotiationStore implements NegotiationStore {
         }
       });
 
-      return { alreadyApplied: false, offerId };
+      return { alreadyApplied: false, offer: input.offer };
     });
   }
 

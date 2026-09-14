@@ -515,13 +515,16 @@ function OrderConfirmationBlock({ data }: { data?: Record<string, unknown> }) {
   );
 }
 
-type CrossSellProduct = { name: string; price?: number; image?: string; sku?: string; variantId?: string; inStock?: boolean };
+type CrossSellProduct = { name: string; price?: number; image?: string; sku?: string; suggestionId?: string; variantId?: string; inStock?: boolean };
 
 const formatCrossSellPrice = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
+  const acceptCrossSell = useCheckoutStore((s) => s.acceptCrossSell);
   const [dismissed, setDismissed] = useState(false);
+  const [pendingSku, setPendingSku] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const products = (data?.products as CrossSellProduct[]) ?? [];
   const mode = (data?.displayMode as string) ?? "inline";
@@ -538,11 +541,32 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
 
   if (!data || products.length === 0 || dismissed) return null;
 
+  const addProduct = async (product: CrossSellProduct) => {
+    if (product.inStock === false || pendingSku) return;
+    setError(null);
+    if (!product.suggestionId || !product.sku) {
+      await sendMessage(`Adicionar ${product.name}`);
+      setDismissed(true);
+      return;
+    }
+    setPendingSku(product.sku);
+    const result = await acceptCrossSell(product.suggestionId, product.sku);
+    setPendingSku(null);
+    if (result.ok) {
+      setDismissed(true);
+    } else {
+      setError(result.error || "Nao foi possivel adicionar este complemento.");
+    }
+  };
+
   const addButton = (p: CrossSellProduct, i: number, compact = false) => (
     <button data-neu="choice"
       key={i}
       data-testid="cross-sell-product"
-      onClick={() => void sendMessage(`Adicionar ${p.name}`)}
+      disabled={p.inStock === false || Boolean(pendingSku)}
+      aria-busy={pendingSku === p.sku}
+      aria-label={error ? `${p.name}. ${error}` : p.name}
+      onClick={() => void addProduct(p)}
       style={{
         display: "flex",
         justifyContent: "space-between",
@@ -554,7 +578,7 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
         border: "1px solid var(--bd)",
         background: "transparent",
         color: "var(--tx)",
-        cursor: "pointer",
+        cursor: p.inStock === false || pendingSku ? "not-allowed" : "pointer",
         fontSize: "12px",
         marginBottom: compact ? 0 : "6px",
         textAlign: "left",
@@ -711,11 +735,10 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
                 <button data-neu="control"
                   type="button"
                   data-testid="cross-sell-product"
-                  disabled={p.inStock === false}
+                  disabled={p.inStock === false || Boolean(pendingSku)}
+                  aria-busy={pendingSku === p.sku}
                   onClick={() => {
-                    const ref = p.sku ? `${p.name} (SKU: ${p.sku})` : p.name;
-                    void sendMessage(`Adicionar ${ref} ao carrinho`);
-                    setDismissed(true);
+                    void addProduct(p);
                   }}
                   style={{ marginTop: "auto", width: "100%", padding: "9px 8px", borderRadius: "8px", border: "none", background: p.inStock === false ? "var(--bd)" : "var(--aacp-accent, #0f766e)", color: "#fff", fontSize: "12px", fontWeight: 800, cursor: p.inStock === false ? "not-allowed" : "pointer", opacity: p.inStock === false ? 0.5 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}
                 >

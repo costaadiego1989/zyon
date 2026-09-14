@@ -213,6 +213,38 @@ test("product click sends 'Adicionar' message", async ({ page }) => {
   expect(parsed.user_message).toContain("Adicionar Hoodie Agentic");
 });
 
+test("persisted cross-sell acceptance calls the authenticated endpoint", async ({ page }) => {
+  let acceptBody: Record<string, unknown> | null = null;
+  await setupCrossSellMocks(page, {
+    startProducts: [{ ...CROSS_SELL_PRODUCTS[0], suggestion_id: "sug_e2e_hoodie" }],
+  });
+  await page.route("**/embed/cross-sell/accept", async (route) => {
+    acceptBody = route.request().postDataJSON();
+    await route.fulfill({ json: {
+      experience: {
+        items: [
+          { sku: "SKU-001", name: "Camiseta Zyon", unit_price: 89.9, quantity: 1 },
+          { sku: "HOOD-001", name: "Hoodie Agentic", unit_price: 199.9, quantity: 1 },
+        ],
+        totals: { subtotal: 289.8, discount: 0, total: 289.8 },
+      },
+      agent_turn: { role: "agent", text: "Complemento adicionado." },
+    }});
+  });
+
+  await navigateToCheckout(page);
+  await waitForActiveCheckout(page);
+  await page.locator("button:has-text('Hoodie Agentic')").click();
+
+  await expect.poll(() => acceptBody).not.toBeNull();
+  expect(acceptBody).toMatchObject({
+    session_id: "chk_e2e_test_001",
+    suggestion_id: "sug_e2e_hoodie",
+    accepted_skus: ["HOOD-001"],
+  });
+  await expect(page.locator("text=Complemento adicionado.")).toBeVisible();
+});
+
 // ─── Test 8: Empty suggestedProducts → no block ─────────────────────────────
 
 test("empty suggestedProducts array: no cross-sell block", async ({ page }) => {

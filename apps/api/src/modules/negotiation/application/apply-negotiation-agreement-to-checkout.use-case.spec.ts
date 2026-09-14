@@ -339,7 +339,7 @@ describe("ApplyNegotiationAgreementToCheckoutUseCase", () => {
 
     const uc = buildUseCase(store, checkout);
 
-    await uc.execute({
+    const first = await uc.execute({
       merchantId: "mrc_3",
       negotiationSessionId: id,
       checkoutSessionId: "sess_3",
@@ -347,7 +347,7 @@ describe("ApplyNegotiationAgreementToCheckoutUseCase", () => {
     });
 
     // Second call — must not throw and must not add another ledger entry
-    await uc.execute({
+    const replay = await uc.execute({
       merchantId: "mrc_3",
       negotiationSessionId: id,
       checkoutSessionId: "sess_3",
@@ -357,6 +357,8 @@ describe("ApplyNegotiationAgreementToCheckoutUseCase", () => {
     const ledger = store.listLedger().filter(
       (e) => e.negotiationSessionId === id && e.eventType === "negotiation.offer_applied"
     );
+    assert.equal(replay.offer.id, first.offer.id);
+    assert.equal(checkout.getOffer("mrc_3", replay.offer.id)?.id, first.offer.id);
     assert.equal(ledger.length, 1, "exactly one offer_applied entry — no duplicate");
   });
 

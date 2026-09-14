@@ -6,6 +6,7 @@ export type CheckoutEventName =
   | "cart_viewed"
   | "item_quantity_updated"
   | "item_removed"
+  | "cross_sell_accepted"
   | "shipping_option_selected"
   | "payment_method_selected"
   | "order_completed"

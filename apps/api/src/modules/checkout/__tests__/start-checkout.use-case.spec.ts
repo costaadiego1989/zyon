@@ -64,6 +64,34 @@ test("StartCheckoutUseCase creates session, records start event, and appends out
   assert.equal(repository.listOutbox("mrc_1")[0]?.event_type, "checkout.session.started");
 });
 
+test("StartCheckoutUseCase persists the selected prompt experiment variant", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  const useCase = createStartCheckoutUseCase(repository, repository, {
+    promptExperiment: {
+      async findRunningExperiment() {
+        return {
+          id: "exp_checkout_prompt",
+          variants: [{
+            id: "variant_treatment",
+            name: "Treatment",
+            weight: 100,
+            systemPrompt: "Use the treatment prompt.",
+            isControl: false,
+            appliedRuleId: null,
+          }],
+        };
+      },
+    },
+  });
+
+  await useCase.execute(startCheckoutRequest({ session_id: "chk_prompt_assignment" }));
+
+  assert.equal(
+    repository.getSession("mrc_1", "chk_prompt_assignment")?.promptVariantId,
+    "variant_treatment",
+  );
+});
+
 test("StartCheckoutUseCase exposes the configured buyer service fee without adding it twice to the order total", async () => {
   const repository = new InMemoryCheckoutRepository();
   const useCase = createStartCheckoutUseCase(repository, repository, {

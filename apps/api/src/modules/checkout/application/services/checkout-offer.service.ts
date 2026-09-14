@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import { evaluateDiscountOffer } from "@zyon/rules-engine";
 import { evaluateShippingOffer } from "@zyon/shipping-engine";
 import type { ChatStage, CheckoutSession, MerchantRules } from "@zyon/shared-types";
+import type { MerchantNegotiationPolicy } from "@zyon/negotiation-engine";
 import { CHECKOUT_REPOSITORY, type CheckoutRepository } from "../../domain/ports/checkout-repository.port.js";
 import { PROMPT_EXPERIMENT_PORT, type PromptExperimentPort } from "../../domain/ports/prompt-experiment.port.js";
 import { createAuthorizedOffer } from "../use-cases/offer-factory.js";
@@ -17,6 +18,16 @@ import {
 interface NegotiationPolicyRange {
   minOfferDiscountPercent?: number;
   maxDiscountPercent?: number;
+}
+
+interface CheckoutNegotiationPolicy {
+  enabled?: boolean;
+  global?: MerchantNegotiationPolicy["global"];
+  categories?: MerchantNegotiationPolicy["categories"];
+  items?: MerchantNegotiationPolicy["items"];
+  maxRounds?: number;
+  maxAiCostCents?: number;
+  estimatedCostPerAiCallCents?: number;
 }
 
 function clipToNegotiationPolicy(
@@ -79,6 +90,7 @@ export class CheckoutOfferService {
   private async shapeAdvancedRulesForExperiment(
     merchantId: string,
     sessionId: string,
+    promptVariantId: string | null | undefined,
     advancedRules: any[]
   ): Promise<{ rules: any[]; forcedRuleId: string | null }> {
     if (!this.promptExperiment) return { rules: advancedRules, forcedRuleId: null };
@@ -90,14 +102,21 @@ export class CheckoutOfferService {
     }
     if (!running || running.variants.length === 0) return { rules: advancedRules, forcedRuleId: null };
 
-    // Pick the same variant the chat/attribution picked (weighted djb2 hash).
-    const totalWeight = running.variants.reduce((sum, v) => sum + v.weight, 0);
-    if (totalWeight <= 0) return { rules: advancedRules, forcedRuleId: null };
-    let target = Math.abs(this.hashSessionId(sessionId)) % totalWeight;
-    let selected = running.variants[running.variants.length - 1];
-    for (const v of running.variants) {
-      target -= v.weight;
-      if (target <= 0) { selected = v; break; }
+    // New sessions carry their selected arm. Hash assignment remains only for
+    // pre-migration sessions that have no durable experiment attribution.
+    let selected = promptVariantId
+      ? running.variants.find((variant) => variant.id === promptVariantId)
+      : undefined;
+    if (promptVariantId && !selected) return { rules: advancedRules, forcedRuleId: null };
+    if (!selected) {
+      const totalWeight = running.variants.reduce((sum, v) => sum + v.weight, 0);
+      if (totalWeight <= 0) return { rules: advancedRules, forcedRuleId: null };
+      let target = (Math.abs(this.hashSessionId(sessionId)) % totalWeight) + 1;
+      selected = running.variants[running.variants.length - 1];
+      for (const variant of running.variants) {
+        target -= variant.weight;
+        if (target <= 0) { selected = variant; break; }
+      }
     }
 
     // All rule ids referenced by any treatment arm of this experiment.
@@ -214,15 +233,17 @@ export class CheckoutOfferService {
     }
 
     let negotiationRange: NegotiationPolicyRange | null = null;
+    let storedNegotiationPolicy: CheckoutNegotiationPolicy | null = null;
     if (this.prisma?.merchantNegotiationPolicy) {
       try {
         const np = await this.prisma.merchantNegotiationPolicy.findUnique({
           where: { merchantId: sessionObj.merchantId }
         });
-        const raw = (np?.policy ?? np) as { global?: NegotiationPolicyRange } | NegotiationPolicyRange | null;
-        negotiationRange = (raw && "global" in (raw as object)
-          ? (raw as { global?: NegotiationPolicyRange }).global
-          : (raw as NegotiationPolicyRange)) ?? null;
+        const raw = np?.policy as CheckoutNegotiationPolicy | null | undefined;
+        if (raw && typeof raw === "object") {
+          storedNegotiationPolicy = raw;
+          negotiationRange = raw.enabled ? raw.global ?? null : null;
+        }
       } catch (err) {
         this.logger.warn("negotiation.policy.load.failed", { error: err instanceof Error ? err.message : String(err) });
       }
@@ -230,9 +251,7 @@ export class CheckoutOfferService {
 
     if (stage === "payment" && this.evaluateNegotiation && this.prisma) {
       try {
-        const negotiationPolicy = await this.prisma.merchantNegotiationPolicy?.findUnique?.({
-          where: { merchantId: sessionObj.merchantId }
-        });
+        const negotiationPolicy = storedNegotiationPolicy;
         if (negotiationPolicy?.enabled) {
           const result = this.evaluateNegotiation.execute({
             merchantId: sessionObj.merchantId,
@@ -335,6 +354,7 @@ export class CheckoutOfferService {
     const { rules: advancedRules, forcedRuleId } = await this.shapeAdvancedRulesForExperiment(
       sessionObj.merchantId,
       sessionObj.sessionId,
+      sessionObj.promptVariantId,
       allAdvancedRules
     );
     if (advancedRules.length > 0 && !wantsShipping) {

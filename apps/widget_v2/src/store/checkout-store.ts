@@ -156,6 +156,7 @@ interface CheckoutState {
   init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; globalUserId?: string; buyerAccessToken?: string }) => Promise<void>;
   selectChannel: (channel: "chat" | "voice") => void;
   sendMessage: (text: string) => Promise<void>;
+  acceptCrossSell: (suggestionId: string, sku: string) => Promise<{ ok: boolean; error?: string }>;
   updateQty: (sku: string, quantity: number, variant?: string) => Promise<void>;
   removeCartItem: (sku: string, variant?: string) => Promise<void>;
   selectShipping: (key: string) => Promise<void>;
@@ -697,6 +698,40 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         timestamp: Date.now(),
       };
       set((s) => ({ messages: [...s.messages, errorMsg], isTyping: false }));
+    }
+  },
+
+  acceptCrossSell: async (suggestionId, sku) => {
+    const { api, cartUpdating, status } = get();
+    if (!api || cartUpdating || status === "completed") {
+      return { ok: false, error: "checkout_unavailable" };
+    }
+    set({ cartUpdating: true, cartError: null });
+    try {
+      const response = await api.acceptCrossSell(suggestionId, sku);
+      const cart = cartFromExperience(response.experience);
+      get().stopPolling();
+      set((state) => ({
+        cart: { ...cart, status: "awaiting" },
+        paymentIntent: null,
+        activeDiscount: null,
+        messages: response.agent_turn?.text
+          ? [...state.messages, {
+              id: `cross_sell_${Date.now()}`,
+              role: "agent" as const,
+              text: response.agent_turn.text,
+              timestamp: Date.now(),
+            }]
+          : state.messages,
+      }));
+      void trackEvent("cross_sell_accepted", { sku });
+      return { ok: true };
+    } catch {
+      const error = "Nao foi possivel adicionar este complemento. Tente novamente.";
+      set({ cartError: error });
+      return { ok: false, error };
+    } finally {
+      set({ cartUpdating: false });
     }
   },
 

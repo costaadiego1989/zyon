@@ -11,6 +11,7 @@ import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.s
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
+import { selectWeightedVariant } from "../../../../shared/experiments/weighted-variant-assignment.js";
 
 export interface StartStoreConversationInput {
   merchant_id: string;
@@ -65,13 +66,15 @@ export class StartStoreConversationUseCase {
           // formula used in storefront.controller `/events` and checkout
           // send-chat-message.hashSessionId, so the variant whose systemPrompt drives
           // the greeting is the SAME variant that later gets the conversion credited.
-          const selected = this.assignVariantByHash(conversationId, running.variants as any[]);
-          experiment = {
-            variant_id: selected.id,
-            variant_name: selected.name,
-            system_prompt: selected.systemPrompt
-          };
-          this.logger.debug(`Assigned variant "${selected.name}" to conversation ${conversationId}`);
+          const selected = selectWeightedVariant(conversationId, running.variants);
+          if (selected) {
+            experiment = {
+              variant_id: selected.id,
+              variant_name: selected.name,
+              system_prompt: selected.systemPrompt
+            };
+            this.logger.debug(`Assigned variant "${selected.name}" to conversation ${conversationId}`);
+          }
         }
       }
     } catch (error) {
@@ -85,32 +88,5 @@ export class StartStoreConversationUseCase {
       created_at: new Date().toISOString(),
       experiment: experiment || null
     };
-  }
-
-  /**
-   * Deterministic weighted variant selection by session/conversation hash.
-   * djb2 hash — identical to storefront.controller `/events` and
-   * send-chat-message.hashSessionId. Same id → same variant, always, so the
-   * greeting prompt and the conversion attribution never diverge.
-   */
-  private assignVariantByHash(
-    sessionId: string,
-    variants: Array<{ id: string; name: string; systemPrompt: string; weight: number }>,
-  ): { id: string; name: string; systemPrompt: string } {
-    let hash = 0;
-    for (let i = 0; i < sessionId.length; i++) {
-      hash = ((hash << 5) - hash) + sessionId.charCodeAt(i);
-      hash |= 0;
-    }
-    const totalWeight = variants.reduce((sum, v) => sum + (v.weight || 1), 0);
-    let target = Math.abs(hash) % totalWeight;
-    for (const variant of variants) {
-      target -= (variant.weight || 1);
-      if (target <= 0) {
-        return { id: variant.id, name: variant.name, systemPrompt: variant.systemPrompt };
-      }
-    }
-    const first = variants[0];
-    return { id: first.id, name: first.name, systemPrompt: first.systemPrompt };
   }
 }
