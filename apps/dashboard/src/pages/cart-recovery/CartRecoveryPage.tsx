@@ -201,14 +201,16 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
                   <span className="recovery-strategy__copy">
                     <span className="recovery-strategy__title">{opt.label}</span>
                     <span className="recovery-strategy__description">{opt.description}</span>
-                    {active && opt.needsConfig ? <span className="recovery-strategy__link">{linked || "Vínculo necessário"}</span> : null}
                   </span>
                 </label>
                 {active && opt.needsConfig ? (
-                  <Button variant="outline" size="sm" disabled={savingKey !== null}
-                    onClick={() => openLinkPanel(opt.key === "offer_coupon" ? "coupon" : "rule")}>
-                    <Edit size={14} /> {linked ? "Alterar vínculo" : "Vincular"}
-                  </Button>
+                  <div className="recovery-strategy__actions">
+                    <span className="recovery-strategy__status" data-linked={Boolean(linked)}>{linked || "Vínculo necessário"}</span>
+                    <Button variant="outline" size="sm" disabled={savingKey !== null}
+                      onClick={() => openLinkPanel(opt.key === "offer_coupon" ? "coupon" : "rule")}>
+                      <Edit size={14} /> {linked ? "Alterar vínculo" : "Vincular"}
+                    </Button>
+                  </div>
                 ) : active ? <span className="recovery-strategy__link">Selecionada</span> : null}
               </div>
             );

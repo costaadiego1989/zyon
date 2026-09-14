@@ -7,6 +7,7 @@ import { useStoriesPage } from "./useStoriesPage.js";
 import type { TitleConfig } from "../api/endpoints/stories.js";
 import { Button } from "../components/Button.js";
 import { FormField, FormSelect, FormTextarea } from "../components/FormField.js";
+import { StatCard, StatCardGroup } from "./overview/components/StatCard.js";
 
 export interface StoriesPageProps {
   apiBaseUrl: string;
@@ -83,30 +84,25 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
         </Button>
       </header>
 
-      {/* Stat cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
-        <div style={{ padding: "16px 20px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <span style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.05em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>Categorias</span>
-            <FolderOpen size={15} style={{ color: "var(--color-brand)" }} />
-          </div>
-          <div style={{ font: "700 26px var(--font-sans)", color: "var(--color-text)" }}>{vm.categories.length}</div>
-        </div>
-        <div style={{ padding: "16px 20px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <span style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.05em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>Stories Ativos</span>
-            <Image size={15} style={{ color: "var(--color-brand)" }} />
-          </div>
-          <div style={{ font: "700 26px var(--font-sans)", color: "var(--color-brand)" }}>{vm.stories.length}</div>
-        </div>
-        <div style={{ padding: "16px 20px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <span style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.05em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>Selecionada</span>
-            <Clock size={15} style={{ color: "var(--color-text-faint)" }} />
-          </div>
-          <div style={{ font: "600 15px var(--font-sans)", color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{vm.selectedCategory?.name ?? "—"}</div>
-        </div>
-      </div>
+      {/* KPIs */}
+      <StatCardGroup columns={3}>
+        <StatCard
+          label="Categorias"
+          value={vm.categories.length}
+          icon={<FolderOpen size={16} />}
+        />
+        <StatCard
+          label="Stories ativos"
+          value={vm.stories.length}
+          icon={<Image size={16} />}
+          accent="var(--color-brand)"
+        />
+        <StatCard
+          label="Categoria selecionada"
+          value={vm.selectedCategory?.name ?? "Nenhuma"}
+          icon={<Clock size={16} />}
+        />
+      </StatCardGroup>
 
       {/* Layout — categories sidebar + stories grid */}
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16, minHeight: "400px" }}>

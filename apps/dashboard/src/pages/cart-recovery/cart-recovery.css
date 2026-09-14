@@ -51,7 +51,7 @@
 .recovery-strategy { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); min-width: 0; }
 .recovery-strategy[data-active="true"] { border-color: var(--color-brand); background: var(--accent-soft); }
 .recovery-strategy__choice { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; cursor: pointer; }
-.recovery-strategy__choice input { appearance: none; width: 18px; height: 18px; flex: 0 0 18px; margin: 0; border: 2px solid var(--color-border); border-radius: 50%; background: transparent; }
+.recovery-strategy__choice input { appearance: none; box-sizing: border-box; inline-size: 18px; block-size: 18px; min-inline-size: 18px; max-inline-size: 18px; min-block-size: 18px; max-block-size: 18px; flex: 0 0 18px; margin: 0; padding: 0; border: 2px solid var(--color-border); border-radius: 50%; background: transparent; }
 .recovery-strategy__choice input:checked { border-color: var(--color-brand); background: var(--color-brand); box-shadow: inset 0 0 0 3px var(--surface-1); }
 @media (forced-colors: active) { .recovery-strategy__choice input { appearance: auto; } }
 .recovery-strategy__choice input:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 4px; }
@@ -60,6 +60,9 @@
 .recovery-strategy[data-active="true"] .recovery-strategy__title { color: var(--color-brand); }
 .recovery-strategy__description { font: 12px/1.5 var(--font-sans); color: var(--color-text-muted); }
 .recovery-strategy__link { font: 500 11px/1.5 var(--font-sans); color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.recovery-strategy__actions { display: flex; align-items: center; gap: 12px; margin-left: auto; min-width: 0; flex-shrink: 0; }
+.recovery-strategy__status { max-width: 24ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 11px var(--font-sans); color: var(--color-text-secondary); }
+.recovery-strategy__status[data-linked="false"] { color: var(--color-warning); }
 .recovery-strategies:disabled { opacity: .65; }
 .recovery-strategies:disabled label { cursor: wait; }
 .recovery-link-select { min-width: 0; }
@@ -68,5 +71,6 @@
 @media (max-width: 640px) {
   .recovery-strategy { flex-wrap: wrap; padding: 12px; }
   .recovery-strategy__choice { flex-basis: 100%; }
-  .recovery-strategy > button, .recovery-strategy > .recovery-strategy__link { margin-left: 32px; }
+  .recovery-strategy > .recovery-strategy__link, .recovery-strategy__actions { margin-left: 32px; }
+  .recovery-strategy__actions { width: calc(100% - 32px); justify-content: space-between; }
 }
