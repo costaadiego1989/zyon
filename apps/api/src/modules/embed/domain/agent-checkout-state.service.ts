@@ -81,7 +81,7 @@ export class AgentCheckoutStateService {
         error: "INVALID_STATE_TRANSITION",
         current_state: currentState,
         attempted_action: action ?? targetState,
-        required_state: nextAllowed[0] ?? "terminal",
+        required_state: nextAllowed[0] ? this.actionToTransition.get(nextAllowed[0])?.to ?? "terminal" : "terminal",
         message: `Cannot transition from ${currentState} to ${targetState}. ` +
           `Allowed: ${Array.from(allowed).join(", ")}`,
       });

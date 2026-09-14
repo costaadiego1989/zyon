@@ -1,3 +1,4 @@
+import { GetMerchantThemeUseCase } from "../../../merchant/application/get-merchant-theme.use-case.js";
 import {
   BadRequestException,
   Body,
@@ -83,6 +84,7 @@ export class EmbedSessionsController {
     private readonly issue: IssueEmbedSessionUseCase,
     private readonly resolveInstallation: ResolveInstallationForEmbedUseCase,
     @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository,
+    private readonly getTheme: GetMerchantThemeUseCase,
     @Optional() private readonly listInstallations?: ListInstallationsUseCase,
     @Optional() private readonly storefrontCartAccess?: AuthorizeStorefrontCartService,
   ) {}
@@ -175,7 +177,8 @@ export class EmbedSessionsController {
       storefrontCartRef,
     });
 
-    const merchant = await this.merchants.getProfile(issuer.merchantId);
+    const profile = await this.merchants.getProfile(issuer.merchantId);
+    const merchant = profile ? { ...profile, theme: await this.getTheme.execute(issuer.merchantId) } : undefined;
 
     return {
       ...result,
@@ -198,10 +201,15 @@ export class EmbedSessionsController {
           secondaryColor: merchant.theme.secondaryColor ?? undefined,
           mode: merchant.theme.mode ?? undefined,
           density: merchant.theme.density ?? undefined,
+          agentAvatarUrl: merchant.theme.agentAvatarUrl ?? undefined,
+          backgroundImageUrl: merchant.theme.backgroundImageUrl ?? undefined,
+          faviconUrl: merchant.theme.faviconUrl ?? undefined,
+          headerTitle: merchant.theme.headerTitle ?? undefined,
+          headerSubtitle: merchant.theme.headerSubtitle ?? undefined,
         } : undefined,
         agent: merchant?.theme?.agentName ? {
           name: merchant.theme.agentName,
-          greeting: (merchant.theme as any).agentGreeting ?? undefined,
+          greeting: merchant.theme.agentGreeting ?? undefined,
         } : undefined,
       },
     };

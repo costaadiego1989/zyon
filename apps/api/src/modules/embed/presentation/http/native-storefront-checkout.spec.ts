@@ -42,7 +42,7 @@ function fixture() {
 test("native conversation capability issues a cart-bound token without requiring an external installation", async () => {
   const tokens = new EmbedTokenService({ value: Buffer.from("native-embed-test-secret-32-characters") });
   const issuer = new EmbedSessionsController(new IssueEmbedSessionUseCase(tokens), {} as never,
-    { getProfile: async () => undefined } as never, undefined, cartAccess);
+    { getProfile: async () => undefined } as never, {} as never, undefined, cartAccess);
   const result = await issuer.issueSession({ apiKey: { id: "internal-storefront", merchantId: "merchant", environment: "live" } },
     { cart_ref: "conv_cart", conversation_token: proof(), allowed_origin: origin });
   const claims = tokens.verify(result.embed_session_token);

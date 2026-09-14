@@ -100,7 +100,7 @@ describe("ProtocolAgentController — Integration Tests", () => {
 
     it("merchant_id and agent_id are required", async () => {
       const ctrl = createController();
-      assert.throws(
+      await assert.rejects(
         () =>
           ctrl.start({
             merchant_id: "",
@@ -131,7 +131,7 @@ describe("ProtocolAgentController — Integration Tests", () => {
 
     it("@regression: invalid token (malformed) returns 401", async () => {
       const ctrl = createController();
-      assert.throws(
+      await assert.rejects(
         () => ctrl.discover(`Bearer invalid_token`, { action: "discover" } as any),
         /Unauthorized|401/i
       );
@@ -139,13 +139,14 @@ describe("ProtocolAgentController — Integration Tests", () => {
 
     it("@regression: missing Bearer token returns 401", async () => {
       const ctrl = createController();
-      assert.throws(
+      await assert.rejects(
         () => ctrl.discover(`NoBearer token`, { action: "discover" } as any),
         /Unauthorized|401/i
       );
     });
 
-    it("token is refreshed (new expires_at)", async () => {
+    it("token is refreshed (new expires_at)", async (t) => {
+      t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
       const ctrl = createController();
       const startResult = await ctrl.start({
         merchant_id: "merchant_1",
@@ -154,8 +155,8 @@ describe("ProtocolAgentController — Integration Tests", () => {
 
       const oldExpiresAt = new Date(startResult.expires_at).getTime();
 
-      // Small delay to ensure time has progressed
-      await new Promise((r) => setTimeout(r, 10));
+      // Token TTL has second precision. Advance the clock deterministically.
+      t.mock.timers.tick(2000);
 
       const discoverResult = await ctrl.discover(`Bearer ${startResult.session_token}`, {
         action: "discover",
@@ -196,7 +197,7 @@ describe("ProtocolAgentController — Integration Tests", () => {
         agent_id: "agent_x",
       });
 
-      assert.throws(
+      await assert.rejects(
         () => ctrl.negotiate(`Bearer ${startResult.session_token}`, { action: "negotiate" } as any),
         (err: any) => err.response?.error === "INVALID_STATE_TRANSITION" || err.status === 409
       );
@@ -240,7 +241,7 @@ describe("ProtocolAgentController — Integration Tests", () => {
         payload: { products: 5 },
       });
 
-      assert.throws(
+      await assert.rejects(
         () => ctrl.quote(`Bearer ${discoverResult.session_token}`, { action: "quote" } as any),
         (err: any) => err.response?.error === "INVALID_STATE_TRANSITION" || err.status === 409
       );
@@ -353,7 +354,7 @@ describe("ProtocolAgentController — Integration Tests", () => {
 
     it("@regression: invalid token returns 401", async () => {
       const ctrl = createController();
-      assert.throws(
+      await assert.rejects(
         () => ctrl.state(`Bearer invalid_token`),
         /Unauthorized|401/i
       );
@@ -421,7 +422,7 @@ describe("ProtocolAgentController — Integration Tests", () => {
         agent_id: "agent_x",
       });
 
-      assert.throws(
+      await assert.rejects(
         () => ctrl.negotiate(`Bearer ${startResult.session_token}`, { action: "negotiate" } as any),
         (err: any) => err.response?.error === "INVALID_STATE_TRANSITION" || err.status === 409
       );
@@ -437,7 +438,7 @@ describe("ProtocolAgentController — Integration Tests", () => {
         action: "discover",
       });
 
-      assert.throws(
+      await assert.rejects(
         () => ctrl.checkout(`Bearer ${discoverResult.session_token}`, { action: "checkout" } as any),
         (err: any) => err.response?.error === "INVALID_STATE_TRANSITION" || err.status === 409
       );
@@ -459,7 +460,7 @@ describe("ProtocolAgentController — Integration Tests", () => {
         action: "quote",
       });
 
-      assert.throws(
+      await assert.rejects(
         () => ctrl.pay(`Bearer ${quoteResult.session_token}`, { action: "pay" } as any),
         (err: any) => err.response?.error === "INVALID_STATE_TRANSITION" || err.status === 409
       );

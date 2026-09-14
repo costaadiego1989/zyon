@@ -29,6 +29,7 @@ export class AgentSessionTokenService {
 
   constructor(secret?: AgentSessionTokenSecret) {
     this.secret = secret ?? { value: agentSessionSecret() };
+    if (this.secret.value.length < 16) throw new Error("AGENT_SESSION_TOKEN_SECRET must be at least 16 characters");
   }
 
   sign(claims: AgentSessionTokenClaims): string {
@@ -53,7 +54,7 @@ export class AgentSessionTokenService {
       throw new Error("agent_session_token_wrong_type");
     }
     const now = Math.floor(Date.now() / 1000);
-    if (now > parsed.expires_at_unix) {
+    if (!Number.isSafeInteger(parsed.expires_at_unix) || now >= parsed.expires_at_unix) {
       throw new Error("agent_session_token_expired");
     }
     return parsed;

@@ -21,7 +21,7 @@ describe("EmbedSessionsController", () => {
         assert.equal(input.requestedOrigin, "https://a.example");
         return { installation, allowedOrigin: "https://a.example" };
       },
-    } as never, { getProfile: async () => undefined } as never, {
+    } as never, { getProfile: async () => undefined } as never, {} as never, {
       async execute(merchantId: string) { return { data: merchantId === "merchant-a" ? [installation] : [], hasMore: false }; },
     } as never);
     const issuer = { apiKey: { id: "internal-storefront", merchantId: "merchant-a", environment: "live" } };
@@ -56,7 +56,7 @@ describe("EmbedSessionsController", () => {
         allowedOrigin: "https://store.example",
       }),
     } as unknown as ResolveInstallationForEmbedUseCase;
-    const c = new EmbedSessionsController(issue, resolver, { getProfile: async () => undefined } as any);
+    const c = new EmbedSessionsController(issue, resolver, { getProfile: async () => undefined } as any, {} as never);
 
     const out = await c.issueSession(
       { user: { merchantId: "m_ok", userId: "u", email: "e", role: "owner" } },
@@ -91,6 +91,7 @@ describe("EmbedSessionsController", () => {
         },
       } as unknown as ResolveInstallationForEmbedUseCase,
       { getProfile: async () => undefined } as any,
+      {} as never,
     );
 
     await assert.rejects(
@@ -101,4 +102,18 @@ describe("EmbedSessionsController", () => {
       /merchant_id_is_credential_derived/,
     );
   });
+});
+
+it("embed receives current agent identity and full branding from the shared theme reader", async () => {
+  const tokens = new EmbedTokenService({ value: Buffer.from("ctrl-spec-embed-secret-32chr!!!!") });
+  const controller = new EmbedSessionsController(new IssueEmbedSessionUseCase(tokens), {} as never,
+    { getProfile: async () => ({ id: "merchant", name: "Store", theme: { agentName: "Stale" } }) } as never,
+    { execute: async (id: string) => {
+      assert.equal(id, "merchant");
+      return { agentName: "Aurora", agentGreeting: "Como posso ajudar?", accentColor: "#112233", agentAvatarUrl: "https://cdn.example/avatar.png", backgroundImageUrl: "https://cdn.example/bg.png" };
+    } } as never);
+  const response = await controller.issueSession({ user: { merchantId: "merchant", userId: "owner", email: "a@example.com", role: "owner" } }, {});
+  assert.deepEqual(response.widget_config.agent, { name: "Aurora", greeting: "Como posso ajudar?" });
+  assert.equal(response.widget_config.brand?.agentAvatarUrl, "https://cdn.example/avatar.png");
+  assert.equal(response.widget_config.brand?.backgroundImageUrl, "https://cdn.example/bg.png");
 });

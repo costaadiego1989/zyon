@@ -41,6 +41,7 @@ import { RequireEmbedScope } from "./embed-scope.decorator.js";
 import { UpdateEmbedCustomerUseCase } from "../../application/update-embed-customer.use-case.js";
 import { embedCheckoutSessionId } from "../../domain/embed-checkout-session.js";
 import { ResolveEmbedBuyerService } from "../../application/resolve-embed-buyer.service.js";
+import { RateLimit } from "../../../../shared/http/rate-limit.guard.js";
 
 export type EmbedHttpRequest = {
   embedClaims?: EmbedTokenClaims;
@@ -151,6 +152,7 @@ export class EmbedCheckoutController {
   }
 
   @Post("chat")
+  @RateLimit(120)
   @RequireEmbedScope("checkout:chat")
   async chat(@Req() request: EmbedHttpRequest, @Body() body: ChatMessageRequest) {
     const embed = request.embedClaims!;
