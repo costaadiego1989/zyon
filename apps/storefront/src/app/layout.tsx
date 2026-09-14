@@ -5,6 +5,7 @@ import "@zyon/widget-v2/styles/pulse-skin.css";
 import "@zyon/widget-v2/styles/neumorphism.css";
 import "@zyon/widget-v2/styles/perimeter-border.css";
 import "@zyon/widget-v2/styles/animations.css";
+import "@zyon/widget-v2/styles/neumorphism.css";
 
 export const metadata: Metadata = {
   title: "Zyon Store",

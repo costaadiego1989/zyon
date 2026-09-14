@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { PerimeterBorder } from "../../../widget_v2/src/components/PerimeterBorder";
 import { SafeStoreHtml } from "./SafeStoreHtml";
 import { useCart } from "@/lib/cart-store";
@@ -21,8 +21,23 @@ import { PulseAgentOrb } from "./conversation/PulseAgentOrb";
 import { THEME_TOKENS, type Theme } from "./conversation/theme-tokens";
 import { redirectToCheckout } from "./conversation/checkout-redirect";
 import { conversationFetch } from "@/lib/conversation-access";
+import { checkoutApi } from "@/lib/api/api-client";
 
 type Channel = "chat" | "voice";
+type OneBuyClickState = {
+  enabled: boolean;
+  status: string;
+  shippingPreference: "fastest" | "cheapest";
+  paymentPreference: "pix" | "card";
+};
+
+type StoreSocialSettings = {
+  instagram?: string;
+  facebook?: string;
+  linkedin?: string;
+  youtube?: string;
+  googleMaps?: string;
+};
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
@@ -41,6 +56,84 @@ function renderBuyerMessage(text: string): string {
   // Keep catalog routing metadata in the API/history, outside the visible copy.
   return text.replace(/^([Aa]dicionar .+ ao carrinho)\s+\[variantId:[A-Za-z0-9_-]{1,191}\](?:\s*\[(?:optionItemIds|crossSellPromoId):[A-Za-z0-9_,-]+\])*\s*$/, "$1");
 }
+
+function OneBuyClickToggle({
+  placement,
+  enabled,
+  pending,
+  available,
+  onToggle,
+}: {
+  placement: "header" | "mobile-header";
+  enabled: boolean;
+  pending: boolean;
+  available: boolean;
+  onToggle: () => void;
+}) {
+  const compact = placement === "mobile-header";
+  return (
+    <button
+      data-neu="control"
+      data-one-buy-click-toggle={placement}
+      className={`one-buy-click-toggle one-buy-click-toggle--${placement}`}
+      type="button"
+      role="switch"
+      aria-checked={enabled}
+      disabled={!available || pending}
+      onClick={onToggle}
+      title="Ativar compra rápida"
+      style={{
+        minHeight: "30px",
+        width: undefined,
+        padding: compact ? "4px 7px" : "4px 9px",
+        borderRadius: "999px",
+        border: `1px solid ${enabled ? "var(--aacp-accent)" : "var(--aacp-line)"}`,
+        background: enabled ? "color-mix(in srgb, var(--aacp-accent) 15%, transparent)" : "var(--aacp-card)",
+        color: enabled ? "var(--aacp-fg)" : "var(--aacp-muted)",
+        cursor: available ? "pointer" : "wait",
+        alignItems: "center",
+        justifyContent: undefined,
+        gap: "7px",
+        flex: "none",
+        fontSize: compact ? "9px" : "10px",
+        fontWeight: 700,
+        opacity: pending ? 0.65 : 1,
+      }}
+    >
+      <span style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+        <span aria-hidden="true" style={{ width: "14px", height: "8px", padding: "2px", borderRadius: "999px", background: enabled ? "var(--aacp-accent)" : "var(--aacp-line)", display: "flex", justifyContent: enabled ? "flex-end" : "flex-start", alignItems: "center" }}>
+          <span style={{ width: "4px", height: "4px", borderRadius: "50%", background: "var(--aacp-card)", boxShadow: "0 1px 2px rgba(0,0,0,.24)" }} />
+        </span>
+        {compact ? "Rápida" : "Compra rápida"}
+      </span>
+    </button>
+  );
+}
+
+function StoreSocialLinks({ social }: { social?: StoreSocialSettings }) {
+  const links: Array<{ key: keyof StoreSocialSettings; label: string; icon: ReactNode }> = [
+    { key: "instagram", label: "Instagram", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" y1="6.5" x2="17.51" y2="6.5" /></svg> },
+    { key: "facebook", label: "Facebook", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" /></svg> },
+    { key: "linkedin", label: "LinkedIn", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z" /><rect x="2" y="9" width="4" height="12" /><circle cx="4" cy="4" r="2" /></svg> },
+    { key: "youtube", label: "YouTube", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19.13C5.12 19.56 12 19.56 12 19.56s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.43z" /><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" /></svg> },
+    { key: "googleMaps", label: "Google Maps", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg> },
+  ];
+  const availableLinks = links.filter((link) => Boolean(social?.[link.key]));
+
+  if (availableLinks.length === 0) return null;
+
+  return (
+    <nav className="store-menu__social" aria-label="Redes sociais da loja">
+      {availableLinks.map((link) => (
+        <a key={link.key} className="store-menu__social-link" href={social?.[link.key]} target="_blank" rel="noopener noreferrer">
+          {link.icon}
+          <span>{link.label}</span>
+        </a>
+      ))}
+    </nav>
+  );
+}
+
 export default function ConversationShell({
   storeName,
   logo,
@@ -75,7 +168,7 @@ export default function ConversationShell({
   agentInitialDelaySeconds?: number;
   initialRichProductId?: string;
   storeSettings?: {
-    social?: { instagram?: string; facebook?: string; linkedin?: string; youtube?: string; googleMaps?: string };
+    social?: StoreSocialSettings;
     company?: { cnpj?: string; razaoSocial?: string; email?: string; phone?: string; businessHours?: string; address?: { city?: string; state?: string } };
     policies?: { privacy?: string; returns?: string; terms?: string; shipping?: string };
   };
@@ -95,19 +188,22 @@ export default function ConversationShell({
   const {
     mode, channel, theme, messages, input, isLoading, listening,
     conversationId, supportOpen, buyerHubOpen, cartDrawerForceOpen,
-    showBuyerAuth, checkoutIntent, policyModal, crossSellPending,
+    showBuyerAuth, checkoutIntent, policyModal, crossSellPending, preparedCheckout,
     selectChannel, toggleChannel, toggleTheme, sendMessage,
     handleQuickReply, appendAgentMessage, handleUpdateQuantity, setInput,
     setSupportOpen, setBuyerHubOpen, setShowBuyerAuth, setCheckoutIntent, setPolicyModal,
-    setCartDrawerForceOpen, dismissCrossSell, startListening, stopListening,
+    setCartDrawerForceOpen, dismissCrossSell, clearPreparedCheckout, startListening, stopListening,
   } = vm;
   const inputRef = useRef<HTMLInputElement | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
   const agent = agentName || "Assistente";
   const { cart } = useCart();
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  
   const [checkoutCartRef, setCheckoutCartRef] = useState<string | undefined>(undefined);
+  const [checkoutPreferences, setCheckoutPreferences] = useState<Pick<OneBuyClickState, "shippingPreference" | "paymentPreference"> | undefined>(undefined);
+  const [oneBuyClick, setOneBuyClick] = useState<OneBuyClickState | null>(null);
+  const [oneBuyClickPending, setOneBuyClickPending] = useState(false);
+  const [storeMenuOpen, setStoreMenuOpen] = useState(false);
   const [logoError, setLogoError] = useState(false);
   const [checkoutUserId, setCheckoutUserId] = useState("");
   const [mounted, setMounted] = useState(false);
@@ -120,8 +216,72 @@ export default function ConversationShell({
   const openedProductMessages = useRef(new Set<string>());
   const promptedProductClose = useRef(new Set<string>());
   const pendingProductCart = useRef<{ variantId: string } | null>(null);
+  const openedPreparedActions = useRef(new Set<string>());
+  const oneBuyClickEnabled = useRef(false);
   useEffect(() => { setMounted(true); }, []);
   const effectiveMode = mounted ? mode : "intro";
+  useEffect(() => {
+    if (!conversationId) return;
+    let active = true;
+    const buyer = getValidBuyer();
+    const preferenceKey = merchantId ? `zyon-one-buy-click:${merchantId}` : null;
+    void checkoutApi.getOneBuyClick(conversationId, buyer?.token).then(async (state) => {
+      if (!active) return;
+      let visitorChoice: boolean | null = null;
+      if (!buyer && preferenceKey) {
+        try {
+          const saved = localStorage.getItem(preferenceKey);
+          visitorChoice = saved === "true" ? true : saved === "false" ? false : null;
+        } catch {}
+      }
+      if (visitorChoice !== null && visitorChoice !== state.enabled) {
+        const configured = await checkoutApi.configureOneBuyClick(conversationId, visitorChoice, buyer?.token);
+        if (active) setOneBuyClick(configured);
+        return;
+      }
+      if (active) setOneBuyClick(state);
+    }).catch(() => {
+      if (active) setOneBuyClick(null);
+    });
+    return () => { active = false; };
+  }, [conversationId, merchantId]);
+  useEffect(() => {
+    oneBuyClickEnabled.current = oneBuyClick?.enabled === true;
+  }, [oneBuyClick]);
+  const toggleOneBuyClick = async () => {
+    if (!conversationId || !oneBuyClick || oneBuyClickPending) return;
+    const nextEnabled = !oneBuyClick.enabled;
+    oneBuyClickEnabled.current = nextEnabled;
+    setOneBuyClickPending(true);
+    try {
+      const buyer = getValidBuyer();
+      const next = await checkoutApi.configureOneBuyClick(conversationId, nextEnabled, buyer?.token);
+      setOneBuyClick(next);
+      if (!buyer && merchantId) {
+        try { localStorage.setItem(`zyon-one-buy-click:${merchantId}`, String(next.enabled)); } catch {}
+      }
+    } finally {
+      setOneBuyClickPending(false);
+    }
+  };
+  useEffect(() => {
+    if (!preparedCheckout || openedPreparedActions.current.has(preparedCheckout.actionId)) return;
+    if (!oneBuyClick) return;
+    if (!oneBuyClickEnabled.current) {
+      clearPreparedCheckout();
+      return;
+    }
+    openedPreparedActions.current.add(preparedCheckout.actionId);
+    const buyer = getValidBuyer();
+    setCheckoutUserId(buyer?.globalUserId ?? "");
+    setCheckoutCartRef(preparedCheckout.cartId);
+    setCheckoutPreferences({
+      shippingPreference: preparedCheckout.shippingPreference,
+      paymentPreference: preparedCheckout.paymentPreference,
+    });
+    setCheckoutOpen(true);
+    clearPreparedCheckout();
+  }, [preparedCheckout, oneBuyClick, clearPreparedCheckout]);
   useEffect(() => {
     if (!richProduct || openedInitialRichProduct.current) return;
     openedInitialRichProduct.current = true;
@@ -142,8 +302,8 @@ export default function ConversationShell({
       return;
     }
     // The current agent's get_product_details tool emits product_card. Open
-    // its advanced experience only if the public API confirms published content
-    // and the merchant entitlement, preserving ordinary product cards otherwise.
+    // its unified product experience when the public API confirms the merchant
+    // entitlement and usable purchase data, even without editorial blocks.
     if (!merchantSlug) return;
     const controller = new AbortController();
     fetch(`${API_BASE}/storefront/${encodeURIComponent(merchantSlug)}/products/${encodeURIComponent(productId)}/content`, {
@@ -153,7 +313,10 @@ export default function ConversationShell({
     }).then(async (response) => response.ok ? response.json() : null).then((content) => {
       if (controller.signal.aborted) return;
       openedProductMessages.current.add(key);
-      if (content && [content.blocks, content.faqs, content.testimonials, content.videos].some((items) => Array.isArray(items) && items.length > 0)) setRichProduct({ productId });
+      if (content && Array.isArray(content.blocks) && (
+        (typeof content.purchase?.productName === "string" && Array.isArray(content.purchase?.variants)) ||
+        [content.blocks, content.faqs, content.testimonials, content.videos].some((items) => Array.isArray(items) && items.length > 0)
+      )) setRichProduct({ productId });
     }).catch(() => {});
     return () => controller.abort();
   }, [messages, merchantSlug]);
@@ -199,6 +362,7 @@ export default function ConversationShell({
     if (checkoutIntent) {
       setCheckoutUserId(checkoutIntent);
       setCheckoutCartRef(cart.cartId ?? undefined);
+      setCheckoutPreferences(undefined);
       setCheckoutOpen(true);
       setCheckoutIntent(null);
     }
@@ -310,7 +474,7 @@ export default function ConversationShell({
       `}</style>
       {effectiveMode === "chat" && (
         <>
-        <header style={{ display: "flex", alignItems: "center", gap: "11px", padding: "8px 14px", borderBottom: "1px solid var(--aacp-line)", zIndex: 9, background: "var(--aacp-header-bg, var(--aacp-bg))", flex: "none" }}>
+        <header className="conversation-header" style={{ display: "flex", alignItems: "center", gap: "11px", padding: "8px 14px", borderBottom: "1px solid var(--aacp-line)", zIndex: 9, background: "var(--aacp-header-bg, var(--aacp-bg))", flex: "none" }}>
           {logo && !logoError ? (
             <img
               src={logo}
@@ -326,11 +490,29 @@ export default function ConversationShell({
               {storeName.charAt(0).toUpperCase()}
             </div>
           )}
-          <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center" }}>
-            <div data-neu="status" style={{ display: "flex", alignItems: "center", gap: "6px", minHeight: "30px", padding: "4px 10px", borderRadius: "999px", background: "var(--aacp-card)", border: "1px solid var(--aacp-line)" }}>
+          <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: "6px" }}>
+            <div data-neu="status" className="conversation-header__status" style={{ display: "flex", alignItems: "center", gap: "6px", minHeight: "30px", padding: "4px 10px", borderRadius: "999px", background: "var(--aacp-card)", border: "1px solid var(--aacp-line)" }}>
               <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "var(--aacp-success)", animation: "pulseDot 2.2s ease-in-out infinite", flex: "none" }} />
-              <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--aacp-muted)" }}>Online</span>
+              <span className="conversation-header__status-label" style={{ fontSize: "11px", fontWeight: 600, color: "var(--aacp-muted)" }}>Online</span>
             </div>
+            {conversationId && (
+              <>
+                <OneBuyClickToggle
+                  placement="header"
+                  enabled={oneBuyClick?.enabled ?? false}
+                  pending={oneBuyClickPending}
+                  available={Boolean(oneBuyClick)}
+                  onToggle={() => { void toggleOneBuyClick(); }}
+                />
+                <OneBuyClickToggle
+                  placement="mobile-header"
+                  enabled={oneBuyClick?.enabled ?? false}
+                  pending={oneBuyClickPending}
+                  available={Boolean(oneBuyClick)}
+                  onToggle={() => { void toggleOneBuyClick(); }}
+                />
+              </>
+            )}
           </div>
           <button data-neu="control" type="button" onClick={toggleChannel} title={channel === "voice" ? "Mudar para chat" : "Mudar para voz"} style={{ width: "30px", height: "30px", borderRadius: "50%", border: `1px solid ${channel === "voice" ? "var(--aacp-accent)" : "var(--aacp-line)"}`, background: channel === "voice" ? "color-mix(in srgb, var(--aacp-accent) 15%, transparent)" : "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
             {channel === "voice" ? (
@@ -348,7 +530,23 @@ export default function ConversationShell({
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={supportOpen ? "var(--aacp-accent)" : "var(--aacp-muted)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
           </button>
 
-          <nav aria-label="Ações rápidas" style={{ display: "flex", gap: "6px" }}>
+          {Object.values(storeSettings?.social ?? {}).some(Boolean) && (
+            <button
+              data-neu="control"
+              className="store-menu-trigger"
+              type="button"
+              aria-label="Abrir mais da loja"
+              aria-controls="store-social-menu"
+              aria-expanded={storeMenuOpen}
+              title="Mais da loja"
+              onClick={() => setStoreMenuOpen((open) => !open)}
+              style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", color: "var(--aacp-muted)", cursor: "pointer", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="5" cy="12" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /><circle cx="19" cy="12" r="1" fill="currentColor" /></svg>
+            </button>
+          )}
+
+          <nav className="conversation-header__social" aria-label="Ações rápidas" style={{ display: "flex", gap: "6px" }}>
             {storeSettings?.social?.instagram && (
               <a data-neu="control" href={storeSettings.social.instagram} target="_blank" rel="noopener noreferrer" style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "all 0.15s", cursor: "pointer" }} title="Instagram"
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.background = "color-mix(in srgb, var(--aacp-accent) 12%, transparent)"; e.currentTarget.style.color = "var(--aacp-fg)"; }}
@@ -386,6 +584,15 @@ export default function ConversationShell({
             )}
           </nav>
         </header>
+        {storeMenuOpen && (
+          <>
+            <button className="store-menu-backdrop" type="button" aria-label="Fechar mais da loja" onClick={() => setStoreMenuOpen(false)} />
+            <aside id="store-social-menu" className="store-menu" role="dialog" aria-label="Mais da loja">
+              <div className="store-menu__title">Acompanhe a loja</div>
+              <StoreSocialLinks social={storeSettings?.social} />
+            </aside>
+          </>
+        )}
         {/* Stories Row */}
         {merchantSlug && <StoriesRow merchantSlug={merchantSlug} initialCategories={initialStories} />}
         </>
@@ -629,6 +836,7 @@ export default function ConversationShell({
             }
             setCheckoutUserId(buyer.globalUserId);
             setCheckoutCartRef(cart.cartId ?? undefined);
+            setCheckoutPreferences(undefined);
             setCheckoutOpen(true);
           }}
           onViewCart={() => setCartDrawerForceOpen(true)}
@@ -674,6 +882,7 @@ export default function ConversationShell({
             }
             setCheckoutUserId(globalUserId);
             setCheckoutCartRef(cart.cartId ?? undefined);
+            setCheckoutPreferences(undefined);
             setCheckoutOpen(true);
           }}
           onCancel={() => setShowBuyerAuth(false)}
@@ -685,6 +894,7 @@ export default function ConversationShell({
           merchantId={merchantId}
           globalUserId={checkoutUserId}
           cartRef={checkoutCartRef}
+          oneBuyClickPreferences={checkoutPreferences}
           theme={theme}
           onClose={() => setCheckoutOpen(false)}
         />

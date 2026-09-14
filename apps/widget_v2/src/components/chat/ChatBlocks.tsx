@@ -60,8 +60,10 @@ function CartSummaryBlock({ data }: { data?: Record<string, unknown> }) {
 function ShippingOptionsBlock({ options }: { options?: unknown }) {
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
   const selectShipping = useCheckoutStore((s) => s.selectShipping);
+  const preference = useCheckoutStore((s) => s.oneBuyClickPreferences?.shippingPreference);
   const opts = ((options as Array<{ key: string; label: string; tag?: string; sub?: string; cost?: number }>) ?? [])
-    .filter((o) => o && o.key && o.label);
+    .filter((o) => o && o.key && o.label)
+    .sort((left, right) => shippingPriority(left, preference) - shippingPriority(right, preference));
 
   const handleSelect = async (opt: (typeof opts)[0]) => {
     await selectShipping(opt.key);
@@ -95,6 +97,7 @@ function ShippingOptionsBlock({ options }: { options?: unknown }) {
               {opt.cost === 0 ? "Grátis" : opt.cost != null ? formatPrice(opt.cost / 100) : ""}
             </span>
           </div>
+          {preference && opts[0]?.key === opt.key && <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--aacp-accent-text, var(--aacp-accent))", marginTop: "3px" }}>Prioridade da compra rápida</div>}
           {opt.sub && <div style={{ fontSize: "11px", color: "var(--mut)", marginTop: "2px" }}>{opt.sub}</div>}
         </button>
       ))}
@@ -102,12 +105,24 @@ function ShippingOptionsBlock({ options }: { options?: unknown }) {
   );
 }
 
+function shippingPriority(
+  option: { sub?: string; cost?: number },
+  preference: "fastest" | "cheapest" | undefined,
+): number {
+  if (!preference) return 0;
+  if (preference === "cheapest") return option.cost ?? Number.MAX_SAFE_INTEGER;
+  const days = Number(option.sub?.match(/(\d+)\s*dias?/i)?.[1]);
+  return Number.isFinite(days) ? days : Number.MAX_SAFE_INTEGER;
+}
+
 function PaymentMethodsBlock({ methods }: { methods?: unknown }) {
   const pay = useCheckoutStore((s) => s.pay);
   const merchantPaymentConfig = useCheckoutStore((s) => s.merchantPaymentConfig);
+  const preference = useCheckoutStore((s) => s.oneBuyClickPreferences?.paymentPreference);
   const permittedKeys = new Set(paymentMethodsForConfig(merchantPaymentConfig).map((method) => method.key));
   const meths = ((methods as Array<{ key: string; label: string; sub?: string }>) ?? [])
-    .filter((method) => permittedKeys.has(method.key));
+    .filter((method) => permittedKeys.has(method.key))
+    .sort((left, right) => paymentPriority(left.key, preference) - paymentPriority(right.key, preference));
 
   const handleSelect = (method: (typeof meths)[0]) => {
     void pay(method.key as "pix" | "boleto" | "credito" | "debito" | "crypto");
@@ -133,11 +148,21 @@ function PaymentMethodsBlock({ methods }: { methods?: unknown }) {
           }}
         >
           <div style={{ fontWeight: 600 }}>{m.label}</div>
+          {preference && meths[0]?.key === m.key && <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--aacp-accent-text, var(--aacp-accent))", marginTop: "3px" }}>Preferência da compra rápida</div>}
           {m.sub && <div style={{ fontSize: "11px", color: "var(--mut)" }}>{m.sub}</div>}
         </button>
       ))}
     </div>
   );
+}
+
+function paymentPriority(
+  method: string,
+  preference: "pix" | "card" | undefined,
+): number {
+  if (!preference) return 0;
+  const preferred = preference === "card" ? "credito" : "pix";
+  return method === preferred ? 0 : 1;
 }
 
 function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {

@@ -76,7 +76,9 @@ export function useConversationViewModel(
   const [checkoutIntent, setCheckoutIntent] = useState<string | null>(null);
   const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
   const [crossSellPending, setCrossSellPending] = useState<CrossSellInterstitialData | null>(null);
+  const [preparedCheckout, setPreparedCheckout] = useState<ConversationViewModelState["preparedCheckout"]>(null);
   const dismissCrossSell = useCallback(() => setCrossSellPending(null), []);
+  const clearPreparedCheckout = useCallback(() => setPreparedCheckout(null), []);
   const recognitionRef = useRef<any>(null);
   const { config: widgetConfig } = useWidgetConfig();
   const { cart, updateFromBlocks, updateItemQuantity, clearCart } = useCart();
@@ -170,6 +172,7 @@ export function useConversationViewModel(
           setCrossSellPending,
           updateFromBlocks,
           noteActivity,
+          onCheckoutPrepared: setPreparedCheckout,
         });
       } finally { sendingRef.current = false; }
     },
@@ -307,7 +310,9 @@ export function useConversationViewModel(
     setCheckoutIntent,
     policyModal,
     crossSellPending,
+    preparedCheckout,
     dismissCrossSell,
+    clearPreparedCheckout,
     selectChannel,
     toggleChannel,
     toggleTheme,

@@ -21,6 +21,12 @@ import { evaluateRules } from "@/lib/advanced-rules";
 import type { DiscountStage } from "@/components/DiscountBanner";
 import { connectPaymentWs } from "@/lib/payment-ws";
 import { paymentPollingOutcome } from "@/lib/payment-status";
+import {
+  checkoutChatErrorMessage,
+  checkoutStartErrorMessage,
+  isMerchantSalesSuspendedError,
+  MERCHANT_SALES_SUSPENDED_MESSAGE,
+} from "@/lib/checkout-error-message";
 
 export type CheckoutStatus = "loading" | "channel_gate" | "active" | "error" | "completed";
 export type CartStatus = "awaiting" | "shipping_calculated" | "ready_to_pay" | "paid";
@@ -163,8 +169,9 @@ interface CheckoutState {
   showBranding: boolean;
 
   voiceEnabled: boolean;
+  oneBuyClickPreferences: { shippingPreference: "fastest" | "cheapest"; paymentPreference: "pix" | "card" } | null;
 
-  init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; globalUserId?: string; buyerAccessToken?: string }) => Promise<void>;
+  init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; globalUserId?: string; buyerAccessToken?: string; oneBuyClickPreferences?: { shippingPreference: "fastest" | "cheapest"; paymentPreference: "pix" | "card" } }) => Promise<void>;
   selectChannel: (channel: "chat" | "voice") => void;
   sendMessage: (text: string) => Promise<void>;
   acceptCrossSell: (suggestionId: string, sku: string) => Promise<{ ok: boolean; error?: string }>;
@@ -341,8 +348,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   _pendingCrossSellBlock: null,
   showBranding: false,
   voiceEnabled: false,
+  oneBuyClickPreferences: null,
 
-  init: async ({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId, buyerAccessToken }) => {
+  init: async ({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId, buyerAccessToken, oneBuyClickPreferences }) => {
     try {
       const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId, buyerAccessToken });
       set({ api, status: "loading" });
@@ -415,6 +423,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         _pendingCrossSellBlock: crossSellBlockFromSuggestions(exp?.suggestedProducts),
         showBranding: exp?.rules?.showBranding ?? false,
         voiceEnabled: (exp?.rules as { voiceEnabled?: boolean } | undefined)?.voiceEnabled ?? false,
+        oneBuyClickPreferences: oneBuyClickPreferences ?? null,
       });
 
       initTracking(api, response.session_id);
@@ -442,9 +451,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       } catch {
         /* silent — triggers are non-critical */
       }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "unknown_error";
-      set({ status: "error", error: msg });
+    } catch (error) {
+      set({ status: "error", error: checkoutStartErrorMessage(error) });
     }
   },
 
@@ -670,6 +678,23 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       }
     } catch (err) {
       console.error("[WIDGET-CHAT] embed/chat failed:", err);
+      if (isMerchantSalesSuspendedError(err)) {
+        set({ status: "error", error: MERCHANT_SALES_SUSPENDED_MESSAGE, isTyping: false });
+        return;
+      }
+      const chatError = checkoutChatErrorMessage(err);
+      if (chatError) {
+        set((state) => ({
+          messages: [...state.messages, {
+            id: `error_${Date.now()}`,
+            role: "agent",
+            text: chatError,
+            timestamp: Date.now(),
+          }],
+          isTyping: false,
+        }));
+        return;
+      }
       const { cart, buyer, merchantPaymentConfig } = get();
       if (text === "Vamos prosseguir" && cart.items.length > 0) {
         try {
@@ -915,7 +940,11 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         timestamp: Date.now(),
       };
       set((s) => ({ messages: [...s.messages, paymentMsg] }));
-    } catch {
+    } catch (error) {
+      if (isMerchantSalesSuspendedError(error)) {
+        set({ status: "error", error: MERCHANT_SALES_SUSPENDED_MESSAGE });
+        return;
+      }
       const errorMsg: Message = {
         id: `error_${Date.now()}`,
         role: "agent",
@@ -977,7 +1006,11 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         timestamp: Date.now(),
       };
       set((s) => ({ messages: [...s.messages, paymentMsg] }));
-    } catch {
+    } catch (error) {
+      if (isMerchantSalesSuspendedError(error)) {
+        set({ status: "error", error: MERCHANT_SALES_SUSPENDED_MESSAGE });
+        return;
+      }
       const errorMsg: Message = {
         id: `error_${Date.now()}`,
         role: "agent",
@@ -1147,6 +1180,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       cartUpdating: false,
       cartError: null,
       activeDiscount: null,
+      oneBuyClickPreferences: null,
       error: null,
     });
   },

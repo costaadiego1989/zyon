@@ -7,6 +7,7 @@ import { setupAbandonmentTracking, trackEvent } from "./lib/tracking";
 import { onOrderCompleted } from "./lib/lifecycle";
 import { setupIdleTrigger, setupExitIntentTrigger, type TriggerName } from "./lib/triggers";
 import type { DiscountStage } from "./components/DiscountBanner";
+import { MERCHANT_SALES_SUSPENDED_MESSAGE } from "./lib/checkout-error-message";
 
 export interface InlineCheckoutProps {
   embedToken: string;
@@ -15,6 +16,10 @@ export interface InlineCheckoutProps {
   cartRef?: string;
   globalUserId?: string;
   buyerAccessToken?: string;
+  oneBuyClickPreferences?: {
+    shippingPreference: "fastest" | "cheapest";
+    paymentPreference: "pix" | "card";
+  };
   theme?: "dark" | "light";
   onClose?: () => void;
 }
@@ -35,8 +40,9 @@ export function InlineCheckout(props: InlineCheckoutProps) {
       apiBaseUrl: props.apiBaseUrl,
       globalUserId: props.globalUserId,
       buyerAccessToken: props.buyerAccessToken,
+      oneBuyClickPreferences: props.oneBuyClickPreferences,
     });
-  }, [init, props.embedToken, props.merchantId, props.buyerAccessToken]);
+  }, [init, props.embedToken, props.merchantId, props.buyerAccessToken, props.oneBuyClickPreferences]);
 
   useEffect(() => {
     if (props.theme === "light") {
@@ -96,9 +102,10 @@ export function InlineCheckout(props: InlineCheckoutProps) {
   }
 
   if (status === "error") {
+    const storefrontUnavailable = error === MERCHANT_SALES_SUSPENDED_MESSAGE;
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12, color: "var(--aacp-fg, #f5f5f7)" }}>
-        <h2 style={{ margin: 0 }}>Erro</h2>
+        <h2 style={{ margin: 0 }}>{storefrontUnavailable ? "Loja temporariamente indisponível" : "Checkout indisponível"}</h2>
         <p style={{ margin: 0, opacity: 0.7, fontSize: 13 }}>{error || "Não foi possível iniciar o checkout."}</p>
         {props.onClose && <button data-neu="control" onClick={props.onClose} style={{ marginTop: 12, padding: "8px 16px", borderRadius: 8, border: "1px solid var(--aacp-border-color, #333)", background: "transparent", color: "inherit", cursor: "pointer" }}>Voltar</button>}
       </div>

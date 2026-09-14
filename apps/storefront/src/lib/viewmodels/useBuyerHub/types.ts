@@ -77,6 +77,9 @@ export interface BuyerPreferences {
   push_notifications_enabled: boolean;
   m2m_negotiation_enabled: boolean;
   language: string;
+  one_buy_click_enabled: boolean;
+  shipping_preference: "fastest" | "cheapest";
+  payment_preference: "pix" | "card";
 }
 
 export interface BuyerLoyalty {

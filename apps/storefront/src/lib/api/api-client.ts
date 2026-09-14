@@ -145,6 +145,7 @@ export const checkoutApi = {
   }): Promise<any> {
     return safeFetch(`${API_BASE}/storefront/conversations/${checkoutId}/messages`, {
       method: "POST",
+      headers: options?.token ? { "X-Buyer-Authorization": `Bearer ${options.token}` } : undefined,
       body: JSON.stringify({
         merchant_id: options?.merchantId,
         user_message: text,
@@ -153,6 +154,36 @@ export const checkoutApi = {
         variant_id: options?.variantId || undefined,
       }),
     }, checkoutId);
+  },
+
+  async getOneBuyClick(conversationId: string, buyerToken?: string): Promise<{
+    enabled: boolean;
+    status: string;
+    shippingPreference: "fastest" | "cheapest";
+    paymentPreference: "pix" | "card";
+  }> {
+    return safeFetch(
+      `${API_BASE}/storefront/conversations/${encodeURIComponent(conversationId)}/one-buy-click`,
+      { headers: buyerToken ? { "X-Buyer-Authorization": `Bearer ${buyerToken}` } : undefined },
+      conversationId,
+    );
+  },
+
+  async configureOneBuyClick(conversationId: string, enabled: boolean, buyerToken?: string): Promise<{
+    enabled: boolean;
+    status: string;
+    shippingPreference: "fastest" | "cheapest";
+    paymentPreference: "pix" | "card";
+  }> {
+    return safeFetch(
+      `${API_BASE}/storefront/conversations/${encodeURIComponent(conversationId)}/one-buy-click`,
+      {
+        method: "PATCH",
+        headers: buyerToken ? { "X-Buyer-Authorization": `Bearer ${buyerToken}` } : undefined,
+        body: JSON.stringify({ enabled }),
+      },
+      conversationId,
+    );
   },
 };
 export const cartApi = {

@@ -206,6 +206,47 @@ function LanguageSelect({ value, onChange, disabled = false }: LanguageSelectPro
   );
 }
 
+function PreferenceSelect({
+  id,
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (value: string) => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const handleChange = useCallback(async (event: React.ChangeEvent<HTMLSelectElement>) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await onChange(event.target.value);
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, onChange]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "6px", padding: "8px 2px" }}>
+      <label htmlFor={id} style={{ fontSize: "12px", fontWeight: 600, color: "var(--aacp-fg)" }}>{label}</label>
+      <select
+        data-neu="field"
+        id={id}
+        value={value}
+        onChange={handleChange}
+        disabled={busy}
+        style={{ padding: "9px 10px", borderRadius: "8px", border: "1px solid var(--aacp-line)", background: "var(--aacp-surface-3)", color: "var(--aacp-fg)", fontSize: "12px", cursor: busy ? "wait" : "pointer", fontFamily: "inherit" }}
+      >
+        {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
+    </div>
+  );
+}
+
 interface IntentProfileSectionProps {
   intentProfile: BuyerIntentProfile | null;
   loading: boolean;
@@ -457,6 +498,16 @@ export default function PreferencesTab({
     [onUpdatePreference],
   );
 
+  const handlePurchasePreferenceChange = useCallback(async (key: string, value: string) => {
+    setLocalErrors((prev) => ({ ...prev, [key]: "" }));
+    try {
+      await onUpdatePreference(key, value);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro ao atualizar preferÃªncia";
+      setLocalErrors((prev) => ({ ...prev, [key]: msg }));
+    }
+  }, [onUpdatePreference]);
+
   const currentLanguage = preferences?.language ?? "pt-BR";
 
   return (
@@ -579,12 +630,36 @@ export default function PreferencesTab({
           }}
         >
           {preferences ? (
-            <ToggleSwitch
+            <>
+              <ToggleSwitch
               value={preferences.m2m_negotiation_enabled}
               onChange={() => handleToggle("m2m_negotiation_enabled")}
               label="Permitir negociações de preço"
               description="Receba ofertas personalizadas ao finalizar compras"
             />
+            <div style={{ height: "1px", background: "var(--aacp-line)" }} />
+            <ToggleSwitch
+              value={preferences.one_buy_click_enabled}
+              onChange={() => handleToggle("one_buy_click_enabled")}
+              label="Compra rápida"
+              description="No chat, avance ao checkout depois de confirmar produto e variação"
+            />
+            <div style={{ height: "1px", background: "var(--aacp-line)" }} />
+            <PreferenceSelect
+              id="shipping-preference"
+              label="Prioridade de frete"
+              value={preferences.shipping_preference}
+              options={[{ value: "fastest", label: "Mais rápido" }, { value: "cheapest", label: "Mais econômico" }]}
+              onChange={(value) => handlePurchasePreferenceChange("shipping_preference", value)}
+            />
+            <PreferenceSelect
+              id="payment-preference"
+              label="Pagamento preferido"
+              value={preferences.payment_preference}
+              options={[{ value: "pix", label: "Pix" }, { value: "card", label: "Cartão" }]}
+              onChange={(value) => handlePurchasePreferenceChange("payment_preference", value)}
+            />
+            </>
           ) : (
             <div style={{ padding: "12px", color: "var(--aacp-muted)", fontSize: "13px" }}>
               Carregando preferências…

@@ -1,13 +1,9 @@
+import { isPlatformHostname } from './lib/platform-hostname';
 import { NextRequest, NextResponse } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  const hostname = request.headers.get('host') ?? '';
-  const isKnownHost =
-    hostname.includes('localhost') ||
-    hostname.includes('127.0.0.1') ||
-    hostname.includes('zyon.com') ||
-    hostname.includes('zyon-payments.com.br') ||
-    hostname.includes('vercel.app');
+  const hostname = request.nextUrl.hostname.toLowerCase().replace(/\.$/, '');
+  const isKnownHost = isPlatformHostname(hostname);
   if (isKnownHost) {
     return NextResponse.next();
   }

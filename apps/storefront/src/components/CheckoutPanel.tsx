@@ -10,6 +10,10 @@ interface CheckoutPanelProps {
   merchantId: string;
   globalUserId: string;
   cartRef: string | undefined;
+  oneBuyClickPreferences?: {
+    shippingPreference: "fastest" | "cheapest";
+    paymentPreference: "pix" | "card";
+  };
   theme?: "dark" | "light";
   onClose: () => void;
 }
@@ -31,6 +35,7 @@ export default function CheckoutPanel({
   merchantId,
   globalUserId: initialGlobalUserId,
   cartRef,
+  oneBuyClickPreferences,
   theme,
   onClose,
 }: CheckoutPanelProps) {
@@ -128,6 +133,7 @@ export default function CheckoutPanel({
           cartRef={cartRef || tokenCartRef.current || undefined}
           globalUserId={globalUserId}
           buyerAccessToken={getValidBuyer()?.token}
+          oneBuyClickPreferences={oneBuyClickPreferences}
           theme={effectiveTheme}
           onClose={onClose}
         />

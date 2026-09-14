@@ -412,10 +412,106 @@ input, textarea {
   /* inherits from page */
 }
 
+#storefront-chat .one-buy-click-toggle--header {
+  display: flex;
+}
+
+#storefront-chat .one-buy-click-toggle--mobile-header,
+#storefront-chat .store-menu-trigger,
+#storefront-chat .store-menu,
+#storefront-chat .store-menu-backdrop {
+  display: none;
+}
+
 /* === Mobile-first: fullscreen === */
 @media (max-width: 640px) {
   .store-header {
     padding: 10px 12px;
+  }
+
+  #storefront-chat .conversation-header {
+    gap: 6px;
+    padding: 8px;
+  }
+
+  #storefront-chat .conversation-header > img {
+    width: 34px !important;
+    height: 34px !important;
+    max-width: 34px !important;
+    max-height: 34px !important;
+  }
+
+  #storefront-chat .one-buy-click-toggle--header,
+  #storefront-chat .conversation-header__social {
+    display: none !important;
+  }
+
+  #storefront-chat .one-buy-click-toggle--mobile-header,
+  #storefront-chat .store-menu-trigger {
+    display: flex !important;
+  }
+
+  #storefront-chat .conversation-header__status-label {
+    display: none;
+  }
+
+  #storefront-chat .store-menu-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    border: 0;
+    background: transparent;
+    cursor: default;
+  }
+
+  #storefront-chat .store-menu {
+    display: block;
+    position: fixed;
+    top: 56px;
+    right: 8px;
+    z-index: 21;
+    width: min(270px, calc(100vw - 16px));
+    padding: 12px;
+    border: 1px solid var(--aacp-line);
+    border-radius: 14px;
+    background: var(--aacp-panel-bg, var(--aacp-bg));
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.22);
+  }
+
+  #storefront-chat .store-menu__title {
+    margin-bottom: 9px;
+    color: var(--aacp-muted);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  #storefront-chat .store-menu__social {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  #storefront-chat .store-menu__social-link {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 36px;
+    padding: 8px;
+    border: 1px solid var(--aacp-line);
+    border-radius: 9px;
+    color: var(--aacp-fg);
+    background: var(--aacp-card);
+    font-size: 11px;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  #storefront-chat .store-menu__social-link:focus-visible {
+    outline: 2px solid var(--aacp-accent);
+    outline-offset: 2px;
   }
 
   .conversation-messages {
@@ -428,6 +524,25 @@ input, textarea {
 
   .conversation-input {
     padding: 10px 12px;
+  }
+}
+
+@media (max-width: 360px) {
+  #storefront-chat .conversation-header {
+    gap: 5px;
+  }
+
+  #storefront-chat .conversation-header__status {
+    display: none !important;
+  }
+}
+
+@media (min-width: 641px) {
+  #storefront-chat .one-buy-click-toggle--mobile-header,
+  #storefront-chat .store-menu-trigger,
+  #storefront-chat .store-menu,
+  #storefront-chat .store-menu-backdrop {
+    display: none !important;
   }
 }
 

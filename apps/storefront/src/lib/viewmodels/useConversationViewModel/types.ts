@@ -39,6 +39,12 @@ export interface ConversationViewModelState {
   checkoutIntent: string | null;
   policyModal: { title: string; content: string } | null;
   crossSellPending: CrossSellInterstitialData | null;
+  preparedCheckout: {
+    actionId: string;
+    cartId: string;
+    shippingPreference: "fastest" | "cheapest";
+    paymentPreference: "pix" | "card";
+  } | null;
 }
 
 export interface CrossSellInterstitialData {
@@ -72,6 +78,7 @@ export interface ConversationViewModelActions {
   setPolicyModal: (value: { title: string; content: string } | null) => void;
   setCartDrawerForceOpen: (value: boolean) => void;
   dismissCrossSell: () => void;
+  clearPreparedCheckout: () => void;
   startListening: () => void;
   stopListening: () => void;
 }

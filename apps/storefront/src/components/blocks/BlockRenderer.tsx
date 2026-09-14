@@ -37,6 +37,7 @@ export default function BlockRenderer({
     case "cart_summary":
       return null;
     case "checkout_redirect":
+    case "checkout_prepared":
       return null;
     case "shipping_options":
       return <ShippingOptionsBlock block={block} />;

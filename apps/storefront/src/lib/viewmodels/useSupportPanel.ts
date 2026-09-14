@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
 import type { FaqItem } from "@/lib/services/support.service";
 import {
-  fetchCheckoutToken,
   fetchPublicFaq,
   sendSupportChat,
 } from "@/lib/services/support.service";
@@ -66,7 +65,6 @@ export function useSupportPanel({
   const socketRef = useRef<Socket | null>(null);
   const [ticketId, setTicketId] = useState<string | null>(null);
   const [faqItems, setFaqItems] = useState<FaqItem[]>(DEFAULT_FAQ_ITEMS);
-  const embedTokenRef = useRef<string | null>(null);
   const sessionIdRef = useRef(`support_${Date.now()}`);
 
   useEffect(() => {
@@ -100,14 +98,6 @@ export function useSupportPanel({
       if (ticketId) sessionStorage.setItem(TICKET_KEY, ticketId);
     } catch {}
   }, [ticketId]);
-
-  useEffect(() => {
-    if (!merchantId || embedTokenRef.current) return;
-    void (async () => {
-      const token = await fetchCheckoutToken(merchantId);
-      embedTokenRef.current = token;
-    })();
-  }, [merchantId]);
 
   useEffect(() => {
     if (!merchantId || !open) return;

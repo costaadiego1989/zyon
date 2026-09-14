@@ -1,3 +1,5 @@
+import { CheckoutApiError } from "./checkout-api-error";
+
 /**
  * CheckoutSession — API client for /embed/* endpoints.
  * Zero hardcoded data. All state comes from server.
@@ -280,10 +282,7 @@ export class CheckoutSession {
         buyer_access_token: this.buyerAccessToken || undefined,
       }),
     });
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(`embed_start_failed: ${res.status} ${text.slice(0, 200)}`);
-    }
+    if (!res.ok) throw await CheckoutApiError.fromResponse("embed_start", res);
     const data = (await res.json()) as StartResponse;
     this.sessionId = data.session_id;
     this.experience = data.experience;
@@ -305,7 +304,7 @@ export class CheckoutSession {
         conversation_id: this.sessionId,
       }),
     });
-    if (!res.ok) throw new Error(`embed_chat_failed: ${res.status}`);
+    if (!res.ok) throw await CheckoutApiError.fromResponse("embed_chat", res);
     return res.json() as Promise<ChatResponse>;
   }
 
@@ -417,10 +416,7 @@ export class CheckoutSession {
         ...(options?.chain ? { preferred_chain: options.chain } : {}),
       }),
     });
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(`embed_payment_failed: ${res.status} ${text.slice(0, 200)}`);
-    }
+    if (!res.ok) throw await CheckoutApiError.fromResponse("embed_payment", res);
     const raw = (await res.json()) as {
       id: string;
       status: string;

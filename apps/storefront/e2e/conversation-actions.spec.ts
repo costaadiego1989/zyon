@@ -16,7 +16,7 @@ test.describe("Conversation action states", () => {
         submitted++;
         await pending;
         await route.fulfill({ json: { message: "Seu produto está no carrinho.", blocks: [{ type: "cart_summary", data: {
-          items: [{ variantId: "visual-camera", productName: "Câmera Instante", price: 749, subtotal: 749, quantity: 1 }],
+          items: [{ variantId: "visual-camera", productName: "Câmera Instante", price: 749, subtotal: 749, quantity: 1, imageUrl: "https://images.example.test/camera.jpg" }],
           itemCount: 1, total: 749, discount: 0,
         } }] } });
       });
@@ -47,6 +47,7 @@ test.describe("Conversation action states", () => {
       // The existing cart preview auto-opens after an item is added.
       const cartClose = page.getByRole("button", { name: "Fechar carrinho", exact: true });
       await expect(cartClose).toBeVisible();
+      await expect(page.locator('img[src="https://images.example.test/camera.jpg"]')).toBeVisible();
       await cartClose.click();
       const cart = page.getByRole("button", { name: /Carrinho: 1 itens/ });
       await expect(cart).toBeVisible();

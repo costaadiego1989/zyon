@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CheckoutSession, cartFromExperience } from "../src/api/checkout-session.js";
+import { CheckoutApiError } from "../src/api/checkout-api-error.js";
 
 test("widget starts and updates the signed checkout session without reading or mutating public carts", async () => {
   const original = globalThis.fetch;
@@ -84,6 +85,57 @@ test("widget preserves every quoted crypto transfer in payment intent", async ()
       { kind: "merchant", destination_address: "0x1111111111111111111111111111111111111111", amount_atomic: "990000", amount_display: "0.990000 USDC" },
       { kind: "platform_fee", destination_address: "0x2222222222222222222222222222222222222222", amount_atomic: "10000", amount_display: "0.010000 USDC" },
     ]);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+
+test("widget preserves the public suspension code when checkout cannot start", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ code: "merchant_sales_suspended" }, { status: 403 });
+  try {
+    const api = new CheckoutSession({ embedToken: "signed-token", merchantId: "merchant", apiBaseUrl: "https://api.example" });
+    await assert.rejects(
+      () => api.start(),
+      (error: unknown) => error instanceof CheckoutApiError
+        && error.operation === "embed_start"
+        && error.status === 403
+        && error.code === "merchant_sales_suspended",
+    );
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("widget preserves chat retry time from the conversation rate limit", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url).endsWith("/embed/start")) {
+      return Response.json({
+        session_id: "rate-limited-session",
+        experience: {
+          items: [],
+          totals: { subtotal: 0, discount: 0, service_fee: 0, total_to_pay: 0, total: 0 },
+        },
+      });
+    }
+    if (String(url).endsWith("/embed/chat")) {
+      return Response.json({ code: "ai_interaction_rate_limited", retry_after_seconds: 23 }, { status: 429 });
+    }
+    throw new Error(`unexpected_endpoint:${url}`);
+  };
+  try {
+    const api = new CheckoutSession({ embedToken: "signed-token", merchantId: "merchant", apiBaseUrl: "https://api.example" });
+    await api.start();
+    await assert.rejects(
+      () => api.chat("olá"),
+      (error: unknown) => error instanceof CheckoutApiError
+        && error.operation === "embed_chat"
+        && error.status === 429
+        && error.code === "ai_interaction_rate_limited"
+        && error.retryAfterSeconds === 23,
+    );
   } finally {
     globalThis.fetch = original;
   }

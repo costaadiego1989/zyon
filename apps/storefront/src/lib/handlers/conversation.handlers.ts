@@ -20,6 +20,12 @@ export interface SendMessageParams {
   setCrossSellPending: (data: CrossSellInterstitialData | null) => void;
   updateFromBlocks: (blocks: any[]) => void;
   noteActivity: (merchantId: string) => void;
+  onCheckoutPrepared: (action: {
+    actionId: string;
+    cartId: string;
+    shippingPreference: "fastest" | "cheapest";
+    paymentPreference: "pix" | "card";
+  }) => void;
 }
 
 export async function handleSendMessage(params: SendMessageParams) {
@@ -88,6 +94,16 @@ export async function handleSendMessage(params: SendMessageParams) {
           blocks.push({ type: "quick_replies", data: { options: data.suggested_next } });
         }
         updateFromBlocks(blocks);
+
+        const preparedCheckout = blocks.find((block: any) => block.type === "checkout_prepared")?.data;
+        if (
+          typeof preparedCheckout?.actionId === "string"
+          && typeof preparedCheckout?.cartId === "string"
+          && (preparedCheckout?.shippingPreference === "fastest" || preparedCheckout?.shippingPreference === "cheapest")
+          && (preparedCheckout?.paymentPreference === "pix" || preparedCheckout?.paymentPreference === "card")
+        ) {
+          params.onCheckoutPrepared(preparedCheckout);
+        }
 
         const crossSellBlock = blocks.find((b: any) => b.type === "cross_sell" && b.data?.products?.length);
         const cartGrew = blocks.some((b: any) => b.type === "cart_summary");

@@ -34,10 +34,10 @@ export default function VariantSelectorBlock({
   const { productName, groups } = block.data;
   const [selected, setSelected] = useState<Record<string, string>>({});
 
-  function handleSelect(groupName: string, value: string) {
+  function handleSelect(groupName: string, value: string, variantId: string) {
     setSelected((prev) => ({ ...prev, [groupName]: value }));
     if (onQuickReply) {
-      onQuickReply(`Selecionar ${value} do ${productName}`);
+      onQuickReply(`Adicionar ${productName} ao carrinho [variantId:${variantId}]`);
     }
   }
 
@@ -102,7 +102,7 @@ export default function VariantSelectorBlock({
                 <button data-neu="control"
                   key={opt.id}
                   type="button"
-                  onClick={() => opt.available && handleSelect(group.name, opt.value)}
+                  onClick={() => opt.available && handleSelect(group.name, opt.value, opt.id)}
                   disabled={!opt.available}
                   title={opt.available ? opt.value : `${opt.value} (indisponivel)`}
                   style={{
