@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { AppliedInventorySale } from "../../domain/events/sale-completed.event.js";
 import { decryptErpSecret, encryptErpSecret } from "../../infrastructure/adapters/erp-secret-cipher.js";
+import { fetchBlingCompanyId } from "../../infrastructure/adapters/bling-company-identity.js";
 
 type SupportedErp = "omie" | "bling" | "tiny";
 type SyncKind = "full" | "sale";
@@ -68,27 +69,6 @@ function externalId(value: unknown, code: string): string {
   const result = String(value ?? "").trim();
   if (!result) throw new Error(code);
   return result;
-}
-
-function readBlingCompanyId(accessToken: string): string | null {
-  const payload = accessToken.split(".")[1];
-  if (!payload) return null;
-
-  try {
-    const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Record<string, unknown>;
-    const nestedCompany = claims.company ?? claims.empresa;
-    const candidates = [
-      claims.companyId,
-      claims.company_id,
-      claims.empresaId,
-      claims.empresa_id,
-      typeof nestedCompany === "object" && nestedCompany !== null ? (nestedCompany as Record<string, unknown>).id : undefined,
-    ];
-    const companyId = candidates.find((candidate) => typeof candidate === "string" || typeof candidate === "number");
-    return companyId === undefined ? null : String(companyId);
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -532,8 +512,7 @@ export class ErpSyncService {
 
   /** Existing OAuth connections gain the same exact webhook route on their first snapshot. */
   private async ensureBlingWebhookRoute(connection: ErpConnection): Promise<void> {
-    const companyId = readBlingCompanyId(await this.blingToken(connection));
-    if (!companyId) throw new Error("bling_company_identity_missing");
+    const companyId = await fetchBlingCompanyId(await this.blingToken(connection));
 
     const existingRoute = await this.prisma.erpWebhookRoute.findUnique({
       where: { provider_externalAccountId: { provider: "bling", externalAccountId: companyId } },
@@ -542,6 +521,9 @@ export class ErpSyncService {
       throw new Error("bling_company_already_connected");
     }
 
+    await this.prisma.erpWebhookRoute.deleteMany({
+      where: { provider: "bling", connectionId: connection.id, externalAccountId: { not: companyId } },
+    });
     await this.prisma.erpWebhookRoute.upsert({
       where: { provider_externalAccountId: { provider: "bling", externalAccountId: companyId } },
       update: { merchantId: connection.merchantId, connectionId: connection.id },

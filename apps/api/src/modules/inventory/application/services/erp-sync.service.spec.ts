@@ -92,12 +92,15 @@ test("a repeated ERP webhook shares one persisted snapshot job", async () => {
   assert.equal(jobs[0].dedupeKey, "webhook:full:connection_a:event_a");
 });
 
-test("an existing Bling connection registers its exact webhook route before a snapshot", async () => {
-  const token = `header.${Buffer.from(JSON.stringify({ companyId: 42 })).toString("base64url")}.signature`;
+test("an existing Bling connection registers its canonical webhook route before a snapshot", async (t) => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => ({ ok: true, json: async () => ({ data: { id: "company_42" } }) })) as typeof fetch;
+  t.after(() => { globalThis.fetch = originalFetch; });
   const routes: any[] = [];
   const service = new ErpSyncService({
     erpWebhookRoute: {
       findUnique: async () => null,
+      deleteMany: async () => ({ count: 0 }),
       upsert: async ({ create }: any) => { routes.push(create); return create; },
     },
   } as never);
@@ -106,11 +109,11 @@ test("an existing Bling connection registers its exact webhook route before a sn
     id: "connection_a",
     merchantId: "merchant_a",
     provider: "bling",
-    accessTokenCipher: encryptErpSecret(token),
+    accessTokenCipher: encryptErpSecret("opaque-access-token"),
     tokenExpiresAt: new Date(Date.now() + 5 * 60_000),
   });
 
-  assert.deepEqual(routes, [{ provider: "bling", externalAccountId: "42", merchantId: "merchant_a", connectionId: "connection_a" }]);
+  assert.deepEqual(routes, [{ provider: "bling", externalAccountId: "company_42", merchantId: "merchant_a", connectionId: "connection_a" }]);
 });
 
 test("Bling imports the authoritative physical balance endpoint for each product snapshot", async (t) => {

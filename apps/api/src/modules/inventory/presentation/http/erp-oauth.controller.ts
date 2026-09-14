@@ -5,6 +5,7 @@ import { createHmac, randomBytes } from "node:crypto";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { encryptErpSecret } from "../../infrastructure/adapters/erp-secret-cipher.js";
+import { fetchBlingCompanyId } from "../../infrastructure/adapters/bling-company-identity.js";
 import { isMarketplaceProvider } from "../../infrastructure/adapters/marketplace-adapter.factory.js";
 import { TriggerMarketplaceSyncUseCase } from "../../application/use-cases/trigger-marketplace-sync.use-case.js";
 import { TriggerErpSyncUseCase } from "../../application/use-cases/trigger-erp-sync.use-case.js";
@@ -26,28 +27,6 @@ function dashboardRedirect(params: Record<string, string>): string {
 function callbackErrorCode(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   return /^[a-z0-9_:-]{1,160}$/i.test(message) ? message : "erp_callback_error";
-}
-
-function readBlingCompanyId(accessToken: unknown): string | null {
-  if (typeof accessToken !== "string") return null;
-  const payload = accessToken.split(".")[1];
-  if (!payload) return null;
-
-  try {
-    const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Record<string, unknown>;
-    const nestedCompany = claims.company ?? claims.empresa;
-    const candidates = [
-      claims.companyId,
-      claims.company_id,
-      claims.empresaId,
-      claims.empresa_id,
-      typeof nestedCompany === "object" && nestedCompany !== null ? (nestedCompany as Record<string, unknown>).id : undefined,
-    ];
-    const companyId = candidates.find((candidate) => typeof candidate === "string" || typeof candidate === "number");
-    return companyId === undefined ? null : String(companyId);
-  } catch {
-    return null;
-  }
 }
 
 @ApiTags("Inventory - ERP OAuth")
@@ -281,8 +260,7 @@ export class ErpOAuthController {
       const refreshTokenCipher = tokenData.refresh_token ? encryptErpSecret(tokenData.refresh_token) : null;
       const expiresAt = new Date(Date.now() + (tokenData.expires_in ?? 3600) * 1000);
 
-      const blingCompanyId = provider === "bling" ? readBlingCompanyId(tokenData.access_token) : null;
-      if (provider === "bling" && !blingCompanyId) throw new Error("bling_company_identity_missing");
+      const blingCompanyId = provider === "bling" ? await fetchBlingCompanyId(tokenData.access_token) : null;
       if (provider === "bling") {
         const existingRoute = await this.prisma.erpWebhookRoute.findUnique({
           where: { provider_externalAccountId: { provider: "bling", externalAccountId: blingCompanyId! } },
@@ -317,6 +295,9 @@ export class ErpOAuthController {
       this.logger.log("erp.connected", { merchantId, provider, expiresAt: expiresAt.toISOString() });
 
       if (provider === "bling") {
+        await this.prisma.erpWebhookRoute.deleteMany({
+          where: { provider: "bling", connectionId: connection.id, externalAccountId: { not: blingCompanyId! } },
+        });
         await this.prisma.erpWebhookRoute.upsert({
           where: { provider_externalAccountId: { provider: "bling", externalAccountId: blingCompanyId! } },
           update: { merchantId, connectionId: connection.id },
