@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { AlertCircle, CheckCircle2, CreditCard, PlugZap, RefreshCw } from "lucide-react";
+import { AlertCircle, CheckCircle2, CreditCard, FileText, PlugZap, QrCode, RefreshCw } from "lucide-react";
 import type { PaymentConnection } from "../../api-client.js";
 import { StatusBadge } from "./components/StatusBadge.js";
 import { GatewayCard } from "./components/GatewayCard.js";
@@ -62,55 +62,214 @@ function PaymentRoutingPanel({
   mercadoPagoActive: boolean;
   onChange: (next: PaymentRoutingSettings) => void;
 }) {
-  const selectedPix = routing.pix ?? (mercadoPagoActive ? "mercadopago" : asaasActive ? "asaas" : "");
-  const selectedCard = routing.card ?? (stripeActive ? "stripe" : asaasActive ? "asaas" : mercadoPagoActive ? "mercadopago" : "");
-  const update = (method: keyof PaymentRoutingSettings, value: string) => {
-    onChange({ ...routing, [method]: value as PaymentRoutingSettings[typeof method] });
-  };
+  const selectedPix =
+    routing.pix ??
+    (mercadoPagoActive ? "mercadopago" : asaasActive ? "asaas" : "");
+  const selectedCard =
+    routing.card ??
+    (stripeActive
+      ? "stripe"
+      : asaasActive
+      ? "asaas"
+      : mercadoPagoActive
+      ? "mercadopago"
+      : "");
   const noPix = !asaasActive && !mercadoPagoActive;
   const noCard = !asaasActive && !stripeActive && !mercadoPagoActive;
+  const pixAvailable =
+    selectedPix === "asaas"
+      ? asaasActive
+      : selectedPix === "mercadopago"
+      ? mercadoPagoActive
+      : false;
+  const cardAvailable =
+    selectedCard === "asaas"
+      ? asaasActive
+      : selectedCard === "stripe"
+      ? stripeActive
+      : selectedCard === "mercadopago"
+      ? mercadoPagoActive
+      : false;
+  const availableCount = [pixAvailable, asaasActive, cardAvailable].filter(
+    Boolean
+  ).length;
+  const providerName = (provider: string) =>
+    ({ asaas: "Asaas", stripe: "Stripe", mercadopago: "Mercado Pago" }[
+      provider
+    ] ?? "Nenhum provedor");
+  const update = (method: keyof PaymentRoutingSettings, value: string) =>
+    onChange({
+      ...routing,
+      [method]: value as PaymentRoutingSettings[typeof method],
+    });
+  const unavailableOption = (value: string, available: boolean) =>
+    !available && value ? (
+      <option value={value}>
+        {providerName(value)} (conexão indisponível)
+      </option>
+    ) : null;
 
   return (
-    <section className="payment-routing" aria-labelledby="payment-routing-title">
-      <div>
-        <span className="eyebrow">Checkout</span>
-        <h2 id="payment-routing-title">Provedor por forma de pagamento</h2>
-        <p>Escolha onde cada pagamento será processado. Uma escolha indisponível deixa o método oculto no checkout, sem redirecionar a cobrança para outro gateway.</p>
+    <section
+      className="payment-routing"
+      aria-labelledby="payment-routing-title"
+    >
+      <header className="payment-routing__header">
+        <div className="payment-routing__heading">
+          <span className="payment-routing__eyebrow">Checkout</span>
+          <h2 id="payment-routing-title">Roteamento de pagamentos</h2>
+          <p>
+            Defina o provedor de cada forma de pagamento. O checkout só exibe
+            métodos com uma conexão disponível.
+          </p>
+        </div>
+        <span
+          className="payment-routing__readiness"
+          aria-live="polite"
+          data-saving={saving || undefined}
+        >
+          <CheckCircle2 size={15} aria-hidden="true" />
+          {saving
+            ? "Salvando alterações"
+            : `${availableCount} de 3 métodos disponíveis`}
+        </span>
+      </header>
+
+      <div
+        className="payment-routing__methods"
+        role="group"
+        aria-label="Formas de pagamento do checkout"
+      >
+        <article
+          className="payment-routing__method"
+          data-available={pixAvailable}
+        >
+          <div className="payment-routing__method-identity">
+            <span className="payment-routing__method-icon" aria-hidden="true">
+              <QrCode size={18} />
+            </span>
+            <div>
+              <div className="payment-routing__method-title-row">
+                <h3>Pix</h3>
+                <span className="payment-routing__availability">
+                  {pixAvailable ? "Disponível" : "Indisponível"}
+                </span>
+              </div>
+              <p>Pagamento instantâneo para o comprador.</p>
+            </div>
+          </div>
+          <div className="payment-routing__control">
+            <label htmlFor="payment-routing-pix">Processar com</label>
+            <select
+              id="payment-routing-pix"
+              value={selectedPix}
+              disabled={saving || noPix}
+              aria-describedby="payment-routing-pix-status"
+              onChange={(event) => update("pix", event.target.value)}
+            >
+              {unavailableOption(selectedPix, pixAvailable)}
+              {noPix ? <option value="">Conecte um provedor</option> : null}
+              {asaasActive && <option value="asaas">Asaas</option>}
+              {mercadoPagoActive && (
+                <option value="mercadopago">Mercado Pago</option>
+              )}
+            </select>
+            <span id="payment-routing-pix-status">
+              {pixAvailable
+                ? `Conectado via ${providerName(selectedPix)}`
+                : "Este método ficará oculto no checkout."}
+            </span>
+          </div>
+        </article>
+
+        <article
+          className="payment-routing__method"
+          data-available={asaasActive}
+        >
+          <div className="payment-routing__method-identity">
+            <span className="payment-routing__method-icon" aria-hidden="true">
+              <FileText size={18} />
+            </span>
+            <div>
+              <div className="payment-routing__method-title-row">
+                <h3>Boleto</h3>
+                <span className="payment-routing__availability">
+                  {asaasActive ? "Disponível" : "Indisponível"}
+                </span>
+              </div>
+              <p>Cobrança bancária com vencimento.</p>
+            </div>
+          </div>
+          <div className="payment-routing__control">
+            <span className="payment-routing__control-label">
+              Processar com
+            </span>
+            <div
+              className="payment-routing__fixed-provider"
+              data-available={asaasActive}
+            >
+              <strong>{asaasActive ? "Asaas" : "Conecte o Asaas"}</strong>
+              <span>Único provedor compatível</span>
+            </div>
+          </div>
+        </article>
+
+        <article
+          className="payment-routing__method"
+          data-available={cardAvailable}
+        >
+          <div className="payment-routing__method-identity">
+            <span className="payment-routing__method-icon" aria-hidden="true">
+              <CreditCard size={18} />
+            </span>
+            <div>
+              <div className="payment-routing__method-title-row">
+                <h3>Cartão</h3>
+                <span className="payment-routing__availability">
+                  {cardAvailable ? "Disponível" : "Indisponível"}
+                </span>
+              </div>
+              <p>Pagamento com cartão de crédito.</p>
+            </div>
+          </div>
+          <div className="payment-routing__control">
+            <label htmlFor="payment-routing-card">Processar com</label>
+            <select
+              id="payment-routing-card"
+              value={selectedCard}
+              disabled={saving || noCard}
+              aria-describedby="payment-routing-card-status"
+              onChange={(event) => update("card", event.target.value)}
+            >
+              {unavailableOption(selectedCard, cardAvailable)}
+              {noCard ? <option value="">Conecte um provedor</option> : null}
+              {stripeActive && <option value="stripe">Stripe</option>}
+              {asaasActive && <option value="asaas">Asaas</option>}
+              {mercadoPagoActive && (
+                <option value="mercadopago">Mercado Pago</option>
+              )}
+            </select>
+            <span id="payment-routing-card-status">
+              {cardAvailable
+                ? selectedCard === "mercadopago"
+                  ? "Checkout Pro hospedado pelo Mercado Pago."
+                  : selectedCard === "asaas"
+                  ? "Cobrança hospedada pelo Asaas."
+                  : "Cobrança processada pelo Stripe."
+                : "Este método ficará oculto no checkout."}
+            </span>
+          </div>
+        </article>
       </div>
-      <div className="payment-routing__fields">
-        <label>
-          <span>Pix</span>
-          <select
-            value={selectedPix}
-            disabled={saving || noPix}
-            onChange={(event) => update("pix", event.target.value)}
-          >
-            {asaasActive && <option value="asaas">Asaas</option>}
-            {mercadoPagoActive && <option value="mercadopago">Mercado Pago</option>}
-          </select>
-        </label>
-        <label>
-          <span>Boleto</span>
-          <select value="asaas" disabled aria-label="Boleto processado pelo Asaas">
-            <option value="asaas">Asaas</option>
-          </select>
-        </label>
-        <label>
-          <span>Cartão</span>
-          <select
-            value={selectedCard}
-            disabled={saving || noCard}
-            onChange={(event) => update("card", event.target.value)}
-          >
-            {stripeActive && <option value="stripe">Stripe</option>}
-            {asaasActive && <option value="asaas">Asaas (ambiente hospedado)</option>}
-            {mercadoPagoActive && <option value="mercadopago">Mercado Pago (Checkout Pro)</option>}
-          </select>
-        </label>
-      </div>
-      <p className="payment-routing__note">
-        O cartão Mercado Pago abre o Checkout Pro hospedado pelo próprio Mercado Pago. Pix e cartão só aparecem ao comprador quando a conexão OAuth está ativa e a assinatura de webhook da plataforma está configurada.
-      </p>
+
+      <footer className="payment-routing__policy">
+        <span>Política de roteamento</span>
+        <p>
+          A seleção é determinística. Se uma conexão ficar indisponível, a forma
+          deixa de aparecer ao comprador. O checkout não muda a cobrança para
+          outro gateway automaticamente.
+        </p>
+      </footer>
     </section>
   );
 }
