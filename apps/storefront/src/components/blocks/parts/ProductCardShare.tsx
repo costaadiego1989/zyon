@@ -1,6 +1,7 @@
 "use client";
 
-import { FaWhatsapp, FaFacebook, FaInstagram } from "react-icons/fa";
+import { FaWhatsapp, FaFacebook } from "react-icons/fa";
+import { ProductCopyLink } from "../ProductCopyLink";
 
 const iconWrap: React.CSSProperties = {
   display: "flex",
@@ -45,18 +46,7 @@ export function ProductCardShare({ productName, shareUrl }: { productName: strin
       >
         <FaFacebook size={15} />
       </a>
-      <button data-neu="control"
-        type="button"
-        aria-label="Copiar link para Instagram"
-        onClick={() => {
-          if (typeof navigator !== "undefined") {
-            navigator.clipboard.writeText(url).catch(() => {});
-          }
-        }}
-        style={{ ...iconWrap, color: "#E4405F" }}
-      >
-        <FaInstagram size={15} />
-      </button>
+      <ProductCopyLink url={url} style={{ ...iconWrap, color: "#E4405F" }} />
     </div>
   );
 }

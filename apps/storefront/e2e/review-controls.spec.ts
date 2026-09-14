@@ -16,7 +16,7 @@ test.describe("Product review controls", () => {
         if (request.method() === "POST" && /\/(testimonials|videos)(\?|$)/.test(request.url())) submissions.push(request.url());
       });
       await page.goto(`${base}/store/${encodeURIComponent(slug!)}?show=content&product=${encodeURIComponent(product!)}`);
-      const panel = page.locator("[data-aacp-product-experience]");
+      const panel = page.locator("[data-aacp-rich-product-experience]");
       const group = page.getByRole("group", { name: "Tipo de avaliação" });
       const written = group.getByRole("button", { name: "Avaliação escrita", exact: true });
       const video = group.getByRole("button", { name: "Vídeo", exact: true });

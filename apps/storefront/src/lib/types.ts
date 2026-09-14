@@ -68,6 +68,7 @@ export interface CartSummaryBlock {
       quantity: number;
       price: number;
       subtotal: number;
+      imageUrl?: string;
     }>;
     itemCount: number;
     subtotal: number;

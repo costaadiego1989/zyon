@@ -56,7 +56,7 @@ test.describe("Advanced Product Layout @apl", () => {
     await expect(content.locator(".aacp-product-content")).toBeVisible();
     await expect(content.locator("[data-aacp-rich-product-add-to-cart]")).toBeEnabled();
     await expect.poll(async () => {
-      const panel = await chat.locator("[data-aacp-product-experience]").boundingBox();
+      const panel = await chat.locator("[data-aacp-rich-product-experience]").boundingBox();
       const shell = await chat.boundingBox();
       return Math.abs(panel!.width - shell!.width);
     }).toBeLessThan(4);

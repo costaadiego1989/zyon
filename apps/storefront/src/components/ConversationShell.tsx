@@ -7,7 +7,7 @@ import { useCart } from "@/lib/cart-store";
 import { useConversationViewModel, type Message } from "@/lib/viewmodels/useConversationViewModel";
 import { getValidBuyer } from "@/lib/buyer-auth";
 import BlockRenderer from "./blocks/BlockRenderer";
-import ProductExperienceOverlay from "./blocks/ProductExperienceOverlay";
+import RichProductDetailsPanel from "./blocks/RichProductDetailsPanel";
 import { BuyerHub } from "./BuyerHub";
 import { BuyerHubTrigger } from "./BuyerHubTrigger";
 import SupportPanel from "./SupportPanel";
@@ -690,7 +690,7 @@ export default function ConversationShell({
         />
       )}
       </div>{/* end content wrapper */}
-      {richProduct ? <ProductExperienceOverlay key={richProduct.productId} productId={richProduct.productId} merchantSlug={merchantSlug} suspended={buyerHubOpen || cartDrawerForceOpen || showBuyerAuth || checkoutOpen} onClose={({ productId, productName, defaultVariantId, cartAdded }) => {
+      {richProduct ? <RichProductDetailsPanel key={richProduct.productId} productId={richProduct.productId} merchantSlug={merchantSlug} suspended={buyerHubOpen || cartDrawerForceOpen || showBuyerAuth || checkoutOpen} onClose={({ productId, productName, defaultVariantId, cartAdded }) => {
         setRichProduct(null);
         if (cartAdded || !productName || !defaultVariantId || promptedProductClose.current.has(productId)) return;
         promptedProductClose.current.add(productId);
