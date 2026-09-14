@@ -1,150 +1,61 @@
-import { describe, it, before, after } from "node:test";
-import { strict as assert } from "node:assert";
-import type { PrismaClient } from "@prisma/client";
+import test from "node:test";
+import assert from "node:assert/strict";
 import { HypothesisEntity } from "../../domain/entities/hypothesis.entity.js";
-import { PrismaHypothesisRepository } from "../../infrastructure/prisma-hypothesis.repository.js";
 import { ApproveHypothesisUseCase } from "../use-cases/approve-hypothesis.use-case.js";
-import { CreateExperimentFromHypothesisUseCase } from "../use-cases/create-experiment-from-hypothesis.use-case.js";
-import { OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
-import { CheckoutSettingsRepository } from "../../../checkout-settings/domain/ports/checkout-settings-repository.port.js";
 import { CheckoutSettingsEntity } from "../../../checkout-settings/domain/entities/checkout-settings.entity.js";
-import type { AdvancedRule } from "@zyon/shared-types";
 
-/**
- * F3-T02: Integration spec for approve-hypothesis with mode parameter
- * Tests apply_direct (saves AdvancedRule) and test_ab (creates experiment)
- */
-
-describe("ApproveHypothesisUseCase with mode parameter", () => {
-  let useCase: ApproveHypothesisUseCase;
-  let hypothesisRepo: PrismaHypothesisRepository;
-  let mockOutbox: OutboxRepository;
-  let mockCheckoutSettingsRepo: CheckoutSettingsRepository;
-  let mockCreateExperiment: CreateExperimentFromHypothesisUseCase;
-  let mockPrisma: PrismaClient;
-
-  before(() => {
-    // Create mock repositories
-    mockOutbox = {
-      appendOutbox: async () => undefined,
-    } as any;
-
-    mockCheckoutSettingsRepo = {
-      get: async (merchantId: string) => {
-        return CheckoutSettingsEntity.createDefault({ merchantId }).snapshot();
-      },
-      save: async (settings) => settings,
-      delete: async () => undefined,
-    } as any;
-
-    mockCreateExperiment = {
-      execute: async (input: any) => ({
-        experiment_id: `exp_${input.hypothesis_id}`,
-        hypothesis_id: input.hypothesis_id,
-        status: "created" as const,
-      }),
-    } as any;
-
-    hypothesisRepo = {} as any;
-
-    useCase = new ApproveHypothesisUseCase(
-      hypothesisRepo,
-      mockOutbox,
-      mockCheckoutSettingsRepo,
-      mockPrisma,
-      mockCreateExperiment,
-    );
-  });
-
-  it("should accept mode parameter and pass it through", async () => {
-    // Create a mock hypothesis with discount_rule_json
-    const mockHypothesis = {
-      id: "hyp_123",
-      merchant_id: "merchant_123",
-      status: "pending_review",
-      hypothesis_type: "discount_rule" as const,
-      discount_rule_json: {
-        id: "rule_456",
-        name: "Test Rule",
-        conditions: [{ field: "cart_total", operator: "gte", value: 100 }],
-        action: { type: "offer_discount", params: { percent: 10 } },
-        enabled: true,
-        priority: 1,
-      } as AdvancedRule,
-      approval_strategy: "manual",
-      snapshot: () => ({
-        id: "hyp_123",
-        merchant_id: "merchant_123",
-        status: "pending_review",
-        hypothesis_type: "discount_rule",
-        discount_rule_json: {
-          id: "rule_456",
-          name: "Test Rule",
-          conditions: [{ field: "cart_total", operator: "gte", value: 100 }],
-          action: { type: "offer_discount", params: { percent: 10 } },
-          enabled: true,
-          priority: 1,
-        },
-        merchant_approved_at: new Date().toISOString(),
-        approval_strategy: "manual",
-      }),
-      approve: (approver: string, reason?: string) => mockHypothesis,
-      risk_level: "low",
-    } as any;
-
-    hypothesisRepo.findById = async () => mockHypothesis;
-    hypothesisRepo.save = async () => undefined;
-
-    // Test apply_direct mode
-    const result1 = await useCase.execute({
-      hypothesis_id: "hyp_123",
-      merchant_id: "merchant_123",
-      approved_by: "user_123",
-      mode: "apply_direct",
-    });
-
-    assert.strictEqual(result1.mode, "apply_direct", "mode should be apply_direct");
-    assert.strictEqual(result1.rule_id, "rule_456", "rule_id should be set");
-    assert.strictEqual(result1.experiment_id, undefined, "experiment_id should not be set");
-
-    // Test test_ab mode
-    const result2 = await useCase.execute({
-      hypothesis_id: "hyp_123",
-      merchant_id: "merchant_123",
-      approved_by: "user_123",
-      mode: "test_ab",
-    });
-
-    assert.strictEqual(result2.mode, "test_ab", "mode should be test_ab");
-    assert.strictEqual(result2.experiment_id, "exp_hyp_123", "experiment_id should be set");
-    assert.strictEqual(result2.rule_id, undefined, "rule_id should not be set in test_ab mode");
-  });
-
-  it("should validate mode is required", async () => {
-    try {
-      await useCase.execute({
-        hypothesis_id: "hyp_123",
-        merchant_id: "merchant_123",
-        approved_by: "user_123",
-        mode: undefined as any,
-      });
-      assert.fail("Should have thrown error for missing mode");
-    } catch (err) {
-      // Expected
-    }
-  });
-
-  it("should validate mode is one of the allowed values", async () => {
-    try {
-      await useCase.execute({
-        hypothesis_id: "hyp_123",
-        merchant_id: "merchant_123",
-        approved_by: "user_123",
-        mode: "invalid_mode" as any,
-      });
-      assert.fail("Should have thrown error for invalid mode");
-    } catch (err) {
-      // Expected
-    }
-  });
+const rule = { id: "offer", name: "Oferta", enabled: false, priority: 1,
+  conditions: [{ field: "cart_total", operator: "gte", value: 200 }],
+  action: { type: "offer_discount", params: { percent: 10, maxDiscountReais: 30 } } };
+function fixture(type: "prompt" | "discount_rule" = "discount_rule", options: { missingSettings?: boolean; experimentFailed?: boolean; conflict?: boolean } = {}) {
+  let hypothesis = HypothesisEntity.create({ merchant_id: "merchant", observation_id: "obs",
+    hypothesis_text: "Comparar oferta", reasoning: "Abandono observado", expected_lift_percent: 5, risk_level: "low",
+    hypothesis_type: type, approval_strategy: "manual", ...(type === "discount_rule" ? { discount_rule_json: rule as never } : {}),
+    template: { name: "Oferta", description: "Comparar", variant_a: { name: "Atual", system_prompt: "Atual", weight: 50, is_control: true },
+      variant_b: { name: "Nova", system_prompt: "Nova", weight: 50, is_control: false } } });
+  const original = CheckoutSettingsEntity.createDefault({ merchantId: "merchant" }).snapshot();
+  original.advancedRules = [{ ...rule, id: "existing", enabled: true } as never];
+  let savedSettings: typeof original | undefined; let expectedVersion: string | undefined; let approvals = 0; let experiments = 0;
+  const useCase = new ApproveHypothesisUseCase(
+    { findById: async () => hypothesis, save: async (h: HypothesisEntity) => { approvals++; hypothesis = h; } } as never,
+    { appendOutbox: async () => {} } as never,
+    { get: async () => options.missingSettings ? undefined : original,
+      save: async (value: typeof original, version?: string) => {
+        if (options.conflict) throw Error("CHECKOUT_SETTINGS_CONFLICT");
+        savedSettings = value; expectedVersion = version; return value;
+      } } as never,
+    {} as never,
+    { execute: async () => { experiments++; return options.experimentFailed ? { status: "failed", error: "unavailable" } : { status: "created", experiment_id: "experiment" }; } } as never,
+  );
+  return { original, get state() { return { savedSettings, expectedVersion, approvals, experiments }; },
+    execute: (mode: "test_ab" | "apply_direct") => useCase.execute({ hypothesis_id: hypothesis.id, merchant_id: "merchant", approved_by: "owner", mode }) };
+}
+test("direct approval activates the capped rule, preserves existing rules and checks the settings version", async () => {
+  const f = fixture(); const result = await f.execute("apply_direct");
+  assert.equal(result.rule_id, "offer"); assert.equal(result.experiment_id, undefined);
+  assert.equal(f.state.experiments, 0); assert.equal(f.state.expectedVersion, f.original.updatedAt);
+  assert.deepEqual(f.state.savedSettings!.advancedRules, [f.original.advancedRules![0], { ...rule, enabled: true }]);
+});
+test("prompt changes require A/B testing and cannot be applied as a commercial rule", async () => {
+  const f = fixture("prompt"); await assert.rejects(f.execute("apply_direct"), /HYPOTHESIS_REQUIRES_AB_TEST/);
+  assert.equal(f.state.approvals, 0); assert.equal(f.state.experiments, 0);
+});
+test("unavailable settings prevent recording direct approval", async () => {
+  const f = fixture("discount_rule", { missingSettings: true });
+  await assert.rejects(f.execute("apply_direct"), /HYPOTHESIS_CHECKOUT_SETTINGS_UNAVAILABLE/);
+  assert.equal(f.state.approvals, 0);
+});
+test("A/B approval returns a confirmed experiment identity without applying the rule directly", async () => {
+  const f = fixture(); const result = await f.execute("test_ab");
+  assert.equal(result.status, "experiment_created"); assert.equal(result.experiment_id, "experiment");
+  assert.equal(f.state.experiments, 1); assert.equal(f.state.savedSettings, undefined);
+});
+test("experiment creation failure is not returned as a successful activation", async () => {
+  const f = fixture("prompt", { experimentFailed: true }); const result = await f.execute("test_ab");
+  assert.equal(result.status, "experiment_failed"); assert.equal(result.experiment_id, undefined);
+});
+test("concurrent settings changes propagate an error instead of reporting an applied rule", async () => {
+  const f = fixture("discount_rule", { conflict: true });
+  await assert.rejects(f.execute("apply_direct"), /CHECKOUT_SETTINGS_CONFLICT/);
+  assert.equal(f.state.savedSettings, undefined);
 });

@@ -1,3 +1,4 @@
+import { openStrategyReview } from "./strategy-review.js";
 import React, { useState } from "react";
 import { Lightbulb, TrendingUp, Eye, BookOpen, Brain } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
@@ -164,8 +165,8 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
                     <span>{new Date(h.created_at).toLocaleDateString("pt-BR")}</span>
                     {h.status === "pending_review" && (
                       <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-                        <button type="button" className="zyn-btn zyn-btn--primary" style={{ fontSize: 11, padding: "4px 12px" }} onClick={() => vm.approveHypothesis(h.id)} disabled={vm.approving.has(h.id)}>
-                          Aprovar
+                        <button type="button" className="zyn-btn zyn-btn--primary" style={{ fontSize: 11, padding: "4px 12px" }} onClick={() => openStrategyReview(h.id)} disabled={vm.approving.has(h.id)}>
+                          Revisar e aprovar
                         </button>
                         <button type="button" style={{ fontSize: 11, padding: "4px 12px", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", background: "transparent", color: "var(--color-text-muted)", cursor: "pointer" }} onClick={() => vm.rejectHypothesis(h.id, "Não relevante")} disabled={vm.approving.has(h.id)}>
                           Rejeitar

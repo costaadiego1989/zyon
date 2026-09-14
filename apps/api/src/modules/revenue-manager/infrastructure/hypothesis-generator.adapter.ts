@@ -6,6 +6,45 @@ import type {
 } from "../domain/ports/hypothesis-generator.port.js";
 import { validateHypothesisResponse, validateHypothesisSafety } from "../domain/services/hypothesis-validator.service.js";
 
+const DEFAULT_HYPOTHESIS_LLM_TIMEOUT_MS = 20_000;
+const MAX_HYPOTHESIS_LLM_TIMEOUT_MS = 25_000;
+
+function hypothesisLlmTimeoutMs(): number {
+  const configured = Number(process.env.HYPOTHESIS_LLM_TIMEOUT_MS);
+  if (!Number.isFinite(configured)) return DEFAULT_HYPOTHESIS_LLM_TIMEOUT_MS;
+  return Math.min(Math.max(Math.floor(configured), 1_000), MAX_HYPOTHESIS_LLM_TIMEOUT_MS);
+}
+
+interface HypothesisAiProvider {
+  name: "openai" | "deepseek";
+  apiKey: string;
+  model: string;
+  baseUrl: string;
+}
+
+function configuredHypothesisProviders(): HypothesisAiProvider[] {
+  const providers: HypothesisAiProvider[] = [];
+  const openAiApiKey = process.env.OPENAI_API_KEY?.trim();
+  if (openAiApiKey) {
+    providers.push({
+      name: "openai",
+      apiKey: openAiApiKey,
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+      baseUrl: (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, ""),
+    });
+  }
+  const deepSeekApiKey = process.env.DEEPSEEK_API_KEY?.trim();
+  if (deepSeekApiKey) {
+    providers.push({
+      name: "deepseek",
+      apiKey: deepSeekApiKey,
+      model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
+      baseUrl: (process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1").replace(/\/+$/, ""),
+    });
+  }
+  return providers;
+}
+
 /**
  * LLMHypothesisGenerator — Calls Fable 5 API to generate revenue hypotheses.
  *
@@ -24,11 +63,10 @@ export class LLMHypothesisGenerator implements HypothesisGeneratorPort {
     if (typeof request.current_prompt !== "string" || !request.current_prompt.trim()) {
       throw new Error("HYPOTHESIS_BASELINE_UNAVAILABLE");
     }
-    const apiKey = process.env.OPENAI_API_KEY;
-    const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+    const providers = configuredHypothesisProviders();
 
-    if (!apiKey) {
-      this.logger.warn("No OPENAI_API_KEY configured, returning fallback hypothesis");
+    if (providers.length === 0) {
+      this.logger.warn("No configured AI provider, returning fallback hypothesis");
       return this.validateResponse(this.generateFallbackHypothesis(request), request);
     }
 
@@ -36,40 +74,44 @@ export class LLMHypothesisGenerator implements HypothesisGeneratorPort {
       const systemPrompt = this.buildSystemPrompt(request.constraints);
       const userPrompt = this.buildUserPrompt(request);
 
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          temperature: 0.7,
-          max_tokens: 1000,
-        }),
-      });
+      for (const provider of providers) {
+        try {
+          const response = await fetch(`${provider.baseUrl}/chat/completions`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${provider.apiKey}`,
+            },
+            signal: AbortSignal.timeout(hypothesisLlmTimeoutMs()),
+            body: JSON.stringify({
+              model: provider.model,
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt },
+              ],
+              temperature: 0.7,
+              max_tokens: 1000,
+            }),
+          });
 
-      if (!response.ok) {
-        const err = await response.text();
-        throw new Error(`LLM API error: ${response.status} ${err}`);
+          if (!response.ok) {
+            const err = await response.text();
+            throw new Error(`LLM API error: ${response.status} ${err}`);
+          }
+
+          const data = (await response.json()) as { choices: Array<{ message: { content: string } }> };
+          const content = data.choices[0]?.message.content;
+          if (!content) throw new Error("Empty response from LLM");
+          return this.parseHypothesisResponse(content, request);
+        } catch (err) {
+          this.logger.warn(`Hypothesis provider ${provider.name} failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
-
-      const data = (await response.json()) as { choices: Array<{ message: { content: string } }> };
-      const content = data.choices[0]?.message.content;
-
-      if (!content) {
-        throw new Error("Empty response from LLM");
-      }
-
-      return this.parseHypothesisResponse(content, request);
     } catch (err) {
-      this.logger.warn(`Failed to generate hypothesis via LLM: ${err instanceof Error ? err.message : String(err)}`);
-      return this.validateResponse(this.generateFallbackHypothesis(request), request);
+      this.logger.warn(`Failed to prepare hypothesis generation: ${err instanceof Error ? err.message : String(err)}`);
     }
+
+    return this.validateResponse(this.generateFallbackHypothesis(request), request);
   }
 
   private buildSystemPrompt(constraints: HypothesisGenerationRequest["constraints"]): string {

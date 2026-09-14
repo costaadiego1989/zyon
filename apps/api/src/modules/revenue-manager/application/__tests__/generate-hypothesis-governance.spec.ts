@@ -195,7 +195,9 @@ test("MI-V20: kill-switch, policy and baseline changes during generation prevent
 
 test("MI-V20: fallback preserves baseline and adds help without invented offers or security claims", async () => {
   const previousKey = process.env.OPENAI_API_KEY;
+  const previousDeepSeekKey = process.env.DEEPSEEK_API_KEY;
   delete process.env.OPENAI_API_KEY;
+  delete process.env.DEEPSEEK_API_KEY;
   try {
     for (const reason of ["price", "shipping_cost", "payment", "unknown"]) {
       const fixture = setup({ generate: (request) => new LLMHypothesisGenerator().generate({ ...request, observation: observation("merchant-a", reason).snapshot() }) });
@@ -210,6 +212,8 @@ test("MI-V20: fallback preserves baseline and adds help without invented offers 
   } finally {
     if (previousKey === undefined) delete process.env.OPENAI_API_KEY;
     else process.env.OPENAI_API_KEY = previousKey;
+    if (previousDeepSeekKey === undefined) delete process.env.DEEPSEEK_API_KEY;
+    else process.env.DEEPSEEK_API_KEY = previousDeepSeekKey;
   }
 });
 
@@ -250,8 +254,14 @@ test("MI-V20: malformed and over-cap model responses fall back to reviewed help 
 test("MI-V20: provider failure cannot invent an offer", async () => {
   const originalFetch = globalThis.fetch;
   const previousKey = process.env.OPENAI_API_KEY;
+  const previousBaseUrl = process.env.OPENAI_BASE_URL;
   process.env.OPENAI_API_KEY = "local-test-key";
-  globalThis.fetch = async () => { throw new Error("Simulated provider unavailable"); };
+  process.env.OPENAI_BASE_URL = "https://provider.example/v1/";
+  globalThis.fetch = async (url, options) => {
+    assert.equal(String(url), "https://provider.example/v1/chat/completions");
+    assert.ok(options?.signal instanceof AbortSignal);
+    return new Response("provider timed out", { status: 408 });
+  };
   try {
     const fixture = setup({ generate: (request) => new LLMHypothesisGenerator().generate(request) });
     await fixture.execute();
@@ -262,6 +272,55 @@ test("MI-V20: provider failure cannot invent an offer", async () => {
     globalThis.fetch = originalFetch;
     if (previousKey === undefined) delete process.env.OPENAI_API_KEY;
     else process.env.OPENAI_API_KEY = previousKey;
+    if (previousBaseUrl === undefined) delete process.env.OPENAI_BASE_URL;
+    else process.env.OPENAI_BASE_URL = previousBaseUrl;
+  }
+});
+
+test("MI-V20: a quota failure in OpenAI retries the compatible DeepSeek provider", async () => {
+  const originalFetch = globalThis.fetch;
+  const previousOpenAiKey = process.env.OPENAI_API_KEY;
+  const previousOpenAiBaseUrl = process.env.OPENAI_BASE_URL;
+  const previousDeepSeekKey = process.env.DEEPSEEK_API_KEY;
+  const previousDeepSeekBaseUrl = process.env.DEEPSEEK_BASE_URL;
+  const previousDeepSeekModel = process.env.DEEPSEEK_MODEL;
+  process.env.OPENAI_API_KEY = "openai-test-key";
+  process.env.OPENAI_BASE_URL = "https://openai.example/v1";
+  process.env.DEEPSEEK_API_KEY = "deepseek-test-key";
+  process.env.DEEPSEEK_BASE_URL = "https://deepseek.example/v1/";
+  process.env.DEEPSEEK_MODEL = "deepseek-test-model";
+  const urls: string[] = [];
+  globalThis.fetch = async (url, options) => {
+    urls.push(String(url));
+    if (String(url).startsWith("https://openai.example/")) {
+      return new Response("insufficient credits", { status: 429 });
+    }
+    assert.equal(String(url), "https://deepseek.example/v1/chat/completions");
+    assert.equal(new Headers(options?.headers).get("Authorization"), "Bearer deepseek-test-key");
+    assert.equal(JSON.parse(String(options?.body)).model, "deepseek-test-model");
+    return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(proposal()) } }] }), { status: 200 });
+  };
+  try {
+    const fixture = setup({ generate: (request) => new LLMHypothesisGenerator().generate(request) });
+    await fixture.execute();
+    assert.deepEqual(urls, [
+      "https://openai.example/v1/chat/completions",
+      "https://deepseek.example/v1/chat/completions",
+    ]);
+    assert.equal(fixture.saved[0].status, "pending_review");
+    assert.equal(fixture.saved[0].template.variant_a.system_prompt, baseline);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previousOpenAiKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = previousOpenAiKey;
+    if (previousOpenAiBaseUrl === undefined) delete process.env.OPENAI_BASE_URL;
+    else process.env.OPENAI_BASE_URL = previousOpenAiBaseUrl;
+    if (previousDeepSeekKey === undefined) delete process.env.DEEPSEEK_API_KEY;
+    else process.env.DEEPSEEK_API_KEY = previousDeepSeekKey;
+    if (previousDeepSeekBaseUrl === undefined) delete process.env.DEEPSEEK_BASE_URL;
+    else process.env.DEEPSEEK_BASE_URL = previousDeepSeekBaseUrl;
+    if (previousDeepSeekModel === undefined) delete process.env.DEEPSEEK_MODEL;
+    else process.env.DEEPSEEK_MODEL = previousDeepSeekModel;
   }
 });
 

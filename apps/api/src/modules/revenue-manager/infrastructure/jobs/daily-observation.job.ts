@@ -1,6 +1,7 @@
-import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from "@nestjs/common";
+import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { Queue, Worker, type Job } from "bullmq";
 import type { RedisOptions } from "ioredis";
+import { randomUUID } from "node:crypto";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
 import { ObserveMetricsUseCase } from "../../application/use-cases/observe-metrics.use-case.js";
@@ -11,12 +12,54 @@ import { HypothesisEntity } from "../../domain/entities/hypothesis.entity.js";
 import { HYPOTHESIS_REPOSITORY_PORT, type HypothesisRepositoryPort } from "../../domain/ports/hypothesis-repository.port.js";
 
 export const REVENUE_MANAGER_OBSERVATION_QUEUE = "revenue-manager-observations";
+export const REVENUE_MANAGER_QUEUE_UNAVAILABLE = "REVENUE_MANAGER_QUEUE_UNAVAILABLE";
 const JOB_NAME = "daily-observation-compile";
-const RECURRING_JOB_KEY = "revenue-manager-observations:cron";
+// BullMQ reserves `:` inside custom job IDs. Keep these stable IDs readable
+// without using the separator so both manual and recurring jobs persist.
+const RECURRING_JOB_KEY = "revenue-manager-observations.cron";
 const CRON_DAILY_2AM_UTC = "0 2 * * *"; // 2 AM UTC
+const DEFAULT_RULE_OPTIMIZER_LOOKBACK_DAYS = 30;
+const MAX_RULE_OPTIMIZER_LOOKBACK_DAYS = 90;
+const JOB_RETRY_OPTIONS = {
+  attempts: 3,
+  backoff: { type: "exponential" as const, delay: 1_000 },
+  removeOnComplete: 100,
+  removeOnFail: 1_000,
+};
 
 interface DailyObservationJobData {
   triggeredAt: string;
+  merchantId?: string;
+}
+
+interface CartItemSnapshot {
+  variantId?: unknown;
+  price?: unknown;
+  cost?: unknown;
+  quantity?: unknown;
+}
+
+interface CartSnapshot {
+  items?: unknown;
+  currentDiscount?: unknown;
+}
+
+interface SessionMarginInput {
+  globalUserId: string;
+  createdAt: Date;
+  cart: unknown;
+  completedOrders: { id: string }[];
+}
+
+function ruleOptimizerLookbackDays(): number {
+  const configured = Number(process.env.RULE_OPTIMIZER_LOOKBACK_DAYS);
+  if (!Number.isFinite(configured)) return DEFAULT_RULE_OPTIMIZER_LOOKBACK_DAYS;
+  return Math.min(Math.max(Math.floor(configured), 7), MAX_RULE_OPTIMIZER_LOOKBACK_DAYS);
+}
+
+function finiteNonNegative(value: unknown): number | null {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
 function redisConnection(): RedisOptions | null {
@@ -55,8 +98,7 @@ export class DailyObservationScheduler implements OnModuleDestroy {
       await this.queue.add(JOB_NAME, { triggeredAt: new Date().toISOString() }, {
         jobId: RECURRING_JOB_KEY,
         repeat: { pattern: CRON_DAILY_2AM_UTC },
-        removeOnComplete: 100,
-        removeOnFail: 1_000,
+        ...JOB_RETRY_OPTIONS,
       });
       this.logger.log(`Scheduled recurring daily observation (cron=${CRON_DAILY_2AM_UTC})`);
     } catch (err) {
@@ -64,6 +106,21 @@ export class DailyObservationScheduler implements OnModuleDestroy {
         `Failed to register recurring daily observation: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+  }
+
+  async enqueueMerchantRun(merchantId: string): Promise<string> {
+    if (!this.queue) throw new Error(REVENUE_MANAGER_QUEUE_UNAVAILABLE);
+
+    const job = await this.queue.add(
+      JOB_NAME,
+      { triggeredAt: new Date().toISOString(), merchantId },
+      {
+        jobId: `revenue-manager-observations.merchant.${merchantId}.${randomUUID()}`,
+        ...JOB_RETRY_OPTIONS,
+      },
+    );
+
+    return String(job.id);
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -78,9 +135,11 @@ export class DailyObservationScheduler implements OnModuleDestroy {
  * 1. Fetch merchant config + current metrics (funnel, abandonment, etc)
  * 2. Call ObserveMetricsUseCase to create/deduplicate observation
  * 3. If observation is new: call GenerateHypothesisUseCase
- * 4. If hypothesis is low-risk: auto-approve + create experiment
+ * 4. Create a merchant-reviewable strategy suggestion
  *
- * Falls back to setInterval when Redis is not configured.
+ * Falls back to a daily timer when Redis is not configured. The HTTP trigger
+ * intentionally remains unavailable in that state: an interactive request must
+ * get a durable job instead of waiting for an LLM response in the API process.
  * Timeout: 10 minutes per job.
  */
 @Injectable()
@@ -130,36 +189,40 @@ export class DailyObservationWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   private async process(job: Job<DailyObservationJobData>): Promise<void> {
-    const count = await this.runObservationCycle();
+    const count = await this.runObservationCycle(job.data.merchantId);
     this.logger.log(`Daily observation job ${job.id ?? "n/a"} processed ${count} merchants`);
   }
 
   /**
    * Exposed for testability.
-   * Run one observation cycle for all merchants.
+   * Run one observation cycle for all merchants, or a single merchant when an
+   * interactive request was queued.
    */
-  async runObservationCycle(): Promise<number> {
-    try {
-      const merchants = await this.prisma.merchant.findMany({
-        take: 100, // batch limit
-      });
+  async runObservationCycle(merchantId?: string): Promise<number> {
+    const merchants = merchantId
+      ? await this.prisma.merchant.findMany({ where: { id: merchantId }, take: 1 })
+      : await this.prisma.merchant.findMany({ take: 100 });
 
-      let processedCount = 0;
-
-      for (const merchant of merchants) {
-        try {
-          await this.processMerchant(merchant.id);
-          processedCount++;
-        } catch (err) {
-          this.logger.warn(`Failed to process merchant ${merchant.id}: ${err instanceof Error ? err.message : String(err)}`);
-        }
-      }
-
-      return processedCount;
-    } catch (err) {
-      this.logger.warn(`Failed to run observation cycle: ${err instanceof Error ? err.message : String(err)}`);
-      return 0;
+    if (merchantId && merchants.length !== 1) {
+      throw new Error("REVENUE_MANAGER_MERCHANT_NOT_FOUND");
     }
+
+    let processedCount = 0;
+
+    for (const merchant of merchants) {
+      try {
+        await this.processMerchant(merchant.id);
+        processedCount++;
+      } catch (err) {
+        this.logger.warn(`Failed to process merchant ${merchant.id}: ${err instanceof Error ? err.message : String(err)}`);
+        // A merchant-triggered job must fail and retry if the merchant's data
+        // could not be read or persisted. The recurring batch still advances
+        // to the next merchant so one tenant cannot block every other tenant.
+        if (merchantId) throw err;
+      }
+    }
+
+    return processedCount;
   }
 
   /**
@@ -247,6 +310,11 @@ export class DailyObservationWorker implements OnModuleInit, OnModuleDestroy {
    */
   private async generateDiscountRuleHypothesis(merchantId: string, observationId: string): Promise<void> {
     try {
+      if (process.env.REVENUE_MANAGER_DISCOUNT_RULE_SUGGESTIONS_ENABLED === "false") {
+        this.logger.debug(`Merchant ${merchantId}: discount rule suggestions are disabled by configuration`);
+        return;
+      }
+
       // Fetch merchant rules to check kill-switch
       const merchantRules = await this.prisma.merchantRule.findUnique({
         where: { merchantId },
@@ -305,17 +373,7 @@ export class DailyObservationWorker implements OnModuleInit, OnModuleDestroy {
       // Persist via repository (embeds hypothesis_type + discount_rule_json in templateJson).
       await this.hypothesisRepository.save(hypothesisEntity);
 
-      // ADI-F3-01: notify merchant — same pattern as handle-asaas-webhook.use-case.ts.
-      await this.prisma.merchantNotification.create({
-        data: {
-          merchantId,
-          type: "ai_rule_suggestion",
-          title: "Sugestão de IA: Regra de Desconto",
-          body: candidate.rationale,
-          metadata: { hypothesisId: hypothesisEntity.id },
-        },
-      });
-
+      // The repository persists the suggestion and its notification atomically.
       this.logger.log(
         `Merchant ${merchantId}: generated discount rule hypothesis ${hypothesisEntity.id} (${candidate.rule.name}), sent notification`
       );
@@ -335,9 +393,107 @@ export class DailyObservationWorker implements OnModuleInit, OnModuleDestroy {
    * TODO: wire to a real cohort-stats query once the intent × conversion read
    * model is available. Kept as a seam so the integration is testable now.
    */
-  private async loadCohortStats(
-    _merchantId: string,
-  ): Promise<Parameters<DiscountRuleHypothesisService["generate"]>[0]> {
-    return [];
+  private async loadCohortStats(merchantId: string): Promise<Parameters<DiscountRuleHypothesisService["generate"]>[0]> {
+    const windowEnd = new Date();
+    const windowStart = new Date(windowEnd);
+    windowStart.setUTCDate(windowStart.getUTCDate() - ruleOptimizerLookbackDays());
+
+    const [intentRecords, sessions] = await Promise.all([
+      this.prisma.customerIntentRecord.findMany({
+        where: {
+          merchantId,
+          consent: { is: { optedIn: true, expiresAt: { gt: windowEnd } } },
+        },
+        orderBy: { generatedAt: "desc" },
+        select: { globalUserId: true, primaryIntent: true, generatedAt: true },
+        take: 10_000,
+      }),
+      this.prisma.checkoutSession.findMany({
+        where: { merchantId, createdAt: { gte: windowStart, lte: windowEnd } },
+        select: {
+          globalUserId: true,
+          createdAt: true,
+          cart: true,
+          completedOrders: { select: { id: true } },
+        },
+        take: 10_000,
+      }),
+    ]);
+
+    const intentsByBuyer = new Map<string, typeof intentRecords>();
+    for (const record of intentRecords) {
+      const records = intentsByBuyer.get(record.globalUserId) ?? [];
+      records.push(record);
+      intentsByBuyer.set(record.globalUserId, records);
+    }
+
+    const eligibleSessions = (sessions as SessionMarginInput[]).flatMap((session) => {
+      const intent = intentsByBuyer.get(session.globalUserId)?.find(
+        (record) => record.generatedAt <= session.createdAt,
+      )?.primaryIntent;
+      if (!intent) return [];
+      const cart = session.cart as CartSnapshot;
+      if (!Array.isArray(cart?.items) || cart.items.length === 0) return [];
+      return [{ ...session, intent, cart }];
+    });
+
+    const variantIds = [...new Set(
+      eligibleSessions.flatMap((session) => (session.cart.items as CartItemSnapshot[])
+        .map((item) => typeof item.variantId === "string" ? item.variantId : null)
+        .filter((variantId): variantId is string => variantId !== null)),
+    )];
+    const catalogCosts = variantIds.length > 0
+      ? await this.prisma.productPrice.findMany({
+          where: {
+            variantId: { in: variantIds },
+            costInCents: { not: null },
+            variant: { product: { merchantId } },
+          },
+          select: { variantId: true, costInCents: true },
+        })
+      : [];
+    const costByVariantId = new Map(catalogCosts.flatMap((price) => price.costInCents === null ? [] : [[price.variantId, price.costInCents / 100] as const]));
+
+    const cohorts = new Map<string, { sampleSize: number; converted: number; revenue: number; cost: number }>();
+    for (const session of eligibleSessions) {
+      const items = session.cart.items as CartItemSnapshot[];
+      let revenueBeforeDiscount = 0;
+      let totalCost = 0;
+      let hasCompleteCost = true;
+
+      for (const item of items) {
+        const unitPrice = finiteNonNegative(item.price);
+        const quantity = finiteNonNegative(item.quantity);
+        const itemCost = finiteNonNegative(item.cost)
+          ?? (typeof item.variantId === "string" ? costByVariantId.get(item.variantId) ?? null : null);
+        if (unitPrice === null || quantity === null || quantity <= 0 || itemCost === null) {
+          hasCompleteCost = false;
+          break;
+        }
+        revenueBeforeDiscount += unitPrice * quantity;
+        totalCost += itemCost * quantity;
+      }
+
+      const discount = finiteNonNegative(session.cart.currentDiscount) ?? 0;
+      const revenue = Math.max(0, revenueBeforeDiscount - discount);
+      if (!hasCompleteCost || revenue <= 0) continue;
+
+      const cohort = cohorts.get(session.intent) ?? { sampleSize: 0, converted: 0, revenue: 0, cost: 0 };
+      cohort.sampleSize += 1;
+      cohort.converted += session.completedOrders.length > 0 ? 1 : 0;
+      cohort.revenue += revenue;
+      cohort.cost += totalCost;
+      cohorts.set(session.intent, cohort);
+    }
+
+    return [...cohorts.entries()].flatMap(([intent, cohort]) => {
+      if (cohort.revenue <= 0 || cohort.cost > cohort.revenue) return [];
+      return [{
+        intent,
+        sampleSize: cohort.sampleSize,
+        conversionRate: cohort.converted / cohort.sampleSize,
+        avgMarginPercent: Number((((cohort.revenue - cohort.cost) / cohort.revenue) * 100).toFixed(4)),
+      }];
+    });
   }
 }

@@ -1,3 +1,4 @@
+import { STRATEGY_CHANGED_EVENT } from "./strategy-review.js";
 import { useEffect, useState, useCallback } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import { showToast } from "../../components/Toast.js";
@@ -54,7 +55,12 @@ export function useRevenueManagerPage(me: MerchantProfile | null) {
     }
   };
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    const reload = () => { void load(); };
+    window.addEventListener(STRATEGY_CHANGED_EVENT, reload);
+    return () => window.removeEventListener(STRATEGY_CHANGED_EVENT, reload);
+  }, [load]);
 
   const approveHypothesis = async (id: string) => {
     setApproving(prev => new Set([...prev, id]));

@@ -14,35 +14,64 @@ export class PrismaHypothesisRepository implements HypothesisRepositoryPort {
       hypothesis_type: snap.hypothesis_type ?? "prompt",
       ...(snap.discount_rule_json ? { discount_rule_json: snap.discount_rule_json } : {}),
     } as unknown as Prisma.InputJsonValue;
-    await this.prisma.revenueManagerHypothesis.upsert({
-      where: { id: snap.id },
-      create: {
-        id: snap.id,
-        merchantId: snap.merchant_id,
-        observationId: snap.observation_id,
-        hypothesisText: snap.hypothesis_text,
-        reasoning: snap.reasoning,
-        expectedLiftPercent: snap.expected_lift_percent,
-        riskLevel: snap.risk_level,
-        templateJson,
-        status: snap.status,
-        approvalStrategy: snap.approval_strategy,
-        merchantApprovedAt: snap.merchant_approved_at ? new Date(snap.merchant_approved_at) : null,
-        merchantApprovedBy: snap.merchant_approved_by ?? null,
-        merchantApprovalReason: snap.merchant_approval_reason ?? null,
-        rejectionReason: snap.rejection_reason ?? null,
-        createdExperimentId: snap.created_experiment_id ?? null,
-        experimentCreationError: snap.experiment_creation_error ?? null,
-      },
-      update: {
-        status: snap.status,
-        merchantApprovedAt: snap.merchant_approved_at ? new Date(snap.merchant_approved_at) : null,
-        merchantApprovedBy: snap.merchant_approved_by ?? null,
-        merchantApprovalReason: snap.merchant_approval_reason ?? null,
-        rejectionReason: snap.rejection_reason ?? null,
-        createdExperimentId: snap.created_experiment_id ?? null,
-        experimentCreationError: snap.experiment_creation_error ?? null,
-      },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${snap.merchant_id} FOR UPDATE`;
+      const existing = await tx.revenueManagerHypothesis.findUnique({ where: { id: snap.id } });
+      if (existing && existing.merchantId !== snap.merchant_id) throw new Error("HYPOTHESIS_NOT_FOUND");
+      if (existing && snap.status !== "pending_review") {
+        const expected = ["approved", "rejected"].includes(snap.status) ? "pending_review" : "approved";
+        const claimed = await tx.revenueManagerHypothesis.updateMany({
+          where: { id: snap.id, merchantId: snap.merchant_id, status: expected },
+          data: { status: snap.status },
+        });
+        if (claimed.count !== 1) throw new Error("HYPOTHESIS_NOT_PENDING_REVIEW");
+      }
+      if (existing && snap.status === "pending_review" && existing.status !== "pending_review") return;
+      await tx.revenueManagerHypothesis.upsert({
+        where: { id: snap.id },
+        create: {
+          id: snap.id,
+          merchantId: snap.merchant_id,
+          observationId: snap.observation_id,
+          hypothesisText: snap.hypothesis_text,
+          reasoning: snap.reasoning,
+          expectedLiftPercent: snap.expected_lift_percent,
+          riskLevel: snap.risk_level,
+          templateJson,
+          status: snap.status,
+          approvalStrategy: snap.approval_strategy,
+          merchantApprovedAt: snap.merchant_approved_at ? new Date(snap.merchant_approved_at) : null,
+          merchantApprovedBy: snap.merchant_approved_by ?? null,
+          merchantApprovalReason: snap.merchant_approval_reason ?? null,
+          rejectionReason: snap.rejection_reason ?? null,
+          createdExperimentId: snap.created_experiment_id ?? null,
+          experimentCreationError: snap.experiment_creation_error ?? null,
+        },
+        update: {
+          status: snap.status,
+          merchantApprovedAt: snap.merchant_approved_at ? new Date(snap.merchant_approved_at) : null,
+          merchantApprovedBy: snap.merchant_approved_by ?? null,
+          merchantApprovalReason: snap.merchant_approval_reason ?? null,
+          rejectionReason: snap.rejection_reason ?? null,
+          createdExperimentId: snap.created_experiment_id ?? null,
+          experimentCreationError: snap.experiment_creation_error ?? null,
+        },
+      });
+      const noticeId = `strategy:${snap.id}`;
+      if (snap.status === "pending_review") {
+        await tx.merchantNotification.upsert({
+          where: { id: noticeId }, update: {},
+          create: { id: noticeId, merchantId: snap.merchant_id, type: "ai_strategy_suggestion",
+            title: "Nova estratégia para revisar", body: snap.hypothesis_text,
+            metadata: { hypothesisId: snap.id, hypothesisType: snap.hypothesis_type ?? "prompt" } },
+        });
+      } else {
+        await tx.merchantNotification.updateMany({
+          where: { merchantId: snap.merchant_id, OR: [{ id: noticeId },
+            { type: "ai_rule_suggestion", metadata: { path: ["hypothesisId"], equals: snap.id } }] },
+          data: { read: true },
+        });
+      }
     });
   }
 

@@ -3,18 +3,23 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Inject,
   NotFoundException,
   Param,
   Post,
   Query,
   Req,
+  ServiceUnavailableException,
   UseGuards,
 } from "@nestjs/common";
 import {
+  ApiAcceptedResponse,
   ApiBearerAuth,
   ApiOkResponse,
   ApiOperation,
+  ApiServiceUnavailableResponse,
   ApiQuery,
   ApiTags,
 } from "@nestjs/swagger";
@@ -25,7 +30,7 @@ import { RejectHypothesisUseCase } from "../../application/use-cases/reject-hypo
 import { OBSERVATION_REPOSITORY_PORT, type ObservationRepositoryPort } from "../../domain/ports/observation-repository.port.js";
 import { HYPOTHESIS_REPOSITORY_PORT, type HypothesisRepositoryPort } from "../../domain/ports/hypothesis-repository.port.js";
 import { STRATEGY_LESSON_REPOSITORY_PORT, type StrategyLessonRepositoryPort } from "../../domain/ports/strategy-lesson-repository.port.js";
-import { DailyObservationWorker } from "../../infrastructure/jobs/daily-observation.job.js";
+import { DailyObservationScheduler, REVENUE_MANAGER_QUEUE_UNAVAILABLE } from "../../infrastructure/jobs/daily-observation.job.js";
 import {
   ApproveHypothesisDto,
   RejectHypothesisDto,
@@ -48,7 +53,7 @@ export class RevenueManagerController {
     @Inject(OBSERVATION_REPOSITORY_PORT) private readonly observationRepo: ObservationRepositoryPort,
     @Inject(HYPOTHESIS_REPOSITORY_PORT) private readonly hypothesisRepo: HypothesisRepositoryPort,
     @Inject(STRATEGY_LESSON_REPOSITORY_PORT) private readonly lessonRepo: StrategyLessonRepositoryPort,
-    private readonly dailyObservationWorker: DailyObservationWorker,
+    private readonly dailyObservationScheduler: DailyObservationScheduler,
   ) {}
 
   // ===== Observations =====
@@ -108,7 +113,8 @@ export class RevenueManagerController {
         reasoning: snap.reasoning,
         expected_lift_percent: snap.expected_lift_percent,
         risk_level: snap.risk_level,
-        template: snap.template,
+        template: { ...snap.template, hypothesis_type: snap.hypothesis_type ?? "prompt",
+          ...(snap.discount_rule_json ? { discount_rule_json: snap.discount_rule_json } : {}) },
         status: snap.status,
         approval_strategy: snap.approval_strategy,
         merchant_approved_at: snap.merchant_approved_at,
@@ -120,6 +126,16 @@ export class RevenueManagerController {
         updated_at: snap.updated_at,
       };
     });
+  }
+
+  @Get("hypotheses/:id")
+  @ApiOperation({ summary: "Get a strategy for merchant review" })
+  async getHypothesis(@Req() req: any, @Param("id") id: string) {
+    const hypothesis = await this.hypothesisRepo.findById(id, currentUser(req).merchantId);
+    if (!hypothesis) throw new NotFoundException("Hypothesis not found");
+    const snap = hypothesis.snapshot();
+    return { ...snap, template: { ...snap.template, hypothesis_type: snap.hypothesis_type ?? "prompt",
+      ...(snap.discount_rule_json ? { discount_rule_json: snap.discount_rule_json } : {}) } };
   }
 
   // ===== Approve/Reject =====
@@ -137,7 +153,7 @@ export class RevenueManagerController {
       return await this.approveHypothesis.execute({
         hypothesis_id: id,
         merchant_id: user.merchantId,
-        approved_by: body.approved_by ?? user.email ?? user.merchantId,
+        approved_by: user.email ?? user.merchantId,
         approval_reason: body.approval_reason,
         mode: body.mode,
       });
@@ -203,17 +219,30 @@ export class RevenueManagerController {
     });
   }
 
-  // ===== Admin: Manual Trigger =====
+  // ===== Manual Trigger =====
 
   @Post("trigger")
-  @ApiOperation({ summary: "Trigger daily observation cycle immediately (admin only)" })
-  @ApiOkResponse({ description: "Observation cycle triggered successfully" })
-  async triggerObservation(): Promise<{ processed: number; message: string }> {
-    const processed = await this.dailyObservationWorker.runObservationCycle();
-    return {
-      processed,
-      message: `Daily observation cycle completed for ${processed} merchants`,
-    };
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({ summary: "Queue a strategy observation for the authenticated merchant" })
+  @ApiAcceptedResponse({ description: "Strategy observation queued successfully" })
+  @ApiServiceUnavailableResponse({ description: "The strategy queue is temporarily unavailable" })
+  async triggerObservation(@Req() req: any): Promise<{ job_id: string; message: string }> {
+    const merchantId = currentUser(req).merchantId;
+    try {
+      const jobId = await this.dailyObservationScheduler.enqueueMerchantRun(merchantId);
+      return {
+        job_id: jobId,
+        message: "A análise foi iniciada. A sugestão aparecerá no painel quando estiver pronta.",
+      };
+    } catch (_err) {
+      // Queue connection failures are transient operational errors. Do not
+      // make the dashboard wait for a synchronous fallback or expose Redis
+      // details to a merchant.
+      throw new ServiceUnavailableException({
+        code: "revenue_manager_queue_unavailable",
+        detail: "A geração de estratégias está temporariamente indisponível.",
+      });
+    }
   }
 }
 

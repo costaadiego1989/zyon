@@ -130,13 +130,20 @@ export function revenueManagerEndpoints(base: string, f: typeof fetch) {
       return Array.isArray(res) ? res : res.data;
     },
 
+    async getHypothesis(id: string): Promise<Hypothesis> {
+      return dashboardJson<Hypothesis>(base, `${PREFIX}/hypotheses/${encodeURIComponent(id)}`, { method: "GET" }, f);
+    },
+
     async approveHypothesis(id: string, payload: { approved_by: string; mode: ApproveMode; approval_reason?: string }): Promise<void> {
-      await dashboardJson<unknown>(
+      const result = await dashboardJson<{ status: string; experiment_id?: string; rule_id?: string }>(
         base,
         `${PREFIX}/hypotheses/${encodeURIComponent(id)}/approve`,
         { method: "POST", jsonBody: payload },
         f
       );
+      if (result.status === "experiment_failed" || (payload.mode === "test_ab" ? !result.experiment_id : !result.rule_id)) {
+        throw new Error("A estratégia foi aprovada, mas a aplicação não foi confirmada. Revise o estado antes de tentar novamente.");
+      }
     },
 
     async rejectHypothesis(id: string, payload: { reason: string }): Promise<void> {

@@ -43,6 +43,13 @@ export class ApproveHypothesisUseCase {
       throw new Error("HYPOTHESIS_NOT_FOUND");
     }
 
+    if (input.mode === "apply_direct" && (hypothesis.hypothesis_type !== "discount_rule" || !hypothesis.discount_rule_json)) {
+      throw new Error("HYPOTHESIS_REQUIRES_AB_TEST");
+    }
+    if (input.mode === "apply_direct" && !await this.checkoutSettingsRepo.get(input.merchant_id)) {
+      throw new Error("HYPOTHESIS_CHECKOUT_SETTINGS_UNAVAILABLE");
+    }
+
     const updated = hypothesis.approve(input.approved_by, input.approval_reason);
     await this.hypothesisRepo.save(updated);
 
@@ -94,7 +101,7 @@ export class ApproveHypothesisUseCase {
               activatedRule,
             ];
             const patched = entity.update({ advancedRules: updatedRules });
-            await this.checkoutSettingsRepo.save(patched.snapshot());
+            await this.checkoutSettingsRepo.save(patched.snapshot(), settings.updatedAt);
             result.rule_id = discountRule.id;
             this.logger.log(`Advanced rule ${discountRule.id} activated for merchant ${input.merchant_id}`);
           }
@@ -114,8 +121,10 @@ export class ApproveHypothesisUseCase {
         });
         if (expResult.status === "created") {
           result.experiment_id = expResult.experiment_id;
+          result.status = "experiment_created";
           this.logger.log(`Experiment ${expResult.experiment_id} created for hypothesis ${input.hypothesis_id}`);
         } else {
+          result.status = "experiment_failed";
           this.logger.warn(`Experiment creation failed for hypothesis ${input.hypothesis_id}: ${expResult.error}`);
         }
       } catch (err) {
