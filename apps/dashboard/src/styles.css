@@ -429,13 +429,11 @@ button:disabled {
   box-shadow: var(--shadow-lg);
   cursor: pointer;
   font: 700 13px var(--font-sans);
-  transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease), box-shadow var(--duration-fast) var(--ease), transform var(--duration-fast) var(--ease);
+  transition: background var(--duration-fast) var(--ease), box-shadow var(--duration-fast) var(--ease), transform var(--duration-fast) var(--ease);
 }
 
-.platform-feedback-fab:hover:not(:disabled) {
+.platform-feedback-fab:hover {
   background: var(--color-brand-hover);
-  border-color: var(--color-brand-hover);
-  color: var(--color-text);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
   transform: translateY(-1px);
 }
