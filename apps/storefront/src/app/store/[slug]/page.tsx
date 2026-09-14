@@ -55,20 +55,22 @@ export async function generateMetadata({
   })();
   const productContent = sharedProductId ? await fetchProductContent(slug, sharedProductId) : null;
   const purchase = productContent?.purchase;
+  const productSeo = purchase?.seo;
   const description =
+    productSeo?.description ??
     purchase?.description ??
     seo?.description ??
     config?.description ??
     merchant?.description ??
     "Loja conversacional com atendimento por IA e checkout integrado.";
-  const title = purchase?.productName ?? seo?.title ?? name;
-  const keywords = seo?.keywords?.join(", ");
+  const title = productSeo?.title ?? purchase?.productName ?? seo?.title ?? name;
+  const keywords = productSeo?.keywords?.join(", ") ?? seo?.keywords?.join(", ");
   const productImage = purchase?.images?.find((image) => image.src)?.src;
   const logo = productImage ?? seo?.ogImage ?? config?.logo ?? merchant?.logo;
   const canonicalUrl = sharedProductId
     ? `${SITE_URL}/store/${encodeURIComponent(slug)}?show=content&product=${encodeURIComponent(sharedProductId)}`
     : seo?.canonicalUrl ?? `${SITE_URL}/store/${slug}`;
-  const twitterCard = (seo?.twitterCard ?? "summary_large_image") as any;
+  const twitterCard = (productSeo?.twitterCard ?? seo?.twitterCard ?? "summary_large_image") as any;
 
   return {
     title: {
@@ -80,8 +82,8 @@ export async function generateMetadata({
     themeColor: config?.theme.accentColor,
     category: config?.storeCategory,
     openGraph: {
-      title: seo?.ogTitle ?? title,
-      description: seo?.ogDescription ?? description,
+      title: productSeo?.ogTitle ?? productSeo?.title ?? seo?.ogTitle ?? title,
+      description: productSeo?.ogDescription ?? productSeo?.description ?? seo?.ogDescription ?? description,
       type: sharedProductId ? "article" : "website",
       siteName: name,
       url: canonicalUrl,
@@ -90,8 +92,8 @@ export async function generateMetadata({
     },
     twitter: {
       card: twitterCard,
-      title: seo?.ogTitle ?? title,
-      description: seo?.ogDescription ?? description,
+      title: productSeo?.ogTitle ?? productSeo?.title ?? seo?.ogTitle ?? title,
+      description: productSeo?.ogDescription ?? productSeo?.description ?? seo?.ogDescription ?? description,
       images: logo ? [logo] : [],
     },
     robots: {

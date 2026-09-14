@@ -3,10 +3,13 @@ import assert from "node:assert/strict";
 import type { PrismaClient } from "@prisma/client";
 import { StorefrontProductContentController } from "./storefront-product-content.controller.js";
 
-function makeController(product: unknown) {
+function makeController(product: unknown, onProductQuery?: (query: unknown) => void) {
   const prisma = {
     merchant: { findFirst: async () => ({ id: "merchant-1", storeSlug: "demo" }) },
-    product: { findFirst: async () => product },
+    product: { findFirst: async (query: unknown) => {
+      onProductQuery?.(query);
+      return product;
+    } },
     checkoutSetting: { findUnique: async () => ({ advancedRules: [] }) },
   } as unknown as PrismaClient;
   const content = { execute: async () => ({ locale: "pt-BR", blocks: [], faqs: [], testimonials: [], videos: [] }) };
@@ -36,6 +39,31 @@ test("public rich content exposes display prices, variants and media without int
   assert.equal(result.purchase.isDemo, true);
   assert.equal(JSON.stringify(result.purchase).includes("InCents"), false);
   assert.equal(JSON.stringify(result.purchase).includes("availableQuantity"), false);
+});
+
+test("public rich content exposes the selected product SEO for share metadata", async () => {
+  let productQuery: any;
+  const result = await makeController({
+    id: "product-1", merchantId: "merchant-1", name: "Produto", type: "digital",
+    seoTitle: "Titulo SEO", metaDescription: "Descricao SEO", ogTitle: "Titulo Open Graph",
+    ogDescription: "Descricao Open Graph", twitterCard: "summary", keywords: ["produto", "seo"],
+    variants: [{ id: "variant-1", attributes: {}, price: { basePriceInCents: 12990, currency: "BRL" }, stock: [] }],
+  }, (query) => { productQuery = query; }).getContent("demo", "product-1", "pt-BR");
+
+  assert.deepEqual(result.purchase.seo, {
+    title: "Titulo SEO",
+    description: "Descricao SEO",
+    ogTitle: "Titulo Open Graph",
+    ogDescription: "Descricao Open Graph",
+    twitterCard: "summary",
+    keywords: ["produto", "seo"],
+  });
+  assert.equal(productQuery.select.seoTitle, true);
+  assert.equal(productQuery.select.metaDescription, true);
+  assert.equal(productQuery.select.ogTitle, true);
+  assert.equal(productQuery.select.ogDescription, true);
+  assert.equal(productQuery.select.twitterCard, true);
+  assert.equal(productQuery.select.keywords, true);
 });
 
 test("public rich content exposes food choices and the catalog display price", async () => {

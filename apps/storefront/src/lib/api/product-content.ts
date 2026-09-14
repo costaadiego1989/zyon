@@ -64,6 +64,14 @@ export interface ProductVideoResponse {
 
 /** Minimal server-authoritative input required for a rich-content purchase CTA. */
 export interface ProductContentPurchaseResponse {
+  seo?: {
+    title?: string | null;
+    description?: string | null;
+    ogTitle?: string | null;
+    ogDescription?: string | null;
+    twitterCard?: string | null;
+    keywords?: string[];
+  };
   ruleNotices?: Array<{ ruleId?: string; message: string }>;
   productName: string;
   description?: string | null;

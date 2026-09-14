@@ -131,6 +131,12 @@ export class StorefrontProductContentController {
         description: true,
         type: true,
         metadata: true,
+        seoTitle: true,
+        metaDescription: true,
+        ogTitle: true,
+        ogDescription: true,
+        twitterCard: true,
+        keywords: true,
         variants: {
           where: { isActive: true },
           orderBy: { createdAt: "asc" },
@@ -191,6 +197,15 @@ export class StorefrontProductContentController {
     const noticeRules = await loadProductNoticeRules(this.prisma, merchant.id);
     const ruleNotices = productRuleNotices(noticeRules, product.variants.map((variant) => variant.sku), product.id);
     const purchasableVariant = variants.find((variant) => variant.available);
+    const keywords = product.keywords ?? [];
+    const hasSeo = Boolean(
+      product.seoTitle ||
+      product.metaDescription ||
+      product.ogTitle ||
+      product.ogDescription ||
+      product.twitterCard ||
+      keywords.length,
+    );
 
     return {
       merchantId: merchant.id,
@@ -208,6 +223,16 @@ export class StorefrontProductContentController {
               alt: media.alt ?? product.name,
               variantId: variant.id,
             }))),
+            ...(hasSeo ? {
+              seo: {
+                title: product.seoTitle,
+                description: product.metaDescription,
+                ogTitle: product.ogTitle,
+                ogDescription: product.ogDescription,
+                twitterCard: product.twitterCard,
+                keywords,
+              },
+            } : {}),
             isDemo: Boolean(product.metadata && typeof product.metadata === "object" && !Array.isArray(product.metadata) && product.metadata.demo === true),
             // The cart validates every selected id again and recomputes its
             // amount from the catalog before the order can proceed.
