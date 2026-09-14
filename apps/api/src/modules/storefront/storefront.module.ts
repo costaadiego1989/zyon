@@ -49,6 +49,9 @@ import { AIGatewayService } from "./infrastructure/ai/ai-gateway.service.js";
 import { BudgetTrackerService } from "./infrastructure/ai/budget-tracker.service.js";
 import { LocalLLMProvider } from "./infrastructure/ai/local-llm-provider.js";
 import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
+import { RateLimitStore } from "../../shared/rate-limit/rate-limit.store.js";
+import { RedisRateLimitStore } from "../../shared/rate-limit/redis-rate-limit.store.js";
+import { StorefrontConversationRateLimitService } from "./application/services/storefront-conversation-rate-limit.service.js";
 
 @Module({
   imports: [
@@ -68,6 +71,8 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
   ],
   controllers: [StorefrontController, StorefrontProductContentController, StorefrontProductSubmissionController],
   providers: [
+    { provide: RateLimitStore, useClass: RedisRateLimitStore },
+    StorefrontConversationRateLimitService,
     BillingPlanMeteringService,
     PlanLimitGuard,
     { provide: RealtimeCapabilityService, useFactory: () => new RealtimeCapabilityService() },

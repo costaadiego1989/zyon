@@ -6,6 +6,8 @@ import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { StorefrontController } from "./storefront.controller.js";
 import { UpdateBudgetRequestStatusUseCase } from "../../application/use-cases/update-budget-request-status.use-case.js";
 import { RealtimeCapabilityService } from "../../../../shared/auth/realtime-capability.js";
+import { RateLimitStore } from "../../../../shared/rate-limit/rate-limit.store.js";
+import { StorefrontConversationRateLimitService } from "../../application/services/storefront-conversation-rate-limit.service.js";
 
 test("budget and funnel admin handlers enforce AuthGuard even when legacy routes are enabled", async (t) => {
   const previous = process.env.ENABLE_LEGACY_ROUTES;
@@ -60,6 +62,7 @@ test("HTTP conversation aliases reject missing/foreign capability before reading
     getConversationHistory: spy,
     trackStorefrontEvent: { execute: async () => calls.push("tracking") },
     capabilities,
+    conversationRateLimiter: { consume: () => ({ allowed: true, limit: 10, remaining: 9, resetAt: 1_000_000, retryAfterMs: 0 }) },
   }) as StorefrontController;
   await assert.rejects(() => controller.sendMessage("conv_a", { user_message: "hello", merchant_id: "merchant_a" }, {}), /invalid_conversation_token/);
   await assert.rejects(() => controller.getHistory("conv_a", {}), /invalid_conversation_token/);
@@ -77,6 +80,27 @@ test("HTTP conversation aliases reject missing/foreign capability before reading
     [{ merchant_id: "merchant_a", conversation_id: "conv_a", user_message: "hello", cart_id: "conv_a", history: undefined }],
     [{ merchant_id: "merchant_a", conversation_id: "conv_a" }], "tracking",
   ]);
+});
+
+test("HTTP messages enforce ten requests per minute with the conversation capability scope", async () => {
+  const capabilities = new RealtimeCapabilityService("test-realtime-secret-at-least-32-characters");
+  const calls: unknown[] = [];
+  const controller = Object.assign(Object.create(StorefrontController.prototype), {
+    capabilities,
+    sendStoreMessage: { execute: async (input: unknown) => calls.push(input) },
+    conversationRateLimiter: new StorefrontConversationRateLimitService(new RateLimitStore()),
+  }) as StorefrontController;
+  const access = capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant_a", resourceId: "conv_a" });
+  const request = { headers: { authorization: `Bearer ${access.token}` } };
+
+  for (let requestCount = 0; requestCount < 10; requestCount++) {
+    await controller.sendMessage("conv_a", { user_message: "hello" }, request);
+  }
+  await assert.rejects(
+    () => controller.sendMessage("conv_a", { user_message: "blocked" }, request),
+    (error: { getStatus?: () => number }) => error.getStatus?.() === 429,
+  );
+  assert.equal(calls.length, 10);
 });
 
 test("nudge derives its merchant from the conversation capability", async () => {

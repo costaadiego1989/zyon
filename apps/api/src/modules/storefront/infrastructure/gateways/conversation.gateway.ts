@@ -5,12 +5,11 @@ import { RealtimeCapabilityService, isRealtimeId, realtimeRoom } from "../../../
 import { resolveCorsConfig } from "../../../../shared/config/cors-config.js";
 import { SendStoreMessageUseCase } from "../../application/use-cases/send-store-message.use-case.js";
 import { GetConversationHistoryUseCase } from "../../application/use-cases/get-conversation-history.use-case.js";
+import { StorefrontConversationRateLimitService } from "../../application/services/storefront-conversation-rate-limit.service.js";
 
 interface Connection {
   token: string;
   timer: ReturnType<typeof setTimeout>;
-  windowStart: number;
-  messages: number;
   processing: boolean;
 }
 
@@ -25,6 +24,7 @@ export class StorefrontConversationGateway implements OnGatewayConnection, OnGat
     @Inject(SendStoreMessageUseCase) private readonly sendStoreMessageUseCase: SendStoreMessageUseCase,
     @Inject(GetConversationHistoryUseCase) private readonly getConversationHistoryUseCase: GetConversationHistoryUseCase,
     @Inject(RealtimeCapabilityService) private readonly capabilities: RealtimeCapabilityService,
+    private readonly conversationRateLimiter: StorefrontConversationRateLimitService,
   ) {}
 
   handleConnection(socket: Socket) {
@@ -33,7 +33,7 @@ export class StorefrontConversationGateway implements OnGatewayConnection, OnGat
       const claims = this.capabilities.verify(token, "storefront-conversation", socket.handshake.headers.origin);
       const timer = setTimeout(() => socket.disconnect(true), Math.max(0, claims.expiresAt * 1000 - Date.now()));
       timer.unref();
-      this.connections.set(socket, { token, timer, windowStart: Date.now(), messages: 0, processing: false });
+      this.connections.set(socket, { token, timer, processing: false });
     } catch {
       socket.emit("error", { message: "unauthorized" });
       socket.disconnect(true);
@@ -91,10 +91,14 @@ export class StorefrontConversationGateway implements OnGatewayConnection, OnGat
       }
       connection = this.connections.get(socket)!;
       if (connection.processing) return { success: false, error: "message_in_progress" };
-      if (Date.now() - connection.windowStart >= 60000) {
-        connection.windowStart = Date.now(); connection.messages = 0;
+      const rateLimit = this.conversationRateLimiter.consume(claims.merchantId, claims.resourceId);
+      if (!rateLimit.allowed) {
+        return {
+          success: false,
+          error: "rate_limited",
+          retry_after_seconds: Math.max(Math.ceil(rateLimit.retryAfterMs / 1000), 1),
+        };
       }
-      if (++connection.messages > 20) return { success: false, error: "rate_limited" };
       connection.processing = true;
       room = realtimeRoom("conversation", claims.merchantId, claims.resourceId);
       this.server.to(room).emit("typing", { conversationId: claims.resourceId, isTyping: true });

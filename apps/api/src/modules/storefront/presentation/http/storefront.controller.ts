@@ -1,4 +1,5 @@
 ﻿import { BadRequestException, Body, Controller, ForbiddenException, Get, Inject, NotFoundException, Optional, Param, Patch, Post, Query, Req, Res, UnauthorizedException, UseGuards } from "@nestjs/common";
+import { HttpException, HttpStatus } from "@nestjs/common";
 import { RealtimeCapabilityService } from "../../../../shared/auth/realtime-capability.js";
 import { NonProductionRoute, ProductionDisabledRoute, ProductionRoute } from "../../../../shared/http/non-production-route.js";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
@@ -28,6 +29,7 @@ import type { PrismaClient } from "@prisma/client";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { reevaluateCartRules } from "../../infrastructure/tool-handlers/cart.handlers.js";
 import type { StorefrontCart } from "../../domain/ports/storefront-cart.port.js";
+import { StorefrontConversationRateLimitService } from "../../application/services/storefront-conversation-rate-limit.service.js";
 
 export interface StartConversationRequest {
   merchant_id: string;
@@ -60,6 +62,7 @@ export class StorefrontController {
     private readonly publicCatalog: ListPublicStorefrontProductsUseCase,
     @Inject(STOREFRONT_CART_PORT) private readonly cartRepo: StorefrontCartPort,
     @Inject(RealtimeCapabilityService) private readonly capabilities: RealtimeCapabilityService,
+    private readonly conversationRateLimiter: StorefrontConversationRateLimitService,
     @Optional() @Inject(PRODUCT_PROMOTION_REPOSITORY) private readonly productPromotionRepo?: ProductPromotionRepositoryPort,
     @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
@@ -147,9 +150,27 @@ export class StorefrontController {
     @Param("conversationId") conversationId: string,
     @Body() body: SendMessageRequest & { merchant_id?: string },
     @Req() request: { headers?: { authorization?: string; origin?: string } },
+    @Res({ passthrough: true }) response?: { setHeader(name: string, value: string): void },
   ) {
     const claims = this.conversationAccess(request, conversationId, body.merchant_id);
     if (body.cart_id !== undefined && body.cart_id !== claims.resourceId) throw new ForbiddenException("conversation_cart_mismatch");
+    const rateLimit = this.conversationRateLimiter.consume(claims.merchantId, claims.resourceId);
+    response?.setHeader("X-RateLimit-Limit", String(rateLimit.limit));
+    response?.setHeader("X-RateLimit-Remaining", String(rateLimit.remaining));
+    response?.setHeader("X-RateLimit-Reset", String(Math.ceil(rateLimit.resetAt / 1000)));
+    if (!rateLimit.allowed) {
+      const retryAfterSeconds = Math.max(Math.ceil(rateLimit.retryAfterMs / 1000), 1);
+      response?.setHeader("Retry-After", String(retryAfterSeconds));
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.TOO_MANY_REQUESTS,
+          error: "Too Many Requests",
+          message: "conversation_rate_limit_exceeded",
+          retryAfterSeconds,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
     return this.sendStoreMessage.execute({
       merchant_id: claims.merchantId,
       conversation_id: claims.resourceId,

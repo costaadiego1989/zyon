@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { StorefrontConversationGateway } from "./conversation.gateway.js";
 import { RealtimeCapabilityService, realtimeRoom } from "../../../../shared/auth/realtime-capability.js";
+import { RateLimitStore } from "../../../../shared/rate-limit/rate-limit.store.js";
+import { StorefrontConversationRateLimitService } from "../../application/services/storefront-conversation-rate-limit.service.js";
 
 const capabilities = new RealtimeCapabilityService("test-realtime-secret-at-least-32-characters");
 const origin = "https://shop.example";
@@ -17,7 +19,9 @@ function fixture() {
   const calls: unknown[] = []; const broadcasts: Array<{ room: string; event: string }> = [];
   const gateway = new StorefrontConversationGateway(
     { execute: async (input: unknown) => { calls.push(input); return { message: "hello", blocks: [], cart_id: "conv_a" }; } } as never,
-    { execute: async () => ({ messages: [] }) } as never, capabilities,
+    { execute: async () => ({ messages: [] }) } as never,
+    capabilities,
+    new StorefrontConversationRateLimitService(new RateLimitStore()),
   );
   gateway.server = { to: (room: string) => ({ emit: (event: string) => broadcasts.push({ room, event }) }) } as never;
   const access = capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant_a", resourceId: "conv_a", origin });
@@ -72,13 +76,13 @@ test("reconnect requires valid capability and idle socket disconnects at expiry"
   gateway.handleDisconnect(second as never);
 });
 
-test("conversation messages reject invalid content and bound per-connection rate", async () => {
+test("conversation messages reject invalid content and bound the verified conversation to ten requests per minute", async () => {
   const { gateway, access, calls } = fixture();
   const socket = connection(access.token); gateway.handleConnection(socket as never);
   for (const text of ["", " ", "x".repeat(4001), 5]) await gateway.handleMessage(socket as never, { conversationId: "conv_a", text } as never);
   assert.equal(calls.length, 0);
-  for (let i = 0; i < 22; i++) await gateway.handleMessage(socket as never, { conversationId: "conv_a", text: "hello" });
-  assert.equal(calls.length, 20);
+  for (let i = 0; i < 12; i++) await gateway.handleMessage(socket as never, { conversationId: "conv_a", text: "hello" });
+  assert.equal(calls.length, 10);
   gateway.handleDisconnect(socket as never);
 });
 
