@@ -62,6 +62,9 @@
 .recovery-strategy__link { font: 500 11px/1.5 var(--font-sans); color: var(--color-text-secondary); overflow-wrap: anywhere; }
 .recovery-strategies:disabled { opacity: .65; }
 .recovery-strategies:disabled label { cursor: wait; }
+.recovery-link-select { min-width: 0; }
+.recovery-link-select .form-field { min-width: 0; margin: 0; }
+.recovery-link-select .form-field select { width: 100%; min-width: 0; max-width: 100%; text-overflow: ellipsis; }
 @media (max-width: 640px) {
   .recovery-strategy { flex-wrap: wrap; padding: 12px; }
   .recovery-strategy__choice { flex-basis: 100%; }

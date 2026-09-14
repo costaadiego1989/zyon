@@ -188,6 +188,17 @@ export function FinancePage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Mercha
       setExporting(false);
     }
   };
+  const periodFilter = (
+    <PeriodFilter
+      presets={PERIOD_TABS}
+      active={preset}
+      onPreset={(next) => applyPreset(next as RangePreset)}
+      from={from}
+      to={to}
+      onDate={editDate}
+      action={<Button variant="outline" size="sm" onClick={() => { void loadSummary(); void loadPayouts(); if (tab === "transactions") void loadTransactions(); }} disabled={summaryLoading || payoutsLoading || transactionsLoading}><RefreshCw size={14} /> Atualizar</Button>}
+    />
+  );
 
   if (!me) return null;
   return (
@@ -203,14 +214,13 @@ export function FinancePage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Mercha
         </Button>
       </header>
 
-      <PeriodFilter presets={PERIOD_TABS} active={preset} onPreset={(next) => applyPreset(next as RangePreset)} from={from} to={to} onDate={editDate}
-        action={<Button variant="outline" size="sm" onClick={() => { void loadSummary(); void loadPayouts(); if (tab === "transactions") void loadTransactions(); }} disabled={summaryLoading || payoutsLoading || transactionsLoading}><RefreshCw size={14} /> Atualizar</Button>} />
       <div className="finance-page__tabs">
         <TabBar tabs={MAIN_TABS} activeTab={tab} onTabChange={(next) => setTab(next as FinanceTab)} />
         {summary?.period ? <PeriodLabel period={summary.period} /> : null}
       </div>
       {summaryError ? <ErrorPanel message={summaryError} onRetry={loadSummary} /> : null}
-      {tab === "overview" && (summaryLoading ? <PageLoader /> : summary ? <Overview summary={summary} payouts={payouts} payoutsLoading={payoutsLoading} payoutsError={payoutsError} onTransactions={() => setTab("transactions")} onRetryPayouts={loadPayouts} /> : null)}
+      {tab !== "overview" ? periodFilter : null}
+      {tab === "overview" && (summaryLoading ? <PageLoader /> : summary ? <Overview summary={summary} payouts={payouts} payoutsLoading={payoutsLoading} payoutsError={payoutsError} onTransactions={() => setTab("transactions")} onRetryPayouts={loadPayouts} periodFilter={periodFilter} /> : null)}
       {tab === "transactions" && <Transactions summary={summary} loading={transactionsLoading} error={transactionsError} result={transactions} type={transactionFilter} onType={(value) => { setTransactionFilter(value); setPage(1); }} method={method} onMethod={(value) => { setMethod(value); setPage(1); }} methods={availableMethods} search={search} onSearch={(value) => { setSearch(value); setPage(1); }} onPage={setPage} onRetry={loadTransactions} onSelect={setSelected} />}
       {tab === "reports" && <Reports period={summary?.period} exporting={exporting} onExport={downloadCsv} />}
       <SidePanel isOpen={Boolean(selected)} title={selected?.kind === "refund" ? "Reembolso confirmado" : "Pedido concluído"} onClose={() => setSelected(null)}>{selected ? <TransactionDetails transaction={selected} allocationHistory={allocationHistory} allocationHistoryLoading={allocationHistoryLoading} allocationHistoryError={allocationHistoryError} /> : null}</SidePanel>
@@ -218,7 +228,7 @@ export function FinancePage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Mercha
   );
 }
 
-function Overview({ summary, payouts, payoutsLoading, payoutsError, onTransactions, onRetryPayouts }: { summary: FinanceSummary; payouts: FinanceMerchantPayouts | null; payoutsLoading: boolean; payoutsError: string | null; onTransactions: () => void; onRetryPayouts: () => Promise<void> }) {
+function Overview({ summary, payouts, payoutsLoading, payoutsError, onTransactions, onRetryPayouts, periodFilter }: { summary: FinanceSummary; payouts: FinanceMerchantPayouts | null; payoutsLoading: boolean; payoutsError: string | null; onTransactions: () => void; onRetryPayouts: () => Promise<void>; periodFilter: React.ReactNode }) {
   const { metrics } = summary;
   return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
     <StatCardGroup primary>
@@ -227,6 +237,7 @@ function Overview({ summary, payouts, payoutsLoading, payoutsError, onTransactio
       <StatCard icon={<BarChart3 size={16} />} label="Ticket médio do pedido" value={formatBrl(metrics.average_completed_order_value_brl)} note="Total bruto por pedido concluído" />
       <StatCard accent="var(--color-error)" icon={<RotateCcw size={16} />} label="Reembolsos confirmados" value={formatBrl(metrics.refunds_confirmed_brl)} note="Processados pelo provedor" />
     </StatCardGroup>
+    {periodFilter}
     <p style={{ margin: 0, padding: "12px 14px", borderRadius: 10, background: "var(--color-brand-subtle)", border: "1px solid var(--color-brand-ring)", color: "var(--color-text-muted)", font: "12.5px/1.55 var(--font-sans)" }}><Landmark size={15} style={{ verticalAlign: "-3px", marginRight: 7, color: "var(--color-brand)" }} />{summary.scope_note}</p>
     <PayoutTimeline payouts={payouts} loading={payoutsLoading} error={payoutsError} onRetry={onRetryPayouts} />
     <div className="finance-page__columns">

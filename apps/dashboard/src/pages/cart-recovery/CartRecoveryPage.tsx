@@ -4,6 +4,7 @@ import type { MerchantProfile } from "../../api-client.js";
 import { StatCard, StatCardGroup } from "../overview/components/StatCard.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { Button } from "../../components/Button.js";
+import { FormSelect } from "../../components/FormField.js";
 import { PageLoader } from "../../components/PageLoader.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
 import { DataPanel } from "../../components/DataPanel.js";
@@ -292,17 +293,21 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
             <EmptyState icon={Ticket} title="Nenhum cupom disponível" description="Crie um cupom ativo e dentro da validade na página Cupons." />
           ) : (
             <>
-              <label>
-                <span className="field-label">Cupom ativo</span>
-                <select className="field-input" value={couponCode} disabled={savingKey !== null} onChange={(event) => setCouponCode(event.target.value)}>
-                  <option value="">Selecione um cupom</option>
-                  {coupons.map((coupon) => (
-                    <option key={coupon.id} value={coupon.code}>
-                      {coupon.code} — {coupon.discountType === "free_shipping" ? "Frete grátis" : coupon.discountType === "percent" ? `${coupon.discountValue}% de desconto` : `R$ ${coupon.discountValue.toLocaleString("pt-BR")} de desconto`}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className="recovery-link-select">
+                <FormSelect
+                  label="Cupom ativo"
+                  value={couponCode}
+                  onChange={setCouponCode}
+                  disabled={savingKey !== null}
+                  options={[
+                    { value: "", label: "Selecione um cupom" },
+                    ...coupons.map((coupon) => ({
+                      value: coupon.code,
+                      label: `${coupon.code} — ${coupon.discountType === "free_shipping" ? "Frete grátis" : coupon.discountType === "percent" ? `${coupon.discountValue}% de desconto` : `R$ ${coupon.discountValue.toLocaleString("pt-BR")} de desconto`}`,
+                    })),
+                  ]}
+                />
+              </div>
               <Button
                 disabled={!couponCode || savingKey !== null}
                 loading={savingKey === "offer_coupon"}
@@ -332,13 +337,18 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
             <EmptyState icon={SlidersHorizontal} title="Nenhuma regra ativa" description="Crie e ative uma regra em Configurações do Checkout, na aba Regras." />
           ) : (
             <>
-              <label>
-                <span className="field-label">Regra ativa</span>
-                <select className="field-input" value={ruleId} disabled={savingKey !== null} onChange={(event) => setRuleId(event.target.value)}>
-                  <option value="">Selecione uma regra</option>
-                  {rules.map((rule) => <option key={rule.id} value={rule.id}>{rule.name}</option>)}
-                </select>
-              </label>
+              <div className="recovery-link-select">
+                <FormSelect
+                  label="Regra ativa"
+                  value={ruleId}
+                  onChange={setRuleId}
+                  disabled={savingKey !== null}
+                  options={[
+                    { value: "", label: "Selecione uma regra" },
+                    ...rules.map((rule) => ({ value: rule.id, label: rule.name })),
+                  ]}
+                />
+              </div>
               <Button
                 disabled={!ruleId || savingKey !== null}
                 loading={savingKey === "advanced_rule"}
