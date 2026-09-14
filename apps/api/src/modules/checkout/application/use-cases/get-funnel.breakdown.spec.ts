@@ -71,7 +71,9 @@ describe("GetFunnelUseCase device breakdown", () => {
     const result = await useCase.execute("m1", "7d", { breakdown: "device" });
 
     assert.ok(result.breakdowns);
-    for (const seg of Object.values(result.breakdowns!)) {
+    assert.equal(result.breakdowns!.unknown.steps[0].count, 1);
+    for (const [key, seg] of Object.entries(result.breakdowns!)) {
+      if (key === "unknown") continue;
       assert.equal(seg.steps[0].count, 0);
       assert.equal(seg.overallConversion, 0);
     }
@@ -91,7 +93,7 @@ describe("GetFunnelUseCase payment_method breakdown", () => {
 
     assert.ok(result.breakdowns);
     const pix = result.breakdowns!.pix;
-    const card = result.breakdowns!.card;
+    const card = result.breakdowns!.credit_card;
     const boleto = result.breakdowns!.boleto;
 
     assert.equal(pix.steps[0].count, 1);

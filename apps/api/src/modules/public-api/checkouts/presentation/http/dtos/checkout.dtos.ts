@@ -128,13 +128,12 @@ export class TrackCheckoutEventDto {
       'idle_30_seconds',
       'offer_viewed',
       'offer_accepted',
-      'order_completed',
       'checkout_abandoned',
     ],
   })
   @IsString()
   @IsNotEmpty()
-  event!: CheckoutEventName;
+  event!: Exclude<CheckoutEventName, "order_completed">;
 
   @ApiPropertyOptional({
     type: 'object',

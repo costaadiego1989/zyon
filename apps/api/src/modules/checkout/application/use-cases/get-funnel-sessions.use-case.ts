@@ -45,6 +45,7 @@ export class GetFunnelSessionsUseCase {
       where: {
         merchantId,
         updatedAt: { gte: thirtyMinAgo },
+        sessionId: { startsWith: "chk_" },
       },
       include: {
         events: {

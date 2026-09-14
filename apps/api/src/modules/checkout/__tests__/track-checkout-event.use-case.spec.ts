@@ -260,25 +260,28 @@ test("TrackCheckoutEventUseCase applies intervention ledger cap after repeated o
   const settings = new LedgerCapCheckoutSettings();
   const useCase = new TrackCheckoutEventUseCase(repository, repository, settings, undefined, ledger);
 
-  await useCase.execute({
+  const payment = await useCase.execute({
     merchant_id: "mrc_1",
     session_id: "chk_1",
     event: "payment_failed"
   });
+  assert.equal(payment.trigger_agent, true);
+  assert.equal(ledger.countForSession("mrc_1", "chk_1"), 1);
+
   const ship = await useCase.execute({
     merchant_id: "mrc_1",
     session_id: "chk_1",
     event: "shipping_objection_detected"
   });
   assert.equal(ship.trigger_agent, true);
-  assert.equal(ledger.countForSession("mrc_1", "chk_1"), 1);
+  assert.equal(ledger.countForSession("mrc_1", "chk_1"), 2);
 
   const coupon = await useCase.execute({
     merchant_id: "mrc_1",
     session_id: "chk_1",
     event: "coupon_field_clicked"
   });
-  assert.equal(coupon.trigger_agent, true);
+  assert.equal(coupon.trigger_agent, false);
   assert.equal(ledger.countForSession("mrc_1", "chk_1"), 2);
 
   const capped = await useCase.execute({
@@ -287,6 +290,12 @@ test("TrackCheckoutEventUseCase applies intervention ledger cap after repeated o
     event: "exit_intent_detected"
   });
   assert.equal(capped.trigger_agent, false);
+  assert.equal(ledger.countForSession("mrc_1", "chk_1"), 2);
+
+  const repeatedPayment = await useCase.execute({
+    merchant_id: "mrc_1", session_id: "chk_1", event: "payment_failed",
+  });
+  assert.equal(repeatedPayment.trigger_agent, false, "priority bypasses score, never the session cap");
   assert.equal(ledger.countForSession("mrc_1", "chk_1"), 2);
 
   const persisted = await repository.getSession("mrc_1", "chk_1");

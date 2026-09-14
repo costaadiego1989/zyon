@@ -21,18 +21,19 @@ const STAGE_LABELS: Record<string, string> = {
 
 export function ActiveSessionsList({ sessions, loading }: ActiveSessionsListProps): React.ReactElement {
   const [page, setPage] = useState(1);
-  const pageItems = sessions.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(sessions.length / PAGE_SIZE)));
+  const pageItems = sessions.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   return (
     <DataPanel
-      title="Sessões Ativas"
+      title="Sessões recentes (30 min)"
       trailing={<span style={{ font: "600 11px var(--font-mono)", color: "var(--color-brand)", background: "var(--color-brand-subtle)", padding: "2px 8px", borderRadius: "var(--radius-full)" }}>{sessions.length}</span>}
-      page={page}
+      page={currentPage}
       pageSize={PAGE_SIZE}
       total={sessions.length}
       onPageChange={setPage}
       isEmpty={!loading && sessions.length === 0}
-      empty={{ icon: Activity, title: "Nenhuma sessão ativa no momento", description: "Sessões aparecerão aqui quando compradores estiverem no checkout." }}
+      empty={{ icon: Activity, title: "Nenhuma sessão recente", description: "Sessões aparecerão aqui quando compradores interagirem nesta jornada." }}
     >
       {loading && sessions.length === 0 ? (
         <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando sessões...</div>
@@ -63,7 +64,7 @@ export function ActiveSessionsList({ sessions, loading }: ActiveSessionsListProp
                 return (
                   <tr key={s.sessionId} style={{ borderBottom: i < pageItems.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined }}>
                     <td style={{ padding: "12px 20px", font: "12px var(--font-data)", color: "var(--color-text)" }}>
-                      {s.buyerEmail || s.buyerPhone || (s as any).buyerHint || s.sessionId.slice(0, 16)}
+                      {s.buyerEmail || s.buyerPhone || s.buyerHint || s.sessionId.slice(0, 16)}
                     </td>
                     <td style={{ padding: "12px 20px" }}>
                       <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: "var(--surface-2)", color: "var(--color-text-muted)" }}>

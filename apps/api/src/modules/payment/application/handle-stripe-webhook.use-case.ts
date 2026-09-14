@@ -1,5 +1,5 @@
 import { savePaymentTransition } from "./services/save-payment-transition.js";
-import { BadRequestException, Inject, Injectable, Optional , Logger} from "@nestjs/common";
+import { BadRequestException, ServiceUnavailableException, Inject, Injectable, Optional , Logger} from "@nestjs/common";
 import Stripe from "stripe";
 import {
   PAYMENT_REPOSITORY,
@@ -32,7 +32,7 @@ export class StripeSignatureError extends Error {
 @Injectable()
 export class HandleStripeWebhookUseCase {
   private readonly logger = new Logger(HandleStripeWebhookUseCase.name);
-  private readonly stripe: Stripe;
+  private readonly stripe: Stripe | null;
 
   constructor(
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
@@ -46,19 +46,16 @@ export class HandleStripeWebhookUseCase {
     @Optional() private readonly chargebackPaymentHold?: ChargebackPaymentHoldUseCase,
   ) {
     const { secretKey } = readStripeConnection();
-    if (!secretKey) {
-      throw new Error(
-        "STRIPE_SECRET_KEY is not configured. HandleStripeWebhookUseCase cannot start without it."
-      );
-    }
-    this.stripe = new Stripe(secretKey, { apiVersion: "2026-04-22.dahlia" });
+    // Stripe is optional: an Asaas-only installation must still boot.
+    // The public webhook stays unavailable until its credentials are configured.
+    this.stripe = secretKey ? new Stripe(secretKey, { apiVersion: "2026-04-22.dahlia" }) : null;
   }
 
   async execute(rawBody: Buffer, signature: string | undefined): Promise<HandleStripeWebhookResult> {
     const { webhookSecret } = readStripeConnection();
 
-    if (!webhookSecret) {
-      throw new BadRequestException("stripe_webhook_secret_not_configured");
+    if (!this.stripe || !webhookSecret) {
+      throw new ServiceUnavailableException("stripe_webhook_not_configured");
     }
 
     if (!signature) {
@@ -176,6 +173,12 @@ export class HandleStripeWebhookUseCase {
     if (!intentEntity) return "intent_not_found";
 
     const snap = intentEntity.snapshot();
+
+    // A signed amount is meaningful only in the currency of this intent.
+    // Reject before any state change; a corrected delivery can be retried.
+    if (typeof pi.currency !== "string" || pi.currency.toUpperCase() !== snap.currency.toUpperCase()) {
+      throw new BadRequestException("stripe_currency_mismatch");
+    }
 
     // Authoritative amount check BEFORE approval (ADR 0001 #5).
     if (snap.status !== "approved" && pi.amount_received !== snap.amountCents) {

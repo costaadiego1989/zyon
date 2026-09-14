@@ -7,6 +7,7 @@ import { SendOrderConfirmationUseCase } from "./application/use-cases/send-order
 import { SendOrderShippedUseCase } from "./application/use-cases/send-order-shipped.use-case.js";
 import { SendOrderDeliveredUseCase } from "./application/use-cases/send-order-delivered.use-case.js";
 import { SendReturnApprovedUseCase } from "./application/use-cases/send-return-approved.use-case.js";
+import { OrderTrackingNotificationListener } from "./presentation/listeners/order-tracking-notification.listener.js";
 import { NotificationListener } from "./presentation/listeners/notification.listener.js";
 import { MerchantNotificationController } from "./presentation/http/merchant-notification.controller.js";
 import { PersistenceModule } from "../../shared/persistence/persistence.module.js";
@@ -32,6 +33,7 @@ import { SendMerchantOrderNotificationUseCase } from "./application/use-cases/se
     SendOrderDeliveredUseCase,
     SendReturnApprovedUseCase,
     NotificationListener,
+    OrderTrackingNotificationListener,
     ManageMerchantNotificationInboxUseCase,
     SendMerchantOrderNotificationUseCase,
     { provide: MERCHANT_NOTIFICATION_INBOX_PORT, useClass: PrismaMerchantNotificationInboxRepository },

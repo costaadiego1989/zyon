@@ -14,6 +14,7 @@ const DIMENSION_LABELS: Record<string, string> = {
 };
 
 const SEGMENT_LABELS: Record<string, string> = {
+  unknown: "Não informado",
   mobile: "Mobile",
   desktop: "Desktop",
   tablet: "Tablet",
@@ -61,7 +62,7 @@ export function FunnelBreakdown({ breakdowns, dimension }: FunnelBreakdownProps)
             <div className="fnl-breakdown-track">
               <div
                 className="fnl-breakdown-fill"
-                style={{ width: `${Math.max(segment.overallConversion, 3)}%` }}
+                style={{ width: `${Math.max(0, Math.min(segment.overallConversion, 100))}%` }}
               />
             </div>
           </div>

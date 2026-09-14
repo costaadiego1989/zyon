@@ -43,6 +43,7 @@ test("CompleteOrderUseCase records order completion idempotently and emits once"
   assert.equal(order?.trackingCode, undefined);
   const completed = repository.listOutbox("mrc_1").find((event) => event.event_type === "order.completed");
   assert.equal(completed?.payload.tracking_code, null);
+  assert.equal(repository.listOutbox("mrc_1").some((event) => event.event_type === "whatsapp.message.requested"), false);
 });
 
 test("CompleteOrderUseCase retains catalog variant identity for returns independently of SKU and selected options", async () => {
@@ -104,12 +105,16 @@ test("CompleteOrderUseCase emits WhatsApp tracking request when real tracking ex
   const useCase = new CompleteOrderUseCase(repository, repository, repository);
 
   await useCase.execute(completeOrderRequest({ tracking_code: "BR123456789AA" }));
+  await useCase.execute(completeOrderRequest({ tracking_code: "BR123456789AA" }));
 
   const whatsapp = repository
     .listOutbox("mrc_1")
     .find((event) => event.event_type === "whatsapp.message.requested");
   assert.equal(whatsapp?.payload.tracking_code, "BR123456789AA");
   assert.equal(whatsapp?.payload.phone, "11999998888");
+  assert.equal(whatsapp?.payload.template, "order_tracking");
+  assert.equal(whatsapp?.payload.external_order_id, "ord_1");
+  assert.equal(repository.listOutbox("mrc_1").filter((event) => event.event_type === "whatsapp.message.requested").length, 1);
 });
 
 test("CompleteOrderUseCase records completed checkout into buyer purchase history once", async () => {

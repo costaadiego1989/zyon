@@ -17,6 +17,15 @@ import type {
   PaymentProviderPort
 } from "../../domain/ports/payment-provider.port.js";
 
+// The fixture must not depend on keys loaded by another test or a developer .env.
+const stripeFixtureKeys = ["STRIPE_SECRET_KEY", "STRIPE_SECRET_KEY_TEST"] as const;
+const originalStripeKeys = stripeFixtureKeys.map(key => process.env[key]);
+test.before(() => { for (const key of stripeFixtureKeys) process.env[key] = "sk_test_fixture"; });
+test.after(() => { stripeFixtureKeys.forEach((key, index) => {
+  if (originalStripeKeys[index] === undefined) delete process.env[key];
+  else process.env[key] = originalStripeKeys[index];
+}); });
+
 // Fake Stripe provider: returns a fake clientSecret without touching the Stripe API
 class FakeStripeProvider implements PaymentProviderPort {
   readonly lastIntentId: string[] = [];
@@ -36,9 +45,24 @@ class FakeStripeProvider implements PaymentProviderPort {
   }
 }
 
-function makeCheckoutPaymentAdapter(checkout: InMemoryCheckoutRepository): CheckoutPaymentAdapter {
+function makeCheckoutPaymentAdapter(checkout: InMemoryCheckoutRepository, payments: InMemoryPaymentRepository): CheckoutPaymentAdapter {
   const eventBus = new InMemoryDomainEventBus();
-  new PaymentApprovedHandler(eventBus, new CompleteOrderUseCase(checkout, checkout, checkout)).onModuleInit();
+  const approvalReader = {
+    async find(merchantId: string, sessionId: string, paymentIntentId: string) {
+      const intent = await payments.getIntentById(merchantId, paymentIntentId);
+      if (!intent || intent.snapshot().sessionId !== sessionId) return null;
+      const snapshot = intent.snapshot();
+      return { ...snapshot, approvedAmountCents: snapshot.approvedAmountCents ?? null,
+        providerPaymentId: snapshot.providerPaymentId ?? null, acceptedOfferId: snapshot.acceptedOfferId ?? null,
+        amountBreakdown: snapshot.amountBreakdown ?? null };
+    },
+  };
+  const completeOrder = new CompleteOrderUseCase(
+    checkout, checkout, checkout,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, approvalReader,
+  );
+  new PaymentApprovedHandler(eventBus, completeOrder).onModuleInit();
   return new CheckoutPaymentAdapter(checkout, checkout, eventBus);
 }
 
@@ -83,6 +107,14 @@ async function setupSession(
     },
   });
 
+  // Authentication and selected shipping are trusted server state, not start-input fields.
+  const session = await checkout.getSession(merchantId, sessionId);
+  if (!session) throw new Error("fixture_session_missing");
+  await checkout.saveSession({ ...session,
+    customer: { ...session.customer, asaasCustomerId: "cus_stripe_fixture" },
+    shipping: { customerPrice: 0, realCost: 0, method: "Test shipping" },
+  });
+
   return new CreatePaymentIntentUseCase(checkout, checkout, payments, provider).execute({
     merchant_id: merchantId,
     session_id: sessionId,
@@ -93,7 +125,7 @@ async function setupSession(
 
 test("Stripe webhook: payment_intent.succeeded → intent aprovado + pedido completado", async () => {
   const checkout = new InMemoryCheckoutRepository();
-  const payments = new InMemoryPaymentRepository();
+  const payments = new InMemoryPaymentRepository(checkout);
   const provider = new FakeStripeProvider();
   const merchantId = `m_stripe_ok_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
   const sessionId = `chk_stripe_ok_${crypto.randomUUID().slice(0, 10)}`;
@@ -105,14 +137,14 @@ test("Stripe webhook: payment_intent.succeeded → intent aprovado + pedido comp
   assert.ok(intentSnap.buyerFacing?.stripePublishableKey);
   assert.ok(intentSnap.providerPaymentId?.startsWith("pi_test_"));
 
-  const checkoutPayment = makeCheckoutPaymentAdapter(checkout);
+  const checkoutPayment = makeCheckoutPaymentAdapter(checkout, payments);
   const dispatch = new PaymentDispatchService(payments, checkoutPayment);
   const webhookUC = new HandleStripeWebhookUseCase(payments, dispatch);
 
   const event = stripeEvent("payment_intent.succeeded", {
     id: intentSnap.providerPaymentId!,
-    amount: 50000,
-    amount_received: 50000,
+    amount: intentSnap.amountCents,
+    amount_received: intentSnap.amountCents,
     currency: "brl",
     status: "succeeded",
     metadata: { intent_id: intentSnap.id, merchant_id: merchantId, session_id: sessionId },
@@ -129,7 +161,7 @@ test("Stripe webhook: payment_intent.succeeded → intent aprovado + pedido comp
     approved?.snapshot().statusHistory.map((e) => e.status),
     ["pending", "requires_action", "approved"]
   );
-  assert.equal(approved?.snapshot().approvedAmountCents, 50000);
+  assert.equal(approved?.snapshot().approvedAmountCents, intentSnap.amountCents);
 
   const order = checkout.getCompletedOrder(merchantId, sessionId, intentSnap.providerPaymentId!);
   assert.ok(order, "pedido deve ter sido completado");
@@ -144,20 +176,20 @@ test("Stripe webhook: payment_intent.succeeded → intent aprovado + pedido comp
 
 test("Stripe webhook: payment_intent.payment_failed → intent failed + chat atualizado", async () => {
   const checkout = new InMemoryCheckoutRepository();
-  const payments = new InMemoryPaymentRepository();
+  const payments = new InMemoryPaymentRepository(checkout);
   const provider = new FakeStripeProvider();
   const merchantId = `m_stripe_fail_${crypto.randomUUID().replace(/-/g, "").slice(0, 10)}`;
   const sessionId = `chk_stripe_fail_${crypto.randomUUID().slice(0, 10)}`;
 
   const intentSnap = await setupSession(checkout, payments, provider, merchantId, sessionId, 200);
 
-  const checkoutPayment = makeCheckoutPaymentAdapter(checkout);
+  const checkoutPayment = makeCheckoutPaymentAdapter(checkout, payments);
   const dispatch = new PaymentDispatchService(payments, checkoutPayment);
   const webhookUC = new HandleStripeWebhookUseCase(payments, dispatch);
 
   const event = stripeEvent("payment_intent.payment_failed", {
     id: intentSnap.providerPaymentId!,
-    amount: 20000,
+    amount: intentSnap.amountCents,
     amount_received: 0,
     currency: "brl",
     status: "requires_payment_method",
@@ -185,21 +217,21 @@ test("Stripe webhook: payment_intent.payment_failed → intent failed + chat atu
 
 test("Stripe webhook: evento duplicado retorna outcome=duplicate", async () => {
   const checkout = new InMemoryCheckoutRepository();
-  const payments = new InMemoryPaymentRepository();
+  const payments = new InMemoryPaymentRepository(checkout);
   const provider = new FakeStripeProvider();
   const merchantId = `m_stripe_dup_${crypto.randomUUID().replace(/-/g, "").slice(0, 10)}`;
   const sessionId = `chk_stripe_dup_${crypto.randomUUID().slice(0, 10)}`;
 
   const intentSnap = await setupSession(checkout, payments, provider, merchantId, sessionId, 100);
 
-  const checkoutPayment = makeCheckoutPaymentAdapter(checkout);
+  const checkoutPayment = makeCheckoutPaymentAdapter(checkout, payments);
   const dispatch = new PaymentDispatchService(payments, checkoutPayment);
   const webhookUC = new HandleStripeWebhookUseCase(payments, dispatch);
 
   const event = stripeEvent("payment_intent.succeeded", {
     id: intentSnap.providerPaymentId!,
-    amount: 10000,
-    amount_received: 10000,
+    amount: intentSnap.amountCents,
+    amount_received: intentSnap.amountCents,
     currency: "brl",
     status: "succeeded",
     metadata: { intent_id: intentSnap.id, merchant_id: merchantId, session_id: sessionId },
@@ -215,8 +247,8 @@ test("Stripe webhook: evento duplicado retorna outcome=duplicate", async () => {
 
 test("Stripe webhook: metadata.intent_id ausente → ignored", async () => {
   const checkout = new InMemoryCheckoutRepository();
-  const payments = new InMemoryPaymentRepository();
-  const checkoutPayment = makeCheckoutPaymentAdapter(checkout);
+  const payments = new InMemoryPaymentRepository(checkout);
+  const checkoutPayment = makeCheckoutPaymentAdapter(checkout, payments);
   const dispatch = new PaymentDispatchService(payments, checkoutPayment);
   const webhookUC = new HandleStripeWebhookUseCase(payments, dispatch);
 

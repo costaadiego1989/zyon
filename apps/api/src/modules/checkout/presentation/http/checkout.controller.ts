@@ -185,7 +185,7 @@ export class CheckoutController {
     return this.getFunnel.execute(
       merchantId,
       (period ?? "7d") as "today" | "7d" | "30d" | "90d",
-      { breakdown: breakdownValue, compare: compare === "true", range: from && to ? { from, to } : undefined },
+      { breakdown: breakdownValue, compare: compare === "true", range: from || to ? { from, to } : undefined },
     );
   }
 

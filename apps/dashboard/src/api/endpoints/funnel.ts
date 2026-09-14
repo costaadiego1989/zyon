@@ -14,15 +14,16 @@ export interface FunnelData {
 export interface FunnelSessionsResponse {
   sessions: Array<{
     sessionId: string;
-    buyerPhone: string;
-    buyerEmail: string;
-    buyerName: string;
-    stage: "data_collection" | "shipping" | "payment" | "completed";
+    buyerPhone?: string;
+    buyerEmail?: string;
+    buyerName?: string;
+    buyerHint?: string;
+    stage: string;
     lastActivityAt: string;
     abandonmentScore: number;
   }>;
   total: number;
-  status: "active" | "all";
+  status?: "active" | "all";
 }
 
 export function funnelEndpoints(base: string, f: typeof fetch) {

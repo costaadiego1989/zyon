@@ -8,7 +8,7 @@ interface FunnelChartProps {
 }
 
 export function FunnelChart({ steps, transitions }: FunnelChartProps): React.ReactElement {
-  const conversionStep = steps.find(s => s.name === "order_completed") ?? steps[steps.length - 2];
+  const conversionStep = steps.find(s => s.name === "order_completed") ?? steps.find(s => s.name === "auth_registration_completed");
   return (
     <div className="fnl-chart-card">
       <SectionHeader
@@ -23,9 +23,9 @@ export function FunnelChart({ steps, transitions }: FunnelChartProps): React.Rea
       <div className="fnl-bars">
         {steps.map((step, i) => {
           const transition = transitions.find((t) => t.from === step.name);
-          const nextStep = steps[i + 1];
+          const nextStep = steps.find(s => s.name === transition?.to);
           const barWidth = Math.max(step.percentage, 20);
-          const opacity = step.count === 0 && step.percentage === 0 ? 0.25 : 1 - i * 0.15;
+          const fill = step.count === 0 ? 12 : Math.max(20, 55 - i * 5);
 
           // Only show "% saiu" when the drop-off is a meaningful linear-funnel
           // signal: the next step must have STRICTLY FEWER occurrences than this
@@ -46,7 +46,7 @@ export function FunnelChart({ steps, transitions }: FunnelChartProps): React.Rea
                 className="fnl-bar"
                 style={{
                   width: `${barWidth}%`,
-                  opacity,
+                  background: `color-mix(in srgb, var(--accent) ${fill}%, var(--card))`,
                 }}
               >
                 <span className="fnl-bar-label">{step.label}</span>

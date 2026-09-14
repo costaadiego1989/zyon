@@ -41,13 +41,13 @@ export function FunnelPage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Merchan
         <div className="fnl-head-left">
           <span className="eyebrow">Checkout</span>
           <h1>Funil de Conversão</h1>
-          <p className="page-lead">Métricas de progresso dos visitantes em cada etapa</p>
+          <p className="page-lead">{vm.funnelSource === "storefront" ? "Conversão de sessões em cadastros na loja" : "Conversão de sessões em pagamentos concluídos"} · Datas em UTC</p>
         </div>
         <button
           type="button"
           className="fnl-export-btn"
           onClick={vm.exportCsv}
-          disabled={!vm.data}
+          disabled={!vm.data || vm.loading}
           title="Exportar CSV"
         >
           <Download size={13} />
@@ -71,7 +71,9 @@ export function FunnelPage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Merchan
         <BottleneckBanner bottleneck={vm.data.bottleneck} steps={vm.data.steps} />
       )}
 
-      {/* ── Metrics (always visible) ── */}
+      {vm.loading && <p role="status">Carregando funil...</p>}
+
+      {/* ── Metrics ── */}
       {vm.data && <FunnelMetrics data={vm.data} />}
 
       {/* ── Filter bar — pills + segmentation left, date range right (mirrors Orders page) ── */}
@@ -103,6 +105,7 @@ export function FunnelPage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Merchan
             <option value="buyer_type">Tipo comprador</option>
             <option value="payment_method">Pagamento</option>
           </select>
+          <label className="fnl-compare"><input type="checkbox" checked={vm.compareEnabled} onChange={e => vm.setCompareEnabled(e.target.checked)} /> Comparar período anterior</label>
         </div>
         <div className="fnl-daterange">
           <input
@@ -127,7 +130,7 @@ export function FunnelPage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Merchan
       <div className={`fnl-body${vm.breakdown === "none" ? " no-breakdown" : ""}`}>
         {vm.data && <FunnelChart steps={vm.data.steps} transitions={vm.data.transitions} />}
 
-        {vm.breakdown !== "none" && (
+        {vm.data && vm.breakdown !== "none" && (
           <FunnelBreakdown
             breakdowns={vm.data?.breakdowns ?? {}}
             dimension={vm.breakdown}
@@ -136,7 +139,9 @@ export function FunnelPage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Merchan
       </div>
 
       {/* ── Active Sessions (always visible) ── */}
-      <ActiveSessionsList sessions={vm.sessions} loading={vm.loading} />
+      {vm.sessionsError ? (
+        <div role="alert"><p>{vm.sessionsError}</p><Button size="sm" onClick={vm.refresh}>Atualizar sessões</Button></div>
+      ) : <ActiveSessionsList key={me.id + vm.funnelSource} sessions={vm.sessions} loading={vm.sessionsLoading} />}
     </div>
   );
 }
