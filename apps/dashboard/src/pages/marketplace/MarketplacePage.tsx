@@ -483,7 +483,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
         const returnedValueCents = allReturned.reduce((sum, s) => sum + s.sellerNetCents, 0);
         const returnRate = settlements.length > 0 ? allReturned.length / settlements.length : 0;
         return (
-          <div className="marketplace-page__returns" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div className="marketplace-page__returns" style={{ display: "flex", flexDirection: "column", gap: "var(--page-section-gap, 24px)" }}>
             {/* KPIs — padronizado com as demais abas */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
               <StatCard label="Devoluções" value={allReturned.length} icon={<Store size={16} />} accent="var(--warning)" />
@@ -535,7 +535,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
       })()}
 
       {tab === "chargebacks" && (
-        <div className="marketplace-page__chargebacks" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="marketplace-page__chargebacks" style={{ display: "flex", flexDirection: "column", gap: "var(--page-section-gap, 24px)" }}>
           {/* Stats Cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
             <StatCard

@@ -40,7 +40,7 @@ export function StoreMetrics({
   }) ?? [];
 
   return (
-    <section style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <section style={{ display: "flex", flexDirection: "column", gap: "var(--page-section-gap, 24px)" }}>
       {/* Hero metric cards — max 4 */}
       <div
         style={{

@@ -35,7 +35,7 @@ export function CheckoutMetrics({
   const sessionsSparkline = timeseries?.sessions_daily?.map((d) => d.value) ?? [];
 
   return (
-    <section style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <section style={{ display: "flex", flexDirection: "column", gap: "var(--page-section-gap, 24px)" }}>
       {/* Hero metric cards */}
       <div
         style={{

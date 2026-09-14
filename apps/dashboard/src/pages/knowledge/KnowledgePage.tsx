@@ -111,7 +111,7 @@ export function KnowledgePage(props: { apiBaseUrl: string; me: MerchantProfile |
       )}
 
       {activeTab === "status" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--page-section-gap, 24px)" }}>
           <div
             style={{
               display: "grid",

@@ -82,7 +82,7 @@
 .marketplace-page__orders {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--page-section-gap, 24px);
 }
 
 /* ── Stats Grid ──────────────────────────────────────────────────────────── */
@@ -473,7 +473,7 @@
 .marketplace-page__chargebacks {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4, 16px);
+  gap: var(--page-section-gap, 24px);
 }
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
