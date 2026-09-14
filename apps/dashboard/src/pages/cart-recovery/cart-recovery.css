@@ -1,5 +1,4 @@
 .recovery-page-tabs { align-self: flex-start; max-width: 100%; }
-.recovery-page-tabs [role="tablist"] { background: var(--surface-1) !important; }
 .recovery-overview:not([hidden]) { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
 .recovery-templates { padding: 24px; min-width: 0; }
 .recovery-templates p { font: 13px/1.6 var(--font-sans); color: var(--color-text-secondary); max-width: 72ch; }

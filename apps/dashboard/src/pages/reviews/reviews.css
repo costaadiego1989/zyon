@@ -1,0 +1,86 @@
+.reviews-filterbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--surface-1);
+}
+
+.reviews-filterbar__fields {
+  display: flex;
+  flex: 1 1 560px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.reviews-date-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 166px;
+  min-height: 32px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  background: var(--surface-1);
+  color: var(--color-text-muted);
+  font: 600 11px var(--font-sans);
+}
+
+.reviews-date-filter__label {
+  flex: 0 0 auto;
+}
+
+.reviews-date-filter input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-text);
+  font: 600 12px var(--font-sans);
+}
+
+.reviews-date-filter:focus-within {
+  border-color: var(--color-brand);
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1024px) {
+  .reviews-filterbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .reviews-filterbar__fields {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 560px) {
+  .reviews-filterbar {
+    padding: 12px;
+  }
+
+  .reviews-filterbar .filter-tabs {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .reviews-filterbar__fields {
+    display: grid;
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
+
+  .reviews-filterbar__fields select,
+  .reviews-date-filter {
+    width: 100% !important;
+  }
+}

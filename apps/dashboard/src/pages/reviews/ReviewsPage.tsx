@@ -5,11 +5,12 @@ import type { Product } from "../../api/endpoints/catalog.js";
 import { dashboardJson } from "../../api/http/client.js";
 import { Button } from "../../components/Button.js";
 import { DataPanel } from "../../components/DataPanel.js";
-import { FilterSelect, FilterToolbar } from "../../components/FilterToolbar.js";
+import { FilterSelect } from "../../components/FilterToolbar.js";
 import { PageLoader } from "../../components/PageLoader.js";
 import { SidePanel } from "../../components/SidePanel.js";
 import { showToast } from "../../components/Toast.js";
 import { useCatalogApi } from "../../hooks/api/useCatalogApi.js";
+import "./reviews.css";
 
 type ReviewKind = "testimonial" | "video";
 type ModerationStatus = "all" | "pending" | "approved" | "rejected";
@@ -144,7 +145,7 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
   if (!me) return null;
 
   return (
-    <div>
+    <div className="reviews-page">
       <header className="page-head">
         <div>
           <span className="eyebrow">LOJA</span>
@@ -161,39 +162,51 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
         </div>
       ) : null}
 
-      <div className="panel" style={{ overflow: "hidden", padding: 0 }}>
-        <FilterToolbar
-          tabs={[
-            { key: "testimonial", label: "Avaliações escritas" },
-            { key: "video", label: "Vídeos" },
-          ]}
-          activeTab={kind}
-          onTabChange={(next) => resetPage(() => setKind(next as ReviewKind))}
-          extra={
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-              <FilterSelect
-                width={150}
-                value={status}
-                onChange={(next) => resetPage(() => setStatus(next as ModerationStatus))}
-                options={[
-                  { value: "all", label: "Todos os status" },
-                  { value: "pending", label: "Pendentes" },
-                  { value: "approved", label: "Aprovadas" },
-                  { value: "rejected", label: "Rejeitadas" },
-                ]}
-              />
-              <FilterSelect
-                width={210}
-                value={productId}
-                onChange={(next) => resetPage(() => setProductId(next))}
-                options={currentProducts.map((product) => ({ value: product.id, label: product.name }))}
-                placeholder={productsLoading ? "Carregando produtos..." : "Todos os produtos"}
-              />
-              <DateFilter label="De" value={dateFrom} onChange={(next) => resetPage(() => setDateFrom(next))} />
-              <DateFilter label="Até" value={dateTo} onChange={(next) => resetPage(() => setDateTo(next))} />
-            </div>
-          }
-        />
+      <div className="panel reviews-workspace" style={{ overflow: "hidden", padding: 0 }}>
+        <div className="reviews-filterbar" role="group" aria-label="Filtros de avaliações">
+          <div className="filter-tabs" aria-label="Tipo de avaliação">
+            <button
+              type="button"
+              className={`filter-tab${kind === "testimonial" ? " active" : ""}`}
+              aria-pressed={kind === "testimonial"}
+              onClick={() => resetPage(() => setKind("testimonial"))}
+            >
+              Avaliações escritas
+            </button>
+            <button
+              type="button"
+              className={`filter-tab${kind === "video" ? " active" : ""}`}
+              aria-pressed={kind === "video"}
+              onClick={() => resetPage(() => setKind("video"))}
+            >
+              Vídeos
+            </button>
+          </div>
+          <div className="reviews-filterbar__fields">
+            <FilterSelect
+              ariaLabel="Status da moderação"
+              width={150}
+              value={status}
+              onChange={(next) => resetPage(() => setStatus(next as ModerationStatus))}
+              options={[
+                { value: "all", label: "Todos os status" },
+                { value: "pending", label: "Pendentes" },
+                { value: "approved", label: "Aprovadas" },
+                { value: "rejected", label: "Rejeitadas" },
+              ]}
+            />
+            <FilterSelect
+              ariaLabel="Produto"
+              width={210}
+              value={productId}
+              onChange={(next) => resetPage(() => setProductId(next))}
+              options={currentProducts.map((product) => ({ value: product.id, label: product.name }))}
+              placeholder={productsLoading ? "Carregando produtos..." : "Todos os produtos"}
+            />
+            <DateFilter label="De" value={dateFrom} onChange={(next) => resetPage(() => setDateFrom(next))} />
+            <DateFilter label="Até" value={dateTo} onChange={(next) => resetPage(() => setDateTo(next))} />
+          </div>
+        </div>
 
         {loading ? <PageLoader /> : (
           <DataPanel
@@ -307,9 +320,9 @@ function Detail({ label, value }: { label: string; value: React.ReactNode }) {
 
 function DateFilter({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
-    <label style={{ display: "inline-flex", alignItems: "center", gap: 6, width: 166, height: 32, boxSizing: "border-box", padding: "0 8px 0 10px", border: "1px solid var(--color-border)", borderRadius: 7, color: "var(--color-text-muted)", font: "600 11px var(--font-sans)", background: "var(--surface-1)" }}>
-      {label}
-      <input type="date" value={value} onChange={(event) => onChange(event.target.value)} aria-label={`Data ${label}`} style={{ minWidth: 0, flex: 1, border: 0, outline: 0, background: "transparent", color: "var(--color-text)", font: "12px var(--font-sans)" }} />
+    <label className="reviews-date-filter">
+      <span className="reviews-date-filter__label">{label}</span>
+      <input type="date" value={value} onChange={(event) => onChange(event.target.value)} aria-label={`Data ${label}`} />
     </label>
   );
 }

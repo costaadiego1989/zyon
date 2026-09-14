@@ -10,6 +10,7 @@ import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { usePostSalePage } from "./usePostSalePage.js";
 import { usePostSaleConfig } from "./usePostSaleConfig.js";
 import { TemplateEditor } from "./TemplateEditor.js";
+import "./post-sale.css";
 
 export interface PostSalePageProps {
   apiBaseUrl: string;
@@ -273,132 +274,55 @@ export function PostSalePage(props: PostSalePageProps) {
 
       {/* Config Tab */}
       {tab === "config" && (
-        <div className="panel" style={{ padding: "20px 24px" }}>
-          <SectionHeader title="Campanhas de Pós-Venda" variant="secondary" />
-          <div style={{ display: "flex", flexDirection: "column", gap: 20, marginTop: 24 }}>
-            {/* Follow-up */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>
-                  Follow-up de Entrega
-                </div>
-                <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>
-                  Enviar mensagem após confirmação de entrega
-                </div>
-              </div>
-              <ToggleSwitch
-                checked={cfg.config.followUpEnabled}
-                disabled={cfg.saving}
-                onChange={(v) => cfg.update("followUpEnabled", v)}
-              />
-            </div>
-
-            {/* Review */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>
-                  Pedido de Review
-                </div>
-                <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>
-                  Agendar D+{cfg.config.reviewDelayDays}
-                </div>
-              </div>
-              <ToggleSwitch
-                checked={cfg.config.reviewEnabled}
-                disabled={cfg.saving}
-                onChange={(v) => cfg.update("reviewEnabled", v)}
-              />
-            </div>
-
-            {/* NPS */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>
-                  NPS
-                </div>
-                <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>
-                  Agendar D+{cfg.config.npsDelayDays}
-                </div>
-              </div>
-              <ToggleSwitch
-                checked={cfg.config.npsEnabled}
-                disabled={cfg.saving}
-                onChange={(v) => cfg.update("npsEnabled", v)}
-              />
-            </div>
-
-            {/* Cross-sell */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>
-                  Cross-sell
-                </div>
-                <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>
-                  Agendar D+{cfg.config.crossSellDelayDays}
-                </div>
-              </div>
-              <ToggleSwitch
-                checked={cfg.config.crossSellEnabled}
-                disabled={cfg.saving}
-                onChange={(v) => cfg.update("crossSellEnabled", v)}
-              />
-            </div>
-
-            {/* Win-back */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>
-                  Win-back com Cupom
-                </div>
-                <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>
-                  Scanear inativos após {cfg.config.winBackThresholdDays} dias
-                </div>
-              </div>
-              <ToggleSwitch
-                checked={cfg.config.winBackEnabled}
-                disabled={cfg.saving}
-                onChange={(v) => cfg.update("winBackEnabled", v)}
-              />
-            </div>
-
-            {/* Loyalty */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>
-                  Cupom de Fidelidade
-                </div>
-                <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>
-                  Marcos: {cfg.config.loyaltyMilestones}ª compra
-                </div>
-              </div>
-              <ToggleSwitch
-                checked={cfg.config.loyaltyEnabled}
-                disabled={cfg.saving}
-                onChange={(v) => cfg.update("loyaltyEnabled", v)}
-              />
-            </div>
-
-            {/* Reorder */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>
-                  Recompra Consumível
-                </div>
-                <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>
-                  Lembrete de recompra automático
-                </div>
-              </div>
-              <ToggleSwitch
-                checked={cfg.config.reorderEnabled}
-                disabled={cfg.saving}
-                onChange={(v) => cfg.update("reorderEnabled", v)}
-              />
-            </div>
-          </div>
-
+        <div className="post-sale-workspace">
+          <CampaignSettings cfg={cfg} />
           <TemplateEditor me={props.me} />
         </div>
       )}
     </div>
+  );
+}
+
+function CampaignSettings({ cfg }: { cfg: ReturnType<typeof usePostSaleConfig> }) {
+  const campaigns = [
+    { title: "Follow-up de Entrega", description: "Enviar mensagem após confirmação de entrega", enabled: cfg.config.followUpEnabled, update: (value: boolean) => cfg.update("followUpEnabled", value) },
+    { title: "Pedido de Review", description: `Agendar D+${cfg.config.reviewDelayDays}`, enabled: cfg.config.reviewEnabled, update: (value: boolean) => cfg.update("reviewEnabled", value) },
+    { title: "NPS", description: `Agendar D+${cfg.config.npsDelayDays}`, enabled: cfg.config.npsEnabled, update: (value: boolean) => cfg.update("npsEnabled", value) },
+    { title: "Cross-sell", description: `Agendar D+${cfg.config.crossSellDelayDays}`, enabled: cfg.config.crossSellEnabled, update: (value: boolean) => cfg.update("crossSellEnabled", value) },
+    { title: "Win-back com Cupom", description: `Escanear inativos após ${cfg.config.winBackThresholdDays} dias`, enabled: cfg.config.winBackEnabled, update: (value: boolean) => cfg.update("winBackEnabled", value) },
+    { title: "Cupom de Fidelidade", description: `Marcos: ${cfg.config.loyaltyMilestones.split(",").join(", ")}ª compra`, enabled: cfg.config.loyaltyEnabled, update: (value: boolean) => cfg.update("loyaltyEnabled", value) },
+    { title: "Recompra Consumível", description: "Lembrete de recompra automático", enabled: cfg.config.reorderEnabled, update: (value: boolean) => cfg.update("reorderEnabled", value) },
+  ];
+
+  return (
+    <section className="panel post-sale-campaigns" aria-busy={cfg.loading || cfg.saving}>
+      <SectionHeader
+        title="Campanhas de Pós-Venda"
+        subtitle="Defina quais contatos entram na jornada depois da compra. Cada campanha respeita os canais e o consentimento do comprador."
+      />
+      {cfg.loading ? (
+        <div className="post-sale-campaigns__loading" role="status">
+          <span />
+          <span />
+          <span />
+          Carregando campanhas…
+        </div>
+      ) : (
+        <div className="post-sale-campaigns__list">
+          {campaigns.map((campaign) => (
+            <article className="post-sale-campaign" data-enabled={campaign.enabled} key={campaign.title}>
+              <div className="post-sale-campaign__content">
+                <h3>{campaign.title}</h3>
+                <p>{campaign.description}</p>
+              </div>
+              <div className="post-sale-campaign__control">
+                <span>{campaign.enabled ? "Ativa" : "Pausada"}</span>
+                <ToggleSwitch checked={campaign.enabled} disabled={cfg.saving} onChange={campaign.update} />
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

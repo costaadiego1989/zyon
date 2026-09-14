@@ -89,11 +89,13 @@ export function FilterSelect(props: {
   options: Array<{ value: string; label: string }>;
   placeholder?: string;
   width?: number | string;
+  ariaLabel?: string;
 }) {
   return (
     <select
       value={props.value}
       onChange={(e) => props.onChange(e.target.value)}
+      aria-label={props.ariaLabel}
       style={{
         height: 32,
         width: props.width ?? 200,
