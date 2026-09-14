@@ -88,6 +88,7 @@ export class ErpSyncService {
   private readonly logger = new Logger(ErpSyncService.name);
   private draining = false;
   private blingNextRequestAt = 0;
+  private readonly tinyRequestLimits = new Map<string, { nextAt: number; intervalMs: number }>();
 
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
@@ -406,7 +407,7 @@ export class ErpSyncService {
     const snapshots: RemoteSnapshot[] = [];
     for (let page = 1; ; page++) {
       const response = await this.omieCall("https://app.omie.com.br/api/v1/estoque/consulta/", credentials, "ListarPosEstoque", {
-        nPagina: page, nRegPorPagina: 100, dDataPosicao: dateBr(), codigo_local_estoque: 0,
+        nPagina: page, nRegPorPagina: 100, dDataPosicao: dateBr(), codigo_local_estoque: 0, cExibeTodos: "S",
       });
       const rows = Array.isArray(response.produtos) ? response.produtos : [];
       for (const row of rows) snapshots.push({
@@ -574,9 +575,13 @@ export class ErpSyncService {
         const id = externalId(row.id, "erp_tiny_product_id_missing");
         const detail = await this.tinyCall("produto.obter.php", token, { id });
         const product = (detail.retorno ?? detail).produto;
+        if (!product) throw new Error("erp_tiny_product_missing");
+        if (product.tipo === "S") continue;
         const stockResult = await this.tinyCall("produto.obter.estoque.php", token, { id });
-        const deposits = (stockResult.retorno ?? stockResult).produto?.depositos ?? [];
-        const quantity = deposits.reduce((total: number, entry: any) => total + Number(entry.deposito?.saldo ?? entry.saldo ?? 0), 0);
+        // The provider total respects excluded deposits and MultiEmpresas settings.
+        // Missing balances must not silently overwrite the local snapshot with zero.
+        const quantity = (stockResult.retorno ?? stockResult).produto?.saldo;
+        if (quantity === undefined || quantity === null || quantity === "") throw new Error("erp_tiny_stock_missing");
         snapshots.push({
           externalProductId: id, externalLocationId: "0", sku: externalId(product.codigo ?? row.codigo ?? id, "erp_tiny_product_code_missing"),
           productName: externalId(product.nome ?? row.nome, "erp_tiny_product_name_missing"), quantity: positiveInteger(quantity, "erp_fractional_stock_not_supported"),
@@ -590,7 +595,7 @@ export class ErpSyncService {
 
   private async pushTinySnapshot(connection: ErpConnection, productId: string, quantity: number, idempotencyKey: string): Promise<void> {
     await this.tinyCall("produto.atualizar.estoque.php", this.tinyToken(connection), {
-      estoque: JSON.stringify({ idProduto: positiveInteger(productId, "erp_tiny_product_id_invalid"), tipo: "B", quantidade: String(quantity), data: dateTiny(), observacoes: `Zyon ${idempotencyKey}`.slice(0, 100) }),
+      estoque: JSON.stringify({ estoque: { idProduto: positiveInteger(productId, "erp_tiny_product_id_invalid"), tipo: "B", quantidade: String(quantity), data: dateTiny(), observacoes: `Zyon ${idempotencyKey}`.slice(0, 100) } }),
     });
   }
 
@@ -600,14 +605,34 @@ export class ErpSyncService {
   }
 
   private async tinyCall(service: string, token: string, data: Record<string, string>): Promise<any> {
+    // The per-company quota is returned by Tiny in x-limit-api. Use the
+    // documented legacy minimum until that header is known; never retain tokens
+    // as limiter keys. The durable worker retries exhausted quotas later.
+    const limitKey = createHash("sha256").update(token).digest("hex");
+    const limit = this.tinyRequestLimits.get(limitKey) ?? { nextAt: 0, intervalMs: 3_050 };
+    const requestAt = Math.max(Date.now(), limit.nextAt);
+    limit.nextAt = requestAt + limit.intervalMs;
+    this.tinyRequestLimits.set(limitKey, limit);
+    await wait(Math.max(0, requestAt - Date.now()));
     const form = new URLSearchParams({ token, formato: "JSON", ...data });
     const response = await fetch(`https://api.tiny.com.br/api2/${service}`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form.toString() });
+    const quotaHeader = response.headers.get("x-limit-api");
+    if (quotaHeader !== null) {
+      const quota = Number(quotaHeader);
+      if (quota === 0) throw new Error("erp_tiny_plan_api_unavailable");
+      if (Number.isFinite(quota) && quota > 0) {
+        limit.intervalMs = Math.ceil(60_000 / quota) + 50;
+        limit.nextAt = requestAt + limit.intervalMs;
+      }
+    }
     if (!response.ok) throw new Error(`erp_tiny_http_${response.status}`);
     const body = await response.json() as any;
     const result = body.retorno ?? body;
-    if (result.status && result.status !== "OK") {
-      const code = Number(result.codigo_erro);
-      if (code !== 20) throw new Error("erp_tiny_api_error");
+    // Code 20 only means an empty search. A failed stock write is never success.
+    const emptySearch = service === "pdv.produtos.php" && Number(result.codigo_erro) === 20;
+    if (result.status !== "OK" && !emptySearch) throw new Error("erp_tiny_api_error");
+    if (Array.isArray(result.registros) && result.registros.some((entry: any) => entry.registro?.status === "Erro")) {
+      throw new Error("erp_tiny_stock_write_rejected");
     }
     return body;
   }

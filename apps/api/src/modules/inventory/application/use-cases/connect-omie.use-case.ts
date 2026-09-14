@@ -32,8 +32,8 @@ export class ConnectOmieUseCase {
     }
 
     const testData = await testRes.json();
-    if (testData.status && testData.status !== "OK") {
-      throw new BadRequestException(`omie_error:${testData.status}`);
+    if (testData.faultcode || testData.faultstring || (testData.status && testData.status !== "OK")) {
+      throw new BadRequestException("omie_validation_failed");
     }
 
     // Encrypt credentials
