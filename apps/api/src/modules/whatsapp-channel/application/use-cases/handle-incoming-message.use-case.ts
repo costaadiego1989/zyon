@@ -1,3 +1,4 @@
+import { WHATSAPP_CONVERSATION_PORT, type WhatsAppConversationPort } from "../../domain/ports/whatsapp-conversation.port.js";
 /**
  * Handle Incoming WhatsApp Message — Main Pipeline
  *
@@ -7,15 +8,14 @@
  * Phone verified = true by default (no OTP needed).
  */
 
-import { Injectable, Inject, Logger, OnModuleInit, Optional } from "@nestjs/common";
-import { MessageDebouncerService, type DebouncedMessage } from "../services/message-debouncer.service.js";
+import { Injectable, Inject, Logger, Optional } from "@nestjs/common";
 import { RouteToSessionUseCase } from "./route-to-session.use-case.js";
 import { SendWhatsAppResponseUseCase } from "./send-whatsapp-response.use-case.js";
 import {
   resolveNumberedInput,
   buildMenuState,
 } from "../services/whatsapp-menu-renderer.service.js";
-import { renderNumberedMenu, renderProcessing } from "../../domain/templates/whatsapp-templates.js";
+import { renderNumberedMenu } from "../../domain/templates/whatsapp-templates.js";
 import {
   WHATSAPP_SESSION_REPOSITORY,
   type WhatsAppSessionRepository,
@@ -40,22 +40,19 @@ export interface IncomingMessageInput {
 }
 
 @Injectable()
-export class HandleIncomingMessageUseCase implements OnModuleInit {
+export class HandleIncomingMessageUseCase {
   private readonly logger = new Logger(HandleIncomingMessageUseCase.name);
 
   constructor(
-    private readonly debouncer: MessageDebouncerService,
     private readonly routeToSession: RouteToSessionUseCase,
     private readonly sendResponse: SendWhatsAppResponseUseCase,
     @Inject(WHATSAPP_SESSION_REPOSITORY)
     private readonly sessionRepo: WhatsAppSessionRepository,
+    @Inject(WHATSAPP_CONVERSATION_PORT)
+    private readonly conversation: WhatsAppConversationPort,
     @Optional() @Inject(POST_SALE_REPLY_HANDLER_PORT)
     private readonly postSaleReply?: PostSaleReplyHandlerPort,
   ) {}
-
-  onModuleInit() {
-    this.debouncer.onFlush((msg) => this.processDebounced(msg));
-  }
 
   async execute(input: IncomingMessageInput): Promise<void> {
     try {
@@ -67,8 +64,7 @@ export class HandleIncomingMessageUseCase implements OnModuleInit {
         fromAlias: input.fromAlias,
       });
 
-      // Phase 1: process inline (skip debouncer for reliability)
-      // Phase 2: re-enable debouncer for batching rapid messages
+      // Process inline under the durable inbox lease.
       const session = route.whatsappSession;
 
       // ─── Post-sale reply intercept ────────────────────────────────────
@@ -90,17 +86,20 @@ export class HandleIncomingMessageUseCase implements OnModuleInit {
       let textForEngine: string;
       switch (resolved.action) {
         case "select": textForEngine = resolved.text; break;
-        case "back": textForEngine = "__NAVIGATE_BACK__"; break;
-        case "more": textForEngine = "__LOAD_MORE__"; break;
+        case "back": textForEngine = "Voltar ao menu anterior"; break;
+        case "more": textForEngine = "Mostrar mais produtos"; break;
         default: textForEngine = input.body; break;
       }
 
       // Get response from engine
-      const engineResponse = await this.callEngine(session.checkoutSessionId ?? "", textForEngine);
-      const quickReplies: string[] = engineResponse?.quickReplies ?? ["Ver Produtos", "Categorias", "Suporte"];
-      const agentText: string = engineResponse?.agentMessage ?? "Como posso te ajudar?";
+      if (!session.checkoutSessionId) throw new Error("whatsapp_checkout_session_missing");
+      const engineResponse = await this.conversation.respond({
+        merchantId: input.merchantId, checkoutSessionId: session.checkoutSessionId, message: textForEngine,
+      });
+      const quickReplies: string[] = engineResponse.quickReplies;
+      const agentText: string = engineResponse.agentMessage;
 
-      const responseText = `${agentText}\n\n${renderNumberedMenu(quickReplies, true)}`;
+      const responseText = quickReplies.length ? `${agentText}\n\n${renderNumberedMenu(quickReplies, true)}` : agentText;
 
       // Save menu state
       await this.sessionRepo.updateMenuState(
@@ -151,6 +150,7 @@ export class HandleIncomingMessageUseCase implements OnModuleInit {
           merchantId: input.merchantId,
           deviceId: input.deviceId,
           toNumber: input.fromNumber,
+          provider: input.provider,
           text: "Ops! 😅 Não entendi. Pode responder com um número de *1 a 5* (estrelas)? É rapidinho! ⭐",
         });
         return true; // keep context; wait for a valid number
@@ -171,10 +171,11 @@ export class HandleIncomingMessageUseCase implements OnModuleInit {
           feedback,
         });
       } catch (err) {
-        this.logger.error(`Failed to submit NPS reply: ${err instanceof Error ? err.message : String(err)}`);
+        this.logger.error("whatsapp_nps_persistence_failed");
+        throw err;
       }
 
-      await this.sessionRepo.clearPostSaleContext(session.id).catch(() => {});
+      await this.sessionRepo.clearPostSaleContext(session.id);
 
       const thanks = rating >= 5
         ? `Uhul! 🎉 5 estrelas! Que bom que você curtiu, ${session.buyerAlias ?? ""}! Muito obrigado! 💛`
@@ -186,6 +187,7 @@ export class HandleIncomingMessageUseCase implements OnModuleInit {
         merchantId: input.merchantId,
         deviceId: input.deviceId,
         toNumber: input.fromNumber,
+        provider: input.provider,
         text: thanks,
       });
       return true;
@@ -199,7 +201,7 @@ export class HandleIncomingMessageUseCase implements OnModuleInit {
 
       if (!ctx.productId) {
         // No product to attach the review to — thank and clear rather than lose it.
-        this.logger.warn("Review reply received but context has no productId", { orderId: ctx.orderId });
+        throw new Error("whatsapp_review_product_missing");
       } else {
         try {
           await this.postSaleReply.handleReviewReply({
@@ -211,16 +213,18 @@ export class HandleIncomingMessageUseCase implements OnModuleInit {
             rating,
           });
         } catch (err) {
-          this.logger.error(`Failed to submit review reply: ${err instanceof Error ? err.message : String(err)}`);
+          this.logger.error("whatsapp_review_persistence_failed");
+          throw err;
         }
       }
 
-      await this.sessionRepo.clearPostSaleContext(session.id).catch(() => {});
+      await this.sessionRepo.clearPostSaleContext(session.id);
 
       await this.sendResponse.execute({
         merchantId: input.merchantId,
         deviceId: input.deviceId,
         toNumber: input.fromNumber,
+        provider: input.provider,
         text: `Muito obrigado pela sua avaliação! ⭐ Sua opinião ajuda demais outros clientes. 💛`,
       });
       return true;
@@ -229,158 +233,4 @@ export class HandleIncomingMessageUseCase implements OnModuleInit {
     return false;
   }
 
-  private async processDebounced(msg: DebouncedMessage): Promise<void> {
-    try {
-      // Re-fetch session (may have been updated since push)
-      const session = await this.sessionRepo.findActiveByPhone(msg.merchantId, msg.buyerPhone);
-      if (!session) {
-        this.logger.warn(`whatsapp_debounce_session_missing merchant=${msg.merchantId}`);
-        return;
-      }
-
-      // Resolve numbered input against current menu state
-      const menuState = buildMenuState(
-        session.currentOptions,
-        { currentOptions: session.previousOptions, previousOptions: [], page: session.currentPage, context: "menu" },
-      );
-
-      const resolved = resolveNumberedInput(msg.combinedText, menuState);
-
-      let textForEngine: string;
-      switch (resolved.action) {
-        case "select":
-          textForEngine = resolved.text;
-          break;
-        case "back":
-          textForEngine = "__NAVIGATE_BACK__";
-          break;
-        case "more":
-          textForEngine = "__LOAD_MORE__";
-          break;
-        case "freetext":
-        default:
-          textForEngine = msg.combinedText;
-          break;
-      }
-
-      // Call the existing checkout/storefront engine
-      // This is the same send-chat-message use-case the widget uses
-      // The engine returns: { agentMessage, quickReplies, stage, ... }
-      const engineResponse = await this.callEngine(session.checkoutSessionId!, textForEngine);
-
-      // Format response with numbered menu
-      const quickReplies: string[] = engineResponse?.quickReplies ?? [];
-      const agentText: string = engineResponse?.agentMessage ?? "Como posso ajudar?";
-
-      const responseText = quickReplies.length > 0
-        ? `${agentText}\n\n${renderNumberedMenu(quickReplies, true)}`
-        : agentText;
-
-      // Update menu state on session
-      await this.sessionRepo.updateMenuState(
-        session.id,
-        quickReplies,
-        session.currentOptions,
-        session.currentPage,
-      );
-
-      // Send via WhatsApp
-      await this.sendResponse.execute({
-        merchantId: msg.merchantId,
-        deviceId: session.deviceId,
-        toNumber: msg.buyerPhone,
-        text: responseText,
-      });
-
-    } catch (error) {
-      this.logger.error(
-        `whatsapp_debounce_processing_failed merchant=${msg.merchantId}`,
-      );
-    }
-  }
-
-  /**
-   * Call the existing conversation engine (send-chat-message use-case).
-   * Returns agent text + quick replies.
-   *
-   * Phase 1: Returns welcome/default responses while full engine wiring is in progress.
-   * Phase 2: Wire to SendChatMessageUseCase for full AI responses.
-   */
-  private async callEngine(
-    checkoutSessionId: string,
-    buyerMessage: string,
-  ): Promise<{ agentMessage: string; quickReplies: string[]; stage?: string } | null> {
-    this.logger.debug(`whatsapp_engine_call session=${checkoutSessionId}`);
-
-    // Phase 1: deterministic responses for testing the WA channel
-    const msg = buyerMessage.toLowerCase().trim();
-
-    if (msg === "__navigate_back__") {
-      return {
-        agentMessage: "↩️ Voltando ao menu anterior...",
-        quickReplies: ["Ver Produtos", "Categorias", "Meu Carrinho", "Suporte"],
-        stage: "welcome",
-      };
-    }
-
-    if (msg === "__load_more__") {
-      return {
-        agentMessage: "Carregando mais produtos...",
-        quickReplies: ["Selecionar Produto", "Filtrar Produtos", "Categorias"],
-        stage: "browsing",
-      };
-    }
-
-    // Welcome / greeting
-    if (/^(oi|olá|ola|hey|bom dia|boa tarde|boa noite|hi|hello)/.test(msg)) {
-      return {
-        agentMessage: "👋 Olá! Bem-vindo à nossa loja!\n\nSou o assistente virtual e posso te ajudar a encontrar produtos e fazer seu pedido.\n\nComo posso te ajudar?",
-        quickReplies: ["Ver Produtos", "Encontrar Produto", "Categorias", "Ofertas", "Rastrear Pedido", "Suporte"],
-        stage: "welcome",
-      };
-    }
-
-    // Product browsing intent
-    if (/produto|ver|catalogo|catálogo|comprar|loja/.test(msg) || msg === "ver produtos") {
-      return {
-        agentMessage: "🛍️ *Nossos Produtos*\n\nO que você está procurando? Posso buscar por nome ou mostrar as categorias.",
-        quickReplies: ["Selecionar Produto", "Filtrar Produtos", "Categorias", "Ofertas do Dia"],
-        stage: "browsing",
-      };
-    }
-
-    // Categories
-    if (/categoria|segmento/.test(msg) || msg === "categorias") {
-      return {
-        agentMessage: "📂 *Categorias*\n\nEscolha uma categoria para ver os produtos:",
-        quickReplies: ["Encontrar um Produto", "Categorias em Promoção"],
-        stage: "categories",
-      };
-    }
-
-    // Cart
-    if (/carrinho|cart|meu pedido/.test(msg)) {
-      return {
-        agentMessage: "🛒 Seu carrinho está vazio no momento.\n\nQue tal ver nossos produtos?",
-        quickReplies: ["Ver Produtos", "Categorias", "Ofertas"],
-        stage: "welcome",
-      };
-    }
-
-    // Support
-    if (/suporte|ajuda|humano|atendente/.test(msg)) {
-      return {
-        agentMessage: "🙋 Como posso te ajudar?\n\nSe precisar de um atendente humano, é só pedir.",
-        quickReplies: ["FAQ", "Falar com Humano", "Reportar Problema", "Status do Pedido"],
-        stage: "support",
-      };
-    }
-
-    // Default fallback
-    return {
-      agentMessage: "Não entendi completamente. Escolha uma opção abaixo ou digite o que procura:",
-      quickReplies: ["Ver Produtos", "Categorias", "Meu Carrinho", "Suporte"],
-      stage: "welcome",
-    };
-  }
 }

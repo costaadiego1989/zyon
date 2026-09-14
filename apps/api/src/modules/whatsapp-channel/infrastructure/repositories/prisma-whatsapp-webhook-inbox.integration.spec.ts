@@ -149,10 +149,10 @@ describe("BubbleWhats durable inbox (PostgreSQL)", { skip: !clientPath || !datab
   it("a real incoming/send pipeline failure survives worker restart and succeeds on retry", async () => {
     await accept.message(config.webhookSecret, message());
     let sends = 0;
-    const incoming = new HandleIncomingMessageUseCase({} as any, {
+    const incoming = new HandleIncomingMessageUseCase({
       execute: async () => ({ whatsappSession: { id: "session-1", checkoutSessionId: "checkout-1", currentOptions: [], previousOptions: [], currentPage: 0 } }),
     } as any, new SendWhatsAppResponseUseCase({ sendText: async () => ({ status: ++sends === 1 ? "failed" : "sent", messageId: "provider-reference" }) }),
-    { updateMenuState: async () => {} } as any);
+    { updateMenuState: async () => {} } as any, { respond: async () => ({ agentMessage: "Resposta do checkout", quickReplies: [] }) });
     const worker = () => new WhatsAppWebhookWorker(new PrismaWhatsAppWebhookInbox(prisma), { findById: async () => config } as any, incoming, {} as any);
     await worker().drain();
     let stored = (await rows())[0];

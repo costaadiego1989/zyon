@@ -12,7 +12,7 @@ export function salesDefaults(type: string) {
   const def = buildCatalog()[salesTemplateType(type)];
   return { email: { subject: `{{storeName}} | ${def.label}`, body: def.freeformBody }, whatsapp: { body: def.freeformBody } };
 }
-const samples: Record<string, string> = { buyerName: "Ana", storeName: "Loja Exemplo", productName: "Camiseta", orderId: "PED-123", trackingCode: "BR123456789", couponBlock: "Cupom VOLTE10: 10% de desconto", coupon: "VOLTE10", discount: "10%", link: "https://loja.exemplo/pedido" };
+const samples: Record<string, string> = { merchantName: "Loja Exemplo", planName: "Growth", expiresAt: "21/09/2026, 10:00", dashboardLink: "https://app.zyon-payments.com.br/#billing-plans", buyerName: "Ana", storeName: "Loja Exemplo", productName: "Camiseta", orderId: "PED-123", trackingCode: "BR123456789", couponBlock: "Cupom VOLTE10: 10% de desconto", coupon: "VOLTE10", discount: "10%", link: "https://loja.exemplo/pedido" };
 export function prepareSalesWhatsApp(type: string, body: string) {
   salesTemplateType(type);
   if (type === "cart_recovery") return { ...prepareRecoveryWhatsApp(body), category: "MARKETING" };

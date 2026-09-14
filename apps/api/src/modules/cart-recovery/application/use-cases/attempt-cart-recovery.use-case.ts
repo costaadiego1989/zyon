@@ -184,17 +184,17 @@ export class AttemptCartRecoveryUseCase {
 function strategyOfferLine(strategy: RecoveryStrategy): string {
   switch (strategy.type) {
     case "offer_free_shipping":
-      return "Volte agora e ganhe *frete grátis* na sua compra.";
+      return "Confira as condições de frete disponíveis para seu carrinho na loja.";
     case "offer_coupon":
       return strategy.coupon_code
-        ? `Use o cupom *${strategy.coupon_code}* e finalize com desconto.`
-        : "Volte agora e finalize com um desconto especial.";
+        ? `Confira se o cupom ${strategy.coupon_code} se aplica ao seu carrinho. A validade e as condições são verificadas no checkout.`
+        : "Confira as condições disponíveis para seu carrinho no checkout.";
     case "personalized_cross_sell":
-      return "Separamos itens que combinam com o que você escolheu.";
+      return "Explore outros produtos da loja ao revisar seu carrinho.";
     case "escalate_discount":
-      return `Volte agora e ganhe *${strategy.value_percent}% OFF*.`;
+      return "Confira as condições de compra disponíveis para seu carrinho.";
     case "advanced_rule":
-      return strategy.description || "Temos uma oferta especial pra você.";
+      return "As condições da loja serão verificadas ao revisar seu carrinho.";
     default:
       return "Volte agora e finalize sua compra.";
   }

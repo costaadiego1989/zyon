@@ -214,10 +214,10 @@ describe("BubbleWhats worker failure propagation", () => {
     let failed = 0;
     let sends = 0;
     let completed = 0;
-    const incoming = new HandleIncomingMessageUseCase({} as any, {
+    const incoming = new HandleIncomingMessageUseCase({
       execute: async () => ({ whatsappSession: { id: "session-1", checkoutSessionId: "checkout-1", currentOptions: [], previousOptions: [], currentPage: 0 } }),
     } as any, new SendWhatsAppResponseUseCase({ sendText: async () => { sends++; return { status: "failed", messageId: "" }; } }),
-    { updateMenuState: async () => {} } as any);
+    { updateMenuState: async () => {} } as any, { respond: async () => ({ agentMessage: "Resposta do checkout", quickReplies: [] }) });
     const inbox = {
       claimNext: async () => { const result = next; next = null; return result; },
       fail: async () => { failed++; return true; }, complete: async () => { completed++; return true; },
@@ -229,10 +229,10 @@ describe("BubbleWhats worker failure propagation", () => {
 
   it("propagates menu persistence failure before sending and checkout creation failure before session creation", async () => {
     let sends = 0;
-    const incoming = new HandleIncomingMessageUseCase({} as any, {
+    const incoming = new HandleIncomingMessageUseCase({
       execute: async () => ({ whatsappSession: { id: "session", checkoutSessionId: "checkout", currentOptions: [], previousOptions: [], currentPage: 0 } }),
     } as any, { execute: async () => { sends++; } } as any,
-    { updateMenuState: async () => { throw new Error("menu failed"); } } as any);
+    { updateMenuState: async () => { throw new Error("menu failed"); } } as any, { respond: async () => ({ agentMessage: "Resposta do checkout", quickReplies: [] }) });
     await assert.rejects(incoming.execute((await claim()).payload as any), /menu failed/);
     assert.equal(sends, 0);
     const route = new RouteToSessionUseCase({

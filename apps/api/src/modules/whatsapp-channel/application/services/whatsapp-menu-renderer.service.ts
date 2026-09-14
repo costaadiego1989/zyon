@@ -39,7 +39,7 @@ export function resolveNumberedInput(input: string, state: MenuState): ResolvedI
     };
   }
 
-  const num = parseInt(trimmed, 10);
+  const num = /^\d{1,2}$/.test(trimmed) ? Number(trimmed) : NaN;
 
   // Not a number → free text
   if (Number.isNaN(num) || num < 0 || num > 10) {

@@ -29,6 +29,7 @@ export interface WhatsAppTemplateDefinition {
 }
 
 const SAMPLES: Record<string, string> = {
+  merchantName: "Loja Exemplo", planName: "Growth", expiresAt: "21/09/2026, 10:00", dashboardLink: "https://app.zyon-payments.com.br/#billing-plans",
   buyerName: "Ana",
   productName: "seu pedido",
   storeName: "Loja Exemplo",
@@ -51,6 +52,7 @@ export function toPositional(named: string, storeName = "sua loja"): {
   sampleVariables: Record<string, string>;
 } {
   const ordered: Array<{ name: string; token: RegExp }> = [
+    ...["merchantName", "planName", "expiresAt", "dashboardLink"].map(name => ({ name, token: new RegExp("\\{\\{" + name + "\\}\\}", "g") })),
     { name: "buyerName", token: /\{\{buyerName\}\}/g },
     { name: "productName", token: /\{\{productName\}\}/g },
     { name: "orderId", token: /\{\{orderId\}\}/g },
@@ -77,6 +79,10 @@ export function toPositional(named: string, storeName = "sua loja"): {
 
 // Named-placeholder freeform bodies (source of truth for both channels).
 const FREEFORM: Record<WhatsAppTemplateType, string> = {
+  plan_expiry_7d: "Olá, {{merchantName}}. O período do plano {{planName}} na Zyon termina em {{expiresAt}} (horário de Brasília). Este é o lembrete da semana do vencimento. Confira a renovação em {{dashboardLink}}. Equipe Zyon.",
+  plan_expiry_3d: "Olá, {{merchantName}}. O período do plano {{planName}} na Zyon termina em {{expiresAt}} (horário de Brasília). O vencimento está próximo. Confira a assinatura e a forma de pagamento em {{dashboardLink}}. Equipe Zyon.",
+  plan_expiry_24h: "Olá, {{merchantName}}. O período do plano {{planName}} na Zyon termina em {{expiresAt}} (horário de Brasília). Este é o lembrete das últimas 24 horas. Confira a renovação em {{dashboardLink}}. Equipe Zyon.",
+  plan_expiry_expired: "Olá, {{merchantName}}. O plano {{planName}} na Zyon terminou em {{expiresAt}} (horário de Brasília) e ainda não identificamos a renovação. Consulte sua assinatura em {{dashboardLink}}. Equipe Zyon.",
   follow_up: `Oi {{buyerName}}! 😊 Aqui é da {{storeName}}.
 
 Seu {{productName}} já chegou? Queremos saber se está tudo certo com o pedido!
@@ -159,6 +165,7 @@ Esperamos que esteja tudo perfeito. Se precisar de qualquer coisa com o {{produc
 };
 
 const HAS_COUPON: Record<WhatsAppTemplateType, boolean> = {
+  plan_expiry_7d: false, plan_expiry_3d: false, plan_expiry_24h: false, plan_expiry_expired: false,
   follow_up: false,
   review_request: false,
   nps: false,
@@ -173,6 +180,8 @@ const HAS_COUPON: Record<WhatsAppTemplateType, boolean> = {
 };
 
 const LABELS: Record<WhatsAppTemplateType, string> = {
+  plan_expiry_7d: "Plano: vencimento em 7 dias", plan_expiry_3d: "Plano: vencimento em 3 dias",
+  plan_expiry_24h: "Plano: vencimento em 24 horas", plan_expiry_expired: "Plano: vencido sem renovação",
   follow_up: "Follow-up de Entrega",
   review_request: "Pedido de Review",
   nps: "NPS",

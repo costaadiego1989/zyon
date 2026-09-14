@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { RECOVERY_TEMPLATE_DEFAULTS, prepareRecoveryWhatsApp } from "../../whatsapp-templates/domain/recovery-template-content.js";
 import type { PrismaClient } from "@prisma/client";
 import { RecoveryScannerJob } from "../infrastructure/jobs/recovery-scanner.job.js";
 import { AttemptCartRecoveryUseCase } from "../application/use-cases/attempt-cart-recovery.use-case.js";
@@ -24,8 +25,15 @@ const scenarios = [
   { name: "WhatsApp acceptance unknown", status: "ACTIVE", approved: true, timeout: true, channel: "whatsapp_template", attemptStatus: "unknown", whatsapp: 1, email: 0 },
 ] as const;
 
-for (const scenario of scenarios) {
-  test(`scanner -> attempt -> shared router: ${scenario.name}`, async (context) => {
+const strategies = [
+  { active_strategy: "offer_free_shipping" },
+  { active_strategy: "personalized_cross_sell" },
+  { active_strategy: "offer_coupon", coupon_code: "RECOVER10" },
+  { active_strategy: "advanced_rule", rule_id: "rule-1" },
+] as const;
+
+for (const strategy of strategies) for (const scenario of scenarios) {
+  test(`scanner -> attempt -> shared router: ${strategy.active_strategy}, ${scenario.name}`, async (context) => {
     const now = new Date("2026-09-05T12:00:00Z");
     const inactiveAt = new Date(now.getTime() - 31 * 60 * 1000);
     context.mock.method(Math, "random", () => 0);
@@ -48,10 +56,11 @@ for (const scenario of scenarios) {
       findByWhatsAppNumber: async () => null, findByMetaPhoneNumberId: async () => null,
       upsert: async () => { throw new Error("Routing must not change connection configuration"); },
     };
+    const prepared = prepareRecoveryWhatsApp(RECOVERY_TEMPLATE_DEFAULTS.whatsapp.body);
     const templates: WhatsAppTemplateRepositoryPort = { findByMerchantAndType: async (merchantId: string, type: string, channel: string) => ({
-      id: "template", merchantId, type, channel, name: "Recovery", body: "Olá {{1}}", subject: null,
-      isActive: true, metaCategory: "MARKETING", metaLanguage: "pt_BR", metaTemplateBody: "Olá {{1}}",
-      metaVariableMap: { "1": "buyerName" }, twilioContentSid: "HX-test",
+      id: "template", merchantId, type, channel, name: "Recovery", body: channel === "email" ? RECOVERY_TEMPLATE_DEFAULTS.email.body : RECOVERY_TEMPLATE_DEFAULTS.whatsapp.body, subject: channel === "email" ? RECOVERY_TEMPLATE_DEFAULTS.email.subject : null,
+      isActive: true, metaCategory: "MARKETING", metaLanguage: "pt_BR", metaTemplateBody: prepared.metaBody,
+      metaVariableMap: prepared.variableMap, twilioContentSid: "HX-test",
       metaStatus: scenario.approved ? "approved" : "rejected", metaRejectionReason: null,
       metaWabaId: "123456789", metaLastCheckedAt: now,
       createdAt: now, updatedAt: now,
@@ -67,6 +76,12 @@ for (const scenario of scenarios) {
       sendTemplate: async (request) => {
         assert.equal(request.merchantId, session.merchantId);
         assert.equal(request.type, "cart_recovery");
+        assert.equal(request.contentVariables["1"], "Test buyer");
+        assert.equal(request.contentVariables["2"], "Test shop");
+        assert.ok(request.contentVariables["3"]?.startsWith("https://"));
+        // Current approved recovery templates carry a reminder and link only.
+        // This verifies routing, not fulfillment of a strategy incentive.
+        assert.equal(Object.values(request.contentVariables).includes("RECOVER10"), false);
         whatsapp++;
         if (scenario.timeout) throw new Error("provider acceptance unknown");
         return { messageId: "SM-test", status: "queued" };
@@ -74,6 +89,9 @@ for (const scenario of scenarios) {
     }, { send: async () => { bubble++; return { status: "accepted" }; } }, {
       send: async (request) => {
         assert.equal(request.to, "buyer@example.invalid");
+        assert.match(request.html, /Test shop/);
+        assert.match(request.html, /Retomar minha compra/);
+        assert.doesNotMatch(request.html, /RECOVER10|ganhe.*frete|% OFF/);
         email++;
         return { messageId: "email-test", status: "queued" };
       },
@@ -83,9 +101,11 @@ for (const scenario of scenarios) {
       checkoutEvent: { findMany: async () => [{ eventName: "shipping_objection_detected" }] },
       merchant: { findUnique: async () => ({ name: "Test shop" }) },
     } as unknown as PrismaClient;
+    const preferences = new InMemoryStrategyPreferencesRepository();
+    await preferences.saveConfig(session.merchantId, strategy);
     const scanner = new RecoveryScannerJob(sessions, attempts,
-      { getRules: async () => merchantRules({ allowFreeShipping: false }), updateRules: async () => merchantRules() },
-      new InMemoryStrategyPreferencesRepository(), new InMemoryBuyerPurchaseHistoryRepository(),
+      { getRules: async () => merchantRules({ allowFreeShipping: true }), updateRules: async () => merchantRules() },
+      preferences, new InMemoryBuyerPurchaseHistoryRepository(),
       prisma, useCase, buyers);
 
     const scan = scanner.scan();
@@ -95,6 +115,7 @@ for (const scenario of scenarios) {
     assert.equal(result.errors, 0);
     assert.equal(attempts.count(), 1);
     const attempt = attempts.getAll()[0]!;
+    assert.equal(attempt.strategy.type, strategy.active_strategy);
     assert.equal(attempt.status, scenario.attemptStatus);
     assert.equal(attempt.channel, scenario.channel);
     assert.equal(attempt.sentAt?.getTime() ?? null, scenario.timeout ? null : now.getTime());

@@ -70,7 +70,7 @@ export class RouteToSessionUseCase {
 
     // 4. Create new session if needed
     if (!waSession) {
-      const checkoutSessionId = await this.createCheckoutSession(input.merchantId, globalUserId, buyerData);
+      const checkoutSessionId = await this.createCheckoutSession(input.merchantId, buyerData.globalUserId, buyerData);
 
       waSession = await this.sessionRepo.create({
         merchantId: input.merchantId,

@@ -4,6 +4,8 @@
  * one Meta-approved template.
  */
 export const WHATSAPP_TEMPLATE_TYPES = [
+  // Merchant subscription notices
+  "plan_expiry_7d", "plan_expiry_3d", "plan_expiry_24h", "plan_expiry_expired",
   // Post-sale
   "follow_up",
   "review_request",
