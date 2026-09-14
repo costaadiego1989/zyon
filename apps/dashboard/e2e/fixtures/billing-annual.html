@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Billing annual regression</title><style>.billing-test-shell{height:100dvh;overflow:auto;padding:24px;box-sizing:border-box}</style></head>
+<body><div id="root"></div><script type="module">
+import React from "react";
+import { createRoot } from "react-dom/client";
+import { ApiContext } from "../../src/hooks/useApi.ts";
+import { createDashboardApi } from "../../src/api-client.ts";
+import { BillingPlansPage } from "../../src/pages/billing-plans/BillingPlansPage.tsx";
+import { PlanSelection } from "../../src/pages/onboarding-wizard/steps/PlanSelection.tsx";
+import { readSubscriptionIntent } from "../../src/auth/subscription-intent.ts";
+import "../../src/styles.css";
+const api = createDashboardApi({ baseUrl: location.origin + "/audit-api" });
+const params = new URLSearchParams(location.search);
+const component = params.get("view") === "signup" ? React.createElement(PlanSelection, { merchantName: "Loja de teste", initialPlan: readSubscriptionIntent(), onDone: () => { window.billingDone = true; } }) : React.createElement(BillingPlansPage);
+createRoot(document.getElementById("root")).render(React.createElement(ApiContext.Provider, { value: api }, React.createElement("main", { className: params.get("view") === "signup" ? "signup-plans" : "billing-test-shell" }, component)));
+</script></body></html>

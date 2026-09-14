@@ -35,6 +35,7 @@ import {
   type PaymentPlatformRepository,
 } from "../domain/ports/payment-platform-repository.port.js";
 import { BillingPlanMeteringService } from "../domain/billing-plan-guard.js";
+import { OrderQuotaService } from "./services/order-quota.service.js";
 import { assertProviderFeeCap, merchantTransactionFeeCentsFor } from "../domain/billing-plans.js";
 import type { PlannedPaymentSettlement } from "../domain/ports/payment-settlement-ledger.port.js";
 import { resolveCheckoutPaymentCapabilities } from "../domain/checkout-payment-routing.js";
@@ -251,6 +252,7 @@ export class CreatePaymentIntentUseCase {
     @Optional() @Inject(BUYER_ACCOUNT_REPOSITORY)
     private readonly buyerAccount?: BuyerAccountRepository,
     @Optional() private readonly billingMetering?: BillingPlanMeteringService,
+    private readonly orderQuota?: OrderQuotaService,
   ) { }
 
   async execute(body: CreatePaymentIntentRequest): Promise<CreatePaymentIntentResponseBody> {
@@ -268,6 +270,10 @@ export class CreatePaymentIntentUseCase {
       assertSameRequest(existing.snapshot(), body, session);
       return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider).execute(existing));
     }
+
+    // An existing idempotency key is an admission made before a later block.
+    // Only a brand-new provider/payment attempt must pass the commercial gate.
+    await this.orderQuota?.assertCanAcceptNewSales(merchantId);
 
     const method: PaymentMethod = body.method ?? "pix";
 

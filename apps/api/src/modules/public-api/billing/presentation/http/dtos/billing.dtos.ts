@@ -1,3 +1,4 @@
+import type { BillingOffer } from "@zyon/shared-types";
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsEnum, IsNotEmpty, IsOptional } from 'class-validator';
 
@@ -14,6 +15,8 @@ export class ChangePlanDto {
 }
 
 export class PlanResponse {
+  billing_options!: BillingOffer[];
+  annual_checkout_available!: boolean;
   @ApiProperty({ example: 'pro' })
   plan_id!: string;
 
@@ -29,7 +32,7 @@ export class PlanResponse {
   @ApiProperty({ example: 99, description: 'Taxa de serviço do buyer em centavos (somada ao total do pedido)' })
   buyer_service_fee_cents!: number;
 
-  @ApiProperty({ example: { orders_per_month: 5000, sessions_per_month: 50000 } })
+  @ApiProperty({ example: { orders_per_month: 5000, commerce_connections: 2 } })
   limits!: Record<string, number | null>;
 
   @ApiProperty({ example: { cross_sell: true, ab_testing: true } })
@@ -37,6 +40,13 @@ export class PlanResponse {
 }
 
 export class SubscriptionResponse {
+  billing_cycle!: "monthly" | "annual";
+  billing_amount_cents?: number;
+  billing_discount_percent?: number;
+  pending_plan?: string;
+  pending_billing_cycle?: "monthly" | "annual";
+  pending_billing_amount_cents?: number;
+  pending_effective_at?: string;
   plan!: string;
   trial_end?: string;
   trial_expired!: boolean;
@@ -46,7 +56,7 @@ export class SubscriptionResponse {
   has_subscription!: boolean;
   limits!: Record<string, number | null>;
   features!: Record<string, boolean>;
-  usage?: Record<string, number | string | null>;
+  usage?: Record<string, number | string | boolean | null>;
   @ApiProperty({ example: 'mch_abc123' })
   merchant_id!: string;
 
@@ -91,12 +101,6 @@ export class UsageResponse {
   @ApiProperty({ example: 1234 })
   orders_per_month!: number;
 
-  @ApiProperty({ example: 15000 })
-  sessions_per_month!: number;
-
-  @ApiProperty({ example: 800 })
-  ai_conversations_per_month!: number;
-
   @ApiProperty({ example: 2 })
   commerce_connections!: number;
 
@@ -112,8 +116,15 @@ export class UsageResponse {
   @ApiProperty({ example: 10 })
   active_coupons!: number;
 
-  @ApiProperty({ example: { orders_per_month: 5000, sessions_per_month: 50000 } })
+  @ApiProperty({ example: { orders_per_month: 5000, commerce_connections: 2 } })
   limits!: Record<string, number | null>;
+
+  commercial_status?: "active" | "warning" | "grace" | "suspended";
+  grace_expires_at?: string;
+  usage_period_end?: string;
+  orders_overage?: number;
+  required_plan?: string;
+  can_accept_orders?: boolean;
 }
 
 export class InvoiceResponse {
@@ -199,6 +210,11 @@ export class BillingHolderInfoDto {
 }
 
 export class SubscribeToPlanDto {
+  @ApiPropertyOptional({ enum: ["monthly", "annual"], default: "monthly" })
+  @IsOptional()
+  @IsEnum(["monthly", "annual"])
+  billingCycle?: "monthly" | "annual";
+
   @ApiProperty({ example: 'growth', enum: ['growth', 'scale'] })
   @IsEnum(['growth', 'scale'])
   @IsNotEmpty()
@@ -236,4 +252,15 @@ export class PlansListResponse {
     features: string[];
     ctaLabel: string;
   }>;
+}
+
+export class ChangeSubscriptionPlanDto {
+  @ApiProperty({ enum: ["starter", "growth", "scale"] })
+  @IsEnum(["starter", "growth", "scale"])
+  targetPlan!: "starter" | "growth" | "scale";
+
+  @ApiPropertyOptional({ enum: ["monthly", "annual"] })
+  @IsOptional()
+  @IsEnum(["monthly", "annual"])
+  billingCycle?: "monthly" | "annual";
 }

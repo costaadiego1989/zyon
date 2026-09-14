@@ -1,4 +1,5 @@
-import { Injectable, Logger } from "@nestjs/common";
+import type { BillingCycle } from "@zyon/shared-types";
+import { BadRequestException, Injectable, Logger } from "@nestjs/common";
 import type {
   BillingProviderPort,
   BillingCustomerInput,
@@ -88,7 +89,7 @@ export class AsaasBillingProvider implements BillingProviderPort {
       customer: input.customerId,
       billingType: "CREDIT_CARD",
       value: Number(input.valueBrl.toFixed(2)),
-      cycle: "MONTHLY",
+      cycle: input.billingCycle === "annual" ? "YEARLY" : "MONTHLY",
       nextDueDate: this.nextDueDate(),
       description: `Zyon plano ${input.planKey}`,
       externalReference: `billing_${input.planKey}`
@@ -132,13 +133,26 @@ export class AsaasBillingProvider implements BillingProviderPort {
     return { subscriptionId: json.id, status: json.status ?? "ACTIVE" };
   }
 
-  async updateSubscription(input: { subscriptionId: string; valueBrl: number }): Promise<{ status: string }> {
+  async updateSubscription(input: { subscriptionId: string; valueBrl: number; billingCycle?: BillingCycle; nextDueDate?: string }): Promise<{ status: string }> {
+    if (input.nextDueDate) {
+      // Generated invoices keep their original due dates when a recurrence changes.
+      // Require them to be settled before changing the interval to avoid repricing them.
+      const pending = await this.fetchImpl(this.base + "/v3/subscriptions/" + encodeURIComponent(input.subscriptionId) + "/payments?status=PENDING&limit=1", {
+        headers: this.headers(), signal: AbortSignal.timeout(15_000),
+      });
+      if (!pending.ok) throw new Error("asaas_billing_pending_lookup_failed");
+      const payments = await pending.json() as { data?: unknown[]; totalCount?: number };
+      if (!Array.isArray(payments.data) || payments.data.length || payments.totalCount) throw new BadRequestException("billing_generated_payment_requires_review");
+    }
     const res = await this.fetchImpl(
       `${this.base}/v3/subscriptions/${encodeURIComponent(input.subscriptionId)}`,
       {
         method: "PUT",
         headers: this.headers(),
-        body: JSON.stringify({ value: Number(input.valueBrl.toFixed(2)), updatePendingPayments: true }),
+        body: JSON.stringify({ value: Number(input.valueBrl.toFixed(2)), updatePendingPayments: !input.nextDueDate,
+          ...(input.billingCycle ? { cycle: input.billingCycle === "annual" ? "YEARLY" : "MONTHLY" } : {}),
+          ...(input.nextDueDate ? { nextDueDate: input.nextDueDate } : {}),
+        }),
         signal: AbortSignal.timeout(15_000)
       }
     );

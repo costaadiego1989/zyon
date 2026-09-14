@@ -40,7 +40,7 @@ import { GetBillingUsageUseCase } from '../../application/get-billing-usage.use-
 import { ListBillingInvoicesUseCase } from '../../application/list-billing-invoices.use-case.js';
 import { BillingEntityMapper } from '../../application/mappers/billing-entity.mapper.js';
 import {
-  ChangePlanDto,
+  ChangeSubscriptionPlanDto,
   PlanResponse,
   SubscriptionResponse,
   UsageResponse,
@@ -76,7 +76,7 @@ export class BillingV1Controller {
   async checkout(@Req() req: any, @Body() body: CreateBillingCheckoutDto) {
     const plan = body.plan ?? body.price_id;
     if (!plan || plan === 'starter') throw new BadRequestException('billing_paid_plan_required');
-    return this.createBillingCheckout.execute({ merchantId: req.tenantPrincipal.tenantId, email: req.tenantPrincipal.email, plan });
+    return this.createBillingCheckout.execute({ merchantId: req.tenantPrincipal.tenantId, email: req.tenantPrincipal.email, plan, billingCycle: body.billingCycle });
   }
 
   @Post('portal-session')
@@ -128,6 +128,7 @@ export class BillingV1Controller {
     await this.subscribeToPlanUseCase.execute({
       merchantId,
       planKey: body.planKey,
+      billingCycle: body.billingCycle,
       card: body.card,
       holderInfo: body.holderInfo,
       remoteIp: body.remoteIp,
@@ -141,15 +142,14 @@ export class BillingV1Controller {
   @HttpCode(HttpStatus.OK)
   @RequireTenantAccess({ humanOnly: true })
   @ApiOperation({ summary: 'Change subscription plan (upgrade/downgrade)' })
-  @ApiBody({ type: ChangePlanDto })
+  @ApiBody({ type: ChangeSubscriptionPlanDto })
   @ApiOkResponse({ description: 'Plan change initiated' })
-  async changePlan(@Req() req: any, @Body() body: ChangePlanDto) {
+  async changePlan(@Req() req: any, @Body() body: ChangeSubscriptionPlanDto) {
     const merchantId = req.tenantPrincipal?.tenantId;
-    const targetPlan = (body as { targetPlan?: string; plan?: string }).targetPlan
-      ?? (body as { plan?: string }).plan;
     await this.changeSubscriptionPlanUseCase.execute({
       merchantId,
-      targetPlanKey: targetPlan as "starter" | "growth" | "scale",
+      targetPlanKey: body.targetPlan,
+      billingCycle: body.billingCycle,
     });
     const result = await this.getSubscriptionUseCase.execute(merchantId);
     return BillingEntityMapper.toSubscriptionResponse(result);

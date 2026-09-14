@@ -319,3 +319,5 @@ export interface DashboardOverview {
     recent_sessions: CheckoutSession[];
     recent_offers: AuthorizedOffer[];
 }
+
+export * from "./billing-offers.js";

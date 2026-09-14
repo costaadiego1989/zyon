@@ -1,3 +1,4 @@
+import type { BillingCycle, BillingOffer } from "@zyon/shared-types";
 import type {
   AsaasSubaccountInput,
   BillingPlan,
@@ -17,7 +18,7 @@ export interface PaymentPlatformEnvironment {
 }
 
 export interface BillingConfigPort {
-  priceId(plan: BillingPlan): string;
+  priceId(plan: BillingPlan, cycle?: BillingCycle): string;
   consoleUrl(): string;
 }
 
@@ -30,6 +31,7 @@ export interface StripeConnectAccountStatus {
 }
 
 export interface StripePlatformPort {
+  scheduleBillingChange?(input: { subscriptionId: string; priceId: string; offer: BillingOffer; merchantId: string }): Promise<{ effectiveAt: string }>;
   retrieveBillingSubscription(subscriptionId: string): Promise<StripeBillingSubscription>;
   listBillingInvoices(customerId: string): Promise<StripeBillingInvoice[]>;
   createConnectAccount(input: {
@@ -54,6 +56,7 @@ export interface StripePlatformPort {
     merchantId: string;
     customerId: string;
     priceId: string;
+    offer?: BillingOffer;
     successUrl: string;
     cancelUrl: string;
   }): Promise<{ url: string; sessionId: string }>;
@@ -68,6 +71,9 @@ export interface StripeBillingSubscription {
   customerId: string;
   subscriptionId: string;
   priceId?: string;
+  billingCycle?: BillingCycle;
+  billingAmountCents?: number;
+  billingDiscountPercent?: number;
   status: BillingSubscriptionStatus;
   currentPeriodEnd?: string;
   cancelAtPeriodEnd: boolean;

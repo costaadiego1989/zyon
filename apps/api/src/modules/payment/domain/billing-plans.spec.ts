@@ -4,6 +4,7 @@ import {
   BILLING_PLANS,
   BUYER_SERVICE_FEE_CENTS,
   effectiveBillingPlan,
+  isBillingFeatureEnabled,
   planFromPriceId,
   merchantTransactionFeeCentsFor,
 } from "./billing-plans.js";
@@ -20,10 +21,15 @@ test("BILLING_PLANS matches Free R$2,99 after trial, Growth R$349 and Scale R$59
   assert.equal(BILLING_PLANS.starter.features.publicApiV1, false);
   assert.equal(BILLING_PLANS.starter.features.abTests, false);
 
+  for (const plan of Object.values(BILLING_PLANS)) {
+    assert.equal("sessionsPerMonth" in plan.limits, false);
+    assert.equal("aiConversationsPerMonth" in plan.limits, false);
+  }
+
   // Growth
+  assert.equal(BILLING_PLANS.growth.limits.ordersPerMonth, 500);
   assert.equal(BILLING_PLANS.growth.monthlyPriceBrl, 349);
   assert.equal(BILLING_PLANS.growth.transactionFeeCents, 149);
-  assert.equal(BILLING_PLANS.growth.limits.sessionsPerMonth, 1_000);
   assert.equal(BILLING_PLANS.growth.limits.commerceConnections, 2);
   assert.equal(BILLING_PLANS.growth.features.whiteLabel, true); // paga = remove badge
   assert.equal(BILLING_PLANS.growth.features.publicApiV1, true);
@@ -72,4 +78,11 @@ test("expired or inactive subscriptions fall back to Starter", () => {
   assert.equal(effectiveBillingPlan({ status: "cancelled", stripePriceId: undefined }), "starter");
   assert.equal(effectiveBillingPlan({ status: "trialing", trialEndsAt: "2020-01-01T00:00:00.000Z", stripePriceId: undefined }), "starter");
   assert.equal(merchantTransactionFeeCentsFor({ status: "cancelled", stripePriceId: undefined }), 299);
+});
+
+test("custom domain entitlement requires an active Growth or Scale subscription", () => {
+  assert.equal(isBillingFeatureEnabled({ status: "active", planKey: "growth" }, "customDomain"), true);
+  assert.equal(isBillingFeatureEnabled({ status: "active", planKey: "scale" }, "customDomain"), true);
+  assert.equal(isBillingFeatureEnabled({ status: "active", planKey: "starter" }, "customDomain"), false);
+  assert.equal(isBillingFeatureEnabled({ status: "cancelled", planKey: "growth" }, "customDomain"), false);
 });

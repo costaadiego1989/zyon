@@ -74,6 +74,11 @@ test("Asaas subscription creation does not grant paid access before the first co
   await new HandleAsaasBillingWebhookUseCase(repository).execute({
     event: "PAYMENT_CONFIRMED",
     subscriptionId: "sub_asaas_1",
+    eventId: "evt_asaas_pending_confirmed",
+    paymentId: "pay_asaas_pending",
+    paymentValueCents: 34_900,
+    paymentDueAt: "2026-09-15T00:00:00.000Z",
+    occurredAt: "2026-09-15T12:00:00.000Z",
   });
   const active = await repository.getBilling("asaas_pending");
   assert.equal(active?.status, "active");

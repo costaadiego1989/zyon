@@ -12,6 +12,7 @@ import { BillingPlanMeteringService } from "../../../domain/billing-plan-guard.j
 import type { BillingSubscriptionWithPlanSnapshot } from "../../../domain/payment-platform.types.js";
 import { readBuyerServiceFeeCents } from "../../../infrastructure/stripe-env.js";
 import { scheduleTrialExpiration } from "../shared.js";
+import { OrderQuotaService } from "../../services/order-quota.service.js";
 
 @Injectable()
 export class GetBillingSubscriptionUseCase {
@@ -22,6 +23,7 @@ export class GetBillingSubscriptionUseCase {
     @Inject(BILLING_TRIAL_JOB_QUEUE)
     private readonly trialJobs?: BillingTrialJobQueue,
     private readonly metering?: BillingPlanMeteringService,
+    private readonly orderQuota?: OrderQuotaService,
   ) {}
 
   async execute(merchantId: string): Promise<BillingSubscriptionWithPlanSnapshot> {
@@ -31,6 +33,7 @@ export class GetBillingSubscriptionUseCase {
     const config = BILLING_PLANS[plan];
     const trial = freeTrialState(subscription);
     const usage = await this.metering?.getUsage(merchantId);
+    const commercial = await this.orderQuota?.getSnapshot(merchantId);
     return {
       ...subscription,
       plan,
@@ -43,7 +46,7 @@ export class GetBillingSubscriptionUseCase {
       limits: config.limits,
       features: config.features,
       usage,
+      commercial,
     };
   }
 }
-

@@ -21,8 +21,6 @@ import type { BillingPlan, BillingSubscriptionSnapshot } from "../../domain/paym
 export type BillingUsageSnapshot = {
   periodStart: string;
   ordersPerMonth: number;
-  sessionsPerMonth: number;
-  aiConversationsPerMonth: number;
   commerceConnections: number;
   webhookEndpoints: number;
   teamMembers: number;
@@ -81,16 +79,13 @@ export class BillingPlanMeteringService {
   async getUsage(merchantId: string, now = new Date()): Promise<BillingUsageSnapshot> {
     const scopedMerchantId = merchantId.trim();
     const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const [orders, sessions, connections, endpoints, members, promos, coupons, chatSessions] = await Promise.all([
+    const [orders, connections, endpoints, members, promos, coupons] = await Promise.all([
       this.prisma.completedOrder.count({
         where: {
           merchantId: scopedMerchantId,
           status: "approved",
           completedAt: { gte: periodStart },
         },
-      }),
-      this.prisma.checkoutSession.count({
-        where: { merchantId: scopedMerchantId, createdAt: { gte: periodStart } },
       }),
       this.prisma.merchantCommerceConnection.count({
         where: { merchantId: scopedMerchantId, status: { not: "disconnected" } },
@@ -107,20 +102,11 @@ export class BillingPlanMeteringService {
       this.prisma.coupon.count({
         where: { merchantId: scopedMerchantId, status: "active" },
       }),
-      this.prisma.checkoutSession.findMany({
-        where: { merchantId: scopedMerchantId, createdAt: { gte: periodStart } },
-        select: { chatHistory: true },
-      }),
     ]);
 
     return {
       periodStart: periodStart.toISOString(),
       ordersPerMonth: orders,
-      sessionsPerMonth: sessions,
-      aiConversationsPerMonth: chatSessions.reduce((sum, session) => {
-        const turns = Array.isArray(session.chatHistory) ? session.chatHistory : [];
-        return sum + (turns.some((turn) => isAgentTurn(turn)) ? 1 : 0);
-      }, 0),
       commerceConnections: connections,
       webhookEndpoints: endpoints,
       teamMembers: members,
@@ -147,6 +133,10 @@ export class BillingPlanMeteringService {
       }
       return;
     }
+
+    // Sales admission belongs exclusively to OrderQuotaService, which grants
+    // the 72-hour window and records the suspension durably.
+    if (requirement.key === "ordersPerMonth") return;
 
     const limit = config.limits[requirement.key];
     if (limit === null) return;
@@ -223,10 +213,6 @@ function toBillingStatus(status: string): BillingSubscriptionSnapshot["status"] 
     status === "incomplete"
   ) return status;
   return status === "canceled" ? "cancelled" : "trialing";
-}
-
-function isAgentTurn(turn: unknown): boolean {
-  return Boolean(turn && typeof turn === "object" && (turn as { role?: unknown }).role === "agent");
 }
 
 function requiredPlanForFeature(feature: BillingPlanFeatureKey): BillingPlan {

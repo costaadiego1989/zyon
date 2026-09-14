@@ -1,3 +1,6 @@
+import type { BillingCycle } from "@zyon/shared-types";
+import type { OrderQuotaSnapshot } from "./services/order-quota.types.js";
+
 export type PaymentConnectionProvider = "stripe" | "asaas" | "mercadopago";
 export type BillingPlan = "starter" | "growth" | "scale";
 export type PaymentConnectionEnvironment = "test" | "live";
@@ -49,6 +52,18 @@ export interface BillingSubscriptionSnapshot {
   asaasCustomerId?: string;
   asaasSubscriptionId?: string;
   pendingPlanKey?: BillingPlan;
+  pendingUpgradePlanKey?: BillingPlan;
+  pendingUpgradeAmountCents?: number;
+  pendingUpgradeRequestedAt?: string;
+  billingAmountCents?: number;
+  billingCycle?: BillingCycle;
+  billingDiscountPercent?: number;
+  pendingBillingCycle?: BillingCycle;
+  pendingBillingAmountCents?: number;
+  pendingBillingDiscountPercent?: number;
+  lastBillingEventAt?: string;
+  lastBillingPaymentId?: string;
+  lastBillingPaymentDueAt?: string;
   pendingPlanEffectiveAt?: string;
   /** When the provider recurrence was suspended for a period-end cancellation. */
   providerCancellationScheduledAt?: string;
@@ -57,8 +72,6 @@ export interface BillingSubscriptionSnapshot {
 export interface BillingUsageSnapshot {
   periodStart: string;
   ordersPerMonth: number;
-  sessionsPerMonth: number;
-  aiConversationsPerMonth: number;
   commerceConnections: number;
   webhookEndpoints: number;
   teamMembers: number;
@@ -77,6 +90,7 @@ export interface BillingSubscriptionWithPlanSnapshot extends BillingSubscription
   limits: Record<string, number | null>;
   features: Record<string, boolean>;
   usage?: BillingUsageSnapshot;
+  commercial?: OrderQuotaSnapshot;
 }
 
 export interface AsaasSubaccountInput {

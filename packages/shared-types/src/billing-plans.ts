@@ -7,11 +7,11 @@ export const BILLING_PLAN_PRESENTATION = {
   },
   growth: {
     eyebrow: "Para vender com consistência", badge: "Recomendado", includes: "Mais inteligência para sua rotina",
-    description: "Para quem já tem uma rotina de vendas e quer automatizar mais. Amplie o atendimento, dê conhecimento à IA e trabalhe com regras comerciais avançadas.",
+    description: "Para quem já tem uma rotina de vendas e quer automatizar mais. Atenda por texto e voz, use sua base de conhecimento, configure entregas e conecte seu domínio próprio.",
   },
   scale: {
     eyebrow: "Para operações em expansão", badge: "Escala", includes: "Capacidade para o próximo nível",
-    description: "Para empresas que precisam de capacidade, marca própria e inteligência comercial avançada. Expanda a operação com análise, experimentação e agentes.",
+    description: "Para empresas que precisam de capacidade, marca própria e inteligência comercial avançada. Inclui compras sem limite mensal, análise, experimentação e agentes. Alto consumo e integrações especiais têm condições sob consulta.",
   },
 } as const;
 
@@ -30,9 +30,7 @@ export const BILLING_FEATURE_LABELS: Record<string, string> = {
 export function billingLimitHighlights(limits: Record<string, number | null | undefined>): string[] {
   const count = (value: number) => value.toLocaleString("pt-BR");
   const entries: Array<[string,string,string]> = [
-    ["ordersPerMonth","pedidos por mês","Pedidos sem limite"],
-    ["sessionsPerMonth","sessões por mês","Sessões sem limite"],
-    ["aiConversationsPerMonth","conversas com IA por mês","Conversas com IA sem limite"],
+    ["ordersPerMonth","compras confirmadas por mês","Compras sem limite mensal"],
     ["commerceConnections","conexões de comércio","Conexões de comércio sem limite"],
     ["teamMembers","membros na equipe","Equipe sem limite"],
     ["activeCoupons","cupons ativos","Cupons sem limite"],
@@ -52,8 +50,6 @@ export function billingLimitHighlights(limits: Record<string, number | null | un
 
 export type BillingPlanLimitKey =
   | "ordersPerMonth"
-  | "sessionsPerMonth"
-  | "aiConversationsPerMonth"
   | "commerceConnections"
   | "webhookEndpoints"
   | "teamMembers"
@@ -78,8 +74,8 @@ export type BillingPlanFeatureKey =
   | "postSale"
   | "crmIntegrations"
   | "aiSpreadsheetImport"
-  // Scale (otimização autônoma + M2M)
   | "customDomain"
+  // Scale (otimização autônoma + M2M)
   | "revenueManager"
   | "m2mAgents"
   // Product surface expansion (rich blocks, FAQ, testimonials, videos)
@@ -114,8 +110,6 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
     transactionFeeCents: 299,
     limits: {
       ordersPerMonth: 100,
-      sessionsPerMonth: 100,
-      aiConversationsPerMonth: 100,
       commerceConnections: 1,
       webhookEndpoints: UNLIMITED,
       teamMembers: 1,
@@ -151,8 +145,6 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
     transactionFeeCents: 149,
     limits: {
       ordersPerMonth: 500,
-      sessionsPerMonth: 1_000,
-      aiConversationsPerMonth: 5_000,
       commerceConnections: 2,
       webhookEndpoints: UNLIMITED,
       teamMembers: 3,
@@ -174,7 +166,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       advancedRules: true,
       knowledgeBase: true,
       postSale: true,
-      customDomain: false,
+      customDomain: true,
       crmIntegrations: true,
       aiSpreadsheetImport: true,
       revenueManager: false,
@@ -188,8 +180,6 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
     transactionFeeCents: 99,
     limits: {
       ordersPerMonth: UNLIMITED,
-      sessionsPerMonth: UNLIMITED,
-      aiConversationsPerMonth: UNLIMITED,
       commerceConnections: UNLIMITED,
       webhookEndpoints: UNLIMITED,
       teamMembers: 10,

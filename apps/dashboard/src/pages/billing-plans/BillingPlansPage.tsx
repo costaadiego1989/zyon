@@ -1,3 +1,5 @@
+import { BillingCycleSelector } from "./components/BillingCycleSelector.js";
+import { billingMoney, selectedBillingOffer } from "./plan-catalog.js";
 import React from "react";
 import { useBillingPlansPage } from "./useBillingPlansPage.js";
 import { CurrentPlanCard } from "./components/CurrentPlanCard.js";
@@ -63,22 +65,10 @@ export function BillingPlansPage() {
 
   const meters: UsageMeter[] = [
     {
-      label: "Pedidos",
+      label: "Compras confirmadas",
       current: sub.usage?.orders_current ?? 0,
       limit: sub.usage?.orders_limit ?? null,
       percentage: vm.usagePercentages.orders,
-    },
-    {
-      label: "Sessões",
-      current: sub.usage?.sessions_current ?? 0,
-      limit: sub.usage?.sessions_limit ?? null,
-      percentage: vm.usagePercentages.sessions,
-    },
-    {
-      label: "Conversas IA",
-      current: sub.usage?.ai_conversations_current ?? 0,
-      limit: sub.usage?.ai_conversations_limit ?? null,
-      percentage: vm.usagePercentages.aiConversations,
     },
     {
       label: "Conexões",
@@ -93,7 +83,7 @@ export function BillingPlansPage() {
       {header}
 
       {/* Overage warning: Starter/Growth excedeu limite de pedidos */}
-      {vm.usagePercentages.orders >= 100 && (
+      {sub.usage?.commercial_status === "grace" && (
         <div style={{
           padding: "14px 16px",
           borderRadius: 10,
@@ -109,8 +99,25 @@ export function BillingPlansPage() {
             <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
           <div style={{ font: "500 12.5px var(--font-sans)", color: "var(--color-text)" }}>
-            Você ultrapassou o limite de pedidos do plano. Suas vendas continuam normalmente — considere fazer upgrade para um plano com mais capacidade.
+            O limite mensal de pedidos foi atingido. Sua loja continua recebendo pedidos até {sub.usage?.grace_expires_at ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(sub.usage.grace_expires_at)) : "o fim das 72 horas"}. Atualize o plano para manter a operação ativa.
           </div>
+        </div>
+      )}
+
+      {sub.usage?.commercial_status === "suspended" && (
+        <div role="alert" style={{
+          padding: "14px 16px",
+          borderRadius: 10,
+          background: "color-mix(in oklab, var(--color-error) 10%, transparent)",
+          border: "1px solid color-mix(in oklab, var(--color-error) 30%, transparent)",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          marginBottom: 8,
+          color: "var(--color-text)",
+          font: "500 12.5px var(--font-sans)",
+        }}>
+          Novos pedidos estão suspensos porque a janela de 72 horas terminou. Atualize o plano para reabrir a loja agora ou aguarde o início das cotas do próximo mês.
         </div>
       )}
 
@@ -139,11 +146,15 @@ export function BillingPlansPage() {
       {new URLSearchParams(window.location.search).get("billing") === "success" && (
         <p role="status">Pagamento enviado. A assinatura será atualizada após a confirmação. <button type="button" onClick={() => void vm.refresh()}>Atualizar</button></p>
       )}
+      {vm.notice && <p role="status">{vm.notice}</p>}
+      {sub.pending_plan && sub.pending_effective_at && <p role="status">Alteração agendada: {sub.pending_plan === "growth" ? "Growth" : sub.pending_plan === "scale" ? "Scale" : "Free"}, {sub.pending_billing_cycle === "annual" ? "anual" : "mensal"}, a partir de {new Date(sub.pending_effective_at).toLocaleDateString("pt-BR")}. {sub.pending_billing_amount_cents != null && <>Próxima cobrança: {billingMoney(sub.pending_billing_amount_cents)}.</>}</p>}
       {/* Current plan + Usage */}
       <div className="billing-plans__top-grid">
         <CurrentPlanCard
           planName={sub.plan_name ?? currentPlanDef?.name ?? sub.plan}
           monthlyPrice={sub.monthly_price_brl ?? currentPlanDef?.price ?? 0}
+          billingCycle={sub.billing_cycle}
+          billingAmountCents={sub.billing_amount_cents}
           transactionFeeCents={sub.transaction_fee_cents ?? 0}
           nextBillingDate={sub.status === "trialing" ? sub.trial_end : sub.current_period_end}
           daysRemaining={vm.daysRemaining}
@@ -168,20 +179,30 @@ export function BillingPlansPage() {
         >
           PLANOS DISPONÍVEIS
         </div>
+        <BillingCycleSelector value={vm.billingCycle} onChange={vm.setBillingCycle} annualAvailable={vm.annualAvailable} discountPercent={vm.discountPercent} />
+        {vm.pendingChange && <div className="billing-plans__change-review" role="region" aria-label="Revisar alteração">
+          <h3>Confira a alteração</h3>
+          <p>{vm.pendingChange.name} · {vm.billingCycle === "annual" ? "anual" : "mensal"} · {billingMoney(selectedBillingOffer(vm.pendingChange, vm.billingCycle)!.amountCents)} por período.</p>
+          <p>A alteração depende da próxima cobrança confirmada{sub.current_period_end ? ", prevista para " + new Date(sub.current_period_end).toLocaleDateString("pt-BR") : ""}. As cotas de compras continuam mensais. As tarifas por transação são cobradas separadamente.</p>
+          <button type="button" disabled={vm.upgrading} onClick={() => void vm.confirmChange()}>Confirmar alteração</button>{" "}
+          <button type="button" disabled={vm.upgrading} onClick={vm.dismissChange}>Voltar</button>
+        </div>}
         <div className="billing-plans__plans-grid">
           {vm.plans.map((plan) => {
             const planIndex = getPlanIndex(plan.key);
-            const isCurrent = plan.key === vm.currentPlan;
+            const isCurrent = plan.key === vm.currentPlan && (plan.key === "starter" || vm.billingCycle === (sub.billing_cycle ?? "monthly"));
             const isDowngrade = planIndex < currentPlanIndex;
 
             return (
               <PlanCard
                 key={plan.key}
                 plan={plan}
+                billingCycle={vm.billingCycle}
                 isCurrent={isCurrent}
                 isDowngrade={isDowngrade}
                 onUpgrade={() => void vm.upgrade(plan.key)}
-                upgrading={vm.upgrading}
+                upgrading={vm.upgrading || Boolean(sub.pending_plan)}
+                actionLabel={plan.key === vm.currentPlan && !isCurrent ? (vm.billingCycle === "annual" ? "Mudar para anual" : "Mudar para mensal") : undefined}
               />
             );
           })}

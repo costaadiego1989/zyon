@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { CreditCard, Receipt, Activity, Zap, BarChart3 } from "lucide-react";
+import { CreditCard, Receipt, Activity, BarChart3 } from "lucide-react";
 import { EmptyState } from "../components/EmptyState.js";
 import {
   type BillingSubscription,
@@ -183,13 +183,8 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
         </article>
         <article style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: 20, display: "flex", flexDirection: "column", gap: 8 }}>
           <Activity size={18} aria-hidden="true" style={{ color: "var(--color-brand)" }} />
-          <span style={{ font: "700 24px var(--font-serif)", color: "var(--color-text)" }}>{subscription?.usage?.sessions_current ?? "—"}</span>
-          <span style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>Sessões este mês</span>
-        </article>
-        <article style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: 20, display: "flex", flexDirection: "column", gap: 8 }}>
-          <Zap size={18} aria-hidden="true" style={{ color: "var(--color-brand)" }} />
-          <span style={{ font: "700 24px var(--font-serif)", color: "var(--color-text)" }}>{subscription?.usage?.ai_conversations_current ?? "—"}</span>
-          <span style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>Conversas IA este mês</span>
+          <span style={{ font: "700 24px var(--font-serif)", color: "var(--color-text)" }}>{subscription?.usage?.orders_current ?? "—"}</span>
+          <span style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>Pedidos este mês</span>
         </article>
         <article style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: 20, display: "flex", flexDirection: "column", gap: 8 }}>
           <CreditCard size={18} aria-hidden="true" style={{ color: "var(--color-brand)" }} />
@@ -228,8 +223,6 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
           {subscription.usage ? (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
               <UsageBar label="Pedidos" current={subscription.usage.orders_current} limit={subscription.usage.orders_limit} />
-              <UsageBar label="Sessões" current={subscription.usage.sessions_current} limit={subscription.usage.sessions_limit} />
-              <UsageBar label="Conversas IA" current={subscription.usage.ai_conversations_current} limit={subscription.usage.ai_conversations_limit} />
               <UsageBar label="Conexões commerce" current={subscription.usage.commerce_connections_current} limit={subscription.usage.commerce_connections_limit} />
               <UsageBar label="Webhooks" current={subscription.usage.webhook_endpoints_current} limit={subscription.usage.webhook_endpoints_limit} />
               <UsageBar label="Cupons ativos" current={subscription.usage.active_coupons_current} limit={subscription.usage.active_coupons_limit} />

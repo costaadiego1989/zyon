@@ -2,6 +2,9 @@ import { ConflictException } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import type {
   PaymentPlatformRepository,
+  BillingMutation,
+  BillingWebhookMutation,
+  BillingWebhookOutcome,
   SaveBillingSubscriptionInput,
   SavePaymentConnectionInput,
 } from "../domain/ports/payment-platform-repository.port.js";
@@ -151,60 +154,7 @@ export class PrismaPaymentPlatformRepository
   }
 
   async saveBilling(input: SaveBillingSubscriptionInput): Promise<void> {
-    const update = {
-      ...(input.stripeCustomerId !== undefined
-        ? { stripeCustomerId: input.stripeCustomerId || null }
-        : {}),
-      ...(input.stripeSubscriptionId !== undefined
-        ? { stripeSubscriptionId: input.stripeSubscriptionId || null }
-        : {}),
-      ...(input.stripePriceId !== undefined
-        ? { stripePriceId: input.stripePriceId || null }
-        : {}),
-      ...(input.status ? { status: input.status } : {}),
-      ...(input.trialEndsAt !== undefined
-        ? {
-            trialEndsAt: input.trialEndsAt
-              ? new Date(input.trialEndsAt)
-              : null,
-          }
-        : {}),
-      ...(input.currentPeriodEnd !== undefined
-        ? {
-            currentPeriodEnd: input.currentPeriodEnd
-              ? new Date(input.currentPeriodEnd)
-              : null,
-          }
-        : {}),
-      ...(input.cancelAtPeriodEnd !== undefined
-        ? { cancelAtPeriodEnd: input.cancelAtPeriodEnd }
-        : {}),
-      ...(input.provider !== undefined ? { provider: input.provider } : {}),
-      ...(input.planKey !== undefined ? { planKey: input.planKey ?? null } : {}),
-      ...(input.asaasCustomerId !== undefined
-        ? { asaasCustomerId: input.asaasCustomerId || null }
-        : {}),
-      ...(input.asaasSubscriptionId !== undefined
-        ? { asaasSubscriptionId: input.asaasSubscriptionId || null }
-        : {}),
-      ...(input.pendingPlanKey !== undefined
-        ? { pendingPlanKey: input.pendingPlanKey ?? null }
-        : {}),
-      ...(input.pendingPlanEffectiveAt !== undefined
-        ? {
-            pendingPlanEffectiveAt: input.pendingPlanEffectiveAt
-              ? new Date(input.pendingPlanEffectiveAt)
-              : null,
-          }
-        : {}),
-      ...(input.providerCancellationScheduledAt !== undefined
-        ? {
-            providerCancellationScheduledAt: input.providerCancellationScheduledAt
-              ? new Date(input.providerCancellationScheduledAt)
-              : null,
-          }
-        : {}),
-    };
+    const update = billingUpdate(input);
     await this.prisma.merchantBillingSubscription.upsert({
       where: { merchantId: input.merchantId.trim() },
       create: {
@@ -214,6 +164,42 @@ export class PrismaPaymentPlatformRepository
         ...update,
       },
       update,
+    });
+  }
+
+  async mutateBilling(merchantId: string, decide: BillingMutation): Promise<BillingSubscriptionSnapshot | undefined> {
+    const scopedMerchantId = merchantId.trim();
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT merchant_id FROM merchant_billing_subscriptions WHERE merchant_id = ${scopedMerchantId} FOR UPDATE`;
+      const row = await tx.merchantBillingSubscription.findUnique({ where: { merchantId: scopedMerchantId } });
+      if (!row) return undefined;
+      const update = decide(toBilling(row));
+      if (!update) return toBilling(row);
+      if (update.merchantId !== scopedMerchantId) throw new Error("billing_mutation_scope_mismatch");
+      return toBilling(await tx.merchantBillingSubscription.update({ where: { merchantId: scopedMerchantId }, data: billingUpdate(update) }));
+    });
+  }
+
+  async processBillingWebhook(input: BillingWebhookMutation, decide: BillingMutation): Promise<BillingWebhookOutcome> {
+    return this.prisma.$transaction(async (tx) => {
+      // The event lock also serializes a replay that names another subscription.
+      const eventLock = `asaas-billing-event:${input.eventId}`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${eventLock}))`;
+      const duplicate = await tx.billingWebhookEvent.findUnique({ where: { provider_eventId: { provider: "asaas", eventId: input.eventId } } });
+      if (duplicate) return "duplicate";
+      await tx.$queryRaw`SELECT merchant_id FROM merchant_billing_subscriptions WHERE merchant_id = ${input.merchantId} FOR UPDATE`;
+      const row = await tx.merchantBillingSubscription.findUnique({ where: { merchantId: input.merchantId } });
+      const update = row && row.asaasSubscriptionId === input.subscriptionId && row.provider !== "stripe"
+        ? decide(toBilling(row)) : undefined;
+      if (update) {
+        if (update.merchantId !== input.merchantId) throw new Error("billing_mutation_scope_mismatch");
+        await tx.merchantBillingSubscription.update({ where: { merchantId: input.merchantId }, data: billingUpdate(update) });
+      }
+      const outcome = update ? "processed" : "ignored";
+      await tx.billingWebhookEvent.create({ data: { provider: "asaas", eventId: input.eventId,
+        merchantId: input.merchantId, subscriptionId: input.subscriptionId, paymentId: input.paymentId,
+        occurredAt: new Date(input.occurredAt), outcome } });
+      return outcome;
     });
   }
 
@@ -407,6 +393,18 @@ function toBilling(row: {
   asaasCustomerId?: string | null;
   asaasSubscriptionId?: string | null;
   pendingPlanKey?: string | null;
+  pendingUpgradePlanKey?: string | null;
+  pendingUpgradeAmountCents?: number | null;
+  pendingUpgradeRequestedAt?: Date | null;
+  billingAmountCents?: number | null;
+  billingCycle?: string | null;
+  billingDiscountPercent?: number | null;
+  pendingBillingCycle?: string | null;
+  pendingBillingAmountCents?: number | null;
+  pendingBillingDiscountPercent?: number | null;
+  lastBillingEventAt?: Date | null;
+  lastBillingPaymentId?: string | null;
+  lastBillingPaymentDueAt?: Date | null;
   pendingPlanEffectiveAt?: Date | null;
   providerCancellationScheduledAt?: Date | null;
 }): BillingSubscriptionSnapshot {
@@ -426,6 +424,18 @@ function toBilling(row: {
     asaasCustomerId: row.asaasCustomerId ?? undefined,
     asaasSubscriptionId: row.asaasSubscriptionId ?? undefined,
     pendingPlanKey: toPlanKey(row.pendingPlanKey),
+    pendingUpgradePlanKey: toPlanKey(row.pendingUpgradePlanKey),
+    pendingUpgradeAmountCents: row.pendingUpgradeAmountCents ?? undefined,
+    pendingUpgradeRequestedAt: row.pendingUpgradeRequestedAt?.toISOString(),
+    billingAmountCents: row.billingAmountCents ?? undefined,
+    billingCycle: row.billingCycle === "annual" ? "annual" : "monthly",
+    billingDiscountPercent: row.billingDiscountPercent ?? 0,
+    pendingBillingCycle: row.pendingBillingCycle === "annual" ? "annual" : row.pendingBillingCycle === "monthly" ? "monthly" : undefined,
+    pendingBillingAmountCents: row.pendingBillingAmountCents ?? undefined,
+    pendingBillingDiscountPercent: row.pendingBillingDiscountPercent ?? undefined,
+    lastBillingEventAt: row.lastBillingEventAt?.toISOString(),
+    lastBillingPaymentId: row.lastBillingPaymentId ?? undefined,
+    lastBillingPaymentDueAt: row.lastBillingPaymentDueAt?.toISOString(),
     pendingPlanEffectiveAt: row.pendingPlanEffectiveAt?.toISOString(),
     providerCancellationScheduledAt: row.providerCancellationScheduledAt?.toISOString(),
   };
@@ -450,4 +460,73 @@ function toBillingStatus(
     return status;
   }
   return "trialing";
+}
+
+function billingUpdate(input: SaveBillingSubscriptionInput) {
+  return {
+      ...(input.stripeCustomerId !== undefined
+        ? { stripeCustomerId: input.stripeCustomerId || null }
+        : {}),
+      ...(input.stripeSubscriptionId !== undefined
+        ? { stripeSubscriptionId: input.stripeSubscriptionId || null }
+        : {}),
+      ...(input.stripePriceId !== undefined
+        ? { stripePriceId: input.stripePriceId || null }
+        : {}),
+      ...(input.status ? { status: input.status } : {}),
+      ...(input.trialEndsAt !== undefined
+        ? {
+            trialEndsAt: input.trialEndsAt
+              ? new Date(input.trialEndsAt)
+              : null,
+          }
+        : {}),
+      ...(input.currentPeriodEnd !== undefined
+        ? {
+            currentPeriodEnd: input.currentPeriodEnd
+              ? new Date(input.currentPeriodEnd)
+              : null,
+          }
+        : {}),
+      ...(input.cancelAtPeriodEnd !== undefined
+        ? { cancelAtPeriodEnd: input.cancelAtPeriodEnd }
+        : {}),
+      ...(input.provider !== undefined ? { provider: input.provider } : {}),
+      ...(input.planKey !== undefined ? { planKey: input.planKey ?? null } : {}),
+      ...(input.asaasCustomerId !== undefined
+        ? { asaasCustomerId: input.asaasCustomerId || null }
+        : {}),
+      ...(input.asaasSubscriptionId !== undefined
+        ? { asaasSubscriptionId: input.asaasSubscriptionId || null }
+        : {}),
+      ...(input.pendingPlanKey !== undefined
+        ? { pendingPlanKey: input.pendingPlanKey ?? null }
+        : {}),
+      ...(input.pendingPlanEffectiveAt !== undefined
+        ? {
+            pendingPlanEffectiveAt: input.pendingPlanEffectiveAt
+              ? new Date(input.pendingPlanEffectiveAt)
+              : null,
+          }
+        : {}),
+      ...(input.providerCancellationScheduledAt !== undefined
+        ? {
+            providerCancellationScheduledAt: input.providerCancellationScheduledAt
+              ? new Date(input.providerCancellationScheduledAt)
+              : null,
+          }
+        : {}),
+      ...(input.pendingUpgradePlanKey !== undefined ? { pendingUpgradePlanKey: input.pendingUpgradePlanKey } : {}),
+      ...(input.pendingUpgradeAmountCents !== undefined ? { pendingUpgradeAmountCents: input.pendingUpgradeAmountCents } : {}),
+      ...(input.billingAmountCents !== undefined ? { billingAmountCents: input.billingAmountCents } : {}),
+      ...(input.billingCycle !== undefined ? { billingCycle: input.billingCycle } : {}),
+      ...(input.billingDiscountPercent !== undefined ? { billingDiscountPercent: input.billingDiscountPercent } : {}),
+      ...(input.pendingBillingCycle !== undefined ? { pendingBillingCycle: input.pendingBillingCycle } : {}),
+      ...(input.pendingBillingAmountCents !== undefined ? { pendingBillingAmountCents: input.pendingBillingAmountCents } : {}),
+      ...(input.pendingBillingDiscountPercent !== undefined ? { pendingBillingDiscountPercent: input.pendingBillingDiscountPercent } : {}),
+      ...(input.lastBillingPaymentId !== undefined ? { lastBillingPaymentId: input.lastBillingPaymentId } : {}),
+      ...(input.pendingUpgradeRequestedAt !== undefined ? { pendingUpgradeRequestedAt: input.pendingUpgradeRequestedAt ? new Date(input.pendingUpgradeRequestedAt) : null } : {}),
+      ...(input.lastBillingEventAt !== undefined ? { lastBillingEventAt: input.lastBillingEventAt ? new Date(input.lastBillingEventAt) : null } : {}),
+      ...(input.lastBillingPaymentDueAt !== undefined ? { lastBillingPaymentDueAt: input.lastBillingPaymentDueAt ? new Date(input.lastBillingPaymentDueAt) : null } : {}),
+    };
 }

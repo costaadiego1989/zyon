@@ -22,6 +22,7 @@ const cards = Object.entries(BILLING_PLANS).map(([key,plan]) => {
               <p class="plan-description">${copy.description}</p>
               <div class="plan-price">R$ ${plan.monthlyPriceBrl} <small>/mês</small></div>
               <p class="plan-fee">${key === 'starter' ? `Após os 14 dias iniciais: ${fee} por transação.` : `${fee} por transação. Assinatura mensal.`}</p>
+              <p class="plan-annual" hidden></p>
               <span class="plan-includes">${copy.includes}</span>
               <ul class="plan-list">
 ${list(visible)}

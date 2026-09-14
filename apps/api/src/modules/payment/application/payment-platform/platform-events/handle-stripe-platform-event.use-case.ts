@@ -1,10 +1,11 @@
+import type { BillingCycle } from "@zyon/shared-types";
 import { Inject, Injectable } from "@nestjs/common";
 import {
   PAYMENT_PLATFORM_REPOSITORY,
   type PaymentPlatformRepository,
 } from "../../../domain/ports/payment-platform-repository.port.js";
 import type { BillingSubscriptionSnapshot } from "../../../domain/payment-platform.types.js";
-import { planFromPriceId } from "../../../domain/billing-plans.js";
+import { planFromPriceId, cycleFromPriceId } from "../../../domain/billing-plans.js";
 
 @Injectable()
 export class HandleStripePlatformEventUseCase {
@@ -62,6 +63,9 @@ export class HandleStripePlatformEventUseCase {
     customerId: string;
     subscriptionId: string;
     priceId?: string;
+    billingCycle?: BillingCycle;
+    billingAmountCents?: number;
+    billingDiscountPercent?: number;
     status: BillingSubscriptionSnapshot["status"];
     currentPeriodEnd?: string;
     cancelAtPeriodEnd: boolean;
@@ -78,8 +82,20 @@ export class HandleStripePlatformEventUseCase {
     const current = await this.repository.getBilling(merchantId);
     if (current?.stripeSubscriptionId && current.stripeSubscriptionId !== input.subscriptionId &&
         (input.status === "cancelled" || input.status === "incomplete")) return;
+    const nextPlan = planFromPriceId(input.priceId);
+    const nextCycle = input.billingCycle ?? cycleFromPriceId(input.priceId);
+    const applied = input.status === "cancelled" || current?.pendingPlanKey === nextPlan && current?.pendingBillingCycle === nextCycle &&
+      Boolean(current?.pendingPlanEffectiveAt && input.currentPeriodEnd && input.currentPeriodEnd > current.pendingPlanEffectiveAt);
     await this.repository.saveBilling({
       merchantId,
+      billingCycle: nextCycle,
+      billingAmountCents: input.billingAmountCents,
+      billingDiscountPercent: input.billingDiscountPercent,
+      pendingPlanKey: applied ? null : undefined,
+      pendingPlanEffectiveAt: applied ? null : undefined,
+      pendingBillingCycle: applied ? null : undefined,
+      pendingBillingAmountCents: applied ? null : undefined,
+      pendingBillingDiscountPercent: applied ? null : undefined,
       stripeCustomerId: input.customerId,
       stripeSubscriptionId: input.subscriptionId,
       stripePriceId: input.priceId,

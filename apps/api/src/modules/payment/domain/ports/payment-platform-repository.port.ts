@@ -1,3 +1,4 @@
+import type { BillingCycle } from "@zyon/shared-types";
 import type {
   BillingSubscriptionSnapshot,
   PaymentConnectionEnvironment,
@@ -42,9 +43,35 @@ export interface SaveBillingSubscriptionInput {
   pendingPlanKey?: BillingSubscriptionSnapshot["planKey"] | null;
   pendingPlanEffectiveAt?: string | null;
   providerCancellationScheduledAt?: string | null;
+  pendingUpgradePlanKey?: BillingSubscriptionSnapshot["planKey"] | null;
+  pendingUpgradeAmountCents?: number | null;
+  pendingUpgradeRequestedAt?: string | null;
+  billingAmountCents?: number | null;
+  billingCycle?: BillingCycle;
+  billingDiscountPercent?: number;
+  pendingBillingCycle?: BillingCycle | null;
+  pendingBillingAmountCents?: number | null;
+  pendingBillingDiscountPercent?: number | null;
+  lastBillingEventAt?: string | null;
+  lastBillingPaymentId?: string | null;
+  lastBillingPaymentDueAt?: string | null;
 }
 
+export interface BillingWebhookMutation {
+  eventId: string;
+  merchantId: string;
+  subscriptionId: string;
+  paymentId?: string;
+  occurredAt: string;
+}
+
+/** Synchronous decision evaluated against a locked billing snapshot. No remote IO. */
+export type BillingMutation = (current: BillingSubscriptionSnapshot) => SaveBillingSubscriptionInput | undefined;
+export type BillingWebhookOutcome = "processed" | "duplicate" | "ignored";
+
 export interface PaymentPlatformRepository {
+  mutateBilling(merchantId: string, decide: BillingMutation): Promise<BillingSubscriptionSnapshot | undefined>;
+  processBillingWebhook(input: BillingWebhookMutation, decide: BillingMutation): Promise<BillingWebhookOutcome>;
   listConnections(merchantId: string): Promise<PaymentConnectionSnapshot[]>;
   getConnection(
     merchantId: string,

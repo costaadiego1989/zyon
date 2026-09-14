@@ -21,7 +21,7 @@ export class AsaasBillingWebhookController {
     // token is configured we still accept (dev/sandbox), matching how the buyer
     // webhook degrades — but the resolver only mutates a merchant it can find by
     // subscription id, so a spoofed event with an unknown id is a no-op.
-    if (expected && token?.trim() !== expected) {
+    if ((!expected && process.env.NODE_ENV === "production") || (expected && token?.trim() !== expected)) {
       throw new UnauthorizedException("asaas_billing_webhook_token_invalid");
     }
 
@@ -34,6 +34,26 @@ export class AsaasBillingWebhookController {
       (typeof payment.subscription === "string" ? payment.subscription : undefined) ??
       (typeof o.subscription === "string" ? o.subscription : undefined);
 
-    return this.handleBilling.execute({ event, subscriptionId });
+    const eventId = typeof o.id === "string" ? o.id.trim() : undefined;
+    const paymentId = typeof payment.id === "string" ? payment.id.trim() : undefined;
+    const value = typeof payment.value === "number" ? payment.value : undefined;
+    const paymentValueCents = value !== undefined && Number.isFinite(value)
+      ? Math.round(value * 100)
+      : undefined;
+    const paymentDueAt = typeof payment.dueDate === "string" ? payment.dueDate.trim() : undefined;
+    const occurredAt =
+      (typeof payment.paymentDate === "string" ? payment.paymentDate : undefined) ??
+      (typeof o.dateCreated === "string" ? o.dateCreated : undefined) ??
+      new Date().toISOString();
+
+    return this.handleBilling.execute({
+      event,
+      eventId,
+      subscriptionId,
+      paymentId,
+      paymentValueCents,
+      paymentDueAt,
+      occurredAt,
+    });
   }
 }

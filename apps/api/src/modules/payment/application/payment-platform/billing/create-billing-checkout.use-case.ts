@@ -1,3 +1,5 @@
+import type { BillingCycle } from "@zyon/shared-types";
+import { quoteBilling } from "../../../infrastructure/billing-offers.js";
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import {
   STRIPE_PLATFORM_PORT,
@@ -41,9 +43,11 @@ export class CreateBillingCheckoutUseCase {
     merchantId: string;
     email: string;
     plan: BillingPlan;
+    billingCycle?: BillingCycle;
   }): Promise<{ url: string; sessionId: string }> {
     if (input.plan !== "growth" && input.plan !== "scale") throw new BadRequestException("billing_paid_plan_required");
-    const priceId = this.billingConfig.priceId(input.plan);
+    const offer = quoteBilling(input.plan, input.billingCycle);
+    const priceId = this.billingConfig.priceId(input.plan, offer.cycle);
     const profile = await this.merchants.getProfile(input.merchantId);
     if (!profile) throw new NotFoundException("merchant_not_found");
     const billing = await this.repository.getOrCreateTrial(
@@ -78,6 +82,7 @@ export class CreateBillingCheckoutUseCase {
         merchantId: input.merchantId,
         customerId,
         priceId,
+        offer,
         successUrl: `${consoleUrl}/?billing=success#billing-plans`,
         cancelUrl: `${consoleUrl}/?billing=cancelled#billing-plans`,
       });

@@ -1,3 +1,6 @@
+import { PlanNoticeJob } from "./application/services/plan-notice.job.js";
+import { PlanNoticeSender } from "./infrastructure/adapters/plan-notice.sender.js";
+import { PrismaPlanNoticeRepository } from "./infrastructure/repositories/prisma-plan-notice.repository.js";
 import { Module } from "@nestjs/common";
 import { EMAIL_SENDER_PORT } from "./domain/ports/email-sender.port.js";
 import { WHATSAPP_SENDER_PORT } from "./domain/ports/whatsapp-sender.port.js";
@@ -15,9 +18,21 @@ import { MERCHANT_NOTIFICATION_INBOX_PORT } from "./domain/ports/merchant-notifi
 import { PrismaMerchantNotificationInboxRepository } from "./infrastructure/repositories/prisma-merchant-notification-inbox.repository.js";
 import { ManageMerchantNotificationInboxUseCase } from "./application/use-cases/manage-merchant-notification-inbox.use-case.js";
 import { SendMerchantOrderNotificationUseCase } from "./application/use-cases/send-merchant-order-notification.use-case.js";
+import { PaymentModule } from "../payment/payment.module.js";
+import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-templates.module.js";
+import {
+  ORDER_QUOTA_NOTICE_REPOSITORY,
+  ORDER_QUOTA_NOTICE_SENDER,
+  ORDER_QUOTA_NOTICE_VALIDITY,
+} from "./domain/ports/order-quota-notice.port.js";
+import { PrismaOrderQuotaNoticeRepository } from "./infrastructure/repositories/prisma-order-quota-notice.repository.js";
+import { OrderQuotaNoticeSenderAdapter } from "./infrastructure/adapters/order-quota-notice.sender.js";
+import { OrderQuotaNoticeValidityService } from "./application/services/order-quota-notice-validity.service.js";
+import { DeliverOrderQuotaNoticeUseCase } from "./application/use-cases/deliver-order-quota-notice.use-case.js";
+import { OrderQuotaNoticeDeliveryJob } from "./application/services/order-quota-notice-delivery.job.js";
 
 @Module({
-  imports: [PersistenceModule],
+  imports: [PersistenceModule, PaymentModule, WhatsAppTemplatesModule],
   controllers: [MerchantNotificationController],
   providers: [
     {
@@ -36,6 +51,13 @@ import { SendMerchantOrderNotificationUseCase } from "./application/use-cases/se
     OrderTrackingNotificationListener,
     ManageMerchantNotificationInboxUseCase,
     SendMerchantOrderNotificationUseCase,
+    PrismaOrderQuotaNoticeRepository,
+    { provide: ORDER_QUOTA_NOTICE_REPOSITORY, useExisting: PrismaOrderQuotaNoticeRepository },
+    { provide: ORDER_QUOTA_NOTICE_SENDER, useClass: OrderQuotaNoticeSenderAdapter },
+    { provide: ORDER_QUOTA_NOTICE_VALIDITY, useClass: OrderQuotaNoticeValidityService },
+    DeliverOrderQuotaNoticeUseCase,
+    OrderQuotaNoticeDeliveryJob,
+    PlanNoticeJob, PlanNoticeSender, PrismaPlanNoticeRepository,
     { provide: MERCHANT_NOTIFICATION_INBOX_PORT, useClass: PrismaMerchantNotificationInboxRepository },
   ],
   exports: [

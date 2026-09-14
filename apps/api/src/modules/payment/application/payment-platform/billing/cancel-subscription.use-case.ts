@@ -125,6 +125,9 @@ export class CancelSubscriptionUseCase {
       status: "cancelled",
       cancelAtPeriodEnd: false,
       providerCancellationScheduledAt: null,
+      pendingBillingCycle: null,
+      pendingBillingAmountCents: null,
+      pendingBillingDiscountPercent: null,
       pendingPlanKey: null,
       pendingPlanEffectiveAt: null,
     });

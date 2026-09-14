@@ -92,6 +92,11 @@ export class CreateAsaasSubaccountDto {
 }
 
 export class CreateBillingCheckoutDto {
+  @ApiPropertyOptional({ enum: ["monthly", "annual"], default: "monthly" })
+  @IsOptional()
+  @IsIn(["monthly", "annual"])
+  billingCycle?: "monthly" | "annual";
+
   @ApiPropertyOptional({ enum: ["starter", "growth", "scale"] })
   @IsOptional()
   @IsIn(["starter", "growth", "scale"])

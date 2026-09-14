@@ -7,6 +7,7 @@ export interface SendEmailInput {
   from?: string;
   /** Require provider acceptance; never report the development logging fallback as delivery. */
   requireDelivery?: boolean;
+  idempotencyKey?: string;
 }
 
 export interface SendEmailOutput {

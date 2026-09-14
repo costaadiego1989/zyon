@@ -91,8 +91,7 @@ describe("BillingPage Portuguese copy", () => {
       "Login necessário",
       "Histórico de faturas",
       "período",
-      "Conversas IA",
-      "Sessões este mês",
+      "Pedidos este mês",
     ];
 
     for (const str of requiredStrings) {
@@ -172,13 +171,13 @@ describe("BillingSubscription type", () => {
       cancel_at_period_end: false,
       trial_end: null,
       usage: {
-        sessions_current: 4500,
-        sessions_limit: 10000,
+        orders_current: 4500,
+        orders_limit: null,
         installations_current: 3,
         installations_limit: 5,
       },
     };
-    expect(sub.usage?.sessions_current).toBe(4500);
+    expect(sub.usage?.orders_current).toBe(4500);
     expect(sub.usage?.installations_current).toBe(3);
   });
 
@@ -190,13 +189,13 @@ describe("BillingSubscription type", () => {
       cancel_at_period_end: false,
       trial_end: "2026-07-15T00:00:00Z",
       usage: {
-        sessions_current: null,
-        sessions_limit: null,
+        orders_current: null,
+        orders_limit: null,
         installations_current: null,
         installations_limit: null,
       },
     };
-    expect(sub.usage?.sessions_current).toBeNull();
+    expect(sub.usage?.orders_current).toBeNull();
   });
 });
 

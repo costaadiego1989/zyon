@@ -1,0 +1,8 @@
+.billing-cycle{display:inline-flex;flex-wrap:wrap;gap:4px;padding:4px;margin:0 0 20px;border:1px solid var(--color-border);border-radius:12px;background:var(--surface-2)}
+.billing-cycle button{min-height:44px;padding:8px 16px;border:0;border-radius:8px;font:inherit;color:var(--color-text);background:transparent;cursor:pointer}
+.billing-cycle button[aria-pressed="true"]{background:var(--color-brand);color:var(--color-on-brand,#102018);font-weight:600}
+.billing-cycle button:focus-visible{outline:2px solid var(--color-text);outline-offset:2px}
+.billing-cycle button:disabled{opacity:.55;cursor:not-allowed}
+.plan-selection .billing-cycle{background:oklch(97% .014 151);border-color:var(--plan-line)}
+.plan-selection .billing-cycle button{color:var(--plan-ink)}
+.plan-selection .billing-cycle button[aria-pressed="true"]{background:oklch(29% .05 155);color:oklch(97% .014 155)}

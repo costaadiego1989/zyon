@@ -1,3 +1,4 @@
+import { EmailProviderRejection } from "../../domain/ports/email-provider-rejection.js";
 import { Logger } from "@nestjs/common";
 import type { EmailSenderPort, SendEmailInput, SendEmailOutput } from "../../domain/ports/email-sender.port.js";
 
@@ -52,6 +53,7 @@ export class ResendEmailAdapter implements EmailSenderPort {
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
           "Content-Type": "application/json",
+          ...(input.idempotencyKey ? { "Idempotency-Key": input.idempotencyKey } : {}),
         },
         body: JSON.stringify(payload),
         ...(input.requireDelivery ? { signal: AbortSignal.timeout(15_000) } : {}),
@@ -62,6 +64,9 @@ export class ResendEmailAdapter implements EmailSenderPort {
         logger.error(
           `Resend API error (${response.status}): ${error.error || "Unknown error"}`,
         );
+        if (response.status >= 400 && response.status < 500 && ![408,409].includes(response.status)) {
+          throw new EmailProviderRejection(`resend_http_${response.status}`, [401,403,429].includes(response.status), `Resend API error: ${error.error || response.statusText}`);
+        }
         throw new Error(`Resend API error: ${error.error || response.statusText}`);
       }
 

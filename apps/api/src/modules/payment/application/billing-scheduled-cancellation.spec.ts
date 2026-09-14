@@ -118,13 +118,23 @@ test("Asaas inactivation event preserves access until deletion and late payment 
   });
   const handler = new HandleAsaasBillingWebhookUseCase(repository);
 
-  await handler.execute({ event: "SUBSCRIPTION_INACTIVATED", subscriptionId: "sub_webhook" });
+  await handler.execute({
+    event: "SUBSCRIPTION_INACTIVATED", subscriptionId: "sub_webhook",
+    eventId: "evt_webhook_inactivated", occurredAt: "2026-09-11T12:00:00.000Z",
+  });
   assert.equal((await repository.getBilling("merchant_webhook"))?.status, "active");
 
-  await handler.execute({ event: "SUBSCRIPTION_DELETED", subscriptionId: "sub_webhook" });
+  await handler.execute({
+    event: "SUBSCRIPTION_DELETED", subscriptionId: "sub_webhook",
+    eventId: "evt_webhook_deleted", occurredAt: "2026-09-18T12:00:00.000Z",
+  });
   assert.equal((await repository.getBilling("merchant_webhook"))?.status, "cancelled");
 
-  await handler.execute({ event: "PAYMENT_CONFIRMED", subscriptionId: "sub_webhook" });
+  await handler.execute({
+    event: "PAYMENT_CONFIRMED", subscriptionId: "sub_webhook",
+    eventId: "evt_webhook_late_payment", paymentId: "pay_late", paymentValueCents: 34_900,
+    occurredAt: "2026-09-19T12:00:00.000Z",
+  });
   assert.equal((await repository.getBilling("merchant_webhook"))?.status, "cancelled");
 });
 
@@ -142,6 +152,8 @@ test("unsolicited Asaas inactivation still revokes the local paid plan", async (
   await new HandleAsaasBillingWebhookUseCase(repository).execute({
     event: "SUBSCRIPTION_INACTIVATED",
     subscriptionId: "sub_external_inactivation",
+    eventId: "evt_external_inactivation",
+    occurredAt: "2026-09-11T12:00:00.000Z",
   });
 
   const billing = await repository.getBilling("merchant_external_inactivation");

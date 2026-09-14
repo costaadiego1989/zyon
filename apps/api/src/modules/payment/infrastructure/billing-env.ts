@@ -1,3 +1,4 @@
+import type { BillingCycle } from "@zyon/shared-types";
 import { ServiceUnavailableException } from "@nestjs/common";
 import type {
   BillingConfigPort,
@@ -13,8 +14,9 @@ const PRICE_ENV: Record<BillingPlan, string> = {
 export function billingPriceId(
   plan: BillingPlan,
   env: NodeJS.ProcessEnv = process.env,
+  cycle: BillingCycle = "monthly",
 ): string {
-  const priceId = env[PRICE_ENV[plan]]?.trim();
+  const priceId = env[PRICE_ENV[plan] + (cycle === "annual" ? "_ANNUAL" : "")]?.trim();
   if (!priceId) {
     throw new ServiceUnavailableException({
       code: "billing_plan_not_configured",
@@ -60,8 +62,8 @@ export function merchantConsoleUrl(
 }
 
 export class EnvironmentBillingConfig implements BillingConfigPort {
-  priceId(plan: BillingPlan): string {
-    return billingPriceId(plan);
+  priceId(plan: BillingPlan, cycle: BillingCycle = "monthly"): string {
+    return billingPriceId(plan, process.env, cycle);
   }
 
   consoleUrl(): string {

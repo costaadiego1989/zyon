@@ -1,3 +1,5 @@
+import type { BillingCycle, BillingOffer } from "@zyon/shared-types";
+import { billingMoney, selectedBillingOffer } from "../plan-catalog.js";
 import React from "react";
 import { Button } from "../../../components/Button.js";
 
@@ -5,8 +7,10 @@ export interface PlanDef {
   key: "starter" | "growth" | "scale";
   name: string;
   price: number;
+  billingOptions?: BillingOffer[];
+  annualCheckoutAvailable?: boolean;
   fee: string;
-  limits: { orders: number; sessions: number; ai: number; connections: number };
+  limits: { orders: number; connections: number };
   features: string[];
   recommended?: boolean;
   highlights?: string[];
@@ -20,6 +24,8 @@ interface PlanCardProps {
   onUpgrade: () => void;
   upgrading: boolean;
   actionLabel?: string;
+  insufficientCapacity?: boolean;
+  billingCycle?: BillingCycle;
 }
 
 function formatLimit(value: number): string {
@@ -34,7 +40,10 @@ export function PlanCard({
   onUpgrade,
   upgrading,
   actionLabel,
+  insufficientCapacity = false,
+  billingCycle = "monthly",
 }: PlanCardProps) {
+  const offer = selectedBillingOffer(plan, billingCycle);
   const borderColor = isCurrent
     ? "var(--color-brand)"
     : plan.recommended
@@ -107,7 +116,7 @@ export function PlanCard({
           {plan.price > 0 ? (
             <>
               <span style={{ font: "800 28px var(--font-mono)", color: "var(--color-text)" }}>
-                R${plan.price}
+                {offer ? billingMoney(offer.equivalentMonthlyCents) : "Indisponível"}
               </span>
               <span style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>
                 /mês
@@ -124,6 +133,8 @@ export function PlanCard({
         </div>
       </div>
 
+      {plan.key !== "starter" && billingCycle === "annual" && <p style={{ fontSize: 13, margin: 0 }}>{offer ? <>Pagamento anual de <strong>{billingMoney(offer.amountCents)}</strong>. Economia de {billingMoney(offer.savingsCents)} ({offer.discountPercent}%).</> : "O plano anual ainda não está disponível para contratação."}</p>}
+
       {/* Limits */}
       <div
         style={{
@@ -135,9 +146,8 @@ export function PlanCard({
           gap: 10,
         }}
       >
-        <LimitRow label="Pedidos" value={formatLimit(plan.limits.orders)} />
-        <LimitRow label="Sessões" value={formatLimit(plan.limits.sessions)} />
-        <LimitRow label="Conversas IA" value={formatLimit(plan.limits.ai)} />
+        <p style={{ margin: 0, fontSize: 13 }}>O limite considera compras com pagamento confirmado.</p>
+        <LimitRow label="Compras por mês" value={formatLimit(plan.limits.orders)} />
         <LimitRow label="Conexões" value={formatLimit(plan.limits.connections)} />
       </div>
 
@@ -189,9 +199,9 @@ export function PlanCard({
         arrow={!isCurrent && !upgrading}
         fullWidth
         onClick={onUpgrade}
-        disabled={isCurrent || upgrading}
+        disabled={isCurrent || upgrading || insufficientCapacity || !offer}
       >
-        {actionLabel ?? (isCurrent
+        {insufficientCapacity ? "Capacidade insuficiente neste mês" : actionLabel ?? (isCurrent
           ? "Seu plano"
           : isDowngrade
             ? "Downgrade"

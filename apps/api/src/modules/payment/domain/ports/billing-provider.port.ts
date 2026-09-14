@@ -1,3 +1,4 @@
+import type { BillingCycle } from "@zyon/shared-types";
 import type { BillingPlan } from "../payment-platform.types.js";
 
 export const BILLING_PROVIDER = Symbol("BILLING_PROVIDER");
@@ -30,6 +31,7 @@ export interface CreateSubscriptionInput {
   customerId: string;
   planKey: BillingPlan;
   valueBrl: number;
+  billingCycle?: BillingCycle;
   /** Tokenized card reference (preferred). */
   creditCardToken?: string;
   /** Raw card (when no token) — never logged. */
@@ -52,7 +54,7 @@ export interface BillingProviderPort {
   createCustomer(input: BillingCustomerInput): Promise<{ customerId: string }>;
   createSubscription(input: CreateSubscriptionInput): Promise<SubscriptionResult>;
   /** Change the recurring amount (plan change). */
-  updateSubscription(input: { subscriptionId: string; valueBrl: number }): Promise<{ status: string }>;
+  updateSubscription(input: { subscriptionId: string; valueBrl: number; billingCycle?: BillingCycle; nextDueDate?: string }): Promise<{ status: string }>;
   /**
    * Stops future recurring charges while preserving charges already generated.
    * Returns false when the subscription was already removed from the provider.

@@ -1,9 +1,13 @@
+import type { BillingCycle } from "@zyon/shared-types";
+import { billingMoney } from "../plan-catalog.js";
 import React from "react";
 import { Button } from "../../../components/Button.js";
 
 interface CurrentPlanCardProps {
   planName: string;
   monthlyPrice: number;
+  billingCycle?: BillingCycle;
+  billingAmountCents?: number | null;
   /** Fee do merchant por transação, fixo em centavos. */
   transactionFeeCents: number;
   nextBillingDate: string | null;
@@ -18,6 +22,8 @@ interface CurrentPlanCardProps {
 export function CurrentPlanCard({
   planName,
   monthlyPrice,
+  billingCycle = "monthly",
+  billingAmountCents,
   transactionFeeCents,
   nextBillingDate,
   daysRemaining,
@@ -99,10 +105,10 @@ export function CurrentPlanCard({
       <div style={{ display: "flex", gap: 32, alignItems: "baseline" }}>
         <div>
           <div style={{ font: "11px var(--font-mono)", color: "var(--color-text-muted)", marginBottom: 2 }}>
-            VALOR MENSAL
+            {billingCycle === "annual" ? "VALOR ANUAL" : "VALOR MENSAL"}
           </div>
           <div style={{ font: "700 20px var(--font-mono)", color: "var(--color-text)" }}>
-            R${monthlyPrice.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}
+            {billingMoney(billingAmountCents ?? monthlyPrice * 100)}
           </div>
         </div>
         <div>
@@ -120,7 +126,7 @@ export function CurrentPlanCard({
         <div style={{ padding: "12px", borderRadius: 8, background: "var(--surface-1)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <div style={{ font: "11px var(--font-mono)", color: "var(--color-text-muted)" }}>
-              {status === "trialing" ? "FIM DO PERÍODO GRÁTIS" : "PRÓXIMA COBRANÇA"}
+              {status === "trialing" ? "FIM DO PERÍODO GRÁTIS" : cancelAtPeriodEnd ? "ACESSO ATÉ" : "PRÓXIMA COBRANÇA"}
             </div>
             <div style={{ font: "13px var(--font-sans)", color: "var(--color-text)", fontWeight: 500, marginTop: 2 }}>
               {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(new Date(nextBillingDate))}

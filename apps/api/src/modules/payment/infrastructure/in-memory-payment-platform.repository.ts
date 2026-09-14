@@ -1,6 +1,9 @@
 import { ConflictException } from "@nestjs/common";
 import type {
   PaymentPlatformRepository,
+  BillingMutation,
+  BillingWebhookMutation,
+  BillingWebhookOutcome,
   SaveBillingSubscriptionInput,
   SavePaymentConnectionInput,
 } from "../domain/ports/payment-platform-repository.port.js";
@@ -17,6 +20,7 @@ export class InMemoryPaymentPlatformRepository
     PaymentConnectionSnapshot
   >();
   private readonly secrets = new Map<string, string>();
+  private readonly billingEvents = new Set<string>();
   private readonly billing = new Map<
     string,
     BillingSubscriptionSnapshot
@@ -122,28 +126,38 @@ export class InMemoryPaymentPlatformRepository
     const current =
       this.billing.get(input.merchantId) ??
       (await this.getOrCreateTrial(input.merchantId, 14));
-    // SaveBillingSubscriptionInput allows null on pendingPlanEffectiveAt (clear);
-    // the snapshot uses undefined. Normalize: undefined = keep current, null = clear.
-    const pendingEffective =
-      input.pendingPlanEffectiveAt === undefined
-        ? current.pendingPlanEffectiveAt
-        : (input.pendingPlanEffectiveAt ?? undefined);
-    const pendingPlanKey =
-      input.pendingPlanKey === undefined
-        ? current.pendingPlanKey
-        : (input.pendingPlanKey ?? undefined);
-    const providerCancellationScheduledAt =
-      input.providerCancellationScheduledAt === undefined
-        ? current.providerCancellationScheduledAt
-        : (input.providerCancellationScheduledAt ?? undefined);
-    this.billing.set(input.merchantId, {
-      ...current,
-      ...input,
-      pendingPlanKey,
-      pendingPlanEffectiveAt: pendingEffective,
-      providerCancellationScheduledAt,
-      updatedAt: new Date().toISOString(),
-    });
+    this.writeBilling(current, input);
+  }
+
+  private writeBilling(current: BillingSubscriptionSnapshot, input: SaveBillingSubscriptionInput): BillingSubscriptionSnapshot {
+    const snapshot = { ...current, updatedAt: new Date().toISOString() };
+    for (const [field, value] of Object.entries(input)) {
+      if (value !== undefined) (snapshot as unknown as Record<string, unknown>)[field] = value ?? undefined;
+    }
+    this.billing.set(input.merchantId, snapshot);
+    return snapshot;
+  }
+
+  async mutateBilling(merchantId: string, decide: BillingMutation): Promise<BillingSubscriptionSnapshot | undefined> {
+    const current = this.billing.get(merchantId);
+    if (!current) return undefined;
+    const update = decide({ ...current });
+    if (!update) return current;
+    if (update.merchantId !== merchantId) throw new Error("billing_mutation_scope_mismatch");
+    return this.writeBilling(current, update);
+  }
+
+  async processBillingWebhook(input: BillingWebhookMutation, decide: BillingMutation): Promise<BillingWebhookOutcome> {
+    if (this.billingEvents.has(input.eventId)) return "duplicate";
+    const current = this.billing.get(input.merchantId);
+    const update = current && current.asaasSubscriptionId === input.subscriptionId && current.provider !== "stripe"
+      ? decide({ ...current }) : undefined;
+    if (update) {
+      if (update.merchantId !== input.merchantId) throw new Error("billing_mutation_scope_mismatch");
+      this.writeBilling(current!, update);
+    }
+    this.billingEvents.add(input.eventId);
+    return update ? "processed" : "ignored";
   }
 
   async getBilling(

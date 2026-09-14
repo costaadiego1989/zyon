@@ -73,6 +73,11 @@ import { AsaasPlatformAdapter } from "./infrastructure/asaas-platform.adapter.js
 import { EnvironmentBillingConfig } from "./infrastructure/billing-env.js";
 import { PaymentDispatchService } from "./application/services/payment-dispatch.service.js";
 import { BillingPlanMeteringService } from "./domain/billing-plan-guard.js";
+import { ORDER_QUOTA_REPOSITORY } from "./domain/ports/order-quota.repository.port.js";
+import { OrderQuotaNoticePublisher } from "./application/services/order-quota-notice.publisher.js";
+import { OrderQuotaService } from "./application/services/order-quota.service.js";
+import { PrismaOrderQuotaRepository } from "./infrastructure/billing/prisma-order-quota.repository.js";
+import { OrderQuotaReconciliationJob } from "./infrastructure/billing/order-quota-reconciliation.job.js";
 import { BILLING_TRIAL_JOB_QUEUE } from "./domain/ports/billing-trial-job-queue.port.js";
 import { BullMqBillingTrialQueue, BullMqBillingTrialWorker } from "./infrastructure/bullmq-billing-trial.queue.js";
 import {
@@ -163,6 +168,11 @@ import {
     PaymentHoldPayoutReadinessJob,
     PaymentDispatchService,
     BillingPlanMeteringService,
+    PrismaOrderQuotaRepository,
+    { provide: ORDER_QUOTA_REPOSITORY, useExisting: PrismaOrderQuotaRepository },
+    OrderQuotaNoticePublisher,
+    OrderQuotaService,
+    OrderQuotaReconciliationJob,
     GetPaymentConnectionsUseCase,
     CreateStripeConnectOnboardingLinkUseCase,
     SyncStripeConnectUseCase,
@@ -347,6 +357,7 @@ import {
     PAYMENT_SETTLEMENT_LEDGER,
     PAYMENT_PLATFORM_REPOSITORY,
     BillingPlanMeteringService,
+    OrderQuotaService,
     PaymentEventPublisher,
     // Billing subscription lifecycle — consumed by PublicApiBillingModule's controller.
     GetBillingSubscriptionUseCase,

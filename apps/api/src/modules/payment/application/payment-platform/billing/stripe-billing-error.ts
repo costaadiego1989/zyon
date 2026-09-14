@@ -3,6 +3,7 @@ import { BadGatewayException, ServiceUnavailableException } from "@nestjs/common
 type StripeBillingOperation = "checkout" | "portal";
 
 export function stripeBillingError(error: unknown, operation: StripeBillingOperation = "checkout") {
+  if (error instanceof ServiceUnavailableException) return error;
   const failure = error as { type?: string; code?: string } | null;
   if (failure?.type === "StripeAuthenticationError" || failure?.type === "StripePermissionError") {
     return new ServiceUnavailableException({

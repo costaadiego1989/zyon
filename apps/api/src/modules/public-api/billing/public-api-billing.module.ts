@@ -1,3 +1,4 @@
+import { BillingCatalogController } from "./presentation/http/billing-catalog.controller.js";
 import { Module } from '@nestjs/common';
 import { IntegrationsModule } from '../../integrations/integrations.module.js';
 import { PaymentModule } from '../../payment/payment.module.js';
@@ -8,7 +9,7 @@ import { ListBillingInvoicesUseCase } from './application/list-billing-invoices.
 
 @Module({
   imports: [IntegrationsModule, PaymentModule],
-  controllers: [BillingV1Controller],
+  controllers: [BillingV1Controller, BillingCatalogController],
   providers: [ListBillingPlansUseCase, GetBillingUsageUseCase, ListBillingInvoicesUseCase],
 })
 export class PublicApiBillingModule {}
