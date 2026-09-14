@@ -57,6 +57,8 @@ test("Tiny sends the documented nested stock payload for absolute balance", asyn
 for (const failure of [
   { status: "Erro", codigo_erro: 20 },
   { status: "OK", registros: [{ registro: { status: "Erro", codigo_erro: 32 } }] },
+  { status: "OK", registros: { registro: { status: "Erro", codigo_erro: 32 } } },
+  { status: "OK", registros: { status: "Erro", codigo_erro: 32 } },
   {},
 ]) {
   test(`Tiny refuses rejected or malformed stock acknowledgments ${JSON.stringify(failure)}`, async (t) => {
@@ -137,4 +139,22 @@ test("Omie stock adjustments use the Brazil date when the server has passed UTC 
   await (new ErpSyncService({} as never) as any).pushOmieSale(omieConnection, "123", 1, "order_a", "receipt-key");
   assert.equal(request.param[0].data, "13/09/2026");
   assert.equal(request.param[0].tipo, "SAI");
+  assert.equal(request.param[0].codigo_local_estoque, 0);
+  assert.equal(request.param[0].valor, 0);
+});
+
+for (const failure of [{ faultcode: "AUTH" }, { codigo_status: "99" }]) {
+  test(`Omie refuses HTTP 200 failures ${JSON.stringify(failure)}`, async (t) => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () => new Response(JSON.stringify(failure))) as typeof fetch;
+    t.after(() => { globalThis.fetch = original; });
+    await assert.rejects(() => (new ErpSyncService({} as never) as any).pushOmieSale(omieConnection, "123", 1, "order_a", "receipt-key"), /erp_omie_api_error/);
+  });
+}
+
+test("Tiny accepts a single object stock acknowledgment", async (t) => {
+  const original = globalThis.fetch;
+  globalThis.fetch = (async () => reply({ status: "OK", registros: { registro: { status: "OK", saldoEstoque: 7 } } })) as typeof fetch;
+  t.after(() => { globalThis.fetch = original; });
+  await (new ErpSyncService({} as never) as any).pushTinySnapshot(tinyConnection, "123", 7, "receipt-key");
 });

@@ -416,7 +416,7 @@ export class ErpSyncService {
   private async pushOmieSale(connection: ErpConnection, productId: string, quantity: number, orderId: string, idempotencyKey: string): Promise<void> {
     const numericId = positiveInteger(productId, "erp_omie_product_id_invalid");
     await this.omieCall("https://app.omie.com.br/api/v1/estoque/ajuste/", this.omieCredentials(connection), "IncluirAjusteEstoque", {
-      id_prod: numericId, cod_int_ajuste: idempotencyKey, data: dateBr(), tipo: "SAI", quan: quantity,
+      codigo_local_estoque: 0, id_prod: numericId, cod_int_ajuste: idempotencyKey, data: dateBr(), tipo: "SAI", quan: quantity, valor: 0,
       origem: "AJU", motivo: "INV", obs: `Venda Zyon ${orderId}`.slice(0, 200),
     });
   }
@@ -430,7 +430,8 @@ export class ErpSyncService {
     const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ call, app_key: credentials.appKey, app_secret: credentials.appSecret, param: [param] }) });
     if (!response.ok) throw new Error(`erp_omie_http_${response.status}`);
     const body = await response.json() as any;
-    if (body.faultstring || (body.status && body.status !== "OK")) throw new Error("erp_omie_api_error");
+    if (body.faultcode || body.faultstring || (body.status && body.status !== "OK") ||
+      (body.codigo_status !== undefined && String(body.codigo_status) !== "0")) throw new Error("erp_omie_api_error");
     return body;
   }
 
@@ -623,7 +624,11 @@ export class ErpSyncService {
     // Code 20 only means an empty search. A failed stock write is never success.
     const emptySearch = service === "pdv.produtos.php" && Number(result.codigo_erro) === 20;
     if (result.status !== "OK" && !emptySearch) throw new Error("erp_tiny_api_error");
-    if (Array.isArray(result.registros) && result.registros.some((entry: any) => entry.registro?.status === "Erro")) {
+    const records = Array.isArray(result.registros) ? result.registros : result.registros ? [result.registros] : [];
+    if (records.some((entry: any) => {
+      const record = entry.registro ?? entry;
+      return record.status && record.status !== "OK";
+    })) {
       throw new Error("erp_tiny_stock_write_rejected");
     }
     return body;
