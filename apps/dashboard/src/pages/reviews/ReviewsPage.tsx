@@ -1,19 +1,25 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, FileVideo, MessageSquare, Star, XCircle } from "lucide-react";
+import { CheckCircle2, Clock3, FileVideo, MessageSquare, Star, XCircle } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import type { Product } from "../../api/endpoints/catalog.js";
 import { dashboardJson } from "../../api/http/client.js";
 import { Button } from "../../components/Button.js";
-import { DataPanel } from "../../components/DataPanel.js";
+import { EmptyState } from "../../components/EmptyState.js";
 import { FilterSelect } from "../../components/FilterToolbar.js";
 import { PageLoader } from "../../components/PageLoader.js";
+import { Pagination } from "../../components/Pagination.js";
+import { PeriodFilter } from "../../components/PeriodFilter.js";
+import { SectionHeader } from "../../components/SectionHeader.js";
 import { SidePanel } from "../../components/SidePanel.js";
 import { showToast } from "../../components/Toast.js";
 import { useCatalogApi } from "../../hooks/api/useCatalogApi.js";
+import { StatCard, StatCardGroup } from "../overview/components/StatCard.js";
 import "./reviews.css";
 
 type ReviewKind = "testimonial" | "video";
 type ModerationStatus = "all" | "pending" | "approved" | "rejected";
+type ReviewStatus = Exclude<ModerationStatus, "all">;
+type ReviewPeriod = "all" | "today" | "7d" | "15d" | "30d";
 
 interface ProductReview {
   id: string;
@@ -42,12 +48,27 @@ interface ReviewPageResponse {
   total: number;
 }
 
+interface ReviewStats {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+}
+
 export interface ReviewsPageProps {
   apiBaseUrl: string;
   me: MerchantProfile | null;
 }
 
 const PAGE_SIZE = 20;
+const EMPTY_REVIEW_STATS: ReviewStats = { total: 0, pending: 0, approved: 0, rejected: 0 };
+const PERIOD_PRESETS = [
+  { key: "all", label: "Todos" },
+  { key: "today", label: "Hoje" },
+  { key: "7d", label: "Últimos 7 dias" },
+  { key: "15d", label: "Últimos 15 dias" },
+  { key: "30d", label: "Últimos 30 dias" },
+] as const;
 
 /** Merchant moderation inbox for buyer-written and buyer-video reviews. */
 export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
@@ -58,8 +79,10 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
   const [productId, setProductId] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [period, setPeriod] = useState<ReviewPeriod>("all");
   const [page, setPage] = useState(1);
   const [reviews, setReviews] = useState<ReviewPageResponse>({ items: [], page: 1, pageSize: PAGE_SIZE, total: 0 });
+  const [stats, setStats] = useState<ReviewStats>(EMPTY_REVIEW_STATS);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [productsLoading, setProductsLoading] = useState(true);
@@ -71,18 +94,33 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
     if (!merchantId) return;
     setLoading(true);
     setError(null);
-    const params = new URLSearchParams({ kind, page: String(page), pageSize: String(PAGE_SIZE) });
-    if (status !== "all") params.set("moderationStatus", status);
-    if (productId) params.set("productId", productId);
-    if (dateFrom) params.set("dateFrom", dateFrom);
-    if (dateTo) params.set("dateTo", dateTo);
-    try {
-      const next = await dashboardJson<ReviewPageResponse>(
+    const requestReviews = (moderationStatus?: ReviewStatus, requestedPage = 1, requestedPageSize = 1) => {
+      const params = new URLSearchParams({ kind, page: String(requestedPage), pageSize: String(requestedPageSize) });
+      if (moderationStatus) params.set("moderationStatus", moderationStatus);
+      if (productId) params.set("productId", productId);
+      if (dateFrom) params.set("dateFrom", dateFrom);
+      if (dateTo) params.set("dateTo", dateTo);
+      return dashboardJson<ReviewPageResponse>(
         apiBaseUrl,
         `/merchants/${encodeURIComponent(merchantId)}/reviews?${params.toString()}`,
         { method: "GET" },
       );
+    };
+    try {
+      const [next, total, pending, approved, rejected] = await Promise.all([
+        requestReviews(status === "all" ? undefined : status, page, PAGE_SIZE),
+        requestReviews(),
+        requestReviews("pending"),
+        requestReviews("approved"),
+        requestReviews("rejected"),
+      ]);
       setReviews(next);
+      setStats({
+        total: total.total,
+        pending: pending.total,
+        approved: approved.total,
+        rejected: rejected.total,
+      });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Não foi possível carregar as avaliações.");
     } finally {
@@ -114,6 +152,23 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
   const resetPage = (change: () => void) => {
     change();
     setPage(1);
+  };
+
+  const setReviewPeriod = (next: ReviewPeriod) => {
+    const range = dateRangeForPeriod(next);
+    resetPage(() => {
+      setPeriod(next);
+      setDateFrom(range.from);
+      setDateTo(range.to);
+    });
+  };
+
+  const setReviewDate = (field: "from" | "to", value: string) => {
+    resetPage(() => {
+      if (field === "from") setDateFrom(value);
+      else setDateTo(value);
+      setPeriod("all");
+    });
   };
 
   const moderate = async (review: ProductReview, nextStatus: "approved" | "rejected") => {
@@ -162,12 +217,18 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
         </div>
       ) : null}
 
-      <div className="panel reviews-workspace" style={{ overflow: "hidden", padding: 0 }}>
-        <div className="reviews-filterbar" role="group" aria-label="Filtros de avaliações">
-          <div className="filter-tabs" aria-label="Tipo de avaliação">
+      <StatCardGroup>
+        <StatCard label="Recebidas" value={loading ? "—" : stats.total} icon={<MessageSquare size={16} />} />
+        <StatCard label="Pendentes" value={loading ? "—" : stats.pending} icon={<Clock3 size={16} />} accent="var(--color-warning)" />
+        <StatCard label="Publicadas" value={loading ? "—" : stats.approved} icon={<CheckCircle2 size={16} />} accent="var(--color-success)" />
+        <StatCard label="Rejeitadas" value={loading ? "—" : stats.rejected} icon={<XCircle size={16} />} accent="var(--color-error)" />
+      </StatCardGroup>
+
+      <section className="panel reviews-filter-panel" aria-label="Filtros de avaliações">
+        <div className="reviews-filter-panel__toolbar">
+          <div className="period-filter__presets reviews-filter-panel__kind" aria-label="Tipo de avaliação">
             <button
               type="button"
-              className={`filter-tab${kind === "testimonial" ? " active" : ""}`}
               aria-pressed={kind === "testimonial"}
               onClick={() => resetPage(() => setKind("testimonial"))}
             >
@@ -175,17 +236,17 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
             </button>
             <button
               type="button"
-              className={`filter-tab${kind === "video" ? " active" : ""}`}
               aria-pressed={kind === "video"}
               onClick={() => resetPage(() => setKind("video"))}
             >
               Vídeos
             </button>
           </div>
-          <div className="reviews-filterbar__fields">
+          <div className="reviews-filter-panel__controls">
             <FilterSelect
               ariaLabel="Status da moderação"
               width={150}
+              size="md"
               value={status}
               onChange={(next) => resetPage(() => setStatus(next as ModerationStatus))}
               options={[
@@ -198,32 +259,45 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
             <FilterSelect
               ariaLabel="Produto"
               width={210}
+              size="md"
               value={productId}
               onChange={(next) => resetPage(() => setProductId(next))}
               options={currentProducts.map((product) => ({ value: product.id, label: product.name }))}
               placeholder={productsLoading ? "Carregando produtos..." : "Todos os produtos"}
             />
-            <DateFilter label="De" value={dateFrom} onChange={(next) => resetPage(() => setDateFrom(next))} />
-            <DateFilter label="Até" value={dateTo} onChange={(next) => resetPage(() => setDateTo(next))} />
           </div>
         </div>
+        <PeriodFilter
+          presets={PERIOD_PRESETS}
+          active={period}
+          onPreset={(next) => setReviewPeriod(next as ReviewPeriod)}
+          from={dateFrom}
+          to={dateTo}
+          onDate={setReviewDate}
+        />
+      </section>
 
-        {loading ? <PageLoader /> : (
-          <DataPanel
+      <section className="panel reviews-list" aria-busy={loading}>
+        <div className="reviews-list__header">
+          <SectionHeader
+            variant="secondary"
             title={kind === "video" ? "Vídeos enviados por clientes" : "Avaliações enviadas por clientes"}
-            page={reviews.page}
-            pageSize={reviews.pageSize}
-            total={reviews.total}
-            onPageChange={setPage}
-            isEmpty={reviews.items.length === 0}
-            empty={{
-              icon: kind === "video" ? FileVideo : MessageSquare,
-              title: status === "pending" ? "Nenhuma avaliação pendente" : "Nenhuma avaliação encontrada",
-              description: status === "pending"
+            trailing={<span className="reviews-list__count">{loading ? "Carregando…" : `${reviews.total} resultado${reviews.total === 1 ? "" : "s"}`}</span>}
+          />
+        </div>
+
+        {loading ? <div className="reviews-list__loading"><PageLoader /></div> : reviews.items.length === 0 ? (
+          <div className="reviews-list__empty">
+            <EmptyState
+              icon={kind === "video" ? FileVideo : MessageSquare}
+              title={status === "pending" ? "Nenhuma avaliação pendente" : "Nenhuma avaliação encontrada"}
+              description={status === "pending"
                 ? "Quando um cliente enviar uma avaliação, ela aparecerá aqui para sua decisão."
-                : "Ajuste os filtros para consultar outras avaliações.",
-            }}
-          >
+                : "Ajuste os filtros para consultar outras avaliações."}
+            />
+          </div>
+        ) : (
+          <div className="reviews-list__table">
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
@@ -259,9 +333,18 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
                 ))}
               </tbody>
             </table>
-          </DataPanel>
+          </div>
         )}
-      </div>
+
+        {!loading && reviews.total > reviews.pageSize ? (
+          <Pagination
+            page={reviews.page}
+            pageSize={reviews.pageSize}
+            total={reviews.total}
+            onChange={setPage}
+          />
+        ) : null}
+      </section>
 
       <SidePanel isOpen={Boolean(selected)} title={panelTitle} onClose={() => setSelected(null)}>
         {selected ? (
@@ -318,13 +401,19 @@ function Detail({ label, value }: { label: string; value: React.ReactNode }) {
   return <div style={{ display: "grid", gap: 4 }}><span style={detailLabelStyle}>{label}</span><span style={{ color: "var(--color-text)", font: "13px var(--font-sans)" }}>{value}</span></div>;
 }
 
-function DateFilter({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return (
-    <label className="reviews-date-filter">
-      <span className="reviews-date-filter__label">{label}</span>
-      <input type="date" value={value} onChange={(event) => onChange(event.target.value)} aria-label={`Data ${label}`} />
-    </label>
-  );
+function dateRangeForPeriod(period: ReviewPeriod): { from: string; to: string } {
+  if (period === "all") return { from: "", to: "" };
+  const end = new Date();
+  const start = new Date(end);
+  if (period === "7d") start.setDate(start.getDate() - 6);
+  if (period === "15d") start.setDate(start.getDate() - 14);
+  if (period === "30d") start.setDate(start.getDate() - 29);
+  return { from: toDateInput(start), to: toDateInput(end) };
+}
+
+function toDateInput(date: Date): string {
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 10);
 }
 
 function ReviewRating({ value, expanded = false }: { value?: number | null; expanded?: boolean }) {

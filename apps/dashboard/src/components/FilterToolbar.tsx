@@ -90,21 +90,26 @@ export function FilterSelect(props: {
   placeholder?: string;
   width?: number | string;
   ariaLabel?: string;
+  size?: "sm" | "md";
+  className?: string;
 }) {
+  const isMedium = props.size === "md";
+
   return (
     <select
       value={props.value}
       onChange={(e) => props.onChange(e.target.value)}
       aria-label={props.ariaLabel}
+      className={props.className}
       style={{
-        height: 32,
+        height: isMedium ? 40 : 32,
         width: props.width ?? 200,
-        padding: "0 26px 0 12px",
-        borderRadius: 7,
+        padding: isMedium ? "0 32px 0 12px" : "0 26px 0 12px",
+        borderRadius: isMedium ? "var(--radius-sm)" : 7,
         border: "1px solid var(--color-border)",
-        font: "600 12px var(--font-sans)",
+        font: isMedium ? "12px var(--font-sans)" : "600 12px var(--font-sans)",
         color: "var(--color-text)",
-        background: "var(--surface-1)",
+        background: isMedium ? "var(--surface-2)" : "var(--surface-1)",
         cursor: "pointer",
         outline: "none",
         boxSizing: "border-box",
