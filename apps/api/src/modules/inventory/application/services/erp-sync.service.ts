@@ -4,7 +4,6 @@ import { createHash } from "node:crypto";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { AppliedInventorySale } from "../../domain/events/sale-completed.event.js";
 import { decryptErpSecret, encryptErpSecret } from "../../infrastructure/adapters/erp-secret-cipher.js";
-import { fetchBlingCompanyId } from "../../infrastructure/adapters/bling-company-identity.js";
 
 type SupportedErp = "omie" | "bling" | "tiny";
 type SyncKind = "full" | "sale";
@@ -26,6 +25,14 @@ const RETRY_LIMIT = 6;
 const JOB_LEASE_MS = 15 * 60_000;
 const JOB_LEASE_HEARTBEAT_MS = 2 * 60_000;
 const BLING_STOCK_BATCH_SIZE = 100;
+// Bling permits three requests per account each second. Leave a small margin
+// so snapshots can coexist with webhook-route and sale writes.
+const BLING_REQUEST_INTERVAL_MS = 350;
+const BLING_RATE_LIMIT_RETRIES = 3;
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function isSupported(provider: string): provider is SupportedErp {
   return SUPPORTED.has(provider as SupportedErp);
@@ -80,6 +87,7 @@ function externalId(value: unknown, code: string): string {
 export class ErpSyncService {
   private readonly logger = new Logger(ErpSyncService.name);
   private draining = false;
+  private blingNextRequestAt = 0;
 
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
@@ -257,7 +265,7 @@ export class ErpSyncService {
     } catch (error) {
       const code = errorCode(error);
       const attempts = job.attempts + 1;
-      const terminal = attempts >= RETRY_LIMIT || code === "erp_multi_location_requires_mapping";
+      const terminal = attempts >= RETRY_LIMIT || code === "erp_multi_location_requires_mapping" || code === "erp_bling_rate_limit_day";
       const nextAttemptAt = terminal ? null : new Date(Date.now() + Math.min(30 * 60_000, 2 ** attempts * 30_000));
       await this.prisma.$transaction([
         this.prisma.erpSyncJob.update({
@@ -512,7 +520,8 @@ export class ErpSyncService {
 
   /** Existing OAuth connections gain the same exact webhook route on their first snapshot. */
   private async ensureBlingWebhookRoute(connection: ErpConnection): Promise<void> {
-    const companyId = await fetchBlingCompanyId(await this.blingToken(connection));
+    const identity = await this.blingFetch(await this.blingToken(connection), "/empresas/me/dados-basicos");
+    const companyId = externalId(identity?.data?.id, "bling_company_identity_missing");
 
     const existingRoute = await this.prisma.erpWebhookRoute.findUnique({
       where: { provider_externalAccountId: { provider: "bling", externalAccountId: companyId } },
@@ -532,12 +541,25 @@ export class ErpSyncService {
   }
 
   private async blingFetch(token: string, path: string, init?: RequestInit): Promise<any> {
-    const response = await fetch(`https://api.bling.com.br/Api/v3${path}`, {
-      ...init,
-      headers: { Authorization: `Bearer ${token}`, "enable-jwt": "1", "Content-Type": "application/json", ...(init?.headers ?? {}) },
-    });
-    if (!response.ok) throw new Error(`erp_bling_http_${response.status}`);
-    return response.json();
+    for (let attempt = 0; attempt <= BLING_RATE_LIMIT_RETRIES; attempt += 1) {
+      const now = Date.now();
+      const delay = Math.max(0, this.blingNextRequestAt - now);
+      if (delay > 0) await wait(delay);
+      this.blingNextRequestAt = Date.now() + BLING_REQUEST_INTERVAL_MS;
+
+      const response = await fetch(`https://api.bling.com.br/Api/v3${path}`, {
+        ...init,
+        headers: { Authorization: `Bearer ${token}`, "enable-jwt": "1", "Content-Type": "application/json", ...(init?.headers ?? {}) },
+      });
+      if (response.ok) return response.json();
+      if (response.status !== 429) throw new Error(`erp_bling_http_${response.status}`);
+
+      const body = await response.json().catch(() => null) as { error?: { period?: unknown } } | null;
+      if (body?.error?.period === "day") throw new Error("erp_bling_rate_limit_day");
+      if (attempt === BLING_RATE_LIMIT_RETRIES) throw new Error("erp_bling_http_429");
+      await wait(BLING_REQUEST_INTERVAL_MS * (attempt + 1));
+    }
+    throw new Error("erp_bling_http_429");
   }
 
   private async pullTiny(connection: ErpConnection): Promise<RemoteSnapshot[]> {

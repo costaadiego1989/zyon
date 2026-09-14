@@ -175,3 +175,36 @@ test("Bling balances outbound stock in its active default deposit", async (t) =>
     produto: { id: 123 }, deposito: { id: 456 }, operacao: "B", quantidade: 7, observacoes: "Zyon receipt-key",
   });
 });
+
+test("Bling retries a transient per-second rate limit before failing a snapshot job", async (t) => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls += 1;
+    if (calls === 1) return new Response(JSON.stringify({ error: { period: "second" } }), { status: 429 });
+    return new Response(JSON.stringify({ data: [] }), { status: 200 });
+  }) as typeof fetch;
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const service = new ErpSyncService({} as never);
+  const startedAt = Date.now();
+  const result = await (service as any).blingFetch("access-token", "/produtos?pagina=1&limite=100");
+
+  assert.deepEqual(result, { data: [] });
+  assert.equal(calls, 2);
+  assert.ok(Date.now() - startedAt >= 300);
+});
+
+test("Bling day rate limits do not enter the short retry loop", async (t) => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls += 1;
+    return new Response(JSON.stringify({ error: { period: "day" } }), { status: 429 });
+  }) as typeof fetch;
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const service = new ErpSyncService({} as never);
+  await assert.rejects(() => (service as any).blingFetch("access-token", "/produtos?pagina=1&limite=100"), /erp_bling_rate_limit_day/);
+  assert.equal(calls, 1);
+});
