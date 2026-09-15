@@ -11,9 +11,12 @@ import {
   extractPhone,
   isBrazilianMobilePhone
 } from "../../domain/services/customer-extraction.service.js";
-import { OtpService, OtpValidationError } from "./otp.service.js";
+import { OtpDeliveryError, OtpService, OtpValidationError } from "./otp.service.js";
 import { BuyerRecognitionService } from "./buyer-recognition.service.js";
 import { BuyerAccountPersistenceService } from "./buyer-account-persistence.service.js";
+import { EMAIL_SENDER_PORT, type EmailSenderPort } from "../../../notifications/domain/ports/email-sender.port.js";
+import { WHATSAPP_TEMPLATE_REPOSITORY, type WhatsAppTemplateRepositoryPort } from "../../../whatsapp-templates/domain/ports/whatsapp-template-repository.port.js";
+import { WHATSAPP_TEMPLATE_SENDER, type WhatsAppTemplateSenderPort } from "../../../whatsapp-templates/domain/ports/whatsapp-template-sender.port.js";
 
 // Re-export for backwards compatibility
 export { OtpValidationError } from "./otp.service.js";
@@ -34,7 +37,10 @@ export class CheckoutCustomerService {
     @Optional() private readonly buyerEmailNotifier?: BrevoBuyerEmailNotifier,
     private readonly otpService?: OtpService,
     private readonly recognitionService?: BuyerRecognitionService,
-    private readonly persistenceService?: BuyerAccountPersistenceService
+    private readonly persistenceService?: BuyerAccountPersistenceService,
+    @Optional() @Inject(EMAIL_SENDER_PORT) private readonly emailSender?: EmailSenderPort,
+    @Optional() @Inject(WHATSAPP_TEMPLATE_REPOSITORY) private readonly templates?: WhatsAppTemplateRepositoryPort,
+    @Optional() @Inject(WHATSAPP_TEMPLATE_SENDER) private readonly whatsappTemplates?: WhatsAppTemplateSenderPort,
   ) {}
 
   async processCustomerInput(
@@ -48,6 +54,16 @@ export class CheckoutCustomerService {
 
     const hadEmailAlready = Boolean(session.customer?.email?.trim());
     let working = this.mergeCustomers(session, patch);
+
+    if (patch.otp_code) {
+      await this.deliverEmailOtp({
+        session,
+        email: patch.email ?? session.customer?.email,
+        code: patch.otp_code,
+        merchantName,
+      });
+    }
+
     await this.repository.saveSession(working);
 
     if (patch.email && !hadEmailAlready && this.buyerEmailNotifier) {
@@ -60,21 +76,6 @@ export class CheckoutCustomerService {
         merchantName,
         buyerFirstNameHint: buyerFirstHint
       });
-    }
-
-    if (patch.otp_code && this.buyerEmailNotifier) {
-      const email = patch.email ?? session.customer?.email;
-      if (email) {
-        const merged = this.mergeHints(session.customer, patch);
-        const buyerFirstHint = merged.fullName?.trim().split(/\s+/).filter(Boolean)[0];
-        this.buyerEmailNotifier.sendOtpCode({
-          buyerEmail: email.toLowerCase(),
-          otpCode: patch.otp_code,
-          merchantId: session.merchantId,
-          merchantName,
-          buyerFirstNameHint: buyerFirstHint
-        });
-      }
     }
 
     if (patch.email_verified) {
@@ -218,4 +219,77 @@ export class CheckoutCustomerService {
     await this.persistenceService?.ensureBuyerAccountPersisted(next);
     return next;
   }
+
+  private async deliverEmailOtp(input: {
+    session: CheckoutSession;
+    email?: string;
+    code: string;
+    merchantName?: string;
+  }): Promise<void> {
+    const email = input.email?.trim().toLowerCase();
+    if (!email) throw new OtpDeliveryError();
+
+    try {
+      const result = await this.emailSender?.send({
+        to: email,
+        from: process.env.RESEND_NOREPLY_EMAIL || process.env.RESEND_FROM_EMAIL,
+        subject: `${input.code} é seu código de confirmação`,
+        html: this.otpEmailHtml(input.code, input.merchantName),
+        requireDelivery: true,
+        idempotencyKey: `checkout-otp:${input.session.merchantId}:${input.session.sessionId}:${input.code}`,
+      });
+      if (result?.status === "sent" && result.messageId.trim()) return;
+    } catch {
+      // The transactional WhatsApp fallback below is available only after a
+      // concrete Resend failure. It is not a second send on an accepted email.
+    }
+
+    if (await this.deliverWhatsAppOtp(input)) return;
+    throw new OtpDeliveryError();
+  }
+
+  private async deliverWhatsAppOtp(input: {
+    session: CheckoutSession;
+    code: string;
+  }): Promise<boolean> {
+    const phone = input.session.customer?.phone;
+    if (!phone || !isBrazilianMobilePhone(phone)) return false;
+
+    const template = await this.templates
+      ?.findByMerchantAndType(input.session.merchantId, "checkout_otp", "whatsapp")
+      .catch(() => null);
+    if (!template?.isActive || template.metaStatus !== "approved" || !template.twilioContentSid || !template.metaVariableMap) return false;
+
+    const variables: Record<string, string> = {};
+    for (const [position, name] of Object.entries(template.metaVariableMap)) {
+      if (name !== "otpCode") return false;
+      variables[position] = input.code;
+    }
+    if (!Object.keys(variables).length) return false;
+
+    const result = await this.whatsappTemplates?.sendTemplate({
+      merchantId: input.session.merchantId,
+      type: "checkout_otp",
+      toNumber: phone,
+      contentSid: template.twilioContentSid,
+      language: template.metaLanguage ?? "pt_BR",
+      contentVariables: variables,
+    }).catch(() => null);
+    return result?.status === "sent" && Boolean(result.messageId.trim());
+  }
+
+  private otpEmailHtml(code: string, merchantName?: string): string {
+    const name = escapeHtml(merchantName?.trim() || "a loja");
+    return `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><p>Use este código para confirmar seu e-mail no checkout de <strong>${name}</strong>:</p><p style="font-size:32px;font-weight:700;letter-spacing:8px;text-align:center">${code}</p><p style="color:#667085;font-size:13px">O código expira em 10 minutos. Se você não iniciou esta compra, ignore este e-mail.</p></div>`;
+  }
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character] ?? character);
 }

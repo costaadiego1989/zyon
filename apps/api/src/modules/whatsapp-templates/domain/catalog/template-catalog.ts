@@ -39,6 +39,7 @@ const SAMPLES: Record<string, string> = {
   orderId: "PED-1234",
   trackingCode: "BR123456789",
   link: "https://loja.exemplo",
+  otpCode: "123456",
 };
 
 /**
@@ -57,6 +58,7 @@ export function toPositional(named: string, storeName = "sua loja"): {
     { name: "productName", token: /\{\{productName\}\}/g },
     { name: "orderId", token: /\{\{orderId\}\}/g },
     { name: "trackingCode", token: /\{\{trackingCode\}\}/g },
+    { name: "otpCode", token: /\{\{otpCode\}\}/g },
     { name: "couponBlock", token: /\{\{couponBlock\}\}/g },
     { name: "coupon", token: /\{\{coupon\}\}/g },
     { name: "discount", token: /\{\{discount\}\}/g },
@@ -162,6 +164,8 @@ Acompanhe a entrega e qualquer coisa é só falar com a gente. 🚚`,
   order_delivered: `Olá, {{buyerName}}, seu pedido {{orderId}} foi entregue! 🎉
 
 Esperamos que esteja tudo perfeito. Se precisar de qualquer coisa com o {{productName}}, é só responder aqui. 💬`,
+
+  checkout_otp: `Seu código de confirmação é {{otpCode}}. Ele expira em 10 minutos.`,
 };
 
 const HAS_COUPON: Record<WhatsAppTemplateType, boolean> = {
@@ -177,6 +181,7 @@ const HAS_COUPON: Record<WhatsAppTemplateType, boolean> = {
   order_confirmation: false,
   order_shipped: false,
   order_delivered: false,
+  checkout_otp: false,
 };
 
 const LABELS: Record<WhatsAppTemplateType, string> = {
@@ -193,6 +198,7 @@ const LABELS: Record<WhatsAppTemplateType, string> = {
   order_confirmation: "Confirmação de Pedido",
   order_shipped: "Pedido Enviado",
   order_delivered: "Pedido Entregue",
+  checkout_otp: "Código de confirmação do checkout",
 };
 
 // Incentives, reactivation and replenishment campaigns are promotional.

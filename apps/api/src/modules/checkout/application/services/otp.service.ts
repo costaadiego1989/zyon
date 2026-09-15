@@ -17,6 +17,12 @@ export class OtpValidationError extends Error {
   }
 }
 
+export class OtpDeliveryError extends OtpValidationError {
+  constructor() {
+    super("Não foi possível enviar o código de confirmação agora. Tente novamente em alguns instantes.");
+  }
+}
+
 /**
  * Handles OTP generation, validation, and resend logic for email and phone.
  * Extracted from CheckoutCustomerService to satisfy SRP.

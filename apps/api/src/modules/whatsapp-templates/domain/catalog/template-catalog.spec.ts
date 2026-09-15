@@ -32,6 +32,7 @@ test("categories: only cross_sell/win_back/cart_recovery are MARKETING", () => {
   assert.equal(categoryFor("follow_up"), "UTILITY");
   assert.equal(categoryFor("order_confirmation"), "UTILITY");
   assert.equal(categoryFor("nps"), "UTILITY");
+  assert.equal(categoryFor("checkout_otp"), "UTILITY");
 });
 
 test("coupon-bearing types expose a couponBlock variable", () => {
@@ -53,4 +54,10 @@ test("order templates surface orderId; shipped surfaces trackingCode", () => {
 test("getTemplateDefinition inlines storeName", () => {
   const def = getTemplateDefinition("follow_up", "Minha Loja");
   assert.match(def.metaBody, /Minha Loja/);
+});
+
+test("checkout OTP template has one code variable", () => {
+  const def = getTemplateDefinition("checkout_otp");
+  assert.deepEqual(def.variableMap, { "1": "otpCode" });
+  assert.match(def.metaBody, /\{\{1\}\}/);
 });

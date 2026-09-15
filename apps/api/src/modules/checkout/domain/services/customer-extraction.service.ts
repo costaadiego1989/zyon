@@ -176,11 +176,13 @@ export function deriveChatStage(session: CheckoutSession, completed = false): Ch
 }
 
 const DATA_FIELD_ORDER: Array<{ label: string; has: (s: CheckoutSession) => boolean }> = [
+  // A valid WhatsApp is collected before email verification so a merchant's
+  // approved Meta template can recover an unavailable e-mail delivery.
+  { label: "telefone", has: (s) => Boolean(s.customer?.phone && isBrazilianMobilePhone(s.customer.phone)) },
   { label: "email", has: (s) => Boolean(s.customer?.email && (s.customer?.otp_code || s.customer?.email_verified)) },
   { label: "código de verificação", has: (s) => Boolean(s.customer?.email_verified) },
   { label: "nome", has: (s) => Boolean(s.customer?.fullName) },
   { label: "CPF", has: (s) => Boolean(s.customer?.cpf) },
-  { label: "telefone", has: (s) => Boolean(s.customer?.phone && isBrazilianMobilePhone(s.customer.phone)) }
 ];
 
 export function isShippingQuickReplyQuestion(text: string): boolean {

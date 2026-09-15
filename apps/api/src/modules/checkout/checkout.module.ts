@@ -92,6 +92,8 @@ import { PAYMENT_APPROVAL_READER } from "./domain/ports/payment-approval.port.js
 import { PrismaPaymentApprovalReader } from "./infrastructure/adapters/prisma-payment-approval.reader.js";
 import { OrderQuotaService } from "../payment/application/services/order-quota.service.js";
 import { ConversationRateLimitService } from "./application/services/conversation-rate-limit.service.js";
+import { NotificationsModule } from "../notifications/notifications.module.js";
+import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-templates.module.js";
 
 @Module({
   imports: [
@@ -107,7 +109,9 @@ import { ConversationRateLimitService } from "./application/services/conversatio
     BuyerAccountRepositoryModule,
     ExperimentsModule,
     RevenueLiftModule,
-    IntentMemoryModule
+    IntentMemoryModule,
+    NotificationsModule,
+    WhatsAppTemplatesModule,
   ],
   controllers: [CheckoutController],
   providers: [

@@ -19,7 +19,7 @@ import {
 } from "../../domain/services/customer-extraction.service.js";
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
-import { CheckoutCustomerService } from "../services/checkout-customer.service.js";
+import { CheckoutCustomerService, OtpValidationError } from "../services/checkout-customer.service.js";
 import { CheckoutShippingService } from "../services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "../services/checkout-offer.service.js";
 import { isSafeGeneratedMessage } from "../../domain/types/safe-generated-message.js";
@@ -87,8 +87,8 @@ export class SendChatMessageUseCase {
         lastAgentTurn,
         context.merchant?.name
       );
-    } catch (error: any) {
-      if (error.name === "OtpValidationError") {
+    } catch (error: unknown) {
+      if (error instanceof OtpValidationError) {
         return this.buildOtpValidationResponse(input, error.message, context);
       }
       throw error;

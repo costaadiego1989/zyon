@@ -32,3 +32,70 @@ test("replying to the phone question stores contact without confusing it with CP
   assert.notEqual(result.customer?.phone_verified, true);
   assert.equal((await repository.getSession(session.merchantId, session.sessionId))?.customer?.phone, "11999990000");
 });
+
+test("checkout stores an email OTP only after Resend accepts it", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  const sent: Array<{ to: string; requireDelivery?: boolean }> = [];
+  const emailSender = {
+    async send(input: { to: string; requireDelivery?: boolean }) {
+      sent.push(input);
+      return { status: "sent" as const, messageId: "resend-message-1" };
+    },
+  };
+  const service = new CheckoutCustomerService(repository, undefined, new OtpService(), undefined, undefined, emailSender as never);
+  const session = checkoutSession({ customer: { phone: "11999990000" } });
+
+  const result = await service.processCustomerInput(session, "buyer@example.test", "Qual é seu e-mail?", "Loja Teste");
+
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0]?.to, "buyer@example.test");
+  assert.equal(sent[0]?.requireDelivery, true);
+  assert.match(result.customer?.otp_code ?? "", /^\d{6}$/);
+});
+
+test("checkout sends the same OTP through an approved Meta template after Resend rejects it", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  const emailSender = { async send() { return { status: "skipped" as const, messageId: "" }; } };
+  const templates = {
+    async findByMerchantAndType() {
+      return {
+        isActive: true,
+        metaStatus: "approved",
+        twilioContentSid: "checkout_otp_template",
+        metaLanguage: "pt_BR",
+        metaVariableMap: { "1": "otpCode" },
+      };
+    },
+  };
+  const sent: Array<{ type?: string; contentVariables: Record<string, string> }> = [];
+  const whatsappTemplates = {
+    async sendTemplate(input: { type?: string; contentVariables: Record<string, string> }) {
+      sent.push(input);
+      return { status: "sent" as const, messageId: "wamid-1" };
+    },
+  };
+  const service = new CheckoutCustomerService(
+    repository, undefined, new OtpService(), undefined, undefined,
+    emailSender as never, templates as never, whatsappTemplates as never,
+  );
+  const session = checkoutSession({ customer: { phone: "11999990000" } });
+
+  const result = await service.processCustomerInput(session, "buyer@example.test", "Qual é seu e-mail?", "Loja Teste");
+
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0]?.type, "checkout_otp");
+  assert.equal(sent[0]?.contentVariables["1"], result.customer?.otp_code);
+});
+
+test("checkout does not persist an OTP when neither transactional channel accepts it", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  const emailSender = { async send() { return { status: "skipped" as const, messageId: "" }; } };
+  const service = new CheckoutCustomerService(repository, undefined, new OtpService(), undefined, undefined, emailSender as never);
+  const session = checkoutSession({ customer: { phone: "11999990000" } });
+
+  await assert.rejects(
+    service.processCustomerInput(session, "buyer@example.test", "Qual é seu e-mail?", "Loja Teste"),
+    /Não foi possível enviar o código de confirmação/,
+  );
+  assert.equal(await repository.getSession(session.merchantId, session.sessionId), undefined);
+});

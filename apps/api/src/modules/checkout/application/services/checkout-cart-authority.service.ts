@@ -27,8 +27,27 @@ export class CheckoutCartAuthorityService {
     if (!Array.isArray(lines) || !lines.length || lines.length > 100) throw new BadRequestException("checkout_cart_items_required");
     const variants = await this.prisma.productVariant.findMany({
       where: { id: { in: lines.map(line => line.variantId) }, isActive: true, product: { merchantId, isActive: true } },
-      include: { product: true, price: true, stock: true },
+      include: {
+        product: true,
+        price: true,
+        stock: true,
+        media: { orderBy: { order: "asc" }, take: 1 },
+      },
     });
+    const productIdsWithoutVariantImage = [...new Set(
+      variants.filter(variant => !variant.media[0]?.url).map(variant => variant.productId),
+    )];
+    const fallbackMedia = productIdsWithoutVariantImage.length
+      ? await this.prisma.productVariant.findMany({
+        where: { productId: { in: productIdsWithoutVariantImage }, isActive: true, media: { some: {} } },
+        select: { productId: true, media: { orderBy: { order: "asc" }, take: 1 } },
+      })
+      : [];
+    const productImages = new Map<string, string>();
+    for (const candidate of fallbackMedia) {
+      const imageUrl = candidate.media[0]?.url;
+      if (imageUrl && !productImages.has(candidate.productId)) productImages.set(candidate.productId, imageUrl);
+    }
     const quantities = new Map<string, number>();
     let currency: CurrencyCode | undefined;
     const items: CartItem[] = lines.map(line => {
@@ -52,7 +71,7 @@ export class CheckoutCartAuthorityService {
         sku: variant.sku, variantId: variant.id, product_id: variant.productId,
         variant: JSON.stringify([variant.id, (line.selectedOptions ?? []).map(option => option.itemId).sort()]),
         name: line.name, quantity: line.quantity, price: line.unitPriceCents / 100,
-        imageUrl: line.imageUrl,
+        imageUrl: variant.media[0]?.url ?? productImages.get(variant.productId) ?? line.imageUrl,
         cost: variant.price.costInCents == null ? undefined : variant.price.costInCents / 100,
         weightGrams: variant.weightGrams ?? undefined, height_cm: variant.heightCm ?? undefined,
         width_cm: variant.widthCm ?? undefined, length_cm: variant.lengthCm ?? undefined,

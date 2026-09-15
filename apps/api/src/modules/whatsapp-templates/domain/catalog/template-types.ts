@@ -20,6 +20,8 @@ export const WHATSAPP_TEMPLATE_TYPES = [
   "order_confirmation",
   "order_shipped",
   "order_delivered",
+  // Transactional identity verification for the checkout email fallback.
+  "checkout_otp",
 ] as const;
 
 export type WhatsAppTemplateType = (typeof WHATSAPP_TEMPLATE_TYPES)[number];
