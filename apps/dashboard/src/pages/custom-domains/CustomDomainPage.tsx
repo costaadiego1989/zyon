@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Copy, Check, Globe, Settings, Shield, CheckCircle2 } from "lucide-react";
 import { Button } from "../../components/Button.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
@@ -6,10 +6,18 @@ import { EmptyState } from "../../components/EmptyState.js";
 import { useDomainsPage } from "./useDomainsPage.js";
 import { showToast } from "../../components/Toast.js";
 
-export function CustomDomainPage() {
+export function CustomDomainPage({ onVerifiedDomainChange }: { onVerifiedDomainChange?: (domain: string | undefined) => void }) {
   const vm = useDomainsPage();
   const { state, setNewDomain, addDomain, verifyDomain, removeDomain } = vm;
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // The shell only needs a verified domain after this paid-only page has loaded.
+  // Loading it eagerly would request a Growth feature for every merchant, including
+  // Free accounts that are correctly forbidden by the API.
+  useEffect(() => {
+    const domain = state.domains.find((entry) => entry.verified)?.domain?.trim().toLowerCase();
+    onVerifiedDomainChange?.(domain || undefined);
+  }, [onVerifiedDomainChange, state.domains]);
 
   if (state.loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--color-text-faint)" }}>Carregando domínios...</div>;
 

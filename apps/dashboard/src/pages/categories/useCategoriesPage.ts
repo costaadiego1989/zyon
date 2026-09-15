@@ -110,8 +110,6 @@ export function useCategoriesPage(props: { merchantId: string }) {
   }, [api, props.merchantId, fetchCategories]);
 
   const deleteCategory = useCallback(async (id: string) => {
-    const ok = window.confirm("Remover esta categoria? Esta ação não pode ser desfeita.");
-    if (!ok) return;
     setError(null);
     try {
       await api.deleteCategory(props.merchantId, id);
@@ -125,6 +123,9 @@ export function useCategoriesPage(props: { merchantId: string }) {
     setError(null);
     try {
       await api.updateCategory(props.merchantId, id, { is_active: !isActive });
+      setCategories((current) => current.map((category) => (
+        category.id === id ? { ...category, is_active: !isActive } : category
+      )));
       await fetchCategories();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

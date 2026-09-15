@@ -24,7 +24,23 @@ function formatDiscount(type: string, value: number): string {
 
 function formatDate(iso?: string): string {
   if (!iso) return "Sem limite";
-  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  // Coupon validity is a calendar date. Parsing a date-only value as UTC shifts
+  // it one day backwards for merchants in timezones west of Greenwich.
+  const calendarDate = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (calendarDate) return `${calendarDate[3]}/${calendarDate[2]}/${calendarDate[1]}`;
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? "Data inválida" : date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function isExpiredCalendarDate(value?: string): boolean {
+  if (!value) return false;
+  const calendarDate = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!calendarDate) return new Date(value) < new Date();
+  const [year, month, day] = calendarDate.slice(1).map(Number);
+  const expiryDay = new Date(year, month - 1, day);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return expiryDay < today;
 }
 
 /** Dropdown with searchbox — loads items from API, multi-select */
@@ -161,7 +177,7 @@ export function CouponsPage(_props: CouponsPageProps) {
   const filteredCoupons = useMemo(() => {
     let list = vm.coupons;
     if (statusFilter === "active") list = list.filter((c) => c.isActive);
-    else if (statusFilter === "expired") list = list.filter((c) => c.expiresAt && new Date(c.expiresAt) < new Date());
+    else if (statusFilter === "expired") list = list.filter((c) => isExpiredCalendarDate(c.expiresAt));
     else if (statusFilter === "paused") list = list.filter((c) => !c.isActive);
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();

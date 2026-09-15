@@ -49,7 +49,7 @@ export interface CreateStoryInput {
 // ─── Categories ───────────────────────────────────────────────────────────
 
 export async function listStoryCategories(apiBaseUrl: string): Promise<StoryCategoryDTO[]> {
-  return dashboardJson<StoryCategoryDTO[]>(apiBaseUrl, "/story-manager/categories");
+  return dashboardJson<StoryCategoryDTO[]>(apiBaseUrl, "/story-manager/categories", { cache: "no-store" });
 }
 
 export async function createStoryCategory(apiBaseUrl: string, data: CreateStoryCategoryInput): Promise<StoryCategoryDTO> {
@@ -80,7 +80,7 @@ export async function reorderStoryCategories(apiBaseUrl: string, items: { id: st
 // ─── Stories ──────────────────────────────────────────────────────────────
 
 export async function listStories(apiBaseUrl: string, categoryId: string): Promise<StoryDTO[]> {
-  return dashboardJson<StoryDTO[]>(apiBaseUrl, `/story-manager/categories/${categoryId}/stories`);
+  return dashboardJson<StoryDTO[]>(apiBaseUrl, `/story-manager/categories/${categoryId}/stories`, { cache: "no-store" });
 }
 
 export async function createStory(apiBaseUrl: string, categoryId: string, data: CreateStoryInput): Promise<StoryDTO> {

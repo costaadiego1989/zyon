@@ -95,7 +95,11 @@ export function useStoriesPage(apiBaseUrl: string) {
   const handleDeleteCategory = async (id: string) => {
     try {
       await archiveStoryCategory(apiBaseUrl, id);
-      if (selectedCategory?.id === id) setSelectedCategory(null);
+      setCategories((current) => current.filter((category) => category.id !== id));
+      if (selectedCategory?.id === id) {
+        setSelectedCategory(null);
+        setStories([]);
+      }
       await loadCategories();
     } catch (err) {
       reportError({ source: "stories.deleteCategory", error: err, severity: "error" });
@@ -151,6 +155,7 @@ export function useStoriesPage(apiBaseUrl: string) {
   const handleDeleteStory = async (id: string) => {
     try {
       await archiveStory(apiBaseUrl, id);
+      setStories((current) => current.filter((story) => story.id !== id));
       await loadStories();
     } catch (err) {
       reportError({ source: "stories.deleteStory", error: err, severity: "error" });

@@ -280,7 +280,7 @@ export function catalogEndpoints(base: string, f: typeof fetch) {
       return dashboardJson<ProductCategoryDTO[]>(
         base,
         `/merchants/${encodeURIComponent(merchantId)}/categories`,
-        { method: "GET" },
+        { method: "GET", cache: "no-store" },
         f,
       );
     },

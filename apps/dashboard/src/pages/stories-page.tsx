@@ -133,7 +133,7 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cat.name}</div>
               </div>
-              <button onClick={(e) => { e.stopPropagation(); requestDeleteCategory(cat.id, cat.name); }} style={{ padding: "4px", borderRadius: "4px", border: "none", background: "transparent", color: "var(--color-text-faint)", cursor: "pointer" }}>
+              <button type="button" aria-label={`Excluir categoria ${cat.name}`} title={`Excluir categoria ${cat.name}`} onClick={(e) => { e.stopPropagation(); requestDeleteCategory(cat.id, cat.name); }} style={{ padding: "4px", borderRadius: "4px", border: "none", background: "transparent", color: "var(--color-text-faint)", cursor: "pointer" }}>
                 <Trash2 size={14} />
               </button>
             </div>
@@ -176,7 +176,7 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
                     <div style={{ position: "absolute", top: "8px", right: "8px", display: "flex", alignItems: "center", gap: "3px", padding: "3px 6px", borderRadius: "4px", background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: "10px" }}>
                       <Clock size={10} /> {story.duration}s
                     </div>
-                    <button onClick={() => requestDeleteStory(story.id)} style={{ position: "absolute", top: "8px", left: "8px", padding: "4px", borderRadius: "4px", border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", cursor: "pointer" }}>
+                    <button type="button" aria-label={`Excluir story ${story.title ?? "sem título"}`} title="Excluir story" onClick={() => requestDeleteStory(story.id)} style={{ position: "absolute", top: "8px", left: "8px", padding: "4px", borderRadius: "4px", border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", cursor: "pointer" }}>
                       <Trash2 size={12} />
                     </button>
                   </div>
@@ -238,7 +238,7 @@ function SidePanel({ title, subtitle, onClose, children, width = 420 }: {
   width?: number;
 }) {
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 900, display: "flex", justifyContent: "flex-end" }} onClick={onClose}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", justifyContent: "flex-end" }} onClick={onClose}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)" }} />
       <aside
         style={{ position: "relative", width, maxWidth: "90vw", height: "100vh", overflowY: "auto", background: "var(--surface-2)", borderLeft: "1px solid var(--color-border)", padding: "28px 24px", display: "flex", flexDirection: "column", gap: "20px", animation: "slideInRight 0.2s ease-out" }}

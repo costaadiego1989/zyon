@@ -34,15 +34,6 @@ function ShellImportProgressProvider({ children }: { children: React.ReactNode }
 
 const API_BASE_URL = resolveDashboardApiBaseUrl(import.meta.env);
 
-type DomainRecord = { domain?: unknown; verified?: unknown };
-
-function verifiedDomain(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
-  const domain = value.trim().toLowerCase();
-  if (!domain || domain.includes("://") || domain.includes("/") || domain.includes("@")) return undefined;
-  return domain;
-}
-
 function getStorefrontUrl(slug: string | undefined, customDomain?: string): string | undefined {
   const publicSlug = slug?.trim();
   if (!publicSlug) return undefined;
@@ -182,25 +173,6 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
       }
     }
   }, [initialTab, initialOnboardingCompleted]);
-
-  useEffect(() => {
-    let active = true;
-    void dashboardFetch(API_BASE_URL, "/merchants/me/domains")
-      .then(async (response) => {
-        if (!response.ok) return;
-        const payload: unknown = await response.json();
-        if (!Array.isArray(payload)) return;
-        const match = payload.find((entry): entry is DomainRecord =>
-          typeof entry === "object" && entry !== null && (entry as DomainRecord).verified === true,
-        );
-        const domain = match ? verifiedDomain(match.domain) : undefined;
-        if (active) setCustomDomain(domain);
-      })
-      .catch(() => {
-        if (active) setCustomDomain(undefined);
-      });
-    return () => { active = false; };
-  }, []);
 
   useEffect(() => {
     localStorage.setItem("aacp_nav_collapsed", JSON.stringify(Array.from(collapsedSections)));
@@ -676,7 +648,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "custom-domain" ? (
               <RouteGuard me={me} require="custom-domain">
                 <PremiumFeatureGate feature="customDomain" requiredPlan="Growth" featureLabel="Domínio próprio" description="Use seu próprio domínio na loja a partir do plano Growth.">
-                  <CustomDomainPage />
+                  <CustomDomainPage onVerifiedDomainChange={setCustomDomain} />
                 </PremiumFeatureGate>
               </RouteGuard>
             ) : null}
