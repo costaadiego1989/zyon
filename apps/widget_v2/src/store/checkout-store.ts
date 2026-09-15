@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import {
   CheckoutSession,
+  checkoutShippingFromExperience,
   crossSellBlockFromSuggestions,
   cartFromExperience,
   type BrandConfig,
@@ -28,6 +29,7 @@ import {
   isMerchantSalesSuspendedError,
   MERCHANT_SALES_SUSPENDED_MESSAGE,
 } from "@/lib/checkout-error-message";
+import { checkoutTotalWithServiceFee } from "@/lib/checkout-totals";
 
 export type CheckoutStatus = "loading" | "channel_gate" | "active" | "error" | "completed";
 export type CartStatus = "awaiting" | "shipping_calculated" | "ready_to_pay" | "paid";
@@ -237,7 +239,7 @@ interface CheckoutState {
   acceptCrossSell: (suggestionId: string, sku: string) => Promise<{ ok: boolean; error?: string }>;
   updateQty: (sku: string, quantity: number, variant?: string) => Promise<void>;
   removeCartItem: (sku: string, variant?: string) => Promise<void>;
-  selectShipping: (key: string) => Promise<void>;
+  selectShipping: (option: Pick<ShippingOption, "key" | "label">) => Promise<boolean>;
   pay: (method: CheckoutPaymentMethod, installments?: number) => Promise<void>;
   registerLead: (input: LeadRegistrationInput) => Promise<{ ok: boolean; error?: string }>;
   selectCryptoChain: (chain: "polygon" | "base") => Promise<void>;
@@ -482,7 +484,15 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
           cryptoPaymentsEnabled: exp?.cryptoPaymentsEnabled ?? rawBrand.cryptoPaymentsEnabled ?? false,
           cryptoPayments: exp?.cryptoPayments ?? rawBrand.cryptoPayments,
         },
-        cart: { items, total, serviceFee: cartData.serviceFee, totalToPay: cartData.totalToPay, discount: cartData.discount, status: "awaiting" },
+        cart: {
+          items,
+          total,
+          serviceFee: cartData.serviceFee,
+          totalToPay: cartData.totalToPay,
+          shipping: cartData.shipping,
+          discount: cartData.discount,
+          status: cartData.shipping ? "shipping_calculated" : "awaiting",
+        },
         activeDiscount: activeDiscountFromNudge(exp?.commercial_nudge),
         status: "channel_gate",
         error: null,
@@ -717,6 +727,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
       const { buyer, cart, merchantPaymentConfig } = get();
       const updatedBuyer = mergeBuyer(buyer, buyerFromExperience(res.experience));
+      const experienceShipping = checkoutShippingFromExperience(res.experience?.shipping);
       const baseBlocks = res.blocks && res.blocks.length > 0
         ? res.blocks
         : (isAddressConfirmationCopy(res.message)
@@ -741,6 +752,18 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         buyer: updatedBuyer,
         leadRegistered: hasCompleteLead(updatedBuyer),
         isTyping: false,
+        cart: experienceShipping
+          ? {
+              ...s.cart,
+              shipping: experienceShipping,
+              totalToPay: checkoutTotalWithServiceFee({
+                subtotal: s.cart.total,
+                shipping: experienceShipping.cost,
+                discount: s.cart.discount,
+                serviceFee: s.cart.serviceFee,
+              }),
+            }
+          : s.cart,
       }));
 
       // The signed checkout service is authoritative for its stage. Keep the
@@ -954,31 +977,42 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     await get().updateQty(sku, 0, variant);
   },
 
-  selectShipping: async (key: string) => {
+  selectShipping: async (option) => {
     const { api } = get();
-    if (!api || get().cartUpdating) return;
-    console.log('[WIDGET-DBG] selectShipping called', { key });
+    if (!api || get().cartUpdating) return false;
+    set({ cartUpdating: true, cartError: null });
+    console.log('[WIDGET-DBG] selectShipping called', { key: option.key });
     try {
-      const result = await api.selectShipping(key);
-      console.log('[WIDGET-DBG] selectShipping success', { key, result });
+      const result = await api.selectShipping(option.key);
+      const cost = result.shipping?.customerPrice;
+      if (typeof cost !== "number" || !Number.isFinite(cost) || cost < 0) {
+        throw new Error("embed_shipping_invalid_price");
+      }
+      console.log('[WIDGET-DBG] selectShipping success', { key: option.key, result });
       set((s) => ({
         cart: {
           ...s.cart,
-          totalToPay: undefined,
+          totalToPay: checkoutTotalWithServiceFee({
+            subtotal: s.cart.total,
+            shipping: cost,
+            discount: s.cart.discount,
+            serviceFee: s.cart.serviceFee,
+          }),
           shipping: {
-            key,
-            label: result.shipping?.method ?? key,
+            key: option.key,
+            label: option.label,
             // customerPrice is in reais (major units); cart.total and the
             // SmartCart formatter also work in reais, so keep the same unit.
             // Multiplying by 100 here inflated shipping and the total 100x.
-            cost: result.shipping?.customerPrice ?? 0,
+            cost,
           },
           status: "shipping_calculated",
         },
       }));
-      void trackEvent("shipping_option_selected", { key });
+      void trackEvent("shipping_option_selected", { key: option.key });
+      return true;
     } catch (err) {
-      console.error('[WIDGET-DBG] selectShipping failed', { key, error: err });
+      console.error('[WIDGET-DBG] selectShipping failed', { key: option.key, error: err });
       const errorMsg: Message = {
         id: `error_${Date.now()}`,
         role: "agent",
@@ -987,6 +1021,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         timestamp: Date.now(),
       };
       set((s) => ({ messages: [...s.messages, errorMsg] }));
+      return false;
+    } finally {
+      set({ cartUpdating: false });
     }
   },
 

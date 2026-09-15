@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { paymentMethodsForConfig, useCheckoutStore } from "@/store/checkout-store";
 import { confirmCryptoPayment } from "@/api/payment";
@@ -21,6 +21,65 @@ function BuyerServiceFeeNotice() {
     <p data-testid="buyer-service-fee-notice" style={{ fontSize: "11px", color: "var(--mut)", margin: "8px 0 0", lineHeight: 1.4 }}>
       <strong>{copy.label}: {feeLabel}.</strong> {copy.notice}
     </p>
+  );
+}
+
+function PaymentPanel({
+  title,
+  description,
+  totalLabel,
+  children,
+  status,
+}: {
+  title: string;
+  description: string;
+  totalLabel?: string | null;
+  children?: ReactNode;
+  status?: string;
+}) {
+  return (
+    <section data-neu="surface" className="checkout-payment-panel" aria-label={title}>
+      <header className="checkout-payment-panel__header">
+        <span className="checkout-payment-panel__mark" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="4" y="7" width="16" height="12" rx="2.5" />
+            <path d="M8 7V5.8a4 4 0 0 1 8 0V7" />
+            <path d="M8 13h8" />
+          </svg>
+        </span>
+        <div>
+          <p className="checkout-payment-panel__eyebrow">Pagamento seguro</p>
+          <h3>{title}</h3>
+        </div>
+      </header>
+      <p className="checkout-payment-panel__description">{description}</p>
+      {totalLabel && (
+        <div className="checkout-payment-panel__total">
+          <span>Total a pagar</span>
+          <strong>{totalLabel}</strong>
+        </div>
+      )}
+      <BuyerServiceFeeNotice />
+      {children && <div className="checkout-payment-panel__body">{children}</div>}
+      {status && (
+        <footer className="checkout-payment-panel__status" aria-live="polite">
+          <span aria-hidden="true" />
+          {status}
+        </footer>
+      )}
+    </section>
+  );
+}
+
+function PaymentCompleted({ description = "Seu pedido está sendo processado." }: { description?: string }) {
+  return (
+    <section data-neu="surface" className="checkout-payment-panel checkout-payment-panel--completed" aria-label="Pagamento confirmado">
+      <span className="checkout-payment-panel__success" aria-hidden="true">✓</span>
+      <div>
+        <h3>Pagamento confirmado</h3>
+        <p>{description}</p>
+      </div>
+    </section>
   );
 }
 
@@ -61,13 +120,16 @@ function CartSummaryBlock({ data }: { data?: Record<string, unknown> }) {
 function ShippingOptionsBlock({ options }: { options?: unknown }) {
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
   const selectShipping = useCheckoutStore((s) => s.selectShipping);
+  const selectedShipping = useCheckoutStore((s) => s.cart.shipping);
+  const cartUpdating = useCheckoutStore((s) => s.cartUpdating);
   const preference = useCheckoutStore((s) => s.oneBuyClickPreferences?.shippingPreference);
   const opts = ((options as Array<{ key: string; label: string; tag?: string; sub?: string; cost?: number }>) ?? [])
     .filter((o) => o && o.key && o.label)
     .sort((left, right) => shippingPriority(left, preference) - shippingPriority(right, preference));
 
   const handleSelect = async (opt: (typeof opts)[0]) => {
-    await selectShipping(opt.key);
+    const selected = await selectShipping({ key: opt.key, label: translateShippingLabel(opt.label) });
+    if (!selected) return;
     void sendMessage(`Entrega · ${translateShippingLabel(opt.label)}`);
   };
 
@@ -80,16 +142,19 @@ function ShippingOptionsBlock({ options }: { options?: unknown }) {
       {opts.map((opt) => (
         <button data-neu="choice"
           key={opt.key}
+          disabled={cartUpdating}
+          aria-pressed={selectedShipping?.key === opt.key}
           onClick={() => void handleSelect(opt)}
           style={{
             padding: "10px 12px",
             borderRadius: "10px",
-            border: "1px solid var(--bd)",
-            background: "var(--chip)",
+            border: selectedShipping?.key === opt.key ? "1px solid var(--aacp-accent, #0f766e)" : "1px solid var(--bd)",
+            background: selectedShipping?.key === opt.key ? "color-mix(in srgb, var(--aacp-accent, #0f766e) 9%, var(--chip))" : "var(--chip)",
             color: "var(--tx)",
-            cursor: "pointer",
+            cursor: cartUpdating ? "wait" : "pointer",
             textAlign: "left",
             fontSize: "13px",
+            opacity: cartUpdating && selectedShipping?.key !== opt.key ? 0.58 : 1,
           }}
         >
           <div style={{ fontWeight: 600, display: "flex", justifyContent: "space-between" }}>
@@ -100,6 +165,7 @@ function ShippingOptionsBlock({ options }: { options?: unknown }) {
           </div>
           {preference && opts[0]?.key === opt.key && <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--aacp-accent-text, var(--aacp-accent))", marginTop: "3px" }}>Prioridade da compra rápida</div>}
           {opt.sub && <div style={{ fontSize: "11px", color: "var(--mut)", marginTop: "2px" }}>{opt.sub}</div>}
+          {selectedShipping?.key === opt.key && <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--aacp-accent-text, var(--aacp-accent))", marginTop: "4px" }}>Frete selecionado</div>}
         </button>
       ))}
     </div>
@@ -185,15 +251,7 @@ function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
     : null;
 
   if (status === "completed") {
-    return (
-      <div data-neu="surface" style={{ padding: "16px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)", textAlign: "center" }}>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
-          <div style={{ fontSize: "32px" }}>✓</div>
-          <div style={{ fontSize: "15px", fontWeight: 700, color: "var(--tx)" }}>Pagamento confirmado! 🎉</div>
-          <p style={{ fontSize: "13px", color: "var(--mut)", margin: 0 }}>Seu pedido está sendo processado.</p>
-        </div>
-      </div>
-    );
+    return <PaymentCompleted />;
   }
 
   const handleCopy = async () => {
@@ -218,42 +276,26 @@ function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   };
 
   return (
-    <div data-neu="surface" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
-      <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>Pague com Pix</div>
-      <p style={{ fontSize: "12px", color: "var(--mut)", margin: "0 0 8px", lineHeight: 1.4 }}>
-        Escaneie o QR Code no app do seu banco. Pedido confirmado assim que o pagamento cai.
-      </p>
-      {totalLabel && (
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", margin: "0 0 8px", color: "var(--tx)", fontSize: "12px" }}>
-          <span>Total a pagar</span><strong>{totalLabel}</strong>
-        </div>
-      )}
-      <BuyerServiceFeeNotice />
+    <PaymentPanel
+      title="Pix"
+      description="Escaneie o QR Code no app do seu banco ou copie o código. A confirmação aparece aqui automaticamente."
+      totalLabel={totalLabel}
+      status="Aguardando a confirmação do Pix"
+    >
       {data.pix_qr_url ? (
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: "10px" }}>
-          <img src={String(data.pix_qr_url)} alt="QR Code Pix" style={{ width: "160px", height: "160px", borderRadius: "8px" }} />
+        <div className="checkout-payment-panel__qr">
+          <img src={String(data.pix_qr_url)} alt="QR Code Pix" />
         </div>
       ) : null}
       {data.pix_code != null && (
-        <div style={{ display: "flex", gap: "6px", marginBottom: "8px" }}>
-          <code style={{ flex: 1, minWidth: 0, background: "var(--chip, var(--card))", padding: "8px 10px", borderRadius: "8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "11px", fontFamily: "var(--aacp-font, inherit)" }}>
-            {String(data.pix_code).slice(0, 50)}...
-          </code>
-          <button data-neu="primary"
-            onClick={handleCopy}
-            style={{ padding: "8px 14px", borderRadius: "8px", background: "var(--aacp-accent, #0f766e)", color: "#fff", border: "none", fontSize: "13px", fontWeight: 600, fontFamily: "var(--aacp-font, inherit)", cursor: "pointer", flex: "none", transition: "opacity 0.2s" }}
-          >
-            {copied ? "✓ Copiado" : "Copiar Pix"}
+        <div className="checkout-payment-panel__code">
+          <code>{String(data.pix_code).slice(0, 50)}...</code>
+          <button data-neu="primary" type="button" onClick={handleCopy}>
+            {copied ? "Código copiado" : "Copiar código"}
           </button>
         </div>
       )}
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", padding: "16px" }}>
-        <PulseAgentOrb placement="chatLoading" active />
-        <p style={{ fontSize: "13px", color: "var(--mut)", margin: 0, textAlign: "center" }}>
-          Aguardando pagamento...
-        </p>
-      </div>
-    </div>
+    </PaymentPanel>
   );
 }
 
@@ -287,48 +329,32 @@ function BoletoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
 
   if (!invoiceUrl) {
     return (
-      <div data-neu="surface" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)", color: "var(--mut)", fontSize: "13px" }}>
-        Não foi possível disponibilizar o pagamento com segurança. Escolha outra forma de pagamento.
-      </div>
+      <section data-neu="surface" className="checkout-payment-panel checkout-payment-panel--error" role="alert">
+        <h3>Pagamento indisponível</h3>
+        <p>Não foi possível abrir o pagamento com segurança. Escolha outra forma de pagamento.</p>
+      </section>
     );
   }
 
   if (status === "completed") {
-    return (
-      <div data-neu="surface" style={{ padding: "16px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)", textAlign: "center" }}>
-        <div style={{ fontSize: "15px", fontWeight: 700, color: "var(--tx)" }}>Pagamento confirmado!</div>
-        <p style={{ fontSize: "13px", color: "var(--mut)", margin: "8px 0 0" }}>Seu pedido está sendo processado.</p>
-      </div>
-    );
+    return <PaymentCompleted />;
   }
 
   return (
-    <div data-neu="surface" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
-      <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>{hostedCard ? "Pague com cartão" : "Pague com boleto"}</div>
-      <p style={{ fontSize: "12px", color: "var(--mut)", margin: "0 0 8px", lineHeight: 1.4 }}>
-        {hostedCard
-          ? "Abra o ambiente seguro do provedor em uma nova aba para informar o cartão. Confirmaremos seu pedido automaticamente."
-          : "Abra o boleto em uma nova aba. Confirmaremos seu pedido quando o pagamento for compensado."}
-      </p>
-      {totalLabel && (
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", margin: "0 0 8px", color: "var(--tx)", fontSize: "12px" }}>
-          <span>Total a pagar</span><strong>{totalLabel}</strong>
-        </div>
-      )}
-      <BuyerServiceFeeNotice />
-      <a data-neu="primary"
-        href={invoiceUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{ display: "block", marginTop: "12px", padding: "10px 14px", borderRadius: "8px", background: "var(--aacp-accent, #0f766e)", color: "#fff", fontSize: "13px", fontWeight: 600, textAlign: "center", textDecoration: "none" }}
-      >
-        {hostedCard ? "Abrir pagamento seguro" : "Abrir boleto seguro"}
+    <PaymentPanel
+      title={hostedCard ? "Cartão de crédito" : "Boleto"}
+      description={hostedCard
+        ? "Você será direcionado à página segura do provedor para informar o cartão."
+        : "Abra o boleto em uma nova aba. A compensação será confirmada aqui."}
+      totalLabel={totalLabel}
+      status={hostedCard ? "Aguardando a confirmação do provedor" : "Aguardando a compensação do boleto"}
+    >
+      <a data-neu="primary" className="checkout-payment-panel__action" href={invoiceUrl} target="_blank" rel="noopener noreferrer">
+        {hostedCard ? "Continuar para o pagamento seguro" : "Abrir boleto seguro"}
+        <span aria-hidden="true">↗</span>
       </a>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", padding: "14px 0 2px" }}>
-        <PulseAgentOrb placement="chatLoading" active />
-        <p style={{ fontSize: "12px", color: "var(--mut)", margin: 0, textAlign: "center" }}>{hostedCard ? "Aguardando a confirmação..." : "Aguardando a compensação..."}</p>
-      </div>
-    </div>
+      <p className="checkout-payment-panel__hint">O pedido só é confirmado depois da aprovação do pagamento.</p>
+    </PaymentPanel>
   );
 }
 
@@ -421,8 +447,8 @@ function StripeCardBlockForm({
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div style={{ marginBottom: "12px" }}>
+    <form className="checkout-payment-panel__stripe-form" onSubmit={handleSubmit}>
+      <div className="checkout-payment-panel__card-field">
         <CardElement
           options={{
             style: {
@@ -442,25 +468,14 @@ function StripeCardBlockForm({
         />
       </div>
       {error && (
-        <div style={{ padding: "8px 10px", borderRadius: "6px", background: "#fee", color: "#c92a2a", fontSize: "12px", marginBottom: "12px" }}>
+        <div className="checkout-payment-panel__error" role="alert">
           {error}
         </div>
       )}
       <button data-neu="control"
+        className="checkout-payment-panel__action"
         type="submit"
         disabled={!stripe || loading}
-        style={{
-          width: "100%",
-          padding: "10px 14px",
-          borderRadius: "8px",
-          background: loading || !stripe ? "var(--bd)" : "var(--aacp-accent, #0f766e)",
-          color: "var(--aacp-on-accent, #fff)",
-          border: "none",
-          fontSize: "13px",
-          fontWeight: 600,
-          fontFamily: "var(--aacp-font, inherit)",
-          cursor: loading || !stripe ? "not-allowed" : "pointer",
-        }}
       >
         {loading ? "Processando..." : `Pagar ${totalLabel}`}
       </button>
@@ -488,9 +503,10 @@ function StripeCardBlock({ data }: { data?: Record<string, unknown> }) {
 
   if (!clientSecret || !publishableKey || !intentId || typeof amountCents !== "number" || !Number.isSafeInteger(amountCents) || amountCents <= 0) {
     return (
-      <div data-neu="surface" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
-        <p style={{ fontSize: "12px", color: "var(--mut)", margin: 0 }}>Erro: dados de pagamento incompletos</p>
-      </div>
+      <section data-neu="surface" className="checkout-payment-panel checkout-payment-panel--error" role="alert">
+        <h3>Pagamento indisponível</h3>
+        <p>Não foi possível carregar os dados necessários. Escolha outra forma de pagamento.</p>
+      </section>
     );
   }
 
@@ -498,19 +514,15 @@ function StripeCardBlock({ data }: { data?: Record<string, unknown> }) {
   const totalLabel = new Intl.NumberFormat(checkoutLocale(language), { style: "currency", currency: "BRL" }).format(amountCents / 100);
 
   return (
-    <div data-neu="surface" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
-      <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px" }}>Pague com Cartão de Crédito</div>
-      <p style={{ fontSize: "12px", color: "var(--mut)", margin: "0 0 12px", lineHeight: 1.4 }}>
-        Pagamento processado pela Stripe. Confira o total antes de confirmar.
-      </p>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", marginBottom: "12px", color: "var(--tx)" }}>
-        <span>Total a pagar</span><strong>{totalLabel}</strong>
-      </div>
-      <BuyerServiceFeeNotice />
+    <PaymentPanel
+      title="Cartão de crédito"
+      description="Confira o valor e informe o cartão neste ambiente seguro."
+      totalLabel={totalLabel}
+    >
       <Elements stripe={stripePromise} options={elementsOptions}>
         <StripeCardBlockForm clientSecret={clientSecret} intentId={intentId} totalLabel={totalLabel} />
       </Elements>
-    </div>
+    </PaymentPanel>
   );
 }
 

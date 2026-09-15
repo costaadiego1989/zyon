@@ -135,6 +135,13 @@ export interface CommercialNudge {
 export interface Experience {
   items?: Array<{ sku: string; name: string; quantity: number; unit_price: number; image_url?: string; variant?: string; variant_label?: string }>;
   totals?: { subtotal: number; shipping?: number; discount: number; service_fee?: number; total_to_pay?: number; total: number };
+  shipping?: {
+    carrier?: string;
+    carrierKey?: string;
+    method?: string;
+    customerPrice?: number;
+    deliveryDays?: number;
+  };
   brand?: BrandConfig;
   agent?: AgentConfig;
   buyer?: BuyerConfig;
@@ -170,8 +177,9 @@ export interface CrossSellAcceptResponse {
   agent_turn?: { role: "agent" | "buyer"; text: string; occurredAt?: string };
 }
 
-export function cartFromExperience(experience: Experience | undefined): { items: CartItem[]; total: number; discount: number; serviceFee: number; totalToPay?: number } {
+export function cartFromExperience(experience: Experience | undefined): { items: CartItem[]; total: number; discount: number; serviceFee: number; totalToPay?: number; shipping?: { key: string; label: string; cost: number } } {
   if (!experience?.items || !experience.totals) throw new Error("checkout_cart_snapshot_missing");
+  const shipping = checkoutShippingFromExperience(experience.shipping);
   return {
     items: experience.items.map(item => ({ sku: item.sku, name: item.name, quantity: item.quantity, price: item.unit_price, imageUrl: item.image_url, variant: item.variant, variantLabel: item.variant_label })),
     total: experience.totals.subtotal,
@@ -182,6 +190,25 @@ export function cartFromExperience(experience: Experience | undefined): { items:
     totalToPay: typeof experience.totals.total_to_pay === "number" && Number.isFinite(experience.totals.total_to_pay) && experience.totals.total_to_pay >= 0
       ? experience.totals.total_to_pay
       : undefined,
+    shipping,
+  };
+}
+
+export function checkoutShippingFromExperience(shipping: Experience["shipping"]): { key: string; label: string; cost: number } | undefined {
+  if (!shipping) return undefined;
+  const cost = shipping.customerPrice;
+  if (typeof cost !== "number" || !Number.isFinite(cost) || cost < 0) return undefined;
+
+  const carrier = shipping.carrier?.trim();
+  const method = shipping.method?.trim();
+  const label = carrier && method && carrier !== method
+    ? `${carrier} · ${method}`
+    : method || carrier || "Entrega selecionada";
+
+  return {
+    key: shipping.carrierKey?.trim() || carrier || method || "selected_shipping",
+    label,
+    cost,
   };
 }
 

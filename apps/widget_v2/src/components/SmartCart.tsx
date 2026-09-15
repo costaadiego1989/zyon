@@ -110,6 +110,14 @@ export function SmartCart() {
     discount: cart.discount,
     serviceFee: cart.serviceFee,
   });
+  const displayedTotal = cart.shipping
+    ? checkoutTotalWithServiceFee({
+        subtotal: cart.total,
+        shipping: cart.shipping.cost,
+        discount: cart.discount,
+        serviceFee: cart.serviceFee,
+      })
+    : finalTotal;
   const statusLabels: Record<string, string> = {
     awaiting: "Em andamento",
     shipping_calculated: "Frete definido",
@@ -166,7 +174,12 @@ export function SmartCart() {
       {cart.items.length > 0 && (
         <footer className="checkout-cart__summary">
           <SummaryLine label="Produtos" value={formatPrice(cart.total)} />
-          {cart.shipping && <SummaryLine label={`Frete · ${translateShippingLabel(cart.shipping.label)}`} value={cart.shipping.cost === 0 ? "Grátis" : formatPrice(cart.shipping.cost)} />}
+          {cart.shipping && (
+            <div data-testid="checkout-shipping-summary" className="checkout-cart__shipping">
+              <SummaryLine label="Entrega" value={cart.shipping.cost === 0 ? "Grátis" : formatPrice(cart.shipping.cost)} />
+              <p>{translateShippingLabel(cart.shipping.label)}</p>
+            </div>
+          )}
           {cart.discount > 0 && <SummaryLine label="Desconto" value={`−${formatPrice(cart.discount)}`} emphasis="discount" />}
           {cart.serviceFee > 0 && (
             <div data-testid="buyer-service-fee" className="checkout-cart__service-fee">
@@ -176,16 +189,16 @@ export function SmartCart() {
           )}
           <div data-neu="surface" className="checkout-cart__total">
             <span>Total a pagar</span>
-            <strong>{formatPrice(finalTotal)}</strong>
+            <strong>{formatPrice(displayedTotal)}</strong>
           </div>
         </footer>
       )}
 
       <style>{`
-        .checkout-cart { height: 100%; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+        .checkout-cart { height: 100%; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding-top: 6px; box-sizing: border-box; }
         .checkout-cart__header { display: flex; align-items: flex-start; gap: 10px; padding: 2px 2px 14px; border-bottom: 1px solid var(--bd); }
         .checkout-cart__icon { position: relative; width: 38px; height: 38px; flex: none; display: grid; place-items: center; border: 1px solid var(--bd); border-radius: 13px; background: var(--chip); color: var(--aacp-accent-text, var(--aacp-accent, #0f766e)); }
-        .checkout-cart__badge { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 4px; display: grid; place-items: center; border-radius: 999px; background: var(--aacp-accent, #0f766e); color: #fff; font-size: 10px; font-weight: 800; box-shadow: 0 2px 8px color-mix(in srgb, var(--aacp-accent, #0f766e) 30%, transparent); }
+        .checkout-cart__badge { position: absolute; top: -3px; right: -3px; box-sizing: border-box; min-width: 20px; height: 20px; padding: 0 4px; display: grid; place-items: center; border-radius: 999px; background: var(--aacp-accent, #0f766e); color: var(--aacp-on-accent, #f6f7f5); font-size: 10px; font-weight: 800; line-height: 1; box-shadow: 0 2px 8px color-mix(in srgb, var(--aacp-accent, #0f766e) 30%, transparent); }
         .checkout-cart__heading { min-width: 0; flex: 1; }
         .checkout-cart__heading-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
         .checkout-cart__heading h2 { margin: 0; color: var(--tx); font-size: 14px; line-height: 1.3; letter-spacing: -.15px; }
@@ -219,6 +232,8 @@ export function SmartCart() {
         .checkout-cart__discount { color: var(--aacp-accent-text, var(--aacp-accent, #0f766e)) !important; }
         .checkout-cart__service-fee { padding: 3px 0 6px; }
         .checkout-cart__service-fee p { margin: 1px 0 0; color: var(--mut); font-size: 10.5px; line-height: 1.35; }
+        .checkout-cart__shipping { padding: 2px 0 5px; }
+        .checkout-cart__shipping p { margin: -1px 0 0; color: var(--mut); font-size: 10.5px; line-height: 1.35; overflow-wrap: anywhere; }
         .checkout-cart__total { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 7px; padding: 12px; border: 1px solid color-mix(in srgb, var(--aacp-accent, #0f766e) 35%, var(--bd)); border-radius: 15px; background: color-mix(in srgb, var(--aacp-accent, #0f766e) 7%, var(--card)); }
         .checkout-cart__total span { color: var(--tx); font-size: 13px; font-weight: 700; }
         .checkout-cart__total strong { color: var(--tx); font-size: 18px; letter-spacing: -.4px; white-space: nowrap; }
