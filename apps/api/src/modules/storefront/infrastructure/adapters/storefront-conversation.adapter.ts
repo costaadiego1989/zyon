@@ -25,6 +25,7 @@ import { AgentCopyService } from "../copy/agent-copy.service.js";
 import { resolveDeterministicShortcut } from "../shortcuts/deterministic-shortcuts.service.js";
 import { QueryKnowledgeUseCase } from "../../../knowledge-base/application/use-cases/query-knowledge.use-case.js";
 import { OneBuyClickSessionService } from "../../application/services/one-buy-click-session.service.js";
+import { appendOneBuyClickCheckout } from "../one-buy-click/one-buy-click-checkout-preparation.js";
 
 export const STOREFRONT_CONVERSATION_ADAPTER = Symbol("StorefrontConversationAdapter");
 
@@ -200,6 +201,13 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       systemPrompt: input.experimentSystemPrompt,
       toolHandlers: composeStoreToolHandlers(this.handlerDeps, ctx),
     });
+    const blocks = await appendOneBuyClickCheckout({
+      blocks: result.blocks,
+      toolsUsed: result.toolsUsed,
+      oneBuyClickEnabled: input.oneBuyClick?.enabled === true,
+      cartId: input.cartId || input.sessionId,
+      createCheckoutSession: shortcutHandlers.createCheckoutSession,
+    });
     this.emitToolFunnelEvents(input.merchantId, input.sessionId, result.toolsUsed, deviceMeta).catch(() => {});
     let cartState: StorefrontCartState | undefined;
     if (input.cartId) {
@@ -242,21 +250,21 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       } catch {}
     }
     let finalMessage = result.message;
-    if ((!finalMessage || finalMessage.trim().length === 0) && result.blocks && result.blocks.length > 0) {
-      const contextHint = this.blockContextHint(result.blocks, result.toolsUsed);
+    if ((!finalMessage || finalMessage.trim().length === 0) && blocks.length > 0) {
+      const contextHint = this.blockContextHint(blocks, result.toolsUsed);
       finalMessage = await this.copyService.generateVariantCopy(
         input.experimentSystemPrompt,
         `Você acabou de mostrar ${contextHint} para o cliente. Escreva 1 frase curta e natural acompanhando a apresentação. Não repita dados do componente (preço, nome). Seja empático e conversacional.`,
         this.defaultBlockIntro(result.toolsUsed),
       );
     }
-    const couponListBlock = (result.blocks ?? []).find((b: any) => b.type === "coupon_list") as any;
+    const couponListBlock = blocks.find((b: any) => b.type === "coupon_list") as any;
     const listedCouponCodes: string[] | undefined = couponListBlock?.data?.coupons
       ?.map((c: any) => c.code)
       .filter(Boolean);
     return {
       message: finalMessage,
-      blocks: result.blocks,
+      blocks,
       cartId: result.cartId,
       suggestedNext: storefrontQuickReplies(lastTool, quickRepliesConfig, cartState, shippingOptions, input.userMessage, listedCouponCodes)
     };
