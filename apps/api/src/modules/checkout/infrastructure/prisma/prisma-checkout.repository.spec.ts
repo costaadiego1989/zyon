@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
+import { checkoutSession } from "../../__tests__/checkout-test-fixtures.js";
 import { PrismaCheckoutRepository } from "./prisma-checkout.repository.js";
 
 type MerchantRuleRow = {
@@ -32,6 +33,15 @@ class FakePrisma {
     }
   };
 }
+
+test("clearing shipping after a customer correction writes database null instead of skipping the update", async () => {
+  let update: Record<string, unknown> | undefined;
+  const prisma = { checkoutSession: { async upsert(input: { update: Record<string, unknown> }) { update = input.update; } } };
+  const repository = new PrismaCheckoutRepository(prisma as unknown as PrismaClient);
+  await repository.saveSession(checkoutSession({ shipping: undefined, shippingOptions: undefined }));
+  assert.equal(update?.shipping, Prisma.DbNull);
+  assert.equal(update?.shippingOptions, Prisma.DbNull);
+});
 
 test("PrismaCheckoutRepository persists couponBoxEnabled in checkout rules", async () => {
   const prisma = new FakePrisma();

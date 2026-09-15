@@ -33,6 +33,7 @@ export interface ChatReplyInput {
   missingFields: string[];
   isHoldout: boolean;
   preSearchedProducts: SuggestedProduct[];
+  suppressPaymentActions?: boolean;
 }
 
 @Injectable()
@@ -57,7 +58,7 @@ export class ChatResponseBuilder {
     });
     const updated = await this.sessions.appendChatTurn(input.merchantId, input.sessionId, {
       role: "agent",
-      text: input.safeMessage,
+      text: input.safeMessage.replace(/^(?:Zion|Zyon)\s*:\s*/i, ""),
       occurredAt: new Date().toISOString(),
       authorizedOfferId: input.offer.approved ? input.offer.id : undefined
     });
@@ -70,10 +71,11 @@ export class ChatResponseBuilder {
       serviceFee: this.experienceConfig.platformFeeBrl
     });
 
-    const wantsPix = /\b(pix|qr code)\b/i.test(input.userMessage) && input.stage === "payment";
-    const wantsCard = /\b(cartão|cartao|credito|crédito)\b/i.test(input.userMessage) && input.stage === "payment";
-    const wantsBoleto = /\bboleto\b/i.test(input.userMessage) && input.stage === "payment";
-    const wantsCrypto = /\b(crypto|cripto|usdc|usdt|polygon|base|carteira|wallet|metamask)\b/i.test(input.userMessage) && input.stage === "payment";
+    const canSelectPayment = input.stage === "payment" && !input.suppressPaymentActions;
+    const wantsPix = /\b(pix|qr code)\b/i.test(input.userMessage) && canSelectPayment;
+    const wantsCard = /\b(cartão|cartao|credito|crédito)\b/i.test(input.userMessage) && canSelectPayment;
+    const wantsBoleto = /\bboleto\b/i.test(input.userMessage) && canSelectPayment;
+    const wantsCrypto = /\b(crypto|cripto|usdc|usdt|polygon|base|carteira|wallet|metamask)\b/i.test(input.userMessage) && canSelectPayment;
 
     let suggestedProducts: SuggestedProduct[] = [];
     if (!input.isHoldout && input.stage === "payment" && input.previousStage === "shipping" && this.crossSellRecommender) {
@@ -216,7 +218,7 @@ export class ChatResponseBuilder {
       : input.missingFields;
 
     return {
-      message: input.safeMessage,
+      message: input.safeMessage.replace(/^(?:Zion|Zyon)\s*:\s*/i, ""),
       objection: input.reply.objection,
       authorized_offer: authorizedOfferResponse,
       actions: chatActions,

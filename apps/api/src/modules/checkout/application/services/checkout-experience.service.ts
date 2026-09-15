@@ -140,7 +140,7 @@ export function quickRepliesForStage(
       if (next === "email")
         return ["Vão me mandar SPAM?", "Posso usar outro e-mail?", "Vocês enviam a nota por e-mail?"];
       if (next === "código de verificação")
-        return ["Reenviar código de e-mail", "Não recebi o código", "Qual e-mail foi usado?"];
+        return ["Corrigir e-mail", "Reenviar código de e-mail", "Qual e-mail foi usado?"];
       if (next === "código de verificação do celular")
         return ["Reenviar código SMS", "Não recebi o SMS", "Posso usar outro número?"];
       if (next === "CPF")

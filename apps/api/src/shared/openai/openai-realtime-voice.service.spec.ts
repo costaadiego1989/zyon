@@ -51,4 +51,13 @@ test("realtime voice sessions bound output, instructions and cart context", asyn
   await service.createClientSecret({ merchantId: "merchant_test", conversationId: "conversation_next", cart: { items: [] } });
   const cappedSession = JSON.parse(String(requests[1]?.body)).session;
   assert.equal(cappedSession.max_output_tokens, 2048);
+
+  await service.createClientSecret({ merchantId: "merchant_test", conversationId: "checkout_test", surface: "checkout", checkoutPrompt: "Qual é o celular correto com DDD para este pedido?", cart: { items: [] } });
+  const checkout = JSON.parse(String(requests[2]?.body)).session;
+  assert.equal(checkout.tools.length, 4);
+  assert.equal(checkout.tools.at(-1).name, "correct_customer_details");
+  assert.match(checkout.instructions, /Qual é o celular correto/);
+  assert.doesNotMatch(checkout.instructions, /A partir de agora|Olá! Sou/);
+  assert.match(checkout.instructions, /Não se apresente novamente/);
+  assert.match(checkout.instructions, /Não invente|Nunca complete um e-mail/);
 });

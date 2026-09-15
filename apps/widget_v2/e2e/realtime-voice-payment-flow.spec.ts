@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 test("voice can reveal visual payment methods without creating a payment", async ({ page }) => {
   let checkoutAdvanceCalls = 0;
   let paymentRequests = 0;
+  const corrections: string[] = [];
 
   page.on("request", (request) => {
     if (/payment-intents|\/embed\/pay(?:ment)?/i.test(request.url())) paymentRequests += 1;
@@ -74,6 +75,15 @@ test("voice can reveal visual payment methods without creating a payment", async
   });
   await page.route("**/embed/chat", async (route) => {
     const body = route.request().postDataJSON() as { user_message?: unknown };
+    if (typeof body.user_message === "string" && /e-mail/.test(body.user_message)) {
+      corrections.push(body.user_message);
+      return route.fulfill({ json: {
+        message: body.user_message.includes("right@example.test")
+          ? "Enviei um novo código para right@example.test. Qual é o código?"
+          : "Zion: Qual é o e-mail correto para este pedido?",
+        stage: "data_collection", missing_fields: ["email"], blocks: [],
+      } });
+    }
     if (body.user_message === "Vamos prosseguir") checkoutAdvanceCalls += 1;
     await route.fulfill({
       contentType: "application/json",
@@ -95,6 +105,27 @@ test("voice can reveal visual payment methods without creating a payment", async
   await expect(page.locator('.checkout-cart__product-variant')).toHaveText('30 ml');
   await expect(page.getByText(/plano Growth/)).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => (window as any).__zyonRealtimeChannels?.length ?? 0)).toBe(1);
+
+  const correctionEvent = {
+    type: "response.output_item.done",
+    item: { type: "function_call", name: "correct_customer_details", call_id: "call_correct_email", arguments: JSON.stringify({ buyer_message: "Meu e-mail está errado." }) },
+  };
+  await page.evaluate(event => {
+    const channel = (window as any).__zyonRealtimeChannels[0];
+    channel.emit(event);
+    channel.emit(event);
+  }, correctionEvent);
+  await expect(page.getByText("Qual é o e-mail correto para este pedido?", { exact: true })).toBeVisible();
+  await expect(page.getByText(/^Zion:/)).toHaveCount(0);
+  await expect.poll(() => corrections.length).toBe(1);
+  await expect.poll(() => page.evaluate(() => (window as any).__zyonRealtimeChannels[0].sent
+    .some((raw: string) => raw.includes("function_call_output") && raw.includes("e-mail correto") && !raw.includes("Zion:")))).toBe(true);
+  await page.evaluate(() => (window as any).__zyonRealtimeChannels[0].emit({
+    type: "response.output_item.done",
+    item: { type: "function_call", name: "correct_customer_details", call_id: "call_correct_email_value", arguments: JSON.stringify({ buyer_message: "Meu e-mail correto é right@example.test" }) },
+  }));
+  await expect(page.getByText("Enviei um novo código para right@example.test. Qual é o código?", { exact: true })).toBeVisible();
+  expect(corrections).toEqual(["Meu e-mail está errado.", "Meu e-mail correto é right@example.test"]);
 
   // This is the client-side function-call event emitted by Realtime after the
   // buyer says "quero finalizar". It exercises the same handler as live voice.

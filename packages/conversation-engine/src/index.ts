@@ -687,7 +687,7 @@ function stageMessageForField(
       ) {
         return "E-mail confirmado! Qual seu nome completo para a nota fiscal?";
       }
-      return `Olá! Sou ${agentName ?? "o assistente"}${greetingTail}. Antes de continuar, posso saber seu nome completo?`;
+      return "Qual é seu nome completo para este pedido?";
     case "email":
       return "Perfeito. Qual o seu melhor email para o pedido?";
     case "código de verificação":

@@ -33,6 +33,7 @@ import { ChatResponseBuilder } from "../services/chat-response.builder.js";
 import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
 import { OrderQuotaService } from "../../../payment/application/services/order-quota.service.js";
 import { ConversationRateLimitService } from "../services/conversation-rate-limit.service.js";
+import { correctionLabels } from "../../domain/services/customer-correction-prompts.js";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -81,6 +82,42 @@ export class SendChatMessageUseCase {
     const previousStage = deriveChatStage(context.session);
 
     try {
+      const correction = await this.customerService.correctCustomerInput(working, input.user_message, lastAgentTurn, context.merchant?.name);
+      if (correction) {
+        working = correction.session;
+        if (!correction.needsInput && !correction.blocked && correction.field === "zip") {
+          working = await this.shippingService.processShippingState(working, "");
+        }
+        const resolvedState = { ...working, chatHistory: [] };
+        const stage = deriveChatStage(resolvedState);
+        const missingFields = missingFieldsForStage(resolvedState, stage);
+        const offer = SafeAuthorizedOffer.noOffer(working.merchantId, working.sessionId);
+        const nextReply = correction.message ? { message: correction.message, objection: "unknown" as const } : await this.conversation.reply({
+          userMessage: "", brandVoice: context.rules.brandVoice, authorizedOffer: offer,
+          stage, missingFields, cart: working.cart, history: working.chatHistory,
+          deliverySummary: this.shippingService.summarizeDelivery(working), shippingOptions: working.shippingOptions,
+        });
+        if (!correction.message && !correction.cancelled && correction.field === "email" && working.customer?.otp_code) {
+          nextReply.message = `O e-mail informado é ${working.customer.email}. Confira o e-mail e informe o código de 6 dígitos recebido. Se estiver errado, diga corrigir e-mail.`;
+        } else if (!correction.message && !correction.cancelled && correction.patch) {
+          nextReply.message = `Dado atualizado. ${nextReply.message}`;
+        }
+        const response = await this.chatResponseBuilder.build({
+          reply: nextReply, safeMessage: nextReply.message, userMessage: input.user_message, session: working,
+          offer, merchant: context.merchant, rules: context.rules, stage, previousStage: stage, missingFields,
+          isHoldout: true, preSearchedProducts: [], suppressPaymentActions: true, merchantId: input.merchant_id, sessionId: input.session_id,
+        });
+        if (correction.needsInput && response.experience) {
+          response.stage = "data_collection";
+          response.missing_fields = [correctionLabels[correction.field]];
+          response.experience.stage = "data_collection";
+          response.experience.copy = {
+            ...response.experience.copy, quick_replies: ["Cancelar correção"], focus_input: true,
+            expected_input_type: correction.field === "email" ? "email" : correction.field === "phone" ? "tel" : "text",
+          };
+        }
+        return response;
+      }
       working = await this.customerService.processCustomerInput(
         working,
         input.user_message,
@@ -89,6 +126,7 @@ export class SendChatMessageUseCase {
       );
     } catch (error: unknown) {
       if (error instanceof OtpValidationError) {
+        context.session = await this.sessions.getSession(input.merchant_id, input.session_id) ?? context.session;
         return this.buildOtpValidationResponse(input, error.message, context);
       }
       throw error;
@@ -208,6 +246,10 @@ export class SendChatMessageUseCase {
       });
     }
 
+    if (stage === "data_collection" && missingFields[0] === "código de verificação" && working.customer?.email) {
+      reply.message = `O e-mail informado é ${working.customer.email}. Qual é o código de 6 dígitos recebido? Se estiver errado, diga corrigir e-mail.`;
+    }
+
     const safetyCheck = isSafeGeneratedMessage(
       reply.message,
       isHoldout ? undefined : offer,
@@ -263,7 +305,7 @@ export class SendChatMessageUseCase {
     const otpMissingField = isPhoneOtp ? "código de verificação do celular" : "código de verificação";
     const otpQuickReplies = isPhoneOtp
       ? ["Reenviar código SMS", "Não recebi o SMS", "Posso usar outro número?"]
-      : ["Reenviar código de e-mail", "Não recebi o código", "Qual e-mail foi usado?"];
+      : ["Corrigir e-mail", "Reenviar código de e-mail", "Qual e-mail foi usado?"];
     const responseExperience = {
       ...experience,
       copy: { ...experience.copy, quick_replies: otpQuickReplies }

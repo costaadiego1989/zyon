@@ -57,7 +57,7 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
     if (event.type === "response.output_audio_transcript.done" || event.type === "response.done" || event.type === "response.completed") { setSpeaking(false); if (peerRef.current) setHint("Pode falar quando quiser."); return; }
     if (event.type !== "response.output_item.done" || event.item?.type !== "function_call") return;
     const actionName = event.item.name;
-    if (actionName !== "handoff_to_commerce_agent" && actionName !== "add_item_to_cart" && actionName !== "begin_checkout") return;
+    if (actionName !== "handoff_to_commerce_agent" && actionName !== "add_item_to_cart" && actionName !== "begin_checkout" && actionName !== "correct_customer_details") return;
     const callId = event.item.call_id;
     if (!callId || handled.current.has(callId)) return;
     handled.current.add(callId);
@@ -69,7 +69,7 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
       try { output = await checkoutRef.current(); } catch { output = { error: "Não consegui abrir a finalização agora. Peça para tentar novamente." }; }
     } else if (!buyerMessage) output = { error: "Não consegui entender o pedido. Peça para a pessoa repetir." };
     else {
-      setHint(actionName === "add_item_to_cart" ? "Adicionando ao carrinho..." : "Consultando a loja...");
+      setHint(actionName === "correct_customer_details" ? "Conferindo a correção..." : actionName === "add_item_to_cart" ? "Adicionando ao carrinho..." : "Consultando a loja...");
       try { output = await commerceRef.current(buyerMessage, actionName === "add_item_to_cart" ? "add_item_to_cart" : "commerce"); } catch { output = { error: "A loja não conseguiu concluir esta etapa agora. Peça para tentar novamente." }; }
     }
     const channel = channelRef.current;

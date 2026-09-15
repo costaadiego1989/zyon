@@ -78,7 +78,7 @@ export class OtpService {
     // Generation flow: trigger on new email or kickoff intent
     if (!existing?.otp_code) {
       const kickoff = /iniciar\s+cadastro|come[cç]ar\s+cadastro|quero\s+cadastrar/i.test(userMessage.trim());
-      if (isNewEmail || kickoff) {
+      if (isNewEmail || kickoff || resendEmail) {
         const code = this.generateCode();
         return { otp_code: code, email: currentEmail.toLowerCase() };
       }

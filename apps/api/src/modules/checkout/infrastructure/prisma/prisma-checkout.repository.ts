@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import type {
   AcceptedOffer,
   AuthorizedOffer,
@@ -571,8 +571,10 @@ function toCheckoutSessionUpdate(session: CheckoutSession) {
     conversationId: session.conversationId,
     cart: session.cart as unknown as Prisma.InputJsonValue,
     customer: (session.customer ?? undefined) as unknown as Prisma.InputJsonValue,
-    shipping: (session.shipping ?? undefined) as unknown as Prisma.InputJsonValue,
-    shippingOptions: (session.shippingOptions ?? undefined) as unknown as Prisma.InputJsonValue,
+    // undefined means "skip update" in Prisma, leaving a stale delivery quote.
+    // A full checkout snapshot without shipping explicitly revokes that quote.
+    shipping: session.shipping ?? Prisma.DbNull,
+    shippingOptions: session.shippingOptions ?? Prisma.DbNull,
     abandonmentScore: session.abandonmentScore,
     triggerAgent: session.triggerAgent,
     chatHistory: (session.chatHistory ?? []) as unknown as Prisma.InputJsonValue,

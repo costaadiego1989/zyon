@@ -113,7 +113,7 @@ export function ChatPanel() {
                     whiteSpace: "pre-wrap",
                   }}
                 >
-                  {msg.role === "agent" ? renderInlineMarkdown(msg.text) : msg.text}
+                  {msg.role === "agent" ? renderInlineMarkdown(msg.text.replace(/^(?:Zion|Zyon)\s*:\s*/i, "")) : msg.text}
                 </div>
               )}
               {msg.blocks?.map((block, j) => (

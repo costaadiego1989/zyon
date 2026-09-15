@@ -1,4 +1,6 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
+import { customerCorrection, type CustomerCorrection } from "../../domain/services/customer-correction.js";
 import type { CheckoutSession, CustomerHints } from "@zyon/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { BrevoBuyerEmailNotifier } from "../../infrastructure/brevo-buyer-email.notifier.js";
@@ -96,6 +98,37 @@ export class CheckoutCustomerService {
     // Recognition is only performed after this session's OTP has been validated.
     if (!session.customer?.email_verified) return session;
     return this.recognizeAndPersistVerifiedBuyer(session);
+  }
+
+  async correctCustomerInput(session: CheckoutSession, text: string, lastAgentTurn?: string, merchantName?: string): Promise<(CustomerCorrection & { session: CheckoutSession; message?: string; needsInput?: boolean; blocked?: boolean }) | null> {
+    const correction = customerCorrection(session, text, lastAgentTurn);
+    if (!correction) return null;
+    if (correction.cancelled) return { ...correction, session };
+    if (session.paymentMethod) {
+      return { ...correction, session, message: "O pagamento já foi iniciado. Volte ao checkout antes de alterar os dados do pedido.", blocked: true };
+    }
+    if (!correction.patch) return { ...correction, session, message: correction.question, needsInput: true };
+    const previous = session.customer ?? {};
+    let working: CheckoutSession = { ...session, customer: { ...previous, ...correction.patch }, updatedAt: new Date().toISOString() };
+    if (correction.field === "email" && correction.patch.email !== previous.email?.toLowerCase()) {
+      // Changing identity must not carry a prior account or its proof to a new email.
+      working = {
+        ...working, globalUserId: `usr_${randomUUID()}`, shipping: undefined, shippingOptions: undefined,
+        customer: {
+          ...working.customer, email_verified: false, otp_code: "", recognized_buyer: false, isReturning: false,
+          externalCustomerId: undefined, asaasCustomerId: undefined, phone_verified: false, phone_otp_code: "",
+          ...(previous.email_verified ? { fullName: undefined, cpf: undefined, phone: undefined, address: undefined, address_verified: false } : {}),
+        },
+      };
+      // Revoke the old code before attempting delivery, including delivery failure.
+      await this.repository.saveSession(working);
+      working = await this.processCustomerInput(working, correction.patch.email!, undefined, merchantName);
+    }
+    if (["zip", "number", "complement"].includes(correction.field)) {
+      working = { ...working, shipping: undefined, shippingOptions: undefined };
+    }
+    await this.repository.saveSession(working);
+    return { ...correction, session: working };
   }
 
   private buildCustomerPatch(
