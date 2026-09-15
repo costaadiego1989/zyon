@@ -22,8 +22,8 @@ export function ChatPanel() {
       if (!api) throw new Error("checkout_session_missing");
       return api.createRealtimeVoiceSession();
     },
-    onCommerceTurn: async (buyerMessage) => {
-      await sendMessage(buyerMessage);
+    onCommerceTurn: async (buyerMessage, action) => {
+      await sendMessage(action === "add_item_to_cart" ? `Adicionar ao carrinho: ${buyerMessage}` : buyerMessage);
       const current = useCheckoutStore.getState();
       const agentReply = [...current.messages].reverse().find((message) => message.role === "agent");
       return {
@@ -31,6 +31,9 @@ export function ChatPanel() {
         cart: { itemCount: current.cart.items.length, total: current.cart.total },
       };
     },
+    onBeginCheckout: async () => ({
+      agentMessage: "Você já está na etapa segura de checkout. Revise os dados e confirme visualmente antes de pagar.",
+    }),
   });
 
   useEffect(() => {

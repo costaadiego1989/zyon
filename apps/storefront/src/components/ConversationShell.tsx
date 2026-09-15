@@ -110,10 +110,16 @@ function resolvePresentedVariantId(messages: Message[], buyerText: string): stri
 
   if (!latestCatalogMessage) return undefined;
 
-  const matches = collectProductVariants(latestCatalogMessage.blocks ?? [])
+  const variants = collectProductVariants(latestCatalogMessage.blocks ?? []);
+  const matches = variants
     .filter((variant) => containsVariantValue(buyerText, variant.value));
 
-  return matches.length === 1 ? matches[0].id : undefined;
+  if (matches.length === 1) return matches[0].id;
+
+  // "Este produto" is unambiguous only when the latest presentation exposes
+  // a single sellable variant. Multiple variants always require a choice.
+  const implicitReference = /\b(este|esse|essa|isto|isso|produto|item)\b/i.test(buyerText);
+  return implicitReference && variants.length === 1 ? variants[0].id : undefined;
 }
 
 function attachPresentedVariantId(text: string, variantId: string | undefined): string {
@@ -266,6 +272,7 @@ export default function ConversationShell({
   } = vm;
   const inputRef = useRef<HTMLInputElement | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
+  const presentedProductVariantRef = useRef<string | undefined>(undefined);
   const agent = agentName || "Assistente";
   const { cart } = useCart();
   const realtimeVoice = useRealtimeVoiceCheckout({
@@ -285,9 +292,27 @@ export default function ConversationShell({
       if (typeof data.value !== "string") throw new Error("invalid_realtime_voice_session");
       return { value: data.value, ...(typeof data.expires_at === "number" ? { expires_at: data.expires_at } : {}) };
     },
-    onCommerceTurn: async (buyerMessage) => {
-      const result = await sendMessage(buyerMessage);
+    onCommerceTurn: async (buyerMessage, action) => {
+      const selectedVariantId = action === "add_item_to_cart"
+        ? presentedProductVariantRef.current ?? resolvePresentedVariantId(messages, buyerMessage)
+        : undefined;
+      const commerceMessage = action === "add_item_to_cart"
+        ? attachPresentedVariantId(`Adicionar ao carrinho: ${buyerMessage}`, selectedVariantId)
+        : buyerMessage;
+      const result = await sendMessage(commerceMessage);
       return { agentMessage: result?.agentMessage ?? "Não consegui concluir este pedido agora. Pode repetir?", cart: { itemCount: cart.itemCount, total: cart.total } };
+    },
+    onBeginCheckout: async () => {
+      const buyer = getValidBuyer();
+      if (!buyer) {
+        setShowBuyerAuth(true);
+        return { agentMessage: "Para finalizar com segurança, abri o login. Depois da confirmação, seguiremos para o checkout." };
+      }
+      setCheckoutUserId(buyer.globalUserId);
+      setCheckoutCartRef(cart.cartId ?? undefined);
+      setCheckoutPreferences(undefined);
+      setCheckoutOpen(true);
+      return { agentMessage: "Seu checkout foi aberto. Revise os dados e confirme visualmente antes de pagar." };
     },
   });
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -315,6 +340,9 @@ export default function ConversationShell({
   const openedPreparedActions = useRef(new Set<string>());
   const oneBuyClickEnabled = useRef(false);
   const welcomeVoiceStarted = useRef(false);
+  useEffect(() => {
+    presentedProductVariantRef.current = undefined;
+  }, [richProduct?.productId]);
   useEffect(() => { setMounted(true); }, []);
   const effectiveMode = mounted ? mode : "intro";
   useEffect(() => {
@@ -441,6 +469,17 @@ export default function ConversationShell({
     window.addEventListener("zyon:open-support", onOpenSupport);
     return () => window.removeEventListener("zyon:open-support", onOpenSupport);
   }, []);
+  useEffect(() => {
+    const onVariantSelected = (event: Event) => {
+      const detail = (event as CustomEvent<{ productId?: unknown; variantId?: unknown }>).detail;
+      if (detail?.productId !== richProduct?.productId) return;
+      if (typeof detail?.variantId === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(detail.variantId)) {
+        presentedProductVariantRef.current = detail.variantId;
+      }
+    };
+    window.addEventListener("aacp:rich-product-variant-selected", onVariantSelected);
+    return () => window.removeEventListener("aacp:rich-product-variant-selected", onVariantSelected);
+  }, [richProduct?.productId]);
   useEffect(() => {
     const onOpenBuyerHub = () => setBuyerHubOpen(true);
     window.addEventListener("aacp:open-buyer-hub", onOpenBuyerHub);
@@ -1010,7 +1049,11 @@ export default function ConversationShell({
         />
       )}
       </div>{/* end content wrapper */}
-      {richProduct ? <RichProductDetailsPanel key={richProduct.productId} productId={richProduct.productId} merchantSlug={merchantSlug} suspended={buyerHubOpen || cartDrawerForceOpen || showBuyerAuth || checkoutOpen} onClose={({ productId, productName, defaultVariantId, cartAdded }) => {
+      {richProduct ? <RichProductDetailsPanel key={richProduct.productId} productId={richProduct.productId} merchantSlug={merchantSlug} suspended={buyerHubOpen || cartDrawerForceOpen || showBuyerAuth || checkoutOpen} onProductResolved={({ productId, defaultVariantId }) => {
+        if (richProduct.productId === productId && typeof defaultVariantId === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(defaultVariantId)) {
+          presentedProductVariantRef.current = defaultVariantId;
+        }
+      }} onClose={({ productId, productName, defaultVariantId, cartAdded }) => {
         setRichProduct(null);
         if (cartAdded || !productName || !defaultVariantId || promptedProductClose.current.has(productId)) return;
         promptedProductClose.current.add(productId);

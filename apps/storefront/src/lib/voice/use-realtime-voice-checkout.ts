@@ -2,9 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+export type RealtimeVoiceAction = "commerce" | "add_item_to_cart";
 export type RealtimeVoiceTurnResult = { agentMessage: string; cart?: { itemCount: number; total: number } };
 type RealtimeClientSecret = { value: string; expires_at?: number };
-type Options = { enabled: boolean; createSession: () => Promise<RealtimeClientSecret>; onCommerceTurn: (buyerMessage: string) => Promise<RealtimeVoiceTurnResult> };
+type Options = {
+  enabled: boolean;
+  createSession: () => Promise<RealtimeClientSecret>;
+  onCommerceTurn: (buyerMessage: string, action: RealtimeVoiceAction) => Promise<RealtimeVoiceTurnResult>;
+  onBeginCheckout: () => Promise<RealtimeVoiceTurnResult>;
+};
 export type RealtimeVoiceCheckoutState = {
   connecting: boolean; connected: boolean; listening: boolean; speaking: boolean; unsupported: boolean; hint: string;
   start: (initialText?: string) => void; stop: () => void; toggle: () => void; sendText: (text: string) => void;
@@ -13,7 +19,7 @@ type RealtimeEvent = { type?: string; item?: { type?: string; name?: string; cal
 type VoiceError = Error & { status?: number };
 
 /** WebRTC client that delegates catalog and cart actions to the signed Zyon conversation API. */
-export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTurn }: Options): RealtimeVoiceCheckoutState {
+export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTurn, onBeginCheckout }: Options): RealtimeVoiceCheckoutState {
   const [connecting, setConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
   const [listening, setListening] = useState(false);
@@ -29,8 +35,10 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
   const pendingTextRef = useRef<string | null>(null);
   const createSessionRef = useRef(createSession);
   const commerceRef = useRef(onCommerceTurn);
+  const checkoutRef = useRef(onBeginCheckout);
   createSessionRef.current = createSession;
   commerceRef.current = onCommerceTurn;
+  checkoutRef.current = onBeginCheckout;
 
   const stop = useCallback(() => {
     const channel = channelRef.current;
@@ -59,7 +67,9 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
     if (event.type === "input_audio_buffer.speech_stopped") { setListening(false); setHint("Entendendo seu pedido..."); return; }
     if (event.type === "response.output_audio_transcript.delta" && event.delta) { setSpeaking(true); setHint("Estou respondendo..."); return; }
     if (event.type === "response.output_audio_transcript.done" || event.type === "response.done" || event.type === "response.completed") { setSpeaking(false); if (peerRef.current) setHint("Pode falar quando quiser."); return; }
-    if (event.type !== "response.output_item.done" || event.item?.type !== "function_call" || event.item.name !== "handoff_to_commerce_agent") return;
+    if (event.type !== "response.output_item.done" || event.item?.type !== "function_call") return;
+    const actionName = event.item.name;
+    if (actionName !== "handoff_to_commerce_agent" && actionName !== "add_item_to_cart" && actionName !== "begin_checkout") return;
     const callId = event.item.call_id;
     if (!callId || handledCalls.current.has(callId)) return;
     handledCalls.current.add(callId);
@@ -69,10 +79,14 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
       buyerMessage = typeof parsed.buyer_message === "string" ? parsed.buyer_message.trim().slice(0, 1_000) : "";
     } catch { /* Malformed browser data never reaches commerce. */ }
     let output: RealtimeVoiceTurnResult | { error: string };
-    if (!buyerMessage) output = { error: "Não consegui entender o pedido. Peça para a pessoa repetir." };
+    if (actionName === "begin_checkout") {
+      setHint("Abrindo a finalização segura...");
+      try { output = await checkoutRef.current(); }
+      catch { output = { error: "Não consegui abrir a finalização agora. Peça para tentar novamente." }; }
+    } else if (!buyerMessage) output = { error: "Não consegui entender o pedido. Peça para a pessoa repetir." };
     else {
-      setHint("Consultando a loja...");
-      try { output = await commerceRef.current(buyerMessage); }
+      setHint(actionName === "add_item_to_cart" ? "Adicionando ao carrinho..." : "Consultando a loja...");
+      try { output = await commerceRef.current(buyerMessage, actionName === "add_item_to_cart" ? "add_item_to_cart" : "commerce"); }
       catch { output = { error: "A loja não conseguiu concluir esta etapa agora. Peça para tentar novamente." }; }
     }
     const channel = channelRef.current;

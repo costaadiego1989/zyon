@@ -170,7 +170,13 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
                   {purchase.variants.map((variant, index) => {
                     const label = Object.values(variant.attributes).join(" / ") || (purchase.variants.length > 1 ? "Opção " + (index + 1) : "Padrão");
                     return <label key={variant.id} className={styles.variant} data-unavailable={!variant.available}>
-                      <input type="radio" name="rich-product-variant" value={variant.id} checked={variant.id === selectedVariantId} onChange={() => { setSelectedVariantId(variant.id); setStatus("idle"); }} disabled={!variant.available} />
+                      <input type="radio" name="rich-product-variant" value={variant.id} checked={variant.id === selectedVariantId} onChange={() => {
+                        setSelectedVariantId(variant.id);
+                        setStatus("idle");
+                        if (immersive && typeof productId === "string") {
+                          window.dispatchEvent(new CustomEvent("aacp:rich-product-variant-selected", { detail: { productId, variantId: variant.id } }));
+                        }
+                      }} disabled={!variant.available} />
                       <span>{label}{!variant.available ? <small>Esgotado</small> : null}</span>
                     </label>;
                   })}

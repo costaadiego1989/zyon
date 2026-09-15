@@ -14,11 +14,13 @@ export default function RichProductDetailsPanel({
   merchantSlug,
   suspended = false,
   onClose,
+  onProductResolved,
 }: {
   productId: string;
   merchantSlug?: string;
   suspended?: boolean;
   onClose: (result: { productId: string; productName?: string; defaultVariantId?: string | null; cartAdded: boolean }) => void;
+  onProductResolved?: (product: { productId: string; name: string; defaultVariantId: string | null }) => void;
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const closeCallback = useRef(onClose);
@@ -111,7 +113,10 @@ export default function RichProductDetailsPanel({
         narrationEnabled={!closing && !suspended}
         shareUrl={shareUrl}
         onNarrationChange={setNarration}
-        onProductResolved={setProduct}
+        onProductResolved={(resolved) => {
+          setProduct(resolved);
+          onProductResolved?.({ productId, ...resolved });
+        }}
         onCartAdded={() => setCartAdded(true)}
       />
     </div>

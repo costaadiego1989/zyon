@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FiVolume2 } from "react-icons/fi";
 import styles from "./RichProductContent.module.css";
 
@@ -11,11 +11,21 @@ export default function ProductNarration({ summary, enabled, placement = "body" 
   placement?: "body" | "header";
 }) {
   const [requested, setRequested] = useState(false);
+  const announcedSummary = useRef<string | null>(null);
   const requestNarration = useCallback(() => {
     if (!enabled) return;
     window.dispatchEvent(new CustomEvent("zyon:realtime-product-summary", { detail: { summary } }));
     setRequested(true);
   }, [enabled, summary]);
+
+  // Opening a product is the request for its guided presentation. The
+  // authenticated Realtime session owns audio output; browser TTS is never used.
+  useEffect(() => {
+    const normalized = summary.trim();
+    if (!enabled || !normalized || announcedSummary.current === normalized) return;
+    announcedSummary.current = normalized;
+    requestNarration();
+  }, [enabled, requestNarration, summary]);
 
   return <aside className={`${styles.narration} ${placement === "header" ? styles.narrationInHeader : ""}`} aria-label="Resumo do produto">
     <div className={styles.narrationHeader}>

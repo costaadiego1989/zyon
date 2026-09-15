@@ -25,11 +25,14 @@ test.describe("Realtime voice production @voice", () => {
       (window as any).__zyonNativeSpeech = nativeSpeech;
       const realtimeEvents: string[] = [];
       (window as any).__zyonRealtimeEvents = realtimeEvents;
+      const realtimeChannels: RTCDataChannel[] = [];
+      (window as any).__zyonRealtimeChannels = realtimeChannels;
       const createDataChannel = RTCPeerConnection.prototype.createDataChannel;
       Object.defineProperty(RTCPeerConnection.prototype, "createDataChannel", {
         configurable: true,
         value: function (...args: any[]) {
           const channel = createDataChannel.apply(this, args);
+          realtimeChannels.push(channel);
           const send = channel.send.bind(channel);
           Object.defineProperty(channel, "send", {
             configurable: true,
@@ -69,5 +72,27 @@ test.describe("Realtime voice production @voice", () => {
     await expect(page.locator("audio[data-zyon-realtime-audio]")).toHaveCount(1);
     await expect.poll(() => page.locator("audio[data-zyon-realtime-audio]").evaluate((audio) => Boolean(audio.srcObject)), { timeout: 20_000 }).toBe(true);
     await expect.poll(() => page.evaluate(() => (window as any).__zyonNativeSpeech.calls)).toBe(0);
+
+    // Exercise the Realtime function-call protocol without submitting a cart
+    // mutation. An incomplete add request must still receive a tool result,
+    // then a checkout intent must open the buyer identity gate.
+    await page.evaluate(() => {
+      const channel = (window as any).__zyonRealtimeChannels.at(-1) as RTCDataChannel | undefined;
+      channel?.dispatchEvent(new MessageEvent("message", { data: JSON.stringify({
+        type: "response.output_item.done",
+        item: { type: "function_call", name: "add_item_to_cart", call_id: "voice-add-incomplete", arguments: "{}" },
+      }) }));
+    });
+    await expect.poll(() => page.evaluate(() => (window as any).__zyonRealtimeEvents.some((event: string) => event.includes("voice-add-incomplete") && event.includes("function_call_output")))).toBe(true);
+
+    await page.evaluate(() => {
+      const channel = (window as any).__zyonRealtimeChannels.at(-1) as RTCDataChannel | undefined;
+      channel?.dispatchEvent(new MessageEvent("message", { data: JSON.stringify({
+        type: "response.output_item.done",
+        item: { type: "function_call", name: "begin_checkout", call_id: "voice-begin-checkout", arguments: "{}" },
+      }) }));
+    });
+    await expect.poll(() => page.evaluate(() => (window as any).__zyonRealtimeEvents.some((event: string) => event.includes("voice-begin-checkout") && event.includes("function_call_output")))).toBe(true);
+    await expect(page.getByRole("dialog")).toContainText("Para finalizar sua compra, confirme sua identidade");
   });
 });
