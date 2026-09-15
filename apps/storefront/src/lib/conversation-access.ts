@@ -8,8 +8,9 @@ function storefrontProxyUrl(url: string): string {
   if (typeof window === "undefined") return url;
   const target = new URL(url, window.location.origin);
   const api = new URL(API_BASE, window.location.origin);
-  if (target.origin !== api.origin || !target.pathname.startsWith("/storefront/")) return url;
-  return `/api/storefront-proxy${target.pathname.slice("/storefront".length)}${target.search}`;
+  const storefrontPathStart = target.pathname.indexOf("/storefront/");
+  if (target.origin !== api.origin || storefrontPathStart < 0) return url;
+  return `/api/storefront-proxy${target.pathname.slice(storefrontPathStart + "/storefront".length)}${target.search}`;
 }
 
 export class ConversationSessionExpiredError extends Error {
