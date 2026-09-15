@@ -11,10 +11,12 @@ export function ChatPanel() {
   const messages = useCheckoutStore((s) => s.messages);
   const isTyping = useCheckoutStore((s) => s.isTyping);
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
+  const continueVoiceCheckout = useCheckoutStore((s) => s.continueVoiceCheckout);
   const channel = useCheckoutStore((s) => s.channel);
   const api = useCheckoutStore((s) => s.api);
   const [input, setInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const voiceAutoStartedRef = useRef(false);
 
   const voice = useRealtimeVoiceCheckout({
     enabled: channel === "voice",
@@ -31,10 +33,28 @@ export function ChatPanel() {
         cart: { itemCount: current.cart.items.length, total: current.cart.total },
       };
     },
-    onBeginCheckout: async () => ({
-      agentMessage: "Você já está na etapa segura de checkout. Revise os dados e confirme visualmente antes de pagar.",
-    }),
+    onBeginCheckout: async () => {
+      await continueVoiceCheckout();
+      const current = useCheckoutStore.getState();
+      const agentReply = [...current.messages].reverse().find((message) => message.role === "agent");
+      return {
+        agentMessage: agentReply ? (messageToSpeech(agentReply) || "Atualizei seu checkout. Posso continuar?") : "Atualizei seu checkout. Posso continuar?",
+        cart: { itemCount: current.cart.items.length, total: current.cart.total },
+      };
+    },
   });
+
+  // Selecting voice is itself a buyer action. Start it as the checkout opens
+  // so a storefront hand-off does not require a second microphone click.
+  useEffect(() => {
+    if (channel !== "voice") {
+      voiceAutoStartedRef.current = false;
+      return;
+    }
+    if (voiceAutoStartedRef.current) return;
+    voiceAutoStartedRef.current = true;
+    voice.start();
+  }, [channel, voice.start]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });

@@ -30,7 +30,9 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
+  // Production smoke tests target an explicit remote URL and must not launch
+  // an unrelated local Next server before exercising that deployment.
+  webServer: process.env.ZYON_VOICE_PRODUCTION_URL ? undefined : {
     command: 'npm run dev',
     url: 'http://localhost:3001',
     reuseExistingServer: !process.env.CI,

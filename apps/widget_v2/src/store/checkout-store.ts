@@ -226,6 +226,12 @@ interface CheckoutState {
   selectChannel: (channel: "chat" | "voice") => void;
   completeFormField: (field: string) => void;
   sendMessage: (text: string) => Promise<void>;
+  /**
+   * Continues the visual checkout after a Realtime `begin_checkout` tool call.
+   * This can reveal the payment-method chooser, but cannot create an intent,
+   * collect card data, or confirm a payment.
+   */
+  continueVoiceCheckout: () => Promise<void>;
   acceptCrossSell: (suggestionId: string, sku: string) => Promise<{ ok: boolean; error?: string }>;
   updateQty: (sku: string, quantity: number, variant?: string) => Promise<void>;
   removeCartItem: (sku: string, variant?: string) => Promise<void>;
@@ -645,7 +651,10 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     try {
       const res = await api.chat(text);
 
-      if ((!res.blocks || res.blocks.length === 0) && text === "Vamos prosseguir") {
+      // Only use this offline fallback when the signed checkout service did
+      // not report a stage. A real `payment` stage must reach the generic
+      // handling below so voice can show the visual payment choices.
+      if ((!res.blocks || res.blocks.length === 0) && !res.stage && text === "Vamos prosseguir") {
         const { buyer } = get();
 
         const addr = buyer.address;
@@ -719,6 +728,19 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         leadRegistered: hasCompleteLead(updatedBuyer),
         isTyping: false,
       }));
+
+      // The signed checkout service is authoritative for its stage. Keep the
+      // local state in sync so voice can reveal only the visual payment-method
+      // chooser after delivery is already resolved. A payment intent remains
+      // exclusively behind an explicit visual payment-method action.
+      if (res.stage === "payment") {
+        set((s) => ({
+          cart: {
+            ...s.cart,
+            status: s.cart.status === "ready_to_pay" ? "ready_to_pay" : "shipping_calculated",
+          },
+        }));
+      }
 
       const cartBlock = res.blocks?.find((b) => b.type === "cart_summary");
       if (cartBlock?.data) {
@@ -835,6 +857,23 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         timestamp: Date.now(),
       };
       set((s) => ({ messages: [...s.messages, errorMsg], isTyping: false }));
+    }
+  },
+
+  continueVoiceCheckout: async () => {
+    const before = get().cart.status;
+    if (before === "ready_to_pay") return;
+    if (before === "shipping_calculated") {
+      get().proceedToPayment();
+      return;
+    }
+
+    // This goes through the signed checkout conversation. It can ask for the
+    // next delivery detail, but cannot reach payment until the backend has
+    // reported the payment stage.
+    await get().sendMessage("Vamos prosseguir");
+    if (get().cart.status === "shipping_calculated") {
+      get().proceedToPayment();
     }
   },
 
