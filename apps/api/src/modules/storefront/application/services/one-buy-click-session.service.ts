@@ -32,7 +32,7 @@ interface PrepareCheckoutInput extends StateInput {
 const SESSION_TTL_MS = 72 * 60 * 60 * 1000;
 const DEFAULT_PREFERENCES = {
   oneBuyClickEnabled: false,
-  shippingPreference: "fastest",
+  shippingPreference: "cheapest",
   paymentPreference: "pix",
 } as const;
 

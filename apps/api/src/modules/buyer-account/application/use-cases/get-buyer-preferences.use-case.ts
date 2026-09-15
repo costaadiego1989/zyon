@@ -22,7 +22,7 @@ const DEFAULTS: BuyerPreferencesDto = {
   m2m_negotiation_enabled: false,
   language: "pt-BR",
   one_buy_click_enabled: false,
-  shipping_preference: "fastest",
+  shipping_preference: "cheapest",
   payment_preference: "pix",
 };
 

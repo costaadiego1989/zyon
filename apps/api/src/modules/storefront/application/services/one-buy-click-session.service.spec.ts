@@ -26,7 +26,7 @@ test("anonymous OneBuyClick sessions start paused with guest-safe defaults", asy
   assert.deepEqual(state, {
     enabled: false,
     status: "paused",
-    shippingPreference: "fastest",
+    shippingPreference: "cheapest",
     paymentPreference: "pix",
   });
 });
