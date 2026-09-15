@@ -54,7 +54,7 @@ import { CRYPTO_VERIFIER } from "./domain/ports/crypto-verifier.port.js";
 import { EvmCryptoVerifier } from "./infrastructure/evm-crypto-verifier.js";
 import { BullMqCryptoVerifyQueue, BullMqCryptoVerifyWorker } from "./infrastructure/bullmq-crypto-verify.queue.js";
 import { HttpClientService } from "../../shared/http/http-client.service.js";
-import { readAsaasConnection, isAsaasConfigured } from "./infrastructure/asaas-env.js";
+import { readAsaasConnection, isAsaasConfigured, readAsaasPlatformMerchantId } from "./infrastructure/asaas-env.js";
 import { readStripeConnection, isStripeConfigured } from "./infrastructure/stripe-env.js";
 import { ReconcilePaymentIntentsScheduler, ReconcilePaymentIntentsWorker } from "./infrastructure/reconciliation-payment-intents.job.js";
 import { PaymentHoldPayoutReadinessJob } from "./infrastructure/payment-hold-release.job.js";
@@ -320,7 +320,7 @@ import {
           baseUrl,
           apiKey ?? "__missing__",
           http.toFetch(),
-          process.env.ASAAS_PLATFORM_MERCHANT_ID?.trim() || undefined,
+          readAsaasPlatformMerchantId(),
         );
       },
       inject: [HttpClientService],

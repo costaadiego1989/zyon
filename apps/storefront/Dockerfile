@@ -14,7 +14,7 @@ RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /repo
 
 # 1) Workspace config
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
 
 # 2) Package manifests
 COPY packages/shared-types/package.json     packages/shared-types/package.json
@@ -26,12 +26,21 @@ COPY packages/shared-types/ packages/shared-types/
 COPY packages/contracts/    packages/contracts/
 COPY apps/storefront/       apps/storefront/
 
+COPY packages/checkout-ui/ packages/checkout-ui/
+COPY apps/widget_v2/ apps/widget_v2/
+
 # 4) Install deps
 RUN pnpm install --frozen-lockfile
+
+ARG NEXT_PUBLIC_WIDGET_BASE_URL
+ENV AACP_STANDALONE=true
+RUN test -n "$NEXT_PUBLIC_WIDGET_BASE_URL"
 
 # 5) Build
 RUN pnpm --filter @zyon/shared-types build \
  && pnpm --filter @zyon/contracts build \
+ && pnpm --filter @zyon/widget-v2 build \
+ && mkdir -p apps/storefront/public \
  && pnpm --filter @zyon/storefront build
 
 # ---------------------------------------------------------------------------
@@ -41,6 +50,7 @@ FROM node:20-alpine AS runner
 
 ENV NODE_ENV=production
 ENV PORT=3001
+ENV HOSTNAME=0.0.0.0
 
 WORKDIR /app
 
@@ -48,9 +58,9 @@ USER node
 
 # Next.js standalone output
 COPY --from=builder --chown=node:node /repo/apps/storefront/.next/standalone ./
-COPY --from=builder --chown=node:node /repo/apps/storefront/.next/static ./.next/static
-COPY --from=builder --chown=node:node /repo/apps/storefront/public ./public
+COPY --from=builder --chown=node:node /repo/apps/storefront/.next/static ./apps/storefront/.next/static
+COPY --from=builder --chown=node:node /repo/apps/storefront/public ./apps/storefront/public
 
 EXPOSE 3001
 
-CMD ["node", "server.js"]
+CMD ["node", "apps/storefront/server.js"]

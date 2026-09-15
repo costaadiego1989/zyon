@@ -5,5 +5,13 @@
   "buildCommand": "pnpm --filter @zyon/widget-v2 build:app",
   "outputDirectory": "dist",
   "rewrites": [{ "source": "/((?!assets/).*)", "destination": "/index.html" }],
-  "headers": [{ "source": "/(.*)", "headers": [{ "key": "Referrer-Policy", "value": "no-referrer" }] }]
+  "headers": [{
+    "source": "/(.*)",
+    "headers": [
+      { "key": "Referrer-Policy", "value": "no-referrer" },
+      { "key": "X-Content-Type-Options", "value": "nosniff" },
+      { "key": "Permissions-Policy", "value": "geolocation=(), microphone=(), camera=()" },
+      { "key": "Content-Security-Policy", "value": "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data:; frame-ancestors 'self' https://app.zyon-payments.com.br https://storefront.zyon-payments.com.br;" }
+    ]
+  }]
 }

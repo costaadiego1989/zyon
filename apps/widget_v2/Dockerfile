@@ -39,14 +39,19 @@ COPY packages/contracts/    packages/contracts/
 COPY apps/widget_v2/        apps/widget_v2/
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    --mount=type=cache,id=nm,target=/repo/node_modules \
     pnpm install --frozen-lockfile --prefer-offline
 
-# Build chain (deps → widget bundle).
+ARG WIDGET_FRAME_ANCESTORS
+RUN cd apps/widget_v2 && node scripts/configure-nginx-frames.mjs
+
+ARG VITE_API_BASE_URL
+RUN test -n "$VITE_API_BASE_URL"
+
+# Build the standalone application served by nginx.
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm --filter @zyon/shared-types build \
  && pnpm --filter @zyon/contracts build \
- && pnpm --filter @zyon/widget-v2 build
+ && pnpm --filter @zyon/widget-v2 build:app
 
 # =============================================================================
 # Stage 2 — runner (nginx-unprivileged, ~40 MB)
@@ -63,7 +68,7 @@ LABEL org.opencontainers.image.title="zyon-widget-v2" \
 # Override default config with our SPA-aware one.
 USER root
 RUN rm -f /etc/nginx/conf.d/default.conf
-COPY apps/widget_v2/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /repo/apps/widget_v2/nginx.generated.conf /etc/nginx/conf.d/default.conf
 
 # nginx-unprivileged runs as uid 101; chown built assets so nginx can serve them.
 COPY --from=builder --chown=nginx:nginx /repo/apps/widget_v2/dist /usr/share/nginx/html

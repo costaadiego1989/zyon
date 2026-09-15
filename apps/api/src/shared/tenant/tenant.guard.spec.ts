@@ -68,7 +68,7 @@ describe("TenantGuard", () => {
     for (const principal of [
       { merchantId: "", userId: "usr_1", role: "owner" },
       { merchantId: "mrc_1", role: "owner" },
-      { merchantId: "mrc_1", userId: "usr_1", role: "buyer" },
+      { merchantId: "mrc_1", userId: "usr_1", role: "unsupported" },
       { userId: "usr_1", role: "admin" },
       "merchant-principal",
     ]) {

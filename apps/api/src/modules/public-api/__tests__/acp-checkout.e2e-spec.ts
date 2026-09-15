@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { EmbedTokenService } from "../../embed/domain/embed-token.service.js";
 
-const BASE_URL = process.env.E2E_API_URL || "http://localhost:3009";
+const BASE_URL = process.env.E2E_API_URL || "";
 const API_KEY = process.env.E2E_API_KEY || "aacp_test_e2e_key";
 const MERCHANT_ID = process.env.E2E_MERCHANT_ID || "merchant_test_e2e";
 const TENANT_A = process.env.E2E_TENANT_A || "merchant_test_e2e";
@@ -60,7 +60,7 @@ function uniqueSession(): string {
   return `chk_e2e_${TIMESTAMP}_${randomUUID().slice(0, 8)}`;
 }
 
-test.describe("ACP Checkout Sessions E2E", async () => {
+test.describe("ACP Checkout Sessions E2E", { skip: !process.env.E2E_API_URL ? "Set E2E_API_URL to an explicitly selected test API; no implicit localhost target." : false }, async () => {
   test("1. Discovery: GET /.well-known/ucp advertises checkout_sessions path", async () => {
     const res = await fetch(`${BASE_URL}/.well-known/ucp`, {
       method: "GET",

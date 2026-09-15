@@ -156,25 +156,13 @@ export class QuoteShippingUseCase {
     // Add own-delivery options if enabled
     const resultsWithOwnDelivery = await this.appendOwnDeliveryOptions(finalResults, input);
 
-    // Fallback: if no shipping options are available (no carriers responded,
-    // no own-delivery configured), provide a default "Retirada no local" option
-    // so the checkout flow is never blocked by missing shipping quotes.
-    const resultsWithFallback = resultsWithOwnDelivery.length > 0
-      ? resultsWithOwnDelivery
-      : [{
-          carrier_key: "local_pickup",
-          label: "Retirada no local / Combinar entrega",
-          price: 0,
-          eta_days: 1,
-          is_free: true
-        }];
-
+    // Only return delivery methods configured by the merchant or quoted by a carrier.
     const withFreeShipping = ShippingQuoteEntity.create({
       session_id: input.session_id,
       merchant_id: input.merchant_id,
       destination_zip: input.destination_zip,
       quote_key: quoteKey
-    }).addResults(resultsWithFallback);
+    }).addResults(resultsWithOwnDelivery);
 
     const finalQuote = withFreeShipping.recordCreated();
     await this.quotes.saveWithEvents(finalQuote);

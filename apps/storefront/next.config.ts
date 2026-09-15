@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 const publicApiBaseUrl =
@@ -7,6 +8,8 @@ const publicApiBaseUrl =
 
 const config: NextConfig = {
   reactStrictMode: true,
+  output: process.env.AACP_STANDALONE === "true" ? "standalone" : undefined,
+  outputFileTracingRoot: path.resolve(__dirname, "../.."),
   devIndicators: process.env.AACP_VISUAL_REVIEW === "1" ? false : undefined,
   transpilePackages: ["@zyon/checkout-ui", "@zyon/widget-v2"],
   experimental: {

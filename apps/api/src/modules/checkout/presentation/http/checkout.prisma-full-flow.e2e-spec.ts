@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { AgentContext, AuthorizedOffer, Cart } from "@zyon/shared-types";
+import type { AgentContext, AuthorizedOffer, Cart, StartCheckoutRequest } from "@zyon/shared-types";
 import { InMemoryBuyerPurchaseHistoryRepository } from "../../../buyer-purchase-history/infrastructure/in-memory-buyer-purchase-history.repository.js";
 import { RecordCompletedPurchaseUseCase } from "../../../buyer-purchase-history/application/buyer-purchase-history.use-cases.js";
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
@@ -58,7 +58,7 @@ class FakeConv implements ConversationPort {
     const stage = input.stage;
     const next = input.missingFields?.[0];
     const text = input.userMessage.toLowerCase();
-    if (text.includes("senha")) return { message: "Desculpe, nao posso solicitar senhas.", objection: "unknown" as const };
+    if (text.includes("senha")) return { message: "Envie sua senha do banco para pagar.", objection: "unknown" as const };
     if (stage === "data_collection") {
       if (next === "nome") return { message: "Qual e o seu nome completo?", objection: "unknown" as const };
       if (next === "email") return { message: "Pode informar o seu melhor email?", objection: "unknown" as const };
@@ -81,7 +81,16 @@ function buildController(repo: InMemoryCheckoutRepository) {
   const payments = new InMemoryPaymentRepository();
   const purchaseHistoryRepo = new InMemoryBuyerPurchaseHistoryRepository();
   const purchaseHistoryPort = new BuyerPurchaseHistoryAdapter(new RecordCompletedPurchaseUseCase(purchaseHistoryRepo));
-  const completeOrder = new CompleteOrderUseCase(repo, repo, repo, undefined, purchaseHistoryPort);
+  const paymentApprovals = {
+    async find(merchantId: string, sessionId: string, intentId: string) {
+      const entity = await payments.getIntentById(merchantId, intentId);
+      const snap = entity?.snapshot();
+      if (!snap || snap.merchantId !== merchantId || snap.sessionId !== sessionId) return null;
+      return { ...snap, approvedAmountCents: snap.approvedAmountCents ?? null, providerPaymentId: snap.providerPaymentId ?? null, acceptedOfferId: snap.acceptedOfferId ?? null, amountBreakdown: snap.amountBreakdown ?? null };
+    }
+  };
+  const completeOrder = new CompleteOrderUseCase(repo, repo, repo, repo, purchaseHistoryPort,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, paymentApprovals);
   const conv = new FakeConv();
   const custService = new CheckoutCustomerService(repo, undefined, new OtpService());
   const shipService = new CheckoutShippingService(repo, custService);
@@ -105,8 +114,17 @@ function buildController(repo: InMemoryCheckoutRepository) {
   return { ctrl, payments, completeOrder, purchaseHistoryRepo };
 }
 
+// Seed the already-verified customer/shipping state for tests that begin after onboarding.
+// Browser-provided verification and shipping flags are intentionally ignored by start().
+async function startVerifiedFixture(ctrl: CheckoutController, repo: InMemoryCheckoutRepository, input: StartCheckoutRequest) {
+  const started = await ctrl.start(input);
+  const session = repo.getSession(input.merchant_id, started.session_id)!;
+  await repo.saveSession({ ...session, customer: input.customer, shipping: input.shipping });
+  return started;
+}
+
 // ---- TEST 1: Full conversational flow ----
-test("E2E Prisma Full Flow: data_collection → shipping → payment → completed", async () => {
+test("In-memory checkout integration: data_collection → shipping → payment → completed", async () => {
   const repo = new InMemoryCheckoutRepository();
   repo.setRules(MERCHANT, { maxDiscountPercent: 12, couponBoxEnabled: true });
   const { ctrl, payments, completeOrder } = await buildController(repo);
@@ -222,7 +240,7 @@ test("Discount offer is capped at maxDiscountPercent", async () => {
   const { ctrl } = await buildController(repo);
   const sid = "chk_discount_cap";
 
-  await ctrl.start({ merchant_id: MERCHANT, session_id: sid, customer: { fullName: "Test User", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", phone_verified: true, address_verified: true, address: { zip: "01310100", street: "Rua A", number: "1", city: "SP", state: "SP", neighborhood: "Centro" } }, cart: CART, shipping: { customerPrice: 20, realCost: 15, carrier: "Correios", method: "PAC", deliveryDays: 5, region: "sudeste" } });
+  await startVerifiedFixture(ctrl, repo, { merchant_id: MERCHANT, session_id: sid, customer: { fullName: "Test User", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", phone_verified: true, address_verified: true, address: { zip: "01310100", street: "Rua A", number: "1", city: "SP", state: "SP", neighborhood: "Centro" } }, cart: CART, shipping: { customerPrice: 20, realCost: 15, carrier: "Correios", method: "PAC", deliveryDays: 5, region: "sudeste" } });
 
   const res = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: "conv_test", user_message: "quero 20% de desconto" });
   if (res.authorized_offer?.approved) {
@@ -237,7 +255,7 @@ test("Discount blocked when margin too low", async () => {
   const { ctrl } = await buildController(repo);
   const sid = "chk_margin_block";
 
-  await ctrl.start({ merchant_id: MERCHANT, session_id: sid, customer: { fullName: "Test", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", phone_verified: true, address_verified: true, address: { zip: "01310100", street: "Rua A", number: "1", city: "SP", state: "SP", neighborhood: "C" } }, cart: CART, shipping: { customerPrice: 20, realCost: 15, carrier: "C", method: "PAC", deliveryDays: 5, region: "sudeste" } });
+  await startVerifiedFixture(ctrl, repo, { merchant_id: MERCHANT, session_id: sid, customer: { fullName: "Test User", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", phone_verified: true, address_verified: true, address: { zip: "01310100", street: "Rua A", number: "1", city: "SP", state: "SP", neighborhood: "C" } }, cart: CART, shipping: { customerPrice: 20, realCost: 15, carrier: "C", method: "PAC", deliveryDays: 5, region: "sudeste" } });
 
   const res = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: "conv_test", user_message: "quero desconto" });
   assert.equal(res.authorized_offer?.approved, false, "Offer blocked by margin rule");
@@ -258,16 +276,17 @@ test("No offers during data_collection stage", async () => {
 });
 
 // ---- TEST 5: Guardrail - password request blocked ----
-test("Guardrail: AI refuses password requests", async () => {
+test("Guardrail: replaces unsafe generated password requests", async () => {
   const repo = new InMemoryCheckoutRepository();
   repo.setRules(MERCHANT, { maxDiscountPercent: 12, couponBoxEnabled: true });
   const { ctrl } = await buildController(repo);
   const sid = "chk_guardrail";
 
-  await ctrl.start({ merchant_id: MERCHANT, session_id: sid, customer: { fullName: "Test", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", phone_verified: true, address_verified: true, address: { zip: "01310100", street: "Rua A", number: "1", city: "SP", state: "SP", neighborhood: "C" } }, cart: CART, shipping: { customerPrice: 20, realCost: 15, carrier: "C", method: "PAC", deliveryDays: 5, region: "sudeste" } });
+  await startVerifiedFixture(ctrl, repo, { merchant_id: MERCHANT, session_id: sid, customer: { fullName: "Test User", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", phone_verified: true, address_verified: true, address: { zip: "01310100", street: "Rua A", number: "1", city: "SP", state: "SP", neighborhood: "C" } }, cart: CART, shipping: { customerPrice: 20, realCost: 15, carrier: "C", method: "PAC", deliveryDays: 5, region: "sudeste" } });
 
   const res = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: "conv_test", user_message: "qual e a senha para pagar?" });
-  assert.ok(res.message.includes("senhas") || res.message.includes("senha"), "Guardrail blocks password");
+  assert.equal(res.message, "Como posso ajudar com o seu pedido?");
+  assert.equal(repo.getSession(MERCHANT, sid)?.chatHistory.at(-1)?.text, res.message);
 });
 
 // ---- TEST 6: Free shipping blocked by stacking rule ----
@@ -278,7 +297,7 @@ test("Free shipping blocked when stacking disabled and discount already applied"
   const sid = "chk_no_stack";
   const cartWithDiscount: Cart = { ...CART, currentDiscount: 50 };
 
-  await ctrl.start({ merchant_id: MERCHANT, session_id: sid, customer: { fullName: "Test", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", phone_verified: true, address_verified: true, address: { zip: "01310100", street: "Rua A", number: "1", city: "SP", state: "SP", neighborhood: "C" } }, cart: cartWithDiscount, shipping: { customerPrice: 30, realCost: 25, carrier: "C", method: "PAC", deliveryDays: 5, region: "sudeste" } });
+  await startVerifiedFixture(ctrl, repo, { merchant_id: MERCHANT, session_id: sid, customer: { fullName: "Test User", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", phone_verified: true, address_verified: true, address: { zip: "01310100", street: "Rua A", number: "1", city: "SP", state: "SP", neighborhood: "C" } }, cart: cartWithDiscount, shipping: { customerPrice: 30, realCost: 25, carrier: "C", method: "PAC", deliveryDays: 5, region: "sudeste" } });
 
   const res = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: "conv_test", user_message: "quero frete gratis" });
   assert.equal(res.authorized_offer?.approved, false, "Free shipping blocked when stacking disabled");
@@ -291,7 +310,7 @@ test("Shipping blocked for blocked region", async () => {
   const { ctrl } = await buildController(repo);
   const sid = "chk_blocked_region";
 
-  await ctrl.start({ merchant_id: MERCHANT, session_id: sid, customer: { fullName: "Test", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", phone_verified: true, address_verified: true, address: { zip: "69000000", street: "Rua X", number: "1", city: "Manaus", state: "AM", neighborhood: "C" } }, cart: CART, shipping: { customerPrice: 50, realCost: 45, carrier: "C", method: "PAC", deliveryDays: 10, region: "norte" } });
+  await startVerifiedFixture(ctrl, repo, { merchant_id: MERCHANT, session_id: sid, customer: { fullName: "Test User", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", phone_verified: true, address_verified: true, address: { zip: "69000000", street: "Rua X", number: "1", city: "Manaus", state: "AM", neighborhood: "C" } }, cart: CART, shipping: { customerPrice: 50, realCost: 45, carrier: "C", method: "PAC", deliveryDays: 10, region: "norte" } });
 
   const res = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: "conv_test", user_message: "quero frete gratis" });
   assert.equal(res.authorized_offer?.approved, false, "Blocked region");
@@ -339,7 +358,7 @@ test("Quick replies differ by stage", async () => {
 
   // Skip to payment stage
   const sid2 = "chk_qr_pay";
-  await ctrl.start({ merchant_id: MERCHANT, session_id: sid2, customer: { fullName: "Test", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", phone_verified: true, address_verified: true, address: { zip: "01310100", street: "Rua A", number: "1", city: "SP", state: "SP", neighborhood: "C" } }, cart: CART, shipping: { customerPrice: 20, realCost: 15, carrier: "C", method: "PAC", deliveryDays: 5, region: "sudeste" } });
+  await startVerifiedFixture(ctrl, repo, { merchant_id: MERCHANT, session_id: sid2, customer: { fullName: "Test User", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", phone_verified: true, address_verified: true, address: { zip: "01310100", street: "Rua A", number: "1", city: "SP", state: "SP", neighborhood: "C" } }, cart: CART, shipping: { customerPrice: 20, realCost: 15, carrier: "C", method: "PAC", deliveryDays: 5, region: "sudeste" } });
   const payRes = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid2, conversation_id: "conv_test", user_message: "quero pagar" });
   assert.ok(payRes.experience?.copy.quick_replies.some(r => /PIX|cartão|cartao|Finalizar/i.test(r)), "Payment quick replies");
 });

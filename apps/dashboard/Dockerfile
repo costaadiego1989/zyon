@@ -14,7 +14,7 @@ RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /repo
 
 # 1) Workspace config
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
 
 # 2) Package manifests (only what the dashboard needs)
 COPY packages/shared-types/package.json     packages/shared-types/package.json
@@ -28,6 +28,13 @@ COPY apps/dashboard/        apps/dashboard/
 
 # 4) Install deps
 RUN pnpm install --frozen-lockfile
+
+# Public frontend configuration is compiled into the Vite bundle.
+ARG VITE_API_BASE_URL
+ARG VITE_STOREFRONT_URL
+ARG VITE_WIDGET_V2_URL
+ARG VITE_TURNSTILE_SITE_KEY
+RUN test -n "$VITE_API_BASE_URL" && test -n "$VITE_STOREFRONT_URL" && test -n "$VITE_WIDGET_V2_URL"
 
 # 5) Build shared packages + dashboard
 RUN pnpm --filter @zyon/shared-types build \

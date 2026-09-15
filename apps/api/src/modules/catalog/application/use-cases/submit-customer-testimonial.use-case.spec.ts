@@ -32,7 +32,7 @@ describe("SubmitCustomerTestimonialUseCase", () => {
     testimonialRepo = {
       findApprovedByProduct: mock.fn(async () => []),
       listAllForMerchant: mock.fn(async () => []),
-      create: mock.fn(async (_input: unknown, _actor: unknown) => makeEntity()),
+      create: mock.fn(async (input: Parameters<ProductTestimonialRepositoryPort["create"]>[0]) => makeEntity({ buyerId: input.buyerId, rating: input.rating })),
       update: mock.fn(),
       delete: mock.fn(),
       approve: mock.fn(),

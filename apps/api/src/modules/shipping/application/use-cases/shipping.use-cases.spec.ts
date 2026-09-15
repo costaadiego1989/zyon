@@ -350,6 +350,6 @@ describe("SelectShippingMethodUseCase", () => {
       method: "pix"
     });
 
-    assert.equal(payment.amountCents, 15000);
+    assert.equal(payment.amountCents, 15099); // R$150 order + R$0.99 buyer fee.
   });
 });

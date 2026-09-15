@@ -496,7 +496,11 @@ describe("ProcessSpreadsheetImportUseCase", () => {
     const jobRepo = makeJobRepoDouble();
     const productRepo = makeProductRepoDouble();
     const createCategory = {
-      execute: async () => ({ id: "cat_new_arrivals", name: "New arrivals" }),
+      execute: async () => {
+        const category = { id: "cat_new_arrivals", name: "New arrivals", slug: "new-arrivals", productCount: 0 };
+        productRepo.listCategories = async () => [category];
+        return category;
+      },
     } as unknown as CreateCategoryUseCase;
     const useCase = new ProcessSpreadsheetImportUseCase(
       jobRepo,

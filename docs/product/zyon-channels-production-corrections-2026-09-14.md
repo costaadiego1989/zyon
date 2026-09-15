@@ -6,7 +6,7 @@ Data: 14/09/2026 (Brasil); consultas Railway em 15/09/2026 UTC.
 
 **Liberação para produção ainda bloqueada.** Há correções implementadas e validadas localmente, mas marketplace completo, homologação de provedores, domínio externo e suíte global permanecem pendentes. Nenhuma alteração foi publicada no Railway ou na produção durante esta execução.
 
-Checkout de trabalho: C:/Users/Admin/Desktop/AACP-channels-prod, branch codex/zyon-channels-production, base 3b28746. O checkout principal recebeu commits e alterações concorrentes durante a execução; não foi sobrescrito nem recebeu este pacote.
+Checkout de trabalho: C:/Users/Admin/Desktop/AACP-channels-prod, branch codex/zyon-channels-production, com merge do estado atual de master fbbd624. O checkout principal não foi sobrescrito nem recebeu este pacote.
 
 ## Correções implementadas
 
@@ -27,10 +27,11 @@ A lista de modelos protegidos por loja foi alinhada ao schema. O acesso entre lo
 - 33/33 testes com PostgreSQL local: configurações, domínio, journal/inbox WhatsApp, liquidação e middleware de tenant. Nenhum skip.
 - 234/234 testes focados dos módulos, checkout concluído e outbox antes das duas correções finais de composição/commerce; estas também são exercitadas na suíte padrão abaixo.
 - Dashboard: 569/569 testes, 44 arquivos; build concluído.
-- API, storefront e widget_v2: builds concluídos (consulte o log final da API).
+- API: build final concluído; suíte padrão completa concluída com **2.250 testes, 2.228 aprovados, 0 falhas e 22 ignorados**. Os 22 externos ACP agora exigem `E2E_API_URL` explícita e não acessam um localhost implícito; eles não contam como prova de compra.
+- Storefront e widget_v2: imagens Docker standalone construídas. A storefront responde 200 na raiz e no hostname Railway configurado; o widget entrega página e assets com CSP, `frame-ancestors` de lista explícita, `nosniff`, Referrer-Policy e Permissions-Policy. A configuração Vercel do widget contém a mesma política estática para as origens Zyon aprovadas.
 - Playwright widget_v2: 10/10, com APIs simuladas; storefront: 2/2, fixture de regras comerciais em 1440px e 390px.
 - Dashboard no navegador contra API e banco reais locais: salvar/recarregar identidade, publicação em configuração pública e tela móvel sem overflow; nenhum erro JavaScript. Ocorreram 401 esperados antes do login e 403 da consulta de domínio por limitação do plano da loja fictícia; o fluxo de domínio não foi homologado por essa tela.
-- Suíte padrão completa da API: **pendente testes, pendente aprovados, pendente falhas e pendente ignorados**. Não constitui aprovação de release. Falhas detalhadas em api-default-suite-final.log.
+- O smoke de navegador confirmou login, emissão de token, CORS/origem vinculada e que a API recusa checkout sem carrinho. A emissão requer chave de idempotência e scopes explícitos. A etapa feliz de compra precisa de `cart_ref` assinado e carrinho persistido, que este ambiente local de navegação não contém.
 - 33 migrações aplicadas em PostgreSQL 16 local com pgvector; Redis local separado. Nenhum banco remoto foi migrado.
 
 Logs e capturas: ../../.audit/channels-prod. Os provedores dos testes automatizados são simulados; seus resultados não são comprovantes de pagamento, repasse ou entrega externa.
@@ -41,7 +42,7 @@ Projeto AACP-ZyonPayments: b8421237-6557-4677-a08c-c93453b08568.
 Ambiente sandbox: a347216c-86e3-4a75-8d73-5ae6e122408c.
 URL: https://api-sandbox-8146.up.railway.app.
 
-- API na branch master, a mesma acompanhada pela produção. Deployment 55975f0e-d259-44ab-bbfa-ff36b34bbeea chegou a SUCCESS durante a consulta, sem ação de deploy desta execução.
+- API na branch master, a mesma acompanhada pela produção. Deployment a70cbc35-d360-4ab0-9952-443e05e2d42d chegou a SUCCESS durante a consulta, sem ação de deploy desta execução.
 - /ready e /health responderam 200; ready informou banco conectado. /v1/storefront/athom-technologies/config respondeu 404 no sandbox: a loja não está disponível ali nesse endpoint.
 - PostgreSQL, Redis e Caddy online. Dashboard, widget-v2 e Kong sem implantação. Serviço zyon antigo offline/falhou; não há serviço storefront configurado nesse inventário. O Caddy usa apenas a imagem padrão, sem variáveis, domínio ou volume para certificados nesse ambiente.
 - ASAAS_SANDBOX=true, chave sandbox presente, repasse adiado marcado como ativo. Código resolve a URL sandbox quando essa opção está ativa. A existência dessas variáveis não comprova pagamento/repasse.
@@ -67,7 +68,9 @@ O diagnóstico sanitizado está em railway-sandbox-redacted.json. Valores secret
 - **WhatsApp:** processing_unknown exige revisão humana; recibos automáticos implementados aqui são da Meta. Outros provedores e casos de mídia/voz/anexos precisam de homologação e, onde faltar suporte, implementação. Ainda falta telefone autorizado para envio.
 - **Domínio:** inscrições antigas com apenas CNAME precisarão comprovar TXT. Antes da publicação, inventariar os domínios ativos e coordenar essa mudança para evitar indisponibilidade. A migration não apaga registros.
 - **Liquidação:** o índice único por line_item_id exige ausência de duplicatas existentes. Se houver duplicatas, reconciliar registros financeiros antes da migration; não apagar para forçar o deploy.
-- **Suíte global:** resolver as falhas remanescentes e executar os cenários externos ignorados; preservar as proteções de pagamento aprovado, sessão embed e validação de cliente/frete ao corrigir fixtures antigas.
+- **Widget externo:** o iframe precisa receber CSP vinculada à origem permitida no token, ou ser incluído explicitamente na lista de origens e reconstruído. Não liberar `frame-ancestors` com curingas para acomodar um novo lojista.
+- **Checkout nativo:** no sandbox, configurar `INTERNAL_SERVICE_TOKEN` somente no runtime servidor da Storefront e na API, criar um carrinho de conversa assinado e validar a compra Asaas sandbox. A página não pode gerar esse token no browser.
+- **Cenários externos:** executar os ACP ignorados somente com `E2E_API_URL` do ambiente isolado; preservar as proteções de pagamento aprovado, sessão embed e validação de cliente/frete.
 - Integrar a branch de correções com o estado atual de master, repetir os testes afetados por conflitos e só então publicar. Nenhum merge, push ou deploy deste pacote foi feito.
 
 ## Preflight SQL (somente leitura; executar no ambiente confirmado)

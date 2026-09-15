@@ -1,9 +1,9 @@
-import { isPlatformHostname } from './lib/platform-hostname';
+import { isPlatformHostname, storefrontRequestHostname } from './lib/platform-hostname';
 import { NextRequest, NextResponse } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  const hostname = request.nextUrl.hostname.toLowerCase().replace(/\.$/, '');
-  const isKnownHost = isPlatformHostname(hostname);
+  const hostname = storefrontRequestHostname(request.headers.get('host'), request.nextUrl.hostname);
+  const isKnownHost = isPlatformHostname(hostname, process.env.RAILWAY_PUBLIC_DOMAIN);
   if (isKnownHost) {
     return NextResponse.next();
   }
