@@ -6,6 +6,8 @@ const publicApiBaseUrl =
     ? "/api/v1"
     : process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1";
 
+const websocketApiOrigin = process.env.NEXT_PUBLIC_API_WEBSOCKET_ORIGIN ?? "wss://api.zyon-payments.com.br";
+
 const config: NextConfig = {
   reactStrictMode: true,
   output: process.env.AACP_STANDALONE === "true" ? "standalone" : undefined,
@@ -38,7 +40,7 @@ const config: NextConfig = {
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://analytics.tiktok.com https://js.stripe.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: https: blob:",
-      `connect-src 'self' https: wss://api.zyon-payments.com.br${devConnect} https://api.stripe.com`,
+      `connect-src 'self' https: ${websocketApiOrigin}${devConnect} https://api.stripe.com`,
       "frame-src 'self' https://www.googletagmanager.com https://js.stripe.com https://hooks.stripe.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com",
       "media-src 'self' https: blob:",
       `font-src 'self' data: https:${devFont}`,
