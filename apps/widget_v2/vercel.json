@@ -10,7 +10,7 @@
     "headers": [
       { "key": "Referrer-Policy", "value": "no-referrer" },
       { "key": "X-Content-Type-Options", "value": "nosniff" },
-      { "key": "Permissions-Policy", "value": "geolocation=(), microphone=(), camera=()" },
+      { "key": "Permissions-Policy", "value": "geolocation=(), microphone=(self), camera=()" },
       { "key": "Content-Security-Policy", "value": "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data:; frame-ancestors 'self' https://app.zyon-payments.com.br https://storefront.zyon-payments.com.br;" }
     ]
   }]
