@@ -59,7 +59,7 @@ export class PrismaWhatsAppWebhookInbox implements WhatsAppWebhookInbox {
             AND NOT EXISTS (
               SELECT 1 FROM "whatsapp_webhook_inbox" AS earlier
               WHERE earlier."stream_key" = candidate."stream_key"
-                AND earlier."status" IN ('pending', 'processing')
+                AND earlier."status" IN ('pending', 'processing', 'blocked')
                 AND (earlier."created_at", earlier."id") < (candidate."created_at", candidate."id")
             )
           ORDER BY candidate."created_at", candidate."id"
@@ -101,9 +101,10 @@ export class PrismaWhatsAppWebhookInbox implements WhatsAppWebhookInbox {
 
   async fail(claim: WhatsAppInboxClaim, errorCode: string): Promise<boolean> {
     const dead = claim.attempts >= INBOX_MAX_ATTEMPTS;
+    const blocked = errorCode === "whatsapp_delivery_requires_reconciliation";
     const backoffMs = Math.min(30 * 60_000, 5_000 * 2 ** (claim.attempts - 1));
     return (await this.prisma.$executeRaw(Prisma.sql`
-      UPDATE "whatsapp_webhook_inbox" SET "status" = ${dead ? "dead" : "pending"},
+      UPDATE "whatsapp_webhook_inbox" SET "status" = ${blocked ? "blocked" : dead ? "dead" : "pending"},
         "available_at" = NOW() + ${backoffMs} * INTERVAL '1 millisecond',
         "lease_token" = NULL, "lease_expires_at" = NULL, "last_error" = ${errorCode}, "updated_at" = NOW()
       WHERE "id" = ${claim.id} AND "status" = 'processing' AND "lease_token" = ${claim.leaseToken}

@@ -2,6 +2,7 @@
  * Send WhatsApp Response — outbound message via BubbleWhats.
  */
 
+import { WhatsAppDeliveryService } from "../services/whatsapp-delivery.service.js";
 import { Injectable, Inject, Logger } from "@nestjs/common";
 import { WHATSAPP_SENDER_PORT, type WhatsAppSenderPort } from "../../domain/ports/whatsapp-sender.port.js";
 
@@ -22,9 +23,11 @@ export class SendWhatsAppResponseUseCase {
   constructor(
     @Inject(WHATSAPP_SENDER_PORT)
     private readonly sender: WhatsAppSenderPort,
+    private readonly delivery?: WhatsAppDeliveryService,
   ) {}
 
   async execute(input: SendResponseInput): Promise<void> {
+    if (await this.delivery?.capture(input)) return;
     try {
       const result = await this.sender.sendText({
         provider: input.provider,

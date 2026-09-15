@@ -39,6 +39,7 @@ export class UpdateMerchantThemeUseCase {
     const patch = Object.fromEntries(Object.entries(theme).filter(([, value]) => value !== undefined));
     const next: MerchantTheme = {
       ...DEFAULT_MERCHANT_THEME,
+      ...((profile.plan === "BOTH" || profile.plan === "STORE_ONLY") ? profile.storeSettings?.styles ?? {} : {}),
       ...(profile.theme ?? {}),
       ...patch
     };

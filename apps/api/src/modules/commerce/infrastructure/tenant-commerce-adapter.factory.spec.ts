@@ -118,3 +118,14 @@ test("adapter cache expires after TTL", async () => {
   // but testConnection itself makes a fetch each time
   assert.ok(callCount >= 2);
 });
+
+
+test("unconfigured external commerce permits native catalog fallback but cannot fabricate orders or health", async () => {
+  const factory = new TenantCommerceAdapterFactory(new StubConnections({}), new HttpClientService({ fetchFn: async () => { assert.fail("must not call an external store"); } }));
+  assert.deepEqual(await factory.searchCatalog({ merchantId: "native" }), { products: [], nextCursor: null });
+  assert.equal(await factory.findCatalogProductBySku({ merchantId: "native", sku: "sku" }), null);
+  await assert.rejects(factory.createPendingOrder({ merchantId: "native", sessionId: "session", cart: {} as never }), /commerce_adapter_not_configured/);
+  await assert.rejects(factory.markOrderPaid({ merchantId: "native", commerceOrderId: "order", paymentReference: "payment" }), /commerce_adapter_not_configured/);
+  await assert.rejects(factory.cancelOrder({ merchantId: "native", commerceOrderId: "order", reason: "test" }), /commerce_adapter_not_configured/);
+  await assert.rejects(factory.testConnection("native"), /commerce_adapter_not_configured/);
+});

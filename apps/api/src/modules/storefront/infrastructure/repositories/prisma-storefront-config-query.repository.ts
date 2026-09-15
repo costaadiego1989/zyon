@@ -20,9 +20,9 @@ export class PrismaStorefrontConfigQueryRepository implements StorefrontConfigQu
     if (identifier.includes(".")) {
       const domain = await this.prisma.merchantDomain.findUnique({
         where: { domain: identifier },
-        select: { merchantId: true, verified: true },
+        select: { merchantId: true, verified: true, ownershipVerifiedAt: true },
       });
-      if (domain?.verified) {
+      if (domain?.verified && domain.ownershipVerifiedAt) {
         resolvedSubscription = await this.prisma.merchantBillingSubscription.findUnique({
           where: { merchantId: domain.merchantId },
           select: { status: true, trialEndsAt: true, stripePriceId: true, planKey: true },

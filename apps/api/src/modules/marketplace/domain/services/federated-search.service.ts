@@ -43,7 +43,8 @@ export type FederatedSearchRepositoryPort = {
   searchByQuery(
     query: string,
     category: string | undefined,
-    limit: number
+    limit: number,
+    filters?: { includeMerchants?: string[]; excludeMerchants: string[]; hostMerchantId: string },
   ): Promise<RawFederatedProduct[]>;
 };
 
@@ -63,7 +64,8 @@ export class FederatedSearchService {
     const rawResults = await this.searchRepo.searchByQuery(
       params.query,
       params.category,
-      params.limit
+      params.limit,
+      { includeMerchants: params.includeMerchants, excludeMerchants: [...excludeSet], hostMerchantId: params.hostMerchantId },
     );
 
     const includeSet = params.includeMerchants ? new Set(params.includeMerchants) : null;

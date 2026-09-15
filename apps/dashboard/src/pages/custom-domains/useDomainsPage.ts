@@ -57,11 +57,13 @@ export function useDomainsPage() {
           domain: result.domain,
           verified: false,
           cname_target: result.cname_target,
+          txt_name: result.txt_name,
+          txt_value: result.txt_value,
         }],
         newDomain: "",
         adding: false,
       }));
-      showToast("success", `Domínio adicionado. Configure o CNAME para: ${result.cname_target}`);
+      showToast("success", `Domínio adicionado. Configure os registros CNAME e TXT indicados.`);
     } catch (e) {
       const raw = e instanceof DashboardHttpError ? e.responseBody : e instanceof Error ? e.message : "Erro desconhecido";
       const msg = raw.includes("merchant_not_found") ? "Erro de autenticação. Recarregue a página."
@@ -89,7 +91,7 @@ export function useDomainsPage() {
       if (result.verified) {
         showToast("success", `${result.domain} verificado com sucesso`);
       } else {
-        showToast("error", `CNAME não encontrado para ${result.domain}. Verifique sua configuração DNS.`);
+        showToast("error", `CNAME ou TXT de propriedade não encontrado para ${result.domain}. Verifique sua configuração DNS.`);
       }
     } catch (e) {
       const msg = e instanceof DashboardHttpError ? e.responseBody.slice(0, 180) : e instanceof Error ? e.message : "Erro ao verificar domínio";

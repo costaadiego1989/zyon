@@ -12,6 +12,7 @@ export interface PlaceCrossStoreOrderInput {
   checkoutSessionId: string;
   orderId: string;
   hostMerchantId: string;
+  completedAt?: Date;
 }
 
 export interface PlaceCrossStoreOrderOutput {
@@ -30,11 +31,6 @@ export class PlaceCrossStoreOrderUseCase {
   async execute(
     input: PlaceCrossStoreOrderInput,
   ): Promise<PlaceCrossStoreOrderOutput> {
-    const config = await this.configRepository.get(input.hostMerchantId);
-    if (!config?.enabled) {
-      return { settlements: [] };
-    }
-
     const lineItems = await this.orderRepository.findByCheckoutSessionId(
       input.checkoutSessionId,
     );
@@ -43,7 +39,11 @@ export class PlaceCrossStoreOrderUseCase {
       return { settlements: [] };
     }
 
-    const orderDate = new Date();
+    if (lineItems.some(item => item.hostMerchantId !== input.hostMerchantId || (item.orderId && item.orderId !== input.orderId))) throw new Error("marketplace_order_scope_mismatch");
+    const config = await this.configRepository.get(input.hostMerchantId);
+    if (!config) throw new Error("marketplace_settlement_config_missing");
+    // A pause after payment cannot cancel the seller's financial entitlement.
+    const orderDate = input.completedAt ?? new Date();
     const windows = this.stateMachine.calculateWindows(
       {
         returnWindowDays: config.returnWindowDays,

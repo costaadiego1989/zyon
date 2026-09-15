@@ -29,6 +29,7 @@ function makeFetch(responseBody: unknown, status = 200): FetchMock {
   return vi.fn().mockResolvedValue({
     ok: status >= 200 && status < 300,
     status,
+    headers: new Headers(),
     text: () =>
       Promise.resolve(
         typeof responseBody === "string" ? responseBody : JSON.stringify(responseBody),

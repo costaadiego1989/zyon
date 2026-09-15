@@ -296,18 +296,7 @@ export class CompleteOrderUseCase {
       }
     }
 
-    if (this.placeCrossStoreOrder) {
-      try {
-        const crossStoreSessionId = (session.cart as any)?.cart_ref ?? input.session_id;
-        await this.placeCrossStoreOrder.execute({
-          checkoutSessionId: crossStoreSessionId,
-          orderId: input.external_order_id,
-          hostMerchantId: input.merchant_id
-        });
-      } catch (err) {
-        this.logger.error("cross-store-order.failed", { error: err instanceof Error ? err.message : String(err) });
-      }
-    }
+    // Marketplace settlements are persisted by the durable order.completed subscriber.
 
     if (this.recordIntentIfConsented && !idempotent) {
       void this.intentTrackingEnabled(input.merchant_id).then(async (enabled) => {

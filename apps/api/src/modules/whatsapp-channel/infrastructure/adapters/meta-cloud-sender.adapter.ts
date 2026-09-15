@@ -20,18 +20,18 @@ export class MetaCloudSenderAdapter implements WhatsAppSenderPort {
       const response = await fetch(`${this.graph}/${credentials.phoneNumberId}/messages`, {
         method: "POST", redirect: "error", signal: AbortSignal.timeout(15_000),
         headers: { Authorization: `Bearer ${credentials.accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ messaging_product: "whatsapp", to: recipient.slice(1), type: "text", text: { body: msg.text } }),
+        body: JSON.stringify({ messaging_product: "whatsapp", biz_opaque_callback_data: msg.correlationId, to: recipient.slice(1), type: "text", text: { body: msg.text } }),
       });
       if (!response.ok) {
         this.logger.error(`Meta Cloud text send failed: HTTP ${response.status}`);
-        return { messageId: "", status: "failed" };
+        return { messageId: "", status: response.status >= 500 || response.status === 408 ? "unknown" : "failed" };
       }
       const payload = await response.json().catch(() => ({})) as { messages?: Array<{ id?: unknown }> };
       const messageId = typeof payload.messages?.[0]?.id === "string" ? payload.messages[0].id : "";
-      return messageId ? { messageId, status: "sent" } : { messageId: "", status: "failed" };
+      return messageId ? { messageId, status: "sent" } : { messageId: "", status: "unknown" };
     } catch {
       this.logger.error("Meta Cloud text transport failed");
-      return { messageId: "", status: "failed" };
+      return { messageId: "", status: "unknown" };
     }
   }
 

@@ -17,8 +17,10 @@ export class PrismaMarketplaceSettlementRepository
   async create(
     input: CreateMarketplaceSettlementInput,
   ): Promise<MarketplaceSettlementSnapshot> {
-    const settlement = await this.prisma.marketplaceSettlement.create({
-      data: {
+    const settlement = await this.prisma.marketplaceSettlement.upsert({
+      where: { lineItemId: input.lineItemId },
+      update: {},
+      create: {
         hostMerchantId: input.hostMerchantId,
         sellerMerchantId: input.sellerMerchantId,
         orderId: input.orderId,
@@ -31,6 +33,7 @@ export class PrismaMarketplaceSettlementRepository
         chargebackWindowUntil: input.chargebackWindowUntil,
       },
     });
+    if (settlement.hostMerchantId !== input.hostMerchantId || settlement.sellerMerchantId !== input.sellerMerchantId || settlement.orderId !== input.orderId || settlement.totalAmountCents !== input.totalAmountCents || settlement.commissionCents !== input.commissionCents || settlement.sellerNetCents !== input.sellerNetCents) throw new Error("marketplace_settlement_conflict");
     return this.toSnapshot(settlement);
   }
 

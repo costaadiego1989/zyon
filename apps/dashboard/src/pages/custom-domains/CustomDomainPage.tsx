@@ -157,9 +157,18 @@ export function CustomDomainPage() {
                               </button>
                             </div>
                           </div>
+                          {domain.txt_name && domain.txt_value && (
+                            <div style={{ border: "1px solid var(--color-border)", borderRadius: 6, padding: 10, marginBottom: 12, overflowWrap: "anywhere" }}>
+                              <div><strong>Tipo:</strong> TXT — confirmação de propriedade</div>
+                              <div><strong>Nome:</strong> <code>{domain.txt_name}</code></div>
+                              <div><strong>Valor:</strong> <code>{domain.txt_value}</code></div>
+                              <Button variant="outline" size="sm" onClick={() => copyToClipboard(domain.txt_value!, domain.id + "-txt")}>Copiar valor TXT</Button>
+                            </div>
+                          )}
                           <ol style={{ margin: 0, paddingLeft: 18, color: "var(--color-text-muted)", lineHeight: 1.8 }}>
                             <li>Acesse o painel DNS do seu provedor (Cloudflare, GoDaddy, Registro.br, etc)</li>
                             <li>Use o nome completo acima ou o nome relativo à sua zona DNS e aponte o CNAME para <code style={{ color: "var(--color-brand)" }}>{domain.cname_target}</code></li>
+                            <li>Adicione também o TXT acima e mantenha-o no DNS para comprovar a propriedade</li>
                             <li>Aguarde a propagação DNS (pode levar até 24h, geralmente minutos)</li>
                             <li>Volte aqui e clique "Verificar"</li>
                             <li>Confirme que o domínio abre sua loja por HTTPS antes de divulgá-lo</li>
@@ -167,8 +176,7 @@ export function CustomDomainPage() {
                           {domain.domain.split(".").length <= 2 && (
                             <p style={{ margin: "10px 0 0", fontSize: 11, color: "var(--color-warning)", lineHeight: 1.5 }}>
                               ⚠️ Domínios raiz (sem www) podem não suportar CNAME em alguns provedores.
-                              Se seu provedor não aceitar, use Cloudflare (gratuito) que suporta CNAME no root via proxy,
-                              ou configure um redirecionamento de <code>{domain.domain}</code> → <code>www.{domain.domain}</code>.
+                              Use um subdomínio com CNAME visível no DNS, como <code>www.{domain.domain}</code>. Registros com proxy ou CNAME achatado não passam nesta verificação.
                             </p>
                           )}
                         </div>
@@ -207,7 +215,7 @@ export function CustomDomainPage() {
             <div>
               <strong style={{ fontSize: 13, color: "var(--color-text)", display: "block", marginBottom: 2 }}>2. Configure no seu provedor de domínio</strong>
               <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: 0, lineHeight: 1.5 }}>
-                Copie o endereço que mostramos e adicione como um registro CNAME no local onde você comprou o domínio (Registro.br, GoDaddy, Cloudflare, etc.).
+                Copie o destino CNAME e o desafio TXT que mostramos e adicione os dois registros no local onde você comprou o domínio (Registro.br, GoDaddy, Cloudflare, etc.).
               </p>
             </div>
           </li>

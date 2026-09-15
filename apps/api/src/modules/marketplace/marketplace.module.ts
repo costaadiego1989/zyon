@@ -1,6 +1,7 @@
+import { MarketplaceOrderCompletedHandler } from "./application/handlers/marketplace-order-completed.handler.js";
 import { Module } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
-import { createPrismaClient } from "../../shared/persistence/prisma-client.js";
+import { PRISMA_CROSS_MERCHANT_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 import { CatalogModule } from "../catalog/catalog.module.js";
 
@@ -49,7 +50,7 @@ import { MarketplaceDiscoveryController } from "./presentation/http/marketplace-
 
 const prismaProvider = {
   provide: PrismaClient,
-  useFactory: () => createPrismaClient(),
+  useExisting: PRISMA_CROSS_MERCHANT_CLIENT,
 };
 
 
@@ -58,6 +59,7 @@ const prismaProvider = {
   controllers: [MarketplaceController, MarketplaceDiscoveryController],
   providers: [
     prismaProvider,
+    MarketplaceOrderCompletedHandler,
     BillingPlanMeteringService,
     PlanLimitGuard,
 

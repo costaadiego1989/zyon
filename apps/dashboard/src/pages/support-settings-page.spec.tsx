@@ -232,9 +232,10 @@ describe("SupportSettingsPage — structure", () => {
     expect(src).toContain('panel stacked');
   });
 
-  it("contains handoff terminology for human escalation", () => {
+  it("opens the human support conversation from a selected ticket", () => {
     const src = readSource();
-    expect(src.toLowerCase()).toContain("handoff");
+    expect(src).toContain("<SupportChatDrawer");
+    expect(src).toContain("selectedTicket");
   });
 
   it("contains atendimento in Portuguese", () => {
@@ -281,7 +282,7 @@ describe("SupportSettingsPage — structure", () => {
 
   it("has empty-state for no data scenario", () => {
     const src = readSource();
-    expect(src).toContain("empty-state");
+    expect(src).toContain("<EmptyState");
   });
 
   it("has FAQ section with limit notice", () => {

@@ -1928,6 +1928,7 @@ model MerchantInvite {
 }
 
 model MerchantDomain {
+  ownershipVerifiedAt DateTime? @map("ownership_verified_at")
   id          String    @id @default(cuid())
   merchantId  String    @map("merchant_id")
   domain      String    @unique
@@ -2241,7 +2242,7 @@ model MarketplaceSettlement {
   hostMerchantId        String    @map("host_merchant_id")
   sellerMerchantId      String    @map("seller_merchant_id")
   orderId               String    @map("order_id")
-  lineItemId            String    @map("line_item_id")
+  lineItemId            String    @unique @map("line_item_id")
   totalAmountCents      Int       @map("total_amount_cents")
   commissionCents       Int       @map("commission_cents")
   sellerNetCents        Int       @map("seller_net_cents")
@@ -3237,4 +3238,20 @@ model MerchantPlanNoticeDelivery {
   @@unique([noticeId, channel], map: "merchant_plan_notice_deliveries_channel")
   @@index([status, nextAttemptAt, leaseUntil], map: "merchant_plan_notice_deliveries_queue")
   @@map("merchant_plan_notice_deliveries")
+}
+
+model WhatsAppDelivery {
+  id String @id
+  merchantId String @map("merchant_id")
+  configId String @map("config_id")
+  deviceId String @map("device_id")
+  state String
+  processingToken String @map("processing_token")
+  response Json?
+  providerMessageId String? @map("provider_message_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([merchantId, state])
+  @@index([providerMessageId])
+  @@map("whatsapp_deliveries")
 }

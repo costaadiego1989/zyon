@@ -1,3 +1,5 @@
+import { MerchantAgentConfigurationService } from "./application/merchant-agent-configuration.service.js";
+import { MerchantAgentConfigurationController } from "./presentation/http/merchant-agent-configuration.controller.js";
 import { Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { AuthModule } from "../auth/auth.module.js";
@@ -16,8 +18,9 @@ import { AgentRulesController } from "./presentation/http/agent-rules.controller
 
 @Module({
   imports: [AuthModule, CheckoutSettingsModule],
-  controllers: [AgentRulesController],
+  controllers: [AgentRulesController, MerchantAgentConfigurationController],
   providers: [
+    MerchantAgentConfigurationService,
     GetAgentRulesUseCase,
     UpdateAgentRulesUseCase,
     GetAgentContextUseCase,

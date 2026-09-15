@@ -42,6 +42,7 @@ const DEFAULT_FORM: AgentConfigForm = {
 
 export function validateAgentConfig(form: AgentConfigForm): Record<string, string> {
   const errors: Record<string, string> = {};
+  if (!form.agentName.trim()) errors.agentName = "Informe o nome do agente";
   if (form.agentName.trim().length > 100) errors.agentName = "Máximo 100 caracteres";
   if (form.persona.length > 200) errors.persona = "Máximo 200 caracteres";
   if (form.greeting.length > 500) errors.greeting = "Máximo 500 caracteres";
@@ -121,6 +122,7 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
   const [form, setForm] = useState<AgentConfigForm>(DEFAULT_FORM);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [revision, setRevision] = useState<string | undefined>();
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -142,11 +144,13 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
       setLoaded(false);
       setLoadError(null);
       try {
-        const rules = await api.getMerchantRules();
-        const ar = await api.getAgentRules();
-        const behavior = await api.getCheckoutSettings();
+        const configuration = await api.getMerchantAgentConfiguration();
+        const rules = { quickReplies: configuration.quickReplies };
+        const ar = { identity: configuration.identity };
+        const behavior = { mode: configuration.mode };
         if (cancelled) return;
 
+        setRevision(configuration.revision);
         const arUnknown = ar as unknown as Record<string, unknown>;
         const rulesUnknown = rules as unknown as Record<string, unknown>;
         const identity = (arUnknown.identity ?? {}) as Record<string, unknown>;
@@ -204,11 +208,10 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
     }
     setSaving(true);
     try {
-      await api.putMerchantRules({
+      const saved = await api.putMerchantAgentConfiguration({
+        revision,
+        mode: form.agentMode,
         quickReplies: stageConfigToMap(stageQrConfig),
-      } as never);
-
-      await api.putAgentRules({
         identity: {
           agentName: form.agentName,
           persona: form.persona,
@@ -217,12 +220,8 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
           greeting: form.greeting,
           emptyCartGreeting: form.emptyCartGreeting,
         },
-        checkoutSettings: {
-          agentMode: form.agentMode,
-        },
-      } as never);
-
-      await api.patchCheckoutSettings({ mode: form.agentMode });
+      });
+      setRevision(saved.revision);
 
       showToast("success", "Configurações do agente salvas com sucesso");
     } catch (e) {

@@ -6,9 +6,12 @@ import { TenantModule } from "../tenant/tenant.module.js";
 import { PrismaClient } from "@prisma/client";
 
 export const PRISMA_CLIENT = Symbol("PRISMA_CLIENT");
+// Privileged marketplace repositories enforce host/seller and partner boundaries themselves.
+// Reuse the lifecycle-managed pool without implicitly replacing a seller with the caller.
+export const PRISMA_CROSS_MERCHANT_CLIENT = Symbol("PRISMA_CROSS_MERCHANT_CLIENT");
 
 export class PrismaLifecycle implements OnModuleInit, OnApplicationShutdown {
-  constructor(public readonly client: PrismaClient) {}
+  constructor(public readonly client: PrismaClient, public readonly crossMerchantClient: PrismaClient = client) {}
 
   async onModuleInit() {
     await this.client.$connect();
@@ -28,9 +31,14 @@ export class PrismaLifecycle implements OnModuleInit, OnApplicationShutdown {
       useFactory: (tenantCtx: TenantContextService): PrismaLifecycle => {
         const client = createPrismaClient();
         const wrapped = registerTenantMiddleware(client, tenantCtx) as unknown as PrismaClient;
-        return new PrismaLifecycle(wrapped);
+        return new PrismaLifecycle(wrapped, client);
       },
       inject: [TenantContextService],
+    },
+    {
+      provide: PRISMA_CROSS_MERCHANT_CLIENT,
+      useFactory: (lifecycle: PrismaLifecycle): PrismaClient => lifecycle.crossMerchantClient,
+      inject: [PrismaLifecycle],
     },
     {
       provide: PRISMA_CLIENT,
@@ -38,6 +46,6 @@ export class PrismaLifecycle implements OnModuleInit, OnApplicationShutdown {
       inject: [PrismaLifecycle],
     },
   ],
-  exports: [PRISMA_CLIENT],
+  exports: [PRISMA_CLIENT, PRISMA_CROSS_MERCHANT_CLIENT],
 })
 export class PersistenceModule {}

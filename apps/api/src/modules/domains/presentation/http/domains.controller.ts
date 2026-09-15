@@ -91,10 +91,10 @@ export class DomainCheckController {
     if (!domain?.trim()) throw new NotFoundException("missing_domain");
 
     const record = await this.prisma.merchantDomain.findUnique({
-      where: { domain: domain.trim().toLowerCase() },
+      where: { domain: domain.trim().toLowerCase().replace(/\.$/, "") },
     });
 
-    if (!record || !record.verified) {
+    if (!record || !record.verified || !record.ownershipVerifiedAt) {
       throw new NotFoundException("domain_not_verified");
     }
     const subscription = await this.prisma.merchantBillingSubscription.findUnique({

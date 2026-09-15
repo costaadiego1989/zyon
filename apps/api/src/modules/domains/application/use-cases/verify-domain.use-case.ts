@@ -6,6 +6,7 @@ import { Injectable, Inject, NotFoundException , Logger} from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { DnsVerificationService } from "../../infrastructure/dns-verification.service.js";
+import { domainOwnershipChallenge } from "../../domain-ownership.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface VerifyDomainInput {
@@ -34,15 +35,18 @@ export class VerifyDomainUseCase {
     });
     if (!record) throw new NotFoundException("domain_not_found");
 
-    const verified = await this.dnsService.verifyCname(
+    const cnameVerified = await this.dnsService.verifyCname(
       record.domain,
       record.cnameTarget,
     );
 
+    const challenge = domainOwnershipChallenge(record);
+    const ownershipVerified = await this.dnsService.verifyTxt(challenge.txt_name, challenge.txt_value);
+    const verified = cnameVerified && ownershipVerified;
     if (verified) {
       const updated = await this.prisma.merchantDomain.update({
         where: { id: record.id },
-        data: { verified: true, verifiedAt: new Date() },
+        data: { verified: true, verifiedAt: new Date(), ownershipVerifiedAt: new Date() },
       });
       return {
         domain: updated.domain,
@@ -55,7 +59,7 @@ export class VerifyDomainUseCase {
     // Transient resolver failures throw before this point and preserve the last known state.
     await this.prisma.merchantDomain.update({
       where: { id: record.id },
-      data: { verified: false, verifiedAt: null },
+      data: { verified: false, verifiedAt: null, ownershipVerifiedAt: null },
     });
     return { domain: record.domain, verified: false };
   }

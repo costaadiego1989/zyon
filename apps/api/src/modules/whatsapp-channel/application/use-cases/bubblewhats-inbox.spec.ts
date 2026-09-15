@@ -222,7 +222,7 @@ describe("BubbleWhats worker failure propagation", () => {
       claimNext: async () => { const result = next; next = null; return result; },
       fail: async () => { failed++; return true; }, complete: async () => { completed++; return true; },
     };
-    const worker = new WhatsAppWebhookWorker(inbox as any, { findById: async () => config() } as any, incoming, {} as any);
+    const worker = new WhatsAppWebhookWorker(inbox as any, { findById: async () => config() } as any, incoming, {} as any, { process: async (_claim: unknown, run: () => Promise<void>) => run() } as any);
     await worker.drain();
     assert.deepEqual({ failed, sends, completed }, { failed: 1, sends: 1, completed: 0 });
   });
@@ -267,9 +267,9 @@ describe("BubbleWhats worker failure propagation", () => {
         requests.push(init!);
         return new Response("secret-echo-must-not-appear buyer-message", { status: 502 });
       };
-      assert.equal((await adapter.sendText({ toNumber: "5511999999999", deviceId: "device", text: "buyer-message" })).status, "failed");
+      assert.equal((await adapter.sendText({ toNumber: "5511999999999", deviceId: "device", text: "buyer-message" })).status, "unknown");
       globalThis.fetch = async () => { throw new Error("secret-echo-must-not-appear buyer-message"); };
-      assert.equal((await adapter.sendText({ toNumber: "5511999999999", deviceId: "device", text: "buyer-message" })).status, "failed");
+      assert.equal((await adapter.sendText({ toNumber: "5511999999999", deviceId: "device", text: "buyer-message" })).status, "unknown");
       assert.equal(requests[0].redirect, "error");
       assert.ok(requests[0].signal instanceof AbortSignal);
       assert.equal(requests[0].signal.aborted, false);
@@ -295,7 +295,7 @@ describe("BubbleWhats worker failure propagation", () => {
       claimNext: async () => { const result = next; next = null; return result; },
       complete: async () => { completed++; return true; },
     } as any, { findById: async () => config() } as any,
-    { execute: async () => { entered(); await gate; } } as any, {} as any);
+    { execute: async () => { entered(); await gate; } } as any, {} as any, { process: async (_claim: unknown, run: () => Promise<void>) => run() } as any);
     const first = worker.drain();
     assert.equal(worker.drain(), first);
     await enteredPromise;

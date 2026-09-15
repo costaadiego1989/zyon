@@ -153,7 +153,7 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
     const link = await (this.prisma as any).merchantDomain?.findUnique?.({
       where: { domain: normalized }
     });
-    if (!link || link.verified !== true) return undefined;
+    if (!link || link.verified !== true || !link.ownershipVerifiedAt) return undefined;
     const subscription = await this.prisma.merchantBillingSubscription.findUnique({
       where: { merchantId: link.merchantId },
       select: { status: true, trialEndsAt: true, stripePriceId: true, planKey: true },

@@ -5,6 +5,7 @@
 import { Injectable, Inject, BadRequestException, NotFoundException , Logger} from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { domainOwnershipChallenge } from "../../domain-ownership.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface RegisterDomainInput {
@@ -17,6 +18,8 @@ export interface RegisterDomainOutput {
   domain: string;
   cname_target: string;
   instructions: string;
+  txt_name: string;
+  txt_value: string;
 }
 
 @Injectable()
@@ -53,13 +56,17 @@ export class RegisterDomainUseCase {
         cnameTarget,
         verified: false,
       },
+    }).catch(error => {
+      if ((error as { code?: string }).code === "P2002") throw new BadRequestException("domain_already_registered");
+      throw error;
     });
 
     return {
+      ...domainOwnershipChallenge(created),
       domain_id: created.id,
       domain: created.domain,
       cname_target: cnameTarget,
-      instructions: `Add a CNAME record for "${domain}" pointing to "${cnameTarget}", then call verify.`,
+      instructions: `Add a CNAME record for "${domain}" pointing to "${cnameTarget}", add the TXT ownership record returned with this registration, then call verify.`,
     };
   }
 }

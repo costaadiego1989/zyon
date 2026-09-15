@@ -122,3 +122,10 @@ test("partial theme updates preserve saved branding and isolate merchants", asyn
   assert.equal((await repo.getProfile("m1"))?.theme?.accentColor, "#FF0066");
   await assert.rejects(update.execute("missing", {}), /merchant_not_found/);
 });
+
+test("partial theme updates retain store styles used by the public theme reader", async () => {
+  const repo = repoWithMerchant();
+  repo.seedProfile({ id: "m1", name: "Demo", plan: "BOTH", storeSettings: { styles: { accentColor: "#123456" } } });
+  const saved = await new UpdateMerchantThemeUseCase(repo).execute("m1", { logoUrl: "https://cdn.example/logo.png" });
+  assert.equal(saved.accentColor, "#123456");
+});

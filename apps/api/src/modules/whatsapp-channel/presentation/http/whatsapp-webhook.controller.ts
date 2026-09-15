@@ -57,6 +57,8 @@ interface BubbleWhatsStatusPayload {
   }>;
 }
 
+import { WhatsAppDeliveryService } from "../../application/services/whatsapp-delivery.service.js";
+
 interface MetaInboundMessage {
   id?: string;
   from?: string;
@@ -75,6 +77,7 @@ interface MetaWebhookPayload {
         metadata?: { phone_number_id?: string };
         contacts?: Array<{ profile?: { name?: string } }>;
         messages?: MetaInboundMessage[];
+        statuses?: Array<{ id?: string; status?: string; biz_opaque_callback_data?: string }>;
       };
     }>;
   }>;
@@ -87,6 +90,7 @@ export class WhatsAppWebhookController {
     @Inject(WHATSAPP_CONFIG_REPOSITORY)
     private readonly configRepo: WhatsAppConfigRepository,
     private readonly acceptBubbleWhats: AcceptBubbleWhatsWebhookUseCase,
+    private readonly delivery?: WhatsAppDeliveryService,
   ) {}
 
   @Get("meta")
@@ -128,7 +132,12 @@ export class WhatsAppWebhookController {
         if (!phoneNumberId) continue;
 
         const config = await this.configRepo.findByMetaPhoneNumberId(phoneNumberId);
-        if (!config || !config.enabled) continue;
+        if (!config || config.provider !== "META_CLOUD") continue;
+        for (const status of change.value?.statuses ?? []) {
+          if (!this.delivery) throw new ServiceUnavailableException("whatsapp_delivery_not_configured");
+          await this.delivery.reconcileMeta(config.merchantId, config.id, status);
+        }
+        if (!config.enabled) continue;
 
         const senderName = change.value?.contacts?.[0]?.profile?.name;
         for (const message of change.value?.messages ?? []) {

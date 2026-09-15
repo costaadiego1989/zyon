@@ -40,7 +40,6 @@ export class AgentIdentityPatchDto {
   // tone is also fine.
   @IsString()
   @MaxLength(500)
-  @ValidateIf((o: AgentIdentityPatchDto) => Boolean(o.persona) || Boolean(o.tone))
   @IsOptional()
   greeting?: string;
 

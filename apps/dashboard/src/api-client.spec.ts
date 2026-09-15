@@ -67,6 +67,7 @@ describe("dashboardJson", () => {
       "fetch",
       vi.fn(async (): Promise<Response> => {
         return {
+          headers: new Headers(),
           ok: false,
           status: 401,
           text: async () => '{"err":true}',

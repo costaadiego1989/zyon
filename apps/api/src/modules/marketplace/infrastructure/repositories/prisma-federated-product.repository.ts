@@ -47,9 +47,19 @@ export class PrismaFederatedProductRepository
     query: string,
     category: string | undefined,
     limit: number,
+    filters?: { includeMerchants?: string[]; excludeMerchants: string[]; hostMerchantId: string },
   ) {
+    const configs = await this.prisma.marketplaceConfig.findMany({
+      where: { enabled: true, ...(filters?.includeMerchants ? { merchantId: { in: filters.includeMerchants } } : {}) },
+      select: { merchantId: true, commissionRateBps: true, blockedMerchants: true },
+    });
+    const eligible = configs.filter(c => !filters || (!filters.excludeMerchants.includes(c.merchantId) && !c.blockedMerchants.includes(filters.hostMerchantId)));
+    const merchants = await this.prisma.merchant.findMany({ where: { id: { in: eligible.map(c => c.merchantId) } }, select: { id: true, name: true } });
     const products = await this.prisma.federatedProduct.findMany({
       where: {
+        sourceMerchantId: { in: eligible.map(c => c.merchantId) },
+        stockAvailable: true,
+        currency: "BRL",
         AND: [
           {
             OR: [
@@ -67,13 +77,13 @@ export class PrismaFederatedProductRepository
       id: p.id,
       sourceMerchantId: p.sourceMerchantId,
       sourceProductId: p.sourceProductId,
-      sellerName: "",
+      sellerName: merchants.find(m => m.id === p.sourceMerchantId)?.name ?? "",
       name: p.name,
       description: p.description,
       category: p.category,
       priceCents: p.priceCents,
       currency: p.currency,
-      commissionRateBps: 1500,
+      commissionRateBps: eligible.find(c => c.merchantId === p.sourceMerchantId)!.commissionRateBps,
       stockAvailable: p.stockAvailable,
       imageUrl: p.imageUrl,
       tsRank: 1,

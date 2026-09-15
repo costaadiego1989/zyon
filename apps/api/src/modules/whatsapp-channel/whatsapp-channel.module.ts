@@ -1,3 +1,5 @@
+import { WhatsAppDeliveryService } from "./application/services/whatsapp-delivery.service.js";
+import { WhatsAppDeliveryController } from "./presentation/http/whatsapp-delivery.controller.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { WHATSAPP_CONVERSATION_PORT } from "./domain/ports/whatsapp-conversation.port.js";
 import { CheckoutWhatsAppConversationAdapter } from "./infrastructure/adapters/checkout-whatsapp-conversation.adapter.js";
@@ -61,8 +63,9 @@ export class MultiProviderSenderAdapter {
 
 @Module({
   imports: [forwardRef(() => CheckoutModule), PersistenceModule, WhatsAppConfigModule, WhatsAppTemplatesModule, forwardRef(() => PostSaleModule)],
-  controllers: [WhatsAppWebhookController, WhatsAppConfigController],
+  controllers: [WhatsAppWebhookController, WhatsAppConfigController, WhatsAppDeliveryController],
   providers: [
+    WhatsAppDeliveryService,
     HandleIncomingMessageUseCase,
     { provide: WHATSAPP_CONVERSATION_PORT, useClass: CheckoutWhatsAppConversationAdapter },
     HandleStatusUpdateUseCase,

@@ -311,13 +311,11 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
             <div className="panel stacked">
               <SectionHeader title="Identidade e tipografia" variant="secondary" />
 
-              <FormField
-                label="Nome do assistente"
-                value={theme.agentName ?? ""}
-                onChange={(v) => patch({ agentName: v })}
-                placeholder="Ex: Pulse, Luna, Max"
-                hint="Aparece no cabeçalho do widget"
-              />
+              <div className="form-field">
+                <label htmlFor="theme-agent-name">Nome do assistente</label>
+                <input id="theme-agent-name" value={theme.agentName ?? ""} readOnly />
+                <span className="form-field-hint">Altere o nome em Canais → Agente IA. Ele é usado na loja e no checkout.</span>
+              </div>
 
               <div className="theme-grid-2">
                 <FormSelect

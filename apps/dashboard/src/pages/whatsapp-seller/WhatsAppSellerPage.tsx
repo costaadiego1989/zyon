@@ -1,3 +1,4 @@
+import { WhatsAppDeliveryIssues } from "./WhatsAppDeliveryIssues.js";
 import React, { useState } from "react";
 import { CheckCircle, ExternalLink, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
 import { Button } from "../../components/Button.js";
@@ -39,6 +40,7 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
           <WhatsAppTemplatesTab me={props.me} />
         </PremiumFeatureGate>}
         {tab === "connection" && <div className="whatsapp-seller__content">
+          <WhatsAppDeliveryIssues />
           {vm.loading && <p role="status" className="whatsapp-seller__inline"><Loader2 size={18} className="spin" /> Carregando conexão…</p>}
           {vm.connectError && <div className="whatsapp-seller__error" role="alert">
             <p>{vm.connectError}</p>

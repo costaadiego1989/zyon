@@ -10,7 +10,7 @@ describe("PlaceCrossStoreOrderUseCase", () => {
     const mockConfigRepo = {
       get: async () => ({ enabled: false } as any),
     };
-    const mockOrderRepo = {} as any;
+    const mockOrderRepo = { findByCheckoutSessionId: async () => [] } as any;
     const mockSettlementRepo = {} as any;
 
     const useCase = new PlaceCrossStoreOrderUseCase(
@@ -41,6 +41,7 @@ describe("PlaceCrossStoreOrderUseCase", () => {
     const lineItems = [
       {
         id: "li-1",
+        hostMerchantId: "m1",
         sellerMerchantId: "m2",
         quantity: 2,
         unitPriceCents: 1000,

@@ -10,6 +10,17 @@ import { promises as dns } from "dns";
 export class DnsVerificationService {
   private readonly logger = new Logger(DnsVerificationService.name);
 
+  async verifyTxt(name: string, expectedValue: string): Promise<boolean> {
+    try {
+      const records = await dns.resolveTxt(name);
+      return records.some(chunks => chunks.join("") === expectedValue);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "ENODATA" || code === "ENOTFOUND") return false;
+      throw new ServiceUnavailableException("dns_verification_unavailable");
+    }
+  }
+
   /**
    * Verify that a domain has a CNAME pointing to the expected target.
    */

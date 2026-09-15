@@ -5,7 +5,7 @@ import { PrismaStorefrontConfigQueryRepository } from "./prisma-storefront-confi
 test("resolves a verified custom domain before a store slug", async () => {
   const merchantCalls: unknown[] = [];
   const repository = new PrismaStorefrontConfigQueryRepository({
-    merchantDomain: { findUnique: async () => ({ merchantId: "merchant_a", verified: true }) },
+    merchantDomain: { findUnique: async () => ({ merchantId: "merchant_a", verified: true, ownershipVerifiedAt: new Date() }) },
     merchant: {
       findUnique: async (input: unknown) => {
         merchantCalls.push(input);
@@ -38,7 +38,7 @@ test("does not resolve an unverified domain as a store", async () => {
 
 test("does not resolve a verified custom domain after its Growth entitlement ends", async () => {
   const repository = new PrismaStorefrontConfigQueryRepository({
-    merchantDomain: { findUnique: async () => ({ merchantId: "merchant_a", verified: true }) },
+    merchantDomain: { findUnique: async () => ({ merchantId: "merchant_a", verified: true, ownershipVerifiedAt: new Date() }) },
     merchantBillingSubscription: {
       findUnique: async () => ({ status: "active", trialEndsAt: null, stripePriceId: null, planKey: "starter" }),
     },

@@ -21,6 +21,8 @@ export interface UpdateSeoOutput {
 }
 
 export interface DomainEntry {
+  txt_name?: string;
+  txt_value?: string;
   id: string;
   domain: string;
   verified: boolean;
@@ -29,6 +31,8 @@ export interface DomainEntry {
 }
 
 export interface RegisterDomainOutput {
+  txt_name?: string;
+  txt_value?: string;
   domain_id: string;
   domain: string;
   cname_target: string;
@@ -180,6 +184,10 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
     },
 
     // ─── WhatsApp Seller ───────────────────────────────────────────────────
+
+    getWhatsAppDeliveryIssues(): Promise<Array<{ id: string; state: string; updatedAt: string; providerMessageId: string | null }>> {
+      return dashboardJson(base, "/merchants/me/whatsapp/delivery-issues", { method: "GET" }, f);
+    },
 
     getWhatsAppConfig(merchantId: string): Promise<any> {
       return dashboardJson(base, `/merchants/${merchantId}/whatsapp/connection`, { method: "GET" }, f);
