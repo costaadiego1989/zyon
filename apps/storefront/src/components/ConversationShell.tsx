@@ -52,9 +52,74 @@ function renderMarkdownText(text: string): string {
   return html;
 }
 
+type PresentedVariant = {
+  id: string;
+  value: string;
+  available?: boolean;
+};
+
+function normalizeVariantText(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function containsVariantValue(message: string, value: string): boolean {
+  const normalizedMessage = normalizeVariantText(message);
+  const normalizedValue = normalizeVariantText(value);
+  if (!normalizedMessage || !normalizedValue) return false;
+
+  const escapedValue = normalizedValue.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const exactValue = new RegExp("(^|\\s)" + escapedValue + "(?=\\s|$)");
+  if (exactValue.test(normalizedMessage)) return true;
+
+  const numericValues = value.match(/\d+(?:[.,]\d+)?/g) ?? [];
+  if (numericValues.length !== 1) return false;
+
+  const escapedNumber = numericValues[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const exactNumber = new RegExp("(^|\\s)" + escapedNumber + "(?=\\s|$)");
+  return exactNumber.test(normalizedMessage);
+}
+
+function collectProductVariants(blocks: any[]): PresentedVariant[] {
+  return blocks.flatMap((block) => {
+    if (block?.type === "product_card") return block.data?.variants ?? [];
+    if (block?.type === "product_carousel") {
+      return (block.data?.products ?? []).flatMap((product: any) => product?.variants ?? []);
+    }
+    if (block?.type !== "variant_selector" || block.data?.groups?.length !== 1) return [];
+    return block.data.groups[0]?.options ?? [];
+  }).filter((variant: any): variant is PresentedVariant =>
+    typeof variant?.id === "string"
+    && typeof variant?.value === "string"
+    && (variant.available === undefined || variant.available === true)
+    && (variant.stock === undefined || variant.stock > 0),
+  );
+}
+
+function resolvePresentedVariantId(messages: Message[], buyerText: string): string | undefined {
+  const latestCatalogMessage = [...messages]
+    .reverse()
+    .find((message) => message.role === "agent" && collectProductVariants(message.blocks ?? []).length > 0);
+
+  if (!latestCatalogMessage) return undefined;
+
+  const matches = collectProductVariants(latestCatalogMessage.blocks ?? [])
+    .filter((variant) => containsVariantValue(buyerText, variant.value));
+
+  return matches.length === 1 ? matches[0].id : undefined;
+}
+
+function attachPresentedVariantId(text: string, variantId: string | undefined): string {
+  return variantId ? `${text.trim()} [variantId:${variantId}]` : text;
+}
+
 function renderBuyerMessage(text: string): string {
   // Keep catalog routing metadata in the API/history, outside the visible copy.
-  return text.replace(/^([Aa]dicionar .+ ao carrinho)\s+\[variantId:[A-Za-z0-9_-]{1,191}\](?:\s*\[(?:optionItemIds|crossSellPromoId):[A-Za-z0-9_,-]+\])*\s*$/, "$1");
+  return text.replace(/(?:\s+\[(?:variantId:[A-Za-z0-9_-]{1,191}|optionItemIds:[A-Za-z0-9_,-]+|crossSellPromoId:[A-Za-z0-9_-]{1,191})\])+$/, "");
 }
 
 function OneBuyClickToggle({
@@ -429,7 +494,10 @@ export default function ConversationShell({
   }, []);
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    void sendMessage(input);
+    const selectedVariantId = oneBuyClickEnabled.current
+      ? resolvePresentedVariantId(messages, input)
+      : undefined;
+    void sendMessage(attachPresentedVariantId(input, selectedVariantId));
     scrollToBottom();
     setTimeout(() => inputRef.current?.focus(), 100);
   };
