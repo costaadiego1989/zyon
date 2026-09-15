@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWidgetConfig } from "@/lib/widget-config";
 import { useCart } from "@/lib/cart-store";
-import { conversationAccessHeaders } from "@/lib/conversation-access";
+import {
+  conversationAccessHeaders,
+  conversationAccessMatchesCurrentOrigin,
+  forgetConversationAccess,
+} from "@/lib/conversation-access";
 import { canFireTrigger, recordTriggerFired, noteActivity } from "@/lib/intervention-tracker";
 import { trackConversationStart } from "@/lib/analytics";
 import { useNudgeTriggers, useProactiveMode, useReturnOrderTracking } from "./effects";
@@ -229,18 +233,35 @@ export function useConversationViewModel(
       applyTheme(theme);
       const restored = restoreConversation(merchantId, CONVERSATION_STATE_KEY);
       if (restored && restored.messages.length > 0) {
-        setMessages(restored.messages);
-        if (restored.conversationId) setConversationId(restored.conversationId);
-        if (restored.mode) setMode(restored.mode);
-        if (restored.channel) setChannel(restored.channel);
-        restoredRef.current = true;
-        return;
+        const conversationCanBeRestored = !restored.conversationId
+          || conversationAccessMatchesCurrentOrigin(restored.conversationId);
+        if (conversationCanBeRestored) {
+          setMessages(restored.messages);
+          if (restored.conversationId) setConversationId(restored.conversationId);
+          if (restored.mode) setMode(restored.mode);
+          if (restored.channel) setChannel(restored.channel);
+          restoredRef.current = true;
+          return;
+        }
+
+        forgetConversationAccess(restored.conversationId!);
+        sessionStorage.removeItem(CONVERSATION_STATE_KEY(merchantId!));
+        sessionStorage.removeItem(`zyon-cart-id:${merchantId}`);
+        sessionStorage.removeItem("zyon_conversation_id");
+        clearCart();
       }
       // Chat history may expire before the cart. Keep their identity aligned;
       // the API will verify/renew the stored proof before either is accessed.
       const savedCartId = merchantId ? sessionStorage.getItem(`zyon-cart-id:${merchantId}`) : null;
       if (savedCartId && conversationAccessHeaders(savedCartId).Authorization) {
-        setConversationId(savedCartId);
+        if (conversationAccessMatchesCurrentOrigin(savedCartId)) {
+          setConversationId(savedCartId);
+        } else {
+          forgetConversationAccess(savedCartId);
+          sessionStorage.removeItem(`zyon-cart-id:${merchantId}`);
+          sessionStorage.removeItem("zyon_conversation_id");
+          clearCart();
+        }
       }
       if (savedChannel === "chat" || savedChannel === "voice") {
         setChannel(savedChannel);
