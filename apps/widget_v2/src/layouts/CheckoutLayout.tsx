@@ -7,12 +7,16 @@ import { ChatPanel } from "@/components/ChatPanel";
 import { SmartCart } from "@/components/SmartCart";
 import { DiscountBanner } from "@/components/DiscountBanner";
 import { PulseAgentOrb } from "@/components/PulseAgentOrb";
-import SupportFAB from "@/components/SupportFAB";
 import SupportPanel from "@/components/SupportPanel";
 import { ShimmerBorder } from "@/components/ShimmerBorder";
 import { CampaignContactPreferences } from "@/components/CampaignContactPreferences";
 
-export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light" } = {}) {
+interface CheckoutLayoutProps {
+  forcedTheme?: "dark" | "light";
+  onClose?: () => void;
+}
+
+export function CheckoutLayout({ forcedTheme, onClose }: CheckoutLayoutProps = {}) {
   const chatColumnRef = useRef<HTMLDivElement>(null);
   const [composerOffset, setComposerOffset] = useState<number | null>(null);
   const channel = useCheckoutStore((s) => s.channel);
@@ -105,6 +109,20 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
     try { localStorage.setItem(THEME_KEY, next); } catch {}
   }, [theme]);
 
+  const handleBack = useCallback(() => {
+    if (onClose) {
+      onClose();
+      return;
+    }
+
+    if (typeof window === "undefined") return;
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    window.location.assign(document.referrer || "/");
+  }, [onClose]);
+
   const themeAttr = theme;
 
   useEffect(() => {
@@ -162,7 +180,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
       >
         <button data-neu="control"
           type="button"
-          onClick={() => window.history.back()}
+          onClick={handleBack}
           title="Voltar para o site"
           style={{
             width: "32px",
@@ -234,6 +252,31 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
           <svg width="15" height="15" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="9" fill="none" stroke="var(--mut)" strokeWidth="1.8" />
             <path d="M12 3a9 9 0 0 0 0 18z" fill="var(--mut)" />
+          </svg>
+        </button>
+
+        <button data-neu="control"
+          type="button"
+          onClick={() => setSupportOpen((open) => !open)}
+          title="Suporte"
+          aria-label={supportOpen ? "Fechar suporte" : "Abrir suporte"}
+          aria-pressed={supportOpen}
+          style={{
+            width: "30px",
+            height: "30px",
+            borderRadius: "50%",
+            border: `1px solid ${supportOpen ? "var(--aacp-accent)" : "var(--bd)"}`,
+            background: supportOpen ? "color-mix(in srgb, var(--aacp-accent) 12%, transparent)" : "var(--chip)",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flex: "none",
+            padding: 0,
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={supportOpen ? "var(--aacp-accent)" : "var(--mut)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
         </button>
       </div>
@@ -471,15 +514,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
         </>
       )}
 
-      {/* Support FAB and Panel — lift above chat input + whitelabel badge on mobile */}
-      {!cartDrawerOpen && <SupportFAB
-        open={supportOpen}
-        onToggle={() => setSupportOpen(!supportOpen)}
-        bottomOffset={isMobile && status === "active" && !supportOpen
-          ? mobileActionOffset
-          : (!isMobile && status === "active" ? 72 + (showBranding ? 40 : 0) : (showBranding ? 40 : 0))}
-        rightOffset={!isMobile && status === "active" ? "clamp(338px, calc(28vw + 40px), 400px)" : undefined}
-      />}
+      {/* Support uses the header control; its panel remains available throughout checkout. */}
       <SupportPanel open={supportOpen} onClose={() => setSupportOpen(false)} />
 
       {/* Whitelabel badge — free-plan merchants only. Accent background per brand. */}

@@ -121,12 +121,6 @@ export default function CheckoutPanel({
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "var(--aacp-bg, #f7f8fa)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-      <button data-neu="control"
-        onClick={onClose}
-        style={{ position: "absolute", top: 12, right: 12, zIndex: 10001, background: "var(--aacp-surface, #ffffff)", border: "1px solid var(--aacp-border-color, #e5e7eb)", color: "var(--aacp-fg, #111827)", borderRadius: 6, padding: "8px 12px", cursor: "pointer", fontSize: 13, fontWeight: 500 }}
-      >
-        ✕ Voltar
-      </button>
       <Suspense fallback={<div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-fg, #f0f0f0)" }}>Carregando...</div>}>
         <InlineCheckout
           embedToken={embedToken}

@@ -116,5 +116,5 @@ export function InlineCheckout(props: InlineCheckoutProps) {
     );
   }
 
-  return <CheckoutLayout forcedTheme={props.theme} />;
+  return <CheckoutLayout forcedTheme={props.theme} onClose={props.onClose} />;
 }
