@@ -412,6 +412,22 @@ model BuyerIdentity {
   @@map("buyer_identities")
 }
 
+/// A buyer's saved products in a storefront conversation. The owner key is
+/// opaque and tenant-scoped: authenticated buyers use their global id, while
+/// guests retain their selections for the signed conversation session.
+model StorefrontWishlistItem {
+  id         String   @id @default(cuid())
+  merchantId String   @map("merchant_id")
+  ownerKey   String   @map("owner_key")
+  productId  String   @map("product_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([merchantId, ownerKey, productId])
+  @@index([merchantId, ownerKey, createdAt])
+  @@map("storefront_wishlist_items")
+}
+
 model MerchantRule {
   id                                String   @id @default(cuid())
   merchantId                        String   @unique @map("merchant_id")

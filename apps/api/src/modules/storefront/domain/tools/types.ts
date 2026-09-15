@@ -26,7 +26,13 @@ export interface StoreToolHandlers {
     limit?: number;
   }) => Promise<unknown>;
   getProductDetails: (args: { productId: string }) => Promise<unknown>;
-  compareProducts: (args: { productIds: string[] }) => Promise<unknown>;
+  compareProducts: (args: {
+    productIds?: string[];
+    productId?: string;
+    productNames?: string[];
+    productName?: string;
+    includeSimilar?: boolean;
+  }) => Promise<unknown>;
   getProductAvailability: (args: { variantId: string }) => Promise<unknown>;
   addItemToCart: (args: {
     cartId?: string;

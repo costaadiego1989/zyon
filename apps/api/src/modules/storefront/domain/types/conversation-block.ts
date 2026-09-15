@@ -155,6 +155,25 @@ export interface ProductComparisonBlock {
       inStock: boolean;
       attributes: Record<string, string>;
     }>;
+    missingProductNames?: string[];
+  };
+}
+
+export interface WishlistBlock {
+  type: "wishlist";
+  data: {
+    items: Array<{
+      id: string;
+      name: string;
+      description?: string;
+      price: number;
+      priceFormatted: string;
+      image?: string;
+      images?: string[];
+      inStock: boolean;
+      rating?: number;
+      reviewCount?: number;
+    }>;
   };
 }
 
@@ -225,6 +244,7 @@ export type ConversationBlock =
   | ShippingQuoteInputBlock
   | VariantSelectorBlock
   | ProductComparisonBlock
+  | WishlistBlock
   | ReviewsBlock
   | AddReviewBlock
   | CrossSellBlock

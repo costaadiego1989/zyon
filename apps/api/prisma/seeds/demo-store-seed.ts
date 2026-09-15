@@ -158,13 +158,19 @@ async function main() {
         autonomousEngineEnabled: false, freeShippingMinCartValue: 0, maxShippingSubsidy: 0,
         maxPartialShippingDiscount: 0, offerExpirationMinutes: 15, blockedRegions: [],
         brandVoice: "clara, acolhedora e objetiva", originZip: "01310100",
-        quickReplies: { welcome: ["Ver produtos", "Encontrar um presente", "Comparar opções", "Como funciona a demo?"] },
+        quickReplies: {
+          welcome: ["Ver produtos", "Encontrar um presente", "Comparar opções", "Como funciona a demo?"],
+          product_detail: ["Comparar", "Lista de Desejos"],
+        },
       },
       update: {
         maxDiscountPercent: 0, minimumMarginPercent: 25, allowFreeShipping: false,
         allowShippingDiscount: false, allowBonusItem: false, allowStackDiscountAndFreeShipping: false,
         couponBoxEnabled: false, autonomousEngineEnabled: false,
-        quickReplies: { welcome: ["Ver produtos", "Encontrar um presente", "Comparar opções", "Como funciona a demo?"] },
+        quickReplies: {
+          welcome: ["Ver produtos", "Encontrar um presente", "Comparar opções", "Como funciona a demo?"],
+          product_detail: ["Comparar", "Lista de Desejos"],
+        },
       },
     });
 

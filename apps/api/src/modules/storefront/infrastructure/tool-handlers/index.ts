@@ -72,7 +72,10 @@ export function composeStoreToolHandlers(deps: AllHandlerDeps, ctx: ToolRequestC
     prisma: deps.prisma,
   };
 
-  const wishlistDeps: WishlistHandlerDeps = {};
+  const wishlistDeps: WishlistHandlerDeps = {
+    prisma: deps.prisma,
+    productRepo: deps.productRepo,
+  };
 
   const orderDeps: OrderHandlerDeps = {
     prisma: deps.prisma,

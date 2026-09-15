@@ -130,12 +130,12 @@ export async function handleSendMessage(params: SendMessageParams): Promise<Comm
           }
         }
         const hasVisualBlock = blocks.some((b: any) =>
-          ["product_carousel", "product_card", "cart_summary", "category_carousel", "product_comparison", "shipping_options", "marketplace_products"].includes(b.type)
+          ["product_carousel", "product_card", "cart_summary", "category_carousel", "product_comparison", "wishlist", "shipping_options", "marketplace_products"].includes(b.type)
         );
         let agentText = data.message || undefined;
         if (!agentText && hasVisualBlock) {
           const firstVisual = blocks.find((b: any) =>
-            ["product_carousel", "product_card", "cart_summary", "category_carousel", "product_comparison", "shipping_options", "marketplace_products", "cross_sell"].includes(b.type)
+            ["product_carousel", "product_card", "cart_summary", "category_carousel", "product_comparison", "wishlist", "shipping_options", "marketplace_products", "cross_sell"].includes(b.type)
           );
           agentText = narrateStorefrontBlock(firstVisual?.type);
         }

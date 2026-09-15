@@ -860,6 +860,8 @@ export default function ConversationShell({
                   b.type === "coupon_list" ||
                   b.type === "category_carousel" ||
                   b.type === "marketplace_products" ||
+                  b.type === "product_comparison" ||
+                  b.type === "wishlist" ||
                   b.type === "product_content"
                 );
                 const isFullWidth = hasOnlyBlocks || hasProductCard || hasWideBlock;

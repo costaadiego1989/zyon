@@ -150,20 +150,47 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
     },
 
     compareProducts: async (args) => {
-      const products = await Promise.all(
-        args.productIds.slice(0, 5).map((id) => deps.productRepo.findById(ctx.merchantId, id))
-      );
+      const productIds = uniqueStrings([...(Array.isArray(args.productIds) ? args.productIds : []), args.productId]).slice(0, 5);
+      const productNames = uniqueStrings([...(Array.isArray(args.productNames) ? args.productNames : []), args.productName]).slice(0, 5);
+      if (productIds.length === 0 && productNames.length === 0) {
+        return { error: "comparison_product_required", comparison: [], message: "Informe o produto atual ou os nomes dos produtos que deseja comparar." };
+      }
+
+      const products = (await Promise.all(
+        productIds.map((id) => deps.productRepo.findById(ctx.merchantId, id)),
+      )).filter((product): product is NonNullable<typeof product> => Boolean(product?.isActive));
+
+      const missingProductNames: string[] = [];
+      for (const productName of productNames) {
+        const result = await deps.productRepo.search({ merchantId: ctx.merchantId, query: productName, isActiveOnly: true, limit: 10 });
+        const exactMatch = result.products.find((product) => normalizeProductName(product.name) === normalizeProductName(productName));
+        if (exactMatch && !products.some((product) => product.id === exactMatch.id)) products.push(exactMatch);
+        else if (!exactMatch) missingProductNames.push(productName);
+      }
+
+      const requestedCount = productIds.length + productNames.length;
+      const baseProduct = products[0];
+      if (args.includeSimilar !== false && requestedCount === 1 && products.length === 1 && baseProduct?.categoryId) {
+        const similar = await deps.productRepo.search({ merchantId: ctx.merchantId, categoryId: baseProduct.categoryId, isActiveOnly: true, limit: 5 });
+        for (const product of similar.products) {
+          if (products.length >= 5) break;
+          if (product.id !== baseProduct.id && !products.some((item) => item.id === product.id)) products.push(product);
+        }
+      }
+
       return {
-        comparison: products
-          .filter((p): p is any => p !== null)
-          .map((p) => ({
-            id: p.id,
-            name: p.name,
-            price: p.defaultVariant?.basePriceInCents ?? 0,
-            attributes: p.defaultVariant?.attributes ?? {},
-            stock: p.totalStock,
-            rating: p.averageRating
-          }))
+        comparison: products.map((product) => ({
+          id: product.id,
+          name: product.name,
+          price: product.defaultVariant?.basePriceInCents ?? 0,
+          attributes: product.defaultVariant?.attributes ?? {},
+          stock: product.totalStock,
+          rating: product.averageRating,
+          type: product.type,
+        })),
+        requestedProductNames: productNames,
+        missingProductNames,
+        requiresProductNames: products.length < 2,
       };
     },
 
@@ -304,4 +331,20 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
       return { categories: [] };
     }
   };
+}
+
+function uniqueStrings(values: unknown[]): string[] {
+  return [...new Set(values
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter(Boolean))];
+}
+
+function normalizeProductName(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR")
+    .replace(/\s+/g, " ")
+    .trim();
 }

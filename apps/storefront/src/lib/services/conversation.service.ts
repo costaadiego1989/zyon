@@ -89,6 +89,8 @@ export function narrateStorefrontBlock(type: string | undefined): string | undef
       return "Encontrei este produto:";
     case "product_comparison":
       return "Aqui está a comparação entre os produtos:";
+    case "wishlist":
+      return "Aqui estão os produtos salvos na sua lista de desejos:";
     case "category_carousel":
       return "Estas são as categorias disponíveis:";
     case "cart_summary":

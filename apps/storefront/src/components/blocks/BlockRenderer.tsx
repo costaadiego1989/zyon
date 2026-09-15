@@ -12,6 +12,7 @@ import AddReviewBlock from "./AddReviewBlock";
 import ShippingQuoteBlock from "./ShippingQuoteBlock";
 import VariantSelectorBlock from "./VariantSelectorBlock";
 import ProductComparisonBlock from "./ProductComparisonBlock";
+import WishlistBlock from "./WishlistBlock";
 import CategoryCarouselBlock from "./CategoryCarouselBlock";
 import MarketplaceProductsBlock from "./MarketplaceProductsBlock";
 import CrossSellBlock from "./CrossSellBlock";
@@ -51,6 +52,8 @@ export default function BlockRenderer({
       return <VariantSelectorBlock block={block} onQuickReply={onQuickReply} />;
     case "product_comparison":
       return <ProductComparisonBlock block={block} onQuickReply={onQuickReply} />;
+    case "wishlist":
+      return <WishlistBlock block={block} onQuickReply={onQuickReply} />;
     case "reviews":
       return <ReviewsBlock block={block} onQuickReply={onQuickReply} />;
     case "add_review":

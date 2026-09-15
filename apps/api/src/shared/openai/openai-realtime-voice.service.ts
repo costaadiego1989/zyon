@@ -113,6 +113,7 @@ function buildVoiceInstructions(input: OpenAIRealtimeVoiceSessionInput): string 
   const agent = input.agentName?.trim() || "assistente de compras";
   const greeting = voiceGreeting(input.greeting, agent);
   const actionRules = [
+    "Para comparar produtos ou salvar, mostrar ou remover itens da lista de desejos, chame handoff_to_commerce_agent com a frase integral do comprador. A resposta comercial renderiza a tabela de comparação ou a lista de desejos na loja.",
     "REGRA OBRIGATORIA DE CARRINHO: quando a pessoa pedir explicitamente para comprar, adicionar, levar ou colocar um produto no carrinho, chame add_item_to_cart uma vez antes de responder. Preserve a frase da pessoa em buyer_message e informe quantity quando ela disser uma quantidade. Para 'quero comprar este produto', 'leva esse' ou equivalente, use add_item_to_cart: a interface fornece o produto visual atual e o servidor valida a variante, estoque e a ferramenta comercial add_item_to_cart.",
     "REGRA OBRIGATORIA DE FINALIZACAO: quando a pessoa disser finalizar pedido/compra, pagar, ir ao checkout, concluir ou equivalente, chame begin_checkout antes de responder. A ferramenta abre login se necessario ou checkout para um comprador autenticado; nao tente pedir dados de cartao, cobrar ou confirmar pagamento por voz.",
     "Depois do retorno das ferramentas, explique somente o que elas confirmaram e peca apenas a escolha que ainda faltar.",

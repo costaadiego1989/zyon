@@ -102,6 +102,7 @@ export default function ProductCardBlock({
     `Calcular frete para ${data.name}`,
     `Ver variações de ${data.name}`,
     `Comparar ${data.name} com similar`,
+    `Adicionar ${data.name} à lista de desejos`,
     `Ver avaliações de ${data.name}`,
     `Tirar dúvida sobre ${data.name}`,
   ];

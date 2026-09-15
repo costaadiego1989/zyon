@@ -16,7 +16,7 @@ import { COUPON_REPOSITORY, type CouponRepository } from "../../../coupons/domai
 import type { ProductRepositoryPort, StockRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
 import { PRODUCT_PROMOTION_REPOSITORY, type ProductPromotionRepositoryPort } from "../../../catalog/domain/ports/product-promotion-repository.port.js";
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
-import { storefrontQuickReplies, type StorefrontCartState, type StorefrontShippingOption } from "../../domain/services/storefront-quick-replies.service.js";
+import { normalizeStoreQuickRepliesConfig, storefrontQuickReplies, type StorefrontCartState, type StorefrontShippingOption } from "../../domain/services/storefront-quick-replies.service.js";
 import type { StoreQuickRepliesConfig } from "@zyon/shared-types";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
@@ -110,6 +110,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     const ctx: ToolRequestContext = {
       merchantId: input.merchantId,
       sessionId: input.cartId || input.sessionId,
+      conversationId: input.sessionId,
       buyer: input.buyerContext,
       oneBuyClick: input.oneBuyClick ? {
         enabled: input.oneBuyClick.enabled,
@@ -246,7 +247,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     let quickRepliesConfig: StoreQuickRepliesConfig | null = null;
     if (input.storeSettings?.quick_replies) {
       try {
-        quickRepliesConfig = input.storeSettings.quick_replies as StoreQuickRepliesConfig;
+        quickRepliesConfig = normalizeStoreQuickRepliesConfig(input.storeSettings.quick_replies);
       } catch {}
     }
     let finalMessage = result.message;

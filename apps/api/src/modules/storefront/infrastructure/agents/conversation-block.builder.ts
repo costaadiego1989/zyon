@@ -262,7 +262,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   }
   if (toolResults["compare_products"]) {
     const compareData = toolResults["compare_products"] as any;
-    if (compareData?.comparison?.length > 0) {
+    if (compareData?.comparison?.length >= 2) {
       const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
       blocks.push({
         type: "product_comparison",
@@ -275,10 +275,21 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
             rating: p.rating,
             inStock: p.type === "digital" || p.type === "service" || (p.stock ?? 0) > 0,
             attributes: p.attributes ?? {},
-          }))
+          })),
+          missingProductNames: Array.isArray(compareData.missingProductNames) ? compareData.missingProductNames : undefined,
         }
       });
+    } else if ((!finalContent || finalContent.trim().length === 0) && compareData?.requiresProductNames) {
+      finalContent = "Para comparar, informe os nomes de pelo menos dois produtos.";
     }
+  }
+
+  const wishlistData = (toolResults["remove_from_wishlist"] ?? toolResults["add_to_wishlist"] ?? toolResults["get_wishlist"]) as any;
+  if (wishlistData && Array.isArray(wishlistData.items)) {
+    blocks.push({
+      type: "wishlist",
+      data: { items: wishlistData.items },
+    });
   }
   const skipCategoryCarousel = !!toolResults["search_products"];
   if (toolResults["list_categories"] && !skipCategoryCarousel) {
