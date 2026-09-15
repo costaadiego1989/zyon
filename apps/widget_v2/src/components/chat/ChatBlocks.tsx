@@ -964,6 +964,7 @@ function AddressConfirmationBlock({ data }: { data?: Record<string, unknown> }) 
 
 function FormFieldBlock({ data }: { data?: Record<string, unknown> }) {
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
+  const completeFormField = useCheckoutStore((s) => s.completeFormField);
   const [value, setValue] = useState("");
   if (!data) return null;
   const field = typeof data.field === "string" ? data.field : "";
@@ -976,6 +977,7 @@ function FormFieldBlock({ data }: { data?: Record<string, unknown> }) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (canSubmit) {
+      completeFormField(field);
       void sendMessage(normalizedValue);
       setValue("");
     }

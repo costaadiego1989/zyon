@@ -224,6 +224,7 @@ interface CheckoutState {
 
   init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; embedApiBaseUrl?: string; globalUserId?: string; buyerAccessToken?: string; oneBuyClickPreferences?: { shippingPreference: "fastest" | "cheapest"; paymentPreference: "pix" | "card" }; initialChannel?: "chat" | "voice" }) => Promise<void>;
   selectChannel: (channel: "chat" | "voice") => void;
+  completeFormField: (field: string) => void;
   sendMessage: (text: string) => Promise<void>;
   acceptCrossSell: (suggestionId: string, sku: string) => Promise<{ ok: boolean; error?: string }>;
   updateQty: (sku: string, quantity: number, variant?: string) => Promise<void>;
@@ -546,6 +547,15 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       messages,
       _pendingCrossSellBlock: null,
     });
+  },
+
+  completeFormField: (field) => {
+    set((state) => ({
+      messages: state.messages.map((message) => ({
+        ...message,
+        blocks: message.blocks?.filter((block) => block.type !== "form_field" || block.data?.field !== field),
+      })),
+    }));
   },
 
   sendMessage: async (text) => {
