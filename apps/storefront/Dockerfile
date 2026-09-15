@@ -33,8 +33,9 @@ COPY apps/widget_v2/ apps/widget_v2/
 RUN pnpm install --frozen-lockfile
 
 ARG NEXT_PUBLIC_WIDGET_BASE_URL
+ARG NEXT_PUBLIC_API_WEBSOCKET_ORIGIN
 ENV AACP_STANDALONE=true
-RUN test -n "$NEXT_PUBLIC_WIDGET_BASE_URL"
+RUN test -n "$NEXT_PUBLIC_WIDGET_BASE_URL" && test -n "$NEXT_PUBLIC_API_WEBSOCKET_ORIGIN"
 
 # 5) Build
 RUN pnpm --filter @zyon/shared-types build \
