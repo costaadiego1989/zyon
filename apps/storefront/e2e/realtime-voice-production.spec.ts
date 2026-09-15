@@ -67,6 +67,7 @@ test.describe("Realtime voice production @voice", () => {
     })));
     await expect.poll(() => page.evaluate(() => (window as any).__zyonRealtimeEvents.some((event: string) => event.includes("Sérum capilar: produto de teste disponível para resumo por voz.")))).toBe(true);
     await expect(page.locator("audio[data-zyon-realtime-audio]")).toHaveCount(1);
+    await expect.poll(() => page.locator("audio[data-zyon-realtime-audio]").evaluate((audio) => Boolean(audio.srcObject)), { timeout: 20_000 }).toBe(true);
     await expect.poll(() => page.evaluate(() => (window as any).__zyonNativeSpeech.calls)).toBe(0);
   });
 });
