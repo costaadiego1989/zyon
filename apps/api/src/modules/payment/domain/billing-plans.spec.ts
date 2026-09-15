@@ -46,6 +46,7 @@ test("BILLING_PLANS matches Free R$2,99 after trial, Growth R$349 and Scale R$59
   assert.equal(BILLING_PLANS.scale.features.marketplace, true);
   assert.equal(BILLING_PLANS.scale.features.intentMemory, true);
   assert.equal(BILLING_PLANS.scale.features.revenueLift, true);
+  assert.equal(BILLING_PLANS.scale.features.voiceCheckout, true);
 });
 
 test("legacy Stripe prices keep the same entitlement during a price migration", () => {

@@ -1,8 +1,8 @@
 import { PerimeterBorder } from "./PerimeterBorder";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useCheckoutStore } from "@/store/checkout-store";
 import { AgentAvatar } from "./AgentAvatar";
-import { useVoiceCheckout } from "@/lib/voice/use-voice-checkout";
+import { useRealtimeVoiceCheckout } from "@/lib/voice/use-realtime-voice-checkout";
 import { renderInlineMarkdown, messageToSpeech } from "./chat/helpers";
 import { BlockRenderer } from "./chat/ChatBlocks";
 import { VoiceComposer } from "./chat/VoiceComposer";
@@ -12,24 +12,25 @@ export function ChatPanel() {
   const isTyping = useCheckoutStore((s) => s.isTyping);
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
   const channel = useCheckoutStore((s) => s.channel);
+  const api = useCheckoutStore((s) => s.api);
   const [input, setInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const lastAgentMessage = [...messages].reverse().find((m) => m.role === "agent");
-  const lastAgentText = lastAgentMessage ? messageToSpeech(lastAgentMessage) : null;
-  const lastAgentKey = lastAgentMessage?.id ?? null;
-  const onConfirmTranscript = useCallback(
-    (text: string) => sendMessage(text),
-    [sendMessage],
-  );
-  const voice = useVoiceCheckout({
+  const voice = useRealtimeVoiceCheckout({
     enabled: channel === "voice",
-    busy: isTyping,
-    composerLocked: false,
-    awaitingAgentPlayback: false,
-    latestAgentText: lastAgentText,
-    agentPlaybackKey: lastAgentKey,
-    onConfirmTranscript,
+    createSession: async () => {
+      if (!api) throw new Error("checkout_session_missing");
+      return api.createRealtimeVoiceSession();
+    },
+    onCommerceTurn: async (buyerMessage) => {
+      await sendMessage(buyerMessage);
+      const current = useCheckoutStore.getState();
+      const agentReply = [...current.messages].reverse().find((message) => message.role === "agent");
+      return {
+        agentMessage: agentReply ? (messageToSpeech(agentReply) || "Atualizei sua compra. Posso continuar?") : "Atualizei sua compra. Posso continuar?",
+        cart: { itemCount: current.cart.items.length, total: current.cart.total },
+      };
+    },
   });
 
   useEffect(() => {

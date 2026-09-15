@@ -1,4 +1,4 @@
-import type { Message, CrossSellInterstitialData } from "@/lib/viewmodels/useConversationViewModel/types";
+import type { CommerceTurnResult, Message, CrossSellInterstitialData } from "@/lib/viewmodels/useConversationViewModel/types";
 import { narrateStorefrontBlock, trackFunnelEvent } from "@/lib/services/conversation.service";
 import { checkoutApi } from "@/lib/api/api-client";
 import { getValidBuyer } from "@/lib/buyer-auth";
@@ -28,7 +28,7 @@ export interface SendMessageParams {
   }) => void;
 }
 
-export async function handleSendMessage(params: SendMessageParams) {
+export async function handleSendMessage(params: SendMessageParams): Promise<CommerceTurnResult | null> {
   const {
     trimmed,
     conversationId,
@@ -45,7 +45,7 @@ export async function handleSendMessage(params: SendMessageParams) {
     noteActivity,
   } = params;
 
-  if (!trimmed) return;
+  if (!trimmed) return null;
   if (merchantId) noteActivity(merchantId);
 
   const userMsg: Message = { id: `u-${Date.now()}`, role: "user", text: trimmed };
@@ -147,6 +147,8 @@ export async function handleSendMessage(params: SendMessageParams) {
         };
         setMessages((prev) => [...prev, agentMsg]);
         setHistory((prev) => [...prev, { role: "assistant", content: data.message }]);
+        setIsLoading(false);
+        return { agentMessage: agentText || "Atualizei sua compra. Posso continuar?", blocks };
       } else {
         setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: "agent", text: "Desculpe, houve um erro. Tente novamente." }]);
       }
@@ -157,6 +159,7 @@ export async function handleSendMessage(params: SendMessageParams) {
     setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: "agent", text: "Não consegui concluir sua solicitação agora. Tente novamente em instantes." }]);
   }
   setIsLoading(false);
+  return null;
 }
 
 export interface QuickReplyParams {
@@ -164,7 +167,7 @@ export interface QuickReplyParams {
   cartItemCount: number;
   merchantId: string | null;
   conversationId: string | null;
-  sendMessage: (text: string) => Promise<void>;
+  sendMessage: (text: string) => Promise<CommerceTurnResult | null>;
   setCartDrawerForceOpen: (value: boolean) => void;
   setCheckoutIntent: (value: string | null) => void;
   setShowBuyerAuth: (value: boolean) => void;
@@ -256,42 +259,6 @@ export async function initConversation(params: InitConversationParams) {
       })
       .catch(() => {});
   } catch {}
-}
-
-export interface StartListeningParams {
-  recognitionRef: { current: any };
-  setListening: (value: boolean) => void;
-  sendMessage: (text: string) => Promise<void>;
-}
-
-export function startVoiceRecognition(params: StartListeningParams) {
-  const { recognitionRef, setListening, sendMessage } = params;
-  if (typeof window === "undefined") return;
-  const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
-  if (!SR) return;
-  const r = new SR();
-  r.lang = "pt-BR";
-  r.continuous = false;
-  r.maxAlternatives = 1;
-  recognitionRef.current = r;
-  r.onresult = (e: any) => {
-    const transcript = e.results[0]?.[0]?.transcript;
-    if (transcript) {
-      setListening(false);
-      void sendMessage(transcript).catch((err) => {
-        console.error("[conversation] voice sendMessage failed:", err);
-      });
-    }
-  };
-  r.onerror = () => setListening(false);
-  r.onend = () => setListening(false);
-  r.start();
-  setListening(true);
-}
-
-export function stopVoiceRecognition(recognitionRef: { current: any }, setListening: (value: boolean) => void) {
-  recognitionRef.current?.abort();
-  setListening(false);
 }
 
 export { handleFireNudge } from "./conversation-nudge.handlers";

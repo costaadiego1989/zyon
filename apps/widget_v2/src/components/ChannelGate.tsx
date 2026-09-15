@@ -5,6 +5,7 @@ export function ChannelGate() {
   const selectChannel = useCheckoutStore((s) => s.selectChannel);
   const brand = useCheckoutStore((s) => s.brand);
   const agent = useCheckoutStore((s) => s.agent);
+  const voiceEnabled = useCheckoutStore((s) => s.voiceEnabled);
 
   const agentName = agent.name || "Assistente";
   const storeName = brand.name || "Loja";
@@ -104,7 +105,7 @@ export function ChannelGate() {
           marginTop: "8px",
         }}
       >
-        Como você prefere comprar?
+        {voiceEnabled ? "Comece sua compra por voz" : "Como você prefere comprar?"}
       </div>
 
       {/* Channel buttons */}
@@ -113,6 +114,7 @@ export function ChannelGate() {
           type="button"
           onClick={() => selectChannel("chat")}
           style={{
+            order: 2,
             flex: 1,
             display: "flex",
             flexDirection: "column",
@@ -133,10 +135,11 @@ export function ChannelGate() {
           <span style={{ fontSize: "11px", color: "var(--mut)" }}>Converse digitando</span>
         </button>
 
-        <button data-neu="choice"
+        {voiceEnabled ? <button data-neu="choice"
           type="button"
           onClick={() => selectChannel("voice")}
           style={{
+            order: 1,
             flex: 1,
             display: "flex",
             flexDirection: "column",
@@ -157,7 +160,7 @@ export function ChannelGate() {
             <line x1="12" y1="19" x2="12" y2="23" />
             <line x1="8" y1="23" x2="16" y2="23" />
           </svg>
-          <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--tx)" }}>Por voz</span>
+          <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--tx)" }}>Começar por voz</span>
           <span style={{ fontSize: "11px", color: "var(--mut)" }}>Fale com a {agentName}</span>
           <span
             style={{
@@ -175,8 +178,9 @@ export function ChannelGate() {
           >
             IA
           </span>
-        </button>
+        </button> : null}
       </div>
+      {!voiceEnabled ? <p style={{ fontSize: "11px", color: "var(--mut)", margin: 0 }}>Compra por voz disponível a partir do plano Growth.</p> : null}
     </div>
   );
 }

@@ -22,6 +22,8 @@ import { THEME_TOKENS, type Theme } from "./conversation/theme-tokens";
 import { redirectToCheckout } from "./conversation/checkout-redirect";
 import { conversationFetch } from "@/lib/conversation-access";
 import { checkoutApi } from "@/lib/api/api-client";
+import { useRealtimeVoiceCheckout } from "@/lib/voice/use-realtime-voice-checkout";
+import { RealtimeVoiceComposer } from "./conversation/RealtimeVoiceComposer";
 
 type Channel = "chat" | "voice";
 type OneBuyClickState = {
@@ -213,6 +215,7 @@ export default function ConversationShell({
   initialStories,
   themeMode,
   showBranding,
+  voiceCheckoutEnabled,
   agentMode,
   agentInitialDelaySeconds,
   initialRichProductId,
@@ -229,6 +232,7 @@ export default function ConversationShell({
   initialStories?: any[];
   themeMode?: "dark" | "light" | "grey";
   showBranding?: boolean;
+  voiceCheckoutEnabled?: boolean;
   agentMode?: "silent_until_trigger" | "proactive" | "manual_only";
   agentInitialDelaySeconds?: number;
   initialRichProductId?: string;
@@ -251,18 +255,37 @@ export default function ConversationShell({
     agentInitialDelaySeconds,
   });
   const {
-    mode, channel, theme, messages, input, isLoading, listening,
+    mode, channel, theme, messages, input, isLoading,
     conversationId, supportOpen, buyerHubOpen, cartDrawerForceOpen,
     showBuyerAuth, checkoutIntent, policyModal, crossSellPending, preparedCheckout,
     selectChannel, toggleChannel, toggleTheme, sendMessage,
     handleQuickReply, appendAgentMessage, handleUpdateQuantity, setInput,
     setSupportOpen, setBuyerHubOpen, setShowBuyerAuth, setCheckoutIntent, setPolicyModal,
-    setCartDrawerForceOpen, dismissCrossSell, clearPreparedCheckout, startListening, stopListening,
+    setCartDrawerForceOpen, dismissCrossSell, clearPreparedCheckout,
   } = vm;
   const inputRef = useRef<HTMLInputElement | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
   const agent = agentName || "Assistente";
   const { cart } = useCart();
+  const realtimeVoice = useRealtimeVoiceCheckout({
+    enabled: channel === "voice" && voiceCheckoutEnabled === true,
+    createSession: async () => {
+      if (!conversationId) throw new Error("conversation_not_ready");
+      const response = await conversationFetch(conversationId, `${API_BASE}/storefront/conversations/${encodeURIComponent(conversationId)}/realtime/session`, { method: "POST" });
+      if (!response.ok) {
+        const error = new Error("realtime_voice_session_failed") as Error & { status?: number };
+        error.status = response.status;
+        throw error;
+      }
+      const data = await response.json() as { value?: unknown; expires_at?: unknown };
+      if (typeof data.value !== "string") throw new Error("invalid_realtime_voice_session");
+      return { value: data.value, ...(typeof data.expires_at === "number" ? { expires_at: data.expires_at } : {}) };
+    },
+    onCommerceTurn: async (buyerMessage) => {
+      const result = await sendMessage(buyerMessage);
+      return { agentMessage: result?.agentMessage ?? "Não consegui concluir este pedido agora. Pode repetir?", cart: { itemCount: cart.itemCount, total: cart.total } };
+    },
+  });
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutCartRef, setCheckoutCartRef] = useState<string | undefined>(undefined);
   const [checkoutPreferences, setCheckoutPreferences] = useState<Pick<OneBuyClickState, "shippingPreference" | "paymentPreference"> | undefined>(undefined);
@@ -285,6 +308,18 @@ export default function ConversationShell({
   const oneBuyClickEnabled = useRef(false);
   useEffect(() => { setMounted(true); }, []);
   const effectiveMode = mounted ? mode : "intro";
+  useEffect(() => {
+    const requestSummary = (event: Event) => {
+      const summary = (event as CustomEvent<{ summary?: unknown }>).detail?.summary;
+      if (typeof summary !== "string" || !summary.trim()) return;
+      realtimeVoice.sendText(`Faça um resumo curto deste produto usando apenas a confirmação do agente comercial: ${summary}`);
+    };
+    window.addEventListener("zyon:realtime-product-summary", requestSummary);
+    return () => window.removeEventListener("zyon:realtime-product-summary", requestSummary);
+  }, [realtimeVoice.sendText]);
+  useEffect(() => {
+    if (voiceCheckoutEnabled !== true && channel === "voice") toggleChannel();
+  }, [voiceCheckoutEnabled, channel, toggleChannel]);
   useEffect(() => {
     if (!conversationId) return;
     let active = true;
@@ -582,13 +617,13 @@ export default function ConversationShell({
               </>
             )}
           </div>
-          <button data-neu="control" type="button" onClick={toggleChannel} title={channel === "voice" ? "Mudar para chat" : "Mudar para voz"} style={{ width: "30px", height: "30px", borderRadius: "50%", border: `1px solid ${channel === "voice" ? "var(--aacp-accent)" : "var(--aacp-line)"}`, background: channel === "voice" ? "color-mix(in srgb, var(--aacp-accent) 15%, transparent)" : "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
+          {voiceCheckoutEnabled ? <button data-neu="control" type="button" onClick={toggleChannel} title={channel === "voice" ? "Mudar para chat" : "Mudar para voz"} style={{ width: "30px", height: "30px", borderRadius: "50%", border: `1px solid ${channel === "voice" ? "var(--aacp-accent)" : "var(--aacp-line)"}`, background: channel === "voice" ? "color-mix(in srgb, var(--aacp-accent) 15%, transparent)" : "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
             {channel === "voice" ? (
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.9-.9L3 21l1.9-5.6A8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" /></svg>
             ) : (
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
             )}
-          </button>
+          </button> : null}
           <button data-neu="control" type="button" onClick={toggleTheme} title={theme === "dark" ? "Modo claro" : "Modo escuro"} style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
             <svg width="15" height="15" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--aacp-muted)" strokeWidth="1.8" /><path d="M12 3a9 9 0 0 0 0 18z" fill="var(--aacp-muted)" /></svg>
           </button>
@@ -683,25 +718,26 @@ export default function ConversationShell({
               Eu cuido da sua compra do início ao fim. Acho a melhor opção, aplico promoções, organizo a entrega e finalizo o pagamento com você, passo a passo.
             </div>
             <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "9px", letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--aacp-muted)", marginBottom: "11px" }}>
-              Como você prefere comprar?
+              {voiceCheckoutEnabled ? "Comece sua compra por voz" : "Como você prefere comprar?"}
             </div>
             <div style={{ display: "flex", gap: "10px", width: "100%" }}>
-              <button data-neu="choice" type="button" onClick={() => selectChannel("chat")} style={{ flex: 1, cursor: "pointer", fontFamily: "inherit", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", borderRadius: "16px", padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "9px", color: "var(--aacp-fg)" }}>
+              <button data-neu="choice" type="button" onClick={() => selectChannel("chat")} style={{ order: 2, flex: 1, cursor: "pointer", fontFamily: "inherit", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", borderRadius: "16px", padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "9px", color: "var(--aacp-fg)" }}>
                 <span style={{ width: "38px", height: "38px", borderRadius: "11px", background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
                   <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.9-.9L3 21l1.9-5.6A8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" /></svg>
                 </span>
                 <span style={{ fontSize: "13.5px", fontWeight: 600 }}>Por chat</span>
                 <span style={{ fontSize: "10.5px", color: "var(--aacp-muted)", lineHeight: 1.3 }}>Converse digitando</span>
               </button>
-              <button data-neu="choice" type="button" onClick={() => selectChannel("voice")} style={{ flex: 1, cursor: "pointer", fontFamily: "inherit", border: "1px solid var(--aacp-accent)", background: "color-mix(in srgb, var(--aacp-accent) 8%, transparent)", borderRadius: "16px", padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "9px", position: "relative", overflow: "hidden", color: "var(--aacp-fg)" }}>
+              {voiceCheckoutEnabled ? <button data-neu="choice" type="button" onClick={() => selectChannel("voice")} style={{ order: 1, flex: 1, cursor: "pointer", fontFamily: "inherit", border: "1px solid var(--aacp-accent)", background: "color-mix(in srgb, var(--aacp-accent) 8%, transparent)", borderRadius: "16px", padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "9px", position: "relative", overflow: "hidden", color: "var(--aacp-fg)" }}>
                 <span style={{ position: "absolute", top: "9px", right: "9px", fontFamily: "'Space Mono', monospace", fontSize: "7.5px", letterSpacing: ".5px", color: "var(--aacp-accent-text, var(--aacp-accent))", border: "1px solid var(--aacp-accent)", borderRadius: "5px", padding: "1px 4px" }}>IA</span>
                 <span style={{ width: "38px", height: "38px", borderRadius: "11px", background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
                   <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
                 </span>
-                <span style={{ fontSize: "13.5px", fontWeight: 600 }}>Por voz</span>
+                <span style={{ fontSize: "13.5px", fontWeight: 600 }}>Começar por voz</span>
                 <span style={{ fontSize: "10.5px", color: "var(--aacp-muted)", lineHeight: 1.3 }}>Fale com a {agent}</span>
-              </button>
+              </button> : null}
             </div>
+            {!voiceCheckoutEnabled ? <span style={{ fontSize: "10.5px", color: "var(--aacp-muted)", marginTop: "10px" }}>Compra por voz disponível a partir do plano Growth.</span> : null}
           </div>
         </div>
       ) : (
@@ -816,21 +852,7 @@ export default function ConversationShell({
           </main>
           {/* Composer / Voice indicator */}
           <div style={{ padding: "9px 14px 14px", flex: "none" }}>
-            {channel === "voice" && listening ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", padding: "18px" }}>
-                <button data-neu="control" type="button" onClick={stopListening} style={{ width: "56px", height: "56px", borderRadius: "50%", background: "#ff4c6c", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", animation: "micPulse 1.2s infinite" }}>
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
-                </button>
-                <span style={{ fontSize: "12px", color: "var(--aacp-muted)" }}>Escutando… toque para parar</span>
-              </div>
-            ) : channel === "voice" && !listening ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", padding: "18px" }}>
-                <button data-neu="primary" type="button" onClick={startListening} disabled={isLoading} style={{ width: "56px", height: "56px", borderRadius: "50%", background: "var(--aacp-accent)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: isLoading ? 0.4 : 1 }}>
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
-                </button>
-                <span style={{ fontSize: "12px", color: "var(--aacp-muted)" }}>Toque para falar</span>
-              </div>
-            ) : (
+            {channel === "voice" ? <RealtimeVoiceComposer voice={realtimeVoice} /> : (
               <form data-neu="inset" data-aacp-composer-frame onSubmit={handleSubmit} style={{ display: "flex", alignItems: "center", gap: "9px", padding: "9px 9px 9px 15px", background: "var(--aacp-inset-bg)", border: "1px solid var(--aacp-line)", borderRadius: "14px", transition: "border-color 0.2s ease, box-shadow 0.2s ease" }}>
                 <PerimeterBorder radius="14px" variant="input" />
                 <input ref={inputRef} type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder={isLoading ? "Aguarde..." : "Escreva sua mensagem…"} aria-label="Mensagem" disabled={isLoading} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: "var(--aacp-fg)", fontSize: "13px", padding: 0, fontFamily: "inherit" }} />

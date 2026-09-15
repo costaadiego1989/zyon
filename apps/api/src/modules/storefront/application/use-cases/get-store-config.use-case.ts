@@ -1,6 +1,7 @@
 import { Injectable, Inject, NotFoundException } from "@nestjs/common";
 import { decodePersistedTheme } from "../../../merchant/domain/services/merchant-theme.validators.js";
 import { STOREFRONT_CONFIG_QUERY_PORT, type StorefrontConfigQueryPort } from "../../domain/ports/storefront-config-query.port.js";
+import { BillingPlanMeteringService } from "../../../payment/infrastructure/billing/billing-plan-guard.js";
 
 export interface StoreConfigOutput {
   merchantId: string;
@@ -34,13 +35,18 @@ export interface StoreConfigOutput {
   storeCategory?: string;
   storeSettings?: Record<string, unknown>;
   showBranding?: boolean;
+  /** Public UI hint only; the voice route remains the enforcement point. */
+  voiceCheckoutEnabled?: boolean;
   agentMode?: "silent_until_trigger" | "proactive" | "manual_only";
   agentInitialDelaySeconds?: number;
 }
 
 @Injectable()
 export class GetStoreConfigUseCase {
-  constructor(@Inject(STOREFRONT_CONFIG_QUERY_PORT) private readonly configQuery: StorefrontConfigQueryPort) {}
+  constructor(
+    @Inject(STOREFRONT_CONFIG_QUERY_PORT) private readonly configQuery: StorefrontConfigQueryPort,
+    @Inject(BillingPlanMeteringService) private readonly billing?: BillingPlanMeteringService,
+  ) {}
 
   async execute(slug: string): Promise<StoreConfigOutput> {
     const config = await this.configQuery.findPublicConfig(slug.trim().toLowerCase());
@@ -65,6 +71,7 @@ export class GetStoreConfigUseCase {
         ? legacyReplies
         : ["Ver Produtos", "Encontrar Produto", "Categorias", "Prazo de Entrega", "Trocas e Devoluções", "Rastrear Pedido", "Meus Dados", "Ofertas"];
 
+    const voiceCheckoutEnabled = await this.isVoiceCheckoutEnabled(row.id);
     return {
       merchantId: row.id,
       name: row.name,
@@ -97,8 +104,19 @@ export class GetStoreConfigUseCase {
       storeCategory: row.storeCategory ?? undefined,
       storeSettings: (row.storeSettings as Record<string, unknown>) ?? undefined,
       showBranding: !(config.subscriptionStatus === "active" || config.subscriptionStatus === "trialing"),
+      voiceCheckoutEnabled,
       agentMode,
       agentInitialDelaySeconds: typeof checkoutSettings?.initialDelaySeconds === "number" ? checkoutSettings.initialDelaySeconds : 5,
     };
+  }
+
+  private async isVoiceCheckoutEnabled(merchantId: string): Promise<boolean> {
+    if (!this.billing) return false;
+    try {
+      await this.billing.assertAllowed(merchantId, { kind: "feature", key: "voiceCheckout" });
+      return true;
+    } catch {
+      return false;
+    }
   }
 }

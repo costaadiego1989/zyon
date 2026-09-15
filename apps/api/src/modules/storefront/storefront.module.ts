@@ -53,6 +53,8 @@ import { RateLimitStore } from "../../shared/rate-limit/rate-limit.store.js";
 import { RedisRateLimitStore } from "../../shared/rate-limit/redis-rate-limit.store.js";
 import { StorefrontConversationRateLimitService } from "./application/services/storefront-conversation-rate-limit.service.js";
 import { OneBuyClickSessionService } from "./application/services/one-buy-click-session.service.js";
+import { OpenAIRealtimeVoiceService } from "../../shared/openai/openai-realtime-voice.service.js";
+import { StorefrontRealtimeVoiceController } from "./presentation/http/storefront-realtime-voice.controller.js";
 @Module({
   imports: [
     PersistenceModule,
@@ -69,13 +71,14 @@ import { OneBuyClickSessionService } from "./application/services/one-buy-click-
     StoriesModule,
     BuyerAccountModule,
   ],
-  controllers: [StorefrontController, StorefrontProductContentController, StorefrontProductSubmissionController],
+  controllers: [StorefrontController, StorefrontRealtimeVoiceController, StorefrontProductContentController, StorefrontProductSubmissionController],
   providers: [
     { provide: RateLimitStore, useClass: RedisRateLimitStore },
     StorefrontConversationRateLimitService,
     BillingPlanMeteringService,
     PlanLimitGuard,
     { provide: RealtimeCapabilityService, useFactory: () => new RealtimeCapabilityService() },
+    OpenAIRealtimeVoiceService,
     StorefrontConversationAdapter,
     StorefrontConversationGateway,
     {

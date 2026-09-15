@@ -27,8 +27,6 @@ import {
   handleUpdateQuantity,
   handleFireNudge,
   initConversation as runInitConversation,
-  startVoiceRecognition,
-  stopVoiceRecognition,
 } from "@/lib/handlers/conversation.handlers";
 import { useCheckoutExperiment } from "@/lib/useCheckoutExperiment";
 import type {
@@ -40,6 +38,7 @@ import type {
   Theme,
   Mode,
   CrossSellInterstitialData,
+  CommerceTurnResult,
 } from "./types";
 
 export const SHARED_THEME_KEY = "zyon-theme";
@@ -62,7 +61,6 @@ export function useConversationViewModel(
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [listening, setListening] = useState(false);
   const [conversationId, setConversationIdState] = useState<string | null>(null);
   const conversationIdRef = useRef<string | null>(null);
   const initializationRef = useRef<Promise<void> | null>(null);
@@ -83,7 +81,6 @@ export function useConversationViewModel(
   const [preparedCheckout, setPreparedCheckout] = useState<ConversationViewModelState["preparedCheckout"]>(null);
   const dismissCrossSell = useCallback(() => setCrossSellPending(null), []);
   const clearPreparedCheckout = useCallback(() => setPreparedCheckout(null), []);
-  const recognitionRef = useRef<any>(null);
   const { config: widgetConfig } = useWidgetConfig();
   const { cart, updateFromBlocks, updateItemQuantity, clearCart } = useCart();
   const experimentVM = useCheckoutExperiment();
@@ -140,27 +137,17 @@ export function useConversationViewModel(
     const next: Channel = channel === "voice" ? "chat" : "voice";
     setChannel(next);
     saveChannelPreference(next);
-    if (next === "voice") startListening();
-    else stopListening();
   }, [channel]);
 
-  function startListening() {
-    startVoiceRecognition({ recognitionRef, setListening, sendMessage });
-  }
-
-  function stopListening() {
-    stopVoiceRecognition(recognitionRef, setListening);
-  }
-
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string): Promise<CommerceTurnResult | null> => {
       const trimmed = text.trim();
-      if (!trimmed || sendingRef.current) return;
+      if (!trimmed || sendingRef.current) return null;
       sendingRef.current = true;
       try {
         await initConversation();
         const variantId = experimentVM.getTrackingVariantId() || undefined;
-        await handleSendMessage({
+        return await handleSendMessage({
           trimmed,
           conversationId: conversationIdRef.current,
           setConversationId,
@@ -321,7 +308,6 @@ export function useConversationViewModel(
     messages,
     input,
     isLoading,
-    listening,
     conversationId,
     supportOpen,
     buyerHubOpen,
@@ -347,7 +333,5 @@ export function useConversationViewModel(
     setShowBuyerAuth,
     setPolicyModal,
     setCartDrawerForceOpen,
-    startListening,
-    stopListening,
   };
 }

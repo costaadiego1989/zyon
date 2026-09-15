@@ -351,6 +351,7 @@ export default async function StorePage({
               initialStories={stories}
               themeMode={config?.theme?.mode}
               showBranding={config?.showBranding}
+              voiceCheckoutEnabled={config?.voiceCheckoutEnabled}
               agentMode={config?.agentMode}
               agentInitialDelaySeconds={config?.agentInitialDelaySeconds}
               initialRichProductId={richProductId ?? undefined}

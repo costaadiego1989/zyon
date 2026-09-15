@@ -30,7 +30,6 @@ export interface ConversationViewModelState {
   messages: Message[];
   input: string;
   isLoading: boolean;
-  listening: boolean;
   conversationId: string | null;
   supportOpen: boolean;
   buyerHubOpen: boolean;
@@ -66,7 +65,7 @@ export interface ConversationViewModelActions {
   selectChannel: (ch: Channel) => void;
   toggleChannel: () => void;
   toggleTheme: () => void;
-  sendMessage: (text: string) => Promise<void>;
+  sendMessage: (text: string) => Promise<CommerceTurnResult | null>;
   handleQuickReply: (option: string) => void;
   appendAgentMessage: (message: Pick<Message, "text" | "blocks">) => void;
   handleUpdateQuantity: (variantId: string, quantity: number) => void;
@@ -79,6 +78,10 @@ export interface ConversationViewModelActions {
   setCartDrawerForceOpen: (value: boolean) => void;
   dismissCrossSell: () => void;
   clearPreparedCheckout: () => void;
-  startListening: () => void;
-  stopListening: () => void;
+}
+
+/** Result emitted by the authoritative commerce agent after a buyer turn. */
+export interface CommerceTurnResult {
+  agentMessage: string;
+  blocks: any[];
 }

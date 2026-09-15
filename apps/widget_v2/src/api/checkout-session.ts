@@ -308,6 +308,19 @@ export class CheckoutSession {
     return res.json() as Promise<ChatResponse>;
   }
 
+  async createRealtimeVoiceSession(): Promise<{ value: string; expires_at?: number }> {
+    this.assertSession();
+    const res = await fetch(`${this.baseUrl}/embed/realtime/session`, {
+      method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify({ session_id: this.sessionId }),
+    });
+    if (!res.ok) throw await CheckoutApiError.fromResponse("embed_realtime_voice", res);
+    const data = await res.json() as { value?: unknown; expires_at?: unknown };
+    if (typeof data.value !== "string") throw new Error("invalid_realtime_voice_session");
+    return { value: data.value, ...(typeof data.expires_at === "number" ? { expires_at: data.expires_at } : {}) };
+  }
+
   async updateCartItemQty(sku: string, quantity: number, variant?: string): Promise<StartResponse> {
     return this.updateCart([{ sku, quantity, variant }]);
   }
