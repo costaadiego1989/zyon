@@ -209,16 +209,6 @@ input, textarea {
   text-overflow: ellipsis;
 }
 
-.conversation-header__status::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--aacp-success);
-  animation: pulseDot 2.2s ease-in-out infinite;
-  flex-shrink: 0;
-}
-
 @keyframes pulseDot {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
