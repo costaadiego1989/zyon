@@ -304,6 +304,31 @@ export default function ConversationShell({
     },
     onBeginCheckout: async () => {
       const buyer = getValidBuyer();
+      // A visitor can ask to finish immediately after a reload, before the
+      // asynchronous one-buy-click state has returned. The locally persisted
+      // choice is the same preference the state loader applies to the current
+      // conversation, so honor it here instead of showing a redundant login
+      // modal. InlineCheckout handles registration itself.
+      let quickCheckoutEnabled = oneBuyClickEnabled.current;
+      if (!buyer && merchantId) {
+        try {
+          const savedPreference = localStorage.getItem(`zyon-one-buy-click:${merchantId}`);
+          if (savedPreference === "true") quickCheckoutEnabled = true;
+          if (savedPreference === "false") quickCheckoutEnabled = false;
+        } catch {
+          // Storage is optional; the server-backed state above remains valid.
+        }
+      }
+      if (quickCheckoutEnabled) {
+        setCheckoutUserId(buyer?.globalUserId ?? "");
+        setCheckoutCartRef(cart.cartId ?? undefined);
+        setCheckoutPreferences(oneBuyClick?.enabled ? {
+          shippingPreference: oneBuyClick.shippingPreference,
+          paymentPreference: oneBuyClick.paymentPreference,
+        } : undefined);
+        setCheckoutOpen(true);
+        return { agentMessage: "Abri seu checkout rapido. Voce pode entrar ou concluir o cadastro diretamente na finalizacao." };
+      }
       if (!buyer) {
         setShowBuyerAuth(true);
         return { agentMessage: "Para finalizar com segurança, abri o login. Depois da confirmação, seguiremos para o checkout." };
