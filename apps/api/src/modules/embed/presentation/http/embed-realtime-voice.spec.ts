@@ -6,6 +6,8 @@ import { checkoutVoicePrompt } from "./embed-realtime-voice.controller.js";
 test("new checkout asks for the next field instead of presenting the storefront", () => {
   const session = checkoutSession({ customer: undefined });
   assert.match(checkoutVoicePrompt(session), /celular com DDD/);
+  assert.match(checkoutVoicePrompt(session), /enviaremos um código/);
+  assert.doesNotMatch(checkoutVoicePrompt(session), /acesso (?:é|está) confirmado/);
   assert.doesNotMatch(checkoutVoicePrompt(session), /Olá|Sou|Zion|A partir/);
 });
 

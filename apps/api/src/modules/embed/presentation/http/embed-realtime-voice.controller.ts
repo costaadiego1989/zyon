@@ -38,7 +38,7 @@ export function checkoutVoicePrompt(session: CheckoutSession): string {
   }
   const next = missingFieldsForStage(session, deriveChatStage(session))[0];
   const prompts: Record<string, string> = {
-    telefone: "Qual é seu celular com DDD para contato sobre o pedido? Seu acesso é confirmado por e-mail.",
+    telefone: "Qual é seu celular com DDD para contato sobre o pedido? Para confirmar seu acesso, enviaremos um código por e-mail.",
     email: "Qual é seu e-mail para este pedido?",
     "código de verificação": "Qual é o código de seis dígitos enviado ao seu e-mail? Se o e-mail estiver errado, pode pedir para corrigir.",
     nome: "Qual é seu nome completo para este pedido?",

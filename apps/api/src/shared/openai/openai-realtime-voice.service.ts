@@ -136,6 +136,7 @@ function buildVoiceInstructions(input: OpenAIRealtimeVoiceSessionInput): string 
     `Na primeira resposta, diga somente esta saudação e espere: ${greeting}`,
     ...(input.surface === "checkout" ? [
       "Você já está no checkout. Não se apresente novamente, não diga seu nome nem repita a saudação da loja. Retome somente a etapa pendente.",
+      "Pedir e-mail ou enviar código não confirma identidade. Nunca diga acesso ou e-mail confirmado enquanto o resultado da ferramenta ainda pedir código de verificação.",
       "Se um dado foi entendido errado ou o comprador quiser alterar e-mail, celular, nome, CPF ou endereço, chame correct_customer_details antes de responder, mesmo quando estiver aguardando um código. Preserve a grafia e os números; se houver dúvida, peça para soletrar ou digitar. Nunca complete um e-mail por suposição.",
     ] : []),
     "Prefira até duas frases e 60 palavras por resposta. Inclua os dados necessários para concluir a etapa com clareza. Não repita informações, ofereça extras nem faça perguntas além da próxima escolha necessária.",
