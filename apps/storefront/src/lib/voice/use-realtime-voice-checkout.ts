@@ -7,9 +7,10 @@ type RealtimeClientSecret = { value: string; expires_at?: number };
 type Options = { enabled: boolean; createSession: () => Promise<RealtimeClientSecret>; onCommerceTurn: (buyerMessage: string) => Promise<RealtimeVoiceTurnResult> };
 export type RealtimeVoiceCheckoutState = {
   connecting: boolean; connected: boolean; listening: boolean; speaking: boolean; unsupported: boolean; hint: string;
-  start: () => void; stop: () => void; toggle: () => void; sendText: (text: string) => void;
+  start: (initialText?: string) => void; stop: () => void; toggle: () => void; sendText: (text: string) => void;
 };
 type RealtimeEvent = { type?: string; item?: { type?: string; name?: string; call_id?: string; arguments?: string }; delta?: string };
+type VoiceError = Error & { status?: number };
 
 /** WebRTC client that delegates catalog and cart actions to the signed Zyon conversation API. */
 export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTurn }: Options): RealtimeVoiceCheckoutState {
@@ -25,6 +26,7 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const handledCalls = useRef(new Set<string>());
   const startingRef = useRef(false);
+  const pendingTextRef = useRef<string | null>(null);
   const createSessionRef = useRef(createSession);
   const commerceRef = useRef(onCommerceTurn);
   createSessionRef.current = createSession;
@@ -33,22 +35,24 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
   const stop = useCallback(() => {
     const channel = channelRef.current;
     if (channel?.readyState === "open") channel.send(JSON.stringify({ type: "session.close" }));
-    channel?.close(); channelRef.current = null;
-    peerRef.current?.close(); peerRef.current = null;
-    streamRef.current?.getTracks().forEach((track) => track.stop()); streamRef.current = null;
-    audioRef.current?.pause(); audioRef.current = null;
+    channel?.close();
+    channelRef.current = null;
+    peerRef.current?.close();
+    peerRef.current = null;
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    const audio = audioRef.current;
+    audio?.pause();
+    if (audio) {
+      audio.srcObject = null;
+      audio.remove();
+    }
+    audioRef.current = null;
     handledCalls.current.clear();
+    pendingTextRef.current = null;
     setConnecting(false); setConnected(false); setListening(false); setSpeaking(false);
     setHint(enabled ? "Voz pausada. Toque para retomar." : "Ative a voz para começar.");
   }, [enabled]);
-
-  const sendText = useCallback((text: string) => {
-    const value = text.trim().slice(0, 4_000);
-    const channel = channelRef.current;
-    if (!value || channel?.readyState !== "open") { setHint("Ative a compra por voz para ouvir o resumo."); return; }
-    channel.send(JSON.stringify({ type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text: value }] } }));
-    channel.send(JSON.stringify({ type: "response.create" }));
-  }, []);
 
   const handleEvent = useCallback(async (event: RealtimeEvent) => {
     if (event.type === "input_audio_buffer.speech_started") { setListening(true); setSpeaking(false); setHint("Estou ouvindo..."); return; }
@@ -77,40 +81,127 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
     channel.send(JSON.stringify({ type: "response.create" }));
   }, []);
 
-  const start = useCallback(() => {
+  const start = useCallback((initialText?: string) => {
+    const requestedText = initialText?.trim().slice(0, 4_000);
+    if (requestedText) pendingTextRef.current = requestedText;
     if (!enabled || startingRef.current || peerRef.current) return;
     void (async () => {
-      if (!window.RTCPeerConnection || !navigator.mediaDevices?.getUserMedia) { setUnsupported(true); setHint("Este navegador não suporta a compra por voz. Use o chat para continuar."); return; }
-      startingRef.current = true; setConnecting(true); setHint("Conectando sua voz com segurança...");
+      if (!window.RTCPeerConnection || !navigator.mediaDevices?.getUserMedia) {
+        setUnsupported(true);
+        setHint("Este navegador não suporta a compra por voz. Use o chat para continuar.");
+        return;
+      }
+      startingRef.current = true;
+      setConnecting(true);
+      setHint("Conectando sua voz com segurança...");
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         streamRef.current = stream;
         const secret = await createSessionRef.current();
         if (!secret.value) throw new Error("voice_session_missing");
-        const peer = new RTCPeerConnection(); peerRef.current = peer;
-        const audio = document.createElement("audio"); audio.autoplay = true; audioRef.current = audio;
-        peer.ontrack = (event) => { audio.srcObject = event.streams[0] ?? null; };
+        const peer = new RTCPeerConnection();
+        peerRef.current = peer;
+        const audio = document.createElement("audio");
+        audio.autoplay = true;
+        audio.setAttribute("playsinline", "");
+        audio.setAttribute("data-zyon-realtime-audio", "true");
+        audio.style.display = "none";
+        document.body.appendChild(audio);
+        audioRef.current = audio;
+        peer.ontrack = (event) => {
+          audio.srcObject = event.streams[0] ?? null;
+          void audio.play().catch(() => {
+            setHint("O navegador bloqueou o áudio. Toque no microfone para ouvir.");
+          });
+        };
         stream.getTracks().forEach((track) => peer.addTrack(track, stream));
-        const channel = peer.createDataChannel("oai-events"); channelRef.current = channel;
+        const channel = peer.createDataChannel("oai-events");
+        channelRef.current = channel;
         channel.addEventListener("message", (message) => { try { void handleEvent(JSON.parse(message.data) as RealtimeEvent); } catch { /* Ignore unknown events. */ } });
-        channel.addEventListener("open", () => { setConnected(true); setConnecting(false); setHint("Conectada. Vou iniciar seu resumo."); channel.send(JSON.stringify({ type: "response.create" })); });
+        channel.addEventListener("open", () => {
+          setConnected(true);
+          setConnecting(false);
+          const pendingText = pendingTextRef.current;
+          pendingTextRef.current = null;
+          if (pendingText) {
+            setHint("Preparando seu resumo...");
+            sendTextToRealtime(channel, pendingText);
+            return;
+          }
+          setHint("Conectada. Vou iniciar seu resumo.");
+          channel.send(JSON.stringify({ type: "response.create" }));
+        });
         channel.addEventListener("close", () => { if (peerRef.current === peer) stop(); });
         peer.addEventListener("connectionstatechange", () => { if (["failed", "closed", "disconnected"].includes(peer.connectionState) && peerRef.current === peer) stop(); });
-        const offer = await peer.createOffer(); await peer.setLocalDescription(offer); await waitForIceGathering(peer);
+        const offer = await peer.createOffer();
+        await peer.setLocalDescription(offer);
+        await waitForIceGathering(peer);
         const response = await fetch("https://api.openai.com/v1/realtime/calls", { method: "POST", headers: { Authorization: `Bearer ${secret.value}`, "Content-Type": "application/sdp" }, body: peer.localDescription?.sdp ?? offer.sdp });
-        if (!response.ok) throw new Error("voice_connection_failed");
+        if (!response.ok) {
+          const error = new Error("voice_connection_failed") as VoiceError;
+          error.status = response.status;
+          throw error;
+        }
         await peer.setRemoteDescription({ type: "answer", sdp: await response.text() });
       } catch (error) {
-        const status = Number((error as { status?: unknown })?.status);
-        stop(); setHint(status === 403 ? "A compra por voz está disponível a partir do plano Growth." : "Não consegui ativar a voz agora. Tente novamente ou use o chat.");
-      } finally { startingRef.current = false; setConnecting(false); }
+        stop();
+        setHint(voiceErrorHint(error));
+      } finally {
+        startingRef.current = false;
+        setConnecting(false);
+      }
     })();
   }, [enabled, handleEvent, stop]);
 
-  const toggle = useCallback(() => { if (peerRef.current || connecting) stop(); else start(); }, [connecting, start, stop]);
+  const sendText = useCallback((text: string) => {
+    const value = text.trim().slice(0, 4_000);
+    if (!value) return;
+    const channel = channelRef.current;
+    if (channel?.readyState === "open") {
+      sendTextToRealtime(channel, value);
+      return;
+    }
+    pendingTextRef.current = value;
+    start(value);
+  }, [start]);
+
+  const resumeAudio = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio?.srcObject || !audio.paused) return false;
+    void audio.play()
+      .then(() => setHint("Pode falar quando quiser."))
+      .catch(() => setHint("O navegador ainda bloqueia o áudio. Verifique as permissões de som deste site."));
+    return true;
+  }, []);
+
+  const toggle = useCallback(() => {
+    if (peerRef.current || connecting) {
+      if (!connecting && resumeAudio()) return;
+      stop();
+      return;
+    }
+    start();
+  }, [connecting, resumeAudio, start, stop]);
   useEffect(() => { if (!enabled) stop(); }, [enabled, stop]);
   useEffect(() => () => stop(), [stop]);
   return { connecting, connected, listening, speaking, unsupported, hint, start, stop, toggle, sendText };
+}
+
+function sendTextToRealtime(channel: RTCDataChannel, text: string) {
+  channel.send(JSON.stringify({ type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text }] } }));
+  channel.send(JSON.stringify({ type: "response.create" }));
+}
+
+function voiceErrorHint(error: unknown): string {
+  const status = Number((error as { status?: unknown })?.status);
+  const name = error instanceof DOMException ? error.name : "";
+  if (name === "NotAllowedError" || name === "SecurityError") return "Permita o uso do microfone para iniciar a compra por voz.";
+  if (name === "NotFoundError") return "Não encontrei um microfone neste dispositivo. Use o chat para continuar.";
+  if (status === 401) return "Sua sessão expirou. Atualize a página e tente ativar a voz novamente.";
+  if (status === 403) return "A compra por voz está disponível a partir do plano Growth.";
+  if (status === 429) return "A voz está temporariamente ocupada. Aguarde um instante e tente novamente.";
+  if (status >= 500) return "A assistente de voz está indisponível agora. Tente novamente em instantes ou use o chat.";
+  return "Não consegui ativar a voz agora. Tente novamente ou use o chat.";
 }
 
 function waitForIceGathering(peer: RTCPeerConnection): Promise<void> {

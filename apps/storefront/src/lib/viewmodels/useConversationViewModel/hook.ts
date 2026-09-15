@@ -139,6 +139,11 @@ export function useConversationViewModel(
     saveChannelPreference(next);
   }, [channel]);
 
+  const ensureConversation = useCallback(async (): Promise<string | null> => {
+    await initConversation();
+    return conversationIdRef.current;
+  }, [initConversation]);
+
   const sendMessage = useCallback(
     async (text: string): Promise<CommerceTurnResult | null> => {
       const trimmed = text.trim();
@@ -323,6 +328,7 @@ export function useConversationViewModel(
     selectChannel,
     toggleChannel,
     toggleTheme,
+    ensureConversation,
     sendMessage,
     handleQuickReply: handleQuickReplyAction,
     appendAgentMessage,

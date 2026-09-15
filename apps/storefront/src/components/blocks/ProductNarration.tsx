@@ -25,6 +25,6 @@ export default function ProductNarration({ summary, enabled, placement = "body" 
         <span>Ouvir resumo</span>
       </button>
     </div>
-    {requested ? <small className={styles.voiceStatus} role="status">O resumo foi enviado para a assistente de voz.</small> : null}
+    {requested ? <small className={styles.voiceStatus} role="status">Conectando a assistente de voz para tocar o resumo.</small> : null}
   </aside>;
 }

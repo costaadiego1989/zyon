@@ -28,7 +28,13 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
     if (channel?.readyState === "open") channel.send(JSON.stringify({ type: "session.close" }));
     channel?.close(); channelRef.current = null; peerRef.current?.close(); peerRef.current = null;
     streamRef.current?.getTracks().forEach((track) => track.stop()); streamRef.current = null;
-    audioRef.current?.pause(); audioRef.current = null; handled.current.clear();
+    const audio = audioRef.current;
+    audio?.pause();
+    if (audio) {
+      audio.srcObject = null;
+      audio.remove();
+    }
+    audioRef.current = null; handled.current.clear();
     setConnecting(false); setConnected(false); setListening(false); setSpeaking(false);
     setHint(enabled ? "Voz pausada. Toque para retomar." : "Ative a voz para começar.");
   }, [enabled]);
@@ -62,8 +68,17 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); streamRef.current = stream;
         const secret = await sessionRef.current(); if (!secret.value) throw new Error("voice_session_missing");
         const peer = new RTCPeerConnection(); peerRef.current = peer;
-        const audio = document.createElement("audio"); audio.autoplay = true; audioRef.current = audio;
-        peer.ontrack = (event) => { audio.srcObject = event.streams[0] ?? null; };
+        const audio = document.createElement("audio");
+        audio.autoplay = true;
+        audio.setAttribute("playsinline", "");
+        audio.setAttribute("data-zyon-realtime-audio", "true");
+        audio.style.display = "none";
+        document.body.appendChild(audio);
+        audioRef.current = audio;
+        peer.ontrack = (event) => {
+          audio.srcObject = event.streams[0] ?? null;
+          void audio.play().catch(() => setHint("O navegador bloqueou o áudio. Toque no microfone para ouvir."));
+        };
         stream.getTracks().forEach((track) => peer.addTrack(track, stream));
         const channel = peer.createDataChannel("oai-events"); channelRef.current = channel;
         channel.addEventListener("message", (message) => { try { void onEvent(JSON.parse(message.data) as EventPayload); } catch { /* ignore */ } });
@@ -72,15 +87,33 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
         peer.addEventListener("connectionstatechange", () => { if (["failed", "closed", "disconnected"].includes(peer.connectionState) && peerRef.current === peer) stop(); });
         const offer = await peer.createOffer(); await peer.setLocalDescription(offer); await waitForIce(peer);
         const response = await fetch("https://api.openai.com/v1/realtime/calls", { method: "POST", headers: { Authorization: `Bearer ${secret.value}`, "Content-Type": "application/sdp" }, body: peer.localDescription?.sdp ?? offer.sdp });
-        if (!response.ok) throw new Error("voice_connection_failed");
+        if (!response.ok) {
+          const error = new Error("voice_connection_failed") as Error & { status?: number };
+          error.status = response.status;
+          throw error;
+        }
         await peer.setRemoteDescription({ type: "answer", sdp: await response.text() });
       } catch (error) {
-        const status = Number((error as { status?: unknown })?.status);
-        stop(); setHint(status === 403 ? "A compra por voz está disponível a partir do plano Growth." : "Não consegui ativar a voz agora. Tente novamente ou use o chat.");
+        stop(); setHint(voiceErrorHint(error));
       } finally { starting.current = false; setConnecting(false); }
     })();
   }, [enabled, onEvent, stop]);
-  const toggle = useCallback(() => { if (peerRef.current || connecting) stop(); else start(); }, [connecting, start, stop]);
+  const resumeAudio = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio?.srcObject || !audio.paused) return false;
+    void audio.play()
+      .then(() => setHint("Pode falar quando quiser."))
+      .catch(() => setHint("O navegador ainda bloqueia o áudio. Verifique as permissões de som deste site."));
+    return true;
+  }, []);
+  const toggle = useCallback(() => {
+    if (peerRef.current || connecting) {
+      if (!connecting && resumeAudio()) return;
+      stop();
+      return;
+    }
+    start();
+  }, [connecting, resumeAudio, start, stop]);
   useEffect(() => { if (!enabled) stop(); }, [enabled, stop]);
   useEffect(() => () => stop(), [stop]);
   return { connecting, connected, listening, speaking, unsupported, hint, start, stop, toggle };
@@ -89,4 +122,16 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
 function waitForIce(peer: RTCPeerConnection): Promise<void> {
   if (peer.iceGatheringState === "complete") return Promise.resolve();
   return new Promise((resolve) => { const timeout = window.setTimeout(done, 1_500); function done() { window.clearTimeout(timeout); peer.removeEventListener("icegatheringstatechange", change); resolve(); } function change() { if (peer.iceGatheringState === "complete") done(); } peer.addEventListener("icegatheringstatechange", change); });
+}
+
+function voiceErrorHint(error: unknown): string {
+  const status = Number((error as { status?: unknown })?.status);
+  const name = error instanceof DOMException ? error.name : "";
+  if (name === "NotAllowedError" || name === "SecurityError") return "Permita o uso do microfone para iniciar a compra por voz.";
+  if (name === "NotFoundError") return "Não encontrei um microfone neste dispositivo. Use o chat para continuar.";
+  if (status === 401) return "Sua sessão expirou. Atualize a página e tente ativar a voz novamente.";
+  if (status === 403) return "A compra por voz está disponível a partir do plano Growth.";
+  if (status === 429) return "A voz está temporariamente ocupada. Aguarde um instante e tente novamente.";
+  if (status >= 500) return "A assistente de voz está indisponível agora. Tente novamente em instantes ou use o chat.";
+  return "Não consegui ativar a voz agora. Tente novamente ou use o chat.";
 }
