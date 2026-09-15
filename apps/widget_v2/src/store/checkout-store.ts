@@ -177,6 +177,8 @@ export interface Message {
   text?: string;
   blocks?: ChatBlock[];
   quickReplies?: string[];
+  /** Server-owned stage; legacy local fallbacks must not intercept its replies. */
+  checkoutStage?: string;
   timestamp: number;
 }
 
@@ -322,10 +324,21 @@ function resolveAgentText(message: string | undefined, blocks: ChatBlock[]): str
 function deriveBlocksFromStage(
   stage: string | undefined,
   state: { buyer: BuyerData; cart: CartState; merchantPaymentConfig: MerchantPaymentConfig },
+  missingFields?: string[],
 ): ChatBlock[] | undefined {
   if (!stage) return undefined;
 
   if (stage === "shipping" || stage === "delivery") {
+    // Shipping includes CEP, confirmation, number, complement and freight.
+    // Never derive another CEP field just because the address is incomplete.
+    const next = missingFields?.[0];
+    if (next === "número") {
+      return [{ type: "form_field", data: { field: "address_number", label: "Número do endereço", placeholder: "Ex.: 100, apto 12" } }];
+    }
+    if (next?.includes("complemento")) {
+      return [{ type: "form_field", data: { field: "address_complement", label: "Complemento", placeholder: "Ex.: apto 12 ou sem complemento" } }];
+    }
+    if (next === "frete" || next === "confirmar endereço") return [];
     if (state.cart.status === "shipping_calculated" || state.cart.status === "ready_to_pay") {
       return undefined;
     }
@@ -585,7 +598,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     const isAddrConfirm = ["sim", "correto", "confirmo", "certo", "isso", "é esse", "esse mesmo"].includes(normalizedConfirm);
     if (isAddrConfirm) {
       const lastAgentMsg = [...messages].reverse().find((m) => m.role === "agent");
-      if (lastAgentMsg?.blocks?.some((b) => b.type === "address_confirmation")) {
+      if (!lastAgentMsg?.checkoutStage && lastAgentMsg?.blocks?.some((b) => b.type === "address_confirmation")) {
         const { buyer } = get();
         const zip = buyer.address?.zip;
         if (!zip) {
@@ -687,7 +700,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         return;
       }
 
-      if (text === "Não" && messages.length > 0) {
+      if (!res.stage && text === "Não" && messages.length > 0) {
         const lastAgentMsg = [...messages].reverse().find((m) => m.role === "agent");
         if (lastAgentMsg?.blocks?.some((b) => b.type === "address_confirmation")) {
           const zipMsg: Message = {
@@ -708,7 +721,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         ? res.blocks
         : (isAddressConfirmationCopy(res.message)
           ? []
-          : (deriveBlocksFromStage(res.stage, { buyer: updatedBuyer, cart, merchantPaymentConfig }) ?? []));
+          : (deriveBlocksFromStage(res.stage, { buyer: updatedBuyer, cart, merchantPaymentConfig }, res.missing_fields) ?? []));
       const crossSellBlock = crossSellBlockFromSuggestions(res.experience?.suggestedProducts);
       const mergedBlocks = crossSellBlock
         ? [...baseBlocks, crossSellBlock]
@@ -719,7 +732,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         role: "agent",
         text: agentText,
         blocks: mergedBlocks,
-        quickReplies: res.quick_replies,
+        quickReplies: res.quick_replies ?? res.experience?.copy?.quick_replies,
+        checkoutStage: res.stage,
         timestamp: Date.now(),
       };
       set((s) => ({

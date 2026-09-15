@@ -141,9 +141,11 @@ export class SendChatMessageUseCase {
     let reply: { message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[]; blocks?: Array<{ type: string; data?: Record<string, unknown> }> };
     let llmReply: { message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[]; blocks?: Array<{ type: string; data?: Record<string, unknown> }> } | null = null;
 
-    const addressVerified = Boolean((working.customer as any)?.address_verified);
+    // Address confirmation only verifies the location. Number, complement and
+    // shipping selection still belong to the same deterministic checkout flow.
     const forceDeterministic = stage === "data_collection"
-      || (stage === "shipping" && missingFields && missingFields.length > 0 && !addressVerified);
+      || (stage === "shipping" && missingFields.length > 0)
+      || (previousStage === "shipping" && stage === "payment");
 
     if (!isHoldout && !forceDeterministic) {
       const experimentPromptOverride = await this.resolveExperimentPrompt(

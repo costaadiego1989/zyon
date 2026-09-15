@@ -16,6 +16,8 @@ import type { BuyerConversationRepository } from "../../../buyer-account/domain/
 import type { CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
 import type { OrderQuotaService } from "../../../payment/application/services/order-quota.service.js";
 import type { ConversationRateLimitService } from "../services/conversation-rate-limit.service.js";
+import type { ChatLlmGatewayService } from "../services/chat-llm-gateway.service.js";
+import type { ChatToolExecutorService } from "../services/chat-tool-executor.service.js";
 
 interface SendChatFixtureOverrides {
   conversation?: ConversationPort;
@@ -31,6 +33,8 @@ interface SendChatFixtureOverrides {
   createPaymentIntent?: CreatePaymentIntentUseCase;
   orderQuota?: Pick<OrderQuotaService, "assertCanAcceptNewSales">;
   conversationRateLimit?: Pick<ConversationRateLimitService, "assertAllowed">;
+  chatLlmGateway?: ChatLlmGatewayService;
+  chatToolExecutor?: ChatToolExecutorService;
 }
 
 /**
@@ -72,8 +76,8 @@ export function createSendChatUseCase(
     overrides.merchantRepository,
     undefined,
     undefined,
-    undefined,
-    undefined,
+    overrides.chatToolExecutor,
+    overrides.chatLlmGateway,
     overrides.orderQuota as OrderQuotaService | undefined,
     overrides.conversationRateLimit as ConversationRateLimitService | undefined,
   );

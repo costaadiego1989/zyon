@@ -140,6 +140,7 @@ export interface Experience {
   customer?: BuyerConfig;
   cart?: { items: CartItem[] };
   stage?: string;
+  copy?: { quick_replies?: string[] };
   stripeEnabled?: boolean;
   paymentMethods?: {
     pix: boolean;

@@ -22,12 +22,14 @@ export class CheckoutShippingService {
 
   async processShippingState(session: CheckoutSession, userMessage: string): Promise<CheckoutSession> {
     let working = session;
+    let confirmedAddressThisTurn = false;
 
     if (working.customer?.address?.street && !working.customer?.address_verified) {
-      const normalizedMsg = userMessage.trim().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "");
-      const isYes = /^(sim|s|correto|esta\s+correto|está\s+correto|confirmado|confirma)$/i.test(normalizedMsg);
+      const normalizedMsg = userMessage.trim().replace(/[.,\/#!?$%\^&\*;:{}=\-_`~()]/g, "").trim();
+      const isYes = /^(sim|s|correto|certo|isso|[eé]\s+esse|esse\s+mesmo|esta\s+correto|está\s+correto|confirmado|confirma|confirmo)$/i.test(normalizedMsg);
       const isNo = /^(nao|não|n|errado|esta\s+errado|está\s+errado|rejeitado|rejeito)$/i.test(normalizedMsg);
       if (isYes) {
+        confirmedAddressThisTurn = true;
         working = this.customerService.mergeCustomers(working, { address_verified: true });
         await this.repository.saveSession(working);
       } else if (isNo) {
@@ -53,7 +55,8 @@ export class CheckoutShippingService {
 
     working = await this.tryFillPostalAndShipping(working);
 
-    const numberPatch = this.tryParseAddressNumbers(userMessage, working);
+    // A yes/no answer cannot also become an address number or complement.
+    const numberPatch = confirmedAddressThisTurn ? null : this.tryParseAddressNumbers(userMessage, working);
     if (numberPatch) {
       working = this.customerService.mergeCustomers(working, numberPatch);
       await this.repository.saveSession(working);

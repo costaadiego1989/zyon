@@ -462,13 +462,13 @@ function fallbackReply(
     if (normalizedNext.includes("numero")) {
       return {
         objection,
-        message: `Ja achei o endereco pelo CEP. Qual o numero do imovel?`
+        message: `Já achei o endereço pelo CEP. Qual o número do imóvel?`
       };
     }
     if (normalizedNext.includes("complemento")) {
       return {
         objection,
-        message: `Numero anotado. Tem complemento, como apto, bloco ou casa? Se nao tiver, responda "Nao tem".`
+        message: `Número anotado. Tem complemento, como apto, bloco ou casa? Se não tiver, responda "Não tem".`
       };
     }
     if (next === "frete") {
@@ -489,12 +489,6 @@ function fallbackReply(
       return {
         objection,
         message: `Localizei o endereço pelo CEP:${addrLine} Está correto? (Sim/Não)`
-      };
-    }
-    if (next.includes("número") || next.includes("complemento")) {
-      return {
-        objection,
-        message: `Já achei o endereço pelo CEP. Qual o número e complemento (apto/bloco, se houver)?`
       };
     }
     if (next.includes("confirmar")) {
