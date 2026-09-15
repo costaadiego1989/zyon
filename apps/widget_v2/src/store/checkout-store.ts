@@ -458,6 +458,12 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       initTracking(api, response.session_id);
       void trackEvent("checkout_started");
 
+      // OneBuyClick already knows the buyer's intent and preference. The chat
+      // opens immediately and asks only for data still required by checkout.
+      if (oneBuyClickPreferences) {
+        get().selectChannel("chat");
+      }
+
       try {
         const settingsRes = await fetch(
           `${apiBaseUrl}/checkout-settings/widget-config?merchantId=${encodeURIComponent(merchantId)}`

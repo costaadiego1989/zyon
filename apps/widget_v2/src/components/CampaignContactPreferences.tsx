@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { CheckoutSession } from "@/api/checkout-session";
 
 type ContactChannel = "email" | "whatsapp";
@@ -9,9 +9,10 @@ const channels: ContactChannel[] = ["email", "whatsapp"];
 interface CampaignContactPreferencesProps {
   api: CheckoutSession | null;
   sessionId: string | null;
+  merchantName: string;
 }
 
-export function CampaignContactPreferences({ api, sessionId }: CampaignContactPreferencesProps) {
+export function CampaignContactPreferences({ api, sessionId, merchantName }: CampaignContactPreferencesProps) {
   const [savedChannels, setSavedChannels] = useState<Set<ContactChannel>>(() => new Set());
   const [selectedChannels, setSelectedChannels] = useState<Set<ContactChannel>>(() => new Set());
   const [loading, setLoading] = useState(Boolean(api && sessionId));
@@ -23,6 +24,7 @@ export function CampaignContactPreferences({ api, sessionId }: CampaignContactPr
       setLoading(false);
       return;
     }
+
     let active = true;
     setLoading(true);
     setNotice(null);
@@ -40,100 +42,89 @@ export function CampaignContactPreferences({ api, sessionId }: CampaignContactPr
       setSavedChannels(granted);
       setSelectedChannels(new Set(granted));
     }).catch(() => {
-      if (active) setNotice("Não foi possível carregar suas preferências de contato.");
+      if (active) setNotice("Não foi possível carregar esta preferência agora.");
     }).finally(() => {
       if (active) setLoading(false);
     });
+
     return () => { active = false; };
   }, [api, sessionId]);
 
-  const hasChanges = useMemo(
-    () => channels.some((channel) => savedChannels.has(channel) !== selectedChannels.has(channel)),
-    [savedChannels, selectedChannels],
-  );
-
   if (!api || !sessionId) return null;
 
-  const toggleChannel = (channel: ContactChannel) => {
-    setNotice(null);
-    setSelectedChannels((current) => {
-      const next = new Set(current);
-      if (next.has(channel)) next.delete(channel);
-      else next.add(channel);
-      return next;
-    });
-  };
+  const toggleChannel = async (channel: ContactChannel) => {
+    if (loading || saving) return;
 
-  const persist = async () => {
-    if (!hasChanges) return;
+    const next = new Set(selectedChannels);
+    if (next.has(channel)) next.delete(channel);
+    else next.add(channel);
+
+    setSelectedChannels(next);
     setSaving(true);
     setNotice(null);
     try {
       const response = await fetch(`${api.embedApiBaseUrl}/embed/checkout/consent/campaigns`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${api.authToken}` },
-        body: JSON.stringify({ session_id: sessionId, policy_version: POLICY_VERSION, channels: channels.filter((channel) => selectedChannels.has(channel)) }),
+        body: JSON.stringify({
+          session_id: sessionId,
+          policy_version: POLICY_VERSION,
+          channels: channels.filter((candidate) => next.has(candidate)),
+        }),
       });
       if (!response.ok) throw new Error("campaign_consent_save_failed");
-      setSavedChannels(new Set(selectedChannels));
-      setNotice("Preferências de contato atualizadas.");
+      setSavedChannels(next);
+      setNotice("Preferência atualizada.");
     } catch {
       setSelectedChannels(new Set(savedChannels));
-      setNotice("Não foi possível atualizar suas preferências. Tente novamente.");
+      setNotice("Não foi possível atualizar agora.");
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <details data-neu="surface"
-      style={{
-        flex: "none",
-        marginTop: "8px",
-        padding: "10px 12px",
-        border: "1px solid var(--bd)",
-        borderRadius: "12px",
-        background: "var(--card)",
-        color: "var(--tx)",
-      }}
+    <section
+      aria-label="Preferências de contato"
+      style={{ flex: "none", marginTop: "12px", padding: "12px", borderTop: "1px solid var(--bd)" }}
     >
-      <summary data-neu="text" style={{ cursor: "pointer", fontSize: "12px", fontWeight: 700 }}>
-        Preferências de contato desta loja
-      </summary>
-      <p style={{ margin: "8px 0", color: "var(--mut)", fontSize: "12px", lineHeight: 1.45 }}>
-        Se quiser, receba lembretes sobre seu carrinho e novidades desta loja. Sua escolha não altera o pedido.
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "12px" }}>
+        <strong style={{ fontSize: "12px", color: "var(--tx)" }}>Novidades da {merchantName}</strong>
+        <span style={{ fontSize: "11px", color: "var(--mut)" }}>Opcional</span>
+      </div>
+      <p style={{ margin: "4px 0 10px", color: "var(--mut)", fontSize: "11.5px", lineHeight: 1.45 }}>
+        Autorize ofertas e lembretes da loja. Isso não altera o pedido nem seus comprovantes.
       </p>
-      <fieldset disabled={loading || saving} style={{ margin: 0, padding: 0, border: 0, display: "grid", gap: "8px" }}>
-        <label style={{ display: "flex", minHeight: "44px", alignItems: "center", gap: "9px", cursor: loading || saving ? "wait" : "pointer", fontSize: "13px" }}>
-          <input type="checkbox" checked={selectedChannels.has("email")} onChange={() => toggleChannel("email")} />
-          E-mail
-        </label>
-        <label style={{ display: "flex", minHeight: "44px", alignItems: "center", gap: "9px", cursor: loading || saving ? "wait" : "pointer", fontSize: "13px" }}>
-          <input type="checkbox" checked={selectedChannels.has("whatsapp")} onChange={() => toggleChannel("whatsapp")} />
-          WhatsApp
-        </label>
-      </fieldset>
-      <button data-neu="primary"
-        type="button"
-        onClick={() => void persist()}
-        disabled={loading || saving || !hasChanges}
-        style={{
-          minHeight: "44px",
-          marginTop: "8px",
-          padding: "8px 12px",
-          border: 0,
-          borderRadius: "9px",
-          background: loading || saving || !hasChanges ? "var(--chip)" : "var(--aacp-accent, #0f766e)",
-          color: loading || saving || !hasChanges ? "var(--mut)" : "#fff",
-          cursor: loading || saving || !hasChanges ? "default" : "pointer",
-          fontFamily: "inherit",
-          fontSize: "12px",
-          fontWeight: 700,
-        }}
-      >
-        {saving ? "Atualizando..." : "Salvar preferência"}
-      </button>
-      {notice && <p role="status" style={{ margin: "8px 0 0", color: "var(--mut)", fontSize: "12px", lineHeight: 1.4 }}>{notice}</p>}
-    </details>
+      <div role="group" aria-label="Canais para novidades" style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+        {channels.map((channel) => {
+          const enabled = selectedChannels.has(channel);
+          const label = channel === "email" ? "E-mail" : "WhatsApp";
+          return (
+            <button
+              key={channel}
+              type="button"
+              aria-pressed={enabled}
+              disabled={loading || saving}
+              onClick={() => void toggleChannel(channel)}
+              style={{
+                minHeight: "36px",
+                padding: "0 12px",
+                borderRadius: "999px",
+                border: "1px solid var(--bd)",
+                background: enabled ? "color-mix(in srgb, var(--aacp-accent) 14%, var(--card))" : "var(--card)",
+                color: enabled ? "var(--tx)" : "var(--mut)",
+                fontFamily: "inherit",
+                fontSize: "12px",
+                fontWeight: 700,
+                cursor: loading || saving ? "wait" : "pointer",
+              }}
+            >
+              {enabled ? "✓ " : ""}{label}
+            </button>
+          );
+        })}
+      </div>
+      {notice && <p role="status" style={{ margin: "8px 0 0", color: "var(--mut)", fontSize: "11px" }}>{notice}</p>}
+    </section>
   );
 }

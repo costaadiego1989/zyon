@@ -38,6 +38,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
   const dismissDiscount = useCheckoutStore((s) => s.dismissDiscount);
   const resetSession = useCheckoutStore((s) => s.resetSession);
   const showBranding = useCheckoutStore((s) => s.showBranding);
+  const leadRegistered = useCheckoutStore((s) => s.leadRegistered);
   const api = useCheckoutStore((s) => s.api);
   const sessionId = useCheckoutStore((s) => s.sessionId);
 
@@ -63,7 +64,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
   const mobileActionOffset = composerOffset ?? 72 + (showBranding ? 40 : 0);
 
   const storeName = brand.name || "Loja";
-  const agentName = agent.name || "Assistente";
+  const agentName = showBranding ? (agent.name || "Assistente") : "Assistente da loja";
   let merchantLogoUrl: string | null = null;
   if (brand.logoUrl) {
     try {
@@ -183,30 +184,24 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
           </svg>
         </button>
 
-        <div
-          style={{
-            width: "34px",
-            height: "34px",
-            borderRadius: "12px",
-            border: "1px solid var(--bd)",
-            background: "var(--chip)",
-            color: "var(--tx)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flex: "none",
-            overflow: "hidden",
-            fontSize: "13px",
-            fontWeight: 800,
-            letterSpacing: "-.2px",
-          }}
-        >
-          {merchantLogoUrl ? (
-            <img src={merchantLogoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          ) : (
-            storeName.charAt(0).toUpperCase()
-          )}
-        </div>
+        {merchantLogoUrl ? (
+          <img
+            src={merchantLogoUrl}
+            alt={storeName}
+            style={{ width: "34px", height: "34px", objectFit: "contain", flex: "none" }}
+          />
+        ) : (
+          <div
+            aria-hidden="true"
+            style={{
+              width: "34px", height: "34px", borderRadius: "50%", background: "var(--chip)",
+              color: "var(--tx)", display: "flex", alignItems: "center", justifyContent: "center",
+              flex: "none", fontSize: "13px", fontWeight: 800,
+            }}
+          >
+            {storeName.charAt(0).toUpperCase()}
+          </div>
+        )}
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: "13.5px", fontWeight: 700, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -353,7 +348,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
 
                 {/* ChatPanel is the MAIN UI */}
                 <ChatPanel />
-                <CampaignContactPreferences api={api} sessionId={sessionId} />
+                {leadRegistered && <CampaignContactPreferences api={api} sessionId={sessionId} merchantName={storeName} />}
               </div>
 
               {/* SmartCart sidebar - desktop only */}

@@ -23,11 +23,12 @@ export function SmartCart() {
   const completed = useCheckoutStore((s) => s.status === "completed");
   const controlsDisabled = cartUpdating || completed;
   const agent = useCheckoutStore((s) => s.agent);
+  const showBranding = useCheckoutStore((s) => s.showBranding);
   const updateQty = useCheckoutStore((s) => s.updateQty);
   const removeCartItem = useCheckoutStore((s) => s.removeCartItem);
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
 
-  const agentName = agent.name || "Assistente";
+  const agentName = showBranding ? (agent.name || "Assistente") : "Assistente da loja";
   const language = agent.language;
   const locale = checkoutLocale(language);
   const serviceFeeCopy = buyerServiceFeeCopy(language);
@@ -345,6 +346,22 @@ export function SmartCart() {
             </div>
           );
         })}
+
+        {cart.items.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "14px",
+              padding: "9px 2px",
+              borderTop: "1px solid var(--bd)",
+            }}
+          >
+            <span style={{ fontSize: "12px", color: "var(--mut)" }}>Produtos</span>
+            <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--tx)" }}>{formatPrice(cart.total)}</span>
+          </div>
+        )}
 
         {/* Shipping line */}
         {cart.shipping && (

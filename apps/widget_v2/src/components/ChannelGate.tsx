@@ -5,9 +5,10 @@ export function ChannelGate() {
   const selectChannel = useCheckoutStore((s) => s.selectChannel);
   const brand = useCheckoutStore((s) => s.brand);
   const agent = useCheckoutStore((s) => s.agent);
+  const showBranding = useCheckoutStore((s) => s.showBranding);
   const voiceEnabled = useCheckoutStore((s) => s.voiceEnabled);
 
-  const agentName = agent.name || "Assistente";
+  const agentName = showBranding ? (agent.name || "Assistente") : "Assistente da loja";
   const storeName = brand.name || "Loja";
   const agentGreeting = agent.greeting || "Eu cuido da sua compra do início ao fim: acho a melhor opção, aplico promoções, organizo a entrega e finalizo o pagamento com você, passo a passo.";
 
@@ -180,7 +181,6 @@ export function ChannelGate() {
           </span>
         </button> : null}
       </div>
-      {!voiceEnabled ? <p style={{ fontSize: "11px", color: "var(--mut)", margin: 0 }}>Compra por voz disponível a partir do plano Growth.</p> : null}
     </div>
   );
 }
