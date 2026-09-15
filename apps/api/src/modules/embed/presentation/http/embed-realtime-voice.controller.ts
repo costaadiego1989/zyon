@@ -31,7 +31,7 @@ export class EmbedRealtimeVoiceController {
 
 function checkoutCartContext(session: CheckoutSession) {
   return {
-    items: session.cart.items.map((item) => ({ name: item.name, quantity: item.quantity, unitPrice: item.price, variant: item.variant })),
+    items: session.cart.items.map((item) => ({ name: item.name, quantity: item.quantity, unitPrice: item.price, variant: item.variantLabel ?? (item.variant?.startsWith("[") ? undefined : item.variant) })),
     total: session.cart.total,
     currency: session.cart.currency,
     shipping: session.shipping ? { carrier: session.shipping.carrier, method: session.shipping.method, customerPrice: session.shipping.customerPrice, deliveryDays: session.shipping.deliveryDays } : undefined,

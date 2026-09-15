@@ -13,6 +13,7 @@ export function ChatPanel() {
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
   const continueVoiceCheckout = useCheckoutStore((s) => s.continueVoiceCheckout);
   const channel = useCheckoutStore((s) => s.channel);
+  const [typingAlongsideVoice, setTypingAlongsideVoice] = useState(false);
   const api = useCheckoutStore((s) => s.api);
   const [input, setInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -171,8 +172,18 @@ export function ChatPanel() {
       </div>
 
       {channel === "voice" ? (
-        <VoiceComposer voice={voice} />
-      ) : (
+        <>
+          <VoiceComposer voice={voice} />
+          <button data-neu="text" type="button" onClick={() => {
+            if (!typingAlongsideVoice) voice.stop();
+            setTypingAlongsideVoice((value) => !value);
+          }}
+            style={{ alignSelf: "center", padding: "8px 12px", background: "transparent", border: 0, color: "var(--tx)", cursor: "pointer", font: "inherit", fontSize: "12px" }}>
+            {typingAlongsideVoice ? "Ocultar campo de mensagem" : "Digitar mensagem"}
+          </button>
+        </>
+      ) : null}
+      {(channel !== "voice" || typingAlongsideVoice) && (
         <div style={{ flexShrink: 0, padding: "10px 0 0", borderTop: "1px solid var(--bd)" }}>
           <form data-neu="inset" data-aacp-checkout-composer data-aacp-composer-frame
             onSubmit={handleSubmit}

@@ -275,10 +275,11 @@ export default function ConversationShell({
   const presentedProductVariantRef = useRef<string | undefined>(undefined);
   const agent = agentName || "Assistente";
   const { cart } = useCart();
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
   const realtimeVoice = useRealtimeVoiceCheckout({
     // A product-detail button can start the voice session while the visual
     // conversation is still on chat. This retains the browser user gesture.
-    enabled: voiceCheckoutEnabled === true,
+    enabled: voiceCheckoutEnabled === true && !checkoutOpen,
     createSession: async () => {
       const activeConversationId = await ensureConversation();
       if (!activeConversationId) throw new Error("conversation_not_ready");
@@ -302,7 +303,11 @@ export default function ConversationShell({
       const result = await sendMessage(commerceMessage);
       return { agentMessage: result?.agentMessage ?? "Não consegui concluir este pedido agora. Pode repetir?", cart: { itemCount: cart.itemCount, total: cart.total } };
     },
-    onBeginCheckout: async () => {
+    onBeginCheckout: async () => beginCheckout(),
+  });
+
+  // Every checkout entry point must honor the same buyer preference and auth gate.
+  function beginCheckout() {
       const buyer = getValidBuyer();
       // A visitor can ask to finish immediately after a reload, before the
       // asynchronous one-buy-click state has returned. The locally persisted
@@ -338,9 +343,7 @@ export default function ConversationShell({
       setCheckoutPreferences(undefined);
       setCheckoutOpen(true);
       return { agentMessage: "Seu checkout foi aberto. Revise os dados e confirme visualmente antes de pagar." };
-    },
-  });
-  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  }
   const [checkoutCartRef, setCheckoutCartRef] = useState<string | undefined>(undefined);
   const [checkoutPreferences, setCheckoutPreferences] = useState<Pick<OneBuyClickState, "shippingPreference" | "paymentPreference"> | undefined>(undefined);
   const [oneBuyClick, setOneBuyClick] = useState<OneBuyClickState | null>(null);
@@ -820,7 +823,6 @@ export default function ConversationShell({
             {voiceCheckoutEnabled && welcomeVoiceRequested ? <div role="status" aria-live="polite" style={{ minHeight: "18px", marginTop: "12px", color: "var(--aacp-muted)", fontSize: "10.5px" }}>
               {realtimeVoice.connecting ? "Preparando saudação por voz..." : realtimeVoice.speaking ? `${agent} está falando...` : realtimeVoice.hint}
             </div> : null}
-            {!voiceCheckoutEnabled ? <span style={{ fontSize: "10.5px", color: "var(--aacp-muted)", marginTop: "10px" }}>Compra por voz disponível a partir do plano Growth.</span> : null}
           </div>
         </div>
       ) : (
@@ -1004,15 +1006,7 @@ export default function ConversationShell({
         <CheckoutWidgetPanel
           merchantId={merchantId}
           onCheckout={async () => {
-            const buyer = getValidBuyer();
-            if (!buyer) {
-              setShowBuyerAuth(true);
-              return;
-            }
-            setCheckoutUserId(buyer.globalUserId);
-            setCheckoutCartRef(cart.cartId ?? undefined);
-            setCheckoutPreferences(undefined);
-            setCheckoutOpen(true);
+            beginCheckout();
           }}
           onViewCart={() => setCartDrawerForceOpen(true)}
           onUpdateQty={handleUpdateQuantity}

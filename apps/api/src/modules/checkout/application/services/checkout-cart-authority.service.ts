@@ -70,6 +70,11 @@ export class CheckoutCartAuthorityService {
       return {
         sku: variant.sku, variantId: variant.id, product_id: variant.productId,
         variant: JSON.stringify([variant.id, (line.selectedOptions ?? []).map(option => option.itemId).sort()]),
+        variantLabel: [
+          ...Object.values((variant.attributes ?? {}) as Record<string, unknown>)
+            .filter((value): value is string => typeof value === "string" && Boolean(value.trim())),
+          ...(line.selectedOptions ?? []).map(option => option.itemName),
+        ].join(" · "),
         name: line.name, quantity: line.quantity, price: line.unitPriceCents / 100,
         imageUrl: variant.media[0]?.url ?? productImages.get(variant.productId) ?? line.imageUrl,
         cost: variant.price.costInCents == null ? undefined : variant.price.costInCents / 100,

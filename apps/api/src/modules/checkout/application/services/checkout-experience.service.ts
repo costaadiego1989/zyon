@@ -379,6 +379,7 @@ function toItemSnapshot(item: Cart["items"][number]): CheckoutItemSnapshot {
     product_url: item.productUrl,
     category: item.category,
     variant: item.variant,
+    variant_label: item.variantLabel,
     description: item.description?.slice(0, 100)
   };
 }

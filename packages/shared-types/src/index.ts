@@ -34,6 +34,8 @@ export interface CartItem {
   sku: string;
   /** Canonical catalog variant, distinct from the option-selection line key. */
   variantId?: string;
+  /** Buyer-facing description; never use the option-selection key as a label. */
+  variantLabel?: string;
   name: string;
   price: number;
   cost?: number;
@@ -396,6 +398,7 @@ export interface CheckoutItemSnapshot {
   product_url?: string;
   category?: string;
   variant?: string;
+  variant_label?: string;
   description?: string;
 }
 

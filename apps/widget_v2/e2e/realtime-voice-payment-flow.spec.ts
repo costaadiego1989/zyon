@@ -46,7 +46,7 @@ test("voice can reveal visual payment methods without creating a payment", async
       experience: {
         brand: { name: "Zyon Store", mode: "dark" },
         agent: { name: "Zyon IA" },
-        items: [{ sku: "SERUM-01", name: "Sérum Capilar", unit_price: 129.9, quantity: 1 }],
+        items: [{ sku: "SERUM-01", name: "Sérum Capilar", variant: '["internal_variant",[]]', variant_label: "30 ml", unit_price: 129.9, quantity: 1 }],
         totals: { subtotal: 129.9, discount: 0, total: 129.9 },
         paymentMethods: { pix: true, boleto: false, card: true },
         rules: { voiceEnabled: true },
@@ -92,6 +92,8 @@ test("voice can reveal visual payment methods without creating a payment", async
 
   await page.goto("/?embed=1&embedToken=tok_voice&merchantId=mrc_voice&cartRef=cart_voice&apiBaseUrl=http://127.0.0.1:5174", { waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: /Come.*por voz/ }).click();
+  await expect(page.locator('.checkout-cart__product-variant')).toHaveText('30 ml');
+  await expect(page.getByText(/plano Growth/)).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => (window as any).__zyonRealtimeChannels?.length ?? 0)).toBe(1);
 
   // This is the client-side function-call event emitted by Realtime after the
@@ -110,4 +112,19 @@ test("voice can reveal visual payment methods without creating a payment", async
   await expect(page.getByText("Cartão de crédito", { exact: true })).toBeVisible();
   await expect.poll(() => paymentRequests).toBe(0);
   await expect.poll(() => page.evaluate(() => (window as any).__zyonRealtimeChannels[0].sent.some((event: string) => event.includes("function_call_output")))).toBe(true);
+
+  // Permission failures must not look like a subscription upsell to a buyer,
+  // and the same checkout must remain usable by typing without a reload.
+  await page.getByRole('button', { name: 'Pausar compra por voz' }).click();
+  await page.route('**/embed/realtime/session', route => route.fulfill({ status: 403, json: { message: 'embed_origin_not_allowed' } }));
+  await page.getByRole('button', { name: 'Ativar compra por voz' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Não foi possível iniciar a voz nesta sessão' })).toBeVisible();
+  await expect(page.getByText(/plano Growth/)).toHaveCount(0);
+  await page.getByRole('button', { name: 'Digitar mensagem', exact: true }).click();
+  const composer = page.getByRole('textbox', { name: 'Mensagem', exact: true });
+  await composer.fill('Vamos prosseguir');
+  await composer.press('Enter');
+  await expect.poll(() => checkoutAdvanceCalls).toBe(2);
+  await expect(page.locator('.checkout-cart__product-variant')).toHaveText('30 ml');
+  expect(paymentRequests).toBe(0);
 });

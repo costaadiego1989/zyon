@@ -10,7 +10,6 @@ export function RealtimeVoiceComposer({ voice }: { voice: RealtimeVoiceCheckoutS
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8" /></svg>
       </button>
       <span aria-live="polite" style={{ fontSize: "12px", color: "var(--aacp-muted)", textAlign: "center", minHeight: "18px" }}>{hint}</span>
-      <span style={{ fontSize: "10px", color: "var(--aacp-muted)" }}>{connected ? "Voz Realtime conectada" : "Compra por voz disponível a partir do plano Growth"}</span>
     </div>
   );
 }

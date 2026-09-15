@@ -212,7 +212,7 @@ function voiceErrorHint(error: unknown): string {
   if (name === "NotAllowedError" || name === "SecurityError") return "Permita o uso do microfone para iniciar a compra por voz.";
   if (name === "NotFoundError") return "Não encontrei um microfone neste dispositivo. Use o chat para continuar.";
   if (status === 401) return "Sua sessão expirou. Atualize a página e tente ativar a voz novamente.";
-  if (status === 403) return "A compra por voz está disponível a partir do plano Growth.";
+  if (status === 403) return "Não foi possível iniciar a voz nesta sessão. Tente novamente ou continue pelo chat.";
   if (status === 429) return "A voz está temporariamente ocupada. Aguarde um instante e tente novamente.";
   if (status >= 500) return "A assistente de voz está indisponível agora. Tente novamente em instantes ou use o chat.";
   return "Não consegui ativar a voz agora. Tente novamente ou use o chat.";

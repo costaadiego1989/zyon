@@ -56,6 +56,7 @@ function QuantityStepper({ item, controlsDisabled, onQuantityChange, onRemove }:
 
 function CartProduct({ item, controlsDisabled, onQuantityChange, onRemove, formatPrice }: CartHandlers & { item: CartItem; formatPrice: (value: number) => string }) {
   const unitPrice = item.price_cents != null ? item.price_cents / 100 : item.price;
+  const variantLabel = item.variantLabel ?? (item.variant?.trim().startsWith("[") ? undefined : item.variant);
   const imageStyle = item.imageUrl
     ? { background: `url(${item.imageUrl}) center / cover no-repeat` }
     : { background: "repeating-linear-gradient(135deg,var(--tile1),var(--tile1) 6px,var(--tile2) 6px,var(--tile2) 12px)" };
@@ -65,6 +66,7 @@ function CartProduct({ item, controlsDisabled, onQuantityChange, onRemove, forma
       <div className="checkout-cart__product-image" style={imageStyle} role="img" aria-label={item.name} />
       <div className="checkout-cart__product-copy">
         <strong className="checkout-cart__product-name">{item.name}</strong>
+        {variantLabel?.trim() && <span className="checkout-cart__product-variant">{variantLabel}</span>}
         <span className="checkout-cart__product-price">{formatPrice(unitPrice)} por unidade</span>
       </div>
       <div className="checkout-cart__product-actions">
@@ -198,6 +200,7 @@ export function SmartCart() {
         .checkout-cart__product-copy { min-width: 0; }
         .checkout-cart__product-name { display: -webkit-box; overflow: hidden; color: var(--tx); font-size: 13.5px; font-weight: 700; line-height: 1.28; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
         .checkout-cart__product-price { display: block; margin-top: 3px; color: var(--mut); font-size: 10.5px; line-height: 1.35; }
+        .checkout-cart__product-variant { display: block; margin-top: 4px; color: var(--mut); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
         .checkout-cart__product-actions { grid-column: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
         .checkout-cart__remove { padding: 4px 0; border: 0; background: transparent; color: var(--aacp-accent-text, var(--aacp-accent, #0f766e)); font: inherit; font-size: 11px; font-weight: 700; text-decoration: underline; cursor: pointer; }
         .checkout-cart__remove:disabled { cursor: not-allowed; opacity: .45; }

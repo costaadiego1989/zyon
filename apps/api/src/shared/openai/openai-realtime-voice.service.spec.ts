@@ -43,6 +43,9 @@ test("realtime voice sessions bound output, instructions and cart context", asyn
   assert.match(firstSession.instructions, /mais 2 item\(ns\)/);
   assert.doesNotMatch(firstSession.instructions, /Produto 5/);
   assert.equal(firstSession.tools.length, 3);
+  assert.match(firstSession.instructions, /preserve a fala do comprador em primeira pessoa/);
+  assert.match(firstSession.instructions, /preservando a pergunta da etapa atual/);
+  assert.match(firstSession.instructions, /Nunca cobre, colete cartão ou confirme pagamento por voz/);
 
   process.env.OPENAI_REALTIME_MAX_OUTPUT_TOKENS = "9000";
   await service.createClientSecret({ merchantId: "merchant_test", conversationId: "conversation_next", cart: { items: [] } });

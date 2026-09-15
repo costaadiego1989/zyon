@@ -108,6 +108,7 @@ export interface CartItem {
   imageUrl?: string;
   category?: string;
   variant?: string;
+  variantLabel?: string;
 }
 
 export interface SuggestedProduct {
@@ -132,7 +133,7 @@ export interface CommercialNudge {
 }
 
 export interface Experience {
-  items?: Array<{ sku: string; name: string; quantity: number; unit_price: number; image_url?: string; variant?: string }>;
+  items?: Array<{ sku: string; name: string; quantity: number; unit_price: number; image_url?: string; variant?: string; variant_label?: string }>;
   totals?: { subtotal: number; shipping?: number; discount: number; service_fee?: number; total_to_pay?: number; total: number };
   brand?: BrandConfig;
   agent?: AgentConfig;
@@ -172,7 +173,7 @@ export interface CrossSellAcceptResponse {
 export function cartFromExperience(experience: Experience | undefined): { items: CartItem[]; total: number; discount: number; serviceFee: number; totalToPay?: number } {
   if (!experience?.items || !experience.totals) throw new Error("checkout_cart_snapshot_missing");
   return {
-    items: experience.items.map(item => ({ sku: item.sku, name: item.name, quantity: item.quantity, price: item.unit_price, imageUrl: item.image_url, variant: item.variant })),
+    items: experience.items.map(item => ({ sku: item.sku, name: item.name, quantity: item.quantity, price: item.unit_price, imageUrl: item.image_url, variant: item.variant, variantLabel: item.variant_label })),
     total: experience.totals.subtotal,
     discount: experience.totals.discount,
     serviceFee: typeof experience.totals.service_fee === "number" && Number.isFinite(experience.totals.service_fee) && experience.totals.service_fee >= 0
@@ -320,7 +321,7 @@ export class CheckoutSession {
 
   async createRealtimeVoiceSession(): Promise<{ value: string; expires_at?: number }> {
     this.assertSession();
-    const res = await fetch(`${this.baseUrl}/embed/realtime/session`, {
+    const res = await fetch(`${this.embedBaseUrl}/embed/realtime/session`, {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify({ session_id: this.sessionId }),
