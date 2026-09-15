@@ -8,6 +8,7 @@ if (!databaseUrl) throw new Error("DATABASE_URL is required for migrations");
 const client = new pg.Client({ connectionString: databaseUrl });
 const failedLegacyMigration = "20260501103000_checkout_module";
 const failedPaymentHoldMigration = "20260911130000_payment_hold_payout_lifecycle";
+const failedDurableErpSyncMigration = "20260913150000_erp_durable_sync";
 const baselineMigration = "20260905000000_complete_schema";
 
 function prisma(args) {
@@ -155,6 +156,31 @@ try {
     prisma(["migrate", "resolve", "--rolled-back", failedPaymentHoldMigration]);
   }
 
+  const failedDurableErpSyncRows = schema.has_migrations ? (await client.query(
+    `SELECT logs, finished_at, rolled_back_at FROM "_prisma_migrations"
+     WHERE migration_name = $1 ORDER BY started_at DESC LIMIT 1`, [failedDurableErpSyncMigration],
+  )).rows : [];
+  const failedDurableErpSync = failedDurableErpSyncRows[0];
+  if (failedDurableErpSync && !failedDurableErpSync.finished_at && !failedDurableErpSync.rolled_back_at) {
+    const expectedFailure = String(failedDurableErpSync.logs ?? "").includes("42P07")
+      && String(failedDurableErpSync.logs ?? "").includes("erp_sync_jobs");
+    const { rows: dependencyRows } = await client.query(`
+      SELECT
+        to_regclass('public.erp_connections') IS NOT NULL AS has_erp_connections,
+        EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name = 'erp_connections'
+            AND column_name = 'direction_mode'
+        ) AS has_direction_mode
+    `);
+    if (!expectedFailure || !dependencyRows[0].has_erp_connections || !dependencyRows[0].has_direction_mode) {
+      throw new Error("Refusing to reconcile an unexpected failed durable ERP migration");
+    }
+    console.log("Reconciling the verified durable ERP migration record");
+    await repairDurableErpSyncSchema(client);
+    prisma(["migrate", "resolve", "--applied", failedDurableErpSyncMigration]);
+  }
   const baselineRows = schema.has_migrations ? (await client.query(
     `SELECT 1 FROM "_prisma_migrations" WHERE migration_name = $1 AND finished_at IS NOT NULL LIMIT 1`,
     [baselineMigration],
