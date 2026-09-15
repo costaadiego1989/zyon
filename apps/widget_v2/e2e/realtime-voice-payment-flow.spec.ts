@@ -108,7 +108,7 @@ test("voice can reveal visual payment methods without creating a payment", async
 
   const correctionEvent = {
     type: "response.output_item.done",
-    item: { type: "function_call", name: "correct_customer_details", call_id: "call_correct_email", arguments: JSON.stringify({ buyer_message: "Meu e-mail está errado." }) },
+    item: { type: "function_call", name: "correct_customer_details", call_id: "call_correct_email", arguments: JSON.stringify({ field: "email", new_value: "[digite o e-mail correto]", buyer_message: "Meu e-mail está errado. O correto é [digite o e-mail correto]." }) },
   };
   await page.evaluate(event => {
     const channel = (window as any).__zyonRealtimeChannels[0];
@@ -118,14 +118,15 @@ test("voice can reveal visual payment methods without creating a payment", async
   await expect(page.getByText("Qual é o e-mail correto para este pedido?", { exact: true })).toBeVisible();
   await expect(page.getByText(/^Zion:/)).toHaveCount(0);
   await expect.poll(() => corrections.length).toBe(1);
+  await expect(page.getByText(/\[digite/)).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => (window as any).__zyonRealtimeChannels[0].sent
     .some((raw: string) => raw.includes("function_call_output") && raw.includes("e-mail correto") && !raw.includes("Zion:")))).toBe(true);
   await page.evaluate(() => (window as any).__zyonRealtimeChannels[0].emit({
     type: "response.output_item.done",
-    item: { type: "function_call", name: "correct_customer_details", call_id: "call_correct_email_value", arguments: JSON.stringify({ buyer_message: "Meu e-mail correto é right@example.test" }) },
+    item: { type: "function_call", name: "correct_customer_details", call_id: "call_correct_email_value", arguments: JSON.stringify({ field: "email", new_value: "right@example.test", buyer_message: "Meu e-mail correto é right@example.test" }) },
   }));
   await expect(page.getByText("Enviei um novo código para right@example.test. Qual é o código?", { exact: true })).toBeVisible();
-  expect(corrections).toEqual(["Meu e-mail está errado.", "Meu e-mail correto é right@example.test"]);
+  expect(corrections).toEqual(["Quero corrigir meu e-mail.", "Quero corrigir meu e-mail para right@example.test"]);
 
   // This is the client-side function-call event emitted by Realtime after the
   // buyer says "quero finalizar". It exercises the same handler as live voice.

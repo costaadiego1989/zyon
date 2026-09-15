@@ -116,8 +116,12 @@ export class OpenAIRealtimeVoiceService {
         description: "Corrige e-mail, celular, nome, CPF ou endereço do pedido, inclusive durante a confirmação por código. Se não houver o novo valor, pede o dado correto. Não autentica nem altera pagamentos.",
         parameters: {
           type: "object", additionalProperties: false,
-          properties: { buyer_message: { type: "string", description: "Pedido de correção em primeira pessoa com o campo mencionado e o novo valor, apenas se o comprador o informou. Não invente nem complete e-mails." } },
-          required: ["buyer_message"],
+          properties: {
+            field: { type: "string", enum: ["email", "phone", "fullName", "cpf", "zip", "number", "complement"], description: "O único dado que o comprador quer corrigir." },
+            new_value: { type: "string", description: "Novo valor, SOMENTE se o comprador acabou de informá-lo. Se ele apenas disse que está errado, OMITA. Nunca use placeholders, instruções ou um valor antigo." },
+            buyer_message: { type: "string", description: "Fala de correção do comprador em primeira pessoa, sem completar frases nem acrescentar valores ou placeholders. Mantida para compatibilidade com clientes anteriores." },
+          },
+          required: ["field", "buyer_message"],
         },
       }] : [])],
       tool_choice: "auto",

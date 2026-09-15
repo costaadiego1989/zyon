@@ -62,7 +62,16 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
     if (!callId || handled.current.has(callId)) return;
     handled.current.add(callId);
     let buyerMessage = "";
-    try { const args = JSON.parse(event.item.arguments ?? "{}") as { buyer_message?: unknown }; buyerMessage = typeof args.buyer_message === "string" ? args.buyer_message.trim().slice(0, 1_000) : ""; } catch { /* safe fallback below */ }
+    try {
+      const args = JSON.parse(event.item.arguments ?? "{}") as { buyer_message?: unknown; field?: unknown; new_value?: unknown };
+      buyerMessage = typeof args.buyer_message === "string" ? args.buyer_message.trim().slice(0, 1_000) : "";
+      if (actionName === "correct_customer_details" && typeof args.field === "string") {
+        const fields: Record<string, string> = { email: "meu e-mail", phone: "meu celular", fullName: "meu nome completo", cpf: "meu CPF", zip: "meu CEP", number: "o número do imóvel", complement: "o complemento" };
+        const field = Object.hasOwn(fields, args.field) ? fields[args.field] : undefined;
+        const value = typeof args.new_value === "string" && !/[\[\]<>]|digite|informe|placeholder/i.test(args.new_value) ? args.new_value.trim().slice(0, 320) : "";
+        buyerMessage = field ? `Quero corrigir ${field}${value ? ` para ${value}` : "."}` : "";
+      }
+    } catch { /* safe fallback below */ }
     let output: RealtimeVoiceTurnResult | { error: string };
     if (actionName === "begin_checkout") {
       setHint("Abrindo a finalização segura...");
