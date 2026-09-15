@@ -44,12 +44,35 @@ function readEmbedToken(headers: Record<string, string | string[] | undefined>):
 }
 
 function requestOrigin(headers: Record<string, string | string[] | undefined>): string | undefined {
+  const trustedStorefrontOrigin = readTrustedStorefrontOrigin(headers);
+  if (trustedStorefrontOrigin) return trustedStorefrontOrigin;
+
   const origin = firstHeader(headers.origin ?? headers.Origin);
   if (origin) return normalizeOrigin(origin);
 
   const referer = firstHeader(headers.referer ?? headers.Referer ?? headers.referrer);
   if (referer) return normalizeOrigin(referer);
   return undefined;
+}
+
+/**
+ * The storefront proxy can preserve the browser origin after a gateway has
+ * stripped or rewritten the standard Origin header. The forwarded value is
+ * accepted only from a caller authenticated with the internal service token.
+ */
+function readTrustedStorefrontOrigin(headers: Record<string, string | string[] | undefined>): string | undefined {
+  const expectedServiceToken = process.env.INTERNAL_SERVICE_TOKEN;
+  if (!expectedServiceToken) return undefined;
+
+  const providedServiceToken = firstHeader(
+    headers["x-internal-service-token"] ?? headers["X-Internal-Service-Token"]
+  );
+  if (providedServiceToken !== expectedServiceToken) return undefined;
+
+  const trustedOrigin = firstHeader(
+    headers["x-trusted-storefront-origin"] ?? headers["X-Trusted-Storefront-Origin"]
+  );
+  return trustedOrigin ? normalizeOrigin(trustedOrigin) : undefined;
 }
 
 function normalizeOrigin(value: string): string | undefined {

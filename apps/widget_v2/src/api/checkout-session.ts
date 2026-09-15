@@ -10,6 +10,7 @@ export interface CheckoutSessionConfig {
   merchantId: string;
   cartRef?: string;
   apiBaseUrl: string;
+  embedApiBaseUrl?: string;
   globalUserId?: string;
   buyerAccessToken?: string;
 }
@@ -233,6 +234,7 @@ export class CheckoutSession {
   private token: string;
   private merchantId: string;
   private baseUrl: string;
+  private embedBaseUrl: string;
   private globalUserId: string | undefined;
   private buyerAccessToken: string | undefined;
   private sessionId: string | null = null;
@@ -243,6 +245,7 @@ export class CheckoutSession {
     this.token = config.embedToken;
     this.merchantId = config.merchantId;
     this.baseUrl = config.apiBaseUrl.replace(/\/$/, "");
+    this.embedBaseUrl = (config.embedApiBaseUrl ?? config.apiBaseUrl).replace(/\/$/, "");
     this.globalUserId = config.globalUserId;
     this.buyerAccessToken = config.buyerAccessToken;
   }
@@ -253,6 +256,10 @@ export class CheckoutSession {
 
   get apiBaseUrl(): string {
     return this.baseUrl;
+  }
+
+  get embedApiBaseUrl(): string {
+    return this.embedBaseUrl;
   }
 
   get authToken(): string {
@@ -271,7 +278,7 @@ export class CheckoutSession {
   }
 
   async start(): Promise<StartResponse> {
-    const res = await fetch(`${this.baseUrl}/embed/start`, {
+    const res = await fetch(`${this.embedBaseUrl}/embed/start`, {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify({
@@ -295,7 +302,7 @@ export class CheckoutSession {
 
   async chat(message: string): Promise<ChatResponse> {
     this.assertSession();
-    const res = await fetch(`${this.baseUrl}/embed/chat`, {
+    const res = await fetch(`${this.embedBaseUrl}/embed/chat`, {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify({
@@ -327,7 +334,7 @@ export class CheckoutSession {
 
   async updateCart(items: Array<{ sku: string; quantity: number; variant?: string }>): Promise<StartResponse> {
     this.assertSession();
-    const res = await fetch(`${this.baseUrl}/embed/cart`, {
+    const res = await fetch(`${this.embedBaseUrl}/embed/cart`, {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify({ session_id: this.sessionId, items }),
@@ -342,7 +349,7 @@ export class CheckoutSession {
 
   async acceptCrossSell(suggestionId: string, sku: string): Promise<CrossSellAcceptResponse> {
     this.assertSession();
-    const res = await fetch(`${this.baseUrl}/embed/cross-sell/accept`, {
+    const res = await fetch(`${this.embedBaseUrl}/embed/cross-sell/accept`, {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify({ session_id: this.sessionId, suggestion_id: suggestionId, accepted_skus: [sku] }),
@@ -361,7 +368,7 @@ export class CheckoutSession {
     this.assertSession();
     const body: Record<string, unknown> = { session_id: this.sessionId };
     if (destinationZip) body.destination_zip = destinationZip;
-    const res = await fetch(`${this.baseUrl}/embed/shipping/quote`, {
+    const res = await fetch(`${this.embedBaseUrl}/embed/shipping/quote`, {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify(body),
@@ -394,7 +401,7 @@ export class CheckoutSession {
   async selectShipping(key: string): Promise<{ ok: boolean; shipping: { carrier: string; method: string; carrierKey: string; customerPrice: number } }> {
     this.assertSession();
     console.log('[WIDGET-DBG] API selectShipping', { key, sessionId: this.sessionId });
-    const res = await fetch(`${this.baseUrl}/embed/shipping/select`, {
+    const res = await fetch(`${this.embedBaseUrl}/embed/shipping/select`, {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify({ session_id: this.sessionId, carrier_key: key }),
@@ -418,7 +425,7 @@ export class CheckoutSession {
     const apiMethod = method === "credito" || method === "debito" ? "card" : method;
     const idempotencyKey = `pay_${this.sessionId}_${apiMethod}_${this.paymentRevision}`;
     console.log('[WIDGET-DBG] API createPaymentIntent', { method: apiMethod, sessionId: this.sessionId });
-    const res = await fetch(`${this.baseUrl}/embed/payment/intents`, {
+    const res = await fetch(`${this.embedBaseUrl}/embed/payment/intents`, {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify({
@@ -505,7 +512,7 @@ export class CheckoutSession {
   async getPaymentStatus(intentId: string): Promise<{ status: string; paid_at?: string }> {
     this.assertSession();
     const res = await fetch(
-      `${this.baseUrl}/embed/payment/intents/${encodeURIComponent(intentId)}/status?session_id=${encodeURIComponent(this.sessionId!)}`,
+      `${this.embedBaseUrl}/embed/payment/intents/${encodeURIComponent(intentId)}/status?session_id=${encodeURIComponent(this.sessionId!)}`,
       {
         method: "GET",
         headers: this.headers(),
@@ -517,7 +524,7 @@ export class CheckoutSession {
 
   async confirmStripePayment(intentId: string): Promise<{ status: string; intent_id: string }> {
     this.assertSession();
-    const res = await fetch(`${this.baseUrl}/embed/payment/intents/${encodeURIComponent(intentId)}/stripe/confirm`, {
+    const res = await fetch(`${this.embedBaseUrl}/embed/payment/intents/${encodeURIComponent(intentId)}/stripe/confirm`, {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify({
@@ -530,7 +537,7 @@ export class CheckoutSession {
 
   async applyOffer(offerId: string): Promise<unknown> {
     this.assertSession();
-    const res = await fetch(`${this.baseUrl}/embed/offers/apply`, {
+    const res = await fetch(`${this.embedBaseUrl}/embed/offers/apply`, {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify({ session_id: this.sessionId, offer_id: offerId }),
@@ -546,7 +553,7 @@ export class CheckoutSession {
     experience?: Experience;
   }> {
     this.assertSession();
-    const res = await fetch(`${this.baseUrl}/embed/coupons/apply`, {
+    const res = await fetch(`${this.embedBaseUrl}/embed/coupons/apply`, {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify({ session_id: this.sessionId, merchant_id: this.merchantId, code, cart }),
@@ -571,7 +578,7 @@ export class CheckoutSession {
 
   async updateCustomer(data: Record<string, unknown>): Promise<unknown> {
     this.assertSession();
-    const res = await fetch(`${this.baseUrl}/embed/customer/update`, {
+    const res = await fetch(`${this.embedBaseUrl}/embed/customer/update`, {
       method: "POST",
       headers: this.headers(),
       body: JSON.stringify({ session_id: this.sessionId, ...data }),

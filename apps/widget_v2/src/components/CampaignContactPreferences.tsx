@@ -26,7 +26,7 @@ export function CampaignContactPreferences({ api, sessionId }: CampaignContactPr
     let active = true;
     setLoading(true);
     setNotice(null);
-    void fetch(`${api.apiBaseUrl}/embed/checkout/consent/campaigns?session_id=${encodeURIComponent(sessionId)}`, {
+    void fetch(`${api.embedApiBaseUrl}/embed/checkout/consent/campaigns?session_id=${encodeURIComponent(sessionId)}`, {
       headers: { Authorization: `Bearer ${api.authToken}` },
     }).then(async (response) => {
       if (!response.ok) throw new Error("campaign_consent_load_failed");
@@ -69,7 +69,7 @@ export function CampaignContactPreferences({ api, sessionId }: CampaignContactPr
     setSaving(true);
     setNotice(null);
     try {
-      const response = await fetch(`${api.apiBaseUrl}/embed/checkout/consent/campaigns`, {
+      const response = await fetch(`${api.embedApiBaseUrl}/embed/checkout/consent/campaigns`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${api.authToken}` },
         body: JSON.stringify({ session_id: sessionId, policy_version: POLICY_VERSION, channels: channels.filter((channel) => selectedChannels.has(channel)) }),

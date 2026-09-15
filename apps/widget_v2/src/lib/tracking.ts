@@ -40,7 +40,7 @@ export async function trackEvent(
   // The approved-payment flow records completion on the server.
   if (event === "order_completed" || !api || !sessionId) return undefined;
   try {
-    const res = await fetch(`${api.apiBaseUrl}/embed/track`, {
+    const res = await fetch(`${api.embedApiBaseUrl}/embed/track`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

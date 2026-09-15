@@ -194,7 +194,7 @@ interface CheckoutState {
   leadRegistered: boolean;
   pendingPayment: PendingPayment | null;
 
-  init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; globalUserId?: string; buyerAccessToken?: string; oneBuyClickPreferences?: { shippingPreference: "fastest" | "cheapest"; paymentPreference: "pix" | "card" } }) => Promise<void>;
+  init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; embedApiBaseUrl?: string; globalUserId?: string; buyerAccessToken?: string; oneBuyClickPreferences?: { shippingPreference: "fastest" | "cheapest"; paymentPreference: "pix" | "card" } }) => Promise<void>;
   selectChannel: (channel: "chat" | "voice") => void;
   sendMessage: (text: string) => Promise<void>;
   acceptCrossSell: (suggestionId: string, sku: string) => Promise<{ ok: boolean; error?: string }>;
@@ -377,9 +377,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   leadRegistered: false,
   pendingPayment: null,
 
-  init: async ({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId, buyerAccessToken, oneBuyClickPreferences }) => {
+  init: async ({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken, oneBuyClickPreferences }) => {
     try {
-      const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId, buyerAccessToken });
+      const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken });
       set({ api, status: "loading" });
 
       const response = await api.start();

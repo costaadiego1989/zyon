@@ -13,6 +13,7 @@ export interface InlineCheckoutProps {
   embedToken: string;
   merchantId: string;
   apiBaseUrl: string;
+  embedApiBaseUrl?: string;
   cartRef?: string;
   globalUserId?: string;
   buyerAccessToken?: string;
@@ -38,11 +39,12 @@ export function InlineCheckout(props: InlineCheckoutProps) {
       merchantId: props.merchantId,
       cartRef: props.cartRef,
       apiBaseUrl: props.apiBaseUrl,
+      embedApiBaseUrl: props.embedApiBaseUrl,
       globalUserId: props.globalUserId,
       buyerAccessToken: props.buyerAccessToken,
       oneBuyClickPreferences: props.oneBuyClickPreferences,
     });
-  }, [init, props.embedToken, props.merchantId, props.buyerAccessToken, props.oneBuyClickPreferences]);
+  }, [init, props.embedToken, props.merchantId, props.apiBaseUrl, props.embedApiBaseUrl, props.cartRef, props.globalUserId, props.buyerAccessToken, props.oneBuyClickPreferences]);
 
   useEffect(() => {
     if (props.theme === "light") {

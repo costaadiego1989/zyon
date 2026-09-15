@@ -130,6 +130,7 @@ export default function CheckoutPanel({
           embedToken={embedToken}
           merchantId={merchantId}
           apiBaseUrl={apiBase}
+          embedApiBaseUrl="/api"
           cartRef={cartRef || tokenCartRef.current || undefined}
           globalUserId={globalUserId}
           buyerAccessToken={getValidBuyer()?.token}

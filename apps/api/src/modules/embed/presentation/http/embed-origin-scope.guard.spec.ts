@@ -56,6 +56,40 @@ describe("EmbedAuthGuard origin binding", () => {
     );
   });
 
+  it("accepts a verified storefront proxy origin", () => {
+    const previousServiceToken = process.env.INTERNAL_SERVICE_TOKEN;
+    process.env.INTERNAL_SERVICE_TOKEN = "unit-test-service-token";
+    try {
+      const { svc, token } = tokenFor({ allowedOrigin: "https://store.example" });
+      const guard = new EmbedAuthGuard(svc);
+      assert.equal(
+        guard.canActivate(ctx({
+          "x-aacp-embed-token": token,
+          origin: "https://gateway.example",
+          "x-internal-service-token": "unit-test-service-token",
+          "x-trusted-storefront-origin": "https://store.example",
+        })),
+        true,
+      );
+    } finally {
+      if (previousServiceToken === undefined) delete process.env.INTERNAL_SERVICE_TOKEN;
+      else process.env.INTERNAL_SERVICE_TOKEN = previousServiceToken;
+    }
+  });
+
+  it("rejects a forwarded origin without service authentication", () => {
+    const { svc, token } = tokenFor({ allowedOrigin: "https://store.example" });
+    const guard = new EmbedAuthGuard(svc);
+    assert.throws(
+      () => guard.canActivate(ctx({
+        "x-aacp-embed-token": token,
+        origin: "https://gateway.example",
+        "x-trusted-storefront-origin": "https://store.example",
+      })),
+      ForbiddenException,
+    );
+  });
+
   it("falls back to Referer when Origin is absent", () => {
     const { svc, token } = tokenFor({ allowedOrigin: "https://store.example" });
     const guard = new EmbedAuthGuard(svc);
