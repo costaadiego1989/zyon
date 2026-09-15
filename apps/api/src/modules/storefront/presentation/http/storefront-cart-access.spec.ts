@@ -16,7 +16,7 @@ test("renewal preserves cart and merchant ownership and rejects other resources"
   assert.throws(() => controller.renewConversationAccess("cart_a", { headers: {} }), /invalid_conversation_token/);
 });
 
-test("conversation capability binds the origin verified and forwarded by Kong", async () => {
+test("conversation capability binds an origin forwarded by the authenticated storefront proxy", async () => {
   const capabilities = new RealtimeCapabilityService("storefront-cart-test-secret-32-characters");
   const controller = Object.assign(Object.create(StorefrontController.prototype), {
     capabilities,
@@ -25,19 +25,39 @@ test("conversation capability binds the origin verified and forwarded by Kong", 
     },
   }) as StorefrontController;
 
-  const response = await controller.startConversation(
-    { merchant_id: "merchant" },
-    { headers: { origin: "https://gateway.example", "x-storefront-origin": "https://store.example" } },
-  );
+  const previous = process.env.INTERNAL_SERVICE_TOKEN;
+  process.env.INTERNAL_SERVICE_TOKEN = "test-internal-service-token";
+  try {
+    const response = await controller.startConversation(
+      { merchant_id: "merchant" },
+      { headers: {
+        origin: "https://gateway.example",
+        "x-trusted-storefront-origin": "https://store.example",
+        "x-internal-service-token": "test-internal-service-token",
+      } },
+    );
 
-  assert.equal(
-    capabilities.verify(response.conversation_token, "storefront-conversation", "https://store.example").resourceId,
-    "cart_a",
-  );
-  assert.throws(
-    () => capabilities.verify(response.conversation_token, "storefront-conversation", "https://gateway.example"),
-    /realtime_origin_not_allowed/,
-  );
+    assert.equal(
+      capabilities.verify(response.conversation_token, "storefront-conversation", "https://store.example").resourceId,
+      "cart_a",
+    );
+    assert.throws(
+      () => capabilities.verify(response.conversation_token, "storefront-conversation", "https://gateway.example"),
+      /realtime_origin_not_allowed/,
+    );
+
+    const untrusted = await controller.startConversation(
+      { merchant_id: "merchant" },
+      { headers: { origin: "https://gateway.example", "x-trusted-storefront-origin": "https://store.example" } },
+    );
+    assert.equal(
+      capabilities.verify(untrusted.conversation_token, "storefront-conversation", "https://gateway.example").resourceId,
+      "cart_a",
+    );
+  } finally {
+    if (previous === undefined) delete process.env.INTERNAL_SERVICE_TOKEN;
+    else process.env.INTERNAL_SERVICE_TOKEN = previous;
+  }
 });
 
 test("cart read, update and clear require the cart owner's conversation capability", async () => {

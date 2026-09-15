@@ -113,7 +113,7 @@ export const checkoutApi = {
     const pending = conversationStarts.get(key);
     if (pending) return pending;
     const start = (async () => {
-      const result = await safeFetch(`${API_BASE}/storefront/conversations`, {
+      const result = await safeFetch("/api/storefront-conversations", {
         method: "POST",
         body: JSON.stringify({
           merchant_id: data.merchantId,

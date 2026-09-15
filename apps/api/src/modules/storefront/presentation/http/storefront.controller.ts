@@ -145,7 +145,7 @@ export class StorefrontController {
   @Post("conversations")
   async startConversation(
     @Body() body: StartConversationRequest,
-    @Req() request: { headers?: { origin?: string; "x-storefront-origin"?: string | string[] } },
+    @Req() request: { headers?: { origin?: string; "x-trusted-storefront-origin"?: string | string[]; "x-internal-service-token"?: string | string[] } },
   ) {
     const result = await this.startStoreConversation.execute(body);
     const access = this.capabilities.issue({
@@ -541,13 +541,30 @@ export class StorefrontController {
 }
 
 /**
- * Kong clears any client-supplied x-storefront-origin value and then sets it
- * from the request Origin before forwarding to this private API service. The
- * public Origin remains the fallback for local development and direct tests.
+ * The Next storefront proxy checks the browser Origin and authenticates to this
+ * private API with INTERNAL_SERVICE_TOKEN before it can supply a forwarded
+ * origin. Direct public calls can only use their regular Origin header.
  */
-function storefrontOrigin(request: { headers?: { origin?: string; "x-storefront-origin"?: string | string[] } }): string | undefined {
-  const forwarded = request.headers?.["x-storefront-origin"];
-  if (typeof forwarded === "string" && forwarded.trim()) return forwarded.trim();
-  if (Array.isArray(forwarded) && forwarded[0]?.trim()) return forwarded[0].trim();
+function storefrontOrigin(request: { headers?: { origin?: string; "x-trusted-storefront-origin"?: string | string[]; "x-internal-service-token"?: string | string[] } }): string | undefined {
+  const internalToken = firstHeader(request.headers?.["x-internal-service-token"]);
+  const trustedOrigin = firstHeader(request.headers?.["x-trusted-storefront-origin"]);
+  if (process.env.INTERNAL_SERVICE_TOKEN && internalToken === process.env.INTERNAL_SERVICE_TOKEN && isHttpOrigin(trustedOrigin)) {
+    return trustedOrigin;
+  }
   return request.headers?.origin;
+}
+
+function firstHeader(value: string | string[] | undefined): string | undefined {
+  const header = typeof value === "string" ? value : value?.[0];
+  return header?.trim() || undefined;
+}
+
+function isHttpOrigin(value: string | undefined): value is string {
+  if (!value) return false;
+  try {
+    const parsed = new URL(value);
+    return (parsed.protocol === "https:" || parsed.protocol === "http:") && parsed.origin === value;
+  } catch {
+    return false;
+  }
 }

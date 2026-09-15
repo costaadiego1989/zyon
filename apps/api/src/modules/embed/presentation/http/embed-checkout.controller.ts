@@ -71,6 +71,15 @@ export class EmbedCheckoutGuardHelper {
     }
   }
 
+  async assertBuyerRegisteredForPayment(merchantId: string, sessionId: string): Promise<void> {
+    const session = await this.checkout.getSession(merchantId, sessionId);
+    const customer = session?.customer;
+    const cpf = customer?.cpf?.replace(/\D/g, "");
+    if (!customer?.fullName?.trim() || !customer.email?.trim() || !customer.phone?.replace(/\D/g, "") || cpf?.length !== 11) {
+      throw new BadRequestException("customer_registration_required");
+    }
+  }
+
   async loadSession(merchantId: string, sessionId: string) {
     return this.checkout.getSession(merchantId, sessionId);
   }
@@ -229,6 +238,9 @@ export class EmbedCheckoutController {
     if (typeof c.fullName !== "string" || !c.fullName.trim()) {
       throw new BadRequestException("full_name_required");
     }
+    if (typeof c.phone !== "string" || c.phone.replace(/\D/g, "").length < 10) {
+      throw new BadRequestException("phone_required");
+    }
     await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
     return this.updateEmbedCustomer.execute({
       merchantId: embed.merchantId,
@@ -237,7 +249,7 @@ export class EmbedCheckoutController {
         fullName: c.fullName.trim(),
         email: c.email.trim(),
         cpf: c.cpf.trim(),
-        phone: typeof c.phone === "string" ? c.phone.trim() : undefined
+        phone: c.phone.trim()
       }
     });
   }
@@ -267,6 +279,7 @@ export class EmbedCheckoutController {
       throw new BadRequestException("session_and_idempotency_required");
     }
     await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
+    await this.embedGuards.assertBuyerRegisteredForPayment(embed.merchantId, body.session_id);
 
     // Extract buyer's real IP for Asaas tokenization (PCI compliance)
     const forwarded = request.headers?.["x-forwarded-for"];
