@@ -38,7 +38,7 @@ COPY packages/shared-types/ packages/shared-types/
 COPY packages/contracts/    packages/contracts/
 COPY apps/widget_v2/        apps/widget_v2/
 
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+RUN --mount=type=cache,id=s/ee157f03-591d-4223-8a39-ba620f552687-/pnpm/store,target=/pnpm/store \
     pnpm install --frozen-lockfile --prefer-offline
 
 ARG WIDGET_FRAME_ANCESTORS
@@ -48,7 +48,7 @@ ARG VITE_API_BASE_URL
 RUN test -n "$VITE_API_BASE_URL"
 
 # Build the standalone application served by nginx.
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+RUN --mount=type=cache,id=s/ee157f03-591d-4223-8a39-ba620f552687-/pnpm/store,target=/pnpm/store \
     pnpm --filter @zyon/shared-types build \
  && pnpm --filter @zyon/contracts build \
  && pnpm --filter @zyon/widget-v2 build:app
