@@ -4,6 +4,14 @@ const prefix = "aacp_conversation_access:";
 const renewals = new Map<string, Promise<void>>();
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
+function storefrontProxyUrl(url: string): string {
+  if (typeof window === "undefined") return url;
+  const target = new URL(url, window.location.origin);
+  const api = new URL(API_BASE, window.location.origin);
+  if (target.origin !== api.origin || !target.pathname.startsWith("/storefront/")) return url;
+  return `/api/storefront-proxy${target.pathname.slice("/storefront".length)}${target.search}`;
+}
+
 export class ConversationSessionExpiredError extends Error {
   constructor() { super("conversation_session_expired"); }
 }
@@ -38,7 +46,7 @@ export async function ensureConversationAccess(conversationId: string, force = f
   if (pending) return pending;
   if (!force && !expiresSoon(authorization)) return;
   const renewal = (async () => {
-    const response = await fetch(`${API_BASE}/storefront/conversations/${encodeURIComponent(conversationId)}/access`, {
+    const response = await fetch(storefrontProxyUrl(`${API_BASE}/storefront/conversations/${encodeURIComponent(conversationId)}/access`), {
       method: "POST", headers: { Authorization: authorization },
     });
     if (response.status === 401 || response.status === 403) throw new ConversationSessionExpiredError();
@@ -59,7 +67,7 @@ export async function conversationFetch(conversationId: string, url: string, opt
   const request = () => {
     const headers = new Headers(options.headers);
     headers.set("Authorization", conversationAccessHeaders(conversationId).Authorization);
-    return fetch(url, { ...options, headers });
+    return fetch(storefrontProxyUrl(url), { ...options, headers });
   };
   const usedAuthorization = conversationAccessHeaders(conversationId).Authorization;
   const response = await request();
