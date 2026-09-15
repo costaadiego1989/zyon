@@ -48,6 +48,9 @@ async function proxy(request: Request, context: RouteContext): Promise<NextRespo
   const targetPath = path.map(encodeURIComponent).join("/");
   const headers = new Headers({
     Authorization: authorization,
+    // Capabilities are origin-bound. Preserve the browser origin after this
+    // server-side hop so API verification has the same trust boundary.
+    Origin: origin,
     "X-Internal-Service-Token": serviceToken,
     "X-Trusted-Storefront-Origin": origin,
   });
