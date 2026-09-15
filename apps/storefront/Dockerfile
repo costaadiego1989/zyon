@@ -49,7 +49,7 @@ RUN pnpm --filter @zyon/shared-types build \
 FROM node:20-alpine AS runner
 
 ENV NODE_ENV=production
-ENV PORT=3001
+ENV PORT=8080
 ENV HOSTNAME=0.0.0.0
 
 WORKDIR /app
@@ -61,6 +61,6 @@ COPY --from=builder --chown=node:node /repo/apps/storefront/.next/standalone ./
 COPY --from=builder --chown=node:node /repo/apps/storefront/.next/static ./apps/storefront/.next/static
 COPY --from=builder --chown=node:node /repo/apps/storefront/public ./apps/storefront/public
 
-EXPOSE 3001
+EXPOSE 8080
 
 CMD ["node", "apps/storefront/server.js"]
