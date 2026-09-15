@@ -85,7 +85,7 @@ export class SendChatMessageUseCase {
       const correction = await this.customerService.correctCustomerInput(working, input.user_message, lastAgentTurn, context.merchant?.name);
       if (correction) {
         working = correction.session;
-        if (!correction.needsInput && !correction.blocked && correction.field === "zip") {
+        if (correction.patch && !correction.blocked && correction.field === "zip") {
           working = await this.shippingService.processShippingState(working, "");
         }
         const resolvedState = { ...working, chatHistory: [] };

@@ -144,3 +144,12 @@ test("an issued payment cannot be rebound to corrected identity", async () => {
   assert.equal(current().customer?.email, "wrong@example.test");
   assert.equal(sent.length, 0);
 });
+
+test("cancelling a CEP correction does not fill or change the saved address", async () => {
+  const { send, current, repository } = setup();
+  const address = { zip: "01310100", street: "Avenida Paulista", number: "100", city: "São Paulo", state: "SP" };
+  repository.saveSession({ ...current(), customer: { ...current().customer, address, address_verified: true } });
+  await send("Quero corrigir o CEP");
+  await send("Cancelar correção");
+  assert.deepEqual(current().customer?.address, address);
+});
