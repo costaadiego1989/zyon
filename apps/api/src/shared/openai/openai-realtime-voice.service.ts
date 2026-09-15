@@ -63,7 +63,7 @@ export class OpenAIRealtimeVoiceService {
   private sessionConfig(input: OpenAIRealtimeVoiceSessionInput) {
     return {
       type: "realtime",
-      model: process.env.OPENAI_REALTIME_MODEL?.trim() || "gpt-realtime-2.1",
+      model: process.env.OPENAI_REALTIME_MODEL?.trim() || "gpt-realtime-2.1-mini",
       instructions: buildVoiceInstructions(input),
       audio: {
         input: { turn_detection: { type: "server_vad", create_response: true, interrupt_response: true, silence_duration_ms: 650 } },
