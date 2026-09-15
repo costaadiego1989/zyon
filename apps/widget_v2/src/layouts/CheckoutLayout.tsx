@@ -438,8 +438,8 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
               bottom: 0,
               left: 0,
               right: 0,
-              height: "min(78dvh, 680px)",
-              maxHeight: "78dvh",
+              height: "clamp(420px, 64dvh, 560px)",
+              maxHeight: "calc(100dvh - 16px)",
               overflow: "hidden",
               background: "var(--aacp-surface, #0f0f16)",
               borderTop: "1px solid var(--aacp-line, rgba(255,255,255,0.1))",
@@ -476,6 +476,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
         open={supportOpen}
         onToggle={() => setSupportOpen(!supportOpen)}
         bottomOffset={isMobile && status === "active" && !supportOpen ? mobileActionOffset : (showBranding ? 40 : 0)}
+        rightOffset={!isMobile && status === "active" ? "clamp(338px, calc(28vw + 40px), 400px)" : undefined}
       />}
       <SupportPanel open={supportOpen} onClose={() => setSupportOpen(false)} />
 
