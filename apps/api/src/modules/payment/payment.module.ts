@@ -41,6 +41,7 @@ import { resolvePaymentProvider } from "./infrastructure/e2e-payment-provider.js
 import { EvmCryptoPaymentAdapter } from "./infrastructure/evm-crypto-payment.adapter.js";
 import { CheckoutPaymentAdapter } from "./infrastructure/checkout-payment.adapter.js";
 import { PaymentHttpController } from "./presentation/http/payment.controller.js";
+import { PaymentChargebacksController } from "./presentation/http/payment-chargebacks.controller.js";
 import { CryptoPaymentController } from "./presentation/http/crypto-payment.controller.js";
 import { CryptoQuoteController } from "./presentation/http/crypto-quote.controller.js";
 import { CryptoQuoteService } from "./infrastructure/crypto-quote.service.js";
@@ -72,6 +73,7 @@ import { StripePlatformAdapter } from "./infrastructure/stripe-platform.adapter.
 import { AsaasPlatformAdapter } from "./infrastructure/asaas-platform.adapter.js";
 import { EnvironmentBillingConfig } from "./infrastructure/billing-env.js";
 import { PaymentDispatchService } from "./application/services/payment-dispatch.service.js";
+import { ListPaymentChargebacksUseCase } from "./application/use-cases/list-payment-chargebacks.use-case.js";
 import { BillingPlanMeteringService } from "./domain/billing-plan-guard.js";
 import { ORDER_QUOTA_REPOSITORY } from "./domain/ports/order-quota.repository.port.js";
 import { OrderQuotaNoticePublisher } from "./application/services/order-quota-notice.publisher.js";
@@ -135,6 +137,7 @@ import {
   ],
   controllers: [
     PaymentHttpController,
+    PaymentChargebacksController,
     CryptoPaymentController,
     CryptoQuoteController,
     StripePaymentController,
@@ -154,6 +157,7 @@ import {
     ConfirmCryptoPaymentUseCase,
     ConfirmStripePaymentUseCase,
     GetPaymentIntentStatusUseCase,
+    ListPaymentChargebacksUseCase,
     HandleAsaasWebhookUseCase,
     HandleAsaasTransferWebhookUseCase,
     HandleStripeWebhookUseCase,

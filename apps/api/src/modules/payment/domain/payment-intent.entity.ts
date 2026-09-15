@@ -244,6 +244,31 @@ export class PaymentIntentEntity {
     this.pushStatus("chargeback_pending", reason);
   }
 
+  markChargebackDisputed(reason?: string): void {
+    if (this.s.status === "chargeback_disputed") return;
+    if (this.s.status !== "chargeback_pending") throw new Error("illegal_transition");
+    this.s.status = "chargeback_disputed";
+    this.pushStatus("chargeback_disputed", reason);
+  }
+
+  markChargebackWon(reason?: string): void {
+    if (this.s.status === "chargeback_won") return;
+    if (this.s.status !== "chargeback_pending" && this.s.status !== "chargeback_disputed") {
+      throw new Error("illegal_transition");
+    }
+    this.s.status = "chargeback_won";
+    this.pushStatus("chargeback_won", reason);
+  }
+
+  markChargebackLost(reason?: string): void {
+    if (this.s.status === "chargeback_lost") return;
+    if (this.s.status !== "chargeback_pending" && this.s.status !== "chargeback_disputed") {
+      throw new Error("illegal_transition");
+    }
+    this.s.status = "chargeback_lost";
+    this.pushStatus("chargeback_lost", reason);
+  }
+
   private pushStatus(status: PaymentIntentStatus, reason?: string): void {
     this.s.statusHistory = [
       ...(this.s.statusHistory ?? []),

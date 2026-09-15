@@ -152,19 +152,52 @@ export class PaymentDispatchService implements OnModuleInit {
     intentEntity: PaymentIntentEntity,
     reason: string
   ): Promise<void> {
-    const snap = intentEntity.snapshot();
-    if (snap.status !== "approved") return;
+    await this.syncChargebackStatus(intentEntity, "pending", reason);
+  }
 
-    intentEntity.markChargebacked(reason);
+  /**
+   * Applies the PSP's authoritative dispute lifecycle to a payment intent.
+   * Every provider uses the same four states, so the dashboard never has to
+   * infer a result from provider-specific wording.
+   */
+  async syncChargebackStatus(
+    intentEntity: PaymentIntentEntity,
+    status: "pending" | "disputed" | "lost" | "won",
+    reason: string,
+  ): Promise<void> {
+    const before = intentEntity.snapshot();
+    const current = before.status;
+
+    if (status === "pending") {
+      if (current !== "approved") return;
+      intentEntity.markChargebacked(reason);
+    } else {
+      if (current === "approved") intentEntity.markChargebacked(reason);
+      const afterOpening = intentEntity.snapshot().status;
+      if (status === "disputed") {
+        if (afterOpening === "chargeback_pending") intentEntity.markChargebackDisputed(reason);
+        else if (afterOpening !== "chargeback_disputed") return;
+      }
+      if (status === "won") {
+        if (afterOpening === "chargeback_pending" || afterOpening === "chargeback_disputed") intentEntity.markChargebackWon(reason);
+        else if (afterOpening !== "chargeback_won") return;
+      }
+      if (status === "lost") {
+        if (afterOpening === "chargeback_pending" || afterOpening === "chargeback_disputed") intentEntity.markChargebackLost(reason);
+        else if (afterOpening !== "chargeback_lost") return;
+      }
+    }
+
+    const after = intentEntity.snapshot();
+    if (after.status === before.status) return;
     await this.payments.saveIntent({ intent: intentEntity });
-
     await this.checkoutPayment.recordPaymentStatusChanged({
-      merchantId: snap.merchantId,
-      sessionId: snap.sessionId,
-      paymentIntentId: snap.id,
-      status: "refunded",
+      merchantId: before.merchantId,
+      sessionId: before.sessionId,
+      paymentIntentId: before.id,
+      status: after.status,
       reason,
-      commerceOrderId: snap.commerceOrderId
+      commerceOrderId: before.commerceOrderId,
     });
   }
 

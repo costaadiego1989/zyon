@@ -514,3 +514,45 @@ test("Stripe currency mismatch cannot approve or consume a corrected webhook ret
     assert.equal(checkoutPort.approved.length, 1);
   }
 });
+
+test("dispatchEvent: Stripe resolve chargeback pelo PaymentIntent sem depender de metadata", async () => {
+  const { payments, checkoutPort, uc } = createTestContext();
+  const marketplaceOrders: string[] = [];
+  Object.assign(uc, {
+    marketplaceChargeback: {
+      async executeForOrder(orderId: string) {
+        marketplaceOrders.push(orderId);
+        return [];
+      },
+    },
+  });
+  const intent = PaymentIntentEntity.create({
+    merchantId: "mrc_stripe_chargeback",
+    sessionId: "chk_stripe_chargeback",
+    idempotencyKey: "idem_stripe_chargeback",
+    amountCents: 8_000,
+    currency: "BRL",
+    method: "card",
+    commerceOrderId: "market_order_stripe",
+  });
+  intent.markRequiresAction({ providerPaymentId: "pi_stripe_chargeback" });
+  intent.markApproved({ providerPaymentId: "pi_stripe_chargeback", approvedAmountCents: 8_000 });
+  await payments.saveIntent({ intent });
+
+  const opened = await uc.dispatchEvent(makeStripeEvent({
+    id: "evt_stripe_chargeback_opened",
+    type: "charge.dispute.created",
+    data: { object: { id: "dp_1", payment_intent: "pi_stripe_chargeback", status: "under_review", reason: "fraudulent", metadata: {} } },
+  }));
+  const closed = await uc.dispatchEvent(makeStripeEvent({
+    id: "evt_stripe_chargeback_closed",
+    type: "charge.dispute.closed",
+    data: { object: { id: "dp_1", payment_intent: "pi_stripe_chargeback", status: "won", reason: "fraudulent", metadata: {} } },
+  }));
+
+  assert.deepEqual(opened, { outcome: "processed", effect: "payment_disputed" });
+  assert.deepEqual(closed, { outcome: "processed", effect: "chargeback_won" });
+  assert.equal((await payments.getIntentById("mrc_stripe_chargeback", intent.id))?.snapshot().status, "chargeback_won");
+  assert.deepEqual(checkoutPort.statuses.map(entry => entry.status), ["chargeback_disputed", "chargeback_won"]);
+  assert.deepEqual(marketplaceOrders, ["market_order_stripe"]);
+});

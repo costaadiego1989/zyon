@@ -115,7 +115,7 @@ export class ReconcilePaymentIntentsUseCase {
 
   private async applyAuthoritativeState(
     intent: PaymentIntentEntity,
-    state: "approved" | "failed" | "pending" | "unknown",
+    state: "approved" | "failed" | "pending" | "unknown" | "chargeback_pending" | "chargeback_won" | "chargeback_lost",
     approvedAmountCents: number | undefined
   ): Promise<ReconcileOutcome> {
     const snap = intent.snapshot();
@@ -144,6 +144,11 @@ export class ReconcilePaymentIntentsUseCase {
     if (state === "failed") {
       return this.fail(intent, "reconciliation");
     }
+
+    // Chargebacks are handled by signed provider webhooks. This reconciler
+    // intentionally does not turn a stale pending intent into a captured
+    // payment only to apply a later dispute transition.
+    if (state.startsWith("chargeback_")) return "unknown";
 
     return state === "pending" ? "still_pending" : "unknown";
   }

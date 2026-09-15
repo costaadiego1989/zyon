@@ -254,6 +254,65 @@ test("PAYMENT_DELETED marks failed and records payment_failed event", async () =
   assert.ok(payments.capturedEvents.map(event => event.payload as { status: string; reason?: string }).some((entry) => entry.status === "failed" && entry.reason === "PAYMENT_DELETED"));
 });
 
+test("Asaas registra o ciclo de chargeback e atualiza o repasse de Marketplace uma vez", async () => {
+  const payments = new InMemoryPaymentRepository();
+  const checkoutPort = new RecordingCheckoutPayment();
+  const dispatch = new PaymentDispatchService(payments, checkoutPort);
+  const marketplaceOrders: string[] = [];
+  const marketplaceChargeback = {
+    async executeForOrder(orderId: string) {
+      marketplaceOrders.push(orderId);
+      return [];
+    },
+  };
+  const uc = new HandleAsaasWebhookUseCase(
+    payments,
+    dispatch,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    marketplaceChargeback as any,
+  );
+  const intent = PaymentIntentEntity.create({
+    merchantId: "mrc_chargeback",
+    sessionId: "chk_chargeback",
+    idempotencyKey: "idem_chargeback",
+    amountCents: 12_000,
+    currency: "BRL",
+    method: "card",
+    commerceOrderId: "market_order_asaas",
+  });
+  intent.markRequiresAction({ providerPaymentId: "pay_chargeback" });
+  intent.markApproved({ providerPaymentId: "pay_chargeback", approvedAmountCents: 12_000 });
+  await payments.saveIntent({ intent });
+  const externalReference = intent.snapshot().id;
+
+  const requested = await uc.execute(WEBHOOK_HEADER, {
+    id: "evt_chargeback_requested",
+    event: "PAYMENT_CHARGEBACK_REQUESTED",
+    payment: { id: "pay_chargeback", externalReference },
+  }, TEST_ASAAS_TOKEN);
+  const disputed = await uc.execute(WEBHOOK_HEADER, {
+    id: "evt_chargeback_disputed",
+    event: "PAYMENT_CHARGEBACK_DISPUTE",
+    payment: { id: "pay_chargeback", externalReference },
+  }, TEST_ASAAS_TOKEN);
+  const lost = await uc.execute(WEBHOOK_HEADER, {
+    id: "evt_chargeback_lost",
+    event: "PAYMENT_REFUNDED",
+    payment: { id: "pay_chargeback", externalReference },
+  }, TEST_ASAAS_TOKEN);
+
+  assert.deepEqual(requested, { outcome: "processed", effect: "chargeback_pending" });
+  assert.deepEqual(disputed, { outcome: "processed", effect: "chargeback_disputed" });
+  assert.deepEqual(lost, { outcome: "processed", effect: "chargeback_lost" });
+  assert.equal((await payments.getIntentById("mrc_chargeback", externalReference))?.snapshot().status, "chargeback_lost");
+  assert.deepEqual(checkoutPort.statuses.map(entry => entry.status), ["chargeback_pending", "chargeback_disputed", "chargeback_lost"]);
+  assert.deepEqual(marketplaceOrders, ["market_order_asaas"]);
+});
+
 test("Asaas split events record the confirmed platform split and observed issuer balance", async () => {
   const payments = new InMemoryPaymentRepository();
   const checkoutPort = new RecordingCheckoutPayment();

@@ -8,7 +8,10 @@ import type {
   PaymentProviderPort
 } from "../domain/ports/payment-provider.port.js";
 
-function mercadoPagoStateFromStatus(status: string | undefined): FetchPaymentStatusOutput["state"] {
+function mercadoPagoStateFromStatus(
+  status: string | undefined,
+  statusDetail: string | undefined,
+): FetchPaymentStatusOutput["state"] {
   switch (status) {
     case "approved":
       return "approved";
@@ -20,6 +23,13 @@ function mercadoPagoStateFromStatus(status: string | undefined): FetchPaymentSta
     case "in_process":
     case "in_mediation":
       return "pending";
+    case "charged_back":
+      // Mercado Pago keeps the chargeback result in `status_detail`: the
+      // amount is still being reviewed, was returned to the buyer, or was
+      // reinstated to the seller.
+      if (statusDetail === "settled") return "chargeback_lost";
+      if (statusDetail === "reimbursed") return "chargeback_won";
+      return "chargeback_pending";
     default:
       return "unknown";
   }
@@ -112,9 +122,15 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
       throw new Error(`mercadopago_payment_fetch_failed:${res.status}:${errorText}`);
     }
 
-    const payment = (await res.json()) as { status?: string; transaction_amount?: number; external_reference?: string };
+    const payment = (await res.json()) as {
+      status?: string;
+      status_detail?: string;
+      transaction_amount?: number;
+      external_reference?: string;
+    };
     const state = mercadoPagoStateFromStatus(
-      typeof payment.status === "string" ? payment.status : undefined
+      typeof payment.status === "string" ? payment.status : undefined,
+      typeof payment.status_detail === "string" ? payment.status_detail : undefined,
     );
     const approvedAmountCents =
       typeof payment.transaction_amount === "number" &&

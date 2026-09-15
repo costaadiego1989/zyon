@@ -98,7 +98,7 @@ const CheckoutProgramavelPage = lazy(() => import("../pages/checkout-programavel
 const IntentMemoryPage = lazy(() => import("../pages/intent-memory/IntentMemoryPage.js").then(m => ({ default: m.IntentMemoryPage })));
 const InventoryPage = lazy(() => import("../pages/inventory/index.js").then(m => ({ default: m.InventoryPage })));
 const NegotiationPolicyPage = lazy(() => import("../pages/negotiation-policy/NegotiationPolicyPage.js").then(m => ({ default: m.NegotiationPolicyPage })));
-const ChargebacksPage = lazy(() => import("../pages/chargebacks/ChargebacksPage.js").then(m => ({ default: m.ChargebacksPage })));
+const ChargebacksPage = lazy(() => import("../pages/chargebacks/OwnChargebacksPage.js").then(m => ({ default: m.OwnChargebacksPage })));
 const ReturnExchangesPage = lazy(() => import("../pages/returns/ReturnExchangesPage.js").then(m => ({ default: m.ReturnExchangesPage })));
 const DeliveryPage = lazy(() => import("../pages/delivery/index.js").then(m => ({ default: m.DeliveryPage })));
 const PostSalePage = lazy(() => import("../pages/post-sale/index.js").then(m => ({ default: m.PostSalePage })));

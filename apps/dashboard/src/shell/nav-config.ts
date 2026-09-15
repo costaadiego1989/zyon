@@ -187,7 +187,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "team", label: "Equipe", section: "settings", icon: Users, keywords: ["equipe", "team", "membros", "usuários", "convidar"] },
   { key: "billing-plans", label: "Planos & Faturamento", section: "settings", icon: Crown, keywords: ["planos", "plans", "faturamento", "billing", "assinatura", "upgrade"] },
   { key: "billing", label: "Histórico de Cobrança", section: "settings", icon: CreditCard, keywords: ["cobrança", "faturas", "invoices", "histórico", "pagamento"] },
-  { key: "chargebacks", label: "Chargebacks", section: "settings", icon: AlertTriangle, keywords: ["chargebacks", "disputas", "contestações", "estornos"] },
+  { key: "chargebacks", label: "Chargebacks", section: "sales", icon: AlertTriangle, keywords: ["chargebacks", "disputas", "contestações", "estornos"] },
   { key: "audit-log", label: "Auditoria", section: "settings", icon: ShieldCheck, keywords: ["auditoria", "audit", "log", "histórico", "segurança"] },
   { key: "store-settings", label: "Config. da Loja", section: "settings", icon: Save, requiredPlan: STORE, keywords: ["configurações loja", "store settings", "políticas", "seo"] },
 ];

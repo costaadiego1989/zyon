@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { PAYMENT_REPOSITORY } from "../../domain/ports/payment-repository.port.js";
 import type { PaymentRepository } from "../../domain/ports/payment-repository.port.js";
 
@@ -35,7 +35,7 @@ const CHARGEBACK_STATUS_PREFIX = "chargeback_";
 @Injectable()
 export class ListPaymentChargebacksUseCase {
   constructor(
-    private readonly paymentRepository: PaymentRepository,
+    @Inject(PAYMENT_REPOSITORY) private readonly paymentRepository: PaymentRepository,
   ) {}
 
   async execute(
@@ -49,6 +49,12 @@ export class ListPaymentChargebacksUseCase {
 
     const chargebacks: PaymentChargebackEntry[] = chargebackIntents.map((intent) => {
       const snap = intent.snapshot();
+      const lifecycle = [...snap.statusHistory]
+        .reverse()
+        .find((entry) => entry.status.startsWith(CHARGEBACK_STATUS_PREFIX));
+      const firstChargeback = snap.statusHistory.find((entry) =>
+        entry.status.startsWith(CHARGEBACK_STATUS_PREFIX),
+      );
       return {
         paymentIntentId: snap.id,
         orderId: snap.commerceOrderId ?? snap.sessionId,
@@ -56,10 +62,10 @@ export class ListPaymentChargebacksUseCase {
         provider: this.detectProvider(snap),
         providerPaymentId: snap.providerPaymentId ?? null,
         disputeStatus: this.toDisputeStatus(snap.status),
-        disputeOpenedAt: (snap as any).updatedAt ?? new Date(),
-        disputeReason: null,
+        disputeOpenedAt: new Date(firstChargeback?.occurredAt ?? lifecycle?.occurredAt ?? 0),
+        disputeReason: lifecycle?.reason ?? null,
         customerEmail: null,
-        createdAt: (snap as any).createdAt ?? new Date(),
+        createdAt: new Date(snap.statusHistory[0]?.occurredAt ?? 0),
       };
     });
 
@@ -98,7 +104,8 @@ export class ListPaymentChargebacksUseCase {
     };
   }
 
-  private detectProvider(intent: any): string {
+  private detectProvider(intent: { creation?: { input?: { provider?: string } }; providerPaymentId?: string }): string {
+    if (intent.creation?.input?.provider) return intent.creation.input.provider;
     if (intent.providerPaymentId?.startsWith("pi_")) return "stripe";
     if (intent.providerPaymentId?.startsWith("pay_")) return "asaas";
     return "unknown";

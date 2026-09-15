@@ -99,7 +99,14 @@ export type CreateProviderPaymentOutput = {
   } & Partial<CryptoBuyerFacingPayload>;
 };
 
-export type AuthoritativePaymentState = "approved" | "failed" | "pending" | "unknown";
+export type AuthoritativePaymentState =
+  | "approved"
+  | "failed"
+  | "pending"
+  | "unknown"
+  | "chargeback_pending"
+  | "chargeback_won"
+  | "chargeback_lost";
 
 export type FetchPaymentStatusInput = {
   provider?: CreateProviderPaymentInput["provider"];

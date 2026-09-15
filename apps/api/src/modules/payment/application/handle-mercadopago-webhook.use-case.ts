@@ -12,11 +12,12 @@ import {
   PAYMENT_PROVIDER_PORT,
   type PaymentProviderPort,
 } from "../domain/ports/payment-provider.port.js";
+import { HandleMarketplaceChargebackUseCase } from "../../marketplace/application/use-cases/handle-marketplace-chargeback.use-case.js";
 
 export type MercadoPagoWebhookInbound = {
   action?: string;
   type?: string;
-  data?: { id?: string | number };
+  data?: { id?: string | number; paymentId?: string | number };
 };
 
 export type HandleMercadoPagoWebhookResult =
@@ -33,8 +34,10 @@ function normalizeInbound(body: unknown): MercadoPagoWebhookInbound {
   if (o.data && typeof o.data === "object" && !Array.isArray(o.data)) {
     const d = o.data as Record<string, unknown>;
     const id = d.id;
+    const paymentId = d.payment_id;
     data = {
-      id: typeof id === "string" ? id : typeof id === "number" ? id : undefined
+      id: typeof id === "string" ? id : typeof id === "number" ? id : undefined,
+      paymentId: typeof paymentId === "string" ? paymentId : typeof paymentId === "number" ? paymentId : undefined,
     };
   }
   return { action, type, data };
@@ -117,6 +120,7 @@ export class HandleMercadoPagoWebhookUseCase {
     private readonly paymentDispatch: PaymentDispatchService,
     @Optional() private readonly metrics?: MetricsService,
     @Optional() @Inject(PAYMENT_PROVIDER_PORT) private readonly provider?: PaymentProviderPort,
+    @Optional() private readonly marketplaceChargeback?: HandleMarketplaceChargebackUseCase,
   ) {}
 
   async execute(
@@ -140,7 +144,12 @@ export class HandleMercadoPagoWebhookUseCase {
       throw new BadRequestException("mercadopago_webhook_invalid_shape");
     }
 
-    const paymentId = String(body.data.id);
+    // `topic_chargebacks_wh` identifies the dispute in data.id and the
+    // original payment in data.payment_id. Payment notifications use data.id.
+    const paymentId = String(body.data.paymentId ?? body.data.id);
+    const providerEventSubject = body.type === "topic_chargebacks_wh"
+      ? String(body.data.id)
+      : paymentId;
 
     // Resolve merchant BEFORE idempotency gate to ensure tenant scoping
     // (ADR 0001 #3: do not gate on external ID alone).
@@ -160,7 +169,7 @@ export class HandleMercadoPagoWebhookUseCase {
     const eventKey: ProviderEventKey = {
       provider: "mercadopago",
       merchantId,
-      eventId: `${paymentId}:${state ?? "ignored"}`
+      eventId: `${providerEventSubject}:${state ?? "ignored"}`
     };
 
     // Atomic idempotency gate: record the marker BEFORE any side effect.
@@ -193,11 +202,13 @@ export class HandleMercadoPagoWebhookUseCase {
     body: MercadoPagoWebhookInbound,
     paymentId: string,
     ref: { id: string; merchantId: string } | null,
-    state: "approved" | "failed" | "pending" | "unknown" | null
+    state: "approved" | "failed" | "pending" | "unknown" | "chargeback_pending" | "chargeback_won" | "chargeback_lost" | null
   ): Promise<string> {
-    // MercadoPago sends action="payment.updated" for most payment events.
-    // Fetch payment status via provider to determine authoritative state.
-    if (body.action !== "payment.updated") {
+    const isPaymentUpdated = body.action === "payment.updated";
+    const isChargebackUpdated = body.type === "topic_chargebacks_wh";
+    // Both notification types are signed. The chargeback topic carries its
+    // own case id plus the payment id and is required for timely alerting.
+    if (!isPaymentUpdated && !isChargebackUpdated) {
       return "ignored_event_action";
     }
 
@@ -216,18 +227,43 @@ export class HandleMercadoPagoWebhookUseCase {
     } else if (state === "failed") {
       await this.paymentDispatch.markFailed(intentEntity, "payment_failed_by_provider");
       return "payment_failed";
+    } else if (state === "chargeback_pending" || state === "chargeback_won" || state === "chargeback_lost") {
+      const chargebackStatus = state.replace("chargeback_", "") as "pending" | "won" | "lost";
+      const before = intentEntity.snapshot();
+      await this.paymentDispatch.syncChargebackStatus(
+        intentEntity,
+        chargebackStatus,
+        `mercadopago_${chargebackStatus}`,
+      );
+      const after = intentEntity.snapshot();
+      if (before.status === "approved" && after.status.startsWith("chargeback_")) {
+        await this.propagateMarketplaceChargeback(after.commerceOrderId ?? after.sessionId);
+      }
+      return `chargeback_${chargebackStatus}`;
     }
 
     // For pending/unknown states, do nothing — webhook is informational
     return "noop_payment_pending_or_unknown";
   }
 
+  private async propagateMarketplaceChargeback(orderId: string | undefined): Promise<void> {
+    if (!this.marketplaceChargeback || !orderId) return;
+    try {
+      const results = await this.marketplaceChargeback.executeForOrder(orderId);
+      if (results.length > 0) {
+        this.logger.log(`Marketplace chargeback processed for order ${orderId}: ${results.length} settlement(s)`);
+      }
+    } catch (error) {
+      this.logger.error(`Marketplace chargeback failed for order ${orderId}: ${(error as Error).message}`);
+    }
+  }
+
   private async resolveAuthoritativeState(
     body: MercadoPagoWebhookInbound,
     paymentId: string,
     ref: { id: string; merchantId: string } | null
-  ): Promise<"approved" | "failed" | "pending" | "unknown" | null> {
-    if (body.action !== "payment.updated" || !ref) return null;
+  ): Promise<"approved" | "failed" | "pending" | "unknown" | "chargeback_pending" | "chargeback_won" | "chargeback_lost" | null> {
+    if ((body.action !== "payment.updated" && body.type !== "topic_chargebacks_wh") || !ref) return null;
     const provider = this.provider;
     if (!provider?.fetchPaymentStatus) {
       throw new BadRequestException("mercadopago_provider_not_configured");

@@ -16,7 +16,8 @@ import {
   type ObservedPaymentSettlement,
   type PaymentSettlementLedgerPort,
 } from "../domain/ports/payment-settlement-ledger.port.js";
-import { RefundPaymentHoldUseCase } from "./payment-hold.use-cases.js";
+import { ChargebackPaymentHoldUseCase, RefundPaymentHoldUseCase } from "./payment-hold.use-cases.js";
+import { HandleMarketplaceChargebackUseCase } from "../../marketplace/application/use-cases/handle-marketplace-chargeback.use-case.js";
 
 export type AsaasWebhookInbound = {
   id: string;
@@ -135,6 +136,8 @@ export class HandleAsaasWebhookUseCase {
     @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
     @Optional() @Inject(PAYMENT_SETTLEMENT_LEDGER) private readonly settlementLedger?: PaymentSettlementLedgerPort,
     @Optional() private readonly refundPaymentHold?: RefundPaymentHoldUseCase,
+    @Optional() private readonly chargebackPaymentHold?: ChargebackPaymentHoldUseCase,
+    @Optional() private readonly marketplaceChargeback?: HandleMarketplaceChargebackUseCase,
   ) {}
 
   async execute(inboundAccessTokenHeader: string | undefined, rawBody: unknown, webhookToken?: string): Promise<HandleAsaasWebhookResult> {
@@ -225,10 +228,22 @@ export class HandleAsaasWebhookUseCase {
         return await this.recordSplitObservation("blocked", inbound, intentEntity);
 
       case "PAYMENT_REFUNDED": {
+        if (intentEntity.snapshot().status.startsWith("chargeback_")) {
+          return this.handleChargeback(intentEntity, "lost", inbound.event);
+        }
         await this.paymentDispatch.markRefunded(intentEntity, inbound.event);
         await this.refundPaymentHold?.execute(intentEntity.id);
         return "payment_refunded";
       }
+
+      case "PAYMENT_CHARGEBACK_REQUESTED":
+        return this.handleChargeback(intentEntity, "pending", inbound.event);
+
+      case "PAYMENT_CHARGEBACK_DISPUTE":
+        return this.handleChargeback(intentEntity, "disputed", inbound.event);
+
+      case "PAYMENT_AWAITING_CHARGEBACK_REVERSAL":
+        return this.handleChargeback(intentEntity, "won", inbound.event);
 
       case "PAYMENT_DELETED":
       case "PAYMENT_OVERDUE": {
@@ -278,6 +293,33 @@ export class HandleAsaasWebhookUseCase {
     }
 
     return result;
+  }
+
+  private async handleChargeback(
+    intentEntity: PaymentIntentEntity,
+    status: "pending" | "disputed" | "lost" | "won",
+    reason: string,
+  ): Promise<string> {
+    const before = intentEntity.snapshot();
+    await this.paymentDispatch.syncChargebackStatus(intentEntity, status, reason);
+    const after = intentEntity.snapshot();
+    if (before.status === "approved" && after.status.startsWith("chargeback_")) {
+      await this.chargebackPaymentHold?.execute(before.id);
+      await this.propagateMarketplaceChargeback(after.commerceOrderId ?? after.sessionId);
+    }
+    return `chargeback_${status}`;
+  }
+
+  private async propagateMarketplaceChargeback(orderId: string | undefined): Promise<void> {
+    if (!this.marketplaceChargeback || !orderId) return;
+    try {
+      const results = await this.marketplaceChargeback.executeForOrder(orderId);
+      if (results.length > 0) {
+        this.logger.log(`Marketplace chargeback processed for order ${orderId}: ${results.length} settlement(s)`);
+      }
+    } catch (error) {
+      this.logger.error(`Marketplace chargeback failed for order ${orderId}: ${(error as Error).message}`);
+    }
   }
 
   private async recordSplitObservation(

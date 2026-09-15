@@ -108,14 +108,25 @@ export class HandleStripeWebhookUseCase {
   }
 
   private async resolveMerchantId(event: Stripe.Event): Promise<string | null> {
-    const obj = event.data.object as { metadata?: Record<string, string> | null };
+    const obj = event.data.object as {
+      metadata?: Record<string, string> | null;
+      payment_intent?: string | { id?: string } | null;
+    };
     const intentId = obj?.metadata?.intent_id;
     const metaMerchantId = obj?.metadata?.merchant_id;
-    if (!intentId || !metaMerchantId) return null;
-    // Scoped lookup: trust the metadata merchant only insofar as the intent
-    // actually belongs to it (ADR 0001 #3).
-    const intent = await this.payments.getIntentById(metaMerchantId, intentId);
-    return intent ? intent.snapshot().merchantId : null;
+    if (intentId && metaMerchantId) {
+      // Scoped lookup: trust the metadata merchant only insofar as the intent
+      // actually belongs to it (ADR 0001 #3).
+      const intent = await this.payments.getIntentById(metaMerchantId, intentId);
+      if (intent) return intent.snapshot().merchantId;
+    }
+    const providerPaymentId = typeof obj.payment_intent === "string"
+      ? obj.payment_intent
+      : obj.payment_intent?.id;
+    const reference = providerPaymentId
+      ? await this.payments.getIntentReferenceByProviderPaymentId?.(providerPaymentId)
+      : null;
+    return reference?.merchantId ?? null;
   }
 
   private async dispatch(event: Stripe.Event): Promise<string> {
@@ -139,6 +150,10 @@ export class HandleStripeWebhookUseCase {
 
       case "charge.dispute.created":
         return this.handleDisputeCreated(event.data.object as Stripe.Dispute);
+
+      case "charge.dispute.updated":
+      case "charge.dispute.closed":
+        return this.handleDisputeStatusChanged(event.data.object as Stripe.Dispute);
 
       case "payment_intent.canceled":
         return this.handleCanceled(event.data.object as Stripe.PaymentIntent);
@@ -294,13 +309,17 @@ export class HandleStripeWebhookUseCase {
   }
 
   private async handleDisputeCreated(dispute: Stripe.Dispute): Promise<string> {
-    const charge = dispute.charge;
-    const chargeId = typeof charge === "string" ? charge : charge?.id;
-    const piObj = typeof charge === "object" && charge ? charge.payment_intent : undefined;
-    const piId = typeof piObj === "string" ? piObj : piObj?.id;
-    // Try metadata from the dispute's payment_intent if accessible
-    const metaMerchantId = dispute.metadata?.merchant_id;
-    const intentId = dispute.metadata?.intent_id;
+    // Dispute metadata is not inherited from the PaymentIntent. Resolve the
+    // durable local intent using Stripe's PaymentIntent id first, then retain
+    // metadata only as a backward-compatible fallback.
+    const providerPaymentId = typeof dispute.payment_intent === "string"
+      ? dispute.payment_intent
+      : dispute.payment_intent?.id;
+    const reference = providerPaymentId
+      ? await this.payments.getIntentReferenceByProviderPaymentId?.(providerPaymentId)
+      : null;
+    const metaMerchantId = reference?.merchantId ?? dispute.metadata?.merchant_id;
+    const intentId = reference?.id ?? dispute.metadata?.intent_id;
     if (!intentId || !metaMerchantId) {
       return "ignored_missing_intent_id";
     }
@@ -313,7 +332,11 @@ export class HandleStripeWebhookUseCase {
     // chargeback list (previously this called markRefunded → status 'refunded',
     // which the chargeback list — filtering on the `chargeback_` prefix — never
     // showed).
-    await this.paymentDispatch.markChargebacked(intentEntity, reason);
+    await this.paymentDispatch.syncChargebackStatus(
+      intentEntity,
+      stripeChargebackStatus(dispute.status),
+      reason,
+    );
 
     await this.chargebackPaymentHold?.execute(intentId);
 
@@ -338,6 +361,29 @@ export class HandleStripeWebhookUseCase {
     }
 
     return "payment_disputed";
+  }
+
+  private async handleDisputeStatusChanged(dispute: Stripe.Dispute): Promise<string> {
+    const providerPaymentId = typeof dispute.payment_intent === "string"
+      ? dispute.payment_intent
+      : dispute.payment_intent?.id;
+    const reference = providerPaymentId
+      ? await this.payments.getIntentReferenceByProviderPaymentId?.(providerPaymentId)
+      : null;
+    const merchantId = reference?.merchantId ?? dispute.metadata?.merchant_id;
+    const intentId = reference?.id ?? dispute.metadata?.intent_id;
+    if (!merchantId || !intentId) return "ignored_missing_intent_id";
+
+    const intentEntity = await this.payments.getIntentById(merchantId, intentId);
+    if (!intentEntity) return "intent_not_found";
+
+    const status = stripeChargebackStatus(dispute.status);
+    await this.paymentDispatch.syncChargebackStatus(
+      intentEntity,
+      status,
+      `stripe_dispute:${dispute.reason ?? "unknown"}`,
+    );
+    return `chargeback_${status}`;
   }
 
   private async handleCanceled(pi: Stripe.PaymentIntent): Promise<string> {
@@ -367,6 +413,24 @@ function idFrom(
     | undefined,
 ): string | undefined {
   return typeof value === "string" ? value : value?.id;
+}
+
+function stripeChargebackStatus(
+  status: Stripe.Dispute.Status,
+): "pending" | "disputed" | "lost" | "won" {
+  switch (status) {
+    case "under_review":
+    case "warning_under_review":
+      return "disputed";
+    case "won":
+    case "warning_closed":
+    case "prevented":
+      return "won";
+    case "lost":
+      return "lost";
+    default:
+      return "pending";
+  }
 }
 
 function billingStatus(
