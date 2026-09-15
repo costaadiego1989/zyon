@@ -66,6 +66,22 @@ local config = {
   }},
   plugins = {
     {
+      -- The public proxy receives Origin, but the private API can otherwise
+      -- lose it while the request crosses Railway's edge. Clear a forged value
+      -- and forward the observed header under an internal name so conversation
+      -- capabilities remain bound to the actual storefront origin.
+      name = "pre-function",
+      config = {
+        access = { [[
+          local origin = kong.request.get_header("origin")
+          kong.service.request.clear_header("x-storefront-origin")
+          if origin then
+            kong.service.request.set_header("x-storefront-origin", origin)
+          end
+        ]] },
+      },
+    },
+    {
       name = "cors",
       config = {
         origins = origins, credentials = true, max_age = 3600,

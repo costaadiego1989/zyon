@@ -143,9 +143,17 @@ export class StorefrontController {
   }
 
   @Post("conversations")
-  async startConversation(@Body() body: StartConversationRequest, @Req() request: { headers?: { origin?: string } }) {
+  async startConversation(
+    @Body() body: StartConversationRequest,
+    @Req() request: { headers?: { origin?: string; "x-storefront-origin"?: string | string[] } },
+  ) {
     const result = await this.startStoreConversation.execute(body);
-    const access = this.capabilities.issue({ purpose: "storefront-conversation", merchantId: result.merchant_id, resourceId: result.conversation_id, origin: request.headers?.origin });
+    const access = this.capabilities.issue({
+      purpose: "storefront-conversation",
+      merchantId: result.merchant_id,
+      resourceId: result.conversation_id,
+      origin: storefrontOrigin(request),
+    });
     return { ...result, conversation_token: access.token, conversation_token_expires_at: access.expiresAt };
   }
 
@@ -530,4 +538,16 @@ export class StorefrontController {
     if (!this.oneBuyClick) throw new NotFoundException("one_buy_click_unavailable");
     return this.oneBuyClick;
   }
+}
+
+/**
+ * Kong clears any client-supplied x-storefront-origin value and then sets it
+ * from the request Origin before forwarding to this private API service. The
+ * public Origin remains the fallback for local development and direct tests.
+ */
+function storefrontOrigin(request: { headers?: { origin?: string; "x-storefront-origin"?: string | string[] } }): string | undefined {
+  const forwarded = request.headers?.["x-storefront-origin"];
+  if (typeof forwarded === "string" && forwarded.trim()) return forwarded.trim();
+  if (Array.isArray(forwarded) && forwarded[0]?.trim()) return forwarded[0].trim();
+  return request.headers?.origin;
 }

@@ -16,6 +16,30 @@ test("renewal preserves cart and merchant ownership and rejects other resources"
   assert.throws(() => controller.renewConversationAccess("cart_a", { headers: {} }), /invalid_conversation_token/);
 });
 
+test("conversation capability binds the origin verified and forwarded by Kong", async () => {
+  const capabilities = new RealtimeCapabilityService("storefront-cart-test-secret-32-characters");
+  const controller = Object.assign(Object.create(StorefrontController.prototype), {
+    capabilities,
+    startStoreConversation: {
+      execute: async () => ({ conversation_id: "cart_a", merchant_id: "merchant", created_at: "2026-01-01T00:00:00.000Z" }),
+    },
+  }) as StorefrontController;
+
+  const response = await controller.startConversation(
+    { merchant_id: "merchant" },
+    { headers: { origin: "https://gateway.example", "x-storefront-origin": "https://store.example" } },
+  );
+
+  assert.equal(
+    capabilities.verify(response.conversation_token, "storefront-conversation", "https://store.example").resourceId,
+    "cart_a",
+  );
+  assert.throws(
+    () => capabilities.verify(response.conversation_token, "storefront-conversation", "https://gateway.example"),
+    /realtime_origin_not_allowed/,
+  );
+});
+
 test("cart read, update and clear require the cart owner's conversation capability", async () => {
   const capabilities = new RealtimeCapabilityService("storefront-cart-test-secret-32-characters");
   const calls: unknown[] = [];
