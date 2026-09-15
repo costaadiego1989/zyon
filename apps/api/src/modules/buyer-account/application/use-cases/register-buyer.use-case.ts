@@ -1,9 +1,11 @@
-import { ConflictException, Inject, Injectable , Logger} from "@nestjs/common";
+import { ConflictException, Inject, Injectable, Logger, Optional } from "@nestjs/common";
+import type { CustomerAddress } from "@zyon/shared-types";
 import { BuyerAccount } from "../../domain/entities/buyer-account.entity.js";
+import { BuyerAddress } from "../../domain/entities/buyer-address.entity.js";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../domain/ports/buyer-account-repository.port.js";
+import { BUYER_ADDRESS_REPOSITORY, type BuyerAddressRepository } from "../../domain/ports/buyer-address.port.js";
 import { BuyerJwtService } from "../../domain/services/buyer-jwt.service.js";
 import { PasswordHasher } from "../../../auth/domain/services/password-hasher.service.js";
-import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface RegisterBuyerRequest {
   email: string;
@@ -13,7 +15,7 @@ export interface RegisterBuyerRequest {
   dateOfBirth?: Date;
   gender?: string;
   cpf?: string;
-  address?: import("@zyon/shared-types").CustomerAddress;
+  address?: CustomerAddress;
 }
 
 export interface BuyerAuthResponse {
@@ -33,7 +35,8 @@ export class RegisterBuyerUseCase {
   constructor(
     @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly repo: BuyerAccountRepository,
     private readonly hasher: PasswordHasher,
-    private readonly jwt: BuyerJwtService
+    private readonly jwt: BuyerJwtService,
+    @Optional() @Inject(BUYER_ADDRESS_REPOSITORY) private readonly addresses?: BuyerAddressRepository,
   ) {}
 
   async execute(input: RegisterBuyerRequest): Promise<BuyerAuthResponse> {
@@ -63,9 +66,37 @@ export class RegisterBuyerUseCase {
       createdAt: now,
       updatedAt: now,
     });
+    const savedAddress = input.address
+      ? createInitialSavedAddress(account.globalUserId, input.address, now)
+      : undefined;
+
     await this.repo.save(account);
+    if (savedAddress && this.addresses) {
+      await this.addresses.save(savedAddress);
+    }
+
     return toBuyerAuthResponse(account, this.jwt);
   }
+}
+
+function createInitialSavedAddress(
+  globalUserId: string,
+  address: CustomerAddress,
+  createdAt: Date,
+): BuyerAddress {
+  return BuyerAddress.create({
+    id: `registration_${globalUserId}`,
+    globalUserId,
+    zip: address.zip ?? "",
+    street: address.street ?? "",
+    number: address.number ?? "",
+    complement: address.complement,
+    neighborhood: address.neighborhood ?? "",
+    city: address.city ?? "",
+    state: address.state ?? "",
+    isDefault: true,
+    createdAt,
+  });
 }
 
 export function toBuyerAuthResponse(account: BuyerAccount, jwt: BuyerJwtService, merchantId?: string): BuyerAuthResponse {

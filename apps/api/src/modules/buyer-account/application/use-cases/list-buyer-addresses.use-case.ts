@@ -1,26 +1,88 @@
-import { Inject, Injectable , Logger} from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import {
   BUYER_ADDRESS_REPOSITORY,
   MAX_ADDRESSES_PER_BUYER,
   type BuyerAddressRepository,
 } from "../../domain/ports/buyer-address.port.js";
-import type { BuyerAddress } from "../../domain/entities/buyer-address.entity.js";
-import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
+import { BuyerAddress } from "../../domain/entities/buyer-address.entity.js";
+import {
+  BUYER_ACCOUNT_REPOSITORY,
+  type BuyerAccountRepository,
+} from "../../domain/ports/buyer-account-repository.port.js";
 
 @Injectable()
 export class ListBuyerAddressesUseCase {
   private readonly logger = new Logger(ListBuyerAddressesUseCase.name);
 
-  constructor(@Inject(BUYER_ADDRESS_REPOSITORY) private readonly repo: BuyerAddressRepository) {}
+  constructor(
+    @Inject(BUYER_ADDRESS_REPOSITORY) private readonly repo: BuyerAddressRepository,
+    @Optional() @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly accounts?: BuyerAccountRepository,
+  ) {}
 
   async execute(globalUserId: string): Promise<BuyerAddress[]> {
     if (!globalUserId) throw new Error("buyer_address_missing_global_user_id");
-    const list = await this.repo.list(globalUserId);
+    let list = await this.repo.list(globalUserId);
+
+    // Registrations made before saved addresses were introduced keep their
+    // delivery address in BuyerAccount.address. Materialize it once so the Hub
+    // and checkout use the same canonical address record from now on.
+    if (list.length === 0 && this.accounts) {
+      const account = await this.accounts.findByGlobalUserId(globalUserId);
+      const migrated = account?.address
+        ? toSavedAddress(globalUserId, account.address, account.createdAt)
+        : null;
+      if (migrated) {
+        await this.repo.save(migrated);
+        list = [migrated];
+      }
+    }
+
     // Default address first, then by createdAt asc
     return list.sort((a, b) => {
       if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1;
       return a.createdAt.getTime() - b.createdAt.getTime();
     });
+  }
+}
+
+function toSavedAddress(
+  globalUserId: string,
+  address: {
+    zip?: string;
+    street?: string;
+    number?: string;
+    complement?: string;
+    neighborhood?: string;
+    city?: string;
+    state?: string;
+  },
+  createdAt: Date,
+): BuyerAddress | null {
+  const zip = address.zip?.trim() ?? "";
+  const street = address.street?.trim() ?? "";
+  const number = address.number?.trim() ?? "";
+  const neighborhood = address.neighborhood?.trim() ?? "";
+  const city = address.city?.trim() ?? "";
+  const state = address.state?.trim() ?? "";
+
+  if (!zip || !street || !number || !neighborhood || !city || !state) return null;
+
+  try {
+    return BuyerAddress.create({
+      id: `registration_${globalUserId}`,
+      globalUserId,
+      zip,
+      street,
+      number,
+      complement: address.complement,
+      neighborhood,
+      city,
+      state,
+      isDefault: true,
+      createdAt,
+    });
+  } catch {
+    return null;
   }
 }
 
