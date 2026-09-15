@@ -356,13 +356,13 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
                 <aside
                   className="smart-cart-sidebar"
                   style={{
-                    width: "280px",
+                    width: "clamp(304px, 28vw, 360px)",
                     flex: "none",
                     display: "flex",
                     flexDirection: "column",
                     overflow: "hidden",
                     borderLeft: "1px solid var(--bd)",
-                    paddingLeft: "14px",
+                    paddingLeft: "18px",
                   }}
                 >
                   <SmartCart />
@@ -438,12 +438,13 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
               bottom: 0,
               left: 0,
               right: 0,
-              maxHeight: "70vh",
-              overflowY: "auto",
+              height: "min(78dvh, 680px)",
+              maxHeight: "78dvh",
+              overflow: "hidden",
               background: "var(--aacp-surface, #0f0f16)",
               borderTop: "1px solid var(--aacp-line, rgba(255,255,255,0.1))",
               borderRadius: "20px 20px 0 0",
-              padding: "0 18px 20px",
+              padding: "0 16px calc(16px + env(safe-area-inset-bottom))",
               zIndex: 1001,
               boxShadow: "0 -8px 40px rgba(0,0,0,0.3)",
               display: "flex",
