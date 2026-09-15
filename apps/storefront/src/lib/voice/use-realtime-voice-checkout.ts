@@ -32,6 +32,7 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const handledCalls = useRef(new Set<string>());
   const startingRef = useRef(false);
+  const connectionAttempt = useRef(0);
   const pendingTextRef = useRef<string | null>(null);
   const createSessionRef = useRef(createSession);
   const commerceRef = useRef(onCommerceTurn);
@@ -41,12 +42,14 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
   checkoutRef.current = onBeginCheckout;
 
   const stop = useCallback(() => {
+    connectionAttempt.current += 1;
+    startingRef.current = false;
     const channel = channelRef.current;
-    if (channel?.readyState === "open") channel.send(JSON.stringify({ type: "session.close" }));
-    channel?.close();
+    const peer = peerRef.current;
     channelRef.current = null;
-    peerRef.current?.close();
     peerRef.current = null;
+    channel?.close();
+    peer?.close();
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     const audio = audioRef.current;
@@ -63,6 +66,7 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
   }, [enabled]);
 
   const handleEvent = useCallback(async (event: RealtimeEvent) => {
+    const sourceChannel = channelRef.current;
     if (event.type === "input_audio_buffer.speech_started") { setListening(true); setSpeaking(false); setHint("Estou ouvindo..."); return; }
     if (event.type === "input_audio_buffer.speech_stopped") { setListening(false); setHint("Entendendo seu pedido..."); return; }
     if (event.type === "response.output_audio_transcript.delta" && event.delta) { setSpeaking(true); setHint("Estou respondendo..."); return; }
@@ -90,7 +94,7 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
       catch { output = { error: "A loja não conseguiu concluir esta etapa agora. Peça para tentar novamente." }; }
     }
     const channel = channelRef.current;
-    if (channel?.readyState !== "open") return;
+    if (channel !== sourceChannel || channel?.readyState !== "open") return;
     channel.send(JSON.stringify({ type: "conversation.item.create", item: { type: "function_call_output", call_id: callId, output: JSON.stringify(output) } }));
     channel.send(JSON.stringify({ type: "response.create" }));
   }, []);
@@ -99,6 +103,7 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
     const requestedText = initialText?.trim().slice(0, 4_000);
     if (requestedText) pendingTextRef.current = requestedText;
     if (!enabled || startingRef.current || peerRef.current) return;
+    const attempt = ++connectionAttempt.current;
     void (async () => {
       if (!window.RTCPeerConnection || !navigator.mediaDevices?.getUserMedia) {
         setUnsupported(true);
@@ -110,8 +115,10 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
       setHint("Conectando sua voz com segurança...");
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (attempt !== connectionAttempt.current) { stream.getTracks().forEach(track => track.stop()); return; }
         streamRef.current = stream;
         const secret = await createSessionRef.current();
+        if (attempt !== connectionAttempt.current) return;
         if (!secret.value) throw new Error("voice_session_missing");
         const peer = new RTCPeerConnection();
         peerRef.current = peer;
@@ -123,6 +130,7 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
         document.body.appendChild(audio);
         audioRef.current = audio;
         peer.ontrack = (event) => {
+          if (attempt !== connectionAttempt.current) return;
           audio.srcObject = event.streams[0] ?? null;
           void audio.play().catch(() => {
             setHint("O navegador bloqueou o áudio. Toque no microfone para ouvir.");
@@ -131,8 +139,9 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
         stream.getTracks().forEach((track) => peer.addTrack(track, stream));
         const channel = peer.createDataChannel("oai-events");
         channelRef.current = channel;
-        channel.addEventListener("message", (message) => { try { void handleEvent(JSON.parse(message.data) as RealtimeEvent); } catch { /* Ignore unknown events. */ } });
+        channel.addEventListener("message", (message) => { if (attempt !== connectionAttempt.current) return; try { void handleEvent(JSON.parse(message.data) as RealtimeEvent); } catch { /* Ignore unknown events. */ } });
         channel.addEventListener("open", () => {
+          if (attempt !== connectionAttempt.current) return;
           setConnected(true);
           setConnecting(false);
           const pendingText = pendingTextRef.current;
@@ -148,21 +157,29 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
         channel.addEventListener("close", () => { if (peerRef.current === peer) stop(); });
         peer.addEventListener("connectionstatechange", () => { if (["failed", "closed", "disconnected"].includes(peer.connectionState) && peerRef.current === peer) stop(); });
         const offer = await peer.createOffer();
+        if (attempt !== connectionAttempt.current) return;
         await peer.setLocalDescription(offer);
         await waitForIceGathering(peer);
+        if (attempt !== connectionAttempt.current) return;
         const response = await fetch("https://api.openai.com/v1/realtime/calls", { method: "POST", headers: { Authorization: `Bearer ${secret.value}`, "Content-Type": "application/sdp" }, body: peer.localDescription?.sdp ?? offer.sdp });
+        if (attempt !== connectionAttempt.current) return;
         if (!response.ok) {
           const error = new Error("voice_connection_failed") as VoiceError;
           error.status = response.status;
           throw error;
         }
-        await peer.setRemoteDescription({ type: "answer", sdp: await response.text() });
+        const answer = await response.text();
+        if (attempt !== connectionAttempt.current) return;
+        await peer.setRemoteDescription({ type: "answer", sdp: answer });
       } catch (error) {
+        if (attempt !== connectionAttempt.current) return;
         stop();
         setHint(voiceErrorHint(error));
       } finally {
-        startingRef.current = false;
-        setConnecting(false);
+        if (attempt === connectionAttempt.current) {
+          startingRef.current = false;
+          setConnecting(false);
+        }
       }
     })();
   }, [enabled, handleEvent, stop]);
