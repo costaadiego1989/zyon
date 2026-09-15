@@ -312,7 +312,9 @@ export class CheckoutSession {
       }),
     });
     if (!res.ok) throw await CheckoutApiError.fromResponse("embed_chat", res);
-    return res.json() as Promise<ChatResponse>;
+    const response = await res.json() as ChatResponse;
+    if (response.experience) this.experience = { ...this.experience, ...response.experience };
+    return response;
   }
 
   async createRealtimeVoiceSession(): Promise<{ value: string; expires_at?: number }> {

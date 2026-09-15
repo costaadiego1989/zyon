@@ -10,6 +10,7 @@ import {
   type PaymentIntent,
   type CryptoPaymentsConfig,
   type CommercialNudge,
+  type Experience,
 } from "@/api/checkout-session";
 import {
   initTracking,
@@ -122,6 +123,33 @@ export interface BuyerData {
   };
 }
 
+function buyerFromExperience(experience: Partial<Experience> | undefined): BuyerData {
+  const source = experience?.buyer ?? experience?.customer;
+  return {
+    name: source?.name ?? source?.fullName,
+    email: source?.email,
+    phone: source?.phone,
+    cpf: source?.cpf,
+    isReturning: source?.isReturning,
+    purchaseCount: source?.purchaseCount,
+    address: source?.address,
+  };
+}
+
+function mergeBuyer(current: BuyerData, incoming: BuyerData): BuyerData {
+  return {
+    ...current,
+    ...incoming,
+    address: current.address || incoming.address
+      ? { ...current.address, ...incoming.address }
+      : undefined,
+  };
+}
+
+function isAddressConfirmationCopy(message: string | undefined): boolean {
+  return Boolean(message && /endere[cç]o[\s\S]{0,160}(?:est[aá]\s+correto|confirma|sim\s*\/\s*n[aã]o)/i.test(message));
+}
+
 function hasCompleteLead(buyer: BuyerData): boolean {
   return Boolean(
     buyer.name?.trim() &&
@@ -194,7 +222,7 @@ interface CheckoutState {
   leadRegistered: boolean;
   pendingPayment: PendingPayment | null;
 
-  init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; embedApiBaseUrl?: string; globalUserId?: string; buyerAccessToken?: string; oneBuyClickPreferences?: { shippingPreference: "fastest" | "cheapest"; paymentPreference: "pix" | "card" } }) => Promise<void>;
+  init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; embedApiBaseUrl?: string; globalUserId?: string; buyerAccessToken?: string; oneBuyClickPreferences?: { shippingPreference: "fastest" | "cheapest"; paymentPreference: "pix" | "card" }; initialChannel?: "chat" | "voice" }) => Promise<void>;
   selectChannel: (channel: "chat" | "voice") => void;
   sendMessage: (text: string) => Promise<void>;
   acceptCrossSell: (suggestionId: string, sku: string) => Promise<{ ok: boolean; error?: string }>;
@@ -377,7 +405,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   leadRegistered: false,
   pendingPayment: null,
 
-  init: async ({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken, oneBuyClickPreferences }) => {
+  init: async ({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken, oneBuyClickPreferences, initialChannel }) => {
     try {
       const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken });
       set({ api, status: "loading" });
@@ -389,16 +417,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       const items = cartData.items;
       const total = cartData.total || items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
-      const buyerSource = exp?.buyer ?? exp?.customer;
-      const buyer: BuyerData = {
-        name: buyerSource?.name ?? buyerSource?.fullName,
-        email: buyerSource?.email,
-        phone: buyerSource?.phone,
-        cpf: buyerSource?.cpf,
-        isReturning: buyerSource?.isReturning,
-        purchaseCount: buyerSource?.purchaseCount,
-        address: buyerSource?.address,
-      };
+      const buyer = buyerFromExperience(exp);
 
       const rawBrand = exp?.brand ?? {};
       const theme = rawBrand.theme ?? {};
@@ -460,8 +479,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
       // OneBuyClick already knows the buyer's intent and preference. The chat
       // opens immediately and asks only for data still required by checkout.
-      if (oneBuyClickPreferences) {
-        get().selectChannel("chat");
+      if (oneBuyClickPreferences || initialChannel) {
+        const voiceAvailable = (exp?.rules as { voiceEnabled?: boolean } | undefined)?.voiceEnabled === true;
+        get().selectChannel(initialChannel === "voice" && voiceAvailable ? "voice" : "chat");
       }
 
       try {
@@ -664,9 +684,12 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       }
 
       const { buyer, cart, merchantPaymentConfig } = get();
+      const updatedBuyer = mergeBuyer(buyer, buyerFromExperience(res.experience));
       const baseBlocks = res.blocks && res.blocks.length > 0
         ? res.blocks
-        : (deriveBlocksFromStage(res.stage, { buyer, cart, merchantPaymentConfig }) ?? []);
+        : (isAddressConfirmationCopy(res.message)
+          ? []
+          : (deriveBlocksFromStage(res.stage, { buyer: updatedBuyer, cart, merchantPaymentConfig }) ?? []));
       const crossSellBlock = crossSellBlockFromSuggestions(res.experience?.suggestedProducts);
       const mergedBlocks = crossSellBlock
         ? [...baseBlocks, crossSellBlock]
@@ -682,6 +705,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       };
       set((s) => ({
         messages: [...s.messages, agentMsg],
+        buyer: updatedBuyer,
+        leadRegistered: hasCompleteLead(updatedBuyer),
         isTyping: false,
       }));
 

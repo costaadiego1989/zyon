@@ -14,6 +14,7 @@ interface CheckoutPanelProps {
     shippingPreference: "fastest" | "cheapest";
     paymentPreference: "pix" | "card";
   };
+  initialChannel?: "chat" | "voice";
   theme?: "dark" | "light";
   onClose: () => void;
 }
@@ -36,6 +37,7 @@ export default function CheckoutPanel({
   globalUserId: initialGlobalUserId,
   cartRef,
   oneBuyClickPreferences,
+  initialChannel,
   theme,
   onClose,
 }: CheckoutPanelProps) {
@@ -135,6 +137,7 @@ export default function CheckoutPanel({
           globalUserId={globalUserId}
           buyerAccessToken={getValidBuyer()?.token}
           oneBuyClickPreferences={oneBuyClickPreferences}
+          initialChannel={initialChannel}
           theme={effectiveTheme}
           onClose={onClose}
         />

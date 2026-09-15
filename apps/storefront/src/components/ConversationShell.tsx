@@ -23,6 +23,7 @@ import { redirectToCheckout } from "./conversation/checkout-redirect";
 import { conversationFetch } from "@/lib/conversation-access";
 import { checkoutApi } from "@/lib/api/api-client";
 import { useRealtimeVoiceCheckout } from "@/lib/voice/use-realtime-voice-checkout";
+import { restoreChannelPreference } from "@/lib/services/conversation.service";
 import { RealtimeVoiceComposer } from "./conversation/RealtimeVoiceComposer";
 
 type Channel = "chat" | "voice";
@@ -304,6 +305,9 @@ export default function ConversationShell({
       ? { productId: initialRichProductId }
       : null,
   );
+  const checkoutInitialChannel = voiceCheckoutEnabled && (channel ?? restoreChannelPreference()) === "voice"
+    ? "voice"
+    : "chat";
   const openedInitialRichProduct = useRef(false);
   const openedProductMessages = useRef(new Set<string>());
   const promptedProductClose = useRef(new Set<string>());
@@ -1000,6 +1004,7 @@ export default function ConversationShell({
           globalUserId={checkoutUserId}
           cartRef={checkoutCartRef}
           oneBuyClickPreferences={checkoutPreferences}
+          initialChannel={checkoutInitialChannel}
           theme={theme}
           onClose={() => setCheckoutOpen(false)}
         />

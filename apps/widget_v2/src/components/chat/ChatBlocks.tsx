@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { paymentMethodsForConfig, useCheckoutStore } from "@/store/checkout-store";
 import { confirmCryptoPayment } from "@/api/payment";
 import { PulseAgentOrb } from "../PulseAgentOrb";
+import { PerimeterBorder } from "../PerimeterBorder";
 import type { ChatBlock } from "@/api/checkout-session";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
@@ -965,36 +966,57 @@ function FormFieldBlock({ data }: { data?: Record<string, unknown> }) {
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
   const [value, setValue] = useState("");
   if (!data) return null;
+  const field = typeof data.field === "string" ? data.field : "";
   const label = (data.label as string) || (data.field as string) || "";
   const placeholder = (data.placeholder as string) || "";
+  const isCep = field === "cep";
+  const normalizedValue = isCep ? value.replace(/\D/g, "") : value.trim();
+  const canSubmit = isCep ? normalizedValue.length === 8 : normalizedValue.length > 0;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (value.trim()) {
-      void sendMessage(value.trim());
+    if (canSubmit) {
+      void sendMessage(normalizedValue);
       setValue("");
     }
   };
 
+  const updateValue = (next: string) => {
+    if (!isCep) {
+      setValue(next);
+      return;
+    }
+    const digits = next.replace(/\D/g, "").slice(0, 8);
+    setValue(digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits);
+  };
+
   return (
-    <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-      {label && <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--tx)" }}>{label}</label>}
-      <div style={{ display: "flex", gap: "6px" }}>
-        <input data-neu="field"
-          type="text"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder={placeholder}
-          style={{ flex: 1, padding: "8px 12px", borderRadius: "8px", border: "1px solid var(--bd)", background: "var(--chip)", color: "var(--tx)", fontSize: "13px", fontFamily: "inherit" }}
-        />
-        <button data-neu="control"
-          type="submit"
-          disabled={!value.trim()}
-          style={{ padding: "8px 12px", borderRadius: "8px", background: value.trim() ? "var(--aacp-accent, #0f766e)" : "var(--bd)", color: "#fff", border: "none", fontSize: "12px", fontWeight: 600, cursor: value.trim() ? "pointer" : "not-allowed" }}
-        >
-          Enviar
-        </button>
-      </div>
+    <form data-neu="inset" data-aacp-inline-field={field || "text"} onSubmit={handleSubmit}
+      style={{ position: "relative", display: "flex", alignItems: "center", gap: "9px", padding: "9px 9px 9px 15px", background: "var(--aacp-inset-bg, var(--chip))", border: "1px solid var(--bd)", borderRadius: "14px", transition: "border-color 0.2s ease, box-shadow 0.2s ease" }}
+    >
+      <PerimeterBorder radius="14px" variant="input" />
+      <label style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0, 0, 0, 0)", whiteSpace: "nowrap", border: 0 }}>
+        {label}
+      </label>
+      <input data-neu="field"
+        type="text"
+        value={value}
+        onChange={(e) => updateValue(e.target.value)}
+        placeholder={placeholder}
+        inputMode={isCep ? "numeric" : undefined}
+        autoComplete={isCep ? "postal-code" : "off"}
+        maxLength={isCep ? 9 : undefined}
+        aria-label={label}
+        style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: "var(--tx)", fontSize: "13px", padding: 0, fontFamily: "inherit" }}
+      />
+      <button data-neu="send"
+        type="submit"
+        disabled={!canSubmit}
+        aria-label={label ? `Enviar ${label}` : "Enviar"}
+        style={{ width: "36px", height: "36px", borderRadius: "10px", border: "none", cursor: canSubmit ? "pointer" : "not-allowed", background: canSubmit ? "var(--aacp-accent, #0f766e)" : "var(--bd)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+      </button>
     </form>
   );
 }

@@ -21,6 +21,7 @@ export interface InlineCheckoutProps {
     shippingPreference: "fastest" | "cheapest";
     paymentPreference: "pix" | "card";
   };
+  initialChannel?: "chat" | "voice";
   theme?: "dark" | "light";
   onClose?: () => void;
 }
@@ -43,8 +44,9 @@ export function InlineCheckout(props: InlineCheckoutProps) {
       globalUserId: props.globalUserId,
       buyerAccessToken: props.buyerAccessToken,
       oneBuyClickPreferences: props.oneBuyClickPreferences,
+      initialChannel: props.initialChannel,
     });
-  }, [init, props.embedToken, props.merchantId, props.apiBaseUrl, props.embedApiBaseUrl, props.cartRef, props.globalUserId, props.buyerAccessToken, props.oneBuyClickPreferences]);
+  }, [init, props.embedToken, props.merchantId, props.apiBaseUrl, props.embedApiBaseUrl, props.cartRef, props.globalUserId, props.buyerAccessToken, props.oneBuyClickPreferences, props.initialChannel]);
 
   useEffect(() => {
     if (props.theme === "light") {

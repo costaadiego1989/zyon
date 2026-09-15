@@ -150,57 +150,31 @@ export function ChatPanel() {
       {channel === "voice" ? (
         <VoiceComposer voice={voice} />
       ) : (
-        <form data-aacp-checkout-composer
-          onSubmit={handleSubmit}
-          style={{
-            display: "flex",
-            gap: "8px",
-            flexShrink: 0,
-            padding: "10px 0 0",
-            borderTop: "1px solid var(--bd)",
-          }}
-        >
-          <div className="aacp-composer-field" data-aacp-composer-frame>
-          <PerimeterBorder radius="10px" variant="input" />
-          <input data-neu="field"
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Escreva sua mensagem..."
-            aria-label="Mensagem"
-            style={{
-              flex: 1,
-              minWidth: 0,
-              padding: "10px 14px",
-              borderRadius: "10px",
-              border: "1px solid var(--bd)",
-              background: "var(--aacp-inset-bg, var(--chip))",
-              color: "var(--tx)",
-              fontSize: "13px",
-              fontFamily: "inherit",
-              outline: "none",
-            }}
-          />
-          </div>
-          <button data-neu="send"
-            type="submit"
-            disabled={!input.trim()}
-            aria-label="Enviar mensagem"
-            style={{
-              padding: "10px 16px",
-              borderRadius: "10px",
-              background: input.trim() ? "var(--aacp-accent, #0f766e)" : "var(--bd)",
-              color: "#fff",
-              border: "none",
-              fontSize: "12px",
-              fontWeight: 600,
-              cursor: input.trim() ? "pointer" : "not-allowed",
-              flex: "none",
-            }}
+        <div style={{ flexShrink: 0, padding: "10px 0 0", borderTop: "1px solid var(--bd)" }}>
+          <form data-neu="inset" data-aacp-checkout-composer data-aacp-composer-frame
+            onSubmit={handleSubmit}
+            style={{ position: "relative", display: "flex", alignItems: "center", gap: "9px", padding: "9px 9px 9px 15px", background: "var(--aacp-inset-bg, var(--chip))", border: "1px solid var(--bd)", borderRadius: "14px", transition: "border-color 0.2s ease, box-shadow 0.2s ease" }}
           >
-            Enviar
-          </button>
-        </form>
+            <PerimeterBorder radius="14px" variant="input" />
+            <input data-neu="field"
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={isTyping ? "Aguarde..." : "Escreva sua mensagem..."}
+              disabled={isTyping}
+              aria-label="Mensagem"
+              style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: "var(--tx)", fontSize: "13px", padding: 0, fontFamily: "inherit" }}
+            />
+            <button data-neu="send"
+              type="submit"
+              disabled={!input.trim() || isTyping}
+              aria-label="Enviar mensagem"
+              style={{ width: "36px", height: "36px", borderRadius: "10px", background: input.trim() && !isTyping ? "var(--aacp-accent, #0f766e)" : "var(--bd)", color: "#fff", border: "none", cursor: input.trim() && !isTyping ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+            </button>
+          </form>
+        </div>
       )}
 
       <style>{`
