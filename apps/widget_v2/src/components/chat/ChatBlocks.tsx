@@ -999,6 +999,89 @@ function FormFieldBlock({ data }: { data?: Record<string, unknown> }) {
   );
 }
 
+function LeadCaptureBlock() {
+  const buyer = useCheckoutStore((s) => s.buyer);
+  const registerLead = useCheckoutStore((s) => s.registerLead);
+  const [values, setValues] = useState({
+    name: buyer.name ?? "",
+    email: buyer.email ?? "",
+    phone: buyer.phone ?? "",
+    cpf: buyer.cpf ?? "",
+  });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const updateValue = (field: keyof typeof values, value: string) => {
+    setValues((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const emailIsValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim());
+    const phoneDigits = values.phone.replace(/\D/g, "");
+    const cpfDigits = values.cpf.replace(/\D/g, "");
+    if (values.name.trim().length < 3 || !emailIsValid || phoneDigits.length < 10 || !isValidCpf(cpfDigits)) {
+      setError("Confira nome, e-mail, telefone e CPF.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    const result = await registerLead(values);
+    setSaving(false);
+    if (!result.ok) setError(result.error ?? "Não foi possível salvar seus dados.");
+  };
+
+  return (
+    <form data-testid="lead-capture" onSubmit={(event) => void handleSubmit(event)} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      <p style={{ fontSize: "12px", color: "var(--mut)", margin: 0, lineHeight: 1.45 }}>
+        Seus dados identificam o pedido e registram seu atendimento.
+      </p>
+      <LeadInput label="Nome completo" value={values.name} onChange={(value) => updateValue("name", value)} autoComplete="name" />
+      <LeadInput label="E-mail" type="email" value={values.email} onChange={(value) => updateValue("email", value)} autoComplete="email" />
+      <LeadInput label="Telefone com DDD" type="tel" value={values.phone} onChange={(value) => updateValue("phone", value)} autoComplete="tel" inputMode="tel" />
+      <LeadInput label="CPF" value={values.cpf} onChange={(value) => updateValue("cpf", value)} autoComplete="off" inputMode="numeric" />
+      {error && <p role="alert" style={{ fontSize: "12px", color: "#c92a2a", margin: 0 }}>{error}</p>}
+      <button data-neu="primary" type="submit" disabled={saving} style={{ padding: "10px 12px", borderRadius: "8px", background: "var(--aacp-accent, #0f766e)", color: "#fff", border: "none", fontSize: "13px", fontWeight: 700, cursor: saving ? "wait" : "pointer", opacity: saving ? 0.7 : 1 }}>
+        {saving ? "Salvando..." : "Continuar para pagamento"}
+      </button>
+    </form>
+  );
+}
+
+function LeadInput({
+  label,
+  value,
+  onChange,
+  type = "text",
+  autoComplete,
+  inputMode,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: "text" | "email" | "tel";
+  autoComplete: string;
+  inputMode?: "numeric" | "tel";
+}) {
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "12px", fontWeight: 600, color: "var(--tx)" }}>
+      {label}
+      <input data-neu="field" type={type} value={value} onChange={(event) => onChange(event.target.value)} autoComplete={autoComplete} inputMode={inputMode} required style={{ padding: "8px 10px", borderRadius: "8px", border: "1px solid var(--bd)", background: "var(--chip)", color: "var(--tx)", fontSize: "13px", fontFamily: "inherit" }} />
+    </label>
+  );
+}
+
+function isValidCpf(value: string): boolean {
+  if (!/^\d{11}$/.test(value) || /^(\d)\1{10}$/.test(value)) return false;
+  const digit = (length: number) => {
+    const sum = value.slice(0, length).split("").reduce((total, current, index) => total + Number(current) * (length + 1 - index), 0);
+    const remainder = (sum * 10) % 11;
+    return remainder === 10 ? 0 : remainder;
+  };
+  return digit(9) === Number(value[9]) && digit(10) === Number(value[10]);
+}
+
 function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   const pollPayment = useCheckoutStore((s) => s.pollPayment);
   const api = useCheckoutStore((s) => s.api);
@@ -1458,6 +1541,8 @@ export function BlockRenderer({ block }: { block: ChatBlock }) {
       return <OfferCouponBlock data={block.data} />;
     case "form_field":
       return <FormFieldBlock data={block.data} />;
+    case "lead_capture":
+      return <LeadCaptureBlock />;
     default:
       if (block.text) return <p style={{ fontSize: "14px", lineHeight: 1.5, color: "var(--tx)", margin: 0, wordBreak: "break-word" }}>{block.text}</p>;
       if (block.data?.text || block.data?.content) return <p style={{ fontSize: "14px", lineHeight: 1.5, color: "var(--tx)", margin: 0, wordBreak: "break-word" }}>{String(block.data.text || block.data.content)}</p>;

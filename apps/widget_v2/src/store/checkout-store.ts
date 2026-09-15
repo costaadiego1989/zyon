@@ -47,6 +47,18 @@ export interface PaymentMethod {
 
 type CheckoutPaymentMethod = "pix" | "boleto" | "credito" | "debito" | "crypto";
 
+export interface LeadRegistrationInput {
+  name: string;
+  email: string;
+  phone: string;
+  cpf: string;
+}
+
+interface PendingPayment {
+  method: CheckoutPaymentMethod;
+  installments?: number;
+}
+
 function activeDiscountFromNudge(nudge: CommercialNudge | undefined | null): CheckoutState["activeDiscount"] {
   if (!nudge) return null;
   return {
@@ -110,6 +122,15 @@ export interface BuyerData {
   };
 }
 
+function hasCompleteLead(buyer: BuyerData): boolean {
+  return Boolean(
+    buyer.name?.trim() &&
+    buyer.email?.trim() &&
+    buyer.phone?.replace(/\D/g, "").length &&
+    buyer.cpf?.replace(/\D/g, "").length === 11,
+  );
+}
+
 export interface CartState {
   items: CartItem[];
   total: number;
@@ -170,6 +191,8 @@ interface CheckoutState {
 
   voiceEnabled: boolean;
   oneBuyClickPreferences: { shippingPreference: "fastest" | "cheapest"; paymentPreference: "pix" | "card" } | null;
+  leadRegistered: boolean;
+  pendingPayment: PendingPayment | null;
 
   init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; globalUserId?: string; buyerAccessToken?: string; oneBuyClickPreferences?: { shippingPreference: "fastest" | "cheapest"; paymentPreference: "pix" | "card" } }) => Promise<void>;
   selectChannel: (channel: "chat" | "voice") => void;
@@ -179,6 +202,7 @@ interface CheckoutState {
   removeCartItem: (sku: string, variant?: string) => Promise<void>;
   selectShipping: (key: string) => Promise<void>;
   pay: (method: CheckoutPaymentMethod, installments?: number) => Promise<void>;
+  registerLead: (input: LeadRegistrationInput) => Promise<{ ok: boolean; error?: string }>;
   selectCryptoChain: (chain: "polygon" | "base") => Promise<void>;
   pollPayment: () => void;
   stopPolling: () => void;
@@ -227,6 +251,7 @@ function narrateBlock(block: ChatBlock): string | null {
     case "address_confirmation":
       return "Confirme seu endereço de entrega:";
     case "form_field":
+    case "lead_capture":
       return null;
     case "offer_coupon":
       return "Tenho um cupom pra você:";
@@ -349,6 +374,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   showBranding: false,
   voiceEnabled: false,
   oneBuyClickPreferences: null,
+  leadRegistered: false,
+  pendingPayment: null,
 
   init: async ({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId, buyerAccessToken, oneBuyClickPreferences }) => {
     try {
@@ -424,6 +451,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         showBranding: exp?.rules?.showBranding ?? false,
         voiceEnabled: (exp?.rules as { voiceEnabled?: boolean } | undefined)?.voiceEnabled ?? false,
         oneBuyClickPreferences: oneBuyClickPreferences ?? null,
+        leadRegistered: hasCompleteLead(buyer),
+        pendingPayment: null,
       });
 
       initTracking(api, response.session_id);
@@ -516,7 +545,20 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       const lastAgentMsg = [...messages].reverse().find((m) => m.role === "agent");
       if (lastAgentMsg?.blocks?.some((b) => b.type === "address_confirmation")) {
         const { buyer } = get();
-        const zip = buyer.address?.zip || "00000000";
+        const zip = buyer.address?.zip;
+        if (!zip) {
+          set((s) => ({
+            messages: [...s.messages, {
+              id: `agent_${Date.now()}`,
+              role: "agent",
+              text: "Para calcular o frete, preciso do seu CEP.",
+              blocks: [{ type: "form_field", data: { field: "cep", label: "CEP de entrega", placeholder: "00000-000" } }],
+              timestamp: Date.now(),
+            }],
+            isTyping: false,
+          }));
+          return;
+        }
         let shippingOptions: Array<{ key: string; label: string; tag: string; sub: string; cost: number }> = [];
         try {
           shippingOptions = await api.fetchShippingQuote(zip);
@@ -697,8 +739,25 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       }
       const { cart, buyer, merchantPaymentConfig } = get();
       if (text === "Vamos prosseguir" && cart.items.length > 0) {
+        const address = buyer.address;
+        const zip = address?.zip;
+        const hasCompleteAddress = Boolean(
+          address?.zip && address.street && address.number && address.city && address.state,
+        );
+        if (!hasCompleteAddress || !zip) {
+          set((s) => ({
+            messages: [...s.messages, {
+              id: `agent_${Date.now()}`,
+              role: "agent",
+              text: "Para calcular o frete, preciso do seu CEP e endereço de entrega.",
+              blocks: [{ type: "form_field", data: { field: "cep", label: "CEP de entrega", placeholder: "00000-000" } }],
+              timestamp: Date.now(),
+            }],
+            isTyping: false,
+          }));
+          return;
+        }
         try {
-          const zip = buyer.address?.zip || "00000000";
           const shippingOptions = await api.fetchShippingQuote(zip);
           if (shippingOptions.length > 0) {
             const shippingMsg: Message = {
@@ -837,8 +896,46 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }
   },
 
+  registerLead: async (input) => {
+    const { api, pendingPayment } = get();
+    if (!api) return { ok: false, error: "Sessão não iniciada" };
+
+    const buyer: LeadRegistrationInput = {
+      name: input.name.trim(),
+      email: input.email.trim().toLowerCase(),
+      phone: input.phone.replace(/\D/g, ""),
+      cpf: input.cpf.replace(/\D/g, ""),
+    };
+    if (!buyer.name || !buyer.email || buyer.phone.length < 10 || buyer.cpf.length !== 11) {
+      return { ok: false, error: "Preencha nome, e-mail, telefone e CPF válidos." };
+    }
+
+    try {
+      await api.updateCustomer({
+        customer: {
+          fullName: buyer.name,
+          email: buyer.email,
+          phone: buyer.phone,
+          cpf: buyer.cpf,
+        },
+      });
+      set((state) => ({
+        buyer: { ...state.buyer, ...buyer },
+        leadRegistered: true,
+        pendingPayment: null,
+      }));
+
+      if (pendingPayment) {
+        await get().pay(pendingPayment.method, pendingPayment.installments);
+      }
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Não foi possível salvar seus dados agora. Tente novamente." };
+    }
+  },
+
   pay: async (method, installments) => {
-    const { api, buyer, cart } = get();
+    const { api, cart, leadRegistered } = get();
     if (!api || get().cartUpdating) return;
 
     const availableMethods = paymentMethodsForConfig(get().merchantPaymentConfig);
@@ -867,6 +964,20 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       return;
     }
 
+    if (!leadRegistered) {
+      set((state) => ({
+        pendingPayment: { method, installments },
+        messages: [...state.messages, {
+          id: `agent_lead_${Date.now()}`,
+          role: "agent",
+          text: "Antes de gerar o pagamento, preciso registrar seus dados para acompanhar seu pedido.",
+          blocks: [{ type: "lead_capture" }],
+          timestamp: Date.now(),
+        }],
+      }));
+      return;
+    }
+
     if (method === "crypto") {
       const chainSelectMsg: Message = {
         id: `agent_pay_${Date.now()}`,
@@ -880,17 +991,6 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }
 
     try {
-      if (buyer.name || buyer.email || buyer.cpf) {
-        await api.updateCustomer({
-          customer: {
-            fullName: buyer.name,
-            email: buyer.email,
-            cpf: buyer.cpf,
-            phone: buyer.phone,
-          },
-        }).catch(() => {});
-      }
-
       const intent = await api.createPaymentIntent(method, installments);
       void trackEvent("payment_method_selected", { method, intent_id: intent.intent_id });
       set({
@@ -957,21 +1057,15 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   },
 
   selectCryptoChain: async (chain) => {
-    const { api, buyer } = get();
+    const { api, leadRegistered } = get();
     if (!api || get().cartUpdating) return;
 
-    try {
-      if (buyer.name || buyer.email || buyer.cpf) {
-        await api.updateCustomer({
-          customer: {
-            fullName: buyer.name,
-            email: buyer.email,
-            cpf: buyer.cpf,
-            phone: buyer.phone,
-          },
-        }).catch(() => {});
-      }
+    if (!leadRegistered) {
+      await get().pay("crypto");
+      return;
+    }
 
+    try {
       const intent = await api.createPaymentIntent("crypto", undefined, { chain });
       void trackEvent("payment_method_selected", { method: "crypto", intent_id: intent.intent_id, chain });
       set({
@@ -1181,6 +1275,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       cartError: null,
       activeDiscount: null,
       oneBuyClickPreferences: null,
+      leadRegistered: false,
+      pendingPayment: null,
       error: null,
     });
   },

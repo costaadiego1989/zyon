@@ -85,6 +85,53 @@ describe("EmbedCheckoutController.updateCustomer", () => {
     );
   });
 
+  it("rejects a customer registration without a phone number", async () => {
+    const repo = new InMemoryCheckoutRepository();
+    await repo.saveSession(checkoutSession({ merchantId: "mrc_a", sessionId: "chk_a" }));
+    const { ctrl } = makeController(repo);
+    const token = issueToken("mrc_a");
+
+    await assert.rejects(
+      () => ctrl.updateCustomer(reqWithClaims(token), {
+        session_id: "chk_a",
+        customer: { fullName: "Joao", email: "x@y.com", cpf: "12345678900" }
+      }),
+      (err: any) => err instanceof BadRequestException && err.message === "phone_required"
+    );
+  });
+
+  it("does not create a payment before the buyer is registered as a lead", async () => {
+    const repo = new InMemoryCheckoutRepository();
+    const token = issueToken("mrc_a");
+    const sessionId = embedCheckoutSessionId(TOKENS.verify(token));
+    await repo.saveSession(checkoutSession({
+      merchantId: "mrc_a",
+      sessionId,
+      customer: { email: "buyer@example.test" },
+    }));
+    const helper = new EmbedCheckoutGuardHelper(repo);
+    let paymentWasRequested = false;
+    const ctrl = new EmbedCheckoutController(
+      {} as never,
+      {} as never,
+      {} as never,
+      helper,
+      {} as never,
+      { async execute() { paymentWasRequested = true; return {}; } } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await assert.rejects(
+      () => ctrl.intentFromEmbed(reqWithClaims(token), { session_id: sessionId, idempotency_key: "lead-required", method: "pix" }),
+      (err: any) => err instanceof BadRequestException && err.message === "customer_registration_required",
+    );
+    assert.equal(paymentWasRequested, false);
+  });
+
   it("rejects when session_id is missing", async () => {
     const repo = new InMemoryCheckoutRepository();
     const { ctrl } = makeController(repo);
@@ -106,7 +153,7 @@ describe("EmbedCheckoutController.updateCustomer", () => {
     await assert.rejects(
       () => ctrl.updateCustomer(reqWithClaims(token), {
         session_id: "chk_b",
-        customer: { fullName: "Joao", email: "x@y.com", cpf: "12345678900" }
+        customer: { fullName: "Joao", email: "x@y.com", cpf: "12345678900", phone: "11999999999" }
       }),
       (err: any) => err instanceof UnauthorizedException
     );
@@ -119,7 +166,7 @@ describe("EmbedCheckoutController.updateCustomer", () => {
     await assert.rejects(
       () => ctrl.updateCustomer(reqWithClaims(token), {
         session_id: embedCheckoutSessionId(TOKENS.verify(token)),
-        customer: { fullName: "Joao", email: "x@y.com", cpf: "12345678900" }
+        customer: { fullName: "Joao", email: "x@y.com", cpf: "12345678900", phone: "11999999999" }
       }),
       (err: any) => err instanceof UnauthorizedException && err.message === "embed_unknown_checkout_session"
     );
