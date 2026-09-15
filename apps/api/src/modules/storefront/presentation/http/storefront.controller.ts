@@ -233,11 +233,11 @@ export class StorefrontController {
   @Post("conversations/:conversationId/access")
   renewConversationAccess(
     @Param("conversationId") conversationId: string,
-    @Req() request: { headers?: { authorization?: string; origin?: string } },
+    @Req() request: { headers?: { authorization?: string; origin?: string; "x-trusted-storefront-origin"?: string | string[]; "x-internal-service-token"?: string | string[] } },
   ) {
     const token = request.headers?.authorization?.match(/^Bearer (\S+)$/i)?.[1];
     try {
-      const access = this.capabilities.renewConversation(token, conversationId, request.headers?.origin);
+      const access = this.capabilities.renewConversation(token, conversationId, storefrontOrigin(request));
       return { conversation_id: conversationId, conversation_token: access.token, conversation_token_expires_at: access.expiresAt };
     } catch {
       throw new UnauthorizedException("invalid_conversation_token");
@@ -505,11 +505,11 @@ export class StorefrontController {
     return this.updateBudgetStatus.execute(id, body.status, currentTenantPrincipal(request).tenantId);
   }
 
-  private conversationAccess(request: { headers?: { authorization?: string; origin?: string } }, conversationId: string, merchantId?: string) {
+  private conversationAccess(request: { headers?: { authorization?: string; origin?: string; "x-trusted-storefront-origin"?: string | string[]; "x-internal-service-token"?: string | string[] } }, conversationId: string, merchantId?: string) {
     const authorization = request.headers?.authorization;
     const token = typeof authorization === "string" && authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : undefined;
     let claims;
-    try { claims = this.capabilities.verify(token, "storefront-conversation", request.headers?.origin); }
+    try { claims = this.capabilities.verify(token, "storefront-conversation", storefrontOrigin(request)); }
     catch { throw new UnauthorizedException("invalid_conversation_token"); }
     if (claims.resourceId !== conversationId || (merchantId !== undefined && claims.merchantId !== merchantId)) {
       throw new ForbiddenException("conversation_access_denied");

@@ -45,6 +45,23 @@ test("conversation capability binds an origin forwarded by the authenticated sto
       () => capabilities.verify(response.conversation_token, "storefront-conversation", "https://gateway.example"),
       /realtime_origin_not_allowed/,
     );
+    assert.equal(
+      (controller as any).conversationAccess({ headers: {
+        authorization: `Bearer ${response.conversation_token}`,
+        origin: "https://gateway.example",
+        "x-trusted-storefront-origin": "https://store.example",
+        "x-internal-service-token": "test-internal-service-token",
+      } }, "cart_a").merchantId,
+      "merchant",
+    );
+    assert.throws(
+      () => (controller as any).conversationAccess({ headers: {
+        authorization: `Bearer ${response.conversation_token}`,
+        origin: "https://gateway.example",
+        "x-trusted-storefront-origin": "https://store.example",
+      } }, "cart_a"),
+      /invalid_conversation_token/,
+    );
 
     const untrusted = await controller.startConversation(
       { merchant_id: "merchant" },
