@@ -39,8 +39,9 @@ test("Compra rápida stays compact in the mobile header with Stories", async ({ 
   await page.setViewportSize({ width: 375, height: 667 });
   await page.goto("/store/demo");
 
-  const chatEntry = page.getByRole("button", { name: "Por chat" });
-  if (await chatEntry.isVisible({ timeout: 2_000 }).catch(() => false)) await chatEntry.click();
+  const chatEntry = page.getByRole("button", { name: /Por chat/i });
+  await expect(chatEntry).toBeVisible();
+  await chatEntry.click();
 
   const mobileHeaderToggle = page.locator('[data-one-buy-click-toggle="mobile-header"]');
   const headerToggle = page.locator('[data-one-buy-click-toggle="header"]');

@@ -90,6 +90,8 @@ test("StartCheckoutUseCase persists the selected prompt experiment variant", asy
     repository.getSession("mrc_1", "chk_prompt_assignment")?.promptVariantId,
     "variant_treatment",
   );
+});
+
 test("StartCheckoutUseCase rejects new journeys when the commercial quota is suspended", async () => {
   const repository = new InMemoryCheckoutRepository();
   const useCase = createStartCheckoutUseCase(repository, repository, {
