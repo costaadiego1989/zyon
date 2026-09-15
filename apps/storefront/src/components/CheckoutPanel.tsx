@@ -5,6 +5,7 @@ import { useCart } from "@/lib/cart-store";
 import { cartApi } from "@/lib/api/api-client";
 import { conversationFetch } from "@/lib/conversation-access";
 import { getValidBuyer } from "@/lib/buyer-auth";
+import CheckoutErrorBoundary from "./CheckoutErrorBoundary";
 
 interface CheckoutPanelProps {
   merchantId: string;
@@ -19,7 +20,7 @@ interface CheckoutPanelProps {
   onClose: () => void;
 }
 
-const InlineCheckout = lazy(() =>
+const createInlineCheckout = () => lazy(() =>
   import("@zyon/widget-v2").then((mod) => ({ default: mod.InlineCheckout }))
 );
 
@@ -32,7 +33,17 @@ function resolveInitialTheme(propTheme?: "dark" | "light"): "dark" | "light" {
   return "light";
 }
 
-export default function CheckoutPanel({
+export default function CheckoutPanel(props: CheckoutPanelProps) {
+  const [attempt, setAttempt] = useState(0);
+
+  return (
+    <CheckoutErrorBoundary key={attempt} onClose={props.onClose} onRetry={() => setAttempt((value) => value + 1)}>
+      <CheckoutPanelContent {...props} />
+    </CheckoutErrorBoundary>
+  );
+}
+
+function CheckoutPanelContent({
   merchantId,
   globalUserId: initialGlobalUserId,
   cartRef,
@@ -41,6 +52,9 @@ export default function CheckoutPanel({
   theme,
   onClose,
 }: CheckoutPanelProps) {
+  // React.lazy caches rejected imports. A fresh mount must be able to retry
+  // loading the checkout after a network failure, including after closing it.
+  const [InlineCheckout] = useState(createInlineCheckout);
   const effectiveTheme = resolveInitialTheme(theme);
   const [embedToken, setEmbedToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
