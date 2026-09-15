@@ -475,7 +475,9 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
       {!cartDrawerOpen && <SupportFAB
         open={supportOpen}
         onToggle={() => setSupportOpen(!supportOpen)}
-        bottomOffset={isMobile && status === "active" && !supportOpen ? mobileActionOffset : (showBranding ? 40 : 0)}
+        bottomOffset={isMobile && status === "active" && !supportOpen
+          ? mobileActionOffset
+          : (!isMobile && status === "active" ? 72 + (showBranding ? 40 : 0) : (showBranding ? 40 : 0))}
         rightOffset={!isMobile && status === "active" ? "clamp(338px, calc(28vw + 40px), 400px)" : undefined}
       />}
       <SupportPanel open={supportOpen} onClose={() => setSupportOpen(false)} />
