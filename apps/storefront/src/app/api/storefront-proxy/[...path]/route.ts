@@ -9,7 +9,9 @@ function isIdentifier(value: string | undefined): value is string {
 function isAllowedPath(path: string[]): boolean {
   if (path[0] === "nudge") return path.length === 1;
   if (path[0] === "conversations") {
-    return path.length === 3 && isIdentifier(path[1]) && ["messages", "one-buy-click", "access", "history"].includes(path[2]!);
+    if (!isIdentifier(path[1])) return false;
+    if (path.length === 3) return ["messages", "one-buy-click", "access", "history"].includes(path[2]!);
+    return path.length === 4 && path[2] === "realtime" && path[3] === "session";
   }
   if (path[0] !== "cart" || !isIdentifier(path[1])) return false;
   return path.length === 2 ||
