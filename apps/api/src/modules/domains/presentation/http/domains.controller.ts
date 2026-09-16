@@ -24,8 +24,7 @@ import { RegisterDomainUseCase } from "../../application/use-cases/register-doma
 import { VerifyDomainUseCase } from "../../application/use-cases/verify-domain.use-case.js";
 import { ListDomainsUseCase } from "../../application/use-cases/list-domains.use-case.js";
 
-@UseGuards(AuthGuard, PlanLimitGuard)
-@RequirePlanFeature("customDomain")
+@UseGuards(AuthGuard)
 @Controller("merchants/me/domains")
 export class DomainsController {
   constructor(
@@ -41,6 +40,8 @@ export class DomainsController {
   }
 
   @Post()
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanFeature("customDomain")
   async register(
     @CurrentTenant() merchantId: string,
     @Body() body: { domain: string },
@@ -51,6 +52,8 @@ export class DomainsController {
     });
   }
 
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanFeature("customDomain")
   @Post(":domainId/verify")
   async verify(
     @CurrentTenant() merchantId: string,
@@ -63,6 +66,8 @@ export class DomainsController {
   }
 
   @Delete(":domainId")
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanFeature("customDomain")
   async remove(
     @CurrentTenant() merchantId: string,
     @Param("domainId") domainId: string,
