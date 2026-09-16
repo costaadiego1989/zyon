@@ -10,7 +10,7 @@ function isAllowedPath(path: string[]): boolean {
   if (path[0] === "nudge") return path.length === 1;
   if (path[0] === "conversations") {
     if (!isIdentifier(path[1])) return false;
-    if (path.length === 3) return ["messages", "one-buy-click", "access", "history"].includes(path[2]!);
+    if (path.length === 3) return ["messages", "one-buy-click", "access", "history", "events"].includes(path[2]!);
     return path.length === 4 && path[2] === "realtime" && path[3] === "session";
   }
   if (path[0] !== "cart" || !isIdentifier(path[1])) return false;

@@ -1,5 +1,7 @@
 "use client";
 
+import { conversationFetch } from "@/lib/conversation-access";
+
 export type TriggerName = "idle_30_seconds" | "exit_intent_detected";
 
 export interface TriggerConfig {
@@ -15,12 +17,11 @@ function reportTriggerEvent(triggerName: TriggerName, config: TriggerConfig): vo
   if (!config.sessionId || !config.merchantId) return;
   const apiUrl = config.apiBaseUrl || "http://localhost:3009";
   try {
-    fetch(`${apiUrl}/checkout/track-event`, {
+    conversationFetch(config.sessionId, `${apiUrl}/storefront/conversations/${encodeURIComponent(config.sessionId)}/events`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         merchant_id: config.merchantId,
-        session_id: config.sessionId,
         event: triggerName,
         metadata: { timestamp: new Date().toISOString() },
       }),
