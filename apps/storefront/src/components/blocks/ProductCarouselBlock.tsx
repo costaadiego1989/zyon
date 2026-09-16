@@ -9,6 +9,7 @@ import ImageSlideshow from "../ImageSlideshow";
 import styles from "./ProductCarouselBlock.module.css";
 
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const variantIdPattern = /^[A-Za-z0-9_-]{1,191}$/;
 
 export default function ProductCarouselBlock({ block, onQuickReply }: {
   block: ProductCarouselBlockType;
@@ -61,6 +62,12 @@ export default function ProductCarouselBlock({ block, onQuickReply }: {
         const images = product.images?.length ? product.images : product.image ? [product.image] : [];
         const details = () => onQuickReply?.("Detalhes " + product.name);
         const customizable = (product.variants?.length ?? 0) > 1 || (product.optionGroups?.length ?? 0) > 0;
+        const singleVariantId = product.variants?.length === 1 && variantIdPattern.test(product.variants[0].id)
+          ? product.variants[0].id
+          : undefined;
+        const addToCart = () => onQuickReply?.(singleVariantId
+          ? `Adicionar ${product.name} ao carrinho [variantId:${singleVariantId}]`
+          : "Adicionar " + product.name + " ao carrinho");
         return <article key={product.id} className={styles.card} data-aacp-carousel-product={product.id}>
           <div className={styles.media} onClick={details}>
             {images.length ? <ImageSlideshow images={images} alt={product.name} objectFit="cover" /> : <div className={styles.noImage}><FiPackage aria-hidden="true" /><span>Imagem indisponível</span></div>}
@@ -80,7 +87,7 @@ export default function ProductCarouselBlock({ block, onQuickReply }: {
             <RuleNotices notices={product.ruleNotices} />
             <div className={styles.ctas}>
               <button data-neu="control" type="button" onClick={details}>Saber mais</button>
-              <button data-neu="primary" type="button" className={styles.buy} disabled={!product.inStock} onClick={() => customizable ? details() : onQuickReply?.("Adicionar " + product.name + " ao carrinho")}>{customizable ? "Escolher opções" : "Adicionar ao carrinho"}</button>
+              <button data-neu="primary" type="button" className={styles.buy} disabled={!product.inStock} onClick={() => customizable ? details() : addToCart()}>{customizable ? "Escolher opções" : "Adicionar ao carrinho"}</button>
             </div>
           </div>
         </article>;
