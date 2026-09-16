@@ -432,6 +432,12 @@ button:disabled {
   transition: background var(--duration-fast) var(--ease), box-shadow var(--duration-fast) var(--ease), transform var(--duration-fast) var(--ease);
 }
 
+
+body:has([data-dashboard-side-panel]) .platform-feedback-fab {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .platform-feedback-fab:hover {
   background: var(--color-brand-hover);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);

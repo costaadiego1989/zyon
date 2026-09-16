@@ -238,7 +238,7 @@ function SidePanel({ title, subtitle, onClose, children, width = 420 }: {
   width?: number;
 }) {
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", justifyContent: "flex-end" }} onClick={onClose}>
+    <div data-dashboard-side-panel style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", justifyContent: "flex-end" }} onClick={onClose}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)" }} />
       <aside
         style={{ position: "relative", width, maxWidth: "90vw", height: "100vh", overflowY: "auto", background: "var(--surface-2)", borderLeft: "1px solid var(--color-border)", padding: "28px 24px", display: "flex", flexDirection: "column", gap: "20px", animation: "slideInRight 0.2s ease-out" }}
