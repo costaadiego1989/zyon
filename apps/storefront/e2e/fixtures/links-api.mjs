@@ -15,7 +15,7 @@ createServer(async (req, res) => {
   if (path.endsWith("/stories")) return send({ categories: [] });
   if (path.includes("widget-config")) return send({ enabledTriggers: [], budgetModeEnabled: false });
   if (path.endsWith("/recovery")) {
-    if (req.headers.origin !== "http://localhost:4318") return send({ message: "recovery_origin_not_allowed" }, 403);
+    if (req.headers["x-trusted-storefront-origin"] !== "http://localhost:4318" || req.headers["x-internal-service-token"] !== "local-links-service-token") return send({ message: "recovery_origin_not_allowed" }, 403);
     if (body.token === "expired") return send({ message: "recovery_link_invalid_or_expired" }, 401);
     if (body.token === "completed") return send({ message: "recovery_purchase_completed" }, 410);
     if (!body.buyer_access_token) return send({ message: "recovery_buyer_login_required" }, 401);

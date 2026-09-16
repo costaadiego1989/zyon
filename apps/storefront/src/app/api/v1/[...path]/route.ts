@@ -77,6 +77,15 @@ async function proxyRequest(
 
   const origin = request.headers.get("Origin");
   if (origin) headers.Origin = origin;
+  // Preserve a verified browser origin when the public API gateway removes Origin.
+  if (/^storefront\/[^/]+\/recovery$/.test(path)) {
+    if (!origin || origin !== request.nextUrl.origin) return NextResponse.json({ error: "origin_not_allowed" }, { status: 403 });
+    const serviceToken = process.env.INTERNAL_SERVICE_TOKEN;
+    if (serviceToken) {
+      headers["X-Internal-Service-Token"] = serviceToken;
+      headers["X-Trusted-Storefront-Origin"] = origin;
+    }
+  }
   const idempotencyKey = request.headers.get("Idempotency-Key");
   if (idempotencyKey) {
     headers["Idempotency-Key"] = idempotencyKey;

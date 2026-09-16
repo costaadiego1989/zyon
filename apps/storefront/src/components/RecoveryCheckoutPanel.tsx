@@ -10,7 +10,7 @@ const messages: Record<string, string> = {
   recovery_link_invalid_or_expired: "Este link expirou ou não é válido. Volte à loja para continuar sua compra.",
   recovery_purchase_completed: "Esta compra já foi concluída. Você pode acompanhar o pedido na sua conta.",
   recovery_purchase_unavailable: "Este carrinho não está mais disponível. Volte à loja para escolher seus produtos.",
-  recovery_store_mismatch: "Este link pertence a outra loja. Abra o endere?o completo recebido na mensagem.",
+  recovery_store_mismatch: "Este link pertence a outra loja. Abra o endereço completo recebido na mensagem.",
   recovery_buyer_mismatch: "Entre com a conta usada nesta compra para continuar.",
 };
 export default function RecoveryCheckoutPanel({ token, slug, merchantId, storeName, theme, onClose }: {

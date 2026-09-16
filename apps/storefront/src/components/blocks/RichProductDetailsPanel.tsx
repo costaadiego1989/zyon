@@ -1,7 +1,7 @@
 "use client";
 import { productShareUrl } from "@/lib/storefront-navigation";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FiArrowLeft, FiX } from "react-icons/fi";
 import type { ConversationBlock } from "@/lib/types";
 import ProductContentBlock, { type ProductNarrationDetails } from "./ProductContentBlock";
@@ -26,12 +26,18 @@ export default function RichProductDetailsPanel({
   const panel = useRef<HTMLDivElement>(null);
   const closeCallback = useRef(onClose);
   closeCallback.current = onClose;
+  const resolvedCallback = useRef(onProductResolved);
+  resolvedCallback.current = onProductResolved;
   const [closing, setClosing] = useState(false);
   const [shareUrl, setShareUrl] = useState("");
   const [narration, setNarration] = useState<ProductNarrationDetails | null>(null);
   const [product, setProduct] = useState<{ name: string; defaultVariantId: string | null } | null>(null);
   const [cartAdded, setCartAdded] = useState(false);
 
+  const handleProductResolved = useCallback((resolved: { name: string; defaultVariantId: string | null }) => {
+    setProduct(resolved);
+    resolvedCallback.current?.({ productId, ...resolved });
+  }, [productId]);
   const close = () => setClosing(true);
 
   useEffect(() => {
@@ -111,10 +117,7 @@ export default function RichProductDetailsPanel({
         narrationEnabled={!closing && !suspended}
         shareUrl={shareUrl}
         onNarrationChange={setNarration}
-        onProductResolved={(resolved) => {
-          setProduct(resolved);
-          onProductResolved?.({ productId, ...resolved });
-        }}
+        onProductResolved={handleProductResolved}
         onCartAdded={() => setCartAdded(true)}
       />
     </div>

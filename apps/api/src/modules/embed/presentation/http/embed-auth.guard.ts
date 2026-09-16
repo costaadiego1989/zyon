@@ -60,7 +60,7 @@ function requestOrigin(headers: Record<string, string | string[] | undefined>): 
  * stripped or rewritten the standard Origin header. The forwarded value is
  * accepted only from a caller authenticated with the internal service token.
  */
-function readTrustedStorefrontOrigin(headers: Record<string, string | string[] | undefined>): string | undefined {
+export function readTrustedStorefrontOrigin(headers: Record<string, string | string[] | undefined>): string | undefined {
   const expectedServiceToken = process.env.INTERNAL_SERVICE_TOKEN;
   if (!expectedServiceToken) return undefined;
 

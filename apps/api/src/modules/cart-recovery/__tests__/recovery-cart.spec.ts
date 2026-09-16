@@ -6,7 +6,7 @@ import type { Cart } from "@zyon/shared-types";
 function fixture() {
   const variant = { id: "variant", productId: "product", sku: "sku", product: { merchantId: "merchant", name: "Sanduiche", type: "physical",
     metadata: { optionGroups: [{ id: "extras", name: "Extras", selectionType: "multiple", items: [{ id: "cheese", name: "Queijo", priceModifierInCents: 500 }] }] } },
-    price: { currency: "BRL", basePriceInCents: 2000, costInCents: 1000 }, stock: [{ quantity: 10, reserved: 0 }] };
+    price: { currency: "BRL", basePriceInCents: 2000, costInCents: 1000 }, stock: [{ quantity: 10, reserved: 0 }], media: [{ url: "https://example.test/product.jpg" }] };
   const promotions = [{ variantId: "variant", discountType: "percent", discountValue: 10, isActive: true }];
   const authority = new CheckoutCartAuthorityService({
     storefrontCart: { findUnique: async () => { throw new Error("recovery_must_use_checkout_snapshot"); } },

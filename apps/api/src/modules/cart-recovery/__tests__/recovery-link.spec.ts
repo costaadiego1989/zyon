@@ -112,3 +112,23 @@ test("failure to generate a recovery link sends nothing and leaves the attempt u
     merchantRules: { allowFreeShipping: false, maxDiscountPercent: 0 }, forcedStrategy: { type: "personalized_cross_sell", recent_skus: [] } } as any), /link_unavailable/);
   assert.equal(repo.count(), 0); assert.equal(sends, 0);
 });
+
+import { RecoveryCheckoutController } from "../presentation/http/recovery-checkout.controller.js";
+
+test("recovery honors the authenticated storefront origin after gateway stripping and rejects spoofed headers", async () => {
+  const previous = process.env.INTERNAL_SERVICE_TOKEN;
+  process.env.INTERNAL_SERVICE_TOKEN = "local-internal-recovery-proof";
+  try {
+    const h = await fixture();
+    const controller = new RecoveryCheckoutController(h.resume);
+    const body = { token: h.link.searchParams.get("recovery"), buyer_access_token: "buyer-proof" };
+    const headers = { "x-internal-service-token": process.env.INTERNAL_SERVICE_TOKEN, "x-trusted-storefront-origin": h.link.origin };
+    const result = await controller.execute("test-store", undefined, body, headers);
+    assert.ok(result.embed_session_token);
+    await assert.rejects(controller.execute("test-store", undefined, body, { ...headers, "x-internal-service-token": "forged" }), /recovery_origin_not_allowed/);
+    delete process.env.INTERNAL_SERVICE_TOKEN;
+    await assert.rejects(controller.execute("test-store", undefined, body, headers), /recovery_origin_not_allowed/);
+  } finally {
+    if (previous === undefined) delete process.env.INTERNAL_SERVICE_TOKEN; else process.env.INTERNAL_SERVICE_TOKEN = previous;
+  }
+});
