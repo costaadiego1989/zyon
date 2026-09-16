@@ -8,8 +8,30 @@ function validMerchantId(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0 && value.length <= 120;
 }
 
+function publicRequestOrigin(request: Request): string {
+  const internalOrigin = new URL(request.url).origin;
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const forwardedProtocol = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
+  const browserOrigin = request.headers.get("origin");
+
+  // Railway terminates TLS at the edge and forwards requests over its internal
+  // network. Only accept that public origin when it exactly matches the browser
+  // Origin, so a forwarded header never expands the cross-origin trust boundary.
+  if (
+    request.headers.get("x-railway-edge") &&
+    forwardedHost &&
+    /^[A-Za-z0-9.-]+(?::\d{1,5})?$/.test(forwardedHost) &&
+    forwardedProtocol === "https"
+  ) {
+    const publicOrigin = `https://${forwardedHost}`;
+    if (browserOrigin === publicOrigin) return publicOrigin;
+  }
+
+  return internalOrigin;
+}
+
 export async function POST(request: Request) {
-  const origin = new URL(request.url).origin;
+  const origin = publicRequestOrigin(request);
   if (request.headers.get("origin") !== origin) {
     return NextResponse.json({ error: "origin_not_allowed" }, { status: 403 });
   }

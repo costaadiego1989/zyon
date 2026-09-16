@@ -6,6 +6,28 @@ function isIdentifier(value: string | undefined): value is string {
   return Boolean(value && /^[A-Za-z0-9_-]{1,200}$/.test(value));
 }
 
+function publicRequestOrigin(request: Request): string {
+  const internalOrigin = new URL(request.url).origin;
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const forwardedProtocol = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
+  const browserOrigin = request.headers.get("origin");
+
+  // Railway terminates TLS at the edge and forwards requests over its internal
+  // network. Only accept that public origin when it exactly matches the browser
+  // Origin, so a forwarded header never expands the cross-origin trust boundary.
+  if (
+    request.headers.get("x-railway-edge") &&
+    forwardedHost &&
+    /^[A-Za-z0-9.-]+(?::\d{1,5})?$/.test(forwardedHost) &&
+    forwardedProtocol === "https"
+  ) {
+    const publicOrigin = `https://${forwardedHost}`;
+    if (browserOrigin === publicOrigin) return publicOrigin;
+  }
+
+  return internalOrigin;
+}
+
 function isAllowedPath(path: string[]): boolean {
   if (path[0] === "nudge") return path.length === 1;
   if (path[0] === "conversations") {
@@ -30,7 +52,7 @@ async function proxy(request: Request, context: RouteContext): Promise<NextRespo
   const { path } = await context.params;
   if (!isAllowedPath(path)) return NextResponse.json({ error: "route_not_allowed" }, { status: 404 });
 
-  const origin = new URL(request.url).origin;
+  const origin = publicRequestOrigin(request);
   if (!requestHasVerifiedStorefrontOrigin(request, origin)) {
     return NextResponse.json({ error: "origin_not_allowed" }, { status: 403 });
   }
