@@ -5,6 +5,7 @@ import vm from "node:vm";
 import { createRequire } from "node:module";
 import { webcrypto } from "node:crypto";
 import ts from "typescript";
+import { storefrontRequestOrigin } from "../../../../../../storefront/src/lib/platform-hostname.js";
 
 type ProxyRoute = (request: Request, context: { params: Promise<{ path: string[] }> }) => Promise<Response>;
 
@@ -18,7 +19,7 @@ function route(upstream: typeof fetch): ProxyRoute {
   vm.runInNewContext(outputText, {
     module,
     exports: module.exports,
-    require: createRequire(sourceUrl),
+    require: (name: string) => name === "@/lib/platform-hostname" ? { storefrontRequestOrigin } : createRequire(sourceUrl)(name),
     process: { env: { INTERNAL_SERVICE_TOKEN: "unit-test-service-token", AACP_API_URL: "https://api.example" } },
     URL,
     Headers,
@@ -70,4 +71,19 @@ test("storefront embed proxy forwards a verified origin only with the server cre
   assert.equal(headers.get("authorization"), "Bearer signed-embed-token");
   assert.equal(headers.get("x-internal-service-token"), "unit-test-service-token");
   assert.equal(headers.get("x-trusted-storefront-origin"), "https://store.example");
+});
+
+test("standalone embed proxy authenticates the public HTTPS origin and rejects a foreign browser origin", async () => {
+  let calls = 0;
+  const post = route(async (_url, init) => {
+    calls++;
+    assert.equal((init!.headers as Headers).get("x-trusted-storefront-origin"), "https://store.example");
+    return Response.json({ session_id: "checkout_session" });
+  });
+  const standalone = (origin: string) => new Request("http://0.0.0.0:8080/api/embed/start", {
+    method: "POST", headers: { host: "store.example", "x-forwarded-proto": "https", origin, authorization: "Bearer token" }, body: "{}",
+  });
+  assert.equal((await post(standalone("https://store.example"), startContext())).status, 200);
+  assert.equal((await post(standalone("https://attacker.example"), startContext())).status, 403);
+  assert.equal(calls, 1);
 });

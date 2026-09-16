@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { storefrontRequestOrigin } from "@/lib/platform-hostname";
 
 type RouteContext = { params: Promise<{ path: string[] }> };
 
@@ -23,7 +24,7 @@ async function proxy(request: Request, context: RouteContext): Promise<NextRespo
     return NextResponse.json({ error: "route_not_allowed" }, { status: 404 });
   }
 
-  const origin = new URL(request.url).origin;
+  const origin = storefrontRequestOrigin(request);
   if (!requestHasVerifiedStorefrontOrigin(request, origin)) {
     return NextResponse.json({ error: "origin_not_allowed" }, { status: 403 });
   }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { storefrontRequestOrigin } from "@/lib/platform-hostname";
 
 const API_BASE_URL = process.env.AACP_API_URL || "http://localhost:3009";
 const API_KEY = process.env.AACP_SERVICE_API_KEY || "";
@@ -79,7 +80,7 @@ async function proxyRequest(
   if (origin) headers.Origin = origin;
   // Preserve a verified browser origin when the public API gateway removes Origin.
   if (/^storefront\/[^/]+\/recovery$/.test(path)) {
-    if (!origin || origin !== request.nextUrl.origin) return NextResponse.json({ error: "origin_not_allowed" }, { status: 403 });
+    if (!origin || origin !== storefrontRequestOrigin(request)) return NextResponse.json({ error: "origin_not_allowed" }, { status: 403 });
     const serviceToken = process.env.INTERNAL_SERVICE_TOKEN;
     if (serviceToken) {
       headers["X-Internal-Service-Token"] = serviceToken;

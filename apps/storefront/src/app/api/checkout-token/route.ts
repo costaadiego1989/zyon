@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { storefrontRequestOrigin } from "@/lib/platform-hostname";
 
 export async function POST(request: Request) {
   const serviceToken = process.env.INTERNAL_SERVICE_TOKEN;
   const apiBase = process.env.AACP_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3009";
-  const origin = new URL(request.url).origin;
+  const origin = storefrontRequestOrigin(request);
   if (request.headers.get("origin") !== origin) {
     return NextResponse.json({ error: "origin_not_allowed" }, { status: 403 });
   }

@@ -12,3 +12,13 @@ export function storefrontRequestHostname(hostHeader: string | null, fallback: s
   }
   return fallback.toLowerCase().replace(/\.$/, "");
 }
+
+/** External request authority preserved by the hosting proxy in standalone mode. */
+export function storefrontRequestOrigin(request: Request): string {
+  const fallback = new URL(request.url);
+  const host = request.headers.get("host");
+  if (!host || /[\s/\\@?#]/.test(host)) return fallback.origin;
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const protocol = forwardedProto === "https" || forwardedProto === "http" ? forwardedProto + ":" : fallback.protocol;
+  try { return new URL(protocol + "//" + host).origin; } catch { return fallback.origin; }
+}
