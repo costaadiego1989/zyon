@@ -1,4 +1,6 @@
 import test from "node:test";
+import { GenerateRecoveryLinkUseCase } from "../application/use-cases/generate-recovery-link.use-case.js";
+import { RecoveryLinkTokenService } from "../domain/recovery-link-token.service.js";
 import assert from "node:assert/strict";
 import { RECOVERY_TEMPLATE_DEFAULTS, prepareRecoveryWhatsApp } from "../../whatsapp-templates/domain/recovery-template-content.js";
 import type { PrismaClient } from "@prisma/client";
@@ -69,6 +71,10 @@ for (const strategy of strategies) for (const scenario of scenarios) {
       upsert: async () => { throw new Error("Routing must not invent a template"); },
       updateMeta: async () => { throw new Error("Routing must not invent template approval"); },
     };
+    const tokens = new RecoveryLinkTokenService("test-only-recovery-secret-at-least-32-characters");
+    const links = new GenerateRecoveryLinkUseCase({ merchant: { findUnique: async () => ({ storeSlug: "test-shop" }) } } as never, sessions, tokens);
+    const recoveryLink = await links.execute({ merchantId: session.merchantId, sessionId: session.sessionId });
+    assert.equal(tokens.verify(new URL(recoveryLink).searchParams.get("recovery")).sessionId, session.sessionId);
     let whatsapp = 0;
     let email = 0;
     let bubble = 0;
@@ -78,7 +84,7 @@ for (const strategy of strategies) for (const scenario of scenarios) {
         assert.equal(request.type, "cart_recovery");
         assert.equal(request.contentVariables["1"], "Test buyer");
         assert.equal(request.contentVariables["2"], "Test shop");
-        assert.ok(request.contentVariables["3"]?.startsWith("https://"));
+        assert.equal(request.contentVariables["3"], recoveryLink);
         // Current approved recovery templates carry a reminder and link only.
         // This verifies routing, not fulfillment of a strategy incentive.
         assert.equal(Object.values(request.contentVariables).includes("RECOVER10"), false);
@@ -91,12 +97,13 @@ for (const strategy of strategies) for (const scenario of scenarios) {
         assert.equal(request.to, "buyer@example.invalid");
         assert.match(request.html, /Test shop/);
         assert.match(request.html, /Retomar minha compra/);
+        assert.ok(request.html.includes(`href="${recoveryLink.replace(/&/g, "&amp;")}"`));
         assert.doesNotMatch(request.html, /RECOVER10|ganhe.*frete|% OFF/);
         email++;
         return { messageId: "email-test", status: "queued" };
       },
     }, configs);
-    const useCase = new AttemptCartRecoveryUseCase(attempts, { now: () => now }, router);
+    const useCase = new AttemptCartRecoveryUseCase(attempts, { now: () => now }, router, (_url, sessionId, _cart, _embed, merchantId) => links.execute({ merchantId: merchantId!, sessionId }));
     const prisma = {
       checkoutEvent: { findMany: async () => [{ eventName: "shipping_objection_detected" }] },
       merchant: { findUnique: async () => ({ name: "Test shop" }) },

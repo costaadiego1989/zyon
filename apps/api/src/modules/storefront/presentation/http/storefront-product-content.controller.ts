@@ -103,12 +103,21 @@ export class StorefrontProductContentController {
     private readonly billing: BillingPlanMeteringService,
   ) {}
 
+  @Get(":slug/products/:productId/share")
+  async getSharedProduct(@Param("slug") slug: string, @Param("productId") productId: string, @Headers("accept-language") language?: string) {
+    return this.getRepresentation(slug, productId, language, true);
+  }
+
   @Get(":slug/products/:productId/content")
   async getContent(
     @Param("slug") slug: string,
     @Param("productId") productId: string,
     @Headers("accept-language") acceptLanguage?: string,
   ) {
+    return this.getRepresentation(slug, productId, acceptLanguage, false);
+  }
+
+  private async getRepresentation(slug: string, productId: string, acceptLanguage: string | undefined, allowBasic: boolean) {
     const merchant = await this.prisma.merchant.findFirst({
       where: { storeSlug: slug },
       select: { id: true, storeSlug: true },
@@ -118,7 +127,8 @@ export class StorefrontProductContentController {
     }
 
     const plan = await this.billing.getEffectivePlan(merchant.id);
-    if (!BILLING_PLANS[plan].features.advancedProductLayout) {
+    const advanced = BILLING_PLANS[plan].features.advancedProductLayout;
+    if (!advanced && !allowBasic) {
       throw new NotFoundException({ code: "product_content_not_found" });
     }
 
@@ -164,11 +174,11 @@ export class StorefrontProductContentController {
       resolveLocaleFromAcceptLanguage(acceptLanguage)
     );
 
-    const content = await this.getProductContent.execute({
+    const content = advanced ? await this.getProductContent.execute({
       merchantId: merchant.id,
       productId: product.id,
       locale,
-    });
+    }) : { locale, blocks: [], faqs: [], testimonials: [], videos: [] };
 
     // Rich-content CTAs carry only a server-selected variant identifier. The
     // conversation/cart path still rechecks price, stock and checkout rules;

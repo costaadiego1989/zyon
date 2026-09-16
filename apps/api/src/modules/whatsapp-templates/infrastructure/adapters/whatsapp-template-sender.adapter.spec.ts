@@ -14,10 +14,12 @@ describe("Meta Cloud template sender", () => {
     credentials: { accessToken: "merchant-token", wabaId: "123456789", phoneNumberId: "987654321" },
     whatsappNumber: "5511999990000", createdAt: new Date(0), updatedAt: new Date(0),
   };
-  const template = {
+  const template: WhatsAppTemplateRecord = {
+    name: "Recovery", body: "Hello {{buyerName}}, return: {{link}}.", subject: null,
+    metaCategory: "MARKETING", metaRejectionReason: null, createdAt: new Date(), updatedAt: new Date(),
     id: "template-1", merchantId: "m1", type: "cart_recovery", channel: "whatsapp", isActive: true,
-    metaStatus: "approved", metaWabaId: "123456789", metaLastCheckedAt: new Date(), twilioContentSid: "zyon_recovery_123", metaLanguage: "pt_BR", metaTemplateBody: "Hello", metaVariableMap: {},
-  } as WhatsAppTemplateRecord;
+    metaStatus: "approved", metaWabaId: "123456789", metaLastCheckedAt: new Date(), twilioContentSid: "zyon_recovery_123", metaLanguage: "pt_BR", metaTemplateBody: "Hello {{1}}, return: {{2}}.", metaVariableMap: { "1": "buyerName", "2": "link" },
+  };
   const input = {
     merchantId: "m1", type: "cart_recovery" as const, toNumber: "11999991111", contentSid: "zyon_recovery_123",
     language: "pt_BR", contentVariables: { "1": "Ana", "2": "https://store.test/recover" },
@@ -82,8 +84,10 @@ describe("Meta Cloud template sender", () => {
     }, h.configs);
     assert.deepEqual(await useCase.execute({
       merchantId: "m1", type: "cart_recovery", toPhone: input.toNumber, fallbackEmail: "buyer@example.test",
-      freeformText: "Seu carrinho", variables: { buyerName: "Ana" },
+      freeformText: "Seu carrinho", variables: { buyerName: "Ana", link: "https://store.test/store/demo?show=checkout&recovery=signed" },
     }), { channel: "email", status: "sent", messageId: "email-1" });
     assert.equal(emails, 1);
+    assert.equal(h.requests.length, 1);
+    assert.equal(JSON.parse(String(h.requests[0]?.init?.body)).template.components[0].parameters[1].text, "https://store.test/store/demo?show=checkout&recovery=signed");
   });
 });

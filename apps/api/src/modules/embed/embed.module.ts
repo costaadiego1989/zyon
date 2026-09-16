@@ -82,6 +82,8 @@ import { EmbedRealtimeVoiceController } from "./presentation/http/embed-realtime
     ProtocolSessionExpiryReaper,
   ],
   exports: [
+    IssueEmbedSessionUseCase,
+    ResolveEmbedBuyerService,
     EmbedTokenService,
     AgentSessionTokenService,
     EmbedAuthGuard,

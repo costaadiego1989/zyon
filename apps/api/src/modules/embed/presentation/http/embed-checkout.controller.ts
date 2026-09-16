@@ -131,6 +131,10 @@ export class EmbedCheckoutController {
       throw new UnauthorizedException("embed_buyer_authentication_unavailable");
     }
     const trustedBuyer = await this.resolveBuyer?.resolve(embed.merchantId, body.buyer_access_token);
+    const recovered = embed.recoveredCheckoutSessionId ? await this.embedGuards.loadSession(embed.merchantId, sessionId) : undefined;
+    if (embed.recoveredCheckoutSessionId && (!recovered || !trustedBuyer || recovered.globalUserId !== trustedBuyer.globalUserId)) {
+      throw new UnauthorizedException("checkout_buyer_proof_required");
+    }
     const { merchant_id: _discard, merchantId: _d2, cart_ref: _ref, buyer_access_token: _buyerToken, global_user_id: _buyerId, ...rest } = body as StartCheckoutRequest & {
       merchantId?: string;
       cart_ref?: unknown;
@@ -141,8 +145,8 @@ export class EmbedCheckoutController {
       ...(rest as Omit<StartCheckoutRequest, "merchant_id">),
       merchant_id: embed.merchantId,
       session_id: sessionId,
-      cart: embed.cartRef ? { ...body.cart, commerceCartRef: embed.cartRef } : body.cart,
-    }, { storefrontCartRef: embed.storefrontCartRef, trustedBuyer, requireBuyerProof: true });
+      cart: recovered?.cart ?? (embed.cartRef ? { ...body.cart, commerceCartRef: embed.cartRef } : body.cart),
+    }, { storefrontCartRef: recovered ? (recovered.cart as { cart_ref?: string }).cart_ref : embed.storefrontCartRef, trustedBuyer, requireBuyerProof: true, refreshCart: !!recovered });
   }
 
   @Post("track")

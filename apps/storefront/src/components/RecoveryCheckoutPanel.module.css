@@ -1,0 +1,6 @@
+.panel { position: fixed; inset: 0; z-index: 10000; overflow: auto; background: var(--aacp-bg); color: var(--aacp-fg); display: grid; align-items: center; padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom)); }
+.content { width: 100%; max-width: 440px; margin: auto; }
+.content h1 { font-size: 1.5rem; line-height: 1.3; margin: 28px 0 16px; }
+.content p { line-height: 1.6; margin: 0 0 24px; }
+.content button { min-height: 44px; padding: 10px 16px; cursor: pointer; }
+.content button:focus-visible { outline: 2px solid var(--aacp-accent); outline-offset: 4px; }

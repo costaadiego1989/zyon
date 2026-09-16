@@ -40,13 +40,13 @@ describe("cart recovery test outcomes", () => {
       sent: true, status: "sent", channel: "email", messageId: "email-id",
     }), { status: 200 }));
     const feedback = await sendRecoveryTest("https://api.example.test", {
-      phone: "  +5511999999999  ", email: "  owner@example.test  ",
+      sessionId: "checkout-test", phone: "  +5511999999999  ", email: "  owner@example.test  ",
     }, fetchImpl);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     const [url, init] = fetchImpl.mock.calls[0]!;
     expect(url).toBe("https://api.example.test/v1/cart-recovery/test-send");
     expect(init?.credentials).toBe("include");
-    expect(JSON.parse(String(init?.body))).toEqual({ phone: "+5511999999999", email: "owner@example.test" });
+    expect(JSON.parse(String(init?.body))).toEqual({ phone: "+5511999999999", email: "owner@example.test", session_id: "checkout-test" });
     expect(feedback.text).toContain("e-mail");
   });
 
@@ -54,8 +54,8 @@ describe("cart recovery test outcomes", () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
       sent: false, status: "skipped", channel: "none",
     }), { status: 200 }));
-    const feedback = await sendRecoveryTest("https://api.example.test", { email: "owner@example.test" }, fetchImpl);
-    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toEqual({ email: "owner@example.test" });
+    const feedback = await sendRecoveryTest("https://api.example.test", { email: "owner@example.test", sessionId: "checkout-test" }, fetchImpl);
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toEqual({ email: "owner@example.test", session_id: "checkout-test" });
     expect(feedback.type).toBe("error");
   });
 
@@ -67,6 +67,13 @@ describe("cart recovery test outcomes", () => {
 
   it("propagates HTTP failure without reporting a sent message", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response("unavailable", { status: 503 }));
-    await expect(sendRecoveryTest("https://api.example.test", { email: "owner@example.test" }, fetchImpl)).rejects.toThrow();
+    await expect(sendRecoveryTest("https://api.example.test", { email: "owner@example.test", sessionId: "checkout-test" }, fetchImpl)).rejects.toThrow();
   });
+});
+
+it("requires the checkout session before sending a recovery test", async () => {
+  const fetchImpl = vi.fn<typeof fetch>();
+  const result = await sendRecoveryTest("https://api.example.test", { email: "owner@example.test" }, fetchImpl);
+  expect(result.type).toBe("error");
+  expect(fetchImpl).not.toHaveBeenCalled();
 });

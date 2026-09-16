@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { PerimeterBorder } from "../../../widget_v2/src/components/PerimeterBorder";
 import { SafeStoreHtml } from "./SafeStoreHtml";
 import { useCart } from "@/lib/cart-store";
@@ -14,6 +14,8 @@ import SupportPanel from "./SupportPanel";
 import StoriesRow from "./StoriesRow";
 import CheckoutWidgetPanel from "./CheckoutWidgetPanel";
 import CheckoutPanel from "./CheckoutPanel";
+import RecoveryCheckoutPanel from "./RecoveryCheckoutPanel";
+import { useStorefrontNavigation } from "@/lib/hooks/useStorefrontNavigation";
 import WhitelabelBadge from "./WhitelabelBadge";
 import BuyerAuthGate from "./BuyerAuthGate";
 import CrossSellInterstitial from "./CrossSellInterstitial";
@@ -226,6 +228,7 @@ export default function ConversationShell({
   agentMode,
   agentInitialDelaySeconds,
   initialRichProductId,
+  initialSearch = "",
 }: {
   storeName: string;
   logo?: string;
@@ -243,6 +246,7 @@ export default function ConversationShell({
   agentMode?: "silent_until_trigger" | "proactive" | "manual_only";
   agentInitialDelaySeconds?: number;
   initialRichProductId?: string;
+  initialSearch?: string;
   storeSettings?: {
     social?: StoreSocialSettings;
     company?: { cnpj?: string; razaoSocial?: string; email?: string; phone?: string; businessHours?: string; address?: { city?: string; state?: string } };
@@ -275,7 +279,9 @@ export default function ConversationShell({
   const presentedProductVariantRef = useRef<string | undefined>(undefined);
   const agent = agentName || "Assistente";
   const { cart } = useCart();
-  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const navigation = useStorefrontNavigation(initialSearch || (initialRichProductId ? `?show=content&product=${encodeURIComponent(initialRichProductId)}` : ""));
+  const checkoutOpen = navigation.view.checkout;
+  const setCheckoutOpen = navigation.setCheckout;
   const realtimeVoice = useRealtimeVoiceCheckout({
     // This session is reserved for the explicit purchase-voice header control.
     enabled: voiceCheckoutEnabled === true && !checkoutOpen,
@@ -371,11 +377,12 @@ export default function ConversationShell({
   const [logoError, setLogoError] = useState(false);
   const [checkoutUserId, setCheckoutUserId] = useState("");
   const [mounted, setMounted] = useState(false);
-  const [richProduct, setRichProduct] = useState<{ productId: string } | null>(() =>
-    typeof initialRichProductId === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(initialRichProductId)
-      ? { productId: initialRichProductId }
-      : null,
-  );
+  const [welcomeVoiceRequested, setWelcomeVoiceRequested] = useState(false);
+  const richProduct = useMemo(() => navigation.view.productId ? { productId: navigation.view.productId } : null, [navigation.view.productId]);
+  const setRichProduct = navigation.setProduct;
+  useEffect(() => {
+    if (cartDrawerForceOpen) { navigation.setCart(true); setCartDrawerForceOpen(false); }
+  }, [cartDrawerForceOpen, navigation.setCart, setCartDrawerForceOpen]);
   const checkoutInitialChannel = voiceCheckoutEnabled && channel === "voice"
     ? "voice"
     : "chat";
@@ -481,11 +488,12 @@ export default function ConversationShell({
     clearPreparedCheckout();
   }, [preparedCheckout, oneBuyClick, clearPreparedCheckout]);
   useEffect(() => {
-    if (!richProduct || openedInitialRichProduct.current) return;
+    if ((!richProduct && !checkoutOpen && !navigation.view.cart) || openedInitialRichProduct.current) return;
     openedInitialRichProduct.current = true;
     selectChannel("chat");
-  }, [richProduct, selectChannel]);
+  }, [richProduct, checkoutOpen, navigation.view.cart, selectChannel]);
   useEffect(() => {
+    if (checkoutOpen || navigation.view.cart) return;
     const latest = messages.at(-1);
     if (!latest || latest.role !== "agent") return;
     const block = latest.blocks?.find((item) => item.type === "product_content")
@@ -553,7 +561,7 @@ export default function ConversationShell({
       handleQuickReply(`Adicionar produto ao carrinho [variantId:${variantId}]${optionTag}`);
     };
     window.addEventListener("aacp:add-rich-product-to-cart", onRichProductAdd);
-    const onRichProductCart = () => { setRichProduct(null); handleQuickReply("Ver carrinho"); };
+    const onRichProductCart = () => { navigation.setCart(true); };
     window.addEventListener("aacp:open-rich-product-cart", onRichProductCart);
     const onOpenRichProduct = (event: Event) => {
       const productId = (event as CustomEvent<{ productId?: unknown }>).detail?.productId;
@@ -1026,8 +1034,10 @@ export default function ConversationShell({
           onViewCart={() => setCartDrawerForceOpen(true)}
           onUpdateQty={handleUpdateQuantity}
           onRemoveItem={(variantId) => handleUpdateQuantity(variantId, 0)}
-          forceOpen={cartDrawerForceOpen}
-          suppressAutoOpen={Boolean(crossSellPending) || Boolean(richProduct)}
+          forceOpen={navigation.view.cart}
+          onOpen={() => navigation.setCart(true)}
+          onClose={() => navigation.setCart(false)}
+          suppressAutoOpen={Boolean(crossSellPending) || Boolean(richProduct) || checkoutOpen}
         />
       )}
       {/* Cross-sell interstitial — shows before the cart drawer after add-to-cart */}
@@ -1074,10 +1084,13 @@ export default function ConversationShell({
       )}
       {/* Inline Checkout Panel — replaces redirect to widget app */}
       {checkoutOpen && merchantId && (
-        <CheckoutPanel
+        navigation.view.recovery && merchantSlug ? <RecoveryCheckoutPanel
+          token={navigation.view.recovery} slug={merchantSlug} merchantId={merchantId} storeName={storeName}
+          theme={theme} onClose={() => setCheckoutOpen(false)}
+        /> : <CheckoutPanel
           merchantId={merchantId}
           globalUserId={checkoutUserId}
-          cartRef={checkoutCartRef}
+          cartRef={checkoutCartRef ?? cart.cartId ?? undefined}
           oneBuyClickPreferences={checkoutPreferences}
           initialChannel={checkoutInitialChannel}
           theme={theme}
@@ -1085,7 +1098,7 @@ export default function ConversationShell({
         />
       )}
       </div>{/* end content wrapper */}
-      {richProduct ? <RichProductDetailsPanel key={richProduct.productId} productId={richProduct.productId} merchantSlug={merchantSlug} suspended={buyerHubOpen || cartDrawerForceOpen || showBuyerAuth || checkoutOpen} onProductResolved={({ productId, defaultVariantId }) => {
+      {richProduct ? <RichProductDetailsPanel key={richProduct.productId} productId={richProduct.productId} merchantSlug={merchantSlug} suspended={buyerHubOpen || navigation.view.cart || showBuyerAuth || checkoutOpen} onProductResolved={({ productId, defaultVariantId }) => {
         if (richProduct.productId === productId && typeof defaultVariantId === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(defaultVariantId)) {
           presentedProductVariantRef.current = defaultVariantId;
         }

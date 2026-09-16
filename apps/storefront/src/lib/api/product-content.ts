@@ -124,7 +124,7 @@ export async function fetchProductContent(
 ): Promise<PublicProductContent | null> {
   if (!slug || !productId) return null;
 
-  const url = `${API_BASE_URL}/storefront/${encodeURIComponent(slug)}/products/${encodeURIComponent(productId)}/content`;
+  const url = `${API_BASE_URL}/storefront/${encodeURIComponent(slug)}/products/${encodeURIComponent(productId)}/share`;
 
   try {
     const res = await fetch(url, {

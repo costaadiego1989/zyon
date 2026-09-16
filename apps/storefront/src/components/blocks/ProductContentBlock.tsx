@@ -91,7 +91,7 @@ export default function ProductContentBlock({
     setStatus("loading");
     setContent(null);
 
-    fetch(`${API_BASE}/storefront/${encodeURIComponent(merchantSlug)}/products/${encodeURIComponent(productId)}/content`, {
+    fetch(`${API_BASE}/storefront/${encodeURIComponent(merchantSlug)}/products/${encodeURIComponent(productId)}/share`, {
       // Use the storefront's displayed language. The browser preference can
       // differ (e.g. English browser on the Portuguese storefront).
       headers: { Accept: "application/json", "Accept-Language": document.documentElement.lang || "pt-BR" },

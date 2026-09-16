@@ -11,6 +11,8 @@ interface CheckoutPanelProps {
   merchantId: string;
   globalUserId: string;
   cartRef: string | undefined;
+  initialEmbedToken?: string;
+  recovered?: boolean;
   oneBuyClickPreferences?: {
     shippingPreference: "fastest" | "cheapest";
     paymentPreference: "pix" | "card";
@@ -47,6 +49,8 @@ function CheckoutPanelContent({
   merchantId,
   globalUserId: initialGlobalUserId,
   cartRef,
+  initialEmbedToken,
+  recovered = false,
   oneBuyClickPreferences,
   initialChannel,
   theme,
@@ -56,20 +60,21 @@ function CheckoutPanelContent({
   // loading the checkout after a network failure, including after closing it.
   const [InlineCheckout] = useState(createInlineCheckout);
   const effectiveTheme = resolveInitialTheme(theme);
-  const [embedToken, setEmbedToken] = useState<string | null>(null);
+  const [embedToken, setEmbedToken] = useState<string | null>(initialEmbedToken ?? null);
   const [error, setError] = useState<string | null>(null);
   const [globalUserId, setGlobalUserId] = useState(initialGlobalUserId);
   const { cart, clearCart } = useCart();
 
   useEffect(() => {
     const onOrderCompleted = () => {
+      if (recovered) return;
       const cid = cart.cartId;
       if (cid && merchantId) void cartApi.clear(cid, merchantId).catch(() => {});
       clearCart();
     };
     window.addEventListener("aacp:order-completed", onOrderCompleted);
     return () => window.removeEventListener("aacp:order-completed", onOrderCompleted);
-  }, [clearCart, cart.cartId, merchantId]);
+  }, [clearCart, cart.cartId, merchantId, recovered]);
 
   useEffect(() => {
     if (!initialGlobalUserId) {
@@ -86,10 +91,13 @@ function CheckoutPanelContent({
 
   const tokenCartRef = useRef<string | null>(null);
   if (tokenCartRef.current === null) {
-    tokenCartRef.current = cartRef || cart.cartId || "";
+    tokenCartRef.current = recovered ? "" : cartRef || cart.cartId || "";
   }
   useEffect(() => {
+    if (initialEmbedToken) return;
     const cartRefForToken = cartRef || tokenCartRef.current || undefined;
+    if (!cartRefForToken) { setError("Seu carrinho está vazio neste navegador. Volte à loja para adicionar produtos."); return; }
+    setError(null);
     conversationFetch(cartRefForToken ?? "", "/api/checkout-token", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -110,7 +118,7 @@ function CheckoutPanelContent({
       .catch(() => setError("Erro ao conectar com servidor de checkout"));
     // Intentionally excludes cart.cartId: see comment above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [merchantId, cartRef]);
+  }, [merchantId, cartRef, initialEmbedToken]);
 
   if (error) {
     return (
@@ -141,7 +149,7 @@ function CheckoutPanelContent({
           merchantId={merchantId}
           apiBaseUrl={apiBase}
           embedApiBaseUrl="/api"
-          cartRef={cartRef || tokenCartRef.current || undefined}
+          cartRef={recovered ? undefined : cartRef || tokenCartRef.current || undefined}
           globalUserId={globalUserId}
           buyerAccessToken={getValidBuyer()?.token}
           oneBuyClickPreferences={oneBuyClickPreferences}

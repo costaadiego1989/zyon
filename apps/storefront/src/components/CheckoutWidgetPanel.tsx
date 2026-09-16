@@ -11,6 +11,8 @@ interface NativeCartPanelProps {
   onUpdateQty: (variantId: string, quantity: number) => void;
   onRemoveItem: (variantId: string) => void;
   forceOpen?: boolean;
+  onOpen?: () => void;
+  onClose?: () => void;
   suppressAutoOpen?: boolean;
 }
 export default function NativeCartPanel({
@@ -20,6 +22,8 @@ export default function NativeCartPanel({
   onUpdateQty,
   onRemoveItem,
   forceOpen,
+  onOpen,
+  onClose,
   suppressAutoOpen,
 }: NativeCartPanelProps) {
   const { cart, clearCart, updating, error } = useCart();
@@ -32,7 +36,12 @@ export default function NativeCartPanel({
   
   useEffect(() => {
     if (forceOpen) {
-      handleManualOpen();
+      manuallyOpenedRef.current = true;
+      if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+      setSheetOpen(true);
+    } else {
+      manuallyOpenedRef.current = false;
+      setSheetOpen(false);
     }
   }, [forceOpen]);
   
@@ -55,8 +64,9 @@ export default function NativeCartPanel({
       autoCloseTimerRef.current = null;
     }
     setSheetOpen(true);
+    onOpen?.();
   };
-  const closeSheet = () => { manuallyOpenedRef.current = false; setSheetOpen(false); };
+  const closeSheet = () => { manuallyOpenedRef.current = false; setSheetOpen(false); onClose?.(); };
   useEffect(() => () => { if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current); }, []);
   
   useEffect(() => {

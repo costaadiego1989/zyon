@@ -34,7 +34,8 @@ export type LinkGenerator = (
   sessionId: string,
   cartRef?: string | null,
   embedToken?: string | null,
-) => string;
+  merchantId?: string,
+) => string | Promise<string>;
 
 const MINIMUM_SCORE_THRESHOLD = 0.55;
 
@@ -44,13 +45,7 @@ function defaultLinkGenerator(
   cartRef?: string | null,
   embedToken?: string | null,
 ): string {
-  const base = checkoutReturnUrl || process.env.PUBLIC_WIDGET_URL || "https://widget.aacp.com/checkout";
-  const params = new URLSearchParams();
-  if (embedToken) params.set("embedToken", embedToken);
-  if (cartRef) params.set("cartRef", cartRef);
-  if (sessionId) params.set("sessionId", sessionId);
-  const query = params.toString();
-  return query ? `${base}?${query}` : base;
+  throw new Error("recovery_link_service_unavailable");
 }
 
 export class AttemptCartRecoveryUseCase {
@@ -89,6 +84,10 @@ export class AttemptCartRecoveryUseCase {
       this.logger.debug("recovery: no authorized contact channel", { merchantId: input.merchantId, sessionId: input.sessionId });
       return { created: false };
     }
+    // Resolve before claiming or dispatching: a link-generation failure is safe to retry.
+    const link = this.messageSender ? await this.linkGenerator(
+      input.merchantCheckoutReturnUrl, input.sessionId, input.cartRef, input.embedToken, input.merchantId,
+    ) : "";
     const attemptId = `rec_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
     const attempt = new RecoveryAttempt({
       id: attemptId,
@@ -110,12 +109,6 @@ export class AttemptCartRecoveryUseCase {
       return { created: false };
     }
 
-    const link = this.linkGenerator(
-      input.merchantCheckoutReturnUrl,
-      input.sessionId,
-      input.cartRef,
-      input.embedToken,
-    );
     const offerLine = strategyOfferLine(strategy);
 
     // The shared router owns connection/template validation and email fallback.

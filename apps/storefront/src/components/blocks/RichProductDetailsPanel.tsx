@@ -1,4 +1,5 @@
 "use client";
+import { productShareUrl } from "@/lib/storefront-navigation";
 
 import { useEffect, useRef, useState } from "react";
 import { FiArrowLeft, FiX } from "react-icons/fi";
@@ -35,10 +36,7 @@ export default function RichProductDetailsPanel({
 
   useEffect(() => {
     if (!merchantSlug || typeof window === "undefined") return;
-    const url = new URL("/store/" + encodeURIComponent(merchantSlug), window.location.origin);
-    url.searchParams.set("show", "content");
-    url.searchParams.set("product", productId);
-    setShareUrl(url.toString());
+    setShareUrl(productShareUrl(window.location.origin, merchantSlug, productId));
   }, [merchantSlug, productId]);
 
   useEffect(() => {

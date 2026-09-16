@@ -34,7 +34,7 @@ export function recoveryTestFeedback(value: unknown): RecoveryTestFeedback {
 
 export async function sendRecoveryTest(
   apiBaseUrl: string,
-  recipients: { phone?: string; email?: string },
+  recipients: { phone?: string; email?: string; sessionId?: string },
   fetchImpl?: typeof fetch,
 ): Promise<RecoveryTestFeedback> {
   const phone = recipients.phone?.trim() || undefined;
@@ -42,9 +42,11 @@ export async function sendRecoveryTest(
   if (!phone && !email) {
     return { type: "error", text: "Informe um telefone ou e-mail para testar o envio." };
   }
+  const sessionId = recipients.sessionId?.trim();
+  if (!sessionId) return { type: "error", text: "Informe uma sessão de checkout desta loja para testar o link de recuperação." };
   const result = await dashboardJson<unknown>(apiBaseUrl, "/cart-recovery/test-send", {
     method: "POST",
-    jsonBody: { phone, email },
+    jsonBody: { phone, email, session_id: sessionId },
   }, fetchImpl);
   return recoveryTestFeedback(result);
 }

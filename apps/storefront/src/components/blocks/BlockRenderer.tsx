@@ -30,7 +30,7 @@ export default function BlockRenderer({
 }) {
   switch (block.type) {
     case "product_card":
-      return <ProductCardBlock block={block} onQuickReply={onQuickReply} />;
+      return <ProductCardBlock block={block} merchantSlug={merchantSlug} onQuickReply={onQuickReply} />;
     case "product_carousel":
       return <ProductCarouselBlock block={block} onQuickReply={onQuickReply} />;
     case "comparison_table":

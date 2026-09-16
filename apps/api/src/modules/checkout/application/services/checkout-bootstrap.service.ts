@@ -31,7 +31,7 @@ export class CheckoutBootstrapService {
   ) {}
 
   async bootstrap(input: StartCheckoutRequest, globalUserId: string, cartValidated = false,
-    identity?: { trustedBuyer?: TrustedCheckoutBuyer; requireBuyerProof?: boolean },
+    identity?: { trustedBuyer?: TrustedCheckoutBuyer; requireBuyerProof?: boolean; refreshCart?: boolean },
   ): Promise<BootstrapResult> {
     let enrichedInput = input;
 
@@ -122,6 +122,17 @@ export class CheckoutBootstrapService {
       }
     } else if (identity?.requireBuyerProof && session.customer?.email_verified === true) {
       throw new UnauthorizedException("checkout_buyer_proof_required");
+    }
+
+    if (identity?.refreshCart) {
+      // Requote items, delivery and payment after absence, preserving verified identity.
+      session.cart = enrichedInput.cart;
+      session.shipping = undefined;
+      session.shippingOptions = undefined;
+      session.paymentMethod = undefined;
+      session.abandonmentScore = 0;
+      session.triggerAgent = false;
+      session.updatedAt = new Date().toISOString();
     }
 
     this.logger.warn('[CHECKOUT-DBG] session saved', { sessionId, customer: { cpf: !!session.customer?.cpf, name: !!session.customer?.fullName, asaasId: !!session.customer?.asaasCustomerId } });

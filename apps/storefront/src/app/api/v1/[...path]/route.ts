@@ -75,6 +75,8 @@ async function proxyRequest(
   if (authorization) headers.Authorization = authorization;
   else if (API_KEY) headers.Authorization = `Bearer ${API_KEY}`;
 
+  const origin = request.headers.get("Origin");
+  if (origin) headers.Origin = origin;
   const idempotencyKey = request.headers.get("Idempotency-Key");
   if (idempotencyKey) {
     headers["Idempotency-Key"] = idempotencyKey;
@@ -98,6 +100,8 @@ async function proxyRequest(
       status: response.status,
       headers: {
         "Content-Type": response.headers.get("Content-Type") || "application/json",
+        "Cache-Control": "no-store",
+        "Referrer-Policy": "no-referrer",
         ...(response.headers.get("X-RateLimit-Limit") && {
           "X-RateLimit-Limit": response.headers.get("X-RateLimit-Limit")!,
         }),

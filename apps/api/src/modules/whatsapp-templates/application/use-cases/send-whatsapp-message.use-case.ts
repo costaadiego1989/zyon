@@ -71,6 +71,12 @@ export class SendWhatsAppMessageUseCase {
   ) {}
 
   async execute(input: SendWhatsAppMessageInput): Promise<SendWhatsAppMessageResult> {
+    if (input.type === "cart_recovery") {
+      try {
+        const link = new URL(String(input.variables?.link ?? ""));
+        if (link.protocol !== "https:" || link.username || link.password) throw new Error();
+      } catch { return { channel: "none", status: "skipped", reason: "recovery_link_invalid" }; }
+    }
     return this.sendSalesMessage(input);
   }
 
@@ -82,7 +88,8 @@ export class SendWhatsAppMessageUseCase {
         const template = await this.templates
           .findByMerchantAndType(input.merchantId, input.type, "whatsapp")
           .catch(() => null);
-        if (isApprovedSalesTemplate(template, input.merchantId, input.type, connection.wabaId)) {
+        if (isApprovedSalesTemplate(template, input.merchantId, input.type, connection.wabaId)
+          && (input.type !== "cart_recovery" || hasRecoveryLinkSlot(template))) {
           try {
             const result = await this.templateSender.sendTemplate({
               merchantId: input.merchantId,
@@ -181,4 +188,11 @@ export class SendWhatsAppMessageUseCase {
     for (const [pos, name] of Object.entries(map)) out[pos] = values[name] ?? "";
     return out;
   }
+}
+
+/** The approved BODY must contain the positional slot receiving the actual recovery URL. */
+export function hasRecoveryLinkSlot(template: Pick<WhatsAppTemplateRecord, "metaVariableMap" | "metaTemplateBody">): boolean {
+  return Object.entries(template.metaVariableMap ?? {}).some(([position, name]) =>
+    name === "link" && /^[1-9][0-9]*$/.test(position) && template.metaTemplateBody?.includes(`{{${position}}}`),
+  );
 }

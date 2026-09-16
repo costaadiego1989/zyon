@@ -23,7 +23,31 @@ export class CheckoutCartAuthorityService {
       where: { merchantId_sessionId: { merchantId, sessionId: cartRef } },
     });
     if (!stored || stored.expiresAt.getTime() <= Date.now()) throw new BadRequestException("checkout_cart_expired");
-    const lines = stored.items as unknown as StorefrontCartItem[];
+    return this.resolveStorefrontLines(merchantId, cartRef, stored.items as unknown as StorefrontCartItem[], stored.discount, false);
+  }
+
+  /** Only the authenticated, persisted checkout snapshot may supply these lines. */
+  async resolveRecoveredStorefront(merchantId: string, snapshot: Cart, cartRef: string): Promise<Cart> {
+    const lines = snapshot.items.map(item => {
+      let optionIds: string[] = [];
+      if (item.variant) {
+        try {
+          const selection = JSON.parse(item.variant);
+          if (!Array.isArray(selection) || selection[0] !== item.variantId || !Array.isArray(selection[1])
+            || !selection[1].every((id: unknown) => typeof id === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(id))) throw new Error();
+          optionIds = selection[1];
+        } catch { throw new BadRequestException("checkout_product_options_changed"); }
+      } else if (item.selected_options?.length) throw new BadRequestException("checkout_product_options_changed");
+      return {
+        variantId: item.variantId ?? "", productId: item.product_id ?? "", sku: item.sku, name: item.name,
+        quantity: item.quantity, unitPriceCents: Math.round(item.price * 100), imageUrl: item.imageUrl,
+        selectedOptions: optionIds.map(itemId => ({ itemId, groupId: "", groupName: "", itemName: "", priceModifierInCents: 0 })),
+      };
+    });
+    return this.resolveStorefrontLines(merchantId, cartRef, lines, 0, true);
+  }
+
+  private async resolveStorefrontLines(merchantId: string, cartRef: string, lines: StorefrontCartItem[], discount: number, reprice: boolean): Promise<Cart> {
     if (!Array.isArray(lines) || !lines.length || lines.length > 100) throw new BadRequestException("checkout_cart_items_required");
     const variants = await this.prisma.productVariant.findMany({
       where: { id: { in: lines.map(line => line.variantId) }, isActive: true, product: { merchantId, isActive: true } },
@@ -48,6 +72,9 @@ export class CheckoutCartAuthorityService {
       const imageUrl = candidate.media[0]?.url;
       if (imageUrl && !productImages.has(candidate.productId)) productImages.set(candidate.productId, imageUrl);
     }
+    const activePromotions = reprice ? await this.prisma.productPromotion.findMany({
+      where: { merchantId, isActive: true, startsAt: { lte: new Date() }, endsAt: { gt: new Date() } },
+    }) : [];
     const quantities = new Map<string, number>();
     let currency: CurrencyCode | undefined;
     const items: CartItem[] = lines.map(line => {
@@ -64,32 +91,54 @@ export class CheckoutCartAuthorityService {
       if (variant.product.type === "physical" && variant.stock.reduce((sum, stock) => sum + Math.max(0, stock.quantity - stock.reserved), 0) < quantity) {
         throw new BadRequestException("checkout_insufficient_stock");
       }
+      let resolvedOptions;
       try {
-        resolveSelectedOptions(extractOptionGroups(variant.product.metadata), (line.selectedOptions ?? []).map(option => option.itemId));
+        resolvedOptions = resolveSelectedOptions(extractOptionGroups(variant.product.metadata), (line.selectedOptions ?? []).map(option => option.itemId));
       } catch { throw new BadRequestException("checkout_product_options_changed"); }
+      let quotedPrice = line.unitPriceCents;
+      if (reprice) {
+        this.price(variant.price.basePriceInCents);
+        quotedPrice = variant.price.basePriceInCents;
+        for (const promotion of activePromotions) {
+          if (promotion.variantId !== variant.id && (!variant.product.categoryId || promotion.categoryId !== variant.product.categoryId)) continue;
+          if (promotion.couponId) continue;
+          if (promotion.promoPriceInCents != null && promotion.discountType == null) {
+            this.price(promotion.promoPriceInCents);
+            quotedPrice = Math.min(quotedPrice, promotion.promoPriceInCents);
+            continue;
+          }
+          if ((promotion.discountType !== "percent" && promotion.discountType !== "fixed") || typeof promotion.discountValue !== "number" || !Number.isFinite(promotion.discountValue) || promotion.discountValue < 0) throw new BadRequestException("checkout_product_promotion_invalid");
+          quotedPrice = Math.min(quotedPrice, resolveEffectivePrice(variant.price.basePriceInCents, {
+            discountType: promotion.discountType, discountValue: promotion.discountValue, isActive: true,
+          }, null).effectivePriceCents);
+        }
+        quotedPrice += resolvedOptions.priceModifierInCents;
+        this.price(quotedPrice);
+      }
       return {
         sku: variant.sku, variantId: variant.id, product_id: variant.productId,
         variant: JSON.stringify([variant.id, (line.selectedOptions ?? []).map(option => option.itemId).sort()]),
         variantLabel: [
           ...Object.values((variant.attributes ?? {}) as Record<string, unknown>)
             .filter((value): value is string => typeof value === "string" && Boolean(value.trim())),
-          ...(line.selectedOptions ?? []).map(option => option.itemName),
+          ...(reprice ? resolvedOptions.selected : line.selectedOptions ?? []).map(option => option.itemName),
         ].join(" · "),
-        name: line.name, quantity: line.quantity, price: line.unitPriceCents / 100,
+        name: reprice ? variant.product.name : line.name, quantity: line.quantity, price: quotedPrice / 100,
         imageUrl: variant.media[0]?.url ?? productImages.get(variant.productId) ?? line.imageUrl,
         cost: variant.price.costInCents == null ? undefined : variant.price.costInCents / 100,
         weightGrams: variant.weightGrams ?? undefined, height_cm: variant.heightCm ?? undefined,
         width_cm: variant.widthCm ?? undefined, length_cm: variant.lengthCm ?? undefined,
         category: variant.product.categoryId ?? undefined,
-        selected_options: line.selectedOptions?.map(option => ({ group_name: option.groupName, item_name: option.itemName, price_modifier: option.priceModifierInCents / 100 })),
+        selected_options: (reprice ? resolvedOptions.selected : line.selectedOptions)?.map(option => ({ group_name: option.groupName, item_name: option.itemName, price_modifier: option.priceModifierInCents / 100 })),
       };
     });
-    const quoted: Cart & { cart_ref: string } = { items, currency: currency!, total: 0, source: "storefront", cart_ref: cartRef, currentDiscount: stored.discount / 100 };
-    const cart = await this.promotions?.resolveCartPromos(quoted, merchantId) ?? quoted;
+    const quoted: Cart & { cart_ref: string } = { items, currency: currency!, total: 0, source: "storefront", cart_ref: cartRef, currentDiscount: reprice ? 0 : discount / 100 };
+    // Recovery prices already include active catalog promotions; never discount twice.
+    const cart = reprice ? quoted : await this.promotions?.resolveCartPromos(quoted, merchantId) ?? quoted;
     const totalCents = cart.items.reduce((sum, item) => sum + Math.round(item.price * 100) * item.quantity, 0);
     this.price(totalCents);
-    this.price(stored.discount);
-    return { ...cart, total: totalCents / 100, currentDiscount: Math.min(stored.discount, totalCents) / 100 };
+    this.price(discount);
+    return { ...cart, total: totalCents / 100, currentDiscount: reprice ? (cart.currentDiscount ?? 0) : Math.min(discount, totalCents) / 100 };
   }
 
   async resolve(merchantId: string, submitted: Cart): Promise<Cart> {

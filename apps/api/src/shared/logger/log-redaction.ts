@@ -29,6 +29,7 @@ export const REDACTED_LOG_PATHS = [
   "req.body.mobile_phone",
   "req.body.cpf_cnpj",
   "res.body.access_token",
+  "res.body.embed_session_token",
   "res.body.email",
   "res.body.cpf",
   "res.body.phone",

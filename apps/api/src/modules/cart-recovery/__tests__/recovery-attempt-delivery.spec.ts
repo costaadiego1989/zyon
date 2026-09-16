@@ -14,13 +14,14 @@ const input: AttemptCartRecoveryInput = {
   buyerPhone: "test-only",
   buyerEmail: "buyer@example.invalid",
 };
+const recoveryLink = () => "https://store.example/store/test?show=checkout&recovery=signed";
 const clock = { now: () => new Date("2026-09-05T12:00:00.000Z") };
 
 test("a skipped route does not mark recovery sent", async () => {
   const repo = new InMemoryRecoveryAttemptRepository();
   const useCase = new AttemptCartRecoveryUseCase(repo, clock, {
     execute: async () => ({ status: "skipped", channel: "none" }),
-  });
+  }, recoveryLink);
   await useCase.execute(input);
   assert.equal(repo.getAll()[0]?.status, "pending");
   assert.equal(repo.getAll()[0]?.sentAt, null);
@@ -30,7 +31,7 @@ test("a definite rejection is failed and retains the selected channel", async ()
   const repo = new InMemoryRecoveryAttemptRepository();
   const useCase = new AttemptCartRecoveryUseCase(repo, clock, {
     execute: async () => ({ status: "failed", channel: "whatsapp_template", reason: "rejected" }),
-  });
+  }, recoveryLink);
   await useCase.execute(input);
   assert.equal(repo.getAll()[0]?.status, "failed");
   assert.equal(repo.getAll()[0]?.channel, "whatsapp_template");
@@ -56,7 +57,7 @@ test("one routing call receives both contacts and sentAt follows provider accept
       started(); await accepted;
       return { status: "sent", channel: "whatsapp_template", messageId: "test-id" };
     },
-  });
+  }, recoveryLink);
   const execution = useCase.execute(input);
   await entered;
   assert.equal(repo.getAll()[0]?.status, "pending");
@@ -80,7 +81,7 @@ test("email-only buyers use the shared route and the actual channel is recorded"
       assert.equal(request.fallbackEmail, input.buyerEmail);
       return { messageId: "email-id", status: "sent", channel: "email" };
     },
-  });
+  }, recoveryLink);
   await useCase.execute({ ...input, buyerPhone: undefined });
   assert.equal(repo.getAll()[0]?.status, "sent");
   assert.equal(repo.getAll()[0]?.channel, "email");
@@ -97,7 +98,7 @@ test("uncertain results and transport errors hold the attempt without retry or a
         if (throws) throw new Error("transport timeout after dispatch");
         return { status: "uncertain", channel: "whatsapp_template", reason: "timeout" };
       },
-    });
+    }, recoveryLink);
     await useCase.execute(input);
     assert.equal(repo.getAll()[0]?.status, "unknown");
     assert.equal(repo.getAll()[0]?.sentAt, null);
@@ -111,7 +112,7 @@ test("an invalid legacy channel cannot be recorded as an approved template send"
   const repo = new InMemoryRecoveryAttemptRepository();
   const useCase = new AttemptCartRecoveryUseCase(repo, clock, {
     execute: async () => ({ status: "sent", channel: "bubblewhats" }),
-  });
+  }, recoveryLink);
   await useCase.execute(input);
   assert.equal(repo.getAll()[0]?.status, "unknown");
   assert.equal(repo.getAll()[0]?.sentAt, null);
@@ -122,7 +123,7 @@ test("recovery does not create or route a campaign without a permitted channel",
   let sends = 0;
   const useCase = new AttemptCartRecoveryUseCase(repo, clock, {
     async execute() { sends++; return { status: "sent", channel: "email", messageId: "unexpected" } as const; },
-  }, undefined, { async canContact() { return false; } });
+  }, recoveryLink, { async canContact() { return false; } });
   assert.deepEqual(await useCase.execute(input), { created: false });
   assert.equal(sends, 0);
   assert.equal(repo.count(), 0);
@@ -136,7 +137,7 @@ test("recovery exposes only the explicitly permitted fallback channel to the rou
       assert.equal(request.fallbackEmail, input.buyerEmail);
       return { status: "sent", channel: "email", messageId: "email-only" } as const;
     },
-  }, undefined, { async canContact({ channel }: { channel: string }) { return channel === "email"; } });
+  }, recoveryLink, { async canContact({ channel }: { channel: string }) { return channel === "email"; } });
   await useCase.execute(input);
   assert.equal(repo.getAll()[0]?.channel, "email");
 });

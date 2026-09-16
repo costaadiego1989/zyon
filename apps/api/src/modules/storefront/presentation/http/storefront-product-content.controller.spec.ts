@@ -99,3 +99,19 @@ test("a variant without a catalog price cannot be selected for purchase", async 
   assert.equal(result.purchase.variants[0].available, false);
   assert.equal(result.purchase.priceReais, null);
 });
+
+test("share links expose only the public purchase when editorial content is unavailable in the plan", async () => {
+  const { BILLING_PLANS } = await import("@zyon/shared-types");
+  const before = BILLING_PLANS.starter.features.advancedProductLayout;
+  BILLING_PLANS.starter.features.advancedProductLayout = false;
+  try {
+    const controller = makeController({ id: "product-1", merchantId: "merchant-1", name: "Produto", type: "digital",
+      variants: [{ id: "variant-1", attributes: {}, price: { basePriceInCents: 1000, currency: "BRL" }, stock: [] }] });
+    await assert.rejects(controller.getContent("demo", "product-1"), /Not Found/);
+    const shared = await controller.getSharedProduct("demo", "product-1");
+    assert.equal(shared.purchase.productName, "Produto");
+    assert.deepEqual(shared.blocks, []);
+    assert.deepEqual(shared.videos, []);
+    assert.equal(shared.purchase.priceReais, 10);
+  } finally { BILLING_PLANS.starter.features.advancedProductLayout = before; }
+});

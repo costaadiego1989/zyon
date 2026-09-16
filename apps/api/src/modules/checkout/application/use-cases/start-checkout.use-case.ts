@@ -57,7 +57,7 @@ export class StartCheckoutUseCase {
     @Optional() @Inject(PROMPT_EXPERIMENT_PORT) private readonly promptExperiment?: PromptExperimentPort,
   ) { }
 
-  async execute(input: StartCheckoutRequest, trustedContext?: { storefrontCartRef?: string; trustedBuyer?: TrustedCheckoutBuyer; requireBuyerProof?: boolean }): Promise<StartCheckoutResponse> {
+  async execute(input: StartCheckoutRequest, trustedContext?: { storefrontCartRef?: string; trustedBuyer?: TrustedCheckoutBuyer; requireBuyerProof?: boolean; refreshCart?: boolean }): Promise<StartCheckoutResponse> {
     if (typeof input.merchant_id !== "string" || !input.merchant_id.trim()) {
       throw new BadRequestException("checkout_merchant_required");
     }
@@ -68,7 +68,9 @@ export class StartCheckoutUseCase {
       ...untrustedInput,
       merchant_id: input.merchant_id.trim(),
       cart: trustedContext?.storefrontCartRef
-        ? await this.cartAuthority.resolveStorefront(input.merchant_id.trim(), trustedContext.storefrontCartRef)
+        ? trustedContext.refreshCart
+          ? await this.cartAuthority.resolveRecoveredStorefront(input.merchant_id.trim(), input.cart, trustedContext.storefrontCartRef)
+          : await this.cartAuthority.resolveStorefront(input.merchant_id.trim(), trustedContext.storefrontCartRef)
         : await this.cartAuthority.resolve(input.merchant_id.trim(), input.cart),
       customer: trustedContext?.trustedBuyer?.customer ?? unverifiedCustomerHints(input.customer),
       shipping: undefined,
@@ -102,6 +104,7 @@ export class StartCheckoutUseCase {
     let { session } = await this.bootstrap.bootstrap(enrichedInput, globalUserId, true, {
       trustedBuyer: trustedContext?.trustedBuyer,
       requireBuyerProof: trustedContext?.requireBuyerProof,
+      refreshCart: trustedContext?.refreshCart,
     });
     session = await this.assignExperimentVariant(input.merchant_id, session);
 
