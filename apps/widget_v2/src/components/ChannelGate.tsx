@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useCheckoutStore } from "@/store/checkout-store";
 import { PulseAgentOrb } from "./PulseAgentOrb";
 
@@ -7,6 +8,12 @@ export function ChannelGate() {
   const agent = useCheckoutStore((s) => s.agent);
   const showBranding = useCheckoutStore((s) => s.showBranding);
   const voiceEnabled = useCheckoutStore((s) => s.voiceEnabled);
+
+  useEffect(() => {
+    if (!voiceEnabled) selectChannel("chat");
+  }, [selectChannel, voiceEnabled]);
+
+  if (!voiceEnabled) return null;
 
   const agentName = showBranding ? (agent.name || "Assistente") : "Assistente da loja";
   const storeName = brand.name || "Loja";

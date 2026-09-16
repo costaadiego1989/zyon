@@ -372,7 +372,12 @@ export default function ConversationShell({
     presentedProductVariantRef.current = undefined;
   }, [richProduct?.productId]);
   useEffect(() => { setMounted(true); }, []);
-  const effectiveMode = mounted ? mode : "intro";
+  const supportsVoice = voiceCheckoutEnabled === true;
+  const effectiveMode = !mounted ? "intro" : supportsVoice ? mode : "chat";
+  useEffect(() => {
+    if (!mounted || supportsVoice || mode !== "intro") return;
+    selectChannel("chat");
+  }, [mode, mounted, selectChannel, supportsVoice]);
   useEffect(() => {
     if (!mounted || voiceCheckoutEnabled !== true || welcomeVoiceStarted.current) return;
     welcomeVoiceStarted.current = true;
