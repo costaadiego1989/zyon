@@ -9,11 +9,95 @@ export interface DeterministicShortcutDeps {
   copyService: AgentCopyService;
   emitFunnelEvent: (merchantId: string, sessionId: string, event: string) => Promise<void>;
   applyCoupon?: (args: { cartId?: string; couponCode: string }) => Promise<any>;
+  addItemToCart?: (args: { cartId?: string; variantId: string; quantity: number; selectedOptionItemIds?: string[] }) => Promise<any>;
   getCartBlock?: (cartId: string) => Promise<ConversationBlock | null>;
 }
 
 const formatPrice = (cents: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+function productVariants(product: any) {
+  const isDigitalOrService = product.type === "digital" || product.type === "service";
+  return (product.variants ?? []).filter((variant: any) => variant.isActive).map((variant: any) => {
+    const attributes = (variant.attributes ?? {}) as Record<string, string>;
+    const attributeKeys = Object.keys(attributes);
+    const attributeValues = Object.values(attributes);
+    const stock = isDigitalOrService ? 999 : Math.max(0, (variant.stockQuantity ?? 0) - (variant.stockReserved ?? 0));
+    return {
+      id: variant.id,
+      name: variant.name || attributeKeys.join(" / ") || "Opção",
+      value: attributeValues.length > 0 ? attributeValues.join(", ") : (variant.sku ?? variant.name ?? ""),
+      sku: variant.sku,
+      stock,
+      price: variant.basePriceInCents,
+      priceFormatted: variant.basePriceInCents ? formatPrice(variant.basePriceInCents) : undefined,
+    };
+  });
+}
+
+function cartSummaryBlock(cart: any): ConversationBlock | null {
+  if (!Array.isArray(cart?.items)) return null;
+  const total = typeof cart.total === "number" ? cart.total : 0;
+  const discount = typeof cart.discount === "number" ? cart.discount : 0;
+  return {
+    type: "cart_summary",
+    data: {
+      cartId: typeof cart.cartId === "string" ? cart.cartId : undefined,
+      items: cart.items.map((item: any) => ({
+        variantId: item.variantId,
+        productName: item.name,
+        quantity: item.quantity,
+        price: item.unitPrice,
+        subtotal: item.lineTotal ?? item.unitPrice * item.quantity,
+        imageUrl: item.imageUrl,
+      })),
+      itemCount: typeof cart.itemCount === "number" ? cart.itemCount : cart.items.reduce((sum: number, item: any) => sum + (item.quantity ?? 0), 0),
+      subtotal: total,
+      discount,
+      freeShipping: cart.freeShipping === true,
+      total: total - discount,
+      nextNudge: cart.nextNudge ?? undefined,
+      activeRules: cart.activeRules ?? undefined,
+    },
+  } as ConversationBlock;
+}
+
+async function resolveAddToCartShortcut(
+  deps: DeterministicShortcutDeps,
+  input: StorefrontConversationInput,
+): Promise<StorefrontConversationOutput | null> {
+  const match = input.userMessage.trim().match(/^adicionar(?:\s+.+?)?\s+ao carrinho\s+\[variantId:([A-Za-z0-9_-]{1,191})\](?:\s+\[optionItemIds:([A-Za-z0-9_,-]+)\])?\s*$/i);
+  if (!match || !deps.addItemToCart) return null;
+  const optionItemIds = (match[2] ?? "").split(",").filter((id) => /^[A-Za-z0-9_-]{1,191}$/.test(id));
+  try {
+    const cart = await deps.addItemToCart({
+      cartId: input.cartId ?? input.sessionId,
+      variantId: match[1],
+      quantity: 1,
+      ...(optionItemIds.length ? { selectedOptionItemIds: optionItemIds } : {}),
+    });
+    const block = cartSummaryBlock(cart);
+    if (!block) {
+      return {
+        message: typeof cart?.detail === "string" ? cart.detail : "Não consegui adicionar este produto agora. Tente novamente.",
+        blocks: [],
+        suggestedNext: ["Ver Produtos", "Continuar Comprando"],
+      };
+    }
+    deps.emitFunnelEvent(input.merchantId, input.sessionId, "cart_viewed").catch(() => {});
+    return {
+      message: "Produto adicionado ao carrinho.",
+      blocks: [block],
+      suggestedNext: ["Ver Carrinho", "Continuar Comprando", "Finalizar Compra"],
+    };
+  } catch {
+    return {
+      message: "Não consegui adicionar este produto agora. Tente novamente.",
+      blocks: [],
+      suggestedNext: ["Ver Produtos", "Continuar Comprando"],
+    };
+  }
+}
+
 
 async function resolveOffersShortcut(
   deps: DeterministicShortcutDeps,
@@ -49,6 +133,7 @@ async function resolveOffersShortcut(
           priceFormatted: formatPrice(p.defaultVariant?.basePriceInCents ?? 0),
           ...productGallery(p),
           inStock: p.hasStock,
+          variants: productVariants(p),
         })),
         nextCursor: result.nextCursor,
         merchantId: input.merchantId,
@@ -203,6 +288,7 @@ export async function resolveDeterministicShortcut(
 ): Promise<StorefrontConversationOutput | null> {
   const normalizedMsg = input.userMessage.trim().toLowerCase();
   return (
+    (await resolveAddToCartShortcut(deps, input)) ??
     (await resolveOffersShortcut(deps, input, normalizedMsg)) ??
     (await resolveDetailsShortcut(deps, input, normalizedMsg)) ??
     (await resolveCouponShortcut(deps, input, normalizedMsg))

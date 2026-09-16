@@ -127,6 +127,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         copyService: this.copyService,
         emitFunnelEvent: this.emitFunnelEvent.bind(this),
         applyCoupon: (args) => shortcutHandlers.applyCoupon(args),
+        addItemToCart: (args) => shortcutHandlers.addItemToCart(args),
         // Build an updated cart_summary block after a deterministic coupon apply
         // so the storefront cart store (CartFAB drawer) refreshes its discount /
         // net total. Without this the coupon persists server-side but the drawer

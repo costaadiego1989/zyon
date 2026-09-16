@@ -57,8 +57,41 @@ describe("Storefront product galleries", () => {
     assert.deepEqual(block.data.products[0].images, expectedImages);
     assert.equal(block.data.products[0].image, expectedImages[0]);
     assert.equal(block.data.products[0].price, 12990);
+    assert.deepEqual(block.data.products[0].variants?.map((variant) => variant.id), ["variant-1", "variant-2"]);
     assert.equal(block.data.nextCursor, "next-product");
     assert.equal(block.data.merchantId, "merchant-1");
+  });
+
+  it("adds a tagged carousel variant through the server-side cart handler", async () => {
+    let received: { cartId?: string; variantId: string; quantity: number; selectedOptionItemIds?: string[] } | undefined;
+    const output = await resolveDeterministicShortcut({
+      productRepo: {} as DeterministicShortcutDeps["productRepo"],
+      copyService: {} as DeterministicShortcutDeps["copyService"],
+      emitFunnelEvent: async () => {},
+      addItemToCart: async (args) => {
+        received = args;
+        return {
+          cartId: args.cartId,
+          items: [{ variantId: args.variantId, name: "Produto com galeria", quantity: args.quantity, unitPrice: 129.9, lineTotal: 129.9 }],
+          total: 129.9,
+          discount: 0,
+          freeShipping: false,
+          itemCount: args.quantity,
+        };
+      },
+    }, {
+      merchantId: "merchant-1",
+      sessionId: "session-1",
+      cartId: "cart-1",
+      userMessage: "Adicionar Produto com galeria ao carrinho [variantId:variant-1] [optionItemIds:option-a,option-b]",
+    } as StorefrontConversationInput);
+
+    assert.deepEqual(received, { cartId: "cart-1", variantId: "variant-1", quantity: 1, selectedOptionItemIds: ["option-a", "option-b"] });
+    const block = output?.blocks[0];
+    assert.ok(block && block.type === "cart_summary");
+    assert.equal(block.data.itemCount, 1);
+    assert.equal(block.data.items[0].productName, "Produto com galeria");
+    assert.deepEqual(output?.suggestedNext, ["Ver Carrinho", "Continuar Comprando", "Finalizar Compra"]);
   });
 
   it("preserves tool gallery data in search details, full details and daily deals", () => {
