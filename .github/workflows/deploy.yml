@@ -30,7 +30,7 @@ jobs:
       # Typecheck all apps
       - run: cd apps/api && pnpm typecheck
       - run: cd apps/dashboard && pnpm typecheck
-      - run: cd apps/storefront && pnpm typecheck
+      - run: pnpm --filter @zyon/widget-v2 build && pnpm --filter @zyon/storefront typecheck
       - run: cd apps/widget_v2 && pnpm typecheck
 
       # Lint
