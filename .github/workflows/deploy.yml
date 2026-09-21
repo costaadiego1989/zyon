@@ -1,4 +1,4 @@
-name: Deploy API to Railway (production)
+name: Verify master release
 
 on:
   push:
@@ -10,7 +10,6 @@ concurrency:
   cancel-in-progress: false  # Don't cancel in-flight deploys
 
 env:
-  RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
   NODE_VERSION: '20'
 
 jobs:
@@ -52,37 +51,3 @@ jobs:
       - run: cd apps/dashboard && pnpm build
       - run: cd apps/storefront && pnpm build
       - run: cd apps/widget_v2 && pnpm build
-
-  # ── Deploy: Production ─────────────────────────────────────────────────────
-  # Triggered only by a verified push to `master`.
-  # PostgreSQL + Redis are provisioned once in Railway (persistent plugins) —
-  # they are NOT redeployed here (redeploying a DB every push is wasteful and
-  # risky). Only the app services are pushed.
-  deploy-production:
-    needs: [ci-gate]
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: production
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-
-      - name: Deploy API
-        run: |
-          railway up \
-            --service api \
-            --environment production \
-            --detach
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-
-      - name: Deployment summary
-        run: |
-          echo "✅ Production deployment initiated for ${{ github.ref }}"
-          echo "Service: api (Railway)"
-          echo "Frontends: Vercel deploys from the protected branch"
-          echo "Databases: postgres + redis (persistent, not redeployed)"
-          echo "Monitor: https://railway.app"
