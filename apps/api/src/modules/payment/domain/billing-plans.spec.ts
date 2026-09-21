@@ -9,10 +9,10 @@ import {
   merchantTransactionFeeCentsFor,
 } from "./billing-plans.js";
 
-test("BILLING_PLANS matches Free R$2,99 after trial, Growth R$349 and Scale R$599", () => {
+test("BILLING_PLANS matches Free R$1,99 after trial, Growth R$349 and Scale R$599", () => {
   // Starter
   assert.equal(BILLING_PLANS.starter.monthlyPriceBrl, 0);
-  assert.equal(BILLING_PLANS.starter.transactionFeeCents, 299);
+  assert.equal(BILLING_PLANS.starter.transactionFeeCents, 199);
   assert.equal(BILLING_PLANS.starter.limits.ordersPerMonth, 100);
   assert.equal(BILLING_PLANS.starter.limits.webhookEndpoints, null);
   assert.equal(BILLING_PLANS.starter.limits.crossSellPromotions, 1);
@@ -78,7 +78,7 @@ test("trial usa Free sem taxa de transação do lojista", () => {
 test("expired or inactive subscriptions fall back to Starter", () => {
   assert.equal(effectiveBillingPlan({ status: "cancelled", stripePriceId: undefined }), "starter");
   assert.equal(effectiveBillingPlan({ status: "trialing", trialEndsAt: "2020-01-01T00:00:00.000Z", stripePriceId: undefined }), "starter");
-  assert.equal(merchantTransactionFeeCentsFor({ status: "cancelled", stripePriceId: undefined }), 299);
+  assert.equal(merchantTransactionFeeCentsFor({ status: "cancelled", stripePriceId: undefined }), 199);
 });
 
 test("custom domain entitlement requires an active Growth or Scale subscription", () => {

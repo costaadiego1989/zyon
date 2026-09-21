@@ -21,7 +21,7 @@ test("Free trial changes fee at the exact expiry without blocking the Free plan"
   const end = new Date("2026-09-19T12:00:00Z");
   const sub = { status: "trialing" as const, trialEndsAt: end.toISOString(), planKey: "starter" as const };
   assert.equal(merchantTransactionFeeCentsFor(sub, new Date(end.getTime() - 1)), 0);
-  assert.equal(merchantTransactionFeeCentsFor(sub, end), 299);
+  assert.equal(merchantTransactionFeeCentsFor(sub, end), 199);
   assert.equal(freeTrialState(sub, end).expired, true);
   assert.equal(effectiveBillingPlan(sub, end), "starter");
 });
@@ -35,7 +35,7 @@ test("Free selection never resets an expired trial and keeps its date", async ()
   const sub = await repository.getBilling("trial");
   assert.equal(sub?.status, "starter");
   assert.equal(sub?.trialEndsAt, end);
-  assert.equal(merchantTransactionFeeCentsFor(sub), 299);
+  assert.equal(merchantTransactionFeeCentsFor(sub), 199);
 });
 
 test("checkout completion does not grant paid access; subscription status does", async () => {
@@ -93,7 +93,7 @@ test("billing API returns the plan, trial and portal fields needed by dashboard"
   assert.equal(response.plan, "starter");
   assert.equal(response.plan_name, "Free");
   assert.equal(response.trial_expired, true);
-  assert.equal(response.transaction_fee_cents, 299);
+  assert.equal(response.transaction_fee_cents, 199);
   assert.equal(response.has_billing_customer, false);
   assert.ok(response.limits);
 });

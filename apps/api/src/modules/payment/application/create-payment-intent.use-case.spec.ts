@@ -28,7 +28,7 @@ test("Mercado Pago receives the Free fee after expiry without adding it to the b
       const useCase = new CreatePaymentIntentUseCase(checkout, checkout, new InMemoryPaymentRepository(checkout), provider, undefined, undefined, undefined, connections, undefined, undefined, billing);
       const intent = await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "fee-test", method: "pix" });
       assert.equal(provider.inputs[0]?.provider, "mercadopago");
-      assert.equal(provider.inputs[0]?.platformFeeCents, expired ? 398 : 99);
+      assert.equal(provider.inputs[0]?.platformFeeCents, expired ? 298 : 99);
       assert.equal(provider.inputs[0]?.asaasCustomerId, undefined);
       assert.equal(provider.inputs[0]?.payerEmail, "buyer@example.com");
       assert.equal(intent.amountCents, 33599); // R$300 cart + R$35 shipping + R$0.99 buyer fee.
@@ -608,7 +608,7 @@ test("Asaas and crypto receive buyer fee plus merchant fee exactly once", async 
     const billing = { getSubscription: async () => ({ status: "starter", planKey: "starter" }) } as unknown as BillingPlanMeteringService;
     const uc = new CreatePaymentIntentUseCase(checkout, checkout, new InMemoryPaymentRepository(checkout), provider, undefined, undefined, undefined, undefined, undefined, undefined, billing);
     const result = await uc.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "fee-" + method, method });
-    assert.equal(provider.inputs[0].platformFeeCents, 398);
+    assert.equal(provider.inputs[0].platformFeeCents, 298);
     assert.equal(result.amountCents, 33599);
     await uc.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "fee-" + method, method });
     assert.equal(provider.inputs.length, 1);

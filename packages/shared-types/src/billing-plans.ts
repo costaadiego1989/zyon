@@ -107,7 +107,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
   starter: {
     name: "Free",
     monthlyPriceBrl: 0,
-    transactionFeeCents: 299,
+    transactionFeeCents: 199,
     limits: {
       ordersPerMonth: 100,
       commerceConnections: 1,

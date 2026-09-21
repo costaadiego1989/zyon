@@ -103,6 +103,21 @@ test("API013: Stripe retries stable parameters within retention and only searche
   assert.equal(calls.length, 2); assert.equal(calls[1], "search");
 });
 
+test("Stripe destination charge retains the Free R$2.98 platform split", async () => {
+  const provider = new StripePaymentAdapter("sk_test_fake", "pk_test_fake");
+  const input: CreateProviderPaymentInput = { ...prepared().snapshot().creation!.input, method: "card", stripeConnectAccountId: "acct_owned", platformFeeCents: 298 };
+  const calls: any[] = [];
+  (provider as any).stripe = { paymentIntents: {
+    create: async (body: unknown, options: unknown) => { calls.push({ body, options }); return { id: "pi_fee", client_secret: "client-secret" }; },
+  } };
+
+  await provider.createPayment(input);
+
+  assert.equal(calls[0].options.idempotencyKey, "stable-key");
+  assert.deepEqual(calls[0].body.transfer_data, { destination: "acct_owned" });
+  assert.equal(calls[0].body.application_fee_amount, 298);
+});
+
 test("API014: card fee snapshot survives configuration changes and dispatch forwards captured total and intent ID", async t => {
   const keys = ["STRIPE_SECRET_KEY_TEST", "STRIPE_PUBLISHABLE_KEY_TEST", "PLATFORM_FEE_BRL"] as const;
   const old = Object.fromEntries(keys.map(key => [key, process.env[key]]));
@@ -123,7 +138,9 @@ test("API014: card fee snapshot survives configuration changes and dispatch forw
     const completions: CheckoutPaymentApprovedInput[] = [];
     const port: CheckoutPaymentPort = { completeAfterApproval: async input => { completions.push(input); }, recordPaymentFailure: async () => {}, recordPaymentStatusChanged: async () => {} };
     await new PaymentDispatchService(repo, port).markApprovedAndComplete((await repo.getIntentById(session.merchantId, result.id))!, "pi_one");
-    assert.equal(completions[0].orderTotalMajorUnits, expected / 100); assert.equal(completions[0].paymentIntentId, result.id); assert.deepEqual(completions[0].amountBreakdown, result.amountBreakdown);
+    // The buyer fee is part of the payment amount, not the merchant commerce order.
+    const merchantOrderCents = expected - Math.round(Number(fee) * 100);
+    assert.equal(completions[0].orderTotalMajorUnits, merchantOrderCents / 100); assert.equal(completions[0].paymentIntentId, result.id); assert.deepEqual(completions[0].amountBreakdown, result.amountBreakdown);
   }
 });
 
