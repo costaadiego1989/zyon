@@ -2,6 +2,7 @@ import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { COUPON_REPOSITORY, type CouponRepository } from "../../../coupons/domain/ports/coupon-repository.port.js";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { STORY_REPOSITORY, type StoryRepositoryPort } from "../../../stories/domain/ports/story-repository.port.js";
+import { PublicStorefrontAccessService } from "../services/public-storefront-access.service.js";
 
 @Injectable()
 export class GetPublicStoreResourcesUseCase {
@@ -9,6 +10,7 @@ export class GetPublicStoreResourcesUseCase {
     @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository,
     @Inject(STORY_REPOSITORY) private readonly stories: StoryRepositoryPort,
     @Inject(COUPON_REPOSITORY) private readonly coupons: CouponRepository,
+    private readonly publicStorefrontAccess?: PublicStorefrontAccessService,
   ) {}
 
   async listIndex(): Promise<{ stores: Array<{ slug: string; updatedAt: string }> }> {
@@ -47,10 +49,12 @@ export class GetPublicStoreResourcesUseCase {
     return { items };
   }
 
-  private findStore(identifier: string) {
+  private async findStore(identifier: string) {
     const normalized = identifier.trim().toLowerCase();
-    return normalized.includes(".")
+    const merchant = await (normalized.includes(".")
       ? this.merchants.findByCustomDomain?.(normalized)
-      : this.merchants.findBySlug?.(normalized);
+      : this.merchants.findBySlug?.(normalized));
+    if (merchant) await this.publicStorefrontAccess?.assertMerchantCanServe(merchant.id);
+    return merchant;
   }
 }

@@ -2,6 +2,8 @@ import { BadRequestException, Body, Controller, Post, Req, UnauthorizedException
 import type { CheckoutSession } from "@zyon/shared-types";
 import { OpenAIRealtimeVoiceService } from "../../../../shared/openai/openai-realtime-voice.service.js";
 import { BillingPlanMeteringService } from "../../../payment/infrastructure/billing/billing-plan-guard.js";
+import { VoiceSessionQuotaService } from "../../../ai-usage/application/voice-session-quota.service.js";
+import { voiceSessionReservationInput } from "../../../ai-usage/presentation/voice-session-request.js";
 import { EmbedAuthGuard } from "./embed-auth.guard.js";
 import { RequireEmbedScope } from "./embed-scope.decorator.js";
 import { EmbedCheckoutGuardHelper, type EmbedHttpRequest } from "./embed-checkout.controller.js";
@@ -13,12 +15,13 @@ export class EmbedRealtimeVoiceController {
   constructor(
     private readonly checkoutGuards: EmbedCheckoutGuardHelper,
     private readonly billing: BillingPlanMeteringService,
+    private readonly voiceQuota: VoiceSessionQuotaService,
     private readonly realtime: OpenAIRealtimeVoiceService,
   ) {}
 
   @Post("session")
   @RequireEmbedScope("checkout:chat")
-  async createSession(@Req() request: EmbedHttpRequest, @Body() body: { session_id?: unknown }) {
+  async createSession(@Req() request: EmbedHttpRequest, @Body() body: { session_id?: unknown; idempotency_key?: unknown }) {
     if (typeof body.session_id !== "string" || !body.session_id.trim()) throw new BadRequestException("session_id_required");
     const embed = request.embedClaims!;
     const sessionId = body.session_id.trim();
@@ -26,7 +29,22 @@ export class EmbedRealtimeVoiceController {
     const session = await this.checkoutGuards.loadSession(embed.merchantId, sessionId);
     if (!session) throw new UnauthorizedException("embed_unknown_checkout_session");
     await this.billing.assertAllowed(embed.merchantId, { kind: "feature", key: "voiceCheckout" });
-    return this.realtime.createClientSecret({ merchantId: embed.merchantId, conversationId: sessionId, surface: "checkout", checkoutPrompt: checkoutVoicePrompt(session), cart: checkoutCartContext(session) });
+    const reservation = await this.voiceQuota.reserve({
+      merchantId: embed.merchantId,
+      ...voiceSessionReservationInput({
+        merchantId: embed.merchantId,
+        conversationId: sessionId,
+        idempotencyKey: body.idempotency_key,
+      }),
+    });
+    try {
+      const secret = await this.realtime.createClientSecret({ merchantId: embed.merchantId, conversationId: sessionId, surface: "checkout", checkoutPrompt: checkoutVoicePrompt(session), cart: checkoutCartContext(session) });
+      await this.voiceQuota.markProviderCallCreated(reservation.id);
+      return secret;
+    } catch (error) {
+      await this.voiceQuota.releaseBeforeProviderCall(reservation.id);
+      throw error;
+    }
   }
 }
 

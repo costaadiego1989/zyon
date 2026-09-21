@@ -41,7 +41,7 @@
       const unit = document.createElement("small"); unit.textContent = "/mês"; price.append(unit);
       annual.hidden = plan.plan_id === "starter" || cycle !== "annual";
       annual.textContent = offer ? "Total anual: " + money(offer.amountCents) + ". Economia de " + money(offer.savingsCents) + " (" + offer.discountPercent + "%)." : "Anual indisponível.";
-      if (plan.plan_id !== "starter") card.querySelector(".plan-fee").textContent = money(plan.transaction_fee_cents) + " por compra confirmada.";
+      if (plan.plan_id !== "starter") card.querySelector(".plan-fee").textContent = "Taxa Zyon da loja: " + money(plan.transaction_fee_cents) + " por compra confirmada.";
       const url = new URL(link.href); url.searchParams.set("cycle", plan.plan_id === "starter" ? "monthly" : cycle); link.href = url.href;
       link.setAttribute("aria-disabled", String(!offer));
       link.onclick = event => { if (!offer) event.preventDefault(); };

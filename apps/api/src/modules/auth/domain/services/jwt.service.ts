@@ -81,7 +81,7 @@ export class JwtService {
     const session = await this.store().findActiveSession(decoded.jti, new Date());
     if (!session || session.userId !== principal.userId || session.merchantId !== principal.merchantId ||
       session.email !== principal.email || session.role !== principal.role) throw new Error("jwt_session_invalid");
-    return principal;
+    return { ...principal, authVersion: session.authVersion };
   }
 
   async rotate(token: string): Promise<{ token: string; principal: AuthenticatedPrincipal }> {
@@ -91,11 +91,12 @@ export class JwtService {
     const current = await this.store().findActiveSession(decoded.jti, now);
     if (!current || current.userId !== principal.userId || current.merchantId !== principal.merchantId ||
       current.role !== principal.role || current.email !== principal.email) throw new Error("jwt_session_invalid");
-    const nextToken = this.sign(principal);
+    const authenticatedPrincipal = { ...principal, authVersion: current.authVersion };
+    const nextToken = this.sign(authenticatedPrincipal);
     const next = this.parseAndValidate(nextToken).decoded;
     const rotated = await this.store().rotateSession(decoded.jti, { ...current, id: next.jti }, now);
     if (!rotated) throw new Error("jwt_refresh_replayed");
-    return { token: nextToken, principal };
+    return { token: nextToken, principal: authenticatedPrincipal };
   }
 
   async revoke(token: string): Promise<void> {

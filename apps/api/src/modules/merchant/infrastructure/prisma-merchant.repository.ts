@@ -154,16 +154,16 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
       where: { domain: normalized }
     });
     if (!link || link.verified !== true || !link.ownershipVerifiedAt) return undefined;
-    const subscription = await this.prisma.merchantBillingSubscription.findUnique({
-      where: { merchantId: link.merchantId },
-      select: { status: true, trialEndsAt: true, stripePriceId: true, planKey: true },
-    });
-    if (!isBillingFeatureEnabled(subscription, "customDomain")) return undefined;
-
     const row = await this.prisma.merchant.findUnique({
       where: { id: link.merchantId }
     });
     if (!row) return undefined;
+
+    const subscription = await this.prisma.merchantBillingSubscription.findUnique({
+      where: { merchantId: row.billingAccountMerchantId ?? row.id },
+      select: { status: true, trialEndsAt: true, stripePriceId: true, planKey: true },
+    });
+    if (!isBillingFeatureEnabled(subscription, "customDomain")) return undefined;
 
     return {
       id: row.id,

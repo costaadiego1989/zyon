@@ -1,7 +1,7 @@
 import type { BillingPlan, BillingSubscriptionSnapshot } from "./payment-platform.types.js";
 
 import { BILLING_PLANS, type BillingPlanFeatureKey } from "@zyon/shared-types";
-export { BILLING_PLANS, BUYER_SERVICE_FEE_CENTS } from "@zyon/shared-types";
+export { BILLING_PLANS, BUYER_SERVICE_FEE_CENTS, BILLING_PLAN_PRESENTATION } from "@zyon/shared-types";
 export type { BillingPlanConfig, BillingPlanLimitKey, BillingPlanFeatureKey, BillingPlanLimits, BillingPlanFeatures } from "@zyon/shared-types";
 
 export function planFromPriceId(

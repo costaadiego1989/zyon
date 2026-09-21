@@ -72,6 +72,7 @@ export interface BillingSubscriptionSnapshot {
 export interface BillingUsageSnapshot {
   periodStart: string;
   ordersPerMonth: number;
+  voiceSessions: number;
   commerceConnections: number;
   webhookEndpoints: number;
   teamMembers: number;

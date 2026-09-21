@@ -1,5 +1,5 @@
 import { dashboardJson } from "../http/client.js";
-import type { MerchantProfile, MerchantRules, MerchantTheme } from "../types.js";
+import type { ManagedMerchantStore, MerchantProfile, MerchantRules, MerchantTheme } from "../types.js";
 import { normalizeRole } from "../../lib/auth/roles.js";
 import type { SeoSettings, GtmSettings, GenerateSeoSuggestionsRequest, GenerateSeoSuggestionsResponse, CrossSellConfig } from "@zyon/shared-types";
 
@@ -77,6 +77,19 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
           role: normalizedRole as MerchantProfile["role"],
         };
       });
+    },
+
+    listMerchantStores(): Promise<ManagedMerchantStore[]> {
+      return dashboardJson<{ data: ManagedMerchantStore[] }>(base, "/merchants/me/stores", { method: "GET" }, f)
+        .then((response) => response.data);
+    },
+
+    createMerchantStore(input: { name: string; slug: string }): Promise<ManagedMerchantStore> {
+      return dashboardJson(base, "/merchants/me/stores", { method: "POST", jsonBody: input }, f);
+    },
+
+    activateMerchantStore(merchantId: string): Promise<{ merchant_id: string }> {
+      return dashboardJson(base, `/merchants/me/stores/${encodeURIComponent(merchantId)}/activate`, { method: "POST", jsonBody: {} }, f);
     },
 
     getMerchantRules(): Promise<MerchantRules> {

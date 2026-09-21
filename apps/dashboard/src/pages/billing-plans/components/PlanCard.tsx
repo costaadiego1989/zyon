@@ -10,7 +10,7 @@ export interface PlanDef {
   billingOptions?: BillingOffer[];
   annualCheckoutAvailable?: boolean;
   fee: string;
-  limits: { orders: number; connections: number };
+  limits: { orders: number; voiceSessions: number };
   features: string[];
   recommended?: boolean;
   highlights?: string[];
@@ -129,7 +129,7 @@ export function PlanCard({
           )}
         </div>
         <div style={{ font: "12px var(--font-mono)", color: "var(--color-text-muted)", marginTop: 4 }}>
-          {plan.key === "starter" ? `14 dias sem taxa Zyon. Depois, ${plan.fee} por transação.` : `${plan.fee} por transação`}
+          {plan.key === "starter" ? "14 dias para conhecer a Zyon. Depois, escolha Growth ou Scale para manter a loja publicada." : `${plan.fee} por transação`}
         </div>
       </div>
 
@@ -148,7 +148,7 @@ export function PlanCard({
       >
         <p style={{ margin: 0, fontSize: 13 }}>O limite considera compras com pagamento confirmado.</p>
         <LimitRow label="Compras por mês" value={formatLimit(plan.limits.orders)} />
-        <LimitRow label="Conexões" value={formatLimit(plan.limits.connections)} />
+        {plan.key !== "starter" && <LimitRow label="Sessões por voz por mês" value={formatLimit(plan.limits.voiceSessions)} />}
       </div>
 
       {/* Features */}

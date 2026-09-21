@@ -283,7 +283,7 @@ export default function ConversationShell({
     createSession: async () => {
       const activeConversationId = await ensureConversation();
       if (!activeConversationId) throw new Error("conversation_not_ready");
-      const response = await conversationFetch(activeConversationId, `${API_BASE}/storefront/conversations/${encodeURIComponent(activeConversationId)}/realtime/session`, { method: "POST" });
+      const response = await conversationFetch(activeConversationId, `${API_BASE}/storefront/conversations/${encodeURIComponent(activeConversationId)}/realtime/session`, { method: "POST", body: JSON.stringify({ idempotency_key: voiceSessionIdempotencyKey() }) });
       if (!response.ok) {
         const error = new Error("realtime_voice_session_failed") as Error & { status?: number };
         error.status = response.status;
@@ -1091,4 +1091,9 @@ export default function ConversationShell({
       }} /> : null}
     </div>
   );
+}
+
+function voiceSessionIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return `voice-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }

@@ -58,6 +58,7 @@ function App({ api }: AppProps) {
   const [initialTab, setInitialTab] = useState<TabKey | undefined>(undefined);
   const [onboardingCompleted, setOnboardingCompleted] = useState(true);
   const [planSelectionPending, setPlanSelectionPending] = useState(false);
+  const [subscriptionRequired, setSubscriptionRequired] = useState(false);
   const [subscriptionIntent, setSubscriptionIntent] = useState(readSubscriptionIntent);
   const onboardingRedirectedRef = useRef(false);
 
@@ -72,10 +73,18 @@ function App({ api }: AppProps) {
         setOauthProfile({ name: owner.name ?? "", email: owner.email ?? "" });
         setAuthMode("signup");
         setMe(null);
+        setSubscriptionRequired(false);
         return;
       }
       setMe(profile);
       setAuthHint(null);
+      try {
+        const subscription = await api.getBillingSubscription();
+        setSubscriptionRequired(subscription.trial_expired === true);
+      } catch (error) {
+        setSubscriptionRequired(false);
+        reportError({ source: "main.refreshSession.billing", error, severity: "warning" });
+      }
       try {
         const onboarding = await api.getOnboardingState();
         setOnboardingCompleted(onboarding.completed);
@@ -95,6 +104,7 @@ function App({ api }: AppProps) {
       } else {
         setMe(null);
       }
+      setSubscriptionRequired(false);
     } finally {
       setCheckingSession(false);
     }
@@ -224,8 +234,8 @@ function App({ api }: AppProps) {
 
   if (checkingSession) return <LoadingSplash />;
 
-  if (me && (!me.role || me.role === "OWNER") && (planSelectionPending || subscriptionIntent)) {
-    return <main className="signup-plans"><PlanSelection merchantName={me.name} initialPlan={subscriptionIntent ?? undefined} onDone={handlePlanComplete} onExit={planSelectionPending && new URLSearchParams(window.location.search).get("billing") !== "success" ? undefined : handlePlanComplete} /></main>;
+  if (me && (!me.role || me.role === "OWNER") && (planSelectionPending || subscriptionIntent || subscriptionRequired)) {
+    return <main className="signup-plans"><PlanSelection merchantName={me.name} initialPlan={subscriptionIntent ?? undefined} requirePaidPlan={subscriptionRequired} onDone={handlePlanComplete} onExit={subscriptionRequired || (planSelectionPending && new URLSearchParams(window.location.search).get("billing") !== "success") ? undefined : handlePlanComplete} /></main>;
   }
 
   if (!me) {

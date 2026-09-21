@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import ConversationShell from "@/components/ConversationShell";
 import { WidgetConfigProvider } from "@/components/WidgetConfigProvider";
 import { CartProvider } from "@/lib/cart-store";
@@ -7,7 +7,7 @@ import { OrganizationSchema, WebSiteSchema, BreadcrumbListSchema, ProductSchema 
 import { GoogleTagManager } from "@/components/GoogleTagManager";
 import { FacebookPixel, TiktokPixel } from "@/components/PixelTrackers";
 import { getDemoMerchant } from "@/lib/demo-merchant";
-import { fetchStoreConfig, fetchStoreStories } from "@/lib/api/server-client";
+import { fetchStoreConfig, fetchStoreStories, isStorefrontSubscriptionRedirect } from "@/lib/api/server-client";
 import { fetchProductContent } from "@/lib/api/product-content";
 import { DemoEmbedBridge } from "@/components/DemoEmbedBridge";
 
@@ -45,6 +45,7 @@ export async function generateMetadata({
   const { slug } = await params;
   const query = await searchParams;
   const config = await fetchStoreConfig(slug);
+  if (isStorefrontSubscriptionRedirect(config)) redirect(config.__redirectUrl);
   const merchant = config ? null : getDemoMerchant(slug);
   const name = config?.name ?? merchant?.name ?? "Zyon Store";
   const seo = config?.storeSettings?.seo;
@@ -123,6 +124,7 @@ export default async function StorePage({
   const { order, show, product, productId } = await searchParams;
 
   const config = await fetchStoreConfig(slug);
+  if (isStorefrontSubscriptionRedirect(config)) redirect(config.__redirectUrl);
   const stories = config?.stories ?? await fetchStoreStories(slug);
   const merchant = config ? null : getDemoMerchant(slug);
 

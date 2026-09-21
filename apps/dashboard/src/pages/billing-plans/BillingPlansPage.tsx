@@ -70,6 +70,12 @@ export function BillingPlansPage() {
       limit: sub.usage?.orders_limit ?? null,
       percentage: vm.usagePercentages.orders,
     },
+    ...(sub.usage?.voice_sessions_limit ? [{
+      label: "Sessões por voz",
+      current: sub.usage.voice_sessions_current ?? 0,
+      limit: sub.usage.voice_sessions_limit,
+      percentage: vm.usagePercentages.voiceSessions,
+    }] : []),
     {
       label: "Conexões",
       current: sub.usage?.commerce_connections_current ?? 0,

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Put, Inject, UseGuards, ValidationPipe, BadRequestException, ForbiddenException } from "@nestjs/common";
+import { Body, Controller, Get, Post, Put, Inject, UseGuards, ValidationPipe, BadRequestException, ForbiddenException, Param, Res } from "@nestjs/common";
 import type { MerchantTheme } from "@zyon/shared-types";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
@@ -22,6 +22,10 @@ import { UpdateMerchantThemeUseCase } from "../application/update-merchant-theme
 import { UpdateMerchantRulesDto } from "./dto/update-merchant-rules.dto.js";
 import { SubmitPlatformFeedbackDto } from "./dto/submit-platform-feedback.dto.js";
 import { Idempotent } from "../../../shared/http/idempotency/idempotent.decorator.js";
+import { MerchantStoreService } from "../application/merchant-store.service.js";
+import { ActivateMerchantStoreUseCase } from "../application/activate-merchant-store.use-case.js";
+import { AuthCookieService } from "../../auth/domain/services/auth-cookie.service.js";
+import type { AuthenticatedPrincipal } from "../../auth/domain/auth.types.js";
 
 /**
  * MERC-H2: Uses @CurrentTenant() decorator instead of unsafe request casting.
@@ -39,7 +43,38 @@ export class MerchantController {
     private readonly updateTheme: UpdateMerchantThemeUseCase,
     private readonly s3: S3UploadService,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    private readonly stores: MerchantStoreService = undefined as never,
+    private readonly activateStore: ActivateMerchantStoreUseCase = undefined as never,
+    private readonly cookies: AuthCookieService = undefined as never,
   ) {}
+
+  @Get("stores")
+  async listStores(@Req() request: { user?: AuthenticatedPrincipal }) {
+    const actor = authenticatedMerchantActor(request);
+    return { data: await this.stores.list(actor) };
+  }
+
+  @Post("stores")
+  @Idempotent()
+  async createStore(
+    @Req() request: { user?: AuthenticatedPrincipal },
+    @Body() body: { name?: string; slug?: string },
+  ) {
+    const actor = authenticatedMerchantActor(request);
+    return this.stores.create({ actor, name: body.name ?? "", slug: body.slug ?? "" });
+  }
+
+  @Post("stores/:merchantId/activate")
+  async activateMerchantStore(
+    @Req() request: { user?: AuthenticatedPrincipal },
+    @Param("merchantId") merchantId: string,
+    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
+  ) {
+    const actor = authenticatedPrincipal(request);
+    const auth = await this.activateStore.execute(actor, merchantId);
+    response.setHeader("Set-Cookie", this.cookies.create(auth));
+    return auth;
+  }
 
   @ApiOperation({
     summary: "Get merchant profile",
@@ -321,4 +356,14 @@ Regras:
       createdAt: feedback.createdAt.toISOString(),
     };
   }
+}
+
+function authenticatedPrincipal(request: { user?: AuthenticatedPrincipal }): AuthenticatedPrincipal {
+  if (!request.user) throw new ForbiddenException("merchant_store_authentication_required");
+  return request.user;
+}
+
+function authenticatedMerchantActor(request: { user?: AuthenticatedPrincipal }) {
+  const user = authenticatedPrincipal(request);
+  return { userId: user.userId, merchantId: user.merchantId, role: user.role };
 }

@@ -46,6 +46,14 @@ function toAuthMerchant(row: { id: string; name: string; storeSettings?: unknown
 export class PrismaAuthRepository implements AuthRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
+  private async billingAccountMerchantId(merchantId: string): Promise<string> {
+    const merchant = await this.prisma.merchant.findUnique({
+      where: { id: merchantId },
+      select: { billingAccountMerchantId: true },
+    });
+    return merchant?.billingAccountMerchantId ?? merchantId;
+  }
+
   async createMerchantWithOwner(input: {
     merchantId: string;
     merchantName: string;
@@ -58,6 +66,7 @@ export class PrismaAuthRepository implements AuthRepository {
         data: {
           id: input.merchantId,
           name: input.merchantName,
+          billingAccountMerchantId: input.merchantId,
           storeSlug: input.storeSlug,
           storeSettings: { registration_pending: true, ...(input.storeSlug ? { slug: input.storeSlug } : {}) },
           billingSubscription: {
@@ -121,6 +130,7 @@ export class PrismaAuthRepository implements AuthRepository {
         data: {
           id: input.merchantId,
           name: input.merchantName,
+          billingAccountMerchantId: input.merchantId,
           storeSlug: input.storeSlug,
           storeSettings: { registration_pending: true, oauth_registration_pending: true, owner_name: input.ownerName ?? "", ...(input.storeSlug ? { slug: input.storeSlug } : {}) },
           billingSubscription: {
@@ -199,8 +209,12 @@ export class PrismaAuthRepository implements AuthRepository {
     return this.prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT id FROM merchant_users WHERE id = ${input.userId} FOR UPDATE`;
       const user = await tx.merchantUser.findUnique({ where: { id: input.userId } });
-      if (!user || user.disabledAt || user.merchantId !== input.merchantId || user.authVersion !== input.authVersion ||
-        user.role.toLowerCase() !== input.role || user.email !== input.email) return false;
+      const membership = await tx.merchantTeamMember.findUnique({
+        where: { merchantId_userId: { merchantId: input.merchantId, userId: input.userId } },
+        select: { role: true },
+      });
+      if (!user || user.disabledAt || !membership || user.authVersion !== input.authVersion ||
+        membership.role.toLowerCase() !== input.role || user.email !== input.email) return false;
       await tx.merchantAuthSession.create({ data: this.sessionData(input) });
       return true;
     });
@@ -214,8 +228,13 @@ export class PrismaAuthRepository implements AuthRepository {
   async findActiveSession(id: string, now: Date): Promise<SessionRecord | undefined> {
     const row = await this.prisma.merchantAuthSession.findUnique({ where: { id }, include: { user: true } });
     if (!row || row.consumedAt || row.revokedAt || row.refreshExpiresAt <= now || row.user.disabledAt ||
-      row.authVersion !== row.user.authVersion || row.merchantId !== row.user.merchantId) return undefined;
-    return { ...row, email: row.user.email, role: row.user.role.toLowerCase() as AuthUser["role"],
+      row.authVersion !== row.user.authVersion) return undefined;
+    const membership = await this.prisma.merchantTeamMember.findUnique({
+      where: { merchantId_userId: { merchantId: row.merchantId, userId: row.userId } },
+      select: { role: true },
+    });
+    if (!membership) return undefined;
+    return { ...row, email: row.user.email, role: membership.role.toLowerCase() as AuthUser["role"],
       consumedAt: undefined, revokedAt: undefined };
   }
 
@@ -223,8 +242,12 @@ export class PrismaAuthRepository implements AuthRepository {
     return this.prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT id FROM merchant_users WHERE id = ${replacement.userId} FOR UPDATE`;
       const user = await tx.merchantUser.findUnique({ where: { id: replacement.userId } });
+      const membership = await tx.merchantTeamMember.findUnique({
+        where: { merchantId_userId: { merchantId: replacement.merchantId, userId: replacement.userId } },
+        select: { role: true },
+      });
       if (!user || user.disabledAt || user.authVersion !== replacement.authVersion ||
-        user.merchantId !== replacement.merchantId || user.role.toLowerCase() !== replacement.role) return false;
+        !membership || membership.role.toLowerCase() !== replacement.role) return false;
       const old = await tx.merchantAuthSession.findUnique({ where: { id } });
       if (!old || old.userId !== replacement.userId || old.familyId !== replacement.familyId ||
         old.refreshExpiresAt <= now || old.refreshExpiresAt.getTime() !== replacement.refreshExpiresAt.getTime() || old.revokedAt) return false;
@@ -314,21 +337,22 @@ export class PrismaAuthRepository implements AuthRepository {
   }
 
   async getOwnerProfile(merchantId: string) {
+    const accountMerchantId = await this.billingAccountMerchantId(merchantId);
     const owner = await this.prisma.merchantUser.findFirst({
-      where: { merchantId, role: { in: ["owner", "admin"] } },
+      where: { merchantId: accountMerchantId, role: { in: ["owner", "admin"] } },
       orderBy: { createdAt: "asc" },
     });
     if (!owner) return undefined;
 
     const merchant = await this.prisma.merchant.findUnique({
-      where: { id: merchantId },
+      where: { id: accountMerchantId },
       select: { storeSettings: true },
     });
     const settings = (merchant?.storeSettings as Record<string, unknown>) ?? {};
 
     return {
       userId: owner.id,
-      merchantId,
+      merchantId: accountMerchantId,
       email: owner.email,
       ownerName: (settings["owner_name"] as string) ?? "",
       ownerPhone: (settings["owner_phone"] as string) ?? "",
@@ -341,7 +365,7 @@ export class PrismaAuthRepository implements AuthRepository {
     merchantId: string,
     profile: { ownerName: string; ownerPhone: string },
   ): Promise<void> {
-    await this.setStoreSettings(merchantId, {
+    await this.setStoreSettings(await this.billingAccountMerchantId(merchantId), {
       owner_name: profile.ownerName,
       owner_phone: profile.ownerPhone,
     });

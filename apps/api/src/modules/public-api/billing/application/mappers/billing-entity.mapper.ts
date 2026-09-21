@@ -53,6 +53,8 @@ export class BillingEntityMapper {
         grace_expires_at: snapshot.commercial?.graceExpiresAt ?? null,
         required_plan: snapshot.commercial?.requiredPlan ?? null,
         can_accept_orders: snapshot.commercial?.canAcceptOrders ?? true,
+        voice_sessions_current: snapshot.usage.voiceSessions,
+        voice_sessions_limit: snapshot.limits.voiceSessionsPerMonth ?? null,
         commerce_connections_current: snapshot.usage.commerceConnections,
         commerce_connections_limit: snapshot.limits.commerceConnections ?? null,
       } : undefined,
@@ -77,6 +79,7 @@ export class BillingEntityMapper {
     return {
       period_start: commercial?.periodStart ?? usage.periodStart,
       orders_per_month: commercial?.usedOrders ?? usage.ordersPerMonth,
+      voice_sessions: usage.voiceSessions,
       commerce_connections: usage.commerceConnections,
       webhook_endpoints: usage.webhookEndpoints,
       team_members: usage.teamMembers,

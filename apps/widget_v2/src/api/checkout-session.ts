@@ -351,7 +351,7 @@ export class CheckoutSession {
     const res = await fetch(`${this.embedBaseUrl}/embed/realtime/session`, {
       method: "POST",
       headers: this.headers(),
-      body: JSON.stringify({ session_id: this.sessionId }),
+      body: JSON.stringify({ session_id: this.sessionId, idempotency_key: voiceSessionIdempotencyKey() }),
     });
     if (!res.ok) throw await CheckoutApiError.fromResponse("embed_realtime_voice", res);
     const data = await res.json() as { value?: unknown; expires_at?: unknown };
@@ -649,4 +649,9 @@ export function crossSellBlockFromSuggestions(
       })),
     },
   };
+}
+
+function voiceSessionIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return `voice-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }

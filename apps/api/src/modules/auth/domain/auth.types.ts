@@ -29,6 +29,7 @@ export interface AuthenticatedPrincipal {
   merchantId: string;
   email: string;
   role: TenantRole;
+  authVersion?: number;
 }
 
 export interface AuthTokens {

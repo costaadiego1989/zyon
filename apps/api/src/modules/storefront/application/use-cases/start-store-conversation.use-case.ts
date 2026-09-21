@@ -12,6 +12,7 @@ import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module
 import type { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { selectWeightedVariant } from "../../../../shared/experiments/weighted-variant-assignment.js";
+import { PublicStorefrontAccessService } from "../services/public-storefront-access.service.js";
 
 export interface StartStoreConversationInput {
   merchant_id: string;
@@ -38,12 +39,14 @@ export class StartStoreConversationUseCase {
   constructor(
     @Inject(MERCHANT_REPOSITORY) private readonly merchant: MerchantRepository,
     @Inject(STOREFRONT_CONVERSATION_PORT) private readonly conversation: StorefrontConversationPort,
-    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
+    private readonly publicStorefrontAccess?: PublicStorefrontAccessService,
   ) {}
 
   async execute(input: StartStoreConversationInput): Promise<StartStoreConversationOutput> {
     const merchant = await this.merchant.getProfile(input.merchant_id);
     if (!merchant) throw new NotFoundException("merchant_not_found");
+    await this.publicStorefrontAccess?.assertMerchantCanServe(merchant.id);
 
     const conversationId = `conv_${randomUUID()}`;
 

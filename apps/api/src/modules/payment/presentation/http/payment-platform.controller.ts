@@ -670,6 +670,8 @@ function toBillingResponse(subscription: BillingSubscriptionWithPlanSnapshot) {
       period_start: subscription.usage.periodStart,
       orders_current: subscription.usage.ordersPerMonth,
       orders_limit: subscription.limits.ordersPerMonth ?? null,
+      voice_sessions_current: subscription.usage.voiceSessions,
+      voice_sessions_limit: subscription.limits.voiceSessionsPerMonth ?? null,
       commerce_connections_current: subscription.usage.commerceConnections,
       commerce_connections_limit: subscription.limits.commerceConnections ?? null,
       webhook_endpoints_current: subscription.usage.webhookEndpoints,

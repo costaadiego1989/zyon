@@ -1,6 +1,6 @@
 import "./dashboard-responsive.css";
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { LogOut, ShieldCheck, ExternalLink, ChevronDown, Search, X } from "lucide-react";
+import { LogOut, ExternalLink, ChevronDown, Search, X } from "lucide-react";
 import { PageErrorBoundary } from "./PageErrorBoundary.js";
 import { NAV_ITEMS, NAV_SECTIONS, visibleItemsForPlan, type TabKey } from "./nav-config.js";
 import { resolveDashboardApiBaseUrl, type MerchantProfile as MerchantDashboardProfile } from "../api-client.js";
@@ -22,6 +22,7 @@ import { filterNavByRole } from "../lib/auth/permissions.js";
 import { RestrictedAccessModal } from "../components/RestrictedAccessModal.js";
 import { RouteGuard } from "../components/RouteGuard.js";
 import { AccessModalProvider } from "../lib/auth/access-modal-context.js";
+import { MerchantStoreSwitcher } from "./MerchantStoreSwitcher.js";
 
 function ShellImportProgressProvider({ children }: { children: React.ReactNode }) {
   const catalog = useCatalogApi();
@@ -557,10 +558,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 setNotifications((prev) => prev.filter((x) => x.id !== n.id));
               }}
             />
-            <div className="console-merchant-label" style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 12px", borderRadius: 9, border: "1px solid var(--color-border)", background: "var(--surface-2)", font: "12.5px var(--font-sans)", color: "var(--color-text-muted)" }}>
-              <ShieldCheck size={14} />
-              {me.name || me.id}
-            </div>
+            <MerchantStoreSwitcher currentStoreId={me.id} currentStoreName={me.name || me.id} />
           </div>
         </div>
         <section className="console-content" style={{ flex: 1, overflowY: "auto", padding: "48px 32px 60px", scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.06) transparent" }}>

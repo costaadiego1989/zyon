@@ -101,6 +101,9 @@ export class UsageResponse {
   @ApiProperty({ example: 1234 })
   orders_per_month!: number;
 
+  @ApiProperty({ example: 42, description: 'Sessões de voz reservadas no mês-calendário atual' })
+  voice_sessions!: number;
+
   @ApiProperty({ example: 2 })
   commerce_connections!: number;
 

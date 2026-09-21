@@ -13,17 +13,18 @@ import "./signup-plans-modern.css";
 type Props = {
   merchantName: string;
   initialPlan?: SubscriptionPlan;
+  requirePaidPlan?: boolean;
   onExit?: () => void | Promise<void>;
   merchantEmail?: string;
   onDone: () => void | Promise<void>;
 };
 
-export function PlanSelection({ merchantName, initialPlan, onDone, onExit }: Props) {
+export function PlanSelection({ merchantName, initialPlan, requirePaidPlan = false, onDone, onExit }: Props) {
   const api = useApi();
   const [billingCycle, setBillingCycle] = useState<BillingCycle>(readSubscriptionCycle);
   const [plans, setPlans] = useState<PlanDef[]>([]);
   const [busy, setBusy] = useState(false);
-  const [selected, setSelected] = useState<PlanDef["key"]>(initialPlan ?? "starter");
+  const [selected, setSelected] = useState<PlanDef["key"]>(requirePaidPlan ? "growth" : initialPlan ?? "starter");
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(new URLSearchParams(window.location.search).get("billing") === "success");
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +73,10 @@ export function PlanSelection({ merchantName, initialPlan, onDone, onExit }: Pro
     setBusy(true);
     setError(null);
     try {
+      if (requirePaidPlan && plan === "starter") {
+        setError("O perÃ­odo gratuito terminou. Escolha Growth ou Scale para reativar a loja.");
+        return;
+      }
       const definition = plans.find(p => p.key === plan);
       if (!definition || !selectedBillingOffer(definition, billingCycle)) { setError("O anual está indisponível. Selecione o mensal para continuar."); return; }
       rememberSubscriptionPlan(plan, billingCycle);
@@ -105,13 +110,14 @@ export function PlanSelection({ merchantName, initialPlan, onDone, onExit }: Pro
       <h1 id="plan-selection-title">{initialPlan ? "Tudo pronto para continuar." : "Sua loja pronta para o próximo passo."}</h1>
       <p>{initialPlan ? "Trouxemos sua escolha do site. Confira as condições, confirme a assinatura e volte ao painel com seu acesso preservado." : "Escolha o plano que acompanha sua operação. Compare os limites e confira as taxas."}</p>
     </header>
+    {requirePaidPlan && <p className="plan-selection__message" role="status">Seu perÃ­odo gratuito terminou. Escolha Growth ou Scale para reativar sua loja quando a assinatura for confirmada.</p>}
     {error && <div role="alert" className="plan-selection__message plan-selection__message--error">{error} {!plans.length && <Button variant="outline" onClick={() => void loadPlans()}>Tentar novamente</Button>}</div>}
     {notice && <div role="status" className="plan-selection__message">{notice}{paymentPending && <Button variant="outline" disabled={confirming} onClick={() => setConfirming(true)}>Atualizar status</Button>}</div>}
     {confirming && <p role="status" className="plan-selection__message"><LoaderCircle size={18} /> Confirmando sua assinatura…</p>}
     {!loading && !busy && !confirming && !paymentPending && <BillingCycleSelector value={billingCycle} onChange={cycle => { setBillingCycle(cycle); rememberSubscriptionPlan(selected, cycle); }} annualAvailable={annualAvailable} discountPercent={discountPercent} />}
     {loading ? <div className="plan-selection__loading" role="status">Carregando planos…</div> : <fieldset className={`plan-selection__grid${expanded ? "" : " plan-selection__grid--focused"}`} disabled={busy || confirming || paymentPending}>
       <legend className="sr-only">Escolha seu plano</legend>
-      {plans.filter(plan => expanded || plan.key === selected).map(plan => <SignupPlan key={plan.key} plan={plan} billingCycle={billingCycle} selected={selected === plan.key} onSelect={() => setSelected(plan.key)} />)}
+      {plans.filter(plan => (!requirePaidPlan || plan.key !== "starter") && (expanded || plan.key === selected)).map(plan => <SignupPlan key={plan.key} plan={plan} billingCycle={billingCycle} selected={selected === plan.key} onSelect={() => setSelected(plan.key)} />)}
     </fieldset>}
     {initialPlan && <button type="button" className="plan-selection__change" disabled={busy || confirming || paymentPending} onClick={() => setExpanded(!expanded)}>{expanded ? "Voltar ao resumo do plano" : "Comparar ou trocar plano"}</button>}
     <p className="plan-selection__terms"><ShieldCheck size={18} /><span>Confira o período e o total no Stripe antes de assinar. O anual é pago de uma vez; o desconto vale somente para a assinatura. As cotas de compras são mensais. O comprador paga R$ 0,99 de serviço por compra. Taxas do provedor de pagamento são separadas. No Free, novos cadastros têm 14 dias sem a taxa de transação Zyon da loja.</span></p>
@@ -137,7 +143,7 @@ function SignupPlan({ plan, billingCycle, selected, onSelect }: { plan: PlanDef;
       <div className="signup-plan__heading"><h2>{plan.name}</h2><input id={`signup-plan-${plan.key}`} type="radio" name="signup-plan" value={plan.key} checked={selected} disabled={!offer} onChange={onSelect} aria-label={`Selecionar ${plan.name}`} /></div>
       <p className="signup-plan__description">{copy.description}</p>
       <div className="signup-plan__price"><strong>{offer ? billingMoney(offer.equivalentMonthlyCents) : "Indisponível"}</strong><span>/mês</span></div>
-      <p className="signup-plan__fee">{plan.key === "starter" ? `Após os 14 dias iniciais: ${plan.fee} por transação.` : `${plan.fee} por transação. Tarifa fixa por compra.`}</p>
+    <p className="signup-plan__fee">{plan.key === "starter" ? "14 dias para conhecer a Zyon. Depois, escolha Growth ou Scale para manter a loja publicada." : `${plan.fee} por transação. Tarifa fixa por compra.`}</p>
     </label>
     {offer?.cycle === "annual" && <p className="signup-plan__fee">Total anual: <strong>{billingMoney(offer.amountCents)}</strong>. Economia de {billingMoney(offer.savingsCents)} ({offer.discountPercent}%).</p>}
     <p className="signup-plan__includes">{copy.includes}</p>

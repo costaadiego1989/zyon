@@ -2,6 +2,7 @@ import { Injectable, Inject, NotFoundException } from "@nestjs/common";
 import { decodePersistedTheme } from "../../../merchant/domain/services/merchant-theme.validators.js";
 import { STOREFRONT_CONFIG_QUERY_PORT, type StorefrontConfigQueryPort } from "../../domain/ports/storefront-config-query.port.js";
 import { BillingPlanMeteringService } from "../../../payment/infrastructure/billing/billing-plan-guard.js";
+import { PublicStorefrontAccessService } from "../services/public-storefront-access.service.js";
 
 export interface StoreConfigOutput {
   merchantId: string;
@@ -46,6 +47,7 @@ export class GetStoreConfigUseCase {
   constructor(
     @Inject(STOREFRONT_CONFIG_QUERY_PORT) private readonly configQuery: StorefrontConfigQueryPort,
     @Inject(BillingPlanMeteringService) private readonly billing?: BillingPlanMeteringService,
+    private readonly publicStorefrontAccess?: PublicStorefrontAccessService,
   ) {}
 
   async execute(slug: string): Promise<StoreConfigOutput> {
@@ -53,6 +55,7 @@ export class GetStoreConfigUseCase {
     if (!config) throw new NotFoundException("store_not_found");
 
     const row = config.merchant;
+    await this.publicStorefrontAccess?.assertMerchantCanServe(row.id);
     const theme = decodePersistedTheme(row.theme);
     const identity = config.agentRule?.identity as { agentName?: string; greeting?: string } | null;
     const checkoutSettings = config.agentRule?.checkoutSettings as

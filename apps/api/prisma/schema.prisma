@@ -16,6 +16,7 @@ enum MerchantPlan {
 
 model Merchant {
   id                      String       @id
+  billingAccountMerchantId String?      @map("billing_account_merchant_id")
   name                    String
   storeSlug               String?      @unique @map("store_slug")
   theme                   Json?
@@ -56,6 +57,8 @@ model Merchant {
   onboardingState          MerchantOnboardingState?
   installations            MerchantInstallation[]
   auditEvents              MerchantAuditEvent[]
+  voiceSessionQuotaPeriods MerchantVoiceSessionQuotaPeriod[]
+  voiceSessions            MerchantVoiceSession[]
   storyCategories          StoryCategory[]
   budgetRequests           BudgetRequest[]
   whatsappChannelConfig    WhatsAppChannelConfig?
@@ -70,6 +73,10 @@ model Merchant {
   ownDeliveryConfig        OwnDeliveryConfig?           @relation("OwnDeliveryConfig")
   campaignContactConsents  CampaignContactConsent[]
   oneBuyClickSessions      OneBuyClickSession[]
+  billingAccount           Merchant?   @relation("MerchantBillingAccount", fields: [billingAccountMerchantId], references: [id], onDelete: Restrict)
+  managedStores            Merchant[]  @relation("MerchantBillingAccount")
+
+  @@index([billingAccountMerchantId])
 
   @@map("merchants")
 }
@@ -182,7 +189,7 @@ model MerchantBillingSubscription {
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
 
-  // Asaas billing (primary provider) — see subscription-billing-asaas spec.
+  // Asaas billing (primary provider) â€” see subscription-billing-asaas spec.
   provider               String?   @default("asaas") @map("provider")
   planKey                String?   @map("plan_key")
   asaasCustomerId        String?   @map("asaas_customer_id")
@@ -550,9 +557,9 @@ model CompletedOrder {
   trackingCode       String?   @map("tracking_code")
   // Snapshot of the cart line items at completion time (sku, variantId, name,
   // unitPriceCents, quantity), used to compute per-item partial refunds. Null
-  // for orders created before this column existed → refund falls back to total.
+  // for orders created before this column existed â†’ refund falls back to total.
   lineItemsJson      Json?     @map("line_items_json")
-  // Shipping the buyer paid, in cents — refunded proportionally with returns.
+  // Shipping the buyer paid, in cents â€” refunded proportionally with returns.
   shippingCents      Int?      @map("shipping_cents")
   completedAt        DateTime  @map("completed_at")
   cancelledAt        DateTime? @map("cancelled_at")
@@ -766,7 +773,7 @@ model NegotiationCostLedgerEntry {
   merchantId           String   @map("merchant_id")
   negotiationSessionId String   @map("negotiation_session_id")
   eventType            String   @map("event_type")
-  amountCents          Int      @map("amount_cents") // C3 fix: deprecated — use aiCostCents or discountBasisPoints
+  amountCents          Int      @map("amount_cents") // C3 fix: deprecated â€” use aiCostCents or discountBasisPoints
   aiCostCents          Int?     @map("ai_cost_cents") // For negotiation.evaluated entries
   discountBasisPoints  Int?     @map("discount_basis_points") // For negotiation.offer_applied entries
   createdAt            DateTime @default(now()) @map("created_at")
@@ -1416,9 +1423,9 @@ model SelfCheckoutTemplate {
   @@map("self_checkout_templates")
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // STORE BUILDER: Catalog Module (ADR-0030)
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 enum MediaType {
   IMAGE
@@ -1633,9 +1640,9 @@ model CollectionProduct {
   @@map("collection_products")
 }
 
-// ─── Advanced Product Layout ──────────────────────────────────────────────────
+// â”€â”€â”€ Advanced Product Layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Per-product rich content: JSON blocks, FAQ, testimonials, videos.
-// Tenant scoping lives at the join through `products.merchantId` — no merchant_id
+// Tenant scoping lives at the join through `products.merchantId` â€” no merchant_id
 // column on these tables. All FKs cascade-delete from products.
 
 model ProductContentBlock {
@@ -1738,7 +1745,7 @@ model ProductContentHistory {
   @@map("product_content_history")
 }
 
-// ─── Returns / RMA ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Returns / RMA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 enum ReturnStatus {
   REQUESTED
@@ -1848,7 +1855,7 @@ model ReturnRefund {
   @@map("return_refunds")
 }
 
-// ─── Store Analytics ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Store Analytics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model StoreMetricDaily {
   id                 String   @id @default(cuid())
@@ -1883,7 +1890,7 @@ model StoreProductMetric {
   @@map("store_product_metrics")
 }
 
-// ─── Semantic Search (pgvector) ──────────────────────────────────────────────
+// â”€â”€â”€ Semantic Search (pgvector) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // NOTE: The `embedding` column is stored as String (base64) in dev mode.
 // In production with pgvector extension installed, a raw migration converts it:
 //   ALTER TABLE product_search_vectors ADD COLUMN embedding_vec vector(1536);
@@ -1957,7 +1964,7 @@ model MerchantDomain {
   @@map("merchant_domains")
 }
 
-// ─── Storefront Cart (browsing phase before checkout) ─────────────────────────
+// â”€â”€â”€ Storefront Cart (browsing phase before checkout) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model StorefrontCart {
   id           String   @id @default(cuid())
@@ -2003,7 +2010,7 @@ model OneBuyClickSession {
   @@map("one_buy_click_sessions")
 }
 
-// ─── Product Promotions (scheduled discounts per variant or category) ─────────
+// â”€â”€â”€ Product Promotions (scheduled discounts per variant or category) â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model ImportJob {
   id            String    @id @default(cuid())
@@ -2047,7 +2054,7 @@ model ProductPromotion {
   @@map("product_promotions")
 }
 
-// ─── Stories (Merchant-managed story categories and story content) ─────────────
+// â”€â”€â”€ Stories (Merchant-managed story categories and story content) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model StoryCategory {
   id         String   @id @default(cuid())
@@ -2106,7 +2113,7 @@ model BudgetRequest {
   @@map("budget_requests")
 }
 
-// ─── A/B Testing: Prompt Experiments (ab-testing-prompts spec) ────────────────
+// â”€â”€â”€ A/B Testing: Prompt Experiments (ab-testing-prompts spec) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model PromptExperiment {
   id              String    @id @default(cuid())
@@ -2297,7 +2304,7 @@ model MarketplaceSellerDebt {
 }
 
 // ============================================================================
-// AI Revenue Manager (Autonomous) — Feature 2
+// AI Revenue Manager (Autonomous) â€” Feature 2
 // ============================================================================
 
 model RevenueManagerObservation {
@@ -2440,7 +2447,7 @@ model RecoveryAttemptClaim {
 
 /// Tracks when a merchant last viewed each nav-badge section, so the sidebar
 /// badge counts only items that appeared AFTER the last view (unread-only).
-/// Purely a dashboard UI concern — never touches domain entities.
+/// Purely a dashboard UI concern â€” never touches domain entities.
 model NavBadgeView {
   merchantId   String   @map("merchant_id")
   badgeKey     String   @map("badge_key")
@@ -2548,7 +2555,7 @@ model NegotiationAttempt {
 }
 
 /// Per-merchant cart recovery strategy toggles. `escalate_discount` is
-/// intentionally excluded — progressive discounts are governed separately by
+/// intentionally excluded â€” progressive discounts are governed separately by
 /// the negotiation / rules engines, not a binary toggle.
 model CartRecoveryStrategyPref {
   id         String   @id @default(cuid())
@@ -2564,7 +2571,7 @@ model CartRecoveryStrategyPref {
   @@map("cart_recovery_strategy_prefs")
 }
 
-// ─── Cross-Sell Context: Global Buyer Profile ─────────────────────────────────
+// â”€â”€â”€ Cross-Sell Context: Global Buyer Profile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model BuyerGlobalProfile {
   globalUserId        String    @id @map("global_user_id")
@@ -2580,7 +2587,7 @@ model BuyerGlobalProfile {
   @@map("buyer_global_profiles")
 }
 
-// ─── WhatsApp Commerce Channel ─────────────────────────────────────────────
+// â”€â”€â”€ WhatsApp Commerce Channel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model WhatsAppChannelConfig {
   id         String  @id @default(uuid())
@@ -2700,7 +2707,7 @@ model PaymentHold {
   @@map("payment_holds")
 }
 
-// ─── Inventory Management ────────────────────────────────────────────────────
+// â”€â”€â”€ Inventory Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 enum InventoryMovementKind {
   ENTRY
@@ -3019,7 +3026,7 @@ model BuyerLoyaltyTracker {
   @@map("buyer_loyalty_trackers")
 }
 
-// ─── Knowledge Base (RAG support — pgvector) ──────────────────────────────────
+// â”€â”€â”€ Knowledge Base (RAG support â€” pgvector) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // NOTE: The `embedding` column stores JSON-serialized float32 array as fallback.
 // In production with pgvector, a raw migration adds `embedding_vec vector(1536)`
 // with an HNSW index for cosine similarity search. See migration:
@@ -3083,9 +3090,9 @@ model MerchantPlatformFeedback {
   @@map("merchant_platform_feedback")
 }
 
-// Auditável por mês UTC. O contador é materializado no momento da conclusão
-// idempotente do pedido e nunca substitui os pedidos históricos como fonte de
-// verdade para a reconciliação.
+// AuditÃ¡vel por mÃªs UTC. O contador Ã© materializado no momento da conclusÃ£o
+// idempotente do pedido e nunca substitui os pedidos histÃ³ricos como fonte de
+// verdade para a reconciliaÃ§Ã£o.
 model MerchantOrderQuotaPeriod {
   merchantId  String   @map("merchant_id")
   periodStart DateTime @map("period_start")
@@ -3102,7 +3109,7 @@ model MerchantOrderQuotaPeriod {
   @@map("merchant_order_quota_periods")
 }
 
-// Impede que uma repetição de webhook/invocação idempotente infle o contador.
+// Impede que uma repetiÃ§Ã£o de webhook/invocaÃ§Ã£o idempotente infle o contador.
 model MerchantOrderQuotaEntry {
   id              String   @id @default(cuid())
   merchantId      String   @map("merchant_id")
@@ -3118,8 +3125,8 @@ model MerchantOrderQuotaEntry {
   @@map("merchant_order_quota_entries")
 }
 
-// Uma ultrapassagem tem prazo próprio: mudar de plano pode encerrá-la sem
-// apagar o histórico, e uma nova ultrapassagem no mesmo mês fica rastreável.
+// Uma ultrapassagem tem prazo prÃ³prio: mudar de plano pode encerrÃ¡-la sem
+// apagar o histÃ³rico, e uma nova ultrapassagem no mesmo mÃªs fica rastreÃ¡vel.
 model MerchantOrderQuotaEpisode {
   id              String    @id @default(cuid())
   merchantId      String    @map("merchant_id")
@@ -3270,4 +3277,41 @@ model WhatsAppDelivery {
   @@index([merchantId, state])
   @@index([providerMessageId])
   @@map("whatsapp_deliveries")
+}
+
+model MerchantVoiceSessionQuotaPeriod {
+  merchantId   String   @map("merchant_id")
+  periodStart  DateTime @map("period_start")
+  periodEnd    DateTime @map("period_end")
+  usedSessions Int      @default(0) @map("used_sessions")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  merchant Merchant              @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  sessions MerchantVoiceSession[]
+
+  @@id([merchantId, periodStart])
+  @@index([periodStart, periodEnd])
+  @@map("merchant_voice_session_quota_periods")
+}
+
+model MerchantVoiceSession {
+  id                 String   @id @default(cuid())
+  merchantId         String   @map("merchant_id")
+  periodStart        DateTime @map("period_start")
+  idempotencyKey     String   @map("idempotency_key")
+  requestFingerprint String   @map("request_fingerprint")
+  state              String   @default("reserved")
+  providerCallId     String?  @unique @map("provider_call_id")
+  providerCreatedAt  DateTime? @map("provider_created_at")
+  releasedAt         DateTime? @map("released_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  merchant Merchant                         @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  period   MerchantVoiceSessionQuotaPeriod @relation(fields: [merchantId, periodStart], references: [merchantId, periodStart], onDelete: Cascade)
+
+  @@unique([merchantId, idempotencyKey])
+  @@index([merchantId, periodStart, state])
+  @@map("merchant_voice_sessions")
 }

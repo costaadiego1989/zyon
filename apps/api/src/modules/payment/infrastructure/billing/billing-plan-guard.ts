@@ -21,6 +21,7 @@ import type { BillingPlan, BillingSubscriptionSnapshot } from "../../domain/paym
 export type BillingUsageSnapshot = {
   periodStart: string;
   ordersPerMonth: number;
+  voiceSessions: number;
   commerceConnections: number;
   webhookEndpoints: number;
   teamMembers: number;
@@ -52,9 +53,19 @@ export function RequirePlanFeature(
 export class BillingPlanMeteringService {
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
+  async resolveBillingAccountMerchantId(merchantId: string): Promise<string> {
+    const scopedMerchantId = merchantId.trim();
+    const merchant = await this.prisma.merchant.findUnique({
+      where: { id: scopedMerchantId },
+      select: { billingAccountMerchantId: true },
+    });
+    return merchant?.billingAccountMerchantId ?? scopedMerchantId;
+  }
+
   async getSubscription(merchantId: string): Promise<BillingSubscriptionSnapshot | undefined> {
+    const billingMerchantId = await this.resolveBillingAccountMerchantId(merchantId);
     const row = await this.prisma.merchantBillingSubscription.findUnique({
-      where: { merchantId: merchantId.trim() },
+      where: { merchantId: billingMerchantId },
     });
     if (!row) return undefined;
     return {
@@ -79,13 +90,17 @@ export class BillingPlanMeteringService {
   async getUsage(merchantId: string, now = new Date()): Promise<BillingUsageSnapshot> {
     const scopedMerchantId = merchantId.trim();
     const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const [orders, connections, endpoints, members, promos, coupons] = await Promise.all([
+    const [orders, voiceQuotaPeriod, connections, endpoints, members, promos, coupons] = await Promise.all([
       this.prisma.completedOrder.count({
         where: {
           merchantId: scopedMerchantId,
           status: "approved",
           completedAt: { gte: periodStart },
         },
+      }),
+      this.prisma.merchantVoiceSessionQuotaPeriod.findUnique({
+        where: { merchantId_periodStart: { merchantId: scopedMerchantId, periodStart } },
+        select: { usedSessions: true },
       }),
       this.prisma.merchantCommerceConnection.count({
         where: { merchantId: scopedMerchantId, status: { not: "disconnected" } },
@@ -107,6 +122,7 @@ export class BillingPlanMeteringService {
     return {
       periodStart: periodStart.toISOString(),
       ordersPerMonth: orders,
+      voiceSessions: voiceQuotaPeriod?.usedSessions ?? 0,
       commerceConnections: connections,
       webhookEndpoints: endpoints,
       teamMembers: members,

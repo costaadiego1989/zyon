@@ -9,7 +9,13 @@ async function serverFetch(url: string, options?: RequestInit) {
     },
     cache: "no-store",
   });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    const payload = await res.json().catch(() => null) as { code?: unknown; redirect_url?: unknown } | null;
+    if (res.status === 403 && payload?.code === "store_subscription_required" && typeof payload.redirect_url === "string") {
+      return { __redirectUrl: payload.redirect_url };
+    }
+    return null;
+  }
   return res.json();
 }
 export async function fetchStoreConfig(slug: string): Promise<any | null> {
@@ -26,4 +32,8 @@ export async function fetchSitemapProducts(): Promise<Array<{ slug: string; upda
     slug: s.slug,
     updatedAt: s.updatedAt || new Date().toISOString(),
   }));
+}
+
+export function isStorefrontSubscriptionRedirect(value: unknown): value is { __redirectUrl: string } {
+  return Boolean(value && typeof value === "object" && typeof (value as { __redirectUrl?: unknown }).__redirectUrl === "string");
 }

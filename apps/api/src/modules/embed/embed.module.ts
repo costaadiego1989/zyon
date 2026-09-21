@@ -9,6 +9,7 @@ import { CheckoutModule } from "../checkout/checkout.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { PaymentModule } from "../payment/payment.module.js";
+import { VoiceSessionQuotaModule } from "../ai-usage/voice-session-quota.module.js";
 import { MessagingModule } from "../../shared/messaging/messaging.module.js";
 import { IntentMemoryModule } from "../intent-memory/intent-memory.module.js";
 import { CampaignConsentModule } from "../campaign-consent/campaign-consent.module.js";
@@ -41,6 +42,7 @@ import { EmbedRealtimeVoiceController } from "./presentation/http/embed-realtime
     CheckoutModule,
     MerchantModule,
     PaymentModule,
+    VoiceSessionQuotaModule,
     IntegrationsModule,
     CatalogModule,
     InstallationsModule,

@@ -4,14 +4,40 @@ export const BILLING_PLAN_PRESENTATION = {
   starter: {
     eyebrow: "Seu primeiro passo", badge: "Sem mensalidade", includes: "Sua operação começa com",
     description: "Para tirar sua loja autônoma do papel e conhecer a Zyon atendendo seus primeiros clientes. O essencial para começar, com a identidade da sua marca.",
+    highlights: [
+      "14 dias para conhecer a Zyon",
+      "Sem taxa Zyon por transação durante o trial",
+      "Nome do assistente personalizado",
+      "Tema da loja personalizado",
+    ],
   },
   growth: {
     eyebrow: "Para vender com consistência", badge: "Recomendado", includes: "Mais inteligência para sua rotina",
     description: "Para quem já tem uma rotina de vendas e quer automatizar mais. Atenda por texto e voz, use sua base de conhecimento, configure entregas e conecte seu domínio próprio.",
+    highlights: [
+      "500 pedidos por mês",
+      "1 loja",
+      "Nome do assistente personalizado",
+      "Tema da loja personalizado",
+      "Checkout por voz: 100 sessões por mês",
+      "Descontos progressivos",
+      "Regras avançadas de produto",
+      "Módulo de IA liberado",
+      "Integrações com ERP e CRM",
+    ],
   },
   scale: {
     eyebrow: "Para operações em expansão", badge: "Escala", includes: "Capacidade para o próximo nível",
-    description: "Para empresas que precisam de capacidade, marca própria e inteligência comercial avançada. Inclui compras sem limite mensal, análise, experimentação e agentes. Alto consumo e integrações especiais têm condições sob consulta.",
+    description: "Para empresas que precisam de capacidade, marca própria e inteligência comercial avançada. Administre até cinco lojas independentes, com compras sem limite mensal, análise, experimentação e agentes. Alto consumo e integrações especiais têm condições sob consulta.",
+    highlights: [
+      "Pedidos sem limite",
+      "Nome do assistente personalizado",
+      "Tema da loja personalizado",
+      "Checkout por voz: 300 sessões por mês",
+      "Todos os módulos do Growth",
+      "Até 5 lojas independentes",
+      "Recursos avançados de IA e automação",
+    ],
   },
 } as const;
 
@@ -26,12 +52,12 @@ export const BILLING_FEATURE_LABELS: Record<string, string> = {
   revenueManager: "Revenue Manager", m2mAgents: "Agentes M2M",
 };
 
-/** Mesmos limites e rótulos no site, na escolha inicial e na página de assinatura. */
+/** Limits used in operational views. Marketing cards use the curated plan highlights above. */
 export function billingLimitHighlights(limits: Record<string, number | null | undefined>): string[] {
   const count = (value: number) => value.toLocaleString("pt-BR");
   const entries: Array<[string,string,string]> = [
     ["ordersPerMonth","compras confirmadas por mês","Compras sem limite mensal"],
-    ["commerceConnections","conexões de comércio","Conexões de comércio sem limite"],
+    ["voiceSessionsPerMonth","sessões por voz por mês","Sessões por voz sem limite"],
     ["teamMembers","membros na equipe","Equipe sem limite"],
     ["activeCoupons","cupons ativos","Cupons sem limite"],
     ["crossSellPromotions","promoções de venda complementar","Promoções de venda complementar sem limite"],
@@ -41,7 +67,7 @@ export function billingLimitHighlights(limits: Record<string, number | null | un
     if (value === undefined) return [];
     if (value === null || value < 0) return [unlimited];
     if (value === 1) {
-      const single: Record<string,string> = {commerceConnections:"1 conexão de comércio",teamMembers:"1 membro na equipe",activeCoupons:"1 cupom ativo",crossSellPromotions:"1 promoção de venda complementar"};
+      const single: Record<string,string> = {voiceSessionsPerMonth:"1 sessão por voz por mês",teamMembers:"1 membro na equipe",activeCoupons:"1 cupom ativo",crossSellPromotions:"1 promoção de venda complementar"};
       if (single[key]) return [single[key]];
     }
     return [count(value)+" "+label];
@@ -81,7 +107,10 @@ export type BillingPlanFeatureKey =
   // Product surface expansion (rich blocks, FAQ, testimonials, videos)
   | "advancedProductLayout";
 
-export type BillingPlanLimits = Record<BillingPlanLimitKey, number | null>;
+export type BillingPlanLimits = Record<BillingPlanLimitKey, number | null> & {
+  /** New WebRTC sessions admitted during a UTC calendar month. */
+  voiceSessionsPerMonth: number;
+};
 export type BillingPlanFeatures = Record<BillingPlanFeatureKey, boolean>;
 
 export type BillingPlanConfig = {
@@ -107,7 +136,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
   starter: {
     name: "Free",
     monthlyPriceBrl: 0,
-    transactionFeeCents: 299,
+    transactionFeeCents: 0,
     limits: {
       ordersPerMonth: 100,
       commerceConnections: 1,
@@ -115,6 +144,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       teamMembers: 1,
       crossSellPromotions: 1,
       activeCoupons: 1,
+      voiceSessionsPerMonth: 0,
     },
     features: {
       customAgentName: true,
@@ -141,19 +171,21 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
   },
   growth: {
     name: "Growth",
-    monthlyPriceBrl: 349,
+    monthlyPriceBrl: 449,
     transactionFeeCents: 149,
     limits: {
       ordersPerMonth: 500,
-      commerceConnections: 2,
+      commerceConnections: 1,
       webhookEndpoints: UNLIMITED,
       teamMembers: 3,
       crossSellPromotions: 10,
       activeCoupons: 10,
+      voiceSessionsPerMonth: 100,
     },
     features: {
       customAgentName: true,
       customTheme: true,
+      // Voice purchase with Realtime is available from Growth onward.
       voiceCheckout: true,
       faceBiometry: true,
       cryptoPayments: true,
@@ -176,7 +208,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
   },
   scale: {
     name: "Scale",
-    monthlyPriceBrl: 599,
+    monthlyPriceBrl: 749,
     transactionFeeCents: 99,
     limits: {
       ordersPerMonth: UNLIMITED,
@@ -185,6 +217,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       teamMembers: 10,
       crossSellPromotions: UNLIMITED,
       activeCoupons: UNLIMITED,
+      voiceSessionsPerMonth: 300,
     },
     features: {
       customAgentName: true,
