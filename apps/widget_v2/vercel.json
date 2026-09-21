@@ -2,6 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
   "installCommand": "pnpm install --no-frozen-lockfile",
+  "ignoreCommand": "node ../../scripts/vercel-deploy-guard.mjs",
   "buildCommand": "pnpm --filter @zyon/widget-v2 build:app",
   "outputDirectory": "dist",
   "rewrites": [{ "source": "/((?!assets/).*)", "destination": "/index.html" }],
