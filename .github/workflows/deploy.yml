@@ -18,6 +18,16 @@ jobs:
   ci-gate:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 2 }
@@ -45,7 +55,8 @@ jobs:
         uses: ankane/setup-postgres@v1
         with:
           postgres-version: 16
-      - run: redis-server --daemonize yes
+      - name: Create test database
+        run: PGPASSWORD=postgres createdb -h 127.0.0.1 -U postgres test_db || true
       - name: Run API tests
         run: |
           export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/test_db"
