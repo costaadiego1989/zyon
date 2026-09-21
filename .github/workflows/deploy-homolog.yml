@@ -1,0 +1,34 @@
+name: Deploy API to Railway (homolog)
+
+on:
+  push:
+    branches:
+      - homolog
+
+concurrency:
+  group: deploy-homolog-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+  NODE_VERSION: '20'
+
+jobs:
+  deploy-homolog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: homolog
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: '9' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm release:homolog:preflight
+      - run: pnpm verify:voice-release
+      - run: pnpm --filter @zyon/api prisma:generate
+      - run: pnpm --filter @zyon/api typecheck
+      - run: npm install -g @railway/cli
+      - name: Deploy API
+        run: railway up --service api --environment homolog --detach

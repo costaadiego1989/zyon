@@ -1,11 +1,9 @@
-name: Deploy to Railway
+name: Deploy API to Railway (production)
 
 on:
   push:
     branches:
-      - main
-    tags:
-      - v*
+      - master
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -27,6 +25,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
       - run: pnpm install --frozen-lockfile
+      - run: pnpm verify:voice-release
       - run: pnpm --filter @zyon/api prisma:generate
 
       # Typecheck all apps
@@ -63,7 +62,7 @@ jobs:
       - run: cd apps/widget_v2 && pnpm build
 
   # ── Deploy: Production ─────────────────────────────────────────────────────
-  # Triggered by push to `main` or a version tag (v*).
+  # Triggered only by a verified push to `master`.
   # PostgreSQL + Redis are provisioned once in Railway (persistent plugins) —
   # they are NOT redeployed here (redeploying a DB every push is wasteful and
   # risky). Only the app services are pushed.
@@ -88,27 +87,10 @@ jobs:
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
-      - name: Deploy Dashboard
-        run: |
-          railway up \
-            --service dashboard \
-            --environment production \
-            --detach
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-
-      - name: Deploy Storefront
-        run: |
-          railway up \
-            --service storefront \
-            --environment production \
-            --detach
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-
       - name: Deployment summary
         run: |
           echo "✅ Production deployment initiated for ${{ github.ref }}"
-          echo "Services: api, dashboard, storefront"
+          echo "Service: api (Railway)"
+          echo "Frontends: Vercel deploys from the protected branch"
           echo "Databases: postgres + redis (persistent, not redeployed)"
           echo "Monitor: https://railway.app"

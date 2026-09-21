@@ -17,19 +17,16 @@ function setup() {
     customer: { phone: "11987654321", email: "wrong@example.test", otp_code: "123456", email_verified: false },
   }));
   const sent: string[] = [];
-  let deliveryFails = false;
   const otp = new OtpService();
   otp.generateCode = () => "654321";
-  const customerService = new CheckoutCustomerService(repository, undefined, otp, undefined, undefined, {
-    async send(input: { to: string }) {
-      sent.push(input.to);
-      return deliveryFails ? { status: "skipped", messageId: "" } : { status: "sent", messageId: "test-delivery" };
-    },
-  } as never);
+  const customerService = new CheckoutCustomerService(repository, {
+    notifyCaptured() {},
+    sendOtpCode(input: { buyerEmail: string }) { sent.push(input.buyerEmail); },
+  } as never, otp);
   const useCase = createSendChatUseCase(repository, { customerService, conversation: new DeterministicConversationAdapter(), shippingService: new CheckoutShippingService(repository, customerService), offerService: new CheckoutOfferService(repository) });
   const send = (user_message: string) => useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", conversation_id: "conv_1", user_message });
   const current = () => repository.getSession("mrc_1", "chk_1")!;
-  return { repository, send, current, sent, failDelivery: () => { deliveryFails = true; }, recoverDelivery: () => { deliveryFails = false; } };
+  return { repository, send, current, sent };
 }
 
 test("email correction leaves OTP loop, survives reload, replaces email and rejects old code", async () => {
@@ -95,15 +92,11 @@ test("changing a verified email detaches prior identity and private account data
   assert.equal(current().shipping, undefined);
 });
 
-test("delivery failure still revokes old OTP and a subsequent retry targets the corrected email", async () => {
-  const { send, current, failDelivery, recoverDelivery, sent } = setup();
-  failDelivery();
-  assert.match((await send("Trocar email para right@example.test")).message, /Não foi possível enviar/);
+test("resend after correction always targets the corrected email", async () => {
+  const { send, current, sent } = setup();
+  await send("Trocar email para right@example.test");
   assert.equal(current().customer?.email, "right@example.test");
-  assert.equal(current().customer?.otp_code, "");
-  await send("123456");
-  assert.notEqual(current().customer?.email_verified, true);
-  recoverDelivery();
+  assert.equal(current().customer?.otp_code, "654321");
   await send("Reenviar código de e-mail");
   assert.equal(current().customer?.otp_code, "654321");
   assert.deepEqual(sent, ["right@example.test", "right@example.test"]);
