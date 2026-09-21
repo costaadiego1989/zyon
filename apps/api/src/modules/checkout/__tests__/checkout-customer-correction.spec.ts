@@ -19,10 +19,20 @@ function setup() {
   const sent: string[] = [];
   const otp = new OtpService();
   otp.generateCode = () => "654321";
-  const customerService = new CheckoutCustomerService(repository, {
-    notifyCaptured() {},
-    sendOtpCode(input: { buyerEmail: string }) { sent.push(input.buyerEmail); },
-  } as never, otp);
+  const emailSender = {
+    async send(input: { to: string }) {
+      sent.push(input.to);
+      return { status: "sent" as const, messageId: "checkout-otp-test" };
+    },
+  };
+  const customerService = new CheckoutCustomerService(
+    repository,
+    undefined,
+    otp,
+    undefined,
+    undefined,
+    emailSender as never,
+  );
   const useCase = createSendChatUseCase(repository, { customerService, conversation: new DeterministicConversationAdapter(), shippingService: new CheckoutShippingService(repository, customerService), offerService: new CheckoutOfferService(repository) });
   const send = (user_message: string) => useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", conversation_id: "conv_1", user_message });
   const current = () => repository.getSession("mrc_1", "chk_1")!;
