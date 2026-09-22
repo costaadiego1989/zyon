@@ -5,9 +5,22 @@ import vm from "node:vm";
 import { createRequire } from "node:module";
 import { webcrypto } from "node:crypto";
 import ts from "typescript";
-import { storefrontRequestOrigin } from "../../../../../../storefront/src/lib/platform-hostname.js";
 
 type ProxyRoute = (request: Request, context: { params: Promise<{ path: string[] }> }) => Promise<Response>;
+type StorefrontRequestOrigin = (request: Request) => string;
+
+function loadStorefrontRequestOrigin(): StorefrontRequestOrigin {
+  const sourceUrl = new URL("../../../../../../storefront/src/lib/platform-hostname.ts", import.meta.url);
+  const source = fs.readFileSync(sourceUrl, "utf8");
+  const { outputText } = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  });
+  const module = { exports: {} as { storefrontRequestOrigin: StorefrontRequestOrigin } };
+  vm.runInNewContext(outputText, { module, exports: module.exports, URL }, { filename: sourceUrl.pathname });
+  return module.exports.storefrontRequestOrigin;
+}
+
+const storefrontRequestOrigin = loadStorefrontRequestOrigin();
 
 function route(upstream: typeof fetch): ProxyRoute {
   const sourceUrl = new URL("../../../../../../storefront/src/app/api/embed/[...path]/route.ts", import.meta.url);
