@@ -33,7 +33,7 @@ function isAllowedPath(path: string[]): boolean {
   if (path[0] === "conversations") {
     if (!isIdentifier(path[1])) return false;
     if (path.length === 3) return ["messages", "one-buy-click", "access", "history", "events"].includes(path[2]!);
-    return path.length === 4 && path[2] === "realtime" && path[3] === "session";
+    return path.length === 4 && path[2] === "realtime" && ["session", "narration"].includes(path[3]!);
   }
   if (path[0] !== "cart" || !isIdentifier(path[1])) return false;
   return path.length === 2 ||

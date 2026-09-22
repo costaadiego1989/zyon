@@ -22,6 +22,7 @@ import { THEME_TOKENS, type Theme } from "./conversation/theme-tokens";
 import { redirectToCheckout } from "./conversation/checkout-redirect";
 import { conversationFetch } from "@/lib/conversation-access";
 import { checkoutApi } from "@/lib/api/api-client";
+import { useRealtimeProductNarration } from "@/lib/voice/use-realtime-product-narration";
 import { useRealtimeVoiceCheckout } from "@/lib/voice/use-realtime-voice-checkout";
 import { RealtimeVoiceComposer } from "./conversation/RealtimeVoiceComposer";
 
@@ -276,8 +277,7 @@ export default function ConversationShell({
   const { cart } = useCart();
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const realtimeVoice = useRealtimeVoiceCheckout({
-    // A product-detail button can start the voice session while the visual
-    // conversation is still on chat. This retains the browser user gesture.
+    // This session is reserved for the explicit purchase-voice header control.
     enabled: voiceCheckoutEnabled === true && !checkoutOpen,
     createSession: async () => {
       const activeConversationId = await ensureConversation();
@@ -303,6 +303,26 @@ export default function ConversationShell({
       return { agentMessage: result?.agentMessage ?? "Não consegui concluir este pedido agora. Pode repetir?", cart: { itemCount: cart.itemCount, total: cart.total } };
     },
     onBeginCheckout: async () => beginCheckout(),
+  });
+  const narrationVoice = useRealtimeProductNarration({
+    enabled: voiceCheckoutEnabled === true && !checkoutOpen,
+    createSession: async (summary) => {
+      const activeConversationId = await ensureConversation();
+      if (!activeConversationId) throw new Error("conversation_not_ready");
+      const response = await conversationFetch(activeConversationId, `${API_BASE}/storefront/conversations/${encodeURIComponent(activeConversationId)}/realtime/narration`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ summary }),
+      });
+      if (!response.ok) {
+        const error = new Error("realtime_narration_session_failed") as Error & { status?: number };
+        error.status = response.status;
+        throw error;
+      }
+      const data = await response.json() as { value?: unknown; expires_at?: unknown };
+      if (typeof data.value !== "string") throw new Error("invalid_realtime_narration_session");
+      return { value: data.value, ...(typeof data.expires_at === "number" ? { expires_at: data.expires_at } : {}) };
+    },
   });
 
   // Every checkout entry point must honor the same buyer preference and auth gate.
@@ -379,12 +399,11 @@ export default function ConversationShell({
     const requestSummary = (event: Event) => {
       const summary = (event as CustomEvent<{ summary?: unknown }>).detail?.summary;
       if (typeof summary !== "string" || !summary.trim()) return;
-      selectChannel("voice");
-      realtimeVoice.sendText(`Faça um resumo curto deste produto usando apenas a confirmação do agente comercial: ${summary}`);
+      narrationVoice.play(summary);
     };
     window.addEventListener("zyon:realtime-product-summary", requestSummary);
     return () => window.removeEventListener("zyon:realtime-product-summary", requestSummary);
-  }, [realtimeVoice.sendText, selectChannel]);
+  }, [narrationVoice.play]);
   useEffect(() => {
     if (voiceCheckoutEnabled !== true && channel === "voice") toggleChannel();
   }, [voiceCheckoutEnabled, channel, toggleChannel]);
@@ -395,6 +414,7 @@ export default function ConversationShell({
       selectChannel("chat");
       return;
     }
+    narrationVoice.stop();
     selectChannel("voice");
     realtimeVoice.start();
   };

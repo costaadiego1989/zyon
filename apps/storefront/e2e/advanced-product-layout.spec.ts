@@ -158,7 +158,17 @@ test.describe("Advanced Product Layout @apl", () => {
     await testInfo.attach("advanced-product-layout-mobile-dark", { path: screenshot, contentType: "image/png" });
   });
 
-  test("product narration never falls back to browser speech synthesis", async ({ page }) => {
+  test("product narration never falls back to browser speech or activates purchase voice", async ({ page }) => {
+    let narrationRequests = 0;
+    await page.route(/\/realtime\/narration$/, async (route) => {
+      narrationRequests++;
+      await route.fulfill({ json: { value: "ephemeral-narration-secret-for-test" } });
+    });
+    await page.route("https://api.openai.com/v1/realtime/calls", async (route) => {
+      // The transport error is intentional: this contract verifies the client
+      // never reaches for microphone or checkout state while starting audio.
+      await route.fulfill({ status: 503, body: "narration transport disabled in test" });
+    });
     await page.addInitScript(() => {
       localStorage.setItem("zyon-theme", "light");
       localStorage.removeItem("pulse-channel-pref");
@@ -170,20 +180,30 @@ test.describe("Advanced Product Layout @apl", () => {
         cancel: () => {},
         speak: (utterance: SpeechSynthesisUtterance) => { calls.spoken.push(utterance.text); },
       } });
+      const microphone = { calls: 0 };
+      (window as any).__productNarrationMicrophone = microphone;
+      Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
+        configurable: true,
+        value: async () => {
+          microphone.calls++;
+          throw new Error("narration_must_not_use_microphone");
+        },
+      });
     });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(pageUrl());
     const overlay = page.getByRole("dialog", { name: "Conheça o produto" });
     await expect(overlay).toBeVisible();
     await expect(page.locator("[data-aacp-chat-content]")).toHaveAttribute("inert");
-    const narration = page.getByRole("button", { name: "Ouvir resumo pela compra por voz" });
+    const narration = page.getByRole("button", { name: "Ouvir resumo do produto" });
     await expect(narration).toBeVisible();
-    await expect(page.getByText("Conectando a assistente de voz para tocar o resumo.")).toHaveCount(0);
     await expect(page.locator("audio[data-zyon-realtime-audio]")).toHaveCount(0);
     if (await narration.isEnabled()) {
       await narration.click();
-      await expect(page.locator("[data-aacp-voice-composer]")).toBeVisible();
-      await expect(page.getByText("Conectando a assistente de voz para tocar o resumo.")).toBeVisible();
+      await expect.poll(() => narrationRequests).toBe(1);
+      await expect(page.locator("[data-aacp-voice-composer]")).toHaveCount(0);
+      await expect(page.locator("audio[data-zyon-realtime-audio]")).toHaveCount(0);
+      await expect.poll(() => page.evaluate(() => (window as any).__productNarrationMicrophone.calls)).toBe(0);
     }
     await expect.poll(() => page.evaluate(() => (window as any).__productVoice.spoken.length)).toBe(0);
   });

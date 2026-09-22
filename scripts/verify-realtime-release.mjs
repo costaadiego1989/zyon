@@ -7,13 +7,17 @@ const requiredSource = [
     "gpt-realtime-2.1-mini",
     "add_item_to_cart",
     "begin_checkout",
+    "createProductNarrationClientSecret",
+    "tools: []",
+    "tool_choice: \"none\"",
   ]],
-  ["apps/api/src/modules/storefront/presentation/http/storefront-realtime-voice.controller.ts", ["realtime/session"]],
+  ["apps/api/src/modules/storefront/presentation/http/storefront-realtime-voice.controller.ts", ["realtime/session", "realtime/narration"]],
   ["apps/api/src/modules/embed/presentation/http/embed-realtime-voice.controller.ts", ["Controller(\"embed/realtime\")", "@Post(\"session\")"]],
   ["apps/widget_v2/src/lib/voice/use-realtime-voice-checkout.ts", ["RTCPeerConnection", "realtime/calls"]],
   ["apps/widget_v2/src/api/checkout-session.ts", ["embed/realtime/session", "embedBaseUrl"]],
   ["apps/storefront/src/components/CheckoutPanel.tsx", ["embedApiBaseUrl=\"/api\""]],
   ["apps/storefront/src/components/conversation/RealtimeVoiceComposer.tsx", ["Ativar"]],
+  ["apps/storefront/src/lib/voice/use-realtime-product-narration.ts", ["recvonly", "realtime/calls"]],
 ];
 
 const failures = [];
