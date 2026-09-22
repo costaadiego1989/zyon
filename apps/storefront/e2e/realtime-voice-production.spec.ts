@@ -3,13 +3,14 @@ import { expect, test } from "@playwright/test";
 const productionUrl = process.env.ZYON_VOICE_PRODUCTION_URL;
 
 /**
- * This consumes a single ephemeral client secret only. It never exposes a
- * permanent provider key and does not submit checkout data or payment.
+ * This creates an ephemeral client secret only after the buyer explicitly
+ * activates voice. It never exposes a permanent provider key and does not
+ * submit checkout data or payment.
  */
 test.describe("Realtime voice production @voice", () => {
   test.skip(!productionUrl, "Set ZYON_VOICE_PRODUCTION_URL to a Growth storefront for this opt-in smoke test.");
 
-  test("starts the Growth welcome greeting without browser speech synthesis", async ({ page }) => {
+  test("requires an explicit header action before creating a Realtime session", async ({ page }) => {
     let sessionStatus: number | undefined;
     let realtimeCallStatus: number | undefined;
     page.on("response", (response) => {
@@ -63,15 +64,18 @@ test.describe("Realtime voice production @voice", () => {
     });
 
     await page.goto(productionUrl!, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("button", { name: "Começar por voz" })).toBeVisible();
-    await expect(page.getByRole("status")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Ativar compra por voz" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Começar por voz" })).toHaveCount(0);
+    await page.waitForTimeout(750);
+    await expect(page.locator("audio[data-zyon-realtime-audio]")).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => (window as any).__zyonRealtimeChannels.length)).toBe(0);
+    expect(sessionStatus).toBeUndefined();
+    expect(realtimeCallStatus).toBeUndefined();
+
+    await page.getByRole("button", { name: "Ativar compra por voz" }).click();
     await expect.poll(() => Boolean(sessionStatus && sessionStatus >= 200 && sessionStatus < 300), { timeout: 20_000 }).toBe(true);
     await expect.poll(() => Boolean(realtimeCallStatus && realtimeCallStatus >= 200 && realtimeCallStatus < 300), { timeout: 20_000 }).toBe(true);
     await expect.poll(() => page.evaluate(() => (window as any).__zyonRealtimeEvents.some((event: string) => event.includes('"type":"response.create"')))).toBe(true);
-    await page.evaluate(() => window.dispatchEvent(new CustomEvent("zyon:realtime-product-summary", {
-      detail: { summary: "Sérum capilar: produto de teste disponível para resumo por voz." },
-    })));
-    await expect.poll(() => page.evaluate(() => (window as any).__zyonRealtimeEvents.some((event: string) => event.includes("Sérum capilar: produto de teste disponível para resumo por voz.")))).toBe(true);
     await expect(page.locator("audio[data-zyon-realtime-audio]")).toHaveCount(1);
     await expect.poll(() => page.locator("audio[data-zyon-realtime-audio]").evaluate((audio) => Boolean(audio.srcObject)), { timeout: 20_000 }).toBe(true);
     await expect.poll(() => page.evaluate(() => (window as any).__zyonNativeSpeech.calls)).toBe(0);
@@ -134,7 +138,7 @@ test.describe("Realtime voice production @voice", () => {
     });
 
     await page.goto(productionUrl!, { waitUntil: "domcontentloaded" });
-    await page.getByRole("button", { name: /Come.*por voz/ }).click();
+    await page.getByRole("button", { name: "Ativar compra por voz" }).click();
     const quickToggle = page.locator('[data-one-buy-click-toggle="header"]');
     await expect(quickToggle).toBeVisible({ timeout: 20_000 });
     await expect(quickToggle).toBeEnabled({ timeout: 20_000 });
@@ -142,8 +146,12 @@ test.describe("Realtime voice production @voice", () => {
     await expect(quickToggle).toHaveAttribute("aria-checked", "true");
 
     // Reload reproduces the reported timing: voice can receive the checkout
-    // tool call while the remote preference request is still resolving.
+    // tool call only after a new, explicit voice activation.
     await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("button", { name: "Ativar compra por voz" })).toBeVisible();
+    await page.waitForTimeout(750);
+    await expect.poll(() => page.evaluate(() => (window as any).__zyonRealtimeChannels.length)).toBe(0);
+    await page.getByRole("button", { name: "Ativar compra por voz" }).click();
     await expect.poll(() => page.evaluate(() => (window as any).__zyonRealtimeChannels.length > 0), { timeout: 20_000 }).toBe(true);
     await expect.poll(() => page.evaluate(() => (window as any).__zyonRealtimeChannels.at(-1)?.readyState === "open"), { timeout: 20_000 }).toBe(true);
     await expect.poll(() => page.evaluate(() => (window as any).__zyonRealtimeInboundEvents.some((event: string) => event.includes("response.done") || event.includes("response.completed"))), { timeout: 20_000 }).toBe(true);

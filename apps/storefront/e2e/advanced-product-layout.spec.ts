@@ -178,6 +178,8 @@ test.describe("Advanced Product Layout @apl", () => {
     await expect(page.locator("[data-aacp-chat-content]")).toHaveAttribute("inert");
     const narration = page.getByRole("button", { name: "Ouvir resumo pela compra por voz" });
     await expect(narration).toBeVisible();
+    await expect(page.getByText("Conectando a assistente de voz para tocar o resumo.")).toHaveCount(0);
+    await expect(page.locator("audio[data-zyon-realtime-audio]")).toHaveCount(0);
     if (await narration.isEnabled()) {
       await narration.click();
       await expect(page.locator("[data-aacp-voice-composer]")).toBeVisible();

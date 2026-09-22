@@ -23,7 +23,6 @@ import { redirectToCheckout } from "./conversation/checkout-redirect";
 import { conversationFetch } from "@/lib/conversation-access";
 import { checkoutApi } from "@/lib/api/api-client";
 import { useRealtimeVoiceCheckout } from "@/lib/voice/use-realtime-voice-checkout";
-import { restoreChannelPreference } from "@/lib/services/conversation.service";
 import { RealtimeVoiceComposer } from "./conversation/RealtimeVoiceComposer";
 
 type Channel = "chat" | "voice";
@@ -352,13 +351,12 @@ export default function ConversationShell({
   const [logoError, setLogoError] = useState(false);
   const [checkoutUserId, setCheckoutUserId] = useState("");
   const [mounted, setMounted] = useState(false);
-  const [welcomeVoiceRequested, setWelcomeVoiceRequested] = useState(false);
   const [richProduct, setRichProduct] = useState<{ productId: string } | null>(() =>
     typeof initialRichProductId === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(initialRichProductId)
       ? { productId: initialRichProductId }
       : null,
   );
-  const checkoutInitialChannel = voiceCheckoutEnabled && (channel ?? restoreChannelPreference()) === "voice"
+  const checkoutInitialChannel = voiceCheckoutEnabled && channel === "voice"
     ? "voice"
     : "chat";
   const openedInitialRichProduct = useRef(false);
@@ -367,7 +365,6 @@ export default function ConversationShell({
   const pendingProductCart = useRef<{ variantId: string } | null>(null);
   const openedPreparedActions = useRef(new Set<string>());
   const oneBuyClickEnabled = useRef(false);
-  const welcomeVoiceStarted = useRef(false);
   useEffect(() => {
     presentedProductVariantRef.current = undefined;
   }, [richProduct?.productId]);
@@ -378,12 +375,6 @@ export default function ConversationShell({
     if (!mounted || supportsVoice || mode !== "intro") return;
     selectChannel("chat");
   }, [mode, mounted, selectChannel, supportsVoice]);
-  useEffect(() => {
-    if (!mounted || voiceCheckoutEnabled !== true || welcomeVoiceStarted.current) return;
-    welcomeVoiceStarted.current = true;
-    setWelcomeVoiceRequested(true);
-    realtimeVoice.start();
-  }, [mounted, realtimeVoice.start, voiceCheckoutEnabled]);
   useEffect(() => {
     const requestSummary = (event: Event) => {
       const summary = (event as CustomEvent<{ summary?: unknown }>).detail?.summary;
@@ -397,6 +388,16 @@ export default function ConversationShell({
   useEffect(() => {
     if (voiceCheckoutEnabled !== true && channel === "voice") toggleChannel();
   }, [voiceCheckoutEnabled, channel, toggleChannel]);
+
+  const toggleVoiceFromHeader = () => {
+    if (channel === "voice") {
+      realtimeVoice.stop();
+      selectChannel("chat");
+      return;
+    }
+    selectChannel("voice");
+    realtimeVoice.start();
+  };
   useEffect(() => {
     if (!conversationId) return;
     let active = true;
@@ -705,7 +706,7 @@ export default function ConversationShell({
               </>
             )}
           </div>
-          {voiceCheckoutEnabled ? <button data-neu="control" type="button" onClick={() => { if (channel === "voice") realtimeVoice.stop(); toggleChannel(); if (channel !== "voice") realtimeVoice.start(); }} title={channel === "voice" ? "Mudar para chat" : "Mudar para voz"} style={{ width: "30px", height: "30px", borderRadius: "50%", border: `1px solid ${channel === "voice" ? "var(--aacp-accent)" : "var(--aacp-line)"}`, background: channel === "voice" ? "color-mix(in srgb, var(--aacp-accent) 15%, transparent)" : "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
+          {voiceCheckoutEnabled ? <button data-neu="control" type="button" onClick={toggleVoiceFromHeader} aria-label={channel === "voice" ? "Desativar compra por voz" : "Ativar compra por voz"} title={channel === "voice" ? "Mudar para chat" : "Mudar para voz"} style={{ width: "30px", height: "30px", borderRadius: "50%", border: `1px solid ${channel === "voice" ? "var(--aacp-accent)" : "var(--aacp-line)"}`, background: channel === "voice" ? "color-mix(in srgb, var(--aacp-accent) 15%, transparent)" : "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
             {channel === "voice" ? (
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.9-.9L3 21l1.9-5.6A8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" /></svg>
             ) : (
@@ -806,28 +807,17 @@ export default function ConversationShell({
               Eu cuido da sua compra do início ao fim. Acho a melhor opção, aplico promoções, organizo a entrega e finalizo o pagamento com você, passo a passo.
             </div>
             <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "9px", letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--aacp-muted)", marginBottom: "11px" }}>
-              {voiceCheckoutEnabled ? "Comece sua compra por voz" : "Como você prefere comprar?"}
+              {voiceCheckoutEnabled ? "Comece pelo chat ou ative a voz no cabeçalho" : "Como você prefere comprar?"}
             </div>
             <div style={{ display: "flex", gap: "10px", width: "100%" }}>
-              <button data-neu="choice" type="button" onClick={() => { realtimeVoice.stop(); selectChannel("chat"); }} style={{ order: 2, flex: 1, cursor: "pointer", fontFamily: "inherit", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", borderRadius: "16px", padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "9px", color: "var(--aacp-fg)" }}>
+              <button data-neu="choice" type="button" onClick={() => { realtimeVoice.stop(); selectChannel("chat"); }} style={{ flex: 1, cursor: "pointer", fontFamily: "inherit", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", borderRadius: "16px", padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "9px", color: "var(--aacp-fg)" }}>
                 <span style={{ width: "38px", height: "38px", borderRadius: "11px", background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
                   <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.9-.9L3 21l1.9-5.6A8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" /></svg>
                 </span>
                 <span style={{ fontSize: "13.5px", fontWeight: 600 }}>Por chat</span>
                 <span style={{ fontSize: "10.5px", color: "var(--aacp-muted)", lineHeight: 1.3 }}>Converse digitando</span>
               </button>
-              {voiceCheckoutEnabled ? <button data-neu="choice" type="button" onClick={() => { selectChannel("voice"); realtimeVoice.start(); }} style={{ order: 1, flex: 1, cursor: "pointer", fontFamily: "inherit", border: "1px solid var(--aacp-accent)", background: "color-mix(in srgb, var(--aacp-accent) 8%, transparent)", borderRadius: "16px", padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "9px", position: "relative", overflow: "hidden", color: "var(--aacp-fg)" }}>
-                <span style={{ position: "absolute", top: "9px", right: "9px", fontFamily: "'Space Mono', monospace", fontSize: "7.5px", letterSpacing: ".5px", color: "var(--aacp-accent-text, var(--aacp-accent))", border: "1px solid var(--aacp-accent)", borderRadius: "5px", padding: "1px 4px" }}>IA</span>
-                <span style={{ width: "38px", height: "38px", borderRadius: "11px", background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
-                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
-                </span>
-                <span style={{ fontSize: "13.5px", fontWeight: 600 }}>Começar por voz</span>
-                <span style={{ fontSize: "10.5px", color: "var(--aacp-muted)", lineHeight: 1.3 }}>Fale com a {agent}</span>
-              </button> : null}
             </div>
-            {voiceCheckoutEnabled && welcomeVoiceRequested ? <div role="status" aria-live="polite" style={{ minHeight: "18px", marginTop: "12px", color: "var(--aacp-muted)", fontSize: "10.5px" }}>
-              {realtimeVoice.connecting ? "Preparando saudação por voz..." : realtimeVoice.speaking ? `${agent} está falando...` : realtimeVoice.hint}
-            </div> : null}
           </div>
         </div>
       ) : (

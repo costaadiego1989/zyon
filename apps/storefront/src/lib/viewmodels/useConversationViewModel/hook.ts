@@ -115,7 +115,9 @@ export function useConversationViewModel(
     (ch: Channel) => {
       setChannel(ch);
       setMode("chat");
-      saveChannelPreference(ch);
+      // Voice is opt-in for the current page only. Do not restore it after
+      // a reload, which could make the storefront appear voice-active.
+      saveChannelPreference(ch === "voice" ? "chat" : ch);
       initConversation();
 
       const expGreeting = experimentVM.getExperimentGreeting();
@@ -136,7 +138,7 @@ export function useConversationViewModel(
   const toggleChannel = useCallback(() => {
     const next: Channel = channel === "voice" ? "chat" : "voice";
     setChannel(next);
-    saveChannelPreference(next);
+    saveChannelPreference(next === "voice" ? "chat" : next);
   }, [channel]);
 
   const ensureConversation = useCallback(async (): Promise<string | null> => {
@@ -215,7 +217,7 @@ export function useConversationViewModel(
     if (!merchantId) return;
     const persisted = messages.filter((m) => !m.ephemeral);
     if (persisted.length === 0) return;
-    saveConversationState(merchantId, CONVERSATION_STATE_KEY, { conversationId, messages: persisted, mode, channel });
+    saveConversationState(merchantId, CONVERSATION_STATE_KEY, { conversationId, messages: persisted, mode, channel: channel === "voice" ? "chat" : channel });
   }, [merchantId, conversationId, messages, mode, channel]);
 
   const restoredRef = useRef(false);
@@ -231,7 +233,7 @@ export function useConversationViewModel(
           setMessages(restored.messages);
           if (restored.conversationId) setConversationId(restored.conversationId);
           if (restored.mode) setMode(restored.mode);
-          if (restored.channel) setChannel(restored.channel);
+          if (restored.channel) setChannel(restored.channel === "voice" ? "chat" : restored.channel);
           restoredRef.current = true;
           return;
         }
@@ -255,8 +257,8 @@ export function useConversationViewModel(
           clearCart();
         }
       }
-      if (savedChannel === "chat" || savedChannel === "voice") {
-        setChannel(savedChannel);
+      if (savedChannel === "chat") {
+        setChannel("chat");
         setMode("chat");
       }
     } catch {}
